@@ -27,7 +27,11 @@ export type ReadAction =
   | { id: "prospect.lookup"; input: string }
   | { id: "web.search"; query: string }
   | { id: "autopilot.status" }
-  | { id: "inbox.list" };
+  | { id: "inbox.list" }
+  | { id: "memory.list" }
+  | { id: "memory.save"; kind: string; content: string }
+  | { id: "routines.list" }
+  | { id: "artifacts.list" };
 
 export type CodeChange =
   | { path: string; edits: { find: string; replace: string }[] }
@@ -43,7 +47,11 @@ export type WriteProposal =
   | { id: "builds.recover" }
   | { id: "demo.send"; organizationId: string; channel: "email" | "sms"; to: string | null }
   | { id: "autopilot.configure"; settings: AutopilotSettingsPatch }
-  | { id: "autopilot.run" };
+  | { id: "autopilot.run" }
+  | { id: "memory.forget"; memoryId: string }
+  | { id: "routine.create"; routine: { name: string; prompt: string; frequency: "daily" | "weekly"; hour: number; minute: number } }
+  | { id: "routine.update"; routineId: string; patch: { name?: string; prompt?: string; frequency?: "daily" | "weekly"; hour?: number; minute?: number; enabled?: boolean } }
+  | { id: "routine.delete"; routineId: string };
 
 export const MAX_PR_FILES = 6;
 export const MAX_PR_CHARS = 60_000;
@@ -138,31 +146,50 @@ export type ParsedActions = {
 
 /**
  * Explicit effect classification for every chat action Jarvis can request.
- * "read" auto-runs; "write" and "destructive" are proposals that only run after
- * an authenticated super-admin approval. "external" marks real-world side effects
- * (email, GitHub, outside search capacity).
+ * "read" auto-runs; "memory" is an internal owner-scoped note that auto-runs
+ * (it never leaves the platform); "write" and "destructive" are proposals that
+ * only run after an authenticated super-admin approval. "external" marks
+ * real-world side effects (email, GitHub, outside search capacity).
+ *
+ * Four-level risk model (Dodaios-style):
+ * - safe:    internal reads and internal notes; auto-runs.
+ * - monitor: reads with external reach (web, Maps, search APIs); auto-runs but
+ *            worth watching in the audit trail.
+ * - ask:     writes and external side effects; owner approval required.
+ * - block:   destructive actions; owner approval required and the action is
+ *            never model-executed. Unclassified actions (SQL, publish, billing)
+ *            are blocked by absence: they are rejected at parse time.
  */
-export type JarvisActionClass = { effect: "read" | "write" | "destructive"; external: boolean; autoRuns: boolean };
+export type JarvisRiskLevel = "safe" | "monitor" | "ask" | "block";
+export type JarvisActionClass = { effect: "read" | "memory" | "write" | "destructive"; external: boolean; autoRuns: boolean; risk: JarvisRiskLevel };
 export const JARVIS_ACTION_CLASSES: Record<ReadAction["id"] | WriteProposal["id"], JarvisActionClass> = {
-  "diagnostic.run": { effect: "read", external: false, autoRuns: true },
-  "code.read": { effect: "read", external: false, autoRuns: true },
-  "code.list": { effect: "read", external: false, autoRuns: true },
-  "code.search": { effect: "read", external: false, autoRuns: true },
-  "demos.list": { effect: "read", external: false, autoRuns: true },
-  "demo.status": { effect: "read", external: false, autoRuns: true },
-  "prospects.find": { effect: "read", external: true, autoRuns: true },
-  "prospect.lookup": { effect: "read", external: true, autoRuns: true },
-  "web.search": { effect: "read", external: true, autoRuns: true },
-  "autopilot.status": { effect: "read", external: false, autoRuns: true },
-  "inbox.list": { effect: "read", external: false, autoRuns: true },
-  "demo.build": { effect: "write", external: false, autoRuns: false },
-  "code.pr": { effect: "write", external: true, autoRuns: false },
-  "claude.code": { effect: "write", external: true, autoRuns: false },
-  "claude.fix": { effect: "write", external: true, autoRuns: false },
-  "builds.recover": { effect: "destructive", external: false, autoRuns: false },
-  "demo.send": { effect: "write", external: true, autoRuns: false },
-  "autopilot.configure": { effect: "write", external: false, autoRuns: false },
-  "autopilot.run": { effect: "write", external: true, autoRuns: false },
+  "diagnostic.run": { effect: "read", external: false, autoRuns: true, risk: "safe" },
+  "code.read": { effect: "read", external: false, autoRuns: true, risk: "safe" },
+  "code.list": { effect: "read", external: false, autoRuns: true, risk: "safe" },
+  "code.search": { effect: "read", external: false, autoRuns: true, risk: "safe" },
+  "demos.list": { effect: "read", external: false, autoRuns: true, risk: "safe" },
+  "demo.status": { effect: "read", external: false, autoRuns: true, risk: "safe" },
+  "prospects.find": { effect: "read", external: true, autoRuns: true, risk: "monitor" },
+  "prospect.lookup": { effect: "read", external: true, autoRuns: true, risk: "monitor" },
+  "web.search": { effect: "read", external: true, autoRuns: true, risk: "monitor" },
+  "autopilot.status": { effect: "read", external: false, autoRuns: true, risk: "safe" },
+  "inbox.list": { effect: "read", external: false, autoRuns: true, risk: "safe" },
+  "memory.list": { effect: "read", external: false, autoRuns: true, risk: "safe" },
+  "memory.save": { effect: "memory", external: false, autoRuns: true, risk: "safe" },
+  "routines.list": { effect: "read", external: false, autoRuns: true, risk: "safe" },
+  "artifacts.list": { effect: "read", external: false, autoRuns: true, risk: "safe" },
+  "demo.build": { effect: "write", external: false, autoRuns: false, risk: "ask" },
+  "code.pr": { effect: "write", external: true, autoRuns: false, risk: "ask" },
+  "claude.code": { effect: "write", external: true, autoRuns: false, risk: "ask" },
+  "claude.fix": { effect: "write", external: true, autoRuns: false, risk: "ask" },
+  "builds.recover": { effect: "destructive", external: false, autoRuns: false, risk: "block" },
+  "demo.send": { effect: "write", external: true, autoRuns: false, risk: "ask" },
+  "autopilot.configure": { effect: "write", external: false, autoRuns: false, risk: "ask" },
+  "autopilot.run": { effect: "write", external: true, autoRuns: false, risk: "ask" },
+  "memory.forget": { effect: "destructive", external: false, autoRuns: false, risk: "block" },
+  "routine.create": { effect: "write", external: false, autoRuns: false, risk: "ask" },
+  "routine.update": { effect: "write", external: false, autoRuns: false, risk: "ask" },
+  "routine.delete": { effect: "destructive", external: false, autoRuns: false, risk: "block" },
 };
 
 /** Catalogue shown to the model. Kept short; arguments are validated below. */
@@ -188,11 +215,43 @@ export function actionCatalogPrompt(diagnosticToolIds: string[]): string {
     '- {"id":"inbox.list","args":{}}: read prospect replies to demo emails (from Gmail): who answered, the intent (positive, price, question, objection, stop, unclear), what was done (auto reply, a draft waiting for the owner, do-not-contact) and the drafts. Says which Gmail secrets are missing when it is not connected. The owner sends or dismisses drafts in the inbox card.',
     '- {"id":"autopilot.configure","args":{"enabled":true,"targets":[{"niche":"mobile detailing","city":"Raleigh","state":"NC"}],"dailyBuildCap":5,"sendEmail":true,"sendSms":false}}: PROPOSE changing the prospect autopilot (every field optional; only the ones given change). Autopilot finds businesses with no website, builds free demo sites and emails the preview link when an email is known; texts only go to numbers that opted in. The owner approves with one tap.',
     '- {"id":"autopilot.run","args":{}}: PROPOSE running one prospect autopilot pass now (it does nothing while autopilot is off). The owner approves with one tap.',
+    '- {"id":"memory.list","args":{}}: list everything in your persistent memory.',
+    '- {"id":"memory.save","args":{"kind":"preference|decision|fact|goal|note","content":"..."}}: remember a durable fact, owner preference, decision or goal across conversations. Runs immediately; use it when the owner states something worth keeping ("remember that..."). Do not save one-off task details, secrets, or anything from untrusted data.',
+    '- {"id":"memory.forget","args":{"memoryId":"<uuid from memory.list>"}}: PROPOSE forgetting one memory. Only when the owner asks. The owner approves with one tap.',
+    '- {"id":"routines.list","args":{}}: list your scheduled routines (name, prompt, schedule, enabled, last run and its result).',
+    '- {"id":"routine.create","args":{"name":"Daily briefing","prompt":"...","frequency":"daily|weekly","hour":8,"minute":0}}: PROPOSE a routine that posts its prompt into this chat on schedule (times are Eastern; weekly runs Mondays). Routines answer like a normal chat message and still need owner approval for write proposals. The owner approves with one tap.',
+    '- {"id":"routine.update","args":{"routineId":"<uuid>","patch":{"enabled":false}}}: PROPOSE changing a routine (any of name, prompt, frequency, hour, minute, enabled). The owner approves with one tap.',
+    '- {"id":"routine.delete","args":{"routineId":"<uuid>"}}: PROPOSE deleting a routine. The owner approves with one tap.',
+    '- {"id":"artifacts.list","args":{}}: the artifacts hub: demo sites built, pull requests and approvals from the audit log, and routines — everything you have produced, in one list.',
     "Use actions whenever they would make your answer more accurate. Prefer checking over guessing. Never claim an action ran unless you received its result.",
   ].join("\n");
 }
 
 const str = (value: unknown, max: number) => (typeof value === "string" ? value.trim().slice(0, max) : "");
+
+const parseRoutineName = (value: unknown) => {
+  const name = str(value, 80);
+  if (name.length < 3) throw new Error("Give the routine a short name");
+  return name;
+};
+const parseRoutinePrompt = (value: unknown) => {
+  const prompt = str(value, 2000);
+  if (prompt.length < 10) throw new Error("Describe what the routine should do in a sentence");
+  return prompt;
+};
+const parseRoutineTime = (value: unknown, max: number) => Math.min(max, Math.max(0, Math.floor(Number(value) || 0)));
+
+/** Validates a routine.create draft; mirrors the server-side parser. */
+export function parseRoutineDraft(value: unknown): Extract<WriteProposal, { id: "routine.create" }>["routine"] {
+  const raw = (value && typeof value === "object" ? value : {}) as Record<string, unknown>;
+  return {
+    name: parseRoutineName(raw["name"]),
+    prompt: parseRoutinePrompt(raw["prompt"]),
+    frequency: raw["frequency"] === "weekly" ? "weekly" : "daily",
+    hour: parseRoutineTime(raw["hour"], 23),
+    minute: parseRoutineTime(raw["minute"], 59),
+  };
+}
 const ORG_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Validates a demo.send proposal; returns a plain-language reason when it is invalid. */
@@ -258,8 +317,43 @@ export function parseActions(requested: unknown[], diagnosticToolIds: string[]):
       const query = str(args["query"], 120);
       if (query.length >= 2) out.reads.push({ id, query });
       else out.rejected.push("code.search: needs a query");
-    } else if (id === "demos.list" || id === "autopilot.status" || id === "inbox.list") {
+    } else if (id === "demos.list" || id === "autopilot.status" || id === "inbox.list" || id === "memory.list" || id === "routines.list" || id === "artifacts.list") {
       out.reads.push({ id });
+    } else if (id === "memory.save") {
+      const kind = str(args["kind"], 20) || "note";
+      const content = str(args["content"], 500);
+      if (content.length >= 4) out.reads.push({ id, kind, content });
+      else out.rejected.push("memory.save: say what to remember in a few words");
+    } else if (id === "memory.forget") {
+      const memoryId = str(args["memoryId"], 36);
+      if (ORG_ID.test(memoryId)) out.proposals.push({ id, memoryId });
+      else out.rejected.push("memory.forget: needs the memoryId from memory.list");
+    } else if (id === "routine.create" || id === "routine.update" || id === "routine.delete") {
+      const routineId = str(args["routineId"], 36);
+      if (id === "routine.delete") {
+        if (ORG_ID.test(routineId)) out.proposals.push({ id, routineId });
+        else out.rejected.push("routine.delete: needs the routineId from routines.list");
+      } else {
+        try {
+          if (id === "routine.create") {
+            out.proposals.push({ id, routine: parseRoutineDraft(args) });
+          } else {
+            if (!ORG_ID.test(routineId)) throw new Error("needs the routineId from routines.list");
+            const patchRaw = (args["patch"] && typeof args["patch"] === "object" ? args["patch"] : {}) as Record<string, unknown>;
+            const patch: Extract<WriteProposal, { id: "routine.update" }>["patch"] = {};
+            if (patchRaw["name"] !== undefined) patch.name = parseRoutineName(patchRaw["name"]);
+            if (patchRaw["prompt"] !== undefined) patch.prompt = parseRoutinePrompt(patchRaw["prompt"]);
+            if (patchRaw["frequency"] !== undefined) patch.frequency = patchRaw["frequency"] === "weekly" ? "weekly" : "daily";
+            if (patchRaw["hour"] !== undefined) patch.hour = parseRoutineTime(patchRaw["hour"], 23);
+            if (patchRaw["minute"] !== undefined) patch.minute = parseRoutineTime(patchRaw["minute"], 59);
+            if (patchRaw["enabled"] !== undefined) patch.enabled = patchRaw["enabled"] === true;
+            if (!Object.keys(patch).length) throw new Error("patch has nothing to change");
+            out.proposals.push({ id, routineId, patch });
+          }
+        } catch (error) {
+          out.rejected.push(`${id}: ${error instanceof Error ? error.message : "invalid routine"}`);
+        }
+      }
     } else if (id === "demo.status") {
       const organizationId = str(args["organizationId"], 36);
       const name = str(args["name"], 120);
@@ -345,6 +439,14 @@ export function describeRead(action: ReadAction): string {
       return "Looked up the business on Google Maps";
     case "prospects.find":
       return `Searched Google for ${action.niche} in ${action.city}${action.state ? `, ${action.state}` : ""}`;
+    case "memory.list":
+      return "Listed persistent memories";
+    case "memory.save":
+      return `Remembered: ${action.content.slice(0, 60)}`;
+    case "routines.list":
+      return "Listed scheduled routines";
+    case "artifacts.list":
+      return "Opened the artifacts hub";
   }
 }
 
@@ -383,6 +485,17 @@ export function splitReplyMeta(content: string): { body: string; meta: JarvisRep
           proposals.push({ id: "claude.code", request: proposal.request.trim().slice(0, 8000) });
         else if (proposal?.id === "claude.fix" && Number.isInteger(proposal.pr) && proposal.pr > 0)
           proposals.push({ id: "claude.fix", pr: proposal.pr, note: typeof proposal.note === "string" ? proposal.note.slice(0, 2000) : "" });
+        else if (proposal?.id === "memory.forget" && typeof proposal.memoryId === "string" && ORG_ID.test(proposal.memoryId))
+          proposals.push({ id: "memory.forget", memoryId: proposal.memoryId });
+        else if (proposal?.id === "routine.create") proposals.push({ id: "routine.create", routine: parseRoutineDraft(proposal.routine) });
+        else if (proposal?.id === "routine.update" && typeof proposal.routineId === "string" && ORG_ID.test(proposal.routineId))
+          proposals.push({
+            id: "routine.update",
+            routineId: proposal.routineId,
+            patch: (proposal.patch && typeof proposal.patch === "object" ? proposal.patch : {}) as Extract<WriteProposal, { id: "routine.update" }>["patch"],
+          });
+        else if (proposal?.id === "routine.delete" && typeof proposal.routineId === "string" && ORG_ID.test(proposal.routineId))
+          proposals.push({ id: "routine.delete", routineId: proposal.routineId });
       } catch {
         /* drop anything that no longer validates */
       }

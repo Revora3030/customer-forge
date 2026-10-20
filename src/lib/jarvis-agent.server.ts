@@ -12,6 +12,41 @@ const bounded = (value: unknown, max = MAX_RESULT_CHARS) => {
 };
 
 /**
+ * The artifacts hub: everything Jarvis has produced, in one list. Demo sites,
+ * approvals from the durable audit log, and scheduled routines. Read-only.
+ */
+async function collectArtifacts(db: SupabaseClient, actorId: string) {
+  const { listProspectDemos } = await import("./jarvis-demo-site.server");
+  const { listJarvisRoutines } = await import("./jarvis-routines.server");
+  const readAudit = async (): Promise<{ action?: unknown; details?: unknown; created_at?: unknown }[]> => {
+    try {
+      const res = await db.from("audit_logs").select("action, details, created_at").order("created_at", { ascending: false }).limit(40);
+      return res.error ? [] : (res.data ?? []);
+    } catch {
+      return [];
+    }
+  };
+  const [demos, routines, audit] = await Promise.all([
+    listProspectDemos(db, 50).catch((): Awaited<ReturnType<typeof listProspectDemos>> => []),
+    listJarvisRoutines(db, actorId).catch((): Awaited<ReturnType<typeof listJarvisRoutines>> => []),
+    readAudit(),
+  ]);
+  return {
+    note: "Everything Jarvis has produced or had approved, newest first. Approvals come from the durable audit log.",
+    demoSites: (demos as { name?: string; buildStatus?: string; previewUrl?: string | null }[]).map((demo) => ({
+      name: demo.name ?? "Demo site",
+      status: demo.buildStatus ?? "unknown",
+      preview: demo.previewUrl ?? null,
+    })),
+    routines: routines.map((routine) => ({ name: routine.name, enabled: routine.enabled, lastStatus: routine.last_status })),
+    approvals: (audit as { action?: string; details?: unknown; created_at?: string }[]).map((row) => ({
+      action: row.action ?? "unknown",
+      at: row.created_at ?? null,
+    })),
+  };
+}
+
+/**
  * Runs Jarvis's read actions. Every action maps to existing, code-owned,
  * read-only server logic; the caller has already been verified as super-admin.
  */
@@ -61,6 +96,27 @@ export async function runReadActions(db: SupabaseClient, reads: ReadAction[], ac
         } else if (action.id === "inbox.list") {
           const { listProspectInbox } = await import("./prospect-replies.server");
           result = await listProspectInbox(db, 20);
+        } else if (action.id === "memory.list") {
+          const { listJarvisMemories } = await import("./jarvis-memory.server");
+          const memories = await listJarvisMemories(db, actorId);
+          result = { count: memories.length, memories: memories.map((m) => ({ id: m.id, kind: m.kind, content: m.content, savedAt: m.created_at })) };
+        } else if (action.id === "memory.save") {
+          const { parseMemoryKind, parseMemoryContent, saveJarvisMemory } = await import("./jarvis-memory.server");
+          result = await saveJarvisMemory(db, actorId, parseMemoryKind(action.kind), parseMemoryContent(action.content));
+        } else if (action.id === "routines.list") {
+          const { listJarvisRoutines } = await import("./jarvis-routines.server");
+          const routines = await listJarvisRoutines(db, actorId);
+          result = {
+            count: routines.length,
+            note: "Times are Eastern. Weekly routines run on Mondays.",
+            routines: routines.map((r) => ({
+              id: r.id, name: r.name, prompt: r.prompt, frequency: r.frequency,
+              time: `${String(r.hour).padStart(2, "0")}:${String(r.minute).padStart(2, "0")}`,
+              enabled: r.enabled, lastRunAt: r.last_run_at, lastStatus: r.last_status, lastSummary: r.last_summary,
+            })),
+          };
+        } else if (action.id === "artifacts.list") {
+          result = await collectArtifacts(db, actorId);
         } else {
           const { listProspectDemos } = await import("./jarvis-demo-site.server");
           result = await listProspectDemos(db);

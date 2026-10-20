@@ -23,7 +23,7 @@ import { readApprovals, rememberApproval, type Approvals } from "@/components/ap
 import { DemoBuildCard } from "@/components/app/jarvis/DemoBuildCard";
 import { findMapsLink, readDemoCards, readDemoSendProposal, rememberDemoCard, type DemoCardRef, type DemoChannel } from "@/components/app/jarvis/demo-build";
 import "@/components/app/jarvis/jarvis.css";
-import { askClaudeToFixPullRequestFn, openJarvisPullRequestFn, recoverStalledBuildsFn, sendClaudeCodeRequestFn, clearJarvisHistory, getJarvisHistory, getJarvisDiagnostics, getJarvisAcquisitionReadiness, getJarvisDiagnosticTools, runJarvisDiagnosticTool, regenerateJarvisReply, sendJarvisMessage, JARVIS_HISTORY_PAGE } from "@/lib/jarvis.functions";
+import { askClaudeToFixPullRequestFn, openJarvisPullRequestFn, recoverStalledBuildsFn, sendClaudeCodeRequestFn, clearJarvisHistory, getJarvisHistory, getJarvisDiagnostics, getJarvisAcquisitionReadiness, getJarvisDiagnosticTools, runJarvisDiagnosticTool, regenerateJarvisReply, sendJarvisMessage, forgetJarvisMemoryFn, saveJarvisRoutineFn, deleteJarvisRoutineFn, JARVIS_HISTORY_PAGE } from "@/lib/jarvis.functions";
 import { draftProspectOutreach, type ProspectDraft } from "@/lib/jarvis-prospecting.functions";
 import { formatRevoraOffer } from "@/lib/jarvis-acquisition-policy";
 import { jarvisVoiceLinks, synthesizeJarvisVoice } from "@/lib/jarvis-voice.functions";
@@ -607,6 +607,39 @@ function Jarvis() {
     if (send) {
       // A fresh nonce per approval remounts the card, so a re-approval after Cancel opens the sheet again.
       setSendCards((current) => ({ ...current, [key]: { card: { organizationId: send.organizationId, name: "" }, channel: send.channel, to: send.to, nonce: (current[key]?.nonce ?? 0) + 1 } }));
+      return;
+    }
+    if (proposal.id === "memory.forget") {
+      try {
+        await forgetJarvisMemoryFn({ data: { memoryId: proposal.memoryId } });
+        markDone(key);
+        toast.success("Memory forgotten. Jarvis will not bring it back.");
+      } catch (error) {
+        forget(key);
+        toast.error(error instanceof Error ? error.message : "Couldn't forget that memory.");
+      }
+      return;
+    }
+    if (proposal.id === "routine.create" || proposal.id === "routine.update") {
+      try {
+        await saveJarvisRoutineFn({ data: proposal.id === "routine.create" ? { routine: proposal.routine } : { routineId: proposal.routineId, patch: proposal.patch } });
+        markDone(key);
+        toast.success(proposal.id === "routine.create" ? "Routine created. It runs on its schedule and posts results here." : "Routine updated.");
+      } catch (error) {
+        forget(key);
+        toast.error(error instanceof Error ? error.message : "Couldn't save the routine.");
+      }
+      return;
+    }
+    if (proposal.id === "routine.delete") {
+      try {
+        await deleteJarvisRoutineFn({ data: { routineId: proposal.routineId } });
+        markDone(key);
+        toast.success("Routine deleted.");
+      } catch (error) {
+        forget(key);
+        toast.error(error instanceof Error ? error.message : "Couldn't delete the routine.");
+      }
       return;
     }
     if (proposal.id !== "demo.build") { forget(key); toast.error("This action can't be approved from this page yet."); return; }

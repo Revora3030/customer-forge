@@ -64,6 +64,20 @@
       "when": 1792515549515,
       "tag": "0008_prospect_follow_up_kind",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1792537129110,
+      "tag": "0009_jarvis_memory_routines",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1792537459327,
+      "tag": "0010_jarvis_memory_routines_plain_user_ids",
+      "breakpoints": true
     }
   ]
 }

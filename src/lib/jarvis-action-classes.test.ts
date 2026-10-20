@@ -15,18 +15,36 @@ const sample: Record<string, Record<string, unknown>> = {
 describe("Jarvis action effect classes", () => {
   it("never auto-runs write or destructive actions", () => {
     for (const [id, cls] of Object.entries(JARVIS_ACTION_CLASSES)) {
-      if (cls.effect !== "read") expect(cls.autoRuns, id).toBe(false);
+      // memory.save is the one documented exception: owner-scoped internal memory, not a platform write.
+      if (cls.effect !== "read" && cls.effect !== "memory") expect(cls.autoRuns, id).toBe(false);
     }
   });
 
   it("routes every write/destructive action to a proposal, never a read", () => {
     for (const [id, cls] of Object.entries(JARVIS_ACTION_CLASSES)) {
-      if (cls.effect === "read") continue;
+      if (cls.effect === "read" || cls.effect === "memory") continue;
       const parsed = parseActions([{ id, args: sample[id] ?? {} }], []);
       expect(parsed.reads.map((r) => r.id), id).not.toContain(id);
       const ids: string[] = parsed.proposals.map((p) => p.id);
       expect(parsed.rejected.length ? [...ids, id] : ids, id).toContain(id);
     }
+  });
+
+  it("uses the four-level risk model consistently", () => {
+    for (const [id, cls] of Object.entries(JARVIS_ACTION_CLASSES)) {
+      if (cls.effect === "read") expect(cls.risk, id).toBe(cls.external ? "monitor" : "safe");
+      if (cls.effect === "memory") { expect(cls.risk, id).toBe("safe"); expect(cls.external, id).toBe(false); }
+      if (cls.effect === "write") expect(cls.risk, id).toBe("ask");
+      if (cls.effect === "destructive") expect(cls.risk, id).toBe("block");
+    }
+  });
+
+  it("only memory.save auto-runs a non-read effect, and it stays internal", () => {
+    const autoRuns = Object.entries(JARVIS_ACTION_CLASSES).filter(([, cls]) => cls.effect !== "read" && cls.autoRuns);
+    expect(autoRuns.map(([id]) => id)).toEqual(["memory.save"]);
+    const parsed = parseActions([{ id: "memory.save", args: { kind: "preference", content: "Owner prefers short answers" } }], []);
+    expect(parsed.reads).toEqual([{ id: "memory.save", kind: "preference", content: "Owner prefers short answers" }]);
+    expect(parsed.proposals).toHaveLength(0);
   });
 
   it("rejects unclassified actions such as SQL, publish or billing", () => {

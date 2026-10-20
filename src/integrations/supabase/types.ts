@@ -1855,6 +1855,36 @@ export type Database = {
         }
         Relationships: []
       }
+      jarvis_memories: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          kind: string
+          source: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          kind?: string
+          source?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          kind?: string
+          source?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       jarvis_messages: {
         Row: {
           content: string
@@ -1875,6 +1905,54 @@ export type Database = {
           created_at?: string
           id?: string
           role?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      jarvis_routines: {
+        Row: {
+          created_at: string
+          enabled: boolean
+          frequency: string
+          hour: number
+          id: string
+          last_run_at: string | null
+          last_status: string | null
+          last_summary: string | null
+          minute: number
+          name: string
+          prompt: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          enabled?: boolean
+          frequency?: string
+          hour?: number
+          id?: string
+          last_run_at?: string | null
+          last_status?: string | null
+          last_summary?: string | null
+          minute?: number
+          name: string
+          prompt: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          enabled?: boolean
+          frequency?: string
+          hour?: number
+          id?: string
+          last_run_at?: string | null
+          last_status?: string | null
+          last_summary?: string | null
+          minute?: number
+          name?: string
+          prompt?: string
+          updated_at?: string
           user_id?: string
         }
         Relationships: []
