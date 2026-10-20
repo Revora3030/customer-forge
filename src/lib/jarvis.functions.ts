@@ -606,6 +606,116 @@ export const listClaudeCodeRequestsFn = createServerFn({ method: "GET" })
     return listClaudeCodeRequests();
   });
 
+/** Lists the owner's persistent Jarvis memories (owner-scoped table, RLS-enforced). */
+export const listJarvisMemoriesFn = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const db = await guardedAdmin(context);
+    const { listJarvisMemories } = await import("./jarvis-memory.server");
+    return listJarvisMemories(db, String(context.userId));
+  });
+
+/** Forgets one memory after the owner approves Jarvis's memory.forget proposal. */
+export const forgetJarvisMemoryFn = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: { memoryId: unknown }) => {
+    const memoryId = typeof input?.memoryId === "string" ? input.memoryId : "";
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(memoryId)) {
+      throw new Error("Choose a memory from the list.");
+    }
+    return { memoryId };
+  })
+  .handler(async ({ context, data }) => {
+    const db = await guardedAdmin(context);
+    const { forgetJarvisMemory } = await import("./jarvis-memory.server");
+    const result = await forgetJarvisMemory(db, String(context.userId), data.memoryId);
+    await db.from("audit_logs").insert({
+      organization_id: null,
+      actor_id: String(context.userId),
+      action: "jarvis.memory.forgotten",
+      entity: "jarvis_memories",
+      entity_id: data.memoryId,
+      metadata: {},
+    });
+    return result;
+  });
+
+/** Lists the owner's scheduled routines. */
+export const listJarvisRoutinesFn = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const db = await guardedAdmin(context);
+    const { listJarvisRoutines } = await import("./jarvis-routines.server");
+    return listJarvisRoutines(db, String(context.userId));
+  });
+
+/** Creates or updates a routine after the owner approves Jarvis's proposal. */
+export const saveJarvisRoutineFn = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: { routineId?: unknown; routine?: unknown; patch?: unknown }) => {
+    const { parseRoutineDraft } = require("./jarvis-actions") as typeof import("./jarvis-actions");
+    const routineId = typeof input?.routineId === "string" ? input.routineId : null;
+    if (routineId) {
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(routineId)) throw new Error("That routine id is not valid.");
+      const patchRaw = (input?.patch && typeof input.patch === "object" ? input.patch : {}) as Record<string, unknown>;
+      const patch: Record<string, unknown> = {};
+      if (patchRaw["name"] !== undefined || patchRaw["prompt"] !== undefined || patchRaw["frequency"] !== undefined || patchRaw["hour"] !== undefined || patchRaw["minute"] !== undefined) {
+        const parsed = parseRoutineDraft({ name: "routine", prompt: "routine prompt", ...patchRaw });
+        if (patchRaw["name"] !== undefined) patch["name"] = parsed.name;
+        if (patchRaw["prompt"] !== undefined) patch["prompt"] = parsed.prompt;
+        if (patchRaw["frequency"] !== undefined) patch["frequency"] = parsed.frequency;
+        if (patchRaw["hour"] !== undefined) patch["hour"] = parsed.hour;
+        if (patchRaw["minute"] !== undefined) patch["minute"] = parsed.minute;
+      }
+      if (patchRaw["enabled"] !== undefined) patch["enabled"] = patchRaw["enabled"] === true;
+      if (!Object.keys(patch).length) throw new Error("Nothing to change.");
+      return { routineId, patch };
+    }
+    return { routineId: null, routine: parseRoutineDraft(input?.routine) };
+  })
+  .handler(async ({ context, data }) => {
+    const db = await guardedAdmin(context);
+    const userId = String(context.userId);
+    const { createJarvisRoutine, updateJarvisRoutine } = await import("./jarvis-routines.server");
+    const result = data.routineId
+      ? await updateJarvisRoutine(db, userId, data.routineId, data.patch as never)
+      : await createJarvisRoutine(db, userId, (data as { routine: never }).routine);
+    await db.from("audit_logs").insert({
+      organization_id: null,
+      actor_id: userId,
+      action: data.routineId ? "jarvis.routine.updated" : "jarvis.routine.created",
+      entity: "jarvis_routines",
+      entity_id: data.routineId ?? (result as { id?: string }).id ?? null,
+      metadata: {},
+    });
+    return result;
+  });
+
+/** Deletes a routine after the owner approves Jarvis's routine.delete proposal. */
+export const deleteJarvisRoutineFn = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: { routineId: unknown }) => {
+    const routineId = typeof input?.routineId === "string" ? input.routineId : "";
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(routineId)) {
+      throw new Error("Choose a routine from the list.");
+    }
+    return { routineId };
+  })
+  .handler(async ({ context, data }) => {
+    const db = await guardedAdmin(context);
+    const { deleteJarvisRoutine } = await import("./jarvis-routines.server");
+    const result = await deleteJarvisRoutine(db, String(context.userId), data.routineId);
+    await db.from("audit_logs").insert({
+      organization_id: null,
+      actor_id: String(context.userId),
+      action: "jarvis.routine.deleted",
+      entity: "jarvis_routines",
+      entity_id: data.routineId,
+      metadata: {},
+    });
+    return result;
+  });
+
 /** Live facts and a spoken summary for the admin page the owner is on. */
 export const getJarvisPageBrief = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
