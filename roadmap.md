@@ -109,3 +109,4 @@
 - [x] Phase E approval log (Jarvis operations panel, from the permanent audit record).
 - [ ] Phase E daily brief upgrade.
 - [ ] Phase F signed-in journey/accessibility/speed pass.
+- [ ] SEO: review Google/AI search presence, fix issues, realistic ranking targets.
