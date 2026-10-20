@@ -117,6 +117,28 @@ function unwrapIdentity(data: Record<string, unknown> | null): Record<string, un
   return data;
 }
 
+/**
+ * Reads an AI-authored colour wherever the model put it: top level, inside a
+ * palette/colors object, or as {hex: "..."}. Parsing only; never a default.
+ */
+export function colourField(data: Record<string, unknown> | null, key: string): unknown {
+  if (!data) return null;
+  const pick = (value: unknown): unknown =>
+    value && typeof value === "object" && !Array.isArray(value)
+      ? ((value as Record<string, unknown>)["hex"] ?? (value as Record<string, unknown>)["value"] ?? null)
+      : value;
+  const direct = pick(data[key]);
+  if (direct) return direct;
+  for (const group of ["palette", "colors", "colours"]) {
+    const nested = data[group];
+    if (nested && typeof nested === "object" && !Array.isArray(nested)) {
+      const found = pick((nested as Record<string, unknown>)[key]);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
 function str(value: unknown, max = 160): string | null {
   if (typeof value !== "string") return null;
   const trimmed = value.trim().slice(0, max);
@@ -142,7 +164,7 @@ export async function authorBrandIdentity(
   // A valid but incomplete model response is repairable AI output, not provider
   // failure. Give the team one explicit correction pass before stopping. This
   // never introduces defaults: every creative value still comes from a model.
-  for (let attempt = 0; attempt < 2; attempt += 1) {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
     outcome = await callBestThinker({
       purpose: "creative_direction",
       complexity: "high",
@@ -160,9 +182,9 @@ export async function authorBrandIdentity(
     });
     if (!outcome.ok || !outcome.text) continue;
     data = unwrapIdentity(readJson(outcome.text));
-    primary = safeColor(data?.["primary"]);
-    secondary = safeColor(data?.["secondary"]);
-    accent = safeColor(data?.["accent"]) ?? primary;
+    primary = safeColor(colourField(data, "primary"));
+    secondary = safeColor(colourField(data, "secondary"));
+    accent = safeColor(colourField(data, "accent")) ?? primary;
     heading = siteHeadingFont(str(data?.["headingFont"], 42));
     body = siteHeadingFont(str(data?.["bodyFont"], 42));
     const generic = primary && secondary ? paletteProblems({ primary, secondary, accent }) : [];

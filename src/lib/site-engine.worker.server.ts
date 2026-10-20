@@ -1438,8 +1438,15 @@ async function runJob(
           description: (p["description"] as string) ?? null,
           services: serviceRows.map((service) => String((service as { name?: unknown }).name ?? "")).filter(Boolean),
           serviceArea: (p["service_area"] as string) ?? null,
+          contact: { phone: Boolean(String(p["phone"] ?? "").trim()), email: Boolean(String(p["email"] ?? "").trim()) },
         });
         architectureRef.current = outcome;
+        if (!outcome.architecture?.length) {
+          // Carry the real reason (provider, shape, or review refusal) so the
+          // job record says why, instead of a generic "no usable plan".
+          const { AiStepUnavailableError } = await import("@/lib/builder/ai-step-error");
+          throw new AiStepUnavailableError("page plan", outcome.skipped ?? "the architect returned no usable plan");
+        }
         return outcome.architecture;
       })()
     : null;
