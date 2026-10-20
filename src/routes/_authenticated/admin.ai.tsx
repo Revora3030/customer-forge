@@ -122,12 +122,20 @@ function AdminAi() {
                     ? "Not set up"
                     : provider.healthy
                       ? "Free · ready"
-                      : "Paused briefly"}
+                      : provider.remainingToday === 0
+                        ? "Out of quota today"
+                        : "Resting after errors"}
                 </Pill>
                 <span className="font-medium">{provider.label}</span>
                 {provider.remainingToday !== null ? (
                   <span className="text-muted-foreground">
                     {provider.remainingToday} requests left today
+                  </span>
+                ) : null}
+                {provider.calls24h ? (
+                  <span className="text-muted-foreground">
+                    {provider.calls24h} calls in 24h
+                    {provider.failures24h ? `, ${provider.failures24h} failed (${Math.round((provider.failures24h / provider.calls24h) * 100)}%)` : ", none failed"}
                   </span>
                 ) : null}
                 {provider.cooldownUntil ? (
