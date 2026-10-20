@@ -5,7 +5,8 @@
 - [x] Phone tap targets fixed on sign-in, reset password, contact, CRM.
 - [x] Homepage cut from ~36 to ~14 phone screens (owner chose tight). Further trim to ~8 still open.
 - [x] Phone number removed from all public pages, footer, phone bar, SEO data (owner choice). Signed-in app pages still show it.
-- [ ] Waves 2–5.
+- [ ] Current continuation: non-overlapping mobile cookie notice; homepage at eight 710px screens; marketing/app shared polish; dynamic-page and preview/publish-gate checks; evidence report. No publishing, outreach, billing or security/pricing changes.
+- [ ] Waves 2–5: complete only after page-by-page and signed-in journey evidence, not static route coverage alone.
 
 ## Build resume + production audit (2026-10-20)
 - [x] Save finished early build stages (brief, brand identity, wording, page plan) per job; retries reuse them. Verified live: resumed attempt skipped analysis (33s -> 0.6s) and reused pictures.

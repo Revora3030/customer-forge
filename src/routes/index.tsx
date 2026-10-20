@@ -1,24 +1,18 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
-  ArrowRight,
   Sparkles,
 } from "lucide-react";
 import { SiteFooter, SiteHeader } from "@/components/marketing/Chrome";
 import { AuthHint } from "@/components/marketing/AuthButtons";
 import { HeroStarter } from "@/components/marketing/HeroStarter";
 import { DashboardPreview } from "@/components/marketing/DashboardPreview";
-import { TRUST_INDUSTRIES } from "@/components/marketing/journey-constants";
-import { AfterYouStart } from "@/components/marketing/OfferSections";
 import { FAQ, FAQ_ITEMS } from "@/components/marketing/FAQ";
 import { ProductTour } from "@/components/marketing/ProductTour";
-import { FreeAccessButton } from "@/components/marketing/FreeAccess";
-import { Panel, Pill, SectionHeading } from "@/components/app/Bits";
+import { Pill, SectionHeading } from "@/components/app/Bits";
 import { RouteError } from "@/components/app/RouteStates";
 import { Button } from "@/components/ui/button";
-import { INDUSTRIES } from "@/lib/domain";
 import { GROWTH_SYSTEM, usd } from "@/lib/offer";
 import { GROWTH_SYSTEM_SCHEMA, LOCAL_BUSINESS_SCHEMA, canonicalLink, ogUrl } from "@/lib/seo";
-import { BusinessDetails } from "@/components/marketing/BusinessDetails";
 import { VisualComposition } from "@/components/site/VisualComposition";
 import { HOMEPAGE_COMPOSITION } from "@/lib/homepage-concept";
 import { SiteAddressProvider } from "@/components/site/site-links-context";
@@ -146,64 +140,6 @@ function HomeRoute() {
   return <Landing />;
 }
 
-const PROBLEMS = [
-  {
-    title: "Missed calls",
-    body: "Customers ring while you're on a job — 8 in 10 never call back, they call the next name on the list.",
-    cost: "Every missed call is a job someone else invoices.",
-    fix: "Revora answers instantly on your site, emails the lead back and books them in — while your hands are full.",
-  },
-  {
-    title: "Slow follow-up",
-    body: "Interest dies within the hour. By the evening the same person has already said yes to someone faster.",
-    cost: "Leads you already paid for go cold in silence.",
-    fix: "Automatic first reply in seconds, then a follow-up sequence that nudges the quiet ones until they answer.",
-  },
-  {
-    title: "Lost quotes",
-    body: "Estimates get sent from your phone at 9pm, then forgotten by both sides.",
-    cost: "Your biggest tickets vanish with no record of why.",
-    fix: "Instant on-site quote calculator plus a pipeline that never lets a quote sit unchased.",
-  },
-  {
-    title: "Booking friction",
-    body: "People must call during your working hours just to pick a time — so they don't.",
-    cost: "You lose the customers who only shop after 8pm.",
-    fix: "Real-time booking on your actual availability, with confirmations and reminders sent for you.",
-  },
-  {
-    title: "No visibility",
-    body: "You can't tell which ads, searches or referrals actually turned into paid work.",
-    cost: "You keep spending on the channel that doesn't pay.",
-    fix: "Every lead tracked from first click to invoice, so you double down on what makes money.",
-  },
-];
-
-/** Every capability stated as the outcome it produces for the owner. */
-
-const HERO_PROOF = [
-  ["24/7", "Quoting and booking, even at 2am"],
-  ["1 system", "Instead of five subscriptions"],
-  ["Done for you", "Built, launched and managed"],
-];
-
-function PrimaryCta({ className = "" }: { className?: string }) {
-  return (
-    <div className={`flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center ${className}`}>
-      <FreeAccessButton />
-      <Button asChild variant="outline" size="lg">
-        <Link to="/growth-assessment">
-          See what your business is leaving on the table{" "}
-          <ArrowRight className="size-4" aria-hidden="true" />
-        </Link>
-      </Button>
-      <Button asChild variant="link" size="lg">
-        <a href="#see-it">{GROWTH_SYSTEM.ctaDemo}</a>
-      </Button>
-    </div>
-  );
-}
-
 function PriceLine({ className = "" }: { className?: string }) {
   return (
     <p className={`text-[12.5px] text-muted-foreground ${className}`}>
@@ -233,14 +169,13 @@ function Landing() {
           {/* grid-cols-1 pins the mobile column to minmax(0,1fr); without it the
               implicit auto column grows to the widest child's min-content width
               and the hero text is clipped off-screen on phones. */}
-          <div className="mx-auto grid max-w-6xl grid-cols-1 gap-12 px-4 py-14 lg:grid-cols-[1.02fr_0.98fr] lg:items-center lg:gap-10 lg:py-20">
+          <div className="mx-auto grid max-w-6xl grid-cols-1 gap-8 px-4 py-10 lg:grid-cols-[1.02fr_0.98fr] lg:items-center lg:gap-10 lg:py-20">
             <div className="hero-stagger min-w-0">
               <Pill tone="signal">
                 <Sparkles className="size-3.5" aria-hidden="true" /> REVORA™ — AI growth system
               </Pill>
-              <h1 className="mt-5 font-display text-[clamp(2.1rem,5vw,3.5rem)] leading-[1.04] font-semibold tracking-tight">
-                Your business wins customers{" "}
-                <span className="gold-text">while you work, and while you sleep</span>.
+              <h1 className="mt-5 font-display text-[32px] sm:text-[48px] leading-[1.04] font-semibold tracking-tight">
+                Revora Growth Systems
               </h1>
               <p className="mt-4 max-w-xl text-[15px] leading-relaxed text-muted-foreground">
                 Revora's AI builds and runs your{" "}
@@ -256,37 +191,8 @@ function Landing() {
               <PriceLine className="mt-4" />
               <AuthHint className="mt-2" />
 
-              <dl className="mt-9 grid grid-cols-1 gap-x-6 gap-y-5 border-t border-border pt-6 sm:max-w-lg sm:grid-cols-3">
-                {HERO_PROOF.map(([value, label]) => (
-                  <div key={label}>
-                    <dt className="tnum gold-hl font-display text-[19px] leading-tight font-semibold">
-                      {value}
-                    </dt>
-                    <dd className="mt-1 text-[13px] leading-snug text-muted-foreground">{label}</dd>
-                  </div>
-                ))}
-              </dl>
-
-              {/* Fills the hero's lower left and answers "is this for me?" with
-                  the industries the system already ships pages and copy for. */}
-              <div className="mt-8 border-t border-border pt-5">
-                <p className="eyebrow">Built for businesses in every industry</p>
-                <ul className="mt-3 flex flex-wrap gap-1.5">
-                  {TRUST_INDUSTRIES.slice(0, 9).map((trade) => (
-                    <li
-                      key={trade}
-                      className="rounded-full border border-border bg-card/60 px-2.5 py-1 text-[11.5px] text-muted-foreground"
-                    >
-                      {trade}
-                    </li>
-                  ))}
-                  <li className="rounded-full border border-primary/30 px-2.5 py-1 text-[11.5px] text-primary">
-                    + {INDUSTRIES.length} industries
-                  </li>
-                </ul>
-              </div>
             </div>
-            <div className="preview-stage dashboard-3d-stage">
+            <div className="preview-stage dashboard-3d-stage hidden lg:block">
               <div className="preview-orbit" aria-hidden="true">
                 <span className="preview-orbit-dot" />
               </div>
@@ -301,59 +207,23 @@ function Landing() {
           </div>
         </section>
 
-        {/* PROBLEM */}
-        <section className="border-b border-border bg-card">
-          <div className="mx-auto max-w-6xl px-4 py-14">
-            <p className="eyebrow">The quiet leaks</p>
-            <h2 className="mt-2 max-w-3xl font-display text-[clamp(1.5rem,3vw,2.1rem)] leading-tight font-semibold">
-              You're not short on interest. You're{" "}
-              <span className="gold-text">losing it between the click and the booking</span>.
-            </h2>
-            <p className="mt-4 max-w-2xl text-[14px] leading-relaxed text-muted-foreground">
-              Five leaks that quietly cost businesses customers every month — and what Revora does
-              about each one.
-            </p>
-            <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {PROBLEMS.map((p) => (
-                <Panel key={p.title} className="card-lift flex flex-col overflow-hidden p-5">
-                  <h3 className="font-display text-[13px] font-bold tracking-[0.12em] uppercase">
-                    {p.title}
-                  </h3>
-                  <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">{p.body}</p>
-                  <p className="mt-3 text-[13px] leading-relaxed font-medium text-destructive">
-                    {p.cost}
-                  </p>
-                  <div className="mt-4 border-t border-primary/25 pt-3">
-                    <p className="eyebrow text-primary/90">What Revora does</p>
-                    <p className="mt-1.5 text-[12.5px] leading-relaxed text-foreground">{p.fix}</p>
-                  </div>
-                </Panel>
-              ))}
-            </div>
-            <div className="mt-8">
-              <PrimaryCta />
-              <PriceLine className="mt-4" />
-            </div>
-          </div>
-        </section>
-
         {/* INTERACTIVE PRODUCT TOUR */}
         <section id="see-it" className="hero-aura scroll-mt-20 border-b border-border">
-          <div className="mx-auto max-w-6xl px-4 py-16">
+          <div className="mx-auto max-w-6xl px-4 py-10">
             <ProductTour />
           </div>
         </section>
 
         {/* VALUE + PRICING */}
         <section id="pricing" className="scroll-mt-20 border-b border-border">
-          <div className="mx-auto max-w-6xl px-4 py-16">
+          <div className="mx-auto max-w-6xl px-4 py-10">
             <SectionHeading
               eyebrow="Pricing"
-              title={`Why ${usd(GROWTH_SYSTEM.setupPrice)} is the easiest decision on this page`}
+              title="One clear offer"
             />
-            <div className="panel mt-10 grid gap-0 overflow-hidden p-0 md:grid-cols-[1.1fr_1fr]">
+            <div className="mt-6 grid gap-0 overflow-hidden p-0 md:grid-cols-[1.1fr_1fr]">
               <div className="min-w-0 border-b border-border p-6 sm:p-7 md:border-r md:border-b-0">
-                <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="grid grid-cols-1 items-start gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
                   <h3 className="font-display text-[18px] font-semibold">{GROWTH_SYSTEM.name}</h3>
                   <Pill tone="signal">
                     {GROWTH_SYSTEM.fullAccessWindow} free full access
@@ -364,7 +234,7 @@ function Landing() {
                     <p className="tnum gold-text font-display text-[34px] leading-none font-semibold">
                       {usd(GROWTH_SYSTEM.setupPrice)}
                     </p>
-                    <p className="mt-1.5 text-[13px] font-medium">Setup — paid today</p>
+                    <p className="mt-1.5 text-[13px] font-medium">One-time setup</p>
                     <p className="text-[13px] text-muted-foreground">{GROWTH_SYSTEM.setupLabel}</p>
                   </div>
                   <div>
@@ -390,69 +260,33 @@ function Landing() {
                   {GROWTH_SYSTEM.explainer}
                 </p>
               </div>
-              <div className="min-w-0 bg-background/40 p-6 sm:p-7">
-                <p className="eyebrow">Everything included</p>
-                <ul className="mt-4 grid gap-2 sm:grid-cols-2 md:grid-cols-1">
-                  {GROWTH_SYSTEM.includes.map((feature) => (
-                    <li key={feature} className="flex gap-2 text-[13px] text-muted-foreground">
-                      <span aria-hidden="true" className="text-primary">
-                        ✓
-                      </span>
-                      {feature}
-                    </li>
-                  ))}
-                </ul>
-                <Link
-                  to="/pricing"
-                  className="mt-5 inline-flex min-h-11 items-center text-[13px] text-primary hover:underline"
-                >
-                  Full pricing details
-                </Link>
-              </div>
             </div>
           </div>
         </section>
 
         {/* HOW IT WORKS */}
         <section id="how-it-works" className="scroll-mt-20 border-b border-border bg-card">
-          <div className="mx-auto max-w-6xl px-4 pt-4 pb-16">
-            <AfterYouStart />
+          <div className="mx-auto max-w-6xl px-4 py-10">
+            <SectionHeading eyebrow="Process" title="From your business to your own website" />
+            <ol className="mt-6 grid gap-5 sm:grid-cols-3">
+              {[['01', 'Start free', `Create an account and explore for ${GROWTH_SYSTEM.fullAccessWindow}, without a card.`], ['02', 'Build and review', 'Share your business details. Review your AI-designed pages and make changes.'], ['03', 'Launch when ready', `${usd(GROWTH_SYSTEM.setupPrice)} setup, first month free, then ${usd(GROWTH_SYSTEM.monthlyPrice)}/month.`]].map(([n, title, body]) => (
+                <li key={n} className="grid grid-cols-[auto_minmax(0,1fr)] gap-3 border-t border-border pt-4">
+                  <span className="text-sm text-primary">{n}</span>
+                  <div className="min-w-0"><h3 className="font-semibold">{title}</h3><p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">{body}</p></div>
+                </li>
+              ))}
+            </ol>
           </div>
         </section>
 
         {/* FAQ */}
         <section id="faq" className="scroll-mt-20 border-b border-border bg-card">
-          <div className="mx-auto max-w-6xl px-4 py-16">
+          <div className="mx-auto max-w-6xl px-4 py-10">
             <SectionHeading eyebrow="FAQ" title="Straight answers before you start" />
             <FAQ />
           </div>
         </section>
 
-        {/* FINAL CTA */}
-        <section className="hero-aura">
-          <div className="mx-auto max-w-6xl px-4 py-20 text-center">
-            <h2 className="mx-auto max-w-2xl font-display text-[clamp(1.6rem,3.5vw,2.4rem)] leading-tight font-semibold">
-              The only website you'll ever have to think about again.
-            </h2>
-            <p className="mx-auto mt-4 max-w-xl text-[15px] leading-relaxed text-muted-foreground">
-              Website, leads, quotes, bookings, follow-up, reviews and analytics — one system,
-              running around the clock.
-            </p>
-            <div className="mt-8 flex flex-col items-center gap-4">
-              <PrimaryCta className="justify-center" />
-              <PriceLine />
-              <p className="text-[12.5px] text-muted-foreground">
-                Not ready to pay yet?{" "}
-                <span className="gold-hl">
-                  Start with {GROWTH_SYSTEM.fullAccessWindow} of free full access
-                </span>{" "}
-                and decide after you've used it.
-              </p>
-            </div>
-          </div>
-        </section>
-
-        <BusinessDetails />
       </main>
 
       {/* Spacer so the fixed free-access bar never covers the footer */}
