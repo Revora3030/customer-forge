@@ -134,7 +134,7 @@ function RoutingAndGate({
         </div>
         <div className="mt-5">
           <Label>Minimum score to keep a change: {s.qaMinScore}/100</Label>
-          <Slider className="mt-3" min={0} max={100} step={5} value={[s.qaMinScore]} onValueChange={([v]) => setS({ ...s, qaMinScore: v ?? 70 })} />
+          <Slider className="mt-3" min={0} max={100} step={5} value={[s.qaMinScore]} onValueChange={([v]) => setS({ ...s, qaMinScore: v ?? 40 })} />
         </div>
       </Panel>
 
