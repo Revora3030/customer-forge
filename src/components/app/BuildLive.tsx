@@ -13,7 +13,7 @@ import { Check, ChevronDown, TriangleAlert } from "lucide-react";
 import { Panel, SectionHeading } from "@/components/app/Bits";
 import { Button } from "@/components/ui/button";
 import { Shimmer } from "@/components/ai-elements/shimmer";
-import { useLatestGenerationJob } from "@/lib/site-engine.hooks";
+import { useLatestGenerationJob, useRunSiteEngine } from "@/lib/site-engine.hooks";
 import { RECOVERING_BUILD_MESSAGE, jobLiveness } from "@/lib/builder/job-liveness";
 import { useBuildProgress } from "@/lib/builder/progress.hooks";
 import { describeBuildFailure } from "@/lib/builder/build-failure";
@@ -50,6 +50,7 @@ export function BuildLive({ organizationId }: { organizationId: string | null | 
 
   // Poll the recorded build stages while the job needs watching.
   const { latest, steps } = useBuildProgress(organizationId, active || failed);
+  const retry = useRunSiteEngine(organizationId ?? undefined);
 
   const [open, setOpen] = useState(true);
   const [startedAt] = useState(() => Date.now());
@@ -109,7 +110,7 @@ export function BuildLive({ organizationId }: { organizationId: string | null | 
               ? "The build worker stopped responding. Revora is restarting it automatically."
               : active
               ? "Revora is building your website right now — you can watch every step here."
-              : "You can keep going; the build retries automatically and nothing is charged twice."}
+              : "Your current website is unchanged. Press Retry build to start again from the saved steps."}
           </span>
         </span>
         {active ? (
@@ -172,7 +173,17 @@ export function BuildLive({ organizationId }: { organizationId: string | null | 
             </p>
           ) : null}
           <div className="flex flex-col gap-2 pt-1 sm:flex-row">
-            <Button asChild variant="signal" size="sm">
+            {failed ? (
+              <Button
+                variant="signal"
+                size="sm"
+                disabled={retry.isPending || !organizationId}
+                onClick={() => retry.mutate({ mode: "safe" })}
+              >
+                {retry.isPending ? "Starting again…" : "Retry build"}
+              </Button>
+            ) : null}
+            <Button asChild variant={failed ? "outline" : "signal"} size="sm">
               <Link to="/app/website">Open the live builder</Link>
             </Button>
           </div>
