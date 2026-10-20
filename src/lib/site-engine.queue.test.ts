@@ -259,7 +259,7 @@ describe("free-only demo builds", () => {
   afterEach(() => vi.unstubAllEnvs());
 
   it("runs demo workspace builds free-only and customer builds with paid allowed, even when they overlap", async () => {
-    vi.stubEnv("DEMO_BUILDS_ALLOW_PAID", "");
+    vi.stubEnv("DEMO_BUILDS_ALLOW_PAID", "false");
     const demo = queued("demo-job", "demo-org");
     const customer = queued("customer-job", "customer-org");
     const { db, tables } = database([demo, customer]);
@@ -287,8 +287,8 @@ describe("free-only demo builds", () => {
     expect(scopedFreeOnly()).toBe(false);
   });
 
-  it("lets the owner opt demo builds into paid with DEMO_BUILDS_ALLOW_PAID=true", async () => {
-    vi.stubEnv("DEMO_BUILDS_ALLOW_PAID", "true");
+  it("gives Jarvis demo builds the paid/free team by default", async () => {
+    vi.stubEnv("DEMO_BUILDS_ALLOW_PAID", undefined);
     const { db, tables } = database([queued("demo-job", "demo-org")]);
     tables["organizations"] = [{ id: "demo-org", is_demo: true }];
     let freeOnly: boolean | null = null;

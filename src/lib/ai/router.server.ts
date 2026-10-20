@@ -437,11 +437,11 @@ async function buildChain(
   const cooling = (entry: Candidate) =>
     entry.free === null && !providerHealthy({ caller, provider: entry.config.name, model: entry.model });
   const ordered = [...backedOff.filter((entry) => !cooling(entry)), ...backedOff.filter(cooling)];
-  // The POOL is unlimited; one single request's FAILOVER depth is not, so a
-  // simple call can never turn into a 60-model latency wall. The ensemble
-  // orchestrator uses the full pool in parallel instead.
+  // Keep the full eligible pool reachable. Timeouts, concurrency and the
+  // chain deadline bound actual work, not an arbitrary catalog cutoff.
+  // A positive operator override may still narrow the candidate list.
   const failoverLimit = Number(process.env["AI_MAX_FAILOVER_CANDIDATES"] ?? "");
-  const cap = Number.isFinite(failoverLimit) && failoverLimit > 0 ? Math.floor(failoverLimit) : 24;
+  const cap = Number.isFinite(failoverLimit) && failoverLimit > 0 ? Math.floor(failoverLimit) : Number.POSITIVE_INFINITY;
   return ordered.slice(0, cap);
 }
 

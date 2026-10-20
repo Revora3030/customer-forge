@@ -208,7 +208,7 @@ async function runJarvis(db: SupabaseClient, userId: string, mode: Mode, page: s
     "A failed select contract can reflect schema-cache, permission, project, or migration issues. Do not invent column types or issue corrective DDL without verified schema evidence.",
     "HTTP and metadata checks do not prove Google indexing. SENTRY_DSN presence does not prove ingestion. A stalled percentage does not prove its cause.",
     "Never invent reviews, awards, pricing, customers, ranking guarantees, billing guarantees, or universal 10/10 quality. No phone numbers in outreach.",
-    "Changes are review drafts only. Never suggest bypassing authentication, RLS, tenant isolation, publishing checks, or paid-model exclusions.",
+    "Changes are review drafts only. Never suggest bypassing authentication, RLS, tenant isolation, publishing checks, provider access rules, or spending caps. Available paid and free models share the team; configuration alone does not prove availability.",
     "After your answer, on a new final line, add up to three short follow-up questions or commands the owner might want next, formatted exactly as <followups>[\"first\",\"second\",\"third\"]</followups> (valid JSON array of strings, each under 120 characters). Omit the tag if nothing useful comes to mind.",
     actionCatalogPrompt(toolIds),
     ...(pageBrief
@@ -221,6 +221,7 @@ async function runJarvis(db: SupabaseClient, userId: string, mode: Mode, page: s
     "END UNTRUSTED DIAGNOSTICS JSON",
   ].join("\n");
   const { generateText } = await import("@/lib/ai/router.server");
+  const { jarvisModelRequest } = await import("./jarvis-model-request.server");
   const { runReadActions } = await import("./jarvis-agent.server");
   const { splitReplyMeta } = await import("./jarvis-actions");
   let reply = "";
@@ -235,10 +236,8 @@ async function runJarvis(db: SupabaseClient, userId: string, mode: Mode, page: s
   try {
     // Act, observe, answer: up to MAX_ACTION_STEPS rounds of read actions.
     for (let step = 0; step <= MAX_ACTION_STEPS; step += 1) {
-      const result = await generateText({ userId, task: "admin.jarvis" }, {
-        role: "conversation", freeOnly: true, maxOutputTokens: MODE_CONFIG[mode].tokens,
-        messages: conversation,
-      });
+      const result = await generateText({ userId, task: "admin.jarvis" },
+        jarvisModelRequest(conversation, MODE_CONFIG[mode].tokens));
       const { text, requested } = extractActionBlock(result.text);
       const parsed = parseActions(requested, toolIds);
       proposals.push(...parsed.proposals.slice(0, Math.max(0, 5 - proposals.length)));
@@ -262,11 +261,11 @@ async function runJarvis(db: SupabaseClient, userId: string, mode: Mode, page: s
         },
       );
     }
-    if (!reply) reply = proposals.length ? "Here's what I'd do. Approve below and I'll start." : "The free AI team returned no answer. Please retry later.";
+    if (!reply) reply = proposals.length ? "Here's what I'd do. Approve below and I'll start." : "The available AI team returned no answer. Please retry later.";
   } catch {
     reply = ran.length
-      ? `I ran ${ran.join(", ")}, but the free AI team became unavailable before I could finish the answer. Please retry.`
-      : "The free AI team is unavailable or out of quota. Diagnostics were collected, but no paid fallback was requested.";
+      ? `I ran ${ran.join(", ")}, but the available AI team could not finish the answer. Check model access, quotas and spending limits before retrying.`
+      : "Diagnostics were collected, but no eligible AI model could finish the answer. Check model access, quotas and spending limits.";
   }
   reply = appendReplyMeta(reply.slice(0, 40000), { ran, proposals });
   const saved = await db.from("jarvis_messages").insert({ user_id: userId, role: "assistant", content: reply });
