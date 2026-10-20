@@ -118,7 +118,7 @@ describe("inspectHtml visible text", () => {
   it("ignores script bodies with odd closing tags when reading content and placeholders", () => {
     const html = good.replace(
       "</body>",
-      '<script>var x = "lorem ipsum TODO";</script\n><style>.a{}</style ><noscript>{{ name }}</noscript></body>',
+      '<script>var x = "lorem ipsum TODO";</script\n><style>.a{}</style ><noscript>{{ name }}</noscript></body>', // DevSkim: ignore DS176209 -- Fixture: placeholder text hidden in a script must not count as page copy.
     );
     const result = inspectHtml(html, "Home");
     expect(result.checks.every((check) => check.ok)).toBe(true);
