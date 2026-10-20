@@ -39,6 +39,11 @@ const RULES = [
   "Working features (quote forms, booking, contact, embeds) exist only where listed.",
 ].join(" ");
 
+/** True when the facts cannot honestly support a deep multi-page site. */
+export function isThinFactSheet(facts: { services: string[]; description: string | null }): boolean {
+  return facts.services.length === 0 && (facts.description ?? "").length < 400;
+}
+
 export async function proposePageArchitecture(input: {
   organizationId: string;
   businessName: string;
@@ -49,9 +54,13 @@ export async function proposePageArchitecture(input: {
   description?: string | null;
   services?: string[];
   serviceArea?: string | null;
+  /** Whether a real phone/email exists, so the reviewer knows contact works. */
+  contact?: { phone: boolean; email: boolean };
   signal?: AbortSignal;
   /** Reviewer notes from a refused plan; Sol gets one revision with them. */
   revisionNotes?: string;
+  /** How many refused plans Sol has already revised (max three). */
+  revisionRound?: number;
 }): Promise<PageArchitectureOutcome> {
   const available = input.candidate.map((page) => ({
     slug: page.slug,
@@ -66,8 +75,13 @@ export async function proposePageArchitecture(input: {
     description: input.description?.trim().slice(0, 1200) || null,
     services: input.services?.filter((service) => service.trim()).slice(0, 30) ?? [],
     serviceArea: input.serviceArea?.trim() || null,
+    realContact: input.contact ?? null,
   };
 
+  // A Jarvis demo often knows only the name, trade and town. Demanding a deep
+  // multi-page site from that forces padding the truth reviewer must refuse,
+  // so depth scales to the real facts instead. No page shape is imposed.
+  const thinFacts = isThinFactSheet(businessFacts);
   const system = `${RULES} You are Sol, the lead information and conversion architect. Decide the page set, the sections on each page and their order so the whole site converts for this specific business. Every page structure is your decision; nothing about its shape is prescribed. ${creativeQualityPrompt()} ${craftBarPrompt("page_architecture")}`;
   const prompt = [
       "SUPPLIED BUSINESS FACTS:",
@@ -86,15 +100,18 @@ export async function proposePageArchitecture(input: {
       "Invented words may only restate the business's supplied facts, services and place — never new claims, numbers, reviews or guarantees. You cannot invent forms, booking, contact, embeds, heroes or galleries.",
       "Write your own heading (<=120 chars) and optional subheading (<=260 chars) for every section except each page's hero. There are no default headings: a section you leave without one shows none.",
       "Headings may only use the business's real services and its real place — never an unsupported claim. Do NOT put the business name in section headings (no \"<Business> Process\", \"<Business> Services\"): the name already sits in the logo and page title. Only the home page's opening heading may name the business.",
+      thinFacts
+        ? "THIN FACTS: only a few facts were supplied (no service list). Plan a focused, honest site proportional to those facts — usually one strong home page that ends in the real contact action. Every sentence must restate a supplied fact; do not describe service types, techniques, care, scheduling, premises or visits that were not supplied, and add no about page. Return exactly one page with slug \"home\" and at most two sections: an opening that states the supplied facts plainly, and the real contact action. No process, overview, scheduling or outcome wording."
+        : null,
       input.revisionNotes ? `REVIEWER REFUSED YOUR LAST PLAN — address this: ${input.revisionNotes.slice(0, 1500)}` : null,
-      "COMPLETENESS: plan a whole website, not a stub. A visitor must be able to understand what the business does, see each real service explained, understand how working together goes, and act — using only the facts above. A plan that is just an opening and a form is incomplete and will be refused. The shape, count and order of pages and sections are still entirely yours.",
-      "FIRST BUILD IS COMPLETE: this is the customer's first build and it must ship every page they need — nothing is added later. Always include: a home page, a services page that covers EVERY supplied service (with service_cards), an about page, and a contact page (or book page when booking exists). When there are 3 or more services, also give each major service its own page (slug like \"service-name\") explaining that service. Give every page at least one section with media \"required\" so every page has a real picture.",
-      "MULTI-PAGE DEPTH: a real commercial site is more than a single page. Plan at least three dedicated pages — a home page, a services page (or pages, one per major offering when the catalogue justifies it), and an about/story page — plus a contact or booking page. Every page must carry its own purpose and earn its place; never repeat the same card grid across pages.",
-      "BESPOKE LAYOUTS: give each section its own composition rather than reusing one layout. Vary asymmetric two-column blocks, sticky side-by-side process steps, interactive bento grids, full-bleed media and centered single-column narratives so the site reads as designed, not templated. A layout name is your own composition name, not a preset.",
-      "FACT FIDELITY: every word must come from the supplied business facts, services and place. Never invent reviews, awards, stats, certifications, team credentials, prices, guarantees or results. The about page tells the real commercial backstory and values only — never fabricated milestones.",
+      thinFacts ? null : "COMPLETENESS: plan a whole website, not a stub. A visitor must be able to understand what the business does, see each real service explained, understand how working together goes, and act — using only the facts above. A plan that is just an opening and a form is incomplete and will be refused. The shape, count and order of pages and sections are still entirely yours.",
+      thinFacts ? null : "FIRST BUILD IS COMPLETE: this is the customer's first build and it must ship every page they need — nothing is added later. Always include: a home page, a services page that covers EVERY supplied service (with service_cards), an about page, and a contact page (or book page when booking exists). When there are 3 or more services, also give each major service its own page (slug like \"service-name\") explaining that service. Give every page at least one section with media \"required\" so every page has a real picture.",
+      thinFacts ? null : "MULTI-PAGE DEPTH: a real commercial site is more than a single page. Plan at least three dedicated pages — a home page, a services page (or pages, one per major offering when the catalogue justifies it), and an about/story page — plus a contact or booking page. Every page must carry its own purpose and earn its place; never repeat the same card grid across pages.",
+      thinFacts ? null : "BESPOKE LAYOUTS: give each section its own composition rather than reusing one layout. Vary asymmetric two-column blocks, sticky side-by-side process steps, interactive bento grids, full-bleed media and centered single-column narratives so the site reads as designed, not templated. A layout name is your own composition name, not a preset.",
+      "FACT FIDELITY: every word must come from the supplied business facts, services and place. Never invent reviews, awards, stats, certifications, team credentials, prices, guarantees or results. An about page, if any, tells the real commercial backstory and values only — never fabricated milestones.",
       "10/10 QUALITY BAR: aim for the quality of the best AI website builders (Lovable, Framer, Vercel). Every page should feel bespoke and premium — strong visual hierarchy, confident typography, purposeful motion, and a clear conversion path. The site should look like it was designed by a top agency, not generated.",
       "MOBILE-FIRST: every section must work perfectly on a phone. Thumb-reachable CTAs, no horizontal scroll, text that's readable without zooming. Mobile is not a downscaled desktop — it's a designed layout.",
-      "CONVERSION ARCHITECTURE: every page has one primary action and one secondary. Trust signals (real facts only) are placed where hesitation occurs. The contact path is never more than one tap away.",
+      thinFacts ? null : "CONVERSION ARCHITECTURE: every page has one primary action and one secondary. Trust signals (real facts only) are placed where hesitation occurs. The contact path is never more than one tap away.",
     ].filter((line) => line !== null).join("\n");
   let sol = await callBestThinker({
     json: true,
@@ -161,7 +178,7 @@ export async function proposePageArchitecture(input: {
     purpose: "plan_review",
     complexity: "medium",
     organizationId: input.organizationId,
-    maxOutputTokens: 700,
+    maxOutputTokens: 1500,
     ...(input.signal ? { signal: input.signal } : {}),
     system: `${RULES} You are Terra, the adversarial reviewer of website structure. Judge each page on whether it works for this business and its visitors; never demand a fixed page anatomy. Refuse a structure that is too thin to explain the business and its real services to a first-time visitor. ${creativeQualityPrompt()}`,
     user: [
@@ -178,6 +195,9 @@ export async function proposePageArchitecture(input: {
       JSON.stringify(depthNumbers(depth), null, 2),
       "",
       "Approve only if the proposed structure gives a first-time visitor enough factual coverage to understand what this business does, which supplied services matter, where it serves, and how to take a real available action. Refuse unsupported claims, omitted critical supplied facts, fake capabilities, or stub-like plans. Do not require any specific number of pages, sections, visual beats, or a house layout.",
+      thinFacts
+        ? "THE SUPPLIED FACTS ARE THIN (no service list). Judge coverage against those facts only: a short, focused site that uses every supplied fact and offers a real way to make contact is approvable. Refuse padding or invented detail, not brevity."
+        : "",
       '{"approvedFields": ["structure"], "rejected": [{"field": "...", "reason": "..."}]}',
     ].join("\n"),
   });
@@ -199,13 +219,13 @@ export async function proposePageArchitecture(input: {
   const review = parseReview(terra.text);
   const approved = review?.approvedFields.some((field) => /structure|pages?/i.test(field)) ?? false;
   const namedHeadings = businessNameHeadlines(normalized.architecture, input.businessName);
-  if (!approved && review !== null && !input.revisionNotes) {
+  if (!approved && review !== null && (input.revisionRound ?? 0) < 3) {
     const nameNote = namedHeadings.length
       ? ` Also remove the business name from these headings: ${namedHeadings.map((h) => JSON.stringify(h.heading)).join(", ")}.`
       : "";
     const depthNote = depthNotes.length ? ` Page depth: ${depthNotes.join(" ")}` : "";
     const notes = (JSON.stringify(review.notes ?? []).slice(0, 1300) || "the structure was too thin") + nameNote.slice(0, 200) + depthNote.slice(0, 600);
-    const revised = await proposePageArchitecture({ ...input, revisionNotes: notes });
+    const revised = await proposePageArchitecture({ ...input, revisionNotes: notes, revisionRound: (input.revisionRound ?? 0) + 1 });
     return {
       ...revised,
       models: [...models, ...revised.models],
@@ -217,7 +237,7 @@ export async function proposePageArchitecture(input: {
       architecture: null,
       skipped: review === null
         ? "the structure review was not in the agreed shape"
-        : "the reviewer refused the proposed structure",
+        : `the reviewer refused the proposed structure: ${JSON.stringify(review?.notes ?? []).slice(0, 400)}`,
       rejected: [...normalized.rejected, ...(review?.notes ?? [])],
       models,
       costMicrocents: cost,
@@ -230,6 +250,7 @@ export async function proposePageArchitecture(input: {
     const revised = await proposePageArchitecture({
       ...input,
       revisionNotes: `PAGE DEPTH SHORTFALLS: ${depthNotes.join(" ")}`,
+      revisionRound: 3,
     });
     if (revised.architecture?.length)
       return {
