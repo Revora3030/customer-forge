@@ -176,7 +176,7 @@ export async function proposePageArchitecture(input: {
     const repaired = repair.ok ? parsePageArchitecture(repair.text) : null;
     if (repaired) {
       normalized = normalizePageArchitecture({ proposal: repaired, candidate: input.candidate, thinFacts });
-      if (normalized) sol = repair;
+      if (normalized && repair.ok) sol = repair;
     }
   }
   if (!normalized)
