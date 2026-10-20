@@ -5,6 +5,7 @@ import {
   closeAbandonedJobs,
   drainSiteEngineQueue,
   LEASE_SECONDS,
+  PartialBuildKeptError,
   retryDelayMs,
   StaleAttemptError,
   touchLease,
@@ -173,6 +174,25 @@ describe("worker queue behavior", () => {
         invoker: "pg_net",
       },
     });
+  });
+
+  it("a failed attempt records when it stopped writing, so a retry can tell its rows from owner edits", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const row = queued("ends");
+    const { db, tables } = database([row]);
+    await drainSiteEngineQueue(db, { max: 1 }, async () => { throw new RevoraAiError(429, "Busy"); });
+    expect(row["status"]).toBe("queued");
+    const ended = (tables["ai_generations"] ?? []).filter((r) => r["kind"] === "build_attempt_ended");
+    expect(ended).toEqual([expect.objectContaining({ job_id: "ends", organization_id: "tenant-a", result: { attempt: 1 } })]);
+  });
+
+  it("a retry that kept owner-edited partial pages fails for good instead of retrying", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const row = queued("kept");
+    const { db } = database([row]);
+    await drainSiteEngineQueue(db, { max: 1 }, async () => { throw new PartialBuildKeptError("pages were edited, so they were kept"); });
+    expect(row["status"]).toBe("failed");
+    expect(row["error_message"]).toBe("pages were edited, so they were kept");
   });
 
   it("a fresh claim of a queued job records no lost attempt", async () => {
