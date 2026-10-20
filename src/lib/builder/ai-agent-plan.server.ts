@@ -63,7 +63,8 @@ function actionContract(context: AgentContext): string {
   const fonts = "any Google Fonts family name";
   return [
     "Reply with ONE JSON object and nothing else:",
-    '{"reply":string,"summary":string,"requirements":string[],"questions":string[],"notes":string[],"actions":Action[]}',
+    '{"reply":string,"summary":string,"requirements":string[],"questions":string[],"notes":string[],"scope":{"breadth":"style|section|page|site","sectionIds":[id,...],"pageIds":[id,...]},"actions":Action[]}',
+    'scope declares the smallest part of the site your plan touches: "style" or "section" when only the listed sections change, "page" when whole listed pages change, "site" only for genuinely site-wide changes. sectionIds and pageIds must be real ids copied from the website below. Changes outside your declared scope are dropped before anything is applied, so declare honestly.',
     "",
     "Action is one of:",
     '{"type":"set_section_text","sectionId":id,"field":"heading"|"subheading"|"body","value":string}',
@@ -557,6 +558,24 @@ export async function planWebsiteChangesWithAi(input: {
         if (auditSectionDesign(checked.tree, { lead: firstSection }).length < entry.findings.length)
           actions[entry.index] = { ...(actions[entry.index] as Record<string, unknown>), tree: checked.tree } as (typeof actions)[number];
       }
+    }
+  }
+
+  // EDIT SCOPE. Point-and-edit instructions name one block; typed requests get
+  // the planner's own declared scope. Actions provably outside that boundary
+  // are dropped before apply, so a narrow request can never rewrite the rest
+  // of the site. Fail-open: an unusable scope enforces nothing.
+  {
+    const { selectionScopeFromInstruction, declaredScopeFromProposal, applyEditScope } = await import("@/lib/builder/edit-scope");
+    const selected = selectionScopeFromInstruction(input.instruction, context);
+    const declared = selected ? null : declaredScopeFromProposal(proposal, context);
+    const boundary = selected ? { sectionIds: [selected] } : declared && declared.breadth !== "site"
+      ? declared.sectionIds.length ? { sectionIds: declared.sectionIds } : { pageIds: declared.pageIds }
+      : null;
+    if (boundary) {
+      const scoped = applyEditScope(actions, context, boundary);
+      actions = scoped.actions;
+      notes = [...notes, ...scoped.notes].slice(0, 8);
     }
   }
 
