@@ -160,6 +160,55 @@ export function useReviews(organizationId: string | undefined) {
   });
 }
 
+/**
+ * The small facts the command bar needs that the dashboard does not already
+ * load: whether a site exists and is live, its page slugs/titles, and review
+ * and quote counts. One tenant-scoped query; every read filters on
+ * organization_id, and counts use head requests so no rows are transferred.
+ */
+export function useCommandBarSignals(organizationId: string | undefined) {
+  return useQuery({
+    queryKey: ["command_bar_signals", organizationId],
+    enabled: !!organizationId,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const orgId = organizationId!;
+      const [settings, pages, reviews, quotes] = await Promise.all([
+        supabase
+          .from("website_settings")
+          .select("publish_state")
+          .eq("organization_id", orgId)
+          .maybeSingle(),
+        supabase.from("website_pages").select("slug, title").eq("organization_id", orgId),
+        supabase
+          .from("reviews")
+          .select("id", { count: "exact", head: true })
+          .eq("organization_id", orgId),
+        supabase
+          .from("quote_requests")
+          .select("id", { count: "exact", head: true })
+          .eq("organization_id", orgId),
+      ]);
+      if (settings.error) throw settings.error;
+      if (pages.error) throw pages.error;
+      const pageRows = pages.data ?? [];
+      const siteState: "none" | "draft" | "published" =
+        pageRows.length === 0
+          ? "none"
+          : settings.data?.publish_state === "published"
+            ? "published"
+            : "draft";
+      return {
+        siteState,
+        pages: pageRows,
+        // A failed count stays unknown rather than becoming a made-up zero.
+        reviews: reviews.error ? null : (reviews.count ?? null),
+        quotes: quotes.error ? null : (quotes.count ?? null),
+      };
+    },
+  });
+}
+
 export function useNotifications(organizationId: string | undefined) {
   return useQuery({
     queryKey: ["notifications", organizationId],

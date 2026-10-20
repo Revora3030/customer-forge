@@ -411,8 +411,7 @@ function QuotesPage() {
             ))}
             {addons.length === 0 ? (
               <li className="py-4 text-[13px] text-muted-foreground">
-                Add-ons let visitors raise their own price — interior shampoo, gutter clearing,
-                extra rooms.
+                Add-ons let visitors raise their own price with the optional extras you offer.
               </li>
             ) : null}
           </ul>

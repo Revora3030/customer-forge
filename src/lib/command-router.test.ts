@@ -31,10 +31,10 @@ describe("command router", () => {
   });
 
   it("sends ordinary site edits to the assistant with the original wording", () => {
-    const routed = routeCommand("Add a page for gutter cleaning");
+    const routed = routeCommand("Add a page for our newest service");
     expect(routed.target).toBe("assistant");
     expect(routed.confident).toBe(true);
-    expect(routed.instruction).toBe("Add a page for gutter cleaning");
+    expect(routed.instruction).toBe("Add a page for our newest service");
   });
 
   it("never rejects wording it has no rule for", () => {
