@@ -14,8 +14,12 @@ export const PROVIDER_TEST_ENV_KEYS = [
   "GITHUB_MODELS_TOKEN", "OVH_AI_FREE", "KILO_FREE",
 ] as const;
 
+const KEYLESS_FLAGS = ["OVH_AI_FREE", "KILO_FREE"] as const;
+
 export function isolateProviderEnvironment(): void {
   for (const key of PROVIDER_TEST_ENV_KEYS) vi.stubEnv(key, undefined);
+  // Keyless tiers are on by default; tests switch them off like any other provider.
+  for (const key of KEYLESS_FLAGS) vi.stubEnv(key, "false");
   vi.stubGlobal("fetch", vi.fn(async () => {
     throw new Error("Unexpected HTTP request in AI unit test; configure a response stub first.");
   }));
