@@ -3,7 +3,9 @@ import { EmailAPIError } from "@lovable.dev/email-js";
 import { emailSendingConfigured, sendTemplateEmail } from "@/lib/email-templates/send-email";
 import { readProspectDemoMarker } from "@/lib/jarvis-demo-site";
 import { GROWTH_SYSTEM } from "@/lib/offer";
+import type { PreviewEngagement } from "@/lib/preview-telemetry";
 import { missingTwilioSecrets, sendTwilioSms, twilioConfig } from "@/lib/sms/twilio.server";
+import { gmailConfig } from "@/lib/gmail/client.server";
 
 /**
  * Sends a finished prospect demo's private preview link to the business, by
@@ -20,6 +22,11 @@ import { missingTwilioSecrets, sendTwilioSms, twilioConfig } from "@/lib/sms/twi
  * - emails carry the promotional notice, the sender, a physical mailing address
  *   and a one-click unsubscribe link; without REVORA_MAILING_ADDRESS nothing is
  *   emailed.
+ * - the demo launch gate (assessDemoForOutreach); a manual send may override
+ *   it with force only when every blocker is a non-safety quality finding.
+ * When the four GMAIL_* secrets are set, emails go out through the Gmail API
+ * (one-click List-Unsubscribe headers, thread ids stored for reply polling);
+ * otherwise through Lovable managed email, unchanged.
  * Every text names Revora Growth Systems and ends with "Reply STOP to opt out."
  * Delivery is reported only when the provider accepts the message; a send the
  * provider may have accepted (the connection dropped) stays recorded as sent so
@@ -56,7 +63,7 @@ export type SendDemoOutreachInput = {
   force?: boolean;
 };
 
-export const DEFAULT_DAILY_EMAIL_CAP = 25;
+export const DEFAULT_DAILY_EMAIL_CAP = 40;
 export const DEFAULT_DAILY_SMS_CAP = 10;
 export const SMS_WINDOW_START_HOUR = 9;
 export const SMS_WINDOW_END_HOUR = 20;
@@ -297,7 +304,11 @@ const MESSAGES: Record<string, string> = {
   sms_auth_failed: "Twilio rejected the credentials. Check TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN in Lovable.",
   rate_limited: "The provider is rate-limiting sends right now. Try again in a minute.",
   storage_error: "Couldn't record the send, so nothing was sent. Try again.",
-  unconfirmed_transport: "The provider didn't confirm this send (the connection dropped), so it may have been delivered. It's recorded as sent; use Resend only if you're sure it didn't arrive.",
+  gmail_auth_failed: "Gmail rejected the credentials. Check GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET and GMAIL_REFRESH_TOKEN in Lovable.",
+  gmail_unavailable: "Gmail is having trouble right now. It will be retried.",
+  gmail_rejected: "Gmail refused this message. Check the recipient address.",
+  quality_gate: "The demo didn't pass the launch quality check, so it wasn't sent.",
+  unconfirmed_transport: "The provider didn't confirm this send (the connection dropped or the provider errored), so it may have been delivered. It's recorded as sent; use Resend only if you're sure it didn't arrive.",
 };
 
 export function outreachMessage(reason: string): string {
@@ -306,6 +317,38 @@ export function outreachMessage(reason: string): string {
     return `Texting isn't set up yet. Add these secrets in Lovable: ${(missing.length ? missing : ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_FROM_NUMBER"]).join(", ")} (TWILIO_MESSAGING_SERVICE_SID can replace TWILIO_FROM_NUMBER).`;
   }
   return MESSAGES[reason] ?? `It wasn't sent (${reason.replace(/_/g, " ")}).`;
+}
+
+export type OutreachGateBlocker = { code: string; message: string; severity?: "safety" | "quality" };
+export type OutreachGate = { ok: boolean; blockers: OutreachGateBlocker[] };
+type OutreachGateFn = (db: SupabaseClient, organizationId: string) => Promise<OutreachGate>;
+
+/** The demo launch gate, with its safety flag carried over as severity. */
+const launchGate: OutreachGateFn = async (db, organizationId) => {
+  const { assessDemoForOutreach: assess } = await import("@/lib/demo-launch-gate.server");
+  const result = await assess(db, organizationId);
+  return {
+    ok: result.ok,
+    blockers: result.blockers.map((blocker) => ({ code: blocker.code, message: blocker.message, severity: blocker.safety ? "safety" : "quality" })),
+  };
+};
+let assessDemoForOutreach: OutreachGateFn = launchGate;
+
+/** Tests swap in a gate result; null restores the default. */
+export function setOutreachGateForTests(fn: OutreachGateFn | null): void {
+  assessDemoForOutreach = fn ?? launchGate;
+}
+
+/**
+ * Gate findings an operator may knowingly override on a manual send. Anything
+ * else (fabricated claims, generated pictures shown as proof, an unfinished or
+ * claimed build, or a code this list doesn't know) is a safety blocker: never
+ * overridable.
+ */
+export const OVERRIDABLE_GATE_CODES = new Set(["image_unreachable", "low_contrast", "content_incomplete", "launch_review_warning"]);
+
+export function gateOverridable(blockers: OutreachGateBlocker[]): boolean {
+  return blockers.every((blocker) => blocker.severity === "quality" || (blocker.severity !== "safety" && OVERRIDABLE_GATE_CODES.has(blocker.code)));
 }
 
 type DemoContext = {
@@ -550,6 +593,8 @@ export type DemoStatus = {
   stepLabel: string | null;
   /** The real build stages in order, each marked done as the worker records it. */
   stages: Array<{ key: string; label: string; done: boolean }>;
+  /** Anonymous preview engagement (views, visitors, time, claim clicks); null when it can't be read. */
+  engagement?: PreviewEngagement | null;
 };
 
 export async function getDemoStatus(db: SupabaseClient, organizationId: string, origin?: string | null): Promise<DemoStatus | null> {
@@ -572,6 +617,9 @@ export async function getDemoStatus(db: SupabaseClient, organizationId: string, 
     outreach: await listDemoOutreach(db, organizationId),
     email: demo.email,
     phone: normalizePhone(demo.phone) ?? demo.phone,
+    engagement: await import("@/lib/preview-telemetry.server")
+      .then(({ previewEngagement }) => previewEngagement(db, organizationId))
+      .catch(() => null),
   };
 }
 
@@ -615,6 +663,19 @@ export async function sendDemoOutreach(db: SupabaseClient, input: SendDemoOutrea
   if (demo.build?.status !== "completed") return skip("build_not_finished");
   if (await isDoNotContact(db, recipient)) return skip("do_not_contact");
 
+  let gate: OutreachGate;
+  try {
+    gate = await assessDemoForOutreach(db, organizationId);
+  } catch {
+    // Fail closed: an unreadable gate is a blocker, never a pass.
+    gate = { ok: false, blockers: [{ code: "gate_unavailable", message: "The launch quality check couldn't run.", severity: "safety" }] };
+  }
+  if (!gate.ok && !(mode === "manual" && input.force && gate.blockers.length > 0 && gateOverridable(gate.blockers))) {
+    const detail = gate.blockers.map((blocker) => blocker.message).filter(Boolean).join("; ").slice(0, 600);
+    await record({ status: "skipped", reason: "quality_gate", body: detail || null });
+    return { ok: false, reason: "quality_gate", message: detail ? `${outreachMessage("quality_gate")} ${detail}` : outreachMessage("quality_gate") };
+  }
+
   const { data: prior, error: priorError } = await db
     .from("prospect_outreach")
     .select("id")
@@ -633,7 +694,7 @@ export async function sendDemoOutreach(db: SupabaseClient, input: SendDemoOutrea
     if (!twilioConfig()) return skip("sms_not_configured");
     if (!smsAllowedNow(now, demo.state, recipient)) return skip("quiet_hours");
   } else {
-    if (!emailSendingConfigured()) return skip("email_not_configured");
+    if (!gmailConfig() && !emailSendingConfigured()) return skip("email_not_configured");
     if (!outreachFooter().address) return skip("mailing_address_missing");
   }
 
@@ -682,6 +743,26 @@ export async function sendDemoOutreach(db: SupabaseClient, input: SendDemoOutrea
   if (tokenInsert.error) return fail("storage_error");
   const claim = await record({ id: outreachId, status: "sent", reason: null, subject, body: `${message}\n${footer}` });
   if (claim.error) return claim.error.code === "23505" ? fail("already_sent") : fail("storage_error");
+
+  const gmail = gmailConfig();
+  if (gmail) {
+    const { sendGmailOutreach } = await import("@/lib/gmail/outreach.server");
+    const sent = await sendGmailOutreach(gmail, { to: recipient, subject, text: `${message}\n${footer}`, unsubscribeUrl });
+    if (!sent.ok) {
+      if (sent.reason === "gmail_transport_error") {
+        // A dropped connection or a 5xx may come after Gmail accepted it: keep it blocking.
+        await db.from("prospect_outreach").update({ reason: "unconfirmed_transport", provider: "gmail" }).eq("id", outreachId);
+        return fail("unconfirmed_transport");
+      }
+      await db.from("prospect_outreach").update({ status: "failed", reason: sent.reason, provider: "gmail" }).eq("id", outreachId);
+      return fail(sent.reason);
+    }
+    await db
+      .from("prospect_outreach")
+      .update({ provider: "gmail", provider_id: sent.id, gmail_id: sent.id, gmail_thread_id: sent.threadId, rfc_message_id: sent.rfcMessageId })
+      .eq("id", outreachId);
+    return { ok: true, outreachId };
+  }
 
   let reason: string | null = null;
   try {

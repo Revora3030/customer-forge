@@ -7,6 +7,7 @@ import {
   DEMO_STATUS_POLL_MS,
   currentStepLabel,
   demoStages,
+  engagementLine,
   findMapsLink,
   normalizeDemoStatus,
   previewFit,
@@ -122,6 +123,19 @@ describe("demo build card", () => {
     expect(unnamedButtons(html)).toEqual([]);
     // Every tap target is 44px tall, or gets 44px on phones via data-jarvis-tap.
     for (const [, attrs] of html.matchAll(/<(?:button|a)\b([^>]*)>/g)) expect(attrs).toMatch(/min-h-11|data-jarvis-tap/);
+  });
+
+  it("shows the prospect's anonymous preview engagement", () => {
+    const html = view(status({ status: "completed", engagement: { views: 3, uniqueSessions: 2, totalMs: 240_000, claimHovers: 1, claimClicks: 1, lastSeenAt: "2026-10-19T10:00:00.000Z", truncated: false } }));
+    expect(html).toContain('aria-label="Preview engagement"');
+    expect(html).toContain("3 views · 2 visitors · 4 min on the page · 1 claim click");
+    expect(html).toContain("Last seen");
+    expect(view(status({ status: "completed", engagement: { views: 0, uniqueSessions: 0, totalMs: 0 } }))).toContain("Not opened yet.");
+    expect(view(status({ status: "completed" }))).toContain("Engagement isn&#x27;t available right now.");
+    expect(normalizeDemoStatus({ status: "completed", engagement: "junk" }).engagement).toBeNull();
+    expect(normalizeDemoStatus({ status: "completed", engagement: { views: -4, lastSeenAt: "nope" } }).engagement).toMatchObject({ views: 0, lastSeenAt: null });
+    expect(engagementLine({ views: 5000, uniqueSessions: 40, totalMs: 0, claimHovers: 2, claimClicks: 0, lastSeenAt: null, truncated: true })).toBe("5000+ views · 40+ visitors · 2+ claim hovers");
+    expect(sendFailureHelp("quality_gate")).toContain("quality check");
   });
 
   it("disables sending once the business claimed it", () => {

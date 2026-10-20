@@ -7,6 +7,7 @@
  * leaves out shows as "not known" instead of breaking the card.
  */
 import { GENERATION_STEPS } from "@/lib/site-engine";
+import { formatDuration } from "@/lib/preview-telemetry";
 
 /** How often an active build card asks the server for progress. */
 export const DEMO_STATUS_POLL_MS = 3_000;
@@ -36,7 +37,51 @@ export type DemoBuildStatus = {
   phone: string | null;
   /** A plain-language note from the server (an error, or why status is unavailable). */
   message: string | null;
+  /** Anonymous preview engagement; null when the server didn't report it. */
+  engagement: DemoEngagement | null;
 };
+
+export type DemoEngagement = {
+  views: number;
+  uniqueSessions: number;
+  totalMs: number;
+  claimHovers: number;
+  claimClicks: number;
+  lastSeenAt: string | null;
+  truncated: boolean;
+};
+
+const count = (value: unknown) => {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? Math.round(n) : 0;
+};
+
+/** Reads the server's engagement totals defensively; null when absent or malformed. */
+export function readEngagement(value: unknown): DemoEngagement | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const row = value as Record<string, unknown>;
+  const lastSeen = str(row["lastSeenAt"]);
+  return {
+    views: count(row["views"]),
+    uniqueSessions: count(row["uniqueSessions"]),
+    totalMs: count(row["totalMs"]),
+    claimHovers: count(row["claimHovers"]),
+    claimClicks: count(row["claimClicks"]),
+    lastSeenAt: lastSeen && Number.isFinite(Date.parse(lastSeen)) ? lastSeen : null,
+    truncated: row["truncated"] === true,
+  };
+}
+
+/** One plain line for the card, e.g. "3 views · 2 visitors · 4 min on the page · 1 claim click". */
+export function engagementLine(engagement: DemoEngagement): string {
+  if (engagement.views === 0 && engagement.uniqueSessions === 0) return "Not opened yet.";
+  const plural = (n: number, word: string) => `${n}${engagement.truncated ? "+" : ""} ${word}${n === 1 ? "" : "s"}`;
+  const parts = [plural(engagement.views, "view"), plural(engagement.uniqueSessions, "visitor")];
+  if (engagement.totalMs > 0) parts.push(`${formatDuration(engagement.totalMs)} on the page`);
+  if (engagement.claimClicks > 0) parts.push(plural(engagement.claimClicks, "claim click"));
+  else if (engagement.claimHovers > 0) parts.push(plural(engagement.claimHovers, "claim hover"));
+  return parts.join(" · ");
+}
 
 /** The demo a card follows. The token is a fallback when status has no preview URL yet; the name may be empty. */
 export type DemoCardRef = { organizationId: string; name: string; previewToken?: string | undefined };
@@ -82,6 +127,7 @@ export function normalizeDemoStatus(raw: unknown): DemoBuildStatus {
     email: str(row["email"]),
     phone: str(row["phone"]),
     message: str(row["message"]) ?? str(row["error"]),
+    engagement: readEngagement(row["engagement"]),
   };
 }
 
@@ -175,6 +221,8 @@ export function sendFailureHelp(reason: string | null | undefined): string | nul
       return "Texts only go out between 9am and 8pm in the business's time zone. Try again then.";
     case "no_consent":
       return "Automatic texts need the business's recorded consent. You can still send one yourself.";
+    case "quality_gate":
+      return "The draft didn't pass the quality check (pictures, contrast or claims). Fix what it lists, then send again.";
     case "already_sent":
       return "This demo was already sent on this channel. Tick “Send again” to resend.";
     default:

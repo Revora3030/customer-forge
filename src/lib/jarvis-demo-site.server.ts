@@ -6,6 +6,7 @@ import {
   type ProspectDemoInput,
   type ProspectDemoMarker,
 } from "@/lib/jarvis-demo-site";
+import type { ProspectEnrichment } from "@/lib/prospect-enrichment";
 
 /**
  * Creates a private prospect demo workspace and queues its first AI build.
@@ -21,7 +22,7 @@ export async function provisionProspectDemo(
   input: ProspectDemoInput,
   actorId: string,
   /** Autopilot demos record where they came from, so they are never built twice. */
-  origin: { source: "autopilot"; placeId: string | null } | null = null,
+  origin: { source: "autopilot"; placeId: string | null; enrichment?: ProspectEnrichment } | null = null,
 ): Promise<{ organizationId: string; jobId: string; previewToken: string; expiresAt: string }> {
   const base = slugify(`${input.businessName} ${input.city}`) || "prospect";
   let slug = base;
@@ -58,12 +59,14 @@ export async function provisionProspectDemo(
   const previewToken = newPreviewToken();
   const createdAt = new Date().toISOString();
   const expiresAt = new Date(Date.now() + DEMO_PREVIEW_DAYS * 86_400_000).toISOString();
-  const marker: ProspectDemoMarker & { source?: "autopilot"; placeId?: string | null } = {
+  const marker: ProspectDemoMarker & { source?: "autopilot"; placeId?: string | null; enrichment?: ProspectEnrichment } = {
     kind: "prospect_demo",
     createdBy: actorId,
     createdAt,
     previewToken,
     ...(origin ? { source: origin.source, placeId: origin.placeId } : {}),
+    // Where the email came from and whether it was verified; autopilot's send gate reads it.
+    ...(origin?.enrichment ? { enrichment: origin.enrichment } : {}),
   };
 
   await must(

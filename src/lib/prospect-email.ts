@@ -9,6 +9,11 @@ const BLOCKED_DOMAIN =
 const BLOCKED_LOCAL = /^(noreply|no-reply|donotreply|privacy|abuse|support|security|legal|webmaster|postmaster)$/i;
 const FILE_LIKE = /\.(png|jpe?g|gif|webp|svg|css|js)$/i;
 
+/** A listing/social platform's or placeholder domain: never the business's own mailbox. */
+export function isPlatformEmailDomain(domain: string): boolean {
+  return BLOCKED_DOMAIN.test(domain.trim().toLowerCase());
+}
+
 export function extractBusinessEmail(html: string): string | null {
   const decoded = html.replace(/&#64;|&#x40;|\\u0040/gi, "@").replace(/%40/g, "@");
   const mailto = [...decoded.matchAll(/mailto:([^"'?\s>]+)/gi)].map((match) => match[1]!);
@@ -27,6 +32,50 @@ export function extractBusinessEmail(html: string): string | null {
     if (!local || !domain || BLOCKED_DOMAIN.test(domain) || BLOCKED_LOCAL.test(local)) continue;
     if (!/^[^\s@<>,;"]+@[^\s@<>,;"]+\.[a-z]{2,}$/.test(email)) continue;
     return email;
+  }
+  return null;
+}
+
+const META_NAMES = new Set([
+  "description",
+  "og:description",
+  "twitter:description",
+  "og:email",
+  "email",
+  "business:contact_data:email",
+  "profile:email",
+]);
+
+function attribute(tag: string, name: string): string | null {
+  const match = tag.match(new RegExp(`\\b${name}\\s*=\\s*("([^"]*)"|'([^']*)')`, "i"));
+  return match ? (match[2] ?? match[3] ?? "") : null;
+}
+
+// One pass, so "&amp;lt;" reads as the text "&lt;" rather than being decoded twice.
+const ENTITIES: Record<string, string> = { amp: "&", quot: '"', "#39": "'", apos: "'", lt: "<", gt: ">" };
+const decodeEntities = (text: string) => text.replace(/&(amp|quot|#39|apos|lt|gt);/gi, (entity, name: string) => ENTITIES[name.toLowerCase()] ?? entity);
+
+/**
+ * An email the business published in its profile page's meta tags (the
+ * og/twitter description or a contact-data email tag), including the common
+ * bracketed spellings "name [at] shop [dot] com". Only bracketed forms are
+ * decoded, so ordinary prose ("call us at 5") is never turned into an address.
+ */
+export function extractMetaEmail(html: string): string | null {
+  const contents: string[] = [];
+  for (const match of html.matchAll(/<meta\b[^>]*>/gi)) {
+    const tag = match[0];
+    const key = (attribute(tag, "property") ?? attribute(tag, "name") ?? attribute(tag, "itemprop") ?? "").trim().toLowerCase();
+    if (!META_NAMES.has(key)) continue;
+    const content = attribute(tag, "content");
+    if (content) contents.push(decodeEntities(content));
+  }
+  for (const content of contents) {
+    const deobfuscated = content
+      .replace(/\s*[[({]\s*at\s*[\])}]\s*/gi, "@")
+      .replace(/\s*[[({]\s*dot\s*[\])}]\s*/gi, ".");
+    const email = extractBusinessEmail(deobfuscated);
+    if (email) return email;
   }
   return null;
 }

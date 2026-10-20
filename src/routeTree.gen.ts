@@ -93,6 +93,7 @@ import { Route as AuthenticatedMyActivityRouteImport } from './routes/_authentic
 import { Route as AuthenticatedMySiteRouteImport } from './routes/_authenticated/my.site'
 import { Route as AuthenticatedMyStartRouteImport } from './routes/_authenticated/my.start'
 import { Route as ApiPublicJarvisVoiceRouteImport } from './routes/api/public/jarvis-voice'
+import { Route as ApiPublicPreviewBeaconRouteImport } from './routes/api/public/preview-beacon'
 import { Route as ApiPublicSentryTestRouteImport } from './routes/api/public/sentry-test'
 import { Route as LocalIndustryIndexRouteImport } from './routes/local.$industry.index'
 import { Route as LocalIndustryStateRouteImport } from './routes/local.$industry.$state'
@@ -108,6 +109,7 @@ import { Route as ApiPublicJobsLeadReminderRouteImport } from './routes/api/publ
 import { Route as ApiPublicJobsLifecycleEmailRouteImport } from './routes/api/public/jobs/lifecycle-email'
 import { Route as ApiPublicJobsMediaCleanupRouteImport } from './routes/api/public/jobs/media-cleanup'
 import { Route as ApiPublicJobsProspectAutopilotRouteImport } from './routes/api/public/jobs/prospect-autopilot'
+import { Route as ApiPublicJobsProspectRepliesRouteImport } from './routes/api/public/jobs/prospect-replies'
 import { Route as ApiPublicJobsSiteEngineRouteImport } from './routes/api/public/jobs/site-engine'
 import { Route as ApiPublicJobsSiteHealthRouteImport } from './routes/api/public/jobs/site-health'
 import { Route as ApiPublicJobsWeeklyReportRouteImport } from './routes/api/public/jobs/weekly-report'
@@ -553,6 +555,11 @@ const ApiPublicJarvisVoiceRoute = ApiPublicJarvisVoiceRouteImport.update({
   path: '/api/public/jarvis-voice',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicPreviewBeaconRoute = ApiPublicPreviewBeaconRouteImport.update({
+  id: '/api/public/preview-beacon',
+  path: '/api/public/preview-beacon',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicSentryTestRoute = ApiPublicSentryTestRouteImport.update({
   id: '/api/public/sentry-test',
   path: '/api/public/sentry-test',
@@ -634,6 +641,12 @@ const ApiPublicJobsProspectAutopilotRoute =
   ApiPublicJobsProspectAutopilotRouteImport.update({
     id: '/api/public/jobs/prospect-autopilot',
     path: '/api/public/jobs/prospect-autopilot',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicJobsProspectRepliesRoute =
+  ApiPublicJobsProspectRepliesRouteImport.update({
+    id: '/api/public/jobs/prospect-replies',
+    path: '/api/public/jobs/prospect-replies',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiPublicJobsSiteEngineRoute = ApiPublicJobsSiteEngineRouteImport.update({
@@ -761,6 +774,7 @@ export interface FileRoutesByFullPath {
   '/my/site': typeof AuthenticatedMySiteRoute
   '/my/start': typeof AuthenticatedMyStartRoute
   '/api/public/jarvis-voice': typeof ApiPublicJarvisVoiceRoute
+  '/api/public/preview-beacon': typeof ApiPublicPreviewBeaconRoute
   '/api/public/sentry-test': typeof ApiPublicSentryTestRoute
   '/local/$industry/$state': typeof LocalIndustryStateRoute
   '/p/$token/$page': typeof PTokenPageRoute
@@ -779,6 +793,7 @@ export interface FileRoutesByFullPath {
   '/api/public/jobs/lifecycle-email': typeof ApiPublicJobsLifecycleEmailRoute
   '/api/public/jobs/media-cleanup': typeof ApiPublicJobsMediaCleanupRoute
   '/api/public/jobs/prospect-autopilot': typeof ApiPublicJobsProspectAutopilotRoute
+  '/api/public/jobs/prospect-replies': typeof ApiPublicJobsProspectRepliesRoute
   '/api/public/jobs/site-engine': typeof ApiPublicJobsSiteEngineRoute
   '/api/public/jobs/site-health': typeof ApiPublicJobsSiteHealthRoute
   '/api/public/jobs/weekly-report': typeof ApiPublicJobsWeeklyReportRoute
@@ -864,6 +879,7 @@ export interface FileRoutesByTo {
   '/my/site': typeof AuthenticatedMySiteRoute
   '/my/start': typeof AuthenticatedMyStartRoute
   '/api/public/jarvis-voice': typeof ApiPublicJarvisVoiceRoute
+  '/api/public/preview-beacon': typeof ApiPublicPreviewBeaconRoute
   '/api/public/sentry-test': typeof ApiPublicSentryTestRoute
   '/local/$industry/$state': typeof LocalIndustryStateRoute
   '/p/$token/$page': typeof PTokenPageRoute
@@ -882,6 +898,7 @@ export interface FileRoutesByTo {
   '/api/public/jobs/lifecycle-email': typeof ApiPublicJobsLifecycleEmailRoute
   '/api/public/jobs/media-cleanup': typeof ApiPublicJobsMediaCleanupRoute
   '/api/public/jobs/prospect-autopilot': typeof ApiPublicJobsProspectAutopilotRoute
+  '/api/public/jobs/prospect-replies': typeof ApiPublicJobsProspectRepliesRoute
   '/api/public/jobs/site-engine': typeof ApiPublicJobsSiteEngineRoute
   '/api/public/jobs/site-health': typeof ApiPublicJobsSiteHealthRoute
   '/api/public/jobs/weekly-report': typeof ApiPublicJobsWeeklyReportRoute
@@ -974,6 +991,7 @@ export interface FileRoutesById {
   '/_authenticated/my/site': typeof AuthenticatedMySiteRoute
   '/_authenticated/my/start': typeof AuthenticatedMyStartRoute
   '/api/public/jarvis-voice': typeof ApiPublicJarvisVoiceRoute
+  '/api/public/preview-beacon': typeof ApiPublicPreviewBeaconRoute
   '/api/public/sentry-test': typeof ApiPublicSentryTestRoute
   '/local/$industry/$state': typeof LocalIndustryStateRoute
   '/p/$token_/$page': typeof PTokenPageRoute
@@ -992,6 +1010,7 @@ export interface FileRoutesById {
   '/api/public/jobs/lifecycle-email': typeof ApiPublicJobsLifecycleEmailRoute
   '/api/public/jobs/media-cleanup': typeof ApiPublicJobsMediaCleanupRoute
   '/api/public/jobs/prospect-autopilot': typeof ApiPublicJobsProspectAutopilotRoute
+  '/api/public/jobs/prospect-replies': typeof ApiPublicJobsProspectRepliesRoute
   '/api/public/jobs/site-engine': typeof ApiPublicJobsSiteEngineRoute
   '/api/public/jobs/site-health': typeof ApiPublicJobsSiteHealthRoute
   '/api/public/jobs/weekly-report': typeof ApiPublicJobsWeeklyReportRoute
@@ -1084,6 +1103,7 @@ export interface FileRouteTypes {
     | '/my/site'
     | '/my/start'
     | '/api/public/jarvis-voice'
+    | '/api/public/preview-beacon'
     | '/api/public/sentry-test'
     | '/local/$industry/$state'
     | '/p/$token/$page'
@@ -1102,6 +1122,7 @@ export interface FileRouteTypes {
     | '/api/public/jobs/lifecycle-email'
     | '/api/public/jobs/media-cleanup'
     | '/api/public/jobs/prospect-autopilot'
+    | '/api/public/jobs/prospect-replies'
     | '/api/public/jobs/site-engine'
     | '/api/public/jobs/site-health'
     | '/api/public/jobs/weekly-report'
@@ -1187,6 +1208,7 @@ export interface FileRouteTypes {
     | '/my/site'
     | '/my/start'
     | '/api/public/jarvis-voice'
+    | '/api/public/preview-beacon'
     | '/api/public/sentry-test'
     | '/local/$industry/$state'
     | '/p/$token/$page'
@@ -1205,6 +1227,7 @@ export interface FileRouteTypes {
     | '/api/public/jobs/lifecycle-email'
     | '/api/public/jobs/media-cleanup'
     | '/api/public/jobs/prospect-autopilot'
+    | '/api/public/jobs/prospect-replies'
     | '/api/public/jobs/site-engine'
     | '/api/public/jobs/site-health'
     | '/api/public/jobs/weekly-report'
@@ -1296,6 +1319,7 @@ export interface FileRouteTypes {
     | '/_authenticated/my/site'
     | '/_authenticated/my/start'
     | '/api/public/jarvis-voice'
+    | '/api/public/preview-beacon'
     | '/api/public/sentry-test'
     | '/local/$industry/$state'
     | '/p/$token_/$page'
@@ -1314,6 +1338,7 @@ export interface FileRouteTypes {
     | '/api/public/jobs/lifecycle-email'
     | '/api/public/jobs/media-cleanup'
     | '/api/public/jobs/prospect-autopilot'
+    | '/api/public/jobs/prospect-replies'
     | '/api/public/jobs/site-engine'
     | '/api/public/jobs/site-health'
     | '/api/public/jobs/weekly-report'
@@ -1365,6 +1390,7 @@ export interface RootRouteChildren {
   LocationsIndexRoute: typeof LocationsIndexRoute
   StatesIndexRoute: typeof StatesIndexRoute
   ApiPublicJarvisVoiceRoute: typeof ApiPublicJarvisVoiceRoute
+  ApiPublicPreviewBeaconRoute: typeof ApiPublicPreviewBeaconRoute
   ApiPublicSentryTestRoute: typeof ApiPublicSentryTestRoute
   LocalIndustryStateRoute: typeof LocalIndustryStateRoute
   PTokenPageRoute: typeof PTokenPageRoute
@@ -1376,6 +1402,7 @@ export interface RootRouteChildren {
   ApiPublicJobsLifecycleEmailRoute: typeof ApiPublicJobsLifecycleEmailRoute
   ApiPublicJobsMediaCleanupRoute: typeof ApiPublicJobsMediaCleanupRoute
   ApiPublicJobsProspectAutopilotRoute: typeof ApiPublicJobsProspectAutopilotRoute
+  ApiPublicJobsProspectRepliesRoute: typeof ApiPublicJobsProspectRepliesRoute
   ApiPublicJobsSiteEngineRoute: typeof ApiPublicJobsSiteEngineRoute
   ApiPublicJobsSiteHealthRoute: typeof ApiPublicJobsSiteHealthRoute
   ApiPublicJobsWeeklyReportRoute: typeof ApiPublicJobsWeeklyReportRoute
@@ -1976,6 +2003,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicJarvisVoiceRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/preview-beacon': {
+      id: '/api/public/preview-beacon'
+      path: '/api/public/preview-beacon'
+      fullPath: '/api/public/preview-beacon'
+      preLoaderRoute: typeof ApiPublicPreviewBeaconRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/sentry-test': {
       id: '/api/public/sentry-test'
       path: '/api/public/sentry-test'
@@ -2079,6 +2113,13 @@ declare module '@tanstack/react-router' {
       path: '/api/public/jobs/prospect-autopilot'
       fullPath: '/api/public/jobs/prospect-autopilot'
       preLoaderRoute: typeof ApiPublicJobsProspectAutopilotRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/jobs/prospect-replies': {
+      id: '/api/public/jobs/prospect-replies'
+      path: '/api/public/jobs/prospect-replies'
+      fullPath: '/api/public/jobs/prospect-replies'
+      preLoaderRoute: typeof ApiPublicJobsProspectRepliesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/jobs/site-engine': {
@@ -2364,6 +2405,7 @@ const rootRouteChildren: RootRouteChildren = {
   LocationsIndexRoute: LocationsIndexRoute,
   StatesIndexRoute: StatesIndexRoute,
   ApiPublicJarvisVoiceRoute: ApiPublicJarvisVoiceRoute,
+  ApiPublicPreviewBeaconRoute: ApiPublicPreviewBeaconRoute,
   ApiPublicSentryTestRoute: ApiPublicSentryTestRoute,
   LocalIndustryStateRoute: LocalIndustryStateRoute,
   PTokenPageRoute: PTokenPageRoute,
@@ -2375,6 +2417,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicJobsLifecycleEmailRoute: ApiPublicJobsLifecycleEmailRoute,
   ApiPublicJobsMediaCleanupRoute: ApiPublicJobsMediaCleanupRoute,
   ApiPublicJobsProspectAutopilotRoute: ApiPublicJobsProspectAutopilotRoute,
+  ApiPublicJobsProspectRepliesRoute: ApiPublicJobsProspectRepliesRoute,
   ApiPublicJobsSiteEngineRoute: ApiPublicJobsSiteEngineRoute,
   ApiPublicJobsSiteHealthRoute: ApiPublicJobsSiteHealthRoute,
   ApiPublicJobsWeeklyReportRoute: ApiPublicJobsWeeklyReportRoute,

@@ -37,6 +37,13 @@ import {
   type DepthDirection,
   type DesignFinding,
 } from "@/lib/builder/design-quality";
+import {
+  createCheckpointRecorder,
+  inputDigest,
+  readSectionCheckpoint,
+  remapMediaRefs,
+  type SectionCheckpointStore,
+} from "@/lib/builder/first-build-section-checkpoints";
 
 const IMPROVEMENT_ROUNDS = 2;
 
@@ -85,6 +92,10 @@ export type CompositionPassResult = {
   designFindings?: number;
   /** Pages whose optional quality rounds were skipped to stay within the time budget. */
   optionalSkipped?: number;
+  /** Sections restored from this job's checkpoint instead of being designed again. */
+  resumed?: number;
+  /** Targeted AI repair calls made for answers that failed the validator. */
+  outputRepairs?: number;
 };
 
 const RULES = [
@@ -211,17 +222,53 @@ function mediaRefsFor(section: SectionRow, parts: ComponentRow[]) {
 }
 
 function parseTrees(text: string): Record<string, unknown> | null {
+  return parseTreesDetailed(text).sections;
+}
+
+/** Like parseTrees, but says exactly why an answer could not be read. */
+function parseTreesDetailed(text: string): { sections: Record<string, unknown> | null; error: string | null } {
   const start = text.indexOf("{");
   const end = text.lastIndexOf("}");
-  if (start < 0 || end <= start) return null;
+  if (start < 0 || end <= start) return { sections: null, error: "the answer contained no JSON object" };
   try {
     const parsed = JSON.parse(text.slice(start, end + 1)) as { sections?: unknown };
     return parsed.sections && typeof parsed.sections === "object" && !Array.isArray(parsed.sections)
-      ? (parsed.sections as Record<string, unknown>)
-      : null;
-  } catch {
-    return null;
+      ? { sections: parsed.sections as Record<string, unknown>, error: null }
+      : { sections: null, error: 'the JSON had no "sections" object keyed by section id' };
+  } catch (error) {
+    return { sections: null, error: `invalid JSON: ${error instanceof Error ? error.message : "parse error"}` };
   }
+}
+
+/** A failed answer, clipped so a repair prompt stays within model limits. */
+function clipOutput(value: unknown, limit = 12000): string {
+  const text = typeof value === "string" ? value : (JSON.stringify(value) ?? "null");
+  return text.length > limit ? `${text.slice(0, limit)}…[truncated]` : text;
+}
+
+/**
+ * The section's material as it is stored, independent of row ids (a retry
+ * writes new rows), used only to match a checkpointed design to its section.
+ */
+function checkpointMaterial(section: SectionRow, parts: ComponentRow[]) {
+  return {
+    role: section.kind,
+    heading: section.heading,
+    subheading: section.subheading,
+    body: section.body,
+    parts: parts
+      .filter((part) => part.section_id === section.id)
+      .map((part) => ({
+        kind: part.kind,
+        label: part.label,
+        body: part.body,
+        media: part.media_url,
+        source: part.media_url ? partSource(part) ?? null : null,
+        pairRole: part.media_url ? ownerPairRole(part) : null,
+        href: part.link_url,
+        linkLabel: part.link_label,
+      })),
+  };
 }
 
 export async function composeFirstBuildSections(input: {
@@ -244,6 +291,11 @@ export async function composeFirstBuildSections(input: {
    * inside a JSON lookSummary, so pages are held to what the AI itself asked for.
    */
   depthDirection?: DepthDirection | null;
+  /**
+   * The job's section checkpoint. Accepted designs are written after every
+   * chunk; a retry of the same job restores the ones whose inputs still match.
+   */
+  checkpoint?: { jobId: string; store: SectionCheckpointStore };
 }): Promise<CompositionPassResult> {
   const { db, organizationId, facts } = input;
   const direction = input.depthDirection ?? depthDirectionFromLook(input.lookSummary);
@@ -267,8 +319,9 @@ export async function composeFirstBuildSections(input: {
   };
   // A made-up phone number or email in a layout is corrected to the owner's
   // real one (or the contact page) instead of costing the whole section.
-  const pageRows = await db.from("website_pages").select("slug,kind").eq("organization_id", organizationId);
-  const contactSlug = ((pageRows.data ?? []) as { slug: string; kind: string | null }[]).find((page) =>
+  const pageRows = await db.from("website_pages").select("id,slug,kind").eq("organization_id", organizationId);
+  const pageList = (pageRows.data ?? []) as { id?: string; slug: string; kind: string | null }[];
+  const contactSlug = pageList.find((page) =>
     ["contact", "book", "booking", "quote", "contact-us"].includes(page.slug) || /contact|book|quote/i.test(String(page.kind ?? "")),
   )?.slug;
   const fixContacts = (raw: unknown) =>
@@ -285,10 +338,182 @@ export async function composeFirstBuildSections(input: {
   }
 
   const result: CompositionPassResult = { composed: 0, kept: rows.length, models: [], costMicrocents: 0, gateReports: [], fallback: 0 };
+
+  /**
+   * The one acceptance rule for an AI-authored tree: the composition safety
+   * validator (primitives, media, links, contrast, fact screen) plus the
+   * working-widget check. Checkpointed, repaired and rescued trees all pass it.
+   */
+  type Verdict = { ok: true; tree: CompositionTree } | { ok: false; issues: CompositionIssue[] };
+  const acceptTree = (section: SectionRow, raw: unknown): Verdict => {
+    const mediaRefs = mediaRefsFor(section, parts);
+    const checked = validateComposition(fixContacts(raw), {
+      firstBuild: true,
+      screenText: screen,
+      allowedMediaRefs: mediaRefs,
+      requiredMediaRefs: mediaRefs,
+    });
+    if (!checked.ok) return { ok: false, issues: checked.issues.slice(0, 12) };
+    const widgetName = requiredWidgetForRole(section.kind);
+    if (widgetName) {
+      const widget = findWidget(checked.tree.root, widgetName);
+      const problem = widget ? widgetPresentationProblem(section.kind, widget) : `the ${section.kind} section must contain a ${widgetName} widget`;
+      if (problem) return { ok: false, issues: [{ path: "root", problem }] };
+    }
+    return { ok: true, tree: checked.tree };
+  };
+
+  // CHECKPOINTS: accepted designs are stored on the job after every chunk, so
+  // a retry, lease recovery or capacity deferral of the same job only asks
+  // the AI team for the sections that are still missing. A checkpoint is only
+  // reused when the run's inputs (authored look, facts, depth direction) and
+  // the section's own material are unchanged; anything stale is discarded.
+  const sectionDigest = new Map<string, string>();
+  const slugByPage = new Map(pageList.filter((page) => page.id).map((page) => [page.id!, page.slug]));
+  for (const [pageId, list] of byPage) {
+    list.forEach((section, index) =>
+      sectionDigest.set(section.id, inputDigest({ page: slugByPage.get(pageId) ?? null, index, material: checkpointMaterial(section, parts) })),
+    );
+  }
+  const runDigest = inputDigest({ lookSummary: input.lookSummary, facts: screenFacts, direction: direction ?? null });
+  const mediaOf = (section: SectionRow) =>
+    Object.fromEntries(parts.filter((part) => part.section_id === section.id && part.media_url).map((part) => [part.id, part.media_url!]));
+  let recorder: ReturnType<typeof createCheckpointRecorder> | null = null;
+  const restored = new Map<string, CompositionTree>();
+  if (input.checkpoint) {
+    const { jobId, store } = input.checkpoint;
+    const raw = await store.load();
+    const loaded = readSectionCheckpoint(raw, { jobId, digest: runDigest, sectionDigests: sectionDigest.values() });
+    if (loaded.discarded) {
+      console.warn(`[first-build-compositions] job ${jobId}: section checkpoint no longer matches this build's inputs; discarded.`);
+      await store.save(null);
+    }
+    recorder = createCheckpointRecorder({ store, jobId, digest: runDigest, initial: loaded.entries });
+    for (const list of byPage.values()) {
+      for (const section of list) {
+        if (readComposition(section.settings)) continue;
+        const key = sectionDigest.get(section.id);
+        const entry = key ? recorder.get(key) : undefined;
+        if (!entry) continue;
+        const refByUrl = new Map(
+          parts.filter((part) => part.section_id === section.id && part.media_url).map((part) => [part.media_url!, part.id]),
+        );
+        const remapped = remapMediaRefs(entry.tree, entry.media, refByUrl);
+        if (remapped === null) continue;
+        // Re-validated with today's rules before reuse; never trusted blindly.
+        const verdict = acceptTree(section, remapped);
+        if (verdict.ok) {
+          restored.set(section.id, verdict.tree);
+          result.resumed = (result.resumed ?? 0) + 1;
+        }
+      }
+    }
+  }
+  const checkpointAccepted = async (accepted: { section: SectionRow; tree: CompositionTree }[]) => {
+    if (!recorder || !accepted.length) return;
+    await recorder.record(
+      accepted.flatMap(({ section, tree }) => {
+        const key = sectionDigest.get(section.id);
+        return key ? [{ digest: key, tree, media: mediaOf(section) }] : [];
+      }),
+    );
+  };
+
+  /**
+   * One targeted AI repair per section: when an answer fails the validator
+   * (or is not valid JSON), Sol gets the exact validator errors and its own
+   * output back and repairs it. The repaired tree still has to pass
+   * acceptTree and the page's normal review rounds.
+   */
+  const repairUsed = new Set<string>();
+  const repairSections = async (
+    failing: SectionRow[],
+    issues: Record<string, CompositionIssue[]>,
+    badOutput: string,
+  ): Promise<Map<string, CompositionTree>> => {
+    const fixed = new Map<string, CompositionTree>();
+    const eligible = failing.filter((section) => !repairUsed.has(section.id));
+    if (!eligible.length) return fixed;
+    for (const section of eligible) repairUsed.add(section.id);
+    const call = await callBestThinker({
+      json: true,
+      purpose: "creative_direction",
+      complexity: "high",
+      organizationId,
+      maxOutputTokens: 16000,
+      system: RULES,
+      user: [
+        "SITE LOOK (follow it):",
+        input.lookSummary,
+        "",
+        "SECTION MATERIAL (material only):",
+        JSON.stringify(eligible.map((s) => materialFor(s, parts.filter((p) => p.section_id === s.id))), null, 2),
+        "",
+        "YOUR LAST ANSWER FAILED THE COMPOSITION VALIDATOR. EXACT VALIDATOR ERRORS:",
+        JSON.stringify(Object.fromEntries(eligible.map((s) => [s.id, issues[s.id] ?? []])), null, 2),
+        "",
+        "YOUR LAST OUTPUT (repair it: fix every error above and keep everything that already works — media refs, widgets, copy, layout intent):",
+        badOutput,
+        "",
+        'Return JSON: {"sections": {"<sectionId>": {"version": 1, "label": "...", "root": {...}}}} with one repaired tree per listed section.',
+      ].join("\n"),
+    });
+    result.outputRepairs = (result.outputRepairs ?? 0) + 1;
+    if (!call.ok) return fixed;
+    if (call.model) result.models.push(call.model);
+    result.costMicrocents += call.costMicrocents ?? 0;
+    const parsed = parseTreesDetailed(call.text);
+    const trees = parsed.sections ?? {};
+    for (const section of eligible) {
+      const raw = trees[section.id] ?? (eligible.length === 1 ? Object.values(trees)[0] : undefined);
+      const verdict: Verdict = parsed.sections
+        ? acceptTree(section, raw)
+        : { ok: false, issues: [{ path: "response", problem: parsed.error ?? "unreadable answer" }] };
+      if (verdict.ok) fixed.set(section.id, verdict.tree);
+      else issues[section.id] = verdict.issues;
+    }
+    return fixed;
+  };
+
+  /** Validates one answer for a set of sections, repairing failures once. */
+  const settleAnswer = async (sectionsAsked: SectionRow[], text: string, single: boolean) => {
+    const parsed = parseTreesDetailed(text);
+    const trees = parsed.sections ?? {};
+    const accepted: { section: SectionRow; tree: CompositionTree }[] = [];
+    const failing: SectionRow[] = [];
+    const issues: Record<string, CompositionIssue[]> = {};
+    for (const section of sectionsAsked) {
+      if (!parsed.sections) {
+        issues[section.id] = [{ path: "response", problem: parsed.error ?? "unreadable answer" }];
+        failing.push(section);
+        continue;
+      }
+      const verdict = acceptTree(section, trees[section.id] ?? (single ? Object.values(trees)[0] : undefined));
+      if (verdict.ok) accepted.push({ section, tree: verdict.tree });
+      else {
+        issues[section.id] = verdict.issues;
+        failing.push(section);
+      }
+    }
+    if (failing.length) {
+      const badOutput = parsed.sections
+        ? clipOutput(Object.fromEntries(failing.map((s) => [s.id, trees[s.id] ?? (single ? Object.values(trees)[0] ?? null : null)])))
+        : clipOutput(text);
+      const fixed = await repairSections(failing, issues, badOutput);
+      for (const section of failing) {
+        const tree = fixed.get(section.id);
+        if (tree) accepted.push({ section, tree });
+      }
+    }
+    const acceptedIds = new Set(accepted.map((entry) => entry.section.id));
+    return { accepted, failing: failing.filter((s) => !acceptedIds.has(s.id)), issues };
+  };
+
   // The wider team advises Sol before the first design, from supplied material
   // only. A failed adviser is skipped; advice never blocks a build.
   let advice: { area: string; issues: string[] }[] = [];
-  if (withinBudget()) try {
+  const needsDesign = rows.some((r) => !FUNCTIONAL_SECTION_KINDS.has(r.kind) && !readComposition(r.settings) && !restored.has(r.id));
+  if (withinBudget() && needsDesign) try {
     const panel = await runAdvisoryPanel({
       organizationId,
       material: JSON.stringify(rows.filter((r) => !FUNCTIONAL_SECTION_KINDS.has(r.kind)).map((s) => materialFor(s, parts.filter((p) => p.section_id === s.id)))),
@@ -315,8 +540,14 @@ export async function composeFirstBuildSections(input: {
         result.kept -= 1;
       }
     }
-    let pending = allPageSections.filter((section) => !readComposition(section.settings));
-    if (!pending.length) {
+    const designed = new Map<string, CompositionTree>();
+    // Sections restored from this job's checkpoint are not designed again.
+    for (const section of allPageSections) {
+      const tree = restored.get(section.id);
+      if (tree) designed.set(section.id, tree);
+    }
+    let pending = allPageSections.filter((section) => !readComposition(section.settings) && !designed.has(section.id));
+    if (!pending.length && !designed.size) {
       await input.onPageDone?.();
       return;
     }
@@ -325,7 +556,6 @@ export async function composeFirstBuildSections(input: {
     // on that page failed together. Sections are designed a few at a time.
     const BATCH = 4;
     let feedback: Record<string, CompositionIssue[]> = {};
-    const designed = new Map<string, CompositionTree>();
     let pageFailed = false;
     // A single failed call is often a transient rate limit or timeout. The
     // page is only abandoned after two failed calls, so one hiccup no longer
@@ -372,32 +602,13 @@ export async function composeFirstBuildSections(input: {
       }
       if (call.model) result.models.push(call.model);
       result.costMicrocents += call.costMicrocents ?? 0;
-      const trees = parseTrees(call.text) ?? {};
-      for (const section of batch) {
-        const mediaRefs = mediaRefsFor(section, parts);
-        const checked = validateComposition(fixContacts(trees[section.id]), {
-          firstBuild: true,
-          screenText: screen,
-          allowedMediaRefs: mediaRefs,
-          requiredMediaRefs: mediaRefs,
-        });
-        if (!checked.ok) {
-          nextFeedback[section.id] = checked.issues.slice(0, 12);
-          next.push(section);
-          continue;
-        }
-        const widgetName = requiredWidgetForRole(section.kind);
-        if (widgetName) {
-          const widget = findWidget(checked.tree.root, widgetName);
-          const problem = widget ? widgetPresentationProblem(section.kind, widget) : `the ${section.kind} section must contain a ${widgetName} widget`;
-          if (problem) {
-            nextFeedback[section.id] = [{ path: "root", problem }];
-            next.push(section);
-            continue;
-          }
-        }
-        designed.set(section.id, checked.tree);
+      const settled = await settleAnswer(batch, call.text, false);
+      for (const { section, tree } of settled.accepted) designed.set(section.id, tree);
+      for (const section of settled.failing) {
+        nextFeedback[section.id] = settled.issues[section.id] ?? [];
+        next.push(section);
       }
+      await checkpointAccepted(settled.accepted);
      }
       feedback = nextFeedback;
       pending = next;
@@ -412,6 +623,7 @@ export async function composeFirstBuildSections(input: {
       const rescueResults: boolean[] = [];
       for (let offset = 0; offset < pending.length; offset += 2) {
         const chunk = pending.slice(offset, offset + 2);
+        const chunkAccepted: { section: SectionRow; tree: CompositionTree }[] = [];
         const chunkResults = await Promise.all(chunk.map(async (section) => {
         const call = await callBestThinker({
           json: true,
@@ -434,27 +646,18 @@ export async function composeFirstBuildSections(input: {
         if (!call.ok) return false;
         if (call.model) result.models.push(call.model);
         result.costMicrocents += call.costMicrocents ?? 0;
-        const trees = parseTrees(call.text) ?? {};
-        const mediaRefs = mediaRefsFor(section, parts);
-        const checked = validateComposition(fixContacts(trees[section.id] ?? Object.values(trees)[0]), {
-          firstBuild: true,
-          screenText: screen,
-          allowedMediaRefs: mediaRefs,
-          requiredMediaRefs: mediaRefs,
-        });
-        if (!checked.ok) {
-          feedback[section.id] = checked.issues.slice(0, 12);
+        const settled = await settleAnswer([section], call.text, true);
+        const accepted = settled.accepted[0];
+        if (!accepted) {
+          feedback[section.id] = settled.issues[section.id] ?? [];
           return false;
         }
-        const widgetName = requiredWidgetForRole(section.kind);
-        if (widgetName) {
-          const widget = findWidget(checked.tree.root, widgetName);
-          if (!widget || widgetPresentationProblem(section.kind, widget)) return false;
-        }
-        designed.set(section.id, checked.tree);
+        designed.set(section.id, accepted.tree);
+        chunkAccepted.push(accepted);
         return true;
         }));
         rescueResults.push(...chunkResults);
+        await checkpointAccepted(chunkAccepted);
       }
       pending = pending.filter((_, index) => !rescueResults[index]);
     }

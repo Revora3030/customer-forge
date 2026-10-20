@@ -156,6 +156,12 @@ describe("Jarvis diagnostic executor", () => {
     expect(serialized).toContain("Verified production reliability");
     expect(serialized).toContain("evidence_incomplete");
     expect(serialized).not.toContain('"verified10Of10Areas":7');
+    // The demo engine's seven self-audit rows ride along, untruncated, with no
+    // live tables reachable here, so none of them can pass.
+    const data = output.data as { truncated?: boolean; engine?: { rows: Array<{ id: string; status: string }> } };
+    expect(data.truncated).toBeUndefined();
+    expect(data.engine?.rows.map((row) => row.id)).toEqual(["acquisition", "enrichment", "gate", "outreach", "inbound", "engagement", "runtime"]);
+    expect(data.engine?.rows.every((row) => row.status !== "verified")).toBe(true);
   });
 
   it("verifies CI checks only when quality, security, and browser runs match current lovable-sync HEAD", async () => {
