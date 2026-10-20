@@ -3,8 +3,8 @@
 ## Site-wide upgrade (2026-10-20)
 - [x] Wave 0: 23 public pages x2 widths + 33 signed-in pages checked: no console errors, no sideways scroll, all have titles/descriptions.
 - [x] Phone tap targets fixed on sign-in, reset password, contact, CRM.
-- [ ] Wave 1: homepage is ~36 phone screens tall; cookie banner covers hero form. Needs owner pick of sections to cut.
-- [ ] Contact page shows a phone number; confirm owner wants it public.
+- [x] Homepage cut from ~36 to ~14 phone screens (owner chose tight). Further trim to ~8 still open.
+- [x] Phone number removed from all public pages, footer, phone bar, SEO data (owner choice). Signed-in app pages still show it.
 - [ ] Waves 2–5.
 
 ## Build resume + production audit (2026-10-20)
