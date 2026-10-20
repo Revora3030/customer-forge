@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { isDoNotContact, normalizeEmail, normalizePhone, type OutreachChannel, type OutreachMode } from "@/lib/prospect-outreach.server";
+import { isDoNotContact, normalizeEmail, normalizePhone, type OutreachChannel, type OutreachKind, type OutreachMode } from "@/lib/prospect-outreach.server";
 
 /**
  * The outreach send queue. Autopilot sends are spaced out instead of going
@@ -29,6 +29,8 @@ export type EnqueueOutreachItem = {
   mode?: OutreachMode;
   /** Exact time; otherwise a random 0-20 minute gap after the latest waiting item. */
   notBefore?: Date;
+  /** Defaults to first_touch; "followup" is the one engagement follow-up email. */
+  kind?: OutreachKind;
 };
 
 export type EnqueueResult = { ok: true; id: string | null; notBefore: string; duplicate: boolean } | { ok: false; reason: string };
@@ -47,6 +49,8 @@ export type QueueRow = {
   last_error: string | null;
   leased_until: string | null;
   lease_owner: string | null;
+  /** Absent before the follow-up migration: a first touch. */
+  kind?: OutreachKind | null;
 };
 
 const ORG_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -89,6 +93,8 @@ export async function enqueueOutreach(
     not_before: notBefore.toISOString(),
     status: "queued",
     attempts: 0,
+    // Written only for follow-ups, so first touches keep queueing before the kind migration.
+    ...(item.kind === "followup" ? { kind: "followup" } : {}),
   });
   if (error) {
     if ((error as { code?: string }).code === "23505") return { ok: true, id: null, notBefore: notBefore.toISOString(), duplicate: true };
@@ -107,9 +113,20 @@ export async function claimQueuedOutreach(db: SupabaseClient, owner: string, lim
 /** Provider or storage trouble that may clear on its own: retried with backoff. */
 export const TRANSIENT_SEND_REASONS = new Set(["rate_limited", "gmail_unavailable", "storage_error", "email_error_500", "email_error_502", "email_error_503"]);
 /** "Not right now": rescheduled without spending an attempt. */
-export const WAIT_SEND_REASONS = new Set(["quiet_hours", "daily_cap"]);
+export const WAIT_SEND_REASONS = new Set(["quiet_hours", "daily_cap", "outside_business_hours"]);
 /** The send must never happen (or may already have): cancelled. unconfirmed_transport is recorded as sent. */
-export const CANCEL_SEND_REASONS = new Set(["do_not_contact", "already_sent", "unconfirmed_transport", "demo_claimed", "recipient_suppressed", "recipient_opted_out", "no_consent", "quality_gate", "demo_not_found"]);
+export const CANCEL_SEND_REASONS = new Set(["do_not_contact", "already_sent", "unconfirmed_transport", "demo_claimed", "recipient_suppressed", "recipient_opted_out", "no_consent", "quality_gate", "demo_not_found", "no_first_touch", "prospect_replied"]);
+
+/**
+ * When a waiting item is tried again: tomorrow for the daily cap, the window's
+ * opening for business hours (never sooner than a minute), else in an hour.
+ */
+export function waitRetryAt(reason: string, now: Date, retryAt?: string): Date {
+  if (reason === "daily_cap") return nextUtcDay(now);
+  const at = Date.parse(retryAt ?? "");
+  if (reason === "outside_business_hours" && Number.isFinite(at)) return new Date(Math.max(at, now.getTime() + 60_000));
+  return new Date(now.getTime() + 60 * 60_000);
+}
 
 export const queueBackoffMs = (attempts: number) => 5 * 60_000 * 2 ** Math.max(0, attempts - 1);
 
@@ -155,6 +172,7 @@ export async function drainSendQueue(
         actorId: null,
         ...(row.subject ? { subject: row.subject } : {}),
         ...(row.body ? { body: row.body } : {}),
+        ...(row.kind === "followup" ? { kind: "followup" as const } : {}),
       });
     } catch (error) {
       result = { ok: false as const, reason: "storage_error", message: error instanceof Error ? error.message : "send failed" };
@@ -164,7 +182,7 @@ export async function drainSendQueue(
       await finish({ status: "sent", outreach_id: result.outreachId, last_error: null });
     } else if (WAIT_SEND_REASONS.has(result.reason)) {
       summary.retried += 1;
-      const at = result.reason === "daily_cap" ? nextUtcDay(now()) : new Date(now().getTime() + 60 * 60_000);
+      const at = waitRetryAt(result.reason, now(), "retryAt" in result ? result.retryAt : undefined);
       await finish({ not_before: at.toISOString(), attempts: Math.max(0, row.attempts - 1), last_error: result.reason });
     } else if (TRANSIENT_SEND_REASONS.has(result.reason) && row.attempts < MAX_QUEUE_ATTEMPTS) {
       summary.retried += 1;

@@ -35,9 +35,15 @@ import { gmailConfig } from "@/lib/gmail/client.server";
 
 export type OutreachChannel = "email" | "sms";
 export type OutreachMode = "manual" | "autopilot";
+/** first_touch: the preview link; followup: the one engagement follow-up email (autopilot only). */
+export type OutreachKind = "first_touch" | "followup";
 export type OutreachResult =
   | { ok: true; outreachId: string }
-  | { ok: false; reason: string; message: string };
+  /** retryAt: when a "not right now" refusal (outside business hours) can next succeed. */
+  | { ok: false; reason: string; message: string; retryAt?: string };
+
+/** The reason recorded on a sent follow-up, so the history says why it went out. */
+export const ENGAGEMENT_FOLLOWUP_REASON = "engagement_followup";
 
 export type OutreachRecord = {
   id: string;
@@ -61,6 +67,8 @@ export type SendDemoOutreachInput = {
   body?: string;
   /** Manual resend of a channel that was already sent. Ignored for autopilot. */
   force?: boolean;
+  /** Defaults to first_touch. A followup is autopilot email only, after a sent first touch. */
+  kind?: OutreachKind;
 };
 
 export const DEFAULT_DAILY_EMAIL_CAP = 40;
@@ -219,6 +227,11 @@ function stateCode(state: string | null | undefined): string | null {
   return code && ZONES[code] ? code : null;
 }
 
+/** A US state (code or full name) as its two-letter code, or null when unknown. */
+export function usStateCode(state: string | null | undefined): string | null {
+  return stateCode(state);
+}
+
 /** Approximate time zone for a US state (split states use their majority zone); null when unknown. */
 export function timeZoneForState(state: string | null | undefined): string | null {
   const code = stateCode(state);
@@ -241,6 +254,51 @@ export function smsTimeZones(state: string | null | undefined, phone?: string | 
   const codes = [...new Set([stateForPhone(phone), stateCode(state)].filter((code): code is string => Boolean(code)))];
   if (!codes.length) return CONTINENTAL_US_ZONES;
   return [...new Set(codes.flatMap((code) => SPLIT_STATE_ZONES[code] ?? [ZONES[code]!]))];
+}
+
+export const EMAIL_WINDOW_START_HOUR = 8;
+export const EMAIL_WINDOW_END_HOUR = 18;
+/** Unknown zone: fail closed to a narrower window in one zone. */
+export const EMAIL_FALLBACK_ZONE = "America/New_York";
+export const EMAIL_FALLBACK_START_HOUR = 9;
+export const EMAIL_FALLBACK_END_HOUR = 17;
+
+export type EmailBusinessWindow = { zones: string[]; startHour: number; endHour: number; known: boolean };
+
+/**
+ * When autopilot emails may go out: 8:00-18:00 in every zone the business may
+ * be in (the same area-code and state lookup texts use). When neither the
+ * phone nor the state gives a zone, 9:00-17:00 US Eastern.
+ */
+export function emailBusinessWindow(state: string | null | undefined, phone?: string | null): EmailBusinessWindow {
+  const codes = [...new Set([stateForPhone(phone), stateCode(state)].filter((code): code is string => Boolean(code)))];
+  if (!codes.length) return { zones: [EMAIL_FALLBACK_ZONE], startHour: EMAIL_FALLBACK_START_HOUR, endHour: EMAIL_FALLBACK_END_HOUR, known: false };
+  const zones = [...new Set(codes.flatMap((code) => SPLIT_STATE_ZONES[code] ?? [ZONES[code]!]))];
+  return { zones, startHour: EMAIL_WINDOW_START_HOUR, endHour: EMAIL_WINDOW_END_HOUR, known: true };
+}
+
+export function emailBusinessHoursNow(now: Date, state: string | null | undefined, phone?: string | null): boolean {
+  const window = emailBusinessWindow(state, phone);
+  return window.zones.every((timeZone) => {
+    const hour = localHour(now, timeZone);
+    return hour >= window.startHour && hour < window.endHour;
+  });
+}
+
+const QUARTER_HOUR_MS = 15 * 60_000;
+
+/**
+ * The first moment at or after `from` inside the email window (`from` itself
+ * when the window is open). Searched in quarter hours over three days; if the
+ * zones never share a window, one day later (the send re-checks then).
+ */
+export function nextEmailBusinessHour(from: Date, state: string | null | undefined, phone?: string | null): Date {
+  if (emailBusinessHoursNow(from, state, phone)) return from;
+  let at = Math.ceil(from.getTime() / QUARTER_HOUR_MS) * QUARTER_HOUR_MS;
+  for (let step = 0; step < 4 * 72; step += 1, at += QUARTER_HOUR_MS) {
+    if (emailBusinessHoursNow(new Date(at), state, phone)) return new Date(at);
+  }
+  return new Date(from.getTime() + 86_400_000);
 }
 
 export function localHour(now: Date, timeZone: string): number {
@@ -294,6 +352,9 @@ const MESSAGES: Record<string, string> = {
   already_sent: "This demo was already sent on this channel. Choose Resend if you really mean to send it again.",
   no_consent: "Autopilot only texts numbers that opted in to texts. This number hasn't, so it wasn't texted.",
   quiet_hours: "Texts only go out between 9am and 8pm in the business's time zone. Try again then.",
+  outside_business_hours: "Automatic emails only go out between 8am and 6pm in the business's time zone (9am-5pm Eastern when the zone is unknown). It waits until then.",
+  no_first_touch: "A follow-up only goes out after the first email was sent.",
+  prospect_replied: "The business already replied, so no follow-up was sent.",
   daily_cap: "Today's outreach limit for this channel is reached. It resets at midnight UTC.",
   mailing_address_missing: "Add your physical mailing address as the REVORA_MAILING_ADDRESS secret in Lovable before sending emails (required by CAN-SPAM).",
   email_not_configured: "Email sending isn't set up yet: Lovable managed email is not connected.",
@@ -482,6 +543,28 @@ async function composeEmail(demo: DemoContext, previewUrl: string, actorId: stri
   return { ...chosen, aiWritten: Boolean(draft) };
 }
 
+/**
+ * The one engagement follow-up: factual and fixed, never AI-written. It repeats
+ * the preview link and the claim link, and says nothing about who looked at
+ * the preview. The sender block and unsubscribe link are appended at send time.
+ */
+export function composeFollowupEmail(input: { name: string; previewUrl: string; claimUrl: string }): { subject: string; body: string } {
+  return {
+    subject: honestSubject(`Your free website draft for ${input.name}`),
+    body: [
+      `Hi ${input.name} team,`,
+      "",
+      "Following up on the free website draft I made for your business from your public listing. It's still private and nothing is published:",
+      input.previewUrl,
+      "",
+      "If you'd like to keep it, you can claim it here:",
+      input.claimUrl,
+      "",
+      "This is the only follow-up I'll send.",
+    ].join("\n"),
+  };
+}
+
 function composeSms(demo: DemoContext, previewUrl: string): string {
   const sender = process.env["REVORA_SENDER_NAME"]?.trim() || "Revora Growth Systems";
   return withStopLine(
@@ -634,7 +717,10 @@ const startOfUtcDay = (now: Date) => new Date(Date.UTC(now.getUTCFullYear(), now
 export async function sendDemoOutreach(db: SupabaseClient, input: SendDemoOutreachInput): Promise<OutreachResult> {
   const fail = (reason: string): OutreachResult => ({ ok: false, reason, message: outreachMessage(reason) });
   const { organizationId, channel, mode } = input;
+  const kind: OutreachKind = input.kind ?? "first_touch";
   if ((channel !== "email" && channel !== "sms") || (mode !== "manual" && mode !== "autopilot")) return fail("invalid_request");
+  if (kind !== "first_touch" && !(kind === "followup" && mode === "autopilot" && channel === "email")) return fail("invalid_request");
+  const followup = kind === "followup";
   const recipient = channel === "email" ? normalizeEmail(input.to) : normalizePhone(input.to);
   if (!recipient) return fail("invalid_recipient");
   const demo = await loadDemoForOutreach(db, organizationId);
@@ -653,6 +739,8 @@ export async function sendDemoOutreach(db: SupabaseClient, input: SendDemoOutrea
       reason: row.reason,
       mode,
       sent_by: input.actorId,
+      // Written only for follow-ups, so first touches keep working before the kind migration.
+      ...(followup ? { kind } : {}),
     });
   const skip = async (reason: string): Promise<OutreachResult> => {
     await record({ status: "skipped", reason });
@@ -662,6 +750,11 @@ export async function sendDemoOutreach(db: SupabaseClient, input: SendDemoOutrea
   if (demo.claimed) return skip("demo_claimed");
   if (demo.build?.status !== "completed") return skip("build_not_finished");
   if (await isDoNotContact(db, recipient)) return skip("do_not_contact");
+  // Automatic emails wait for business hours in the business's zone. Not
+  // recorded: the queue reschedules it, and an hourly skip row is noise.
+  if (mode === "autopilot" && channel === "email" && !emailBusinessHoursNow(now, demo.state, demo.phone)) {
+    return { ok: false, reason: "outside_business_hours", message: outreachMessage("outside_business_hours"), retryAt: nextEmailBusinessHour(now, demo.state, demo.phone).toISOString() };
+  }
 
   let gate: OutreachGate;
   try {
@@ -676,17 +769,25 @@ export async function sendDemoOutreach(db: SupabaseClient, input: SendDemoOutrea
     return { ok: false, reason: "quality_gate", message: detail ? `${outreachMessage("quality_gate")} ${detail}` : outreachMessage("quality_gate") };
   }
 
-  const { data: prior, error: priorError } = await db
-    .from("prospect_outreach")
-    .select("id")
-    .eq("organization_id", organizationId)
-    .eq("channel", channel)
-    .eq("status", "sent")
-    .limit(1);
-  // Fail closed: without the history, a repeat can't be ruled out.
-  if (priorError) return fail("storage_error");
-  // Autopilot asks again every run; don't fill the history with its repeats.
-  if ((prior ?? []).length && !(mode === "manual" && input.force)) return mode === "autopilot" ? fail("already_sent") : skip("already_sent");
+  if (followup) {
+    const history = await followupHistory(db, organizationId);
+    if (history === "error") return fail("storage_error");
+    if (history.followupSent) return fail("already_sent");
+    if (!history.firstTouchSent) return fail("no_first_touch");
+    if (history.replied) return fail("prospect_replied");
+  } else {
+    const { data: prior, error: priorError } = await db
+      .from("prospect_outreach")
+      .select("id")
+      .eq("organization_id", organizationId)
+      .eq("channel", channel)
+      .eq("status", "sent")
+      .limit(1);
+    // Fail closed: without the history, a repeat can't be ruled out.
+    if (priorError) return fail("storage_error");
+    // Autopilot asks again every run; don't fill the history with its repeats.
+    if ((prior ?? []).length && !(mode === "manual" && input.force)) return mode === "autopilot" ? fail("already_sent") : skip("already_sent");
+  }
 
   const { outreachFooter } = await import("@/lib/jarvis-prospecting.functions");
   if (channel === "sms") {
@@ -729,8 +830,12 @@ export async function sendDemoOutreach(db: SupabaseClient, input: SendDemoOutrea
     return { ok: true, outreachId };
   }
 
-  let subject = input.subject?.trim() ? honestSubject(input.subject) : "";
-  let message = input.body?.trim() ? stripOutreachFooter(input.body).slice(0, 4000) : "";
+  // A follow-up is always the fixed factual text, whatever the queue carried.
+  const followupText = followup
+    ? composeFollowupEmail({ name: demo.name, previewUrl, claimUrl: `${appBaseUrl()}/get-started?claim=${encodeURIComponent(demo.previewToken)}` })
+    : null;
+  let subject = followupText?.subject ?? (input.subject?.trim() ? honestSubject(input.subject) : "");
+  let message = followupText?.body ?? (input.body?.trim() ? stripOutreachFooter(input.body).slice(0, 4000) : "");
   if (!subject || !message) {
     const draft = await composeEmail(demo, previewUrl, input.actorId);
     subject ||= draft.subject;
@@ -741,7 +846,7 @@ export async function sendDemoOutreach(db: SupabaseClient, input: SendDemoOutrea
   const { footer, senderLines } = outreachFooter({ unsubscribeUrl });
   const tokenInsert = await db.from("prospect_outreach_unsubscribe_tokens").insert({ token, value: recipient });
   if (tokenInsert.error) return fail("storage_error");
-  const claim = await record({ id: outreachId, status: "sent", reason: null, subject, body: `${message}\n${footer}` });
+  const claim = await record({ id: outreachId, status: "sent", reason: followup ? ENGAGEMENT_FOLLOWUP_REASON : null, subject, body: `${message}\n${footer}` });
   if (claim.error) return claim.error.code === "23505" ? fail("already_sent") : fail("storage_error");
 
   const gmail = gmailConfig();
@@ -774,7 +879,7 @@ export async function sendDemoOutreach(db: SupabaseClient, input: SendDemoOutrea
       // provider-cached failure. Manual sends key on their own record.
       idempotencyKey:
         mode === "autopilot"
-          ? `prospect-demo-${organizationId}-email-autopilot-${new Date().toISOString().slice(0, 10)}`
+          ? `prospect-demo-${organizationId}-email-${followup ? "followup" : "autopilot"}-${new Date().toISOString().slice(0, 10)}`
           : `prospect-demo-${organizationId}-${outreachId}`,
       templateData: { subject, message, footerLines: senderLines, unsubscribeUrl },
       ...(replyTo ? { replyTo } : {}),
@@ -795,6 +900,27 @@ export async function sendDemoOutreach(db: SupabaseClient, input: SendDemoOutrea
     return fail(reason);
   }
   return { ok: true, outreachId };
+}
+
+type FollowupHistory = { firstTouchSent: boolean; followupSent: boolean; replied: boolean };
+
+/**
+ * What a follow-up depends on: a sent first-touch email, no follow-up sent
+ * before (any mode), and no reply from the business. "error" when any of it
+ * can't be read, so the caller fails closed.
+ */
+async function followupHistory(db: SupabaseClient, organizationId: string): Promise<FollowupHistory | "error"> {
+  const [sent, inbound] = await Promise.all([
+    db.from("prospect_outreach").select("kind").eq("organization_id", organizationId).eq("channel", "email").eq("status", "sent").limit(50),
+    db.from("prospect_inbound").select("id").eq("organization_id", organizationId).limit(1),
+  ]);
+  if (sent.error || inbound.error) return "error";
+  const kinds = ((sent.data ?? []) as Array<{ kind?: unknown }>).map((row) => (typeof row.kind === "string" ? row.kind : "first_touch"));
+  return {
+    firstTouchSent: kinds.includes("first_touch"),
+    followupSent: kinds.includes("followup"),
+    replied: (inbound.data ?? []).length > 0,
+  };
 }
 
 const STOP_WORDS = new Set(["STOP", "STOPALL", "UNSUBSCRIBE", "CANCEL", "END", "QUIT", "REVOKE", "OPTOUT"]);

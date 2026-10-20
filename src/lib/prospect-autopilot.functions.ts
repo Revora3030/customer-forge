@@ -48,6 +48,19 @@ export const runProspectAutopilotNowFn = createServerFn({ method: "POST" })
     });
   });
 
+/**
+ * Super-admin only: the prospect engine funnel (discovered → converted), in
+ * total and today (UTC), by state. Read-only; unreadable sources come back
+ * as unknown stages, never zero.
+ */
+export const getEngineFunnelFn = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const db = await guardedAdmin(context);
+    const { getEngineFunnel } = await import("./engine-funnel.server");
+    return getEngineFunnel(db);
+  });
+
 /** Super-admin only: recent autopilot runs, newest first. */
 export const listAutopilotRunsFn = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])

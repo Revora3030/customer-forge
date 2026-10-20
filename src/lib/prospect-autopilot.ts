@@ -203,6 +203,46 @@ export function rankProspects(prospects: FoundProspect[]): FoundProspect[] {
   return [...prospects].sort((a, b) => score(b) - score(a));
 }
 
+/** The engagement follow-up waits at least this long after the first autopilot email. */
+export const FOLLOWUP_AFTER_HOURS = 48;
+/** Preview views (or distinct sessions) since the first email that count as real interest. */
+export const FOLLOWUP_MIN_VIEWS = 2;
+export const FOLLOWUP_MIN_SESSIONS = 2;
+
+export type FollowupFacts = {
+  /** When the first autopilot email was sent; null when none was. */
+  firstTouchAt: string | null;
+  claimed: boolean;
+  replied: boolean;
+  /** A follow-up was already sent (any mode) or one is waiting in the queue. */
+  followupStarted: boolean;
+  /**
+   * Preview engagement since the first email; null when it couldn't be read.
+   * Left out, only the other checks run (so engagement is read only when needed).
+   */
+  engagement?: { views: number; uniqueSessions: number } | null;
+};
+
+/**
+ * Why a demo gets no engagement follow-up yet, or null when it is due: the
+ * first autopilot email went out at least 48 hours ago, the preview was opened
+ * at least twice (or from two sessions) since, the demo isn't claimed, the
+ * business never replied and no follow-up was ever started. Unreadable
+ * engagement is never read as interest.
+ */
+export function followupBlocker(facts: FollowupFacts, now: Date): string | null {
+  if (facts.claimed) return "claimed";
+  if (facts.replied) return "replied";
+  if (facts.followupStarted) return "already_followed_up";
+  const sentAt = Date.parse(facts.firstTouchAt ?? "");
+  if (!Number.isFinite(sentAt)) return "no_first_touch";
+  if (now.getTime() - sentAt < FOLLOWUP_AFTER_HOURS * 3_600_000) return "too_soon";
+  if (facts.engagement === undefined) return null;
+  if (!facts.engagement) return "engagement_unavailable";
+  if (facts.engagement.views < FOLLOWUP_MIN_VIEWS && facts.engagement.uniqueSessions < FOLLOWUP_MIN_SESSIONS) return "not_engaged";
+  return null;
+}
+
 /** Autopilot sends are spread out: each one waits a random 0 to this many minutes after the previous. */
 export const MAX_SEND_SPACING_MINUTES = 20;
 

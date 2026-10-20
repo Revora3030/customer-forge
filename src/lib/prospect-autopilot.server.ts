@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { parseProspectDemoInput } from "@/lib/jarvis-demo-site";
 import {
   alreadyDemoed,
+  followupBlocker,
   nameCityKey,
   nextSendAt,
   parseAutopilotPatch,
@@ -16,7 +17,7 @@ import {
 import { emailVerifiedFor, readProspectEnrichment, type ProspectEnrichment } from "@/lib/prospect-enrichment";
 import { MAX_SEARCHES_PER_DAY } from "@/lib/prospect-finder";
 import { nextRotationPairs, rotationPairs, type RotationPair } from "@/lib/prospect-rotation";
-import type { OutreachChannel, OutreachResult } from "@/lib/prospect-outreach.server";
+import type { OutreachChannel, OutreachKind } from "@/lib/prospect-outreach.server";
 
 /**
  * Prospect autopilot: finds local businesses with no website, builds each a
@@ -39,7 +40,12 @@ import type { OutreachChannel, OutreachResult } from "@/lib/prospect-outreach.se
  * Email gate: autopilot only emails an address the business published (found
  * on its listed social/directory page) and that enrichment verified (syntax,
  * not a role mailbox, MX, not do-not-contact). Sends are spread through the
- * outreach send queue, each a random 0–20 minutes after the previous one.
+ * outreach send queue, each a random 0–20 minutes after the previous one, and
+ * never before 8:00 (or after 18:00) in the business's time zone.
+ *
+ * Follow-up: a demo whose preview was opened at least twice in the 48+ hours
+ * after its first autopilot email, unclaimed and with no reply, gets exactly
+ * one factual follow-up email (see followupPhase).
  */
 
 export const MAX_SEARCHES_PER_RUN = 3;
@@ -68,6 +74,11 @@ export type AutopilotRunSummary = {
   built: number;
   emailed: number;
   texted: number;
+  /** Engagement follow-up emails queued this run (counted apart from first touches). */
+  followups: number;
+  /** Old demos with no enrichment record whose profile email was re-checked this run, and how many results were written. */
+  legacyChecked: number;
+  legacyWritten: number;
   skipped: AutopilotSkip[];
   error: string | null;
 };
@@ -269,7 +280,7 @@ export async function runProspectAutopilot(
   } = {},
 ): Promise<AutopilotRunSummary> {
   const now = options.now ?? (() => new Date());
-  const summary: AutopilotRunSummary = { status: "done", runId: null, found: 0, built: 0, emailed: 0, texted: 0, skipped: [], error: null };
+  const summary: AutopilotRunSummary = { status: "done", runId: null, found: 0, built: 0, emailed: 0, texted: 0, followups: 0, legacyChecked: 0, legacyWritten: 0, skipped: [], error: null };
   const skip = (entry: AutopilotSkip) => {
     if (summary.skipped.length < MAX_SKIPPED) summary.skipped.push(entry);
   };
@@ -311,6 +322,7 @@ export async function runProspectAutopilot(
 
   try {
     await buildPhase(db, settings, summary, skip, now, options.onQueued);
+    await reverifyLegacyPhase(db, summary, skip, now);
     await sendPhase(db, settings, summary, skip, now, options.random ?? Math.random);
   } catch (error) {
     summary.status = "failed";
@@ -493,7 +505,30 @@ async function buildPhase(
   }
 }
 
-const RETRY_NEXT_RUN = new Set(["quiet_hours", "daily_cap", "sms_not_configured", "email_not_configured"]);
+type ReverifyLegacyDemos = (
+  db: SupabaseClient,
+  options?: { now?: () => Date; limit?: number },
+) => Promise<{ checked: number; written: number }>;
+
+/**
+ * Once per run, before sending: re-verifies a few old demos that have no
+ * enrichment record (their business_profiles email), so the email gate can
+ * accept the verified ones. Never blocks the run: a missing helper or a
+ * failure is recorded as a skip and the run goes on.
+ */
+async function reverifyLegacyPhase(db: SupabaseClient, summary: AutopilotRunSummary, skip: (entry: AutopilotSkip) => void, now: () => Date) {
+  try {
+    const enrichment = (await import("@/lib/prospect-enrichment.server")) as unknown as { reverifyLegacyDemos?: ReverifyLegacyDemos };
+    if (typeof enrichment.reverifyLegacyDemos !== "function") return;
+    const result = await enrichment.reverifyLegacyDemos(db, { now });
+    summary.legacyChecked += Number(result?.checked) || 0;
+    summary.legacyWritten += Number(result?.written) || 0;
+  } catch (error) {
+    skip({ reason: `legacy_reverify_failed: ${(error instanceof Error ? error.message : "failed").slice(0, 160)}` });
+  }
+}
+
+const RETRY_NEXT_RUN = new Set(["quiet_hours", "daily_cap", "outside_business_hours", "sms_not_configured", "email_not_configured"]);
 
 export type OutreachQueueItem = {
   organizationId: string;
@@ -505,12 +540,23 @@ export type OutreachQueueItem = {
   body: string | null;
   /** Not sent before this time (random 0–20 minute spacing between autopilot sends). */
   notBefore: string;
+  /** Omitted: a first touch. */
+  kind?: OutreachKind;
 };
 
 /** Queued, not sent: the send queue drains it at `notBefore` through the consent/do-not-contact/cap-checked backend. */
 async function enqueueOutreach(db: SupabaseClient, item: OutreachQueueItem) {
   const { enqueueOutreach: enqueue } = await import("@/lib/prospect-send-queue.server");
-  return enqueue(db, { organizationId: item.organizationId, channel: item.channel, to: item.to, mode: item.mode, subject: item.subject, body: item.body, notBefore: new Date(item.notBefore) });
+  return enqueue(db, {
+    organizationId: item.organizationId,
+    channel: item.channel,
+    to: item.to,
+    mode: item.mode,
+    subject: item.subject,
+    body: item.body,
+    notBefore: new Date(item.notBefore),
+    ...(item.kind ? { kind: item.kind } : {}),
+  });
 }
 
 /** Sends already waiting in the queue, so an hourly run never queues the same demo twice. */
@@ -536,6 +582,19 @@ async function sendPhase(
   if (!settings.sendEmail && !settings.sendSms) return;
   const demos = await sendableDemos(db, now());
   if (!demos.length) return;
+  await firstTouchPhase(db, settings, demos, summary, skip, now, random);
+  if (settings.sendEmail) await followupPhase(db, demos, summary, skip, now, random);
+}
+
+async function firstTouchPhase(
+  db: SupabaseClient,
+  settings: AutopilotSettings,
+  demos: SendableDemo[],
+  summary: AutopilotRunSummary,
+  skip: (entry: AutopilotSkip) => void,
+  now: () => Date,
+  random: () => number,
+) {
   const ids = demos.map((demo) => demo.organizationId);
   const { data: history, error } = await db
     .from("prospect_outreach")
@@ -557,14 +616,16 @@ async function sendPhase(
           (Date.parse(String(row.created_at)) >= retrySince && !(row.status === "skipped" && RETRY_NEXT_RUN.has(String(row.reason))))),
     );
 
-  const { smsAllowedNow } = await import("@/lib/prospect-outreach.server");
+  const { smsAllowedNow, nextEmailBusinessHour } = await import("@/lib/prospect-outreach.server");
   const { verifyProspectEmail } = await import("@/lib/prospect-enrichment.server");
   const { assessDemoForOutreach } = await import("@/lib/demo-launch-gate.server");
   let reverified = 0;
   let sendAt = now();
   const enqueue = async (demo: SendableDemo, channel: OutreachChannel, to: string) => {
     sendAt = nextSendAt(sendAt, random);
-    return enqueueOutreach(db, { organizationId: demo.organizationId, channel, to, mode: "autopilot", subject: null, body: null, notBefore: sendAt.toISOString() });
+    // Emails wait for business hours in the business's zone; texts check their own window.
+    const notBefore = channel === "email" ? nextEmailBusinessHour(sendAt, demo.state, demo.phone) : sendAt;
+    return enqueueOutreach(db, { organizationId: demo.organizationId, channel, to, mode: "autopilot", subject: null, body: null, notBefore: notBefore.toISOString() });
   };
 
   /** The verified-email gate: only an address the business published and enrichment verified. */
@@ -609,5 +670,121 @@ async function sendPhase(
       if (result.ok) summary.texted += 1;
       else skip({ reason: `sms_${result.reason}`, name: demo.name });
     }
+  }
+}
+
+type EmailHistoryRow = { organization_id: string; recipient: string; status: string; reason: string | null; mode: string; kind: string; created_at: string };
+
+/**
+ * The 48-hour engagement follow-up: at most ONE more email per demo, queued
+ * like any autopilot send (kind "followup"), so sendDemoOutreach re-checks
+ * do-not-contact, the launch gate, the daily cap and business hours, and a
+ * unique index holds one sent follow-up per demo. Only demos whose first
+ * autopilot email went out 48+ hours ago, whose preview was opened at least
+ * twice since, that nobody claimed and that never replied.
+ */
+async function followupPhase(
+  db: SupabaseClient,
+  demos: SendableDemo[],
+  summary: AutopilotRunSummary,
+  skip: (entry: AutopilotSkip) => void,
+  now: () => Date,
+  random: () => number,
+) {
+  const ids = demos.map((demo) => demo.organizationId);
+  const { data, error } = await db
+    .from("prospect_outreach")
+    .select("organization_id, recipient, status, reason, mode, kind, created_at")
+    .in("organization_id", ids)
+    .eq("channel", "email");
+  // Before the kind column exists nothing can tell a follow-up apart: send none.
+  if (error) return skip({ reason: "followup_unavailable" });
+  const rows = ((data ?? []) as Array<Record<string, unknown>>).map(
+    (row): EmailHistoryRow => ({
+      organization_id: String(row["organization_id"]),
+      recipient: String(row["recipient"] ?? ""),
+      status: String(row["status"] ?? ""),
+      reason: typeof row["reason"] === "string" ? row["reason"] : null,
+      mode: String(row["mode"] ?? ""),
+      kind: typeof row["kind"] === "string" ? row["kind"] : "first_touch",
+      created_at: String(row["created_at"] ?? ""),
+    }),
+  );
+  const firstTouchByOrg = new Map<string, EmailHistoryRow>();
+  for (const row of rows) {
+    if (row.kind !== "first_touch" || row.mode !== "autopilot" || row.status !== "sent") continue;
+    const current = firstTouchByOrg.get(row.organization_id);
+    if (!current || row.created_at < current.created_at) firstTouchByOrg.set(row.organization_id, row);
+  }
+  const candidates = demos.filter((demo) => firstTouchByOrg.has(demo.organizationId));
+  if (!candidates.length) return;
+
+  // Any reply at all means the conversation moved on: never follow up. Unreadable: none.
+  const { data: inbound, error: inboundError } = await db
+    .from("prospect_inbound")
+    .select("organization_id")
+    .in("organization_id", candidates.map((demo) => demo.organizationId));
+  if (inboundError) return skip({ reason: "followup_replies_unavailable" });
+  const replied = new Set((inbound ?? []).map((row) => String((row as { organization_id: unknown }).organization_id)));
+  const queued = await queuedSends(db, candidates.map((demo) => demo.organizationId));
+  const retrySince = now().getTime() - SEND_RETRY_HOURS * 3_600_000;
+
+  const { isDoNotContact, nextEmailBusinessHour } = await import("@/lib/prospect-outreach.server");
+  const { engagementSince } = await import("@/lib/preview-telemetry.server");
+  const { assessDemoForOutreach } = await import("@/lib/demo-launch-gate.server");
+  let sendAt = now();
+
+  for (const demo of candidates) {
+    const firstTouch = firstTouchByOrg.get(demo.organizationId)!;
+    const followups = rows.filter((row) => row.organization_id === demo.organizationId && row.kind === "followup");
+    // Started: one was sent (any mode), one is waiting, or a recent attempt was refused for good.
+    const started =
+      queued.has(`${demo.organizationId}|email`) ||
+      followups.some(
+        (row) => row.status === "sent" || (Date.parse(row.created_at) >= retrySince && !(row.status === "skipped" && RETRY_NEXT_RUN.has(String(row.reason)))),
+      );
+    // sendableDemos already left out claimed demos; sendDemoOutreach re-checks at send time.
+    const base = { firstTouchAt: firstTouch.created_at, claimed: false, replied: replied.has(demo.organizationId), followupStarted: started };
+    // The cheap checks first; engagement is read only for a demo that could be due.
+    const early = followupBlocker(base, now());
+    if (early) {
+      if (early === "replied") skip({ reason: "followup_replied", name: demo.name });
+      continue;
+    }
+    const to = firstTouch.recipient;
+    // Same verified-email gate as the first touch, on the address that was emailed.
+    if (!emailVerifiedFor(demo.enrichment, to)) {
+      skip({ reason: "followup_email_unverified", name: demo.name });
+      continue;
+    }
+    const phone = usPhoneE164(demo.phone);
+    if ((await isDoNotContact(db, to)) || (phone && (await isDoNotContact(db, phone)))) {
+      skip({ reason: "followup_do_not_contact", name: demo.name });
+      continue;
+    }
+    const engagement = await engagementSince(db, demo.organizationId, firstTouch.created_at).catch(() => null);
+    const blocker = followupBlocker({ ...base, engagement }, now());
+    if (blocker) {
+      if (blocker === "engagement_unavailable") skip({ reason: "followup_engagement_unavailable", name: demo.name });
+      continue;
+    }
+    const gate = await assessDemoForOutreach(db, demo.organizationId);
+    if (!gate.ok) {
+      skip({ reason: `followup_quality_gate: ${gate.blockers.map((entry) => entry.message).join("; ").slice(0, 200)}`, name: demo.name });
+      continue;
+    }
+    sendAt = nextSendAt(sendAt, random);
+    const result = await enqueueOutreach(db, {
+      organizationId: demo.organizationId,
+      channel: "email",
+      to,
+      mode: "autopilot",
+      subject: null,
+      body: null,
+      notBefore: nextEmailBusinessHour(sendAt, demo.state, demo.phone).toISOString(),
+      kind: "followup",
+    });
+    if (result.ok) summary.followups += 1;
+    else skip({ reason: `followup_${result.reason}`, name: demo.name });
   }
 }

@@ -72,7 +72,8 @@ function fakeDb(seed: Record<string, Row[]>, options: { failSelect?: (table: str
           name === "prospect_outreach" &&
           full["status"] === "sent" &&
           full["mode"] === "autopilot" &&
-          table(name).some((r) => r["organization_id"] === full["organization_id"] && r["channel"] === full["channel"] && r["status"] === "sent" && r["mode"] === "autopilot")
+          // The partial unique indexes: one sent autopilot row per demo, channel and kind.
+          table(name).some((r) => r["organization_id"] === full["organization_id"] && r["channel"] === full["channel"] && r["status"] === "sent" && r["mode"] === "autopilot" && (r["kind"] ?? "first_touch") === (full["kind"] ?? "first_touch"))
         )
           return { error: { code: "23505", message: "duplicate key" } };
         table(name).push(full);
@@ -417,6 +418,103 @@ describe("outreach compliance fixes", () => {
     expect(await sendDemoOutreach(db, sms)).toMatchObject({ ok: false, reason: "storage_error" });
     expect(sendTemplateEmail).not.toHaveBeenCalled();
     expect(twilioFetch).not.toHaveBeenCalled();
+  });
+});
+
+describe("email business hours", () => {
+  it("opens 8:00-18:00 in every zone the business may be in, and 9:00-17:00 Eastern when the zone is unknown", async () => {
+    const { emailBusinessHoursNow, emailBusinessWindow, nextEmailBusinessHour } = await import("@/lib/prospect-outreach.server");
+    // NC: 8:00 EDT opens, 18:00 EDT closes.
+    expect(emailBusinessHoursNow(new Date("2026-10-19T11:59:00Z"), "NC")).toBe(false);
+    expect(emailBusinessHoursNow(new Date("2026-10-19T12:00:00Z"), "NC")).toBe(true);
+    expect(emailBusinessHoursNow(new Date("2026-10-19T21:59:00Z"), "NC")).toBe(true);
+    expect(emailBusinessHoursNow(new Date("2026-10-19T22:00:00Z"), "NC")).toBe(false);
+    // The area code wins too: a 213 (Pacific) number at 7:30 PDT is outside even on an NC listing.
+    expect(emailBusinessHoursNow(new Date("2026-10-19T14:30:00Z"), "NC", "+12135550100")).toBe(false);
+    expect(emailBusinessHoursNow(new Date("2026-10-19T15:00:00Z"), "NC", "+12135550100")).toBe(true);
+    // Unknown zone: fail closed to 9:00-17:00 US Eastern.
+    expect(emailBusinessWindow(null, null)).toEqual({ zones: ["America/New_York"], startHour: 9, endHour: 17, known: false });
+    expect(emailBusinessHoursNow(new Date("2026-10-19T12:30:00Z"), null)).toBe(false); // 8:30 EDT
+    expect(emailBusinessHoursNow(new Date("2026-10-19T13:00:00Z"), "Narnia")).toBe(true); // 9:00 EDT
+    expect(emailBusinessHoursNow(new Date("2026-10-19T21:00:00Z"), null, "+447700900123")).toBe(false); // 17:00 EDT
+    // The next opening: now when open, else the window's first quarter hour.
+    const open = new Date("2026-10-19T15:00:00Z");
+    expect(nextEmailBusinessHour(open, "NC")).toBe(open);
+    expect(nextEmailBusinessHour(new Date("2026-10-19T23:10:00Z"), "NC").toISOString()).toBe("2026-10-20T12:00:00.000Z");
+    expect(nextEmailBusinessHour(new Date("2026-10-19T03:00:00Z"), "CA").toISOString()).toBe("2026-10-19T15:00:00.000Z");
+    expect(nextEmailBusinessHour(new Date("2026-10-19T22:00:00Z"), null).toISOString()).toBe("2026-10-20T13:00:00.000Z");
+  });
+
+  it("holds an autopilot email outside the window without recording a skip, but never a manual one", async () => {
+    vi.setSystemTime(new Date("2026-10-19T03:00:00Z")); // 23:00 EDT in Raleigh
+    const { db, tables } = fakeDb(demoSeed());
+    const result = await sendDemoOutreach(db, { ...email, mode: "autopilot", actorId: null });
+    expect(result).toMatchObject({ ok: false, reason: "outside_business_hours", retryAt: "2026-10-19T12:00:00.000Z" });
+    expect(tables["prospect_outreach"] ?? []).toHaveLength(0);
+    expect(sendTemplateEmail).not.toHaveBeenCalled();
+    expect(await sendDemoOutreach(db, email)).toMatchObject({ ok: true });
+  });
+
+  it("reschedules a waiting queue item to the window's opening", async () => {
+    const { waitRetryAt, WAIT_SEND_REASONS } = await import("@/lib/prospect-send-queue.server");
+    const now = new Date("2026-10-19T03:00:00Z");
+    expect(WAIT_SEND_REASONS.has("outside_business_hours")).toBe(true);
+    expect(waitRetryAt("outside_business_hours", now, "2026-10-19T12:00:00.000Z").toISOString()).toBe("2026-10-19T12:00:00.000Z");
+    expect(waitRetryAt("outside_business_hours", now, "2026-10-19T02:00:00.000Z").toISOString()).toBe("2026-10-19T03:01:00.000Z");
+    expect(waitRetryAt("outside_business_hours", now).toISOString()).toBe("2026-10-19T04:00:00.000Z");
+    expect(waitRetryAt("daily_cap", now).toISOString()).toBe("2026-10-20T00:05:00.000Z");
+  });
+});
+
+describe("engagement follow-up email", () => {
+  const followup = { ...email, mode: "autopilot" as const, actorId: null, kind: "followup" as const };
+  const sentFirstTouch = { id: "first", organization_id: ORG, channel: "email", recipient: "owner@triangle.com", status: "sent", mode: "autopilot", kind: "first_touch", created_at: "2026-10-16T18:00:00Z" };
+
+  it("sends one factual follow-up with the preview link, the claim link and the CAN-SPAM footer", async () => {
+    const { db, tables } = fakeDb(demoSeed({ prospect_outreach: [sentFirstTouch] }));
+    const result = await sendDemoOutreach(db, { ...followup, subject: "Re: last chance!!", body: "Act now" });
+    expect(result.ok).toBe(true);
+    const options = vi.mocked(sendTemplateEmail).mock.calls[0]![2]!;
+    const data = options.templateData as { subject: string; message: string; footerLines: string[]; unsubscribeUrl: string };
+    // The queued text is ignored: a follow-up is always the fixed factual message.
+    expect(data.subject).toBe("Your free website draft for Triangle Comfort");
+    expect(data.message).toContain("https://revoragrowthsystems.com/p/tok_abcdefghijklmnopqrst");
+    expect(data.message).toContain("https://revoragrowthsystems.com/get-started?claim=tok_abcdefghijklmnopqrst");
+    expect(data.message).not.toMatch(/act now|viewed|opened|saw you/i);
+    expect(data.footerLines).toContain("123 Main St, Raleigh, NC 27601");
+    expect(data.unsubscribeUrl).toMatch(/\/unsubscribe\/outreach\//);
+    expect(options.idempotencyKey).toMatch(new RegExp(`^prospect-demo-${ORG}-email-followup-\\d{4}-\\d{2}-\\d{2}$`));
+    const row = tables["prospect_outreach"]!.find((r) => r["kind"] === "followup")!;
+    expect(row).toMatchObject({ status: "sent", mode: "autopilot", reason: "engagement_followup", recipient: "owner@triangle.com" });
+    expect(String(row["body"])).toContain(data.unsubscribeUrl);
+    expect(row["auto_reply_seq"]).toBeUndefined();
+
+    // Never a second one.
+    expect(await sendDemoOutreach(db, followup)).toMatchObject({ ok: false, reason: "already_sent" });
+    expect(sendTemplateEmail).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses without a first touch, after a reply, to do-not-contact, for a claimed demo, or as a manual or text send", async () => {
+    expect(await sendDemoOutreach(fakeDb(demoSeed()).db, followup)).toMatchObject({ ok: false, reason: "no_first_touch" });
+    const replied = fakeDb(demoSeed({ prospect_outreach: [sentFirstTouch], prospect_inbound: [{ id: "i", organization_id: ORG }] }));
+    expect(await sendDemoOutreach(replied.db, followup)).toMatchObject({ ok: false, reason: "prospect_replied" });
+    const dnc = fakeDb(demoSeed({ prospect_outreach: [sentFirstTouch], prospect_do_not_contact: [{ value: "owner@triangle.com", kind: "email" }] }));
+    expect(await sendDemoOutreach(dnc.db, followup)).toMatchObject({ ok: false, reason: "do_not_contact" });
+    const claimedSeed = demoSeed({ prospect_outreach: [sentFirstTouch] });
+    const settingsRow = claimedSeed.website_settings[0]!;
+    (settingsRow["generation"] as { prospectDemo: Record<string, unknown> }).prospectDemo["claimedAt"] = "2026-10-18T00:00:00Z";
+    expect(await sendDemoOutreach(fakeDb(claimedSeed).db, followup)).toMatchObject({ ok: false, reason: "demo_claimed" });
+    const { db } = fakeDb(demoSeed({ prospect_outreach: [sentFirstTouch] }));
+    expect(await sendDemoOutreach(db, { ...followup, mode: "manual" })).toMatchObject({ ok: false, reason: "invalid_request" });
+    expect(await sendDemoOutreach(db, { ...followup, channel: "sms", to: "(919) 555-0100" })).toMatchObject({ ok: false, reason: "invalid_request" });
+    expect(sendTemplateEmail).not.toHaveBeenCalled();
+  });
+
+  it("counts toward the daily email cap", async () => {
+    process.env["OUTREACH_DAILY_EMAIL_CAP"] = "1";
+    const today = { ...sentFirstTouch, id: "other", organization_id: OTHER_ORG, created_at: "2026-10-19T12:00:00Z" };
+    const { db } = fakeDb(demoSeed({ prospect_outreach: [sentFirstTouch, today] }));
+    expect(await sendDemoOutreach(db, followup)).toMatchObject({ ok: false, reason: "daily_cap" });
   });
 });
 

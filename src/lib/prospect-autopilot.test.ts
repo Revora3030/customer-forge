@@ -21,26 +21,46 @@ const mocks = vi.hoisted(() => ({
   lookupPublicEmail: vi.fn(),
   fetch: vi.fn(),
   assessDemoForOutreach: vi.fn(),
+  reverifyLegacyDemos: vi.fn(),
+  enqueued: [] as Array<{ organizationId: string; channel: string; kind: string; notBefore: string }>,
 }));
 vi.mock("@/lib/jarvis-demo-site.server", () => ({
   findProspects: mocks.findProspects,
   provisionProspectDemo: mocks.provisionProspectDemo,
 }));
-vi.mock("@/lib/prospect-outreach.server", () => ({
-  sendDemoOutreach: mocks.sendDemoOutreach,
-  isDoNotContact: mocks.isDoNotContact,
-  smsAllowedNow: mocks.smsAllowedNow,
-}));
+vi.mock("@/lib/prospect-outreach.server", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/prospect-outreach.server")>();
+  return {
+    sendDemoOutreach: mocks.sendDemoOutreach,
+    isDoNotContact: mocks.isDoNotContact,
+    smsAllowedNow: mocks.smsAllowedNow,
+    // The real business-hours math: the tests read when each email was queued for.
+    nextEmailBusinessHour: actual.nextEmailBusinessHour,
+  };
+});
 vi.mock("@/lib/prospect-email.server", () => ({ lookupPublicEmail: mocks.lookupPublicEmail }));
 // The queue hands each item to sendDemoOutreach when it drains; here the
 // hand-off is immediate so the tests read what autopilot queued.
 vi.mock("@/lib/prospect-send-queue.server", () => ({
-  enqueueOutreach: async (db: unknown, item: { organizationId: string; channel: string; to: string; mode: string; notBefore: Date }) => {
-    const result = await mocks.sendDemoOutreach(db, { organizationId: item.organizationId, channel: item.channel, to: item.to, mode: item.mode, actorId: null });
+  enqueueOutreach: async (db: unknown, item: { organizationId: string; channel: string; to: string; mode: string; notBefore: Date; kind?: string }) => {
+    mocks.enqueued.push({ organizationId: item.organizationId, channel: item.channel, kind: item.kind ?? "first_touch", notBefore: item.notBefore.toISOString() });
+    const result = await mocks.sendDemoOutreach(db, {
+      organizationId: item.organizationId,
+      channel: item.channel,
+      to: item.to,
+      mode: item.mode,
+      actorId: null,
+      ...(item.kind ? { kind: item.kind } : {}),
+    });
     return result?.ok ? { ok: true, id: "q-1", notBefore: item.notBefore.toISOString(), duplicate: false } : { ok: false, reason: result?.reason ?? "unknown" };
   },
 }));
 vi.mock("@/lib/demo-launch-gate.server", () => ({ assessDemoForOutreach: mocks.assessDemoForOutreach }));
+// Enrichment stays real (its DNS calls go to the stubbed fetch); the legacy re-check is stubbed.
+vi.mock("@/lib/prospect-enrichment.server", async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  reverifyLegacyDemos: mocks.reverifyLegacyDemos,
+}));
 import { runProspectAutopilot, saveAutopilotSettings } from "@/lib/prospect-autopilot.server";
 
 type Row = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -143,6 +163,7 @@ function seed(overrides: Record<string, Row[]> = {}) {
 
 beforeEach(() => {
   vi.resetAllMocks();
+  mocks.enqueued.length = 0;
   mocks.isDoNotContact.mockResolvedValue(false);
   mocks.smsAllowedNow.mockReturnValue(true);
   mocks.lookupPublicEmail.mockResolvedValue(null);
@@ -151,6 +172,7 @@ beforeEach(() => {
   vi.stubGlobal("fetch", mocks.fetch);
   mocks.sendDemoOutreach.mockResolvedValue({ ok: true, outreachId: "o-1" });
   mocks.assessDemoForOutreach.mockResolvedValue({ ok: true, blockers: [] });
+  mocks.reverifyLegacyDemos.mockResolvedValue({ checked: 0, written: 0, results: [] });
   let next = 0;
   mocks.provisionProspectDemo.mockImplementation(async () => ({ organizationId: `org-new-${++next}`, jobId: "j", previewToken: "t", expiresAt: "x" }));
 });
@@ -580,5 +602,156 @@ describe("rotation, Places budget and the verified-email gate", () => {
     expect(tables["prospect_autopilot_settings"]![0]!["rotation"]).toBeUndefined();
     const saved = await saveAutopilotSettings(db, { rotation: { enabled: true, trades: [], states: ["TX"] } }, OWNER);
     expect(saved.rotation).toEqual({ enabled: true, trades: [], states: ["TX"] });
+  });
+});
+
+describe("48-hour engagement follow-up", () => {
+  const FIRST_TOUCH_AT = "2026-10-16T15:00:00.000Z"; // 72 hours before NOW
+  const marker = (id: string, extra: Row = {}) => ({
+    prospectDemo: { kind: "prospect_demo", createdAt: "2026-10-10T00:00:00Z", source: "autopilot", enrichment: verified(`${id}@shop.com`), ...extra },
+  });
+  // Preview telemetry only reads real organization ids, so each named demo gets a UUID.
+  const NAMES = ["hot", "dnc", "optout", "claimed", "replied", "fresh", "cold", "done", "sessions", "a"];
+  const U = (name: string) => `${String(NAMES.indexOf(name) + 1).padStart(8, "0")}-0000-4000-8000-000000000000`;
+  const view = (name: string, at: string, session = "sessionaa") => ({ organization_id: U(name), event: "view", session_id: session, ip_hash: null, duration_ms: 0, created_at: at });
+  const firstTouch = (name: string, at = FIRST_TOUCH_AT): Row => ({
+    organization_id: U(name), channel: "email", recipient: `${name}@shop.com`, status: "sent", reason: null, mode: "autopilot", kind: "first_touch", created_at: at,
+  });
+
+  function followupSeed(ids: string[], extra: { website?: Row[]; outreach?: Row[]; events?: Row[]; inbound?: Row[]; settings?: Row } = {}) {
+    return seed({
+      prospect_autopilot_settings: [settings({ targets: [], ...(extra.settings ?? {}) })],
+      website_settings: extra.website ?? ids.map((id) => ({ organization_id: U(id), generation: marker(id) })),
+      organizations: ids.map((id) => ({ id: U(id), name: id })),
+      generation_jobs: ids.map((id) => ({ organization_id: U(id), status: "completed", created_at: "2026-10-10T00:00:00Z" })),
+      business_profiles: ids.map((id) => ({ organization_id: U(id), email: `${id}@shop.com`, phone: `919-555-01${String(ids.indexOf(id)).padStart(2, "0")}`, state: "NC" })),
+      prospect_outreach: extra.outreach ?? ids.map((id) => firstTouch(id)),
+      prospect_preview_events: extra.events ?? ids.flatMap((id) => [view(id, "2026-10-17T10:00:00.000Z"), view(id, "2026-10-18T10:00:00.000Z")]),
+      prospect_inbound: extra.inbound ?? [],
+    });
+  }
+  const followups = () => mocks.enqueued.filter((item) => item.kind === "followup");
+
+  it("queues exactly one follow-up, and only for an engaged, unclaimed, unreplied demo 48+ hours after the first email", async () => {
+    const ids = ["hot", "dnc", "optout", "claimed", "replied", "fresh", "cold", "done", "sessions"];
+    const { db } = followupSeed(ids, {
+      website: ids.map((id) => ({ organization_id: U(id), generation: marker(id, id === "claimed" ? { claimedAt: "2026-10-18T00:00:00Z" } : {}) })),
+      outreach: [
+        ...ids.filter((id) => id !== "fresh").map((id) => firstTouch(id)),
+        firstTouch("fresh", "2026-10-18T15:00:00.000Z"),
+        { ...firstTouch("done"), kind: "followup", reason: "engagement_followup", created_at: "2026-10-18T16:00:00.000Z" },
+      ],
+      events: [
+        ...ids.filter((id) => id !== "cold" && id !== "sessions").flatMap((id) => [view(id, "2026-10-17T10:00:00.000Z"), view(id, "2026-10-19T10:00:00.000Z")]),
+        // Viewed only once since the first email (the other look came before it).
+        view("cold", "2026-10-15T10:00:00.000Z"),
+        view("cold", "2026-10-17T10:00:00.000Z"),
+        // One view, but two sessions (a heartbeat carries the second).
+        view("sessions", "2026-10-17T10:00:00.000Z", "sessionaa"),
+        { ...view("sessions", "2026-10-17T10:01:00.000Z", "sessionbb"), event: "heartbeat", duration_ms: 15_000 },
+      ],
+      inbound: [{ organization_id: U("replied"), thread_id: "t", gmail_message_id: "m" }],
+    });
+    // dnc: the address unsubscribed. optout: the business's number replied STOP.
+    mocks.isDoNotContact.mockImplementation(async (_db: unknown, value: string) => value === "dnc@shop.com" || value === "+19195550102");
+
+    const result = await runProspectAutopilot(db, { now: () => NOW, random: () => 0 });
+
+    expect(followups().map((item) => item.organizationId)).toEqual([U("hot"), U("sessions")]);
+    expect(result.followups).toBe(2);
+    expect(mocks.sendDemoOutreach.mock.calls.map((call) => call[1])).toEqual([
+      { organizationId: U("hot"), channel: "email", to: "hot@shop.com", mode: "autopilot", actorId: null, kind: "followup" },
+      { organizationId: U("sessions"), channel: "email", to: "sessions@shop.com", mode: "autopilot", actorId: null, kind: "followup" },
+    ]);
+    // No first touch was queued again for any of them.
+    expect(mocks.enqueued.filter((item) => item.kind === "first_touch")).toEqual([]);
+    expect(result.skipped).toEqual(expect.arrayContaining([
+      { reason: "followup_do_not_contact", name: "dnc" },
+      { reason: "followup_do_not_contact", name: "optout" },
+      { reason: "followup_replied", name: "replied" },
+    ]));
+    // Each candidate passed the launch gate before it was queued.
+    expect(mocks.assessDemoForOutreach.mock.calls.map((call) => call[1])).toEqual([U("hot"), U("sessions")]);
+  });
+
+  it("never queues a second follow-up on a rerun", async () => {
+    const { db, tables } = followupSeed(["hot"]);
+    // What the queue's send records: one sent follow-up.
+    mocks.sendDemoOutreach.mockImplementation(async (_db: unknown, input: { organizationId: string; kind?: string }) => {
+      if (input.kind === "followup") tables["prospect_outreach"]!.push({ ...firstTouch("hot"), kind: "followup", reason: "engagement_followup", created_at: NOW.toISOString() });
+      return { ok: true, outreachId: "o" };
+    });
+    await runProspectAutopilot(db, { now: () => NOW });
+    await runProspectAutopilot(db, { now: () => new Date(NOW.getTime() + 3 * 3_600_000) });
+    await runProspectAutopilot(db, { now: () => new Date(NOW.getTime() + 3 * 86_400_000) });
+    expect(followups()).toHaveLength(1);
+
+    // A follow-up already waiting in the queue is not queued again either.
+    mocks.enqueued.length = 0;
+    const waiting = followupSeed(["hot"]);
+    waiting.tables["prospect_send_queue"] = [{ organization_id: U("hot"), channel: "email", status: "queued" }];
+    await runProspectAutopilot(waiting.db, { now: () => NOW });
+    expect(followups()).toHaveLength(0);
+  });
+
+  it("respects the email switch and the launch gate", async () => {
+    const off = followupSeed(["hot"], { settings: { send_email: false, send_sms: true } });
+    await runProspectAutopilot(off.db, { now: () => NOW });
+    expect(followups()).toHaveLength(0);
+
+    mocks.assessDemoForOutreach.mockResolvedValue({ ok: false, blockers: [{ code: "unsupported_claim", message: "Unsupported claim.", safety: true }] });
+    const gated = await runProspectAutopilot(followupSeed(["hot"]).db, { now: () => NOW });
+    expect(followups()).toHaveLength(0);
+    expect(gated.skipped).toContainEqual({ reason: "followup_quality_gate: Unsupported claim.", name: "hot" });
+  });
+
+  it("queues an autopilot email for business hours in the business's zone", async () => {
+    // 23:00 in Raleigh (EDT): the first touch is queued for 8:00 the next morning.
+    const late = new Date("2026-10-19T03:00:00.000Z");
+    const { db } = seed({
+      prospect_autopilot_settings: [settings({ targets: [] })],
+      website_settings: [{ organization_id: "a", generation: marker("a", { createdAt: "2026-10-18T00:00:00Z" }) }],
+      organizations: [{ id: "a", name: "a" }],
+      generation_jobs: [{ organization_id: "a", status: "completed", created_at: "2026-10-18T00:00:00Z" }],
+      business_profiles: [{ organization_id: "a", email: "a@shop.com", phone: "919-555-0100", state: "NC" }],
+    });
+    await runProspectAutopilot(db, { now: () => late, random: () => 0 });
+    expect(mocks.enqueued).toEqual([{ organizationId: "a", channel: "email", kind: "first_touch", notBefore: "2026-10-19T12:00:00.000Z" }]);
+  });
+});
+
+describe("legacy demo re-verification", () => {
+  it("runs once per run before sending, counts its results, and never blocks the run", async () => {
+    mocks.reverifyLegacyDemos.mockImplementation(async () => {
+      // Before the send phase: nothing has been handed to the sender yet.
+      expect(mocks.sendDemoOutreach).not.toHaveBeenCalled();
+      return { checked: 3, written: 2, results: [] };
+    });
+    const { db } = seed({ prospect_autopilot_settings: [settings({ targets: [] })] });
+    const result = await runProspectAutopilot(db, { now: () => NOW });
+    expect(mocks.reverifyLegacyDemos).toHaveBeenCalledTimes(1);
+    expect(mocks.reverifyLegacyDemos.mock.calls[0]![0]).toBe(db);
+    expect(result).toMatchObject({ status: "done", legacyChecked: 3, legacyWritten: 2 });
+
+    mocks.reverifyLegacyDemos.mockRejectedValue(new Error("dns down"));
+    const failed = await runProspectAutopilot(seed({ prospect_autopilot_settings: [settings({ targets: [] })] }).db, { now: () => NOW });
+    expect(failed).toMatchObject({ status: "done", error: null, legacyChecked: 0 });
+    expect(failed.skipped).toContainEqual({ reason: "legacy_reverify_failed: dns down" });
+  });
+});
+
+describe("follow-up eligibility rules", () => {
+  it("is due only 48+ hours after the first email with two views or two sessions, and never twice", async () => {
+    const { followupBlocker } = await import("@/lib/prospect-autopilot");
+    const base = { firstTouchAt: "2026-10-17T15:00:00.000Z", claimed: false, replied: false, followupStarted: false, engagement: { views: 2, uniqueSessions: 1 } };
+    expect(followupBlocker(base, NOW)).toBeNull();
+    expect(followupBlocker({ ...base, engagement: { views: 1, uniqueSessions: 2 } }, NOW)).toBeNull();
+    expect(followupBlocker({ ...base, engagement: { views: 1, uniqueSessions: 1 } }, NOW)).toBe("not_engaged");
+    expect(followupBlocker({ ...base, engagement: null }, NOW)).toBe("engagement_unavailable");
+    expect(followupBlocker({ ...base, firstTouchAt: "2026-10-17T15:00:00.001Z" }, NOW)).toBe("too_soon");
+    expect(followupBlocker({ ...base, firstTouchAt: null }, NOW)).toBe("no_first_touch");
+    expect(followupBlocker({ ...base, claimed: true }, NOW)).toBe("claimed");
+    expect(followupBlocker({ ...base, replied: true }, NOW)).toBe("replied");
+    expect(followupBlocker({ ...base, followupStarted: true }, NOW)).toBe("already_followed_up");
   });
 });

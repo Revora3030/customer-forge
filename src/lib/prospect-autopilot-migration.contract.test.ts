@@ -38,6 +38,22 @@ describe("prospect autopilot migrations", () => {
     expect(rotation).toContain("REVOKE ALL ON public.prospect_rotation_cursor FROM PUBLIC, anon, authenticated;");
   });
 
+  it("allows one sent autopilot follow-up per demo and tells the queue which items are follow-ups", () => {
+    const followup = read("20261020120000_prospect_engagement_followup.sql");
+    expect(followup).toMatch(/IF EXISTS \(SELECT 1 FROM pg_constraint WHERE conname = 'prospect_outreach_kind_check'\) THEN\s+ALTER TABLE public\.prospect_outreach DROP CONSTRAINT prospect_outreach_kind_check;/);
+    expect(followup).toMatch(/ADD CONSTRAINT prospect_outreach_kind_check\s+CHECK \(kind IN \('first_touch', 'reply', 'followup'\)\)/);
+    expect(followup).toMatch(
+      /CREATE UNIQUE INDEX IF NOT EXISTS prospect_outreach_one_autopilot_followup_idx\s+ON public\.prospect_outreach \(organization_id, channel\)\s+WHERE status = 'sent' AND mode = 'autopilot' AND kind = 'followup';/,
+    );
+    // The auto-reply slot check is left as it is: follow-ups keep auto_reply_seq NULL.
+    expect(followup).not.toMatch(/(DROP|ADD) CONSTRAINT prospect_outreach_auto_reply_seq_check/);
+    const replies = read("20261019100000_prospect_gmail_replies.sql");
+    expect(replies).toMatch(/CASE WHEN kind = 'reply' AND mode = 'autopilot'[\s\S]*ELSE auto_reply_seq IS NULL/);
+    expect(followup).toContain("ALTER TABLE public.prospect_send_queue ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'first_touch';");
+    expect(followup).toMatch(/CHECK \(kind IN \('first_touch', 'followup'\)\)/);
+    expect(followup).not.toMatch(/GRANT|DISABLE ROW LEVEL SECURITY|DROP TABLE/);
+  });
+
   it("keeps the side-effecting cron route POST-only and non-cacheable", () => {
     expect(route).toMatch(/^\s*POST:/m);
     expect(route).not.toMatch(/^\s*GET:/m);

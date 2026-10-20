@@ -150,7 +150,7 @@ export function ProspectAutopilotCard({ className }: { className?: string }) {
       if (result.status === "disabled") toast.message("Autopilot is off, so nothing ran. Turn it on and save first.");
       else if (result.status === "busy") toast.message("An autopilot run is already going.");
       else if (result.status === "failed") toast.error(`The run stopped: ${result.error ?? "unknown error"}`);
-      else toast.success(`Found ${result.found}, built ${result.built}, emailed ${result.emailed}, texted ${result.texted}.`);
+      else toast.success(`Found ${result.found}, built ${result.built}, emailed ${result.emailed}${result.followups ? `, followed up ${result.followups}` : ""}, texted ${result.texted}.`);
       void qc.invalidateQueries({ queryKey: KEY });
       void qc.invalidateQueries({ queryKey: ["jarvis", "prospect-demos"] });
     },
@@ -186,7 +186,9 @@ export function ProspectAutopilotCard({ className }: { className?: string }) {
       <p className="text-xs text-muted-foreground">
         Every hour: searches your targets for businesses with no website, builds free demo sites (free AI only) up to
         the daily limit, and emails the preview link only to an address the business published and that passed
-        verification (real mailbox domain, not a role address, not opted out). Texts only go to numbers that opted in.
+        verification (real mailbox domain, not a role address, not opted out). Emails go out 8am–6pm in the business's
+        time zone (9am–5pm Eastern when it's unknown). If the preview is opened twice in the 48+ hours after that
+        email and nobody replied or claimed it, one factual follow-up goes out. Texts only go to numbers that opted in.
       </p>
 
       {settings.error ? (
