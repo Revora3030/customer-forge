@@ -88,10 +88,15 @@ describe("composeFirstBuildSections", () => {
     // Each validated section is checkpointed before optional page-level QA,
     // then may be saved again if the final QA accepts a refinement.
     expect(updates.length).toBeGreaterThan(3);
-    // Two design calls; the review panel follows (its notes here parse as empty, so no revision).
-    expect(calls.filter((c) => c.includes("SECTIONS TO DESIGN"))).toHaveLength(2);
+    // One design call, then one targeted AI repair of the invalid tree that
+    // carries the exact validator error and the bad output; the review panel
+    // follows (its notes here parse as empty, so no revision).
+    expect(calls.filter((c) => c.includes("SECTIONS TO DESIGN"))).toHaveLength(1);
     expect(result.gateReports).toEqual([]);
-    expect(calls[1]).toContain("FIX THESE PROBLEMS");
+    expect(calls[1]).toContain("EXACT VALIDATOR ERRORS");
+    expect(calls[1]).toContain('unknown building block \\"banana\\"');
+    expect(calls[1]).toContain('"type":"banana"');
+    expect(result.outputRepairs).toBe(1);
     expect(calls[0]).toContain('"s3"');
     // Independent advisers speak before Sol's first design.
     expect(calls[0]).toContain("TEAM ADVICE");
