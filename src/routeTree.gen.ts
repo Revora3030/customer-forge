@@ -104,6 +104,7 @@ import { Route as UnsubscribeOutreachTokenRouteImport } from './routes/unsubscri
 import { Route as AuthenticatedAdminClientsOrgIdRouteImport } from './routes/_authenticated/admin.clients.$orgId'
 import { Route as AuthenticatedDraftSlugPageRouteImport } from './routes/_authenticated/draft.$slug.$page'
 import { Route as ApiPublicJobsBackupRouteImport } from './routes/api/public/jobs/backup'
+import { Route as ApiPublicJobsJarvisRoutinesRouteImport } from './routes/api/public/jobs/jarvis-routines'
 import { Route as ApiPublicJobsLeadAlertRetryRouteImport } from './routes/api/public/jobs/lead-alert-retry'
 import { Route as ApiPublicJobsLeadReminderRouteImport } from './routes/api/public/jobs/lead-reminder'
 import { Route as ApiPublicJobsLifecycleEmailRouteImport } from './routes/api/public/jobs/lifecycle-email'
@@ -614,6 +615,12 @@ const ApiPublicJobsBackupRoute = ApiPublicJobsBackupRouteImport.update({
   path: '/api/public/jobs/backup',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicJobsJarvisRoutinesRoute =
+  ApiPublicJobsJarvisRoutinesRouteImport.update({
+    id: '/api/public/jobs/jarvis-routines',
+    path: '/api/public/jobs/jarvis-routines',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicJobsLeadAlertRetryRoute =
   ApiPublicJobsLeadAlertRetryRouteImport.update({
     id: '/api/public/jobs/lead-alert-retry',
@@ -795,6 +802,7 @@ export interface FileRoutesByFullPath {
   '/admin/clients/$orgId': typeof AuthenticatedAdminClientsOrgIdRoute
   '/draft/$slug/$page': typeof AuthenticatedDraftSlugPageRoute
   '/api/public/jobs/backup': typeof ApiPublicJobsBackupRoute
+  '/api/public/jobs/jarvis-routines': typeof ApiPublicJobsJarvisRoutinesRoute
   '/api/public/jobs/lead-alert-retry': typeof ApiPublicJobsLeadAlertRetryRoute
   '/api/public/jobs/lead-reminder': typeof ApiPublicJobsLeadReminderRoute
   '/api/public/jobs/lifecycle-email': typeof ApiPublicJobsLifecycleEmailRoute
@@ -901,6 +909,7 @@ export interface FileRoutesByTo {
   '/admin/clients/$orgId': typeof AuthenticatedAdminClientsOrgIdRoute
   '/draft/$slug/$page': typeof AuthenticatedDraftSlugPageRoute
   '/api/public/jobs/backup': typeof ApiPublicJobsBackupRoute
+  '/api/public/jobs/jarvis-routines': typeof ApiPublicJobsJarvisRoutinesRoute
   '/api/public/jobs/lead-alert-retry': typeof ApiPublicJobsLeadAlertRetryRoute
   '/api/public/jobs/lead-reminder': typeof ApiPublicJobsLeadReminderRoute
   '/api/public/jobs/lifecycle-email': typeof ApiPublicJobsLifecycleEmailRoute
@@ -1014,6 +1023,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/clients/$orgId': typeof AuthenticatedAdminClientsOrgIdRoute
   '/_authenticated/draft/$slug/$page': typeof AuthenticatedDraftSlugPageRoute
   '/api/public/jobs/backup': typeof ApiPublicJobsBackupRoute
+  '/api/public/jobs/jarvis-routines': typeof ApiPublicJobsJarvisRoutinesRoute
   '/api/public/jobs/lead-alert-retry': typeof ApiPublicJobsLeadAlertRetryRoute
   '/api/public/jobs/lead-reminder': typeof ApiPublicJobsLeadReminderRoute
   '/api/public/jobs/lifecycle-email': typeof ApiPublicJobsLifecycleEmailRoute
@@ -1127,6 +1137,7 @@ export interface FileRouteTypes {
     | '/admin/clients/$orgId'
     | '/draft/$slug/$page'
     | '/api/public/jobs/backup'
+    | '/api/public/jobs/jarvis-routines'
     | '/api/public/jobs/lead-alert-retry'
     | '/api/public/jobs/lead-reminder'
     | '/api/public/jobs/lifecycle-email'
@@ -1233,6 +1244,7 @@ export interface FileRouteTypes {
     | '/admin/clients/$orgId'
     | '/draft/$slug/$page'
     | '/api/public/jobs/backup'
+    | '/api/public/jobs/jarvis-routines'
     | '/api/public/jobs/lead-alert-retry'
     | '/api/public/jobs/lead-reminder'
     | '/api/public/jobs/lifecycle-email'
@@ -1345,6 +1357,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/clients/$orgId'
     | '/_authenticated/draft/$slug/$page'
     | '/api/public/jobs/backup'
+    | '/api/public/jobs/jarvis-routines'
     | '/api/public/jobs/lead-alert-retry'
     | '/api/public/jobs/lead-reminder'
     | '/api/public/jobs/lifecycle-email'
@@ -1410,6 +1423,7 @@ export interface RootRouteChildren {
   UnsubscribeOutreachTokenRoute: typeof UnsubscribeOutreachTokenRoute
   LocalIndustryIndexRoute: typeof LocalIndustryIndexRoute
   ApiPublicJobsBackupRoute: typeof ApiPublicJobsBackupRoute
+  ApiPublicJobsJarvisRoutinesRoute: typeof ApiPublicJobsJarvisRoutinesRoute
   ApiPublicJobsLeadAlertRetryRoute: typeof ApiPublicJobsLeadAlertRetryRoute
   ApiPublicJobsLeadReminderRoute: typeof ApiPublicJobsLeadReminderRoute
   ApiPublicJobsLifecycleEmailRoute: typeof ApiPublicJobsLifecycleEmailRoute
@@ -2094,6 +2108,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicJobsBackupRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/jobs/jarvis-routines': {
+      id: '/api/public/jobs/jarvis-routines'
+      path: '/api/public/jobs/jarvis-routines'
+      fullPath: '/api/public/jobs/jarvis-routines'
+      preLoaderRoute: typeof ApiPublicJobsJarvisRoutinesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/jobs/lead-alert-retry': {
       id: '/api/public/jobs/lead-alert-retry'
       path: '/api/public/jobs/lead-alert-retry'
@@ -2433,6 +2454,7 @@ const rootRouteChildren: RootRouteChildren = {
   UnsubscribeOutreachTokenRoute: UnsubscribeOutreachTokenRoute,
   LocalIndustryIndexRoute: LocalIndustryIndexRoute,
   ApiPublicJobsBackupRoute: ApiPublicJobsBackupRoute,
+  ApiPublicJobsJarvisRoutinesRoute: ApiPublicJobsJarvisRoutinesRoute,
   ApiPublicJobsLeadAlertRetryRoute: ApiPublicJobsLeadAlertRetryRoute,
   ApiPublicJobsLeadReminderRoute: ApiPublicJobsLeadReminderRoute,
   ApiPublicJobsLifecycleEmailRoute: ApiPublicJobsLifecycleEmailRoute,
