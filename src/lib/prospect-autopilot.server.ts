@@ -14,7 +14,7 @@ import {
   type DemoFingerprints,
 } from "@/lib/prospect-autopilot";
 import { emailVerifiedFor, readProspectEnrichment, type ProspectEnrichment } from "@/lib/prospect-enrichment";
-import { MAX_SEARCHES_PER_DAY } from "@/lib/prospect-finder";
+import { MAX_SEARCHES_PER_DAY, isUpgradeProspect } from "@/lib/prospect-finder";
 import { nextRotationPairs, rotationPairs, type RotationPair } from "@/lib/prospect-rotation";
 import type { OutreachChannel, OutreachResult } from "@/lib/prospect-outreach.server";
 
