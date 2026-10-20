@@ -179,8 +179,7 @@ export function TrustSection() {
         Questions before you start?{" "}
         <a className="text-primary underline underline-offset-2" href={revoraMailto(MAIL_SUBJECTS.inquiry)}>
           {REVORA.email}
-        </a>{" "}
-        · {REVORA.phoneDisplay}
+        </a>
       </p>
     </div>
   );

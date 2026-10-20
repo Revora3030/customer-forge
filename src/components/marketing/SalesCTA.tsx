@@ -1,8 +1,8 @@
 import { Link } from "@tanstack/react-router";
-import { LifeBuoy, Mail, Phone } from "lucide-react";
+import { LifeBuoy, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/app/Bits";
-import { MAIL_SUBJECTS, REVORA, revoraMailto, revoraTel } from "@/lib/brand";
+import { MAIL_SUBJECTS, REVORA, revoraMailto } from "@/lib/brand";
 
 /** Ready-to-grow sales block used across marketing pages. */
 export function SalesCTA({ className = "" }: { className?: string }) {
@@ -15,11 +15,6 @@ export function SalesCTA({ className = "" }: { className?: string }) {
       <div className="mt-7 flex flex-wrap justify-center gap-3">
         <Button asChild variant="signal" size="lg">
           <Link to="/demo">Request a demo</Link>
-        </Button>
-        <Button asChild variant="outline" size="lg">
-          <a href={revoraTel}>
-            <Phone className="size-4" aria-hidden="true" /> Call {REVORA.phoneDisplay}
-          </a>
         </Button>
         <Button asChild variant="ghost" size="lg">
           <a href={revoraMailto(MAIL_SUBJECTS.inquiry)}>
@@ -44,11 +39,6 @@ export function SupportCard() {
         <li>
           <a className="text-primary underline underline-offset-2" href={revoraMailto(MAIL_SUBJECTS.support)}>
             {REVORA.email}
-          </a>
-        </li>
-        <li>
-          <a className="text-primary underline underline-offset-2" href={revoraTel}>
-            {REVORA.phoneDisplay}
           </a>
         </li>
       </ul>
@@ -110,11 +100,6 @@ export function FounderNote() {
               {REVORA.founder.name.split(" ")[0]}
             </a>
           </Button>
-          <Button asChild variant="ghost" size="sm">
-            <a href={revoraTel}>
-              <Phone className="size-4" aria-hidden="true" /> {REVORA.phoneDisplay}
-            </a>
-          </Button>
         </div>
       </div>
     </div>
@@ -129,10 +114,7 @@ export function RevoraMobileBar() {
           such as the send button on the contact form. */}
       <div className="h-24 md:hidden" aria-hidden="true" />
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 px-2 py-2 backdrop-blur md:hidden">
-        <div className="grid grid-cols-4 gap-2">
-          <Button asChild variant="outline" size="sm">
-            <a href={revoraTel}>Call</a>
-          </Button>
+        <div className="grid grid-cols-3 gap-2">
           <Button asChild variant="outline" size="sm">
             <a href={revoraMailto(MAIL_SUBJECTS.inquiry)}>Email</a>
           </Button>

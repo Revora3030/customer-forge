@@ -95,7 +95,6 @@ export const Route = createFileRoute("/states/$state")({
             provider: {
               "@type": "ProfessionalService",
               name: BUSINESS.legalName,
-              telephone: BUSINESS.tel,
               email: BUSINESS.email,
               url: "https://revoragrowthsystems.com",
             },
@@ -245,9 +244,6 @@ function StatePage() {
             <div className="mt-6 flex flex-wrap justify-center gap-3">
               <Button asChild variant="signal" size="lg">
                 <Link to="/get-started">Build my system</Link>
-              </Button>
-              <Button asChild variant="ghost" size="lg">
-                <a href={`tel:${BUSINESS.tel}`}>Call {BUSINESS.phoneDisplay}</a>
               </Button>
             </div>
           </div>

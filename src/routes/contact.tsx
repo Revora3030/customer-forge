@@ -6,14 +6,14 @@ import { submitContactRequest } from "@/lib/contact.functions";
 
 import { useState } from "react";
 import { toast } from "@/lib/ui/notify";
-import { Mail, Phone } from "lucide-react";
+import { Mail } from "lucide-react";
 import { SiteFooter, SiteHeader } from "@/components/marketing/Chrome";
 import { RevoraMobileBar, SupportCard } from "@/components/marketing/SalesCTA";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { MAIL_SUBJECTS, REVORA, revoraMailto, revoraTel } from "@/lib/brand";
+import { MAIL_SUBJECTS, REVORA, revoraMailto } from "@/lib/brand";
 import { canonicalLink, ogUrl } from "@/lib/seo";
 
 const INTERESTS = [
@@ -39,7 +39,7 @@ export const Route = createFileRoute("/contact")({
         {
           name: "description",
           content:
-            "Questions about Revora, want to see the platform in action, or ready to build your customer acquisition system? Email hello@revoragrowthsystems.com or call (919) 622-6620.",
+            "Questions about Revora, want to see the platform in action, or ready to build your customer acquisition system? Email hello@revoragrowthsystems.com.",
         },
         { property: "og:title", content: "Contact Revora" },
         {
@@ -86,7 +86,7 @@ function Contact() {
               customer acquisition system for your business? Get in touch with the Revora team.
             </p>
 
-            <ul className="mt-8 grid gap-3 sm:grid-cols-2">
+            <ul className="mt-8 grid gap-3">
               <li className="panel card-lift flex items-center gap-3.5 p-4">
                 <Mail className="size-4 shrink-0 text-primary" aria-hidden="true" />
                 <div className="min-w-0">
@@ -99,23 +99,11 @@ function Contact() {
                   </a>
                 </div>
               </li>
-              <li className="panel card-lift flex items-center gap-3.5 p-4">
-                <Phone className="size-4 shrink-0 text-primary" aria-hidden="true" />
-                <div className="min-w-0">
-                  <p className="eyebrow">Phone</p>
-                  <a href={revoraTel} className="flex min-h-11 items-center text-[13px] font-medium hover:text-primary">
-                    {REVORA.phoneDisplay}
-                  </a>
-                </div>
-              </li>
             </ul>
 
             <div className="mt-6 flex flex-wrap gap-2">
               <Button asChild variant="signal">
                 <a href={revoraMailto(MAIL_SUBJECTS.inquiry)}>Email Revora</a>
-              </Button>
-              <Button asChild variant="outline">
-                <a href={revoraTel}>Call Revora</a>
               </Button>
               <Button asChild variant="outline">
                 <Link to="/demo">Request a demo</Link>
@@ -226,7 +214,7 @@ function Contact() {
                 </Button>
 
                 <p className="text-[11px] leading-relaxed text-muted-foreground">
-                  Prefer to talk it through? Call {REVORA.phoneDisplay} — no automated queue.
+                  A real person on the Revora team reads every message.
                 </p>
               </form>
             )}

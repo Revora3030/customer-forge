@@ -794,7 +794,7 @@ function GetStarted() {
         </div>
 
         <p className="mt-8 text-[13px] text-muted-foreground">
-          Questions before you start? {REVORA.phoneDisplay} ·{" "}
+          Questions before you start?{" "}
           <a className="text-primary hover:underline" href={revoraMailto("Revora Growth System")}>
             {REVORA.email}
           </a>

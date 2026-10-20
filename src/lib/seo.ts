@@ -45,7 +45,6 @@ export const ORGANIZATION_SCHEMA = {
   url: SITE_URL,
   // Google needs a crawlable, at least 112px square logo for the knowledge panel.
   logo: { "@type": "ImageObject", url: absoluteUrl("/apple-touch-icon.png"), width: 180, height: 180 },
-  telephone: BUSINESS.tel,
   email: BUSINESS.email,
   description:
     "Revora builds businesses in every industry a complete customer acquisition system: website, lead capture, CRM, quotes, booking, follow-up, reviews, local SEO and analytics.",
@@ -56,7 +55,6 @@ export const ORGANIZATION_SCHEMA = {
       "@type": "ContactPoint",
       contactType: "sales",
       email: BUSINESS.email,
-      telephone: BUSINESS.tel,
       availableLanguage: BUSINESS.languages,
       areaServed: ["US", "Worldwide"],
       hoursAvailable: {
@@ -84,7 +82,6 @@ export const LOCAL_BUSINESS_SCHEMA = {
   name: BUSINESS.displayName,
   legalName: BUSINESS.legalName,
   url: SITE_URL,
-  telephone: BUSINESS.tel,
   email: BUSINESS.email,
   // The 1200x630 social card; the 64px favicon is too small for rich results.
   image: OG_IMAGE.url,

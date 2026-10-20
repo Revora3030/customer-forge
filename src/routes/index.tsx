@@ -1,39 +1,21 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   ArrowRight,
-  CalendarCheck,
-  Calculator,
-  ClipboardCheck,
-  Globe,
-  LineChart,
-  MessageSquare,
-  Search,
   Sparkles,
-  TrendingDown,
-  Users,
 } from "lucide-react";
 import { SiteFooter, SiteHeader } from "@/components/marketing/Chrome";
 import { AuthHint } from "@/components/marketing/AuthButtons";
 import { HeroStarter } from "@/components/marketing/HeroStarter";
 import { DashboardPreview } from "@/components/marketing/DashboardPreview";
-import { WithoutWith } from "@/components/marketing/Journey";
 import { TRUST_INDUSTRIES } from "@/components/marketing/journey-constants";
-import { TrustSection } from "@/components/marketing/TrustSection";
-import { FounderNote } from "@/components/marketing/SalesCTA";
-import { ROICalculator } from "@/components/marketing/ROICalculator";
 import { AfterYouStart } from "@/components/marketing/OfferSections";
 import { FAQ, FAQ_ITEMS } from "@/components/marketing/FAQ";
-import { LongTermValue } from "@/components/marketing/ConversionKit";
-import { AiClarity, AutomationFlow, SleepEngine } from "@/components/marketing/AiClarity";
-import { LiveSystemDemo } from "@/components/marketing/LiveSystemDemo";
-import { LeadEngineSimulator } from "@/components/marketing/LeadEngineSimulator";
 import { ProductTour } from "@/components/marketing/ProductTour";
-import { ValueStack } from "@/components/marketing/ValueStack";
-import { FreeAccessButton, FreeAccessSection } from "@/components/marketing/FreeAccess";
+import { FreeAccessButton } from "@/components/marketing/FreeAccess";
 import { Panel, Pill, SectionHeading } from "@/components/app/Bits";
 import { RouteError } from "@/components/app/RouteStates";
 import { Button } from "@/components/ui/button";
-import { INDUSTRIES, industrySlug } from "@/lib/domain";
+import { INDUSTRIES } from "@/lib/domain";
 import { GROWTH_SYSTEM, usd } from "@/lib/offer";
 import { GROWTH_SYSTEM_SCHEMA, LOCAL_BUSINESS_SCHEMA, canonicalLink, ogUrl } from "@/lib/seo";
 import { BusinessDetails } from "@/components/marketing/BusinessDetails";
@@ -198,48 +180,6 @@ const PROBLEMS = [
 ];
 
 /** Every capability stated as the outcome it produces for the owner. */
-const OUTCOMES = [
-  {
-    icon: Globe,
-    outcome: "Get chosen instead of scrolled past",
-    how: "A fast, industry-specific site with call, quote and book actions on every screen.",
-  },
-  {
-    icon: Calculator,
-    outcome: "Win the price-shopper before your competitor calls back",
-    how: "An instant quote calculator that returns a real range and captures the lead's answers.",
-  },
-  {
-    icon: CalendarCheck,
-    outcome: "Fill your calendar without answering the phone",
-    how: "Online booking on your real availability, with confirmations and reminders sent for you.",
-  },
-  {
-    icon: Users,
-    outcome: "Stop losing jobs you already paid to attract",
-    how: "One pipeline from new to booked, with the follow-ups you owe surfaced first.",
-  },
-  {
-    icon: ClipboardCheck,
-    outcome: "Reply in seconds, even mid-job",
-    how: "Instant lead alerts plus automatic first replies and nudge sequences.",
-  },
-  {
-    icon: Search,
-    outcome: "Show up for more 'service + city' searches every month",
-    how: "Service and city pages, schema, sitemap and a health score that says what's next.",
-  },
-  {
-    icon: MessageSquare,
-    outcome: "Build the review count that wins the click",
-    how: "Automatic review requests after completed jobs, with proof published to your site.",
-  },
-  {
-    icon: LineChart,
-    outcome: "Know exactly what the system returned this month",
-    how: "Traffic, leads, quotes, bookings and conversion rate by source — no course required.",
-  },
-];
 
 const HERO_PROOF = [
   ["24/7", "Quoting and booking, even at 2am"],
@@ -394,10 +334,6 @@ function Landing() {
               <PrimaryCta />
               <PriceLine className="mt-4" />
             </div>
-
-            <div className="mt-10">
-              <WithoutWith />
-            </div>
           </div>
         </section>
 
@@ -408,117 +344,6 @@ function Landing() {
           </div>
         </section>
 
-        {/* WHAT THE AI ACTUALLY DOES */}
-        <section id="ai" className="scroll-mt-20 border-b border-border bg-card">
-          <div className="mx-auto max-w-6xl px-4 py-16">
-            <SectionHeading
-              eyebrow="Revora AI"
-              title="Exactly what the AI does for you — in plain English"
-            />
-            <div className="mt-8">
-              <AiClarity />
-            </div>
-          </div>
-        </section>
-
-        {/* AUTOMATION VISUAL */}
-        <section className="border-b border-border">
-          <div className="mx-auto max-w-6xl px-4 py-16">
-            <SectionHeading
-              eyebrow="The automation engine"
-              title="Every lead gets the same perfect follow-up, automatically"
-            />
-            <div className="mt-8">
-              <AutomationFlow />
-            </div>
-          </div>
-        </section>
-
-        {/* PILLAR 2: Interactive Live Lead Engine Simulator */}
-        <section className="border-b border-border bg-card/40">
-          <div className="mx-auto max-w-6xl px-4 py-16">
-            <SectionHeading
-              eyebrow="Try it yourself"
-              title="Watch a lead become a booking — in real time"
-            />
-            <div className="mt-8">
-              <LeadEngineSimulator />
-            </div>
-          </div>
-        </section>
-
-        {/* PILLAR 2: The Revora loop — Visitor to Repeat Customer */}
-        <section className="border-b border-border">
-          <div className="mx-auto max-w-6xl px-4 py-16">
-            <LiveSystemDemo />
-          </div>
-        </section>
-
-        {/* FREE ASSESSMENT FUNNEL */}
-        <section className="border-b border-border bg-card">
-          <div className="mx-auto max-w-6xl px-4 py-14">
-            <Panel className="gold-glow grid gap-6 overflow-hidden border-primary/35 p-6 sm:p-8 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
-              <div className="min-w-0">
-                <Pill tone="signal">
-                  <TrendingDown className="size-3.5" aria-hidden="true" /> Free growth assessment
-                </Pill>
-                <h2 className="mt-4 font-display text-[clamp(1.2rem,2.5vw,2rem)] leading-tight font-semibold">
-                  See how many customers you're losing — <span className="gold-text">free</span>, in
-                  2 minutes.
-                </h2>
-                <p className="mt-3 max-w-xl text-[13.5px] leading-relaxed text-muted-foreground">
-                  Answer a few questions about how leads reach you today. Get your Revora Growth
-                  Score, the specific gaps costing you jobs, and an estimate of the revenue slipping
-                  past you each month — emailed instantly. No card, no call required.
-                </p>
-              </div>
-              <div className="flex flex-col gap-2.5">
-                <Button
-                  asChild
-                  variant="signal"
-                  size="lg"
-                  className="h-auto py-3 leading-snug whitespace-normal"
-                >
-                  <Link to="/growth-assessment">
-                    GET MY FREE GROWTH SCORE <ArrowRight className="size-4" aria-hidden="true" />
-                  </Link>
-                </Button>
-                <Button asChild variant="outline">
-                  <Link to="/website-audit">Or get a free website audit</Link>
-                </Button>
-              </div>
-            </Panel>
-          </div>
-        </section>
-
-        {/* OUTCOMES */}
-        <section className="border-b border-border">
-          <div className="mx-auto max-w-6xl px-4 py-16">
-            <SectionHeading
-              eyebrow="What it does for your business"
-              title="Not a feature list — the outcomes you actually want"
-            />
-            <div className="mt-8 grid gap-3 md:grid-cols-2 lg:grid-cols-4">
-              {OUTCOMES.map(({ icon: Icon, outcome, how }) => (
-                <Panel key={outcome} className="card-lift p-5">
-                  <Icon className="size-5 text-primary" aria-hidden="true" />
-                  <h3 className="mt-3.5 font-display text-[14.5px] leading-snug font-semibold">
-                    {outcome}
-                  </h3>
-                  <p className="mt-2 text-[12.5px] leading-relaxed text-muted-foreground">{how}</p>
-                </Panel>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* GROWS WHILE YOU SLEEP */}
-        <section className="border-b border-border bg-card">
-          <div className="mx-auto max-w-6xl px-4 py-16">
-            <SleepEngine />
-          </div>
-        </section>
-
         {/* VALUE + PRICING */}
         <section id="pricing" className="scroll-mt-20 border-b border-border">
           <div className="mx-auto max-w-6xl px-4 py-16">
@@ -526,9 +351,6 @@ function Landing() {
               eyebrow="Pricing"
               title={`Why ${usd(GROWTH_SYSTEM.setupPrice)} is the easiest decision on this page`}
             />
-            <div className="mt-8">
-              <ValueStack />
-            </div>
             <div className="panel mt-10 grid gap-0 overflow-hidden p-0 md:grid-cols-[1.1fr_1fr]">
               <div className="min-w-0 border-b border-border p-6 sm:p-7 md:border-r md:border-b-0">
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -595,91 +417,6 @@ function Landing() {
         <section id="how-it-works" className="scroll-mt-20 border-b border-border bg-card">
           <div className="mx-auto max-w-6xl px-4 pt-4 pb-16">
             <AfterYouStart />
-          </div>
-        </section>
-
-        {/* OPPORTUNITY / LOST REVENUE */}
-        <section id="roi" className="scroll-mt-20 border-b border-border">
-          <div className="mx-auto max-w-6xl px-4 py-16">
-            <SectionHeading
-              eyebrow="Revenue calculator"
-              title="What the leaks cost you — and what closing them is worth"
-              action={
-                <Button asChild variant="ghost" size="sm">
-                  <Link to="/growth-assessment">
-                    Full assessment <ArrowRight className="size-4" aria-hidden="true" />
-                  </Link>
-                </Button>
-              }
-            />
-            <div className="mt-8">
-              <ROICalculator />
-            </div>
-          </div>
-        </section>
-
-        {/* INDUSTRIES / NICHE PAGES */}
-        <section className="border-b border-border bg-card">
-          <div className="mx-auto max-w-6xl px-4 py-16">
-            <SectionHeading
-              eyebrow="Built for your trade"
-              title="Pick your industry and see the exact system"
-              action={
-                <Button asChild variant="ghost" size="sm">
-                  <Link to="/industries">
-                    All industries <ArrowRight className="size-4" aria-hidden="true" />
-                  </Link>
-                </Button>
-              }
-            />
-            <ul className="mt-8 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {INDUSTRIES.map((industry) => (
-                <li key={industry.name}>
-                  <Link
-                    to="/industries/$slug"
-                    params={{ slug: industrySlug(industry.name) }}
-                    className="card-lift flex min-h-12 items-center justify-between gap-3 rounded-lg border border-border bg-background px-4 py-3 text-[13px] transition-colors hover:border-primary/40"
-                  >
-                    <span className="min-w-0 truncate">{industry.name}</span>
-                    <ArrowRight className="size-4 shrink-0 text-primary" aria-hidden="true" />
-                  </Link>
-                </li>
-              ))}
-            </ul>
-            <p className="mt-6 max-w-3xl text-[13px] leading-relaxed text-muted-foreground">
-              <span className="text-foreground">Also built for:</span>{" "}
-              {TRUST_INDUSTRIES.join(" · ")}.
-            </p>
-          </div>
-        </section>
-
-        {/* TRUST + WHY CLIENTS STAY */}
-        <section className="border-b border-border">
-          <div className="mx-auto max-w-6xl px-4 py-16">
-            <TrustSection />
-            <div className="mt-12">
-              <SectionHeading
-                eyebrow="The compounding advantage"
-                title="It keeps compounding every month you run it"
-              />
-              <div className="mt-8">
-                <LongTermValue />
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* FREE ACCESS */}
-        <section id="free-access" className="scroll-mt-20 border-b border-border bg-card">
-          <div className="mx-auto max-w-6xl px-4 py-16">
-            <FreeAccessSection />
-          </div>
-        </section>
-
-        {/* FOUNDER */}
-        <section className="border-b border-border">
-          <div className="mx-auto max-w-6xl px-4 py-16">
-            <FounderNote />
           </div>
         </section>
 

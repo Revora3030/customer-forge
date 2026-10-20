@@ -2,10 +2,10 @@ import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { Logo } from "@/components/brand/Logo";
 import { Button } from "@/components/ui/button";
-import { LayoutDashboard, LogOut, Mail, Menu, Phone, Sparkles, X } from "lucide-react";
+import { LayoutDashboard, LogOut, Mail, Menu, Sparkles, X } from "lucide-react";
 import { useSession } from "@/lib/auth-session";
 import { useSignOut } from "@/lib/use-tenant";
-import { MAIL_SUBJECTS, REVORA, revoraMailto, revoraTel } from "@/lib/brand";
+import { MAIL_SUBJECTS, REVORA, revoraMailto } from "@/lib/brand";
 import { GROWTH_SYSTEM } from "@/lib/offer";
 import { MarketingConversionKit } from "@/components/marketing/ConversionKit";
 import { VisitorJarvis } from "@/components/marketing/VisitorJarvis";
@@ -30,7 +30,6 @@ const JUMP_LINKS = [
   { hash: "see-it", label: "See it in action" },
   { hash: "how-it-works", label: "How it works" },
   { hash: "pricing", label: "Pricing" },
-  { hash: "roi", label: "What you'd earn back" },
   { hash: "faq", label: "Questions" },
 ] as const;
 
@@ -251,15 +250,6 @@ export function SiteFooter() {
                     className="inline-flex min-h-11 items-center text-muted-foreground transition-colors hover:text-primary sm:min-h-0"
                   >
                     {REVORA.email}
-                  </a>
-                </li>
-                <li className="flex items-center gap-2">
-                  <Phone className="size-3.5 text-primary" aria-hidden="true" />
-                  <a
-                    href={revoraTel}
-                    className="inline-flex min-h-11 items-center text-muted-foreground transition-colors hover:text-primary sm:min-h-0"
-                  >
-                    {REVORA.phoneDisplay}
                   </a>
                 </li>
               </ul>
