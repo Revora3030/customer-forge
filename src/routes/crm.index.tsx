@@ -99,13 +99,13 @@ function CrmHubPage() {
         </section>
 
         <nav className="mt-10 flex flex-wrap gap-4 text-[13px] text-muted-foreground">
-          <Link to="/crm-for-contractors" className="hover:text-primary">
+          <Link to="/crm-for-contractors" className="inline-flex min-h-11 items-center hover:text-primary">
             CRM for contractors overview
           </Link>
-          <Link to="/compare" className="hover:text-primary">
+          <Link to="/compare" className="inline-flex min-h-11 items-center hover:text-primary">
             Compare the alternatives
           </Link>
-          <Link to="/guides" className="hover:text-primary">
+          <Link to="/guides" className="inline-flex min-h-11 items-center hover:text-primary">
             Guides
           </Link>
         </nav>
