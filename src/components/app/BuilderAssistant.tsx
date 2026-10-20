@@ -170,6 +170,15 @@ export function BuilderAssistant({
     queryFn: () => fetchSuggestions({ data: { organizationId: organizationId! } }),
   });
   const SUGGESTIONS = suggestionsQuery.data?.suggestions ?? [];
+  // Suggestions come from the free AI team and can be slow; after a short
+  // wait the empty placeholders give way to the composer instead of pulsing.
+  const [suggestionsSlow, setSuggestionsSlow] = useState(false);
+  useEffect(() => {
+    if (!suggestionsQuery.isFetching) return setSuggestionsSlow(false);
+    const timer = window.setTimeout(() => setSuggestionsSlow(true), 8000);
+    return () => window.clearTimeout(timer);
+  }, [suggestionsQuery.isFetching]);
+  const suggestionsLoading = suggestionsQuery.isFetching && !suggestionsSlow;
 
   // Any panel elsewhere in the builder can hand its request to this box.
   useEffect(
