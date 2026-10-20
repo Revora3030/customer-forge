@@ -42,8 +42,8 @@ export function SiteHeader() {
 
   return (
     <header className="sticky top-0 z-40 pt-[env(safe-area-inset-top)] border-b border-border bg-background/90 backdrop-blur-sm">
-      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
-        <Link to="/" aria-label="Revora home">
+      <div className="mx-auto grid h-16 max-w-6xl grid-cols-[minmax(0,1fr)_auto] items-center gap-2 px-4 md:flex md:justify-between">
+        <Link to="/" aria-label="Revora home" className="min-w-0">
           <Logo />
         </Link>
 
@@ -101,15 +101,17 @@ export function SiteHeader() {
             signing in never requires opening the menu first. */}
         <div className="flex items-center gap-1.5 md:hidden">
           <AuthActions variant="compact" />
-          <button
+          <Button
+            variant="outline"
+            size="icon"
             type="button"
-            className="grid size-10 cursor-pointer place-items-center rounded-md border border-border text-muted-foreground"
+            className="size-11 shrink-0 text-muted-foreground"
             aria-label={open ? "Close menu" : "Open menu"}
             aria-expanded={open}
             onClick={() => setOpen((v) => !v)}
           >
             {open ? <X className="size-4" /> : <Menu className="size-4" />}
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -139,7 +141,7 @@ export function SiteHeader() {
                     to="/"
                     hash={item.hash}
                     onClick={() => setOpen(false)}
-                    className="inline-flex min-h-9 items-center rounded-full border border-border bg-background/60 px-3 text-[12.5px] text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary"
+                    className="inline-flex min-h-11 items-center rounded-full border border-border bg-background/60 px-3 text-[12.5px] text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary"
                   >
                     {item.label}
                   </Link>
@@ -256,7 +258,7 @@ export function SiteFooter() {
             </div>
           </div>
 
-          <div className="grid gap-8 sm:grid-cols-3 md:col-span-7">
+          <div className="grid grid-cols-2 gap-6 sm:grid-cols-3 md:col-span-7">
             {FOOTER_GROUPS.map((group) => (
               <nav key={group.heading} aria-label={group.heading}>
                 <p className="eyebrow">{group.heading}</p>
@@ -314,8 +316,7 @@ export function SiteFooter() {
                 </li>
                 <li>
                   <Link
-                    to="/s/$slug"
-                    params={{ slug: "elite-mobile-detailing" }}
+                    to="/demo/dashboard"
                     className="inline-flex min-h-11 items-center text-muted-foreground transition-colors hover:text-primary sm:min-h-0"
                   >
                     Live demo site

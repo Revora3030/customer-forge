@@ -263,18 +263,18 @@ function Screen({ view }: { view: ScreenKey }) {
 /** Tabbed, clickable tour of the Revora modules. */
 export function ProductTour() {
   const [view, setView] = useState<ScreenKey>("site");
-  const active = TABS.find((t) => t.key === view) ?? TABS[0]!;
+  const active = TABS.find((t) => t.key === view);
+  if (!active) return null;
 
   return (
     <div className="grid gap-6 lg:grid-cols-[0.82fr_1.18fr] lg:gap-8">
       <div>
         <Pill tone="signal">Product tour</Pill>
         <h3 className="mt-4 font-display text-[clamp(1.3rem,2.5vw,1.8rem)] leading-tight font-semibold">
-          Click through the system you'd be getting.
+          Website to customer, in one workspace.
         </h3>
         <p className="mt-3 text-[13.5px] leading-relaxed text-muted-foreground">
-          Real modules, real screens. Pick any part of the customer journey and see exactly what it
-          looks like once Revora is running for your business.
+          Website, leads, quotes, booking and follow-up, brought together. The examples below use sample data.
         </p>
         <div
           role="tablist"
@@ -284,7 +284,8 @@ export function ProductTour() {
           {TABS.map(({ key, label, icon: Icon, outcome }) => {
             const selected = key === view;
             return (
-              <button
+              <Button
+                variant="outline"
                 key={key}
                 type="button"
                 role="tab"
@@ -306,9 +307,9 @@ export function ProductTour() {
                   >
                     {label}
                   </span>
-                  <span className="block text-[11px] text-muted-foreground">{outcome}</span>
+                  <span className="hidden text-[11px] text-muted-foreground lg:block">{outcome}</span>
                 </span>
-              </button>
+              </Button>
             );
           })}
         </div>
@@ -320,7 +321,7 @@ export function ProductTour() {
       </div>
 
       <Panel className="min-w-0 p-4 sm:p-5">
-        <div className="flex items-center justify-between gap-3 border-b border-border pb-3">
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-b border-border pb-3">
           <p className="font-display text-[13px] font-semibold">{active.label}</p>
           <span className="rounded-full border border-primary/35 bg-primary/10 px-2.5 py-0.5 text-[10.5px] text-primary">
             {active.outcome}

@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useRouterState } from "@tanstack/react-router";
 import {
   isConsentRequiredRegion,
   updateConsent,
@@ -15,9 +17,11 @@ import {
  */
 export function CookieConsent() {
   const [visible, setVisible] = useState(false);
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
 
   useEffect(() => {
     let alive = true;
+    setVisible(false);
     void (async () => {
       if (typeof window === "undefined") return;
       // The banner advertises Revora's own cookies — never show it on a
@@ -26,14 +30,17 @@ export function CookieConsent() {
       if (!isRevoraOwnHost(window.location.hostname)) return;
       // Client sites shared on Revora's own address (/s/…, /p/…) are the
       // business's website too.
-      if (/^\/(s|p)\//.test(window.location.pathname)) return;
-      const decided = window.localStorage.getItem("cookie_consent");
+      if (/^\/(s|p|draft)\//.test(pathname)) return;
+      let decided: string | null = null;
+      try { decided = window.localStorage.getItem("cookie_consent"); } catch { /* Ask safely if storage is unavailable. */ }
       if (decided !== null) return;
       const required = await isConsentRequiredRegion();
       if (alive && required) setVisible(true);
     })();
 
-    const onOpenSettings = () => setVisible(true);
+    const onOpenSettings = () => {
+      if (!/^\/(s|p|draft)\//.test(pathname)) setVisible(true);
+    };
     window.addEventListener("revora:cookie-settings", onOpenSettings);
 
     // Another tab changed the choice — follow it immediately.
@@ -47,7 +54,7 @@ export function CookieConsent() {
       window.removeEventListener("revora:cookie-settings", onOpenSettings);
       window.removeEventListener("storage", onStorage);
     };
-  }, []);
+  }, [pathname]);
 
   const decide = (decision: "granted" | "denied") => {
     updateConsent(decision);
@@ -60,6 +67,7 @@ export function CookieConsent() {
     if (typeof document === "undefined") return;
     if (visible) document.documentElement.dataset["cookieBanner"] = "open";
     else delete document.documentElement.dataset["cookieBanner"];
+    return () => { delete document.documentElement.dataset["cookieBanner"]; };
   }, [visible]);
 
   if (!visible) return null;
@@ -69,10 +77,10 @@ export function CookieConsent() {
       role="dialog"
       aria-modal="false"
       aria-label="Cookie preferences"
-      className="fixed inset-x-3 bottom-3 z-[100] rounded-xl border border-border bg-card p-3 shadow-lg sm:inset-x-auto sm:left-6 sm:bottom-6 sm:max-w-sm sm:p-4"
+      className="order-first border-b border-border bg-card p-3 sm:fixed sm:inset-x-auto sm:left-6 sm:bottom-6 sm:z-[100] sm:max-w-sm sm:rounded-lg sm:border sm:p-4 sm:shadow-lg"
     >
       <div className="flex items-start gap-3">
-        <div className="flex-1">
+        <div className="min-w-0 flex-1">
           <h2 className="text-[13.5px] font-semibold">Cookies for measurement</h2>
           <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
             We measure whether our ads lead to signups. It never changes how the site works. See our{" "}
@@ -82,30 +90,35 @@ export function CookieConsent() {
             .
           </p>
           <div className="mt-2.5 flex flex-wrap gap-2">
-            <button
+            <Button
+              size="sm"
               type="button"
               onClick={() => decide("granted")}
               className="min-h-11 rounded-md bg-primary px-4 text-[13px] font-medium text-primary-foreground transition-opacity hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
             >
               Accept
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
               type="button"
               onClick={() => decide("denied")}
               className="min-h-11 rounded-md border border-border px-4 text-[13px] font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
             >
               Reject
-            </button>
+            </Button>
           </div>
         </div>
-        <button
+        <Button
+          variant="ghost"
+          size="icon"
           type="button"
           aria-label="Dismiss without deciding"
           onClick={() => setVisible(false)}
           className="grid size-11 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
         >
           <X className="size-4" aria-hidden="true" />
-        </button>
+        </Button>
       </div>
     </div>
   );
