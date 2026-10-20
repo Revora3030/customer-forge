@@ -454,3 +454,16 @@ describe("Jarvis demo outreach actions", () => {
     expect(meta.proposals).toEqual(parsed.proposals);
   });
 });
+
+import { fallbackDemoEmail } from "./prospect-outreach.server";
+describe("fallbackDemoEmail", () => {
+  it("weak-site email mentions the gaps and that they keep the site", () => {
+    const e = fallbackDemoEmail({ name: "Acme", siteGaps: ["No mobile layout"] }, "https://x/p/t");
+    expect(e.body).toContain("no mobile layout");
+    expect(e.body).toContain("you keep it");
+    expect(e.body).not.toContain("couldn't find a website");
+  });
+  it("no-site email says no website was found", () => {
+    expect(fallbackDemoEmail({ name: "Acme", siteGaps: [] }, "u").body).toContain("couldn't find a website");
+  });
+});

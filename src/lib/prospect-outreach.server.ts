@@ -419,6 +419,7 @@ const DEMO_EMAIL_SYSTEM = [
   "You write a short, honest first-touch email from Revora Growth Systems to the owner of a local service business.",
   "If currentSiteGaps is empty, the business has no website of its own. If it lists gaps, they have a website and we checked it: mention at most two of those exact gaps, politely, and nothing else about their site.",
   "We already built them a free draft website from their public business details. The email shares the private preview link and invites them to claim it.",
+  "Explain in one or two plain sentences that if they sign up from the preview, the site is already saved in their account: they keep it, can edit anything, and get full access to every Revora service (website, lead capture, follow-up, bookings) during the free trial.",
   "Use ONLY the facts provided. Never invent results, reviews, customers, rankings or traffic numbers. Do not claim the site is live or published; it is a private draft.",
   "Under 110 words, plain text, one call to action: open the preview link (include it exactly once, verbatim). No fake urgency, deceptive subject lines, or Re:/Fwd: tricks.",
   "Do not write a signature, address, or unsubscribe line; the system appends them.",
@@ -451,6 +452,25 @@ export type DemoOutreachText = {
   aiWritten: boolean;
 };
 
+/** Used when the AI draft is unavailable; wording matches whether they already have a site. */
+export function fallbackDemoEmail(demo: { name: string; siteGaps: string[] }, previewUrl: string) {
+  const weakSite = demo.siteGaps.length > 0;
+  return {
+    subject: weakSite ? `A refreshed website draft for ${demo.name}` : `A free website draft for ${demo.name}`,
+    body: [
+      `Hi ${demo.name} team,`,
+      "",
+      weakSite
+        ? `I looked at your current website and noticed ${demo.siteGaps.slice(0, 2).join(" and ").toLowerCase()}, so I put together a free updated draft from your public details:`
+        : "I couldn't find a website for your business, so I put together a free draft from your public details:",
+      previewUrl,
+      "",
+      "It's private and nothing is published. If you sign up from that page, the site is already saved in your account: you keep it, can edit anything, and get full access to every Revora service (website, lead capture, follow-up and bookings).",
+      `Everything is free to try for ${GROWTH_SYSTEM.fullAccessWindow}.`,
+    ].join("\n"),
+  };
+}
+
 async function composeEmail(demo: DemoContext, previewUrl: string, actorId: string | null) {
   let draft: { subject: string; body: string } | null = null;
   try {
@@ -477,17 +497,7 @@ async function composeEmail(demo: DemoContext, previewUrl: string, actorId: stri
   } catch {
     draft = null;
   }
-  const chosen = draft ?? {
-    subject: `A free website draft for ${demo.name}`,
-    body: [
-      `Hi ${demo.name} team,`,
-      "",
-      "I couldn't find a website for your business, so I put together a free draft from your public details:",
-      previewUrl,
-      "",
-      `It's private and nothing is published. If you like it, you can claim it and try everything free for ${GROWTH_SYSTEM.fullAccessWindow}.`,
-    ].join("\n"),
-  };
+  const chosen = draft ?? fallbackDemoEmail(demo, previewUrl);
   return { ...chosen, aiWritten: Boolean(draft) };
 }
 
