@@ -78,3 +78,10 @@ describe("public email extraction", () => {
     expect(extractBusinessEmail("<p>Call us today</p>")).toBeNull();
   });
 });
+
+it("decodes bracketed spellings in linear time on whitespace-heavy pages", () => {
+  const started = Date.now();
+  deobfuscateEmailText(`${" ".repeat(80_000)}x`);
+  expect(Date.now() - started).toBeLessThan(500);
+  expect(deobfuscateEmailText("owner (at) shop [dot] com")).toBe("owner@shop.com");
+});

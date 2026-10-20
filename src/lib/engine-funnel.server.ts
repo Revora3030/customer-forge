@@ -16,8 +16,10 @@ import { usStateCode } from "@/lib/prospect-outreach.server";
  * unknown instead of failing the whole funnel.
  */
 
-const MAX_DEMOS = 2_000;
-const MAX_EVENTS = 20_000;
+const MAX_DEMOS = 20_000;
+const MAX_EVENTS = 50_000;
+/** PostgREST returns at most this many rows per request (Supabase max_rows), so reads page. */
+const PAGE = 1_000;
 /** Organization ids per IN (...) filter, so the request URL stays short. */
 const ID_CHUNK = 150;
 
@@ -33,13 +35,32 @@ async function rows(read: Read): Promise<Rows | null> {
   }
 }
 
-/** Runs one read per chunk of ids; null when any chunk fails. */
-async function rowsForIds(ids: string[], read: (chunk: string[]) => Read): Promise<Rows | null> {
+type Ranged = { range: (from: number, to: number) => Read };
+
+/**
+ * Reads every row page by page (the server silently caps one response). A
+ * read that fails, or that reaches `cap`, is unknown (null): a truncated
+ * count would be shown as a wrong number.
+ */
+async function pagedRows(make: () => Ranged, cap = MAX_EVENTS): Promise<Rows | null> {
+  const out: Rows = [];
+  for (let from = 0; ; from += PAGE) {
+    const page = await rows(make().range(from, from + PAGE - 1));
+    if (!page) return null;
+    out.push(...page);
+    if (page.length < PAGE) return out;
+    if (out.length >= cap) return null;
+  }
+}
+
+/** Runs one paged read per chunk of ids; null when any chunk fails or is too large. */
+async function rowsForIds(ids: string[], make: (chunk: string[]) => Ranged): Promise<Rows | null> {
   const out: Rows = [];
   for (let at = 0; at < ids.length; at += ID_CHUNK) {
-    const chunk = await rows(read(ids.slice(at, at + ID_CHUNK)));
-    if (!chunk) return null;
-    out.push(...chunk);
+    const chunk = ids.slice(at, at + ID_CHUNK);
+    const data = await pagedRows(() => make(chunk));
+    if (!data) return null;
+    out.push(...data);
   }
   return out;
 }
@@ -47,8 +68,9 @@ async function rowsForIds(ids: string[], read: (chunk: string[]) => Read): Promi
 const text = (value: unknown) => (typeof value === "string" && value.trim() ? value : null);
 
 async function readDemos(db: SupabaseClient): Promise<FunnelDemo[] | null> {
-  const settings = await rows(
-    db.from("website_settings").select("organization_id, generation").not("generation->prospectDemo", "is", null).limit(MAX_DEMOS),
+  const settings = await pagedRows(
+    () => db.from("website_settings").select("organization_id, generation").not("generation->prospectDemo", "is", null).order("organization_id"),
+    MAX_DEMOS,
   );
   if (!settings) return null;
   const demos: FunnelDemo[] = [];
@@ -66,13 +88,13 @@ async function readDemos(db: SupabaseClient): Promise<FunnelDemo[] | null> {
   }
   const ids = demos.map((demo) => demo.organizationId);
   // A missing state only moves a demo to "unknown"; it never hides the demo.
-  const profiles = ids.length ? await rowsForIds(ids, (chunk) => db.from("business_profiles").select("organization_id, state").in("organization_id", chunk)) : [];
+  const profiles = ids.length ? await rowsForIds(ids, (chunk) => db.from("business_profiles").select("organization_id, state").in("organization_id", chunk).order("organization_id")) : [];
   const stateByOrg = new Map((profiles ?? []).map((row) => [String(row["organization_id"]), usStateCode(text(row["state"]))]));
   return demos.map((demo) => ({ ...demo, state: stateByOrg.get(demo.organizationId) ?? null }));
 }
 
 async function readRotation(db: SupabaseClient): Promise<FunnelRotationRow[] | null> {
-  const data = await rows(db.from("prospect_rotation_cursor").select("state, last_searched_at, last_found, last_built").limit(10_000));
+  const data = await pagedRows(() => db.from("prospect_rotation_cursor").select("state, last_searched_at, last_found, last_built").order("id"));
   return data
     ? data.map((row) => ({
         state: usStateCode(text(row["state"])),
@@ -90,8 +112,7 @@ async function readBuilds(db: SupabaseClient, ids: string[]): Promise<FunnelEven
       .from("generation_jobs")
       .select("organization_id, status, completed_at, created_at")
       .in("organization_id", chunk)
-      .order("created_at", { ascending: false })
-      .limit(MAX_EVENTS),
+      .order("created_at", { ascending: false }),
   );
   if (!data) return null;
   const latest = new Map<string, Record<string, unknown>>();
@@ -108,7 +129,7 @@ async function readBuilds(db: SupabaseClient, ids: string[]): Promise<FunnelEven
 /** Sent first touches (email or text). Replies and the follow-up are not deliveries. */
 async function readDeliveries(db: SupabaseClient, ids: string[]): Promise<FunnelEvent[] | null> {
   const data = await rowsForIds(ids, (chunk) =>
-    db.from("prospect_outreach").select("organization_id, kind, created_at").in("organization_id", chunk).eq("status", "sent").limit(MAX_EVENTS),
+    db.from("prospect_outreach").select("organization_id, kind, created_at").in("organization_id", chunk).eq("status", "sent").order("created_at"),
   );
   return data
     ? data
@@ -117,9 +138,10 @@ async function readDeliveries(db: SupabaseClient, ids: string[]): Promise<Funnel
     : null;
 }
 
-async function readViews(db: SupabaseClient): Promise<FunnelEvent[] | null> {
-  const data = await rows(
-    db.from("prospect_preview_events").select("organization_id, created_at").eq("event", "view").order("created_at", { ascending: true }).limit(MAX_EVENTS),
+/** Preview views of the demos in the funnel only. */
+async function readViews(db: SupabaseClient, ids: string[]): Promise<FunnelEvent[] | null> {
+  const data = await rowsForIds(ids, (chunk) =>
+    db.from("prospect_preview_events").select("organization_id, created_at").eq("event", "view").in("organization_id", chunk).order("created_at", { ascending: false }),
   );
   return data ? data.map((row) => ({ organizationId: String(row["organization_id"]), at: text(row["created_at"]) })) : null;
 }
@@ -130,7 +152,7 @@ async function readViews(db: SupabaseClient): Promise<FunnelEvent[] | null> {
  */
 async function readConversions(db: SupabaseClient, ids: string[]): Promise<FunnelEvent[] | null> {
   const data = await rowsForIds(ids, (chunk) =>
-    db.from("organizations").select("id, subscription_status, setup_paid_at, setup_payment_status").in("id", chunk),
+    db.from("organizations").select("id, subscription_status, setup_paid_at, setup_payment_status").in("id", chunk).order("id"),
   );
   if (!data) return null;
   return data
@@ -140,12 +162,12 @@ async function readConversions(db: SupabaseClient, ids: string[]): Promise<Funne
 
 export async function getEngineFunnel(db: SupabaseClient, options: { now?: Date } = {}): Promise<EngineFunnel> {
   const now = options.now ?? new Date();
-  const [demos, rotation, views] = await Promise.all([readDemos(db), readRotation(db), readViews(db)]);
+  const [demos, rotation] = await Promise.all([readDemos(db), readRotation(db)]);
   const ids = (demos ?? []).map((demo) => demo.organizationId);
-  const [builds, deliveries, conversions] = ids.length
-    ? await Promise.all([readBuilds(db, ids), readDeliveries(db, ids), readConversions(db, ids)])
+  const [builds, deliveries, views, conversions] = ids.length
+    ? await Promise.all([readBuilds(db, ids), readDeliveries(db, ids), readViews(db, ids), readConversions(db, ids)])
     : demos
-      ? [[], [], []]
-      : [null, null, null];
+      ? [[], [], [], []]
+      : [null, null, null, null];
   return aggregateEngineFunnel({ demos, rotation, builds, deliveries, views, conversions }, now);
 }

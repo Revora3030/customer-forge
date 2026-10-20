@@ -78,3 +78,12 @@ describe("htmlToText", () => {
     expect(performance.now() - started).toBeLessThan(2_000);
   });
 });
+
+describe("raw-text bodies", () => {
+  it("never reads '<' inside a script or style as a tag or comment", () => {
+    expect(htmlToText("<p>Hi</p><script>for(i=0;i<n;i++){}</script><p>Visible content here</p>")).toBe("Hi Visible content here");
+    expect(htmlToText("<script>var s='<!--';</script><p>Visible</p>")).toBe("Visible");
+    expect(htmlToText("<style>a>b{color:red}</style ><p>Shown</p>")).toBe("Shown");
+    expect(htmlToText("<script>x='</scriptx>'</script><p>After</p>")).toBe("After");
+  });
+});

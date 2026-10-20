@@ -106,14 +106,29 @@ export function htmlToText(html: string, options: HtmlToTextOptions = {}): strin
   const length = html.length;
 
   while (index < length) {
+    if (skipUntil) {
+      // Raw-text body (script, style…): nothing inside is a tag or comment, so
+      // "i<n" or "'<!--'" in minified code can't end or extend the skip. Jump
+      // straight to the matching end tag; an unterminated body hides the rest.
+      const endTag = new RegExp(`<${skipUntil.replace("/", "\\/")}(?=[\\s/>])`, "gi");
+      endTag.lastIndex = index;
+      const found = endTag.exec(html);
+      if (!found) break;
+      const close = html.indexOf(">", found.index + found[0].length);
+      if (close === -1) break;
+      index = close + 1;
+      skipUntil = null;
+      out += " ";
+      continue;
+    }
     let open = html.indexOf("<", index);
     // A "<" that cannot open a tag ("5 < 6", "a<-b") is ordinary text.
     while (open !== -1 && !startsTag(html[open + 1])) open = html.indexOf("<", open + 1);
     if (open === -1) {
-      if (!skipUntil) out += html.slice(index);
+      out += html.slice(index);
       break;
     }
-    if (!skipUntil) out += html.slice(index, open);
+    out += html.slice(index, open);
 
     if (html.startsWith("<!--", open)) {
       const end = html.indexOf("-->", open + 4);
@@ -125,18 +140,14 @@ export function htmlToText(html: string, options: HtmlToTextOptions = {}): strin
     const close = html.indexOf(">", open + 1);
     if (close === -1) {
       // No ">" anywhere after it, so this "<" opens nothing: keep the rest as
-      // text (unless inside a skipped element), exactly as tag regexes did.
-      if (!skipUntil) out += html.slice(open);
+      // text, exactly as tag regexes did.
+      out += html.slice(open);
       break;
     }
     const match = TAG_NAME.exec(html.slice(open, Math.min(close + 1, open + 64)));
     const name = match ? `${match[1] ?? ""}${(match[2] ?? "").toLowerCase()}` : "";
     index = close + 1;
 
-    if (skipUntil) {
-      if (name === skipUntil) skipUntil = null;
-      continue;
-    }
     if (SKIPPED.has(name)) {
       // A self-closing <svg/> has no body to skip.
       if (html[close - 1] !== "/") skipUntil = `/${name}`;

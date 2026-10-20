@@ -50,9 +50,11 @@ export function decodeEmailText(text: string): string {
  * stays prose. It only rewrites what the business published; it never builds an address.
  */
 export function deobfuscateEmailText(text: string): string {
+  // Bounded spacing keeps this linear on whitespace-heavy pages (an unbounded
+  // leading \s* restarts at every space of a long run).
   return text
-    .replace(/\s*(?:\(\s*at\s*\)|\{\s*at\s*\}|\[\s*at\s*\])\s*/gi, "@")
-    .replace(/\s*(?:\(\s*dot\s*\)|\{\s*dot\s*\}|\[\s*dot\s*\])\s*/gi, ".");
+    .replace(/[ \t]{0,3}(?:\([ \t]{0,3}at[ \t]{0,3}\)|\{[ \t]{0,3}at[ \t]{0,3}\}|\[[ \t]{0,3}at[ \t]{0,3}\])[ \t]{0,3}/gi, "@")
+    .replace(/[ \t]{0,3}(?:\([ \t]{0,3}dot[ \t]{0,3}\)|\{[ \t]{0,3}dot[ \t]{0,3}\}|\[[ \t]{0,3}dot[ \t]{0,3}\])[ \t]{0,3}/gi, ".");
 }
 
 /** The first acceptable address in text that is already decoded (never decoded again here). */

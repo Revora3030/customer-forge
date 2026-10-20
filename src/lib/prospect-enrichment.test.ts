@@ -195,7 +195,18 @@ describe("reverifyLegacyDemos", () => {
       };
       return chain;
     };
-    return { db: { from } as never, tables, writes };
+    // Mirrors set_prospect_demo_enrichment: sets only the enrichment key, and
+    // only on an unclaimed demo with no record yet.
+    const rpc = async (fn: string, args: { p_organization_id: string; p_enrichment: Row }) => {
+      if (fn !== "set_prospect_demo_enrichment") return { data: null, error: { message: `unknown ${fn}` } };
+      writes.push({ table: "website_settings", filters: ["rpc:set_prospect_demo_enrichment"], patch: args.p_enrichment });
+      const row = (tables["website_settings"] ?? []).find((r) => r["organization_id"] === args.p_organization_id);
+      const marker = row ? ((row["generation"] as Row)?.["prospectDemo"] as Row | undefined) : undefined;
+      if (!marker || marker["enrichment"] != null || "claimedAt" in marker) return { data: [], error: null };
+      marker["enrichment"] = structuredClone(args.p_enrichment);
+      return { data: [args.p_organization_id], error: null };
+    };
+    return { db: { from, rpc } as never, tables, writes };
   }
 
   const demo = (n: number, marker: Row = {}) => ({
@@ -233,8 +244,8 @@ describe("reverifyLegacyDemos", () => {
     expect(markerOf(settings[2])["enrichment"]).toBeUndefined();
     expect(markerOf(settings[3])["enrichment"]).toBeUndefined();
     expect(mocks.isDoNotContact).toHaveBeenCalledTimes(1);
-    // One write, scoped to the tenant and guarded on the record still being absent.
-    expect(writes).toEqual([{ table: "website_settings", filters: ["eq:organization_id", "is:generation->prospectDemo->enrichment"], patch: expect.any(Object) }]);
+    // One atomic write of just the enrichment key (guarded in SQL on no record and not claimed).
+    expect(writes).toEqual([{ table: "website_settings", filters: ["rpc:set_prospect_demo_enrichment"], patch: expect.objectContaining({ source: "legacy_profile" }) }]);
 
     // Never re-verified once it has a record.
     expect(await reverifyLegacyDemos(db, { now: NOW })).toEqual({ checked: 0, written: 0, results: [] });
@@ -267,5 +278,19 @@ describe("reverifyLegacyDemos", () => {
     const result = await reverifyLegacyDemos(db, { now: NOW });
     expect(result.results).toEqual([{ organizationId: ORG(2), status: "rejected", reason: "do_not_contact", written: true }]);
     expect(mocks.fetch).not.toHaveBeenCalled();
+  });
+
+  it("never overwrites a claim made while the address was being checked", async () => {
+    mocks.fetch.mockResolvedValue(mx(MX_OK));
+    const { db, tables } = fakeDb({ website_settings: [demo(1)], business_profiles: [profile(1, "owner@shop.com")] });
+    // The business claims the demo during the MX lookup.
+    mocks.isDoNotContact.mockImplementation(async () => {
+      markerOf(tables["website_settings"]![0])["claimedAt"] = "2026-10-20T12:00:01Z";
+      return false;
+    });
+    const result = await reverifyLegacyDemos(db, { now: NOW });
+    expect(result.results).toEqual([{ organizationId: ORG(1), status: "verified", reason: "ok", written: false }]);
+    expect(markerOf(tables["website_settings"]![0])["claimedAt"]).toBe("2026-10-20T12:00:01Z");
+    expect(markerOf(tables["website_settings"]![0])["enrichment"]).toBeUndefined();
   });
 });

@@ -15,7 +15,7 @@ import {
 } from "@/components/marketing/OfferSections";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { GROWTH_SYSTEM, usdExact } from "@/lib/offer";
+import { GROWTH_SYSTEM, usd, usdExact } from "@/lib/offer";
 import { getPublicOfferRates } from "@/lib/offer.functions";
 import {
   GROWTH_SYSTEM_SCHEMA,
@@ -76,15 +76,19 @@ function PricingRoute() {
   );
 }
 
+/** Prices come from offer.ts, so the rendered FAQ and its FAQPage data follow a price change. */
+const SETUP = usd(GROWTH_SYSTEM.setupPrice);
+const MONTHLY = usd(GROWTH_SYSTEM.monthlyPrice);
+
 /** Rendered below and emitted as FAQPage data from the same list. */
 const FAQ = [
   {
-    q: "What does the $350 setup cover?",
+    q: `What does the ${SETUP} setup cover?`,
     a: "The initial build, customization, configuration and launch of your system: website, domain setup, lead capture, CRM, booking, quote flow, follow-up automation, local SEO foundation and analytics. It is charged today.",
   },
   {
-    q: "What does the $100/month cover?",
-    a: "Ongoing platform access, automation, hosting and system management, maintenance, website updates, reporting, optimization and technical support. Your first 30 days are free, then $100/month unless canceled.",
+    q: `What does the ${MONTHLY}/month cover?`,
+    a: `Ongoing platform access, automation, hosting and system management, maintenance, website updates, reporting, optimization and technical support. Your first ${GROWTH_SYSTEM.trialDays} days are free, then ${MONTHLY}/month unless canceled.`,
   },
   {
     q: "Can I use my own domain?",

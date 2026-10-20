@@ -149,3 +149,24 @@ describe("business suggestions", () => {
     expect(routeCommand("Launch my site").target).toBe("publish");
   });
 });
+
+describe("site state not loaded", () => {
+  it("suggests no build, launch or domain step while the site facts are unknown", () => {
+    const { chips } = buildBusinessSuggestions({
+      businessName: "Elite mobile detail",
+      industry: "mobile_detailing",
+      services: ["Ceramic coating"],
+      siteState: "unknown",
+      pages: null,
+      newLeads: null,
+      reviews: null,
+      quotes: null,
+      bookings: null,
+    });
+    const labels = chips.map((chip) => chip.label);
+    expect(labels).not.toContain("Launch my site");
+    expect(labels).not.toContain("Build my website");
+    expect(labels).not.toContain("Connect my domain");
+    expect(labels.some((label) => label.startsWith("Add a page for"))).toBe(false);
+  });
+});

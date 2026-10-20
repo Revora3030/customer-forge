@@ -10,7 +10,8 @@
  * This is app UI derived from real data, not customer-website creative.
  */
 
-export type SiteState = "none" | "draft" | "published";
+/** "unknown": the site facts haven't loaded (or failed to): no build, launch or domain step is suggested. */
+export type SiteState = "none" | "draft" | "published" | "unknown";
 
 export type BusinessSuggestionInput = {
   businessName?: string | null | undefined;
@@ -156,7 +157,7 @@ export function buildBusinessSuggestions(input: BusinessSuggestionInput): Busine
   // 3. Services: add them if there are none, otherwise give each one a page.
   if (servicesKnown && services.length === 0) {
     push({ label: "Add my services", route: "/app/services" });
-  } else if (input.siteState !== "none" && input.pages) {
+  } else if (input.siteState !== "none" && input.siteState !== "unknown" && input.pages) {
     const pages = input.pages;
     services
       .filter((service) => !hasPageFor(service, pages))

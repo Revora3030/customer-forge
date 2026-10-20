@@ -54,14 +54,14 @@ export function RevoraCommandBar({
         services: business?.services,
         newLeads: business?.newLeads,
         bookings: business?.bookings,
-        // Until the site facts load, treat the site as a draft with unknown
-        // pages and counts: no build/launch claim, no service-page or count chips.
-        siteState: signals.data?.siteState ?? "draft",
+        // Until the site facts load (or if they fail), the site state is unknown:
+        // no build/launch/domain step, no service-page or count chips.
+        siteState: signals.isSuccess ? signals.data.siteState : "unknown",
         pages: signals.data?.pages ?? null,
         reviews: signals.data?.reviews ?? null,
         quotes: signals.data?.quotes ?? null,
       }),
-    [business, signals.data],
+    [business, signals.data, signals.isSuccess],
   );
 
   const runChip = (chip: SuggestionChip) => {

@@ -106,7 +106,7 @@ describe("engine funnel reads", () => {
         const data = tables[name];
         const result = data === "missing" || data === undefined ? { data: null, error: { message: `relation "${name}" does not exist` } } : { data, error: null };
         const chain: Record<string, unknown> = {};
-        for (const method of ["select", "not", "in", "eq", "order", "limit"]) chain[method] = () => chain;
+        for (const method of ["select", "not", "in", "eq", "order", "limit", "range"]) chain[method] = () => chain;
         chain["then"] = (resolve: (value: unknown) => unknown) => resolve(result);
         return chain;
       },
@@ -140,5 +140,28 @@ describe("engine.today Jarvis action", () => {
     expect(prompt).toMatch(/Suggest turning rotation on/);
     // The suggested rotation shape is one autopilot.configure accepts.
     expect(parseActions([{ id: "autopilot.configure", args: { rotation: { enabled: true, trades: ["HVAC"], states: ["NC"] } } }], []).proposals).toHaveLength(1);
+  });
+
+  it("pages past the server's 1,000-row cap and treats an over-cap read as unknown, never a short count", async () => {
+    const { getEngineFunnel } = await import("@/lib/engine-funnel.server");
+    const demoRows = Array.from({ length: 1_500 }, (_, i) => ({
+      organization_id: `org-${i}`,
+      generation: { prospectDemo: { kind: "prospect_demo", createdAt: EARLIER } },
+    }));
+    const db = {
+      from(name: string) {
+        const data: unknown[] = name === "website_settings" ? demoRows : [];
+        let from = 0;
+        let to = Number.MAX_SAFE_INTEGER;
+        const chain: Record<string, unknown> = {};
+        for (const method of ["select", "not", "in", "eq", "order", "limit"]) chain[method] = () => chain;
+        chain["range"] = (a: number, b: number) => ((from = a), (to = b), chain);
+        // The server never returns more than 1,000 rows per request.
+        chain["then"] = (resolve: (value: unknown) => unknown) => resolve({ data: data.slice(from, Math.min(to + 1, from + 1_000)), error: null });
+        return chain;
+      },
+    };
+    const funnel = await getEngineFunnel(db as never, { now: NOW });
+    expect(funnel.stages.find((entry) => entry.key === "discovered")?.total).toBe(1_500);
   });
 });

@@ -111,10 +111,6 @@ export function BuildLive({ organizationId }: { organizationId: string | null | 
               ? "Revora is building your website right now — you can watch every step here."
               : "Your current website is unchanged. Press Retry build to start again from the saved steps."}
           </span>
-          {/* A build parked for AI capacity says when it resumes (rendered below the one-line headline). */}
-          <span className="mt-2 block">
-            <CapacityWaitNotice job={row} compact />
-          </span>
         </span>
         {active ? (
           <span className="tnum shrink-0 text-[12px] text-muted-foreground">
@@ -127,6 +123,9 @@ export function BuildLive({ organizationId }: { organizationId: string | null | 
           aria-hidden
         />
       </button>
+      {/* A build parked for AI capacity says when it resumes. Outside the toggle
+          button (a status box isn't valid button content); the panel announces it. */}
+      <CapacityWaitNotice job={row} compact announce={false} className="mx-5 mb-4 -mt-1" />
 
       {open ? (
         <div className="space-y-3 border-t border-border/60 px-5 py-4">

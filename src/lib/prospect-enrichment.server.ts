@@ -150,13 +150,6 @@ export async function reverifyLegacyDemos(
     if (result.checked >= limit) break;
     const email = emailByOrg.get(organizationId);
     if (!email) continue;
-    // Re-read this tenant's settings right before writing so nothing else on the row is clobbered.
-    const current = await db.from("website_settings").select("generation").eq("organization_id", organizationId).maybeSingle();
-    if (current.error) throw new Error(`Couldn't read demo settings: ${current.error.message}`);
-    const generation = (current.data as Row | null)?.["generation"];
-    const marker = demoMarker(generation);
-    if (!marker || marker["source"] !== "autopilot" || !lacksEnrichment(marker)) continue;
-
     result.checked += 1;
     const verification = await verifyProspectEmail(db, email, options);
     const enrichment: ProspectEnrichment = {
@@ -167,13 +160,20 @@ export async function reverifyLegacyDemos(
       reason: verification.reason,
       checkedAt: now().toISOString(),
     };
-    const { data: updated, error: writeError } = await db
-      .from("website_settings")
-      .update({ generation: { ...(generation as Row), prospectDemo: { ...marker, enrichment } } })
-      .eq("organization_id", organizationId)
-      .is("generation->prospectDemo->enrichment", null)
-      .select("organization_id");
-    if (writeError) throw new Error(`Couldn't store the re-verification: ${writeError.message}`);
+    // One atomic jsonb_set of just the enrichment key, only while the demo is
+    // still unclaimed and unrecorded: a claim or builder write made during the
+    // MX lookup is never overwritten. Without the function, nothing is written.
+    const { data: updated, error: writeError } = await db.rpc("set_prospect_demo_enrichment", {
+      p_organization_id: organizationId,
+      p_enrichment: enrichment,
+    });
+    if (writeError) {
+      if (/set_prospect_demo_enrichment|PGRST202|42883/.test(`${writeError.message} ${(writeError as { code?: string }).code ?? ""}`)) {
+        console.warn("[prospect-enrichment] set_prospect_demo_enrichment is not deployed yet; legacy re-verify writes skipped");
+        return result;
+      }
+      throw new Error(`Couldn't store the re-verification: ${writeError.message}`);
+    }
     const written = Array.isArray(updated) && updated.length > 0;
     if (written) result.written += 1;
     result.results.push({ organizationId, status: enrichment.status, reason: enrichment.reason, written });
