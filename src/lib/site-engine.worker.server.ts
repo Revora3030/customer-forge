@@ -51,6 +51,19 @@ class FreshRebuildRollbackError extends Error {
   }
 }
 
+/**
+ * A retry found its own unfinished pages but could not prove they are
+ * untouched (the owner edited or added rows after the earlier attempt
+ * stopped). The rows are kept and the job fails for good: every retry would
+ * reach the same answer.
+ */
+export class PartialBuildKeptError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "PartialBuildKeptError";
+  }
+}
+
 function isUuid(value: unknown): value is string {
   return typeof value === "string" && /^[0-9a-f-]{36}$/i.test(value);
 }
@@ -1322,7 +1335,16 @@ async function runJob(
   const orphanedBuild = !freshReplace && (existingPages.count ?? 0) > 0
     ? await findOrphanedPartialBuild(db, orgId, priorGeneration, job.id)
     : null;
-  const firstBuild = freshReplace || (existingPages.count ?? 0) === 0 || orphanedBuild !== null;
+  // A retry of this same job (a capacity deferral or an ordinary retry) may
+  // find the partial pages its earlier attempt wrote. Ownership is settled
+  // HERE, before firstBuild: those rows are not a customer site, so the retry
+  // still has to pass every AI-authorship check below instead of rebuilding
+  // them from scaffold copy after the cleanup.
+  const ownPartialBuild = !freshReplace && !orphanedBuild && (existingPages.count ?? 0) > 0
+    ? await findOwnPartialBuild(db, orgId, job.id)
+    : null;
+  const firstBuild =
+    freshReplace || (existingPages.count ?? 0) === 0 || orphanedBuild !== null || ownPartialBuild !== null;
   const missingCopy = missingAiCopy(copy);
   if (firstBuild && !refined.creativeChanged) {
     const { AiStepUnavailableError } = await import("@/lib/builder/ai-step-error");
@@ -1368,58 +1390,11 @@ async function runJob(
   // by their restore point and unrelated customer content is untouched.
   // Not gated on the attempt number: a capacity deferral hands its attempt
   // back, so its rerun is attempt 1 again yet still owns these rows. The job
-  // marker check below is what proves ownership.
-  const retryOwnsPartialBuild = !freshReplace && (existingPages.count ?? 0) > 0;
+  // marker check in findOwnPartialBuild is what proves ownership.
   if (orphanedBuild) {
     await clearOrphanedPartialBuild(db, orgId, orphanedBuild);
-  } else if (retryOwnsPartialBuild) {
-    const partial = await db
-      .from("website_settings")
-      .select("generation")
-      .eq("organization_id", orgId)
-      .maybeSingle();
-    const partialGeneration = (partial.data?.generation ?? {}) as Record<string, unknown>;
-    const report = partialGeneration["report"] as Record<string, unknown> | undefined;
-    const ownsPartialBuild =
-      report?.["jobId"] === job.id || partialGeneration["jobId"] === job.id;
-    if (ownsPartialBuild) {
-      // Fence by job: only rows written since this job was created are its own
-      // partial output. Anything older belongs to the customer and is kept.
-      const jobRow = await db
-        .from("generation_jobs")
-        .select("created_at")
-        .eq("id", job.id)
-        .eq("organization_id", orgId)
-        .maybeSingle();
-      const since = jobRow.data?.created_at as string | undefined;
-      if (!since) throw new Error("Couldn't confirm which rows this build attempt owns.");
-      const older = await db
-        .from("website_pages")
-        .select("id", { count: "exact", head: true })
-        .eq("organization_id", orgId)
-        .lt("created_at", since);
-      if ((older.count ?? 0) > 0) {
-        throw new Error("This retry found pages older than the build itself, so it stopped instead of deleting them.");
-      }
-      const pageIds = await db
-        .from("website_pages")
-        .select("id")
-        .eq("organization_id", orgId)
-        .gte("created_at", since);
-      const ids = (pageIds.data ?? []).map((row) => row.id as string);
-      if (ids.length) {
-        const sectionIds = await db.from("website_sections").select("id").eq("organization_id", orgId).in("page_id", ids);
-        const sIds = (sectionIds.data ?? []).map((row) => row.id as string);
-        if (sIds.length) {
-          const componentDelete = await db.from("website_components").delete().eq("organization_id", orgId).in("section_id", sIds);
-          if (componentDelete.error) throw new Error(`Couldn't clear the incomplete build components: ${componentDelete.error.message}`);
-          const sectionDelete = await db.from("website_sections").delete().eq("organization_id", orgId).in("id", sIds);
-          if (sectionDelete.error) throw new Error(`Couldn't clear the incomplete build sections: ${sectionDelete.error.message}`);
-        }
-        const pageDelete = await db.from("website_pages").delete().eq("organization_id", orgId).in("id", ids);
-        if (pageDelete.error) throw new Error(`Couldn't clear the incomplete build pages: ${pageDelete.error.message}`);
-      }
-    }
+  } else if (ownPartialBuild) {
+    await clearOwnPartialBuild(db, orgId, ownPartialBuild);
   }
   // PARALLEL TEAM: the page architect does not need the pictures, so its plan
   // is authored WHILE the photos are being made instead of after them. Only
@@ -2297,6 +2272,122 @@ async function clearOrphanedPartialBuild(db: Db, orgId: string, orphan: Orphaned
   console.warn(`[site-engine] cleared ${ids.length} page(s) left by interrupted build ${orphan.jobId}.`);
 }
 
+/**
+ * This job's own unfinished output from an earlier attempt: the rows written
+ * since the job was created, and when the attempt that wrote them stopped
+ * writing (null when that can't be proven).
+ */
+export type OwnPartialBuild = { since: string; writtenUntil: string | null };
+
+/**
+ * Finds the partial pages an earlier attempt of THIS job left behind. Only a
+ * marker naming this job counts, and any page older than the job means a real
+ * customer site is present: the retry stops instead of treating it as its own.
+ */
+export async function findOwnPartialBuild(db: Db, orgId: string, jobId: string): Promise<OwnPartialBuild | null> {
+  const partial = await db
+    .from("website_settings")
+    .select("generation")
+    .eq("organization_id", orgId)
+    .maybeSingle();
+  const generation = (partial.data?.generation ?? {}) as Record<string, unknown>;
+  const report = generation["report"] as Record<string, unknown> | undefined;
+  if (report?.["jobId"] !== jobId && generation["jobId"] !== jobId) return null;
+  // Fence by job: only rows written since this job was created are its own
+  // partial output. Anything older belongs to the customer and is kept.
+  const jobRow = await db
+    .from("generation_jobs")
+    .select("created_at")
+    .eq("id", jobId)
+    .eq("organization_id", orgId)
+    .maybeSingle();
+  const since = jobRow.data?.created_at as string | undefined;
+  if (!since) throw new Error("Couldn't confirm which rows this build attempt owns.");
+  const older = await db
+    .from("website_pages")
+    .select("id", { count: "exact", head: true })
+    .eq("organization_id", orgId)
+    .lt("created_at", since);
+  if ((older.count ?? 0) > 0) {
+    throw new Error("This retry found pages older than the build itself, so it stopped instead of deleting them.");
+  }
+  // The attempt that wrote the rows started at the marker's buildStartedAt;
+  // the first attempt end recorded after that (a failed attempt's
+  // build_attempt_ended row, or a dead one's lease expiry) bounds its writes.
+  const startedAt = generation["jobId"] === jobId ? Date.parse(String(generation["buildStartedAt"] ?? "")) : Number.NaN;
+  const anchor = Number.isFinite(startedAt) ? startedAt : Date.parse(since);
+  const { data: ends } = await db
+    .from("ai_generations")
+    .select("kind, result, created_at")
+    .eq("organization_id", orgId)
+    .eq("job_id", jobId)
+    .in("kind", ["build_attempt_ended", "build_attempt_lost"]);
+  const bounds = ((ends ?? []) as { kind: string; result: unknown; created_at: string | null }[])
+    .map((row) =>
+      // An ended attempt is stamped by the database clock, the same clock as
+      // the rows' updated_at; a lost one by its last lease.
+      Date.parse(
+        row.kind === "build_attempt_ended"
+          ? String(row.created_at ?? "")
+          : String((isRecord(row.result) ? row.result["previousLeaseExpiresAt"] : null) ?? ""),
+      ),
+    )
+    .filter((at) => Number.isFinite(at) && at >= anchor)
+    .sort((a, b) => a - b);
+  return { since, writtenUntil: bounds.length ? new Date(bounds[0]!).toISOString() : null };
+}
+
+/**
+ * Deletes this job's own partial rows (components → sections → pages), but
+ * only when none was created or changed after the earlier attempt stopped. A
+ * deferral can wait hours; anything the owner touched in that window is kept
+ * and the job fails instead.
+ */
+export async function clearOwnPartialBuild(db: Db, orgId: string, own: OwnPartialBuild) {
+  const keep = "so they were kept instead of deleted. Press Build again once you're done editing.";
+  if (!own.writtenUntil) {
+    throw new PartialBuildKeptError(`Couldn't confirm when this build's earlier attempt stopped writing its unfinished pages, ${keep}`);
+  }
+  const until = Date.parse(own.writtenUntil);
+  type Stamped = { id: string; created_at: string | null; updated_at: string | null };
+  const touchedLater = (rows: Stamped[]) =>
+    rows.some((row) => Math.max(Date.parse(String(row.created_at ?? "")) || 0, Date.parse(String(row.updated_at ?? "")) || 0) > until);
+  const pageRows = await db
+    .from("website_pages")
+    .select("id, created_at, updated_at")
+    .eq("organization_id", orgId)
+    .gte("created_at", own.since);
+  const pages = (pageRows.data ?? []) as Stamped[];
+  const ids = pages.map((row) => row.id);
+  if (!ids.length) return;
+  const sectionRows = await db
+    .from("website_sections")
+    .select("id, created_at, updated_at")
+    .eq("organization_id", orgId)
+    .in("page_id", ids);
+  const sections = (sectionRows.data ?? []) as Stamped[];
+  const sIds = sections.map((row) => row.id);
+  const componentRows = sIds.length
+    ? await db
+        .from("website_components")
+        .select("id, created_at, updated_at")
+        .eq("organization_id", orgId)
+        .in("section_id", sIds)
+    : { data: [] };
+  const components = (componentRows.data ?? []) as Stamped[];
+  if (touchedLater(pages) || touchedLater(sections) || touchedLater(components)) {
+    throw new PartialBuildKeptError(`This build's unfinished pages were edited after its earlier attempt stopped, ${keep}`);
+  }
+  if (sIds.length) {
+    const componentDelete = await db.from("website_components").delete().eq("organization_id", orgId).in("section_id", sIds);
+    if (componentDelete.error) throw new Error(`Couldn't clear the incomplete build components: ${componentDelete.error.message}`);
+    const sectionDelete = await db.from("website_sections").delete().eq("organization_id", orgId).in("id", sIds);
+    if (sectionDelete.error) throw new Error(`Couldn't clear the incomplete build sections: ${sectionDelete.error.message}`);
+  }
+  const pageDelete = await db.from("website_pages").delete().eq("organization_id", orgId).in("id", ids);
+  if (pageDelete.error) throw new Error(`Couldn't clear the incomplete build pages: ${pageDelete.error.message}`);
+}
+
 export type DrainResult = {
   processed: number;
   failed: number;
@@ -2411,7 +2502,7 @@ export async function drainSiteEngineQueue(
       const status = isGateway ? (error as InstanceType<typeof RevoraAiError>).status : 0;
       const message = error instanceof Error ? error.message : "Generation failed.";
 
-      if (error instanceof FreshRebuildRollbackError) {
+      if (error instanceof FreshRebuildRollbackError || error instanceof PartialBuildKeptError) {
         failed += 1;
         await db
           .from("generation_jobs")
@@ -2445,6 +2536,22 @@ export async function drainSiteEngineQueue(
         .eq("status", "processing")
         .maybeSingle();
       if (!current) continue;
+      // The attempt has stopped writing: its database-stamped end bounds the
+      // rows it left, so a retry's cleanup can tell them from owner edits made
+      // while the job waited (see findOwnPartialBuild).
+      try {
+        await db.from("ai_generations").insert({
+          organization_id: job.organization_id,
+          job_id: job.id,
+          kind: "build_attempt_ended",
+          model: "none",
+          instruction: null,
+          result: { attempt: Number(job.attempts) } as unknown as never,
+          created_by: job.created_by ?? null,
+        } as never);
+      } catch (endError) {
+        console.warn(`[site-engine] attempt-end record for job ${job.id} skipped`, endError);
+      }
       const attempts = (current?.attempts as number | undefined) ?? MAX_ATTEMPTS;
       // The free AI pool ran out of capacity (rate limits, quotas, timeouts):
       // that is not the build's fault and won't clear in seconds, so the

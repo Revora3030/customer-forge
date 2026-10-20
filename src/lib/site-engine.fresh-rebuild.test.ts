@@ -24,8 +24,11 @@ vi.mock("@/lib/builder/first-build-images.server", () => ({
 import { restoreWebsiteFromBackup } from "@/lib/backup.server";
 import { captureError } from "@/lib/monitoring.server";
 import {
+  clearOwnPartialBuild,
+  findOwnPartialBuild,
   LEASE_SECONDS,
   materializingGeneration,
+  PartialBuildKeptError,
   resolveBuildMode,
   settleAbandonedFreshRebuild,
   settleFailedAttempt,
@@ -447,5 +450,109 @@ describe("a cancelled attempt only restores while it still owns the rebuild", ()
       ),
     ).rejects.toBe(stale);
     expect(rollback).not.toHaveBeenCalled();
+  });
+});
+
+describe("a retry's own partial build (F4, F11)", () => {
+  const STARTED = "2026-10-17T11:44:55.000Z";
+  const ENDED = "2026-10-17T11:50:00.000Z";
+  function ownSeed(overrides: { generation?: Row; pages?: Row[]; sections?: Row[]; components?: Row[]; ends?: Row[] } = {}) {
+    return {
+      generation_jobs: [{ id: JOB, organization_id: ORG, created_by: "owner-1", created_at: JOB_CREATED, status: "processing" }],
+      website_settings: [
+        { organization_id: ORG, generation: overrides.generation ?? { jobId: JOB, buildState: "materializing", buildStartedAt: STARTED } },
+      ],
+      website_pages: overrides.pages ?? [
+        { id: "p1", organization_id: ORG, created_at: "2026-10-17T11:46:00Z", updated_at: "2026-10-17T11:47:00Z" },
+      ],
+      website_sections: overrides.sections ?? [
+        { id: "s1", organization_id: ORG, page_id: "p1", created_at: "2026-10-17T11:46:00Z", updated_at: "2026-10-17T11:48:00Z" },
+      ],
+      website_components: overrides.components ?? [
+        { id: "c1", organization_id: ORG, section_id: "s1", created_at: "2026-10-17T11:46:00Z", updated_at: "2026-10-17T11:46:00Z" },
+      ],
+      ai_generations: overrides.ends ?? [
+        // An attempt that stopped before this marker was written does not bound it.
+        { organization_id: ORG, job_id: JOB, kind: "build_attempt_ended", result: {}, created_at: "2026-10-17T11:43:00Z" },
+        { organization_id: ORG, job_id: JOB, kind: "build_attempt_ended", result: {}, created_at: ENDED },
+        // A later attempt that failed before reaching the cleanup must not widen it.
+        { organization_id: ORG, job_id: JOB, kind: "build_attempt_ended", result: {}, created_at: "2026-10-17T14:00:00Z" },
+      ],
+    } satisfies Record<string, Row[]>;
+  }
+
+  it("firstBuild is decided after this job's ownership, so the AI-authorship checks still run", () => {
+    const worker = readFileSync("src/lib/site-engine.worker.server.ts", "utf8");
+    const owned = worker.indexOf("await findOwnPartialBuild(db, orgId, job.id)");
+    const first = worker.indexOf("const firstBuild =");
+    expect(owned).toBeGreaterThan(0);
+    expect(first).toBeGreaterThan(owned);
+    expect(worker.slice(first, worker.indexOf(";", first))).toContain("ownPartialBuild !== null");
+    expect(worker.indexOf("if (firstBuild && !refined.creativeChanged)")).toBeGreaterThan(first);
+  });
+
+  it("finds this job's rows and bounds them by the end of the attempt that wrote them", async () => {
+    const { db } = database(ownSeed());
+    expect(await findOwnPartialBuild(db, ORG, JOB)).toEqual({ since: JOB_CREATED, writtenUntil: new Date(ENDED).toISOString() });
+  });
+
+  it("a dead attempt is bounded by its last lease", async () => {
+    const lease = "2026-10-17T11:52:00.000Z";
+    const { db } = database(
+      ownSeed({
+        ends: [{ organization_id: ORG, job_id: JOB, kind: "build_attempt_lost", result: { previousLeaseExpiresAt: lease }, created_at: "2026-10-17T11:53:00Z" }],
+      }),
+    );
+    expect((await findOwnPartialBuild(db, ORG, JOB))?.writtenUntil).toBe(lease);
+  });
+
+  it("a real customer site is never this job's partial build", async () => {
+    const other = database(ownSeed({ generation: { jobId: "other-job", buildState: "materializing" } }));
+    expect(await findOwnPartialBuild(other.db, ORG, JOB)).toBeNull();
+    const settled = database(ownSeed({ generation: { copy: {} } }));
+    expect(await findOwnPartialBuild(settled.db, ORG, JOB)).toBeNull();
+    const older = database(
+      ownSeed({ pages: [{ id: "old", organization_id: ORG, created_at: "2026-09-01T00:00:00Z", updated_at: "2026-09-01T00:00:00Z" }] }),
+    );
+    await expect(findOwnPartialBuild(older.db, ORG, JOB)).rejects.toThrow("older than the build itself");
+    expect(older.tables["website_pages"]).toHaveLength(1);
+  });
+
+  it("clears untouched rows written by the earlier attempt", async () => {
+    const { db, tables } = database(ownSeed());
+    await clearOwnPartialBuild(db, ORG, (await findOwnPartialBuild(db, ORG, JOB))!);
+    expect(tables["website_pages"]).toHaveLength(0);
+    expect(tables["website_sections"]).toHaveLength(0);
+    expect(tables["website_components"]).toHaveLength(0);
+  });
+
+  it.each([
+    ["an edited page", { pages: [{ id: "p1", organization_id: ORG, created_at: "2026-10-17T11:46:00Z", updated_at: "2026-10-17T13:00:00Z" }] }],
+    [
+      "a page the owner added",
+      {
+        pages: [
+          { id: "p1", organization_id: ORG, created_at: "2026-10-17T11:46:00Z", updated_at: "2026-10-17T11:46:00Z" },
+          { id: "p2", organization_id: ORG, created_at: "2026-10-17T13:00:00Z", updated_at: "2026-10-17T13:00:00Z" },
+        ],
+      },
+    ],
+    ["an edited section", { sections: [{ id: "s1", organization_id: ORG, page_id: "p1", created_at: "2026-10-17T11:46:00Z", updated_at: "2026-10-17T12:30:00Z" }] }],
+    ["an edited component", { components: [{ id: "c1", organization_id: ORG, section_id: "s1", created_at: "2026-10-17T11:46:00Z", updated_at: "2026-10-17T12:30:00Z" }] }],
+  ])("keeps everything and fails when the owner touched %s during the wait", async (_label, overrides) => {
+    const { db, tables } = database(ownSeed(overrides));
+    const own = await findOwnPartialBuild(db, ORG, JOB);
+    await expect(clearOwnPartialBuild(db, ORG, own!)).rejects.toBeInstanceOf(PartialBuildKeptError);
+    expect(tables["website_pages"]!.length).toBeGreaterThan(0);
+    expect(tables["website_sections"]).toHaveLength(1);
+    expect(tables["website_components"]).toHaveLength(1);
+  });
+
+  it("keeps everything when the earlier attempt's end can't be proven", async () => {
+    const { db, tables } = database(ownSeed({ ends: [] }));
+    const own = await findOwnPartialBuild(db, ORG, JOB);
+    expect(own?.writtenUntil).toBeNull();
+    await expect(clearOwnPartialBuild(db, ORG, own!)).rejects.toThrow("kept instead of deleted");
+    expect(tables["website_pages"]).toHaveLength(1);
   });
 });
