@@ -95,7 +95,7 @@ export const getErrorFeed = createServerFn({ method: "GET" })
     // an error storm never plateaus at 1,000.
     const dayAgoIso = new Date(Date.now() - 86_400_000).toISOString();
     const exact = (from: string, forwardedOnly = false) => {
-      let query = supabaseAdmin.from("error_events").select("id", { count: "exact", head: true }).gte("created_at", from);
+      let query = supabaseAdmin.from("error_events").select("id", { count: "exact", head: true }).gte("created_at", from).in("level", ["fatal", "error"]);
       if (forwardedOnly) query = query.eq("forwarded", true);
       return query;
     };
@@ -139,7 +139,7 @@ export const getErrorFeed = createServerFn({ method: "GET" })
       groups: [...byFingerprint.values()].sort((a, b) => b.count - a.count).slice(0, 50),
       recent: rows.slice(0, 100),
       totals: {
-        last24h: day.error ? rows.filter((row) => new Date(row.createdAt).getTime() >= dayAgo).length : (day.count ?? 0),
+        last24h: day.error ? rows.filter((row) => row.level !== "warning" && row.level !== "info" && new Date(row.createdAt).getTime() >= dayAgo).length : (day.count ?? 0),
         last7d: week.error ? rows.length : (week.count ?? 0),
         forwarded: forwarded.error ? rows.filter((row) => row.forwarded).length : (forwarded.count ?? 0),
       },
