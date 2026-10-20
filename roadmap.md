@@ -1,7 +1,10 @@
 # Roadmap — Five-phase blocker elimination
 
 ## Site-wide upgrade (2026-10-20)
-- [ ] Current continuation: upgrade shared signed-in navigation/recovery and mobile marketing account controls; verify dynamic/shared-preview routes and offline publish-handler gates; record exact evidence and remaining gaps.
+- [x] Current continuation: workspace/admin/client-portal keyboard-safe mobile drawers, marketing account controls, service/activity retry states, private route metadata, shared-preview identity/expiry protection, and offline publish-handler fixtures implemented.
+- [x] Verification: 370 test files, 3,054 passed / 6 skipped with live integrations disabled; lint 0 errors / 1 existing warning; harness build OK; security and structural readiness audits pass. Existing shared preview home + eight linked pages + missing-page recovery tested at 390/1280 without overflow/page errors; signed-in drawer focus/inert/desktop checks pass for workspace, portal and admin.
+- [ ] Remaining journey evidence: all signed-in create/update flows, every dynamic content permutation, owner draft/held-snapshot navigation, comprehensive accessibility/performance, and actual database/RLS publishing rejection remain unverified; no production publish performed.
+- [x] Regression safety: general test runs now require explicit exact-file selection before credential-gated live tests can run; isolated routing mocks no longer read production circuit state. Earlier general runs unexpectedly accepted test emails and created sandbox checkout sessions; no payment charge, production publish, outreach campaign, commercial-rule change or migration occurred.
 - [x] Wave 0: 23 public pages x2 widths + 33 signed-in pages checked: no console errors, no sideways scroll, all have titles/descriptions.
 - [x] Phone tap targets fixed on sign-in, reset password, contact, CRM.
 - [x] Homepage reduced to 7.3 screens at 390x710, including the undecided cookie notice and footer; checked at 320/390/768/1280/2560 widths.
@@ -11,7 +14,7 @@
 - [x] 111 targeted consent/preview/publish/resume checks pass; full suite 3,016 passed, 3 skipped; lint 0 errors/1 existing warning; security/repository/readiness structural audits pass; latest harness build OK.
 - [x] Actual signed-in dashboard, website builder and admin Jarvis loaded during focused owner checks. No modifications or send/publish clicks performed.
 - [ ] Complete authenticated all-page runtime audit: broad rapid checks caught blank/loading states; longer focused checks succeeded, but the later batch again timed out/loaded blank. Requires isolated waits and server/network diagnosis, not counting HTTP 200 as proof.
-- [ ] Token preview and publishing boundary end-to-end check: existing offline safeguards pass; no new token, publish or customer-site mutation performed. Held-snapshot behavior for share links during fresh replacement still needs verified product behavior and dedicated coverage.
+- [ ] Token preview and publishing boundary: existing shared token/page navigation verified; unknown/revoked/expired/malformed/mismatched-workspace fixtures and publish handler role/access/approval/branch/measured-quality/version/update rejection tests pass offline. Actual database guard and held-snapshot replacement behavior still need isolated end-to-end coverage. No new token or publish performed.
 - [ ] Finish waves 2–5: full content/accessibility/performance, every dynamic permutation, signed-in functional flows, owner-preview navigation and publish-handler rejection evidence are not complete.
 - [ ] Waves 2–5: complete only after page-by-page and signed-in journey evidence, not static route coverage alone.
 
