@@ -119,14 +119,20 @@ export const getAiHealth = createServerFn({ method: "GET" })
     const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
     const dayAgo = Date.now() - 24 * 60 * 60 * 1000;
 
-    const { data: rows, error } = await supabaseAdmin
-      .from("ai_usage_events")
-      .select(
-        "created_at, provider, model, task, latency_ms, ok, error_category, input_tokens, output_tokens, estimated_cost_usd, fallback_used, tool_calls",
-      )
-      .gte("created_at", since)
-      .order("created_at", { ascending: false })
-      .limit(20000);
+    // Paged to completion: a single read is capped at 1,000 rows by the API,
+    // which made busy days look like exactly 1,000 calls.
+    const { fetchAllRows } = await import("@/lib/paginate");
+    const { rows, error } = await fetchAllRows((from, to) =>
+      supabaseAdmin
+        .from("ai_usage_events")
+        .select(
+          "created_at, provider, model, task, latency_ms, ok, error_category, input_tokens, output_tokens, estimated_cost_usd, fallback_used, tool_calls",
+        )
+        .gte("created_at", since)
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: true })
+        .range(from, to),
+    );
     if (error) throw new Error("Couldn't read AI usage.");
 
     const events = rows ?? [];
@@ -203,12 +209,15 @@ export const getAiHealth = createServerFn({ method: "GET" })
       free.last = lastRecordedOutcome(events, new Set(free.providers.map((entry) => entry.name))) ?? free.last;
     }
 
-    const { data: audit } = await supabaseAdmin
-      .from("ai_tool_audit")
-      .select("tool, reason, ok")
-      .eq("ok", false)
-      .gte("created_at", since)
-      .limit(5000);
+    const { rows: audit } = await fetchAllRows((from, to) =>
+      supabaseAdmin
+        .from("ai_tool_audit")
+        .select("tool, reason, ok")
+        .eq("ok", false)
+        .gte("created_at", since)
+        .order("id", { ascending: true })
+        .range(from, to),
+    );
 
     const refused = new Map<string, { tool: string; reason: string; count: number }>();
     for (const row of audit ?? []) {
