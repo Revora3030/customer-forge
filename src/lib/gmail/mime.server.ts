@@ -160,18 +160,45 @@ function findText(part: GmailPayloadPart | undefined, type: string): string | nu
   return null;
 }
 
-const stripHtml = (html: string) =>
-  html
-    .replace(/<style[\s\S]*?<\/style>/gi, " ")
-    .replace(/<script[\s\S]*?<\/script>/gi, " ")
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<\/p>/gi, "\n")
-    .replace(/<[^>]+>/g, " ")
+/**
+ * Plain text of an HTML mail part. A character walk rather than tag regexes:
+ * anything inside a tag is dropped, as is the content of <script>/<style>
+ * (whatever their closing tag looks like), and <br>/</p>/</div> become line
+ * breaks. Only the result is read as text; it is never rendered as HTML.
+ */
+function stripHtml(html: string): string {
+  let out = "";
+  let index = 0;
+  let skipUntil: string | null = null;
+  while (index < html.length) {
+    const open = html.indexOf("<", index);
+    if (open === -1) {
+      if (!skipUntil) out += html.slice(index);
+      break;
+    }
+    if (!skipUntil) out += html.slice(index, open);
+    const close = html.indexOf(">", open + 1);
+    if (close === -1) break;
+    const name = (/^<\s*(\/?)\s*([a-z0-9]+)/i.exec(html.slice(open, close + 1)) ?? []).slice(1).join("").toLowerCase();
+    if (skipUntil) {
+      if (name === skipUntil) skipUntil = null;
+    } else if (name === "script" || name === "style") {
+      skipUntil = `/${name}`;
+    } else if (name === "br" || name === "/p" || name === "/div") {
+      out += "\n";
+    } else {
+      out += " ";
+    }
+    index = close + 1;
+  }
+  // "&amp;" last, so "&amp;lt;" reads as the text "&lt;", not "<".
+  return out
     .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&")
     .replace(/[ \t]+/g, " ");
+}
 
 /**
  * The new text of a reply: quoted history ("> ..." lines, an "On ... wrote:"

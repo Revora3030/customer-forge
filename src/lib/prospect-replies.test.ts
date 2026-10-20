@@ -304,6 +304,19 @@ afterEach(() => {
 });
 
 describe("Gmail MIME building", () => {
+  it("reads an HTML-only reply as text, dropping scripts, styles and odd closing tags", () => {
+    const html = '<style>p{color:red}</style ><p>Sounds good &amp;lt;3</p><script>alert("stop")</script\t\n bar><div>What&#39;s next?<br/>Thanks</div>';
+    const parsed = parseGmailMessage({
+      id: "h1",
+      threadId: "t1",
+      internalDate: "1",
+      payload: { mimeType: "text/html", headers: [{ name: "From", value: "a@b.com" }], body: { data: base64UrlEncode(html) } },
+    } as never);
+    expect(parsed?.text).toContain("Sounds good &lt;3");
+    expect(parsed?.text).toContain("Thanks");
+    expect(parsed?.text).not.toMatch(/color|alert|stop/);
+  });
+
   it("builds RFC 5322 headers with one-click unsubscribe, threading and a base64url raw", () => {
     const message = {
       from: "sam@revora.test",
