@@ -313,7 +313,7 @@ export function ProductTour() {
             );
           })}
         </div>
-        <Button asChild variant="outline" size="sm" className="mt-5">
+        <Button asChild variant="outline" size="sm" className="mt-5 min-h-11">
           <Link to="/demo/dashboard">
             Open the full live demo <ArrowRight className="size-4" aria-hidden="true" />
           </Link>
