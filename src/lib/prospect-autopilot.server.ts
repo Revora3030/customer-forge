@@ -505,12 +505,13 @@ export type OutreachQueueItem = {
   body: string | null;
   /** Not sent before this time (random 0–20 minute spacing between autopilot sends). */
   notBefore: string;
+  kind?: "first_touch" | "follow_up";
 };
 
 /** Queued, not sent: the send queue drains it at `notBefore` through the consent/do-not-contact/cap-checked backend. */
 async function enqueueOutreach(db: SupabaseClient, item: OutreachQueueItem) {
   const { enqueueOutreach: enqueue } = await import("@/lib/prospect-send-queue.server");
-  return enqueue(db, { organizationId: item.organizationId, channel: item.channel, to: item.to, mode: item.mode, subject: item.subject, body: item.body, notBefore: new Date(item.notBefore) });
+  return enqueue(db, { organizationId: item.organizationId, channel: item.channel, to: item.to, mode: item.mode, subject: item.subject, body: item.body, notBefore: new Date(item.notBefore), ...(item.kind ? { kind: item.kind } : {}) });
 }
 
 /** Sends already waiting in the queue, so an hourly run never queues the same demo twice. */
