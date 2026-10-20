@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "revora-jarvis-readonly": {
+      "command": "node",
+      "args": ["scripts/jarvis-mcp-server.mjs"]
+    }
+  }
+}

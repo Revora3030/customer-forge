@@ -1,6 +1,8 @@
 name: Revora Browser QA
 
 on:
+  push:
+    branches: [lovable-sync]
   pull_request:
     branches: [lovable-sync]
   workflow_dispatch:
@@ -64,6 +66,24 @@ jobs:
           BROWSER_QA_ROUTES: "/,/about,/pricing,/contact,/get-started,/industries,/demo,/website-audit,/growth-assessment,/auth,/privacy,/terms"
         run: npm run browser:smoke -- --require-browser
 
+
+      - name: Install agent-browser CLI
+        run: |
+          npm install --global agent-browser
+          agent-browser install
+      - name: Verify rendered page with agent-browser
+        env:
+          BROWSER_QA_BASE_URL: ${{ inputs.base_url || 'http://127.0.0.1:8080' }} # DevSkim: ignore DS162092,DS137138 -- CI-only local app under test.
+        run: |
+          mkdir -p browser-qa-artifacts
+          agent-browser open "$BROWSER_QA_BASE_URL"
+          agent-browser wait --load domcontentloaded
+          title="$(agent-browser get title)"
+          test -n "$title"
+          printf '%s\n' "$title" > browser-qa-artifacts/agent-browser-title.txt
+          agent-browser snapshot -i > browser-qa-artifacts/agent-browser-snapshot.txt
+          agent-browser screenshot --full browser-qa-artifacts/agent-browser-home.png
+          agent-browser close
       - name: Upload browser evidence
         if: always()
         uses: actions/upload-artifact@v4

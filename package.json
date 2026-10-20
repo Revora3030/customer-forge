@@ -36,11 +36,16 @@
     "browser:journey": "node scripts/browser-journey.mjs",
     "browser:journey:ci": "node scripts/browser-journey.mjs --require-browser",
     "browser:journey:test": "node scripts/browser-journey.contract.mjs",
-    "supabase:drift": "node scripts/supabase-migration-drift-audit.mjs"
+    "supabase:drift": "node scripts/supabase-migration-drift-audit.mjs",
+    "jarvis:mcp": "node scripts/jarvis-mcp-server.mjs",
+    "jarvis:mcp:contract": "node scripts/jarvis-mcp-server.contract.mjs"
   },
   "overrides": {
     "rolldown": "1.2.1",
-    "js-yaml": "4.3.2"
+    "js-yaml": "4.3.2",
+    "dompurify": "3.4.16",
+    "katex": "0.18.2",
+    "source-map-js": "1.2.2"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

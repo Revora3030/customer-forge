@@ -9,7 +9,7 @@
 - **Backend**: Supabase (auth, PostgreSQL, RLS, real-time)
 - **AI**: 12-provider free model chain with live discovery, ensemble builds, and quality-first routing
 - **Payments**: Stripe (sandbox + live)
-- **CI/CD**: 6 GitHub workflows (quality gate, security gate, CodeQL, browser QA, AI authority validation, Codacy)
+- **CI/CD**: GitHub Actions quality/security gates, browser QA, AI authority validation, Trivy, Semgrep, OWASP ZAP passive DAST, repository audit, and provider/security scans
 
 ## Quick Start
 
@@ -62,6 +62,12 @@ supabase/          147 database migrations
 scripts/           Audit and verification scripts
 .github/workflows/ 6 CI workflows
 ```
+
+## Jarvis Toolbench
+
+Jarvis's open-source tool integrations, read-only MCP server, AI-trace export, runtime configuration, security boundaries, and verification instructions are documented in [Jarvis Toolbench & Integrations](docs/JARVIS_TOOLBENCH_INTEGRATIONS.md).
+
+The .env.example file lists variable names only. Add real secret values only to the deployment's server-side secret manager. A configured endpoint is not the same as a verified live connection.
 
 ## Deployment
 

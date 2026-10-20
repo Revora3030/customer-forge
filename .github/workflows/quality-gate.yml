@@ -52,6 +52,9 @@ jobs:
       - name: Browser journey contract
         run: npm run browser:journey:test
 
+      - name: Jarvis MCP read-only protocol contract
+        run: npm run jarvis:mcp:contract
+
       - name: Lint
         run: npm run lint
 

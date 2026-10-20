@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { getAiObservabilityExportStatus } from "./ai/observability-export.server";
 import { collectJarvisDiagnostics } from "./jarvis-diagnostics.server";
 import { redactJarvisSummary } from "./jarvis-autopilot-policy";
 import { getJarvisDiagnosticTool, isJarvisDiagnosticToolId, type JarvisDiagnosticToolId } from "./jarvis-tool-registry";
@@ -490,6 +491,18 @@ export async function executeJarvisDiagnosticTool(
           "Dependency audit results for the exact release commit",
         ],
       }, { checkedAt, durationMs: Date.now() - started, limitations: ["This is a gap report, not a completed security audit."] });
+    }
+
+    if (toolId === "observability.export.status") {
+      const status = getAiObservabilityExportStatus();
+      return result(toolId, status.anyDestinationConfigured ? "needs_verification" : "unknown", status, {
+        checkedAt, durationMs: Date.now() - started,
+        limitations: [
+          "Configuration is not proof of live export delivery.",
+          "Confirm a controlled test span in the collector or Langfuse before treating ingestion as healthy.",
+          "Only provider/model/task/latency/outcome/token-count metadata is exported; prompt/completion bodies and tenant/user IDs are excluded.",
+        ],
+      });
     }
 
     if (toolId === "ai.providers.snapshot" || toolId === "connectors.permissions.snapshot") {

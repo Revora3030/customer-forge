@@ -26,6 +26,13 @@ const required = [
   ".github/workflows/browser-qa.yml",
   ".github/workflows/authenticated-browser-journey.yml",
   ".github/workflows/quality-gate.yml",
+  ".github/workflows/trivy.yml",
+  ".github/workflows/semgrep.yml",
+  ".github/workflows/dast-baseline.yml",
+  "src/lib/ai/observability-export.server.ts",
+  "src/lib/ai/observability-export.server.test.ts",
+  "scripts/jarvis-mcp-server.mjs",
+  "scripts/jarvis-mcp-server.contract.mjs",
 ];
 
 const missing = required.filter((path) => !existsSync(path));
@@ -43,6 +50,7 @@ const requiredScripts = [
   "security:audit:test",
   "supabase:drift",
   "production:readiness:max",
+  "jarvis:mcp:contract",
 ];
 const missingScripts = requiredScripts.filter((name) => !pkg.scripts?.[name]);
 if (missingScripts.length) {
@@ -56,6 +64,7 @@ for (const marker of [
   "npm run security:audit:test",
   "npm run browser:journey:test",
   "npm run production:readiness:max",
+  "npm run jarvis:mcp:contract",
 ]) {
   if (!workflow.includes(marker)) {
     console.error(JSON.stringify({ ok: false, missingQualityGate: marker }, null, 2));
