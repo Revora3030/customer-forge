@@ -1,5 +1,11 @@
 # Roadmap — Five-phase blocker elimination
 
+## Phase 1 — builds never stall silently (2026-10-20)
+- [x] Layout rescue wall-clock deadline; capacity-starved layouts park via the existing capacity deferral (forced park, still capped at 6).
+- [x] Resume time, reason, busy providers and earliest reset recorded on the job and shown in builder, build card and Jarvis demo list.
+- [x] Tests: stage reuse on retry, digest discard, deadline→deferral, resume display, attempt fencing.
+- [ ] Live verification build (needs owner approval to spend AI budget).
+
 ## Site-wide upgrade (2026-10-20)
 - [x] Current continuation: workspace/admin/client-portal keyboard-safe mobile drawers, marketing account controls, service/activity retry states, private route metadata, shared-preview identity/expiry protection, and offline publish-handler fixtures implemented.
 - [x] Verification: 370 test files, 3,054 passed / 6 skipped with live integrations disabled; lint 0 errors / 1 existing warning; harness build OK; security and structural readiness audits pass. Existing shared preview home + eight linked pages + missing-page recovery tested at 390/1280 without overflow/page errors; signed-in drawer focus/inert/desktop checks pass for workspace, portal and admin.
