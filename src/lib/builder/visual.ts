@@ -113,6 +113,9 @@ export type ViewportMeasurement = {
   narrowColumns?: string[] | undefined;
   stickyFooterHeight?: number | undefined;
 
+  /** Runtime script errors and unhandled rejections seen inside the page. */
+  runtimeErrors?: string[] | undefined;
+
   accessibility?: AccessibilityMeasurement | undefined;
   performance?: PerformanceMeasurement | undefined;
 };
@@ -381,6 +384,19 @@ export function gradeViewport(
       "p0",
       `“${control}” appears interactive but does not have a usable destination.`,
       "Give the control a real destination/action or remove it.",
+    );
+  }
+
+  for (
+    const message of (
+      measurement.runtimeErrors ?? []
+    ).slice(0, MAX_FINDINGS_PER_CATEGORY)
+  ) {
+    add(
+      "runtime_error",
+      "p0",
+      `At ${width}px the page threw a script error: “${message}”.`,
+      "Find the failing script or effect and repair it so the page runs without errors; visitors may be seeing broken sections or dead interactions.",
     );
   }
 
@@ -2406,6 +2422,9 @@ export const MEASURE_SCRIPT = `(() => {
     overlapping,
     narrowColumns,
     stickyFooterHeight,
+    runtimeErrors: Array.isArray(window.__revoraRuntimeErrors)
+      ? window.__revoraRuntimeErrors.slice(0, 20)
+      : [],
     accessibility,
     performance: performanceMeasurement
   };
@@ -2422,6 +2441,30 @@ export const OBSERVE_SCRIPT = `(() => {
 
   window.__revoraClsInstalled = true;
   window.__revoraCls = 0;
+
+  // Runtime error capture: anything the page throws while it is scrolled,
+  // resized and measured is recorded, so the AI repair loop sees real script
+  // failures, not just layout problems. Resource load failures are covered by
+  // the performance measurement's failedRequests, so only script errors and
+  // unhandled rejections are collected here.
+  if (!Array.isArray(window.__revoraRuntimeErrors)) {
+    window.__revoraRuntimeErrors = [];
+    const record = (message) => {
+      const text = String(message || "unknown script error").slice(0, 300);
+      if (
+        window.__revoraRuntimeErrors.length < 20 &&
+        !window.__revoraRuntimeErrors.includes(text)
+      ) {
+        window.__revoraRuntimeErrors.push(text);
+      }
+    };
+    window.addEventListener("error", (event) => {
+      record(event.message || (event.target && (event.target.src || event.target.href)));
+    }, true);
+    window.addEventListener("unhandledrejection", (event) => {
+      record(event.reason && (event.reason.message || event.reason));
+    });
+  }
 
   try {
     new PerformanceObserver((list) => {

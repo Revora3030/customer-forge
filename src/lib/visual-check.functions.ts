@@ -79,6 +79,7 @@ const measurementSchema = z.object({
   overlapping: z.array(z.string().max(200)).max(20).optional(),
   narrowColumns: z.array(z.string().max(160)).max(20).optional(),
   stickyFooterHeight: z.number().finite().min(0).max(4000).optional(),
+  runtimeErrors: z.array(z.string().max(300)).max(20).optional(),
   accessibility: accessibilitySchema,
   performance: performanceSchema,
 });

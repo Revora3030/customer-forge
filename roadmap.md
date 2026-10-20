@@ -113,3 +113,8 @@
 - [x] SEO review: all checks pass, indexed; targets reported.
 - [x] Jarvis targets weak existing websites (verified gaps + public email).
 - [x] Jarvis: OpenStreetMap as free second lead source.
+
+## Stolen ideas from Terminal Jarvis Frankenstein (2026-10-21)
+Owner approved porting two ideas (audit of the uploaded Next.js project; auto package-install, sandboxed codegen, regex intent matching and conversation trimming rejected as inapplicable or worse than existing AI understanding).
+- [x] Self-healing preview: the browser quality check now captures runtime script errors and unhandled rejections inside the measured site, grades them as P0 findings, and the AI repair loop receives them in its repair brief (2026-10-20).
+- [x] Edit-intent scoping: the AI planner declares the smallest scope its plan touches (style/section/page/site) and point-and-edit carries the selected block id; the server drops any planned change outside that boundary before apply, failing open if the scope is unusable (2026-10-20).
