@@ -25,7 +25,7 @@ export const getCommandCenter = createServerFn({ method: "GET" })
     const since = new Date(Date.now() - 7 * 86_400_000).toISOString();
     const [{ data: row }, { data: usage }, { data: orgs }] = await Promise.all([
       db.from("ai_command_settings").select("*").eq("id", 1).maybeSingle(),
-      db.from("ai_usage_events").select("model,provider,ok").gte("created_at", since).limit(5000),
+      (await import("@/lib/paginate")).fetchAllRows((from, to) => db.from("ai_usage_events").select("model,provider,ok").gte("created_at", since).order("id", { ascending: true }).range(from, to)).then((r) => ({ data: r.rows, error: r.error })),
       db.from("organizations").select("id,name,slug").order("created_at", { ascending: false }).limit(200),
     ]);
     const stats = new Map<string, { model: string; provider: string; calls: number; failures: number }>();
