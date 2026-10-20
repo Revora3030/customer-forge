@@ -3,9 +3,15 @@
 ## Site-wide upgrade (2026-10-20)
 - [x] Wave 0: 23 public pages x2 widths + 33 signed-in pages checked: no console errors, no sideways scroll, all have titles/descriptions.
 - [x] Phone tap targets fixed on sign-in, reset password, contact, CRM.
-- [x] Homepage cut from ~36 to ~14 phone screens (owner chose tight). Further trim to ~8 still open.
+- [x] Homepage reduced to 7.3 screens at 390x710, including the undecided cookie notice and footer; checked at 320/390/768/1280/2560 widths.
 - [x] Phone number removed from all public pages, footer, phone bar, SEO data (owner choice). Signed-in app pages still show it.
-- [ ] Current continuation: non-overlapping mobile cookie notice; homepage at eight 710px screens; marketing/app shared polish; dynamic-page and preview/publish-gate checks; evidence report. No publishing, outreach, billing or security/pricing changes.
+- [x] Mobile cookie notice now occupies its own row; starter input reaches signup, Reject/Accept persist, footer settings reopen it. Shared mobile header/footer and product tour tightened.
+- [x] 24 static public pages + 24 linked dynamic pages checked at 390/1280; additional 18 state/city/local/calculator checks passed. These are sampled route/render checks, not exhaustive functional QA.
+- [x] 111 targeted consent/preview/publish/resume checks pass; full suite 3,016 passed, 3 skipped; lint 0 errors/1 existing warning; security/repository/readiness structural audits pass; latest harness build OK.
+- [x] Actual signed-in dashboard, website builder and admin Jarvis loaded during focused owner checks. No modifications or send/publish clicks performed.
+- [ ] Complete authenticated all-page runtime audit: broad rapid checks caught blank/loading states; longer focused checks succeeded, but the later batch again timed out/loaded blank. Requires isolated waits and server/network diagnosis, not counting HTTP 200 as proof.
+- [ ] Token preview and publishing boundary end-to-end check: existing offline safeguards pass; no new token, publish or customer-site mutation performed. Held-snapshot behavior for share links during fresh replacement still needs verified product behavior and dedicated coverage.
+- [ ] Finish waves 2–5: full content/accessibility/performance, every dynamic permutation, signed-in functional flows, owner-preview navigation and publish-handler rejection evidence are not complete.
 - [ ] Waves 2–5: complete only after page-by-page and signed-in journey evidence, not static route coverage alone.
 
 ## Build resume + production audit (2026-10-20)
