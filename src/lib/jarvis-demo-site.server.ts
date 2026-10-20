@@ -304,7 +304,7 @@ export type ProspectPrefill = {
   email: string;
   services: string;
   description: string;
-  placeId?: string;
+  placeId: string;
 };
 
 export type ProspectSourceResult = {
