@@ -111,3 +111,4 @@
 - [ ] Phase F signed-in journey/accessibility/speed pass.
 - [x] SEO review: all checks pass, indexed; targets reported.
 - [x] Jarvis targets weak existing websites (verified gaps + public email).
+- [x] Jarvis: OpenStreetMap as free second lead source.
