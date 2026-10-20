@@ -136,6 +136,35 @@ export type ParsedActions = {
   rejected: string[];
 };
 
+/**
+ * Explicit effect classification for every chat action Jarvis can request.
+ * "read" auto-runs; "write" and "destructive" are proposals that only run after
+ * an authenticated super-admin approval. "external" marks real-world side effects
+ * (email, GitHub, outside search capacity).
+ */
+export type JarvisActionClass = { effect: "read" | "write" | "destructive"; external: boolean; autoRuns: boolean };
+export const JARVIS_ACTION_CLASSES: Record<ReadAction["id"] | WriteProposal["id"], JarvisActionClass> = {
+  "diagnostic.run": { effect: "read", external: false, autoRuns: true },
+  "code.read": { effect: "read", external: false, autoRuns: true },
+  "code.list": { effect: "read", external: false, autoRuns: true },
+  "code.search": { effect: "read", external: false, autoRuns: true },
+  "demos.list": { effect: "read", external: false, autoRuns: true },
+  "demo.status": { effect: "read", external: false, autoRuns: true },
+  "prospects.find": { effect: "read", external: true, autoRuns: true },
+  "prospect.lookup": { effect: "read", external: true, autoRuns: true },
+  "web.search": { effect: "read", external: true, autoRuns: true },
+  "autopilot.status": { effect: "read", external: false, autoRuns: true },
+  "inbox.list": { effect: "read", external: false, autoRuns: true },
+  "demo.build": { effect: "write", external: false, autoRuns: false },
+  "code.pr": { effect: "write", external: true, autoRuns: false },
+  "claude.code": { effect: "write", external: true, autoRuns: false },
+  "claude.fix": { effect: "write", external: true, autoRuns: false },
+  "builds.recover": { effect: "destructive", external: false, autoRuns: false },
+  "demo.send": { effect: "write", external: true, autoRuns: false },
+  "autopilot.configure": { effect: "write", external: false, autoRuns: false },
+  "autopilot.run": { effect: "write", external: true, autoRuns: false },
+};
+
 /** Catalogue shown to the model. Kept short; arguments are validated below. */
 export function actionCatalogPrompt(diagnosticToolIds: string[]): string {
   return [
