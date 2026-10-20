@@ -61,6 +61,27 @@ export async function runReadActions(db: SupabaseClient, reads: ReadAction[], ac
         } else if (action.id === "inbox.list") {
           const { listProspectInbox } = await import("./prospect-replies.server");
           result = await listProspectInbox(db, 20);
+        } else if (action.id === "memory.list") {
+          const { listJarvisMemories } = await import("./jarvis-memory.server");
+          const memories = await listJarvisMemories(db, actorId);
+          result = { count: memories.length, memories: memories.map((m) => ({ id: m.id, kind: m.kind, content: m.content, savedAt: m.created_at })) };
+        } else if (action.id === "memory.save") {
+          const { parseMemoryKind, parseMemoryContent, saveJarvisMemory } = await import("./jarvis-memory.server");
+          result = await saveJarvisMemory(db, actorId, parseMemoryKind(action.kind), parseMemoryContent(action.content));
+        } else if (action.id === "routines.list") {
+          const { listJarvisRoutines } = await import("./jarvis-routines.server");
+          const routines = await listJarvisRoutines(db, actorId);
+          result = {
+            count: routines.length,
+            note: "Times are Eastern. Weekly routines run on Mondays.",
+            routines: routines.map((r) => ({
+              id: r.id, name: r.name, prompt: r.prompt, frequency: r.frequency,
+              time: `${String(r.hour).padStart(2, "0")}:${String(r.minute).padStart(2, "0")}`,
+              enabled: r.enabled, lastRunAt: r.last_run_at, lastStatus: r.last_status, lastSummary: r.last_summary,
+            })),
+          };
+        } else if (action.id === "artifacts.list") {
+          result = await collectArtifacts(db, actorId);
         } else {
           const { listProspectDemos } = await import("./jarvis-demo-site.server");
           result = await listProspectDemos(db);
