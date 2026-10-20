@@ -38,6 +38,8 @@ import { leadStatusMeta } from "@/lib/domain";
 import { RouteError } from "@/components/app/RouteStates";
 import { WorkspaceSkeleton } from "@/components/app/WorkspaceSkeleton";
 import { cn } from "@/lib/utils";
+import { useWebMCP } from "use-webmcp-tool";
+import { runWebMCPTool } from "@/lib/webmcp-telemetry";
 
 export const Route = createFileRoute("/_authenticated/app/")({
   head: () => ({
@@ -318,6 +320,56 @@ function Dashboard() {
     stats.trend[0] ?? { start: Date.now(), count: 0 },
   );
   const remaining = checklist.filter((c) => !c.done);
+
+  // Browser-local agent tools: read the figures on screen and switch the same
+  // date range the buttons control. They run with the signed-in owner's
+  // session and expose nothing beyond what this page already shows.
+  useWebMCP({
+    name: "read_growth_summary",
+    description:
+      "Read the key numbers currently shown on the Growth Center dashboard for the active date range.",
+    annotations: { readOnlyHint: true, untrustedContentHint: true },
+    enabled: !leadsQuery.isLoading && !analyticsQuery.isLoading,
+    execute: () =>
+      runWebMCPTool("read_growth_summary", () =>
+        [
+          `Business: ${org.name}`,
+          `Range: ${window.label}`,
+          `New leads: ${stats.leads} (${stats.delta >= 0 ? "+" : ""}${stats.delta}% vs previous period)`,
+          `Revenue won: ${currency(stats.revenueWon)}`,
+          `Open pipeline: ${currency(stats.pipeline)}`,
+          `Bookings: ${stats.bookings} (${stats.completed} completed)`,
+          `Site visits: ${stats.views}`,
+          `Visitor-to-lead conversion: ${stats.visitorConversion.toFixed(1)}%`,
+        ].join("\n"),
+      ),
+  });
+
+  useWebMCP({
+    name: "set_dashboard_range",
+    description:
+      "Change which date range the Growth Center dashboard shows: today, 7, 30 or 90 days, or custom.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        range: {
+          type: "string",
+          enum: ["1", "7", "30", "90", "custom"],
+          description: "Which range to show (\"1\" = today, \"custom\" keeps the current custom dates).",
+        },
+      },
+      required: ["range"],
+    },
+    execute: ({ range }: { range: RangeValue }) =>
+      runWebMCPTool("set_dashboard_range", () => {
+        if (!RANGES.some((r) => r.value === range)) {
+          throw new Error("Unknown range; expected 1, 7, 30, 90, or custom.");
+        }
+        setRange(range);
+        const label = RANGES.find((r) => r.value === range)?.label ?? range;
+        return `Showing ${label}.`;
+      }),
+  });
 
   if (workspaceLoading || !orgId || !org) {
     return (
