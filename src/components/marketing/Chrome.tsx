@@ -252,15 +252,6 @@ export function SiteFooter() {
                     {REVORA.email}
                   </a>
                 </li>
-                <li className="flex items-center gap-2">
-                  <Phone className="size-3.5 text-primary" aria-hidden="true" />
-                  <a
-                    href={revoraTel}
-                    className="inline-flex min-h-11 items-center text-muted-foreground transition-colors hover:text-primary sm:min-h-0"
-                  >
-                    {REVORA.phoneDisplay}
-                  </a>
-                </li>
               </ul>
             </div>
           </div>
