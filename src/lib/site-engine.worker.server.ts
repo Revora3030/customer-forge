@@ -1460,8 +1460,10 @@ async function runJob(
         if (!outcome.architecture?.length) {
           // Carry the real reason (provider, shape, or review refusal) so the
           // job record says why, instead of a generic "no usable plan".
-          const { AiStepUnavailableError } = await import("@/lib/builder/ai-step-error");
-          throw new AiStepUnavailableError("page plan", outcome.skipped ?? "the architect returned no usable plan");
+          const { AiStepUnavailableError, AiCapacityParkError } = await import("@/lib/builder/ai-step-error");
+          // Busy/unusable AI output waits through the capacity deferral; a reviewer refusal on merits still counts as a failed attempt.
+          const ErrorType = outcome.capacity || !outcome.skipped ? AiCapacityParkError : AiStepUnavailableError;
+          throw new ErrorType("page plan", outcome.skipped ?? "the architect returned no usable plan");
         }
         return outcome.architecture;
       })()

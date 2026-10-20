@@ -29,6 +29,8 @@ export type PageArchitectureOutcome = {
   architecture: PageArchitecture[] | null;
   /** Plain-language reason the AI plan was not used, when it was not. */
   skipped: string | null;
+  /** The AI team ran out of capacity or returned unusable output (not a reviewer refusal on merits): the job waits and retries. */
+  capacity?: boolean;
   rejected: ArchitectureRejection[];
   models: string[];
   costMicrocents: number;
@@ -144,6 +146,7 @@ export async function proposePageArchitecture(input: {
     return {
       architecture: null,
       skipped: sol.detail ?? sol.reason,
+      capacity: true,
       rejected: [],
       models: [],
       costMicrocents: 0,
@@ -154,6 +157,7 @@ export async function proposePageArchitecture(input: {
     return {
       architecture: null,
       skipped: "the page plan was not in the agreed shape",
+      capacity: true,
       rejected: [],
       models: sol.model ? [sol.model] : [],
       costMicrocents: sol.costMicrocents,
@@ -183,6 +187,7 @@ export async function proposePageArchitecture(input: {
     return {
       architecture: null,
       skipped: "the proposed page plan could not be filled with real content",
+      capacity: true,
       rejected: [],
       models: sol.model ? [sol.model] : [],
       costMicrocents: sol.costMicrocents,
@@ -231,6 +236,7 @@ export async function proposePageArchitecture(input: {
     return {
       architecture: null,
       skipped: `the structure was not independently reviewed: ${terra.detail ?? terra.reason}`,
+      capacity: true,
       rejected: normalized.rejected,
       models,
       costMicrocents: cost,
