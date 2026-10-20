@@ -91,13 +91,14 @@ function fakeDb(row: { id: string; organization_id: string; attempts: number; st
       const filters: Record<string, unknown> = {};
       let patch: Record<string, unknown> | null = null;
       const matches = () => Object.entries(filters).every(([k, v]) => (row as Record<string, unknown>)[k] === v);
-      const chain = {
+      const chain: Record<string, unknown> = {
         select: () => chain,
         update: (value: Record<string, unknown>) => ((patch = value), chain),
         eq: (k: string, v: unknown) => {
           filters[k] = v;
-          return patch ? Object.assign(Promise.resolve(apply()), chain) : chain;
+          return chain;
         },
+        then: (resolve: (value: unknown) => unknown) => resolve(apply()),
         maybeSingle: async () => ({ data: matches() ? { stage_checkpoints: row.stage_checkpoints } : null, error: null }),
       };
       const apply = () => {
