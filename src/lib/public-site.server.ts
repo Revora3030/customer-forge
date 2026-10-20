@@ -590,7 +590,8 @@ export async function resolvePreviewToken(token: string) {
 
   if (!link) return { ok: false as const, reason: "unknown" as const };
   if (link.revoked) return { ok: false as const, reason: "revoked" as const };
-  if (new Date(link.expires_at).getTime() <= Date.now())
+  const expiresAt = new Date(link.expires_at).getTime();
+  if (!Number.isFinite(expiresAt) || expiresAt <= Date.now())
     return { ok: false as const, reason: "expired" as const };
 
   const { data: org } = await supabaseAdmin

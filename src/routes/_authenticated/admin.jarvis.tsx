@@ -44,7 +44,12 @@ type Mode = JarvisMode;
 type ProspectLine = { name: string; website: string; city: string; email: string };
 
 export const Route = createFileRoute("/_authenticated/admin/jarvis")({
-  head: () => ({ meta: [{ title: "Jarvis mission control — Revora" }, { name: "robots", content: "noindex" }] }),
+  head: () => ({ meta: [{ title: "Jarvis mission control — Revora" },
+      { name: "description", content: "Manage Jarvis conversations, approvals and operations." },
+      { property: "og:title", content: "Jarvis mission control — Revora" },
+      { property: "og:description", content: "Manage Jarvis conversations, approvals and operations." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" }, { name: "robots", content: "noindex" }] }),
   component: Jarvis,
 });
 

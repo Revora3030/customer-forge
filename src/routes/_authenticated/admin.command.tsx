@@ -22,6 +22,10 @@ export const Route = createFileRoute("/_authenticated/admin/command")({
   head: () => ({
     meta: [
       { title: "AI Command Center — Revora admin" },
+      { property: "og:title", content: "AI Command Center — Revora admin" },
+      { property: "og:description", content: metaDescription("Live model routing, site design tokens and the visual QA gate for every Revora website.") },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
       { name: "description", content: metaDescription("Live model routing, site design tokens and the visual QA gate for every Revora website.") },
       { name: "robots", content: "noindex" },
     ],

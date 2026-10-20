@@ -1,6 +1,7 @@
 # Roadmap — Five-phase blocker elimination
 
 ## Site-wide upgrade (2026-10-20)
+- [ ] Current continuation: upgrade shared signed-in navigation/recovery and mobile marketing account controls; verify dynamic/shared-preview routes and offline publish-handler gates; record exact evidence and remaining gaps.
 - [x] Wave 0: 23 public pages x2 widths + 33 signed-in pages checked: no console errors, no sideways scroll, all have titles/descriptions.
 - [x] Phone tap targets fixed on sign-in, reset password, contact, CRM.
 - [x] Homepage reduced to 7.3 screens at 390x710, including the undecided cookie notice and footer; checked at 320/390/768/1280/2560 widths.

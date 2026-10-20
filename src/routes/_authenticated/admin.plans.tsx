@@ -8,7 +8,12 @@ import { currency, number } from "@/lib/format";
 
 export const Route = createFileRoute("/_authenticated/admin/plans")({
   head: () => ({
-    meta: [{ title: "Plans — Revora admin" }, { name: "robots", content: "noindex, nofollow" }],
+    meta: [{ title: "Plans — Revora admin" },
+      { name: "description", content: "Review the current Revora offer and client plan status." },
+      { property: "og:title", content: "Plans — Revora admin" },
+      { property: "og:description", content: "Review the current Revora offer and client plan status." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" }, { name: "robots", content: "noindex, nofollow" }],
   }),
   component: AdminPlans,
 });

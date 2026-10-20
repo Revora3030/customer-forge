@@ -13,6 +13,10 @@ export const Route = createFileRoute("/_authenticated/app/domain")({
   head: () => ({
     meta: [
       { title: "Domain setup — Revora" },
+      { property: "og:title", content: "Domain setup — Revora" },
+      { property: "og:description", content: "Buy a new domain or connect one you already own, with live DNS and HTTPS verification." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
       {
         name: "description",
         content:

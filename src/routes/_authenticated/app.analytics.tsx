@@ -17,6 +17,10 @@ export const Route = createFileRoute("/_authenticated/app/analytics")({
   head: () => ({
     meta: [
       { title: "Analytics — Revora" },
+      { property: "og:title", content: "Analytics — Revora" },
+      { property: "og:description", content: metaDescription("Traffic, leads, bookings and conversion by source.") },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
       { name: "description", content: metaDescription("Traffic, leads, bookings and conversion by source.") },
       { name: "robots", content: "noindex" },
     ],

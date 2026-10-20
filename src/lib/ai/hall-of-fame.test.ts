@@ -20,6 +20,14 @@ vi.mock("@/lib/ai/router.server", async () => {
   return { callPinnedFreeModel: mocks.pinned, extractJsonObject };
 });
 vi.mock("@/lib/ai/telemetry.server", () => ({ recordTeamStep: vi.fn() }));
+// Squad-walk fixtures must not depend on production circuit/quota snapshots.
+vi.mock("@/lib/ai/durable-health.server", () => ({
+  refreshDurableRuntime: vi.fn(async () => new Map()),
+  durableProviderResting: vi.fn(() => false),
+  durableBudgetRemaining: vi.fn(() => null),
+  durableBudgetExhausted: vi.fn(() => false),
+  durableRuntimeFor: vi.fn(() => null),
+}));
 vi.mock("@/lib/ai/free-reputation", () => ({
   freeModelForm: () => ({ score: 0 }),
   recordFreeModelOutcome: vi.fn(),

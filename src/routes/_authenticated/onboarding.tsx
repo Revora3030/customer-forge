@@ -40,6 +40,10 @@ export const Route = createFileRoute("/_authenticated/onboarding")({
   head: () => ({
     meta: [
       { title: "Build your website — Revora" },
+      { property: "og:title", content: "Build your website — Revora" },
+      { property: "og:description", content: "Answer six short steps. Revora builds your website and connects it to your growth system." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
       {
         name: "description",
         content:

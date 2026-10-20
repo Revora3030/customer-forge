@@ -24,6 +24,10 @@ export const Route = createFileRoute("/_authenticated/admin/ai")({
   head: () => ({
     meta: [
       { title: "AI health — Revora admin" },
+      { property: "og:title", content: "AI health — Revora admin" },
+      { property: "og:description", content: "Which AI providers Revora owns, how they are performing, and what they cost." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
       {
         name: "description",
         content: "Which AI providers Revora owns, how they are performing, and what they cost.",

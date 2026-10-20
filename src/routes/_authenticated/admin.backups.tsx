@@ -25,6 +25,10 @@ export const Route = createFileRoute("/_authenticated/admin/backups")({
   head: () => ({
     meta: [
       { title: "Backups & restore — Revora admin" },
+      { property: "og:title", content: "Backups & restore — Revora admin" },
+      { property: "og:description", content: "Automated client data backups with a verified point-in-time restore." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
       {
         name: "description",
         content: "Automated client data backups with a verified point-in-time restore.",

@@ -24,7 +24,12 @@ import { SITE_URL } from "@/lib/seo";
 
 export const Route = createFileRoute("/_authenticated/admin/analytics")({
   head: () => ({
-    meta: [{ title: "Analytics — Revora admin" }, { name: "robots", content: "noindex, nofollow" }],
+    meta: [{ title: "Analytics — Revora admin" },
+      { name: "description", content: "Review platform traffic, account activity and conversion performance." },
+      { property: "og:title", content: "Analytics — Revora admin" },
+      { property: "og:description", content: "Review platform traffic, account activity and conversion performance." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" }, { name: "robots", content: "noindex, nofollow" }],
   }),
   component: AdminAnalytics,
 });

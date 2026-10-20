@@ -18,6 +18,10 @@ export const Route = createFileRoute("/_authenticated/admin/monitoring")({
   head: () => ({
     meta: [
       { title: "Monitoring — Revora admin" },
+      { property: "og:title", content: "Monitoring — Revora admin" },
+      { property: "og:description", content: "Production crashes, API failures and job errors across the platform." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
       {
         name: "description",
         content: "Production crashes, API failures and job errors across the platform.",

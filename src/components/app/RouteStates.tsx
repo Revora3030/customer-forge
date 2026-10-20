@@ -8,6 +8,7 @@
  */
 import { Link, useRouter } from "@tanstack/react-router";
 import { useEffect } from "react";
+import { Button } from "@/components/ui/button";
 
 import { reportLovableError } from "@/lib/lovable-error-reporting";
 import { reportRouteError } from "@/lib/route-error-reporting";
@@ -30,12 +31,7 @@ export function RouteNotFound() {
           The link may be out of date, or the business page you're looking for has moved.
         </p>
         <div className="mt-6">
-          <Link
-            to="/"
-            className="inline-flex h-10 items-center justify-center rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
-          >
-            Back to Revora
-          </Link>
+          <Button asChild><Link to="/">Back to Revora</Link></Button>
         </div>
       </div>
     </div>
@@ -56,28 +52,21 @@ export function RouteError({ error, reset }: { error: unknown; reset?: () => voi
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
-        <p className="eyebrow">Something broke</p>
+        <p className="eyebrow">Temporarily unavailable</p>
         <h1 className="mt-3 text-2xl font-semibold text-foreground">This page didn't load</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          We hit an unexpected error. Nothing you've saved is lost — try again, or head back to the
-          start.
+          We couldn't load this page. Try again, or return to the start.
         </p>
         <div className="mt-6 flex flex-wrap justify-center gap-2">
-          <button
-            onClick={() => {
-              router.invalidate();
+          <Button
+            onClick={async () => {
+              await router.invalidate();
               reset?.();
             }}
-            className="inline-flex h-10 cursor-pointer items-center justify-center rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
           >
             Try again
-          </button>
-          <a
-            href="/"
-            className="inline-flex h-10 items-center justify-center rounded-md border border-border bg-card px-4 text-sm font-medium text-foreground transition-colors hover:bg-elevated"
-          >
-            Go home
-          </a>
+          </Button>
+          <Button asChild variant="outline"><a href="/">Go home</a></Button>
         </div>
       </div>
     </div>

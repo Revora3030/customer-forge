@@ -1,5 +1,5 @@
-import { Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { Link, useRouterState } from "@tanstack/react-router";
+import { useEffect, useRef, useState } from "react";
 import { Logo } from "@/components/brand/Logo";
 import { Button } from "@/components/ui/button";
 import { LayoutDashboard, LogOut, Mail, Menu, Sparkles, X } from "lucide-react";
@@ -39,6 +39,17 @@ export function SiteHeader() {
   const { loading, user } = useSession();
   const signOut = useSignOut();
   const signedIn = !loading && user !== null;
+  const location = useRouterState({ select: (state) => state.location.href });
+  const menuButton = useRef<HTMLButtonElement>(null);
+  useEffect(() => { setOpen(false); }, [location]);
+  useEffect(() => {
+    if (!open) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") { setOpen(false); menuButton.current?.focus(); }
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [open]);
 
   return (
     <header className="sticky top-0 z-40 pt-[env(safe-area-inset-top)] border-b border-border bg-background/90 backdrop-blur-sm">
@@ -100,7 +111,11 @@ export function SiteHeader() {
         {/* On a phone the two doors stay visible next to the menu button, so
             signing in never requires opening the menu first. */}
         <div className="flex items-center gap-1.5 md:hidden">
-          <AuthActions variant="compact" />
+          {signedIn ? (
+            <Button asChild variant="signal" size="sm" className="min-h-11">
+              <Link to="/app"><LayoutDashboard className="size-4" aria-hidden="true" />Dashboard</Link>
+            </Button>
+          ) : <AuthActions variant="compact" />}
           <Button
             variant="outline"
             size="icon"
@@ -108,6 +123,8 @@ export function SiteHeader() {
             className="size-11 shrink-0 text-muted-foreground"
             aria-label={open ? "Close menu" : "Open menu"}
             aria-expanded={open}
+            aria-controls="marketing-mobile-menu"
+            ref={menuButton}
             onClick={() => setOpen((v) => !v)}
           >
             {open ? <X className="size-4" /> : <Menu className="size-4" />}
@@ -116,7 +133,7 @@ export function SiteHeader() {
       </div>
 
       {open ? (
-        <div className="border-t border-border bg-card px-4 py-2 md:hidden">
+        <div id="marketing-mobile-menu" className="max-h-[calc(100dvh-4rem-env(safe-area-inset-top))] overflow-y-auto overscroll-contain border-t border-border bg-card px-4 py-2 md:hidden">
           <nav aria-label="Mobile" className="flex flex-col divide-y divide-border">
             {NAV.map((item) => (
               <Link

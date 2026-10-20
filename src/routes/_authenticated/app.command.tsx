@@ -47,6 +47,10 @@ export const Route = createFileRoute("/_authenticated/app/command")({
   head: () => ({
     meta: [
       { title: "AI Growth Command Center — Revora" },
+      { property: "og:title", content: "AI Growth Command Center — Revora" },
+      { property: "og:description", content: "Audit, improve, connect and repair your whole website and growth system from one place." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
       {
         name: "description",
         content:

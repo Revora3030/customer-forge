@@ -23,6 +23,10 @@ export const Route = createFileRoute("/_authenticated/app/quotes")({
   head: () => ({
     meta: [
       { title: "Quote calculator — Revora" },
+      { property: "og:title", content: "Quote calculator — Revora" },
+      { property: "og:description", content: "Build the instant estimate that turns website visitors into priced leads." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
       {
         name: "description",
         content: "Build the instant estimate that turns website visitors into priced leads.",

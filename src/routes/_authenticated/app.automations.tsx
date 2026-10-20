@@ -47,6 +47,10 @@ export const Route = createFileRoute("/_authenticated/app/automations")({
   head: () => ({
     meta: [
       { title: "Automations — Revora" },
+      { property: "og:title", content: "Automations — Revora" },
+      { property: "og:description", content: "Automatic follow-ups by email, text and task whenever a lead or booking changes." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
       {
         name: "description",
         content: "Automatic follow-ups by email, text and task whenever a lead or booking changes.",

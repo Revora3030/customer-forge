@@ -39,6 +39,10 @@ export const Route = createFileRoute("/_authenticated/app/calendar")({
   head: () => ({
     meta: [
       { title: "Calendar — Revora" },
+      { property: "og:title", content: "Calendar — Revora" },
+      { property: "og:description", content: metaDescription("Confirm, reschedule and complete every booking.") },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
       { name: "description", content: metaDescription("Confirm, reschedule and complete every booking.") },
       { name: "robots", content: "noindex" },
     ],

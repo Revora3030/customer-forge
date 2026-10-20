@@ -23,6 +23,11 @@ export const Route = createFileRoute("/_authenticated/admin/monthly")({
   head: () => ({
     meta: [
       { title: "Monthly business report — Revora" },
+      { name: "description", content: "Review recorded monthly revenue, leads, bookings and traffic." },
+      { property: "og:title", content: "Monthly business report — Revora" },
+      { property: "og:description", content: "Review recorded monthly revenue, leads, bookings and traffic." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
       { name: "robots", content: "noindex, nofollow" },
     ],
   }),

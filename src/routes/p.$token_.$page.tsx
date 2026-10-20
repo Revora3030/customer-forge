@@ -6,6 +6,8 @@ import { SiteBaseContext } from "@/components/site/site-address-context";
 import { ProspectClaimBar } from "@/components/site/ProspectClaimBar";
 import { PreviewBeacon } from "@/components/site/PreviewBeacon";
 import { metaDescription } from "@/lib/seo";
+import { Link } from "@tanstack/react-router";
+import { Button } from "@/components/ui/button";
 
 /** Sub-pages of a private draft preview link, checked on the server like the home page. */
 export const Route = createFileRoute("/p/$token_/$page")({
@@ -41,11 +43,23 @@ function PreviewPageRoute() {
   const result = Route.useLoaderData();
   const { token, page } = Route.useParams();
   if (!result?.ok || !result.site) {
+    const reason = result?.reason;
     return (
       <PreviewMessage
-        title="This preview link isn't valid"
-        body="Check the address, or ask for a new link."
+        title={reason === "expired" ? "This preview link has expired" : reason === "revoked" ? "This preview link was switched off" : "This preview link isn't valid"}
+        body={reason === "expired" || reason === "revoked" ? "Ask for a fresh preview link." : "Check the address, or ask for a new link."}
       />
+    );
+  }
+  if (!result.site.pageFound || !result.site.content?.sections.length) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background px-4 text-center">
+        <div className="max-w-md space-y-4">
+          <h1 className="text-2xl font-semibold">This preview page isn't ready</h1>
+          <p className="text-sm text-muted-foreground">You can still review the rest of the website.</p>
+          <Button asChild><Link to="/p/$token" params={{ token }}>Back to preview</Link></Button>
+        </div>
+      </div>
     );
   }
   return (

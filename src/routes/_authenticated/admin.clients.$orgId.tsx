@@ -36,6 +36,11 @@ export const Route = createFileRoute("/_authenticated/admin/clients/$orgId")({
   head: () => ({
     meta: [
       { title: "Client workspace — Revora admin" },
+      { name: "description", content: "Review client workspace settings and support access." },
+      { property: "og:title", content: "Client workspace — Revora admin" },
+      { property: "og:description", content: "Review client workspace settings and support access." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
       { name: "robots", content: "noindex, nofollow" },
     ],
   }),

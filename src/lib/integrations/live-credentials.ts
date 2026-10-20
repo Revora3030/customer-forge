@@ -12,6 +12,12 @@
 
 export type LiveSuiteId = "email" | "crm" | "payments";
 
+/** Ambient credentials never authorize external actions in a general test run. */
+export function explicitlySelectedLiveSuite(args: readonly string[]): boolean {
+  return args.some((arg) => arg.replaceAll("\\", "/").replace(/^\.\//, "") ===
+    "src/lib/integrations/live.integration.test.ts");
+}
+
 export type LiveSuiteContract = {
   id: LiveSuiteId;
   label: string;

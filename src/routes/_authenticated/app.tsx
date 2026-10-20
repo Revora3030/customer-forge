@@ -1,5 +1,5 @@
 import { createFileRoute, Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import {
   BarChart3,
@@ -45,7 +45,12 @@ import { WorkspaceSkeleton } from "@/components/app/WorkspaceSkeleton";
 
 export const Route = createFileRoute("/_authenticated/app")({
   head: () => ({
-    meta: [{ title: "Workspace — Revora" }, { name: "robots", content: "noindex, nofollow" }],
+    meta: [{ title: "Workspace — Revora" },
+      { name: "description", content: "Manage your Revora business workspace." },
+      { property: "og:title", content: "Workspace — Revora" },
+      { property: "og:description", content: "Manage your Revora business workspace." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" }, { name: "robots", content: "noindex, nofollow" }],
   }),
   component: AppShell,
   errorComponent: RouteError,
@@ -167,6 +172,9 @@ function AppShell() {
   const navigate = useNavigate();
   const signOut = useSignOut();
   const [navOpen, setNavOpen] = useState(false);
+  const [desktopNav, setDesktopNav] = useState(false);
+  const navPanel = useRef<HTMLElement>(null);
+  const navTrigger = useRef<HTMLButtonElement>(null);
   const [bellOpen, setBellOpen] = useState(false);
   const org = data?.workspace?.organization;
   const { data: notifications } = useNotifications(org?.id);
@@ -221,13 +229,34 @@ function AppShell() {
   // while it is open so it behaves like a real app drawer.
   useEffect(() => {
     setNavOpen(false);
+    setBellOpen(false);
   }, [pathname]);
 
   useEffect(() => {
-    if (!navOpen) return;
+    const media = window.matchMedia("(min-width: 1024px)");
+    const update = () => { setDesktopNav(media.matches); if (media.matches) setNavOpen(false); };
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
 
+  useEffect(() => {
+    if (!navOpen) return;
+    const panel = navPanel.current;
+    const trigger = navTrigger.current;
+    const focusables = () => Array.from(panel?.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), summary, [tabindex="0"]',
+    ) ?? []).filter((element) => element.getClientRects().length > 0);
+    focusables()[0]?.focus();
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setNavOpen(false);
+      if (e.key === "Tab") {
+        const elements = focusables();
+        const first = elements[0];
+        const last = elements[elements.length - 1];
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last?.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus(); }
+      }
     };
     window.addEventListener("keydown", onKey);
     const prev = document.body.style.overflow;
@@ -235,6 +264,7 @@ function AppShell() {
     return () => {
       window.removeEventListener("keydown", onKey);
       document.body.style.overflow = prev;
+      trigger?.focus();
     };
   }, [navOpen]);
 
@@ -261,6 +291,12 @@ function AppShell() {
 
       {/* Sidebar */}
       <aside
+        ref={navPanel}
+        id="workspace-navigation"
+        role={navOpen ? "dialog" : undefined}
+        aria-modal={navOpen ? true : undefined}
+        aria-label="Workspace navigation"
+        inert={!navOpen && !desktopNav}
         className={cn(
           "border-border bg-card",
           "fixed inset-y-0 left-0 z-50 flex h-[100dvh] w-[16rem] max-w-[86vw] flex-col overflow-y-auto overscroll-contain border-r pb-[env(safe-area-inset-bottom)] shadow-lift transition-transform duration-200 ease-out",
@@ -275,7 +311,7 @@ function AppShell() {
           <Button
             type="button"
             variant="ghost"
-            size="icon-sm"
+            size="icon"
             onClick={() => setNavOpen(false)}
             aria-label="Close navigation"
             className="lg:hidden"
@@ -320,17 +356,18 @@ function AppShell() {
         ) : null}
 
         <div className="p-2.5">
-          <button
+          <Button
             type="button"
+            variant="ghost"
             onClick={async () => {
               writeSupportMode(null);
               await signOut();
               navigate({ to: "/auth", replace: true });
             }}
-            className="flex w-full cursor-pointer items-center gap-2.5 rounded-md px-2.5 py-2 text-[13px] text-muted-foreground transition-colors hover:bg-elevated hover:text-foreground"
+            className="w-full justify-start text-[13px]"
           >
             <LogOut className="size-4" aria-hidden="true" /> Sign out
-          </button>
+          </Button>
         </div>
       </aside>
 
@@ -367,20 +404,22 @@ function AppShell() {
             <Button
               type="button"
               variant="ghost"
-              size="icon-sm"
+              size="icon"
               className="lg:hidden"
               aria-label={navOpen ? "Close navigation" : "Open navigation"}
               aria-expanded={navOpen}
+              aria-controls="workspace-navigation"
+              ref={navTrigger}
               onClick={() => setNavOpen((v) => !v)}
             >
               {navOpen ? <X className="size-4" /> : <Menu className="size-4" />}
             </Button>
             <LogoMark className="size-8 lg:hidden" />
-            <div className="hidden min-w-0 sm:block">
+            <div className="min-w-0">
               <p className="truncate text-[13px] font-medium">
                 {currentPage?.label ?? "Workspace"}
               </p>
-              <p className="flex items-center gap-2 text-[11px] text-muted-foreground">
+              <p className="hidden items-center gap-2 text-[11px] text-muted-foreground sm:flex">
                 {supporting ? "Support session" : (org?.name ?? "Your business")}
                 <LiveDot label="Live" />
               </p>
@@ -411,12 +450,14 @@ function AppShell() {
             ) : null}
             {org?.is_demo ? <Pill tone="info">Demo data</Pill> : null}
             <div className="relative">
-              <button
+              <Button
                 type="button"
+                variant="outline"
+                size="icon"
                 onClick={() => setBellOpen((v) => !v)}
                 aria-label="Notifications"
                 aria-expanded={bellOpen}
-                className="relative grid size-9 cursor-pointer place-items-center rounded-md border border-border text-muted-foreground transition-colors hover:text-foreground"
+                className="relative"
               >
                 <Bell className="size-4" />
                 {unread > 0 ? (
@@ -424,7 +465,7 @@ function AppShell() {
                     {unread > 9 ? "9+" : unread}
                   </span>
                 ) : null}
-              </button>
+              </Button>
               {bellOpen ? (
                 <div className="panel absolute right-0 z-40 mt-2 w-80 max-w-[calc(100vw-2rem)] p-0">
                   <p className="eyebrow border-b border-border px-3.5 py-2.5">Activity</p>

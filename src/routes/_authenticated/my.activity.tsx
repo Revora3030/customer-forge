@@ -5,12 +5,13 @@
  * what they wanted, and every booking with its date, time and contact details.
  */
 import * as React from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { Panel, Pill, SectionHeading } from "@/components/app/Bits";
 import { Button } from "@/components/ui/button";
 import { useAppointments, useLeads } from "@/lib/queries";
 import { useWorkspace } from "@/lib/use-tenant";
 import { dateLong, relative } from "@/lib/format";
+import { QueryErrorNotice } from "@/components/app/QueryErrorNotice";
 
 export const Route = createFileRoute("/_authenticated/my/activity")({
   head: () => ({
@@ -22,6 +23,10 @@ export const Route = createFileRoute("/_authenticated/my/activity")({
           "Every enquiry and booking your website captured, with contact details, dates and times.",
       },
       { name: "robots", content: "noindex" },
+      { property: "og:title", content: "My leads and bookings — Revora client portal" },
+      { property: "og:description", content: "Review website enquiries and appointments in your secure client portal." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   component: MyActivity,
@@ -30,8 +35,8 @@ export const Route = createFileRoute("/_authenticated/my/activity")({
 function MyActivity() {
   const { data: ws } = useWorkspace();
   const orgId = ws?.workspace?.organizationId;
-  const { data: leads, isPending: leadsPending } = useLeads(orgId);
-  const { data: appointments, isPending: bookingsPending } = useAppointments(orgId);
+  const { data: leads, isPending: leadsPending, isError: leadsError, refetch: retryLeads, isFetching: leadsFetching } = useLeads(orgId);
+  const { data: appointments, isPending: bookingsPending, isError: bookingsError, refetch: retryBookings, isFetching: bookingsFetching } = useAppointments(orgId);
   const [tab, setTab] = React.useState<"leads" | "bookings">("leads");
 
   const rows = leads ?? [];
@@ -43,6 +48,7 @@ function MyActivity() {
         <Button
           variant={tab === "leads" ? "default" : "outline"}
           size="sm"
+          aria-pressed={tab === "leads"}
           onClick={() => setTab("leads")}
         >
           Leads ({rows.length})
@@ -50,6 +56,7 @@ function MyActivity() {
         <Button
           variant={tab === "bookings" ? "default" : "outline"}
           size="sm"
+          aria-pressed={tab === "bookings"}
           onClick={() => setTab("bookings")}
         >
           Bookings ({bookings.length})
@@ -61,15 +68,17 @@ function MyActivity() {
           <SectionHeading
             eyebrow="Leads"
             title="Enquiries from your website"
-            description="You also get an email the moment each one arrives."
           />
           <div className="mt-4">
-            {leadsPending ? (
+            {leadsError ? (
+              <QueryErrorNotice title="Your enquiries couldn't be loaded." retry={retryLeads} retrying={leadsFetching} />
+            ) : leadsPending ? (
               <p className="text-[13px] text-muted-foreground">Loading…</p>
             ) : rows.length === 0 ? (
-              <p className="text-[13px] text-muted-foreground">
-                No enquiries yet. They appear here automatically.
-              </p>
+              <div className="space-y-3">
+                <p className="text-[13px] text-muted-foreground">No enquiries yet.</p>
+                <Button asChild variant="outline"><Link to="/my/site">Review my website</Link></Button>
+              </div>
             ) : (
               <ul className="divide-y divide-border">
                 {rows.map((lead) => (
@@ -85,7 +94,7 @@ function MyActivity() {
                         </span>
                       </div>
                     </div>
-                    <p className="mt-1 text-[12.5px] text-muted-foreground">
+                    <p className="mt-1 break-words text-[12.5px] text-muted-foreground">
                       {[lead.email, lead.phone, lead.city, lead.service_interest]
                         .filter(Boolean)
                         .join(" · ") || "No contact details provided"}
@@ -107,12 +116,15 @@ function MyActivity() {
             description="Taken straight from the Book section of your website."
           />
           <div className="mt-4">
-            {bookingsPending ? (
+            {bookingsError ? (
+              <QueryErrorNotice title="Your bookings couldn't be loaded." retry={retryBookings} retrying={bookingsFetching} />
+            ) : bookingsPending ? (
               <p className="text-[13px] text-muted-foreground">Loading…</p>
             ) : bookings.length === 0 ? (
-              <p className="text-[13px] text-muted-foreground">
-                No bookings yet. Each one lands here and in your inbox.
-              </p>
+              <div className="space-y-3">
+                <p className="text-[13px] text-muted-foreground">No bookings yet.</p>
+                <Button asChild variant="outline"><Link to="/app/calendar">Review booking settings</Link></Button>
+              </div>
             ) : (
               <ul className="divide-y divide-border">
                 {bookings.map((appointment) => (
@@ -123,7 +135,7 @@ function MyActivity() {
                         {appointment.status}
                       </Pill>
                     </div>
-                    <p className="mt-1 text-[12.5px] text-muted-foreground">
+                    <p className="mt-1 break-words text-[12.5px] text-muted-foreground">
                       {dateLong(appointment.starts_at)}
                       {[appointment.phone, appointment.email].filter(Boolean).length
                         ? ` · ${[appointment.phone, appointment.email].filter(Boolean).join(" · ")}`

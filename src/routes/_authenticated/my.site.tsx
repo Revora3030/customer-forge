@@ -19,6 +19,10 @@ export const Route = createFileRoute("/_authenticated/my/site")({
   head: () => ({
     meta: [
       { title: "My website — pages, sections and addresses" },
+      { property: "og:title", content: "My website — pages, sections and addresses" },
+      { property: "og:description", content: "Every page and section of your live Revora website, plus the web addresses customers can use to reach it." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
       {
         name: "description",
         content:

@@ -36,6 +36,10 @@ export const Route = createFileRoute("/_authenticated/app/campaigns")({
   head: () => ({
     meta: [
       { title: "Campaigns & QR codes — Revora" },
+      { property: "og:title", content: "Campaigns & QR codes — Revora" },
+      { property: "og:description", content: "Create tracked campaign links and printable QR codes, then see which ones produce leads." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
       {
         name: "description",
         content:
