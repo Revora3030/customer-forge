@@ -242,7 +242,7 @@ function AuthPage() {
           </Link>
           <Link
             to="/"
-            className="flex items-center gap-1.5 text-[13px] text-muted-foreground transition-colors hover:text-foreground"
+            className="flex min-h-11 items-center gap-1.5 text-[13px] text-muted-foreground transition-colors hover:text-foreground"
           >
             <ArrowLeft className="size-3.5" /> Back to site
           </Link>
@@ -337,7 +337,7 @@ function AuthPage() {
                 </Button>
                 <button
                   type="button"
-                  className="w-full cursor-pointer text-center text-[12.5px] text-muted-foreground transition-colors hover:text-primary"
+                  className="min-h-11 w-full cursor-pointer text-center text-[12.5px] text-muted-foreground transition-colors hover:text-primary"
                   onClick={() => {
                     setForgotMode(false);
                     setResetSent(false);
@@ -484,7 +484,7 @@ function AuthPage() {
                   <>
                     <button
                       type="button"
-                      className="w-full cursor-pointer text-center text-[12.5px] text-primary transition-colors hover:underline"
+                      className="min-h-11 w-full cursor-pointer text-center text-[12.5px] text-primary transition-colors hover:underline"
                       onClick={() => {
                         setError(null);
                         setMagicSent(false);
@@ -499,7 +499,7 @@ function AuthPage() {
                     {magicMode ? null : (
                       <button
                         type="button"
-                        className="w-full cursor-pointer text-center text-[12.5px] text-muted-foreground transition-colors hover:text-primary"
+                        className="min-h-11 w-full cursor-pointer text-center text-[12.5px] text-muted-foreground transition-colors hover:text-primary"
                         onClick={() => {
                           setError(null);
                           setResetSent(false);
@@ -525,7 +525,7 @@ function AuthPage() {
             {isSignup ? "Already have an account?" : "New here?"}{" "}
             <button
               type="button"
-              className="cursor-pointer text-primary hover:underline"
+              className="inline-flex min-h-11 cursor-pointer items-center text-primary hover:underline"
               onClick={() => {
                 setError(null);
                 setIsSignup((v) => !v);

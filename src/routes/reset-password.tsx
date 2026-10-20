@@ -81,7 +81,7 @@ function ResetPasswordPage() {
           </Link>
           <Link
             to="/auth"
-            className="flex items-center gap-1.5 text-[13px] text-muted-foreground transition-colors hover:text-foreground"
+            className="flex min-h-11 items-center gap-1.5 text-[13px] text-muted-foreground transition-colors hover:text-foreground"
           >
             <ArrowLeft className="size-3.5" /> Back to sign in
           </Link>

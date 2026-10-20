@@ -93,7 +93,7 @@ function Contact() {
                   <p className="eyebrow">Email</p>
                   <a
                     href={revoraMailto(MAIL_SUBJECTS.inquiry)}
-                    className="block truncate text-[13px] font-medium hover:text-primary"
+                    className="flex min-h-11 items-center truncate text-[13px] font-medium hover:text-primary"
                   >
                     {REVORA.email}
                   </a>
@@ -103,7 +103,7 @@ function Contact() {
                 <Phone className="size-4 shrink-0 text-primary" aria-hidden="true" />
                 <div className="min-w-0">
                   <p className="eyebrow">Phone</p>
-                  <a href={revoraTel} className="block text-[13px] font-medium hover:text-primary">
+                  <a href={revoraTel} className="flex min-h-11 items-center text-[13px] font-medium hover:text-primary">
                     {REVORA.phoneDisplay}
                   </a>
                 </div>
