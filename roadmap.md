@@ -1,5 +1,14 @@
 # Roadmap — Five-phase blocker elimination
 
+## Build resume + production audit (2026-10-20)
+- [x] Save finished early build stages (brief, brand identity, wording, page plan) per job; retries reuse them. Verified live: resumed attempt skipped analysis (33s -> 0.6s) and reused pictures.
+- [x] AI repair pass when a page plan is unusable; home-page address aliases accepted.
+- [x] Full suite green after fixing a test that read live provider state.
+- [ ] One build end to end (BLOCKED: workspace daily AI limit and $5/day paid cap reached today; free pool heavily rate-limited). Daily site limit stays 5 until it passes.
+- [ ] Migration drift: needs the remote migration version list (not readable from here) to reconcile.
+- [ ] Owner decision: canonical offer in code/DB is $350 setup + 3-day full access; owner brief cites $750 + 1-day.
+- [ ] Jarvis tool/permission map, capability scorecard, cross-tenant negative tests (Workstreams A, C4, E) — next pass.
+
 ## Jarvis model access (2026-10-20)
 - [x] Remove arbitrary catalog/purpose/demo defaults and admin chat free-only override, preserving explicit controls, capabilities and budgets.
 - [x] Run isolated routing and spending regression tests; full suite passed (2,859 tests, 3 skipped). Live provider access and a real customer build remain unverified; no deployment or provider spending performed.

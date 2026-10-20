@@ -43,8 +43,8 @@ describe("shared free-AI usage and health state", () => {
     expect(remaining === null || typeof remaining === "number").toBe(true);
     const result = await noteDurableProviderResult({ provider: probe, ok: true, latencyMs: 12 });
     expect(result === null || result.provider === probe).toBe(true);
-    // Unknown or unreachable state must never block a free call.
-    expect(durableBudgetExhausted("groq", 100)).toBe(false);
+    // Unknown state must never block a free call (live providers may really be exhausted).
+    expect(durableBudgetExhausted("vitest-never-recorded", 100)).toBe(false);
   });
 
   it("reports a provider with no cap as uncapped, never exhausted", () => {

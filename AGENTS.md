@@ -18,3 +18,4 @@ Scan the entire repository before making broad changes. Do not mass-edit generat
 - Builder progress uses the chat request ID from planning through apply; this keeps every live stage attached to the request that caused it.
 - AI router unit tests use the shared provider environment isolation helper and stub HTTP and spend reservations; ambient deployment credentials must not trigger provider calls or ledger writes.
 - Admin Jarvis uses the shared conversation request helper and router rather than forcing its own free-only lane; this preserves one eligibility, budget and failover boundary for chat and build teamwork.
+- Site builds checkpoint each finished AI stage on the job row (stage and section checkpoints, digest-matched and job-scoped) so retries resume instead of regenerating; cleared on completion.
