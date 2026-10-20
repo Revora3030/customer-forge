@@ -196,6 +196,9 @@ export function stripQuotedReply(text: string): string {
       if (state === "header") state = "quote";
       continue;
     }
+    // A signature or server footer under the quoted history ends the reply:
+    // a list footer's "unsubscribe" must never read as the prospect's stop.
+    if (state === "quote" && /^\s*(--\s*|_{5,}\s*)$/.test(line)) break;
     if (state !== "text" && !line.trim()) continue;
     if (state === "header") break;
     state = "text";

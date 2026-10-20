@@ -212,7 +212,8 @@ export async function pollGmailReplies(db: SupabaseClient, config: GmailConfig, 
     const thread = await getGmailThread(config, threadId);
     summary.threadsChecked += 1;
     if (!thread.ok) {
-      failures += 1;
+      // A thread deleted from Gmail can never be read again: rotate it out without failing every run.
+      if (thread.reason !== "gmail_not_found") failures += 1;
       if (summary.errors.length < 10) summary.errors.push(`thread ${threadId}: ${thread.reason}`);
       if (thread.reason === "gmail_auth_failed") break;
       // A thread Gmail no longer has goes to the back of the rotation so it can't starve the rest.
@@ -262,17 +263,20 @@ async function storeNewReplies(
       message.autoSubmitted && !keywordIntent(message.text, message.subject)
         ? { intent: "unclear", confidence: 1, source: "fallback" }
         : await classifyInbound({ text: message.text || message.snippet, subject: message.subject });
-    const stop = classification.intent === "stop";
+    let stop = classification.intent === "stop";
     if (stop) {
-      // Do-not-contact before the row: if it fails nothing is stored, so the next read applies the stop again.
+      // Do-not-contact before the row. If it fails, the row is stored as a
+      // pending stop (the decision kept, never re-classified) and the
+      // follow-up pass retries the do-not-contact until it lands.
       try {
         await applyStop(db, info.organizationId, [message.from!, info.recipient]);
       } catch (error) {
         if (summary.errors.length < 10) summary.errors.push(`stop ${message.id}: ${error instanceof Error ? error.message.slice(0, 200) : "failed"}`);
+        stop = false;
         complete = false;
-        continue;
       }
     }
+    const pendingStop = classification.intent === "stop" && !stop;
     const id = crypto.randomUUID();
     const { error } = await db.from("prospect_inbound").insert({
       id,
@@ -292,9 +296,9 @@ async function storeNewReplies(
       intent_source: classification.source,
       flags,
       // A stop is handled right here: do-not-contact (already applied), never a reply.
-      status: stop || message.autoSubmitted ? "handled" : "pending",
-      action: stop ? "do_not_contact" : message.autoSubmitted ? "ignored_auto_reply" : null,
-      handled_at: stop || message.autoSubmitted ? now.toISOString() : null,
+      status: stop || (message.autoSubmitted && !pendingStop) ? "handled" : "pending",
+      action: stop ? "do_not_contact" : pendingStop ? "stop_pending" : message.autoSubmitted ? "ignored_auto_reply" : null,
+      handled_at: stop || (message.autoSubmitted && !pendingStop) ? now.toISOString() : null,
     });
     if (error) {
       // 23505: another run stored it first.
@@ -461,10 +465,11 @@ async function priorAutoReplies(db: SupabaseClient, threadId: string): Promise<n
   return error ? Number.POSITIVE_INFINITY : count ?? 0;
 }
 
-type FullInbound = InboundItem & { rfcMessageId: string | null; references: string[] };
+type FullInbound = InboundItem & { rfcMessageId: string | null; references: string[]; outreachId: string | null };
 
 const fullInbound = (row: Row): FullInbound => ({
   ...readInbound(row),
+  outreachId: text(row["outreach_id"]),
   rfcMessageId: text(row["rfc_message_id"]),
   references: Array.isArray(row["references_ids"]) ? (row["references_ids"] as unknown[]).filter((r): r is string => typeof r === "string") : [],
 });
@@ -485,6 +490,21 @@ async function factsFor(db: SupabaseClient, inbound: InboundItem, config: GmailC
 
 /** Handles one claimed inbound reply: an automatic in-thread reply when every rule allows it, else a draft. */
 export async function followUpInbound(db: SupabaseClient, config: GmailConfig, inbound: FullInbound, now: Date): Promise<"auto_replied" | "drafted" | "blocked"> {
+  if (inbound.intent === "stop") {
+    // A stop whose do-not-contact failed when it was read: retry it, never answer.
+    try {
+      const { data } = inbound.outreachId
+        ? await db.from("prospect_outreach").select("recipient").eq("id", inbound.outreachId).maybeSingle()
+        : { data: null };
+      const recipient = typeof (data as Row | null)?.["recipient"] === "string" ? String((data as Row)["recipient"]) : null;
+      await applyStop(db, inbound.organizationId, [inbound.from, ...(recipient ? [recipient] : [])]);
+    } catch {
+      await db.from("prospect_inbound").update({ status: "pending", action: "stop_pending", handled_at: null }).eq("id", inbound.id);
+      return "blocked";
+    }
+    await db.from("prospect_inbound").update({ status: "handled", action: "do_not_contact", handled_at: now.toISOString() }).eq("id", inbound.id);
+    return "blocked";
+  }
   const toDraft = async (reason: string, draft: string | null) => {
     await db
       .from("prospect_inbound")

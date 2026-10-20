@@ -23,8 +23,14 @@ export const MAX_REPLY_CHARS = 1200;
 export type InboundFlag = "legal" | "anger" | "auto_submitted";
 
 // Straight or curly apostrophes. "Don't stop" isn't a stop and "take us off-site" isn't "take us off".
-const STOP_PATTERN =
-  /\b((?<!\b(don['’]?t|do\s+not)\s+)stop|unsubscri\w*|unsub|remove\s+(me|us)|take\s+(me|us)\s+off(?![-\w])|opt[\s_-]?out|opt\s+(me|us)\s+out|(do\s+not|don['’]?t)\s+(contact|email|e-mail|message|write)|no\s+more\s+e-?mails?|leave\s+(me|us)\s+alone|not\s+interested\s*,?\s*(please\s+)?stop)\b/i;
+// "remove us" / "take us off" only count with a list-like object or at the end of a
+// sentence: "remove us from the testimonials" is a site edit, not an opt-out.
+// "don't stop" is praise unless a contact verb follows ("if you don't stop emailing me").
+const LIST_OBJECT = String.raw`(?:\s+(?:from|off)?\s*(?:your|the|this|that|all|any)\s+(?:\w+\s+)?(?:list|lists|mailing\w*|e-?mails?|database|contacts?|outreach|system)\b|\s+off-?list\b|(?=[\s.!]*(?:$|\n)))`;
+const STOP_PATTERN = new RegExp(
+  String.raw`\b((?<!\b(?:don['’]?t|do\s+not)\s+)stop|(?:don['’]?t|do\s+not)\s+stop\s+(?:e-?mail|contact|messag|writ|send|spam|text|call)\w*|unsubscri\w*|unsub|remove\s+me|remove\s+us${LIST_OBJECT}|take\s+me\s+off(?:-?list\b|(?![-\w]))|take\s+us\s+off(?:-?list\b|${LIST_OBJECT})|opt[\s_-]?out|opt\s+(?:me|us)\s+out|(?:do\s+not|don['’]?t)\s+(?:contact|email|e-mail|message|write)|no\s+more\s+e-?mails?|leave\s+(?:me|us)\s+alone|not\s+interested\s*,?\s*(?:please\s+)?stop)\b`,
+  "i",
+);
 
 /** Deterministic override: any stop/unsubscribe/remove-me wording is a stop. */
 export function keywordIntent(text: string, subject = ""): "stop" | null {
@@ -141,7 +147,7 @@ export function buildFactsSheet(input: { businessName: string; previewUrl: strin
 const trimUrl = (url: string) => url.replace(/[.,;:!?)\]}>'"]+$/, "");
 
 /** A web address without a scheme ("calendly.com/x", "www.x.co"); not the domain of an email address. */
-const BARE_DOMAIN = /(?<![\w@.-])(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,24}(?![\w@-])(?:[/?#][^\s<>"']*)?/gi;
+const BARE_DOMAIN = /(?<![\w@])(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,24}(?![\w@-])(?:[/?#][^\s<>"']*)?/gi;
 /** "(555) 123-4567", "(555)123-4567", "+1 555.123.4567", or a bare 10-11 digit run. */
 const PHONE = /(?<!\d)(?:(?:\+?1[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}|\d{10,11})(?!\d)/;
 
@@ -161,10 +167,11 @@ export function factCheckReply(body: string, facts: FactsSheet): string[] {
   }
   const withoutUrls = text.replace(/https?:\/\/[^\s<>"']+/gi, " ");
   // The facts-sheet links written without their scheme are still the facts-sheet links.
-  const allowedBare = new Set([...allowedUrls].map((url) => url.replace(/^https?:\/\//i, "")));
+  // Hosts are case-insensitive, so "PREVIEW.revora.app/p/…" is still the preview link.
+  const allowedBare = new Set([...allowedUrls].map((url) => url.replace(/^https?:\/\//i, "").toLowerCase()));
   for (const match of withoutUrls.matchAll(BARE_DOMAIN)) {
     const address = trimUrl(match[0]);
-    if (!allowedBare.has(address)) problems.push(`bare web address not in the facts sheet: ${address.slice(0, 120)}`);
+    if (!allowedBare.has(address.toLowerCase())) problems.push(`bare web address not in the facts sheet: ${address.slice(0, 120)}`);
   }
   // Prices and phone numbers are read with every link removed (a link's digits are not a phone number).
   const rest = withoutUrls.replace(BARE_DOMAIN, " ");

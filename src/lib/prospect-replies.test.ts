@@ -396,6 +396,25 @@ describe("intent and guardrails", () => {
     for (const text of notStops) expect(keywordIntent(text), text).toBeNull();
   });
 
+  it("reads threatening opt-outs and off-list wording as stops, but not site-edit requests", () => {
+    for (const text of ["If you don't stop emailing me I'll block you", "If you do not stop sending these", "take me off-list", "take us off-list", "Take us off.", "Please remove us.", "take us off your mailing list"]) {
+      expect(keywordIntent(text), text).toBe("stop");
+    }
+    for (const text of ["Remove us from the testimonials section please", "Looks great but take us off the homepage banner"]) {
+      expect(keywordIntent(text), text).toBeNull();
+    }
+    // A list footer a mail server adds under the quoted history is not the prospect's words.
+    const footer = "Thanks!\n\nOn Mon, Oct 19, 2026 Sam wrote:\n> hi\n\n--\nThis message is confidential. To unsubscribe from our newsletters click here.";
+    expect(stripQuotedReply(footer)).toBe("Thanks!");
+  });
+
+  it("flags off-sheet bare domains after punctuation and accepts the preview link in any case", () => {
+    const facts = buildFactsSheet({ businessName: "Triangle Comfort", previewUrl: PREVIEW, claimUrl: `${PREVIEW}?claim=1`, senderName: "Sam", senderEmail: "sam@revora.test" });
+    expect(factCheckReply("Book here...calendly.com/x", facts).join()).toContain("calendly.com/x");
+    expect(factCheckReply("Book:-calendly.com/x", facts).join()).toContain("calendly.com/x");
+    expect(factCheckReply(`Your draft: ${PREVIEW.replace(/^https?:\/\//, "").toUpperCase().replace("/P/", "/p/")}`, facts).filter((p) => p.includes("bare web address"))).toEqual([]);
+  });
+
   it("auto-replies only to positive/price/question, at most twice per thread", () => {
     const base = { flags: [], priorAutoReplies: 0, demoAvailable: true };
     expect(autoReplyDecision({ ...base, intent: "positive" })).toEqual({ auto: true });
@@ -628,23 +647,27 @@ describe("reply polling and follow-up", () => {
     expect(tables["prospect_outreach"]![0]!["replies_checked_at"]).toBe("2026-10-19T21:00:00.000Z");
   });
 
-  it("applies a stop on the next run when do-not-contact couldn't be written, never storing it as handled first", async () => {
+  it("keeps a stop whose do-not-contact couldn't be written as a pending stop, and applies it on the next run", async () => {
     setGmail();
     threadMessages = [inbound("in1", "STOP")];
     const faults: Faults = { failUpsert: ["prospect_do_not_contact"] };
     const { db, tables } = fakeDb(demoSeed({ prospect_outreach: [sentOutreach()] }), faults);
     const first = await runProspectReplies(db);
-    expect(first).toMatchObject({ status: "failed", stored: 0, stopped: 0 });
+    expect(first).toMatchObject({ status: "failed", stored: 1, stopped: 0, autoReplied: 0, drafted: 0 });
     expect(first.errors.join()).toContain("do-not-contact");
-    expect(tables["prospect_inbound"] ?? []).toHaveLength(0);
+    // The decision is kept (never re-classified), and it is not marked handled.
+    expect(tables["prospect_inbound"]).toHaveLength(1);
+    expect(tables["prospect_inbound"]![0]).toMatchObject({ intent: "stop", status: "pending", action: "stop_pending" });
     expect(await isDoNotContact(db, "owner@triangle.com")).toBe(false);
 
     faults.failUpsert = [];
+    vi.mocked(generateText).mockClear();
     vi.setSystemTime(new Date("2026-10-19T18:10:00Z"));
-    expect(await runProspectReplies(db)).toMatchObject({ status: "done", stored: 1, stopped: 1 });
+    expect(await runProspectReplies(db)).toMatchObject({ status: "done", stored: 0, autoReplied: 0, drafted: 0 });
     expect(await isDoNotContact(db, "owner@triangle.com")).toBe(true);
     expect(tables["prospect_inbound"]).toHaveLength(1);
     expect(tables["prospect_inbound"]![0]).toMatchObject({ intent: "stop", status: "handled", action: "do_not_contact" });
+    expect(generateText).not.toHaveBeenCalled();
     expect(sends).toHaveLength(0);
   });
 
