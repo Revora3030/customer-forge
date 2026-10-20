@@ -825,7 +825,8 @@ async function deferCutOffJobs(db: Db, now: string, organizationId?: string) {
     .limit(5);
   if (organizationId) query = query.eq("organization_id", organizationId);
   const { data, error } = await query;
-  if (error || !data) return;
+  if (error || !data?.length) return;
+  const { tagFailureMessage } = await import("@/lib/builder/build-failure");
   for (const row of data as { id: string; attempts: number; capacity_deferrals?: number | null }[]) {
     if (typeof row.capacity_deferrals !== "number") continue;
     const verdict = capacityVerdict([], row.capacity_deferrals, Date.now(), { forced: true });
