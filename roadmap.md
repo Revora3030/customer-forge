@@ -103,7 +103,8 @@
 - [x] Jarvis: one follow-up email 48h after the first, only with no reply/claim/opt-out; within daily caps; enforced in send path + DB unique index.
 - [x] Demo photos from the Google Maps listing (live, credited).
 - [ ] Phase A test build running (parked at 74% on free capacity; $20 paid cap set, takes effect on the live worker after publish).
-- [ ] Phase B point-and-edit + before/after compare (version restore already exists).
+- [x] Builder buttons verified signed in (2026-10-20): fullscreen preview was trapped under the app header (shell backdrop-blur stacking context) with the exit button covered by Notifications — fixed by portalling the fullscreen preview to document.body; verified open/exit at 1280x1800 with zero page errors. Compare on an unpublished site no longer loads the 404 live page (shows "Not published yet"). Point-and-edit toggles on/off (aria-pressed). Publish dialog opens with correct gating copy ($350 setup, first month free, then $100/month, trial-ended message). 50 related tests pass; no publish performed.
+- [ ] Phase B point-and-edit end-to-end AI edit + before/after compare of a live change (needs an AI edit run).
 - [ ] Phase C fact provenance + launch checklist.
 - [ ] Phase D claimed demo → Activate → setup-fee checkout (BLOCKED: canonical setup price $350 vs $750).
 - [x] Phase E approval log (Jarvis operations panel, from the permanent audit record).
