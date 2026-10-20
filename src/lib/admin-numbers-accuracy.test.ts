@@ -18,7 +18,7 @@ describe("overview recurring revenue", () => {
     expect(metrics).toContain('.eq("environment", "live")');
     expect(metrics).toContain('.eq("status", "active")');
     expect(metrics).toContain("sub.cancel_at_period_end");
-    expect(metrics).toContain("orgs.rows.filter((o) => !o.is_demo)");
+    expect(metrics).toContain("orgs.rows.filter((o) => customers.has(o.id))");
     expect(metrics).not.toContain('o.subscription_status === "active"');
   });
 

@@ -40,14 +40,12 @@ export const getPlatformMetrics = createServerFn({ method: "GET" })
           .order("organization_id")
           .range(from, to),
       ),
-      supabaseAdmin
-        .from("leads")
-        .select("id", { count: "exact", head: true })
-        .gte("created_at", since),
-      supabaseAdmin
-        .from("appointments")
-        .select("id", { count: "exact", head: true })
-        .gte("created_at", since),
+      fetchAllRows<{ organization_id: string | null }>((from, to) =>
+        supabaseAdmin.from("leads").select("organization_id").gte("created_at", since).order("id").range(from, to),
+      ),
+      fetchAllRows<{ organization_id: string | null }>((from, to) =>
+        supabaseAdmin.from("appointments").select("organization_id").gte("created_at", since).order("id").range(from, to),
+      ),
       supabaseAdmin.from("plans").select("id, monthly_price, annual_price"),
       // Recurring revenue is what live Stripe subscriptions bill, not what an
       // organization's status field says.
@@ -65,7 +63,10 @@ export const getPlatformMetrics = createServerFn({ method: "GET" })
     const failed = [orgs.error, sites.error, leads.error, appts.error, plans.error, subs.error].find(Boolean);
     if (failed) throw new Error("Couldn't read the platform numbers just now. Refresh in a moment.");
 
-    const orgRows = orgs.rows.filter((o) => !o.is_demo);
+    // Demos, Revora's own workspace and staff-only test workspaces are not clients.
+    const { loadCustomerOrgIds } = await import("@/lib/customer-orgs.server");
+    const customers = await loadCustomerOrgIds(supabaseAdmin);
+    const orgRows = orgs.rows.filter((o) => customers.has(o.id));
     const real = new Map(orgRows.map((o) => [o.id, o]));
     const siteRows = sites.rows.filter((s) => real.has(s.organization_id));
     const plan = (id: string | null) => (plans.data ?? []).find((p) => p.id === id);
@@ -92,8 +93,8 @@ export const getPlatformMetrics = createServerFn({ method: "GET" })
       domainsLive: siteRows.filter(
         (s) => s.domain_status === "connected" || s.domain_status === "ssl_active",
       ).length,
-      leads30d: leads.count ?? 0,
-      bookings30d: appts.count ?? 0,
+      leads30d: leads.rows.filter((l) => l.organization_id && real.has(l.organization_id)).length,
+      bookings30d: appts.rows.filter((a) => a.organization_id && real.has(a.organization_id)).length,
       mrr: Math.round([...paying.values()].reduce((sum, value) => sum + value, 0) * 100) / 100,
     };
   });
@@ -724,15 +725,21 @@ export const getMonthlyBusinessReport = createServerFn({ method: "GET" })
     if ([payments, leads, bookings, traffic, orgs, sites].some((result) => result.error))
       throw new Error("Couldn't read the monthly numbers just now. Refresh in a moment.");
 
+    // Only customer workspaces: demos, Revora's own and staff-only test
+    // workspaces would otherwise inflate leads, visits and "earning" counts.
+    const { loadCustomerOrgIds } = await import("@/lib/customer-orgs.server");
+    const customers = await loadCustomerOrgIds(supabaseAdmin);
+    const mine = <T extends { organization_id: string | null }>(rows: T[]) =>
+      rows.filter((row) => row.organization_id !== null && customers.has(row.organization_id));
     const report = buildMonthlyReport({
       months,
-      payments: payments.rows,
-      leads: leads.rows,
-      bookings: bookings.rows,
-      traffic: traffic.rows,
+      payments: mine(payments.rows),
+      leads: mine(leads.rows),
+      bookings: mine(bookings.rows),
+      traffic: mine(traffic.rows),
     });
 
-    const orgRows = orgs.rows;
+    const orgRows = orgs.rows.filter((org) => customers.has(org.id));
     const siteRows = sites.rows;
     const workspaces = Object.fromEntries(
       orgRows.map((org) => {
