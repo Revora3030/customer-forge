@@ -4,6 +4,7 @@ import { PublicSiteView } from "@/routes/s.$slug";
 import { PreviewMessage } from "@/components/PreviewMessage";
 import { SiteBaseContext } from "@/components/site/site-address-context";
 import { ProspectClaimBar } from "@/components/site/ProspectClaimBar";
+import { PreviewBeacon } from "@/components/site/PreviewBeacon";
 import { metaDescription } from "@/lib/seo";
 
 /** Sub-pages of a private draft preview link, checked on the server like the home page. */
@@ -38,7 +39,7 @@ export const Route = createFileRoute("/p/$token_/$page")({
 
 function PreviewPageRoute() {
   const result = Route.useLoaderData();
-  const { token } = Route.useParams();
+  const { token, page } = Route.useParams();
   if (!result?.ok || !result.site) {
     return (
       <PreviewMessage
@@ -50,7 +51,8 @@ function PreviewPageRoute() {
   return (
     <SiteBaseContext.Provider value={`/p/${encodeURIComponent(token)}`}>
       <PublicSiteView site={result.site} preview />
-      <ProspectClaimBar token={token} />
+      <ProspectClaimBar token={token} page={page} />
+      <PreviewBeacon token={token} page={page} />
     </SiteBaseContext.Provider>
   );
 }

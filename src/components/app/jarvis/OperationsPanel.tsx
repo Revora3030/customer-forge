@@ -15,6 +15,8 @@ type Acquisition = Awaited<ReturnType<typeof getJarvisAcquisitionReadiness>>;
 type ToolResult = Awaited<ReturnType<typeof runJarvisDiagnosticTool>>;
 
 type CapabilityScorePayload = {
+  /** The prospect demo engine's seven self-audit rows (absent on older releases). */
+  engine?: { score: number; verified: number; total: number; rows: Array<{ id: string; title: string; status: string; summary: string }> };
   overallScore: number;
   verifiedChecks: number;
   totalChecks: number;
@@ -226,6 +228,23 @@ export function OperationsPanel({ diagnostics, acquisition, scorecard, prospecto
                   </article>
                 ))}
               </div>
+              {payload.engine && Array.isArray(payload.engine.rows) ? (
+                <section aria-label="Prospect demo engine self-audit" className="rounded-lg border border-border p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h3 className="text-sm font-semibold">Prospect demo engine</h3>
+                    <span className="text-xs tabular-nums">{payload.engine.score.toFixed(1)}/10 · {payload.engine.verified}/{payload.engine.total} verified</span>
+                  </div>
+                  <ul className="mt-2 space-y-1.5">
+                    {payload.engine.rows.map((row) => (
+                      <li key={row.id} className="text-xs">
+                        <span className="font-medium">{row.title}</span>
+                        <span className={row.status === "verified" ? "text-primary" : row.status === "failed" ? "text-destructive" : "text-muted-foreground"}> · {row.status}</span>
+                        <p className="break-words text-muted-foreground">{row.summary}</p>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ) : null}
               {payload.nextActions.length > 0 ? <div className="rounded-lg border border-border p-3"><h3 className="text-sm font-semibold">Highest-priority next actions</h3><ol className="mt-2 list-decimal space-y-1 pl-4 text-xs text-muted-foreground">{payload.nextActions.map((action) => <li key={action}>{action}</li>)}</ol></div> : null}
               <p className="text-xs text-muted-foreground">{toolResult.limitations.join(" ")}</p>
             </div>

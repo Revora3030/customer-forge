@@ -3,7 +3,8 @@ import { collectJarvisDiagnostics } from "./jarvis-diagnostics.server";
 import { redactJarvisSummary } from "./jarvis-autopilot-policy";
 import { getJarvisDiagnosticTool, isJarvisDiagnosticToolId, type JarvisDiagnosticToolId } from "./jarvis-tool-registry";
 import { providerSnapshots } from "./integrations/registry.server";
-import { scoreJarvisCapabilities, type JarvisCapabilityCheckId, type JarvisCapabilityEvidence, type JarvisCapabilityEvidenceStatus } from "./jarvis-capability-scorecard";
+import { collectDemoEngineEvidence } from "./jarvis-diagnostic-engine.server";
+import { scoreDemoEngine, scoreJarvisCapabilities, type JarvisCapabilityCheckId, type JarvisCapabilityEvidence, type JarvisCapabilityEvidenceStatus } from "./jarvis-capability-scorecard";
 
 const SITE_ORIGIN = "https://revoragrowthsystems.com";
 const GITHUB_REPOSITORY = "Revora3030/customer-forge";
@@ -422,6 +423,8 @@ export async function executeJarvisDiagnosticTool(
       setEvidence("safety.secretBoundary", "configured", "Diagnostic outputs exclude credential values by design; full model/tool data-flow verification remains required.", "tool registry and redaction design");
 
       const scorecard = scoreJarvisCapabilities(evidence, checkedAt);
+      // The prospect demo engine's own seven rows, from its live tables.
+      const engine = scoreDemoEngine(await collectDemoEngineEvidence(db, new Date(checkedAt)).catch(() => ({})), checkedAt);
       // The scorecard has many explanatory strings and repeated blocker text. Keep
       // every area and every check queryable while fitting the read-only tool's
       // strict 12 KB output contract (rather than returning an unhelpful truncated preview).
@@ -448,6 +451,18 @@ export async function executeJarvisDiagnosticTool(
         })),
         nextActions: scorecard.nextActions.slice(0, 5).map((action) => action.slice(0, 180)),
         policy: scorecard.policy,
+        engine: {
+          score: engine.score,
+          verified: engine.verified,
+          total: engine.total,
+          rows: engine.rows.map((row) => ({
+            id: row.id,
+            title: row.title,
+            status: row.status,
+            summary: row.summary.slice(0, 110),
+            metrics: row.metrics,
+          })),
+        },
       };
       return result(toolId, scorecard.verified10Of10Areas === 7 ? "observed" : "needs_verification", boundedScorecard, {
         checkedAt,
