@@ -24,3 +24,4 @@ Scan the entire repository before making broad changes. Do not mass-edit generat
 - Shared list-query recovery uses QueryErrorNotice before empty states; failed reads must not be presented as missing customer records.
 - Workspace mobile navigation traps and restores keyboard focus and makes the closed drawer inert; desktop navigation remains available without modal behavior.
 - External integration tests require their exact file to be selected as well as the credential gate; ordinary regression runs must never send email or create checkout sessions.
+- Prospect demo Google Maps photos are stored only as place ID + media rows pointing at /api/public/maps-photo, which redirects to Google live; Google's terms forbid saving copies and every photo is credited to its author.

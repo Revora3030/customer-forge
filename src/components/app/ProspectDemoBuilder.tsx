@@ -21,7 +21,7 @@ import { prospectDemoInput, type FoundProspect } from "@/lib/prospect-finder";
 import { pictureDataUrl } from "@/lib/picture-data-url";
 import { pumpSiteEngineQueue } from "@/lib/site-engine.functions";
 
-const EMPTY = { businessName: "", industry: "", city: "", state: "", phone: "", email: "", services: "", description: "" };
+const EMPTY = { businessName: "", industry: "", city: "", state: "", phone: "", email: "", services: "", description: "", placeId: "" };
 type Field = keyof typeof EMPTY;
 
 const FIELDS: { key: Field; label: string; placeholder: string; required?: boolean }[] = [

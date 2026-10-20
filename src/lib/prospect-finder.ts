@@ -111,5 +111,6 @@ export function prospectDemoInput(prospect: FoundProspect, niche: string, public
     email: publicEmail,
     description: `${industry} serving ${area || "the local area"}.`.slice(0, 600),
     services: [],
+    placeId: prospect.placeId,
   };
 }
