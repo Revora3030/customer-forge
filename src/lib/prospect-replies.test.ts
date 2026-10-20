@@ -160,6 +160,7 @@ const CLAIM = "https://revoragrowthsystems.com/get-started?claim=tok_abcdefghijk
 
 function demoSeed(extra: Record<string, Row[]> = {}) {
   return {
+    prospect_autopilot_settings: [{ id: 1, enabled: true, send_email: true, send_sms: true }],
     website_settings: [
       { organization_id: ORG, generation: { prospectDemo: { kind: "prospect_demo", createdBy: "admin", createdAt: "2026-10-18T00:00:00Z", previewToken: "tok_abcdefghijklmnopqrst" } } },
       { organization_id: ORG2, generation: { prospectDemo: { kind: "prospect_demo", createdBy: "admin", createdAt: "2026-10-18T00:00:00Z", previewToken: "tok_zyxwvutsrqponmlkjihg" } } },
