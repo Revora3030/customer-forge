@@ -16,6 +16,7 @@ const OPEN = { freeOnly: false, reason: null } as const;
 
 beforeEach(() => {
   isolateProviderEnvironment();
+  vi.stubEnv("DEMO_BUILDS_ALLOW_PAID", undefined);
   vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", undefined);
   vi.stubEnv("SUPABASE_SECRET_KEY", undefined);
 });
@@ -85,8 +86,8 @@ describe("build spending scope", () => {
     from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: row, error }) }) }) }),
   });
 
-  it("makes demo workspaces free-only by default", async () => {
-    expect(await buildSpendScope(db({ is_demo: true }), "org")).toEqual({ freeOnly: true, reason: "demo_workspace" });
+  it("allows the paid/free team for demo and customer workspaces by default", async () => {
+    expect(await buildSpendScope(db({ is_demo: true }), "org")).toEqual({ freeOnly: false, reason: null });
     expect(await buildSpendScope(db({ is_demo: false }), "org")).toEqual({ freeOnly: false, reason: null });
   });
 
@@ -95,6 +96,11 @@ describe("build spending scope", () => {
     expect(demoBuildsAllowPaid()).toBe(true);
     expect(await buildSpendScope(db({ is_demo: true }), "org")).toEqual({ freeOnly: false, reason: null });
     expect(demoBuildsAllowPaid({ DEMO_BUILDS_ALLOW_PAID: "maybe" })).toBe(false);
+  });
+
+  it("preserves an explicit operator free-only restriction on demos", async () => {
+    vi.stubEnv("DEMO_BUILDS_ALLOW_PAID", "false");
+    expect(await buildSpendScope(db({ is_demo: true }), "org")).toEqual({ freeOnly: true, reason: "demo_workspace" });
   });
 
   it("fails closed (free-only) when the workspace can't be read", async () => {

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { freeAiOnly, paidCollectiveAllowed, type FreeOnlyEnvironment } from "@/lib/ai/free-only-policy.server";
+import { isolateProviderEnvironment } from "./provider-test-environment";
 
 const mocks = vi.hoisted(() => ({ paid: vi.fn(), registry: vi.fn(), pinned: vi.fn(), trace: vi.fn() }));
 vi.mock("@/lib/ai/luna.server", () => ({ callCollective: mocks.paid }));
@@ -31,12 +32,12 @@ describe("free-only flag policy", () => {
   });
 });
 
-describe("paid collective gate (owner: paid for the hardest steps, up to a daily cap)", () => {
-  it("allows paid for hard steps by default and keeps high-volume steps free", () => {
+describe("paid collective gate (all purposes within existing caps)", () => {
+  it("allows paid/free teamwork for every purpose by default", () => {
     expect(paidCollectiveAllowed("creative_direction", {})).toBe(true);
     expect(paidCollectiveAllowed("adversarial_review", {})).toBe(true);
-    expect(paidCollectiveAllowed("metadata", {})).toBe(false);
-    expect(paidCollectiveAllowed("seo_analysis", {})).toBe(false);
+    expect(paidCollectiveAllowed("metadata", {})).toBe(true);
+    expect(paidCollectiveAllowed("seo_analysis", {})).toBe(true);
   });
   it("forces free-only when a flag says so or the daily cap is $0", () => {
     expect(paidCollectiveAllowed("creative_direction", { AI_FREE_ONLY: "true" })).toBe(false);
@@ -52,6 +53,7 @@ describe("paid collective gate (owner: paid for the hardest steps, up to a daily
 describe("Hall of Fame spending boundary", () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    isolateProviderEnvironment();
     vi.stubEnv("AI_FREE_ONLY", undefined);
     vi.stubEnv("FREE_AI_ONLY", undefined);
     vi.stubEnv("ZERO_COST_ONLY", undefined);
@@ -64,7 +66,7 @@ describe("Hall of Fame spending boundary", () => {
     }]);
     mocks.pinned.mockResolvedValue({ text: "Free specialist answer", data: null, latencyMs: 1 });
   });
-  afterEach(() => vi.unstubAllEnvs());
+  afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
   const request = { purpose: "creative_direction" as const, system: "Design safely.", user: "Plan a business site." };
 
   it("skips the paid collective when free-only is forced and uses the free specialist", async () => {
@@ -111,10 +113,11 @@ describe("Hall of Fame spending boundary", () => {
     expect(await callBestThinker(request)).toMatchObject({ ok: true, lane: "paid" });
     expect(mocks.paid).toHaveBeenCalledTimes(1);
   });
-  it("keeps a high-volume step on the free pool by default", async () => {
+  it("allows paid specialists on high-volume steps too", async () => {
+    mocks.paid.mockResolvedValue({ ok: true, tier: "luna", wanted: "luna", downgraded: false, text: "Metadata", model: "paid-test", costMicrocents: 1 });
     const outcome = await callBestThinker({ ...request, purpose: "metadata" });
-    expect(outcome).not.toMatchObject({ lane: "paid" });
-    expect(mocks.paid).not.toHaveBeenCalled();
+    expect(outcome).toMatchObject({ lane: "paid" });
+    expect(mocks.paid).toHaveBeenCalledTimes(1);
   });
   it("preserves the optional paid path only after explicit opt-out", async () => {
     vi.stubEnv("AI_FREE_ONLY", "false");

@@ -40,11 +40,12 @@ export function scopedFreeOnlyReason(): string | null {
 }
 
 /**
- * Demo (is_demo) workspace builds use only the free pool unless the owner
- * opts out with DEMO_BUILDS_ALLOW_PAID=true.
+ * Demo builds share the paid/free team by default, within existing caps.
+ * An explicit false or invalid operator value keeps demos free-only.
  */
 export function demoBuildsAllowPaid(environment: Readonly<Record<string, string | undefined>> = process.env): boolean {
-  return ["true", "1", "yes", "on"].includes((environment["DEMO_BUILDS_ALLOW_PAID"] ?? "").trim().toLowerCase());
+  const declared = environment["DEMO_BUILDS_ALLOW_PAID"]?.trim().toLowerCase();
+  return !declared || ["true", "1", "yes", "on"].includes(declared);
 }
 
 type OrgReader = {
@@ -58,8 +59,8 @@ type OrgReader = {
 };
 
 /**
- * The spending scope for one workspace's build. Demo workspaces are free-only
- * by default. If the workspace can't be read the build is free-only too: the
+ * The spending scope for one workspace's build. Demo workspaces use both lanes
+ * unless explicitly restricted. If the workspace can't be read the build is free-only: the
  * spending side fails closed, like the daily paid cap.
  */
 export async function buildSpendScope(db: OrgReader, organizationId: string): Promise<AiSpendScope> {
