@@ -2,7 +2,7 @@
  * The root <head> must not stamp Revora's own share image, Organization /
  * WebSite records, site verification or Ads consent onto a client page — on
  * any route, including a custom domain's /about, /contact and /pricing — and
- * must keep them on Revora's own pages.
+ * keeps publisher identity on Revora pages; social images belong to leaf pages.
  */
 import { describe, expect, it, vi } from "vitest";
 
@@ -42,7 +42,7 @@ describe("root head on client pages", () => {
 
   it.each(["/about", "/contact", "/pricing", "/"])("Revora's own %s (no tenant) keeps Revora meta", (routeId) => {
     const marks = revoraMarks(rootHead([{ routeId: "__root__" }, { routeId, loaderData: null }]));
-    expect(marks).toEqual({ ogImage: true, organization: true, website: true, verification: true, consent: true });
+    expect(marks).toEqual({ ogImage: false, organization: true, website: true, verification: true, consent: true });
   });
 
   it("treats a custom domain whose site is not yet published as a client address", () => {
