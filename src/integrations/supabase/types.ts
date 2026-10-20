@@ -3335,6 +3335,7 @@ export type Database = {
           daily_build_cap: number
           enabled: boolean
           id: number
+          rotation: Json
           send_email: boolean
           send_sms: boolean
           targets: Json
@@ -3345,6 +3346,7 @@ export type Database = {
           daily_build_cap?: number
           enabled?: boolean
           id?: number
+          rotation?: Json
           send_email?: boolean
           send_sms?: boolean
           targets?: Json
@@ -3355,6 +3357,7 @@ export type Database = {
           daily_build_cap?: number
           enabled?: boolean
           id?: number
+          rotation?: Json
           send_email?: boolean
           send_sms?: boolean
           targets?: Json
@@ -3408,45 +3411,165 @@ export type Database = {
         }
         Relationships: []
       }
+      prospect_inbound: {
+        Row: {
+          action: string | null
+          body: string | null
+          confidence: number | null
+          created_at: string
+          draft_reason: string | null
+          draft_subject: string | null
+          draft_text: string | null
+          flags: string[]
+          from_address: string
+          gmail_message_id: string
+          handled_at: string | null
+          id: string
+          intent: string
+          intent_source: string
+          organization_id: string
+          outreach_id: string | null
+          received_at: string
+          references_ids: string[]
+          reply_outreach_id: string | null
+          rfc_message_id: string | null
+          snippet: string | null
+          status: string
+          subject: string | null
+          thread_id: string
+        }
+        Insert: {
+          action?: string | null
+          body?: string | null
+          confidence?: number | null
+          created_at?: string
+          draft_reason?: string | null
+          draft_subject?: string | null
+          draft_text?: string | null
+          flags?: string[]
+          from_address: string
+          gmail_message_id: string
+          handled_at?: string | null
+          id?: string
+          intent: string
+          intent_source?: string
+          organization_id: string
+          outreach_id?: string | null
+          received_at?: string
+          references_ids?: string[]
+          reply_outreach_id?: string | null
+          rfc_message_id?: string | null
+          snippet?: string | null
+          status?: string
+          subject?: string | null
+          thread_id: string
+        }
+        Update: {
+          action?: string | null
+          body?: string | null
+          confidence?: number | null
+          created_at?: string
+          draft_reason?: string | null
+          draft_subject?: string | null
+          draft_text?: string | null
+          flags?: string[]
+          from_address?: string
+          gmail_message_id?: string
+          handled_at?: string | null
+          id?: string
+          intent?: string
+          intent_source?: string
+          organization_id?: string
+          outreach_id?: string | null
+          received_at?: string
+          references_ids?: string[]
+          reply_outreach_id?: string | null
+          rfc_message_id?: string | null
+          snippet?: string | null
+          status?: string
+          subject?: string | null
+          thread_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prospect_inbound_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prospect_inbound_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "public_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       prospect_outreach: {
         Row: {
+          auto_reply_seq: number | null
           body: string | null
           channel: string
           created_at: string
+          gmail_id: string | null
+          gmail_thread_id: string | null
           id: string
+          inbound_id: string | null
+          kind: string
           mode: string
           organization_id: string
+          provider: string | null
           provider_id: string | null
           reason: string | null
           recipient: string
+          replies_checked_at: string | null
+          rfc_message_id: string | null
           sent_by: string | null
           status: string
           subject: string | null
         }
         Insert: {
+          auto_reply_seq?: number | null
           body?: string | null
           channel: string
           created_at?: string
+          gmail_id?: string | null
+          gmail_thread_id?: string | null
           id?: string
+          inbound_id?: string | null
+          kind?: string
           mode: string
           organization_id: string
+          provider?: string | null
           provider_id?: string | null
           reason?: string | null
           recipient: string
+          replies_checked_at?: string | null
+          rfc_message_id?: string | null
           sent_by?: string | null
           status: string
           subject?: string | null
         }
         Update: {
+          auto_reply_seq?: number | null
           body?: string | null
           channel?: string
           created_at?: string
+          gmail_id?: string | null
+          gmail_thread_id?: string | null
           id?: string
+          inbound_id?: string | null
+          kind?: string
           mode?: string
           organization_id?: string
+          provider?: string | null
           provider_id?: string | null
           reason?: string | null
           recipient?: string
+          replies_checked_at?: string | null
+          rfc_message_id?: string | null
           sent_by?: string | null
           status?: string
           subject?: string | null
@@ -3575,6 +3698,189 @@ export type Database = {
           value?: string
         }
         Relationships: []
+      }
+      prospect_preview_events: {
+        Row: {
+          created_at: string
+          duration_ms: number
+          event: string
+          id: string
+          ip_hash: string | null
+          organization_id: string
+          page: string
+          session_id: string | null
+          token: string
+        }
+        Insert: {
+          created_at?: string
+          duration_ms?: number
+          event: string
+          id?: string
+          ip_hash?: string | null
+          organization_id: string
+          page?: string
+          session_id?: string | null
+          token: string
+        }
+        Update: {
+          created_at?: string
+          duration_ms?: number
+          event?: string
+          id?: string
+          ip_hash?: string | null
+          organization_id?: string
+          page?: string
+          session_id?: string | null
+          token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prospect_preview_events_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prospect_preview_events_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "public_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      prospect_reply_poll_state: {
+        Row: {
+          id: number
+          last_error: string | null
+          last_polled_at: string | null
+          last_result: Json
+          updated_at: string
+        }
+        Insert: {
+          id?: number
+          last_error?: string | null
+          last_polled_at?: string | null
+          last_result?: Json
+          updated_at?: string
+        }
+        Update: {
+          id?: number
+          last_error?: string | null
+          last_polled_at?: string | null
+          last_result?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      prospect_rotation_cursor: {
+        Row: {
+          city: string
+          id: string
+          last_built: number
+          last_error: string | null
+          last_found: number
+          last_searched_at: string
+          searches: number
+          state: string
+          trade: string
+        }
+        Insert: {
+          city: string
+          id: string
+          last_built?: number
+          last_error?: string | null
+          last_found?: number
+          last_searched_at?: string
+          searches?: number
+          state: string
+          trade: string
+        }
+        Update: {
+          city?: string
+          id?: string
+          last_built?: number
+          last_error?: string | null
+          last_found?: number
+          last_searched_at?: string
+          searches?: number
+          state?: string
+          trade?: string
+        }
+        Relationships: []
+      }
+      prospect_send_queue: {
+        Row: {
+          attempts: number
+          body: string | null
+          channel: string
+          created_at: string
+          id: string
+          last_error: string | null
+          lease_owner: string | null
+          leased_until: string | null
+          mode: string
+          not_before: string
+          organization_id: string
+          outreach_id: string | null
+          recipient: string
+          status: string
+          subject: string | null
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          body?: string | null
+          channel: string
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          lease_owner?: string | null
+          leased_until?: string | null
+          mode?: string
+          not_before?: string
+          organization_id: string
+          outreach_id?: string | null
+          recipient: string
+          status?: string
+          subject?: string | null
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          body?: string | null
+          channel?: string
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          lease_owner?: string | null
+          leased_until?: string | null
+          mode?: string
+          not_before?: string
+          organization_id?: string
+          outreach_id?: string | null
+          recipient?: string
+          status?: string
+          subject?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prospect_send_queue_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prospect_send_queue_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "public_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       public_submission_attempts: {
         Row: {
@@ -5479,6 +5785,33 @@ export type Database = {
       claim_prospect_demo_server: {
         Args: { _token: string; _trial_days?: number; _user_id: string }
         Returns: string
+      }
+      claim_prospect_send_queue: {
+        Args: { p_lease_seconds?: number; p_limit?: number; p_owner: string }
+        Returns: {
+          attempts: number
+          body: string | null
+          channel: string
+          created_at: string
+          id: string
+          last_error: string | null
+          lease_owner: string | null
+          leased_until: string | null
+          mode: string
+          not_before: string
+          organization_id: string
+          outreach_id: string | null
+          recipient: string
+          status: string
+          subject: string | null
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "prospect_send_queue"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       current_site_revision: {
         Args: { _organization_id: string }
