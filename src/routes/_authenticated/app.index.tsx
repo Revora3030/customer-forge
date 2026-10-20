@@ -319,6 +319,34 @@ function Dashboard() {
   );
   const remaining = checklist.filter((c) => !c.done);
 
+  // Command-bar facts from data this page already loaded. A query that has not
+  // succeeded passes null, so the suggestions never invent a count or service.
+  const commandBusiness = useMemo(
+    () => ({
+      businessName: org?.name ?? null,
+      industry: org?.industry ?? null,
+      services: servicesQuery.isSuccess
+        ? (servicesQuery.data ?? []).filter((s) => s.is_active).map((s) => s.name)
+        : null,
+      newLeads: leadsQuery.isSuccess
+        ? leads.filter((l) => l.status === "new" && !l.last_contacted_at).length
+        : null,
+      bookings: apptsQuery.isSuccess
+        ? appts.filter((a) => a.status !== "cancelled" && a.status !== "no_show").length
+        : null,
+    }),
+    [
+      org?.name,
+      org?.industry,
+      servicesQuery.isSuccess,
+      servicesQuery.data,
+      leadsQuery.isSuccess,
+      leads,
+      apptsQuery.isSuccess,
+      appts,
+    ],
+  );
+
   if (workspaceLoading || !orgId || !org) {
     return (
       <WorkspaceSkeleton
@@ -331,7 +359,7 @@ function Dashboard() {
 
   return (
     <div className="product-page">
-      <RevoraCommandBar />
+      <RevoraCommandBar organizationId={orgId} business={commandBusiness} />
       <div className="space-y-3">
         <PageHead
           eyebrow="Business growth center"
