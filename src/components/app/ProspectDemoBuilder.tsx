@@ -1,4 +1,5 @@
 import { useServerFn } from "@tanstack/react-start";
+import { CapacityWaitNotice } from "@/components/app/CapacityWaitNotice";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { Copy, Eye, ExternalLink, Hammer, ImageUp, Mail, MapPin, Search } from "lucide-react";
@@ -376,7 +377,8 @@ export function ProspectDemoBuilder({ onBuildStarted, onPreview }: BuilderProps 
                     <div className="h-full rounded-full bg-primary" style={{ width: `${Math.min(100, Math.max(0, demo.build.progress))}%` }} />
                   </div>
                 ) : null}
-                {demo.build?.error && !done ? <p className="mt-1 break-words text-xs text-destructive">{demo.build.error}</p> : null}
+                {demo.build?.wait ? <div className="mt-2"><CapacityWaitNotice state={demo.build.wait} /></div> : null}
+                {demo.build?.error && !done && !demo.build?.wait ? <p className="mt-1 break-words text-xs text-destructive">{demo.build.error}</p> : null}
                 <div className="mt-2 flex flex-wrap gap-2">
                   {onPreview ? (
                     <Button

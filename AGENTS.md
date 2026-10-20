@@ -19,6 +19,7 @@ Scan the entire repository before making broad changes. Do not mass-edit generat
 - AI router unit tests use the shared provider environment isolation helper and stub HTTP and spend reservations; ambient deployment credentials must not trigger provider calls or ledger writes.
 - Admin Jarvis uses the shared conversation request helper and router rather than forcing its own free-only lane; this preserves one eligibility, budget and failover boundary for chat and build teamwork.
 - Site builds checkpoint each finished AI stage on the job row (stage and section checkpoints, digest-matched and job-scoped) so retries resume instead of regenerating; cleared on completion.
+- Builds parked for AI capacity go only through the worker's capacity deferral, which mirrors its retry time into generation_jobs.resumes_at/wait_reason/wait_providers for owner display; never add a second deferral path.
 - Marketing cookie consent occupies normal document flow on phones and floats only on larger screens; this keeps signup usable without hiding consent or weakening measurement controls.
 - Shared list-query recovery uses QueryErrorNotice before empty states; failed reads must not be presented as missing customer records.
 - Workspace mobile navigation traps and restores keyboard focus and makes the closed drawer inert; desktop navigation remains available without modal behavior.

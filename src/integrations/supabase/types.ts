@@ -1355,6 +1355,7 @@ export type Database = {
           organization_id: string
           progress: number
           request_id: string | null
+          resumes_at: string | null
           section_checkpoints: Json | null
           stage_checkpoints: Json | null
           stage_timings: Json
@@ -1362,6 +1363,8 @@ export type Database = {
           status: string
           steps: Json
           updated_at: string
+          wait_providers: Json | null
+          wait_reason: string | null
         }
         Insert: {
           attempts?: number
@@ -1380,6 +1383,7 @@ export type Database = {
           organization_id: string
           progress?: number
           request_id?: string | null
+          resumes_at?: string | null
           section_checkpoints?: Json | null
           stage_checkpoints?: Json | null
           stage_timings?: Json
@@ -1387,6 +1391,8 @@ export type Database = {
           status?: string
           steps?: Json
           updated_at?: string
+          wait_providers?: Json | null
+          wait_reason?: string | null
         }
         Update: {
           attempts?: number
@@ -1405,6 +1411,7 @@ export type Database = {
           organization_id?: string
           progress?: number
           request_id?: string | null
+          resumes_at?: string | null
           section_checkpoints?: Json | null
           stage_checkpoints?: Json | null
           stage_timings?: Json
@@ -1412,6 +1419,8 @@ export type Database = {
           status?: string
           steps?: Json
           updated_at?: string
+          wait_providers?: Json | null
+          wait_reason?: string | null
         }
         Relationships: [
           {

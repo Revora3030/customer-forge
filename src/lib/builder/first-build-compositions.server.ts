@@ -94,6 +94,12 @@ export type CompositionPassResult = {
   optionalSkipped?: number;
   /** Sections restored from this job's checkpoint instead of being designed again. */
   resumed?: number;
+  /**
+   * True when sections are still missing because AI capacity ran out (rescue
+   * deadline hit or the rescue calls could not reach any model), so the caller
+   * parks the job through the capacity deferral instead of failing it.
+   */
+  capacityParked?: boolean;
   /** Targeted AI repair calls made for answers that failed the validator. */
   outputRepairs?: number;
 };
@@ -296,6 +302,8 @@ export async function composeFirstBuildSections(input: {
    * chunk; a retry of the same job restores the ones whose inputs still match.
    */
   checkpoint?: { jobId: string; store: SectionCheckpointStore };
+  /** Epoch ms after which no further rescue rounds start (wall-clock bound). */
+  rescueDeadline?: number;
 }): Promise<CompositionPassResult> {
   const { db, organizationId, facts } = input;
   const direction = input.depthDirection ?? depthDirectionFromLook(input.lookSummary);
@@ -617,11 +625,22 @@ export async function composeFirstBuildSections(input: {
     // (four bounded rounds, each carrying the validator's notes from the last attempt).
     // A single-section answer is small, so it survives the output limits and
     // model timeouts that sink a batch of four.
-    for (let rescueRound = 0; rescueRound < 4 && pending.length; rescueRound++) {
+    let rescueDeadlineHit = false;
+    let rescueCalls = 0;
+    let rescueUnavailable = 0;
+    const rescueExpired = () => {
+      if (input.rescueDeadline != null && Date.now() >= input.rescueDeadline) rescueDeadlineHit = true;
+      return rescueDeadlineHit;
+    };
+    for (let rescueRound = 0; rescueRound < 4 && pending.length && !rescueExpired(); rescueRound++) {
       // Keep rescue concurrency low. Firing one request per remaining section
       // at once caused rate-limit storms across the free providers on large pages.
       const rescueResults: boolean[] = [];
       for (let offset = 0; offset < pending.length; offset += 2) {
+        if (rescueExpired()) {
+          rescueResults.push(...pending.slice(offset).map(() => false));
+          break;
+        }
         const chunk = pending.slice(offset, offset + 2);
         const chunkAccepted: { section: SectionRow; tree: CompositionTree }[] = [];
         const chunkResults = await Promise.all(chunk.map(async (section) => {
@@ -643,7 +662,11 @@ export async function composeFirstBuildSections(input: {
             'Return JSON: {"sections": {"<sectionId>": {"version": 1, "label": "...", "root": {...}}}} with exactly one tree.',
           ].join("\n"),
         });
-        if (!call.ok) return false;
+        rescueCalls += 1;
+        if (!call.ok) {
+          rescueUnavailable += 1;
+          return false;
+        }
         if (call.model) result.models.push(call.model);
         result.costMicrocents += call.costMicrocents ?? 0;
         const settled = await settleAnswer([section], call.text, true);
@@ -670,6 +693,8 @@ export async function composeFirstBuildSections(input: {
           (first ? ` (${first.path}: ${first.problem})` : "") + ".",
       );
       result.fallback = (result.fallback ?? 0) + pending.length;
+      if (rescueShouldPark({ missing: pending.length, deadlineHit: rescueDeadlineHit, calls: rescueCalls, unavailable: rescueUnavailable, pageFailed }))
+        result.capacityParked = true;
     }
     // Search data only exists for a verified domain; a lookup failure never blocks the build.
     let domain: string | null = null;
@@ -965,4 +990,22 @@ async function improveWithTeam(input: {
     }
   }
   return best;
+}
+
+/**
+ * Missing sections are a capacity problem (park and resume later) when the
+ * rescue wall-clock deadline ran out, the page's design calls could not reach
+ * a model, or at least half of the rescue calls found no available model.
+ * Validator rejections of real answers are not capacity and still fail.
+ */
+export function rescueShouldPark(input: {
+  missing: number;
+  deadlineHit: boolean;
+  calls: number;
+  unavailable: number;
+  pageFailed?: boolean;
+}): boolean {
+  if (input.missing <= 0) return false;
+  if (input.deadlineHit || input.pageFailed) return true;
+  return input.calls > 0 && input.unavailable / input.calls >= 0.5;
 }
