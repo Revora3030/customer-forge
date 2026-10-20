@@ -94,7 +94,7 @@ export function FounderNote() {
           </span>
         </div>
         <div className="flex flex-wrap justify-center gap-2">
-          <Button asChild variant="outline" size="sm">
+          <Button asChild variant="outline" size="sm" className="min-h-11">
             <a href={revoraMailto(MAIL_SUBJECTS.inquiry)}>
               <Mail className="size-4" aria-hidden="true" /> Email{" "}
               {REVORA.founder.name.split(" ")[0]}
@@ -115,13 +115,13 @@ export function RevoraMobileBar() {
       <div className="h-24 md:hidden" aria-hidden="true" />
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 px-2 py-2 backdrop-blur md:hidden">
         <div className="grid grid-cols-3 gap-2">
-          <Button asChild variant="outline" size="sm">
+          <Button asChild variant="outline" size="sm" className="min-h-11">
             <a href={revoraMailto(MAIL_SUBJECTS.inquiry)}>Email</a>
           </Button>
-          <Button asChild variant="outline" size="sm">
+          <Button asChild variant="outline" size="sm" className="min-h-11">
             <Link to="/pricing">Quote</Link>
           </Button>
-          <Button asChild variant="signal" size="sm">
+          <Button asChild variant="signal" size="sm" className="min-h-11">
             <Link to="/demo">Book</Link>
           </Button>
         </div>

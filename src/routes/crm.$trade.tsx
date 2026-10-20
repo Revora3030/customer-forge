@@ -88,7 +88,7 @@ function CrmSolutionPage() {
       <SiteHeader />
       <main className="mx-auto max-w-3xl px-4 pt-14 pb-20 sm:px-6 sm:pt-20">
         <nav aria-label="Breadcrumb" className="text-xs text-muted-foreground">
-          <Link to="/crm" className="hover:text-primary">
+          <Link to="/crm" className="inline-flex min-h-11 items-center hover:text-primary">
             CRM by trade
           </Link>
           <span aria-hidden> / </span>
