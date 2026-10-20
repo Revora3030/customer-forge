@@ -14,6 +14,14 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { isolateProviderEnvironment } from "./provider-test-environment";
+import { jarvisModelRequest } from "../jarvis-model-request.server";
+
+vi.mock("@/lib/ai/paid-budget.server", () => ({
+  reservePaidSpend: vi.fn(async () => ({ day: "test", estimate: 1 })),
+  settlePaidSpend: vi.fn(async () => undefined),
+  routerEstimate: () => 1,
+  routerActual: () => 1,
+}));
 
 vi.mock("@/lib/ai/telemetry.server", () => ({
   recordAiEvent: vi.fn(async () => undefined),
@@ -125,6 +133,23 @@ async function router() {
 }
 
 describe("automatic failover between free providers", () => {
+  it("hands admin Jarvis to the free team when paid balance is exhausted", async () => {
+    configureTwoFreeProviders();
+    vi.stubEnv("OPENAI_API_KEY", "test-paid-key");
+    vi.stubEnv("OPENAI_FREE_TIER_SHARING", "false");
+    vi.stubEnv("FREE_AI_ONLY", "false");
+    const { calls } = stubFetch((url) => url.includes("api.openai.com")
+      ? new Response('{"error":{"code":"insufficient_quota"}}', { status: 429 })
+      : ok("Free team completed Jarvis request"));
+    const mod = await router();
+    const result = await mod.generateText({ task: "admin.jarvis", userId: "owner" },
+      jarvisModelRequest([{ role: "user", content: "Plan the site" }], 3500));
+    expect(calls.some((url) => url.includes("api.openai.com"))).toBe(true);
+    expect(["cloudflare", "openrouter"]).toContain(result.provider);
+    expect(result.text).toBe("Free team completed Jarvis request");
+    expect(result.fallbackUsed).toBe(true);
+  });
+
   it("hands a malformed structured answer to the next free provider", async () => {
     configureTwoFreeProviders();
     const { calls } = stubFetch((url) =>

@@ -1,8 +1,8 @@
 # Roadmap — Five-phase blocker elimination
 
 ## Jarvis model access (2026-10-20)
-- [ ] Remove arbitrary catalog/purpose/demo defaults that block model teamwork, preserving explicit controls and budgets.
-- [ ] Run isolated routing and spending regression tests; distinguish local validation from live provider access.
+- [x] Remove arbitrary catalog/purpose/demo defaults and admin chat free-only override, preserving explicit controls, capabilities and budgets.
+- [x] Run isolated routing and spending regression tests; full suite passed (2,859 tests, 3 skipped). Live provider access and a real customer build remain unverified; no deployment or provider spending performed.
 
 ## Current repair request (2026-10-18)
 - [x] Run repository-wide failure inventory and repair reproducible local failures: 335 test files pass, 2,749 tests pass, 3 integration tests skipped; lint has no errors and one existing warning.
