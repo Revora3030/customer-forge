@@ -709,6 +709,7 @@ function WebsitePage() {
             <BuilderPreview
               slug={org.slug}
               businessName={org.name ?? null}
+              livePublished={publishState === "published"}
               pages={shownPages}
               firstRun={firstRun}
               organizationId={orgId ?? null}

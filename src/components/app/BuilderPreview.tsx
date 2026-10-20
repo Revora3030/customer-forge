@@ -51,6 +51,7 @@ import {
 import { saveInlineText } from "@/lib/builder/inline-edit.functions";
 import { splitForKey, splitForPointer } from "@/lib/builder/compare-slider";
 import { useServerFn } from "@tanstack/react-start";
+import { createPortal } from "react-dom";
 import { toast } from "@/lib/ui/notify";
 import { pageNavLabel, type ContentPage } from "@/lib/website-content";
 import { cn } from "@/lib/utils";
@@ -90,6 +91,8 @@ type BuilderPreviewProps = {
   organizationId?: string | null;
   /** Nothing built yet: show the live canvas skeleton instead of an empty frame. */
   firstRun?: boolean;
+  /** False until the site has been published: compare shows a note instead of the 404 live page. */
+  livePublished?: boolean;
 };
 
 /**
@@ -116,6 +119,7 @@ function BuilderPreviewFrame({
   liveStatus = null,
   onInlineSaved,
   organizationId = null,
+  livePublished = true,
 }: Omit<BuilderPreviewProps, "firstRun">) {
   const ordered = useMemo(() => [...pages].sort((a, b) => a.sort_order - b.sort_order), [pages]);
   const [pageId, setPageId] = useState<string | null>(null);
@@ -302,7 +306,7 @@ function BuilderPreviewFrame({
   }, [liveStatus, onInlineEdit, onSelect, runA11y, selectMode, selectedId, syncSelectMode, tell]);
 
 
-  return (
+  const tree = (
     <section
       className={cn(
         "panel flex min-h-0 flex-col overflow-hidden p-0",
@@ -529,7 +533,14 @@ function BuilderPreviewFrame({
             ))}
           </ul>
         ) : null}
-        {compareMode === "overlay" ? (
+        {compareMode === "overlay" && !livePublished ? (
+          <UnpublishedComparePane
+            businessName={businessName}
+            viewportWidth={viewportWidth}
+            frameHeight={frameHeight}
+            scale={paneScale}
+          />
+        ) : compareMode === "overlay" ? (
           <OverlayCompare
             liveSrc={`/s/${encodeURIComponent(slug)}${page && page.slug !== "home" ? `/${encodeURIComponent(page.slug)}` : ""}`}
             frameKey={`${source}-${refreshKey}-${refreshRevision}-${tabRevision}`}
@@ -544,7 +555,14 @@ function BuilderPreviewFrame({
           />
         ) : (
         <div className={cn("flex justify-center gap-3", compare && "items-start")}>
-          {compare ? (
+          {compare && !livePublished ? (
+            <UnpublishedComparePane
+              businessName={businessName}
+              viewportWidth={viewportWidth}
+              frameHeight={frameHeight}
+              scale={paneScale}
+            />
+          ) : compare ? (
             <PreviewFrame
               label="Live now"
               src={`/s/${encodeURIComponent(slug)}${page && page.slug !== "home" ? `/${encodeURIComponent(page.slug)}` : ""}`}
@@ -571,6 +589,12 @@ function BuilderPreviewFrame({
       </div>
     </section>
   );
+
+  // Portal while fullscreen: the app shell's backdrop-blur creates a stacking
+  // context that would otherwise trap this overlay under the z-30 app header,
+  // hiding the exit button behind the notifications bell.
+  if (fullscreen && typeof document !== "undefined") return createPortal(tree, document.body);
+  return tree;
 }
 
 /**
@@ -609,6 +633,39 @@ const PreviewFrame = forwardRef<
     </figure>
   );
 });
+
+/**
+ * Compare pane shown before the first publish: embedding /s/:slug there
+ * would render the public "Business not found" page, which reads like an
+ * error. A calm placeholder says exactly what the owner is looking at.
+ */
+function UnpublishedComparePane({
+  businessName,
+  viewportWidth,
+  frameHeight,
+  scale,
+}: {
+  businessName: string | null;
+  viewportWidth: number;
+  frameHeight: number;
+  scale: number;
+}) {
+  return (
+    <figure className="shrink-0">
+      <div className="overflow-hidden rounded-lg border border-border bg-background shadow-lift" style={{ width: Math.round(viewportWidth * scale), height: Math.round(frameHeight * scale) }}>
+        <div className="origin-top-left" style={{ width: viewportWidth, height: frameHeight, transform: `scale(${scale})` }}>
+          <div className="flex h-full flex-col items-center justify-center gap-2 p-8 text-center">
+            <span className="rounded-full border border-border bg-elevated px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Live now</span>
+            <p className="text-[15px] font-semibold">Not published yet</p>
+            <p className="max-w-sm text-[13px] text-muted-foreground">
+              {businessName ? `${businessName} doesn't` : "This site doesn't"} have a live version to compare yet. Publish, and this side shows exactly what visitors see.
+            </p>
+          </div>
+        </div>
+      </div>
+    </figure>
+  );
+}
 
 /**
  * Overlay split compare: the published site and the draft sit in the same
