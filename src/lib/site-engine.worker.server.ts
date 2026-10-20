@@ -1133,11 +1133,19 @@ async function runJob(
   const approvedBrief = readBrief(priorGeneration["brief"]);
 
   // No built-in strategy: an unapproved brief is written by the AI.
-  const brief = approvedBrief?.approved ? approvedBrief : await analyzeBusiness(copyFacts, {
+  // Early-stage checkpoints: an interrupted attempt of this same job reuses the
+  // AI team's finished work instead of asking for it again.
+  const stageStore = (await import("@/lib/builder/job-stage-checkpoints")).jobStageCheckpointStore(db as never, {
+    jobId: job.id,
     organizationId: orgId,
-    userId: job.created_by,
+    attempts: job.attempts,
   });
-  if (!approvedBrief?.approved) {
+  const resumedBrief = approvedBrief?.approved ? null : await stageStore.get<Awaited<ReturnType<typeof analyzeBusiness>>>("brief", copyFacts);
+  const brief = approvedBrief?.approved
+    ? approvedBrief
+    : resumedBrief ?? await analyzeBusiness(copyFacts, { organizationId: orgId, userId: job.created_by });
+  if (!approvedBrief?.approved && !resumedBrief) await stageStore.put("brief", copyFacts, brief);
+  if (!approvedBrief?.approved && !resumedBrief) {
     await db.from("ai_generations").insert({
       organization_id: orgId,
       job_id: job.id,
@@ -1198,7 +1206,7 @@ async function runJob(
   // for this business by the design team. A failure stops the build (it is
   // retried); no stock identity is ever substituted.
   await touchLease(db, job);
-  const identity = await authorBrandIdentity({
+  const identityInputs = {
     organizationId: orgId,
     businessName: org.data.name ?? "",
     industry: org.data.industry ?? null,
@@ -1208,7 +1216,11 @@ async function runJob(
     // The platform's seeded default typeface is not an owner request; the AI
     // chooses the pairing unless the owner really picked a font.
     requestedFont: isPlatformDefaultFont(p["font_preference"]) ? null : ((p["font_preference"] as string) ?? null),
-  });
+  };
+  type BrandIdentity = Awaited<ReturnType<typeof authorBrandIdentity>>;
+  const resumedIdentity = await stageStore.get<BrandIdentity>("identity", identityInputs);
+  const identity = resumedIdentity ?? await authorBrandIdentity(identityInputs);
+  if (!resumedIdentity && identity.direction) await stageStore.put("identity", identityInputs, identity);
   await touchLease(db, job);
   const direction = identity.direction;
   const ownerColour = (key: string) => {
@@ -1301,14 +1313,12 @@ async function runJob(
     "@/lib/builder/collective-first-build.server"
   );
   await touchLease(db, job);
-  const refined = await refineFirstBuildWithCollective({
-    organizationId: orgId,
-    facts: buildFacts,
-    brief,
-    copy,
-    creative,
-    hardGenericityGate: true,
-  });
+  const refineInputs = { organizationId: orgId, facts: buildFacts, brief, copy, creative, hardGenericityGate: true as const };
+  type Refined = Awaited<ReturnType<typeof refineFirstBuildWithCollective>>;
+  const resumedRefined = await stageStore.get<Refined>("refined", refineInputs);
+  const refined = resumedRefined ?? await refineFirstBuildWithCollective(refineInputs);
+  if (!resumedRefined && refined.creativeChanged && refined.changed && missingAiCopy(refined.copy).length === 0)
+    await stageStore.put("refined", refineInputs, refined);
   await touchLease(db, job);
   if (refined.creativeChanged) creative = refined.creative;
   if (refined.changed) {
@@ -1418,7 +1428,7 @@ async function runJob(
         ]);
         const primary = String(copy.primaryCta ?? "").trim();
         if (!primary) return null;
-        const outcome = await proposePageArchitecture({
+        const architectureInputs = {
           organizationId: orgId,
           businessName: earlyName,
           industry: earlyIndustry,
@@ -1439,7 +1449,10 @@ async function runJob(
           services: serviceRows.map((service) => String((service as { name?: unknown }).name ?? "")).filter(Boolean),
           serviceArea: (p["service_area"] as string) ?? null,
           contact: { phone: Boolean(String(p["phone"] ?? "").trim()), email: Boolean(String(p["email"] ?? "").trim()) },
-        });
+        };
+        const resumedPlan = await stageStore.get<PageArchitectureOutcome>("architecture", architectureInputs);
+        const outcome = resumedPlan ?? await proposePageArchitecture(architectureInputs);
+        if (!resumedPlan && outcome.architecture?.length) await stageStore.put("architecture", architectureInputs, outcome);
         architectureRef.current = outcome;
         if (!outcome.architecture?.length) {
           // Carry the real reason (provider, shape, or review refusal) so the
@@ -2172,6 +2185,7 @@ async function runJob(
   {
     const { jobSectionCheckpointStore } = await import("@/lib/builder/first-build-section-checkpoints");
     await jobSectionCheckpointStore(db as never, { jobId: job.id, organizationId: orgId, attempts: job.attempts }).clear();
+    await stageStore.clear();
   }
 
   const leadCapture = usableQuoteForms.length > 0 || (bookable.data ?? []).length > 0;

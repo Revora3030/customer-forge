@@ -1,0 +1,1 @@
+ALTER TABLE public.generation_jobs ADD COLUMN IF NOT EXISTS stage_checkpoints jsonb;
