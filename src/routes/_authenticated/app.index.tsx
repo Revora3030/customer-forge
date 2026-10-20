@@ -333,7 +333,7 @@ function Dashboard() {
     execute: () =>
       runWebMCPTool("read_growth_summary", () =>
         [
-          `Business: ${org.name}`,
+          `Business: ${org?.name ?? "Your business"}`,
           `Range: ${window.label}`,
           `New leads: ${stats.leads} (${stats.delta >= 0 ? "+" : ""}${stats.delta}% vs previous period)`,
           `Revenue won: ${currency(stats.revenueWon)}`,
