@@ -27,6 +27,7 @@ export type EnqueueOutreachItem = {
   subject?: string | null;
   body?: string | null;
   mode?: OutreachMode;
+  kind?: "first_touch" | "follow_up";
   /** Exact time; otherwise a random 0-20 minute gap after the latest waiting item. */
   notBefore?: Date;
 };
@@ -41,6 +42,7 @@ export type QueueRow = {
   subject: string | null;
   body: string | null;
   mode: OutreachMode;
+  kind?: "first_touch" | "follow_up" | null;
   not_before: string;
   attempts: number;
   status: "queued" | "sent" | "failed" | "cancelled";
@@ -86,6 +88,7 @@ export async function enqueueOutreach(
     subject: item.subject?.trim() || null,
     body: item.body?.trim() || null,
     mode: item.mode ?? "autopilot",
+    kind: item.kind ?? "first_touch",
     not_before: notBefore.toISOString(),
     status: "queued",
     attempts: 0,
@@ -155,6 +158,7 @@ export async function drainSendQueue(
         actorId: null,
         ...(row.subject ? { subject: row.subject } : {}),
         ...(row.body ? { body: row.body } : {}),
+        ...(row.kind === "follow_up" ? { kind: "follow_up" as const } : {}),
       });
     } catch (error) {
       result = { ok: false as const, reason: "storage_error", message: error instanceof Error ? error.message : "send failed" };
