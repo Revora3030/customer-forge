@@ -3,7 +3,6 @@ import { osmElementToProspect, overpassQuery } from "./osm-prospects";
 const OVERPASS_SERVERS = [
   "https://overpass-api.de/api/interpreter",
   "https://overpass.private.coffee/api/interpreter",
-  "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
 ];
 
 const UA = "RevoraProspectLookup/1.0 (+https://revoragrowthsystems.com)";
@@ -35,7 +34,7 @@ export async function searchOsmProspects(niche: string, city: string, state: str
           method: "POST",
           headers: { "user-agent": UA, "content-type": "application/x-www-form-urlencoded" },
           body: new URLSearchParams({ data: overpassQuery(niche, bbox) }),
-          signal: AbortSignal.timeout(20_000),
+          signal: AbortSignal.timeout(45_000),
         });
         if (attempt.ok) {
           res = attempt;

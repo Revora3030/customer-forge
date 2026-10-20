@@ -34,7 +34,7 @@ export function overpassQuery(niche: string, bbox: [number, number, number, numb
   const filters = trade
     ? trade.tags.map((tag) => `nwr[${tag}]["name"](${box});`)
     : [`nwr["name"~"${quote(niche)}",i]["craft"](${box});`, `nwr["name"~"${quote(niche)}",i]["shop"](${box});`];
-  return `[out:json][timeout:20];(${filters.join("")});out center tags 60;`;
+  return `[out:json][timeout:40];(${filters.join("")});out center tags 60;`;
 }
 
 const tag = (tags: Record<string, unknown>, ...keys: string[]) => {
