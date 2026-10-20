@@ -158,7 +158,7 @@ export async function proposePageArchitecture(input: {
       costMicrocents: sol.costMicrocents,
     };
 
-  const normalized = normalizePageArchitecture({ proposal, candidate: input.candidate });
+  const normalized = normalizePageArchitecture({ proposal, candidate: input.candidate, thinFacts });
   if (!normalized)
     return {
       architecture: null,

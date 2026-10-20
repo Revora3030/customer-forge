@@ -167,6 +167,8 @@ export const MAX_INVENTED_PAGES = 24;
 export function normalizePageArchitecture(input: {
   proposal: RawPage[];
   candidate: PageArchitecture[];
+  /** Facts too thin for several honest pages; a single page is then allowed. */
+  thinFacts?: boolean;
 }): ArchitectureNormalization | null {
   const rejected: ArchitectureRejection[] = [];
   const bySlug = new Map(input.candidate.map((page) => [page.slug, page]));
@@ -287,7 +289,7 @@ export function normalizePageArchitecture(input: {
   // candidate offered multiple pages (home, services, about, contact) but the AI
   // returned only one, the plan is too thin — refuse it so the caller retries or
   // falls back to the full fact inventory rather than shipping a stub site.
-  if (input.candidate.length >= 3 && architecture.length < 2) return null;
+  if (!input.thinFacts && input.candidate.length >= 3 && architecture.length < 2) return null;
 
   // Completeness safeguard (structure only, never creative content): every
   // page the business has real material for must exist after the first build.
