@@ -73,7 +73,7 @@ jobs:
           agent-browser install
       - name: Verify rendered page with agent-browser
         env:
-          BROWSER_QA_BASE_URL: ${{ inputs.base_url || 'http://127.0.0.1:8080' }}
+          BROWSER_QA_BASE_URL: ${{ inputs.base_url || 'http://127.0.0.1:8080' }} # DevSkim: ignore DS162092,DS137138 -- CI-only local app under test.
         run: |
           mkdir -p browser-qa-artifacts
           agent-browser open "$BROWSER_QA_BASE_URL"

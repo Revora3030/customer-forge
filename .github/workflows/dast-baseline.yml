@@ -31,7 +31,7 @@ jobs:
           npm run dev -- --host 0.0.0.0 --port 8080 > /tmp/revora-zap-app.log 2>&1 &
           echo $! > /tmp/revora-zap-app.pid
           for attempt in {1..90}; do
-            if curl --fail --silent http://127.0.0.1:8080/ >/dev/null; then exit 0; fi
+            if curl --fail --silent http://127.0.0.1:8080/ >/dev/null; then exit 0; fi # DevSkim: ignore DS162092,DS137138 -- CI-only local app under test.
             sleep 1
           done
           cat /tmp/revora-zap-app.log
@@ -39,7 +39,7 @@ jobs:
       - name: Run ZAP passive baseline
         run: |
           docker run --rm --network host -v "$PWD:/zap/wrk/:rw" ghcr.io/zaproxy/zaproxy:stable \
-            zap-baseline.py -t http://127.0.0.1:8080 -m 2 -I -r zap-baseline-report.html
+            zap-baseline.py -t http://127.0.0.1:8080 -m 2 -I -r zap-baseline-report.html # DevSkim: ignore DS162092,DS137138 -- CI-only local app under test.
       - name: Upload ZAP report
         if: always() && hashFiles('zap-baseline-report.html') != ''
         uses: actions/upload-artifact@v4
