@@ -12,6 +12,39 @@ const bounded = (value: unknown, max = MAX_RESULT_CHARS) => {
 };
 
 /**
+ * The artifacts hub: everything Jarvis has produced, in one list. Demo sites,
+ * approvals from the durable audit log, and scheduled routines. Read-only.
+ */
+async function collectArtifacts(db: SupabaseClient, actorId: string) {
+  const { listProspectDemos } = await import("./jarvis-demo-site.server");
+  const { listJarvisRoutines } = await import("./jarvis-routines.server");
+  const [demos, routines, audit] = await Promise.all([
+    listProspectDemos(db, 50).catch(() => []),
+    listJarvisRoutines(db, actorId).catch(() => []),
+    db
+      .from("audit_logs")
+      .select("action, details, created_at")
+      .order("created_at", { ascending: false })
+      .limit(40)
+      .then((res) => (res.error ? [] : (res.data ?? [])))
+      .catch(() => []),
+  ]);
+  return {
+    note: "Everything Jarvis has produced or had approved, newest first. Approvals come from the durable audit log.",
+    demoSites: (demos as { name?: string; buildStatus?: string; previewUrl?: string | null }[]).map((demo) => ({
+      name: demo.name ?? "Demo site",
+      status: demo.buildStatus ?? "unknown",
+      preview: demo.previewUrl ?? null,
+    })),
+    routines: routines.map((routine) => ({ name: routine.name, enabled: routine.enabled, lastStatus: routine.last_status })),
+    approvals: (audit as { action?: string; details?: unknown; created_at?: string }[]).map((row) => ({
+      action: row.action ?? "unknown",
+      at: row.created_at ?? null,
+    })),
+  };
+}
+
+/**
  * Runs Jarvis's read actions. Every action maps to existing, code-owned,
  * read-only server logic; the caller has already been verified as super-admin.
  */
