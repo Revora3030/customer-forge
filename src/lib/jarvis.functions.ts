@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { JarvisDiagnostics } from "./jarvis-diagnostics.server";
-import { parsePullRequestProposal } from "./jarvis-actions";
+import { parsePullRequestProposal, parseRoutineDraft } from "./jarvis-actions";
 import { adminPath } from "./jarvis-page-context";
 
 type Turn = { role: "user" | "assistant"; content: string };
@@ -653,7 +653,6 @@ export const listJarvisRoutinesFn = createServerFn({ method: "GET" })
 export const saveJarvisRoutineFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: { routineId?: unknown; routine?: unknown; patch?: unknown }) => {
-    const { parseRoutineDraft } = require("./jarvis-actions") as typeof import("./jarvis-actions");
     const routineId = typeof input?.routineId === "string" ? input.routineId : null;
     if (routineId) {
       if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(routineId)) throw new Error("That routine id is not valid.");
