@@ -30,7 +30,6 @@ const JUMP_LINKS = [
   { hash: "see-it", label: "See it in action" },
   { hash: "how-it-works", label: "How it works" },
   { hash: "pricing", label: "Pricing" },
-  { hash: "roi", label: "What you'd earn back" },
   { hash: "faq", label: "Questions" },
 ] as const;
 
