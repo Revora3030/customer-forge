@@ -36,6 +36,9 @@ export type AiFreeProviderStatus = {
   cooldownUntil: number | null;
   remainingToday: number | null;
   models: { role: string; model: string }[];
+  /** Recorded calls and failures in the last 24 hours, across all workers. */
+  calls24h?: number;
+  failures24h?: number;
 };
 
 export type AiLastOutcome = {
@@ -185,6 +188,19 @@ export const getAiHealth = createServerFn({ method: "GET" })
       model.calls += 1;
       if (!row.ok) model.failures += 1;
       models.set(key, model);
+    }
+
+    // Shared, cross-worker truth for provider status (see health-merge.ts).
+    {
+      const { refreshDurableRuntime, durableRuntimeSnapshot } = await import("@/lib/ai/durable-health.server");
+      const { freeBudgetCap } = await import("@/lib/ai/free");
+      const { mergeProviderHealth, lastRecordedOutcome } = await import("@/lib/ai/health-merge");
+      await refreshDurableRuntime(true);
+      const caps = Object.fromEntries(
+        free.providers.map((entry) => [entry.name, freeBudgetCap(entry.name as Parameters<typeof freeBudgetCap>[0])]),
+      );
+      free.providers = mergeProviderHealth(free.providers, durableRuntimeSnapshot(), caps, events);
+      free.last = lastRecordedOutcome(events, new Set(free.providers.map((entry) => entry.name))) ?? free.last;
     }
 
     const { data: audit } = await supabaseAdmin
