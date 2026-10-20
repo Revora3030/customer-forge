@@ -1366,7 +1366,10 @@ async function runJob(
   // make the retry silently skip architecture, composition, chrome, or media.
   // Only rows tagged with this job are cleared; fresh rebuilds remain protected
   // by their restore point and unrelated customer content is untouched.
-  const retryOwnsPartialBuild = !freshReplace && (existingPages.count ?? 0) > 0 && Number(job.attempts ?? 0) > 1;
+  // Not gated on the attempt number: a capacity deferral hands its attempt
+  // back, so its rerun is attempt 1 again yet still owns these rows. The job
+  // marker check below is what proves ownership.
+  const retryOwnsPartialBuild = !freshReplace && (existingPages.count ?? 0) > 0;
   if (orphanedBuild) {
     await clearOrphanedPartialBuild(db, orgId, orphanedBuild);
   } else if (retryOwnsPartialBuild) {
@@ -1471,8 +1474,9 @@ async function runJob(
   noteStage(orgId, runId, "generating your pictures");
   // A retry of an interrupted build reuses the pictures its earlier attempt
   // already stored (only this job's own generated files, by creation time).
+  // Checked on every attempt: a capacity-deferred rerun is attempt 1 again.
   let reusablePictures: { id: string; url: string; file_name: string | null; alt_text: string | null; attribution: string | null }[] = [];
-  if (Number(job.attempts ?? 0) > 1) {
+  {
     const jobRow = await db.from("generation_jobs").select("created_at").eq("id", job.id).maybeSingle();
     const since = (jobRow.data as { created_at?: string } | null)?.created_at;
     if (since) {
@@ -1857,6 +1861,16 @@ async function runJob(
       // budget; the required AI design and safety checks always complete.
       optionalPassDeadline: Date.now() + LAYOUT_OPTIONAL_BUDGET_MS,
       onPageDone: () => touchLease(db, job),
+      // Accepted section designs are checkpointed on the job after every
+      // chunk; a retry of this job restores the ones whose inputs still match.
+      checkpoint: {
+        jobId: job.id,
+        store: (await import("@/lib/builder/first-build-section-checkpoints")).jobSectionCheckpointStore(db as never, {
+          jobId: job.id,
+          organizationId: orgId,
+          attempts: job.attempts,
+        }),
+      },
       lookSummary: JSON.stringify({
         concept: creative.brief.concept,
         personality: creative.brief.personality,
@@ -2171,6 +2185,11 @@ async function runJob(
       `[site-engine] job ${job.id}: completion not recorded (${completion.error?.message ?? "job no longer owned by this run"}); skipping the ready notification.`,
     );
     return;
+  }
+  // The build is done: its section checkpoint has served its purpose.
+  {
+    const { jobSectionCheckpointStore } = await import("@/lib/builder/first-build-section-checkpoints");
+    await jobSectionCheckpointStore(db as never, { jobId: job.id, organizationId: orgId, attempts: job.attempts }).clear();
   }
 
   const leadCapture = usableQuoteForms.length > 0 || (bookable.data ?? []).length > 0;
