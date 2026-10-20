@@ -228,6 +228,30 @@ export function actionCatalogPrompt(diagnosticToolIds: string[]): string {
 }
 
 const str = (value: unknown, max: number) => (typeof value === "string" ? value.trim().slice(0, max) : "");
+
+const parseRoutineName = (value: unknown) => {
+  const name = str(value, 80);
+  if (name.length < 3) throw new Error("Give the routine a short name");
+  return name;
+};
+const parseRoutinePrompt = (value: unknown) => {
+  const prompt = str(value, 2000);
+  if (prompt.length < 10) throw new Error("Describe what the routine should do in a sentence");
+  return prompt;
+};
+const parseRoutineTime = (value: unknown, max: number) => Math.min(max, Math.max(0, Math.floor(Number(value) || 0)));
+
+/** Validates a routine.create draft; mirrors the server-side parser. */
+export function parseRoutineDraft(value: unknown): Extract<WriteProposal, { id: "routine.create" }>["routine"] {
+  const raw = (value && typeof value === "object" ? value : {}) as Record<string, unknown>;
+  return {
+    name: parseRoutineName(raw["name"]),
+    prompt: parseRoutinePrompt(raw["prompt"]),
+    frequency: raw["frequency"] === "weekly" ? "weekly" : "daily",
+    hour: parseRoutineTime(raw["hour"], 23),
+    minute: parseRoutineTime(raw["minute"], 59),
+  };
+}
 const ORG_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Validates a demo.send proposal; returns a plain-language reason when it is invalid. */
@@ -415,6 +439,14 @@ export function describeRead(action: ReadAction): string {
       return "Looked up the business on Google Maps";
     case "prospects.find":
       return `Searched Google for ${action.niche} in ${action.city}${action.state ? `, ${action.state}` : ""}`;
+    case "memory.list":
+      return "Listed persistent memories";
+    case "memory.save":
+      return `Remembered: ${action.content.slice(0, 60)}`;
+    case "routines.list":
+      return "Listed scheduled routines";
+    case "artifacts.list":
+      return "Opened the artifacts hub";
   }
 }
 
