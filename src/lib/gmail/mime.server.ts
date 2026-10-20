@@ -160,6 +160,8 @@ function findText(part: GmailPayloadPart | undefined, type: string): string | nu
   return null;
 }
 
+const HTML_ENTITIES: Record<string, string> = { nbsp: " ", lt: "<", gt: ">", amp: "&" };
+
 /**
  * Plain text of an HTML mail part. A character walk rather than tag regexes:
  * anything inside a tag is dropped, as is the content of <script>/<style>
@@ -191,12 +193,9 @@ function stripHtml(html: string): string {
     }
     index = close + 1;
   }
-  // "&amp;" last, so "&amp;lt;" reads as the text "&lt;", not "<".
+  // One decoding pass, so "&amp;lt;" reads as the text "&lt;", not "<".
   return out
-    .replace(/&nbsp;/g, " ")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&amp;/g, "&")
+    .replace(/&(nbsp|lt|gt|amp);/g, (_entity, name: string) => HTML_ENTITIES[name] ?? " ")
     .replace(/[ \t]+/g, " ");
 }
 

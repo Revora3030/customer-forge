@@ -51,8 +51,9 @@ function attribute(tag: string, name: string): string | null {
   return match ? (match[2] ?? match[3] ?? "") : null;
 }
 
-const decodeEntities = (text: string) =>
-  text.replace(/&amp;/gi, "&").replace(/&quot;/gi, '"').replace(/&#39;|&apos;/gi, "'").replace(/&lt;/gi, "<").replace(/&gt;/gi, ">");
+// One pass, so "&amp;lt;" reads as the text "&lt;" rather than being decoded twice.
+const ENTITIES: Record<string, string> = { amp: "&", quot: '"', "#39": "'", apos: "'", lt: "<", gt: ">" };
+const decodeEntities = (text: string) => text.replace(/&(amp|quot|#39|apos|lt|gt);/gi, (entity, name: string) => ENTITIES[name.toLowerCase()] ?? entity);
 
 /**
  * An email the business published in its profile page's meta tags (the
