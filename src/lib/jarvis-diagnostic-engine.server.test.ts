@@ -14,7 +14,7 @@ function fakeDb(answer: (table: string, ops: Op[]) => Result) {
     from(table: string) {
       const ops: Op[] = [];
       const builder: Record<string, unknown> = {};
-      for (const method of ["select", "eq", "gte", "is", "not", "order", "limit"]) builder[method] = (...args: unknown[]) => (ops.push({ method, args }), builder);
+      for (const method of ["select", "eq", "in", "gte", "is", "not", "order", "limit"]) builder[method] = (...args: unknown[]) => (ops.push({ method, args }), builder);
       builder["then"] = (resolve: (value: unknown) => void, reject: (error: unknown) => void) =>
         Promise.resolve({ data: null, error: null, count: null, ...answer(table, ops) }).then(resolve, reject);
       return builder;
@@ -45,7 +45,7 @@ describe("demo engine self-audit", () => {
         if (has(ops, "eq", "sent")) return { count: 5 };
         if (has(ops, "eq", "failed")) return { count: 1 };
       }
-      if (table === "prospect_inbound") return { count: has(ops, "not", "handled_at") ? 2 : 3 };
+      if (table === "prospect_inbound") return { count: has(ops, "in", "status") ? 2 : 3 };
       if (table === "prospect_preview_events") return ops.some((op) => op.method === "limit") ? { data: [{ created_at: "2026-10-19T10:00:00.000Z" }] } : { count: 12 };
       return {};
     });
@@ -69,6 +69,28 @@ describe("demo engine self-audit", () => {
     const status = Object.fromEntries(audit.rows.map((row) => [row.id, row.status]));
     expect(status).toMatchObject({ inbound: "unknown", engagement: "unknown", outreach: "failed", runtime: "failed", gate: "configured", acquisition: "configured", enrichment: "unknown" });
     expect(audit.verified).toBe(0);
+  });
+
+  it("counts only finished replies as handled, not claimed or drafted ones", async () => {
+    // Three replies: one being processed and two awaiting the operator. Each has handled_at set by its claim or draft.
+    const inbound = [
+      { status: "processing", handled_at: "2026-10-19T11:00:00.000Z" },
+      { status: "awaiting_operator", handled_at: "2026-10-19T11:01:00.000Z" },
+      { status: "awaiting_operator", handled_at: "2026-10-19T11:02:00.000Z" },
+    ];
+    const queries: Op[][] = [];
+    const db = fakeDb((table, ops) => {
+      if (table !== "prospect_inbound") return {};
+      queries.push(ops);
+      const statusIn = ops.find((op) => op.method === "in" && op.args[0] === "status")?.args[1] as string[] | undefined;
+      const handledAtSet = ops.some((op) => op.method === "not" && op.args[0] === "handled_at");
+      return { count: inbound.filter((row) => (!statusIn || statusIn.includes(row.status)) && (!handledAtSet || row.handled_at != null)).length };
+    });
+    const audit = scoreDemoEngine(await collectDemoEngineEvidence(db, NOW), NOW.toISOString());
+    const row = audit.rows.find((item) => item.id === "inbound");
+    expect(row?.status).toBe("failed");
+    expect(row?.metrics).toEqual({ replies: 3, handled: 0 });
+    expect(queries.some((ops) => ops.some((op) => op.method === "in" && JSON.stringify(op.args) === JSON.stringify(["status", ["handled", "dismissed"]])))).toBe(true);
   });
 
   it("survives a client that can't query at all", async () => {

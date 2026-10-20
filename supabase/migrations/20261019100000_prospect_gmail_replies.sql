@@ -5,17 +5,23 @@
 --    (first_touch | reply) and the inbound message a reply answered. The column
 --    is deliberately NOT named gmail_message_id: 20261019090300 renames any
 --    prospect_outreach that has that column (the retired orphan shape), so
---    re-running it must never match the outreach log.
+--    re-running it must never match the outreach log. replies_checked_at
+--    orders the reply poll's rotation (least recently checked thread first).
 -- 2. The one-autopilot-send-per-demo-per-channel guarantee now covers first
 --    touches only, so in-thread auto-replies (mode autopilot, kind reply) can
 --    be recorded. The new index is created before the old one is dropped.
+--    Each auto-reply takes slot auto_reply_seq 1 or 2
+--    (MAX_AUTO_REPLIES_PER_THREAD); a unique (gmail_thread_id, auto_reply_seq)
+--    index over sent auto-replies holds that limit across overlapping runs.
 -- 3. prospect_send_queue: autopilot sends wait here until not_before (a random
 --    0-20 minute spacing). claim_prospect_send_queue leases due rows with one
 --    UPDATE ... RETURNING (FOR UPDATE SKIP LOCKED), so overlapping drains never
 --    claim the same row; an expired lease can be claimed again.
 -- 4. prospect_inbound: replies read from Gmail threads, their intent and what
 --    was done (auto reply, draft for the operator, do-not-contact).
--- 5. prospect_reply_poll_state: singleton with the last poll time.
+-- 5. prospect_reply_poll_state: singleton with the last fully successful poll
+--    time (shown to the operator; replies are deduped by gmail_message_id,
+--    never filtered by time).
 -- 6. Every 10 minutes: call_revora_job('prospect-replies', 900000), guarded like
 --    20261019090200.
 -- Additive and service-role only: RLS on with no policies.
@@ -28,10 +34,21 @@ ALTER TABLE public.prospect_outreach ADD COLUMN IF NOT EXISTS rfc_message_id TEX
 ALTER TABLE public.prospect_outreach ADD COLUMN IF NOT EXISTS provider TEXT;
 ALTER TABLE public.prospect_outreach ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'first_touch';
 ALTER TABLE public.prospect_outreach ADD COLUMN IF NOT EXISTS inbound_id UUID;
+ALTER TABLE public.prospect_outreach ADD COLUMN IF NOT EXISTS auto_reply_seq SMALLINT;
+ALTER TABLE public.prospect_outreach ADD COLUMN IF NOT EXISTS replies_checked_at TIMESTAMPTZ;
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'prospect_outreach_kind_check') THEN
     ALTER TABLE public.prospect_outreach ADD CONSTRAINT prospect_outreach_kind_check CHECK (kind IN ('first_touch', 'reply'));
+  END IF;
+  -- Every automatic reply has slot 1 or 2 (MAX_AUTO_REPLIES_PER_THREAD); nothing else has one.
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'prospect_outreach_auto_reply_seq_check') THEN
+    ALTER TABLE public.prospect_outreach ADD CONSTRAINT prospect_outreach_auto_reply_seq_check CHECK (
+      CASE WHEN kind = 'reply' AND mode = 'autopilot'
+        THEN auto_reply_seq IS NOT NULL AND auto_reply_seq BETWEEN 1 AND 2
+        ELSE auto_reply_seq IS NULL
+      END
+    );
   END IF;
 END $$;
 
@@ -42,6 +59,14 @@ DROP INDEX IF EXISTS public.prospect_outreach_one_autopilot_send_idx;
 CREATE INDEX IF NOT EXISTS prospect_outreach_gmail_thread_idx
   ON public.prospect_outreach (gmail_thread_id)
   WHERE gmail_thread_id IS NOT NULL;
+-- One sent automatic reply per slot per thread; a failed send frees its slot.
+CREATE UNIQUE INDEX IF NOT EXISTS prospect_outreach_auto_reply_slot_idx
+  ON public.prospect_outreach (gmail_thread_id, auto_reply_seq)
+  WHERE status = 'sent' AND kind = 'reply' AND mode = 'autopilot';
+-- The reply poll's rotation: sent first touches, least recently checked first.
+CREATE INDEX IF NOT EXISTS prospect_outreach_reply_poll_idx
+  ON public.prospect_outreach (replies_checked_at NULLS FIRST, created_at DESC)
+  WHERE channel = 'email' AND status = 'sent' AND kind = 'first_touch' AND gmail_thread_id IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS public.prospect_send_queue (
   id UUID NOT NULL DEFAULT gen_random_uuid(),

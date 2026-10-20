@@ -1,4 +1,6 @@
+import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { isolateProviderEnvironment } from "@/lib/ai/provider-test-environment";
 
 vi.mock("@/lib/email-templates/send-email", () => ({ emailSendingConfigured: () => true, sendTemplateEmail: vi.fn(async () => ({ sent: true })) }));
 
@@ -19,7 +21,7 @@ vi.mock("@/lib/ai/router.server", () => ({
 
 import { sendTemplateEmail } from "@/lib/email-templates/send-email";
 import { generateText } from "@/lib/ai/router.server";
-import { resetGmailTokenCache, setGmailSleepForTests, GMAIL_SECRETS } from "@/lib/gmail/client.server";
+import { gmailConfig, resetGmailTokenCache, setGmailSleepForTests, GMAIL_SECRETS } from "@/lib/gmail/client.server";
 import { base64UrlDecode, base64UrlEncode, buildMimeMessage, buildRawMessage, parseGmailMessage, stripQuotedReply } from "@/lib/gmail/mime.server";
 import { isDoNotContact, sendDemoOutreach, setOutreachGateForTests, DEFAULT_DAILY_EMAIL_CAP, dailyCap } from "@/lib/prospect-outreach.server";
 import {
@@ -27,26 +29,37 @@ import {
   buildFactsSheet,
   factCheckReply,
   keywordIntent,
+  MAX_AUTO_REPLIES_PER_THREAD,
   parseReviewVerdict,
   replySubject,
   resolveIntent,
   riskFlags,
 } from "@/lib/prospect-replies";
-import { runProspectReplies, approveReplyDraft, listProspectInbox } from "@/lib/prospect-replies.server";
+import { runProspectReplies, approveReplyDraft, listProspectInbox, sendThreadReply } from "@/lib/prospect-replies.server";
 import { claimQueuedOutreach, drainSendQueue, enqueueOutreach, MAX_QUEUE_ATTEMPTS } from "@/lib/prospect-send-queue.server";
 import { parseActions } from "@/lib/jarvis-actions";
 
 type Row = Record<string, unknown>;
 
+/** Writes a test can make fail, e.g. the do-not-contact upsert. */
+type Faults = { failUpsert?: string[] };
+
 /** In-memory Supabase stand-in covering the filters, returning updates, unique keys and the queue claim RPC. */
-function fakeDb(seed: Record<string, Row[]>) {
+function fakeDb(seed: Record<string, Row[]>, faults: Faults = {}) {
   const tables: Record<string, Row[]> = Object.fromEntries(Object.entries(seed).map(([k, v]) => [k, v.map((r) => ({ ...r }))]));
   const table = (name: string) => (tables[name] ??= []);
+  const autoReply = (row: Row) => row["kind"] === "reply" && row["mode"] === "autopilot";
+  /** prospect_outreach_auto_reply_seq_check: automatic replies carry slot 1 or 2, nothing else does. */
+  const checkViolation = (name: string, row: Row) =>
+    name === "prospect_outreach" && (autoReply(row) ? ![1, 2].includes(row["auto_reply_seq"] as number) : row["auto_reply_seq"] != null);
   const uniqueViolation = (name: string, row: Row) => {
     const rows = table(name);
     if (name === "prospect_inbound") return rows.some((r) => r["gmail_message_id"] === row["gmail_message_id"]);
     if (name === "prospect_send_queue")
       return row["status"] === "queued" && rows.some((r) => r["status"] === "queued" && r["organization_id"] === row["organization_id"] && r["channel"] === row["channel"]);
+    if (name === "prospect_outreach" && autoReply(row))
+      // prospect_outreach_auto_reply_slot_idx
+      return row["status"] === "sent" && rows.some((r) => autoReply(r) && r["status"] === "sent" && r["gmail_thread_id"] === row["gmail_thread_id"] && r["auto_reply_seq"] === row["auto_reply_seq"]);
     if (name === "prospect_outreach")
       return (
         row["status"] === "sent" &&
@@ -63,13 +76,20 @@ function fakeDb(seed: Record<string, Row[]>) {
     let head = false;
     let returning = false;
     let limit = Infinity;
-    let order: { column: string; ascending: boolean } | null = null;
+    const orders: Array<{ column: string; ascending: boolean; nullsFirst: boolean }> = [];
+    const compare = (a: Row, b: Row) => {
+      for (const { column, ascending, nullsFirst } of orders) {
+        const x = a[column];
+        const y = b[column];
+        if (x == null && y == null) continue;
+        if (x == null || y == null) return (x == null) === nullsFirst ? -1 : 1;
+        if (String(x) !== String(y)) return (String(x) < String(y) ? -1 : 1) * (ascending ? 1 : -1);
+      }
+      return 0;
+    };
     const matches = () => {
       let rows = table(name).filter((row) => filters.every((f) => f(row)));
-      if (order) {
-        const { column, ascending } = order;
-        rows = [...rows].sort((a, b) => (String(a[column]) < String(b[column]) ? -1 : 1) * (ascending ? 1 : -1));
-      }
+      if (orders.length) rows = [...rows].sort(compare);
       return rows.slice(0, limit);
     };
     const run = () => {
@@ -87,7 +107,10 @@ function fakeDb(seed: Record<string, Row[]>) {
       lt: (column: string, value: string) => (filters.push((row) => row[column] != null && String(row[column]) < value), chain),
       not: (column: string, _op: string, _value: null) => (filters.push((row) => row[column] != null), chain),
       is: (column: string, _value: null) => (filters.push((row) => row[column] == null), chain),
-      order: (column: string, opts?: { ascending?: boolean }) => ((order = { column, ascending: opts?.ascending !== false }), chain),
+      // Postgres defaults: ASC NULLS LAST, DESC NULLS FIRST.
+      order: (column: string, opts?: { ascending?: boolean; nullsFirst?: boolean }) => (
+        orders.push({ column, ascending: opts?.ascending !== false, nullsFirst: opts?.nullsFirst ?? opts?.ascending === false }), chain
+      ),
       limit: (n: number) => ((limit = n), chain),
       update: (values: Row) => ((op = "update"), (patch = values), chain),
       delete: () => ((op = "delete"), chain),
@@ -95,11 +118,13 @@ function fakeDb(seed: Record<string, Row[]>) {
       then: (resolve: (value: unknown) => unknown) => resolve(run()),
       insert: async (row: Row) => {
         const full: Row = { id: crypto.randomUUID(), created_at: new Date().toISOString(), ...row };
+        if (checkViolation(name, full)) return { error: { code: "23514", message: "check constraint" } };
         if (uniqueViolation(name, full)) return { error: { code: "23505", message: "duplicate key" } };
         table(name).push(full);
         return { error: null };
       },
       upsert: async (row: Row, opts?: { ignoreDuplicates?: boolean }) => {
+        if (faults.failUpsert?.includes(name)) return { error: { message: "connection reset" } };
         const key = "value" in row ? "value" : "id";
         const existing = table(name).find((r) => r[key] === row[key]);
         if (existing && !opts?.ignoreDuplicates) Object.assign(existing, row);
@@ -183,10 +208,10 @@ function setGmail() {
 }
 
 /** Inbound Gmail message payload. */
-function inbound(id: string, text: string, opts: { from?: string; subject?: string; at?: string; headers?: Array<{ name: string; value: string }> } = {}) {
+function inbound(id: string, text: string, opts: { from?: string; subject?: string; at?: string; thread?: string; headers?: Array<{ name: string; value: string }> } = {}) {
   return {
     id,
-    threadId: THREAD,
+    threadId: opts.thread ?? THREAD,
     internalDate: String(Date.parse(opts.at ?? "2026-10-19T17:00:00Z")),
     snippet: text.slice(0, 80),
     labelIds: ["INBOX"],
@@ -204,19 +229,31 @@ function inbound(id: string, text: string, opts: { from?: string; subject?: stri
   };
 }
 
+/** Messages of every thread, unless threadsById names that thread. */
 let threadMessages: unknown[] = [];
+const threadsById = new Map<string, unknown[]>();
+/** Thread ids read, in order. */
+const fetchedThreads: string[] = [];
+let threadStatus = 200;
+let tokenStatus = 200;
 let sendStatus = 200;
 const sends: Array<{ raw: string; threadId?: string }> = [];
 const gmailFetch = vi.fn(async (input: string | URL, init?: RequestInit) => {
   const url = String(input);
-  if (url.startsWith("https://oauth2.googleapis.com/token")) return new Response(JSON.stringify({ access_token: "at", expires_in: 3600 }), { status: 200 });
+  if (url.startsWith("https://oauth2.googleapis.com/token"))
+    return tokenStatus === 200 ? new Response(JSON.stringify({ access_token: "at", expires_in: 3600 }), { status: 200 }) : new Response('{"error":"invalid_grant"}', { status: tokenStatus });
   if (url.endsWith("/messages/send")) {
     if (sendStatus !== 200) return new Response("{}", { status: sendStatus });
     const body = JSON.parse(String(init?.body)) as { raw: string; threadId?: string };
     sends.push(body);
     return new Response(JSON.stringify({ id: `sent${sends.length}`, threadId: body.threadId ?? `newthread${sends.length}` }), { status: 200 });
   }
-  if (url.includes("/threads/")) return new Response(JSON.stringify({ id: THREAD, messages: threadMessages }), { status: 200 });
+  if (url.includes("/threads/")) {
+    const id = url.match(/\/threads\/([^?]+)/)?.[1] ?? "";
+    fetchedThreads.push(id);
+    if (threadStatus !== 200) return new Response("{}", { status: threadStatus });
+    return new Response(JSON.stringify({ id, messages: threadsById.get(id) ?? threadMessages }), { status: 200 });
+  }
   return new Response("not found", { status: 404 });
 });
 
@@ -227,6 +264,8 @@ const sentText = (index = 0) => {
 };
 
 beforeEach(() => {
+  // No deployment AI credential may reach a provider; the Gmail stub below replaces the guard fetch.
+  isolateProviderEnvironment();
   for (const key of ENV_KEYS) saved[key] = process.env[key];
   for (const key of ENV_KEYS) delete process.env[key];
   process.env["REVORA_MAILING_ADDRESS"] = "123 Main St, Raleigh, NC 27601";
@@ -234,6 +273,10 @@ beforeEach(() => {
   setGmailSleepForTests(async () => undefined);
   setOutreachGateForTests(null);
   threadMessages = [];
+  threadsById.clear();
+  fetchedThreads.length = 0;
+  threadStatus = 200;
+  tokenStatus = 200;
   sendStatus = 200;
   sends.length = 0;
   gmailFetch.mockClear();
@@ -255,6 +298,7 @@ afterEach(() => {
   setGmailSleepForTests(null);
   setOutreachGateForTests(null);
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
   vi.useRealTimers();
 });
 
@@ -437,7 +481,7 @@ describe("reply polling and follow-up", () => {
     setGmail();
     threadMessages = [inbound("in3", "One more question: can I change the colors?")];
     ai.intent = '{"intent":"question","confidence":0.9}';
-    const priorReply = (n: number): Row => ({ ...sentOutreach({ id: crypto.randomUUID(), kind: "reply", reason: "auto_reply", gmail_id: `r${n}` }) });
+    const priorReply = (n: number): Row => ({ ...sentOutreach({ id: crypto.randomUUID(), kind: "reply", reason: "auto_reply", gmail_id: `r${n}`, auto_reply_seq: n }) });
     const { db, tables } = fakeDb(demoSeed({ prospect_outreach: [sentOutreach(), priorReply(1), priorReply(2)] }));
     expect(await runProspectReplies(db)).toMatchObject({ autoReplied: 0, drafted: 1 });
     expect(sends).toHaveLength(0);
@@ -454,6 +498,161 @@ describe("reply polling and follow-up", () => {
     expect(sends).toHaveLength(0);
     const reasons = tables["prospect_inbound"]!.map((row) => row["draft_reason"]);
     expect(reasons).toEqual(["intent_objection", "legal_threat"]);
+  });
+
+  it("reads every thread in the 30-day window across runs, so a stop on an older thread still lands", async () => {
+    setGmail();
+    // 150 first touches, one every 4 hours (about 25 days); the oldest thread holds a stop.
+    const thread = (i: number) => `thread${String(i).padStart(3, "0")}`;
+    const outreach = Array.from({ length: 150 }, (_, i) =>
+      sentOutreach({ id: crypto.randomUUID(), recipient: `p${i}@example.com`, gmail_thread_id: thread(i), created_at: new Date(Date.parse("2026-10-19T17:00:00Z") - i * 4 * 3_600_000).toISOString() }),
+    );
+    threadsById.set(thread(149), [inbound("stop149", "Please stop emailing me", { from: "p149@example.com", thread: thread(149), at: "2026-10-19T12:00:00Z" })]);
+    const { db } = fakeDb(demoSeed({ prospect_outreach: outreach }));
+
+    expect(await runProspectReplies(db)).toMatchObject({ status: "done", threadsChecked: 100, stopped: 0 });
+    expect(fetchedThreads[0]).toBe(thread(0));
+    expect(await isDoNotContact(db, "p149@example.com")).toBe(false);
+
+    vi.setSystemTime(new Date("2026-10-19T18:10:00Z"));
+    expect(await runProspectReplies(db)).toMatchObject({ status: "done", threadsChecked: 100, stopped: 1 });
+    // The 50 never-checked threads first, then the least recently checked.
+    expect(fetchedThreads.slice(100, 150)).toEqual(Array.from({ length: 50 }, (_, i) => thread(100 + i)));
+    expect(new Set(fetchedThreads).size).toBe(150);
+    expect(await isDoNotContact(db, "p149@example.com")).toBe(true);
+  });
+
+  it("reads replies that arrived during a Gmail outage once Gmail answers again, and fails the outage runs", async () => {
+    setGmail();
+    const { db, tables } = fakeDb(demoSeed({ prospect_outreach: [sentOutreach()], prospect_reply_poll_state: [{ id: 1, last_polled_at: "2026-10-19T16:00:00.000Z" }] }));
+    // The prospect writes "stop" at 17:00, then the refresh token is revoked and Gmail returns 5xx.
+    threadMessages = [inbound("in1", "Please stop emailing me", { at: "2026-10-19T17:00:00Z" })];
+    tokenStatus = 400;
+    const revoked = await runProspectReplies(db);
+    expect(revoked).toMatchObject({ status: "failed", stored: 0 });
+    expect(revoked.errors.join()).toContain("gmail_auth_failed");
+
+    tokenStatus = 200;
+    threadStatus = 503;
+    vi.setSystemTime(new Date("2026-10-19T19:00:00Z"));
+    const down = await runProspectReplies(db);
+    expect(down).toMatchObject({ status: "failed", stored: 0 });
+    expect(down.errors.join()).toContain("gmail_unavailable");
+    // Neither the poll mark nor the thread's check time moved.
+    expect(tables["prospect_reply_poll_state"]![0]!["last_polled_at"]).toBe("2026-10-19T16:00:00.000Z");
+    expect(tables["prospect_outreach"]![0]!["replies_checked_at"]).toBeUndefined();
+
+    // Back four hours after the reply, far outside any overlap window.
+    threadStatus = 200;
+    vi.setSystemTime(new Date("2026-10-19T21:00:00Z"));
+    expect(await runProspectReplies(db)).toMatchObject({ status: "done", stored: 1, stopped: 1 });
+    expect(await isDoNotContact(db, "owner@triangle.com")).toBe(true);
+    expect(tables["prospect_reply_poll_state"]![0]!["last_polled_at"]).toBe("2026-10-19T21:00:00.000Z");
+    expect(tables["prospect_outreach"]![0]!["replies_checked_at"]).toBe("2026-10-19T21:00:00.000Z");
+  });
+
+  it("applies a stop on the next run when do-not-contact couldn't be written, never storing it as handled first", async () => {
+    setGmail();
+    threadMessages = [inbound("in1", "STOP")];
+    const faults: Faults = { failUpsert: ["prospect_do_not_contact"] };
+    const { db, tables } = fakeDb(demoSeed({ prospect_outreach: [sentOutreach()] }), faults);
+    const first = await runProspectReplies(db);
+    expect(first).toMatchObject({ status: "failed", stored: 0, stopped: 0 });
+    expect(first.errors.join()).toContain("do-not-contact");
+    expect(tables["prospect_inbound"] ?? []).toHaveLength(0);
+    expect(await isDoNotContact(db, "owner@triangle.com")).toBe(false);
+
+    faults.failUpsert = [];
+    vi.setSystemTime(new Date("2026-10-19T18:10:00Z"));
+    expect(await runProspectReplies(db)).toMatchObject({ status: "done", stored: 1, stopped: 1 });
+    expect(await isDoNotContact(db, "owner@triangle.com")).toBe(true);
+    expect(tables["prospect_inbound"]).toHaveLength(1);
+    expect(tables["prospect_inbound"]![0]).toMatchObject({ intent: "stop", status: "handled", action: "do_not_contact" });
+    expect(sends).toHaveLength(0);
+  });
+
+  /** A sent automatic reply holding slot `seq` in THREAD. */
+  const autoReplyRow = (seq: number): Row => sentOutreach({ id: crypto.randomUUID(), kind: "reply", reason: "auto_reply", gmail_id: `r${seq}`, auto_reply_seq: seq });
+  const sentAutoReplies = (rows: Row[]) => rows.filter((row) => row["kind"] === "reply" && row["mode"] === "autopilot" && row["status"] === "sent");
+
+  it("drafts instead of sending when an overlapping run takes the thread's last automatic slot mid-reply", async () => {
+    setGmail();
+    const { db, tables } = fakeDb(demoSeed({
+      prospect_outreach: [sentOutreach(), autoReplyRow(1)],
+      prospect_inbound: [{
+        id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", organization_id: ORG, outreach_id: sentOutreach()["id"], thread_id: THREAD, gmail_message_id: "in2",
+        rfc_message_id: "<in2@mail.test>", references_ids: ["<revora.first@revora.test>"], from_address: "owner@triangle.com",
+        subject: "Re: A free website draft for Triangle Comfort", body: "Sounds good, what's next?", received_at: "2026-10-19T17:00:00.000Z",
+        intent: "positive", confidence: 0.9, intent_source: "ai", flags: [], status: "pending",
+      }],
+    }));
+    // This run's early count reads one automatic reply; while it writes, another run sends the second.
+    vi.mocked(generateText).mockImplementationOnce(async () => {
+      tables["prospect_outreach"]!.push(autoReplyRow(2));
+      return { text: `{"body":"Great to hear! Your draft is here: ${PREVIEW}"}` } as never;
+    });
+    expect(await runProspectReplies(db)).toMatchObject({ autoReplied: 0, drafted: 1 });
+    expect(sends).toHaveLength(0);
+    expect(sentAutoReplies(tables["prospect_outreach"]!)).toHaveLength(MAX_AUTO_REPLIES_PER_THREAD);
+    expect(tables["prospect_inbound"]![0]).toMatchObject({ status: "awaiting_operator", action: "drafted", draft_reason: "auto_reply_limit" });
+  });
+
+  it("lets only one of two concurrent automatic replies take the thread's last slot", async () => {
+    setGmail();
+    const { db, tables } = fakeDb(demoSeed({ prospect_outreach: [sentOutreach(), autoReplyRow(1)] }));
+    const item = {
+      id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", organizationId: ORG, businessName: null, threadId: THREAD, from: "owner@triangle.com",
+      subject: "Re: A free website draft for Triangle Comfort", snippet: null, body: "Sounds good", receivedAt: "2026-10-19T17:00:00.000Z",
+      intent: "positive" as const, confidence: 0.9, intentSource: "ai", flags: [], status: "processing", action: null, handledAt: null,
+      draftSubject: null, draftText: null, draftReason: null, rfcMessageId: "<in2@mail.test>", references: ["<revora.first@revora.test>"],
+    };
+    const send = () => sendThreadReply(db, gmailConfig()!, { inbound: item, body: `Thanks! ${PREVIEW}`, mode: "autopilot", reason: "auto_reply", actorId: null });
+    const results = await Promise.all([send(), send()]);
+    expect(results.filter((result) => result.ok)).toHaveLength(1);
+    expect(results.find((result) => !result.ok)).toEqual({ ok: false, reason: "auto_reply_limit" });
+    expect(sends).toHaveLength(1);
+    expect(sentAutoReplies(tables["prospect_outreach"]!).map((row) => row["auto_reply_seq"]).sort()).toEqual([1, 2]);
+    // With both slots taken, the next automatic reply is refused before Gmail.
+    expect(await send()).toEqual({ ok: false, reason: "auto_reply_limit" });
+    expect(sends).toHaveLength(1);
+  });
+
+  it("keeps an in-thread reply as an operator draft when the mailing address isn't set", async () => {
+    setGmail();
+    delete process.env["REVORA_MAILING_ADDRESS"];
+    threadMessages = [inbound("in1", "Yes, I like it! What next?")];
+    const { db, tables } = fakeDb(demoSeed({ prospect_outreach: [sentOutreach()] }));
+    expect(await runProspectReplies(db)).toMatchObject({ autoReplied: 0, drafted: 1 });
+    expect(sends).toHaveLength(0);
+    const row = tables["prospect_inbound"]![0]!;
+    expect(row).toMatchObject({ status: "awaiting_operator", action: "drafted", draft_reason: "send_failed: mailing_address_missing" });
+    expect(String(row["draft_text"])).toContain(PREVIEW);
+    expect(tables["prospect_outreach"]!.filter((r) => r["kind"] === "reply")).toHaveLength(0);
+
+    // The operator can't send it either until the address is set; it stays a draft.
+    const approved = await approveReplyDraft(db, { inboundId: String(row["id"]), body: `Thanks! Here it is: ${PREVIEW}`, actorId: "admin" });
+    expect(approved).toMatchObject({ ok: false, reason: "mailing_address_missing" });
+    expect(approved.ok ? "" : approved.message).toContain("REVORA_MAILING_ADDRESS");
+    expect(sends).toHaveLength(0);
+    expect(tables["prospect_inbound"]![0]).toMatchObject({ status: "awaiting_operator", action: "drafted" });
+  });
+});
+
+describe("prospect replies migration", () => {
+  const sql = readFileSync(new URL("../../supabase/migrations/20261019100000_prospect_gmail_replies.sql", import.meta.url), "utf8");
+
+  it("holds the per-thread automatic reply limit in the database", () => {
+    expect(sql).toContain("ADD COLUMN IF NOT EXISTS auto_reply_seq SMALLINT;");
+    expect(sql).toMatch(
+      /CREATE UNIQUE INDEX IF NOT EXISTS prospect_outreach_auto_reply_slot_idx\s+ON public\.prospect_outreach \(gmail_thread_id, auto_reply_seq\)\s+WHERE status = 'sent' AND kind = 'reply' AND mode = 'autopilot';/,
+    );
+    expect(sql).toContain(`THEN auto_reply_seq IS NOT NULL AND auto_reply_seq BETWEEN 1 AND ${MAX_AUTO_REPLIES_PER_THREAD}`);
+    expect(sql).toContain("ELSE auto_reply_seq IS NULL");
+  });
+
+  it("orders the reply poll's rotation by the thread's last check", () => {
+    expect(sql).toContain("ADD COLUMN IF NOT EXISTS replies_checked_at TIMESTAMPTZ;");
+    expect(sql).toMatch(/CREATE INDEX IF NOT EXISTS prospect_outreach_reply_poll_idx\s+ON public\.prospect_outreach \(replies_checked_at NULLS FIRST, created_at DESC\)/);
   });
 });
 

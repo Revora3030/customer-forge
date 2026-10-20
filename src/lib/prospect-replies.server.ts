@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { gmailConfig, gmailNotConfiguredMessage, getGmailThread, missingGmailSecrets, type GmailConfig } from "@/lib/gmail/client.server";
-import { parseGmailMessage, type ParsedGmailMessage } from "@/lib/gmail/mime.server";
+import { parseGmailMessage, type GmailApiMessage, type ParsedGmailMessage } from "@/lib/gmail/mime.server";
 import {
   addDoNotContact,
   appBaseUrl,
@@ -15,6 +15,7 @@ import {
   factCheckReply,
   fallbackDraft,
   keywordIntent,
+  MAX_AUTO_REPLIES_PER_THREAD,
   parseIntentResponse,
   parseReplyDraft,
   parseReviewVerdict,
@@ -30,23 +31,24 @@ import {
 /**
  * Inbound prospect replies: the prospect-replies job (every 10 minutes)
  *   1. drains the outreach send queue,
- *   2. reads the Gmail threads of emails we sent (prospect_outreach.gmail_thread_id)
- *      and stores each new message from the prospect in prospect_inbound with
- *      its intent (free AI pool, with a deterministic stop override),
+ *   2. reads the Gmail threads of emails we sent (prospect_outreach.gmail_thread_id),
+ *      least recently checked first, and stores each new message from the
+ *      prospect in prospect_inbound with its intent (free AI pool, with a
+ *      deterministic stop override),
  *   3. follows up: stop => do-not-contact, no reply; positive/price/question =>
  *      an AI reply limited to the facts sheet, checked deterministically and
- *      by a second free-model review, sent in-thread (max 2 per thread);
- *      anything else, or a reply that fails a check => a draft the operator
- *      reviews in Jarvis.
+ *      by a second free-model review, sent in-thread (max 2 per thread, held
+ *      by a unique slot index); anything else, or a reply that fails a check
+ *      => a draft the operator reviews in Jarvis.
  * Without the four GMAIL_* secrets, polling returns "gmail_not_configured".
  */
 
 export const THREAD_LOOKBACK_DAYS = 30;
+/** Threads read per run; the rotation covers every thread in the lookback window across runs. */
 export const MAX_THREADS_PER_RUN = 100;
 export const MAX_FOLLOWUPS_PER_RUN = 10;
 /** A follow-up stuck in processing this long died mid-run; it goes to the operator (never resent blindly). */
 export const STALE_PROCESSING_MINUTES = 15;
-const POLL_OVERLAP_MS = 15 * 60_000;
 
 type Row = Record<string, unknown>;
 
@@ -153,25 +155,36 @@ export async function classifyInbound(message: { text: string; subject: string }
 
 type ThreadInfo = { organizationId: string; outreachId: string; recipient: string };
 
+/**
+ * This run's batch: sent first touches from the lookback window, never-checked
+ * first, then least recently checked, so every thread in the window is read
+ * across runs (not only the newest MAX_THREADS_PER_RUN).
+ */
 async function knownThreads(db: SupabaseClient, now: Date): Promise<Map<string, ThreadInfo>> {
   const { data, error } = await db
     .from("prospect_outreach")
     .select("id, organization_id, recipient, gmail_thread_id, created_at")
     .eq("channel", "email")
     .eq("status", "sent")
+    .eq("kind", "first_touch")
     .not("gmail_thread_id", "is", null)
     .gte("created_at", new Date(now.getTime() - THREAD_LOOKBACK_DAYS * 86_400_000).toISOString())
+    .order("replies_checked_at", { ascending: true, nullsFirst: true })
     .order("created_at", { ascending: false })
-    .limit(500);
+    .limit(MAX_THREADS_PER_RUN);
   if (error) throw new Error(`Couldn't read outreach threads: ${error.message}`);
   const threads = new Map<string, ThreadInfo>();
   for (const row of (data ?? []) as Row[]) {
     const threadId = text(row["gmail_thread_id"]);
     if (!threadId || threads.has(threadId)) continue;
     threads.set(threadId, { organizationId: String(row["organization_id"]), outreachId: String(row["id"]), recipient: String(row["recipient"]) });
-    if (threads.size >= MAX_THREADS_PER_RUN) break;
   }
   return threads;
+}
+
+/** Moves a thread to the back of the rotation. Only an ordering key: a missed stamp just means an early, deduped re-read. */
+async function markThreadChecked(db: SupabaseClient, threadId: string, now: Date): Promise<void> {
+  await db.from("prospect_outreach").update({ replies_checked_at: now.toISOString() }).eq("gmail_thread_id", threadId).eq("kind", "first_touch");
 }
 
 /** Applies a stop reply: do-not-contact for the sender and the address we wrote to, waiting sends cancelled. */
@@ -184,82 +197,117 @@ async function applyStop(db: SupabaseClient, organizationId: string, addresses: 
   await cancelQueuedOutreach(db, organizationId, "stop_reply").catch(() => undefined);
 }
 
-export async function pollGmailReplies(
-  db: SupabaseClient,
-  config: GmailConfig,
-  summary: RepliesRunSummary,
-  now: Date,
-  since: Date | null,
-): Promise<void> {
+/**
+ * Reads each thread in the batch. Every message is considered on every read
+ * (no received-time cutoff): the gmail_message_id unique key is the only
+ * dedupe, so a reply that arrived during an outage is still read once Gmail
+ * answers again. A thread is stamped checked only when it was read and all of
+ * its new messages were stored; any failure leaves it first in line for the
+ * next run and marks this run failed.
+ */
+export async function pollGmailReplies(db: SupabaseClient, config: GmailConfig, summary: RepliesRunSummary, now: Date): Promise<void> {
   const threads = await knownThreads(db, now);
-  const cutoff = since ? since.getTime() - POLL_OVERLAP_MS : 0;
+  let failures = 0;
   for (const [threadId, info] of threads) {
     const thread = await getGmailThread(config, threadId);
     summary.threadsChecked += 1;
     if (!thread.ok) {
+      failures += 1;
       if (summary.errors.length < 10) summary.errors.push(`thread ${threadId}: ${thread.reason}`);
       if (thread.reason === "gmail_auth_failed") break;
+      // A thread Gmail no longer has goes to the back of the rotation so it can't starve the rest.
+      if (!thread.transient) await markThreadChecked(db, threadId, now);
       continue;
     }
-    const incoming: ParsedGmailMessage[] = [];
-    for (const raw of thread.messages) {
-      if (raw.labelIds?.includes("SENT") || raw.labelIds?.includes("DRAFT")) continue;
-      const parsed = parseGmailMessage(raw);
-      if (!parsed?.from || parsed.from === config.sender) continue;
-      if (parsed.receivedAt.getTime() < cutoff) continue;
-      incoming.push(parsed);
-    }
-    if (!incoming.length) continue;
-    const { data: existing } = await db
-      .from("prospect_inbound")
-      .select("gmail_message_id")
-      .in("gmail_message_id", incoming.map((message) => message.id));
-    const seen = new Set(((existing ?? []) as Row[]).map((row) => String(row["gmail_message_id"])));
-    for (const message of incoming) {
-      if (seen.has(message.id)) continue;
-      const flags: string[] = riskFlags(message.text, message.subject);
-      if (message.autoSubmitted) flags.push("auto_submitted");
-      // Out-of-office and other automatic mail is stored but never classified by the AI or answered.
-      const classification: Classification =
-        message.autoSubmitted && !keywordIntent(message.text, message.subject)
-          ? { intent: "unclear", confidence: 1, source: "fallback" }
-          : await classifyInbound({ text: message.text || message.snippet, subject: message.subject });
-      const stop = classification.intent === "stop";
-      const id = crypto.randomUUID();
-      const { error } = await db.from("prospect_inbound").insert({
-        id,
-        organization_id: info.organizationId,
-        outreach_id: info.outreachId,
-        thread_id: threadId,
-        gmail_message_id: message.id,
-        rfc_message_id: message.messageId,
-        references_ids: message.references.slice(-20),
-        from_address: message.from,
-        subject: message.subject || null,
-        snippet: message.snippet || null,
-        body: message.text.slice(0, 4000) || null,
-        received_at: message.receivedAt.toISOString(),
-        intent: classification.intent,
-        confidence: classification.confidence,
-        intent_source: classification.source,
-        flags,
-        // A stop is handled right here: do-not-contact, never a reply.
-        status: stop || message.autoSubmitted ? "handled" : "pending",
-        action: stop ? "do_not_contact" : message.autoSubmitted ? "ignored_auto_reply" : null,
-        handled_at: stop || message.autoSubmitted ? now.toISOString() : null,
-      });
-      if (error) {
-        // 23505: another run stored it first.
-        if ((error as { code?: string }).code !== "23505" && summary.errors.length < 10) summary.errors.push(`store ${message.id}: ${error.message}`);
+    if (await storeNewReplies(db, config, summary, now, threadId, info, thread.messages)) await markThreadChecked(db, threadId, now);
+    else failures += 1;
+  }
+  if (failures) summary.status = "failed";
+}
+
+/** Stores the thread's unseen prospect messages; false when any of them couldn't be stored (or its stop applied). */
+async function storeNewReplies(
+  db: SupabaseClient,
+  config: GmailConfig,
+  summary: RepliesRunSummary,
+  now: Date,
+  threadId: string,
+  info: ThreadInfo,
+  messages: GmailApiMessage[],
+): Promise<boolean> {
+  const incoming: ParsedGmailMessage[] = [];
+  for (const raw of messages) {
+    if (raw.labelIds?.includes("SENT") || raw.labelIds?.includes("DRAFT")) continue;
+    const parsed = parseGmailMessage(raw);
+    if (!parsed?.from || parsed.from === config.sender) continue;
+    incoming.push(parsed);
+  }
+  if (!incoming.length) return true;
+  const { data: existing, error: seenError } = await db
+    .from("prospect_inbound")
+    .select("gmail_message_id")
+    .in("gmail_message_id", incoming.map((message) => message.id));
+  if (seenError) {
+    if (summary.errors.length < 10) summary.errors.push(`thread ${threadId}: ${seenError.message}`);
+    return false;
+  }
+  const seen = new Set(((existing ?? []) as Row[]).map((row) => String(row["gmail_message_id"])));
+  let complete = true;
+  for (const message of incoming) {
+    if (seen.has(message.id)) continue;
+    const flags: string[] = riskFlags(message.text, message.subject);
+    if (message.autoSubmitted) flags.push("auto_submitted");
+    // Out-of-office and other automatic mail is stored but never classified by the AI or answered.
+    const classification: Classification =
+      message.autoSubmitted && !keywordIntent(message.text, message.subject)
+        ? { intent: "unclear", confidence: 1, source: "fallback" }
+        : await classifyInbound({ text: message.text || message.snippet, subject: message.subject });
+    const stop = classification.intent === "stop";
+    if (stop) {
+      // Do-not-contact before the row: if it fails nothing is stored, so the next read applies the stop again.
+      try {
+        await applyStop(db, info.organizationId, [message.from!, info.recipient]);
+      } catch (error) {
+        if (summary.errors.length < 10) summary.errors.push(`stop ${message.id}: ${error instanceof Error ? error.message.slice(0, 200) : "failed"}`);
+        complete = false;
         continue;
       }
-      summary.stored += 1;
-      if (stop) {
-        await applyStop(db, info.organizationId, [message.from!, info.recipient]);
-        summary.stopped += 1;
-      }
     }
+    const id = crypto.randomUUID();
+    const { error } = await db.from("prospect_inbound").insert({
+      id,
+      organization_id: info.organizationId,
+      outreach_id: info.outreachId,
+      thread_id: threadId,
+      gmail_message_id: message.id,
+      rfc_message_id: message.messageId,
+      references_ids: message.references.slice(-20),
+      from_address: message.from,
+      subject: message.subject || null,
+      snippet: message.snippet || null,
+      body: message.text.slice(0, 4000) || null,
+      received_at: message.receivedAt.toISOString(),
+      intent: classification.intent,
+      confidence: classification.confidence,
+      intent_source: classification.source,
+      flags,
+      // A stop is handled right here: do-not-contact (already applied), never a reply.
+      status: stop || message.autoSubmitted ? "handled" : "pending",
+      action: stop ? "do_not_contact" : message.autoSubmitted ? "ignored_auto_reply" : null,
+      handled_at: stop || message.autoSubmitted ? now.toISOString() : null,
+    });
+    if (error) {
+      // 23505: another run stored it first.
+      if ((error as { code?: string }).code !== "23505") {
+        if (summary.errors.length < 10) summary.errors.push(`store ${message.id}: ${error.message}`);
+        complete = false;
+      }
+      continue;
+    }
+    summary.stored += 1;
+    if (stop) summary.stopped += 1;
   }
+  return complete;
 }
 
 /* ------------------------------------------------------------------------ */
@@ -336,6 +384,9 @@ export async function sendThreadReply(
   if (await isDoNotContact(db, to)) return { ok: false, reason: "do_not_contact" };
   const body = input.body.trim().slice(0, 4000);
   if (!body) return { ok: false, reason: "empty_reply" };
+  // CAN-SPAM: like a first touch, no reply goes out without the physical mailing address.
+  const address = process.env["REVORA_MAILING_ADDRESS"]?.trim();
+  if (!address) return { ok: false, reason: "mailing_address_missing" };
   const bytes = new Uint8Array(24);
   crypto.getRandomValues(bytes);
   const token = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
@@ -343,10 +394,10 @@ export async function sendThreadReply(
   const tokenInsert = await db.from("prospect_outreach_unsubscribe_tokens").insert({ token, value: to });
   if (tokenInsert.error) return { ok: false, reason: "storage_error" };
   const senderName = process.env["REVORA_SENDER_NAME"]?.trim() || "Revora Growth Systems";
-  const full = `${body}\n${replyFooter({ senderName, unsubscribeUrl, address: process.env["REVORA_MAILING_ADDRESS"] })}`;
+  const full = `${body}\n${replyFooter({ senderName, unsubscribeUrl, address })}`;
   const subject = replySubject(input.inbound.subject);
   const outreachId = crypto.randomUUID();
-  const claim = await db.from("prospect_outreach").insert({
+  const record = {
     id: outreachId,
     organization_id: input.inbound.organizationId,
     channel: "email",
@@ -361,7 +412,15 @@ export async function sendThreadReply(
     provider: "gmail",
     gmail_thread_id: input.inbound.threadId,
     sent_by: input.actorId,
-  });
+  };
+  // An automatic reply takes a numbered slot: the unique (gmail_thread_id, auto_reply_seq) index keeps
+  // overlapping runs from sending more than MAX_AUTO_REPLIES_PER_THREAD in one thread.
+  let claim: { error: { code?: string } | null } | null = input.mode === "autopilot" ? null : await db.from("prospect_outreach").insert(record);
+  for (let seq = 1; !claim && seq <= MAX_AUTO_REPLIES_PER_THREAD; seq += 1) {
+    const attempt = await db.from("prospect_outreach").insert({ ...record, auto_reply_seq: seq });
+    if (attempt.error?.code !== "23505") claim = attempt;
+  }
+  if (!claim) return { ok: false, reason: "auto_reply_limit" };
   if (claim.error) return { ok: false, reason: "storage_error" };
   const { sendGmailOutreach } = await import("@/lib/gmail/outreach.server");
   const sent = await sendGmailOutreach(config, {
@@ -389,6 +448,7 @@ export async function sendThreadReply(
   return { ok: true, outreachId };
 }
 
+/** Early check that skips the AI work; the slot index in sendThreadReply is what holds the limit. */
 async function priorAutoReplies(db: SupabaseClient, threadId: string): Promise<number> {
   const { count, error } = await db
     .from("prospect_outreach")
@@ -468,6 +528,8 @@ export async function followUpInbound(db: SupabaseClient, config: GmailConfig, i
       await db.from("prospect_inbound").update({ status: "handled", action: "do_not_contact", handled_at: now.toISOString() }).eq("id", inbound.id);
       return "blocked";
     }
+    // Another run took the thread's last automatic slot first.
+    if (sent.reason === "auto_reply_limit") return toDraft("auto_reply_limit", written);
     // An unconfirmed send is recorded as sent (it counts toward the limit); the operator sees the outcome.
     return toDraft(`send_failed: ${sent.reason}`, written);
   }
@@ -545,9 +607,8 @@ export async function runProspectReplies(db: SupabaseClient, options: { now?: ()
   const owner = crypto.randomUUID();
   const started = now();
   try {
-    const { data: state } = await db.from("prospect_reply_poll_state").select("last_polled_at").eq("id", 1).maybeSingle();
-    const last = Date.parse(String((state as Row | null)?.["last_polled_at"] ?? ""));
-    await pollGmailReplies(db, config, summary, started, Number.isFinite(last) ? new Date(last) : null);
+    // A thread that failed marks the run failed but doesn't hold back follow-ups already stored.
+    await pollGmailReplies(db, config, summary, started);
     await followUpPending(db, config, summary, now(), owner);
   } catch (error) {
     summary.status = "failed";
@@ -555,7 +616,7 @@ export async function runProspectReplies(db: SupabaseClient, options: { now?: ()
   }
   await db.from("prospect_reply_poll_state").upsert({
     id: 1,
-    // A failed poll keeps the old mark so the next run looks back far enough.
+    // Shown as "last checked" only when every thread read worked; it never filters what is read.
     ...(summary.status === "done" ? { last_polled_at: started.toISOString() } : {}),
     last_result: { ...summary, errors: summary.errors.slice(0, 5) },
     last_error: summary.errors[0] ?? null,

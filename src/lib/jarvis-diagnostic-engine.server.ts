@@ -48,7 +48,8 @@ export async function collectDemoEngineEvidence(
     read<null>(() => db.from("prospect_outreach").select("id", head).eq("status", "sent").gte("created_at", since)),
     read<null>(() => db.from("prospect_outreach").select("id", head).eq("status", "failed").gte("created_at", since)),
     read<null>(() => db.from("prospect_inbound").select("id", head).gte("created_at", since)),
-    read<null>(() => db.from("prospect_inbound").select("id", head).gte("created_at", since).not("handled_at", "is", null)),
+    // Finished only: a claim (processing) or an operator draft also sets handled_at.
+    read<null>(() => db.from("prospect_inbound").select("id", head).gte("created_at", since).in("status", ["handled", "dismissed"])),
     read<null>(() => db.from("prospect_preview_events").select("id", head).gte("created_at", since)),
     read<Array<{ created_at: string }>>(() => db.from("prospect_preview_events").select("created_at").order("created_at", { ascending: false }).limit(1)),
   ]);
