@@ -82,8 +82,13 @@ export function OperationsPanel({ diagnostics, acquisition, scorecard, prospecto
     if (!focusDiagnostics || !diagnosticsRef.current) return;
     const el = diagnosticsRef.current;
     el.open = true;
-    el.scrollIntoView({ block: "start", behavior: "smooth" });
     el.querySelector("summary")?.focus({ preventScroll: true });
+    // The cards above load after the sheet opens and push diagnostics down,
+    // so re-align a few times instead of stopping midway at autopilot.
+    const scroll = () => el.scrollIntoView({ block: "start", behavior: "auto" });
+    scroll();
+    const timers = [250, 800, 1600].map((ms) => window.setTimeout(scroll, ms));
+    return () => timers.forEach((t) => window.clearTimeout(t));
   }, [focusDiagnostics]);
 
   return (
