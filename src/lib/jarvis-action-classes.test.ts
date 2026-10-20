@@ -15,7 +15,8 @@ const sample: Record<string, Record<string, unknown>> = {
 describe("Jarvis action effect classes", () => {
   it("never auto-runs write or destructive actions", () => {
     for (const [id, cls] of Object.entries(JARVIS_ACTION_CLASSES)) {
-      if (cls.effect !== "read") expect(cls.autoRuns, id).toBe(false);
+      // memory.save is the one documented exception: owner-scoped internal memory, not a platform write.
+      if (cls.effect !== "read" && cls.effect !== "memory") expect(cls.autoRuns, id).toBe(false);
     }
   });
 
