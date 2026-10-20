@@ -8,6 +8,8 @@
  * from a prospect or the AI can't inject headers.
  */
 
+import { htmlToText } from "@/lib/html-text";
+
 export type MimeMessage = {
   from: string;
   /** Display name for From; quoted and encoded as needed. */
@@ -160,45 +162,6 @@ function findText(part: GmailPayloadPart | undefined, type: string): string | nu
   return null;
 }
 
-const HTML_ENTITIES: Record<string, string> = { nbsp: " ", lt: "<", gt: ">", amp: "&" };
-
-/**
- * Plain text of an HTML mail part. A character walk rather than tag regexes:
- * anything inside a tag is dropped, as is the content of <script>/<style>
- * (whatever their closing tag looks like), and <br>/</p>/</div> become line
- * breaks. Only the result is read as text; it is never rendered as HTML.
- */
-function stripHtml(html: string): string {
-  let out = "";
-  let index = 0;
-  let skipUntil: string | null = null;
-  while (index < html.length) {
-    const open = html.indexOf("<", index);
-    if (open === -1) {
-      if (!skipUntil) out += html.slice(index);
-      break;
-    }
-    if (!skipUntil) out += html.slice(index, open);
-    const close = html.indexOf(">", open + 1);
-    if (close === -1) break;
-    const name = (/^<\s*(\/?)\s*([a-z0-9]+)/i.exec(html.slice(open, close + 1)) ?? []).slice(1).join("").toLowerCase();
-    if (skipUntil) {
-      if (name === skipUntil) skipUntil = null;
-    } else if (name === "script" || name === "style") {
-      skipUntil = `/${name}`;
-    } else if (name === "br" || name === "/p" || name === "/div") {
-      out += "\n";
-    } else {
-      out += " ";
-    }
-    index = close + 1;
-  }
-  // One decoding pass, so "&amp;lt;" reads as the text "&lt;", not "<".
-  return out
-    .replace(/&(nbsp|lt|gt|amp);/g, (_entity, name: string) => HTML_ENTITIES[name] ?? " ")
-    .replace(/[ \t]+/g, " ");
-}
-
 /**
  * The new text of a reply: quoted history ("> ..." lines, an "On ... wrote:"
  * line, and everything from a forwarded/original-message divider) removed.
@@ -239,7 +202,7 @@ export function parseGmailMessage(message: GmailApiMessage): ParsedGmailMessage 
   const fromRaw = payloadHeader(payload, "From") ?? "";
   const plain = findText(payload, "text/plain");
   const html = plain === null ? findText(payload, "text/html") : null;
-  const full = plain ?? (html ? stripHtml(html) : "") ?? "";
+  const full = plain ?? (html ? htmlToText(html, { whitespace: "lines" }) : "") ?? "";
   const references = (payloadHeader(payload, "References") ?? "").match(/<[^<>\s]+>/g) ?? [];
   const autoSubmitted = (payloadHeader(payload, "Auto-Submitted") ?? "no").toLowerCase() !== "no" ||
     Boolean(payloadHeader(payload, "X-Autoreply")) ||

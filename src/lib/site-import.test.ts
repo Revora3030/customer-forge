@@ -72,3 +72,17 @@ describe("importing an existing website", () => {
     expect(fns).toContain("if ((count ?? 0) === 0)");
   });
 });
+
+describe("site import visible text", () => {
+  it("reads a phone only from visible copy and decodes entities once", () => {
+    const hidden = extractFacts(
+      "<html><head><title>Acme &amp;lt;b&amp;gt; Co</title></head><body><p>Hi</p>" +
+        "<script>var phone = '(919) 555-0100';</script ><svg><text>(919) 555-0100</text></svg></body></html>",
+      "https://acme.test/",
+    );
+    expect(hidden.phone).toBe("");
+    expect(hidden.businessName).toBe("Acme &lt;b&gt; Co");
+    const shown = extractFacts("<html><body><p>Call (919)&nbsp;555-0100 today</p></body></html>", "https://acme.test/");
+    expect(shown.phone).not.toBe("");
+  });
+});

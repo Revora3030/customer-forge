@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { formatRevoraOffer } from "./jarvis-acquisition-policy";
 import { OUTREACH_PROMOTIONAL_NOTICE } from "./outreach-notice";
+import { htmlToText } from "./html-text";
 
 const AUDIT_LINK = "https://revoragrowthsystems.com/website-audit";
 const MAX_PROSPECTS = 5;
@@ -76,7 +77,8 @@ const EMPTY: SiteObservation = {
   hasViewport: null, h1Count: null, hasTelLink: null, hasForm: null, likelyJsRendered: null, error: null,
 };
 
-async function observe(url: string): Promise<SiteObservation> {
+/** Fetches a prospect's site once and records what a visitor gets. Exported for tests. */
+export async function observe(url: string): Promise<SiteObservation> {
   const started = Date.now();
   try {
     const { guardedFetch } = await import("./net-guard.server");
@@ -94,12 +96,7 @@ async function observe(url: string): Promise<SiteObservation> {
         continue;
       }
       const html = await boundedText(response);
-      const text = html
-        .replace(/<script[\s\S]*?<\/script>/gi, " ")
-        .replace(/<style[\s\S]*?<\/style>/gi, " ")
-        .replace(/<[^>]+>/g, " ")
-        .replace(/\s+/g, " ")
-        .trim();
+      const text = htmlToText(html);
       return {
         checked: true,
         status: response.status,

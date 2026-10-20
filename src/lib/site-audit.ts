@@ -15,6 +15,7 @@
 import type { ContentPage } from "@/lib/website-content";
 import type { ConversionGoal } from "@/lib/conversion-engine";
 import type { SeoIssue } from "@/lib/seo-audit";
+import { htmlToText } from "@/lib/html-text";
 
 export type AuditSeverity = "critical" | "warning" | "opportunity";
 
@@ -345,12 +346,7 @@ export function auditLiveHtml(
   status: number,
   html: string,
 ): LivePageResult {
-  const bodyText = html
-    .replace(/<script[\s\S]*?<\/script>/gi, " ")
-    .replace(/<style[\s\S]*?<\/style>/gi, " ")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  const bodyText = htmlToText(html);
 
   const observed: LivePageResult["observed"] = {
     title: between(html, /<title[^>]*>([\s\S]*?)<\/title>/i),
