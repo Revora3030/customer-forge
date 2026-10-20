@@ -14,13 +14,6 @@ import { trackConversion } from "@/lib/conversion";
 
 const ROWS = [
   {
-    icon: Phone,
-    label: "Phone",
-    value: BUSINESS.phoneDisplay,
-    href: `tel:${BUSINESS.tel}`,
-    event: "phone" as const,
-  },
-  {
     icon: Mail,
     label: "Email",
     value: BUSINESS.email,
