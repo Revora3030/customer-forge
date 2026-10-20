@@ -304,6 +304,36 @@ export function parseActions(requested: unknown[], diagnosticToolIds: string[]):
       const memoryId = str(args["memoryId"], 36);
       if (ORG_ID.test(memoryId)) out.proposals.push({ id, memoryId });
       else out.rejected.push("memory.forget: needs the memoryId from memory.list");
+    } else if (id === "routine.create" || id === "routine.update" || id === "routine.delete") {
+      const routineId = str(args["routineId"], 36);
+      if (id === "routine.delete") {
+        if (ORG_ID.test(routineId)) out.proposals.push({ id, routineId });
+        else out.rejected.push("routine.delete: needs the routineId from routines.list");
+      } else {
+        try {
+          const { parseRoutineInput } = require_routines();
+          if (id === "routine.create") {
+            out.proposals.push({ id, routine: parseRoutineInput(args) });
+          } else {
+            if (!ORG_ID.test(routineId)) throw new Error("needs the routineId from routines.list");
+            const patchRaw = (args["patch"] && typeof args["patch"] === "object" ? args["patch"] : {}) as Record<string, unknown>;
+            const patch: Extract<WriteProposal, { id: "routine.update" }>["patch"] = {};
+            if (patchRaw["name"] !== undefined || patchRaw["prompt"] !== undefined || patchRaw["frequency"] !== undefined || patchRaw["hour"] !== undefined || patchRaw["minute"] !== undefined) {
+              const parsed = parseRoutineInput({ name: "x".repeat(3), prompt: "x".repeat(10), ...patchRaw });
+              if (patchRaw["name"] !== undefined) patch.name = parsed.name;
+              if (patchRaw["prompt"] !== undefined) patch.prompt = parsed.prompt;
+              if (patchRaw["frequency"] !== undefined) patch.frequency = parsed.frequency;
+              if (patchRaw["hour"] !== undefined) patch.hour = parsed.hour;
+              if (patchRaw["minute"] !== undefined) patch.minute = parsed.minute;
+            }
+            if (patchRaw["enabled"] !== undefined) patch.enabled = patchRaw["enabled"] === true;
+            if (!Object.keys(patch).length) throw new Error("patch has nothing to change");
+            out.proposals.push({ id, routineId, patch });
+          }
+        } catch (error) {
+          out.rejected.push(`${id}: ${error instanceof Error ? error.message : "invalid routine"}`);
+        }
+      }
     } else if (id === "demo.status") {
       const organizationId = str(args["organizationId"], 36);
       const name = str(args["name"], 120);
