@@ -24,7 +24,7 @@ const context: EditScopeContext = {
 
 describe("selectionScopeFromInstruction", () => {
   it("reads the pointed-at block id from a selection prefix", () => {
-    const instruction = 'On the "Hero" block (id sec-hero): make the photo warmer';
+    const instruction = 'On the "Hero" block (id aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa): make the photo warmer';
     expect(selectionScopeFromInstruction(instruction, context)).toBe("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
   });
 
