@@ -13,6 +13,11 @@ rejected. Only reads auto-run (`runReadActions`); writes become proposal cards.
 Note: `prospects.find` / `prospect.lookup` are "reads" that write audit rows and use
 paid search capacity.
 
+## Effect classes (verified)
+`JARVIS_ACTION_CLASSES` in `jarvis-actions.ts` labels every chat action read/write/destructive
+and external; `jarvis-action-classes.test.ts` fails if any write auto-runs or an
+unclassified action (SQL, publish, billing, roles) parses.
+
 ## Diagnostics (verified)
 11 tools in `JARVIS_DIAGNOSTIC_TOOLS`, all read-only, low risk, platform scope.
 
