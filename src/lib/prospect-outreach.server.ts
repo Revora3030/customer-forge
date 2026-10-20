@@ -452,6 +452,25 @@ export type DemoOutreachText = {
   aiWritten: boolean;
 };
 
+/** Used when the AI draft is unavailable; wording matches whether they already have a site. */
+export function fallbackDemoEmail(demo: { name: string; siteGaps: string[] }, previewUrl: string) {
+  const weakSite = demo.siteGaps.length > 0;
+  return {
+    subject: weakSite ? `A refreshed website draft for ${demo.name}` : `A free website draft for ${demo.name}`,
+    body: [
+      `Hi ${demo.name} team,`,
+      "",
+      weakSite
+        ? `I looked at your current website and noticed ${demo.siteGaps.slice(0, 2).join(" and ").toLowerCase()}, so I put together a free updated draft from your public details:`
+        : "I couldn't find a website for your business, so I put together a free draft from your public details:",
+      previewUrl,
+      "",
+      "It's private and nothing is published. If you sign up from that page, the site is already saved in your account: you keep it, can edit anything, and get full access to every Revora service (website, lead capture, follow-up and bookings).",
+      `Everything is free to try for ${GROWTH_SYSTEM.fullAccessWindow}.`,
+    ].join("\n"),
+  };
+}
+
 async function composeEmail(demo: DemoContext, previewUrl: string, actorId: string | null) {
   let draft: { subject: string; body: string } | null = null;
   try {
