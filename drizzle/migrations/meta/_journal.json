@@ -43,6 +43,13 @@
       "when": 1792024997453,
       "tag": "0005_jarvis_messages",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792499395472,
+      "tag": "0006_generation_jobs_stage_checkpoints",
+      "breakpoints": true
     }
   ]
 }

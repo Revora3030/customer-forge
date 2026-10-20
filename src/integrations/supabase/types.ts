@@ -1356,6 +1356,7 @@ export type Database = {
           progress: number
           request_id: string | null
           section_checkpoints: Json | null
+          stage_checkpoints: Json | null
           stage_timings: Json
           started_at: string | null
           status: string
@@ -1380,6 +1381,7 @@ export type Database = {
           progress?: number
           request_id?: string | null
           section_checkpoints?: Json | null
+          stage_checkpoints?: Json | null
           stage_timings?: Json
           started_at?: string | null
           status?: string
@@ -1404,6 +1406,7 @@ export type Database = {
           progress?: number
           request_id?: string | null
           section_checkpoints?: Json | null
+          stage_checkpoints?: Json | null
           stage_timings?: Json
           started_at?: string | null
           status?: string
