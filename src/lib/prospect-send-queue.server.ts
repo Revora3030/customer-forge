@@ -129,6 +129,10 @@ export async function drainSendQueue(
   summary.claimed = rows.length;
   if (!rows.length) return summary;
   const { sendDemoOutreach } = await import("@/lib/prospect-outreach.server");
+  // The owner's autopilot switches are re-read at send time: turning autopilot
+  // (or one channel) off stops already-queued automatic sends too. They wait
+  // rather than being cancelled, so switching it back on resumes them.
+  const switches = rows.some((row) => row.mode === "autopilot") ? await readAutopilotSwitches(db) : null;
   for (const row of rows) {
     const finish = (patch: Record<string, unknown>) =>
       db
@@ -136,6 +140,11 @@ export async function drainSendQueue(
         .update({ ...patch, leased_until: null, lease_owner: null, updated_at: now().toISOString() })
         .eq("id", row.id)
         .eq("lease_owner", owner);
+    if (row.mode === "autopilot" && !autopilotChannelAllowed(switches, row.channel)) {
+      summary.retried += 1;
+      await finish({ not_before: new Date(now().getTime() + 60 * 60_000).toISOString(), attempts: Math.max(0, row.attempts - 1), last_error: "autopilot_paused" });
+      continue;
+    }
     let result;
     try {
       result = await sendDemoOutreach(db, {
@@ -178,4 +187,23 @@ export async function cancelQueuedOutreach(db: SupabaseClient, organizationId: s
     .update({ status: "cancelled", last_error: reason.slice(0, 200), updated_at: new Date().toISOString() })
     .eq("organization_id", organizationId)
     .eq("status", "queued");
+}
+
+export type AutopilotSwitches = { enabled: boolean; sendEmail: boolean; sendSms: boolean };
+
+/** Unreadable settings count as "off": an automatic send never goes out on a guess. */
+export async function readAutopilotSwitches(db: SupabaseClient): Promise<AutopilotSwitches> {
+  try {
+    const { data, error } = await db.from("prospect_autopilot_settings").select("enabled, send_email, send_sms").eq("id", 1).maybeSingle();
+    if (error || !data) return { enabled: false, sendEmail: false, sendSms: false };
+    const row = data as { enabled?: unknown; send_email?: unknown; send_sms?: unknown };
+    return { enabled: row.enabled === true, sendEmail: row.send_email === true, sendSms: row.send_sms === true };
+  } catch {
+    return { enabled: false, sendEmail: false, sendSms: false };
+  }
+}
+
+export function autopilotChannelAllowed(switches: AutopilotSwitches | null, channel: string): boolean {
+  if (!switches?.enabled) return false;
+  return channel === "sms" ? switches.sendSms : channel === "email" ? switches.sendEmail : false;
 }
