@@ -18,3 +18,15 @@ export class AiStepUnavailableError extends Error {
     this.step = step;
   }
 }
+
+/**
+ * An AI step ran out of capacity (rate limits, quotas, timeouts, rescue
+ * deadline). The job is parked through the capacity deferral and resumes from
+ * its checkpoints; it is not counted as a failed attempt.
+ */
+export class AiCapacityParkError extends AiStepUnavailableError {
+  constructor(step: string, detail?: string | null) {
+    super(step, detail);
+    this.name = "AiCapacityParkError";
+  }
+}

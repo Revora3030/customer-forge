@@ -10,6 +10,7 @@
  *  - every customer build is written and designed by the AI team; a missing
  *    AI result stops the build, there is no built-in substitute
  */
+import { summarizeCapacityPressure, type ProviderRuntime, type WaitProviders } from "@/lib/builder/capacity-wait";
 import type { PageArchitectureOutcome } from "@/lib/builder/ai-page-architecture.server";
 import { nextPublishState } from "@/lib/publish-state";
 import {
@@ -30,6 +31,8 @@ export const LEASE_SECONDS = 300;
  */
 const WORDING_BUDGET_MS = 150_000;
 const LAYOUT_OPTIONAL_BUDGET_MS = 240_000;
+/** Wall-clock bound for the per-section layout rescue rounds of one attempt. */
+export const LAYOUT_RESCUE_BUDGET_MS = 420_000;
 const MAX_ATTEMPTS = 3;
 
 type Db = SupabaseClient;
@@ -1855,6 +1858,7 @@ async function runJob(
       // Optional review/craft rounds stop once this build has used its layout
       // budget; the required AI design and safety checks always complete.
       optionalPassDeadline: Date.now() + LAYOUT_OPTIONAL_BUDGET_MS,
+      rescueDeadline: Date.now() + LAYOUT_RESCUE_BUDGET_MS,
       onPageDone: () => touchLease(db, job),
       // Accepted section designs are checkpointed on the job after every
       // chunk; a retry of this job restores the ones whose inputs still match.
@@ -1890,7 +1894,12 @@ async function runJob(
     // Every section is designed by the AI team. A section left without its
     // layout stops the build (it is retried) instead of shipping a default.
     if ((composed.fallback ?? 0) > 0) {
-      const { AiStepUnavailableError } = await import("@/lib/builder/ai-step-error");
+      const { AiStepUnavailableError, AiCapacityParkError } = await import("@/lib/builder/ai-step-error");
+      if (composed.capacityParked)
+        throw new AiCapacityParkError(
+          "section layouts",
+          `${composed.fallback} section${composed.fallback === 1 ? "" : "s"} still need a layout and the AI team is at capacity`,
+        );
       throw new AiStepUnavailableError(
         "section layouts",
         `${composed.fallback} section${composed.fallback === 1 ? "" : "s"} could not be designed`,
@@ -2586,7 +2595,10 @@ export async function drainSiteEngineQueue(
       // that is not the build's fault and won't clear in seconds, so the
       // attempt is handed back and the job waits 15 min .. 3 h instead of
       // burning its three attempts in two minutes.
-      const deferral = await capacityDeferral(db, String(job.organization_id), attemptStartedAt, job.id);
+      const { AiCapacityParkError } = await import("@/lib/builder/ai-step-error");
+      const deferral = await capacityDeferral(db, String(job.organization_id), attemptStartedAt, job.id, {
+        forced: error instanceof AiCapacityParkError,
+      });
       if (deferral) {
         await db
           .from("generation_jobs")
@@ -2600,6 +2612,10 @@ export async function drainSiteEngineQueue(
             ),
             failure_kind: "provider",
             lease_expires_at: deferral.retryAt.toISOString(),
+            // Owner-visible mirror of the same deferral (no second mechanism).
+            resumes_at: deferral.retryAt.toISOString(),
+            wait_reason: `The free AI team is at capacity right now (${deferral.summary}).`,
+            wait_providers: deferral.pressure,
           } as never)
           .eq("id", job.id)
           .eq("attempts", job.attempts)
@@ -2663,36 +2679,52 @@ export function capacityDelayMs(deferral: number): number {
  * failure was something else or the job already waited the maximum.
  */
 export function capacityVerdict(
-  calls: { ok: boolean | null; error_category: string | null }[],
+  calls: { ok: boolean | null; error_category: string | null; provider?: string | null }[],
   deferrals: number,
   now = Date.now(),
-): { count: number; retryAt: Date; summary: string } | null {
-  if (deferrals >= MAX_CAPACITY_DEFERRALS || !calls.length) return null;
+  options: { forced?: boolean; runtime?: ProviderRuntime[] } = {},
+): { count: number; retryAt: Date; summary: string; pressure: WaitProviders } | null {
+  if (deferrals >= MAX_CAPACITY_DEFERRALS) return null;
   const pressured = calls.filter((call) => call.ok === false && ["rate_limited", "quota", "timeout"].includes(call.error_category ?? ""));
-  if (pressured.length < 5 || pressured.length / calls.length < 0.4) return null;
+  // A forced park (an AI step reported it ran out of capacity, e.g. the layout
+  // rescue deadline) skips the call-ratio threshold but still honours the cap.
+  if (!options.forced && (!calls.length || pressured.length < 5 || pressured.length / calls.length < 0.4)) return null;
   const count = deferrals + 1;
+  const pressure = summarizeCapacityPressure(calls, options.runtime ?? [], now);
+  let retryAt = now + capacityDelayMs(count);
+  // When every pressured provider has a known reset, don't wait longer than needed (min 5 min).
+  if (pressure.earliestResetAt) retryAt = Math.min(retryAt, Math.max(now + 5 * 60_000, Date.parse(pressure.earliestResetAt)));
   return {
     count,
-    retryAt: new Date(now + capacityDelayMs(count)),
-    summary: `${pressured.length} of ${calls.length} AI calls were rate-limited or timed out`,
+    retryAt: new Date(retryAt),
+    summary: pressured.length
+      ? `${pressured.length} of ${calls.length} AI calls were rate-limited or timed out`
+      : "the AI team ran out of time to finish this step",
+    pressure,
   };
 }
 
-async function capacityDeferral(db: Db, organizationId: string, since: string, jobId: string) {
-  const [{ data: calls }, { data: row }] = await Promise.all([
+async function capacityDeferral(db: Db, organizationId: string, since: string, jobId: string, options: { forced?: boolean } = {}) {
+  const [{ data: calls }, { data: row }, { data: runtime }] = await Promise.all([
     db
       .from("ai_usage_events")
-      .select("ok, error_category")
+      .select("ok, error_category, provider")
       .eq("organization_id", organizationId)
       .gte("created_at", since)
       .limit(1000),
     db.from("generation_jobs").select("capacity_deferrals").eq("id", jobId).maybeSingle(),
+    db.from("ai_provider_runtime").select("provider, open_until").then(
+      (r: { data: unknown }) => r,
+      () => ({ data: [] }),
+    ),
   ]);
   // Without the column (migration not applied yet) the old retry path runs.
   if (!row || typeof (row as { capacity_deferrals?: unknown }).capacity_deferrals !== "number") return null;
   return capacityVerdict(
-    (calls ?? []) as { ok: boolean | null; error_category: string | null }[],
+    (calls ?? []) as { ok: boolean | null; error_category: string | null; provider?: string | null }[],
     (row as { capacity_deferrals: number }).capacity_deferrals,
+    Date.now(),
+    { forced: options.forced, runtime: ((runtime ?? []) as ProviderRuntime[]) },
   );
 }
 
