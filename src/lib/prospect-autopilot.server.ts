@@ -430,7 +430,8 @@ async function buildPhase(
         enrichment = await enrichProspectEmail(db, prospect.website, { now }).catch(() => null);
       }
       // A rejected address (role mailbox, no MX, do-not-contact) is not kept on the profile.
-      const publicEmail = enrichment?.email && enrichment.status !== "rejected" ? enrichment.email : null;
+      const listedEmail = (prospect as { email?: string | null }).email ?? null; // OpenStreetMap listings can publish one
+      const publicEmail = enrichment?.email && enrichment.status !== "rejected" ? enrichment.email : listedEmail;
       let input;
       try {
         input = parseProspectDemoInput(prospectDemoInput(prospect, target.niche, publicEmail));

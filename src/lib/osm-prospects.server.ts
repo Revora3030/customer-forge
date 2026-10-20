@@ -16,11 +16,11 @@ export async function searchOsmProspects(niche: string, city: string, state: str
     });
     if (!geo.ok) return [];
     const [hit] = (await geo.json()) as { boundingbox?: string[] }[];
-    const b = hit?.boundingbox?.map(Number);
-    if (!b || b.length !== 4 || b.some((n) => !Number.isFinite(n))) return [];
+    const [south, north, west, east] = (hit?.boundingbox ?? []).map(Number);
+    if (![south, north, west, east].every((n) => typeof n === "number" && Number.isFinite(n))) return [];
     // Nominatim gives [south, north, west, east]; widen tiny city boxes a little.
     const pad = 0.05;
-    const bbox: [number, number, number, number] = [b[0] - pad, b[2] - pad, b[1] + pad, b[3] + pad];
+    const bbox: [number, number, number, number] = [south! - pad, west! - pad, north! + pad, east! + pad];
     const res = await fetch("https://overpass-api.de/api/interpreter", {
       method: "POST",
       headers: { "user-agent": UA, "content-type": "application/x-www-form-urlencoded" },
