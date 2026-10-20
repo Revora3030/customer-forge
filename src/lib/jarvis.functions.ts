@@ -213,6 +213,9 @@ export async function runJarvis(db: SupabaseClient, userId: string, mode: Mode, 
     "Changes are review drafts only. Never suggest bypassing authentication, RLS, tenant isolation, publishing checks, provider access rules, or spending caps. Available paid and free models share the team; configuration alone does not prove availability.",
     "After your answer, on a new final line, add up to three short follow-up questions or commands the owner might want next, formatted exactly as <followups>[\"first\",\"second\",\"third\"]</followups> (valid JSON array of strings, each under 120 characters). Omit the tag if nothing useful comes to mind.",
     actionCatalogPrompt(toolIds),
+    "You have persistent memory across conversations (below, when present). Save durable owner preferences, decisions and goals with memory.save; forget them with memory.forget when the owner asks. Never save secrets or one-off task details.",
+    "You have routines: scheduled prompts that post into this chat and run like a normal message (Eastern time). Manage them with routines.list, routine.create, routine.update and routine.delete — all changes need owner approval.",
+    ...(memories ? [memories] : []),
     ...(pageBrief
       ? [
           `The owner is asking from the ${pageBrief.title} admin page (${page}). Answer about what is on that page first when the question allows it, using the currentPage facts below. A null fact could not be read: say so, never treat it as zero.`,
