@@ -18,6 +18,7 @@ import { useEffect, useRef } from "react";
 import { trackConversion } from "@/lib/conversion";
 import { ga4PageView, isValidMeasurementId, loadGa4 } from "@/lib/ga4";
 import { isPublicMarketingPath } from "@/lib/marketing-paths";
+import { detectStaffBrowser, isStaffBrowser } from "@/lib/staff-browser";
 import { getPublicGaMeasurementId } from "@/lib/platform-settings.functions";
 
 export function PlatformAnalytics() {
@@ -31,9 +32,10 @@ export function PlatformAnalytics() {
   // preview/runtime diagnostic into a page-level error.
   useEffect(() => {
     let cancelled = false;
-    void getPublicGaMeasurementId()
+    void detectStaffBrowser()
+      .then((staff) => (staff ? null : getPublicGaMeasurementId()))
       .then((id) => {
-        if (cancelled || !isValidMeasurementId(id)) return;
+        if (cancelled || id === null || !isValidMeasurementId(id)) return;
         loadGa4(id);
         // The first page_view fires before this async lookup resolves, so GA4
         // was never loaded yet and the landing page was dropped. Send it now.
@@ -51,6 +53,7 @@ export function PlatformAnalytics() {
   // One page_view per navigation, including client-side route changes.
   useEffect(() => {
     if (!isPublicMarketingPath(path)) return;
+    if (isStaffBrowser()) return;
     if (lastTracked.current === path) return;
     lastTracked.current = path;
     trackConversion("page_view", { metadata: { path: path.slice(0, 120) } });
