@@ -165,7 +165,7 @@ function splitFollowups(raw: string): { body: string; followups: string[] } {
   return { body, followups };
 }
 
-async function runJarvis(db: SupabaseClient, userId: string, mode: Mode, page: string | null = null) {
+export async function runJarvis(db: SupabaseClient, userId: string, mode: Mode, page: string | null = null) {
   const history = await db.from("jarvis_messages").select("role,content")
     .eq("user_id", userId).order("created_at", { ascending: false }).limit(30);
   if (history.error) throw new Error("Your message was saved, but chat history could not be loaded.");
@@ -173,10 +173,12 @@ async function runJarvis(db: SupabaseClient, userId: string, mode: Mode, page: s
   const { collectJarvisDiagnostics } = await import("./jarvis-diagnostics.server");
   const since = new Date(Date.now() - 7 * 86_400_000).toISOString();
   const { collectPageBrief } = await import("./jarvis-page-context.server");
-  const [diagnostics, accounts, trials, activeSubscriptions, leadsWeek, http, pageBrief] = await Promise.all([
+  const { memoryPromptBlock } = await import("./jarvis-memory.server");
+  const [diagnostics, accounts, trials, activeSubscriptions, leadsWeek, http, pageBrief, memories] = await Promise.all([
     collectJarvisDiagnostics(db), count(db, "platform_accounts"), count(db, "platform_trials"),
     count(db, "subscriptions", undefined, "active"), count(db, "leads", since), siteCheck(),
     page ? collectPageBrief(db, page).catch(() => null) : Promise.resolve(null),
+    memoryPromptBlock(db, userId),
   ]);
   // A folder map of the live codebase, so Jarvis searches and reads real paths
   // instead of guessing. Best effort: chat still works if GitHub is down.
