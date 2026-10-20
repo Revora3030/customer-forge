@@ -3829,6 +3829,7 @@ export type Database = {
           channel: string
           created_at: string
           id: string
+          kind: string
           last_error: string | null
           lease_owner: string | null
           leased_until: string | null
@@ -3847,6 +3848,7 @@ export type Database = {
           channel: string
           created_at?: string
           id?: string
+          kind?: string
           last_error?: string | null
           lease_owner?: string | null
           leased_until?: string | null
@@ -3865,6 +3867,7 @@ export type Database = {
           channel?: string
           created_at?: string
           id?: string
+          kind?: string
           last_error?: string | null
           lease_owner?: string | null
           leased_until?: string | null
@@ -5806,6 +5809,7 @@ export type Database = {
           channel: string
           created_at: string
           id: string
+          kind: string
           last_error: string | null
           lease_owner: string | null
           leased_until: string | null
