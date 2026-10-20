@@ -610,3 +610,24 @@ export const getJarvisPageBrief = createServerFn({ method: "GET" })
     const { collectPageBrief } = await import("./jarvis-page-context.server");
     return collectPageBrief(db, data.page);
   });
+
+/** Approval log: every consequential action the owner approved, newest first (audit_logs, jarvis.* actions). */
+export const listJarvisApprovalLogFn = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const db = await guardedAdmin(context);
+    const { data, error } = await db
+      .from("audit_logs")
+      .select("id, action, entity, entity_id, created_at, actor_id")
+      .like("action", "jarvis.%")
+      .order("created_at", { ascending: false })
+      .limit(50);
+    if (error) throw new Error("Couldn't read the approval log.");
+    return (data ?? []).map((row) => ({
+      id: String(row.id),
+      action: String(row.action),
+      entity: row.entity ? String(row.entity) : null,
+      entityId: row.entity_id ? String(row.entity_id) : null,
+      at: String(row.created_at),
+    }));
+  });
