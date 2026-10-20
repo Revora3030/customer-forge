@@ -33,7 +33,7 @@ function TermsPage() {
     {
       heading: "The agreement",
       body: [
-        `These terms govern your use of the Revora Growth Systems platform and the services we provide. By creating an account you agree to them. Questions: ${REVORA.email} or ${REVORA.phoneDisplay}.`,
+        `These terms govern your use of the Revora Growth Systems platform and the services we provide. By creating an account you agree to them. Questions: ${REVORA.email}.`,
       ],
     },
     {

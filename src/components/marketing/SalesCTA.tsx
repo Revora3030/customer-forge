@@ -16,11 +16,6 @@ export function SalesCTA({ className = "" }: { className?: string }) {
         <Button asChild variant="signal" size="lg">
           <Link to="/demo">Request a demo</Link>
         </Button>
-        <Button asChild variant="outline" size="lg">
-          <a href={revoraTel}>
-            <Phone className="size-4" aria-hidden="true" /> Call {REVORA.phoneDisplay}
-          </a>
-        </Button>
         <Button asChild variant="ghost" size="lg">
           <a href={revoraMailto(MAIL_SUBJECTS.inquiry)}>
             <Mail className="size-4" aria-hidden="true" /> Email Revora
@@ -44,11 +39,6 @@ export function SupportCard() {
         <li>
           <a className="text-primary underline underline-offset-2" href={revoraMailto(MAIL_SUBJECTS.support)}>
             {REVORA.email}
-          </a>
-        </li>
-        <li>
-          <a className="text-primary underline underline-offset-2" href={revoraTel}>
-            {REVORA.phoneDisplay}
           </a>
         </li>
       </ul>
@@ -108,11 +98,6 @@ export function FounderNote() {
             <a href={revoraMailto(MAIL_SUBJECTS.inquiry)}>
               <Mail className="size-4" aria-hidden="true" /> Email{" "}
               {REVORA.founder.name.split(" ")[0]}
-            </a>
-          </Button>
-          <Button asChild variant="ghost" size="sm">
-            <a href={revoraTel}>
-              <Phone className="size-4" aria-hidden="true" /> {REVORA.phoneDisplay}
             </a>
           </Button>
         </div>

@@ -30,7 +30,7 @@ const SECTIONS: { heading: string; body: string[] }[] = [
   {
     heading: "Who we are",
     body: [
-      `Revora Growth Systems ("Revora", "we") builds and manages customer acquisition systems for local businesses. Questions about this policy can be sent to ${REVORA.email} or ${REVORA.phoneDisplay}.`,
+      `Revora Growth Systems ("Revora", "we") builds and manages customer acquisition systems for local businesses. Questions about this policy can be sent to ${REVORA.email}.`,
     ],
   },
   {

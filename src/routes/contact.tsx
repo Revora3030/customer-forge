@@ -6,7 +6,7 @@ import { submitContactRequest } from "@/lib/contact.functions";
 
 import { useState } from "react";
 import { toast } from "@/lib/ui/notify";
-import { Mail, Phone } from "lucide-react";
+import { Mail } from "lucide-react";
 import { SiteFooter, SiteHeader } from "@/components/marketing/Chrome";
 import { RevoraMobileBar, SupportCard } from "@/components/marketing/SalesCTA";
 import { Button } from "@/components/ui/button";
@@ -214,7 +214,7 @@ function Contact() {
                 </Button>
 
                 <p className="text-[11px] leading-relaxed text-muted-foreground">
-                  Prefer to talk it through? Call {REVORA.phoneDisplay} — no automated queue.
+                  A real person on the Revora team reads every message.
                 </p>
               </form>
             )}

@@ -246,9 +246,6 @@ function StatePage() {
               <Button asChild variant="signal" size="lg">
                 <Link to="/get-started">Build my system</Link>
               </Button>
-              <Button asChild variant="ghost" size="lg">
-                <a href={`tel:${BUSINESS.tel}`}>Call {BUSINESS.phoneDisplay}</a>
-              </Button>
             </div>
           </div>
         </section>
