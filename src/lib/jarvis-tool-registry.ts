@@ -108,7 +108,7 @@ export const JARVIS_DIAGNOSTIC_TOOLS = [
     access: "read",
     risk: "low",
     requiresApproval: false,
-    timeoutMs: 20000,
+    timeoutMs: 15000,
     maxOutputBytes: 8000,
   },
   {
