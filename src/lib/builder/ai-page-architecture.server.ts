@@ -15,6 +15,7 @@ import { callBestThinker } from "@/lib/ai/hall-of-fame.server";
 import type { PageArchitecture } from "@/lib/builder/creative-authority";
 import {
   normalizePageArchitecture,
+  architectureShortfall,
   parsePageArchitecture,
   type ArchitectureRejection,
 } from "@/lib/builder/ai-page-architecture";
