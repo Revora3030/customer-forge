@@ -1,5 +1,12 @@
 # Roadmap — Five-phase blocker elimination
 
+## Site-wide upgrade (2026-10-20)
+- [x] Wave 0: 23 public pages x2 widths + 33 signed-in pages checked: no console errors, no sideways scroll, all have titles/descriptions.
+- [x] Phone tap targets fixed on sign-in, reset password, contact, CRM.
+- [ ] Wave 1: homepage is ~36 phone screens tall; cookie banner covers hero form. Needs owner pick of sections to cut.
+- [ ] Contact page shows a phone number; confirm owner wants it public.
+- [ ] Waves 2–5.
+
 ## Build resume + production audit (2026-10-20)
 - [x] Save finished early build stages (brief, brand identity, wording, page plan) per job; retries reuse them. Verified live: resumed attempt skipped analysis (33s -> 0.6s) and reused pictures.
 - [x] AI repair pass when a page plan is unusable; home-page address aliases accepted.
