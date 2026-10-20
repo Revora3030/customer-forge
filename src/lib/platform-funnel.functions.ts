@@ -320,8 +320,13 @@ export async function computePlatformFunnel(days: number): Promise<PlatformFunne
     if (orgRows.error) errors.push("workspaces");
 
     // Demo workspaces and Revora's own workspace are never customers.
+    const { loadCustomerOrgIds } = await import("@/lib/customer-orgs.server");
+    const customerIds = await loadCustomerOrgIds(supabaseAdmin).catch(() => {
+      errors.push("workspaces");
+      return new Set<string>();
+    });
     const realOrgs = new Map(
-      (orgRows.data ?? []).filter((o) => isCustomerOrg(o)).map((o) => [o.id, o] as const),
+      (orgRows.data ?? []).filter((o) => isCustomerOrg(o) && customerIds.has(o.id)).map((o) => [o.id, o] as const),
     );
     const trialsStarted =
       trialRows.error || orgRows.error
