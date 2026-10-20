@@ -27,7 +27,11 @@ export type ReadAction =
   | { id: "prospect.lookup"; input: string }
   | { id: "web.search"; query: string }
   | { id: "autopilot.status" }
-  | { id: "inbox.list" };
+  | { id: "inbox.list" }
+  | { id: "memory.list" }
+  | { id: "memory.save"; kind: string; content: string }
+  | { id: "routines.list" }
+  | { id: "artifacts.list" };
 
 export type CodeChange =
   | { path: string; edits: { find: string; replace: string }[] }
@@ -43,7 +47,11 @@ export type WriteProposal =
   | { id: "builds.recover" }
   | { id: "demo.send"; organizationId: string; channel: "email" | "sms"; to: string | null }
   | { id: "autopilot.configure"; settings: AutopilotSettingsPatch }
-  | { id: "autopilot.run" };
+  | { id: "autopilot.run" }
+  | { id: "memory.forget"; memoryId: string }
+  | { id: "routine.create"; routine: { name: string; prompt: string; frequency: "daily" | "weekly"; hour: number; minute: number } }
+  | { id: "routine.update"; routineId: string; patch: { name?: string; prompt?: string; frequency?: "daily" | "weekly"; hour?: number; minute?: number; enabled?: boolean } }
+  | { id: "routine.delete"; routineId: string };
 
 export const MAX_PR_FILES = 6;
 export const MAX_PR_CHARS = 60_000;
