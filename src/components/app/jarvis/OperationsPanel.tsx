@@ -82,8 +82,20 @@ export function OperationsPanel({ diagnostics, acquisition, scorecard, prospecto
     if (!focusDiagnostics || !diagnosticsRef.current) return;
     const el = diagnosticsRef.current;
     el.open = true;
-    el.scrollIntoView({ block: "start", behavior: "smooth" });
     el.querySelector("summary")?.focus({ preventScroll: true });
+    // The cards above load after the sheet opens and push diagnostics down,
+    // so re-align a few times instead of stopping midway at autopilot.
+    const scroll = () => {
+      // Scroll only the panel's own scroller so the sheet itself never shifts.
+      let box = el.parentElement;
+      while (box && !/(auto|scroll)/.test(getComputedStyle(box).overflowY)) box = box.parentElement;
+      if (box) box.scrollTop += el.getBoundingClientRect().top - box.getBoundingClientRect().top - 16;
+      // Undo any shift of clipped ancestors (the sheet itself) from focus or layout.
+      for (let up = box?.parentElement; up; up = up.parentElement) if (up.scrollTop && getComputedStyle(up).overflowY === "hidden") up.scrollTop = 0;
+    };
+    scroll();
+    const timers = [250, 800, 1600].map((ms) => window.setTimeout(scroll, ms));
+    return () => timers.forEach((t) => window.clearTimeout(t));
   }, [focusDiagnostics]);
 
   return (
