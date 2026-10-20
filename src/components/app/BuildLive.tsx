@@ -13,7 +13,7 @@ import { Check, ChevronDown, TriangleAlert } from "lucide-react";
 import { Panel, SectionHeading } from "@/components/app/Bits";
 import { Button } from "@/components/ui/button";
 import { Shimmer } from "@/components/ai-elements/shimmer";
-import { useLatestGenerationJob } from "@/lib/site-engine.hooks";
+import { useLatestGenerationJob, useRunSiteEngine } from "@/lib/site-engine.hooks";
 import { RECOVERING_BUILD_MESSAGE, jobLiveness } from "@/lib/builder/job-liveness";
 import { useBuildProgress } from "@/lib/builder/progress.hooks";
 import { describeBuildFailure } from "@/lib/builder/build-failure";
