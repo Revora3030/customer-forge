@@ -102,11 +102,11 @@
 ## Close the gaps vs Lovable/Framer (2026-10-20)
 - [x] Jarvis: one follow-up email 48h after the first, only with no reply/claim/opt-out; within daily caps; enforced in send path + DB unique index.
 - [x] Demo photos from the Google Maps listing (live, credited).
-- [ ] Phase A real end-to-end build (BLOCKED: owner approval to spend AI credits).
+- [ ] Phase A test build running (parked at 74% on free capacity; $20 paid cap set, takes effect on the live worker after publish).
 - [ ] Phase B point-and-edit + before/after compare (version restore already exists).
 - [ ] Phase C fact provenance + launch checklist.
 - [ ] Phase D claimed demo → Activate → setup-fee checkout (BLOCKED: canonical setup price $350 vs $750).
 - [x] Phase E approval log (Jarvis operations panel, from the permanent audit record).
 - [ ] Phase E daily brief upgrade.
 - [ ] Phase F signed-in journey/accessibility/speed pass.
-- [ ] SEO: review Google/AI search presence, fix issues, realistic ranking targets.
+- [x] SEO review: all checks pass, indexed; targets reported.
