@@ -23,6 +23,7 @@ import { Route as IndexnowKeyDottxtRouteImport } from './routes/indexnow-key[.]t
 import { Route as IndustriesRouteImport } from './routes/industries'
 import { Route as LlmsDottxtRouteImport } from './routes/llms[.]txt'
 import { Route as ManifestDotwebmanifestRouteImport } from './routes/manifest[.]webmanifest'
+import { Route as McpRouteImport } from './routes/mcp'
 import { Route as PortalRouteImport } from './routes/portal'
 import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as PrivacyRouteImport } from './routes/privacy'
@@ -33,6 +34,7 @@ import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as ToolsRouteImport } from './routes/tools'
 import { Route as WebsiteAuditRouteImport } from './routes/website-audit'
+import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/app'
 import { Route as AuthenticatedMyRouteImport } from './routes/_authenticated/my'
@@ -56,6 +58,7 @@ import { Route as SSlugRouteImport } from './routes/s.$slug'
 import { Route as SitemapsSitesDotxmlRouteImport } from './routes/sitemaps.sites[.]xml'
 import { Route as StatesIndexRouteImport } from './routes/states.index'
 import { Route as StatesStateRouteImport } from './routes/states.$state'
+import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.oauth.consent'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
 import { Route as AuthenticatedAdminAiRouteImport } from './routes/_authenticated/admin.ai'
 import { Route as AuthenticatedAdminAnalyticsRouteImport } from './routes/_authenticated/admin.analytics'
@@ -190,6 +193,11 @@ const ManifestDotwebmanifestRoute = ManifestDotwebmanifestRouteImport.update({
   path: '/manifest.webmanifest',
   getParentRoute: () => rootRouteImport,
 } as any)
+const McpRoute = McpRouteImport.update({
+  id: '/mcp',
+  path: '/mcp',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PortalRoute = PortalRouteImport.update({
   id: '/portal',
   path: '/portal',
@@ -240,6 +248,12 @@ const WebsiteAuditRoute = WebsiteAuditRouteImport.update({
   path: '/website-audit',
   getParentRoute: () => rootRouteImport,
 } as any)
+const Char91DotwellKnownChar93OauthProtectedResourceRoute =
+  Char91DotwellKnownChar93OauthProtectedResourceRouteImport.update({
+    id: '/.well-known/oauth-protected-resource',
+    path: '/.well-known/oauth-protected-resource',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
   id: '/admin',
   path: '/admin',
@@ -353,6 +367,11 @@ const StatesIndexRoute = StatesIndexRouteImport.update({
 const StatesStateRoute = StatesStateRouteImport.update({
   id: '/states/$state',
   path: '/states/$state',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DotlovableOauthConsentRoute = DotlovableOauthConsentRouteImport.update({
+  id: '/.lovable/oauth/consent',
+  path: '/.lovable/oauth/consent',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
@@ -721,6 +740,7 @@ export interface FileRoutesByFullPath {
   '/industries': typeof IndustriesRouteWithChildren
   '/llms.txt': typeof LlmsDottxtRoute
   '/manifest.webmanifest': typeof ManifestDotwebmanifestRoute
+  '/mcp': typeof McpRoute
   '/portal': typeof PortalRoute
   '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
@@ -731,6 +751,7 @@ export interface FileRoutesByFullPath {
   '/terms': typeof TermsRoute
   '/tools': typeof ToolsRoute
   '/website-audit': typeof WebsiteAuditRoute
+  '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/admin': typeof AuthenticatedAdminRouteWithChildren
   '/app': typeof AuthenticatedAppRouteWithChildren
   '/my': typeof AuthenticatedMyRouteWithChildren
@@ -754,6 +775,7 @@ export interface FileRoutesByFullPath {
   '/local/': typeof LocalIndexRoute
   '/locations/': typeof LocationsIndexRoute
   '/states/': typeof StatesIndexRoute
+  '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
   '/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
   '/admin/backups': typeof AuthenticatedAdminBackupsRoute
@@ -831,6 +853,7 @@ export interface FileRoutesByTo {
   '/indexnow-key.txt': typeof IndexnowKeyDottxtRoute
   '/llms.txt': typeof LlmsDottxtRoute
   '/manifest.webmanifest': typeof ManifestDotwebmanifestRoute
+  '/mcp': typeof McpRoute
   '/portal': typeof PortalRoute
   '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
@@ -841,6 +864,7 @@ export interface FileRoutesByTo {
   '/terms': typeof TermsRoute
   '/tools': typeof ToolsRoute
   '/website-audit': typeof WebsiteAuditRoute
+  '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
   '/compare/$slug': typeof CompareSlugRoute
   '/crm/$trade': typeof CrmTradeRoute
@@ -861,6 +885,7 @@ export interface FileRoutesByTo {
   '/local': typeof LocalIndexRoute
   '/locations': typeof LocationsIndexRoute
   '/states': typeof StatesIndexRoute
+  '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
   '/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
   '/admin/backups': typeof AuthenticatedAdminBackupsRoute
@@ -942,6 +967,7 @@ export interface FileRoutesById {
   '/industries': typeof IndustriesRouteWithChildren
   '/llms.txt': typeof LlmsDottxtRoute
   '/manifest.webmanifest': typeof ManifestDotwebmanifestRoute
+  '/mcp': typeof McpRoute
   '/portal': typeof PortalRoute
   '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
@@ -952,6 +978,7 @@ export interface FileRoutesById {
   '/terms': typeof TermsRoute
   '/tools': typeof ToolsRoute
   '/website-audit': typeof WebsiteAuditRoute
+  '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
   '/_authenticated/app': typeof AuthenticatedAppRouteWithChildren
   '/_authenticated/my': typeof AuthenticatedMyRouteWithChildren
@@ -975,6 +1002,7 @@ export interface FileRoutesById {
   '/local/': typeof LocalIndexRoute
   '/locations/': typeof LocationsIndexRoute
   '/states/': typeof StatesIndexRoute
+  '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/_authenticated/admin/ai': typeof AuthenticatedAdminAiRoute
   '/_authenticated/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
   '/_authenticated/admin/backups': typeof AuthenticatedAdminBackupsRoute
@@ -1056,6 +1084,7 @@ export interface FileRouteTypes {
     | '/industries'
     | '/llms.txt'
     | '/manifest.webmanifest'
+    | '/mcp'
     | '/portal'
     | '/pricing'
     | '/privacy'
@@ -1066,6 +1095,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/tools'
     | '/website-audit'
+    | '/.well-known/oauth-protected-resource'
     | '/admin'
     | '/app'
     | '/my'
@@ -1089,6 +1119,7 @@ export interface FileRouteTypes {
     | '/local/'
     | '/locations/'
     | '/states/'
+    | '/.lovable/oauth/consent'
     | '/admin/ai'
     | '/admin/analytics'
     | '/admin/backups'
@@ -1166,6 +1197,7 @@ export interface FileRouteTypes {
     | '/indexnow-key.txt'
     | '/llms.txt'
     | '/manifest.webmanifest'
+    | '/mcp'
     | '/portal'
     | '/pricing'
     | '/privacy'
@@ -1176,6 +1208,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/tools'
     | '/website-audit'
+    | '/.well-known/oauth-protected-resource'
     | '/onboarding'
     | '/compare/$slug'
     | '/crm/$trade'
@@ -1196,6 +1229,7 @@ export interface FileRouteTypes {
     | '/local'
     | '/locations'
     | '/states'
+    | '/.lovable/oauth/consent'
     | '/admin/ai'
     | '/admin/analytics'
     | '/admin/backups'
@@ -1276,6 +1310,7 @@ export interface FileRouteTypes {
     | '/industries'
     | '/llms.txt'
     | '/manifest.webmanifest'
+    | '/mcp'
     | '/portal'
     | '/pricing'
     | '/privacy'
@@ -1286,6 +1321,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/tools'
     | '/website-audit'
+    | '/.well-known/oauth-protected-resource'
     | '/_authenticated/admin'
     | '/_authenticated/app'
     | '/_authenticated/my'
@@ -1309,6 +1345,7 @@ export interface FileRouteTypes {
     | '/local/'
     | '/locations/'
     | '/states/'
+    | '/.lovable/oauth/consent'
     | '/_authenticated/admin/ai'
     | '/_authenticated/admin/analytics'
     | '/_authenticated/admin/backups'
@@ -1390,6 +1427,7 @@ export interface RootRouteChildren {
   IndustriesRoute: typeof IndustriesRouteWithChildren
   LlmsDottxtRoute: typeof LlmsDottxtRoute
   ManifestDotwebmanifestRoute: typeof ManifestDotwebmanifestRoute
+  McpRoute: typeof McpRoute
   PortalRoute: typeof PortalRoute
   PricingRoute: typeof PricingRoute
   PrivacyRoute: typeof PrivacyRoute
@@ -1400,6 +1438,7 @@ export interface RootRouteChildren {
   TermsRoute: typeof TermsRoute
   ToolsRoute: typeof ToolsRoute
   WebsiteAuditRoute: typeof WebsiteAuditRoute
+  Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   CompareSlugRoute: typeof CompareSlugRoute
   CrmTradeRoute: typeof CrmTradeRoute
   GuidesSlugRoute: typeof GuidesSlugRoute
@@ -1415,6 +1454,7 @@ export interface RootRouteChildren {
   LocalIndexRoute: typeof LocalIndexRoute
   LocationsIndexRoute: typeof LocationsIndexRoute
   StatesIndexRoute: typeof StatesIndexRoute
+  DotlovableOauthConsentRoute: typeof DotlovableOauthConsentRoute
   ApiPublicJarvisVoiceRoute: typeof ApiPublicJarvisVoiceRoute
   ApiPublicPreviewBeaconRoute: typeof ApiPublicPreviewBeaconRoute
   ApiPublicSentryTestRoute: typeof ApiPublicSentryTestRoute
@@ -1541,6 +1581,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ManifestDotwebmanifestRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/mcp': {
+      id: '/mcp'
+      path: '/mcp'
+      fullPath: '/mcp'
+      preLoaderRoute: typeof McpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/portal': {
       id: '/portal'
       path: '/portal'
@@ -1609,6 +1656,13 @@ declare module '@tanstack/react-router' {
       path: '/website-audit'
       fullPath: '/website-audit'
       preLoaderRoute: typeof WebsiteAuditRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/.well-known/oauth-protected-resource': {
+      id: '/.well-known/oauth-protected-resource'
+      path: '/.well-known/oauth-protected-resource'
+      fullPath: '/.well-known/oauth-protected-resource'
+      preLoaderRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/admin': {
@@ -1770,6 +1824,13 @@ declare module '@tanstack/react-router' {
       path: '/states/$state'
       fullPath: '/states/$state'
       preLoaderRoute: typeof StatesStateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/.lovable/oauth/consent': {
+      id: '/.lovable/oauth/consent'
+      path: '/.lovable/oauth/consent'
+      fullPath: '/.lovable/oauth/consent'
+      preLoaderRoute: typeof DotlovableOauthConsentRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/admin/': {
@@ -2421,6 +2482,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndustriesRoute: IndustriesRouteWithChildren,
   LlmsDottxtRoute: LlmsDottxtRoute,
   ManifestDotwebmanifestRoute: ManifestDotwebmanifestRoute,
+  McpRoute: McpRoute,
   PortalRoute: PortalRoute,
   PricingRoute: PricingRoute,
   PrivacyRoute: PrivacyRoute,
@@ -2431,6 +2493,8 @@ const rootRouteChildren: RootRouteChildren = {
   TermsRoute: TermsRoute,
   ToolsRoute: ToolsRoute,
   WebsiteAuditRoute: WebsiteAuditRoute,
+  Char91DotwellKnownChar93OauthProtectedResourceRoute:
+    Char91DotwellKnownChar93OauthProtectedResourceRoute,
   CompareSlugRoute: CompareSlugRoute,
   CrmTradeRoute: CrmTradeRoute,
   GuidesSlugRoute: GuidesSlugRoute,
@@ -2446,6 +2510,7 @@ const rootRouteChildren: RootRouteChildren = {
   LocalIndexRoute: LocalIndexRoute,
   LocationsIndexRoute: LocationsIndexRoute,
   StatesIndexRoute: StatesIndexRoute,
+  DotlovableOauthConsentRoute: DotlovableOauthConsentRoute,
   ApiPublicJarvisVoiceRoute: ApiPublicJarvisVoiceRoute,
   ApiPublicPreviewBeaconRoute: ApiPublicPreviewBeaconRoute,
   ApiPublicSentryTestRoute: ApiPublicSentryTestRoute,

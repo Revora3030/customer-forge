@@ -173,7 +173,9 @@ function RootComponent() {
       target = target ?? (await resolvePostLoginPath());
       if (target === "/auth") return;
       if (window.location.pathname === target) return;
-      void router.navigate({ to: target, replace: true });
+      // `href` keeps the query string (e.g. OAuth consent ?authorization_id=…
+      // saved before a Google sign-in round-trip); `to` would drop it.
+      void router.navigate({ href: target, replace: true });
     }
 
     // Returning client with a persisted session landing on a public entry page.
