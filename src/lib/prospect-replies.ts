@@ -22,8 +22,9 @@ export const MAX_REPLY_CHARS = 1200;
 
 export type InboundFlag = "legal" | "anger" | "auto_submitted";
 
+// Straight or curly apostrophes. "Don't stop" isn't a stop and "take us off-site" isn't "take us off".
 const STOP_PATTERN =
-  /\b(stop|unsubscribe|unsub|remove\s+me|take\s+me\s+off|opt[\s_-]?out|do\s+not\s+(contact|email|e-mail|message|write)|don'?t\s+(contact|email|e-mail|message|write)|no\s+more\s+e-?mails?|leave\s+me\s+alone|not\s+interested\s*,?\s*(please\s+)?stop)\b/i;
+  /\b((?<!\b(don['’]?t|do\s+not)\s+)stop|unsubscri\w*|unsub|remove\s+(me|us)|take\s+(me|us)\s+off(?![-\w])|opt[\s_-]?out|opt\s+(me|us)\s+out|(do\s+not|don['’]?t)\s+(contact|email|e-mail|message|write)|no\s+more\s+e-?mails?|leave\s+(me|us)\s+alone|not\s+interested\s*,?\s*(please\s+)?stop)\b/i;
 
 /** Deterministic override: any stop/unsubscribe/remove-me wording is a stop. */
 export function keywordIntent(text: string, subject = ""): "stop" | null {
@@ -139,6 +140,11 @@ export function buildFactsSheet(input: { businessName: string; previewUrl: strin
 
 const trimUrl = (url: string) => url.replace(/[.,;:!?)\]}>'"]+$/, "");
 
+/** A web address without a scheme ("calendly.com/x", "www.x.co"); not the domain of an email address. */
+const BARE_DOMAIN = /(?<![\w@.-])(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,24}(?![\w@-])(?:[/?#][^\s<>"']*)?/gi;
+/** "(555) 123-4567", "(555)123-4567", "+1 555.123.4567", or a bare 10-11 digit run. */
+const PHONE = /(?<!\d)(?:(?:\+?1[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}|\d{10,11})(?!\d)/;
+
 /**
  * Deterministic part of the fact check: every link, price and contact detail
  * in the reply must come from the facts sheet. Returns the problems found.
@@ -154,15 +160,24 @@ export function factCheckReply(body: string, facts: FactsSheet): string[] {
     if (!allowedUrls.has(url)) problems.push(`link not in the facts sheet: ${url.slice(0, 120)}`);
   }
   const withoutUrls = text.replace(/https?:\/\/[^\s<>"']+/gi, " ");
-  if (/\bwww\.[a-z0-9-]+\.[a-z]{2,}/i.test(withoutUrls)) problems.push("bare web address not in the facts sheet");
-  const allowedAmounts = new Set<number>([GROWTH_SYSTEM.setupPrice, GROWTH_SYSTEM.monthlyPrice]);
-  for (const match of withoutUrls.matchAll(/\$\s?(\d[\d,]*(?:\.\d+)?)\s*(k\b)?/gi)) {
-    const amount = Number(match[1]!.replace(/,/g, "")) * (match[2] ? 1000 : 1);
-    if (!allowedAmounts.has(amount)) problems.push(`price not in the facts sheet: $${match[1]}${match[2] ?? ""}`);
+  // The facts-sheet links written without their scheme are still the facts-sheet links.
+  const allowedBare = new Set([...allowedUrls].map((url) => url.replace(/^https?:\/\//i, "")));
+  for (const match of withoutUrls.matchAll(BARE_DOMAIN)) {
+    const address = trimUrl(match[0]);
+    if (!allowedBare.has(address)) problems.push(`bare web address not in the facts sheet: ${address.slice(0, 120)}`);
   }
-  if (/\b\d+(?:\.\d+)?\s*(dollars|usd|bucks)\b/i.test(withoutUrls)) problems.push("price written in words; only the facts-sheet prices may appear");
-  if (/\d\s?%|\bpercent\b/i.test(withoutUrls)) problems.push("percentages are not in the facts sheet");
-  if (/(?:\+?1[\s.-]?)?\(?\d{3}\)?[\s.-]\d{3}[\s.-]\d{4}\b/.test(withoutUrls)) problems.push("phone number not in the facts sheet");
+  // Prices and phone numbers are read with every link removed (a link's digits are not a phone number).
+  const rest = withoutUrls.replace(BARE_DOMAIN, " ");
+  const allowedAmounts = new Set<number>([GROWTH_SYSTEM.setupPrice, GROWTH_SYSTEM.monthlyPrice]);
+  // "$500" or "500$"; a "$" right before a number belongs to that number.
+  for (const match of rest.matchAll(/\$\s?(\d[\d,]*(?:\.\d+)?)\s*(k\b)?|(\d[\d,]*(?:\.\d+)?)\s?(k)?\s?\$(?!\s?\d)/gi)) {
+    const amount = Number((match[1] ?? match[3])!.replace(/,/g, "")) * ((match[2] ?? match[4]) ? 1000 : 1);
+    if (!allowedAmounts.has(amount)) problems.push(`price not in the facts sheet: ${match[0].trim()}`);
+  }
+  if (/\b\d+(?:\.\d+)?\s*(dollars|usd|bucks)\b|\busd\s?\$?\d/i.test(rest)) problems.push("price written in words; only the facts-sheet prices may appear");
+  if (/[€£¥]|\b(eur|gbp)\s?\d|\d\s*(eur|gbp|euros?)\b/i.test(rest)) problems.push("price in a currency the facts sheet doesn't use");
+  if (/\d\s?%|\bpercent\b/i.test(rest)) problems.push("percentages are not in the facts sheet");
+  if (PHONE.test(rest)) problems.push("phone number not in the facts sheet");
   for (const match of withoutUrls.matchAll(/[^\s@<>()"',;:]+@[^\s@<>()"',;:]+\.[a-z]{2,}/gi)) {
     if (match[0].toLowerCase().replace(/[.]+$/, "") !== facts.senderEmail.toLowerCase()) problems.push(`email address not in the facts sheet: ${match[0]}`);
   }
