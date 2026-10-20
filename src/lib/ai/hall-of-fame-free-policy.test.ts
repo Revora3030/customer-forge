@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { freeAiOnly, paidCollectiveAllowed, type FreeOnlyEnvironment } from "@/lib/ai/free-only-policy.server";
+import { isolateProviderEnvironment } from "./provider-test-environment";
 
 const mocks = vi.hoisted(() => ({ paid: vi.fn(), registry: vi.fn(), pinned: vi.fn(), trace: vi.fn() }));
 vi.mock("@/lib/ai/luna.server", () => ({ callCollective: mocks.paid }));
@@ -52,6 +53,7 @@ describe("paid collective gate (all purposes within existing caps)", () => {
 describe("Hall of Fame spending boundary", () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    isolateProviderEnvironment();
     vi.stubEnv("AI_FREE_ONLY", undefined);
     vi.stubEnv("FREE_AI_ONLY", undefined);
     vi.stubEnv("ZERO_COST_ONLY", undefined);
@@ -64,7 +66,7 @@ describe("Hall of Fame spending boundary", () => {
     }]);
     mocks.pinned.mockResolvedValue({ text: "Free specialist answer", data: null, latencyMs: 1 });
   });
-  afterEach(() => vi.unstubAllEnvs());
+  afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
   const request = { purpose: "creative_direction" as const, system: "Design safely.", user: "Plan a business site." };
 
   it("skips the paid collective when free-only is forced and uses the free specialist", async () => {

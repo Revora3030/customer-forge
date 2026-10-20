@@ -16,6 +16,7 @@ const OPEN = { freeOnly: false, reason: null } as const;
 
 beforeEach(() => {
   isolateProviderEnvironment();
+  vi.stubEnv("DEMO_BUILDS_ALLOW_PAID", undefined);
   vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", undefined);
   vi.stubEnv("SUPABASE_SECRET_KEY", undefined);
 });
