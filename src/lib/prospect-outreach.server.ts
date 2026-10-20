@@ -293,6 +293,7 @@ const MESSAGES: Record<string, string> = {
   demo_claimed: "The business already claimed this demo, so outreach stopped.",
   build_not_finished: "Wait for the demo build to finish before sending it.",
   do_not_contact: "This contact is on the do-not-contact list (they unsubscribed or replied STOP), so nothing was sent.",
+  follow_up_not_due: "No follow-up is due: it goes once, 48 hours after the first email, and only if there was no reply.",
   already_sent: "This demo was already sent on this channel. Choose Resend if you really mean to send it again.",
   no_consent: "Autopilot only texts numbers that opted in to texts. This number hasn't, so it wasn't texted.",
   quiet_hours: "Texts only go out between 9am and 8pm in the business's time zone. Try again then.",

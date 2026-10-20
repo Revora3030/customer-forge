@@ -539,7 +539,7 @@ async function sendPhase(
   const ids = demos.map((demo) => demo.organizationId);
   const { data: history, error } = await db
     .from("prospect_outreach")
-    .select("organization_id, channel, status, reason, created_at")
+    .select("organization_id, channel, status, reason, created_at, kind")
     .in("organization_id", ids)
     .eq("mode", "autopilot");
   if (error) return skip({ reason: "outreach_unavailable" });
@@ -609,5 +609,22 @@ async function sendPhase(
       if (result.ok) summary.texted += 1;
       else skip({ reason: `sms_${result.reason}`, name: demo.name });
     }
+  }
+
+  // One follow-up email, 48 hours after the first, if there was no reply.
+  if (!settings.sendEmail) return;
+  const { followUpDue } = await import("@/lib/prospect-follow-up");
+  const replied = new Set<string>();
+  const { data: inbound } = await db.from("prospect_inbound").select("organization_id").in("organization_id", ids);
+  for (const row of inbound ?? []) replied.add(String(row.organization_id));
+  for (const demo of demos) {
+    if (!demo.email || queued.has(`${demo.organizationId}|email`)) continue;
+    const sent = (history ?? []).filter((row) => row.organization_id === demo.organizationId && row.channel === "email" && row.status === "sent");
+    const firstSentAt = sent.filter((row) => (row.kind ?? "first_touch") === "first_touch").map((row) => String(row.created_at)).sort()[0] ?? null;
+    if (!followUpDue({ firstSentAt, followUpSent: sent.some((row) => row.kind === "follow_up"), replied: replied.has(demo.organizationId), claimed: false, now: now() })) continue;
+    sendAt = nextSendAt(sendAt, random);
+    const result = await enqueueOutreach(db, { organizationId: demo.organizationId, channel: "email", to: demo.email, mode: "autopilot", kind: "follow_up", subject: null, body: null, notBefore: sendAt.toISOString() });
+    if (result.ok) summary.emailed += 1;
+    else skip({ reason: `follow_up_${result.reason}`, name: demo.name });
   }
 }
