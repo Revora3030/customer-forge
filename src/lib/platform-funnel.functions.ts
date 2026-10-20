@@ -223,6 +223,15 @@ export const getPlatformFunnel = createServerFn({ method: "GET" })
   .handler(async ({ context, data }): Promise<PlatformFunnel> => {
     const { assertSuperAdmin } = await import("@/lib/admin.server");
     await assertSuperAdmin(context.supabase, context.userId);
+    return computePlatformFunnel(data.days);
+  });
+
+/**
+ * The funnel itself. Callers MUST have verified the caller is a super admin
+ * first (the admin page and Jarvis both do); this reads with elevated access.
+ */
+export async function computePlatformFunnel(days: number): Promise<PlatformFunnel> {
+    const data = { days: Math.min(365, Math.max(1, Math.round(days))) };
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     const to = new Date();
@@ -453,7 +462,7 @@ export const getPlatformFunnel = createServerFn({ method: "GET" })
       convertedTrials,
       errors,
     };
-  });
+}
 
 export interface FunnelDetails {
   /** Per-day traffic, so the visitor and session stages can be opened up too. */
