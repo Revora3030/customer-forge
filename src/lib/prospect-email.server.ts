@@ -88,3 +88,38 @@ export async function lookupPublicEmail(link: string | null): Promise<PublicEmai
 export async function findPublicEmail(link: string | null): Promise<string | null> {
   return (await lookupPublicEmail(link))?.email ?? null;
 }
+
+/**
+ * Fetches a business's own homepage once and lists verified gaps (phone
+ * readiness, https, online booking/quote, load time). Returns null when the
+ * page can't be read, so an unreachable site is never pitched as "broken".
+ */
+export async function assessWebsite(link: string | null): Promise<import("./prospect-finder").SiteGap[] | null> {
+  if (!link) return null;
+  let url: URL;
+  try {
+    url = new URL(/^https?:\/\//i.test(link.trim()) ? link.trim() : "https://" + link.trim());
+    if ((url.protocol !== "https:" && url.protocol !== "http:") || url.username || url.password) return null;
+  } catch {
+    return null;
+  }
+  const { guardedFetch } = await import("./net-guard.server");
+  const started = Date.now();
+  try {
+    const response = await guardedFetch(url.toString(), {
+      signal: AbortSignal.timeout(8_000),
+      headers: { "user-agent": "RevoraProspectLookup/1.0 (+https://revoragrowthsystems.com)", accept: "text/html" },
+    });
+    if (!response.ok || !/(text\/html|application\/xhtml\+xml)/i.test(response.headers.get("content-type") ?? "text/html")) {
+      await response.body?.cancel().catch(() => undefined);
+      return null;
+    }
+    const html = await boundedText(response);
+    const loadMs = Date.now() - started;
+    if (html.length < 200) return null;
+    const { siteGaps } = await import("./prospect-finder");
+    return siteGaps({ html, finalUrl: url.toString(), loadMs });
+  } catch {
+    return null;
+  }
+}

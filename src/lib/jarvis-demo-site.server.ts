@@ -60,7 +60,7 @@ export async function provisionProspectDemo(
   const previewToken = newPreviewToken();
   const createdAt = new Date().toISOString();
   const expiresAt = new Date(Date.now() + DEMO_PREVIEW_DAYS * 86_400_000).toISOString();
-  const marker: ProspectDemoMarker & { source?: "autopilot"; placeId?: string | null; enrichment?: ProspectEnrichment } = {
+  const marker: ProspectDemoMarker & { source?: "autopilot"; placeId?: string | null; enrichment?: ProspectEnrichment; siteGaps?: string[] } = {
     kind: "prospect_demo",
     createdBy: actorId,
     createdAt,
@@ -69,6 +69,8 @@ export async function provisionProspectDemo(
     ...(origin?.placeId ?? input.placeId ? { placeId: origin?.placeId ?? input.placeId ?? null } : {}),
     // Where the email came from and whether it was verified; autopilot's send gate reads it.
     ...(origin?.enrichment ? { enrichment: origin.enrichment } : {}),
+    // Verified gaps on their current site, so outreach pitches an upgrade honestly.
+    ...(input.siteGaps?.length ? { siteGaps: input.siteGaps } : {}),
   };
 
   await must(
@@ -267,7 +269,7 @@ export async function findProspects(
   actorId: string,
   input: { niche: string; city: string; state?: string | null },
 ) {
-  const { MAX_SEARCHES_PER_DAY, selectProspects } = await import("@/lib/prospect-finder");
+  const { MAX_SEARCHES_PER_DAY, selectProspects, isUpgradeProspect } = await import("@/lib/prospect-finder");
   const since = new Date();
   since.setUTCHours(0, 0, 0, 0);
   const { count } = await db
@@ -282,7 +284,17 @@ export async function findProspects(
   const { searchPlacesForProspects } = await import("@/lib/integrations/google.server");
   const places = await searchPlacesForProspects(query, 20);
   const existing = (await listProspectDemos(db, 100)).map((demo) => demo.name);
-  const prospects = selectProspects(places, existing);
+  const candidates = selectProspects(places, existing, { includeWebsites: true });
+  // Businesses with their own site qualify only when it has verified gaps worth fixing.
+  const { assessWebsite } = await import("@/lib/prospect-email.server");
+  const checked = await Promise.all(
+    candidates.slice(0, 20).map(async (prospect) => {
+      if (prospect.presence !== "has_website") return prospect;
+      const gaps = await assessWebsite(prospect.website).catch(() => null);
+      return gaps && isUpgradeProspect(gaps) ? { ...prospect, siteGaps: gaps } : null;
+    }),
+  );
+  const prospects = checked.filter((p): p is NonNullable<typeof p> => p !== null);
   await db.from("audit_logs").insert({
     organization_id: null,
     actor_id: actorId,
