@@ -550,7 +550,15 @@ export async function followUpInbound(db: SupabaseClient, config: GmailConfig, i
     }
     // Another run took the thread's last automatic slot first.
     if (sent.reason === "auto_reply_limit") return toDraft("auto_reply_limit", written);
-    // An unconfirmed send is recorded as sent (it counts toward the limit); the operator sees the outcome.
+    // An unconfirmed send is recorded as sent (it counts toward the limit) and
+    // may have been delivered: closed as handled, never offered for re-approval.
+    if (sent.reason === "unconfirmed_transport") {
+      await db
+        .from("prospect_inbound")
+        .update({ status: "handled", action: "auto_reply_unconfirmed", draft_text: written, draft_reason: "unconfirmed_transport: Gmail did not confirm the send; check the thread before writing again", handled_at: now.toISOString() })
+        .eq("id", inbound.id);
+      return "auto_replied";
+    }
     return toDraft(`send_failed: ${sent.reason}`, written);
   }
   await db

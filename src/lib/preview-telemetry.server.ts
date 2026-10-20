@@ -73,6 +73,8 @@ export type BeaconOutcome =
   | { status: "recorded" }
   | { status: "ignored"; reason: "unknown_token" | "not_prospect" | "expired" | "revoked" }
   | { status: "rate_limited" }
+  /** Over the shared (database) limit. Only live tokens reach that check, so it answers like success. */
+  | { status: "dropped" }
   | { status: "error" };
 
 /**
@@ -118,7 +120,7 @@ export async function recordPreviewBeacon(
   recentQuery = ipHash ? recentQuery.eq("ip_hash", ipHash) : recentQuery.is("ip_hash", null);
   const { count, error: countError } = await recentQuery;
   if (countError) return { status: "error" };
-  if ((count ?? 0) >= BEACON_RATE_LIMIT) return { status: "rate_limited" };
+  if ((count ?? 0) >= BEACON_RATE_LIMIT) return { status: "dropped" };
 
   const { error } = await db.from("prospect_preview_events").insert({
     token: beacon.token,

@@ -308,7 +308,7 @@ const MESSAGES: Record<string, string> = {
   gmail_unavailable: "Gmail is having trouble right now. It will be retried.",
   gmail_rejected: "Gmail refused this message. Check the recipient address.",
   quality_gate: "The demo didn't pass the launch quality check, so it wasn't sent.",
-  unconfirmed_transport: "The provider didn't confirm this send (the connection dropped), so it may have been delivered. It's recorded as sent; use Resend only if you're sure it didn't arrive.",
+  unconfirmed_transport: "The provider didn't confirm this send (the connection dropped or the provider errored), so it may have been delivered. It's recorded as sent; use Resend only if you're sure it didn't arrive.",
 };
 
 export function outreachMessage(reason: string): string {

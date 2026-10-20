@@ -2290,6 +2290,8 @@ export async function findOwnPartialBuild(db: Db, orgId: string, jobId: string):
     .select("generation")
     .eq("organization_id", orgId)
     .maybeSingle();
+  // A failed read must not look like "no partial build": that would skip the AI-authorship checks.
+  if (partial.error) throw new Error(`Couldn't read this build's progress marker: ${partial.error.message}`);
   const generation = (partial.data?.generation ?? {}) as Record<string, unknown>;
   const report = generation["report"] as Record<string, unknown> | undefined;
   if (report?.["jobId"] !== jobId && generation["jobId"] !== jobId) return null;
@@ -2308,6 +2310,7 @@ export async function findOwnPartialBuild(db: Db, orgId: string, jobId: string):
     .select("id", { count: "exact", head: true })
     .eq("organization_id", orgId)
     .lt("created_at", since);
+  if (older.error) throw new Error(`Couldn't check for pages older than this build: ${older.error.message}`);
   if ((older.count ?? 0) > 0) {
     throw new Error("This retry found pages older than the build itself, so it stopped instead of deleting them.");
   }
@@ -2316,12 +2319,13 @@ export async function findOwnPartialBuild(db: Db, orgId: string, jobId: string):
   // build_attempt_ended row, or a dead one's lease expiry) bounds its writes.
   const startedAt = generation["jobId"] === jobId ? Date.parse(String(generation["buildStartedAt"] ?? "")) : Number.NaN;
   const anchor = Number.isFinite(startedAt) ? startedAt : Date.parse(since);
-  const { data: ends } = await db
+  const { data: ends, error: endsError } = await db
     .from("ai_generations")
     .select("kind, result, created_at")
     .eq("organization_id", orgId)
     .eq("job_id", jobId)
     .in("kind", ["build_attempt_ended", "build_attempt_lost"]);
+  if (endsError) throw new Error(`Couldn't read when this build's earlier attempt stopped: ${endsError.message}`);
   const bounds = ((ends ?? []) as { kind: string; result: unknown; created_at: string | null }[])
     .map((row) =>
       // An ended attempt is stamped by the database clock, the same clock as
@@ -2357,6 +2361,8 @@ export async function clearOwnPartialBuild(db: Db, orgId: string, own: OwnPartia
     .select("id, created_at, updated_at")
     .eq("organization_id", orgId)
     .gte("created_at", own.since);
+  // Every read must succeed: a failed one would hide edited rows (deletes cascade to sections and components).
+  if (pageRows.error) throw new Error(`Couldn't read the incomplete build pages: ${pageRows.error.message}`);
   const pages = (pageRows.data ?? []) as Stamped[];
   const ids = pages.map((row) => row.id);
   if (!ids.length) return;
@@ -2365,6 +2371,7 @@ export async function clearOwnPartialBuild(db: Db, orgId: string, own: OwnPartia
     .select("id, created_at, updated_at")
     .eq("organization_id", orgId)
     .in("page_id", ids);
+  if (sectionRows.error) throw new Error(`Couldn't read the incomplete build sections: ${sectionRows.error.message}`);
   const sections = (sectionRows.data ?? []) as Stamped[];
   const sIds = sections.map((row) => row.id);
   const componentRows = sIds.length
@@ -2373,7 +2380,8 @@ export async function clearOwnPartialBuild(db: Db, orgId: string, own: OwnPartia
         .select("id, created_at, updated_at")
         .eq("organization_id", orgId)
         .in("section_id", sIds)
-    : { data: [] };
+    : { data: [], error: null };
+  if (componentRows.error) throw new Error(`Couldn't read the incomplete build components: ${componentRows.error.message}`);
   const components = (componentRows.data ?? []) as Stamped[];
   if (touchedLater(pages) || touchedLater(sections) || touchedLater(components)) {
     throw new PartialBuildKeptError(`This build's unfinished pages were edited after its earlier attempt stopped, ${keep}`);

@@ -526,6 +526,22 @@ describe("a retry's own partial build (F4, F11)", () => {
     expect(tables["website_components"]).toHaveLength(0);
   });
 
+  it.each(["website_sections", "website_components"])("deletes nothing when reading %s fails", async (failing) => {
+    const { db, tables } = database(ownSeed());
+    const own = (await findOwnPartialBuild(db, ORG, JOB))!;
+    // A failed read must not look like "no rows": the page delete would cascade over unseen edits.
+    const failed = { data: null, error: { message: "read failed" } };
+    const chain: Record<string, unknown> = { then: (resolve: (value: unknown) => unknown) => resolve(failed) };
+    for (const method of ["select", "eq", "in", "gte"]) chain[method] = () => chain;
+    const flaky = new Proxy(db, {
+      get: (target, key) => (key === "from" ? (table: string) => (table === failing ? chain : (target as { from: (name: string) => unknown }).from(table)) : Reflect.get(target, key)),
+    });
+    await expect(clearOwnPartialBuild(flaky, ORG, own)).rejects.toThrow("read failed");
+    expect(tables["website_pages"]!.length).toBeGreaterThan(0);
+    expect(tables["website_sections"]).toHaveLength(1);
+    expect(tables["website_components"]).toHaveLength(1);
+  });
+
   it.each([
     ["an edited page", { pages: [{ id: "p1", organization_id: ORG, created_at: "2026-10-17T11:46:00Z", updated_at: "2026-10-17T13:00:00Z" }] }],
     [

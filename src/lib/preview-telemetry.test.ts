@@ -167,7 +167,7 @@ describe("recording beacons", () => {
 
   it("rate-limits per token and IP hash using the stored count", async () => {
     const { db, inserts } = prospectDb({}, BEACON_RATE_LIMIT);
-    expect(await recordPreviewBeacon(db, beacon, "203.0.113.9", { secret: "s" })).toEqual({ status: "rate_limited" });
+    expect(await recordPreviewBeacon(db, beacon, "203.0.113.9", { secret: "s" })).toEqual({ status: "dropped" });
     expect(inserts).toHaveLength(0);
   });
 
@@ -178,7 +178,7 @@ describe("recording beacons", () => {
     expect(localRateLimited("t|other", now)).toBe(false);
   });
 
-  it("answers the endpoint with 400/413/405/204/429 and the same 204 for ignored tokens", async () => {
+  it("answers the endpoint with 400/413/405/204 and the same 204 for ignored and over-limit live tokens", async () => {
     const request = (body: string, init: RequestInit = {}) =>
       new Request("https://app.example.com/api/public/preview-beacon", { method: "POST", body, headers: { "cf-connecting-ip": "198.51.100.4" }, ...init });
     const { db } = prospectDb();
@@ -190,8 +190,9 @@ describe("recording beacons", () => {
     expect(ok.headers.get("set-cookie")).toBeNull();
     const ignored = prospectDb({ website_preview_links: { data: null } });
     expect((await handlePreviewBeaconRequest(request(JSON.stringify({ token: TOKEN, event: "view" })), ignored.db)).status).toBe(204);
+    // Only live tokens reach the shared limit, so a 429 there would reveal the token is live.
     const limited = prospectDb({}, BEACON_RATE_LIMIT);
-    expect((await handlePreviewBeaconRequest(request(JSON.stringify({ token: TOKEN, event: "view" })), limited.db)).status).toBe(429);
+    expect((await handlePreviewBeaconRequest(request(JSON.stringify({ token: TOKEN, event: "view" })), limited.db)).status).toBe(204);
   });
 
   it("caps a chunked body with no content-length while streaming and cancels the rest", async () => {
