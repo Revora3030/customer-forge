@@ -25,3 +25,5 @@ Scan the entire repository before making broad changes. Do not mass-edit generat
 - Workspace mobile navigation traps and restores keyboard focus and makes the closed drawer inert; desktop navigation remains available without modal behavior.
 - External integration tests require their exact file to be selected as well as the credential gate; ordinary regression runs must never send email or create checkout sessions.
 - Prospect demo Google Maps photos are stored only as place ID + media rows pointing at /api/public/maps-photo, which redirects to Google live; Google's terms forbid saving copies and every photo is credited to its author.
+- Browser visual QA captures runtime script errors in the measured page and grades them P0; this feeds the existing AI repair loop instead of a separate error channel.
+- Chat edit scoping is model-declared (planner `scope` field) plus the point-and-edit block id, enforced in `src/lib/builder/edit-scope.ts` by dropping out-of-scope actions before apply; it must stay fail-open and never keyword-classify requests.
