@@ -38,7 +38,8 @@ export type OutreachChannel = "email" | "sms";
 export type OutreachMode = "manual" | "autopilot";
 export type OutreachResult =
   | { ok: true; outreachId: string }
-  | { ok: false; reason: string; message: string };
+  /** retryAt: when a "not right now" refusal (outside business hours) can next succeed. */
+  | { ok: false; reason: string; message: string; retryAt?: string };
 
 export type OutreachRecord = {
   id: string;
@@ -251,6 +252,51 @@ export function smsTimeZones(state: string | null | undefined, phone?: string | 
   return [...new Set(codes.flatMap((code) => SPLIT_STATE_ZONES[code] ?? [ZONES[code]!]))];
 }
 
+export const EMAIL_WINDOW_START_HOUR = 8;
+export const EMAIL_WINDOW_END_HOUR = 18;
+/** Unknown zone: fail closed to a narrower window in one zone. */
+export const EMAIL_FALLBACK_ZONE = "America/New_York";
+export const EMAIL_FALLBACK_START_HOUR = 9;
+export const EMAIL_FALLBACK_END_HOUR = 17;
+
+export type EmailBusinessWindow = { zones: string[]; startHour: number; endHour: number; known: boolean };
+
+/**
+ * When autopilot emails may go out: 8:00-18:00 in every zone the business may
+ * be in (the same area-code and state lookup texts use). When neither the
+ * phone nor the state gives a zone, 9:00-17:00 US Eastern.
+ */
+export function emailBusinessWindow(state: string | null | undefined, phone?: string | null): EmailBusinessWindow {
+  const codes = [...new Set([stateForPhone(phone), stateCode(state)].filter((code): code is string => Boolean(code)))];
+  if (!codes.length) return { zones: [EMAIL_FALLBACK_ZONE], startHour: EMAIL_FALLBACK_START_HOUR, endHour: EMAIL_FALLBACK_END_HOUR, known: false };
+  const zones = [...new Set(codes.flatMap((code) => SPLIT_STATE_ZONES[code] ?? [ZONES[code]!]))];
+  return { zones, startHour: EMAIL_WINDOW_START_HOUR, endHour: EMAIL_WINDOW_END_HOUR, known: true };
+}
+
+export function emailBusinessHoursNow(now: Date, state: string | null | undefined, phone?: string | null): boolean {
+  const window = emailBusinessWindow(state, phone);
+  return window.zones.every((timeZone) => {
+    const hour = localHour(now, timeZone);
+    return hour >= window.startHour && hour < window.endHour;
+  });
+}
+
+const QUARTER_HOUR_MS = 15 * 60_000;
+
+/**
+ * The first moment at or after `from` inside the email window (`from` itself
+ * when the window is open). Searched in quarter hours over three days; if the
+ * zones never share a window, one day later (the send re-checks then).
+ */
+export function nextEmailBusinessHour(from: Date, state: string | null | undefined, phone?: string | null): Date {
+  if (emailBusinessHoursNow(from, state, phone)) return from;
+  let at = Math.ceil(from.getTime() / QUARTER_HOUR_MS) * QUARTER_HOUR_MS;
+  for (let step = 0; step < 4 * 72; step += 1, at += QUARTER_HOUR_MS) {
+    if (emailBusinessHoursNow(new Date(at), state, phone)) return new Date(at);
+  }
+  return new Date(from.getTime() + 86_400_000);
+}
+
 export function localHour(now: Date, timeZone: string): number {
   const hour = new Intl.DateTimeFormat("en-US", { timeZone, hour: "numeric", hourCycle: "h23" }).format(now);
   return Number(hour) % 24;
@@ -299,6 +345,7 @@ const MESSAGES: Record<string, string> = {
   demo_claimed: "The business already claimed this demo, so outreach stopped.",
   build_not_finished: "Wait for the demo build to finish before sending it.",
   do_not_contact: "This contact is on the do-not-contact list (they unsubscribed or replied STOP), so nothing was sent.",
+  outside_business_hours: "Automatic emails only go out between 8am and 6pm in the business's time zone (9am-5pm Eastern when the zone is unknown). It waits until then.",
   follow_up_not_due: "No follow-up is due: it goes once, 48 hours after the first email, and only if there was no reply.",
   already_sent: "This demo was already sent on this channel. Choose Resend if you really mean to send it again.",
   no_consent: "Autopilot only texts numbers that opted in to texts. This number hasn't, so it wasn't texted.",
@@ -679,6 +726,12 @@ export async function sendDemoOutreach(db: SupabaseClient, input: SendDemoOutrea
   if (demo.claimed) return skip("demo_claimed");
   if (demo.build?.status !== "completed") return skip("build_not_finished");
   if (await isDoNotContact(db, recipient)) return skip("do_not_contact");
+  // Automatic emails (first touch and follow-up) wait for business hours in the
+  // business's zone. Not recorded: the queue reschedules it, and an hourly
+  // skip row would only be noise.
+  if (mode === "autopilot" && channel === "email" && !emailBusinessHoursNow(now, demo.state, demo.phone)) {
+    return { ok: false, reason: "outside_business_hours", message: outreachMessage("outside_business_hours"), retryAt: nextEmailBusinessHour(now, demo.state, demo.phone).toISOString() };
+  }
 
   let gate: OutreachGate;
   try {

@@ -420,6 +420,54 @@ describe("outreach compliance fixes", () => {
   });
 });
 
+describe("email business hours", () => {
+  it("opens 8:00-18:00 in every zone the business may be in, and 9:00-17:00 Eastern when the zone is unknown", async () => {
+    const { emailBusinessHoursNow, emailBusinessWindow, nextEmailBusinessHour } = await import("@/lib/prospect-outreach.server");
+    // NC: 8:00 EDT opens, 18:00 EDT closes.
+    expect(emailBusinessHoursNow(new Date("2026-10-19T11:59:00Z"), "NC")).toBe(false);
+    expect(emailBusinessHoursNow(new Date("2026-10-19T12:00:00Z"), "NC")).toBe(true);
+    expect(emailBusinessHoursNow(new Date("2026-10-19T21:59:00Z"), "NC")).toBe(true);
+    expect(emailBusinessHoursNow(new Date("2026-10-19T22:00:00Z"), "NC")).toBe(false);
+    // The area code counts too: a 213 (Pacific) number at 7:30 PDT is outside even on an NC listing.
+    expect(emailBusinessHoursNow(new Date("2026-10-19T14:30:00Z"), "NC", "+12135550100")).toBe(false);
+    expect(emailBusinessHoursNow(new Date("2026-10-19T15:00:00Z"), "NC", "+12135550100")).toBe(true);
+    // Unknown zone: fail closed to 9:00-17:00 US Eastern.
+    expect(emailBusinessWindow(null, null)).toEqual({ zones: ["America/New_York"], startHour: 9, endHour: 17, known: false });
+    expect(emailBusinessHoursNow(new Date("2026-10-19T12:30:00Z"), null)).toBe(false); // 8:30 EDT
+    expect(emailBusinessHoursNow(new Date("2026-10-19T13:00:00Z"), "Narnia")).toBe(true); // 9:00 EDT
+    expect(emailBusinessHoursNow(new Date("2026-10-19T21:00:00Z"), null, "+447700900123")).toBe(false); // 17:00 EDT
+    // The next opening: now when open, else the window's first quarter hour.
+    const open = new Date("2026-10-19T15:00:00Z");
+    expect(nextEmailBusinessHour(open, "NC")).toBe(open);
+    expect(nextEmailBusinessHour(new Date("2026-10-19T23:10:00Z"), "NC").toISOString()).toBe("2026-10-20T12:00:00.000Z");
+    expect(nextEmailBusinessHour(new Date("2026-10-19T03:00:00Z"), "CA").toISOString()).toBe("2026-10-19T15:00:00.000Z");
+    expect(nextEmailBusinessHour(new Date("2026-10-19T22:00:00Z"), null).toISOString()).toBe("2026-10-20T13:00:00.000Z");
+  });
+
+  it("holds autopilot first touches and follow-ups outside the window without recording a skip, but never a manual email", async () => {
+    vi.setSystemTime(new Date("2026-10-19T03:00:00Z")); // 23:00 EDT in Raleigh
+    const { db, tables } = fakeDb(demoSeed());
+    const auto = { ...email, mode: "autopilot" as const, actorId: null };
+    const held = { ok: false, reason: "outside_business_hours", retryAt: "2026-10-19T12:00:00.000Z" };
+    expect(await sendDemoOutreach(db, auto)).toMatchObject(held);
+    expect(await sendDemoOutreach(db, { ...auto, kind: "follow_up" })).toMatchObject(held);
+    expect(tables["prospect_outreach"] ?? []).toHaveLength(0);
+    expect(sendTemplateEmail).not.toHaveBeenCalled();
+    expect(await sendDemoOutreach(db, email)).toMatchObject({ ok: true });
+  });
+
+  it("reschedules a waiting queue item to the window's opening", async () => {
+    const { waitRetryAt, WAIT_SEND_REASONS } = await import("@/lib/prospect-send-queue.server");
+    const now = new Date("2026-10-19T03:00:00Z");
+    expect(WAIT_SEND_REASONS.has("outside_business_hours")).toBe(true);
+    expect(waitRetryAt("outside_business_hours", now, "2026-10-19T12:00:00.000Z").toISOString()).toBe("2026-10-19T12:00:00.000Z");
+    expect(waitRetryAt("outside_business_hours", now, "2026-10-19T02:00:00.000Z").toISOString()).toBe("2026-10-19T03:01:00.000Z");
+    expect(waitRetryAt("outside_business_hours", now).toISOString()).toBe("2026-10-19T04:00:00.000Z");
+    expect(waitRetryAt("quiet_hours", now).toISOString()).toBe("2026-10-19T04:00:00.000Z");
+    expect(waitRetryAt("daily_cap", now).toISOString()).toBe("2026-10-20T00:05:00.000Z");
+  });
+});
+
 describe("Twilio webhook signature", () => {
   const params = { From: "+19195550100", Body: "STOP", To: "+19195550000", MessageSid: "SM1" };
   const url = "https://revoragrowthsystems.com/api/public/twilio/inbound";

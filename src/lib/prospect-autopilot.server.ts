@@ -68,6 +68,9 @@ export type AutopilotRunSummary = {
   built: number;
   emailed: number;
   texted: number;
+  /** Old demos with no enrichment record re-checked this run, and how many results were written. */
+  legacyChecked: number;
+  legacyWritten: number;
   skipped: AutopilotSkip[];
   error: string | null;
 };
@@ -269,7 +272,7 @@ export async function runProspectAutopilot(
   } = {},
 ): Promise<AutopilotRunSummary> {
   const now = options.now ?? (() => new Date());
-  const summary: AutopilotRunSummary = { status: "done", runId: null, found: 0, built: 0, emailed: 0, texted: 0, skipped: [], error: null };
+  const summary: AutopilotRunSummary = { status: "done", runId: null, found: 0, built: 0, emailed: 0, texted: 0, legacyChecked: 0, legacyWritten: 0, skipped: [], error: null };
   const skip = (entry: AutopilotSkip) => {
     if (summary.skipped.length < MAX_SKIPPED) summary.skipped.push(entry);
   };
@@ -311,6 +314,7 @@ export async function runProspectAutopilot(
 
   try {
     await buildPhase(db, settings, summary, skip, now, options.onQueued);
+    await reverifyLegacyPhase(db, summary, skip, now);
     await sendPhase(db, settings, summary, skip, now, options.random ?? Math.random);
   } catch (error) {
     summary.status = "failed";
@@ -494,7 +498,23 @@ async function buildPhase(
   }
 }
 
-const RETRY_NEXT_RUN = new Set(["quiet_hours", "daily_cap", "sms_not_configured", "email_not_configured"]);
+/**
+ * Once per run, before sending: re-verifies a few old demos that have no
+ * enrichment record (their business_profiles email), so the email gate can
+ * accept the verified ones. Never blocks the run: a failure is a skip.
+ */
+async function reverifyLegacyPhase(db: SupabaseClient, summary: AutopilotRunSummary, skip: (entry: AutopilotSkip) => void, now: () => Date) {
+  try {
+    const { reverifyLegacyDemos } = await import("@/lib/prospect-enrichment.server");
+    const result = await reverifyLegacyDemos(db, { now });
+    summary.legacyChecked += Number(result?.checked) || 0;
+    summary.legacyWritten += Number(result?.written) || 0;
+  } catch (error) {
+    skip({ reason: `legacy_reverify_failed: ${(error instanceof Error ? error.message : "failed").slice(0, 160)}` });
+  }
+}
+
+const RETRY_NEXT_RUN = new Set(["quiet_hours", "daily_cap", "outside_business_hours", "sms_not_configured", "email_not_configured"]);
 
 export type OutreachQueueItem = {
   organizationId: string;
@@ -559,14 +579,16 @@ async function sendPhase(
           (Date.parse(String(row.created_at)) >= retrySince && !(row.status === "skipped" && RETRY_NEXT_RUN.has(String(row.reason))))),
     );
 
-  const { smsAllowedNow } = await import("@/lib/prospect-outreach.server");
+  const { smsAllowedNow, nextEmailBusinessHour, isDoNotContact } = await import("@/lib/prospect-outreach.server");
   const { verifyProspectEmail } = await import("@/lib/prospect-enrichment.server");
   const { assessDemoForOutreach } = await import("@/lib/demo-launch-gate.server");
   let reverified = 0;
   let sendAt = now();
   const enqueue = async (demo: SendableDemo, channel: OutreachChannel, to: string) => {
     sendAt = nextSendAt(sendAt, random);
-    return enqueueOutreach(db, { organizationId: demo.organizationId, channel, to, mode: "autopilot", subject: null, body: null, notBefore: sendAt.toISOString() });
+    // Emails wait for business hours in the business's zone; texts check their own window.
+    const notBefore = channel === "email" ? nextEmailBusinessHour(sendAt, demo.state, demo.phone) : sendAt;
+    return enqueueOutreach(db, { organizationId: demo.organizationId, channel, to, mode: "autopilot", subject: null, body: null, notBefore: notBefore.toISOString() });
   };
 
   /** The verified-email gate: only an address the business published and enrichment verified. */
@@ -624,8 +646,28 @@ async function sendPhase(
     const sent = (history ?? []).filter((row) => row.organization_id === demo.organizationId && row.channel === "email" && row.status === "sent");
     const firstSentAt = sent.filter((row) => (row.kind ?? "first_touch") === "first_touch").map((row) => String(row.created_at)).sort()[0] ?? null;
     if (!followUpDue({ firstSentAt, followUpSent: sent.some((row) => row.kind === "follow_up"), replied: replied.has(demo.organizationId), claimed: false, now: now() })) continue;
+    // Not queued at all for an opted-out address or a demo that fails the launch
+    // gate (sendDemoOutreach re-checks both at send time).
+    if (await isDoNotContact(db, demo.email)) {
+      skip({ reason: "follow_up_do_not_contact", name: demo.name });
+      continue;
+    }
+    const followUpGate = await assessDemoForOutreach(db, demo.organizationId);
+    if (!followUpGate.ok) {
+      skip({ reason: `follow_up_quality_gate: ${followUpGate.blockers.map((blocker) => blocker.message).join("; ").slice(0, 200)}`, name: demo.name });
+      continue;
+    }
     sendAt = nextSendAt(sendAt, random);
-    const result = await enqueueOutreach(db, { organizationId: demo.organizationId, channel: "email", to: demo.email, mode: "autopilot", kind: "follow_up", subject: null, body: null, notBefore: sendAt.toISOString() });
+    const result = await enqueueOutreach(db, {
+      organizationId: demo.organizationId,
+      channel: "email",
+      to: demo.email,
+      mode: "autopilot",
+      kind: "follow_up",
+      subject: null,
+      body: null,
+      notBefore: nextEmailBusinessHour(sendAt, demo.state, demo.phone).toISOString(),
+    });
     if (result.ok) summary.emailed += 1;
     else skip({ reason: `follow_up_${result.reason}`, name: demo.name });
   }
