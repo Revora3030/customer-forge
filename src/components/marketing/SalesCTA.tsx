@@ -1,8 +1,8 @@
 import { Link } from "@tanstack/react-router";
-import { LifeBuoy, Mail, Phone } from "lucide-react";
+import { LifeBuoy, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/app/Bits";
-import { MAIL_SUBJECTS, REVORA, revoraMailto, revoraTel } from "@/lib/brand";
+import { MAIL_SUBJECTS, REVORA, revoraMailto } from "@/lib/brand";
 
 /** Ready-to-grow sales block used across marketing pages. */
 export function SalesCTA({ className = "" }: { className?: string }) {
@@ -114,10 +114,7 @@ export function RevoraMobileBar() {
           such as the send button on the contact form. */}
       <div className="h-24 md:hidden" aria-hidden="true" />
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 px-2 py-2 backdrop-blur md:hidden">
-        <div className="grid grid-cols-4 gap-2">
-          <Button asChild variant="outline" size="sm">
-            <a href={revoraTel}>Call</a>
-          </Button>
+        <div className="grid grid-cols-3 gap-2">
           <Button asChild variant="outline" size="sm">
             <a href={revoraMailto(MAIL_SUBJECTS.inquiry)}>Email</a>
           </Button>

@@ -62,7 +62,6 @@ export const Route = createFileRoute("/local/$industry/$state")({
             provider: {
               "@type": "ProfessionalService",
               name: BUSINESS.legalName,
-              telephone: BUSINESS.tel,
               email: BUSINESS.email,
               url: SITE_URL,
             },

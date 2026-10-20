@@ -1,12 +1,12 @@
 /**
- * Visible business details: name, phone, email, hours and areas served.
+ * Visible business details: name, email, hours and areas served.
  *
  * Search engines cross-check structured data against what a visitor can
  * actually see on the page, so these values are rendered from the same
  * `BUSINESS` constants that produce the LocalBusiness schema. Changing one
  * changes both — they can never drift apart.
  */
-import { Clock, Globe2, Mail, MapPin, Phone } from "lucide-react";
+import { Clock, Globe2, Mail, MapPin } from "lucide-react";
 
 import { BUSINESS } from "@/lib/business-identity";
 import { revoraMailto, MAIL_SUBJECTS } from "@/lib/brand";

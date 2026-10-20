@@ -95,7 +95,6 @@ export const Route = createFileRoute("/states/$state")({
             provider: {
               "@type": "ProfessionalService",
               name: BUSINESS.legalName,
-              telephone: BUSINESS.tel,
               email: BUSINESS.email,
               url: "https://revoragrowthsystems.com",
             },
