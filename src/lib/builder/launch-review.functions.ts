@@ -171,8 +171,17 @@ export const getLaunchReview = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator(orgIdValidator)
   .handler(async ({ data, context }): Promise<LaunchReview> => {
-    const { supabase } = context;
+    const { supabase, userId } = context;
     const organizationId = data.organizationId;
+    // Explicit tenant gate before any read (including the later privileged
+    // revision lookup): only a member of this workspace gets its review.
+    const membership = await supabase
+      .from("memberships")
+      .select("id")
+      .eq("organization_id", organizationId)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (membership.error || !membership.data) throw new Error("You don't have access to this workspace.");
 
     const [profile, settings, pages, sections, services, reviews, media, visual, components] = await Promise.all(
       [

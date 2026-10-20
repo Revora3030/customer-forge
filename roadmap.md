@@ -7,7 +7,11 @@
 - [ ] One build end to end (BLOCKED: workspace daily AI limit and $5/day paid cap reached today; free pool heavily rate-limited). Daily site limit stays 5 until it passes.
 - [ ] Migration drift: needs the remote migration version list (not readable from here) to reconcile.
 - [ ] Owner decision: canonical offer in code/DB is $350 setup + 3-day full access; owner brief cites $750 + 1-day.
-- [ ] Jarvis tool/permission map, capability scorecard, cross-tenant negative tests (Workstreams A, C4, E) — next pass.
+- [x] Jarvis tool/permission inventory documented (docs/operations/jarvis-tool-inventory.md).
+- [x] Queued autopilot sends respect the off switch; launch review requires workspace membership.
+- [x] Migration reconciliation runbook (docs/operations/migration-reconciliation.md).
+- [ ] Wire durable approval proof into Jarvis consequential endpoints (needs table + UI).
+- [ ] Live two-workspace RLS test (needs test accounts in a non-production database).
 
 ## Jarvis model access (2026-10-20)
 - [x] Remove arbitrary catalog/purpose/demo defaults and admin chat free-only override, preserving explicit controls, capabilities and budgets.

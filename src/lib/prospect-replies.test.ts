@@ -160,6 +160,7 @@ const CLAIM = "https://revoragrowthsystems.com/get-started?claim=tok_abcdefghijk
 
 function demoSeed(extra: Record<string, Row[]> = {}) {
   return {
+    prospect_autopilot_settings: [{ id: 1, enabled: true, send_email: true, send_sms: true }],
     website_settings: [
       { organization_id: ORG, generation: { prospectDemo: { kind: "prospect_demo", createdBy: "admin", createdAt: "2026-10-18T00:00:00Z", previewToken: "tok_abcdefghijklmnopqrst" } } },
       { organization_id: ORG2, generation: { prospectDemo: { kind: "prospect_demo", createdBy: "admin", createdAt: "2026-10-18T00:00:00Z", previewToken: "tok_zyxwvutsrqponmlkjihg" } } },
@@ -812,6 +813,15 @@ describe("outreach send queue", () => {
     expect(sendTemplateEmail).toHaveBeenCalledTimes(1);
     expect(tables["prospect_send_queue"]![0]).toMatchObject({ status: "sent", leased_until: null });
     expect(tables["prospect_outreach"]![0]).toMatchObject({ mode: "autopilot", status: "sent" });
+  });
+
+  it("holds queued automatic sends while the owner has autopilot switched off", async () => {
+    const seed = demoSeed({ prospect_send_queue: [{ id: "q1", organization_id: ORG, channel: "email", recipient: "owner@triangle.com", mode: "autopilot", status: "queued", not_before: "2026-10-19T17:59:00Z", attempts: 0 }] });
+    seed.prospect_autopilot_settings = [{ id: 1, enabled: false, send_email: true, send_sms: true }];
+    const { db, tables } = fakeDb(seed);
+    expect(await drainSendQueue(db)).toMatchObject({ claimed: 1, sent: 0, retried: 1 });
+    expect(sendTemplateEmail).not.toHaveBeenCalled();
+    expect(tables["prospect_send_queue"]![0]).toMatchObject({ status: "queued", last_error: "autopilot_paused" });
   });
 
   it("backs off on Gmail rate limits and gives up after three attempts", async () => {
