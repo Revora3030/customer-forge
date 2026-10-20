@@ -14,6 +14,10 @@ export const Route = createFileRoute("/_authenticated/admin/websites")({
   head: () => ({
     meta: [
       { title: "Website queue — Revora admin" },
+      { property: "og:title", content: "Website queue — Revora admin" },
+      { property: "og:description", content: "Quality control and change requests for every client website." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
       {
         name: "description",
         content: "Quality control and change requests for every client website.",

@@ -25,6 +25,7 @@ import {
 import { useDeleteService, useQuoteRequests, useSaveService, useServices } from "@/lib/queries";
 import { useWorkspace } from "@/lib/use-tenant";
 import { currency, relative } from "@/lib/format";
+import { QueryErrorNotice } from "@/components/app/QueryErrorNotice";
 
 export const Route = createFileRoute("/_authenticated/app/services")({
   head: () => ({
@@ -35,6 +36,10 @@ export const Route = createFileRoute("/_authenticated/app/services")({
         content: "Manage your service menu and review incoming quote requests.",
       },
       { name: "robots", content: "noindex" },
+      { property: "og:title", content: "Services & Quotes — Revora" },
+      { property: "og:description", content: "Manage your service menu and review incoming quote requests." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   component: ServicesPage,
@@ -68,8 +73,8 @@ const blank: Editing = {
 function ServicesPage() {
   const { data: ws } = useWorkspace();
   const orgId = ws?.workspace?.organizationId;
-  const { data: services, isLoading } = useServices(orgId);
-  const { data: quotes } = useQuoteRequests(orgId);
+  const { data: services, isLoading, isError: servicesError, refetch: retryServices, isFetching: servicesFetching } = useServices(orgId);
+  const { data: quotes, isLoading: quotesLoading, isError: quotesError, refetch: retryQuotes, isFetching: quotesFetching } = useQuoteRequests(orgId);
   const saveService = useSaveService(orgId);
   const deleteService = useDeleteService(orgId);
   const [editing, setEditing] = useState<Editing | null>(null);
@@ -88,7 +93,9 @@ function ServicesPage() {
         </Button>
       </PageHead>
 
-      {(services ?? []).length === 0 ? (
+      {servicesError ? (
+        <QueryErrorNotice title="Your services couldn't be loaded." retry={retryServices} retrying={servicesFetching} />
+      ) : (services ?? []).length === 0 ? (
         <EmptyState
           title="No services yet"
           description="Your services are what customers browse, price and book. Add your first one to make your website useful."
@@ -102,7 +109,7 @@ function ServicesPage() {
         <ul className="grid gap-3 md:grid-cols-2">
           {(services ?? []).map((service) => (
             <li key={service.id} className="panel p-4">
-              <div className="flex items-start justify-between gap-3">
+              <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="truncate font-display text-[15px] font-semibold">{service.name}</p>
                   <p className="mt-1 text-[12px] text-muted-foreground">
@@ -112,7 +119,7 @@ function ServicesPage() {
                     {service.duration_minutes ? ` · ${service.duration_minutes} min` : ""}
                   </p>
                 </div>
-                <div className="flex shrink-0 gap-1.5">
+                <div className="flex flex-wrap gap-1.5">
                   {service.featured ? <Pill tone="attention">Featured</Pill> : null}
                   {service.bookable ? <Pill tone="signal">Bookable</Pill> : null}
                   {!service.is_active ? <Pill>Hidden</Pill> : null}
@@ -163,7 +170,9 @@ function ServicesPage() {
 
       <Panel className="p-5">
         <SectionHeading eyebrow="Instant estimates" title="Quote requests" />
-        {(quotes ?? []).length === 0 ? (
+        {quotesError ? (
+          <div className="mt-4"><QueryErrorNotice title="Quote requests couldn't be loaded." retry={retryQuotes} retrying={quotesFetching} /></div>
+        ) : quotesLoading ? <LoadingRows rows={2} /> : (quotes ?? []).length === 0 ? (
           <p className="mt-3 text-[13px] text-muted-foreground">
             When someone uses the quote calculator on your site, their answers and price range land
             here — with their contact details attached.
@@ -196,7 +205,7 @@ function ServicesPage() {
       </Panel>
 
       <Dialog open={!!editing} onOpenChange={(open) => !open && setEditing(null)}>
-        <DialogContent>
+        <DialogContent className="max-h-[90dvh] overflow-y-auto">
           {editing ? (
             <>
               <DialogHeader>

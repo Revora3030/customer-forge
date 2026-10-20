@@ -22,6 +22,10 @@ export const Route = createFileRoute("/_authenticated/admin/payments")({
   head: () => ({
     meta: [
       { title: "Payments — Revora admin" },
+      { property: "og:title", content: "Payments — Revora admin" },
+      { property: "og:description", content: "Verified Stripe transactions across every Revora client workspace." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
       {
         name: "description",
         content: "Verified Stripe transactions across every Revora client workspace.",

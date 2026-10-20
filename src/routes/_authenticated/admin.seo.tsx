@@ -22,7 +22,12 @@ import { toast } from "@/lib/ui/notify";
 
 export const Route = createFileRoute("/_authenticated/admin/seo")({
   head: () => ({
-    meta: [{ title: "Search growth — Revora" }, { name: "robots", content: "noindex, nofollow" }],
+    meta: [{ title: "Search growth — Revora" },
+      { name: "description", content: "Review search data and technical website checks." },
+      { property: "og:title", content: "Search growth — Revora" },
+      { property: "og:description", content: "Review search data and technical website checks." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" }, { name: "robots", content: "noindex, nofollow" }],
   }),
   component: AdminSeo,
 });

@@ -21,6 +21,10 @@ export const Route = createFileRoute("/_authenticated/app/settings")({
   head: () => ({
     meta: [
       { title: "Settings — Revora" },
+      { property: "og:title", content: "Settings — Revora" },
+      { property: "og:description", content: metaDescription("Manage your account, business workspace and team.") },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
       { name: "description", content: metaDescription("Manage your account, business workspace and team.") },
       { name: "robots", content: "noindex" },
     ],

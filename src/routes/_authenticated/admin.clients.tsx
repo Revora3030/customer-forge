@@ -13,7 +13,12 @@ import { currency, dateShort, number } from "@/lib/format";
 
 export const Route = createFileRoute("/_authenticated/admin/clients")({
   head: () => ({
-    meta: [{ title: "Clients — Revora admin" }, { name: "robots", content: "noindex, nofollow" }],
+    meta: [{ title: "Clients — Revora admin" },
+      { name: "description", content: "Review client accounts, workspace status and setup progress." },
+      { property: "og:title", content: "Clients — Revora admin" },
+      { property: "og:description", content: "Review client accounts, workspace status and setup progress." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" }, { name: "robots", content: "noindex, nofollow" }],
   }),
   component: AdminClients,
 });

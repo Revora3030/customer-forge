@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { canTrackAds, updateConsent } from "./consent";
+import { isMarketingConsentPath } from "@/components/marketing/cookie-consent-utils";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -16,6 +17,12 @@ function browser(choice: string | null) {
 }
 
 describe("advertising consent", () => {
+  it.each(["/app", "/app/services", "/admin/jarvis", "/my/activity", "/onboarding", "/s/customer", "/p/token/about", "/draft/customer"])("does not interrupt workspace/customer pages: %s", (path) => {
+    expect(isMarketingConsentPath(path)).toBe(false);
+  });
+  it.each(["/", "/pricing", "/auth", "/reset-password"])("keeps consent available on marketing and signup pages: %s", (path) => {
+    expect(isMarketingConsentPath(path)).toBe(true);
+  });
   it("does not track before a decision in a consent region", async () => {
     browser(null);
     expect(await canTrackAds()).toBe(false);

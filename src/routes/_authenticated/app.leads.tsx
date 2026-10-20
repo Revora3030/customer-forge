@@ -61,6 +61,10 @@ export const Route = createFileRoute("/_authenticated/app/leads")({
   head: () => ({
     meta: [
       { title: "Lead pipeline — Revora" },
+      { property: "og:title", content: "Lead pipeline — Revora" },
+      { property: "og:description", content: "Work every lead from new to booked with calls, texts and follow-ups." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
       {
         name: "description",
         content: "Work every lead from new to booked with calls, texts and follow-ups.",

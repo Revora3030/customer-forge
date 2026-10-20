@@ -52,6 +52,8 @@ export const Route = createFileRoute("/auth")({
       },
       { property: "og:title", content: "Sign in — Revora" },
       { property: "og:description", content: "Access your business command center." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
       { name: "robots", content: "noindex" },
     ],
   }),

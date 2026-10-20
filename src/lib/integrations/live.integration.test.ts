@@ -13,9 +13,14 @@
 
 import { describe, expect, it } from "vitest";
 import { createHmac } from "node:crypto";
-import { livePreflight, liveSuiteEnabled } from "./live-credentials";
+import { explicitlySelectedLiveSuite, livePreflight, liveSuiteEnabled } from "./live-credentials";
 
-const env = process.env as Record<string, string | undefined>;
+const env: Record<string, string | undefined> = {
+  ...process.env,
+  INTEGRATION_TESTS_ENABLED: explicitlySelectedLiveSuite(process.argv)
+    ? process.env["INTEGRATION_TESTS_ENABLED"]
+    : "0",
+};
 const preflight = livePreflight(env);
 
 if (preflight.status === "NOT_VERIFIED")

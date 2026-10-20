@@ -19,6 +19,8 @@ export const Route = createFileRoute("/reset-password")({
       { name: "description", content: metaDescription("Choose a new password for your Revora account.") },
       { property: "og:title", content: "Set a new password — Revora" },
       { property: "og:description", content: "Choose a new password for your Revora account." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
       { name: "robots", content: "noindex" },
     ],
   }),

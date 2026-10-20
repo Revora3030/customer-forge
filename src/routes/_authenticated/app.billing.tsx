@@ -30,6 +30,10 @@ export const Route = createFileRoute("/_authenticated/app/billing")({
   head: () => ({
     meta: [
       { title: "Billing & payments — Revora" },
+      { property: "og:title", content: "Billing & payments — Revora" },
+      { property: "og:description", content: "Your Revora plan, subscription and secure card, Apple Pay and Cash App Pay checkout." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
       {
         name: "description",
         content:

@@ -12,7 +12,12 @@ import { dateLong } from "@/lib/format";
 
 export const Route = createFileRoute("/_authenticated/admin/domains")({
   head: () => ({
-    meta: [{ title: "Domains — Revora admin" }, { name: "robots", content: "noindex, nofollow" }],
+    meta: [{ title: "Domains — Revora admin" },
+      { name: "description", content: "Review client domains and their verification status." },
+      { property: "og:title", content: "Domains — Revora admin" },
+      { property: "og:description", content: "Review client domains and their verification status." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" }, { name: "robots", content: "noindex, nofollow" }],
   }),
   component: AdminDomains,
 });

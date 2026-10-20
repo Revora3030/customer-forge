@@ -6,6 +6,7 @@ import {
   isConsentRequiredRegion,
   updateConsent,
 } from "@/lib/consent";
+import { isMarketingConsentPath } from "./cookie-consent-utils";
 
 /**
  * Regional cookie banner for Revora's own marketing site.
@@ -30,7 +31,7 @@ export function CookieConsent() {
       if (!isRevoraOwnHost(window.location.hostname)) return;
       // Client sites shared on Revora's own address (/s/…, /p/…) are the
       // business's website too.
-      if (/^\/(s|p|draft)\//.test(pathname)) return;
+      if (!isMarketingConsentPath(pathname)) return;
       let decided: string | null = null;
       try { decided = window.localStorage.getItem("cookie_consent"); } catch { /* Ask safely if storage is unavailable. */ }
       if (decided !== null) return;
@@ -39,7 +40,7 @@ export function CookieConsent() {
     })();
 
     const onOpenSettings = () => {
-      if (!/^\/(s|p|draft)\//.test(pathname)) setVisible(true);
+      if (isMarketingConsentPath(pathname)) setVisible(true);
     };
     window.addEventListener("revora:cookie-settings", onOpenSettings);
 

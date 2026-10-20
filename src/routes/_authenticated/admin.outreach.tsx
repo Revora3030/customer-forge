@@ -20,7 +20,12 @@ const DONE_KEY = "revora.outreach.done";
 
 export const Route = createFileRoute("/_authenticated/admin/outreach")({
   head: () => ({
-    meta: [{ title: "Outreach — Revora admin" }, { name: "robots", content: "noindex, nofollow" }],
+    meta: [{ title: "Outreach — Revora admin" },
+      { name: "description", content: "Review outreach resources and campaign activity." },
+      { property: "og:title", content: "Outreach — Revora admin" },
+      { property: "og:description", content: "Review outreach resources and campaign activity." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" }, { name: "robots", content: "noindex, nofollow" }],
   }),
   component: AdminOutreach,
 });

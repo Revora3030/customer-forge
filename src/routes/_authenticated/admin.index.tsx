@@ -27,7 +27,12 @@ const ACTIVITY_LABELS: Record<string, string> = {
 
 export const Route = createFileRoute("/_authenticated/admin/")({
   head: () => ({
-    meta: [{ title: "Admin — Revora" }, { name: "robots", content: "noindex, nofollow" }],
+    meta: [{ title: "Admin — Revora" },
+      { name: "description", content: "Review platform activity, client workspaces and business metrics." },
+      { property: "og:title", content: "Admin — Revora" },
+      { property: "og:description", content: "Review platform activity, client workspaces and business metrics." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" }, { name: "robots", content: "noindex, nofollow" }],
   }),
   component: AdminOverview,
 });

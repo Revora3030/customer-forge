@@ -402,7 +402,7 @@ export const getPreviewSite = createServerFn({ method: "GET" })
     });
     // The link belongs to one workspace; never render another one's draft.
     const siteOrgId = (site as { org?: { id?: string } } | null)?.org?.id;
-    if (site && siteOrgId && siteOrgId !== link.organizationId)
+    if (site && (!siteOrgId || siteOrgId !== link.organizationId))
       return {
         ok: false as const,
         reason: "unknown" as const,
