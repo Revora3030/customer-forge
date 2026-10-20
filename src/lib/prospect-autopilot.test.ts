@@ -18,7 +18,8 @@ const mocks = vi.hoisted(() => ({
   sendDemoOutreach: vi.fn(),
   isDoNotContact: vi.fn(),
   smsAllowedNow: vi.fn(),
-  findPublicEmail: vi.fn(),
+  lookupPublicEmail: vi.fn(),
+  fetch: vi.fn(),
 }));
 vi.mock("@/lib/jarvis-demo-site.server", () => ({
   findProspects: mocks.findProspects,
@@ -29,7 +30,7 @@ vi.mock("@/lib/prospect-outreach.server", () => ({
   isDoNotContact: mocks.isDoNotContact,
   smsAllowedNow: mocks.smsAllowedNow,
 }));
-vi.mock("@/lib/prospect-email.server", () => ({ findPublicEmail: mocks.findPublicEmail }));
+vi.mock("@/lib/prospect-email.server", () => ({ lookupPublicEmail: mocks.lookupPublicEmail }));
 import { runProspectAutopilot, saveAutopilotSettings } from "@/lib/prospect-autopilot.server";
 
 type Row = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -134,7 +135,10 @@ beforeEach(() => {
   vi.resetAllMocks();
   mocks.isDoNotContact.mockResolvedValue(false);
   mocks.smsAllowedNow.mockReturnValue(true);
-  mocks.findPublicEmail.mockResolvedValue(null);
+  mocks.lookupPublicEmail.mockResolvedValue(null);
+  // DNS-over-HTTPS: every queried domain has a mail exchanger unless a test says otherwise.
+  mocks.fetch.mockImplementation(async () => Response.json({ Status: 0, Answer: [{ type: 15, data: "10 mx.mail-host.net." }] }));
+  vi.stubGlobal("fetch", mocks.fetch);
   mocks.sendDemoOutreach.mockResolvedValue({ ok: true, outreachId: "o-1" });
   let next = 0;
   mocks.provisionProspectDemo.mockImplementation(async () => ({ organizationId: `org-new-${++next}`, jobId: "j", previewToken: "t", expiresAt: "x" }));
@@ -205,6 +209,15 @@ describe("autopilot card form", () => {
   });
 });
 
+const verified = (email: string): Row => ({
+  status: "verified",
+  email,
+  source: "public_page",
+  sourceUrl: "https://facebook.com/x",
+  reason: "ok",
+  checkedAt: "2026-10-18T00:00:00Z",
+});
+
 describe("runProspectAutopilot", () => {
   it("does nothing while switched off", async () => {
     const { db, tables } = seed({ prospect_autopilot_settings: [settings({ enabled: false })] });
@@ -257,7 +270,7 @@ describe("runProspectAutopilot", () => {
 
   it("uses a public email from a social listing without treating it as a business website", async () => {
     const { db } = seed();
-    mocks.findPublicEmail.mockResolvedValue("owner@shine-detailing.com");
+    mocks.lookupPublicEmail.mockResolvedValue({ email: "owner@shine-detailing.com", source: "social_meta", url: "https://facebook.com/shine-detailing" });
     mocks.findProspects.mockResolvedValue({
       query: "mobile detailing in Raleigh, NC",
       searched: 1,
@@ -267,12 +280,18 @@ describe("runProspectAutopilot", () => {
     const result = await runProspectAutopilot(db, { now: () => NOW });
 
     expect(result.built).toBe(1);
-    expect(mocks.findPublicEmail).toHaveBeenCalledTimes(1);
-    expect(mocks.findPublicEmail).toHaveBeenCalledWith("https://facebook.com/shine-detailing");
+    expect(mocks.lookupPublicEmail).toHaveBeenCalledTimes(1);
+    expect(mocks.lookupPublicEmail).toHaveBeenCalledWith("https://facebook.com/shine-detailing");
     expect(mocks.provisionProspectDemo.mock.calls[0]![1]).toMatchObject({
       email: "owner@shine-detailing.com",
       businessName: "Shine Mobile Detailing",
     });
+    // The enrichment result and its source are stored on the demo marker.
+    expect(mocks.provisionProspectDemo.mock.calls[0]![3]).toMatchObject({
+      source: "autopilot",
+      enrichment: { status: "verified", email: "owner@shine-detailing.com", source: "social_meta", sourceUrl: "https://facebook.com/shine-detailing", reason: "ok" },
+    });
+    expect(String(mocks.fetch.mock.calls[0]![0])).toMatch(/^https:\/\/cloudflare-dns\.com\/dns-query\?name=shine-detailing\.com&type=MX$/);
   });
 
   it("bounds public email enrichment to four lookups per run", async () => {
@@ -288,7 +307,7 @@ describe("runProspectAutopilot", () => {
     const result = await runProspectAutopilot(db, { now: () => NOW });
 
     expect(result.built).toBe(6);
-    expect(mocks.findPublicEmail).toHaveBeenCalledTimes(4);
+    expect(mocks.lookupPublicEmail).toHaveBeenCalledTimes(4);
   });
   it("stops building once today's cap is used and skips targets searched recently", async () => {
     const { db } = seed({
@@ -329,7 +348,7 @@ describe("runProspectAutopilot", () => {
     const { db } = seed({
       prospect_autopilot_settings: [settings({ targets: [], send_sms: true })],
       website_settings: [
-        { organization_id: "ready", generation: marker() },
+        { organization_id: "ready", generation: marker({ enrichment: verified("ready@example.com") }) },
         { organization_id: "sent", generation: marker() },
         { organization_id: "claimed", generation: marker({ claimedAt: "2026-10-18T05:00:00Z" }) },
         { organization_id: "building", generation: marker() },
@@ -388,5 +407,151 @@ describe("runProspectAutopilot", () => {
     const saved = await saveAutopilotSettings(db, { enabled: false, dailyBuildCap: 3 }, OWNER);
     expect(saved).toMatchObject({ enabled: false, dailyBuildCap: 3, updatedBy: OWNER, targets: [{ niche: "mobile detailing" }] });
     expect(tables["audit_logs"]![0]).toMatchObject({ action: "jarvis.prospect_autopilot.configured", actor_id: OWNER });
+  });
+});
+
+describe("rotation, Places budget and the verified-email gate", () => {
+  const rotationOnly = (extra: Row = {}) =>
+    settings({ targets: [], send_email: false, rotation: { enabled: true, trades: ["HVAC", "roofing"], states: ["NC"] }, ...extra });
+  const searched = () => mocks.findProspects.mock.calls.map((call) => `${call[2].niche} in ${call[2].city}, ${call[2].state}`);
+
+  it("walks due (trade, metro) pairs, records the cursor, and continues where it left off next run", async () => {
+    const { rotationPairs } = await import("@/lib/prospect-rotation");
+    const pairs = rotationPairs({ enabled: true, trades: ["HVAC", "roofing"], states: ["NC"] });
+    // The first pair was searched yesterday: inside the cooldown, so it is skipped.
+    const { db, tables } = seed({
+      prospect_autopilot_settings: [rotationOnly()],
+      prospect_rotation_cursor: [{ id: pairs[0]!.key, last_searched_at: "2026-10-18T15:00:00.000Z", searches: 4 }],
+    });
+    mocks.findProspects.mockResolvedValue({ query: "q", searched: 0, prospects: [] });
+
+    await runProspectAutopilot(db, { now: () => NOW });
+    expect(searched()).toEqual(pairs.slice(1, 4).map((pair) => `${pair.trade} in ${pair.city}, ${pair.state}`));
+    const cursor = tables["prospect_rotation_cursor"]!;
+    expect(cursor).toHaveLength(4);
+    expect(cursor.find((row) => row["id"] === pairs[1]!.key)).toMatchObject({ searches: 1, last_found: 0, last_searched_at: NOW.toISOString(), state: "NC" });
+    expect(cursor.find((row) => row["id"] === pairs[0]!.key)).toMatchObject({ searches: 4 });
+
+    mocks.findProspects.mockClear();
+    await runProspectAutopilot(db, { now: () => NOW });
+    expect(searched()).toEqual(pairs.slice(4, 6).map((pair) => `${pair.trade} in ${pair.city}, ${pair.state}`));
+  });
+
+  it("searches explicit targets before rotation", async () => {
+    const { db } = seed({ prospect_autopilot_settings: [rotationOnly({ targets: [{ niche: "mobile detailing", city: "Raleigh", state: "NC" }] })] });
+    mocks.findProspects.mockResolvedValue({ query: "q", searched: 0, prospects: [] });
+    await runProspectAutopilot(db, { now: () => NOW });
+    expect(searched()[0]).toBe("mobile detailing in Raleigh, NC");
+    expect(searched()).toHaveLength(3);
+  });
+
+  it("never pushes the shared Places budget past autopilot's share", async () => {
+    const searchesToday = (n: number) =>
+      Array.from({ length: n }, (_, i) => ({ action: "jarvis.prospects.search", metadata: { query: `manual ${i}` }, created_at: "2026-10-19T01:00:00.000Z" }));
+    mocks.findProspects.mockResolvedValue({ query: "q", searched: 0, prospects: [] });
+
+    const nearly = seed({ prospect_autopilot_settings: [rotationOnly()], audit_logs: searchesToday(29) });
+    await runProspectAutopilot(nearly.db, { now: () => NOW });
+    expect(mocks.findProspects).toHaveBeenCalledTimes(1);
+
+    mocks.findProspects.mockClear();
+    const spent = seed({ prospect_autopilot_settings: [rotationOnly()], audit_logs: searchesToday(30) });
+    const result = await runProspectAutopilot(spent.db, { now: () => NOW });
+    expect(mocks.findProspects).not.toHaveBeenCalled();
+    expect(result.skipped).toContainEqual({ reason: "places_daily_budget_reached" });
+  });
+
+  it("stops rotating once the finder reports the daily limit, without advancing the cursor", async () => {
+    const { db, tables } = seed({ prospect_autopilot_settings: [rotationOnly()] });
+    mocks.findProspects.mockRejectedValue(new Error("Daily search limit reached (40)."));
+    const result = await runProspectAutopilot(db, { now: () => NOW });
+    expect(mocks.findProspects).toHaveBeenCalledTimes(1);
+    expect(result.skipped[0]?.reason).toBe("places_daily_budget_reached");
+    expect(tables["prospect_rotation_cursor"] ?? []).toHaveLength(0);
+  });
+
+  it("keeps a rejected address off the profile and skips businesses with a real website", async () => {
+    const { db } = seed();
+    mocks.lookupPublicEmail.mockResolvedValue({ email: "owner@dead-domain.com", source: "public_page", url: "https://facebook.com/shine" });
+    mocks.fetch.mockImplementation(async () => Response.json({ Status: 3 }));
+    mocks.findProspects.mockResolvedValue({
+      query: "q",
+      searched: 2,
+      prospects: [
+        prospect({ placeId: "own-site", name: "Has Site", website: "https://hassite.com", presence: "has_website", reviewCount: 999 }),
+        prospect({ website: "https://facebook.com/shine", presence: "social_only" }),
+      ],
+    });
+    const result = await runProspectAutopilot(db, { now: () => NOW });
+    expect(result.skipped).toContainEqual({ reason: "has_website", name: "Has Site", target: "mobile detailing in Raleigh, NC" });
+    expect(mocks.provisionProspectDemo).toHaveBeenCalledTimes(1);
+    expect(mocks.provisionProspectDemo.mock.calls[0]![1]).toMatchObject({ email: null });
+    expect(mocks.provisionProspectDemo.mock.calls[0]![3]).toMatchObject({ enrichment: { status: "rejected", reason: "no_mx", email: "owner@dead-domain.com" } });
+  });
+
+  it("emails only demos whose exact address was verified, re-checking ones DNS couldn't confirm", async () => {
+    const marker = (enrichment?: Row) => ({
+      prospectDemo: { kind: "prospect_demo", createdAt: "2026-10-18T00:00:00Z", source: "autopilot", ...(enrichment ? { enrichment } : {}) },
+    });
+    const ids = ["verified", "legacy", "changed", "dns", "rejected"];
+    const { db } = seed({
+      prospect_autopilot_settings: [settings({ targets: [] })],
+      website_settings: [
+        { organization_id: "verified", generation: marker(verified("verified@shop.com")) },
+        { organization_id: "legacy", generation: marker() },
+        { organization_id: "changed", generation: marker(verified("old@shop.com")) },
+        { organization_id: "dns", generation: marker({ ...verified("dns@shop.com"), status: "unverified", reason: "dns_unavailable" }) },
+        { organization_id: "rejected", generation: marker({ ...verified("rejected@shop.com"), status: "rejected", reason: "no_mx" }) },
+      ],
+      organizations: ids.map((id) => ({ id, name: id })),
+      generation_jobs: ids.map((id) => ({ organization_id: id, status: "completed", created_at: "2026-10-18T00:00:00Z" })),
+      business_profiles: ids.map((id) => ({ organization_id: id, email: `${id}@shop.com` })),
+    });
+    const result = await runProspectAutopilot(db, { now: () => NOW, random: () => 0.5 });
+    expect(mocks.sendDemoOutreach.mock.calls.map((call) => call[1].to)).toEqual(["verified@shop.com", "dns@shop.com"]);
+    expect(result.emailed).toBe(2);
+    expect(result.skipped.map((entry) => `${entry.name}:${entry.reason}`)).toEqual([
+      "legacy:email_unverified",
+      "changed:email_unverified: ok",
+      "rejected:email_unverified: no_mx",
+    ]);
+  });
+
+  it("does not queue a demo that already has a send waiting", async () => {
+    const marker = { prospectDemo: { kind: "prospect_demo", createdAt: "2026-10-18T00:00:00Z", source: "autopilot", enrichment: verified("a@shop.com") } };
+    const { db } = seed({
+      prospect_autopilot_settings: [settings({ targets: [] })],
+      website_settings: [{ organization_id: "a", generation: marker }],
+      organizations: [{ id: "a", name: "a" }],
+      generation_jobs: [{ organization_id: "a", status: "completed", created_at: "2026-10-18T00:00:00Z" }],
+      business_profiles: [{ organization_id: "a", email: "a@shop.com" }],
+      prospect_send_queue: [{ organization_id: "a", channel: "email", status: "queued" }],
+    });
+    await runProspectAutopilot(db, { now: () => NOW });
+    expect(mocks.sendDemoOutreach).not.toHaveBeenCalled();
+  });
+
+  it("spaces autopilot sends a random 0–20 minutes apart", async () => {
+    const { nextSendAt } = await import("@/lib/prospect-autopilot");
+    expect(nextSendAt(NOW, () => 0).toISOString()).toBe(NOW.toISOString());
+    expect(nextSendAt(NOW, () => 1).getTime() - NOW.getTime()).toBe(20 * 60_000);
+    expect(nextSendAt(NOW, () => 0.25).getTime() - NOW.getTime()).toBe(5 * 60_000);
+    expect(nextSendAt(NOW, () => 7).getTime() - NOW.getTime()).toBe(20 * 60_000);
+  });
+
+  it("saves and describes rotation like any other setting", async () => {
+    expect(parseAutopilotPatch({ rotation: { enabled: true, trades: ["hvac"], states: ["nc"] } })).toEqual({
+      rotation: { enabled: true, trades: ["HVAC"], states: ["NC"] },
+    });
+    expect(() => parseAutopilotPatch({ rotation: { enabled: true, states: ["XX"] } })).toThrow(/state code/);
+    expect(describeAutopilotPatch({ rotation: { enabled: true, trades: [], states: [] } })).toBe("Rotate through all trades across metros in all 50 states.");
+    expect(readAutopilotSettings(null).rotation).toEqual({ enabled: false, trades: [], states: [] });
+
+    const { db, tables } = seed();
+    await saveAutopilotSettings(db, { enabled: false }, OWNER);
+    // Untouched rotation isn't written, so saves keep working before the column exists.
+    expect(tables["prospect_autopilot_settings"]![0]!["rotation"]).toBeUndefined();
+    const saved = await saveAutopilotSettings(db, { rotation: { enabled: true, trades: [], states: ["TX"] } }, OWNER);
+    expect(saved.rotation).toEqual({ enabled: true, trades: [], states: ["TX"] });
   });
 });

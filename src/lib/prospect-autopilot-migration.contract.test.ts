@@ -30,6 +30,14 @@ describe("prospect autopilot migrations", () => {
     expect(schedule).toContain("p.proname = 'call_revora_job'");
   });
 
+  it("adds rotation switched off with a server-only cursor table", () => {
+    const rotation = read("20261019100100_prospect_rotation.sql");
+    expect(rotation).toContain(`ADD COLUMN IF NOT EXISTS rotation jsonb NOT NULL\n    DEFAULT '{"enabled": false, "trades": [], "states": []}'::jsonb`);
+    expect(rotation).toContain("CREATE TABLE IF NOT EXISTS public.prospect_rotation_cursor");
+    expect(rotation).toContain("ALTER TABLE public.prospect_rotation_cursor ENABLE ROW LEVEL SECURITY;");
+    expect(rotation).toContain("REVOKE ALL ON public.prospect_rotation_cursor FROM PUBLIC, anon, authenticated;");
+  });
+
   it("keeps the side-effecting cron route POST-only and non-cacheable", () => {
     expect(route).toMatch(/^\s*POST:/m);
     expect(route).not.toMatch(/^\s*GET:/m);

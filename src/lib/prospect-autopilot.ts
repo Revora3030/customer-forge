@@ -9,6 +9,7 @@
  * hours and the daily caps on every send.
  */
 import type { FoundProspect } from "./prospect-finder";
+import { DEFAULT_ROTATION, describeRotation, parseRotation, readRotation, type RotationSettings } from "./prospect-rotation";
 
 export const MAX_AUTOPILOT_TARGETS = 10;
 export const MAX_DAILY_BUILD_CAP = 20;
@@ -22,11 +23,13 @@ export type AutopilotSettings = {
   dailyBuildCap: number;
   sendEmail: boolean;
   sendSms: boolean;
+  /** Walks built-in trades x metros after the explicit targets. Off by default. */
+  rotation: RotationSettings;
   updatedBy: string | null;
   updatedAt: string | null;
 };
 
-export type AutopilotSettingsPatch = Partial<Pick<AutopilotSettings, "enabled" | "targets" | "dailyBuildCap" | "sendEmail" | "sendSms">>;
+export type AutopilotSettingsPatch = Partial<Pick<AutopilotSettings, "enabled" | "targets" | "dailyBuildCap" | "sendEmail" | "sendSms" | "rotation">>;
 
 export const DEFAULT_AUTOPILOT_SETTINGS: AutopilotSettings = {
   enabled: false,
@@ -34,6 +37,7 @@ export const DEFAULT_AUTOPILOT_SETTINGS: AutopilotSettings = {
   dailyBuildCap: DEFAULT_DAILY_BUILD_CAP,
   sendEmail: true,
   sendSms: false,
+  rotation: DEFAULT_ROTATION,
   updatedBy: null,
   updatedAt: null,
 };
@@ -81,6 +85,7 @@ export function parseAutopilotPatch(value: unknown): AutopilotSettingsPatch {
       return true;
     });
   }
+  if (raw["rotation"] !== undefined) patch.rotation = parseRotation(raw["rotation"]);
   if (!Object.keys(patch).length) throw new Error("Nothing to change.");
   return patch;
 }
@@ -103,6 +108,7 @@ export function readAutopilotSettings(row: Record<string, unknown> | null | unde
     dailyBuildCap: Number.isInteger(cap) && cap >= 0 ? Math.min(cap, MAX_DAILY_BUILD_CAP) : DEFAULT_DAILY_BUILD_CAP,
     sendEmail: row["send_email"] !== false,
     sendSms: row["send_sms"] === true,
+    rotation: readRotation(row["rotation"]),
     updatedBy: typeof row["updated_by"] === "string" ? row["updated_by"] : null,
     updatedAt: typeof row["updated_at"] === "string" ? row["updated_at"] : null,
   };
@@ -112,7 +118,14 @@ export type AutopilotDraft = Required<AutopilotSettingsPatch>;
 /** The Operations card's form: what it shows, what it was seeded from, and whether it has local edits. */
 export type AutopilotDraftState = { draft: AutopilotDraft; base: AutopilotDraft; dirty: boolean } | null;
 
-const draftOf = ({ enabled, targets, dailyBuildCap, sendEmail, sendSms }: AutopilotSettings): AutopilotDraft => ({ enabled, targets, dailyBuildCap, sendEmail, sendSms });
+const draftOf = ({ enabled, targets, dailyBuildCap, sendEmail, sendSms, rotation }: AutopilotSettings): AutopilotDraft => ({
+  enabled,
+  targets,
+  dailyBuildCap,
+  sendEmail,
+  sendSms,
+  rotation,
+});
 
 /**
  * Follows newer server settings (e.g. a Jarvis-approved change) while the form
@@ -132,6 +145,7 @@ export function changedAutopilotFields(base: AutopilotDraft, draft: AutopilotDra
   if (draft.dailyBuildCap !== base.dailyBuildCap) patch.dailyBuildCap = draft.dailyBuildCap;
   if (draft.sendEmail !== base.sendEmail) patch.sendEmail = draft.sendEmail;
   if (draft.sendSms !== base.sendSms) patch.sendSms = draft.sendSms;
+  if (JSON.stringify(draft.rotation) !== JSON.stringify(base.rotation)) patch.rotation = draft.rotation;
   return patch;
 }
 
@@ -145,6 +159,7 @@ export function describeAutopilotPatch(patch: AutopilotSettingsPatch): string {
   if (patch.dailyBuildCap !== undefined) parts.push(`build up to ${patch.dailyBuildCap} demo${patch.dailyBuildCap === 1 ? "" : "s"} a day`);
   if (patch.sendEmail !== undefined) parts.push(patch.sendEmail ? "email the preview link when an email is known" : "don't send emails");
   if (patch.sendSms !== undefined) parts.push(patch.sendSms ? "text the link only to numbers that opted in" : "don't send texts");
+  if (patch.rotation) parts.push(describeRotation(patch.rotation));
   const text = parts.join(", ");
   return text ? text[0]!.toUpperCase() + text.slice(1) + "." : "No change.";
 }
@@ -186,4 +201,13 @@ export function rankProspects(prospects: FoundProspect[]): FoundProspect[] {
   const score = (p: FoundProspect) =>
     (p.presence === "none" ? 1_000_000 : 0) + (phoneKey(p.phone) ? 100_000 : 0) + Math.min(p.reviewCount ?? 0, 9_999) * 10 + (p.rating ?? 0);
   return [...prospects].sort((a, b) => score(b) - score(a));
+}
+
+/** Autopilot sends are spread out: each one waits a random 0 to this many minutes after the previous. */
+export const MAX_SEND_SPACING_MINUTES = 20;
+
+/** When the next queued autopilot send may go: a random 0–20 minutes after the previous one. */
+export function nextSendAt(previous: Date, random: () => number = Math.random): Date {
+  const roll = Math.min(Math.max(random(), 0), 1);
+  return new Date(previous.getTime() + Math.round(roll * MAX_SEND_SPACING_MINUTES * 60_000));
 }

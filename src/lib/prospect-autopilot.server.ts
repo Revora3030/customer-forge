@@ -3,6 +3,7 @@ import { parseProspectDemoInput } from "@/lib/jarvis-demo-site";
 import {
   alreadyDemoed,
   nameCityKey,
+  nextSendAt,
   parseAutopilotPatch,
   phoneKey,
   rankProspects,
@@ -12,6 +13,10 @@ import {
   type AutopilotTarget,
   type DemoFingerprints,
 } from "@/lib/prospect-autopilot";
+import { emailVerifiedFor, readProspectEnrichment, type ProspectEnrichment } from "@/lib/prospect-enrichment";
+import { MAX_SEARCHES_PER_DAY } from "@/lib/prospect-finder";
+import { nextRotationPairs, rotationPairs, type RotationPair } from "@/lib/prospect-rotation";
+import type { OutreachChannel, OutreachResult } from "@/lib/prospect-outreach.server";
 
 /**
  * Prospect autopilot: finds local businesses with no website, builds each a
@@ -25,6 +30,16 @@ import {
  * worker scopes is_demo workspaces to free-only). Every send goes through the
  * outreach backend, which checks do-not-contact, consent for texts, quiet
  * hours and the daily caps.
+ *
+ * Rotation (off by default) walks built-in trades x metros after the explicit
+ * targets, each pair at most once per ROTATION_COOLDOWN_DAYS, recorded in
+ * prospect_rotation_cursor. Autopilot uses at most AUTOPILOT_PLACES_SHARE of
+ * the daily Places budget so the operator always keeps searches of their own.
+ *
+ * Email gate: autopilot only emails an address the business published (found
+ * on its listed social/directory page) and that enrichment verified (syntax,
+ * not a role mailbox, MX, not do-not-contact). Sends are spread through the
+ * outreach send queue, each a random 0–20 minutes after the previous one.
  */
 
 export const MAX_SEARCHES_PER_RUN = 3;
@@ -38,6 +53,11 @@ export const SEND_RETRY_HOURS = 24;
 /** Bound outbound page lookups per run so third-party websites cannot stall the scheduler. */
 export const MAX_PUBLIC_EMAIL_LOOKUPS_PER_RUN = 4;
 const MAX_SKIPPED = 50;
+/** Searches left for the operator each day: autopilot never uses the last ones. */
+export const OPERATOR_PLACES_RESERVE = 10;
+export const AUTOPILOT_PLACES_SHARE = MAX_SEARCHES_PER_DAY - OPERATOR_PLACES_RESERVE;
+/** Addresses whose MX check could not run (DNS down) are re-checked at most this many times per run. */
+export const MAX_EMAIL_REVERIFY_PER_RUN = 5;
 
 export type AutopilotSkip = { reason: string; name?: string; target?: string };
 
@@ -83,6 +103,8 @@ export async function saveAutopilotSettings(db: SupabaseClient, patch: unknown, 
     daily_build_cap: next.dailyBuildCap,
     send_email: next.sendEmail,
     send_sms: next.sendSms,
+    // Written only when changed, so saves keep working before the rotation column exists.
+    ...(change.rotation ? { rotation: next.rotation } : {}),
     updated_by: actorId,
     updated_at: new Date().toISOString(),
   });
@@ -193,6 +215,7 @@ type SendableDemo = {
   email: string | null;
   phone: string | null;
   state: string | null;
+  enrichment: ProspectEnrichment | null;
 };
 
 /** Finished, unclaimed autopilot demos young enough to share. */
@@ -216,6 +239,7 @@ async function sendableDemos(db: SupabaseClient, now: Date): Promise<SendableDem
   const latest = new Map<string, string>();
   for (const job of jobs.data ?? []) if (!latest.has(String(job.organization_id))) latest.set(String(job.organization_id), String(job.status));
   const profileByOrg = new Map((profiles.data ?? []).map((row) => [String(row.organization_id), row as Record<string, unknown>]));
+  const markerByOrg = new Map(rows.map((row) => [row.organizationId, row.marker]));
   const out: SendableDemo[] = [];
   for (const org of orgs.data ?? []) {
     const id = String(org.id);
@@ -224,7 +248,8 @@ async function sendableDemos(db: SupabaseClient, now: Date): Promise<SendableDem
     const email = typeof profile?.["email"] === "string" && profile["email"].includes("@") ? profile["email"] : null;
     const phone = typeof profile?.["phone"] === "string" && profile["phone"] ? profile["phone"] : null;
     const state = typeof profile?.["state"] === "string" && profile["state"] ? profile["state"] : null;
-    out.push({ organizationId: id, name: String(org.name ?? ""), email, phone, state });
+    const enrichment = readProspectEnrichment(markerByOrg.get(id)?.["enrichment"]);
+    out.push({ organizationId: id, name: String(org.name ?? ""), email, phone, state, enrichment });
   }
   return out;
 }
@@ -235,7 +260,13 @@ async function sendableDemos(db: SupabaseClient, now: Date): Promise<SendableDem
  */
 export async function runProspectAutopilot(
   db: SupabaseClient,
-  options: { trigger?: "cron" | "manual"; onQueued?: (organizationId: string) => void; now?: () => Date } = {},
+  options: {
+    trigger?: "cron" | "manual";
+    onQueued?: (organizationId: string) => void;
+    now?: () => Date;
+    /** Send spacing jitter (tests pin it). */
+    random?: () => number;
+  } = {},
 ): Promise<AutopilotRunSummary> {
   const now = options.now ?? (() => new Date());
   const summary: AutopilotRunSummary = { status: "done", runId: null, found: 0, built: 0, emailed: 0, texted: 0, skipped: [], error: null };
@@ -280,7 +311,7 @@ export async function runProspectAutopilot(
 
   try {
     await buildPhase(db, settings, summary, skip, now, options.onQueued);
-    await sendPhase(db, settings, summary, skip, now);
+    await sendPhase(db, settings, summary, skip, now, options.random ?? Math.random);
   } catch (error) {
     summary.status = "failed";
     summary.error = (error instanceof Error ? error.message : "Autopilot run failed.").slice(0, 500);
@@ -288,6 +319,31 @@ export async function runProspectAutopilot(
     await record(true);
   }
   return summary;
+}
+
+/** Google Places searches made today by anyone (the shared 40-a-day budget). */
+async function placesSearchesToday(db: SupabaseClient, now: Date): Promise<number> {
+  const { count, error } = await db
+    .from("audit_logs")
+    .select("id", { count: "exact", head: true })
+    .eq("action", "jarvis.prospects.search")
+    .gte("created_at", startOfUtcDay(now));
+  // Unreadable budget: assume it is spent rather than risk going over.
+  if (error) return MAX_SEARCHES_PER_DAY;
+  return count ?? 0;
+}
+
+type CursorRow = { lastSearchedAt: string; searches: number };
+
+async function readRotationCursor(db: SupabaseClient): Promise<Map<string, CursorRow> | null> {
+  const { data, error } = await db.from("prospect_rotation_cursor").select("id, last_searched_at, searches").limit(10_000);
+  if (error) return null;
+  const out = new Map<string, CursorRow>();
+  for (const row of data ?? []) {
+    const record = row as Record<string, unknown>;
+    out.set(String(record["id"]), { lastSearchedAt: String(record["last_searched_at"] ?? ""), searches: Number(record["searches"]) || 0 });
+  }
+  return out;
 }
 
 async function buildPhase(
@@ -298,7 +354,7 @@ async function buildPhase(
   now: () => Date,
   onQueued?: (organizationId: string) => void,
 ) {
-  if (!settings.targets.length || settings.dailyBuildCap <= 0) return;
+  if ((!settings.targets.length && !settings.rotation.enabled) || settings.dailyBuildCap <= 0) return;
   const { data: today } = await db.from("prospect_autopilot_runs").select("built").gte("started_at", startOfUtcDay(now()));
   const builtToday = (today ?? []).reduce((total, row) => total + (Number((row as { built?: unknown }).built) || 0), 0);
   let remaining = settings.dailyBuildCap - builtToday;
@@ -307,17 +363,21 @@ async function buildPhase(
   const owner = await verifiedOwner(db, settings.updatedBy);
   if (!owner) return skip({ reason: "no_owner: save the autopilot settings again as a super-admin" });
 
+  // Never exceed the shared Places budget, and leave the operator their reserve.
+  let searchesLeft = Math.min(MAX_SEARCHES_PER_RUN, AUTOPILOT_PLACES_SHARE - (await placesSearchesToday(db, now())));
+  if (searchesLeft <= 0) return skip({ reason: "places_daily_budget_reached" });
+
   const { findProspects, provisionProspectDemo } = await import("@/lib/jarvis-demo-site.server");
   const { isDoNotContact } = await import("@/lib/prospect-outreach.server");
   const { prospectDemoInput } = await import("@/lib/prospect-finder");
-  const { findPublicEmail } = await import("@/lib/prospect-email.server");
+  const { enrichProspectEmail } = await import("@/lib/prospect-enrichment.server");
   const seen = await demoFingerprints(db);
   let publicEmailLookups = 0;
+  let budgetSpent = false;
   const cooldownSince = new Date(now().getTime() - SEARCH_COOLDOWN_HOURS * 3_600_000).toISOString();
 
-  let searches = 0;
-  for (const target of settings.targets) {
-    if (remaining <= 0 || searches >= MAX_SEARCHES_PER_RUN) break;
+  /** Searches one target and builds its best new prospects; null when it was not searched. */
+  const searchAndBuild = async (target: AutopilotTarget): Promise<{ found: number; built: number; error: string | null } | null> => {
     const query = targetQuery(target);
     const { count } = await db
       .from("audit_logs")
@@ -327,21 +387,31 @@ async function buildPhase(
       .gte("created_at", cooldownSince);
     if ((count ?? 0) > 0) {
       skip({ reason: "searched_recently", target: query });
-      continue;
+      return null;
     }
-    searches += 1;
+    searchesLeft -= 1;
     let prospects;
     try {
       prospects = (await findProspects(db, owner, target)).prospects;
     } catch (error) {
       const message = error instanceof Error ? error.message : "search failed";
-      skip({ reason: /limit reached/i.test(message) ? "places_daily_budget_reached" : `search_failed: ${message.slice(0, 160)}`, target: query });
-      if (/limit reached/i.test(message)) break;
-      continue;
+      const budget = /limit reached/i.test(message);
+      skip({ reason: budget ? "places_daily_budget_reached" : `search_failed: ${message.slice(0, 160)}`, target: query });
+      if (budget) {
+        budgetSpent = true;
+        return null;
+      }
+      return { found: 0, built: 0, error: message.slice(0, 200) };
     }
     summary.found += prospects.length;
+    let built = 0;
     for (const prospect of rankProspects(prospects)) {
       if (remaining <= 0) break;
+      // Anti-collision: a business with any real website of its own is never a prospect.
+      if (prospect.presence === "has_website") {
+        skip({ reason: "has_website", name: prospect.name, target: query });
+        continue;
+      }
       if (alreadyDemoed(prospect, seen)) {
         skip({ reason: "already_demoed", name: prospect.name, target: query });
         continue;
@@ -351,14 +421,16 @@ async function buildPhase(
         skip({ reason: "do_not_contact", name: prospect.name, target: query });
         continue;
       }
-      let publicEmail: string | null = null;
-      // A social/directory listing is not a real website, so it remains eligible
-      // for a demo. When its public page lists a business email, carry that fact
-      // into the profile; never guess addresses and cap lookups per scheduled run.
-      if (prospect.presence === "social_only" && prospect.website && publicEmailLookups < MAX_PUBLIC_EMAIL_LOOKUPS_PER_RUN) {
+      // A social/directory listing is not a real website, so it stays eligible.
+      // Its public page may publish a business email: find it (never guess),
+      // verify it, and record where it came from. Lookups are capped per run.
+      let enrichment: ProspectEnrichment | null = null;
+      if (prospect.website && publicEmailLookups < MAX_PUBLIC_EMAIL_LOOKUPS_PER_RUN) {
         publicEmailLookups += 1;
-        publicEmail = await findPublicEmail(prospect.website).catch(() => null);
+        enrichment = await enrichProspectEmail(db, prospect.website, { now }).catch(() => null);
       }
+      // A rejected address (role mailbox, no MX, do-not-contact) is not kept on the profile.
+      const publicEmail = enrichment?.email && enrichment.status !== "rejected" ? enrichment.email : null;
       let input;
       try {
         input = parseProspectDemoInput(prospectDemoInput(prospect, target.niche, publicEmail));
@@ -367,12 +439,17 @@ async function buildPhase(
         continue;
       }
       try {
-        const demo = await provisionProspectDemo(db, input, owner, { source: "autopilot", placeId: prospect.placeId });
+        const demo = await provisionProspectDemo(db, input, owner, {
+          source: "autopilot",
+          placeId: prospect.placeId,
+          ...(enrichment ? { enrichment } : {}),
+        });
         seen.placeIds.add(prospect.placeId);
         const phone = phoneKey(prospect.phone);
         if (phone) seen.phones.add(phone);
         seen.nameCity.add(nameCityKey(prospect.name, prospect.city));
         summary.built += 1;
+        built += 1;
         remaining -= 1;
         // Recorded per build so a run that dies part-way still counts toward today's cap.
         await db.from("prospect_autopilot_runs").update({ built: summary.built, found: summary.found }).eq("id", summary.runId);
@@ -381,10 +458,80 @@ async function buildPhase(
         skip({ reason: `build_failed: ${(error instanceof Error ? error.message : "failed").slice(0, 160)}`, name: prospect.name, target: query });
       }
     }
+    return { found: prospects.length, built, error: null };
+  };
+
+  // Explicit targets first: they always take priority over rotation.
+  for (const target of settings.targets) {
+    if (remaining <= 0 || searchesLeft <= 0 || budgetSpent) return;
+    await searchAndBuild(target);
+  }
+
+  if (!settings.rotation.enabled || remaining <= 0 || searchesLeft <= 0 || budgetSpent) return;
+  const cursor = await readRotationCursor(db);
+  if (!cursor) return skip({ reason: "rotation_unavailable: apply the prospect rotation migration" });
+  const lastSearched = new Map([...cursor].map(([key, row]) => [key, row.lastSearchedAt]));
+  // A few extra candidates, in case some were searched by hand recently.
+  const due: RotationPair[] = nextRotationPairs(rotationPairs(settings.rotation), lastSearched, now(), searchesLeft * 3);
+  if (!due.length) return skip({ reason: "rotation_exhausted: every pair was searched within the cooldown" });
+  for (const pair of due) {
+    if (remaining <= 0 || searchesLeft <= 0 || budgetSpent) break;
+    const result = await searchAndBuild({ niche: pair.trade, city: pair.city, state: pair.state });
+    if (!result) continue;
+    // Advance the cursor: this pair is not searched again until its cooldown passes.
+    await db.from("prospect_rotation_cursor").upsert({
+      id: pair.key,
+      trade: pair.trade,
+      city: pair.city,
+      state: pair.state,
+      last_searched_at: now().toISOString(),
+      searches: (cursor.get(pair.key)?.searches ?? 0) + 1,
+      last_found: result.found,
+      last_built: result.built,
+      last_error: result.error,
+    });
   }
 }
 
 const RETRY_NEXT_RUN = new Set(["quiet_hours", "daily_cap", "sms_not_configured", "email_not_configured"]);
+
+type GateResult = { ok: boolean; blockers: { code: string; message: string }[] };
+
+// TRACK-C-STUB: replace with `import { assessDemoForOutreach } from "@/lib/demo-launch-gate.server"` once Track C lands.
+async function assessDemoForOutreach(db: SupabaseClient, organizationId: string): Promise<GateResult> {
+  return { ok: true, blockers: [] };
+}
+
+export type OutreachQueueItem = {
+  organizationId: string;
+  channel: OutreachChannel;
+  to: string;
+  mode: "autopilot";
+  /** Null: the sender drafts the message from the demo's facts at send time. */
+  subject: string | null;
+  body: string | null;
+  /** Not sent before this time (random 0–20 minute spacing between autopilot sends). */
+  notBefore: string;
+};
+
+// TRACK-A-STUB: replace with Track A's `enqueueOutreach(db, item)` (prospect_send_queue) once it lands.
+// Until then the item is sent at once through the same consent/do-not-contact/cap-checked backend.
+async function enqueueOutreach(db: SupabaseClient, item: OutreachQueueItem): Promise<OutreachResult> {
+  const { sendDemoOutreach } = await import("@/lib/prospect-outreach.server");
+  return sendDemoOutreach(db, { organizationId: item.organizationId, channel: item.channel, to: item.to, mode: item.mode, actorId: null });
+}
+
+/** Sends already waiting in the queue, so an hourly run never queues the same demo twice. */
+async function queuedSends(db: SupabaseClient, organizationIds: string[]): Promise<Set<string>> {
+  const { data, error } = await db
+    .from("prospect_send_queue")
+    .select("organization_id, channel")
+    .in("organization_id", organizationIds)
+    .eq("status", "queued");
+  // No queue yet (Track A not deployed): nothing is waiting.
+  if (error) return new Set();
+  return new Set((data ?? []).map((row) => `${String(row.organization_id)}|${String(row.channel)}`));
+}
 
 async function sendPhase(
   db: SupabaseClient,
@@ -392,20 +539,24 @@ async function sendPhase(
   summary: AutopilotRunSummary,
   skip: (entry: AutopilotSkip) => void,
   now: () => Date,
+  random: () => number,
 ) {
   if (!settings.sendEmail && !settings.sendSms) return;
   const demos = await sendableDemos(db, now());
   if (!demos.length) return;
+  const ids = demos.map((demo) => demo.organizationId);
   const { data: history, error } = await db
     .from("prospect_outreach")
     .select("organization_id, channel, status, reason, created_at")
-    .in("organization_id", demos.map((demo) => demo.organizationId))
+    .in("organization_id", ids)
     .eq("mode", "autopilot");
   if (error) return skip({ reason: "outreach_unavailable" });
+  const queued = await queuedSends(db, ids);
   const retrySince = now().getTime() - SEND_RETRY_HOURS * 3_600_000;
   // A skip that only means "not right now" (quiet hours, today's cap, setup)
   // retries next run; any other recent attempt waits SEND_RETRY_HOURS.
-  const blocked = (organizationId: string, channel: "email" | "sms") =>
+  const blocked = (organizationId: string, channel: OutreachChannel) =>
+    queued.has(`${organizationId}|${channel}`) ||
     (history ?? []).some(
       (row) =>
         row.organization_id === organizationId &&
@@ -414,19 +565,54 @@ async function sendPhase(
           (Date.parse(String(row.created_at)) >= retrySince && !(row.status === "skipped" && RETRY_NEXT_RUN.has(String(row.reason))))),
     );
 
-  const { sendDemoOutreach, smsAllowedNow } = await import("@/lib/prospect-outreach.server");
-  for (const demo of demos) {
-    if (settings.sendEmail && demo.email && !blocked(demo.organizationId, "email")) {
-      const result = await sendDemoOutreach(db, { organizationId: demo.organizationId, channel: "email", to: demo.email, mode: "autopilot", actorId: null });
-      if (result.ok) summary.emailed += 1;
-      else skip({ reason: `email_${result.reason}`, name: demo.name });
+  const { smsAllowedNow } = await import("@/lib/prospect-outreach.server");
+  const { verifyProspectEmail } = await import("@/lib/prospect-enrichment.server");
+  let reverified = 0;
+  let sendAt = now();
+  const enqueue = async (demo: SendableDemo, channel: OutreachChannel, to: string) => {
+    sendAt = nextSendAt(sendAt, random);
+    return enqueueOutreach(db, { organizationId: demo.organizationId, channel, to, mode: "autopilot", subject: null, body: null, notBefore: sendAt.toISOString() });
+  };
+
+  /** The verified-email gate: only an address the business published and enrichment verified. */
+  const emailCleared = async (demo: SendableDemo, to: string): Promise<boolean> => {
+    if (emailVerifiedFor(demo.enrichment, to)) return true;
+    const enrichment = demo.enrichment;
+    // Found and published, but DNS was down when it was checked: check again (bounded).
+    if (enrichment?.status === "unverified" && enrichment.source && enrichment.email === to.toLowerCase() && reverified < MAX_EMAIL_REVERIFY_PER_RUN) {
+      reverified += 1;
+      const check = await verifyProspectEmail(db, to, { now });
+      if (check.status === "verified") return true;
+      skip({ reason: `email_unverified: ${check.reason}`, name: demo.name });
+      return false;
     }
+    skip({ reason: `email_unverified${enrichment ? `: ${enrichment.reason || enrichment.status}` : ""}`, name: demo.name });
+    return false;
+  };
+
+  for (const demo of demos) {
+    const emailTo = settings.sendEmail && demo.email && !blocked(demo.organizationId, "email") ? demo.email : null;
     // Texts only reach numbers with recorded consent; the outreach backend
     // refuses the rest, so autopilot never cold-texts anyone.
     const e164 = usPhoneE164(demo.phone);
     // Outside the texting window, wait quietly instead of logging an hourly skip.
-    if (settings.sendSms && e164 && !blocked(demo.organizationId, "sms") && smsAllowedNow(now(), demo.state, e164)) {
-      const result = await sendDemoOutreach(db, { organizationId: demo.organizationId, channel: "sms", to: e164, mode: "autopilot", actorId: null });
+    const smsTo = settings.sendSms && e164 && !blocked(demo.organizationId, "sms") && smsAllowedNow(now(), demo.state, e164) ? e164 : null;
+    const sendEmail = emailTo ? await emailCleared(demo, emailTo) : false;
+    if (!sendEmail && !smsTo) continue;
+
+    // Production gate: a demo that isn't good and truthful enough is never sent.
+    const gate = await assessDemoForOutreach(db, demo.organizationId);
+    if (!gate.ok) {
+      skip({ reason: `quality_gate: ${gate.blockers.map((blocker) => blocker.message).join("; ").slice(0, 200)}`, name: demo.name });
+      continue;
+    }
+    if (sendEmail && emailTo) {
+      const result = await enqueue(demo, "email", emailTo);
+      if (result.ok) summary.emailed += 1;
+      else skip({ reason: `email_${result.reason}`, name: demo.name });
+    }
+    if (smsTo) {
+      const result = await enqueue(demo, "sms", smsTo);
       if (result.ok) summary.texted += 1;
       else skip({ reason: `sms_${result.reason}`, name: demo.name });
     }
