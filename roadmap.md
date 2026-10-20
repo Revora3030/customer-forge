@@ -1,5 +1,11 @@
 # Roadmap — Five-phase blocker elimination
 
+## Admin accuracy pass (2026-10-20)
+- [x] AI health: totals were capped at 1,000 records; provider status came from one idle server's memory. Now counts every record and uses shared provider records.
+- [x] Command center model stats and build health totals count every record.
+- [x] All 15 admin pages load signed in on phone width, no errors or sideways scroll.
+- [ ] Number-by-number check of the remaining admin pages (analytics, payments, monthly, outreach, clients) against the database.
+
 ## Phase 1 — builds never stall silently (2026-10-20)
 - [x] Layout rescue wall-clock deadline; capacity-starved layouts park via the existing capacity deferral (forced park, still capped at 6).
 - [x] Resume time, reason, busy providers and earliest reset recorded on the job and shown in builder, build card and Jarvis demo list.
