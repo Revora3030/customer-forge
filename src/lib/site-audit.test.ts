@@ -350,3 +350,12 @@ describe("one-input intake", () => {
     for (const field of INTAKE_FIELDS) expect(field.usedBy.length).toBeGreaterThan(0);
   });
 });
+
+describe("auditLiveHtml word count", () => {
+  it("counts visible words only, ignoring scripts, styles and markup", () => {
+    const html =
+      "<html><head><title>T</title><style>body{}</style ></head><body><h1>Shine&nbsp;Co</h1>" +
+      "<p>We detail <b>cars</b> &amp; trucks.</p><script>var a = 'one two three';</SCRIPT\n></body></html>";
+    expect(auditLiveHtml("/s/shine", "https://x.test/s/shine", 200, html).observed.wordCount).toBe(8);
+  });
+});

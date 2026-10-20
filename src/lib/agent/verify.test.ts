@@ -113,3 +113,20 @@ describe("summarise", () => {
     );
   });
 });
+
+describe("inspectHtml visible text", () => {
+  it("ignores script bodies with odd closing tags when reading content and placeholders", () => {
+    const html = good.replace(
+      "</body>",
+      '<script>var x = "lorem ipsum TODO";</script\n><style>.a{}</style ><noscript>{{ name }}</noscript></body>',
+    );
+    const result = inspectHtml(html, "Home");
+    expect(result.checks.every((check) => check.ok)).toBe(true);
+  });
+
+  it("counts only visible text as real content", () => {
+    const html = good.replace(/<p>[\s\S]*?<\/p>/, `<p>Short.</p><script>${"x".repeat(500)}</script >`);
+    const failed = inspectHtml(html, "Home").checks.find((check) => !check.ok);
+    expect(failed?.label).toBe("The page has real content on it");
+  });
+});

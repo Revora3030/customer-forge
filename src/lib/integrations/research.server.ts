@@ -13,6 +13,7 @@
  */
 
 import { callCapability } from "@/lib/integrations/registry.server";
+import { htmlToText } from "@/lib/html-text";
 
 export type ResearchSource = {
   url: string;
@@ -36,15 +37,7 @@ export type ResearchOutcome =
 
 const MAX_TEXT = 8_000;
 
-const strip = (html: string) =>
-  html
-    .replace(/<script[\s\S]*?<\/script>/gi, " ")
-    .replace(/<style[\s\S]*?<\/style>/gi, " ")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&nbsp;/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, MAX_TEXT);
+const strip = (html: string) => htmlToText(html, { maxLength: MAX_TEXT });
 
 const meta = (html: string, name: string) => {
   const pattern = new RegExp(
