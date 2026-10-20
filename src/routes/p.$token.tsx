@@ -4,6 +4,7 @@ import { PublicSiteView } from "@/routes/s.$slug";
 import { PreviewMessage } from "@/components/PreviewMessage";
 import { SiteBaseContext } from "@/components/site/site-address-context";
 import { ProspectClaimBar } from "@/components/site/ProspectClaimBar";
+import { PreviewBeacon } from "@/components/site/PreviewBeacon";
 import { prospectLinkState } from "@/lib/prospect-claim.functions";
 import { BUSINESS } from "@/lib/business-identity";
 
@@ -82,6 +83,7 @@ function PreviewRoute() {
     <SiteBaseContext.Provider value={`/p/${encodeURIComponent(token)}`}>
       <PublicSiteView site={result.site} preview />
       <ProspectClaimBar token={token} />
+      <PreviewBeacon token={token} page="home" />
     </SiteBaseContext.Provider>
   );
 }

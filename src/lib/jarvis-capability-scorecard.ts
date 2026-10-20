@@ -180,3 +180,84 @@ export function scoreJarvisCapabilities(
     policy: "Scores reflect supplied evidence, not aspirations. Only verified checks count; configured, unknown, failed, missing, or malformed evidence cannot produce a 10/10.",
   };
 }
+
+/**
+ * Self-audit rows for the prospect demo engine (find -> enrich -> gate -> send
+ * -> replies -> engagement -> runtime). Scored on the same rule as the seven
+ * areas: only literal "verified" evidence from live tables counts.
+ */
+export const DEMO_ENGINE_ROWS = [
+  ["acquisition", "Prospect acquisition", "Places searches and autopilot runs found real businesses"],
+  ["enrichment", "Contact enrichment", "Published contact emails were found and verified"],
+  ["gate", "Outreach quality gate", "The production gate checked demos before sending"],
+  ["outreach", "Outreach delivery", "Preview links were delivered without failures dominating"],
+  ["inbound", "Inbound replies", "Replies were received, classified and handled"],
+  ["engagement", "Preview engagement", "Prospects' preview views are being recorded"],
+  ["runtime", "Engine runtime", "The scheduled engine run is recent and healthy"],
+] as const;
+
+export type DemoEngineRowId = (typeof DEMO_ENGINE_ROWS)[number][0];
+
+export type DemoEngineEvidence = JarvisCapabilityEvidence & {
+  /** Small live numbers behind the verdict (counts, timestamps). */
+  metrics?: Record<string, number | string | null>;
+};
+
+export type DemoEngineRow = {
+  id: DemoEngineRowId;
+  title: string;
+  label: string;
+  status: JarvisCapabilityEvidenceStatus;
+  summary: string;
+  source: string | null;
+  checkedAt: string | null;
+  metrics: Record<string, number | string | null>;
+};
+
+export type DemoEngineAudit = {
+  checkedAt: string;
+  score: number;
+  verified: number;
+  total: number;
+  rows: DemoEngineRow[];
+  policy: string;
+};
+
+function cleanMetrics(value: unknown): Record<string, number | string | null> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const out: Record<string, number | string | null> = {};
+  for (const [key, item] of Object.entries(value as Record<string, unknown>).slice(0, 8)) {
+    if (item === null || (typeof item === "number" && Number.isFinite(item))) out[key.slice(0, 40)] = item;
+    else if (typeof item === "string") out[key.slice(0, 40)] = item.slice(0, 64);
+  }
+  return out;
+}
+
+export function scoreDemoEngine(
+  evidence: Partial<Record<DemoEngineRowId, DemoEngineEvidence>>,
+  checkedAt = new Date().toISOString(),
+): DemoEngineAudit {
+  const rows: DemoEngineRow[] = DEMO_ENGINE_ROWS.map(([id, title, label]) => {
+    const candidate = evidence?.[id];
+    const item: DemoEngineEvidence = validEvidence(candidate) ? candidate : { status: "unknown", summary: "No reliable evidence supplied." };
+    return {
+      id,
+      title,
+      label,
+      status: item.status,
+      summary: item.summary.slice(0, 240),
+      source: typeof item.source === "string" ? item.source.slice(0, 120) : null,
+      checkedAt: typeof item.checkedAt === "string" ? item.checkedAt.slice(0, 64) : null,
+      metrics: validEvidence(candidate) ? cleanMetrics(item.metrics) : {},
+    };
+  });
+  const verified = rows.filter((row) => row.status === "verified").length;
+  return {
+    checkedAt,
+    score: roundScore((verified / rows.length) * 10),
+    verified,
+    total: rows.length,
+    rows,
+    policy: "Engine rows are read from live tables. Only verified rows count; configured, unknown or failed rows are gaps.",
+  };
+}

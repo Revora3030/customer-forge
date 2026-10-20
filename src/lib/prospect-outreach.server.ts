@@ -3,6 +3,7 @@ import { EmailAPIError } from "@lovable.dev/email-js";
 import { emailSendingConfigured, sendTemplateEmail } from "@/lib/email-templates/send-email";
 import { readProspectDemoMarker } from "@/lib/jarvis-demo-site";
 import { GROWTH_SYSTEM } from "@/lib/offer";
+import type { PreviewEngagement } from "@/lib/preview-telemetry";
 import { missingTwilioSecrets, sendTwilioSms, twilioConfig } from "@/lib/sms/twilio.server";
 
 /**
@@ -550,6 +551,8 @@ export type DemoStatus = {
   stepLabel: string | null;
   /** The real build stages in order, each marked done as the worker records it. */
   stages: Array<{ key: string; label: string; done: boolean }>;
+  /** Anonymous preview engagement (views, visitors, time, claim clicks); null when it can't be read. */
+  engagement?: PreviewEngagement | null;
 };
 
 export async function getDemoStatus(db: SupabaseClient, organizationId: string, origin?: string | null): Promise<DemoStatus | null> {
@@ -572,6 +575,9 @@ export async function getDemoStatus(db: SupabaseClient, organizationId: string, 
     outreach: await listDemoOutreach(db, organizationId),
     email: demo.email,
     phone: normalizePhone(demo.phone) ?? demo.phone,
+    engagement: await import("@/lib/preview-telemetry.server")
+      .then(({ previewEngagement }) => previewEngagement(db, organizationId))
+      .catch(() => null),
   };
 }
 

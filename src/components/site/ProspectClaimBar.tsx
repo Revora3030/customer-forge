@@ -5,13 +5,14 @@ import { Link } from "@tanstack/react-router";
 import { ArrowRight, Monitor, Smartphone, X } from "lucide-react";
 import { getProspectClaim } from "@/lib/prospect-claim.functions";
 import { GROWTH_SYSTEM } from "@/lib/offer";
+import { sendPreviewEvent, sendPreviewEventOnce } from "@/lib/preview-beacon-sender";
 
 /**
  * Floating bar on a prospect demo preview: who it was built for, a phone-size
  * preview, and the claim button that starts signup with everything pre-filled.
  * Renders nothing for ordinary preview links or once the demo is claimed.
  */
-export function ProspectClaimBar({ token }: { token: string }) {
+export function ProspectClaimBar({ token, page = "home" }: { token: string; page?: string }) {
   const load = useServerFn(getProspectClaim);
   const claim = useQuery({
     queryKey: ["prospect-claim", token],
@@ -53,6 +54,10 @@ export function ProspectClaimBar({ token }: { token: string }) {
         <Link
           to="/get-started"
           search={{ claim: token }}
+          // Anonymous engagement for the operator; a no-op for the operator's own looks.
+          onMouseEnter={() => sendPreviewEventOnce(token, "claim_hover", page)}
+          onFocus={() => sendPreviewEventOnce(token, "claim_hover", page)}
+          onClick={() => sendPreviewEvent(token, "claim_click", page)}
           className="inline-flex h-11 w-full items-center justify-center gap-1.5 rounded-lg bg-white px-4 text-sm font-semibold text-neutral-950 hover:bg-white/90 sm:w-auto sm:shrink-0"
         >
           Claim your website — start free trial

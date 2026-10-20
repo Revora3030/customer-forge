@@ -11,6 +11,7 @@ import {
   channelLabel,
   currentStepLabel,
   demoStages,
+  engagementLine,
   normalizeDemoStatus,
   previewFit,
   previewPath,
@@ -179,6 +180,16 @@ export function DemoBuildCardView({ card, status, loadError, checking, onRetry, 
             <Button type="button" data-jarvis-tap="" className={tap} disabled={status.claimed} onClick={() => onSend("email")}><Mail className="size-4" aria-hidden />Email</Button>
             <Button type="button" variant="outline" data-jarvis-tap="" className={tap} disabled={status.claimed} onClick={() => onSend("sms")}><MessageSquare className="size-4" aria-hidden />Text</Button>
           </div>
+          <section aria-label="Preview engagement" className="space-y-1">
+            <h4 className="text-sm font-medium">Prospect engagement</h4>
+            {status.engagement ? (
+              <>
+                <p className="break-words text-sm">{engagementLine(status.engagement)}</p>
+                {status.engagement.lastSeenAt ? <p className="text-xs text-muted-foreground">Last seen {when(status.engagement.lastSeenAt)}</p> : null}
+                <p className="text-xs text-muted-foreground">Anonymous counts from the preview link. Your own looks while signed in aren't counted.</p>
+              </>
+            ) : <p className="text-xs text-muted-foreground">Engagement isn't available right now.</p>}
+          </section>
           <section aria-label="Outreach history" className="space-y-1.5">
             <h4 className="text-sm font-medium">Sent so far</h4>
             {status.outreach.length === 0 ? <p className="text-xs text-muted-foreground">Nothing sent yet.</p> : (
