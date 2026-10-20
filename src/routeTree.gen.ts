@@ -56,6 +56,7 @@ import { Route as SSlugRouteImport } from './routes/s.$slug'
 import { Route as SitemapsSitesDotxmlRouteImport } from './routes/sitemaps.sites[.]xml'
 import { Route as StatesIndexRouteImport } from './routes/states.index'
 import { Route as StatesStateRouteImport } from './routes/states.$state'
+import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.oauth.consent'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
 import { Route as AuthenticatedAdminAiRouteImport } from './routes/_authenticated/admin.ai'
 import { Route as AuthenticatedAdminAnalyticsRouteImport } from './routes/_authenticated/admin.analytics'
@@ -353,6 +354,11 @@ const StatesIndexRoute = StatesIndexRouteImport.update({
 const StatesStateRoute = StatesStateRouteImport.update({
   id: '/states/$state',
   path: '/states/$state',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DotlovableOauthConsentRoute = DotlovableOauthConsentRouteImport.update({
+  id: '/.lovable/oauth/consent',
+  path: '/.lovable/oauth/consent',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
@@ -754,6 +760,7 @@ export interface FileRoutesByFullPath {
   '/local/': typeof LocalIndexRoute
   '/locations/': typeof LocationsIndexRoute
   '/states/': typeof StatesIndexRoute
+  '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
   '/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
   '/admin/backups': typeof AuthenticatedAdminBackupsRoute
@@ -861,6 +868,7 @@ export interface FileRoutesByTo {
   '/local': typeof LocalIndexRoute
   '/locations': typeof LocationsIndexRoute
   '/states': typeof StatesIndexRoute
+  '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
   '/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
   '/admin/backups': typeof AuthenticatedAdminBackupsRoute
@@ -975,6 +983,7 @@ export interface FileRoutesById {
   '/local/': typeof LocalIndexRoute
   '/locations/': typeof LocationsIndexRoute
   '/states/': typeof StatesIndexRoute
+  '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/_authenticated/admin/ai': typeof AuthenticatedAdminAiRoute
   '/_authenticated/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
   '/_authenticated/admin/backups': typeof AuthenticatedAdminBackupsRoute
@@ -1089,6 +1098,7 @@ export interface FileRouteTypes {
     | '/local/'
     | '/locations/'
     | '/states/'
+    | '/.lovable/oauth/consent'
     | '/admin/ai'
     | '/admin/analytics'
     | '/admin/backups'
@@ -1196,6 +1206,7 @@ export interface FileRouteTypes {
     | '/local'
     | '/locations'
     | '/states'
+    | '/.lovable/oauth/consent'
     | '/admin/ai'
     | '/admin/analytics'
     | '/admin/backups'
@@ -1309,6 +1320,7 @@ export interface FileRouteTypes {
     | '/local/'
     | '/locations/'
     | '/states/'
+    | '/.lovable/oauth/consent'
     | '/_authenticated/admin/ai'
     | '/_authenticated/admin/analytics'
     | '/_authenticated/admin/backups'
@@ -1415,6 +1427,7 @@ export interface RootRouteChildren {
   LocalIndexRoute: typeof LocalIndexRoute
   LocationsIndexRoute: typeof LocationsIndexRoute
   StatesIndexRoute: typeof StatesIndexRoute
+  DotlovableOauthConsentRoute: typeof DotlovableOauthConsentRoute
   ApiPublicJarvisVoiceRoute: typeof ApiPublicJarvisVoiceRoute
   ApiPublicPreviewBeaconRoute: typeof ApiPublicPreviewBeaconRoute
   ApiPublicSentryTestRoute: typeof ApiPublicSentryTestRoute
@@ -1770,6 +1783,13 @@ declare module '@tanstack/react-router' {
       path: '/states/$state'
       fullPath: '/states/$state'
       preLoaderRoute: typeof StatesStateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/.lovable/oauth/consent': {
+      id: '/.lovable/oauth/consent'
+      path: '/.lovable/oauth/consent'
+      fullPath: '/.lovable/oauth/consent'
+      preLoaderRoute: typeof DotlovableOauthConsentRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/admin/': {
@@ -2446,6 +2466,7 @@ const rootRouteChildren: RootRouteChildren = {
   LocalIndexRoute: LocalIndexRoute,
   LocationsIndexRoute: LocationsIndexRoute,
   StatesIndexRoute: StatesIndexRoute,
+  DotlovableOauthConsentRoute: DotlovableOauthConsentRoute,
   ApiPublicJarvisVoiceRoute: ApiPublicJarvisVoiceRoute,
   ApiPublicPreviewBeaconRoute: ApiPublicPreviewBeaconRoute,
   ApiPublicSentryTestRoute: ApiPublicSentryTestRoute,

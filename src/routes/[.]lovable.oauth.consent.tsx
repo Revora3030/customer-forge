@@ -1,5 +1,5 @@
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Loader2, ShieldCheck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Logo } from "@/components/brand/Logo";
@@ -76,12 +76,12 @@ function ConsentPage() {
   const [error, setError] = useState<string | null>(null);
   const [email, setEmail] = useState<string | null>(null);
 
-  useState(() => {
+  useEffect(() => {
     void supabase.auth
       .getUser()
       .then(({ data }) => setEmail(data.user?.email ?? null))
       .catch((err: unknown) => reportRouteError(err, { boundary: "oauth_consent_user" }));
-  });
+  }, []);
 
   const clientName = details?.client?.name ?? "an app";
   const redirectUri = details?.client?.redirect_uris?.[0] ?? null;
