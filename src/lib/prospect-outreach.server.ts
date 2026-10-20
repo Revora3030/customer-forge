@@ -6,6 +6,7 @@ import { GROWTH_SYSTEM } from "@/lib/offer";
 import type { PreviewEngagement } from "@/lib/preview-telemetry";
 import { missingTwilioSecrets, sendTwilioSms, twilioConfig } from "@/lib/sms/twilio.server";
 import { gmailConfig } from "@/lib/gmail/client.server";
+import { parseSiteGaps, SITE_GAP_LABELS } from "@/lib/prospect-finder";
 
 /**
  * Sends a finished prospect demo's private preview link to the business, by
@@ -360,6 +361,8 @@ type DemoContext = {
   industry: string | null;
   previewToken: string;
   claimed: boolean;
+  /** Plain-language gaps verified on their current website; empty when they have none. */
+  siteGaps: string[];
   build: { status: string; progress: number; step: string | null; error: string | null; doneSteps: string[] } | null;
   email: string | null;
   phone: string | null;
@@ -405,6 +408,7 @@ export async function loadDemoForOutreach(db: SupabaseClient, organizationId: st
         }
       : null,
     email: normalizeEmail(p["email"]),
+    siteGaps: parseSiteGaps((raw as Record<string, unknown>)["siteGaps"]).map((gap) => SITE_GAP_LABELS[gap]),
     phone: text(p["phone"]),
     city: text(p["city"]),
     state: text(p["state"]),
@@ -412,7 +416,8 @@ export async function loadDemoForOutreach(db: SupabaseClient, organizationId: st
 }
 
 const DEMO_EMAIL_SYSTEM = [
-  "You write a short, honest first-touch email from Revora Growth Systems to the owner of a local service business that has no website.",
+  "You write a short, honest first-touch email from Revora Growth Systems to the owner of a local service business.",
+  "If currentSiteGaps is empty, the business has no website of its own. If it lists gaps, they have a website and we checked it: mention at most two of those exact gaps, politely, and nothing else about their site.",
   "We already built them a free draft website from their public business details. The email shares the private preview link and invites them to claim it.",
   "Use ONLY the facts provided. Never invent results, reviews, customers, rankings or traffic numbers. Do not claim the site is live or published; it is a private draft.",
   "Under 110 words, plain text, one call to action: open the preview link (include it exactly once, verbatim). No fake urgency, deceptive subject lines, or Re:/Fwd: tricks.",
@@ -462,6 +467,7 @@ async function composeEmail(demo: DemoContext, previewUrl: string, actorId: stri
             name: demo.name,
             category: demo.industry,
             city: demo.city,
+            currentSiteGaps: demo.siteGaps,
             previewUrl,
           })}`,
         },

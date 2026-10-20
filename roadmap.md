@@ -110,3 +110,4 @@
 - [ ] Phase E daily brief upgrade.
 - [ ] Phase F signed-in journey/accessibility/speed pass.
 - [x] SEO review: all checks pass, indexed; targets reported.
+- [x] Jarvis targets weak existing websites (verified gaps + public email).

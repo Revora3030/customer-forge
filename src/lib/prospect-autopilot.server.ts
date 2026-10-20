@@ -14,7 +14,7 @@ import {
   type DemoFingerprints,
 } from "@/lib/prospect-autopilot";
 import { emailVerifiedFor, readProspectEnrichment, type ProspectEnrichment } from "@/lib/prospect-enrichment";
-import { MAX_SEARCHES_PER_DAY } from "@/lib/prospect-finder";
+import { MAX_SEARCHES_PER_DAY, isUpgradeProspect } from "@/lib/prospect-finder";
 import { nextRotationPairs, rotationPairs, type RotationPair } from "@/lib/prospect-rotation";
 import type { OutreachChannel, OutreachResult } from "@/lib/prospect-outreach.server";
 
@@ -407,8 +407,8 @@ async function buildPhase(
     let built = 0;
     for (const prospect of rankProspects(prospects)) {
       if (remaining <= 0) break;
-      // Anti-collision: a business with any real website of its own is never a prospect.
-      if (prospect.presence === "has_website") {
+      // A business with its own website qualifies only with verified gaps worth fixing.
+      if (prospect.presence === "has_website" && !isUpgradeProspect(prospect.siteGaps)) {
         skip({ reason: "has_website", name: prospect.name, target: query });
         continue;
       }

@@ -25,7 +25,45 @@ export type FoundProspect = {
   rating: number | null;
   reviewCount: number | null;
   mapsUri: string | null;
+  /** Verified gaps on the business's own website (only set when it was checked). */
+  siteGaps?: SiteGap[];
 };
+
+/** Checkable, factual gaps on an existing website. Never guessed. */
+export const SITE_GAPS = ["not_mobile_friendly", "no_https", "no_online_booking_or_quote", "slow_to_load"] as const;
+export type SiteGap = (typeof SITE_GAPS)[number];
+
+export const SITE_GAP_LABELS: Record<SiteGap, string> = {
+  not_mobile_friendly: "the site isn't set up for phones",
+  no_https: "the site isn't secure (no https)",
+  no_online_booking_or_quote: "there's no way to book or request a quote online",
+  slow_to_load: "the homepage is slow to load",
+};
+
+export const SLOW_SITE_MS = 4_000;
+
+/** Gaps found in a fetched homepage. Only things the HTML or the request proves. */
+export function siteGaps(page: { html: string; finalUrl: string; loadMs: number }): SiteGap[] {
+  const gaps: SiteGap[] = [];
+  const html = page.html;
+  if (!/<meta[^>]+name=["']?viewport["']?[^>]*>/i.test(html)) gaps.push("not_mobile_friendly");
+  if (/^http:\/\//i.test(page.finalUrl)) gaps.push("no_https");
+  const booking = /<form[\s>]|\b(book(ing)?|schedule|appointment|get a quote|free quote|request (a )?quote|estimate)\b|calendly|housecallpro|jobber|servicetitan|setmore|square\.site\/book/i;
+  if (!booking.test(html)) gaps.push("no_online_booking_or_quote");
+  if (page.loadMs > SLOW_SITE_MS) gaps.push("slow_to_load");
+  return gaps;
+}
+
+/** A website weak enough to pitch an upgrade: not phone-ready, or two or more gaps. */
+export function isUpgradeProspect(gaps: readonly SiteGap[] | undefined): boolean {
+  if (!gaps?.length) return false;
+  return gaps.includes("not_mobile_friendly") || gaps.length >= 2;
+}
+
+export function parseSiteGaps(value: unknown): SiteGap[] {
+  if (!Array.isArray(value)) return [];
+  return SITE_GAPS.filter((gap) => value.includes(gap));
+}
 
 const SOCIAL_OR_DIRECTORY =
   /(^|\.)(facebook\.com|fb\.com|instagram\.com|tiktok\.com|x\.com|twitter\.com|linkedin\.com|youtube\.com|yelp\.com|nextdoor\.com|linktr\.ee|linkin\.bio|business\.site|sites\.google\.com|g\.page|google\.com|thumbtack\.com|angi\.com|homeadvisor\.com|houzz\.com|bbb\.org|yellowpages\.com|mapquest\.com|square\.site|wa\.me)$/i;
@@ -79,13 +117,18 @@ const key = (name: string, city: string | null) => `${normalName(name)}|${(city 
  * Businesses without a real website that a demo can be built for (a city is
  * required), minus ones that already have a demo with the same name.
  */
-export function selectProspects(places: Record<string, unknown>[], existingNames: string[] = []): FoundProspect[] {
+export function selectProspects(
+  places: Record<string, unknown>[],
+  existingNames: string[] = [],
+  options: { includeWebsites?: boolean } = {},
+): FoundProspect[] {
   const taken = new Set(existingNames.map(normalName));
   const seen = new Set<string>();
   const out: FoundProspect[] = [];
   for (const place of places) {
     const prospect = normalizePlace(place);
-    if (!prospect || prospect.presence === "has_website" || !prospect.city) continue;
+    if (!prospect || !prospect.city) continue;
+    if (prospect.presence === "has_website" && !options.includeWebsites) continue;
     const id = key(prospect.name, prospect.city);
     if (seen.has(prospect.placeId) || seen.has(id) || taken.has(normalName(prospect.name))) continue;
     seen.add(prospect.placeId);
@@ -112,5 +155,6 @@ export function prospectDemoInput(prospect: FoundProspect, niche: string, public
     description: `${industry} serving ${area || "the local area"}.`.slice(0, 600),
     services: [],
     placeId: prospect.placeId,
+    ...(prospect.siteGaps?.length ? { siteGaps: prospect.siteGaps } : {}),
   };
 }
