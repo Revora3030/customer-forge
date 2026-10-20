@@ -557,6 +557,18 @@ export async function executeJarvisDiagnosticTool(
         countRows(db, "leads", since),
       ]);
       const values = [accounts, trials, activeSubscriptionRecords, recentLeads];
+      // The same measured funnel the admin Analytics page shows, for 7 and 30
+      // days, so Jarvis reads and speaks the owner's real numbers.
+      const { computePlatformFunnel } = await import("./platform-funnel.functions");
+      const funnelFor = async (days: number) => {
+        try {
+          const f = await computePlatformFunnel(days);
+          return { days, stages: f.stages.map((s) => ({ label: s.label, count: s.count, rate: s.rate, rateLabel: s.rateLabel ?? null })), rates: f.rates, convertedTrials: f.convertedTrials, unavailable: f.errors };
+        } catch {
+          return { days, unavailable: ["funnel"] };
+        }
+      };
+      const [funnel7, funnel30] = await Promise.all([funnelFor(7), funnelFor(30)]);
       return result(toolId, values.some((value) => value === null) ? "needs_verification" : "observed", {
         period: { recentLeads: "last 7 days" },
         metrics: {
@@ -565,6 +577,7 @@ export async function executeJarvisDiagnosticTool(
           activeSubscriptionRecords,
           leadsCreatedLastSevenDays: recentLeads,
         },
+        funnel: { last7Days: funnel7, last30Days: funnel30 },
         definitions: {
           activeSubscriptionRecords: "Subscription records with status=active; not necessarily distinct paying customers.",
           unavailable: "null means the query was unavailable; it is not zero.",
