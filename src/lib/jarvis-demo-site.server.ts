@@ -442,6 +442,7 @@ export async function prospectFromImage(db: SupabaseClient, actorId: string, dat
     email: facts.email,
     services: facts.services.join("\n"),
     description: facts.description,
+    placeId: "",
   };
   const base: ProspectSourceResult = {
     prefill,
