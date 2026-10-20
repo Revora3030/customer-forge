@@ -24,7 +24,8 @@ describe("Jarvis action effect classes", () => {
       if (cls.effect === "read") continue;
       const parsed = parseActions([{ id, args: sample[id] ?? {} }], []);
       expect(parsed.reads.map((r) => r.id), id).not.toContain(id);
-      expect(parsed.proposals.map((p) => p.id).concat(parsed.rejected.length ? [id] : []), id).toContain(id);
+      const ids: string[] = parsed.proposals.map((p) => p.id);
+      expect(parsed.rejected.length ? [...ids, id] : ids, id).toContain(id);
     }
   });
 
