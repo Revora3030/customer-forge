@@ -21,7 +21,7 @@ export const Route = createFileRoute("/api/public/jobs/jarvis-routines")({
           return Response.json(await runDueJarvisRoutines(supabaseAdmin as never));
         } catch (error) {
           const { captureError } = await import("@/lib/monitoring.server");
-          captureError(error, { route: "jobs/jarvis-routines" });
+          await captureError(error, { route: "jobs/jarvis-routines" });
           return Response.json({ error: error instanceof Error ? error.message : "failed" }, { status: 500 });
         }
       },
