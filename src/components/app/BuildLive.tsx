@@ -95,8 +95,7 @@ export function BuildLive({ organizationId }: { organizationId: string | null | 
         </span>
         <span className="min-w-0 flex-1">
           <span className="block truncate text-[14px] font-medium">
-            <CapacityWaitNotice job={row} />
-          {stalled ? (
+            {stalled ? (
               <span className="text-amber-500">Reconnecting to your build…</span>
             ) : active ? (
               <Shimmer as="span">{latest ? `${latest.stage}…` : "Starting your website build…"}</Shimmer>
@@ -110,6 +109,10 @@ export function BuildLive({ organizationId }: { organizationId: string | null | 
               : active
               ? "Revora is building your website right now — you can watch every step here."
               : "You can keep going; the build retries automatically and nothing is charged twice."}
+          </span>
+          {/* A build parked for AI capacity says when it resumes (rendered below the one-line headline). */}
+          <span className="mt-2 block">
+            <CapacityWaitNotice job={row} compact />
           </span>
         </span>
         {active ? (
