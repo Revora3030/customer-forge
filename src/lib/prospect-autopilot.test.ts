@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
   smsAllowedNow: vi.fn(),
   lookupPublicEmail: vi.fn(),
   fetch: vi.fn(),
+  assessDemoForOutreach: vi.fn(),
 }));
 vi.mock("@/lib/jarvis-demo-site.server", () => ({
   findProspects: mocks.findProspects,
@@ -31,6 +32,15 @@ vi.mock("@/lib/prospect-outreach.server", () => ({
   smsAllowedNow: mocks.smsAllowedNow,
 }));
 vi.mock("@/lib/prospect-email.server", () => ({ lookupPublicEmail: mocks.lookupPublicEmail }));
+// The queue hands each item to sendDemoOutreach when it drains; here the
+// hand-off is immediate so the tests read what autopilot queued.
+vi.mock("@/lib/prospect-send-queue.server", () => ({
+  enqueueOutreach: async (db: unknown, item: { organizationId: string; channel: string; to: string; mode: string; notBefore: Date }) => {
+    const result = await mocks.sendDemoOutreach(db, { organizationId: item.organizationId, channel: item.channel, to: item.to, mode: item.mode, actorId: null });
+    return result?.ok ? { ok: true, id: "q-1", notBefore: item.notBefore.toISOString(), duplicate: false } : { ok: false, reason: result?.reason ?? "unknown" };
+  },
+}));
+vi.mock("@/lib/demo-launch-gate.server", () => ({ assessDemoForOutreach: mocks.assessDemoForOutreach }));
 import { runProspectAutopilot, saveAutopilotSettings } from "@/lib/prospect-autopilot.server";
 
 type Row = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -140,6 +150,7 @@ beforeEach(() => {
   mocks.fetch.mockImplementation(async () => Response.json({ Status: 0, Answer: [{ type: 15, data: "10 mx.mail-host.net." }] }));
   vi.stubGlobal("fetch", mocks.fetch);
   mocks.sendDemoOutreach.mockResolvedValue({ ok: true, outreachId: "o-1" });
+  mocks.assessDemoForOutreach.mockResolvedValue({ ok: true, blockers: [] });
   let next = 0;
   mocks.provisionProspectDemo.mockImplementation(async () => ({ organizationId: `org-new-${++next}`, jobId: "j", previewToken: "t", expiresAt: "x" }));
 });
@@ -529,6 +540,22 @@ describe("rotation, Places budget and the verified-email gate", () => {
     });
     await runProspectAutopilot(db, { now: () => NOW });
     expect(mocks.sendDemoOutreach).not.toHaveBeenCalled();
+  });
+
+  it("never queues a demo that fails the launch quality gate", async () => {
+    const marker = { prospectDemo: { kind: "prospect_demo", createdAt: "2026-10-18T00:00:00Z", source: "autopilot", enrichment: verified("a@shop.com") } };
+    const { db } = seed({
+      prospect_autopilot_settings: [settings({ targets: [] })],
+      website_settings: [{ organization_id: "a", generation: marker }],
+      organizations: [{ id: "a", name: "a" }],
+      generation_jobs: [{ organization_id: "a", status: "completed", created_at: "2026-10-18T00:00:00Z" }],
+      business_profiles: [{ organization_id: "a", email: "a@shop.com" }],
+    });
+    mocks.assessDemoForOutreach.mockResolvedValue({ ok: false, blockers: [{ code: "unsupported_claim", message: "Unsupported claim on the home page.", safety: true }] });
+    const result = await runProspectAutopilot(db, { now: () => NOW });
+    expect(mocks.assessDemoForOutreach).toHaveBeenCalledWith(db, "a");
+    expect(mocks.sendDemoOutreach).not.toHaveBeenCalled();
+    expect(result.skipped).toContainEqual({ reason: "quality_gate: Unsupported claim on the home page.", name: "a" });
   });
 
   it("spaces autopilot sends a random 0–20 minutes apart", async () => {

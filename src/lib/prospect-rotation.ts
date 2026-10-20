@@ -99,7 +99,7 @@ export const ROTATION_METROS: Readonly<Record<string, readonly string[]>> = {
 export const ROTATION_STATES = Object.keys(ROTATION_METROS).sort();
 
 /** A (trade, metro) pair is searched at most once per this many days. */
-export const ROTATION_COOLDOWN_DAYS = 30;
+export const ROTATION_COOLDOWN_DAYS = 2;
 
 export type RotationSettings = {
   enabled: boolean;

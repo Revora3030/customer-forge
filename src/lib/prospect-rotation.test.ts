@@ -75,7 +75,7 @@ describe("rotation cursor", () => {
     expect(second.map((pair) => pair.key)).toEqual(pairs.slice(3, 6).map((pair) => pair.key));
 
     // Everything searched: only pairs past the cooldown come back, oldest first.
-    const all = new Map(pairs.map((pair, index) => [pair.key, daysAgo(index)]));
+    const all = new Map(pairs.map((pair) => [pair.key, daysAgo(0)]));
     all.set(pairs[1]!.key, daysAgo(ROTATION_COOLDOWN_DAYS + 5));
     all.set(pairs[2]!.key, daysAgo(ROTATION_COOLDOWN_DAYS + 1));
     expect(nextRotationPairs(pairs, all, NOW, 5).map((pair) => pair.key)).toEqual([pairs[1]!.key, pairs[2]!.key]);

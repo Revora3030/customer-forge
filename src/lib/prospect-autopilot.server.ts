@@ -495,13 +495,6 @@ async function buildPhase(
 
 const RETRY_NEXT_RUN = new Set(["quiet_hours", "daily_cap", "sms_not_configured", "email_not_configured"]);
 
-type GateResult = { ok: boolean; blockers: { code: string; message: string }[] };
-
-// TRACK-C-STUB: replace with `import { assessDemoForOutreach } from "@/lib/demo-launch-gate.server"` once Track C lands.
-async function assessDemoForOutreach(db: SupabaseClient, organizationId: string): Promise<GateResult> {
-  return { ok: true, blockers: [] };
-}
-
 export type OutreachQueueItem = {
   organizationId: string;
   channel: OutreachChannel;
@@ -514,11 +507,10 @@ export type OutreachQueueItem = {
   notBefore: string;
 };
 
-// TRACK-A-STUB: replace with Track A's `enqueueOutreach(db, item)` (prospect_send_queue) once it lands.
-// Until then the item is sent at once through the same consent/do-not-contact/cap-checked backend.
-async function enqueueOutreach(db: SupabaseClient, item: OutreachQueueItem): Promise<OutreachResult> {
-  const { sendDemoOutreach } = await import("@/lib/prospect-outreach.server");
-  return sendDemoOutreach(db, { organizationId: item.organizationId, channel: item.channel, to: item.to, mode: item.mode, actorId: null });
+/** Queued, not sent: the send queue drains it at `notBefore` through the consent/do-not-contact/cap-checked backend. */
+async function enqueueOutreach(db: SupabaseClient, item: OutreachQueueItem) {
+  const { enqueueOutreach: enqueue } = await import("@/lib/prospect-send-queue.server");
+  return enqueue(db, { organizationId: item.organizationId, channel: item.channel, to: item.to, mode: item.mode, subject: item.subject, body: item.body, notBefore: new Date(item.notBefore) });
 }
 
 /** Sends already waiting in the queue, so an hourly run never queues the same demo twice. */
@@ -567,6 +559,7 @@ async function sendPhase(
 
   const { smsAllowedNow } = await import("@/lib/prospect-outreach.server");
   const { verifyProspectEmail } = await import("@/lib/prospect-enrichment.server");
+  const { assessDemoForOutreach } = await import("@/lib/demo-launch-gate.server");
   let reverified = 0;
   let sendAt = now();
   const enqueue = async (demo: SendableDemo, channel: OutreachChannel, to: string) => {

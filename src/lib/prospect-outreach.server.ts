@@ -323,14 +323,20 @@ export type OutreachGateBlocker = { code: string; message: string; severity?: "s
 export type OutreachGate = { ok: boolean; blockers: OutreachGateBlocker[] };
 type OutreachGateFn = (db: SupabaseClient, organizationId: string) => Promise<OutreachGate>;
 
-// TRACK-C-STUB: replace with `import { assessDemoForOutreach } from "@/lib/demo-launch-gate.server"`
-// once Track C lands. Until then every demo passes the gate.
-const assessDemoForOutreachStub: OutreachGateFn = async () => ({ ok: true, blockers: [] });
-let assessDemoForOutreach: OutreachGateFn = assessDemoForOutreachStub;
+/** The demo launch gate, with its safety flag carried over as severity. */
+const launchGate: OutreachGateFn = async (db, organizationId) => {
+  const { assessDemoForOutreach: assess } = await import("@/lib/demo-launch-gate.server");
+  const result = await assess(db, organizationId);
+  return {
+    ok: result.ok,
+    blockers: result.blockers.map((blocker) => ({ code: blocker.code, message: blocker.message, severity: blocker.safety ? "safety" : "quality" })),
+  };
+};
+let assessDemoForOutreach: OutreachGateFn = launchGate;
 
 /** Tests swap in a gate result; null restores the default. */
 export function setOutreachGateForTests(fn: OutreachGateFn | null): void {
-  assessDemoForOutreach = fn ?? assessDemoForOutreachStub;
+  assessDemoForOutreach = fn ?? launchGate;
 }
 
 /**
