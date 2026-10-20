@@ -1,5 +1,11 @@
 import { osmElementToProspect, overpassQuery } from "./osm-prospects";
 
+const OVERPASS_SERVERS = [
+  "https://overpass-api.de/api/interpreter",
+  "https://overpass.private.coffee/api/interpreter",
+  "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
+];
+
 const UA = "RevoraProspectLookup/1.0 (+https://revoragrowthsystems.com)";
 
 /**
@@ -21,16 +27,26 @@ export async function searchOsmProspects(niche: string, city: string, state: str
     // Nominatim gives [south, north, west, east]; widen tiny city boxes a little.
     const pad = 0.05;
     const bbox: [number, number, number, number] = [south! - pad, west! - pad, north! + pad, east! + pad];
-    const res = await fetch("https://overpass-api.de/api/interpreter", {
-      method: "POST",
-      headers: { "user-agent": UA, "content-type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({ data: overpassQuery(niche, bbox) }),
-      signal: AbortSignal.timeout(25_000),
-    });
-    if (!res.ok) {
-      console.warn(`OpenStreetMap search failed [${res.status}]`);
-      return [];
+    // Public Overpass servers are often busy; try mirrors in turn.
+    let res: Response | null = null;
+    for (const server of OVERPASS_SERVERS) {
+      try {
+        const attempt = await fetch(server, {
+          method: "POST",
+          headers: { "user-agent": UA, "content-type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({ data: overpassQuery(niche, bbox) }),
+          signal: AbortSignal.timeout(20_000),
+        });
+        if (attempt.ok) {
+          res = attempt;
+          break;
+        }
+        console.warn(`OpenStreetMap server ${new URL(server).host} failed [${attempt.status}]`);
+      } catch (error) {
+        console.warn(`OpenStreetMap server ${new URL(server).host} failed:`, error instanceof Error ? error.message : error);
+      }
     }
+    if (!res) return [];
     const json = (await res.json()) as { elements?: { type?: unknown; id?: unknown; tags?: unknown }[] };
     return (json.elements ?? []).map((el) => osmElementToProspect(el, city, state)).filter((p) => p !== null);
   } catch (error) {
