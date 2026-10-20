@@ -146,31 +146,50 @@ export type ParsedActions = {
 
 /**
  * Explicit effect classification for every chat action Jarvis can request.
- * "read" auto-runs; "write" and "destructive" are proposals that only run after
- * an authenticated super-admin approval. "external" marks real-world side effects
- * (email, GitHub, outside search capacity).
+ * "read" auto-runs; "memory" is an internal owner-scoped note that auto-runs
+ * (it never leaves the platform); "write" and "destructive" are proposals that
+ * only run after an authenticated super-admin approval. "external" marks
+ * real-world side effects (email, GitHub, outside search capacity).
+ *
+ * Four-level risk model (Dodaios-style):
+ * - safe:    internal reads and internal notes; auto-runs.
+ * - monitor: reads with external reach (web, Maps, search APIs); auto-runs but
+ *            worth watching in the audit trail.
+ * - ask:     writes and external side effects; owner approval required.
+ * - block:   destructive actions; owner approval required and the action is
+ *            never model-executed. Unclassified actions (SQL, publish, billing)
+ *            are blocked by absence: they are rejected at parse time.
  */
-export type JarvisActionClass = { effect: "read" | "write" | "destructive"; external: boolean; autoRuns: boolean };
+export type JarvisRiskLevel = "safe" | "monitor" | "ask" | "block";
+export type JarvisActionClass = { effect: "read" | "memory" | "write" | "destructive"; external: boolean; autoRuns: boolean; risk: JarvisRiskLevel };
 export const JARVIS_ACTION_CLASSES: Record<ReadAction["id"] | WriteProposal["id"], JarvisActionClass> = {
-  "diagnostic.run": { effect: "read", external: false, autoRuns: true },
-  "code.read": { effect: "read", external: false, autoRuns: true },
-  "code.list": { effect: "read", external: false, autoRuns: true },
-  "code.search": { effect: "read", external: false, autoRuns: true },
-  "demos.list": { effect: "read", external: false, autoRuns: true },
-  "demo.status": { effect: "read", external: false, autoRuns: true },
-  "prospects.find": { effect: "read", external: true, autoRuns: true },
-  "prospect.lookup": { effect: "read", external: true, autoRuns: true },
-  "web.search": { effect: "read", external: true, autoRuns: true },
-  "autopilot.status": { effect: "read", external: false, autoRuns: true },
-  "inbox.list": { effect: "read", external: false, autoRuns: true },
-  "demo.build": { effect: "write", external: false, autoRuns: false },
-  "code.pr": { effect: "write", external: true, autoRuns: false },
-  "claude.code": { effect: "write", external: true, autoRuns: false },
-  "claude.fix": { effect: "write", external: true, autoRuns: false },
-  "builds.recover": { effect: "destructive", external: false, autoRuns: false },
-  "demo.send": { effect: "write", external: true, autoRuns: false },
-  "autopilot.configure": { effect: "write", external: false, autoRuns: false },
-  "autopilot.run": { effect: "write", external: true, autoRuns: false },
+  "diagnostic.run": { effect: "read", external: false, autoRuns: true, risk: "safe" },
+  "code.read": { effect: "read", external: false, autoRuns: true, risk: "safe" },
+  "code.list": { effect: "read", external: false, autoRuns: true, risk: "safe" },
+  "code.search": { effect: "read", external: false, autoRuns: true, risk: "safe" },
+  "demos.list": { effect: "read", external: false, autoRuns: true, risk: "safe" },
+  "demo.status": { effect: "read", external: false, autoRuns: true, risk: "safe" },
+  "prospects.find": { effect: "read", external: true, autoRuns: true, risk: "monitor" },
+  "prospect.lookup": { effect: "read", external: true, autoRuns: true, risk: "monitor" },
+  "web.search": { effect: "read", external: true, autoRuns: true, risk: "monitor" },
+  "autopilot.status": { effect: "read", external: false, autoRuns: true, risk: "safe" },
+  "inbox.list": { effect: "read", external: false, autoRuns: true, risk: "safe" },
+  "memory.list": { effect: "read", external: false, autoRuns: true, risk: "safe" },
+  "memory.save": { effect: "memory", external: false, autoRuns: true, risk: "safe" },
+  "routines.list": { effect: "read", external: false, autoRuns: true, risk: "safe" },
+  "artifacts.list": { effect: "read", external: false, autoRuns: true, risk: "safe" },
+  "demo.build": { effect: "write", external: false, autoRuns: false, risk: "ask" },
+  "code.pr": { effect: "write", external: true, autoRuns: false, risk: "ask" },
+  "claude.code": { effect: "write", external: true, autoRuns: false, risk: "ask" },
+  "claude.fix": { effect: "write", external: true, autoRuns: false, risk: "ask" },
+  "builds.recover": { effect: "destructive", external: false, autoRuns: false, risk: "block" },
+  "demo.send": { effect: "write", external: true, autoRuns: false, risk: "ask" },
+  "autopilot.configure": { effect: "write", external: false, autoRuns: false, risk: "ask" },
+  "autopilot.run": { effect: "write", external: true, autoRuns: false, risk: "ask" },
+  "memory.forget": { effect: "destructive", external: false, autoRuns: false, risk: "block" },
+  "routine.create": { effect: "write", external: false, autoRuns: false, risk: "ask" },
+  "routine.update": { effect: "write", external: false, autoRuns: false, risk: "ask" },
+  "routine.delete": { effect: "destructive", external: false, autoRuns: false, risk: "block" },
 };
 
 /** Catalogue shown to the model. Kept short; arguments are validated below. */
