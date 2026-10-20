@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { CapacityWaitNotice } from "@/components/app/CapacityWaitNotice";
 import { Link } from "@tanstack/react-router";
 import {
   ArrowDown,
@@ -239,6 +240,11 @@ export function SiteEnginePanel({
               ? `${stepLabel(job?.current_step as string | null)}…`
               : `${progress}% complete`}
           </p>
+          {status === "queued" ? (
+            <div className="mt-3">
+              <CapacityWaitNotice job={job as never} />
+            </div>
+          ) : null}
 
           <ul className="mt-4 grid gap-1.5 sm:grid-cols-2">
             {GENERATION_STEPS.map((step) => {

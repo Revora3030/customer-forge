@@ -1,4 +1,4 @@
-import { capacityWaitState } from "@/lib/builder/capacity-wait";
+import { capacityWaitState, type CapacityWaitState } from "@/lib/builder/capacity-wait";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { slugify } from "@/lib/admin.server";
 import {
@@ -165,7 +165,7 @@ export type ProspectDemoSummary = {
   previewToken: string;
   /** Set once the business claimed the demo (marker.claimedAt). */
   claimedAt?: string | null;
-  build: { status: string; progress: number; step: string | null; error: string | null } | null;
+  build: { status: string; progress: number; step: string | null; error: string | null; wait: CapacityWaitState | null } | null;
 };
 
 /**
