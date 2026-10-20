@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { architectureShortfall, canonicalSlug, normalizePageArchitecture, type PageArchitecture } from "./ai-page-architecture";
+import { architectureShortfall, canonicalSlug, normalizePageArchitecture } from "./ai-page-architecture";
+import type { PageArchitecture } from "./creative-authority";
 
 const candidate: PageArchitecture[] = [
   { slug: "home", title: "Home", purpose: "home", primaryAction: "Call", sections: [{ role: "hero" }, { role: "contact" }] } as unknown as PageArchitecture,
