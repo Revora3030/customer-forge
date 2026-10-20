@@ -31,7 +31,7 @@ export function summarizeCapacityPressure(
     .map((row) => Date.parse(String(row.open_until)))
     .filter((t) => Number.isFinite(t) && t > now)
     .sort((a, b) => a - b);
-  return { providers, earliestResetAt: resets.length ? new Date(resets[0]).toISOString() : null };
+  return { providers, earliestResetAt: resets.length ? new Date(resets[0] as number).toISOString() : null };
 }
 
 export type CapacityWaitState = {

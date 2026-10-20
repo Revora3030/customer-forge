@@ -2724,7 +2724,7 @@ async function capacityDeferral(db: Db, organizationId: string, since: string, j
     (calls ?? []) as { ok: boolean | null; error_category: string | null; provider?: string | null }[],
     (row as { capacity_deferrals: number }).capacity_deferrals,
     Date.now(),
-    { forced: options.forced, runtime: ((runtime ?? []) as ProviderRuntime[]) },
+    { forced: options.forced === true, runtime: ((runtime ?? []) as ProviderRuntime[]) },
   );
 }
 
