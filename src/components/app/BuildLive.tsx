@@ -17,6 +17,7 @@ import { useLatestGenerationJob } from "@/lib/site-engine.hooks";
 import { RECOVERING_BUILD_MESSAGE, jobLiveness } from "@/lib/builder/job-liveness";
 import { useBuildProgress } from "@/lib/builder/progress.hooks";
 import { describeBuildFailure } from "@/lib/builder/build-failure";
+import { CapacityWaitNotice } from "@/components/app/CapacityWaitNotice";
 import { cn } from "@/lib/utils";
 
 const ACTIVE = new Set(["queued", "processing"]);
@@ -29,6 +30,10 @@ type JobRow = {
   failure_kind?: string | null;
   lease_expires_at?: string | null;
   updated_at?: string | null;
+  resumes_at?: string | null;
+  wait_reason?: string | null;
+  wait_providers?: unknown;
+  capacity_deferrals?: number | null;
 };
 
 export function BuildLive({ organizationId }: { organizationId: string | null | undefined }) {
@@ -90,7 +95,8 @@ export function BuildLive({ organizationId }: { organizationId: string | null | 
         </span>
         <span className="min-w-0 flex-1">
           <span className="block truncate text-[14px] font-medium">
-            {stalled ? (
+            <CapacityWaitNotice job={row} />
+          {stalled ? (
               <span className="text-amber-500">Reconnecting to your build…</span>
             ) : active ? (
               <Shimmer as="span">{latest ? `${latest.stage}…` : "Starting your website build…"}</Shimmer>

@@ -1,3 +1,4 @@
+import { capacityWaitState } from "@/lib/builder/capacity-wait";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { slugify } from "@/lib/admin.server";
 import {
@@ -201,7 +202,7 @@ export async function listProspectDemos(admin: SupabaseClient, limit = 20): Prom
     admin.from("organizations").select("id, name, industry").in("id", ids),
     admin
       .from("generation_jobs")
-      .select("organization_id, status, progress, current_step, error_message, created_at")
+      .select("organization_id, status, progress, current_step, error_message, created_at, resumes_at, wait_reason, wait_providers, lease_expires_at, failure_kind, capacity_deferrals")
       .in("organization_id", ids)
       .order("created_at", { ascending: false }),
   ]);
@@ -231,6 +232,7 @@ export async function listProspectDemos(admin: SupabaseClient, limit = 20): Prom
             progress: Number(job.progress ?? 0),
             step: (job.current_step as string | null) ?? null,
             error: (job.error_message as string | null) ?? null,
+            wait: capacityWaitState(job as never),
           }
         : null,
     });
