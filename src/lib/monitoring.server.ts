@@ -229,6 +229,12 @@ export async function captureError(
           ? { ...(input as CapturedError) }
           : { message: describeError(input) };
     const event: CapturedError = { ...described, ...extra };
+    // A visitor closing the tab or navigating away aborts the request. That is
+    // not a crash, so it is kept as a warning instead of a fatal 500.
+    if (isAbortLike(input, event.message)) {
+      event.level = "warning";
+      event.statusCode = 499;
+    }
     const message = (
       sanitizeErrorText(String(event.message ?? "Unknown error")) ?? "Unknown error"
     ).slice(0, MAX_MESSAGE);
@@ -262,4 +268,11 @@ export async function captureError(
   } catch {
     return { recorded: false, forwarded: false, fingerprint: "" };
   }
+}
+
+/** True for request/stream aborts ("aborted", "This operation was aborted", AbortError). */
+export function isAbortLike(input: unknown, message?: unknown): boolean {
+  if (input instanceof Error && input.name === "AbortError") return true;
+  const text = String(message ?? (input instanceof Error ? input.message : "")).trim().toLowerCase();
+  return text === "aborted" || /^(this|the) operation was aborted\.?$/.test(text) || text === "the user aborted a request.";
 }
