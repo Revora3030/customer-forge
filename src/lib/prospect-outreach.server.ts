@@ -6,6 +6,7 @@ import { GROWTH_SYSTEM } from "@/lib/offer";
 import type { PreviewEngagement } from "@/lib/preview-telemetry";
 import { missingTwilioSecrets, sendTwilioSms, twilioConfig } from "@/lib/sms/twilio.server";
 import { gmailConfig } from "@/lib/gmail/client.server";
+import { parseSiteGaps, SITE_GAP_LABELS } from "@/lib/prospect-finder";
 
 /**
  * Sends a finished prospect demo's private preview link to the business, by
@@ -360,6 +361,8 @@ type DemoContext = {
   industry: string | null;
   previewToken: string;
   claimed: boolean;
+  /** Plain-language gaps verified on their current website; empty when they have none. */
+  siteGaps: string[];
   build: { status: string; progress: number; step: string | null; error: string | null; doneSteps: string[] } | null;
   email: string | null;
   phone: string | null;
