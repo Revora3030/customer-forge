@@ -52,7 +52,7 @@ export function deriveCandidateArchitecture(
   }));
 }
 
-type RawPage = {
+export type RawPage = {
   slug?: unknown;
   title?: unknown;
   purpose?: unknown;
@@ -164,6 +164,31 @@ const SAFE_SLUG = /^[a-z0-9][a-z0-9-]{1,39}$/;
 /** Resource ceiling only; it is not a prescribed site size. */
 export const MAX_INVENTED_PAGES = 24;
 
+/** Common spellings of the home page address ("/", "index", "homepage"). */
+const HOME_ALIASES = new Set(["", "/", "index", "home", "homepage", "home-page", "main", "landing"]);
+
+/**
+ * Maps a proposed page address onto the site's own spelling: trims slashes and
+ * case, and treats the usual names for the home page as the home page. Wording
+ * is untouched; this only stops a valid plan being refused over an address.
+ */
+export function canonicalSlug(raw: string | null, homeSlug: string): string | null {
+  if (raw === null) return null;
+  const cleaned = raw.trim().toLowerCase().replace(/^\/+|\/+$/g, "").replace(/\s+/g, "-");
+  if (HOME_ALIASES.has(cleaned)) return homeSlug;
+  return cleaned || null;
+}
+
+/** Plain reason a plan could not be used, for the architect's one repair. */
+export function architectureShortfall(input: { proposal: RawPage[]; candidate: PageArchitecture[]; thinFacts?: boolean }): string {
+  const home = input.candidate[0]?.slug ?? "home";
+  const slugs = input.proposal.map((page) => canonicalSlug(text(page.slug), home));
+  if (!slugs.includes(home)) return `The plan had no home page. Include a page with slug "${home}".`;
+  if (!input.thinFacts && input.candidate.length >= 3 && new Set(slugs.filter(Boolean)).size < 2)
+    return "The plan had only one page. Plan the home page plus the other pages the business needs.";
+  return `Every page, including "${home}", needs at least one section, and every new section needs its own plain heading and a simple lowercase role name.`;
+}
+
 export function normalizePageArchitecture(input: {
   proposal: RawPage[];
   candidate: PageArchitecture[];
@@ -192,8 +217,9 @@ export function normalizePageArchitecture(input: {
     return { role: s.role, heading: s.heading, subheading: s.subheading, body: s.body, custom: true, layout: s.layout ?? undefined, intent: s.intent ?? undefined, media: s.media ?? "none" as const };
   };
 
+  const homeSlug = input.candidate[0]?.slug ?? "home";
   for (const raw of input.proposal) {
-    const slug = text(raw.slug);
+    const slug = canonicalSlug(text(raw.slug), homeSlug);
     if (!slug) {
       rejected.push({ field: "page.slug", reason: "a page was proposed without a slug" });
       continue;

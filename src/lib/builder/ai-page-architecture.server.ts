@@ -15,6 +15,7 @@ import { callBestThinker } from "@/lib/ai/hall-of-fame.server";
 import type { PageArchitecture } from "@/lib/builder/creative-authority";
 import {
   normalizePageArchitecture,
+  architectureShortfall,
   parsePageArchitecture,
   type ArchitectureRejection,
 } from "@/lib/builder/ai-page-architecture";
@@ -158,7 +159,26 @@ export async function proposePageArchitecture(input: {
       costMicrocents: sol.costMicrocents,
     };
 
-  const normalized = normalizePageArchitecture({ proposal, candidate: input.candidate, thinFacts });
+  let normalized = normalizePageArchitecture({ proposal, candidate: input.candidate, thinFacts });
+  if (!normalized) {
+    // One AI repair with the concrete shortfall; the repair is still Sol's own
+    // plan, never a rule-made substitute.
+    const repair = await callBestThinker({
+      json: true,
+      purpose: "information_architecture",
+      complexity: "high",
+      organizationId: input.organizationId,
+      maxOutputTokens: 8000,
+      ...(input.signal ? { signal: input.signal } : {}),
+      system,
+      user: `${prompt}\n\nREPAIR: Your previous page plan could not be used. ${architectureShortfall({ proposal, candidate: input.candidate, thinFacts })} Return one complete JSON object only.`,
+    });
+    const repaired = repair.ok ? parsePageArchitecture(repair.text) : null;
+    if (repaired) {
+      normalized = normalizePageArchitecture({ proposal: repaired, candidate: input.candidate, thinFacts });
+      if (normalized && repair.ok) sol = repair;
+    }
+  }
   if (!normalized)
     return {
       architecture: null,

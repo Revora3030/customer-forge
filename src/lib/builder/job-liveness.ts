@@ -64,4 +64,4 @@ export const INTERRUPTED_BUILD_MESSAGE =
 
 /** Plain message shown while an interrupted build is being retried. */
 export const RECOVERING_BUILD_MESSAGE =
-  "The build worker was interrupted, so Revora is restarting your build from where it left off.";
+  "The build worker was interrupted, so Revora is picking your build back up automatically.";
