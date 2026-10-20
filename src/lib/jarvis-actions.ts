@@ -311,21 +311,17 @@ export function parseActions(requested: unknown[], diagnosticToolIds: string[]):
         else out.rejected.push("routine.delete: needs the routineId from routines.list");
       } else {
         try {
-          const { parseRoutineInput } = require_routines();
           if (id === "routine.create") {
-            out.proposals.push({ id, routine: parseRoutineInput(args) });
+            out.proposals.push({ id, routine: parseRoutineDraft(args) });
           } else {
             if (!ORG_ID.test(routineId)) throw new Error("needs the routineId from routines.list");
             const patchRaw = (args["patch"] && typeof args["patch"] === "object" ? args["patch"] : {}) as Record<string, unknown>;
             const patch: Extract<WriteProposal, { id: "routine.update" }>["patch"] = {};
-            if (patchRaw["name"] !== undefined || patchRaw["prompt"] !== undefined || patchRaw["frequency"] !== undefined || patchRaw["hour"] !== undefined || patchRaw["minute"] !== undefined) {
-              const parsed = parseRoutineInput({ name: "x".repeat(3), prompt: "x".repeat(10), ...patchRaw });
-              if (patchRaw["name"] !== undefined) patch.name = parsed.name;
-              if (patchRaw["prompt"] !== undefined) patch.prompt = parsed.prompt;
-              if (patchRaw["frequency"] !== undefined) patch.frequency = parsed.frequency;
-              if (patchRaw["hour"] !== undefined) patch.hour = parsed.hour;
-              if (patchRaw["minute"] !== undefined) patch.minute = parsed.minute;
-            }
+            if (patchRaw["name"] !== undefined) patch.name = parseRoutineName(patchRaw["name"]);
+            if (patchRaw["prompt"] !== undefined) patch.prompt = parseRoutinePrompt(patchRaw["prompt"]);
+            if (patchRaw["frequency"] !== undefined) patch.frequency = patchRaw["frequency"] === "weekly" ? "weekly" : "daily";
+            if (patchRaw["hour"] !== undefined) patch.hour = parseRoutineTime(patchRaw["hour"], 23);
+            if (patchRaw["minute"] !== undefined) patch.minute = parseRoutineTime(patchRaw["minute"], 59);
             if (patchRaw["enabled"] !== undefined) patch.enabled = patchRaw["enabled"] === true;
             if (!Object.keys(patch).length) throw new Error("patch has nothing to change");
             out.proposals.push({ id, routineId, patch });
