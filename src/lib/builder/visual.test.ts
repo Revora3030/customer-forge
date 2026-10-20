@@ -111,6 +111,15 @@ describe("rendered visual quality", () => {
     expect(findings.every((f) => f.severity === "p0")).toBe(true);
   });
 
+  it("fails a page that threw a script error while it rendered", () => {
+    const findings = gradeViewport({
+      ...clean(390),
+      runtimeErrors: ["Uncaught TypeError: Cannot read properties of undefined"],
+    });
+    expect(findings.some((f) => f.key === "runtime_error" && f.severity === "p0")).toBe(true);
+    expect(findings.find((f) => f.key === "runtime_error")?.detail).toContain("TypeError");
+  });
+
   it("never calls an unmeasured site checked", () => {
     const report = gradeVisual([]);
     expect(report.passed).toBe(false);
