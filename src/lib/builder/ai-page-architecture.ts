@@ -52,7 +52,7 @@ export function deriveCandidateArchitecture(
   }));
 }
 
-type RawPage = {
+export type RawPage = {
   slug?: unknown;
   title?: unknown;
   purpose?: unknown;
