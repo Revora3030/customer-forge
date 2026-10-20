@@ -1,39 +1,21 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   ArrowRight,
-  CalendarCheck,
-  Calculator,
-  ClipboardCheck,
-  Globe,
-  LineChart,
-  MessageSquare,
-  Search,
   Sparkles,
-  TrendingDown,
-  Users,
 } from "lucide-react";
 import { SiteFooter, SiteHeader } from "@/components/marketing/Chrome";
 import { AuthHint } from "@/components/marketing/AuthButtons";
 import { HeroStarter } from "@/components/marketing/HeroStarter";
 import { DashboardPreview } from "@/components/marketing/DashboardPreview";
-import { WithoutWith } from "@/components/marketing/Journey";
 import { TRUST_INDUSTRIES } from "@/components/marketing/journey-constants";
-import { TrustSection } from "@/components/marketing/TrustSection";
-import { FounderNote } from "@/components/marketing/SalesCTA";
-import { ROICalculator } from "@/components/marketing/ROICalculator";
 import { AfterYouStart } from "@/components/marketing/OfferSections";
 import { FAQ, FAQ_ITEMS } from "@/components/marketing/FAQ";
-import { LongTermValue } from "@/components/marketing/ConversionKit";
-import { AiClarity, AutomationFlow, SleepEngine } from "@/components/marketing/AiClarity";
-import { LiveSystemDemo } from "@/components/marketing/LiveSystemDemo";
-import { LeadEngineSimulator } from "@/components/marketing/LeadEngineSimulator";
 import { ProductTour } from "@/components/marketing/ProductTour";
-import { ValueStack } from "@/components/marketing/ValueStack";
-import { FreeAccessButton, FreeAccessSection } from "@/components/marketing/FreeAccess";
+import { FreeAccessButton } from "@/components/marketing/FreeAccess";
 import { Panel, Pill, SectionHeading } from "@/components/app/Bits";
 import { RouteError } from "@/components/app/RouteStates";
 import { Button } from "@/components/ui/button";
-import { INDUSTRIES, industrySlug } from "@/lib/domain";
+import { INDUSTRIES } from "@/lib/domain";
 import { GROWTH_SYSTEM, usd } from "@/lib/offer";
 import { GROWTH_SYSTEM_SCHEMA, LOCAL_BUSINESS_SCHEMA, canonicalLink, ogUrl } from "@/lib/seo";
 import { BusinessDetails } from "@/components/marketing/BusinessDetails";
@@ -198,48 +180,6 @@ const PROBLEMS = [
 ];
 
 /** Every capability stated as the outcome it produces for the owner. */
-const OUTCOMES = [
-  {
-    icon: Globe,
-    outcome: "Get chosen instead of scrolled past",
-    how: "A fast, industry-specific site with call, quote and book actions on every screen.",
-  },
-  {
-    icon: Calculator,
-    outcome: "Win the price-shopper before your competitor calls back",
-    how: "An instant quote calculator that returns a real range and captures the lead's answers.",
-  },
-  {
-    icon: CalendarCheck,
-    outcome: "Fill your calendar without answering the phone",
-    how: "Online booking on your real availability, with confirmations and reminders sent for you.",
-  },
-  {
-    icon: Users,
-    outcome: "Stop losing jobs you already paid to attract",
-    how: "One pipeline from new to booked, with the follow-ups you owe surfaced first.",
-  },
-  {
-    icon: ClipboardCheck,
-    outcome: "Reply in seconds, even mid-job",
-    how: "Instant lead alerts plus automatic first replies and nudge sequences.",
-  },
-  {
-    icon: Search,
-    outcome: "Show up for more 'service + city' searches every month",
-    how: "Service and city pages, schema, sitemap and a health score that says what's next.",
-  },
-  {
-    icon: MessageSquare,
-    outcome: "Build the review count that wins the click",
-    how: "Automatic review requests after completed jobs, with proof published to your site.",
-  },
-  {
-    icon: LineChart,
-    outcome: "Know exactly what the system returned this month",
-    how: "Traffic, leads, quotes, bookings and conversion rate by source — no course required.",
-  },
-];
 
 const HERO_PROOF = [
   ["24/7", "Quoting and booking, even at 2am"],
