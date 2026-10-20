@@ -117,7 +117,7 @@ describe("the gate", () => {
 
 describe("public email lookup reuses the SSRF guard", () => {
   it("never fetches IP literals, metadata hosts or credentialed links", async () => {
-    for (const link of ["http://127.0.0.1/", "https://169.254.169.254/latest/meta-data", "https://metadata.google.internal/", "https://user:pw@shop.com/", "ftp://shop.com/"]) {
+    for (const link of ["http://127.0.0.1/", "https://169.254.169.254/latest/meta-data", "https://metadata.google.internal/", "https://user:pw@shop.com/", "ftp://shop.com/"]) { // DevSkim: ignore DS162092,DS137138 -- Negative fixtures: the SSRF guard must refuse these.
       expect(await lookupPublicEmail(link)).toBeNull();
     }
     expect(mocks.fetch).not.toHaveBeenCalled();

@@ -161,7 +161,7 @@ describe("demo outreach gate: picture resolution", () => {
   it("never fetches a picture hosted outside this project's storage", async () => {
     const fetchMock = vi.fn(async () => new Response(null, { status: 200 }));
     const blockers = await imageBlockers(
-      [{ ref: "https://evil.example/x.jpg", page: "home" }, { ref: "http://169.254.169.254/latest", page: "about" }, { ref: `${STORAGE}/storage/v1/object/public/a.jpg`, page: "contact" }],
+      [{ ref: "https://evil.example/x.jpg", page: "home" }, { ref: "http://169.254.169.254/latest", page: "about" }, { ref: `${STORAGE}/storage/v1/object/public/a.jpg`, page: "contact" }], // DevSkim: ignore DS137138,DS162092 -- Negative fixtures: only same-origin storage is ever fetched.
       { fetch: fetchMock as never, storageOrigin: STORAGE, sign },
     );
     expect(fetchMock).toHaveBeenCalledTimes(1);
