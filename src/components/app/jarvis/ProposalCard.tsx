@@ -1,4 +1,4 @@
-import { ExternalLink, GitPullRequest, Hammer, Mail, MessageSquare, RefreshCw } from "lucide-react";
+import { Brain, CalendarClock, ExternalLink, GitPullRequest, Hammer, Mail, MessageSquare, RefreshCw, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { WriteProposal } from "@/lib/jarvis-actions";
 import { readDemoSendProposal } from "./demo-build";
@@ -101,6 +101,39 @@ export function ProposalCard({ proposal, state, url, onApprove }: Props) {
         <p className="flex items-start gap-1.5 text-sm font-medium">{send.channel === "sms" ? <MessageSquare className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden /> : <Mail className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />}<span className="min-w-0 break-words">{send.channel === "sms" ? "Text" : "Email"} the demo site{send.to ? ` to ${send.to}` : ""}</span></p>
         <Button type="button" className="mt-3" data-jarvis-tap="" disabled={Boolean(state)} onClick={onApprove}>{state === "building" ? "Opening…" : state === "done" ? "Sent" : "Review and send"}</Button>
         <p className={disclaimer}>You see and can edit the exact message first. Nothing is sent until you tap Send.</p>
+      </div>
+    );
+  }
+  if (proposal.id === "memory.forget") {
+    return (
+      <div className={card}>
+        <p className="flex items-center gap-1.5 text-sm font-medium"><Brain className="size-4 text-primary" aria-hidden />Forget a memory</p>
+        <p className="mt-1 text-sm text-muted-foreground">Permanently deletes one saved memory. Jarvis will not bring it back in future conversations.</p>
+        <Button type="button" className="mt-3" data-jarvis-tap="" disabled={Boolean(state)} onClick={onApprove}>{state === "building" ? "Forgetting…" : state === "done" ? "Forgotten" : "Approve and forget"}</Button>
+      </div>
+    );
+  }
+  if (proposal.id === "routine.create" || proposal.id === "routine.update") {
+    const isCreate = proposal.id === "routine.create";
+    const routine = isCreate ? proposal.routine : { ...proposal.patch, name: proposal.patch.name ?? "this routine", prompt: proposal.patch.prompt ?? "" };
+    const time = typeof routine.hour === "number" ? `${String(routine.hour).padStart(2, "0")}:${String(routine.minute ?? 0).padStart(2, "0")}` : "the scheduled time";
+    const frequency = routine.frequency === "weekly" ? "weekly on Mondays" : "daily";
+    return (
+      <div className={card}>
+        <p className="flex items-start gap-1.5 text-sm font-medium"><CalendarClock className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden /><span className="min-w-0 break-words">{isCreate ? "Create" : "Change"} routine: {routine.name}</span></p>
+        {routine.prompt ? <p className="mt-1 whitespace-pre-wrap break-words text-sm text-muted-foreground">{routine.prompt.length > 400 ? `${routine.prompt.slice(0, 400)}…` : routine.prompt}</p> : null}
+        <p className="mt-1 text-sm text-muted-foreground">Runs {frequency} at {time} Eastern and posts the result into this chat.</p>
+        <Button type="button" className="mt-3" data-jarvis-tap="" disabled={Boolean(state)} onClick={onApprove}>{state === "building" ? "Saving…" : state === "done" ? "Saved" : `Approve and ${isCreate ? "create" : "save"}`}</Button>
+        <p className={disclaimer}>A routine runs through the normal Jarvis loop — model caps still apply and anything it wants to change still needs your approval.</p>
+      </div>
+    );
+  }
+  if (proposal.id === "routine.delete") {
+    return (
+      <div className={card}>
+        <p className="flex items-center gap-1.5 text-sm font-medium"><Trash2 className="size-4 text-primary" aria-hidden />Delete a routine</p>
+        <p className="mt-1 text-sm text-muted-foreground">Permanently removes the scheduled routine. Its past chat results stay in the conversation.</p>
+        <Button type="button" className="mt-3" data-jarvis-tap="" disabled={Boolean(state)} onClick={onApprove}>{state === "building" ? "Deleting…" : state === "done" ? "Deleted" : "Approve and delete"}</Button>
       </div>
     );
   }

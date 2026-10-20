@@ -18,16 +18,18 @@ const bounded = (value: unknown, max = MAX_RESULT_CHARS) => {
 async function collectArtifacts(db: SupabaseClient, actorId: string) {
   const { listProspectDemos } = await import("./jarvis-demo-site.server");
   const { listJarvisRoutines } = await import("./jarvis-routines.server");
+  const readAudit = async (): Promise<{ action?: unknown; details?: unknown; created_at?: unknown }[]> => {
+    try {
+      const res = await db.from("audit_logs").select("action, details, created_at").order("created_at", { ascending: false }).limit(40);
+      return res.error ? [] : (res.data ?? []);
+    } catch {
+      return [];
+    }
+  };
   const [demos, routines, audit] = await Promise.all([
-    listProspectDemos(db, 50).catch(() => []),
-    listJarvisRoutines(db, actorId).catch(() => []),
-    db
-      .from("audit_logs")
-      .select("action, details, created_at")
-      .order("created_at", { ascending: false })
-      .limit(40)
-      .then((res) => (res.error ? [] : (res.data ?? [])))
-      .catch(() => []),
+    listProspectDemos(db, 50).catch((): Awaited<ReturnType<typeof listProspectDemos>> => []),
+    listJarvisRoutines(db, actorId).catch((): Awaited<ReturnType<typeof listJarvisRoutines>> => []),
+    readAudit(),
   ]);
   return {
     note: "Everything Jarvis has produced or had approved, newest first. Approvals come from the durable audit log.",
