@@ -128,7 +128,7 @@ export async function provisionProspectDemo(
 
   // The listing's own Google Maps photos go on the site first; AI fills the rest.
   const placeId = origin?.placeId ?? input.placeId ?? null;
-  if (placeId) {
+  if (placeId && !placeId.startsWith("osm:")) {
     const { attachMapsPhotos } = await import("@/lib/maps-photos.server");
     await attachMapsPhotos(admin, organizationId, input.businessName, placeId);
   }
@@ -284,11 +284,22 @@ export async function findProspects(
   const { searchPlacesForProspects } = await import("@/lib/integrations/google.server");
   const places = await searchPlacesForProspects(query, 20);
   const existing = (await listProspectDemos(db, 100)).map((demo) => demo.name);
-  const candidates = selectProspects(places, existing, { includeWebsites: true });
+  const google = selectProspects(places, existing, { includeWebsites: true });
+  // Free second source: OpenStreetMap. Same-name businesses already found on Google are skipped.
+  const { searchOsmProspects } = await import("@/lib/osm-prospects.server");
+  const norm = (n: string) => n.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const known = new Set([...google.map((p) => norm(p.name)), ...existing.map(norm)]);
+  const osm = (await searchOsmProspects(input.niche, input.city, input.state ?? null)).filter((p) => {
+    const k = norm(p.name);
+    if (known.has(k)) return false;
+    known.add(k);
+    return true;
+  });
+  const candidates = [...google, ...osm];
   // Businesses with their own site qualify only when it has verified gaps worth fixing.
   const { assessWebsite } = await import("@/lib/prospect-email.server");
   const checked = await Promise.all(
-    candidates.slice(0, 20).map(async (prospect) => {
+    candidates.slice(0, 40).map(async (prospect) => {
       if (prospect.presence !== "has_website") return prospect;
       const gaps = await assessWebsite(prospect.website).catch(() => null);
       return gaps && isUpgradeProspect(gaps) ? { ...prospect, siteGaps: gaps } : null;
@@ -301,7 +312,7 @@ export async function findProspects(
     action: "jarvis.prospects.search",
     entity: "google_places",
     entity_id: null,
-    metadata: { query, results: places.length, prospects: prospects.length },
+    metadata: { query, results: places.length, osmResults: osm.length, prospects: prospects.length },
   });
   return { query, searched: places.length, prospects };
 }
