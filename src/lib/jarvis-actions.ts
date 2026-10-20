@@ -485,6 +485,17 @@ export function splitReplyMeta(content: string): { body: string; meta: JarvisRep
           proposals.push({ id: "claude.code", request: proposal.request.trim().slice(0, 8000) });
         else if (proposal?.id === "claude.fix" && Number.isInteger(proposal.pr) && proposal.pr > 0)
           proposals.push({ id: "claude.fix", pr: proposal.pr, note: typeof proposal.note === "string" ? proposal.note.slice(0, 2000) : "" });
+        else if (proposal?.id === "memory.forget" && typeof proposal.memoryId === "string" && ORG_ID.test(proposal.memoryId))
+          proposals.push({ id: "memory.forget", memoryId: proposal.memoryId });
+        else if (proposal?.id === "routine.create") proposals.push({ id: "routine.create", routine: parseRoutineDraft(proposal.routine) });
+        else if (proposal?.id === "routine.update" && typeof proposal.routineId === "string" && ORG_ID.test(proposal.routineId))
+          proposals.push({
+            id: "routine.update",
+            routineId: proposal.routineId,
+            patch: (proposal.patch && typeof proposal.patch === "object" ? proposal.patch : {}) as Extract<WriteProposal, { id: "routine.update" }>["patch"],
+          });
+        else if (proposal?.id === "routine.delete" && typeof proposal.routineId === "string" && ORG_ID.test(proposal.routineId))
+          proposals.push({ id: "routine.delete", routineId: proposal.routineId });
       } catch {
         /* drop anything that no longer validates */
       }
