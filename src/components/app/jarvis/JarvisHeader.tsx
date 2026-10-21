@@ -44,7 +44,7 @@ export function JarvisHeader(props: Props) {
       <Button type="button" variant="ghost" size="icon-sm" data-jarvis-tap="" aria-label="Conversations" onClick={onOpenConversations} className="size-9 shrink-0 rounded-full sm:size-9">
         <MessagesSquare className="size-4" aria-hidden />
       </Button>
-      <span className="shrink-0 [&>span]:size-8"><VoiceWave state={voiceState} level={level} /></span>
+      <span className="hidden shrink-0 sm:inline-flex [&>span]:size-8"><VoiceWave state={voiceState} level={level} /></span>
       <div className="min-w-0 flex-1">
         <h1 className="truncate text-base font-semibold leading-tight">Jarvis</h1>
         <div className="flex min-w-0 items-center gap-2">
