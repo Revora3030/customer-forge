@@ -178,4 +178,6 @@ Owner approved porting two ideas (audit of the uploaded Next.js project; auto pa
 - [x] research.ask proposal (approval-gated, audit-logged), citations card, reload-safe result memory; 69 tests pass, build OK; signed-in Jarvis page loads without errors.
 - [ ] First real approved research call not yet exercised in chat (would spend owner's Perplexity credits; needs owner tap).
 
-- [ ] Use available free connectors to improve the platform further (after redesign phase 2 checks)
+- [x] Connectors: Calendly "Book a call" on contact page; Logo.dev fallback for imported customer logos (own domain only)
+- [ ] Search Console page improvements + admin snapshot card (waiting on owner property choice)
+- [ ] Business Profile fixes (waiting on owner approval of exact text)
