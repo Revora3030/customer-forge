@@ -352,6 +352,7 @@ export const getJarvisFreeToolReadiness = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     await guardedAdmin(context);
+    const { jarvisImageReadiness } = await import("@/lib/ai/jarvis-image-readiness.server");
     return {
       "website.html.audit": true,
       "website.accessibility.static": true,
@@ -364,9 +365,7 @@ export const getJarvisFreeToolReadiness = createServerFn({ method: "GET" })
       "images.stock.search": Boolean(process.env["UNSPLASH_ACCESS_KEY"] || process.env["PEXELS_API_KEY"]),
       "stock.unsplash": Boolean(process.env["UNSPLASH_ACCESS_KEY"]),
       "stock.pexels": Boolean(process.env["PEXELS_API_KEY"]),
-      "image.cloudflare": Boolean(process.env["CLOUDFLARE_ACCOUNT_ID"] && (process.env["CLOUDFLARE_AI_API_TOKEN"] || process.env["CLOUDFLARE_API_TOKEN"])),
-      "image.huggingface": Boolean(process.env["HUGGINGFACE_API_KEY"] || process.env["HF_TOKEN"]),
-      "image.pollinations": Boolean(process.env["POLLINATIONS_API_KEY"]),
+      ...jarvisImageReadiness(),
       "website.dns.lookup": true,
       "website.html.validate": true,
       "security.dependencies.osv": true,
