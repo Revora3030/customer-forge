@@ -697,7 +697,10 @@ async function run<T>(
         const started = Date.now();
         const controller = new AbortController();
         // Never let one slow model eat past the chain budget either.
-        const attemptBudget = Math.max(1, Math.min(attemptTimeoutMs, chainDeadline - Date.now()));
+        // A free model that hangs past a minute is not coming back; move on so
+        // one stalled provider cannot eat the whole chain (seen: 90s hangs).
+        const freeCap = candidate.free ? FREE_ATTEMPT_CAP_MS : Number.POSITIVE_INFINITY;
+        const attemptBudget = Math.max(1, Math.min(attemptTimeoutMs, freeCap, chainDeadline - Date.now()));
         const timer = setTimeout(() => controller.abort(), attemptBudget);
         try {
           if (candidate.free) {
@@ -909,6 +912,9 @@ export function accountRestFor(category: string, now = Date.now()): { failureThr
   }
   return {};
 }
+
+/** Longest one free-model attempt may run before the chain moves on. */
+export const FREE_ATTEMPT_CAP_MS = 60_000;
 
 /** Failures that describe the whole provider, not one model or one answer. */
 function providerWideFailure(error: RevoraAiError) {

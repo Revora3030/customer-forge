@@ -65,7 +65,7 @@ export const getAiSuggestions = createServerFn({ method: "POST" })
       { organizationId: orgId, userId: String(userId), task: "builder.suggestions" },
       {
         role: "primary",
-        maxOutputTokens: 900,
+        maxOutputTokens: 2000,
         messages: [
           {
             role: "system",
