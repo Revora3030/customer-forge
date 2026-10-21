@@ -115,8 +115,8 @@ function Home() {
         <MetricCard label="Directories live" value={`${d.directoriesLive}/${d.directoriesTotal}`} />
       </div>
       <div className="flex flex-wrap gap-2">
-        <Pill tone={d.gbpConnected ? "success" : "warning"}>Google profile {d.gbpConnected ? "linked" : "not linked"}</Pill>
-        <Pill tone={d.smsConnected ? "success" : "neutral"}>Texting {d.smsConnected ? "connected" : "off"}</Pill>
+        <Pill tone={d.gbpConnected ? "signal" : "attention"}>Google profile {d.gbpConnected ? "linked" : "not linked"}</Pill>
+        <Pill tone={d.smsConnected ? "signal" : "neutral"}>Texting {d.smsConnected ? "connected" : "off"}</Pill>
       </div>
       <Panel title="Next 7 days">
         {d.upcoming.length ? (
@@ -172,7 +172,7 @@ function Approvals() {
               <Panel title={item.summary}>
                 <div className="mb-2 flex flex-wrap gap-2 text-xs">
                   <Pill tone="neutral">{MODULE_LABEL[item.item_type as ApprovalItemType] ?? item.item_type}</Pill>
-                  <Pill tone={item.risk_level === "high" ? "danger" : item.risk_level === "medium" ? "warning" : "success"}>{item.risk_level} risk</Pill>
+                  <Pill tone={item.risk_level === "high" ? "danger" : item.risk_level === "medium" ? "attention" : "signal"}>{item.risk_level} risk</Pill>
                   <Pill tone="neutral">{item.status}</Pill>
                 </div>
                 {editing?.id === item.id ? (
@@ -279,7 +279,7 @@ function Directories() {
             <li key={d.id} className="flex flex-wrap items-center justify-between gap-2 p-3 text-sm">
               <span>{d.directory_name}</span>
               <div className="flex flex-wrap items-center gap-2">
-                <Pill tone={d.status === "live" ? "success" : d.status === "needs_update" ? "danger" : "neutral"}>{d.status.replace("_", " ")}</Pill>
+                <Pill tone={d.status === "live" ? "signal" : d.status === "needs_update" ? "danger" : "neutral"}>{d.status.replace("_", " ")}</Pill>
                 <Button size="sm" variant="outline" onClick={() => upd.mutate({ id: d.id, status: "submitted" })}>Submitted</Button>
                 <Button size="sm" variant="outline" onClick={() => upd.mutate({ id: d.id, status: "live" })}>Live</Button>
               </div>
