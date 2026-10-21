@@ -35,6 +35,7 @@ const PROVIDER_LABEL: Record<string, string> = {
   ollama: "Ollama Cloud",
   ovh: "OVHcloud",
   kilo: "Kilo Code",
+  omniroute: "OmniRoute (yours)",
   modelscope: "ModelScope",
   github: "GitHub Models",
 };

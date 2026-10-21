@@ -26,7 +26,7 @@ export function RouteNotFound() {
       <meta name="robots" content="noindex" />
       <div className="max-w-md text-center">
         <p className="eyebrow">Error 404</p>
-        <h1 className="mt-3 text-3xl font-semibold text-foreground">This page doesn't exist</h1>
+        <h1 className="mt-3 font-editorial text-[30px] leading-tight text-foreground">This page doesn't exist</h1>
         <p className="mt-2 text-sm text-muted-foreground">
           The link may be out of date, or the business page you're looking for has moved.
         </p>
@@ -53,7 +53,7 @@ export function RouteError({ error, reset }: { error: unknown; reset?: () => voi
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
         <p className="eyebrow">Temporarily unavailable</p>
-        <h1 className="mt-3 text-2xl font-semibold text-foreground">This page didn't load</h1>
+        <h1 className="mt-3 font-editorial text-[30px] leading-tight text-foreground">This page didn't load</h1>
         <p className="mt-2 text-sm text-muted-foreground">
           We couldn't load this page. Try again, or return to the start.
         </p>

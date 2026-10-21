@@ -12,6 +12,7 @@
  */
 
 import type { ModelRole, ProviderName } from "@/lib/ai/config";
+import { safeOmniRouteBaseUrl } from "@/lib/ai/omniroute-url";
 
 /** Credential placeholder for keyless free tiers: the adapter sends no authorization header. */
 export const ANONYMOUS_KEY = "anonymous";
@@ -37,6 +38,9 @@ export type FreeProviderName =
   | "ollama"
   | "ovh"
   | "kilo"
+  | "omniroute"
+  | "selfhosted"
+  | "opencode"
   | "modelscope"
   | "github";
 
@@ -61,6 +65,9 @@ export const FREE_PROVIDERS: FreeProviderName[] = [
   "ollama",
   "ovh",
   "kilo",
+  "omniroute",
+  "selfhosted",
+  "opencode",
   "modelscope",
   "github",
 ];
@@ -178,6 +185,21 @@ export const FREE_ALLOWANCE: Record<
     label: "Kilo Code free models",
     allowance: "Keyless free models (\":free\" ids), 200 requests per hour per IP. Auto-routers that may log prompts are excluded.",
     dailyRequestCap: 150,
+  },
+  omniroute: {
+    label: "Your OmniRoute server",
+    allowance: "Owner's self-hosted OmniRoute router; uses whichever providers and free tiers you configured on it.",
+    dailyRequestCap: 300,
+  },
+  opencode: {
+    label: "OpenCode Zen free models",
+    allowance: "Free promo models (ids ending in -free), rate-limited; no card. Free models may use prompts for training.",
+    dailyRequestCap: 200,
+  },
+  selfhosted: {
+    label: "Your own AI gateway (LiteLLM / vLLM)",
+    allowance: "Owner's self-hosted OpenAI-compatible gateway; only models listed in SELFHOSTED_AI_FREE_MODELS are used.",
+    dailyRequestCap: 300,
   },
   modelscope: {
     label: "ModelScope API-Inference",
@@ -379,6 +401,25 @@ const FREE_MODEL_DEFAULTS: Record<FreeProviderName, Partial<Record<ModelRole, st
     coding: "poolside/laguna-s-2.1:free",
     vision: "stepfun/step-3.7-flash:free",
     conversation: "nvidia/nemotron-3-super-120b-a12b:free",
+  },
+  // OmniRoute's own auto routing combo; override per role with
+  // FREE_AI_OMNIROUTE_MODEL_<ROLE>. No vision default: not every combo reads images.
+  // No default: the owner names each model via FREE_AI_SELFHOSTED_MODEL_<ROLE>.
+  selfhosted: {},
+  opencode: {
+    primary: "deepseek-v4.1-flash-free",
+    design: "deepseek-v4.1-flash-free",
+    fast: "nemotron-3.5-lightning-free",
+    coding: "glm-5.3-flash-free",
+    vision: "nemotron-3.5-super-vl-free",
+    conversation: "minimax-m3.1-flash-free",
+  },
+  omniroute: {
+    primary: "auto",
+    design: "auto",
+    fast: "auto",
+    coding: "auto",
+    conversation: "auto",
   },
   modelscope: {
     primary: "Qwen/Qwen3.5-35B-A3B",
@@ -707,6 +748,15 @@ export function isFreeEligibleModel(provider: FreeProviderName, model: string): 
   if (provider === "github") return GITHUB_FREE.has(name.toLowerCase());
   // Kilo: only ":free" ids, never the auto-routers that may log prompts.
   if (provider === "kilo") return /:free$/i.test(name) && !/^(kilo-auto|openrouter)\//i.test(name) && !NON_CHAT_MODEL.test(name);
+  // The owner's own OmniRoute server: the owner decides which providers it uses.
+  // Its catalogue mixes paid and free routes, so only ids the owner lists in
+  // OMNIROUTE_FREE_MODELS (comma-separated) count as free. Empty = none.
+  // OpenCode Zen: only its "-free" ids are unbilled; everything else is paid.
+  if (provider === "opencode") return /-free$/i.test(name) && !NON_CHAT_MODEL.test(name);
+  if (provider === "selfhosted")
+    return (env("SELFHOSTED_AI_FREE_MODELS") ?? "").split(",").map((m) => m.trim().toLowerCase()).filter(Boolean).includes(name.toLowerCase());
+  if (provider === "omniroute")
+    return (env("OMNIROUTE_FREE_MODELS") ?? "").split(",").map((m) => m.trim().toLowerCase()).filter(Boolean).includes(name.toLowerCase());
   // Ollama Cloud meters usage per account, not per model, so its chat models are all inside the free tier's limits.
   if (provider === "ollama") return !NON_CHAT_MODEL.test(name) && !/embed/i.test(name);
   if (provider === "modelscope") return name.includes("/") && !NON_CHAT_MODEL.test(name);
@@ -844,6 +894,18 @@ export function freeProviderCredentials(
     const apiKey = env("MODELSCOPE_API_KEY");
     return apiKey ? { apiKey } : null;
   }
+  if (provider === "opencode") {
+    const apiKey = env("OPENCODE_API_KEY");
+    return apiKey ? { apiKey } : null;
+  }
+  if (provider === "selfhosted") {
+    const apiKey = env("SELFHOSTED_AI_API_KEY");
+    return apiKey && safeOmniRouteBaseUrl(env("SELFHOSTED_AI_BASE_URL")) ? { apiKey } : null;
+  }
+  if (provider === "omniroute") {
+    const apiKey = env("OMNIROUTE_API_KEY");
+    return apiKey && safeOmniRouteBaseUrl(env("OMNIROUTE_BASE_URL")) ? { apiKey } : null;
+  }
   if (provider === "github") {
     const apiKey = env("GITHUB_MODELS_TOKEN");
     return apiKey ? { apiKey } : null;
@@ -896,6 +958,9 @@ const DEFAULT_ORDER: FreeProviderName[] = [
   "ollama",
   "ovh",
   "kilo",
+  "omniroute",
+  "selfhosted",
+  "opencode",
   "modelscope",
   "github",
 ];
@@ -975,6 +1040,37 @@ export function freeProviderReadiness() {
         .map((role) => ({ role, model: freeModelFor(name, role) }))
         .filter((entry): entry is { role: ModelRole; model: string } => entry.model !== null),
     };
+  });
+}
+
+/** Team jobs and the model role each one runs on. */
+export const TEAM_JOBS: ReadonlyArray<{ job: string; role: ModelRole }> = [
+  { job: "Sol: design and writing", role: "design" },
+  { job: "Terra: review", role: "primary" },
+  { job: "Luna: search details and fact checks", role: "fast" },
+  { job: "Astra: chat", role: "conversation" },
+  { job: "Coding", role: "coding" },
+  { job: "Vision checks", role: "vision" },
+  { job: "Transcription", role: "transcription" },
+  { job: "Pictures", role: "image" },
+];
+
+export type FreeRoleCoverage = {
+  job: string;
+  role: ModelRole;
+  covered: boolean;
+  providers: string[];
+};
+
+/**
+ * Which team jobs the free team can take over right now. A job with no
+ * configured free model is reported as a gap — never as working. Motion has no
+ * free video model and is reported separately by the caller as a gap.
+ */
+export function freeRoleCoverage(): FreeRoleCoverage[] {
+  return TEAM_JOBS.map(({ job, role }) => {
+    const chain = freeProviderChain(role);
+    return { job, role, covered: chain.length > 0, providers: chain.map((entry) => entry.name) };
   });
 }
 

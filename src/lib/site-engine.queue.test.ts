@@ -102,6 +102,30 @@ describe("worker queue behavior", () => {
     expect(c["status"]).toBe("queued");
   });
 
+  it("a cut-off last attempt is re-queued with a lost-attempt marker so its resume can continue", async () => {
+    const cut = queued("cut", "tenant-a", {
+      status: "processing", attempts: 3, capacity_deferrals: 0, lease_expires_at: "2026-10-20T18:50:00Z",
+    });
+    const { db, tables } = database([cut]);
+    await closeAbandonedJobs(db, "tenant-a");
+    expect(cut["status"]).toBe("queued");
+    expect(cut["attempts"]).toBe(2);
+    const markers = (tables["ai_generations"] ?? []).filter(row => row["job_id"] === "cut");
+    expect(markers).toHaveLength(1);
+    expect(markers[0]?.["kind"]).toBe("build_attempt_lost");
+    expect(markers[0]?.["result"]?.["previousLeaseExpiresAt"]).toBe("2026-10-20T18:50:00Z");
+  });
+
+  it("a cut-off job out of deferrals fails instead of being re-queued without limit", async () => {
+    const cut = queued("cut", "tenant-a", {
+      status: "processing", attempts: 3, capacity_deferrals: 6, lease_expires_at: "2026-10-20T18:50:00Z",
+    });
+    const { db, tables } = database([cut]);
+    await closeAbandonedJobs(db, "tenant-a");
+    expect(cut["status"]).toBe("failed");
+    expect((tables["ai_generations"] ?? []).length).toBe(0);
+  });
+
   it("does not let five leased jobs hide a runnable job", async () => {
     const busy = Array.from({ length: 5 }, (_, i) => queued(`busy-${i}`, `busy-tenant-${i}`, {
       status: "processing", attempts: 1, lease_expires_at: "2099-01-01T00:00:00Z",

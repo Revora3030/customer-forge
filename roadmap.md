@@ -177,3 +177,10 @@ Owner approved porting two ideas (audit of the uploaded Next.js project; auto pa
 ## Perplexity Agent research in Jarvis (2026-10-21)
 - [x] research.ask proposal (approval-gated, audit-logged), citations card, reload-safe result memory; 69 tests pass, build OK; signed-in Jarvis page loads without errors.
 - [ ] First real approved research call not yet exercised in chat (would spend owner's Perplexity credits; needs owner tap).
+
+- [x] Connectors: Calendly "Book a call" on contact page; Logo.dev fallback for imported customer logos (own domain only)
+- [x] Search Console: local page titles now name a third city (e.g. Huntsville); existing Search Growth panel reused instead of a duplicate card
+- [x] Business Profile description replaced with truthful text
+- [ ] Business Profile hours: waiting on owner's real reply hours
+- [x] Redesign phase 3 (part): serif page titles across signed-in and admin pages; checked 5 pages signed in, no errors
+- [ ] Redesign: deeper restyle of signed-in cards/tables and sidebar

@@ -349,7 +349,7 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
       const href = node.href ? ctx.href(node.href) : ctx.href("") || undefined;
       const external = Boolean(href && /^https:\/\//i.test(href));
       return (
-        <a key={key} {...props} href={href} {...(external ? { target: "_blank", rel: "noopener noreferrer" } : {})}>
+        <a key={key} {...props} {...(node.type === "button" ? { "data-rv-button": "" } : {})} href={href} {...(external ? { target: "_blank", rel: "noopener noreferrer" } : {})}>
           {node.text && ctx.label ? ctx.label(node.text) : node.text}{kids}
         </a>
       );
@@ -362,7 +362,7 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
     case "icon":
       return <span key={key} aria-hidden="true" {...props}>{node.text}</span>;
     case "card":
-      return <article key={key} {...props}>{kids}</article>;
+      return <article key={key} {...props} data-rv-card="">{kids}</article>;
     case "quote":
       return (
         <figure key={key} {...props}>
@@ -602,7 +602,7 @@ function FaqAccordion({ props, items }: { props: NodeProps; items: CompositionFa
     <div {...props} className={`${props.className ?? ""} rv-cn-faq`.trim()}>
       {items.map((item, index) => (
         <details key={index} open={item.defaultOpen}>
-          <summary><span>{item.question}</span><span aria-hidden="true" className="rv-cn-faq-chevron">⌄</span></summary>
+          <summary><span>{item.question}</span><span aria-hidden="true" className="rv-cn-faq-chevron" /></summary>
           <div className="rv-cn-faq-panel"><div className="rv-cn-faq-panel-inner">{item.answer}</div></div>
         </details>
       ))}
@@ -685,11 +685,25 @@ const INTERACTIVE_CSS = `
 .rv-cn-compare-handle::before{transform:translateX(-6px) rotate(-135deg)} .rv-cn-compare-handle::after{transform:translateX(6px) rotate(45deg)}
 .rv-cn-compare-label{position:absolute;top:12px;z-index:4;padding:5px 10px;border-radius:999px;background:rgb(0 0 0 / .62);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);color:white;font-weight:600;font-size:12px;line-height:1.2;pointer-events:none;max-width:42%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .rv-cn-compare-label-before{left:12px}.rv-cn-compare-label-after{right:12px}
-.rv-cn-faq details{border-bottom:1px solid currentColor}
-.rv-cn-faq summary{min-height:44px;display:flex;align-items:center;justify-content:space-between;gap:16px;cursor:pointer;list-style:none;padding:14px 0}
+.rv-cn-faq{display:grid;gap:var(--rv-faq-gap,0)}
+.rv-cn-faq details{border-bottom:1px solid color-mix(in srgb,currentColor 16%,transparent)}
+.rv-cn-faq summary{min-height:44px;display:flex;align-items:center;justify-content:space-between;gap:16px;cursor:pointer;list-style:none;padding:16px 0;font-weight:600}
 .rv-cn-faq summary::-webkit-details-marker{display:none}
-.rv-cn-faq-chevron{display:inline-grid;place-items:center;width:28px;height:28px;flex:0 0 28px;transition:transform .22s ease}
-.rv-cn-faq details[open] .rv-cn-faq-chevron{transform:rotate(180deg)}
+.rv-cn-faq-chevron{position:relative;display:inline-block;width:20px;height:20px;flex:0 0 20px;transition:transform .22s ease}
+.rv-cn-faq-chevron::before,.rv-cn-faq-chevron::after{content:"";position:absolute;left:50%;top:50%;width:12px;height:2px;margin:-1px 0 0 -6px;border-radius:2px;background:var(--primary,currentColor)}
+.rv-cn-faq-chevron::after{transform:rotate(90deg);transition:transform .22s ease}
+.rv-cn-faq details[open] .rv-cn-faq-chevron::after{transform:rotate(0deg)}
+.rv-faq-boxed .rv-cn-faq{--rv-faq-gap:12px}.rv-faq-boxed .rv-cn-faq details{border:1px solid color-mix(in srgb,currentColor 14%,transparent);border-radius:var(--radius,12px);padding:0 18px;background:color-mix(in srgb,var(--card,transparent) 70%,transparent)}
+.rv-faq-floating .rv-cn-faq{--rv-faq-gap:12px}.rv-faq-floating .rv-cn-faq details{border:0;border-radius:var(--radius,14px);padding:0 20px;background:var(--card,transparent);box-shadow:var(--site-card-shadow,0 8px 28px rgb(0 0 0 / .12))}
+.rv-faq-minimal .rv-cn-faq details{border:0}
+.rv-card-tint [data-rv-card]{background:color-mix(in srgb,var(--primary) 7%,var(--card,transparent));border:1px solid color-mix(in srgb,var(--primary) 18%,transparent)}
+.rv-card-outline [data-rv-card]{background:transparent;border:1px solid color-mix(in srgb,currentColor 22%,transparent)}
+.rv-card-elevated [data-rv-card]{border:0;box-shadow:var(--site-card-shadow,0 12px 36px rgb(0 0 0 / .14))}
+.rv-card-glass [data-rv-card]{background:color-mix(in srgb,var(--card,#fff) 55%,transparent);border:1px solid color-mix(in srgb,currentColor 12%,transparent);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
+.rv-card-bare [data-rv-card]{background:transparent;border:0;box-shadow:none}
+.rv-button-outline [data-rv-button]{background:transparent;color:inherit;border:2px solid var(--primary)}
+.rv-button-soft [data-rv-button]{background:color-mix(in srgb,var(--primary) 16%,transparent);color:inherit;border:0}
+.rv-button-underline [data-rv-button]{background:transparent;color:inherit;border:0;border-bottom:2px solid var(--primary);border-radius:0}
 .rv-cn-faq-panel{display:grid;grid-template-rows:0fr;transition:grid-template-rows .24s ease}
 .rv-cn-faq details[open] .rv-cn-faq-panel{grid-template-rows:1fr}
 .rv-cn-faq-panel-inner{min-height:0;overflow:hidden;padding:0 0 14px;white-space:pre-wrap}

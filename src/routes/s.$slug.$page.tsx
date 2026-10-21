@@ -23,7 +23,7 @@ import { ReviewWall } from "@/components/site/LiveBlocks";
 import { EnquiryForm } from "@/components/site/SiteForms";
 import { PreviewSelectBridge } from "@/components/site/PreviewSelectBridge";
 import { SiteBackdrop } from "@/components/site/SiteBackdrop";
-import { siteFontStyle, siteThemeStyle } from "@/lib/site-theme";
+import { isPlaceholderPalette, siteFontStyle, siteThemeStyle } from "@/lib/site-theme";
 import { readComposition } from "@/lib/visual-composition";
 import { readBackdrop, readBackdropSpec } from "@/lib/site-effects";
 import { getPublicSite, trackPublicEvent, type PublicSite } from "@/lib/public-site.functions";
@@ -182,6 +182,18 @@ export function SitePageView({
         spec={readBackdropSpec(site.settings?.generation ?? null)}
       />
       <div className="relative z-[1]">
+        {/* Owner-only notice: a site still on the neutral placeholder palette
+            has no AI-authored design yet. Visitors never see this. */}
+        {preview &&
+        !readDesignTokens(site.settings?.generation ?? null) &&
+        isPlaceholderPalette({
+          primaryColor: profile?.primary_color ?? null,
+          secondaryColor: profile?.secondary_color ?? null,
+        }) ? (
+          <div role="status" className="border-b border-border bg-muted px-4 py-3 text-center text-[13px] text-foreground">
+            Design in progress: this site is still on a plain placeholder look. Rebuild it from the builder so your AI team designs every part.
+          </div>
+        ) : null}
         {/* The bar is opaque and uses the site's own foreground colour, so the
             business name stays readable on pale and dark themes alike rather
             than inheriting whatever colour the section below it chose. */}

@@ -1,0 +1,110 @@
+/**
+ * Keyless, read-only Jarvis checks backed by free public services.
+ * Summaries keep only small, non-sensitive fields.
+ */
+import pkg from "../../package.json";
+
+export const FREE_CHECK_TOOLS = [
+  "website.html.validate",
+  "security.dependencies.osv",
+  "website.security.observatory",
+  "domain.rdap.lookup",
+  "domain.wayback.history",
+  "website.text.extract",
+] as const;
+export type FreeCheckTool = (typeof FREE_CHECK_TOOLS)[number];
+export const isFreeCheckTool = (id: string): id is FreeCheckTool => (FREE_CHECK_TOOLS as readonly string[]).includes(id);
+
+type Obj = Record<string, unknown>;
+const obj = (v: unknown): Obj => (v && typeof v === "object" && !Array.isArray(v) ? (v as Obj) : {});
+const arr = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
+const str = (v: unknown) => (typeof v === "string" ? v : null);
+
+export const W3C_URL = (target: string) => `https://validator.w3.org/nu/?out=json&doc=${encodeURIComponent(target)}`;
+export function summarizeW3c(raw: unknown) {
+  const messages = arr(obj(raw)["messages"]).map(obj);
+  const errors = messages.filter((m) => m["type"] === "error");
+  const warnings = messages.filter((m) => m["subType"] === "warning");
+  return {
+    errorCount: errors.length,
+    warningCount: warnings.length,
+    topErrors: errors.slice(0, 10).map((m) => ({ line: m["lastLine"] ?? null, message: str(m["message"])?.slice(0, 200) ?? null })),
+  };
+}
+
+/** Exact pinned versions only; ranges like ^1.2.3 are reduced to 1.2.3. */
+export function dependencyList(deps: Record<string, string> = { ...(pkg as { dependencies?: Record<string, string> }).dependencies }) {
+  return Object.entries(deps)
+    .map(([name, v]) => ({ name, version: (v.match(/\d+\.\d+\.\d+[^\s]*/) ?? [])[0] ?? null }))
+    .filter((d): d is { name: string; version: string } => Boolean(d.version))
+    .slice(0, 300);
+}
+export const OSV_URL = "https://api.osv.dev/v1/querybatch";
+export function osvBody(deps: { name: string; version: string }[]) {
+  return { queries: deps.map((d) => ({ package: { name: d.name, ecosystem: "npm" }, version: d.version })) };
+}
+export function summarizeOsv(raw: unknown, deps: { name: string; version: string }[]) {
+  const results = arr(obj(raw)["results"]);
+  const affected = results
+    .map((r, i) => ({ dep: deps[i], ids: arr(obj(r)["vulns"]).map((v) => str(obj(v)["id"])).filter(Boolean) as string[] }))
+    .filter((r) => r.dep && r.ids.length);
+  return {
+    checkedPackages: deps.length,
+    vulnerablePackages: affected.map((a) => ({ name: a.dep!.name, version: a.dep!.version, advisories: a.ids.slice(0, 5) })),
+    note: "Direct dependencies only, using declared versions; installed versions may differ.",
+  };
+}
+
+export const OBSERVATORY_URL = (host: string) => `https://observatory-api.mdn.mozilla.net/api/v2/scan?host=${encodeURIComponent(host)}`;
+export function summarizeObservatory(raw: unknown) {
+  const b = obj(raw);
+  if (!str(b["grade"])) return null;
+  return { grade: str(b["grade"]), score: b["score"] ?? null, testsPassed: b["tests_passed"] ?? null, testsFailed: b["tests_failed"] ?? null, detailsUrl: str(b["details_url"]) };
+}
+
+export const RDAP_URL = (domain: string) => `https://rdap.org/domain/${encodeURIComponent(domain)}`;
+export function summarizeRdap(raw: unknown) {
+  const b = obj(raw);
+  const events = arr(b["events"]).map(obj);
+  const ev = (a: string) => str(events.find((e) => e["eventAction"] === a)?.["eventDate"]);
+  const registrar = arr(b["entities"]).map(obj).find((e) => arr(e["roles"]).includes("registrar"));
+  const vcard = arr(arr(obj(registrar)["vcardArray"])[1]).map(arr).find((f) => f[0] === "fn");
+  return {
+    domain: str(b["ldhName"])?.toLowerCase() ?? null,
+    registrar: str(vcard?.[3]),
+    registered: ev("registration"),
+    expires: ev("expiration"),
+    lastChanged: ev("last changed"),
+    status: arr(b["status"]).filter((s) => typeof s === "string").slice(0, 8),
+  };
+}
+
+export const WAYBACK_URL = (domain: string) => `https://archive.org/wayback/available?url=${encodeURIComponent(domain)}&timestamp=19960101`;
+export const WAYBACK_LATEST_URL = (domain: string) => `https://archive.org/wayback/available?url=${encodeURIComponent(domain)}`;
+const tsToIso = (ts: string | null) => (ts && /^\d{14}$/.test(ts) ? `${ts.slice(0, 4)}-${ts.slice(4, 6)}-${ts.slice(6, 8)}` : null);
+export function summarizeWayback(first: unknown, latest: unknown) {
+  const snap = (raw: unknown) => obj(obj(obj(raw)["archived_snapshots"])["closest"]);
+  const f = snap(first), l = snap(latest);
+  return {
+    archived: Boolean(f["available"] || l["available"]),
+    earliestSnapshot: tsToIso(str(f["timestamp"])),
+    latestSnapshot: tsToIso(str(l["timestamp"])),
+  };
+}
+
+/** Readability-style main text: drops scripts/nav/footer, prefers <main>/<article>. */
+export function extractReadableText(html: string, maxChars = 6000) {
+  let body = html.replace(/<(script|style|noscript|svg|template|iframe)[\s\S]*?<\/\1>/gi, " ");
+  const main = body.match(/<(main|article)[\s>][\s\S]*?<\/\1>/i);
+  if (main) body = main[0];
+  body = body.replace(/<(nav|footer|header|aside|form)[\s>][\s\S]*?<\/\1>/gi, " ");
+  const title = (html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] ?? "").trim().slice(0, 200);
+  const text = body
+    .replace(/<\/(p|h[1-6]|li|div|section|br)>/gi, "\n")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n\s*\n+/g, "\n")
+    .trim();
+  return { title, text: text.slice(0, maxChars), truncated: text.length > maxChars, wordCount: text.split(/\s+/).filter(Boolean).length };
+}

@@ -60,7 +60,7 @@ function About() {
         <section className="hero-aura border-b border-border">
           <div className="mx-auto max-w-6xl px-4 py-16 lg:py-20">
             <p className="eyebrow">About Revora</p>
-            <h1 className="mt-2 max-w-3xl font-display text-[32px] sm:text-[44px] leading-tight font-semibold">
+            <h1 className="mt-2 max-w-3xl font-editorial text-balance text-[32px] sm:text-[44px] leading-tight">
               About <span className="gold-text">Revora Growth Systems</span>
             </h1>
             <p className="mt-5 max-w-2xl text-[15px] leading-relaxed text-muted-foreground">

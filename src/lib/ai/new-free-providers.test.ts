@@ -100,6 +100,9 @@ describe("new free providers", () => {
 
 describe("web search", () => {
   it("falls through to the next provider with a key", async () => {
+    // Isolate from ambient deployment keys that rank ahead of Tavily/Jina.
+    vi.stubEnv("PERPLEXITY_API_KEY_1", "");
+    vi.stubEnv("PERPLEXITY_API_KEY", "");
     process.env["TAVILY_API_KEY"] = "tv";
     process.env["JINA_API_KEY"] = "jn";
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {

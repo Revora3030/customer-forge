@@ -8,6 +8,7 @@ import { useState } from "react";
 import { toast } from "@/lib/ui/notify";
 import { Mail } from "lucide-react";
 import { SiteFooter, SiteHeader } from "@/components/marketing/Chrome";
+import { BookACall } from "@/components/marketing/BookACall";
 import { RevoraMobileBar, SupportCard } from "@/components/marketing/SalesCTA";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -78,7 +79,7 @@ function Contact() {
         <div className="grid gap-10 lg:grid-cols-[1fr_1fr] lg:items-start lg:gap-12">
           <div>
             <p className="eyebrow">Contact Revora</p>
-            <h1 className="mt-2 font-display text-[clamp(2rem,4vw,2.8rem)] leading-tight font-semibold">
+            <h1 className="mt-2 font-editorial text-balance text-[clamp(2rem,4vw,2.8rem)] leading-tight">
               Let's build your <span className="gold-text">customer growth system</span>.
             </h1>
             <p className="mt-4 max-w-md text-[15px] leading-relaxed text-muted-foreground">
@@ -109,6 +110,8 @@ function Contact() {
                 <Link to="/demo">Request a demo</Link>
               </Button>
             </div>
+
+            <BookACall />
 
             <div className="mt-8">
               <SupportCard />

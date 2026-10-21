@@ -133,8 +133,30 @@ export function hallOfFameChainMs(): number {
 function providerWideFailure(error: unknown): boolean {
   if (!error || typeof error !== "object" || !("category" in error)) return false;
   const category = (error as { category: unknown }).category;
-  return category === "quota" || category === "unauthorized";
+  return category === "quota" || category === "unauthorized" || category === "rate_limited";
 }
+
+/**
+ * Calls in flight per provider across every concurrent walk in this worker.
+ * A build runs many review purposes at once; without this they all hit the
+ * same free service in the same second and its per-minute limit fails them.
+ */
+const inFlight = new Map<string, number>();
+export const HALL_OF_FAME_PER_PROVIDER_CONCURRENCY = 2;
+export function hallOfFameProviderBusy(provider: string): boolean {
+  return (inFlight.get(provider) ?? 0) >= positiveEnvInt("HALL_OF_FAME_PROVIDER_CONCURRENCY", HALL_OF_FAME_PER_PROVIDER_CONCURRENCY);
+}
+function enter(provider: string) {
+  inFlight.set(provider, (inFlight.get(provider) ?? 0) + 1);
+}
+function leave(provider: string) {
+  const next = (inFlight.get(provider) ?? 1) - 1;
+  if (next <= 0) inFlight.delete(provider);
+  else inFlight.set(provider, next);
+}
+
+/** Per-member time limit: free models routinely need 15-40s for a full answer. */
+export const HALL_OF_FAME_MEMBER_MS_DEFAULT = 45_000;
 
 /** A member is not started with less than this much chain time left. */
 const MIN_MEMBER_MS = 1_000;
@@ -173,7 +195,10 @@ export async function callHallOfFame(request: HallOfFameRequest): Promise<HallOf
       attempts,
     };
   }
-  for (const member of squad) {
+  const queue = [...squad];
+  const deferred = new Map<object, number>();
+  while (queue.length) {
+    const member = queue.shift()!;
     if (attempts.length >= maxAttempts) {
       stopReason = `attempt limit ${maxAttempts} reached`;
       break;
@@ -196,6 +221,18 @@ export async function callHallOfFame(request: HallOfFameRequest): Promise<HallOf
       deadProviders.add(member.provider);
       continue;
     }
+    // Busy provider: try the next member now and come back to this one later
+    // (at most twice, after a short pause) instead of piling onto its limit.
+    if (hallOfFameProviderBusy(member.provider)) {
+      const seen = deferred.get(member) ?? 0;
+      if (seen < 2) {
+        deferred.set(member, seen + 1);
+        queue.push(member);
+        if (queue.every((m) => hallOfFameProviderBusy(m.provider))) await new Promise((r) => setTimeout(r, 750));
+        continue;
+      }
+    }
+    enter(member.provider);
     const started = Date.now();
     try {
       request.onAttempt?.(member.provider, member.model);
@@ -217,7 +254,7 @@ export async function callHallOfFame(request: HallOfFameRequest): Promise<HallOf
           // never raises this above its own per-call limit).
           // A slow or wedged provider must not consume the entire chain budget.
           // Keep attempts bounded so the runner can rotate across the free pool.
-          timeoutMs: Math.min(remainingMs, positiveEnvInt("HALL_OF_FAME_MEMBER_MS", 12_000)),
+          timeoutMs: Math.min(remainingMs, positiveEnvInt("HALL_OF_FAME_MEMBER_MS", HALL_OF_FAME_MEMBER_MS_DEFAULT)),
           ...(request.json === true ? { json: true } : {}),
           ...(request.maxOutputTokens === undefined ? {} : { maxOutputTokens: request.maxOutputTokens }),
         },
@@ -255,6 +292,8 @@ export async function callHallOfFame(request: HallOfFameRequest): Promise<HallOf
         detail: error instanceof Error ? error.message.slice(0, 160) : "call failed",
         latencyMs,
       });
+    } finally {
+      leave(member.provider);
     }
   }
   // Fails closed: no deterministic substitute when the squad runs dry.

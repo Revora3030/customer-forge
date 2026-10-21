@@ -70,6 +70,13 @@ describe("no third-party AI gateway remains", () => {
       "integrations/google.server",
       "integrations/capabilities.ts",
       "integrations/live-credentials",
+      // Jarvis read-only checks of Calendar, Sheets, Cloudflare and Resend go
+      // through the connector gateway; presence checks and data reads, no model.
+      "jarvis.functions.ts",
+      "jarvis-diagnostic-tools.server.ts",
+      // Growth Engine posts approved Google profile updates through the
+      // connector gateway; AI drafting goes through the shared router.
+      "growth-engine/service.server.ts",
       // The Astra backup chat lane reads the gateway credential to keep the
       // builder chat alive when the direct OpenAI route is down.
       "ai/gateway-chat.server.ts",
@@ -79,6 +86,8 @@ describe("no third-party AI gateway remains", () => {
       "integrations/research.server.ts",
       // Semrush keyword data for SEO reviewers, via the connector gateway; no model.
       "builder/review-evidence.server.ts",
+      // Calendly booking options for Revora's contact page, via the connector gateway; no model.
+      "calendly.functions.ts",
     ];
     const offenders = APP_FILES.filter((file) => {
       if (!readFileSync(file, "utf8").includes("LOVABLE_API_KEY")) return false;

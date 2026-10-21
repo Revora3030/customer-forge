@@ -65,7 +65,7 @@ function LocalIndustryHub() {
           <span aria-hidden> / </span>
           <span className="text-foreground">{industry.name}</span>
         </nav>
-        <h1 className="mt-4 font-display text-[clamp(1.7rem,4vw,2.5rem)] leading-tight font-semibold">
+        <h1 className="mt-4 font-editorial text-balance text-[clamp(1.7rem,4vw,2.5rem)] leading-tight">
           <span className="gold-hl">{industry.name}</span> growth systems, state by state
         </h1>
         <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-muted-foreground">

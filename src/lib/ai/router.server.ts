@@ -39,6 +39,7 @@ import {
   durableProviderResting,
   noteDurableFreeTokens,
   noteDurableFreeUse,
+  durableRuntimeFor,
   noteDurableProviderResult,
   refreshDurableRuntime,
 } from "@/lib/ai/durable-health.server";
@@ -85,6 +86,9 @@ import { zaiAdapter } from "@/lib/ai/providers/zai";
 import { ollamaAdapter } from "@/lib/ai/providers/ollama";
 import { ovhAdapter } from "@/lib/ai/providers/ovh";
 import { kiloAdapter } from "@/lib/ai/providers/kilo";
+import { omnirouteAdapter } from "@/lib/ai/providers/omniroute";
+import { selfhostedAdapter } from "@/lib/ai/providers/selfhosted";
+import { opencodeAdapter } from "@/lib/ai/providers/opencode";
 import { modelscopeAdapter } from "@/lib/ai/providers/modelscope";
 import { githubModelsAdapter } from "@/lib/ai/providers/github";
 import { nvidiaAdapter } from "@/lib/ai/providers/nvidia";
@@ -133,6 +137,9 @@ const ADAPTERS: Record<ProviderName, ProviderAdapter> = {
   ollama: ollamaAdapter,
   ovh: ovhAdapter,
   kilo: kiloAdapter,
+  omniroute: omnirouteAdapter,
+  selfhosted: selfhostedAdapter,
+  opencode: opencodeAdapter,
   modelscope: modelscopeAdapter,
   github: githubModelsAdapter,
 };
@@ -490,11 +497,16 @@ export function freeAiStatus() {
         (latest, state) => Math.max(latest, state.openUntil > Date.now() ? state.openUntil : 0),
         0,
       );
+      // The shared circuit (every worker) is the fuller truth: a provider
+      // resting there after a spent allowance or rejected key is not ready.
+      const shared = durableRuntimeFor(entry.name);
+      const sharedUntil = shared?.openUntil && shared.openUntil > Date.now() ? shared.openUntil : 0;
+      const until = Math.max(cooldownUntil, sharedUntil);
       return {
         ...entry,
-        healthy: cooldownUntil === 0,
+        healthy: until === 0,
         openFailures: states.reduce((total, state) => total + state.failures, 0),
-        cooldownUntil: cooldownUntil || null,
+        cooldownUntil: until || null,
         isolatedScopes: states.length,
         remainingToday: freeBudgetRemaining(entry.name),
       };
@@ -691,7 +703,10 @@ async function run<T>(
         const started = Date.now();
         const controller = new AbortController();
         // Never let one slow model eat past the chain budget either.
-        const attemptBudget = Math.max(1, Math.min(attemptTimeoutMs, chainDeadline - Date.now()));
+        // A free model that hangs past a minute is not coming back; move on so
+        // one stalled provider cannot eat the whole chain (seen: 90s hangs).
+        const freeCap = candidate.free ? FREE_ATTEMPT_CAP_MS : Number.POSITIVE_INFINITY;
+        const attemptBudget = Math.max(1, Math.min(attemptTimeoutMs, freeCap, chainDeadline - Date.now()));
         const timer = setTimeout(() => controller.abort(), attemptBudget);
         try {
           if (candidate.free) {
@@ -777,6 +792,7 @@ async function run<T>(
               ok: false,
               latencyMs: Date.now() - started,
               rateLimited: error.category === "rate_limited",
+              ...accountRestFor(error.category),
             });
           lastOutcome = {
             at: Date.now(),
@@ -799,6 +815,7 @@ async function run<T>(
             latencyMs: Date.now() - started,
             ok: false,
             errorCategory: error.category,
+            errorDetail: error.detail,
             inputTokens: null,
             outputTokens: null,
             fallbackUsed,
@@ -886,6 +903,25 @@ function chainDeadlineMs() {
   const raw = Number(process.env["AI_CHAIN_DEADLINE_MS"] ?? "");
   return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : 6 * 60_000;
 }
+
+/**
+ * An exhausted allowance or a rejected key will not fix itself in a minute.
+ * Rest the provider on the shared circuit after ONE such answer: quota until
+ * the next UTC day (when free allowances reset, at least 15 minutes), a
+ * rejected key for 6 hours. Other failures keep the normal 3-strike circuit.
+ */
+export function accountRestFor(category: string, now = Date.now()): { failureThreshold?: number; cooldownSeconds?: number } {
+  if (category === "unauthorized") return { failureThreshold: 1, cooldownSeconds: 6 * 3600 };
+  if (category === "quota") {
+    const next = new Date(now);
+    next.setUTCHours(24, 0, 0, 0);
+    return { failureThreshold: 1, cooldownSeconds: Math.max(900, Math.ceil((next.getTime() - now) / 1000)) };
+  }
+  return {};
+}
+
+/** Longest one free-model attempt may run before the chain moves on. */
+export const FREE_ATTEMPT_CAP_MS = 60_000;
 
 /** Failures that describe the whole provider, not one model or one answer. */
 function providerWideFailure(error: RevoraAiError) {
@@ -1495,6 +1531,7 @@ export async function callPinnedFreeModel(
         ok: false,
         latencyMs: Date.now() - started,
         rateLimited: error.category === "rate_limited",
+        ...accountRestFor(error.category),
       });
     void recordAiEvent({
       requestId,
@@ -1506,6 +1543,7 @@ export async function callPinnedFreeModel(
       latencyMs: Date.now() - started,
       ok: false,
       errorCategory: error.category,
+      errorDetail: error.detail,
       inputTokens: null,
       outputTokens: null,
       fallbackUsed: false,

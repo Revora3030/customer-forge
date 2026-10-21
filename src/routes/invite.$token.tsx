@@ -69,7 +69,7 @@ function AcceptInvitePage() {
   return (
     <main className="mx-auto flex min-h-[70vh] w-full max-w-lg flex-col justify-center px-5 py-16">
       <p className="eyebrow">Team invitation</p>
-      <h1 className="mt-2 font-display text-[26px] font-semibold">
+      <h1 className="mt-2 font-editorial text-balance text-[26px]">
         {state.step === "joined" ? "You're in" : "Join your Revora workspace"}
       </h1>
 

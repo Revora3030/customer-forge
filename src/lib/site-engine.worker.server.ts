@@ -20,6 +20,7 @@ import {
 } from "@/lib/builder/job-liveness";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { isPlaceholderPalette } from "@/lib/site-theme";
 
 const QUEUE_ID = "site_engine";
 export const LEASE_SECONDS = 300;
@@ -815,10 +816,20 @@ export async function closeAbandonedJobs(db: Db, organizationId?: string) {
 
 const ABANDONED_JOB_COLUMNS = "id, organization_id, created_by, created_at";
 
-async function deferCutOffJobs(db: Db, now: string, organizationId?: string) {
+type CutOffRow = {
+  id: string;
+  organization_id: string;
+  created_by: string | null;
+  attempts: number;
+  capacity_deferrals?: number | null;
+  lease_expires_at: string | null;
+  current_step?: string | null;
+};
+
+export async function deferCutOffJobs(db: Db, now: string, organizationId?: string) {
   let query = db
     .from("generation_jobs")
-    .select("id, attempts, capacity_deferrals")
+    .select("id, organization_id, created_by, attempts, capacity_deferrals, lease_expires_at, current_step")
     .eq("status", "processing")
     .gte("attempts", MAX_ATTEMPTS)
     .lt("lease_expires_at", now)
@@ -827,12 +838,12 @@ async function deferCutOffJobs(db: Db, now: string, organizationId?: string) {
   const { data, error } = await query;
   if (error || !data?.length) return;
   const { tagFailureMessage } = await import("@/lib/builder/build-failure");
-  for (const row of data as { id: string; attempts: number; capacity_deferrals?: number | null }[]) {
+  for (const row of data as CutOffRow[]) {
     if (typeof row.capacity_deferrals !== "number") continue;
     const verdict = capacityVerdict([], row.capacity_deferrals, Date.now(), { forced: true });
     if (!verdict) continue;
     const reason = "The build was cut off before it could finish; it will pick up from its last saved step.";
-    await db
+    const { data: moved } = await db
       .from("generation_jobs")
       .update({
         status: "queued",
@@ -848,7 +859,32 @@ async function deferCutOffJobs(db: Db, now: string, organizationId?: string) {
       } as never)
       .eq("id", row.id)
       .eq("attempts", row.attempts)
-      .eq("status", "processing");
+      .eq("status", "processing")
+      .select("id")
+      .maybeSingle();
+    if (!moved) continue;
+    // The re-queued job is later claimed as "queued", so claimJob never writes
+    // a lost-attempt marker for it. Without one the resume cannot prove when
+    // the dead attempt stopped writing and refuses to continue
+    // (PartialBuildKeptError). Record it here, once, by the winning update.
+    try {
+      await db.from("ai_generations").insert({
+        organization_id: row.organization_id,
+        job_id: row.id,
+        kind: "build_attempt_lost",
+        model: "none",
+        instruction: null,
+        result: {
+          previousAttempt: Number(row.attempts),
+          previousLeaseExpiresAt: row.lease_expires_at,
+          current_step: row.current_step ?? null,
+          invoker: "cutoff_deferral",
+        } as unknown as never,
+        created_by: row.created_by ?? null,
+      } as never);
+    } catch (error) {
+      console.warn(`[site-engine] lost-attempt record for cut-off job ${row.id} skipped`, error);
+    }
   }
 }
 
@@ -1268,7 +1304,14 @@ async function runJob(
   if (!resumedIdentity && identity.direction) await stageStore.put("identity", identityInputs, identity);
   await touchLease(db, job);
   const direction = identity.direction;
+  // Pure black/white saved colours are an old neutral placeholder, not an
+  // owner brand: the AI team authors the whole palette instead.
+  const placeholderPalette = isPlaceholderPalette({
+    primaryColor: p["primary_color"] as string | null,
+    secondaryColor: p["secondary_color"] as string | null,
+  });
   const ownerColour = (key: string) => {
+    if (placeholderPalette) return null;
     const value = p[key];
     return typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value.trim()) ? value.trim() : null;
   };
@@ -2034,9 +2077,10 @@ async function runJob(
   // without overwriting deliberate colours on an existing workspace.
   const hasOwnerBrand = Boolean(
     ((p["font_preference"] as string) && !isPlatformDefaultFont(p["font_preference"])) ||
-      (p["secondary_color"] as string) ||
-      (p["accent_color"] as string) ||
-      (p["primary_color"] as string),
+      (!placeholderPalette &&
+        ((p["secondary_color"] as string) ||
+          (p["accent_color"] as string) ||
+          (p["primary_color"] as string))),
   );
   if (!built.skipped && direction && !hasOwnerBrand) {
     const { error: themeError } = await db
@@ -2168,6 +2212,9 @@ async function runJob(
         screenshotReference,
         screenshotReferenceObservations: storedReferenceObservations ?? null,
         ...(!built.skipped && direction ? { effects: { backdrop: direction.backdrop, ...(direction.backdropSpec ? { spec: direction.backdropSpec } : {}) } } : {}),
+        // The design team's component treatments (questions, cards, buttons)
+        // ride with the site design so the renderer never invents its own.
+        ...(!built.skipped && direction?.tokens ? { designTokens: direction.tokens } : {}),
       } as unknown as Record<string, unknown>,
       generated_at: new Date().toISOString(),
       review_state: "ready_for_review",

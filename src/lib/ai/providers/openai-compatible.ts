@@ -49,6 +49,17 @@ function usageOf(payload: unknown): AiUsage {
  * some hosts) put their private thinking inside the answer as <think> blocks.
  * That text must never reach a customer's site or a JSON parser.
  */
+/**
+ * Some hosts (Pollinations) answer a spent key with HTTP 200 and the account
+ * notice as the "answer". That text must never reach a customer's site.
+ */
+export function providerAccountNotice(text: string): boolean {
+  return (
+    text.length < 800 &&
+    /(api key used for this request has reached its budget|raise the key budget|top(ping)? up (the|your) (wallet|balance)|insufficient (balance|credits?)|you have (run out|exceeded) (of )?your (free )?(quota|credits?))/i.test(text)
+  );
+}
+
 export function stripReasoning(raw: string): string {
   let text = raw.replace(/<(think|thinking|reasoning)>[\s\S]*?<\/\1>/gi, "");
   // An answer that opens a thinking block and never closes it was cut off
@@ -145,18 +156,57 @@ export function createOpenAiCompatibleAdapter(options: CompatAdapterOptions): Pr
         if (!/max_tokens|max_completion_tokens|maximum|context|too large|exceed/i.test(detail)) break;
         response = await send(fallback);
       }
-      if (!response.ok) throw await providerHttpError(name, response);
-      const payload = (await response.json()) as {
-        choices?: { message?: { content?: string } }[];
+      if (!response.ok) {
+        // OpenCode's free tier answers apps with 403 FreeTierError: the key is
+        // fine but free models are only for its own editor. That never
+        // recovers, so rest the provider like a rejected key.
+        if (response.status === 403) {
+          const detail = await response.clone().text().catch(() => "");
+          if (/FreeTierError|free tier can only be used/i.test(detail))
+            throw new RevoraAiError(401, `Revora's ${name} free tier does not accept app requests.`, {
+              category: "unauthorized",
+              provider: name,
+              detail: detail.slice(0, 200),
+            });
+        }
+        throw await providerHttpError(name, response);
+      }
+      type Payload = {
+        choices?: { message?: { content?: string | null; reasoning?: string | null; reasoning_content?: string | null }; finish_reason?: string | null }[];
         error?: { message?: string };
       };
+      let payload = (await response.json()) as Payload;
+      // Reasoning models (gpt-oss, nemotron, deepseek) can spend the whole
+      // output budget thinking and return empty content with finish "length".
+      // Ask once more with a larger budget instead of discarding the model.
+      if (
+        !stripReasoning(payload.choices?.[0]?.message?.content ?? "") &&
+        payload.choices?.[0]?.finish_reason === "length"
+      ) {
+        const retry = await send(Math.min(16_384, Math.max(4096, (maxOutputTokens ?? 2048) * 2)));
+        if (retry.ok) payload = (await retry.json()) as Payload;
+      }
       if (payload.error?.message)
         throw new RevoraAiError(502, `Revora's ${name} free model returned an error.`, {
           category: "bad_response",
           provider: name,
           detail: payload.error.message.slice(0, 200),
         });
-      const text = stripReasoning(payload.choices?.[0]?.message?.content ?? "");
+      const message = payload.choices?.[0]?.message;
+      let text = stripReasoning(message?.content ?? "");
+      // Last resort for JSON calls: some hosts put the final JSON only in the
+      // reasoning field. Use it only when it contains a JSON object.
+      if (!text && json === true) {
+        const reasoning = message?.reasoning_content ?? message?.reasoning ?? "";
+        const match = reasoning.match(/\{[\s\S]*\}/);
+        if (match) text = match[0];
+      }
+      if (providerAccountNotice(text))
+        throw new RevoraAiError(429, `Revora's ${name} account is out of free allowance.`, {
+          category: "quota",
+          provider: name,
+          detail: text.slice(0, 200),
+        });
       if (text.length === 0)
         throw new RevoraAiError(502, `Revora's ${name} free model returned nothing.`, {
           category: "bad_response",

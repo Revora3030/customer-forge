@@ -439,7 +439,7 @@ function GetStarted() {
           </div>
         ) : null}
         <p className="eyebrow">Get started</p>
-        <h1 className="mt-2 font-display text-[clamp(1.6rem,5vw,2.3rem)] leading-tight font-semibold">
+        <h1 className="mt-2 font-editorial text-balance text-[clamp(1.6rem,5vw,2.3rem)] leading-tight">
           {GROWTH_SYSTEM.headline}
         </h1>
         <p className="mt-3 text-[14px] leading-relaxed text-muted-foreground">

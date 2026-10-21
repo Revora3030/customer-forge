@@ -120,7 +120,7 @@ function Pricing() {
       <SiteHeader />
       <main className="hero-aura mx-auto max-w-5xl px-4 py-16">
         <p className="eyebrow">Pricing</p>
-        <h1 className="mt-2 font-display text-[clamp(2rem,4vw,2.8rem)] leading-tight font-semibold">
+        <h1 className="mt-2 font-editorial text-balance text-[clamp(2rem,4vw,2.8rem)] leading-tight">
           {GROWTH_SYSTEM.headline}
         </h1>
         <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-muted-foreground">
@@ -130,7 +130,7 @@ function Pricing() {
           <TrialBadge />
         </div>
 
-        <section className="panel card-lift mt-10 overflow-hidden p-0">
+        <section className="panel hairline-gold card-lift mt-10 overflow-hidden p-0">
           <div className={`grid gap-0 ${split ? "md:grid-cols-[1.1fr_1fr]" : ""}`}>
             <div
               className={`min-w-0 border-b border-border p-6 sm:p-7 ${

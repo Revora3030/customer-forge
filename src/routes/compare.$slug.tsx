@@ -75,7 +75,7 @@ function ComparePage() {
           <span aria-hidden> / </span>
           <span className="text-foreground">{comparison.label}</span>
         </nav>
-        <h1 className="mt-4 font-display text-[clamp(1.7rem,4vw,2.4rem)] leading-tight font-semibold">
+        <h1 className="mt-4 font-editorial text-balance text-[clamp(1.7rem,4vw,2.4rem)] leading-tight">
           {comparison.heading}
         </h1>
         <p className="mt-4 text-[15px] leading-relaxed text-muted-foreground">{comparison.intro}</p>

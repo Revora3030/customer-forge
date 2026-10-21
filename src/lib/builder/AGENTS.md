@@ -1,0 +1,1 @@
+- Chat edit scoping is model-declared (planner `scope` field) plus the point-and-edit block id, enforced in `edit-scope.ts` by dropping out-of-scope actions before apply; it must stay fail-open and never keyword-classify requests.

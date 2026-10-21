@@ -94,7 +94,7 @@ function ContractorCrmPage() {
       <SiteHeader />
       <main className="hero-aura mx-auto max-w-5xl px-4 py-16">
         <p className="eyebrow">CRM for contractors</p>
-        <h1 className="mt-2 max-w-3xl font-display text-[clamp(2rem,4.4vw,3rem)] leading-tight font-semibold">
+        <h1 className="mt-2 max-w-3xl font-editorial text-balance text-[clamp(2rem,4.4vw,3rem)] leading-tight">
           A contractor CRM that is <span className="text-primary">wired into your website</span>
         </h1>
         <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-muted-foreground">

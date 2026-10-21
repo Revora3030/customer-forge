@@ -392,6 +392,7 @@ export type Database = {
         Row: {
           created_at: string
           error_category: string | null
+          error_detail: string | null
           estimated_cost_usd: number | null
           fallback_used: boolean
           id: string
@@ -410,6 +411,7 @@ export type Database = {
         Insert: {
           created_at?: string
           error_category?: string | null
+          error_detail?: string | null
           estimated_cost_usd?: number | null
           fallback_used?: boolean
           id?: string
@@ -428,6 +430,7 @@ export type Database = {
         Update: {
           created_at?: string
           error_category?: string | null
+          error_detail?: string | null
           estimated_cost_usd?: number | null
           fallback_used?: boolean
           id?: string
@@ -624,6 +627,95 @@ export type Database = {
             referencedColumns: ["id", "organization_id"]
           },
         ]
+      }
+      approval_item_versions: {
+        Row: {
+          content: Json
+          created_at: string
+          edited_by: string | null
+          id: string
+          queue_id: string
+          version: number
+        }
+        Insert: {
+          content: Json
+          created_at?: string
+          edited_by?: string | null
+          id?: string
+          queue_id: string
+          version: number
+        }
+        Update: {
+          content?: Json
+          created_at?: string
+          edited_by?: string | null
+          id?: string
+          queue_id?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "approval_item_versions_queue_id_fkey"
+            columns: ["queue_id"]
+            isOneToOne: false
+            referencedRelation: "approval_queue"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      approval_queue: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          created_at: string
+          executed_at: string | null
+          execution_key: string
+          execution_note: string | null
+          id: string
+          item_id: string
+          item_type: string
+          module: string
+          preview: string | null
+          rejected_reason: string | null
+          risk_level: string
+          status: string
+          summary: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string
+          executed_at?: string | null
+          execution_key?: string
+          execution_note?: string | null
+          id?: string
+          item_id: string
+          item_type: string
+          module: string
+          preview?: string | null
+          rejected_reason?: string | null
+          risk_level?: string
+          status?: string
+          summary: string
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string
+          executed_at?: string | null
+          execution_key?: string
+          execution_note?: string | null
+          id?: string
+          item_id?: string
+          item_type?: string
+          module?: string
+          preview?: string | null
+          rejected_reason?: string | null
+          risk_level?: string
+          status?: string
+          summary?: string
+        }
+        Relationships: []
       }
       audit_logs: {
         Row: {
@@ -1181,6 +1273,62 @@ export type Database = {
           },
         ]
       }
+      content_drafts: {
+        Row: {
+          approved_by: string | null
+          body: string
+          business_id: string | null
+          created_at: string
+          created_by_ai: boolean
+          extras: Json
+          id: string
+          meta_description: string | null
+          published_at: string | null
+          scheduled_for: string | null
+          status: string
+          title: string | null
+          type: string
+        }
+        Insert: {
+          approved_by?: string | null
+          body?: string
+          business_id?: string | null
+          created_at?: string
+          created_by_ai?: boolean
+          extras?: Json
+          id?: string
+          meta_description?: string | null
+          published_at?: string | null
+          scheduled_for?: string | null
+          status?: string
+          title?: string | null
+          type: string
+        }
+        Update: {
+          approved_by?: string | null
+          body?: string
+          business_id?: string | null
+          created_at?: string
+          created_by_ai?: boolean
+          extras?: Json
+          id?: string
+          meta_description?: string | null
+          published_at?: string | null
+          scheduled_for?: string | null
+          status?: string
+          title?: string | null
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "content_drafts_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "growth_businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customers: {
         Row: {
           address: string | null
@@ -1301,6 +1449,56 @@ export type Database = {
           },
         ]
       }
+      directory_listings: {
+        Row: {
+          business_id: string
+          created_at: string
+          directory_name: string
+          id: string
+          listed_address: string | null
+          listed_name: string | null
+          listed_phone: string | null
+          package: Json | null
+          status: string
+          submitted_at: string | null
+          url: string | null
+        }
+        Insert: {
+          business_id: string
+          created_at?: string
+          directory_name: string
+          id?: string
+          listed_address?: string | null
+          listed_name?: string | null
+          listed_phone?: string | null
+          package?: Json | null
+          status?: string
+          submitted_at?: string | null
+          url?: string | null
+        }
+        Update: {
+          business_id?: string
+          created_at?: string
+          directory_name?: string
+          id?: string
+          listed_address?: string | null
+          listed_name?: string | null
+          listed_phone?: string | null
+          package?: Json | null
+          status?: string
+          submitted_at?: string | null
+          url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "directory_listings_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "growth_businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       error_events: {
         Row: {
           context: Json
@@ -1366,6 +1564,68 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "public_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      gbp_profiles: {
+        Row: {
+          avg_rating: number | null
+          business_id: string
+          category: string | null
+          fix_list: Json
+          has_booking_link: boolean
+          has_description: boolean
+          hours: Json | null
+          last_photo_date: string | null
+          last_post_date: string | null
+          optimization_score: number | null
+          photos_count: number
+          posts_count: number
+          profile_url: string | null
+          reviews_count: number
+          updated_at: string
+        }
+        Insert: {
+          avg_rating?: number | null
+          business_id: string
+          category?: string | null
+          fix_list?: Json
+          has_booking_link?: boolean
+          has_description?: boolean
+          hours?: Json | null
+          last_photo_date?: string | null
+          last_post_date?: string | null
+          optimization_score?: number | null
+          photos_count?: number
+          posts_count?: number
+          profile_url?: string | null
+          reviews_count?: number
+          updated_at?: string
+        }
+        Update: {
+          avg_rating?: number | null
+          business_id?: string
+          category?: string | null
+          fix_list?: Json
+          has_booking_link?: boolean
+          has_description?: boolean
+          hours?: Json | null
+          last_photo_date?: string | null
+          last_post_date?: string | null
+          optimization_score?: number | null
+          photos_count?: number
+          posts_count?: number
+          profile_url?: string | null
+          reviews_count?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gbp_profiles_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: true
+            referencedRelation: "growth_businesses"
             referencedColumns: ["id"]
           },
         ]
@@ -1471,6 +1731,72 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      growth_businesses: {
+        Row: {
+          address: string | null
+          city: string | null
+          created_at: string
+          email: string | null
+          gbp_claimed: boolean
+          id: string
+          name: string
+          niche: string | null
+          phone: string | null
+          service_area: string | null
+          source: string
+          website_status: string
+          website_url: string | null
+        }
+        Insert: {
+          address?: string | null
+          city?: string | null
+          created_at?: string
+          email?: string | null
+          gbp_claimed?: boolean
+          id?: string
+          name: string
+          niche?: string | null
+          phone?: string | null
+          service_area?: string | null
+          source?: string
+          website_status?: string
+          website_url?: string | null
+        }
+        Update: {
+          address?: string | null
+          city?: string | null
+          created_at?: string
+          email?: string | null
+          gbp_claimed?: boolean
+          id?: string
+          name?: string
+          niche?: string | null
+          phone?: string | null
+          service_area?: string | null
+          source?: string
+          website_status?: string
+          website_url?: string | null
+        }
+        Relationships: []
+      }
+      growth_daily_caps: {
+        Row: {
+          day: string
+          platform: string
+          used: number
+        }
+        Insert: {
+          day?: string
+          platform: string
+          used?: number
+        }
+        Update: {
+          day?: string
+          platform?: string
+          used?: number
+        }
+        Relationships: []
       }
       image_records: {
         Row: {
@@ -2603,6 +2929,42 @@ export type Database = {
           },
         ]
       }
+      local_events: {
+        Row: {
+          created_at: string
+          event_date: string | null
+          event_name: string
+          id: string
+          location: string | null
+          notes: string | null
+          relevance_score: number
+          status: string
+          url: string | null
+        }
+        Insert: {
+          created_at?: string
+          event_date?: string | null
+          event_name: string
+          id?: string
+          location?: string | null
+          notes?: string | null
+          relevance_score?: number
+          status?: string
+          url?: string | null
+        }
+        Update: {
+          created_at?: string
+          event_date?: string | null
+          event_name?: string
+          id?: string
+          location?: string | null
+          notes?: string | null
+          relevance_score?: number
+          status?: string
+          url?: string | null
+        }
+        Relationships: []
+      }
       luna_budget_state: {
         Row: {
           calls: number
@@ -3067,6 +3429,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      partnership_leads: {
+        Row: {
+          business_name: string
+          business_type: string | null
+          contact_email: string | null
+          created_at: string
+          id: string
+          pitch_draft: string | null
+          place_id: string | null
+          status: string
+        }
+        Insert: {
+          business_name: string
+          business_type?: string | null
+          contact_email?: string | null
+          created_at?: string
+          id?: string
+          pitch_draft?: string | null
+          place_id?: string | null
+          status?: string
+        }
+        Update: {
+          business_name?: string
+          business_type?: string | null
+          contact_email?: string | null
+          created_at?: string
+          id?: string
+          pitch_draft?: string | null
+          place_id?: string | null
+          status?: string
+        }
+        Relationships: []
       }
       payment_events: {
         Row: {
@@ -4215,6 +4610,48 @@ export type Database = {
           },
         ]
       }
+      qna_monitor: {
+        Row: {
+          created_at: string
+          draft_reply: string | null
+          id: string
+          matched_niche: string | null
+          post_text: string | null
+          post_title: string | null
+          post_url: string
+          posted_at: string | null
+          relevance: number
+          source_platform: string
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          draft_reply?: string | null
+          id?: string
+          matched_niche?: string | null
+          post_text?: string | null
+          post_title?: string | null
+          post_url: string
+          posted_at?: string | null
+          relevance?: number
+          source_platform: string
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          draft_reply?: string | null
+          id?: string
+          matched_niche?: string | null
+          post_text?: string | null
+          post_title?: string | null
+          post_url?: string
+          posted_at?: string | null
+          relevance?: number
+          source_platform?: string
+          status?: string
+        }
+        Relationships: []
+      }
       quote_addons: {
         Row: {
           created_at: string
@@ -4624,6 +5061,110 @@ export type Database = {
         }
         Relationships: []
       }
+      referral_program: {
+        Row: {
+          code: string
+          consent_at: string | null
+          created_at: string
+          id: string
+          incentive_type: string
+          referred_contact: string | null
+          referrer_email: string | null
+          referrer_name: string
+          reward_value: number | null
+          status: string
+        }
+        Insert: {
+          code: string
+          consent_at?: string | null
+          created_at?: string
+          id?: string
+          incentive_type?: string
+          referred_contact?: string | null
+          referrer_email?: string | null
+          referrer_name: string
+          reward_value?: number | null
+          status?: string
+        }
+        Update: {
+          code?: string
+          consent_at?: string | null
+          created_at?: string
+          id?: string
+          incentive_type?: string
+          referred_contact?: string | null
+          referrer_email?: string | null
+          referrer_name?: string
+          reward_value?: number | null
+          status?: string
+        }
+        Relationships: []
+      }
+      review_requests: {
+        Row: {
+          business_id: string | null
+          channel: string
+          clicked: boolean
+          created_at: string
+          customer_email: string | null
+          customer_name: string
+          customer_phone: string | null
+          email_consent_at: string | null
+          id: string
+          job_id: string | null
+          platform: string
+          reminder_sent_at: string | null
+          review_left: boolean
+          review_link: string | null
+          sent_at: string | null
+          sms_consent_at: string | null
+        }
+        Insert: {
+          business_id?: string | null
+          channel?: string
+          clicked?: boolean
+          created_at?: string
+          customer_email?: string | null
+          customer_name: string
+          customer_phone?: string | null
+          email_consent_at?: string | null
+          id?: string
+          job_id?: string | null
+          platform?: string
+          reminder_sent_at?: string | null
+          review_left?: boolean
+          review_link?: string | null
+          sent_at?: string | null
+          sms_consent_at?: string | null
+        }
+        Update: {
+          business_id?: string | null
+          channel?: string
+          clicked?: boolean
+          created_at?: string
+          customer_email?: string | null
+          customer_name?: string
+          customer_phone?: string | null
+          email_consent_at?: string | null
+          id?: string
+          job_id?: string | null
+          platform?: string
+          reminder_sent_at?: string | null
+          review_left?: boolean
+          review_link?: string | null
+          sent_at?: string | null
+          sms_consent_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "review_requests_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "growth_businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       reviews: {
         Row: {
           appointment_id: string | null
@@ -4825,6 +5366,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      social_posts: {
+        Row: {
+          caption: string
+          created_at: string
+          engagement_metrics: Json
+          id: string
+          media_url: string | null
+          platform: string
+          scheduled_for: string | null
+          status: string
+        }
+        Insert: {
+          caption: string
+          created_at?: string
+          engagement_metrics?: Json
+          id?: string
+          media_url?: string | null
+          platform?: string
+          scheduled_for?: string | null
+          status?: string
+        }
+        Update: {
+          caption?: string
+          created_at?: string
+          engagement_metrics?: Json
+          id?: string
+          media_url?: string | null
+          platform?: string
+          scheduled_for?: string | null
+          status?: string
+        }
+        Relationships: []
       }
       social_profiles: {
         Row: {

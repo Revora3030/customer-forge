@@ -65,7 +65,7 @@ function NotFoundPage() {
   return (
     <div className="flex min-h-screen items-center justify-center px-4 text-center">
       <div>
-        <h1 className="font-display text-[22px] font-semibold">Page not found</h1>
+        <h1 className="font-editorial text-balance text-[22px]">Page not found</h1>
         <p className="mt-2 text-[13px] text-muted-foreground">
           This address isn&apos;t in use. Check the link, or start from the home page.
         </p>

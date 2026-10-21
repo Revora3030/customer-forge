@@ -39,6 +39,9 @@ export type ProviderName =
   | "ollama"
   | "ovh"
   | "kilo"
+  | "omniroute"
+  | "selfhosted"
+  | "opencode"
   | "modelscope"
   | "github";
 

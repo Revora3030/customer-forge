@@ -103,7 +103,7 @@ function AdminPayments() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="eyebrow">Payments</p>
-          <h1 className="mt-1 font-display text-[24px] font-semibold">Verified transactions</h1>
+          <h1 className="mt-1 font-editorial text-[30px] leading-tight">Verified transactions</h1>
         </div>
         <Pill tone="neutral">Stripe</Pill>
       </div>

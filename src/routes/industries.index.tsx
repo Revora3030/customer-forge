@@ -33,7 +33,7 @@ function Industries() {
       <SiteHeader />
       <main className="hero-aura mx-auto max-w-6xl px-4 py-16">
         <p className="eyebrow">Industries</p>
-        <h1 className="mt-2 font-display text-[clamp(2rem,4vw,2.8rem)] leading-tight font-semibold">
+        <h1 className="mt-2 font-editorial text-balance text-[clamp(2rem,4vw,2.8rem)] leading-tight">
           Every trade sells differently
         </h1>
         <p className="mt-4 max-w-xl text-[15px] leading-relaxed text-muted-foreground">
