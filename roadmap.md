@@ -1,5 +1,11 @@
 # Roadmap — Five-phase blocker elimination
 
+## Uploaded one-click website brief (2026-10-21)
+- [ ] Audit current generation, brief controls, preview, rendered quality and publishing against the uploaded requirements.
+- [ ] Implement evidence-backed gaps using the existing AI pipeline and customer builder, with offline regression tests.
+- [ ] Verify signed-in controls and preview at mobile/desktop; report measured checks separately from unrun generation/publishing.
+- [ ] Real generation and publishing verification BLOCKED: paid balances exhausted; no new provider spend or production publishing authorized. Preserve daily site limit 5.
+
 ## Instagram posting through Jarvis (2026-10-21)
 - [x] Linked Reel caption can be read; video not watched. Owner asked to upload it for visual review.
 - [x] Custom Instagram authorization, encrypted owner-bound account credentials, disconnect/reconnect implemented; additive server-only storage migration applied.
