@@ -22,6 +22,7 @@ import { Route as GrowthAssessmentRouteImport } from './routes/growth-assessment
 import { Route as IndexnowKeyDottxtRouteImport } from './routes/indexnow-key[.]txt'
 import { Route as IndustriesRouteImport } from './routes/industries'
 import { Route as LlmsDottxtRouteImport } from './routes/llms[.]txt'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as ManifestDotwebmanifestRouteImport } from './routes/manifest[.]webmanifest'
 import { Route as McpRouteImport } from './routes/mcp'
 import { Route as PortalRouteImport } from './routes/portal'
@@ -30,6 +31,7 @@ import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
 import { Route as ShareRouteImport } from './routes/share'
+import { Route as SignupRouteImport } from './routes/signup'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as ToolsRouteImport } from './routes/tools'
@@ -189,6 +191,11 @@ const LlmsDottxtRoute = LlmsDottxtRouteImport.update({
   path: '/llms.txt',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ManifestDotwebmanifestRoute = ManifestDotwebmanifestRouteImport.update({
   id: '/manifest.webmanifest',
   path: '/manifest.webmanifest',
@@ -227,6 +234,11 @@ const RobotsDottxtRoute = RobotsDottxtRouteImport.update({
 const ShareRoute = ShareRouteImport.update({
   id: '/share',
   path: '/share',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SignupRoute = SignupRouteImport.update({
+  id: '/signup',
+  path: '/signup',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
@@ -746,6 +758,7 @@ export interface FileRoutesByFullPath {
   '/indexnow-key.txt': typeof IndexnowKeyDottxtRoute
   '/industries': typeof IndustriesRouteWithChildren
   '/llms.txt': typeof LlmsDottxtRoute
+  '/login': typeof LoginRoute
   '/manifest.webmanifest': typeof ManifestDotwebmanifestRoute
   '/mcp': typeof McpRoute
   '/portal': typeof PortalRoute
@@ -754,6 +767,7 @@ export interface FileRoutesByFullPath {
   '/reset-password': typeof ResetPasswordRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/share': typeof ShareRoute
+  '/signup': typeof SignupRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/terms': typeof TermsRoute
   '/tools': typeof ToolsRoute
@@ -860,6 +874,7 @@ export interface FileRoutesByTo {
   '/growth-assessment': typeof GrowthAssessmentRoute
   '/indexnow-key.txt': typeof IndexnowKeyDottxtRoute
   '/llms.txt': typeof LlmsDottxtRoute
+  '/login': typeof LoginRoute
   '/manifest.webmanifest': typeof ManifestDotwebmanifestRoute
   '/mcp': typeof McpRoute
   '/portal': typeof PortalRoute
@@ -868,6 +883,7 @@ export interface FileRoutesByTo {
   '/reset-password': typeof ResetPasswordRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/share': typeof ShareRoute
+  '/signup': typeof SignupRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/terms': typeof TermsRoute
   '/tools': typeof ToolsRoute
@@ -975,6 +991,7 @@ export interface FileRoutesById {
   '/indexnow-key.txt': typeof IndexnowKeyDottxtRoute
   '/industries': typeof IndustriesRouteWithChildren
   '/llms.txt': typeof LlmsDottxtRoute
+  '/login': typeof LoginRoute
   '/manifest.webmanifest': typeof ManifestDotwebmanifestRoute
   '/mcp': typeof McpRoute
   '/portal': typeof PortalRoute
@@ -983,6 +1000,7 @@ export interface FileRoutesById {
   '/reset-password': typeof ResetPasswordRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/share': typeof ShareRoute
+  '/signup': typeof SignupRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/terms': typeof TermsRoute
   '/tools': typeof ToolsRoute
@@ -1093,6 +1111,7 @@ export interface FileRouteTypes {
     | '/indexnow-key.txt'
     | '/industries'
     | '/llms.txt'
+    | '/login'
     | '/manifest.webmanifest'
     | '/mcp'
     | '/portal'
@@ -1101,6 +1120,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/robots.txt'
     | '/share'
+    | '/signup'
     | '/sitemap.xml'
     | '/terms'
     | '/tools'
@@ -1207,6 +1227,7 @@ export interface FileRouteTypes {
     | '/growth-assessment'
     | '/indexnow-key.txt'
     | '/llms.txt'
+    | '/login'
     | '/manifest.webmanifest'
     | '/mcp'
     | '/portal'
@@ -1215,6 +1236,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/robots.txt'
     | '/share'
+    | '/signup'
     | '/sitemap.xml'
     | '/terms'
     | '/tools'
@@ -1321,6 +1343,7 @@ export interface FileRouteTypes {
     | '/indexnow-key.txt'
     | '/industries'
     | '/llms.txt'
+    | '/login'
     | '/manifest.webmanifest'
     | '/mcp'
     | '/portal'
@@ -1329,6 +1352,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/robots.txt'
     | '/share'
+    | '/signup'
     | '/sitemap.xml'
     | '/terms'
     | '/tools'
@@ -1439,6 +1463,7 @@ export interface RootRouteChildren {
   IndexnowKeyDottxtRoute: typeof IndexnowKeyDottxtRoute
   IndustriesRoute: typeof IndustriesRouteWithChildren
   LlmsDottxtRoute: typeof LlmsDottxtRoute
+  LoginRoute: typeof LoginRoute
   ManifestDotwebmanifestRoute: typeof ManifestDotwebmanifestRoute
   McpRoute: typeof McpRoute
   PortalRoute: typeof PortalRoute
@@ -1447,6 +1472,7 @@ export interface RootRouteChildren {
   ResetPasswordRoute: typeof ResetPasswordRoute
   RobotsDottxtRoute: typeof RobotsDottxtRoute
   ShareRoute: typeof ShareRoute
+  SignupRoute: typeof SignupRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   TermsRoute: typeof TermsRoute
   ToolsRoute: typeof ToolsRoute
@@ -1588,6 +1614,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LlmsDottxtRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/manifest.webmanifest': {
       id: '/manifest.webmanifest'
       path: '/manifest.webmanifest'
@@ -1642,6 +1675,13 @@ declare module '@tanstack/react-router' {
       path: '/share'
       fullPath: '/share'
       preLoaderRoute: typeof ShareRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/signup': {
+      id: '/signup'
+      path: '/signup'
+      fullPath: '/signup'
+      preLoaderRoute: typeof SignupRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/sitemap.xml': {
@@ -2502,6 +2542,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexnowKeyDottxtRoute: IndexnowKeyDottxtRoute,
   IndustriesRoute: IndustriesRouteWithChildren,
   LlmsDottxtRoute: LlmsDottxtRoute,
+  LoginRoute: LoginRoute,
   ManifestDotwebmanifestRoute: ManifestDotwebmanifestRoute,
   McpRoute: McpRoute,
   PortalRoute: PortalRoute,
@@ -2510,6 +2551,7 @@ const rootRouteChildren: RootRouteChildren = {
   ResetPasswordRoute: ResetPasswordRoute,
   RobotsDottxtRoute: RobotsDottxtRoute,
   ShareRoute: ShareRoute,
+  SignupRoute: SignupRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   TermsRoute: TermsRoute,
   ToolsRoute: ToolsRoute,
