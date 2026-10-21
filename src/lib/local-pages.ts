@@ -195,7 +195,7 @@ export function localPageContent(
   const metroList = metros.join(", ");
   const topMetros = metros.slice(0, 3).join(", ");
   const path = localPath(industry.slug, state.slug);
-  const lowerName = industry.name.toLowerCase();
+  const lowerName = industry.name === industry.name.toUpperCase() ? industry.name : industry.name.toLowerCase();
 
   return {
     industry,
