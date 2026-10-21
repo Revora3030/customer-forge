@@ -1,8 +1,9 @@
 # Roadmap — Five-phase blocker elimination
 
 ## Continued builder upgrade (2026-10-21)
-- [ ] Repair preview compare, fullscreen measurement and unavailable comparison states; validate signed-in controls without generation or publishing.
-- [ ] Run offline regression suite and report remaining live-verification blockers.
+- [x] Unpublished overlay retains draft; failed diff says unavailable; fullscreen remeasures, Escape exits/restores focus and scrolling; phone starts at 390px; contrast scan no longer claims full AA compliance; draft notifications are workspace-scoped.
+- [x] Signed-in existing draft renders on desktop/phone; fullscreen/Escape/focus/compare controls checked without page errors or generation. Offline suite: 3,150 passed, 6 live tests skipped; focused lint clean; harness build OK.
+- [ ] Live generation/publishing and full interaction QA remain blocked by absent spend/publish authorization; fullscreen comprehensive keyboard trapping and iframe network-failure recovery need further implementation/verification.
 
 ## Uploaded one-click website brief (2026-10-21)
 - [x] Audit current generation, brief controls, preview, rendered quality and publishing against the uploaded requirements; served HTML does not prove screen/form/image/browser QA.
