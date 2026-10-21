@@ -46,12 +46,12 @@ export const getJarvisHistory = createServerFn({ method: "GET" })
   .validator((input: { before?: string } | undefined) => parseHistoryCursor(input))
   .handler(async ({ context, data: cursor }) => {
     const db = await guardedAdmin(context);
-    let query = db.from("jarvis_messages").select("id,role,content,created_at")
+    let query = db.from("jarvis_messages").select("id,role,content,created_at,run_id")
       .eq("user_id", String(context.userId));
     if (cursor.before) query = query.lt("created_at", cursor.before);
     const { data, error } = await query.order("created_at", { ascending: false }).limit(JARVIS_HISTORY_PAGE);
     if (error) throw new Error("Couldn't load your Jarvis chat.");
-    return ((data ?? []) as (Turn & { id: string; created_at: string })[]).reverse();
+    return ((data ?? []) as (Turn & { id: string; created_at: string; run_id: string | null })[]).reverse();
   });
 
 export const clearJarvisHistory = createServerFn({ method: "POST" })
@@ -805,4 +805,46 @@ export const listJarvisApprovalLogFn = createServerFn({ method: "GET" })
       entityId: row.entity_id ? String(row.entity_id) : null,
       at: String(row.created_at),
     }));
+  });
+
+/** Owner-only: the recorded steps of one Jarvis run, oldest first. */
+export const getJarvisRunEvents = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: { runId?: unknown }) => {
+    const runId = typeof input?.runId === "string" && /^[0-9a-f-]{36}$/i.test(input.runId) ? input.runId : null;
+    if (!runId) throw new Error("Invalid run");
+    return { runId };
+  })
+  .handler(async ({ context, data }) => {
+    await guardedAdmin(context);
+    const supabase = context.supabase as unknown as import("@supabase/supabase-js").SupabaseClient;
+    const { data: rows, error } = await supabase
+      .from("jarvis_run_events")
+      .select("id,run_id,step,kind,tool_id,label,status,started_at,finished_at,duration_ms,input_summary,output_summary,error,artifact_url,provider,model")
+      .eq("run_id", data.runId)
+      .order("step")
+      .order("started_at")
+      .limit(200);
+    if (error) throw new Error("Couldn't load this run's steps.");
+    return (rows ?? []) as import("./jarvis-events").RunEvent[];
+  });
+
+/** Owner-only: provider health from recorded calls; key presence is a boolean only. */
+export const getJarvisModelStatus = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const db = await guardedAdmin(context);
+    const since = new Date(Date.now() - 86400000).toISOString();
+    const [runtime, trace] = await Promise.all([
+      db.from("ai_provider_runtime").select("provider,day,used,failures,open_until,last_success_at,last_failure_at,last_latency_ms,rate_limited_at").order("day", { ascending: false }).limit(500),
+      db.from("ai_team_trace").select("provider,model,ok,created_at").gte("created_at", since).limit(10000),
+    ]);
+    if (runtime.error || trace.error) throw new Error("Couldn't read AI health records.");
+    const { classifyProviders, configuredProviders } = await import("./jarvis-model-status");
+    return classifyProviders({
+      runtime: (runtime.data ?? []) as never,
+      trace: (trace.data ?? []) as never,
+      configured: configuredProviders(process.env),
+      now: Date.now(),
+    });
   });
