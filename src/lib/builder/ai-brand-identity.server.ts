@@ -16,6 +16,14 @@ import { safeColor } from "@/lib/site-style";
 import { siteHeadingFont } from "@/lib/site-theme";
 import { callBestThinker } from "@/lib/ai/hall-of-fame.server";
 import { paletteProblems } from "@/lib/builder/palette-guard";
+import {
+  BUTTON_STYLES,
+  CARD_STYLES,
+  FAQ_STYLES,
+  missingComponentTokens,
+  safeDesignTokens,
+  type DesignTokens,
+} from "@/lib/builder/design-tokens";
 
 export type BrandIdentityInput = {
   organizationId: string;
@@ -84,6 +92,15 @@ function schemaPrompt(input: BrandIdentityInput): string {
         },
         sectionEffects: { "<any section type you plan, e.g. hero>": "motion id" },
         defaultEffect: "motion id for section types you did not list",
+        components: {
+          faq: FAQ_STYLES.join(" | "),
+          card: CARD_STYLES.join(" | "),
+          button: BUTTON_STYLES.join(" | "),
+          radius: "0-40 px corner radius for cards and panels",
+          buttonRadius: "0-999 px (999 = pill)",
+          space: "0.6-1.6 section spacing rhythm",
+          shadow: "none | subtle | medium | strong",
+        },
       },
       null,
       2,
