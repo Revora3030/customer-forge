@@ -42,7 +42,11 @@ export type CodeChange =
 
 export type PullRequestProposal = { title: string; summary: string; changes: CodeChange[] };
 
+/** Paid web-grounded research presets the owner can approve (never the expensive deep ones by default). */
+export type ResearchPreset = "fast" | "low" | "medium";
+
 export type WriteProposal =
+  | { id: "research.ask"; question: string; preset: ResearchPreset }
   | { id: "demo.build"; input: ProspectDemoInput }
   | { id: "code.pr"; pr: PullRequestProposal }
   | { id: "claude.code"; request: string }
