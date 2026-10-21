@@ -74,6 +74,9 @@ describe("no third-party AI gateway remains", () => {
       // through the connector gateway; presence checks and data reads, no model.
       "jarvis.functions.ts",
       "jarvis-diagnostic-tools.server.ts",
+      // Growth Engine posts approved Google profile updates through the
+      // connector gateway; AI drafting goes through the shared router.
+      "growth-engine/service.server.ts",
       // The Astra backup chat lane reads the gateway credential to keep the
       // builder chat alive when the direct OpenAI route is down.
       "ai/gateway-chat.server.ts",

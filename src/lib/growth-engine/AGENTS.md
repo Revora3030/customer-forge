@@ -1,0 +1,1 @@
+- Growth Engine is super-admin only: every outward action goes through approval_queue and is re-checked by rules.ts on approval; pitches, forum replies and directory submissions are never auto-executed, keeping compliance out of AI control.
