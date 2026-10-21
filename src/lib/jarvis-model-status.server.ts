@@ -5,7 +5,6 @@ export function configuredProviders(env: Readonly<Record<string, string | undefi
     google: has("GEMINI_API_KEY", "GOOGLE_AI_API_KEY", "GOOGLE_GENERATIVE_AI_API_KEY"),
     openai: has("OPENAI_API_KEY"),
     anthropic: has("ANTHROPIC_API_KEY"),
-    lovable: has("LOVABLE_API_KEY"),
     groq: has("GROQ_API_KEY"),
     cerebras: has("CEREBRAS_API_KEY", "Cerebras"),
     mistral: has("MISTRAL_API_KEY", "Mistral"),
