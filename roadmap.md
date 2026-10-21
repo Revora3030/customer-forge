@@ -157,3 +157,9 @@ Owner approved porting two ideas (audit of the uploaded Next.js project; auto pa
 - [x] Builds stuck "kept" forever: a failed retry never recorded when the attempt stopped, so every later retry failed the same way. The end marker is now written on that path too.
 - [x] Wrong owner guidance: a build refused for thin business facts told the owner it "resumes automatically". It now says to add business details and retry; real structure problems stay retryable.
 - [ ] Open: free AI providers still rate-limit/timeout under load (environmental, not a code bug); 28 generated images await owner approval (by design); no live successful end-to-end build yet.
+
+## Database optimization 2026-10-21
+- [x] Cost baseline measured: database is ~2.4 credits over 14 days (pico, 31 instance-hours); build-mode chat is ~99% of project spend.
+- [x] Added composite index for analytics funnel reads (event + time); verified ~26 ms to ~2 ms with query plans.
+- [x] Refreshed stale table statistics on marketing conversions, visual reports, AI usage.
+- [ ] Open: scheduled jobs wake the database every 10-15 min even when idle; reducing that cadence is a freshness trade-off needing owner approval.

@@ -1,0 +1,1 @@
+CREATE INDEX IF NOT EXISTS marketing_conversions_event_created_idx ON public.marketing_conversions (event_name, created_at DESC);
