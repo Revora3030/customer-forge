@@ -201,7 +201,7 @@ export function localPageContent(
     industry,
     state,
     path,
-    title: `${industry.name} Lead Generation ${state.name}: ${metros.slice(0, 2).join(", ")} & More`,
+    title: localTitle(industry.name, state.name, metros),
     description: `${industry.name} lead generation for ${topMetros} and all of ${state.name}: website, instant quotes, booking and follow-up. ${SETUP} setup, first month free, then ${MONTHLY}/mo.`,
     heading: `${industry.name} lead generation in ${topMetros} and across ${state.name}`,
     intro: `If you run a ${lowerName} business in ${topMetros} or anywhere in ${state.name}, your next customer is already searching. Revora gives you the whole system that turns that search into a booked job — a fast local website, instant quotes, online booking, a CRM that holds every lead, and follow-up that runs while you work. ${SETUP} one-time setup, your first month free, then ${MONTHLY}/month, with 3 days of full access to try it first.`,
@@ -251,4 +251,16 @@ export function localPageContent(
       },
     ],
   };
+}
+
+/**
+ * Name up to three metros in the title when it still fits a search result
+ * (~65 chars): Search Console showed city-specific searches (e.g. the third
+ * metro) ranking with zero clicks because the city wasn't in the title.
+ */
+export function localTitle(industry: string, state: string, metros: readonly string[]): string {
+  const base = `${industry} Lead Generation ${state}: `;
+  const three = `${base}${metros.slice(0, 3).join(", ")}`;
+  if (metros.length >= 3 && three.length <= 65) return three;
+  return `${base}${metros.slice(0, 2).join(", ")} & More`;
 }

@@ -179,5 +179,6 @@ Owner approved porting two ideas (audit of the uploaded Next.js project; auto pa
 - [ ] First real approved research call not yet exercised in chat (would spend owner's Perplexity credits; needs owner tap).
 
 - [x] Connectors: Calendly "Book a call" on contact page; Logo.dev fallback for imported customer logos (own domain only)
-- [ ] Search Console page improvements + admin snapshot card (waiting on owner property choice)
-- [ ] Business Profile fixes (waiting on owner approval of exact text)
+- [x] Search Console: local page titles now name a third city (e.g. Huntsville); existing Search Growth panel reused instead of a duplicate card
+- [x] Business Profile description replaced with truthful text
+- [ ] Business Profile hours: waiting on owner's real reply hours
