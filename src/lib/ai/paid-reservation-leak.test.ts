@@ -2,8 +2,9 @@
  * Daily paid-cap reservations must never leak.
  *
  * Router half: the paid-budget module is stubbed (no ledger writes) and HTTP
- * is stubbed; every reservation the router makes must be settled exactly once,
- * to the real cost on success and to 0 on error, timeout/abort or a throw.
+ * is stubbed; every reservation the router makes must be settled exactly once:
+ * the real cost on success, 0 for a definite rejection or a pre-send failure,
+ * and the estimate for a timeout/abort, network error or 5xx (maybe billed).
  *
  * Ledger half: the service-role client is replaced by an in-memory model of
  * ai_paid_budget_reserve_tracked / ai_paid_budget_settle_tracked (same
@@ -197,11 +198,46 @@ describe("paid reservation migration", () => {
     expect(sql).toContain("AND r.settled_at IS NULL;\n  IF NOT FOUND THEN\n    RETURN FALSE;");
   });
 
+  it("the legacy reserve counts open tracked reservations under the day row lock", () => {
+    const start = sql.indexOf("CREATE OR REPLACE FUNCTION public.ai_paid_budget_reserve(");
+    const legacy = sql.slice(start, sql.indexOf("$$;", start));
+    // Signature and return type unchanged, so old workers keep working.
+    expect(legacy).toContain("_estimate_microcents BIGINT,\n  _cap_microcents BIGINT\n)");
+    expect(legacy).toContain("RETURNS TABLE(allowed BOOLEAN, day DATE, spent_microcents BIGINT, cap_microcents BIGINT)");
+    const lock = legacy.indexOf("WHERE b.day = _day\n  FOR UPDATE;");
+    const open = legacy.indexOf("FROM public.ai_paid_spend_reservations r");
+    const check = legacy.indexOf("IF _cap = 0 OR _settled + _open + _estimate > _cap THEN");
+    expect(lock).toBeGreaterThan(0);
+    expect(open).toBeGreaterThan(lock);
+    expect(check).toBeGreaterThan(open);
+    expect(legacy).toContain("AND r.settled_at IS NULL");
+    expect(legacy).toContain("AND r.created_at > clock_timestamp() - _stale;");
+    expect(legacy).not.toContain("_spent + _estimate > _cap");
+  });
+
+  it("refuses the rollout mix that used to overshoot (340 settled + 600 open + 400 legacy > 1000)", () => {
+    // The legacy predicate, as the migration now states it.
+    const legacyAllows = (settled: number, open: number, estimate: number, cap: number) =>
+      !(cap === 0 || settled + open + estimate > cap);
+    expect(legacyAllows(340, 600, 400, 1000)).toBe(false);
+    expect(legacyAllows(340, 600, 60, 1000)).toBe(true);
+  });
+
+  it("is idempotent and re-runnable", () => {
+    expect(sql).toContain("CREATE TABLE IF NOT EXISTS public.ai_paid_spend_reservations");
+    expect(sql).toContain("CREATE INDEX IF NOT EXISTS ai_paid_spend_reservations_open_idx");
+    expect(sql).toContain("ADD COLUMN IF NOT EXISTS settled_microcents");
+    expect(sql).not.toMatch(/CREATE FUNCTION/);
+  });
+
   it("is service-role only", () => {
     expect(sql).toContain("REVOKE ALL ON public.ai_paid_spend_reservations FROM PUBLIC, anon, authenticated;");
     expect(sql).toContain("GRANT EXECUTE ON FUNCTION public.ai_paid_budget_reserve_tracked(BIGINT, BIGINT, INTEGER) TO service_role;");
     expect(sql).toContain("GRANT EXECUTE ON FUNCTION public.ai_paid_budget_settle_tracked(UUID, BIGINT) TO service_role;");
     expect(sql).toContain("REVOKE ALL ON FUNCTION public.ai_paid_budget_reserve_tracked(BIGINT, BIGINT, INTEGER) FROM PUBLIC, anon, authenticated;");
+    expect(sql).toContain("REVOKE ALL ON FUNCTION public.ai_paid_budget_reserve(BIGINT, BIGINT) FROM PUBLIC, anon, authenticated;");
+    expect(sql).toContain("GRANT EXECUTE ON FUNCTION public.ai_paid_budget_reserve(BIGINT, BIGINT) TO service_role;");
+    expect(sql).not.toMatch(/GRANT [^;]* TO (?:anon|authenticated|PUBLIC)/);
   });
 });
 
@@ -263,14 +299,14 @@ describe("router settles every paid reservation", () => {
     expect(settle).toHaveBeenCalledWith(expect.objectContaining({ id: "res-1" }), 7 * 10 + 3 * 100);
   });
 
-  it("releases the reservation when the provider errors", async () => {
+  it("settles a 5xx at the reservation estimate (it may still be billed)", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("upstream down", { status: 503 })));
     await expect(call()).rejects.toMatchObject({ name: "RevoraAiError" });
     expect(settle).toHaveBeenCalledTimes(reserve.mock.calls.length);
-    expect(settle.mock.calls.every(([, actual]) => actual === 0)).toBe(true);
+    expect(settle.mock.calls.every(([, actual]) => actual === 5_000)).toBe(true);
   });
 
-  it("releases the reservation when the call times out (aborted)", async () => {
+  it("settles a timed-out (aborted) call at the estimate, never as free", async () => {
     process.env["AI_REQUEST_TIMEOUT_MS"] = "30";
     vi.stubGlobal(
       "fetch",
@@ -281,17 +317,52 @@ describe("router settles every paid reservation", () => {
           }),
       ),
     );
+    await expect(call()).rejects.toMatchObject({ name: "RevoraAiError", category: "timeout" });
+    expect(reserve).toHaveBeenCalled();
+    expect(settle).toHaveBeenCalledTimes(reserve.mock.calls.length);
+    expect(settle.mock.calls.every(([, actual]) => actual === 5_000)).toBe(true);
+  });
+
+  it("settles a network error after sending at the estimate", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("socket hang up"); }));
     await expect(call()).rejects.toMatchObject({ name: "RevoraAiError" });
+    expect(settle).toHaveBeenCalledTimes(reserve.mock.calls.length);
+    expect(settle.mock.calls.every(([, actual]) => actual === 5_000)).toBe(true);
+  });
+
+  it("releases a definite 429 rejection at 0", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ error: { message: "slow down" } }), { status: 429 })));
+    await expect(call()).rejects.toMatchObject({ name: "RevoraAiError", category: "rate_limited" });
+    expect(settle).toHaveBeenCalledTimes(1);
+    expect(settle).toHaveBeenCalledWith(expect.objectContaining({ id: "res-1" }), 0);
+  });
+
+  it("releases a failure raised before the request left at 0", async () => {
+    const fetchStub = vi.fn(async () => new Response("should not be called", { status: 500 }));
+    vi.stubGlobal("fetch", fetchStub);
+    const { generateText } = await import("@/lib/ai/router.server");
+    // The OpenAI adapter refuses a video part while building the request body.
+    await expect(
+      generateText(
+        { task: "test.paid-cap", organizationId: null, userId: null },
+        { messages: [{ role: "user", content: [{ type: "text", text: "watch" }, { type: "video", dataUrl: "data:video/mp4;base64,AAAA", mimeType: "video/mp4" }] }] },
+      ),
+    ).rejects.toBeTruthy();
+    expect(fetchStub).not.toHaveBeenCalled();
     expect(reserve).toHaveBeenCalled();
     expect(settle).toHaveBeenCalledTimes(reserve.mock.calls.length);
     expect(settle.mock.calls.every(([, actual]) => actual === 0)).toBe(true);
   });
 
-  it("releases the reservation when something throws between reserve and settle", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("socket hang up"); }));
-    await expect(call()).rejects.toMatchObject({ name: "RevoraAiError" });
-    expect(settle).toHaveBeenCalledTimes(reserve.mock.calls.length);
-    expect(settle.mock.calls.every(([, actual]) => actual === 0)).toBe(true);
+  it("charges each failure class correctly", async () => {
+    const { paidFailureCharge } = await import("@/lib/ai/router.server");
+    const { RevoraAiError, notConfigured } = await import("@/lib/ai/errors");
+    for (const status of [400, 401, 403, 404, 413, 422, 429])
+      expect(paidFailureCharge(new RevoraAiError(status, "rejected"), 5_000)).toBe(0);
+    // Raised before the request left: nothing was sent, nothing is billed.
+    expect(paidFailureCharge(notConfigured(), 5_000)).toBe(0);
+    for (const status of [408, 500, 502, 503, 504])
+      expect(paidFailureCharge(new RevoraAiError(status, "unknown outcome"), 5_000)).toBe(5_000);
   });
 
   it("skips a paid model without calling it when the cap refuses the reservation", async () => {

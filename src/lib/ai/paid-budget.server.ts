@@ -9,7 +9,9 @@ import { scopedFreeOnly } from "@/lib/ai/spend-scope.server";
  * If the ledger can't be reached, paid is refused: the cap fails closed.
  *
  * Each reservation is its own row (ai_paid_spend_reservations), settled once
- * to the real cost or released with 0 in a `finally` on every call path. One
+ * in a `finally` on every call path: to the real cost on success, 0 only for a
+ * definite unbilled rejection or a failure before the request left, and the
+ * estimate when the outcome is unknown (timeout, abort, network error, 5xx). One
  * left open by a worker that died stops counting after the stale window, so a
  * leaked reservation can no longer hold the day's budget.
  *
