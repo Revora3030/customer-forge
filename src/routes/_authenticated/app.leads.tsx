@@ -47,6 +47,8 @@ import { CRM_STAGES, LEAD_STATUSES, crmStageOf, leadStatusMeta, sourceLabel, typ
 import { groupByStage, leadsToCsv } from "@/lib/crm";
 import { DueTasksStrip, LeadTasks } from "@/components/app/LeadTasks";
 import { currency, relative } from "@/lib/format";
+import { filterLeadsByService, leadServiceId, type ServiceFilter } from "@/lib/service-catalog";
+import { QueryErrorNotice } from "@/components/app/QueryErrorNotice";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -85,9 +87,20 @@ function LeadsPage() {
   const { data: ws } = useWorkspace();
   const orgId = ws?.workspace?.organizationId;
   const businessName = ws?.workspace?.organization?.name ?? null;
-  const { data: leads, isLoading } = useLeads(orgId);
+  const {
+    data: leads,
+    isLoading,
+    isError: leadsError,
+    refetch: retryLeads,
+    isFetching: leadsFetching,
+  } = useLeads(orgId);
   const { data: team } = useTeam(orgId);
   const { data: services } = useServices(orgId);
+  const [serviceFilter, setServiceFilter] = useState<ServiceFilter>("all");
+  const serviceLabel = (lead: { service_id: string | null; service_interest: string | null }) => {
+    const id = leadServiceId(lead, services ?? []);
+    return (id ? (services ?? []).find((s) => s.id === id)?.name : null) ?? lead.service_interest;
+  };
   const action = useLeadAction(orgId, businessName);
   const createLead = useCreateLead(orgId);
   const convert = useConvertLeadToCustomer(orgId);
@@ -107,7 +120,7 @@ function LeadsPage() {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return (leads ?? []).filter((lead) => {
+    return filterLeadsByService(leads ?? [], serviceFilter, services ?? []).filter((lead) => {
       const matchesStatus = statusFilter === "all" || crmStageOf(lead.status as LeadStatus) === statusFilter;
       const matchesQuery =
         !q ||
@@ -116,7 +129,7 @@ function LeadsPage() {
           .some((field) => String(field).toLowerCase().includes(q));
       return matchesStatus && matchesQuery;
     });
-  }, [leads, query, statusFilter]);
+  }, [leads, query, statusFilter, serviceFilter, services]);
 
   const selected = (leads ?? []).find((l) => l.id === selectedId) ?? null;
   const { data: activities } = useLeadActivities(orgId, selectedId);
@@ -248,6 +261,22 @@ function LeadsPage() {
             </button>
           ))}
         </div>
+        {(services ?? []).length > 0 ? (
+          <select
+            aria-label="Filter leads by service"
+            value={serviceFilter}
+            onChange={(e) => setServiceFilter(e.target.value)}
+            className="h-11 max-w-full cursor-pointer rounded-md border border-input bg-background px-3 text-[13px] sm:h-9"
+          >
+            <option value="all">All services</option>
+            {(services ?? []).map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+            <option value="none">No service named</option>
+          </select>
+        ) : null}
         <Button
           variant="outline"
           size="sm"
@@ -277,7 +306,13 @@ function LeadsPage() {
 
       {/* Board — only shown once there is at least one real lead, so a new
           account sees one clear next step instead of seven empty columns. */}
-      {(leads ?? []).length > 0 ? (
+      {leadsError ? (
+        <QueryErrorNotice
+          title="Your leads couldn't be loaded."
+          retry={retryLeads}
+          retrying={leadsFetching}
+        />
+      ) : (leads ?? []).length > 0 ? (
         <div className="-mx-4 overflow-x-auto px-4">
           <div className="flex w-max gap-3">
             {groupByStage(filtered as (typeof filtered[number] & { status: LeadStatus })[]).map((stage) => {
@@ -304,7 +339,7 @@ function LeadsPage() {
                       >
                         <p className="truncate text-[13px] font-medium">{lead.name}</p>
                         <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
-                          {[lead.service_interest, sourceLabel(lead.source)]
+                          {[serviceLabel(lead), sourceLabel(lead.source)]
                             .filter(Boolean)
                             .join(" · ")}
                         </p>
@@ -365,7 +400,7 @@ function LeadsPage() {
               <DialogHeader>
                 <DialogTitle>{selected.name}</DialogTitle>
                 <DialogDescription>
-                  {[sourceLabel(selected.source), selected.city, relative(selected.created_at)]
+                  {[serviceLabel(selected), sourceLabel(selected.source), selected.city, relative(selected.created_at)]
                     .filter(Boolean)
                     .join(" · ")}
                 </DialogDescription>

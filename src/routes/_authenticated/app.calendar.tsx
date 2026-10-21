@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Star } from "lucide-react";
 import {
   EmptyState,
   LoadingRows,
@@ -25,10 +25,15 @@ import {
 } from "@/components/ui/dialog";
 import {
   useAppointments,
+  useAutomations,
+  useBusinessProfile,
   useCreateAppointment,
   useSaveAppointment,
   useServices,
 } from "@/lib/queries";
+import { useRequestReview } from "@/lib/growth-hooks";
+import { reviewOfferFor } from "@/lib/service-catalog";
+import { QueryErrorNotice } from "@/components/app/QueryErrorNotice";
 import { useWorkspace } from "@/lib/use-tenant";
 import { appointmentStatusMeta, type AppointmentStatus } from "@/lib/domain";
 import { currency, dateLong, timeShort } from "@/lib/format";
@@ -64,8 +69,18 @@ function CalendarPage() {
   const { data: ws } = useWorkspace();
   const orgId = ws?.workspace?.organizationId;
   const businessName = ws?.workspace?.organization?.name ?? null;
-  const { data: appointments, isLoading } = useAppointments(orgId);
+  const {
+    data: appointments,
+    isLoading,
+    isError: appointmentsError,
+    refetch: retryAppointments,
+    isFetching: appointmentsFetching,
+  } = useAppointments(orgId);
   const { data: services } = useServices(orgId);
+  const { data: automations } = useAutomations(orgId);
+  const profile = useBusinessProfile(orgId);
+  const requestReview = useRequestReview(orgId);
+  const [askedIds, setAskedIds] = useState<Set<string>>(() => new Set());
   const saveAppointment = useSaveAppointment(orgId, businessName);
   const createAppointment = useCreateAppointment(orgId, businessName);
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
@@ -371,7 +386,15 @@ function CalendarPage() {
 
       <Panel className="p-5">
         <SectionHeading eyebrow="All bookings" title="Upcoming and past" />
-        {all.length === 0 ? (
+        {appointmentsError ? (
+          <div className="mt-4">
+            <QueryErrorNotice
+              title="Your bookings couldn't be loaded."
+              retry={retryAppointments}
+              retrying={appointmentsFetching}
+            />
+          </div>
+        ) : all.length === 0 ? (
           <div className="mt-4">
             <EmptyState
               title="No bookings yet"
@@ -417,6 +440,55 @@ function CalendarPage() {
                   <Button variant="ghost" size="sm" onClick={() => setRescheduleId(appt.id)}>
                     Reschedule
                   </Button>
+                  {(() => {
+                    const offer = reviewOfferFor(appt, automations ?? []);
+                    if (offer.kind === "automated") {
+                      return (
+                        <span className="text-[11px] text-muted-foreground">
+                          Your “Appointment completed” automation follows up
+                        </span>
+                      );
+                    }
+                    if (offer.kind === "no_contact") {
+                      return (
+                        <span className="text-[11px] text-muted-foreground">
+                          No email or phone for a review request
+                        </span>
+                      );
+                    }
+                    if (offer.kind !== "offer") return null;
+                    const asked = askedIds.has(appt.id);
+                    return (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="min-h-11 sm:min-h-0"
+                        disabled={asked || requestReview.isPending}
+                        onClick={() =>
+                          requestReview.mutate(
+                            {
+                              name: appt.name,
+                              recipient: offer.recipient,
+                              channel: offer.channel,
+                              businessName: businessName ?? "our team",
+                              reviewLink: profile.data?.review_link ?? null,
+                              leadId: appt.lead_id,
+                              appointmentId: appt.id,
+                            },
+                            {
+                              onSuccess: () =>
+                                setAskedIds((current) => new Set(current).add(appt.id)),
+                            },
+                          )
+                        }
+                      >
+                        <Star className="size-4" />
+                        {asked
+                          ? "Review request queued"
+                          : `Ask for a review by ${offer.channel === "email" ? "email" : "text"}`}
+                      </Button>
+                    );
+                  })()}
                 </div>
               </li>
             ))}

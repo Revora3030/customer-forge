@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { useCallback, useMemo, useState } from "react";
+import { FilePlus2, Plus, Trash2 } from "lucide-react";
+import { OwnerQuotes, type QuotePrefill } from "@/components/app/OwnerQuotes";
 import { LoadingRows, MetricCard, PageHead, Panel, SectionHeading } from "@/components/app/Bits";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -70,6 +71,9 @@ function QuotesPage() {
   const { data: builder, isLoading } = useQuoteBuilder(orgId);
   const { data: requests } = useQuoteRequests(orgId);
   const m = useQuoteBuilderMutations(orgId);
+  const businessName = ws?.workspace?.organization?.name ?? null;
+  const [quotePrefill, setQuotePrefill] = useState<QuotePrefill | null>(null);
+  const clearPrefill = useCallback(() => setQuotePrefill(null), []);
 
   const [question, setQuestion] = useState<QuestionDraft | null>(null);
   const [option, setOption] = useState<OptionDraft | null>(null);
@@ -112,9 +116,9 @@ function QuotesPage() {
   return (
     <div className="product-page">
       <PageHead
-        eyebrow="Instant estimates"
-        title="Quote calculator"
-        purpose="Set your prices so visitors get an estimate straight away."
+        eyebrow="Quotes & estimates"
+        title="Quotes"
+        purpose="Write quotes from your services, and set the instant estimate your website shows."
       >
         {slug ? (
           <Button asChild variant="outline">
@@ -135,6 +139,13 @@ function QuotesPage() {
           tone="attention"
         />
       </div>
+
+      <OwnerQuotes
+        organizationId={orgId}
+        businessName={businessName}
+        prefill={quotePrefill}
+        onPrefillUsed={clearPrefill}
+      />
 
       {/* Form settings */}
       <Panel className="p-5">
@@ -442,6 +453,26 @@ function QuotesPage() {
                       .join(", ")}`
                   : ""}
               </p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-2 min-h-11"
+                onClick={() => {
+                  const lead = request.leads as {
+                    name?: string | null;
+                    email?: string | null;
+                    phone?: string | null;
+                  } | null;
+                  setQuotePrefill({
+                    customer_name: lead?.name ?? "",
+                    customer_email: lead?.email ?? null,
+                    customer_phone: lead?.phone ?? null,
+                    lead_id: request.lead_id ?? null,
+                  });
+                }}
+              >
+                <FilePlus2 className="size-4" /> Write a quote
+              </Button>
             </li>
           ))}
           {(requests ?? []).length === 0 ? (
