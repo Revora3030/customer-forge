@@ -367,6 +367,7 @@ export const getJarvisFreeToolReadiness = createServerFn({ method: "GET" })
       "stock.pexels": Boolean(process.env["PEXELS_API_KEY"]),
       ...jarvisImageReadiness(),
       "website.dns.lookup": true,
+      "ai.omniroute.models": Boolean(process.env["OMNIROUTE_BASE_URL"] && process.env["OMNIROUTE_API_KEY"]),
       "website.html.validate": true,
       "security.dependencies.osv": true,
       "website.security.observatory": true,
