@@ -180,6 +180,7 @@ export type Database = {
           calls: number
           cap_microcents: number
           day: string
+          settled_microcents: number
           spent_microcents: number
           updated_at: string
         }
@@ -187,6 +188,7 @@ export type Database = {
           calls?: number
           cap_microcents?: number
           day: string
+          settled_microcents?: number
           spent_microcents?: number
           updated_at?: string
         }
@@ -194,8 +196,39 @@ export type Database = {
           calls?: number
           cap_microcents?: number
           day?: string
+          settled_microcents?: number
           spent_microcents?: number
           updated_at?: string
+        }
+        Relationships: []
+      }
+      ai_paid_spend_reservations: {
+        Row: {
+          actual_microcents: number | null
+          created_at: string
+          day: string
+          estimate_microcents: number
+          id: string
+          outcome: string | null
+          settled_at: string | null
+        }
+        Insert: {
+          actual_microcents?: number | null
+          created_at?: string
+          day: string
+          estimate_microcents: number
+          id?: string
+          outcome?: string | null
+          settled_at?: string | null
+        }
+        Update: {
+          actual_microcents?: number | null
+          created_at?: string
+          day?: string
+          estimate_microcents?: number
+          id?: string
+          outcome?: string | null
+          settled_at?: string | null
         }
         Relationships: []
       }
@@ -3954,6 +3987,8 @@ export type Database = {
           last_error: string | null
           last_polled_at: string | null
           last_result: Json
+          lease_owner: string | null
+          leased_until: string | null
           updated_at: string
         }
         Insert: {
@@ -3961,6 +3996,8 @@ export type Database = {
           last_error?: string | null
           last_polled_at?: string | null
           last_result?: Json
+          lease_owner?: string | null
+          leased_until?: string | null
           updated_at?: string
         }
         Update: {
@@ -3968,6 +4005,8 @@ export type Database = {
           last_error?: string | null
           last_polled_at?: string | null
           last_result?: Json
+          lease_owner?: string | null
+          leased_until?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -4325,18 +4364,18 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "quote_line_items_quote_same_org_fkey"
-            columns: ["quote_id", "organization_id"]
+            foreignKeyName: "quote_line_items_quote_id_fkey"
+            columns: ["quote_id"]
             isOneToOne: false
             referencedRelation: "quotes"
-            referencedColumns: ["id", "organization_id"]
+            referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "quote_line_items_service_same_org_fkey"
-            columns: ["service_id", "organization_id"]
+            foreignKeyName: "quote_line_items_service_id_fkey"
+            columns: ["service_id"]
             isOneToOne: false
             referencedRelation: "services"
-            referencedColumns: ["id", "organization_id"]
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -4583,22 +4622,7 @@ export type Database = {
           status?: string
           updated_at?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "quotes_appointment_same_org_fkey"
-            columns: ["appointment_id", "organization_id"]
-            isOneToOne: false
-            referencedRelation: "appointments"
-            referencedColumns: ["id", "organization_id"]
-          },
-          {
-            foreignKeyName: "quotes_lead_same_org_fkey"
-            columns: ["lead_id", "organization_id"]
-            isOneToOne: false
-            referencedRelation: "leads"
-            referencedColumns: ["id", "organization_id"]
-          },
-        ]
+        Relationships: []
       }
       reviews: {
         Row: {
@@ -6060,6 +6084,20 @@ export type Database = {
           spent_microcents: number
         }[]
       }
+      ai_paid_budget_reserve_tracked: {
+        Args: {
+          _cap_microcents: number
+          _estimate_microcents: number
+          _stale_after_seconds?: number
+        }
+        Returns: {
+          allowed: boolean
+          cap_microcents: number
+          committed_microcents: number
+          day: string
+          reservation_id: string
+        }[]
+      }
       ai_paid_budget_settle: {
         Args: {
           _actual_microcents: number
@@ -6067,6 +6105,10 @@ export type Database = {
           _estimate_microcents: number
         }
         Returns: undefined
+      }
+      ai_paid_budget_settle_tracked: {
+        Args: { _actual_microcents: number; _reservation_id: string }
+        Returns: boolean
       }
       ai_runtime_snapshot: {
         Args: never
@@ -6097,6 +6139,24 @@ export type Database = {
       claim_prospect_demo_server: {
         Args: { _token: string; _trial_days?: number; _user_id: string }
         Returns: string
+      }
+      claim_prospect_reply_poll: {
+        Args: { p_owner: string; p_seconds?: number }
+        Returns: {
+          id: number
+          last_error: string | null
+          last_polled_at: string | null
+          last_result: Json
+          lease_owner: string | null
+          leased_until: string | null
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "prospect_reply_poll_state"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       claim_prospect_send_queue: {
         Args: { p_lease_seconds?: number; p_limit?: number; p_owner: string }
@@ -6220,6 +6280,10 @@ export type Database = {
       restore_website_state: {
         Args: { _organization_id: string; _snapshot: Json }
         Returns: Json
+      }
+      set_prospect_demo_enrichment: {
+        Args: { p_enrichment: Json; p_organization_id: string }
+        Returns: string[]
       }
       submit_public_conversion: {
         Args: {

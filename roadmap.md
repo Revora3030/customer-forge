@@ -151,3 +151,9 @@ Owner approved porting two ideas (audit of the uploaded Next.js project; auto pa
 - [x] Jarvis funnel summary includes builds waiting on AI capacity + soonest retry.
 - [x] Guest (anonymous) sign-in turned off; leaked-password check on; security scan clean.
 - [x] Last code warning fixed (demo pump hook moved to its own file); lint 0 warnings.
+
+## Jarvis fix pass 2026-10-21
+- [x] Whole app was failing to load: the new Quotes/Services pages referenced two database tables that did not exist. Tables created with the same workspace-only access rules as the other app data; build is green again.
+- [x] Builds stuck "kept" forever: a failed retry never recorded when the attempt stopped, so every later retry failed the same way. The end marker is now written on that path too.
+- [x] Wrong owner guidance: a build refused for thin business facts told the owner it "resumes automatically". It now says to add business details and retry; real structure problems stay retryable.
+- [ ] Open: free AI providers still rate-limit/timeout under load (environmental, not a code bug); 28 generated images await owner approval (by design); no live successful end-to-end build yet.

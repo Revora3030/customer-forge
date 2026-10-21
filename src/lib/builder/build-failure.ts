@@ -53,7 +53,10 @@ const RULES: { kind: BuildFailureKind; test: RegExp }[] = [
   { kind: "image", test: /\b(image|picture|photo|vision|reshoot)\b/i },
   { kind: "rendering", test: /render|composition|layout tree|materiali[sz]/i },
   { kind: "validation", test: /quality gate|validation|broken link|dead (link|button)|overflow|contrast|seo check|structured data/i },
-  { kind: "content", test: /\bcopy\b|content|fact check|fabricat|unsupported claim|placeholder/i },
+  // A reviewer refusal that cites thin business facts cannot pass on retry:
+  // the owner has to add details first, so it is intake, not a worker fault.
+  { kind: "intake_validation", test: /facts establish only|establish only the business name/i },
+  { kind: "content", test: /\bcopy\b|content|fact check|fabricat|unsupported claim|placeholder|reviewer refused/i },
   { kind: "infrastructure", test: /lease|worker|timeout|timed out|econn|network|fetch failed|database|connection|socket|5\d\d\b/i },
 ];
 
