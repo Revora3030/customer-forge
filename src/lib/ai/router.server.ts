@@ -783,6 +783,7 @@ async function run<T>(
               ok: false,
               latencyMs: Date.now() - started,
               rateLimited: error.category === "rate_limited",
+              ...accountRestFor(error.category),
             });
           lastOutcome = {
             at: Date.now(),
@@ -891,6 +892,22 @@ function clampPositive(value: number | undefined, ceiling: number): number {
 function chainDeadlineMs() {
   const raw = Number(process.env["AI_CHAIN_DEADLINE_MS"] ?? "");
   return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : 6 * 60_000;
+}
+
+/**
+ * An exhausted allowance or a rejected key will not fix itself in a minute.
+ * Rest the provider on the shared circuit after ONE such answer: quota until
+ * the next UTC day (when free allowances reset, at least 15 minutes), a
+ * rejected key for 6 hours. Other failures keep the normal 3-strike circuit.
+ */
+export function accountRestFor(category: string, now = Date.now()): { failureThreshold?: number; cooldownSeconds?: number } {
+  if (category === "unauthorized") return { failureThreshold: 1, cooldownSeconds: 6 * 3600 };
+  if (category === "quota") {
+    const next = new Date(now);
+    next.setUTCHours(24, 0, 0, 0);
+    return { failureThreshold: 1, cooldownSeconds: Math.max(900, Math.ceil((next.getTime() - now) / 1000)) };
+  }
+  return {};
 }
 
 /** Failures that describe the whole provider, not one model or one answer. */
@@ -1501,6 +1518,7 @@ export async function callPinnedFreeModel(
         ok: false,
         latencyMs: Date.now() - started,
         rateLimited: error.category === "rate_limited",
+        ...accountRestFor(error.category),
       });
     void recordAiEvent({
       requestId,
