@@ -40,6 +40,7 @@ export type ProviderName =
   | "ovh"
   | "kilo"
   | "omniroute"
+  | "selfhosted"
   | "modelscope"
   | "github";
 
