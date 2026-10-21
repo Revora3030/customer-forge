@@ -31,6 +31,7 @@ import { speakableText, type WriteProposal } from "@/lib/jarvis-actions";
 import { prospectFromImageFn, startProspectDemoBuild } from "@/lib/jarvis-demo-site.functions";
 import { pictureDataUrl } from "@/lib/picture-data-url";
 import { isAutopilotProposal, useApproveAutopilotProposal } from "@/components/app/jarvis/autopilot-proposal";
+import { saveInstagramDraftFn } from "@/lib/instagram.functions";
 
 type RecognitionResult = ArrayLike<{ transcript: string }> & { isFinal?: boolean };
 type Recognition = {
@@ -541,6 +542,18 @@ function Jarvis() {
   };
   const approveProposal = async (key: string, proposal: WriteProposal) => {
     setApproved((current) => ({ ...current, [key]: "building" }));
+    if (proposal.id === "instagram.post") {
+      try {
+        await saveInstagramDraftFn({ data: proposal.draft });
+        markDone(key);
+        void qc.invalidateQueries({ queryKey: ["jarvis", "instagram"] });
+        toast.success("Draft saved. Open Operations → Instagram to review and approve publishing.");
+      } catch (error) {
+        forget(key);
+        toast.error(error instanceof Error ? error.message : "Couldn't save the Instagram draft.");
+      }
+      return;
+    }
     if (proposal.id === "builds.recover") {
       try {
         const result = await recoverBuilds();

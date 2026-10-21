@@ -56,7 +56,10 @@ export async function runReadActions(db: SupabaseClient, reads: ReadAction[], ac
       const label = describeRead(action);
       try {
         let result: unknown;
-        if (action.id === "diagnostic.run") {
+        if (action.id === "instagram.status") {
+          const { instagramStatus } = await import("./instagram.server");
+          result = await instagramStatus(db, actorId);
+        } else if (action.id === "diagnostic.run") {
           const { executeJarvisDiagnosticTool } = await import("./jarvis-diagnostic-tools.server");
           result = await executeJarvisDiagnosticTool(db, action.toolId);
         } else if (action.id === "code.read") {
