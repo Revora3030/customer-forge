@@ -939,6 +939,16 @@ function WebsitePage() {
                 <>
                   {launchReview ? (
                     <div className="space-y-2">
+                      <FactSourcesList
+                        rows={buildFactSources({
+                          businessName: org?.name ?? null,
+                          services: (services ?? []).map((s) => s.name),
+                          city: (profile?.["city"] as string | null) ?? null,
+                          serviceArea: (profile?.["service_area"] as string | null) ?? null,
+                          email: (profile?.["email"] as string | null) ?? null,
+                          phone: (profile?.["phone"] as string | null) ?? null,
+                        })}
+                      />
                       <LaunchQualityCard
                         report={launchReview.report}
                         {...(manage
