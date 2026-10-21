@@ -392,6 +392,7 @@ export type Database = {
         Row: {
           created_at: string
           error_category: string | null
+          error_detail: string | null
           estimated_cost_usd: number | null
           fallback_used: boolean
           id: string
@@ -410,6 +411,7 @@ export type Database = {
         Insert: {
           created_at?: string
           error_category?: string | null
+          error_detail?: string | null
           estimated_cost_usd?: number | null
           fallback_used?: boolean
           id?: string
@@ -428,6 +430,7 @@ export type Database = {
         Update: {
           created_at?: string
           error_category?: string | null
+          error_detail?: string | null
           estimated_cost_usd?: number | null
           fallback_used?: boolean
           id?: string

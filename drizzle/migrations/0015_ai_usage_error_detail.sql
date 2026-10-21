@@ -1,0 +1,1 @@
+ALTER TABLE public.ai_usage_events ADD COLUMN IF NOT EXISTS error_detail text CHECK (error_detail IS NULL OR char_length(error_detail) <= 240);
