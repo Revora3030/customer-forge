@@ -10,6 +10,7 @@
  */
 import { publicClient, publicOrganization } from "@/lib/public-site.server";
 import { indexablePlatformPaths } from "@/lib/seo-intent";
+import { fetchAllRows } from "@/lib/paginate";
 
 import {
   PLATFORM_ORIGIN,
@@ -78,6 +79,7 @@ export async function resolveTenantHost(rawHost: string | null): Promise<TenantH
   ];
 
   const results = await Promise.all(lookups);
+  if (results.some((result) => result.error)) throw new Error("Domain lookup unavailable");
   const seen = new Set<string>();
   const ordered = results
     .flatMap((result) => result.data ?? [])
@@ -159,22 +161,26 @@ export async function tenantSitemapPages(
   }
 
   const supabase = publicClient();
-  const [{ data: pages }, { data: sections }, { data: settings }] = await Promise.all([
-    supabase
+  const [pageResult, sectionResult, settingsResult] = await Promise.all([
+    fetchAllRows((from, to) => supabase
       .from("website_pages")
       .select("id, slug, kind, noindex, is_visible")
       .eq("organization_id", organizationId)
-      .order("sort_order", { ascending: true }),
-    supabase
+      .order("sort_order", { ascending: true }).order("id").range(from, to)),
+    fetchAllRows((from, to) => supabase
       .from("website_sections")
       .select("page_id, is_visible")
-      .eq("organization_id", organizationId),
+      .eq("organization_id", organizationId).order("id").range(from, to)),
     supabase
       .from("public_website_settings")
       .select("last_published_at")
       .eq("organization_id", organizationId)
       .maybeSingle(),
   ]);
+  if (pageResult.error || sectionResult.error || settingsResult.error) throw new Error("Published sitemap content unavailable");
+  const pages = pageResult.rows;
+  const sections = sectionResult.rows;
+  const settings = settingsResult.data;
 
   // A page with no visible sections renders blank — never advertise it publicly.
   const populated = new Set(
@@ -228,20 +234,22 @@ export async function platformTenantSitemapResponse(rawSlug: string): Promise<Re
   if (!org?.id) return notFound();
 
   const { siteIsLive } = await import("@/lib/public-site.server");
-  const { data: gate } = await publicClient()
+  const { data: gate, error: gateError } = await publicClient()
     .from("public_website_settings")
     .select("published, publish_state")
     .eq("organization_id", org.id)
     .maybeSingle();
+  if (gateError) throw new Error("Publication status unavailable");
   if (!gate || gate.published !== true || gate.publish_state !== "published") return notFound();
   if (!(await siteIsLive(org.id))) return notFound();
 
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const { data: address } = await supabaseAdmin
+  const { data: address, error: addressError } = await supabaseAdmin
     .from("website_settings")
     .select("organization_id, custom_domain, dns_ok, ssl_ok")
     .eq("organization_id", org.id)
     .maybeSingle();
+  if (addressError) throw new Error("Canonical address unavailable");
   const domain = address ? primaryAddress(address as AddressRow) : null;
   if (domain) {
     return new Response(null, {
@@ -268,12 +276,14 @@ export async function platformTenantSitemapResponse(rawSlug: string): Promise<Re
  */
 export async function platformSitemapSlugs(): Promise<string[]> {
   // Published-only projection: drafts are not visible through it.
-  const { data: published } = await publicClient()
+  const publishedResult = await fetchAllRows((from, to) => publicClient()
     .from("public_website_settings")
     .select("organization_id, published, publish_state")
     .eq("published", true)
     .eq("publish_state", "published")
-    .limit(5000);
+    .order("organization_id").range(from, to));
+  if (publishedResult.error) throw new Error("Published site index unavailable");
+  const published = publishedResult.rows;
   const ids = [
     ...new Set(
       (published ?? [])
@@ -286,17 +296,26 @@ export async function platformSitemapSlugs(): Promise<string[]> {
 
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { SITE_ACCESS_COLUMNS, siteAccess } = await import("@/lib/site-access");
-  const [{ data: orgs }, { data: addresses }] = await Promise.all([
-    supabaseAdmin
+  // Bounded ID batches avoid oversized filters while retaining the existing access boundary.
+  const orgs: (Parameters<typeof siteAccess>[0] & { id: string; slug: string | null })[] = [];
+  const addresses: AddressRow[] = [];
+  for (let start = 0; start < ids.length; start += 200) {
+    const batch = ids.slice(start, start + 200);
+    const [orgResult, addressResult] = await Promise.all([
+    fetchAllRows((from, to) => supabaseAdmin
       .from("organizations")
       .select(`${SITE_ACCESS_COLUMNS}, slug`)
-      .in("id", ids)
-      .eq("is_suspended", false),
-    supabaseAdmin
+      .in("id", batch)
+      .eq("is_suspended", false).order("id").range(from, to)),
+    fetchAllRows((from, to) => supabaseAdmin
       .from("website_settings")
       .select("organization_id, custom_domain, dns_ok, ssl_ok")
-      .in("organization_id", ids),
+      .in("organization_id", batch).order("organization_id").range(from, to)),
   ]);
+    if (orgResult.error || addressResult.error) throw new Error("Published site eligibility unavailable");
+    orgs.push(...orgResult.rows);
+    addresses.push(...addressResult.rows);
+  }
   const ownDomain = new Set(
     ((addresses ?? []) as AddressRow[])
       .filter((row) => row.organization_id && primaryAddress(row))

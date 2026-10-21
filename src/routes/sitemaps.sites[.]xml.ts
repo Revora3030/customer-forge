@@ -17,6 +17,10 @@ export const Route = createFileRoute("/sitemaps/sites.xml")({
           slugs = await platformSitemapSlugs();
         } catch (error) {
           console.error("client sitemap index failed", error);
+          return new Response("Sitemap index temporarily unavailable", {
+            status: 503,
+            headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store", "retry-after": "60" },
+          });
         }
         return new Response(xmlSitemapIndex(slugs), {
           headers: {
