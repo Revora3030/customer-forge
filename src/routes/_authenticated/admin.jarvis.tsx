@@ -11,7 +11,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { Conversation, ConversationContent, ConversationScrollButton } from "@/components/ai-elements/conversation";
 import { TypingDots } from "@/components/ai-elements/shimmer";
 import { useJarvisVoice } from "@/components/app/use-jarvis-voice";
-import { useProspectDemoPump } from "@/components/app/ProspectDemoBuilder";
+import { useProspectDemoPump } from "@/lib/prospect-demo-pump.hooks";
 import { JarvisHeader, type ChecksSummary } from "@/components/app/jarvis/JarvisHeader";
 import { JarvisComposer, type JarvisMode } from "@/components/app/jarvis/JarvisComposer";
 import { AssistantMessage, UserMessage, type JarvisRow } from "@/components/app/jarvis/JarvisMessage";
