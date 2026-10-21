@@ -86,6 +86,26 @@ export type QuoteInput = {
   lines: QuoteLineDraft[];
 };
 
+/** Errors the quote RPCs raise, in owner language. */
+const QUOTE_ERRORS: Record<string, string> = {
+  quote_not_found: "That quote wasn't found, or you can't edit it.",
+  quote_needs_lines: "Add at least one line to the quote.",
+  not_allowed: "You don't have permission to edit quotes in this workspace.",
+};
+
+function quoteError(error: { message?: string }): Error {
+  const message = String(error.message ?? "");
+  const code = Object.keys(QUOTE_ERRORS).find((key) => message.includes(key));
+  return code ? new Error(QUOTE_ERRORS[code]) : (error as Error);
+}
+
+/**
+ * Saves a quote and replaces its lines in ONE transaction
+ * (`save_owner_quote`, SECURITY INVOKER, tenant-checked): a failure leaves the
+ * previous quote untouched, so lines can never be doubled or lost. Returns the
+ * quote id, which the editor keeps so a retry updates instead of re-creating.
+ * `accepted_at` is set by the database only on the change to "accepted".
+ */
 export function useSaveQuote(organizationId: string | undefined) {
   const invalidate = useInvalidateQuotes(organizationId);
   return useMutation({
@@ -95,62 +115,30 @@ export function useSaveQuote(organizationId: string | undefined) {
       if (!name) throw new Error("Add the customer's name.");
       const lines = cleanLines(input.lines);
       if (!lines.length) throw new Error("Add at least one line to the quote.");
-      const record = {
-        customer_name: name.slice(0, 160),
-        customer_email: input.customer_email?.trim() || null,
-        customer_phone: input.customer_phone?.trim() || null,
-        lead_id: input.lead_id,
-        notes: input.notes?.trim() || null,
-        status: input.status,
-        accepted_at: input.status === "accepted" ? new Date().toISOString() : null,
-      };
-
-      let quoteId = input.id;
-      if (quoteId) {
-        const { error } = await supabase
-          .from("quotes")
-          .update(record)
-          .eq("id", quoteId)
-          .eq("organization_id", organizationId);
-        if (error) throw error;
-      } else {
-        const { data, error } = await supabase
-          .from("quotes")
-          .insert({ ...record, organization_id: organizationId })
-          .select("id")
-          .single();
-        if (error) throw error;
-        quoteId = data.id;
-      }
-
-      // New lines are written before the old ones are removed, so a failed
-      // write never leaves a saved quote with no lines.
-      const { data: inserted, error: lineError } = await supabase
-        .from("quote_line_items")
-        .insert(
-          lines.map((line, index) => ({
-            organization_id: organizationId,
-            quote_id: quoteId!,
+      const { data, error } = await supabase.rpc(
+        "save_owner_quote" as never,
+        {
+          p_organization_id: organizationId,
+          p_quote_id: input.id ?? null,
+          p_customer_name: name.slice(0, 160),
+          p_customer_email: input.customer_email?.trim() || null,
+          p_customer_phone: input.customer_phone?.trim() || null,
+          p_lead_id: input.lead_id,
+          p_notes: input.notes?.trim() || null,
+          p_status: input.status,
+          p_lines: lines.map((line, index) => ({
             service_id: line.service_id,
             name: line.name,
             unit_price: line.unit_price,
             quantity: line.quantity,
             sort_order: index,
           })),
-        )
-        .select("id");
-      if (lineError) throw lineError;
-      const keep = (inserted ?? []).map((row) => row.id);
-      if (input.id && keep.length) {
-        const { error } = await supabase
-          .from("quote_line_items")
-          .delete()
-          .eq("organization_id", organizationId)
-          .eq("quote_id", quoteId!)
-          .not("id", "in", `(${keep.join(",")})`);
-        if (error) throw error;
-      }
-      return quoteId!;
+        } as never,
+      );
+      if (error) throw quoteError(error);
+      const id = typeof data === "string" ? data : null;
+      if (!id) throw new Error("The quote couldn't be confirmed as saved. Refresh and check.");
+      return id;
     },
     onSuccess: () => {
       toast.success("Quote saved.");
@@ -164,53 +152,48 @@ export function useSetQuoteStatus(organizationId: string | undefined) {
   const invalidate = useInvalidateQuotes(organizationId);
   return useMutation({
     mutationFn: async ({ id, status }: { id: string; status: QuoteStatus }) => {
-      const { error } = await supabase
+      // accepted_at is maintained by the quotes trigger on the transition.
+      const { data, error } = await supabase
         .from("quotes")
-        .update({ status, accepted_at: status === "accepted" ? new Date().toISOString() : null })
+        .update({ status })
         .eq("id", id)
-        .eq("organization_id", organizationId!);
+        .eq("organization_id", organizationId!)
+        .select("id");
       if (error) throw error;
+      if (!data?.length) throw new Error("You don't have permission to change that quote.");
     },
     onSuccess: () => void invalidate(),
     onError: (error: Error) => toast.error(friendlyError(error, "Couldn't update that quote.")),
   });
 }
 
-/** Records the booking made from an accepted quote so it is offered only once. */
-export function useLinkQuoteBooking(organizationId: string | undefined) {
-  const invalidate = useInvalidateQuotes(organizationId);
-  return useMutation({
-    mutationFn: async ({ id, appointmentId }: { id: string; appointmentId: string }) => {
-      const { error } = await supabase
-        .from("quotes")
-        .update({ appointment_id: appointmentId })
-        .eq("id", id)
-        .eq("organization_id", organizationId!);
-      if (error) throw error;
-    },
-    onSuccess: () => void invalidate(),
-    onError: (error: Error) =>
-      toast.warning(
-        friendlyError(error, "The booking was added, but the quote couldn't be marked as booked."),
-      ),
-  });
-}
-
+/**
+ * Deletes a quote. RLS lets only managers and owners delete, and a refused
+ * delete returns no error, just no rows — so zero rows is reported as "not
+ * allowed" instead of a false "Quote deleted".
+ */
 export function useDeleteQuote(organizationId: string | undefined) {
   const invalidate = useInvalidateQuotes(organizationId);
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("quotes")
         .delete()
         .eq("id", id)
-        .eq("organization_id", organizationId!);
+        .eq("organization_id", organizationId!)
+        .select("id");
       if (error) throw error;
+      if (!data?.length) {
+        throw new Error("That quote wasn't deleted — only managers and owners can delete quotes.");
+      }
     },
     onSuccess: () => {
       toast.success("Quote deleted.");
       void invalidate();
     },
-    onError: (error: Error) => toast.error(friendlyError(error, "Couldn't delete that quote.")),
+    onError: (error: Error) => {
+      void invalidate();
+      toast.error(friendlyError(error, "Couldn't delete that quote."));
+    },
   });
 }

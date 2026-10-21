@@ -15,10 +15,19 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useCreateAppointment, useServices } from "@/lib/queries";
 import {
   useDeleteQuote,
-  useLinkQuoteBooking,
   useQuotes,
   useSaveQuote,
   useSetQuoteStatus,
@@ -27,11 +36,16 @@ import {
   QUOTE_STATUSES,
   bookingFromQuote,
   canOfferBooking,
+  editableLine,
   lineFromService,
+  parseAmount,
+  parseEditableLines,
   quoteTotal,
+  type EditableQuoteLine,
   type QuoteLineDraft,
   type QuoteStatus,
 } from "@/lib/service-catalog";
+import { toast } from "@/lib/ui/notify";
 import { currency, relative } from "@/lib/format";
 import type { Tone } from "@/lib/domain";
 
@@ -43,12 +57,22 @@ export type QuotePrefill = {
   lines?: QuoteLineDraft[];
 };
 
-type Draft = QuotePrefill & {
+type Draft = Omit<QuotePrefill, "lines"> & {
   id?: string;
   notes: string;
   status: QuoteStatus;
-  lines: QuoteLineDraft[];
+  /** Price and quantity stay as typed until save (decimals included). */
+  lines: EditableQuoteLine[];
 };
+
+/** Running total of lines being edited; anything not yet a number counts as 0. */
+const draftTotal = (lines: EditableQuoteLine[]) =>
+  quoteTotal(
+    lines.map((line) => ({
+      unit_price: parseAmount(line.unit_price) ?? 0,
+      quantity: parseAmount(line.quantity) ?? 1,
+    })),
+  );
 
 const STATUS_TONE: Record<string, Tone> = {
   draft: "neutral",
@@ -71,21 +95,26 @@ export function OwnerQuotes({
   businessName,
   prefill,
   onPrefillUsed,
+  canDelete = false,
 }: {
   organizationId: string | undefined;
   businessName: string | null;
   prefill?: QuotePrefill | null;
   onPrefillUsed?: () => void;
+  /** Managers and owners only; the database refuses anyone else. */
+  canDelete?: boolean;
 }) {
   const quotes = useQuotes(organizationId);
   const services = useServices(organizationId);
   const save = useSaveQuote(organizationId);
   const setStatus = useSetQuoteStatus(organizationId);
   const remove = useDeleteQuote(organizationId);
-  const linkBooking = useLinkQuoteBooking(organizationId);
   const createAppointment = useCreateAppointment(organizationId, businessName);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [bookingId, setBookingId] = useState<string | null>(null);
+  /** Quotes booked in this session: the button goes at once, before the refetch. */
+  const [bookedIds, setBookedIds] = useState<Set<string>>(() => new Set());
+  const [deleting, setDeleting] = useState<{ id: string; name: string } | null>(null);
   const [pick, setPick] = useState("");
 
   const catalog = useMemo(
@@ -100,7 +129,7 @@ export function OwnerQuotes({
 
   useEffect(() => {
     if (!prefill) return;
-    setDraft({ ...prefill, lines: prefill.lines ?? [], notes: "", status: "draft" });
+    setDraft({ ...prefill, lines: (prefill.lines ?? []).map(editableLine), notes: "", status: "draft" });
     onPrefillUsed?.();
   }, [prefill, onPrefillUsed]);
 
@@ -114,7 +143,7 @@ export function OwnerQuotes({
     lines: [],
   });
 
-  const updateLine = (index: number, patch: Partial<QuoteLineDraft>) =>
+  const updateLine = (index: number, patch: Partial<EditableQuoteLine>) =>
     setDraft((current) =>
       current
         ? { ...current, lines: current.lines.map((line, i) => (i === index ? { ...line, ...patch } : line)) }
@@ -184,7 +213,7 @@ export function OwnerQuotes({
                       </option>
                     ))}
                   </select>
-                  {canOfferBooking(quote) ? (
+                  {canOfferBooking(quote) && !bookedIds.has(quote.id) ? (
                     <Button
                       variant="signal"
                       size="sm"
@@ -193,7 +222,7 @@ export function OwnerQuotes({
                     >
                       <CalendarPlus className="size-4" /> Book this job
                     </Button>
-                  ) : quote.appointment_id ? (
+                  ) : quote.appointment_id || bookedIds.has(quote.id) ? (
                     <Link
                       to="/app/calendar"
                       className="inline-flex min-h-11 items-center text-[12px] text-primary hover:underline"
@@ -217,23 +246,26 @@ export function OwnerQuotes({
                         lines: quote.quote_line_items.map((line) => ({
                           service_id: line.service_id,
                           name: line.name,
-                          unit_price: Number(line.unit_price),
-                          quantity: Number(line.quantity),
+                          unit_price: String(Number(line.unit_price)),
+                          quantity: String(Number(line.quantity)),
                         })),
                       })
                     }
                   >
                     Edit
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="min-h-11 min-w-11"
-                    aria-label={`Delete ${quote.customer_name}'s quote`}
-                    onClick={() => remove.mutate(quote.id)}
-                  >
-                    <Trash2 className="size-4" />
-                  </Button>
+                  {canDelete ? (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="min-h-11 min-w-11"
+                      aria-label={`Delete ${quote.customer_name}'s quote`}
+                      disabled={remove.isPending}
+                      onClick={() => setDeleting({ id: quote.id, name: quote.customer_name })}
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  ) : null}
                 </div>
               </li>
             ))}
@@ -256,7 +288,21 @@ export function OwnerQuotes({
                 className="space-y-4"
                 onSubmit={(e) => {
                   e.preventDefault();
-                  save.mutate(draft, { onSuccess: () => setDraft(null) });
+                  const parsed = parseEditableLines(draft.lines);
+                  if (!parsed.ok) {
+                    toast.error(parsed.error);
+                    return;
+                  }
+                  save.mutate(
+                    { ...draft, lines: parsed.lines },
+                    {
+                      onSuccess: (id) => {
+                        // Keep the saved id so any further save updates this quote.
+                        setDraft((current) => (current ? { ...current, id } : current));
+                        setDraft(null);
+                      },
+                    },
+                  );
                 }}
               >
                 <div className="space-y-1.5">
@@ -336,7 +382,10 @@ export function OwnerQuotes({
                         onClick={() => {
                           const service = catalog.find((s) => s.id === pick);
                           if (!service) return;
-                          setDraft({ ...draft, lines: [...draft.lines, lineFromService(service)] });
+                          setDraft({
+                            ...draft,
+                            lines: [...draft.lines, editableLine(lineFromService(service))],
+                          });
                           setPick("");
                         }}
                       >
@@ -368,10 +417,11 @@ export function OwnerQuotes({
                               id={`oq-price-${index}`}
                               inputMode="decimal"
                               className="h-11"
-                              value={String(line.unit_price)}
+                              value={line.unit_price}
+                              aria-invalid={!Number.isFinite(parseAmount(line.unit_price) ?? 0)}
                               onChange={(e) =>
                                 updateLine(index, {
-                                  unit_price: Number(e.target.value.replace(/[^0-9.]/g, "")) || 0,
+                                  unit_price: e.target.value,
                                   from_starting_price: false,
                                 })
                               }
@@ -385,12 +435,9 @@ export function OwnerQuotes({
                               id={`oq-qty-${index}`}
                               inputMode="decimal"
                               className="h-11"
-                              value={String(line.quantity)}
-                              onChange={(e) =>
-                                updateLine(index, {
-                                  quantity: Number(e.target.value.replace(/[^0-9.]/g, "")) || 1,
-                                })
-                              }
+                              value={line.quantity}
+                              aria-invalid={!Number.isFinite(parseAmount(line.quantity) ?? 1)}
+                              onChange={(e) => updateLine(index, { quantity: e.target.value })}
                             />
                           </div>
                         </div>
@@ -417,14 +464,14 @@ export function OwnerQuotes({
                       onClick={() =>
                         setDraft({
                           ...draft,
-                          lines: [...draft.lines, { service_id: null, name: "", unit_price: 0, quantity: 1 }],
+                          lines: [...draft.lines, { service_id: null, name: "", unit_price: "0", quantity: "1" }],
                         })
                       }
                     >
                       <Plus className="size-4" /> Custom line
                     </Button>
                     <p className="tnum text-[14px] font-semibold">
-                      Total {currency(quoteTotal(draft.lines))}
+                      Total {currency(draftTotal(draft.lines))}
                     </p>
                   </div>
                 </fieldset>
@@ -489,6 +536,9 @@ export function OwnerQuotes({
                 onSubmit={(e) => {
                   e.preventDefault();
                   const form = new FormData(e.currentTarget);
+                  const quoteId = booking.id;
+                  // One transaction books the job and links the quote; a quote
+                  // that was booked meanwhile is refused ("already booked").
                   createAppointment.mutate(
                     {
                       name: bookingPlan.name,
@@ -500,12 +550,14 @@ export function OwnerQuotes({
                       estimatedValue: bookingPlan.estimatedValue,
                       startsAt: `${String(form.get("date"))}T${String(form.get("time"))}`,
                       notes: `From accepted quote (${currency(bookingPlan.estimatedValue)}).`,
+                      quoteId,
                     },
                     {
-                      onSuccess: (appointmentId) => {
-                        linkBooking.mutate({ id: booking.id, appointmentId });
+                      onSuccess: () => {
+                        setBookedIds((current) => new Set(current).add(quoteId));
                         setBookingId(null);
                       },
+                      onError: () => setBookingId(null),
                     },
                   );
                 }}
@@ -535,6 +587,31 @@ export function OwnerQuotes({
           ) : null}
         </DialogContent>
       </Dialog>
+
+      {/* Delete confirmation (managers and owners only) */}
+      <AlertDialog open={!!deleting} onOpenChange={(open) => !open && setDeleting(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {deleting?.name}'s quote?</AlertDialogTitle>
+            <AlertDialogDescription>
+              The quote and its lines are removed for good. A booking made from it stays on the
+              calendar.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="min-h-11">Keep it</AlertDialogCancel>
+            <AlertDialogAction
+              className="min-h-11"
+              onClick={() => {
+                if (deleting) remove.mutate(deleting.id);
+                setDeleting(null);
+              }}
+            >
+              Delete quote
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Panel>
   );
 }

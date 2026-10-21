@@ -1,5 +1,6 @@
 import { EmailAPIError } from "@lovable.dev/email-js";
 import { sendTemplateEmail } from "@/lib/email-templates/send-email";
+import type { ConsentLookups } from "@/lib/automation-consent";
 
 /**
  * Outcome of one delivery attempt.
@@ -18,28 +19,78 @@ export type DeliverableRun = {
   body: string | null;
   /** Which event queued the run; review requests need SMS opt-in. */
   trigger_event?: string | null;
+  /** Start of the linked appointment; stale reminders are dropped. */
+  appointment_starts_at?: string | null;
+};
+
+export type DeliveryContext = {
+  businessName?: string | null;
+  replyTo?: string | null;
+  /** The business's state, so quiet hours use its zone alongside the number's area code. */
+  businessState?: string | null;
+};
+
+type ConsentDb = {
+  from: (table: string) => {
+    select: (columns: string) => {
+      eq: (column: string, value: string) => {
+        maybeSingle: () => PromiseLike<{ data: unknown; error: { message?: string } | null }>;
+      };
+    };
+  };
 };
 
 /**
  * Consent lookups for the automation gate (src/lib/automation-consent.ts),
  * backed by the platform do-not-contact and consent lists. Those lists are
- * service-role only, so they are read with the admin client by exact value;
- * a failed read blocks the message (fail closed).
+ * service-role only, so they are read with the admin client by exact value.
+ *
+ * Unlike the outreach helpers (which fold a read error into "blocked"), these
+ * THROW on a read error: the gate then keeps the run queued and retries
+ * (`consent_lookup_unavailable`) instead of recording a false "unsubscribed".
  */
-async function consentGate(run: DeliverableRun, recipient: string) {
+export function automationConsentLookups(
+  db: ConsentDb,
+  helpers: {
+    normalizeContact: (value: unknown) => { value: string; kind: "email" | "phone" } | null;
+    smsAllowedNow: (now: Date, state: string | null | undefined, phone?: string | null) => boolean;
+  },
+  businessState: string | null = null,
+): ConsentLookups {
+  const read = async (table: string, column: string, value: string) => {
+    const { data, error } = await db.from(table).select(column).eq("value", value).maybeSingle();
+    if (error) throw new Error(`consent lookup failed: ${error.message ?? table}`);
+    return data as Record<string, unknown> | null;
+  };
+  return {
+    isDoNotContact: async (value) => {
+      const contact = helpers.normalizeContact(value);
+      if (!contact) return false;
+      return Boolean(await read("prospect_do_not_contact", "value", contact.value));
+    },
+    hasSmsConsent: async (phone) => {
+      const contact = helpers.normalizeContact(phone);
+      if (!contact || contact.kind !== "phone") return false;
+      return (await read("prospect_contact_consent", "sms", contact.value))?.["sms"] === true;
+    },
+    smsAllowedAt: (when, phone) => helpers.smsAllowedNow(when, businessState, phone),
+  };
+}
+
+async function consentGate(run: DeliverableRun, recipient: string, ctx: DeliveryContext) {
   const [{ automationContactGate }, outreach, { supabaseAdmin }] = await Promise.all([
     import("@/lib/automation-consent"),
     import("@/lib/prospect-outreach.server"),
     import("@/integrations/supabase/client.server"),
   ]);
-  const db = supabaseAdmin as never;
   return automationContactGate(
-    { action_type: run.action_type, recipient, trigger_event: run.trigger_event ?? null },
     {
-      isDoNotContact: (value) => outreach.isDoNotContact(db, value).catch(() => true),
-      hasSmsConsent: (phone) => outreach.hasSmsConsent(db, phone).catch(() => false),
-      smsAllowedAt: (when, phone) => outreach.smsAllowedNow(when, null, phone),
+      action_type: run.action_type,
+      recipient,
+      trigger_event: run.trigger_event ?? null,
+      appointment_starts_at: run.appointment_starts_at ?? null,
     },
+    automationConsentLookups(supabaseAdmin as never, outreach, ctx.businessState ?? null),
   );
 }
 
@@ -48,11 +99,11 @@ const isE164ish = (v: string) => /^\+?[0-9][0-9\s().-]{6,19}$/.test(v);
 /** Real email delivery through Lovable's managed sending. */
 export async function deliverEmail(
   run: DeliverableRun,
-  ctx: { businessName?: string | null; replyTo?: string | null } = {},
+  ctx: DeliveryContext = {},
 ): Promise<DeliveryResult> {
   const to = (run.recipient ?? "").trim();
   if (!to) return { ok: false, retry: false, reason: "no_email_address" };
-  const gate = await consentGate(run, to);
+  const gate = await consentGate(run, to, ctx);
   if (!gate.ok) return gate;
   try {
     const result = await sendTemplateEmail("automation-message", to, {
@@ -94,7 +145,7 @@ export async function deliverEmail(
  * capability registry so it is always the true one. Delivery is reported only
  * when Twilio accepts the message.
  */
-export async function deliverSms(run: DeliverableRun): Promise<DeliveryResult> {
+export async function deliverSms(run: DeliverableRun, ctx: DeliveryContext = {}): Promise<DeliveryResult> {
   const to = (run.recipient ?? "").trim();
   if (!to) return { ok: false, retry: false, reason: "no_phone_number" };
   if (!isE164ish(to)) return { ok: false, retry: false, reason: "invalid_phone_number" };
@@ -104,7 +155,7 @@ export async function deliverSms(run: DeliverableRun): Promise<DeliveryResult> {
     const { normalizePhone, withStopLine } = await import("@/lib/prospect-outreach.server");
     const phone = normalizePhone(to);
     if (!phone) return { ok: false, retry: false, reason: "invalid_phone_number" };
-    const gate = await consentGate(run, phone);
+    const gate = await consentGate(run, phone, ctx);
     if (!gate.ok) return gate;
     const result = await sendTwilioSms(phone, withStopLine(run.body ?? ""));
     return result.ok ? { ok: true } : { ok: false, retry: result.retry, reason: result.reason };
@@ -130,10 +181,10 @@ export async function deliverSms(run: DeliverableRun): Promise<DeliveryResult> {
 
 export async function deliverRun(
   run: DeliverableRun,
-  ctx: { businessName?: string | null; replyTo?: string | null } = {},
+  ctx: DeliveryContext = {},
 ): Promise<DeliveryResult> {
   if (run.action_type === "email") return deliverEmail(run, ctx);
-  if (run.action_type === "sms") return deliverSms(run);
+  if (run.action_type === "sms") return deliverSms(run, ctx);
   return { ok: true };
 }
 

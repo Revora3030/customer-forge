@@ -9,6 +9,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/lib/ui/notify";
 import { friendlyError } from "@/lib/user-error";
 import { supabase } from "@/integrations/supabase/client";
+import { requestReviewForAppointment } from "@/lib/automation-queue.functions";
 
 export type Campaign = {
   id: string;
@@ -132,43 +133,51 @@ export function useSetReviewPublished(organizationId: string | undefined) {
 }
 
 /**
- * Queues a review request for a completed customer. The message is stored as an
- * automation run so it flows through the same delivery pipeline (and the same
- * honest "queued vs sent" states) as every other follow-up.
+ * Queues a review request for a completed booking. The server builds the
+ * message from the booking's own contact details and the business profile and
+ * sends it through the same automation pipeline (and the same honest "queued
+ * vs sent" states) as every other follow-up; the browser never writes the run.
  */
 export function useRequestReview(organizationId: string | undefined) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (input: {
-      name: string;
-      recipient: string;
-      channel: "email" | "sms";
-      businessName: string;
-      reviewLink: string | null;
-      leadId?: string | null;
-      appointmentId?: string | null;
-    }) => {
-      const link = input.reviewLink?.trim();
-      const body = `Hi ${input.name.split(" ")[0] ?? "there"} — thanks again for choosing ${input.businessName}. Would you leave us a quick review?${link ? ` ${link}` : ""}`;
-      const { error } = await supabase.from("automation_runs").insert({
-        organization_id: organizationId!,
-        lead_id: input.leadId ?? null,
-        appointment_id: input.appointmentId ?? null,
-        trigger_event: "review_request",
-        action_type: input.channel,
-        recipient: input.recipient,
-        subject: `How did we do, ${input.name.split(" ")[0] ?? "there"}?`,
-        body,
-        scheduled_for: new Date().toISOString(),
-        status: "queued",
-      } as never);
-      if (error) throw error;
+    mutationFn: async (input: { appointmentId: string; channel: "email" | "sms" }) => {
+      if (!organizationId) throw new Error("Workspace not loaded yet.");
+      return requestReviewForAppointment({
+        data: { organizationId, appointmentId: input.appointmentId, channel: input.channel },
+      });
     },
     onSuccess: () => {
       toast.success("Review request queued.");
       void queryClient.invalidateQueries({ queryKey: ["automation_runs", organizationId] });
+      void queryClient.invalidateQueries({ queryKey: ["review_requests", organizationId] });
     },
-    onError: (error: Error) =>
-      toast.error(friendlyError(error, "Couldn't queue that review request.")),
+    onError: (error: Error) => {
+      void queryClient.invalidateQueries({ queryKey: ["review_requests", organizationId] });
+      toast.error(friendlyError(error, "Couldn't queue that review request."));
+    },
+  });
+}
+
+/**
+ * Bookings that already have a review request queued or sent, read from the
+ * saved automation runs (not page memory), so the button stays "asked" after
+ * a reload and across devices.
+ */
+export function useReviewRequestedAppointments(organizationId: string | undefined) {
+  return useQuery({
+    queryKey: ["review_requests", organizationId],
+    enabled: !!organizationId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("automation_runs")
+        .select("appointment_id")
+        .eq("organization_id", organizationId!)
+        .eq("trigger_event", "review_request")
+        .in("status", ["queued", "sent"])
+        .not("appointment_id", "is", null);
+      if (error) throw error;
+      return new Set((data ?? []).map((row) => row.appointment_id).filter((id): id is string => Boolean(id)));
+    },
   });
 }
