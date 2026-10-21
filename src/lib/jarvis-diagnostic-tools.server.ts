@@ -762,20 +762,12 @@ export async function executeJarvisDiagnosticTool(
     if (toolId === "docs.lookup") {
       const key = process.env["CONTEXT7_API_KEY"];
       const limitations = ["Third-party documentation index; confirm against the official docs before relying on edge cases."];
-      const { cleanDocsQuery, buildSearchUrl, buildDocsUrl, pickLibraryId } = await import("./jarvis-docs-lookup");
+      const { cleanDocsQuery, lookupContext7Docs } = await import("./jarvis-docs-lookup");
       const q = cleanDocsQuery(args.query);
       if (!q) return result(toolId, "unknown", { reason: "missing_query", format: "library: topic" }, { checkedAt, durationMs: Date.now() - started, limitations });
       if (!key) return result(toolId, "unknown", { reason: "needs_key", secret: "CONTEXT7_API_KEY" }, { checkedAt, durationMs: Date.now() - started, limitations });
-      const headers = { Authorization: `Bearer ${key}` };
-      const search = await fetch(buildSearchUrl(q.library), { headers, signal: AbortSignal.timeout(7000) });
-      if (!search.ok) return result(toolId, "unknown", { reason: search.status === 429 ? "free_quota_exhausted" : `context7_http_${search.status}` }, { checkedAt, durationMs: Date.now() - started, limitations });
-      const lib = pickLibraryId(await search.json());
-      if (!lib) return result(toolId, "unknown", { reason: "library_not_found", library: q.library }, { checkedAt, durationMs: Date.now() - started, limitations });
-      const docs = await fetch(buildDocsUrl(lib.id, q.topic), { headers, signal: AbortSignal.timeout(7000) });
-      if (!docs.ok) return result(toolId, "unknown", { reason: `context7_http_${docs.status}`, source: lib.id }, { checkedAt, durationMs: Date.now() - started, limitations });
-      const text = (await readLimited(docs, 12000)).slice(0, 7500);
-      if (!text.trim()) return result(toolId, "unknown", { reason: "empty_documentation", source: lib.id }, { checkedAt, durationMs: Date.now() - started, limitations });
-      return result(toolId, "observed", { source: lib.id, library: lib.title, topic: q.topic || null, excerpt: text }, { checkedAt, durationMs: Date.now() - started, limitations });
+      const outcome = await lookupContext7Docs(q, key);
+      return result(toolId, outcome.status, outcome.data, { checkedAt, durationMs: Date.now() - started, limitations });
     }
 
     if (toolId === "growth.funnel.summary") {
@@ -860,6 +852,12 @@ export async function executeJarvisDiagnosticTool(
           "Connector runtime health is process-local and resets on restart.",
         ],
       });
+    }
+
+    if (toolId === "web.page.read") {
+      const { readJarvisWebPage, WEB_PAGE_READ_LIMITATIONS } = await import("./jarvis-web-page-read.server");
+      const read = await readJarvisWebPage(args.target, tool.maxOutputBytes);
+      return result(toolId, read.status, read.data, { checkedAt, durationMs: Date.now() - started, limitations: WEB_PAGE_READ_LIMITATIONS });
     }
 
     return result(toolId, "unknown", { reason: "unhandled_registered_tool" }, {

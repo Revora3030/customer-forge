@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Accessibility, Archive, BookOpen, Bug, CalendarDays, Cloud, Code2, FileSearch, FileText, Globe, Landmark, Lock, Mail, Sheet, Gauge, Image as ImageIcon, Link, MonitorCheck, Play, ShieldCheck } from "lucide-react";
+import { Accessibility, Archive, BookOpen, Bug, CalendarDays, Cloud, Code2, FileSearch, FileText, Globe, Landmark, Lock, Mail, Sheet, Gauge, Image as ImageIcon, Link, MonitorCheck, Play, ScrollText, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getJarvisFreeToolReadiness, runJarvisDiagnosticTool } from "@/lib/jarvis.functions";
@@ -23,6 +23,7 @@ const tools = [
   { id: "domain.rdap.lookup", title: "Domain registration · no key", icon: Landmark },
   { id: "domain.wayback.history", title: "Wayback history · no key", icon: Archive },
   { id: "website.text.extract", title: "Readable page text · no key", icon: FileText },
+  { id: "web.page.read", title: "Read a page · no key", icon: ScrollText },
   { id: "workspace.calendar.upcoming", title: "Google Calendar · next 7 days", icon: CalendarDays },
   { id: "workspace.sheets.read", title: "Google Sheets outline", icon: Sheet },
   { id: "cloudflare.zones.summary", title: "Cloudflare domains", icon: Cloud },
@@ -63,6 +64,7 @@ export function FreeToolsPanel() {
   const [query, setQuery] = useState("tanstack start: server functions");
   const [photoQuery, setPhotoQuery] = useState("auto detailing foam wash");
   const [sheetUrl, setSheetUrl] = useState("");
+  const [pageUrl, setPageUrl] = useState("");
   const [strategy, setStrategy] = useState("mobile");
   const [running, setRunning] = useState<string | null>(null);
   const [results, setResults] = useState<Record<string, Result>>({});
@@ -71,7 +73,7 @@ export function FreeToolsPanel() {
     setRunning(toolId);
     setError(null);
     try {
-      const args = toolId === "docs.lookup" ? { query } : toolId === "images.stock.search" ? { query: photoQuery } : toolId === "workspace.sheets.read" ? { query: sheetUrl } : toolId === "website.dns.lookup" || toolId === "domain.rdap.lookup" || toolId === "domain.wayback.history" ? { query: target } : { target, strategy };
+      const args = toolId === "docs.lookup" ? { query } : toolId === "images.stock.search" ? { query: photoQuery } : toolId === "workspace.sheets.read" ? { query: sheetUrl } : toolId === "web.page.read" ? { target: pageUrl } : toolId === "website.dns.lookup" || toolId === "domain.rdap.lookup" || toolId === "domain.wayback.history" ? { query: target } : { target, strategy };
       const result = await run({ data: { toolId, args } });
       setResults((previous) => ({ ...previous, [toolId]: result }));
     } catch {
@@ -89,6 +91,7 @@ export function FreeToolsPanel() {
       </div>
       <label className="block space-y-1 text-xs">Documentation query<Input aria-label="Documentation query" value={query} onChange={(event) => setQuery(event.target.value)} /></label>
       <label className="block space-y-1 text-xs">Google Sheets link<Input aria-label="Google Sheets link" placeholder="https://docs.google.com/spreadsheets/d/…" value={sheetUrl} onChange={(event) => setSheetUrl(event.target.value)} /></label>
+      <label className="block space-y-1 text-xs">Public page to read<Input aria-label="Public page to read" placeholder="https://example.com/article" value={pageUrl} onChange={(event) => setPageUrl(event.target.value)} /></label>
       <label className="block space-y-1 text-xs">Photo search<Input aria-label="Stock photo search" value={photoQuery} onChange={(event) => setPhotoQuery(event.target.value)} /></label>
       {tools.map((tool) => {
         const result = results[tool.id];

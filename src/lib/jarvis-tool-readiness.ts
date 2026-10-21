@@ -88,6 +88,7 @@ const TOOL_RULES: Record<JarvisDiagnosticToolId, Rule> = {
   "observability.export.status": keyless,
   "security.posture.summary": keyless,
   "integrations.status": keyless,
+  "web.page.read": keyless,
 };
 
 const SERVICE_RULES: Record<JarvisServiceId, Rule> = {

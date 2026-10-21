@@ -77,6 +77,38 @@ describe("Jarvis diagnostic executor", () => {
     expect((await executeJarvisDiagnosticTool(db, "docs.lookup", { query: "react: hooks" })).data).toMatchObject({ reason: "needs_key" });
     expect(fetchMock).not.toHaveBeenCalled();
   });
+  it("web.page.read needs a target and refuses Revora admin, auth and API paths without fetching", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const missing = await executeJarvisDiagnosticTool(db, "web.page.read");
+    expect(missing).toMatchObject({ status: "unknown", data: { reason: "missing_target" } });
+    for (const target of ["https://revoragrowthsystems.com/admin/ai", "https://www.revoragrowthsystems.com/api/public/x", "https://revoragrowthsystems.com/%61uth", "https://revoragrowthsystems.com//login", "https://customer-forge.lovable.app/login"]) {
+      expect(await executeJarvisDiagnosticTool(db, "web.page.read", { target })).toMatchObject({ status: "unknown", data: { reason: "target_not_allowed" } });
+    }
+    expect(await executeJarvisDiagnosticTool(db, "web.page.read", { target: "http://example.com/" })).toMatchObject({ status: "unknown", data: { reason: "invalid_target" } });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("web.page.read returns bounded served-HTML text with no raw tags", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (new URL(url).hostname === "cloudflare-dns.com") {
+        return Response.json({ Answer: url.includes("type=AAAA") ? [] : [{ type: 1, data: "93.184.216.34" }] });
+      }
+      return new Response(`<html><head><title>Field guide</title><meta name="description" content="How it works"></head><body><nav><a href="/x">Menu</a></nav><script>alert(1)</script><h1>Hello</h1><p>${"Useful text. ".repeat(900)}</p><img src="a.png"></body></html>`, {
+        status: 200, headers: { "content-type": "text/html" },
+      });
+    }));
+    const output = await executeJarvisDiagnosticTool(db, "web.page.read", { target: "https://example.com/guide" });
+    expect(output.status).toBe("observed");
+    expect(output.data).toMatchObject({ evidenceType: "served_html_text", title: "Field guide", description: "How it works", source: { provider: "revora-native-fetch", trust: "research" } });
+    const serialized = JSON.stringify(output.data);
+    expect(serialized).not.toMatch(/<[a-z/!]/i);
+    expect(serialized).not.toContain("alert(1)");
+    expect(new TextEncoder().encode(serialized).byteLength).toBeLessThanOrEqual(8000);
+    expect(output.limitations.join(" ")).toMatch(/Not rendered content/);
+  });
+
   it("rejects unknown and model-invented tool identifiers before doing any work", async () => {
     await expect(executeJarvisDiagnosticTool(db, "shell.exec")).rejects.toThrow("Unknown Jarvis diagnostic tool");
     await expect(executeJarvisDiagnosticTool(db, "database.run_sql")).rejects.toThrow("Unknown Jarvis diagnostic tool");

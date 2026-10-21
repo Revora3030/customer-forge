@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { resetIntegrationHealth } from "./registry.server";
-import { researchPage } from "./research.server";
+import { PUBLIC_PAGE_MAX_TEXT, readPublicPage, researchPage } from "./research.server";
 
 describe("capability-routed research", () => {
   beforeEach(() => {
@@ -79,5 +79,70 @@ describe("capability-routed research", () => {
     const outcome = await researchPage("http://127.0.0.1/admin");
     expect(outcome.ok).toBe(false);
     expect(calls).not.toHaveBeenCalled();
+  });
+});
+
+describe("readPublicPage (keyless web.page.read)", () => {
+  const dns = (url: string) =>
+    Response.json({ Answer: url.includes("type=AAAA") ? [] : [{ type: 1, data: "93.184.216.34" }] });
+  const page = (respond: () => Response) => {
+    const calls: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      calls.push(url);
+      return new URL(url).hostname === "cloudflare-dns.com" ? dns(url) : respond();
+    }));
+    return calls;
+  };
+
+  beforeEach(() => {
+    resetIntegrationHealth();
+    vi.restoreAllMocks();
+    vi.unstubAllEnvs();
+  });
+
+  it("refuses http, private addresses and credentials without fetching them", async () => {
+    const calls = page(() => new Response("never"));
+    expect(await readPublicPage("http://example.com/")).toMatchObject({ ok: false, reason: "not_https" });
+    expect(await readPublicPage("https://127.0.0.1/")).toMatchObject({ ok: false, reason: "unsafe_address" });
+    expect(await readPublicPage("https://user:pass@example.com/")).toMatchObject({ ok: false, reason: "unsafe_address" });
+    expect(calls.filter((url) => !url.includes("cloudflare-dns.com"))).toEqual([]);
+  });
+
+  it("reads only HTML or plain text", async () => {
+    page(() => Response.json({ secret: "x" }));
+    expect(await readPublicPage("https://example.com/data")).toMatchObject({ ok: false, reason: "not_html" });
+  });
+
+  it("reports a redirect with only the destination host and never follows it", async () => {
+    const calls = page(() => new Response(null, { status: 302, headers: { location: "https://elsewhere.example.org/private?token=abc" } }));
+    const outcome = await readPublicPage("https://example.com/");
+    expect(outcome).toEqual({ ok: false, reason: "redirect", httpStatus: 302, locationHost: "elsewhere.example.org" });
+    expect(JSON.stringify(outcome)).not.toContain("token");
+    expect(calls.some((url) => url.includes("elsewhere.example.org"))).toBe(false);
+  });
+
+  it("caps the text and labels it as research from Revora's own reader", async () => {
+    page(() => new Response(`<html><head><title>Guide</title></head><body><script>steal()</script>${"<p>word</p>".repeat(5000)}</body></html>`, {
+      status: 200, headers: { "content-type": "text/html; charset=utf-8" },
+    }));
+    const outcome = await readPublicPage("https://example.com/guide");
+    expect(outcome.ok).toBe(true);
+    if (outcome.ok) {
+      expect(outcome.extract.text.length).toBe(PUBLIC_PAGE_MAX_TEXT);
+      expect(outcome.textTruncated).toBe(true);
+      expect(outcome.extract.text).not.toMatch(/steal|<p>/);
+      expect(outcome.extract.title).toBe("Guide");
+      expect(outcome.extract.source).toMatchObject({ provider: "revora-native-fetch", trust: "research" });
+    }
+  });
+
+  it("never calls Firecrawl, even when its key is set and paid providers are allowed", async () => {
+    vi.stubEnv("FIRECRAWL_API_KEY", "fc-test");
+    vi.stubEnv("FREE_AI_ONLY", "false");
+    const calls = page(() => new Response("<title>Plain</title><p>Hello</p>", { status: 200, headers: { "content-type": "text/html" } }));
+    const outcome = await readPublicPage("https://example.com/");
+    expect(outcome.ok).toBe(true);
+    expect(calls.some((url) => url.includes("firecrawl"))).toBe(false);
   });
 });

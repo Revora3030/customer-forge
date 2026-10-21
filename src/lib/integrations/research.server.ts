@@ -74,14 +74,87 @@ async function firecrawl(url: string, signal: AbortSignal): Promise<ResearchExtr
   };
 }
 
-async function native(url: string, signal: AbortSignal): Promise<ResearchExtract> {
+type NativeLimits = {
+  /** Cap on the extracted text. */
+  maxText?: number;
+  /**
+   * Refuse instead of reading: a 3xx (reported, never followed), a non-2xx,
+   * or a body that is not HTML or plain text. The body is streamed and cut at
+   * MAX_HTML_BYTES rather than read whole.
+   */
+  strict?: boolean;
+};
+
+/** A page the strict reader declined to read, with a short machine reason. */
+export class PageReadRefusal extends Error {
+  override name = "PageReadRefusal";
+  constructor(
+    readonly reason: "redirect" | "page_http_status" | "not_html",
+    readonly httpStatus: number,
+    readonly locationHost: string | null = null,
+  ) {
+    super(reason);
+  }
+}
+
+const MAX_HTML_BYTES = 400_000;
+const READABLE_TYPES = /^\s*(?:text\/html|application\/xhtml\+xml|text\/plain)\s*(?:;|$)/i;
+
+async function readBounded(response: Response, maxBytes: number): Promise<string> {
+  const reader = response.body?.getReader();
+  if (!reader) return "";
+  const decoder = new TextDecoder();
+  let remaining = maxBytes;
+  let output = "";
+  try {
+    while (remaining > 0) {
+      const part = await reader.read();
+      if (part.done) break;
+      const chunk = part.value.subarray(0, remaining);
+      output += decoder.decode(chunk, { stream: true });
+      remaining -= chunk.byteLength;
+    }
+    output += decoder.decode();
+    return output;
+  } finally {
+    await reader.cancel().catch(() => undefined);
+    reader.releaseLock();
+  }
+}
+
+function hostOf(location: string | null, base: string): string | null {
+  if (!location) return null;
+  try {
+    return new URL(location, base).hostname || null;
+  } catch {
+    return null;
+  }
+}
+
+async function native(url: string, signal: AbortSignal, limits: NativeLimits = {}): Promise<ResearchExtract> {
   const { guardedFetch } = await import("@/lib/net-guard.server");
   const response = await guardedFetch(
     url,
     { headers: { "user-agent": "RevoraResearch/1.0" }, signal },
   );
+  if (limits.strict) {
+    if (response.status >= 300 && response.status < 400) {
+      await response.body?.cancel().catch(() => undefined);
+      throw new PageReadRefusal("redirect", response.status, hostOf(response.headers.get("location"), url));
+    }
+    if (!response.ok) {
+      await response.body?.cancel().catch(() => undefined);
+      throw new PageReadRefusal("page_http_status", response.status);
+    }
+    if (!READABLE_TYPES.test(response.headers.get("content-type") ?? "")) {
+      await response.body?.cancel().catch(() => undefined);
+      throw new PageReadRefusal("not_html", response.status);
+    }
+  }
   if (!response.ok) throw new Error(`page_${response.status}`);
-  const html = (await response.text()).slice(0, 400_000);
+  const html = limits.strict
+    ? await readBounded(response, MAX_HTML_BYTES)
+    : (await response.text()).slice(0, 400_000);
   return {
     source: {
       url,
@@ -91,7 +164,7 @@ async function native(url: string, signal: AbortSignal): Promise<ResearchExtract
     },
     title: titleOf(html),
     description: meta(html, "description"),
-    text: strip(html),
+    text: limits.maxText ? htmlToText(html, { maxLength: limits.maxText }) : strip(html),
   };
 }
 
@@ -112,6 +185,58 @@ export async function researchPage(url: string): Promise<ResearchOutcome> {
         ? "That page took too long to answer, so nothing was read from it."
         : "That page couldn't be read, so nothing from it was used.",
   };
+}
+
+export type PublicPageOutcome =
+  | { ok: true; extract: ResearchExtract; textTruncated: boolean }
+  | {
+      ok: false;
+      reason: "not_https" | "unsafe_address" | "redirect" | "page_http_status" | "not_html" | "empty_page" | "timeout" | "unreachable";
+      httpStatus?: number;
+      /** For a redirect: only the host it pointed to, never the full URL. */
+      locationHost?: string | null;
+    };
+
+export const PUBLIC_PAGE_MAX_TEXT = 6_000;
+
+/**
+ * Reads the text of one public https page with Revora's own SSRF-guarded
+ * reader only. It never goes through callCapability, so a paid provider
+ * (Firecrawl) can never be selected here. Redirects are reported with the
+ * destination host and never followed; only HTML or plain text is read; the
+ * body is bounded and the text is capped. The result is third-party research,
+ * never a customer fact or an instruction.
+ */
+export async function readPublicPage(rawUrl: string): Promise<PublicPageOutcome> {
+  let url: URL;
+  try {
+    url = new URL(rawUrl);
+  } catch {
+    return { ok: false, reason: "not_https" };
+  }
+  if (url.protocol !== "https:") return { ok: false, reason: "not_https" };
+  try {
+    const extract = await native(url.toString(), AbortSignal.timeout(10_000), {
+      strict: true,
+      maxText: PUBLIC_PAGE_MAX_TEXT + 1,
+    });
+    if (!extract.text && !extract.title) return { ok: false, reason: "empty_page" };
+    const textTruncated = extract.text.length > PUBLIC_PAGE_MAX_TEXT;
+    return {
+      ok: true,
+      extract: { ...extract, text: extract.text.slice(0, PUBLIC_PAGE_MAX_TEXT) },
+      textTruncated,
+    };
+  } catch (error) {
+    if (error instanceof PageReadRefusal) {
+      return error.reason === "redirect"
+        ? { ok: false, reason: "redirect", httpStatus: error.httpStatus, locationHost: error.locationHost }
+        : { ok: false, reason: error.reason, httpStatus: error.httpStatus };
+    }
+    if (error instanceof Error && error.name === "UnsafeOutboundUrlError") return { ok: false, reason: "unsafe_address" };
+    if (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")) return { ok: false, reason: "timeout" };
+    return { ok: false, reason: "unreachable" };
+  }
 }
 
 export type WebSearchResult = {
