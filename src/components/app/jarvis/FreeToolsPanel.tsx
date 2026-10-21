@@ -16,6 +16,11 @@ const tools = [
   { id: "website.page.audit", title: "Page SEO (Browserbase)", icon: FileSearch },
   { id: "images.stock.search", title: "Stock photos", icon: ImageIcon },
   { id: "docs.lookup", title: "Documentation", icon: BookOpen },
+  { id: "website.dns.lookup", title: "DNS records · no key", icon: Globe },
+  { id: "workspace.calendar.upcoming", title: "Google Calendar · next 7 days", icon: CalendarDays },
+  { id: "workspace.sheets.read", title: "Google Sheets outline", icon: Sheet },
+  { id: "cloudflare.zones.summary", title: "Cloudflare domains", icon: Cloud },
+  { id: "email.resend.domains", title: "Resend sending domains", icon: Mail },
 ] as const;
 const services = [
   { id: "stock.unsplash", label: "Unsplash photos", key: "UNSPLASH_ACCESS_KEY", link: "https://unsplash.com/oauth/applications" },
@@ -33,6 +38,7 @@ export function FreeToolsPanel() {
   const [target, setTarget] = useState("https://revoragrowthsystems.com/");
   const [query, setQuery] = useState("tanstack start: server functions");
   const [photoQuery, setPhotoQuery] = useState("auto detailing foam wash");
+  const [sheetUrl, setSheetUrl] = useState("");
   const [strategy, setStrategy] = useState("mobile");
   const [running, setRunning] = useState<string | null>(null);
   const [results, setResults] = useState<Record<string, Result>>({});
@@ -41,7 +47,8 @@ export function FreeToolsPanel() {
     setRunning(toolId);
     setError(null);
     try {
-      const result = await run({ data: { toolId, args: toolId === "docs.lookup" ? { query } : toolId === "images.stock.search" ? { query: photoQuery } : { target, strategy } } });
+      const args = toolId === "docs.lookup" ? { query } : toolId === "images.stock.search" ? { query: photoQuery } : toolId === "workspace.sheets.read" ? { query: sheetUrl } : toolId === "website.dns.lookup" ? { query: target } : { target, strategy };
+      const result = await run({ data: { toolId, args } });
       setResults((previous) => ({ ...previous, [toolId]: result }));
     } catch {
       setError("Check unavailable. No successful result recorded.");

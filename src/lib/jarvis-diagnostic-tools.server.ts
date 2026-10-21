@@ -635,6 +635,37 @@ export async function executeJarvisDiagnosticTool(
       return result(toolId, browserCheckHasProblems(summary) ? "failed" : "observed", summary, { checkedAt, durationMs: Date.now() - started, limitations });
     }
 
+    if (toolId === "website.dns.lookup") {
+      const { cleanDomain, dohUrl, summarizeDns, DNS_TYPES } = await import("./jarvis-connected-services");
+      const limitations = ["Public DNS answers at check time; propagation may still be in progress."];
+      const domain = cleanDomain(args.query ?? args.target);
+      if (!domain) return result(toolId, "unknown", { reason: "invalid_domain" }, { checkedAt, durationMs: Date.now() - started, limitations });
+      const records: Record<string, unknown> = {};
+      await Promise.all(DNS_TYPES.map(async (type) => {
+        try {
+          const res = await fetch(dohUrl(domain, type), { headers: { Accept: "application/dns-json" }, signal: AbortSignal.timeout(6000) });
+          records[type] = res.ok ? summarizeDns(await res.json()) : `http_${res.status}`;
+        } catch { records[type] = "unreachable"; }
+      }));
+      return result(toolId, "observed", { domain, records }, { checkedAt, durationMs: Date.now() - started, limitations });
+    }
+
+    {
+      const { isConnectedToolId, CONNECTED_SERVICE_SECRETS, GATEWAY_BASE, connectedServicePath, summarizeConnected } = await import("./jarvis-connected-services");
+      if (isConnectedToolId(toolId)) {
+        const limitations = ["Read-only summary from the linked workspace account; nothing was sent or changed."];
+        const secret = CONNECTED_SERVICE_SECRETS[toolId];
+        const lovableKey = process.env["LOVABLE_API_KEY"];
+        const connKey = process.env[secret];
+        if (!lovableKey || !connKey) return result(toolId, "unknown", { reason: "needs_connection", secret }, { checkedAt, durationMs: Date.now() - started, limitations });
+        const path = connectedServicePath(toolId, { query: args.query });
+        if (!path) return result(toolId, "unknown", { reason: "missing_or_invalid_input" }, { checkedAt, durationMs: Date.now() - started, limitations });
+        const res = await fetch(`${GATEWAY_BASE}${path}`, { headers: { Authorization: `Bearer ${lovableKey}`, "X-Connection-Api-Key": connKey }, signal: AbortSignal.timeout(12000) });
+        if (!res.ok) return result(toolId, "unknown", { reason: res.status === 429 ? "rate_limited" : res.status === 403 ? "permission_denied" : `http_${res.status}` }, { checkedAt, durationMs: Date.now() - started, limitations });
+        return result(toolId, "observed", summarizeConnected(toolId, await res.json()), { checkedAt, durationMs: Date.now() - started, limitations });
+      }
+    }
+
     if (toolId === "images.stock.search") {
       const { cleanPhotoQuery, unsplashSearchUrl, pexelsSearchUrl, normalizeUnsplash, normalizePexels } = await import("./jarvis-stock-photos");
       const limitations = ["Search results only; check each photo fits the business and keep the photographer credit."];

@@ -367,6 +367,11 @@ export const getJarvisFreeToolReadiness = createServerFn({ method: "GET" })
       "image.cloudflare": Boolean(process.env["CLOUDFLARE_ACCOUNT_ID"] && (process.env["CLOUDFLARE_AI_API_TOKEN"] || process.env["CLOUDFLARE_API_TOKEN"])),
       "image.huggingface": Boolean(process.env["HUGGINGFACE_API_KEY"] || process.env["HF_TOKEN"]),
       "image.pollinations": Boolean(process.env["POLLINATIONS_API_KEY"]),
+      "website.dns.lookup": true,
+      "workspace.calendar.upcoming": Boolean(process.env["LOVABLE_API_KEY"] && process.env["GOOGLE_CALENDAR_API_KEY"]),
+      "workspace.sheets.read": Boolean(process.env["LOVABLE_API_KEY"] && process.env["GOOGLE_SHEETS_API_KEY"]),
+      "cloudflare.zones.summary": Boolean(process.env["LOVABLE_API_KEY"] && process.env["CLOUDFLARE_API_KEY"]),
+      "email.resend.domains": Boolean(process.env["LOVABLE_API_KEY"] && process.env["RESEND_API_KEY"]),
     } as Record<string, boolean>;
   });
 
