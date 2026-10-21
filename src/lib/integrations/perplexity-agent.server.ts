@@ -128,7 +128,8 @@ export async function runPerplexityAgent(request: AgentRequest): Promise<AgentAn
     };
   }
 
-  const client = new Perplexity({ apiKey });
+  // No SDK-internal retries: callers get the failure (and Retry-After) to decide.
+  const client = new Perplexity({ apiKey, maxRetries: 0 });
   try {
     const response = await client.responses.create({
       preset: request.preset ?? "fast",

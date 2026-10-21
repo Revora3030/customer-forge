@@ -56,9 +56,8 @@ describe("perplexity agent", () => {
     const outcome = await runPerplexityAgent({ input: "What is Revora?", preset: "fast" });
     expect(calls).toHaveLength(1);
     expect(calls[0]!.url).toContain("https://api.perplexity.ai/v1/agent");
-    expect(String(calls[0]!.init?.headers && JSON.stringify(calls[0]!.init.headers))).toContain(
-      "pplx-test",
-    );
+    const headers = new Headers(calls[0]!.init?.headers);
+    expect(headers.get("authorization")).toBe("Bearer pplx-test");
     expect(outcome.ok).toBe(true);
     if (outcome.ok) {
       expect(outcome.text).toContain("grounded answer");
