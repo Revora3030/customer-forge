@@ -13,6 +13,9 @@
 
 ## Whole-repository upgrade contract
 
+- First-build chat preferences travel through the existing saved brief to analysis, identity and composition checkpoints; keep them distinct from business fact evidence so owner direction survives retries without inventing claims.
+- Served-HTML verification reports its evidence type and missing checks explicitly; missing preview evidence must never be counted as passed or trigger rollback, because browser interaction and rendered QA are separate measurements.
+
 - Instagram is owner-scoped custom OAuth with encrypted server-only credentials; models may propose drafts but only the explicit authenticated review endpoint may atomically approve and publish an immutable saved caption/image URL/account. Uncertain submissions never auto-retry, preventing duplicate posts.
 
 Scan the entire repository before making broad changes. Do not mass-edit generated types, lockfiles or binary assets without a concrete reason. Prefer deterministic, evidence-backed improvements, preserve tenant/auth/billing/publishing boundaries, and keep browser/database/provider claims explicitly runtime- or environment-gated.
