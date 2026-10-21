@@ -292,6 +292,8 @@ export async function callHallOfFame(request: HallOfFameRequest): Promise<HallOf
         detail: error instanceof Error ? error.message.slice(0, 160) : "call failed",
         latencyMs,
       });
+    } finally {
+      leave(member.provider);
     }
   }
   // Fails closed: no deterministic substitute when the squad runs dry.
