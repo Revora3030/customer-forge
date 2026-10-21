@@ -20,6 +20,7 @@ import {
 } from "@/lib/builder/job-liveness";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { isPlaceholderPalette } from "@/lib/site-theme";
 
 const QUEUE_ID = "site_engine";
 export const LEASE_SECONDS = 300;
