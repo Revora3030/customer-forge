@@ -1,5 +1,10 @@
 # Roadmap — Five-phase blocker elimination
 
+## No-key Jarvis website tools (2026-10-21)
+- [ ] Add bounded direct HTML, accessibility/structured-data, security-header and link-inventory diagnostics through the existing authenticated tool executor and chat catalogue.
+- [ ] Verify offline safety tests and the signed-in controls with a real page read; no paid providers, publishing, outreach or automatic repairs.
+- [ ] Full autonomous generation and 10/10 quality remain unverified; existing approval, budget and measured-quality boundaries stay in place.
+
 ## Finish free Jarvis tools (2026-10-21)
 - [x] Finish page-check/docs inputs and readiness controls; update Context7 API and Browserless envelope; correct speed timeout and preserve canceled requests separately.
 - [x] All three supplied keys are saved; signed-in smoke checks returned docs with sources, mobile Lighthouse scores (62 performance / 95 accessibility / 100 best practices / 100 SEO), and phone/desktop browser evidence. Browser reports failed tracking requests, but no script errors, broken links or sideways overflow; no all-clear claim.
