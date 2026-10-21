@@ -548,11 +548,14 @@ async function composeEmail(demo: DemoContext, previewUrl: string, actorId: stri
             city: demo.city,
             currentSiteGaps: demo.siteGaps,
             previewUrl,
+            offerTerms: demoOfferTerms(),
           })}`,
         },
       ],
     });
     draft = parseEmailDraft(result.text, previewUrl);
+    // The price disclosure is required, so it is appended if the model left it out.
+    if (draft && !draft.body.includes(`$${GROWTH_SYSTEM.setupPrice}`)) draft = { ...draft, body: `${draft.body}\n\n${demoOfferTerms()}` };
   } catch {
     draft = null;
   }
