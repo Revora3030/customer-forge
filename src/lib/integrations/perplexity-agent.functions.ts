@@ -56,7 +56,6 @@ export const verifyPerplexityAgent = createServerFn({ method: "POST" })
       input: "What is today's date in UTC? Answer with the date only.",
       maxOutputTokens: 64,
     });
-  question: z.string().min(10).max(2_000),
     // Report the response shape only — never the key or the raw payload.
     if (!outcome.ok) {
       return { ok: false as const, reason: outcome.reason, detail: outcome.detail };
