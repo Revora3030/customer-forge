@@ -1,9 +1,9 @@
 # Roadmap — Five-phase blocker elimination
 
 ## Search acquisition upgrade (2026-10-21)
-- [ ] Audit Google evidence, public metadata, crawl boundaries and existing buying-focused pages.
-- [ ] Improve existing homepage, states and about content, contextual links and truthful search metadata without changing billing or customer sites.
-- [ ] Repair reproducible search infrastructure inconsistencies; run focused regressions and browser-check discovery → pricing → signup.
+- [x] Audit Google evidence (541 impressions / 8 clicks, Sep20–Oct17), public metadata, crawl boundaries and existing buying-focused pages; Semrush US estimates favor focused contractor/CRM/follow-up searches over broad AI-builder competition.
+- [x] Improve homepage, states and about content, contextual links and truthful metadata; remove unsupported one-day/template claims, share inventory copy, and add official Google sources with neutral review guidance. Billing and saved customer content unchanged.
+- [x] Correct local page self-referencing canonical/og:url without removing existing crawl eligibility; correct AI-named tenant home canonical; paginate sitemap reads and return uncached retryable failures on lookup errors. 3,172 tests passed, six gated live tests skipped; focused lint clean and harness build OK. Phone/desktop discovery→pricing→signup entry checked without page errors; account/payment submission not exercised.
 - [ ] Live search impact requires owner-authorized publishing and subsequent Google data; no traffic or customer guarantees.
 
 ## Continued builder upgrade (2026-10-21)
@@ -61,7 +61,7 @@
 - [x] Full suite green after fixing a test that read live provider state.
 - [ ] One build end to end (BLOCKED: workspace daily AI limit and $5/day paid cap reached today; free pool heavily rate-limited). Daily site limit stays 5 until it passes.
 - [ ] Migration drift: needs the remote migration version list (not readable from here) to reconcile.
-- [ ] Owner decision: canonical offer in code/DB is $350 setup + 3-day full access; owner brief cites $750 + 1-day.
+- [x] Retired stale offer conflict: current owner rule is $350 setup, first month free, then $100/month and 3-day full access; billing unchanged.
 - [x] Jarvis tool/permission inventory documented (docs/operations/jarvis-tool-inventory.md).
 - [x] Queued autopilot sends respect the off switch; launch review requires workspace membership.
 - [x] Migration reconciliation runbook (docs/operations/migration-reconciliation.md).

@@ -150,7 +150,7 @@ export const GUIDES: readonly Guide[] = [
     description:
       "A practical, policy-safe process for local businesses to earn more Google reviews: when to ask, exactly what to say, how to make it one tap, and how to handle a bad one.",
     intro:
-      "Reviews are the cheapest competitive advantage a local business has, and almost every business under-collects them for the same reason: asking is awkward and easy to forget. The fix is a repeatable process, not more courage.",
+      "Genuine reviews help potential customers understand other people's experiences. A consistent, neutral request makes feedback easier to share without incentives, pressure or screening for positive ratings.",
     readMinutes: 5,
     steps: [
       {
@@ -163,7 +163,7 @@ export const GUIDES: readonly Guide[] = [
       },
       {
         title: "Use a short, human script",
-        body: "\"Really glad you're happy with it. If you have 30 seconds, a quick Google review helps a lot — here's the link.\" That is enough. Long requests read like marketing and get ignored.",
+        body: "\"Thank you for choosing us. If you would like to share your experience, here is our Google review link. We welcome honest feedback.\" Send the same invitation regardless of satisfaction and leave the decision with the customer.",
       },
       {
         title: "Never offer anything in exchange",
@@ -188,7 +188,7 @@ export const GUIDES: readonly Guide[] = [
     faqs: [
       {
         q: "How many reviews do I need?",
-        a: "There is no threshold that guarantees anything. What matters competitively is having more recent, more specific reviews than the businesses you appear next to in local results.",
+        a: "There is no review count that guarantees a ranking or customers. Google says review count and positive ratings can help local prominence; focus on genuine experiences and a neutral request process.",
       },
       {
         q: "Can I remove a bad review?",
@@ -236,11 +236,11 @@ export const GUIDES: readonly Guide[] = [
       },
       {
         title: "Make the site fast on a phone",
-        body: "Local searches are overwhelmingly mobile. A page that takes five seconds loses the customer before ranking matters at all.",
+        body: "Check your pages on a phone and a slower connection. Compress images, keep layouts stable and make quote and booking controls easy to reach. Slow pages can interrupt the customer's next step even when they find you in search.",
       },
     ],
     takeaway:
-      "Local ranking is completeness, relevance and prominence, done consistently. Revora ships the site-side half of that list by default — service pages, real service-area pages, structured data, speed and the review engine.",
+      "Google's main local ranking factors are relevance, distance and prominence. Keep your Business Profile accurate, publish useful service information and request genuine reviews without incentives or filtering. Website work supports your local presence but cannot guarantee map-pack placement.",
     sources: [{ label: "Google: improve your local ranking", url: "https://support.google.com/business/answer/7091?hl=en" }, { label: "Google: tips to get more reviews", url: "https://support.google.com/business/answer/3474122?hl=en" }],
     faqs: [
       {
@@ -255,10 +255,10 @@ export const GUIDES: readonly Guide[] = [
   },
   {
     slug: "respond-to-leads-faster",
-    title: "Why speed to lead decides who wins the job",
+    title: "Automated lead follow-up: from enquiry to next step",
     metaTitle: "Automated Lead Follow-Up for Businesses | Revora Guide",
     description:
-      "How to reply to every enquiry within minutes without living on your phone: instant first replies, quote ranges, one pipeline, and a follow-up sequence that finishes the conversation.",
+      "Plan automated lead follow-up with clear acknowledgements, quote requests, CRM ownership and respectful reminders. Track qualified enquiries, not just clicks.",
     intro:
       "A clear, timely response helps customers understand what happens next. Automated lead follow-up can acknowledge an enquiry, collect missing details and remind your team to respond, without promising that a fast reply alone will win the job.",
     readMinutes: 4,
@@ -273,11 +273,11 @@ export const GUIDES: readonly Guide[] = [
       },
       {
         title: "Put every channel in one place",
-        body: "Calls, form fills, texts, DMs and bookings should land in one pipeline. Leads are lost in the gaps between apps far more often than they are lost to competitors.",
+        body: "Record enquiries from the channels your business actually uses. Confirm each connected channel reaches the CRM before relying on it, and give each enquiry an owner and next action. Do not assume an unconnected inbox or social account is monitored.",
       },
       {
         title: "Follow up on a schedule, not on a mood",
-        body: "A quote that gets one reply attempt is a quote you gave away. Two or three spaced follow-ups over a week, then a final polite close, converts jobs that were never lost — just forgotten.",
+        body: "Choose a reminder schedule that fits your sales process and the customer's permission. Stop on reply, booking or opt-out; avoid repeated messages after someone declines. Review the sequence against actual enquiries rather than treating a fixed number of reminders as a conversion guarantee.",
       },
       {
         title: "Track which channel produces paying customers",
