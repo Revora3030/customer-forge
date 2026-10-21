@@ -75,7 +75,8 @@ function extractSearchResults(output: unknown): AgentSearchResult[] {
     if (!record || record["type"] !== "search_results" || !Array.isArray(record["results"])) continue;
     for (const result of record["results"]) {
       const entry = asRecord(result);
-      const url = typeof entry?.["url"] === "string" ? entry["url"] : null;
+      if (!entry) continue;
+      const url = typeof entry["url"] === "string" ? entry["url"] : null;
       if (!url) continue;
       results.push({ title: typeof entry["title"] === "string" ? entry["title"] : null, url });
     }

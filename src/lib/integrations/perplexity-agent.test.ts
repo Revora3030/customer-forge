@@ -26,7 +26,7 @@ const SUCCESS_BODY = {
 };
 
 const stubFetch = (handler: (url: string, init?: RequestInit) => Response | Promise<Response>) => {
-  const calls: { url: string; init?: RequestInit }[] = [];
+  const calls: { url: string; init: RequestInit | undefined }[] = [];
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
