@@ -12,6 +12,7 @@
 import { parseProspectDemoInput, type ProspectDemoInput } from "./jarvis-demo-site";
 import { safeInspectionPath } from "./builder/inspection-paths";
 import { parseAutopilotPatch, type AutopilotSettingsPatch } from "./prospect-autopilot";
+import { parseInstagramDraft, type InstagramDraft } from "./instagram-post";
 
 export const MAX_ACTIONS_PER_STEP = 3;
 export const MAX_ACTION_STEPS = 3;
@@ -31,7 +32,8 @@ export type ReadAction =
   | { id: "memory.list" }
   | { id: "memory.save"; kind: string; content: string }
   | { id: "routines.list" }
-  | { id: "artifacts.list" };
+  | { id: "artifacts.list" }
+  | { id: "instagram.status" };
 
 export type CodeChange =
   | { path: string; edits: { find: string; replace: string }[] }
@@ -51,7 +53,8 @@ export type WriteProposal =
   | { id: "memory.forget"; memoryId: string }
   | { id: "routine.create"; routine: { name: string; prompt: string; frequency: "daily" | "weekly"; hour: number; minute: number } }
   | { id: "routine.update"; routineId: string; patch: { name?: string; prompt?: string; frequency?: "daily" | "weekly"; hour?: number; minute?: number; enabled?: boolean } }
-  | { id: "routine.delete"; routineId: string };
+  | { id: "routine.delete"; routineId: string }
+  | { id: "instagram.post"; draft: InstagramDraft };
 
 export const MAX_PR_FILES = 6;
 export const MAX_PR_CHARS = 60_000;
@@ -178,6 +181,8 @@ export const JARVIS_ACTION_CLASSES: Record<ReadAction["id"] | WriteProposal["id"
   "memory.save": { effect: "memory", external: false, autoRuns: true, risk: "safe" },
   "routines.list": { effect: "read", external: false, autoRuns: true, risk: "safe" },
   "artifacts.list": { effect: "read", external: false, autoRuns: true, risk: "safe" },
+  "instagram.status": { effect: "read", external: false, autoRuns: true, risk: "safe" },
+  "instagram.post": { effect: "write", external: true, autoRuns: false, risk: "ask" },
   "demo.build": { effect: "write", external: false, autoRuns: false, risk: "ask" },
   "code.pr": { effect: "write", external: true, autoRuns: false, risk: "ask" },
   "claude.code": { effect: "write", external: true, autoRuns: false, risk: "ask" },
@@ -223,6 +228,8 @@ export function actionCatalogPrompt(diagnosticToolIds: string[]): string {
     '- {"id":"routine.update","args":{"routineId":"<uuid>","patch":{"enabled":false}}}: PROPOSE changing a routine (any of name, prompt, frequency, hour, minute, enabled). The owner approves with one tap.',
     '- {"id":"routine.delete","args":{"routineId":"<uuid>"}}: PROPOSE deleting a routine. The owner approves with one tap.',
     '- {"id":"artifacts.list","args":{}}: the artifacts hub: demo sites built, pull requests and approvals from the audit log, and routines — everything you have produced, in one list.',
+    '- {"id":"instagram.status","args":{}}: read YOUR connected Instagram account, saved drafts and post results. No credentials are returned.',
+    '- {"id":"instagram.post","args":{"caption":"...","imageUrl":"https://..."}}: PROPOSE a single-image Instagram post. Use only owner-approved facts and an image the owner owns or may publish. Never use Google Maps photos or copy social photos without permission. Opens a saved draft for review; NOTHING goes live until the owner reviews the exact caption/image/account and taps Approve and publish now in Operations → Instagram. Never claim it posted without a successful publish result. Sign-in requires a Business/Creator account and a configured Meta app; there is no automatic or scheduled publishing.',
     "Use actions whenever they would make your answer more accurate. Prefer checking over guessing. Never claim an action ran unless you received its result.",
   ].join("\n");
 }
@@ -317,8 +324,11 @@ export function parseActions(requested: unknown[], diagnosticToolIds: string[]):
       const query = str(args["query"], 120);
       if (query.length >= 2) out.reads.push({ id, query });
       else out.rejected.push("code.search: needs a query");
-    } else if (id === "demos.list" || id === "autopilot.status" || id === "inbox.list" || id === "memory.list" || id === "routines.list" || id === "artifacts.list") {
+    } else if (id === "demos.list" || id === "autopilot.status" || id === "inbox.list" || id === "memory.list" || id === "routines.list" || id === "artifacts.list" || id === "instagram.status") {
       out.reads.push({ id });
+    } else if (id === "instagram.post") {
+      try { out.proposals.push({ id, draft: parseInstagramDraft(args) }); }
+      catch (error) { out.rejected.push(`instagram.post: ${error instanceof Error ? error.message : "Invalid draft"}`); }
     } else if (id === "memory.save") {
       const kind = str(args["kind"], 20) || "note";
       const content = str(args["content"], 500);
@@ -447,6 +457,8 @@ export function describeRead(action: ReadAction): string {
       return "Listed scheduled routines";
     case "artifacts.list":
       return "Opened the artifacts hub";
+    case "instagram.status":
+      return "Checked your Instagram drafts and connection";
   }
 }
 
@@ -471,7 +483,8 @@ export function splitReplyMeta(content: string): { body: string; meta: JarvisRep
     const proposals: WriteProposal[] = [];
     for (const proposal of Array.isArray(parsed.proposals) ? parsed.proposals.slice(0, 5) : []) {
       try {
-        if (proposal?.id === "demo.build") proposals.push({ id: "demo.build", input: parseProspectDemoInput(proposal.input) });
+        if (proposal?.id === "instagram.post") proposals.push({ id: "instagram.post", draft: parseInstagramDraft(proposal.draft) });
+        else if (proposal?.id === "demo.build") proposals.push({ id: "demo.build", input: parseProspectDemoInput(proposal.input) });
         else if (proposal?.id === "code.pr") proposals.push({ id: "code.pr", pr: parsePullRequestProposal(proposal.pr) });
         else if (proposal?.id === "builds.recover") proposals.push({ id: "builds.recover" });
         else if (proposal?.id === "demo.send") {

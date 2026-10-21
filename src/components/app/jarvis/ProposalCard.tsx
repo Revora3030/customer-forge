@@ -23,6 +23,15 @@ const linkButton = "mt-3 inline-flex min-h-10 items-center gap-1.5 rounded-md bo
 /** One write proposal from Jarvis. Nothing happens until the owner approves it here. */
 export function ProposalCard({ proposal, state, url, onApprove }: Props) {
   if (isAutopilotProposal(proposal)) return <AutopilotProposalCard proposal={proposal} state={state} onApprove={onApprove} />;
+  if (proposal.id === "instagram.post") return (
+    <div className={card}>
+      <p className="text-sm font-medium">Instagram draft</p>
+      <p className="mt-2 whitespace-pre-wrap break-words text-sm">{proposal.draft.caption}</p>
+      <a className="mt-2 block break-all text-xs underline" href={proposal.draft.imageUrl} target="_blank" rel="noreferrer">Review image</a>
+      <Button className="mt-3" disabled={Boolean(state)} onClick={onApprove}>{state === "building" ? "Saving…" : state === "done" ? "Draft saved" : "Save for review"}</Button>
+      <p className={disclaimer}>Nothing posts here. Review and approve the saved draft under Operations → Instagram.</p>
+    </div>
+  );
   if (proposal.id === "code.pr") {
     return (
       <div className={card}>
