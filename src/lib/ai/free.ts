@@ -978,6 +978,37 @@ export function freeProviderReadiness() {
   });
 }
 
+/** Team jobs and the model role each one runs on. */
+export const TEAM_JOBS: ReadonlyArray<{ job: string; role: ModelRole }> = [
+  { job: "Sol: design and writing", role: "design" },
+  { job: "Terra: review", role: "primary" },
+  { job: "Luna: search details and fact checks", role: "fast" },
+  { job: "Astra: chat", role: "conversation" },
+  { job: "Coding", role: "coding" },
+  { job: "Vision checks", role: "vision" },
+  { job: "Transcription", role: "transcription" },
+  { job: "Pictures", role: "image" },
+];
+
+export type FreeRoleCoverage = {
+  job: string;
+  role: ModelRole;
+  covered: boolean;
+  providers: string[];
+};
+
+/**
+ * Which team jobs the free team can take over right now. A job with no
+ * configured free model is reported as a gap — never as working. Motion has no
+ * free video model and is reported separately by the caller as a gap.
+ */
+export function freeRoleCoverage(): FreeRoleCoverage[] {
+  return TEAM_JOBS.map(({ job, role }) => {
+    const chain = freeProviderChain(role);
+    return { job, role, covered: chain.length > 0, providers: chain.map((entry) => entry.name) };
+  });
+}
+
 /* ------------------------------ free budgets ------------------------------- */
 
 /**
