@@ -3,7 +3,6 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 /** Every Growth Engine call is super-admin only; RLS enforces the same. */
-const owner = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]);
 
 async function guard(context: { supabase: unknown; userId: string }) {
   const { assertSuperAdmin } = await import("@/lib/admin.server");
@@ -18,7 +17,7 @@ const rules = () => import("@/lib/growth-engine/rules");
 
 // ---------------- Overview ----------------
 
-export const getGrowthOverview = owner.handler(async ({ context }) => {
+export const getGrowthOverview = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).handler(async ({ context }) => {
   const db = await guard(context);
   const { healthScore } = await rules();
   const since30 = new Date(Date.now() - 30 * 86_400_000).toISOString();
@@ -71,7 +70,7 @@ const businessSchema = z.object({
   website_url: z.string().trim().max(200).optional().default(""),
 });
 
-export const saveGrowthBusiness = owner.inputValidator((d: unknown) => businessSchema.parse(d)).handler(async ({ data, context }) => {
+export const saveGrowthBusiness = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).inputValidator((d: unknown) => businessSchema.parse(d)).handler(async ({ data, context }) => {
   const db = await guard(context);
   const { data: existing } = await db.from("growth_businesses").select("id").order("created_at").limit(1).maybeSingle();
   const row = { ...data, website_status: data.website_url ? "active" : "none" };
@@ -89,7 +88,8 @@ async function business(db: { from: (t: string) => any }) {
 
 // ---------------- Approval queue ----------------
 
-export const listApprovals = owner
+export const listApprovals = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ status: z.enum(["pending", "approved", "executed", "rejected", "failed", "all"]).default("pending") }).parse(d))
   .handler(async ({ data, context }) => {
     const db = await guard(context);
@@ -103,7 +103,8 @@ export const listApprovals = owner
     }[];
   });
 
-export const decideApproval = owner
+export const decideApproval = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid(), decision: z.enum(["approve", "reject"]), reason: z.string().max(300).optional() }).parse(d))
   .handler(async ({ data, context }) => {
     const db = await guard(context);
@@ -122,7 +123,8 @@ export const decideApproval = owner
     return outcome;
   });
 
-export const editApproval = owner
+export const editApproval = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid(), preview: z.string().min(1).max(4000) }).parse(d))
   .handler(async ({ data, context }) => {
     const db = await guard(context);
@@ -140,7 +142,8 @@ export const editApproval = owner
     return { version: next };
   });
 
-export const approvalHistory = owner
+export const approvalHistory = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const db = await guard(context);
@@ -159,7 +162,7 @@ const gbpSchema = z.object({
   profileUrl: z.string().max(300).optional().default(""),
 });
 
-export const auditGbp = owner.inputValidator((d: unknown) => gbpSchema.parse(d)).handler(async ({ data, context }) => {
+export const auditGbp = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).inputValidator((d: unknown) => gbpSchema.parse(d)).handler(async ({ data, context }) => {
   const db = await guard(context);
   const b = await business(db);
   const { gbpScore } = await rules();
@@ -174,13 +177,14 @@ export const auditGbp = owner.inputValidator((d: unknown) => gbpSchema.parse(d))
   return result;
 });
 
-export const getGbp = owner.handler(async ({ context }) => {
+export const getGbp = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).handler(async ({ context }) => {
   const db = await guard(context);
   const { data } = await db.from("gbp_profiles").select("*").limit(1).maybeSingle();
   return data ?? null;
 });
 
-export const draftGbpPost = owner
+export const draftGbpPost = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ topic: z.string().trim().min(3).max(300) }).parse(d))
   .handler(async ({ data, context }) => {
     const db = await guard(context);
@@ -195,7 +199,8 @@ export const draftGbpPost = owner
     return { ok: true };
   });
 
-export const draftReviewReply = owner
+export const draftReviewReply = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ reviewer: z.string().max(80), rating: z.number().int().min(1).max(5), text: z.string().max(3000), gbpPath: z.string().max(300).optional().default("") }).parse(d))
   .handler(async ({ data, context }) => {
     const db = await guard(context);
@@ -213,13 +218,13 @@ export const draftReviewReply = owner
 
 // ---------------- Directories ----------------
 
-export const listDirectories = owner.handler(async ({ context }) => {
+export const listDirectories = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).handler(async ({ context }) => {
   const db = await guard(context);
   const { data } = await db.from("directory_listings").select("*").order("directory_name");
   return (data ?? []) as { id: string; directory_name: string; status: string; url: string | null; listed_name: string | null; listed_address: string | null; listed_phone: string | null }[];
 });
 
-export const buildDirectoryPackages = owner.handler(async ({ context }) => {
+export const buildDirectoryPackages = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).handler(async ({ context }) => {
   const db = await guard(context);
   const b = await business(db);
   const { directoriesFor, napReady } = await rules();
@@ -232,7 +237,8 @@ export const buildDirectoryPackages = owner.handler(async ({ context }) => {
   return { count: rows.length };
 });
 
-export const updateDirectory = owner
+export const updateDirectory = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid(), status: z.enum(["pending", "submitted", "live", "rejected", "needs_update"]), url: z.string().max(300).optional(), listedName: z.string().max(120).optional(), listedAddress: z.string().max(200).optional(), listedPhone: z.string().max(30).optional() }).parse(d))
   .handler(async ({ data, context }) => {
     const db = await guard(context);
@@ -248,13 +254,14 @@ export const updateDirectory = owner
 
 // ---------------- Content ----------------
 
-export const listContent = owner.handler(async ({ context }) => {
+export const listContent = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).handler(async ({ context }) => {
   const db = await guard(context);
   const { data } = await db.from("content_drafts").select("id, type, title, meta_description, status, scheduled_for, created_at").in("type", ["blog", "faq"]).order("created_at", { ascending: false }).limit(50);
   return (data ?? []) as { id: string; type: string; title: string | null; meta_description: string | null; status: string; scheduled_for: string | null }[];
 });
 
-export const draftContent = owner
+export const draftContent = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ type: z.enum(["blog", "faq"]), keyword: z.string().trim().min(3).max(150) }).parse(d))
   .handler(async ({ data, context }) => {
     const db = await guard(context);
@@ -282,13 +289,14 @@ export const draftContent = owner
 
 // ---------------- Review requests ----------------
 
-export const listReviewRequests = owner.handler(async ({ context }) => {
+export const listReviewRequests = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).handler(async ({ context }) => {
   const db = await guard(context);
   const { data } = await db.from("review_requests").select("*").order("created_at", { ascending: false }).limit(50);
   return (data ?? []) as { id: string; customer_name: string; channel: string; sent_at: string | null; reminder_sent_at: string | null; clicked: boolean; review_left: boolean }[];
 });
 
-export const createReviewRequest = owner
+export const createReviewRequest = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ name: z.string().trim().min(1).max(80), email: z.string().trim().max(120).optional().default(""), phone: z.string().trim().max(30).optional().default(""), channel: z.enum(["email", "sms"]), smsOptIn: z.boolean(), reviewLink: z.string().url().max(400), jobId: z.string().max(80).optional().default("") }).parse(d))
   .handler(async ({ data, context }) => {
     const db = await guard(context);
@@ -302,7 +310,8 @@ export const createReviewRequest = owner
     return { ok: true };
   });
 
-export const markReviewRequest = owner
+export const markReviewRequest = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid(), field: z.enum(["clicked", "review_left"]) }).parse(d))
   .handler(async ({ data, context }) => {
     const db = await guard(context);
@@ -312,14 +321,14 @@ export const markReviewRequest = owner
 
 // ---------------- Reddit & Quora ----------------
 
-export const listQna = owner.handler(async ({ context }) => {
+export const listQna = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).handler(async ({ context }) => {
   const db = await guard(context);
   const { data } = await db.from("qna_monitor").select("*").in("status", ["new", "drafted", "approved"]).order("relevance", { ascending: false }).limit(50);
   const { DAILY_REPLY_CAP } = await rules();
   return { rows: (data ?? []) as { id: string; source_platform: string; post_url: string; post_title: string | null; relevance: number; status: string; draft_reply: string | null }[], caps: DAILY_REPLY_CAP };
 });
 
-export const scanQna = owner.handler(async ({ context }) => {
+export const scanQna = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).handler(async ({ context }) => {
   const db = await guard(context);
   const b = await business(db);
   if (!b.niche || !b.city) throw new Error("Add your niche and city first.");
@@ -332,7 +341,8 @@ export const scanQna = owner.handler(async ({ context }) => {
   };
 });
 
-export const draftQnaReply = owner
+export const draftQnaReply = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const db = await guard(context);
@@ -350,7 +360,8 @@ export const draftQnaReply = owner
     return { ok: true };
   });
 
-export const setQnaStatus = owner
+export const setQnaStatus = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid(), status: z.enum(["posted", "skipped"]) }).parse(d))
   .handler(async ({ data, context }) => {
     const db = await guard(context);
@@ -360,13 +371,14 @@ export const setQnaStatus = owner
 
 // ---------------- Referrals ----------------
 
-export const listReferrals = owner.handler(async ({ context }) => {
+export const listReferrals = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).handler(async ({ context }) => {
   const db = await guard(context);
   const { data } = await db.from("referral_program").select("*").order("created_at", { ascending: false }).limit(100);
   return (data ?? []) as { id: string; referrer_name: string; code: string; status: string; reward_value: number | null }[];
 });
 
-export const createReferral = owner
+export const createReferral = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ name: z.string().trim().min(1).max(80), email: z.string().email().max(120), optIn: z.literal(true), reward: z.number().min(0).max(10000).nullable() }).parse(d))
   .handler(async ({ data, context }) => {
     const db = await guard(context);
@@ -378,7 +390,8 @@ export const createReferral = owner
     return { code };
   });
 
-export const setReferralStatus = owner
+export const setReferralStatus = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid(), status: z.enum(["shared", "redeemed", "closed", "expired"]) }).parse(d))
   .handler(async ({ data, context }) => {
     const db = await guard(context);
@@ -388,7 +401,7 @@ export const setReferralStatus = owner
 
 // ---------------- Partnerships ----------------
 
-export const listPartners = owner.handler(async ({ context }) => {
+export const listPartners = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).handler(async ({ context }) => {
   const db = await guard(context);
   const b = await business(db).catch(() => null);
   const { partnerTypesFor } = await rules();
@@ -396,7 +409,8 @@ export const listPartners = owner.handler(async ({ context }) => {
   return { suggestions: partnerTypesFor(b?.niche), rows: (data ?? []) as { id: string; business_name: string; business_type: string | null; contact_email: string | null; pitch_draft: string | null; status: string }[] };
 });
 
-export const addPartner = owner
+export const addPartner = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ name: z.string().trim().min(1).max(120), type: z.string().trim().max(80), email: z.string().trim().max(120).optional().default("") }).parse(d))
   .handler(async ({ data, context }) => {
     const db = await guard(context);
@@ -410,7 +424,8 @@ export const addPartner = owner
     return { ok: true };
   });
 
-export const setPartnerStatus = owner
+export const setPartnerStatus = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid(), status: z.enum(["sent", "responded"]) }).parse(d))
   .handler(async ({ data, context }) => {
     const db = await guard(context);
@@ -420,13 +435,14 @@ export const setPartnerStatus = owner
 
 // ---------------- Social ----------------
 
-export const listSocial = owner.handler(async ({ context }) => {
+export const listSocial = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).handler(async ({ context }) => {
   const db = await guard(context);
   const { data } = await db.from("social_posts").select("*").order("created_at", { ascending: false }).limit(50);
   return (data ?? []) as { id: string; caption: string; status: string; scheduled_for: string | null; engagement_metrics: Record<string, number> }[];
 });
 
-export const draftSocial = owner
+export const draftSocial = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ idea: z.string().trim().min(3).max(300) }).parse(d))
   .handler(async ({ data, context }) => {
     const db = await guard(context);
@@ -442,20 +458,21 @@ export const draftSocial = owner
 
 // ---------------- Events ----------------
 
-export const listEvents = owner.handler(async ({ context }) => {
+export const listEvents = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).handler(async ({ context }) => {
   const db = await guard(context);
   const { data } = await db.from("local_events").select("*").neq("status", "skipped").order("relevance_score", { ascending: false }).limit(50);
   return (data ?? []) as { id: string; event_name: string; url: string | null; relevance_score: number; notes: string | null; status: string }[];
 });
 
-export const scanEvents = owner.handler(async ({ context }) => {
+export const scanEvents = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).handler(async ({ context }) => {
   const db = await guard(context);
   const b = await business(db);
   if (!b.city) throw new Error("Add your city first.");
   return { added: await (await svc()).searchEvents(db, b.city, b.niche ?? "") };
 });
 
-export const setEventStatus = owner
+export const setEventStatus = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid(), status: z.enum(["reviewed", "attending", "skipped"]) }).parse(d))
   .handler(async ({ data, context }) => {
     const db = await guard(context);
