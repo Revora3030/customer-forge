@@ -68,6 +68,7 @@ import { Route as AuthenticatedAdminBackupsRouteImport } from './routes/_authent
 import { Route as AuthenticatedAdminClientsRouteImport } from './routes/_authenticated/admin.clients'
 import { Route as AuthenticatedAdminCommandRouteImport } from './routes/_authenticated/admin.command'
 import { Route as AuthenticatedAdminDomainsRouteImport } from './routes/_authenticated/admin.domains'
+import { Route as AuthenticatedAdminGrowthRouteImport } from './routes/_authenticated/admin.growth'
 import { Route as AuthenticatedAdminJarvisRouteImport } from './routes/_authenticated/admin.jarvis'
 import { Route as AuthenticatedAdminMonitoringRouteImport } from './routes/_authenticated/admin.monitoring'
 import { Route as AuthenticatedAdminMonthlyRouteImport } from './routes/_authenticated/admin.monthly'
@@ -110,6 +111,7 @@ import { Route as AuthenticatedAdminClientsOrgIdRouteImport } from './routes/_au
 import { Route as AuthenticatedDraftSlugPageRouteImport } from './routes/_authenticated/draft.$slug.$page'
 import { Route as ApiPublicInstagramCallbackRouteImport } from './routes/api/public/instagram/callback'
 import { Route as ApiPublicJobsBackupRouteImport } from './routes/api/public/jobs/backup'
+import { Route as ApiPublicJobsGrowthDigestRouteImport } from './routes/api/public/jobs/growth-digest'
 import { Route as ApiPublicJobsJarvisRoutinesRouteImport } from './routes/api/public/jobs/jarvis-routines'
 import { Route as ApiPublicJobsLeadAlertRetryRouteImport } from './routes/api/public/jobs/lead-alert-retry'
 import { Route as ApiPublicJobsLeadReminderRouteImport } from './routes/api/public/jobs/lead-reminder'
@@ -427,6 +429,12 @@ const AuthenticatedAdminDomainsRoute =
     path: '/domains',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminGrowthRoute =
+  AuthenticatedAdminGrowthRouteImport.update({
+    id: '/growth',
+    path: '/growth',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminJarvisRoute =
   AuthenticatedAdminJarvisRouteImport.update({
     id: '/jarvis',
@@ -653,6 +661,12 @@ const ApiPublicJobsBackupRoute = ApiPublicJobsBackupRouteImport.update({
   path: '/api/public/jobs/backup',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicJobsGrowthDigestRoute =
+  ApiPublicJobsGrowthDigestRouteImport.update({
+    id: '/api/public/jobs/growth-digest',
+    path: '/api/public/jobs/growth-digest',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicJobsJarvisRoutinesRoute =
   ApiPublicJobsJarvisRoutinesRouteImport.update({
     id: '/api/public/jobs/jarvis-routines',
@@ -803,6 +817,7 @@ export interface FileRoutesByFullPath {
   '/admin/clients': typeof AuthenticatedAdminClientsRouteWithChildren
   '/admin/command': typeof AuthenticatedAdminCommandRoute
   '/admin/domains': typeof AuthenticatedAdminDomainsRoute
+  '/admin/growth': typeof AuthenticatedAdminGrowthRoute
   '/admin/jarvis': typeof AuthenticatedAdminJarvisRoute
   '/admin/monitoring': typeof AuthenticatedAdminMonitoringRoute
   '/admin/monthly': typeof AuthenticatedAdminMonthlyRoute
@@ -846,6 +861,7 @@ export interface FileRoutesByFullPath {
   '/draft/$slug/$page': typeof AuthenticatedDraftSlugPageRoute
   '/api/public/instagram/callback': typeof ApiPublicInstagramCallbackRoute
   '/api/public/jobs/backup': typeof ApiPublicJobsBackupRoute
+  '/api/public/jobs/growth-digest': typeof ApiPublicJobsGrowthDigestRoute
   '/api/public/jobs/jarvis-routines': typeof ApiPublicJobsJarvisRoutinesRoute
   '/api/public/jobs/lead-alert-retry': typeof ApiPublicJobsLeadAlertRetryRoute
   '/api/public/jobs/lead-reminder': typeof ApiPublicJobsLeadReminderRoute
@@ -916,6 +932,7 @@ export interface FileRoutesByTo {
   '/admin/clients': typeof AuthenticatedAdminClientsRouteWithChildren
   '/admin/command': typeof AuthenticatedAdminCommandRoute
   '/admin/domains': typeof AuthenticatedAdminDomainsRoute
+  '/admin/growth': typeof AuthenticatedAdminGrowthRoute
   '/admin/jarvis': typeof AuthenticatedAdminJarvisRoute
   '/admin/monitoring': typeof AuthenticatedAdminMonitoringRoute
   '/admin/monthly': typeof AuthenticatedAdminMonthlyRoute
@@ -959,6 +976,7 @@ export interface FileRoutesByTo {
   '/draft/$slug/$page': typeof AuthenticatedDraftSlugPageRoute
   '/api/public/instagram/callback': typeof ApiPublicInstagramCallbackRoute
   '/api/public/jobs/backup': typeof ApiPublicJobsBackupRoute
+  '/api/public/jobs/growth-digest': typeof ApiPublicJobsGrowthDigestRoute
   '/api/public/jobs/jarvis-routines': typeof ApiPublicJobsJarvisRoutinesRoute
   '/api/public/jobs/lead-alert-retry': typeof ApiPublicJobsLeadAlertRetryRoute
   '/api/public/jobs/lead-reminder': typeof ApiPublicJobsLeadReminderRoute
@@ -1036,6 +1054,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/clients': typeof AuthenticatedAdminClientsRouteWithChildren
   '/_authenticated/admin/command': typeof AuthenticatedAdminCommandRoute
   '/_authenticated/admin/domains': typeof AuthenticatedAdminDomainsRoute
+  '/_authenticated/admin/growth': typeof AuthenticatedAdminGrowthRoute
   '/_authenticated/admin/jarvis': typeof AuthenticatedAdminJarvisRoute
   '/_authenticated/admin/monitoring': typeof AuthenticatedAdminMonitoringRoute
   '/_authenticated/admin/monthly': typeof AuthenticatedAdminMonthlyRoute
@@ -1079,6 +1098,7 @@ export interface FileRoutesById {
   '/_authenticated/draft/$slug/$page': typeof AuthenticatedDraftSlugPageRoute
   '/api/public/instagram/callback': typeof ApiPublicInstagramCallbackRoute
   '/api/public/jobs/backup': typeof ApiPublicJobsBackupRoute
+  '/api/public/jobs/growth-digest': typeof ApiPublicJobsGrowthDigestRoute
   '/api/public/jobs/jarvis-routines': typeof ApiPublicJobsJarvisRoutinesRoute
   '/api/public/jobs/lead-alert-retry': typeof ApiPublicJobsLeadAlertRetryRoute
   '/api/public/jobs/lead-reminder': typeof ApiPublicJobsLeadReminderRoute
@@ -1156,6 +1176,7 @@ export interface FileRouteTypes {
     | '/admin/clients'
     | '/admin/command'
     | '/admin/domains'
+    | '/admin/growth'
     | '/admin/jarvis'
     | '/admin/monitoring'
     | '/admin/monthly'
@@ -1199,6 +1220,7 @@ export interface FileRouteTypes {
     | '/draft/$slug/$page'
     | '/api/public/instagram/callback'
     | '/api/public/jobs/backup'
+    | '/api/public/jobs/growth-digest'
     | '/api/public/jobs/jarvis-routines'
     | '/api/public/jobs/lead-alert-retry'
     | '/api/public/jobs/lead-reminder'
@@ -1269,6 +1291,7 @@ export interface FileRouteTypes {
     | '/admin/clients'
     | '/admin/command'
     | '/admin/domains'
+    | '/admin/growth'
     | '/admin/jarvis'
     | '/admin/monitoring'
     | '/admin/monthly'
@@ -1312,6 +1335,7 @@ export interface FileRouteTypes {
     | '/draft/$slug/$page'
     | '/api/public/instagram/callback'
     | '/api/public/jobs/backup'
+    | '/api/public/jobs/growth-digest'
     | '/api/public/jobs/jarvis-routines'
     | '/api/public/jobs/lead-alert-retry'
     | '/api/public/jobs/lead-reminder'
@@ -1388,6 +1412,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/clients'
     | '/_authenticated/admin/command'
     | '/_authenticated/admin/domains'
+    | '/_authenticated/admin/growth'
     | '/_authenticated/admin/jarvis'
     | '/_authenticated/admin/monitoring'
     | '/_authenticated/admin/monthly'
@@ -1431,6 +1456,7 @@ export interface FileRouteTypes {
     | '/_authenticated/draft/$slug/$page'
     | '/api/public/instagram/callback'
     | '/api/public/jobs/backup'
+    | '/api/public/jobs/growth-digest'
     | '/api/public/jobs/jarvis-routines'
     | '/api/public/jobs/lead-alert-retry'
     | '/api/public/jobs/lead-reminder'
@@ -1503,6 +1529,7 @@ export interface RootRouteChildren {
   LocalIndustryIndexRoute: typeof LocalIndustryIndexRoute
   ApiPublicInstagramCallbackRoute: typeof ApiPublicInstagramCallbackRoute
   ApiPublicJobsBackupRoute: typeof ApiPublicJobsBackupRoute
+  ApiPublicJobsGrowthDigestRoute: typeof ApiPublicJobsGrowthDigestRoute
   ApiPublicJobsJarvisRoutinesRoute: typeof ApiPublicJobsJarvisRoutinesRoute
   ApiPublicJobsLeadAlertRetryRoute: typeof ApiPublicJobsLeadAlertRetryRoute
   ApiPublicJobsLeadReminderRoute: typeof ApiPublicJobsLeadReminderRoute
@@ -1936,6 +1963,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminDomainsRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/growth': {
+      id: '/_authenticated/admin/growth'
+      path: '/growth'
+      fullPath: '/admin/growth'
+      preLoaderRoute: typeof AuthenticatedAdminGrowthRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/jarvis': {
       id: '/_authenticated/admin/jarvis'
       path: '/jarvis'
@@ -2230,6 +2264,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicJobsBackupRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/jobs/growth-digest': {
+      id: '/api/public/jobs/growth-digest'
+      path: '/api/public/jobs/growth-digest'
+      fullPath: '/api/public/jobs/growth-digest'
+      preLoaderRoute: typeof ApiPublicJobsGrowthDigestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/jobs/jarvis-routines': {
       id: '/api/public/jobs/jarvis-routines'
       path: '/api/public/jobs/jarvis-routines'
@@ -2366,6 +2407,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminClientsRoute: typeof AuthenticatedAdminClientsRouteWithChildren
   AuthenticatedAdminCommandRoute: typeof AuthenticatedAdminCommandRoute
   AuthenticatedAdminDomainsRoute: typeof AuthenticatedAdminDomainsRoute
+  AuthenticatedAdminGrowthRoute: typeof AuthenticatedAdminGrowthRoute
   AuthenticatedAdminJarvisRoute: typeof AuthenticatedAdminJarvisRoute
   AuthenticatedAdminMonitoringRoute: typeof AuthenticatedAdminMonitoringRoute
   AuthenticatedAdminMonthlyRoute: typeof AuthenticatedAdminMonthlyRoute
@@ -2384,6 +2426,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminClientsRoute: AuthenticatedAdminClientsRouteWithChildren,
   AuthenticatedAdminCommandRoute: AuthenticatedAdminCommandRoute,
   AuthenticatedAdminDomainsRoute: AuthenticatedAdminDomainsRoute,
+  AuthenticatedAdminGrowthRoute: AuthenticatedAdminGrowthRoute,
   AuthenticatedAdminJarvisRoute: AuthenticatedAdminJarvisRoute,
   AuthenticatedAdminMonitoringRoute: AuthenticatedAdminMonitoringRoute,
   AuthenticatedAdminMonthlyRoute: AuthenticatedAdminMonthlyRoute,
@@ -2583,6 +2626,7 @@ const rootRouteChildren: RootRouteChildren = {
   LocalIndustryIndexRoute: LocalIndustryIndexRoute,
   ApiPublicInstagramCallbackRoute: ApiPublicInstagramCallbackRoute,
   ApiPublicJobsBackupRoute: ApiPublicJobsBackupRoute,
+  ApiPublicJobsGrowthDigestRoute: ApiPublicJobsGrowthDigestRoute,
   ApiPublicJobsJarvisRoutinesRoute: ApiPublicJobsJarvisRoutinesRoute,
   ApiPublicJobsLeadAlertRetryRoute: ApiPublicJobsLeadAlertRetryRoute,
   ApiPublicJobsLeadReminderRoute: ApiPublicJobsLeadReminderRoute,
