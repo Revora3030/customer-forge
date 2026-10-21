@@ -300,7 +300,7 @@ describe("router settles every paid reservation", () => {
     vi.stubGlobal("fetch", fetchStub);
     await expect(call()).rejects.toBeTruthy();
     expect(settle).not.toHaveBeenCalled();
-    expect(fetchStub.mock.calls.some(([url]) => String(url).includes("api.openai.com"))).toBe(false);
+    expect(fetchStub.mock.calls.some(([url]) => new URL(String(url)).hostname === "api.openai.com")).toBe(false);
   });
 
   it("free-only builds never reserve paid budget", async () => {
