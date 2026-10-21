@@ -42,7 +42,11 @@ export type CodeChange =
 
 export type PullRequestProposal = { title: string; summary: string; changes: CodeChange[] };
 
+/** Paid web-grounded research presets the owner can approve (never the expensive deep ones by default). */
+export type ResearchPreset = "fast" | "low" | "medium";
+
 export type WriteProposal =
+  | { id: "research.ask"; question: string; preset: ResearchPreset }
   | { id: "demo.build"; input: ProspectDemoInput }
   | { id: "code.pr"; pr: PullRequestProposal }
   | { id: "claude.code"; request: string }
@@ -167,6 +171,7 @@ export type ParsedActions = {
 export type JarvisRiskLevel = "safe" | "monitor" | "ask" | "block";
 export type JarvisActionClass = { effect: "read" | "memory" | "write" | "destructive"; external: boolean; autoRuns: boolean; risk: JarvisRiskLevel };
 export const JARVIS_ACTION_CLASSES: Record<ReadAction["id"] | WriteProposal["id"], JarvisActionClass> = {
+  "research.ask": { effect: "write", external: true, autoRuns: false, risk: "ask" },
   "diagnostic.run": { effect: "read", external: false, autoRuns: true, risk: "safe" },
   "code.read": { effect: "read", external: false, autoRuns: true, risk: "safe" },
   "code.list": { effect: "read", external: false, autoRuns: true, risk: "safe" },
@@ -209,6 +214,7 @@ export function actionCatalogPrompt(diagnosticToolIds: string[]): string {
     '- {"id":"code.read","args":{"paths":["src/..."],"line":1}}: read up to 3 files, 300 numbered lines each, from line. A missing path comes back with didYouMean suggestions; to keep reading a long file, call again with the line it gives.',
     '- {"id":"demos.list","args":{}}: list prospect demo sites with build status and preview links.',
     '- {"id":"web.search","args":{"query":"..."}}: search the live web (Perplexity, Tavily, Brave, Exa or Jina, whichever is connected) for current facts: competitors, pricing in a market, a provider\'s docs or an error message. Results are third-party research; cite the URLs and never present them as facts about a customer.',
+    '- {"id":"research.ask","args":{"question":"...","preset":"fast"}}: PROPOSE one paid deep-research answer through the Perplexity Agent API, with citations. Use it when a web.search result is not enough and a reasoned, sourced answer would change a decision. preset is "fast" (default), "low" or "medium" — higher costs more. It spends the owner\'s Perplexity credits and runs ONLY when the owner taps Approve; you never run it yourself. The answer is third-party research with citations, never a verified fact.',
     '- {"id":"prospects.find","args":{"niche":"mobile detailing","city":"Raleigh","state":"NC"}}: search Google Places for businesses in a niche and city that have no real website (none, or only a social/directory page). Costs a little per search and is capped daily, so search only when the owner asks for prospects. Then propose demo.build for the best ones, using only the facts returned (name, category, city, state, phone); for services use none and set description to "<category> serving <city, state>."',
     '- {"id":"prospect.lookup","args":{"input":"https://maps.app.goo.gl/... or Joe\'s Plumbing Raleigh NC"}}: look up ONE business from a Google Maps link (place, search or share link) or its name and city, and get its public listing facts (name, category, city, state, phone, website). Use it whenever the owner pastes a Maps link or names a business to build for, then propose demo.build with only those facts plus any the owner gave you or that are visible in a picture they attached. If the listing shows a real website, say so before proposing.',
     '- {"id":"demo.build","args":{"businessName":"","industry":"","city":"","state":"","phone":"","email":"","services":["..."],"description":""}}: PROPOSE building a private demo website for a real business with no website. Only facts the owner gave you; never invent phone numbers, emails or services. The owner approves with one tap; you do not run it.',
@@ -377,6 +383,12 @@ export function parseActions(requested: unknown[], diagnosticToolIds: string[]):
       const proposal = parseDemoSendProposal(args);
       if (typeof proposal === "string") out.rejected.push(`demo.send: ${proposal}`);
       else out.proposals.push(proposal);
+    } else if (id === "research.ask") {
+      const question = str(args["question"], 2000);
+      const presetRaw = str(args["preset"], 10);
+      const preset: ResearchPreset = presetRaw === "low" || presetRaw === "medium" ? presetRaw : "fast";
+      if (question.length >= 10) out.proposals.push({ id, question, preset });
+      else out.rejected.push("research.ask: phrase the research question in at least a few words");
     } else if (id === "web.search") {
       const query = str(args["query"], 300);
       if (query.length >= 3) out.reads.push({ id, query });
@@ -492,6 +504,12 @@ export function splitReplyMeta(content: string): { body: string; meta: JarvisRep
         else if (proposal?.id === "demo.build") proposals.push({ id: "demo.build", input: parseProspectDemoInput(proposal.input) });
         else if (proposal?.id === "code.pr") proposals.push({ id: "code.pr", pr: parsePullRequestProposal(proposal.pr) });
         else if (proposal?.id === "builds.recover") proposals.push({ id: "builds.recover" });
+        else if (proposal?.id === "research.ask" && typeof proposal.question === "string" && proposal.question.trim().length >= 10)
+          proposals.push({
+            id: "research.ask",
+            question: proposal.question.trim().slice(0, 2000),
+            preset: proposal.preset === "low" || proposal.preset === "medium" ? proposal.preset : "fast",
+          });
         else if (proposal?.id === "demo.send") {
           const restored = parseDemoSendProposal(proposal);
           if (typeof restored !== "string") proposals.push(restored);

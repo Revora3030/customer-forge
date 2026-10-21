@@ -163,3 +163,7 @@ Owner approved porting two ideas (audit of the uploaded Next.js project; auto pa
 - [x] Added composite index for analytics funnel reads (event + time); verified ~26 ms to ~2 ms with query plans.
 - [x] Refreshed stale table statistics on marketing conversions, visual reports, AI usage.
 - [ ] Open: scheduled jobs wake the database every 10-15 min even when idle; reducing that cadence is a freshness trade-off needing owner approval.
+
+## Perplexity Agent research in Jarvis (2026-10-21)
+- [x] research.ask proposal (approval-gated, audit-logged), citations card, reload-safe result memory; 69 tests pass, build OK; signed-in Jarvis page loads without errors.
+- [ ] First real approved research call not yet exercised in chat (would spend owner's Perplexity credits; needs owner tap).
