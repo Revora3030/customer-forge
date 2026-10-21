@@ -261,6 +261,9 @@ export async function proposePageArchitecture(input: {
   if (!approved)
     return {
       architecture: null,
+      // An unreadable review is a model output failure, not a verdict: wait
+      // and retry through the capacity deferral instead of burning an attempt.
+      ...(review === null ? { capacity: true } : {}),
       skipped: review === null
         ? "the structure review was not in the agreed shape"
         : `the reviewer refused the proposed structure: ${JSON.stringify(review?.notes ?? []).slice(0, 400)}`,
