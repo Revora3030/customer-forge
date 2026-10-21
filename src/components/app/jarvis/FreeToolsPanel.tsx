@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Accessibility, BookOpen, CalendarDays, Cloud, FileSearch, Globe, Mail, Sheet, Gauge, Image as ImageIcon, Link, MonitorCheck, Play, ShieldCheck } from "lucide-react";
+import { Accessibility, Archive, BookOpen, Bug, CalendarDays, Cloud, Code2, FileSearch, FileText, Globe, Landmark, Lock, Mail, Sheet, Gauge, Image as ImageIcon, Link, MonitorCheck, Play, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getJarvisFreeToolReadiness, runJarvisDiagnosticTool } from "@/lib/jarvis.functions";
@@ -17,6 +17,12 @@ const tools = [
   { id: "images.stock.search", title: "Stock photos", icon: ImageIcon },
   { id: "docs.lookup", title: "Documentation", icon: BookOpen },
   { id: "website.dns.lookup", title: "DNS records · no key", icon: Globe },
+  { id: "website.html.validate", title: "HTML validator · no key", icon: Code2 },
+  { id: "website.security.observatory", title: "Security grade · no key", icon: Lock },
+  { id: "security.dependencies.osv", title: "Dependency vulnerabilities · no key", icon: Bug },
+  { id: "domain.rdap.lookup", title: "Domain registration · no key", icon: Landmark },
+  { id: "domain.wayback.history", title: "Wayback history · no key", icon: Archive },
+  { id: "website.text.extract", title: "Readable page text · no key", icon: FileText },
   { id: "workspace.calendar.upcoming", title: "Google Calendar · next 7 days", icon: CalendarDays },
   { id: "workspace.sheets.read", title: "Google Sheets outline", icon: Sheet },
   { id: "cloudflare.zones.summary", title: "Cloudflare domains", icon: Cloud },
@@ -47,7 +53,7 @@ export function FreeToolsPanel() {
     setRunning(toolId);
     setError(null);
     try {
-      const args = toolId === "docs.lookup" ? { query } : toolId === "images.stock.search" ? { query: photoQuery } : toolId === "workspace.sheets.read" ? { query: sheetUrl } : toolId === "website.dns.lookup" ? { query: target } : { target, strategy };
+      const args = toolId === "docs.lookup" ? { query } : toolId === "images.stock.search" ? { query: photoQuery } : toolId === "workspace.sheets.read" ? { query: sheetUrl } : toolId === "website.dns.lookup" || toolId === "domain.rdap.lookup" || toolId === "domain.wayback.history" ? { query: target } : { target, strategy };
       const result = await run({ data: { toolId, args } });
       setResults((previous) => ({ ...previous, [toolId]: result }));
     } catch {
