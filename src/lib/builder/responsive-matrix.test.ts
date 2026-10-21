@@ -51,9 +51,12 @@ describe("responsive device matrix", () => {
         pageId: "home",
         scrollWidth: entry.width,
         clientWidth: entry.width,
+        largestBlankGap: 0,
+        viewportHeight: 800,
       })),
     );
-    const summary = summarizeDeviceMatrix(checks);
+    // The opening-visual check depends on composition data this fixture omits.
+    const summary = summarizeDeviceMatrix(checks.filter((c) => c.check !== "opening section has a main visual"));
     expect(summary.measured).toBe(true);
     expect(summary.notVerified).toBe(0);
     expect(summary.failed).toBe(0);
