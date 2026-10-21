@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Accessibility, BookOpen, CalendarDays, Cloud, FileSearch, Globe, Mail, Sheet, Gauge, Image as ImageIcon, Link, MonitorCheck, Play, ShieldCheck } from "lucide-react";
+import { Accessibility, Archive, BookOpen, Bug, CalendarDays, Cloud, Code2, FileSearch, FileText, Globe, Landmark, Lock, Mail, Sheet, Gauge, Image as ImageIcon, Link, MonitorCheck, Play, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getJarvisFreeToolReadiness, runJarvisDiagnosticTool } from "@/lib/jarvis.functions";
@@ -17,6 +17,12 @@ const tools = [
   { id: "images.stock.search", title: "Stock photos", icon: ImageIcon },
   { id: "docs.lookup", title: "Documentation", icon: BookOpen },
   { id: "website.dns.lookup", title: "DNS records · no key", icon: Globe },
+  { id: "website.html.validate", title: "HTML validator · no key", icon: Code2 },
+  { id: "website.security.observatory", title: "Security grade · no key", icon: Lock },
+  { id: "security.dependencies.osv", title: "Dependency vulnerabilities · no key", icon: Bug },
+  { id: "domain.rdap.lookup", title: "Domain registration · no key", icon: Landmark },
+  { id: "domain.wayback.history", title: "Wayback history · no key", icon: Archive },
+  { id: "website.text.extract", title: "Readable page text · no key", icon: FileText },
   { id: "workspace.calendar.upcoming", title: "Google Calendar · next 7 days", icon: CalendarDays },
   { id: "workspace.sheets.read", title: "Google Sheets outline", icon: Sheet },
   { id: "cloudflare.zones.summary", title: "Cloudflare domains", icon: Cloud },
@@ -28,6 +34,9 @@ const services = [
   { id: "image.cloudflare", label: "Cloudflare AI images", key: "CLOUDFLARE_AI_API_TOKEN", link: "https://dash.cloudflare.com/profile/api-tokens" },
   { id: "image.huggingface", label: "Hugging Face AI images", key: "HUGGINGFACE_API_KEY", link: "https://huggingface.co/settings/tokens" },
   { id: "image.pollinations", label: "Pollinations AI images", key: "POLLINATIONS_API_KEY", link: "https://auth.pollinations.ai/" },
+] as const;
+const serverTools = [
+  ["Ollama", "https://ollama.com"], ["vLLM", "https://github.com/vllm-project/vllm"], ["ComfyUI", "https://github.com/comfyanonymous/ComfyUI"], ["Whisper", "https://github.com/openai/whisper"], ["Piper voices", "https://github.com/rhasspy/piper"], ["Real-ESRGAN", "https://github.com/xinntao/Real-ESRGAN"], ["rembg", "https://github.com/danielgatis/rembg"], ["Wan video", "https://github.com/Wan-Video/Wan2.1"], ["SearXNG", "https://github.com/searxng/searxng"], ["Crawl4AI", "https://github.com/unclecode/crawl4ai"], ["Semgrep", "https://github.com/semgrep/semgrep"], ["Trivy", "https://github.com/aquasecurity/trivy"], ["Gitleaks", "https://github.com/gitleaks/gitleaks"], ["OWASP ZAP", "https://www.zaproxy.org"], ["Qdrant", "https://github.com/qdrant/qdrant"], ["Mem0", "https://github.com/mem0ai/mem0"], ["Twenty CRM", "https://github.com/twentyhq/twenty"],
 ] as const;
 type Result = Awaited<ReturnType<typeof runJarvisDiagnosticTool>>;
 
@@ -47,7 +56,7 @@ export function FreeToolsPanel() {
     setRunning(toolId);
     setError(null);
     try {
-      const args = toolId === "docs.lookup" ? { query } : toolId === "images.stock.search" ? { query: photoQuery } : toolId === "workspace.sheets.read" ? { query: sheetUrl } : toolId === "website.dns.lookup" ? { query: target } : { target, strategy };
+      const args = toolId === "docs.lookup" ? { query } : toolId === "images.stock.search" ? { query: photoQuery } : toolId === "workspace.sheets.read" ? { query: sheetUrl } : toolId === "website.dns.lookup" || toolId === "domain.rdap.lookup" || toolId === "domain.wayback.history" ? { query: target } : { target, strategy };
       const result = await run({ data: { toolId, args } });
       setResults((previous) => ({ ...previous, [toolId]: result }));
     } catch {
@@ -90,6 +99,13 @@ export function FreeToolsPanel() {
               {ready ? <span className="text-muted-foreground">Key saved · not checked</span> : ready === false ? <a className="underline underline-offset-2" href={service.link} target="_blank" rel="noreferrer">Needs {service.key} · get key</a> : <span className="text-muted-foreground">Unknown</span>}
             </li>;
           })}
+        </ul>
+      </div>
+      <div className="border-t border-border pt-3">
+        <p className="text-sm font-medium">Needs a server (later)</p>
+        <p className="mt-1 text-xs text-muted-foreground">These free tools run on their own computer or GPU, not inside Revora.</p>
+        <ul className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs">
+          {serverTools.map(([label, href]) => <li key={label}><a className="underline underline-offset-2" href={href} target="_blank" rel="noreferrer">{label}</a></li>)}
         </ul>
       </div>
       {readiness.error || error ? <p role="alert" className="text-xs text-destructive">{error ?? "Tool settings unavailable."}</p> : null}
