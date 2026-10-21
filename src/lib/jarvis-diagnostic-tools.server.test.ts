@@ -63,10 +63,20 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
   vi.restoreAllMocks();
 });
 
 describe("Jarvis diagnostic executor", () => {
+  it("reports unavailable without contacting providers when browser/docs keys are absent", async () => {
+    vi.stubEnv("BROWSERLESS_API_KEY", "");
+    vi.stubEnv("CONTEXT7_API_KEY", "");
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    expect((await executeJarvisDiagnosticTool(db, "website.browser.check")).data).toMatchObject({ reason: "needs_key" });
+    expect((await executeJarvisDiagnosticTool(db, "docs.lookup", { query: "react: hooks" })).data).toMatchObject({ reason: "needs_key" });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
   it("rejects unknown and model-invented tool identifiers before doing any work", async () => {
     await expect(executeJarvisDiagnosticTool(db, "shell.exec")).rejects.toThrow("Unknown Jarvis diagnostic tool");
     await expect(executeJarvisDiagnosticTool(db, "database.run_sql")).rejects.toThrow("Unknown Jarvis diagnostic tool");

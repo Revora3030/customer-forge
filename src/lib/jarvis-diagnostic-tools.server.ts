@@ -576,7 +576,7 @@ export async function executeJarvisDiagnosticTool(
           `One ${strategy} Lighthouse lab run via Google PageSpeed Insights; scores vary run to run.`,
           "Lab data is not real-visitor Core Web Vitals and covers only this URL.",
         ];
-        const res = await fetch(buildPageSpeedUrl(process.env["GOOGLE_PAGESPEED_API_KEY"], target, strategy), { signal: AbortSignal.timeout(14000) });
+        const res = await fetch(buildPageSpeedUrl(process.env["GOOGLE_PAGESPEED_API_KEY"], target, strategy), { signal: AbortSignal.timeout(59000) });
         if (!res.ok) {
           return result(toolId, "unknown", { reason: res.status === 429 ? "free_quota_exhausted" : `pagespeed_http_${res.status}`, keyConfigured: Boolean(process.env["GOOGLE_PAGESPEED_API_KEY"]) }, { checkedAt, durationMs: Date.now() - started, limitations });
         }
@@ -695,8 +695,9 @@ export async function executeJarvisDiagnosticTool(
       checkedAt, durationMs: Date.now() - started,
       limitations: ["Registered tool has no executor path; fail-closed result."],
     });
-  } catch {
-    return result(toolId, "unknown", { reason: "diagnostic_execution_failed" }, {
+  } catch (error) {
+    const timedOut = error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
+    return result(toolId, "unknown", { reason: timedOut ? "diagnostic_timeout" : "diagnostic_execution_failed" }, {
       checkedAt,
       durationMs: Date.now() - started,
       limitations: ["No successful evidence was recorded for this diagnostic run."],

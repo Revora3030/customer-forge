@@ -22,7 +22,7 @@ describe("Jarvis read-only diagnostic coverage contract", () => {
       expect(tool.access).toBe("read");
       expect(tool.requiresApproval).toBe(false);
       expect(tool.maxOutputBytes).toBeLessThanOrEqual(12000);
-      expect(tool.timeoutMs).toBeLessThanOrEqual(tool.id === "website.browser.check" ? 45000 : 15000);
+      expect(tool.timeoutMs).toBeLessThanOrEqual(tool.id === "website.lighthouse.audit" ? 60000 : tool.id === "website.browser.check" ? 45000 : 15000);
     }
   });
 

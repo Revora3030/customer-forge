@@ -47,7 +47,8 @@ export default async function ({ page, context }) {
 const strList = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string").slice(0, 10).map((s) => s.slice(0, 200)) : []);
 
 export function summarizeBrowserCheck(raw: unknown, url: string): BrowserCheckSummary | null {
-  const vps = (raw as { viewports?: unknown })?.viewports;
+  const payload = raw && typeof raw === "object" && "data" in raw ? raw.data : raw;
+  const vps = (payload as { viewports?: unknown })?.viewports;
   if (!Array.isArray(vps) || vps.length === 0) return null;
   const viewports = vps.slice(0, 2).map((v): ViewportReport => {
     const r = (v ?? {}) as Record<string, unknown>;

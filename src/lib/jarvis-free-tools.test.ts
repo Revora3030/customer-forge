@@ -31,6 +31,9 @@ describe("Lighthouse options", () => {
 });
 
 describe("Live page check", () => {
+  it("accepts the official Browserless response envelope", () => {
+    expect(summarizeBrowserCheck({ data: { viewports: [{ viewport: "desktop", httpStatus: 200 }] }, type: "application/json" }, DEFAULT_TARGET)?.viewports[0]?.httpStatus).toBe(200);
+  });
   it("flags script errors and overflow, passes a clean page", () => {
     const clean = summarizeBrowserCheck({ viewports: [{ viewport: "phone", httpStatus: 200, scriptErrors: [], failedRequests: [], brokenLinks: [], horizontalOverflowPx: 0 }] }, DEFAULT_TARGET);
     if (!clean) throw new Error("Expected clean report");
