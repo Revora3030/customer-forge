@@ -3,7 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, History, Pencil, RefreshCw, X } from "lucide-react";
-import { EmptyState, ErrorNote, LoadingRows, MetricCard, Panel, Pill, SectionHeading } from "@/components/app/Bits";
+import { EmptyState, ErrorNote, LoadingRows, MetricCard, Panel as BasePanel, Pill, SectionHeading } from "@/components/app/Bits";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -43,6 +43,15 @@ function useAct<T>(fn: (v: T) => Promise<unknown>, keys: string[]) {
     onError: (e) => setMsg(errText(e)),
   });
   return { ...m, msg };
+}
+
+function Panel({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <BasePanel>
+      <h3 className="mb-3 font-semibold">{title}</h3>
+      {children}
+    </BasePanel>
+  );
 }
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
