@@ -96,8 +96,11 @@ function classifyError(error: unknown): AgentFailure {
     };
   }
   if (status === 429) {
-    const headers = asRecord(record?.["headers"]);
-    const retryAfterRaw = headers?.["retry-after"];
+    const headers = record?.["headers"];
+    const retryAfterRaw =
+      headers instanceof Headers
+        ? headers.get("retry-after")
+        : asRecord(headers)?.["retry-after"];
     const retryAfterSeconds =
       typeof retryAfterRaw === "string" && Number.isFinite(Number(retryAfterRaw))
         ? Number(retryAfterRaw)

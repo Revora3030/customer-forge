@@ -55,7 +55,8 @@ describe("perplexity agent", () => {
     const calls = stubFetch(() => Response.json(SUCCESS_BODY, { status: 200 }));
     const outcome = await runPerplexityAgent({ input: "What is Revora?", preset: "fast" });
     expect(calls).toHaveLength(1);
-    expect(calls[0]!.url).toContain("https://api.perplexity.ai/v1/agent");
+    // The SDK posts to /v1/responses, the documented OpenAI-compat alias of /v1/agent.
+    expect(calls[0]!.url).toMatch(/^https:\/\/api\.perplexity\.ai\/v1\/(agent|responses)/);
     const headers = new Headers(calls[0]!.init?.headers);
     expect(headers.get("authorization")).toBe("Bearer pplx-test");
     expect(outcome.ok).toBe(true);
