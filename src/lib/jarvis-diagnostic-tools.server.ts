@@ -554,7 +554,7 @@ export async function executeJarvisDiagnosticTool(
         "One mobile Lighthouse lab run of the homepage via Google PageSpeed Insights; scores vary run to run.",
         "Lab data is not real-visitor Core Web Vitals and does not cover other pages.",
       ];
-      const res = await fetch(buildPageSpeedUrl(process.env.GOOGLE_PAGESPEED_API_KEY), { signal: AbortSignal.timeout(14000) });
+      const res = await fetch(buildPageSpeedUrl(process.env["GOOGLE_PAGESPEED_API_KEY"]), { signal: AbortSignal.timeout(14000) });
       if (!res.ok) {
         return result(toolId, "unknown", { reason: res.status === 429 ? "free_quota_exhausted" : `pagespeed_http_${res.status}` }, { checkedAt, durationMs: Date.now() - started, limitations });
       }
