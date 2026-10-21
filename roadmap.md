@@ -177,3 +177,5 @@ Owner approved porting two ideas (audit of the uploaded Next.js project; auto pa
 ## Perplexity Agent research in Jarvis (2026-10-21)
 - [x] research.ask proposal (approval-gated, audit-logged), citations card, reload-safe result memory; 69 tests pass, build OK; signed-in Jarvis page loads without errors.
 - [ ] First real approved research call not yet exercised in chat (would spend owner's Perplexity credits; needs owner tap).
+
+- [ ] Use available free connectors to improve the platform further (after redesign phase 2 checks)

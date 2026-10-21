@@ -115,7 +115,7 @@ function PrivacyPage() {
         <section className="border-b border-border">
           <div className="mx-auto max-w-3xl px-4 py-14">
             <p className="eyebrow">Legal</p>
-            <h1 className="mt-2 font-display text-[clamp(1.8rem,4vw,2.6rem)] leading-tight font-semibold">
+            <h1 className="mt-2 font-editorial text-balance text-[clamp(1.8rem,4vw,2.6rem)] leading-tight">
               Privacy Policy
             </h1>
             <p className="mt-3 text-[12.5px] text-muted-foreground">

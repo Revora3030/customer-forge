@@ -64,7 +64,7 @@ function StatesIndex() {
           <p className="text-[13px] font-semibold tracking-wide text-primary uppercase">
             Every city · every industry · worldwide
           </p>
-          <h1 className="mt-3 max-w-3xl font-display text-[28px] sm:text-[40px] leading-tight font-semibold">
+          <h1 className="mt-3 max-w-3xl font-editorial text-balance text-[28px] sm:text-[40px] leading-tight">
             Business websites and CRM in <span className="gold-hl">all 50 states</span>
           </h1>
           <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-muted-foreground">

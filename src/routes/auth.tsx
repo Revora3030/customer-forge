@@ -259,7 +259,7 @@ function AuthPage() {
           {isSignup ? (
             <Pill tone="signal">{`${GROWTH_SYSTEM.fullAccessWindowUpper} FREE — FULL ACCESS`}</Pill>
           ) : null}
-          <h1 className="mt-3 font-display text-[24px] leading-tight font-semibold">
+          <h1 className="mt-3 font-editorial text-balance text-[24px] leading-tight">
             {isSignup ? (
               <>
                 Start your{" "}

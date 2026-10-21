@@ -92,7 +92,7 @@ function ResetPasswordPage() {
 
       <main className="flex flex-1 items-center justify-center px-4 py-12">
         <div className="w-full max-w-sm">
-          <h1 className="font-display text-[24px] leading-tight font-semibold">
+          <h1 className="font-editorial text-balance text-[24px] leading-tight">
             Set a <span className="gold-text">new password</span>
           </h1>
           <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">

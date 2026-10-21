@@ -88,7 +88,7 @@ function GuidePage() {
           <span aria-hidden> / </span>
           <span className="text-foreground">{guide.title}</span>
         </nav>
-        <h1 className="mt-4 font-display text-[26px] sm:text-[36px] leading-tight font-semibold">
+        <h1 className="mt-4 font-editorial text-balance text-[26px] sm:text-[36px] leading-tight">
           {guide.title}
         </h1>
         <p className="mt-2 text-[13px] text-muted-foreground/80">{guide.readMinutes} min read</p>
