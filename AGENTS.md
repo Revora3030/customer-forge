@@ -24,7 +24,7 @@
 - Instagram is owner-scoped custom OAuth with encrypted server-only credentials; models may propose drafts but only the explicit authenticated review endpoint may atomically approve and publish an immutable saved caption/image URL/account. Uncertain submissions never auto-retry, preventing duplicate posts.
 
 Scan before broad changes; preserve generated files and tenant/auth/billing/publishing boundaries. Gate runtime claims on evidence.
-- Jarvis free diagnostics use super-admin functions, bounded allow-listed targets and configuration-only readiness; provider checks run only on request.
+- Jarvis diagnostics use super-admin functions, allow-listed targets and configuration-only readiness. Keyless checks parse bounded HTML without redirects, subresources or raw content output; never claim rendered QA. Provider checks run only on request.
 - New customer website creative choices, including first-build CTA labels plus motion and density tokens, must be AI-authored and safety-reviewed rather than seeded from deterministic rules; this keeps creative authority with the AI team while preserving truth/accessibility safeguards.
 - Builder progress uses the chat request ID from planning through apply; this keeps every live stage attached to the request that caused it.
 - AI router unit tests use the shared provider environment isolation helper and stub HTTP and spend reservations; ambient deployment credentials must not trigger provider calls or ledger writes.

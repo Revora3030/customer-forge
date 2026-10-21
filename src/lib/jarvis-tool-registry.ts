@@ -20,12 +20,12 @@ export type JarvisDiagnosticTool = {
 };
 
 export const JARVIS_DIAGNOSTIC_TOOLS = [
-  ...[
+  ...([
     { id: "website.html.audit", title: "No-key page SEO", description: "Read one allowed page directly and check indexing, title, description, canonical, viewport and social metadata without a paid browser service." },
     { id: "website.accessibility.static", title: "No-key accessibility & schema", description: "Check served HTML for unlabeled controls, unnamed buttons, missing image alt, duplicate IDs, heading skips, document language and invalid structured-data JSON. Not rendered accessibility or schema eligibility." },
     { id: "website.security.headers", title: "No-key security headers", description: "Inspect transport, content-type and content-security header presence for one allowed page. Reports framing policy without requiring it on embeddable customer previews; not a security audit." },
     { id: "website.links.inventory", title: "No-key links & anchors", description: "Count internal, external and contact links; detect unsafe protocols and missing same-page anchor targets. Never follows links or sends contact messages." },
-  ].map((tool) => ({ ...tool, category: "website", evidence: "Bounded direct HTTP/HTML evidence; scripts, forms, linked pages and rendered layout are not tested.", implementation: "implemented", access: "read", risk: "low", requiresApproval: false, timeoutMs: 12000, maxOutputBytes: 6000 } as const)),
+  ] as const).map((tool) => ({ ...tool, category: "website", evidence: "Bounded direct HTTP/HTML evidence; scripts, forms, linked pages and rendered layout are not tested.", implementation: "implemented", access: "read", risk: "low", requiresApproval: false, timeoutMs: 12000, maxOutputBytes: 6000 } as const)),
   {
     id: "platform.errors.summary",
     title: "Platform error summary",
