@@ -3,7 +3,7 @@
  * Two steps: resolve a library ID by name, then fetch focused doc snippets.
  * Each answer carries its source library ID so Jarvis can cite it.
  */
-const BASE = "https://context7.com/api/v1";
+const BASE = "https://context7.com/api/v2";
 
 export function cleanDocsQuery(raw: unknown): { library: string; topic: string } | null {
   if (typeof raw !== "string") return null;
@@ -14,17 +14,17 @@ export function cleanDocsQuery(raw: unknown): { library: string; topic: string }
 }
 
 export function buildSearchUrl(library: string): string {
-  const u = new URL(`${BASE}/search`);
+  const u = new URL(`${BASE}/libs/search`);
+  u.searchParams.set("libraryName", library);
   u.searchParams.set("query", library);
   return u.toString();
 }
 
 export function buildDocsUrl(libraryId: string, topic: string): string {
-  const id = libraryId.replace(/^\/+/, "");
-  const u = new URL(`${BASE}/${id.split("/").map(encodeURIComponent).join("/")}`);
+  const u = new URL(`${BASE}/context`);
+  u.searchParams.set("libraryId", libraryId);
   u.searchParams.set("type", "txt");
-  u.searchParams.set("tokens", "3000");
-  if (topic) u.searchParams.set("topic", topic);
+  u.searchParams.set("query", topic || "Overview and getting started");
   return u.toString();
 }
 

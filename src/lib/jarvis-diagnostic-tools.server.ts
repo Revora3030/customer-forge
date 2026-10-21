@@ -615,7 +615,8 @@ export async function executeJarvisDiagnosticTool(
       if (!lib) return result(toolId, "unknown", { reason: "library_not_found", library: q.library }, { checkedAt, durationMs: Date.now() - started, limitations });
       const docs = await fetch(buildDocsUrl(lib.id, q.topic), { headers, signal: AbortSignal.timeout(7000) });
       if (!docs.ok) return result(toolId, "unknown", { reason: `context7_http_${docs.status}`, source: lib.id }, { checkedAt, durationMs: Date.now() - started, limitations });
-      const text = (await docs.text()).slice(0, 7500);
+      const text = (await readLimited(docs, 12000)).slice(0, 7500);
+      if (!text.trim()) return result(toolId, "unknown", { reason: "empty_documentation", source: lib.id }, { checkedAt, durationMs: Date.now() - started, limitations });
       return result(toolId, "observed", { source: lib.id, library: lib.title, topic: q.topic || null, excerpt: text }, { checkedAt, durationMs: Date.now() - started, limitations });
     }
 

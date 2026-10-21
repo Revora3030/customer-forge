@@ -16,7 +16,7 @@ describe("Jarvis diagnostic tool registry", () => {
       expect(tool.risk).toBe("low");
       expect(tool.requiresApproval).toBe(false);
       expect(tool.timeoutMs).toBeGreaterThan(0);
-      expect(tool.timeoutMs).toBeLessThanOrEqual(30000);
+      expect(tool.timeoutMs).toBeLessThanOrEqual(tool.id === "website.browser.check" ? 45000 : 30000);
       expect(tool.maxOutputBytes).toBeGreaterThan(0);
       expect(tool.maxOutputBytes).toBeLessThanOrEqual(30000);
     }

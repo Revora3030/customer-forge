@@ -32,13 +32,16 @@ describe("Lighthouse options", () => {
 
 describe("Live page check", () => {
   it("flags script errors and overflow, passes a clean page", () => {
-    const clean = summarizeBrowserCheck({ viewports: [{ viewport: "phone", httpStatus: 200, scriptErrors: [], failedRequests: [], brokenLinks: [], horizontalOverflowPx: 0 }] }, DEFAULT_TARGET)!;
+    const clean = summarizeBrowserCheck({ viewports: [{ viewport: "phone", httpStatus: 200, scriptErrors: [], failedRequests: [], brokenLinks: [], horizontalOverflowPx: 0 }] }, DEFAULT_TARGET);
+    if (!clean) throw new Error("Expected clean report");
     expect(browserCheckHasProblems(clean)).toBe(false);
-    const bad = summarizeBrowserCheck({ viewports: [{ viewport: "phone", httpStatus: 200, scriptErrors: ["x is undefined"], horizontalOverflowPx: 40 }] }, DEFAULT_TARGET)!;
+    const bad = summarizeBrowserCheck({ viewports: [{ viewport: "phone", httpStatus: 200, scriptErrors: ["x is undefined"], horizontalOverflowPx: 40 }] }, DEFAULT_TARGET);
+    if (!bad) throw new Error("Expected failure report");
     expect(browserCheckHasProblems(bad)).toBe(true);
   });
   it("treats a missing page load as a problem and junk as unparseable", () => {
-    const noLoad = summarizeBrowserCheck({ viewports: [{ viewport: "desktop", httpStatus: null }] }, DEFAULT_TARGET)!;
+    const noLoad = summarizeBrowserCheck({ viewports: [{ viewport: "desktop", httpStatus: null }] }, DEFAULT_TARGET);
+    if (!noLoad) throw new Error("Expected unloaded report");
     expect(browserCheckHasProblems(noLoad)).toBe(true);
     expect(summarizeBrowserCheck({}, DEFAULT_TARGET)).toBeNull();
   });
@@ -51,8 +54,9 @@ describe("Docs lookup", () => {
   });
   it("builds a docs URL with topic and picks the first library", () => {
     const u = new URL(buildDocsUrl("/tanstack/router", "loaders"));
-    expect(u.pathname).toBe("/api/v1/tanstack/router");
-    expect(u.searchParams.get("topic")).toBe("loaders");
+    expect(u.pathname).toBe("/api/v2/context");
+    expect(u.searchParams.get("libraryId")).toBe("/tanstack/router");
+    expect(u.searchParams.get("query")).toBe("loaders");
     expect(pickLibraryId({ results: [{ id: "/tanstack/router", title: "TanStack Router" }] })?.id).toBe("/tanstack/router");
     expect(pickLibraryId({ results: [] })).toBeNull();
   });
