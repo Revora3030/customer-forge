@@ -854,7 +854,8 @@ export const getJarvisModelStatus = createServerFn({ method: "GET" })
       db.from("ai_team_trace").select("provider,model,ok,created_at").gte("created_at", since).limit(10000),
     ]);
     if (runtime.error || trace.error) throw new Error("Couldn't read AI health records.");
-    const { classifyProviders, configuredProviders } = await import("./jarvis-model-status");
+    const { classifyProviders } = await import("./jarvis-model-status");
+    const { configuredProviders } = await import("./jarvis-model-status.server");
     return classifyProviders({
       runtime: (runtime.data ?? []) as never,
       trace: (trace.data ?? []) as never,
