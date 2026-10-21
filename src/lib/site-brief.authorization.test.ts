@@ -10,7 +10,8 @@ afterEach(() => vi.unstubAllGlobals());
 
 describe("brief mutation authorization", () => {
   it.each(["saveSiteBrief", "saveMissingFacts"])("%s rejects viewers and other workspaces before reading or writing a brief", async (name) => {
-    const module = await import("./site-engine.functions.ts?server-fn-module-lookup");
+    const path = "./site-engine.functions.ts?server-fn-module-lookup";
+    const module = await import(/* @vite-ignore */ path);
     const handler = module[name] as (input: unknown) => Promise<unknown>;
     for (const role of ["viewer", "staff", null]) {
       const from = vi.fn((table: string) => {

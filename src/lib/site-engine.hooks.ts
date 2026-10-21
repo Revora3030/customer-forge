@@ -169,7 +169,7 @@ export function useGenerateSectionsFromText(organizationId: string | undefined) 
   return useMutation({
     mutationFn: async (vars?: { requestId?: string; instruction?: string }) => {
       if (!organizationId) throw new Error("Choose a workspace before generating your website.");
-      const analysis = await analyze({ data: { organizationId, instruction: vars?.instruction } });
+      const analysis = await analyze({ data: { organizationId, ...(vars?.instruction ? { instruction: vars.instruction } : {}) } });
       await save({
         data: { organizationId, brief: analysis.brief, approved: true },
       });
