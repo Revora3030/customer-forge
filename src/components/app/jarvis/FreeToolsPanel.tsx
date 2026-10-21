@@ -1,12 +1,16 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { BookOpen, FileSearch, Gauge, Image as ImageIcon, MonitorCheck, Play } from "lucide-react";
+import { Accessibility, BookOpen, FileSearch, Gauge, Image as ImageIcon, Link, MonitorCheck, Play, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getJarvisFreeToolReadiness, runJarvisDiagnosticTool } from "@/lib/jarvis.functions";
 
 const tools = [
+  { id: "website.html.audit", title: "Page SEO · no key", icon: FileSearch },
+  { id: "website.accessibility.static", title: "Accessibility & schema · no key", icon: Accessibility },
+  { id: "website.security.headers", title: "Security headers · no key", icon: ShieldCheck },
+  { id: "website.links.inventory", title: "Links & anchors · no key", icon: Link },
   { id: "website.lighthouse.audit", title: "Speed & SEO", icon: Gauge },
   { id: "website.browser.check", title: "Live page", icon: MonitorCheck },
   { id: "website.page.audit", title: "Page SEO (Browserbase)", icon: FileSearch },
