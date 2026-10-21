@@ -41,6 +41,7 @@ export type ProviderName =
   | "kilo"
   | "omniroute"
   | "selfhosted"
+  | "opencode"
   | "modelscope"
   | "github";
 

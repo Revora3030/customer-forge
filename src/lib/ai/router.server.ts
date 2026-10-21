@@ -87,6 +87,7 @@ import { ovhAdapter } from "@/lib/ai/providers/ovh";
 import { kiloAdapter } from "@/lib/ai/providers/kilo";
 import { omnirouteAdapter } from "@/lib/ai/providers/omniroute";
 import { selfhostedAdapter } from "@/lib/ai/providers/selfhosted";
+import { opencodeAdapter } from "@/lib/ai/providers/opencode";
 import { modelscopeAdapter } from "@/lib/ai/providers/modelscope";
 import { githubModelsAdapter } from "@/lib/ai/providers/github";
 import { nvidiaAdapter } from "@/lib/ai/providers/nvidia";
@@ -137,6 +138,7 @@ const ADAPTERS: Record<ProviderName, ProviderAdapter> = {
   kilo: kiloAdapter,
   omniroute: omnirouteAdapter,
   selfhosted: selfhostedAdapter,
+  opencode: opencodeAdapter,
   modelscope: modelscopeAdapter,
   github: githubModelsAdapter,
 };
