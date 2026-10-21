@@ -39,6 +39,7 @@ export type ProviderName =
   | "ollama"
   | "ovh"
   | "kilo"
+  | "omniroute"
   | "modelscope"
   | "github";
 

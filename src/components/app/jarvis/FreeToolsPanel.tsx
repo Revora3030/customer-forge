@@ -27,6 +27,7 @@ const tools = [
   { id: "workspace.sheets.read", title: "Google Sheets outline", icon: Sheet },
   { id: "cloudflare.zones.summary", title: "Cloudflare domains", icon: Cloud },
   { id: "email.resend.domains", title: "Resend sending domains", icon: Mail },
+  { id: "ai.omniroute.models", title: "OmniRoute models · your server", icon: Cloud },
 ] as const;
 const services = [
   { id: "stock.unsplash", label: "Unsplash photos", key: "UNSPLASH_ACCESS_KEY", link: "https://unsplash.com/oauth/applications" },
