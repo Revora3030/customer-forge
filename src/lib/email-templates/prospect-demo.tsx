@@ -64,7 +64,7 @@ export const template = {
   previewData: {
     subject: "A free website draft for Elite Mobile Detailing",
     message:
-      "Hi Elite Mobile Detailing team,\n\nI couldn't find a website for your business, so I put together a free draft from your public details:\nhttps://revoragrowthsystems.com/p/example\n\nIt's private and nothing is published.",
+      "Hi Elite Mobile Detailing team,\n\nI didn't see a website listed for your business, so I put together a free draft from your public details:\nhttps://revoragrowthsystems.com/p/example\n\nIt's private and nothing is published.",
     footerLines: ["Revora Growth Systems", "123 Main St, Raleigh, NC 27601"],
     unsubscribeUrl: "https://revoragrowthsystems.com/unsubscribe/outreach/example",
   },
