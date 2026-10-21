@@ -2214,6 +2214,33 @@ export type Database = {
         }
         Relationships: []
       }
+      jarvis_conversations: {
+        Row: {
+          archived: boolean
+          created_at: string
+          id: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          archived?: boolean
+          created_at?: string
+          id?: string
+          title?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          archived?: boolean
+          created_at?: string
+          id?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       jarvis_instagram_connections: {
         Row: {
           connected_at: string
@@ -2355,6 +2382,7 @@ export type Database = {
       jarvis_messages: {
         Row: {
           content: string
+          conversation_id: string | null
           created_at: string
           id: string
           role: string
@@ -2363,6 +2391,7 @@ export type Database = {
         }
         Insert: {
           content: string
+          conversation_id?: string | null
           created_at?: string
           id?: string
           role: string
@@ -2371,13 +2400,22 @@ export type Database = {
         }
         Update: {
           content?: string
+          conversation_id?: string | null
           created_at?: string
           id?: string
           role?: string
           run_id?: string | null
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "jarvis_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "jarvis_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       jarvis_routines: {
         Row: {

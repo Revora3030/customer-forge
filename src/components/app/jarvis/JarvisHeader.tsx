@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Download, MoreHorizontal, Radio, RefreshCw, Square, Trash2, Volume2, VolumeX, Wrench } from "lucide-react";
+import { Download, MoreHorizontal, Radio, RefreshCw, Square, Trash2, Volume2, VolumeX, Wrench, MessagesSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -30,16 +30,20 @@ type Props = {
   onOpenOperations: () => void;
   clearDisabled: boolean;
   onClear: () => void;
+  onOpenConversations: () => void;
 };
 
 const dotTone = { ran: "bg-emerald-500", unavailable: "bg-destructive", unknown: "bg-muted-foreground/50" } as const;
 
 /** One 56px row: identity and status, then Stop, Live, voice and an overflow menu. */
 export function JarvisHeader(props: Props) {
-  const { voiceState, level, status, checks, onOpenChecks, speaking, onStopSpeaking, live, onToggleLive, voice, onToggleVoice, refreshing, onRefreshDiagnostics, onExport, showOperationsItem, onOpenOperations, clearDisabled, onClear } = props;
+  const { voiceState, level, status, checks, onOpenChecks, speaking, onStopSpeaking, live, onToggleLive, voice, onToggleVoice, refreshing, onRefreshDiagnostics, onExport, showOperationsItem, onOpenOperations, clearDisabled, onClear, onOpenConversations } = props;
   const [confirmClear, setConfirmClear] = useState(false);
   return (
     <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border/60 px-3 sm:px-4">
+      <Button type="button" variant="ghost" size="icon-sm" data-jarvis-tap="" aria-label="Conversations" onClick={onOpenConversations} className="size-9 shrink-0 rounded-full sm:size-9">
+        <MessagesSquare className="size-4" aria-hidden />
+      </Button>
       <span className="shrink-0 [&>span]:size-8"><VoiceWave state={voiceState} level={level} /></span>
       <div className="min-w-0 flex-1">
         <h1 className="truncate text-base font-semibold leading-tight">Jarvis</h1>

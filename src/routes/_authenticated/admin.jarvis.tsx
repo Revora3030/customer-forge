@@ -16,6 +16,7 @@ import { JarvisHeader, type ChecksSummary } from "@/components/app/jarvis/Jarvis
 import { JarvisComposer, type JarvisMode } from "@/components/app/jarvis/JarvisComposer";
 import { AssistantMessage, UserMessage, type JarvisRow } from "@/components/app/jarvis/JarvisMessage";
 import { RunStepsSheet } from "@/components/app/jarvis/RunStepsSheet";
+import { ConversationsSheet } from "@/components/app/jarvis/ConversationsSheet";
 import { OperationsPanel, DIAGNOSTIC_SECTIONS, type ProspectorState } from "@/components/app/jarvis/OperationsPanel";
 import { CommandPalette } from "@/components/app/jarvis/CommandPalette";
 import { LiveSurface, type VoiceState } from "@/components/app/jarvis/LiveSurface";
@@ -166,7 +167,11 @@ function Jarvis() {
   const [readingPicture, setReadingPicture] = useState(false);
   const [picturePreview, setPicturePreview] = useState<string | null>(null);
   const [openedPrs, setOpenedPrs] = useState<Record<string, string>>({});
-  const history = useQuery({ queryKey: ["jarvis", "history"], queryFn: () => load({ data: {} }) });
+  // null = continue the most recent conversation; set once a conversation is known.
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [showConversations, setShowConversations] = useState(false);
+  const historyKey = ["jarvis", "history", conversationId] as const;
+  const history = useQuery({ queryKey: historyKey, queryFn: () => load({ data: { conversationId } }) });
   const diagnostics = useQuery({ queryKey: ["jarvis", "diagnostics"], queryFn: () => inspect(), staleTime: 60_000, retry: false });
   const acquisition = useQuery({ queryKey: ["jarvis", "acquisition-readiness"], queryFn: () => inspectAcquisition(), enabled: false, retry: false });
   const capabilityScorecard = useQuery({
@@ -248,7 +253,7 @@ function Jarvis() {
     window.setTimeout(() => setAnnouncement(message), 60);
   };
   const latestAssistantId = () => {
-    const rows = qc.getQueryData<JarvisRow[]>(["jarvis", "history"]) ?? [];
+    const rows = qc.getQueryData<JarvisRow[]>(historyKey) ?? [];
     const last = rows[rows.length - 1];
     return last?.role === "assistant" ? last.id : null;
   };
@@ -267,7 +272,13 @@ function Jarvis() {
     stopVoice();
     resumeLive();
   };
-  const finish = async (result: { reply: string; diagnostics: unknown; followups?: string[] }) => {
+  const finish = async (result: { reply: string; diagnostics: unknown; followups?: string[]; conversationId?: string | null }) => {
+    if (result.conversationId && result.conversationId !== conversationId) {
+      // Carry the loaded rows over so the chat doesn't flash empty.
+      qc.setQueryData(["jarvis", "history", result.conversationId], qc.getQueryData(historyKey));
+      setConversationId(result.conversationId);
+    }
+    void qc.invalidateQueries({ queryKey: ["jarvis", "conversations"] });
     qc.setQueryData(["jarvis", "diagnostics"], result.diagnostics);
     setFollowups(result.followups ?? []);
     await qc.invalidateQueries({ queryKey: ["jarvis", "history"] });
@@ -275,13 +286,13 @@ function Jarvis() {
     if (voice || liveRef.current) void speak(result.reply, latestAssistantId());
   };
   const mutation = useMutation({
-    mutationFn: (message: string) => send({ data: { message, mode } }),
+    mutationFn: (message: string) => send({ data: { message, mode, conversationId } }),
     onSuccess: finish,
     onError: async (error: Error, message: string) => {
       toast.error(error.message);
       // The server saves the message before answering, so it may already be in the chat.
       await qc.invalidateQueries({ queryKey: ["jarvis", "history"] }).catch(() => undefined);
-      const rows = qc.getQueryData<JarvisRow[]>(["jarvis", "history"]) ?? [];
+      const rows = qc.getQueryData<JarvisRow[]>(historyKey) ?? [];
       const lastUser = [...rows].reverse().find((row) => row.role === "user");
       if (lastUser?.content !== message) setText((current) => current || message);
       resumeLive();
@@ -289,7 +300,7 @@ function Jarvis() {
     onSettled: () => setPending(null),
   });
   const regen = useMutation({
-    mutationFn: () => redo({ data: { mode } }),
+    mutationFn: () => redo({ data: { mode, conversationId } }),
     onSuccess: finish,
     onError: (error: Error) => toast.error(error.message),
   });
@@ -453,7 +464,7 @@ function Jarvis() {
     if (!oldest || loadingEarlier) return;
     setLoadingEarlier(true);
     try {
-      const rows = await load({ data: { before: oldest.created_at } });
+      const rows = await load({ data: { before: oldest.created_at, conversationId } });
       setOlder((current) => mergeRows(rows, current));
       setMoreEarlier(rows.length >= JARVIS_HISTORY_PAGE);
       if (!rows.length) toast.message("That's the start of your Jarvis chat.");
@@ -780,6 +791,7 @@ function Jarvis() {
             onOpenOperations={() => setShowTools(true)}
             clearDisabled={clearing.isPending || busy}
             onClear={() => clearing.mutate()}
+            onOpenConversations={() => setShowConversations(true)}
           />
 
           <Conversation contextRef={conversation} className="min-h-0 flex-1" aria-label="Jarvis conversation" aria-live="off">
@@ -939,6 +951,8 @@ function Jarvis() {
           </Sheet>
         ) : null}
 
+        <ConversationsSheet open={showConversations} onOpenChange={setShowConversations} wide={wide === true} activeId={conversationId}
+          onSelect={(id) => { if (id === conversationId) return; setOlder([]); setMoreEarlier(true); setFollowups([]); setConversationId(id); }} />
         <RunStepsSheet runId={stepsRun} open={stepsRun !== null} onOpenChange={(o) => { if (!o) setStepsRun(null); }} wide={wide === true} />
         <CommandPalette open={commandsOpen} onOpenChange={setCommandsOpen} desktop={!coarse} commands={COMMANDS} disabled={busy} onRun={(prompt) => submit(prompt)} />
       </div>

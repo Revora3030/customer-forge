@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { classifyProviders, configuredProviders } from "./jarvis-model-status";
+import { classifyProviders } from "./jarvis-model-status";
+import { configuredProviders } from "./jarvis-model-status.server";
 import { safeArtifactUrl, summarize } from "./jarvis-events";
 import { createRunRecorder } from "./jarvis-events.server";
 

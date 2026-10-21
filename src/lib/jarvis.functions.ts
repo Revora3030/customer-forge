@@ -1,3 +1,4 @@
+import { conversationTitle, parseConversationId } from "./jarvis-conversations";
 import { createServerFn } from "@tanstack/react-start";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -43,11 +44,12 @@ export function parseHistoryCursor(input: { before?: unknown } | undefined): { b
 
 export const getJarvisHistory = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .validator((input: { before?: string } | undefined) => parseHistoryCursor(input))
+  .validator((input: { before?: string; conversationId?: string | null } | undefined) => ({ ...parseHistoryCursor(input), conversationId: parseConversationId(input?.conversationId) }))
   .handler(async ({ context, data: cursor }) => {
     const db = await guardedAdmin(context);
     let query = db.from("jarvis_messages").select("id,role,content,created_at,run_id")
       .eq("user_id", String(context.userId));
+    if (cursor.conversationId) query = query.eq("conversation_id", cursor.conversationId);
     if (cursor.before) query = query.lt("created_at", cursor.before);
     const { data, error } = await query.order("created_at", { ascending: false }).limit(JARVIS_HISTORY_PAGE);
     if (error) throw new Error("Couldn't load your Jarvis chat.");
@@ -165,9 +167,15 @@ function splitFollowups(raw: string): { body: string; followups: string[] } {
   return { body, followups };
 }
 
-export async function runJarvis(db: SupabaseClient, userId: string, mode: Mode, page: string | null = null) {
-  const history = await db.from("jarvis_messages").select("role,content")
-    .eq("user_id", userId).order("created_at", { ascending: false }).limit(30);
+export async function runJarvis(db: SupabaseClient, userId: string, mode: Mode, page: string | null = null, conversationId: string | null = null) {
+  // Without an explicit conversation, continue the one the latest message joined.
+  if (!conversationId) {
+    const latest = await db.from("jarvis_messages").select("conversation_id").eq("user_id", userId).order("created_at", { ascending: false }).limit(1).maybeSingle();
+    conversationId = (latest.data?.conversation_id as string | null | undefined) ?? null;
+  }
+  let historyQuery = db.from("jarvis_messages").select("role,content").eq("user_id", userId);
+  if (conversationId) historyQuery = historyQuery.eq("conversation_id", conversationId);
+  const history = await historyQuery.order("created_at", { ascending: false }).limit(30);
   if (history.error) throw new Error("Your message was saved, but chat history could not be loaded.");
   const turns = ((history.data ?? []) as Turn[]).reverse();
   const { collectJarvisDiagnostics } = await import("./jarvis-diagnostics.server");
@@ -292,45 +300,51 @@ export async function runJarvis(db: SupabaseClient, userId: string, mode: Mode, 
       : "Diagnostics were collected, but no eligible AI model could finish the answer. Check model access, quotas and spending limits.";
   }
   reply = appendReplyMeta(reply.slice(0, 40000), { ran, proposals });
-  const saved = await db.from("jarvis_messages").insert({ user_id: userId, role: "assistant", content: reply, run_id: recorder.count ? recorder.runId : null }).select("id").maybeSingle();
+  const saved = await db.from("jarvis_messages").insert({ user_id: userId, role: "assistant", content: reply, run_id: recorder.count ? recorder.runId : null, conversation_id: conversationId }).select("id").maybeSingle();
   if (saved.error) throw new Error("Jarvis answered, but the reply could not be saved. Refresh before retrying.");
   await recorder.flush(db, (saved.data?.id as string | undefined) ?? null);
-  return { reply, diagnostics, followups, runId: recorder.count ? recorder.runId : null };
+  return { reply, diagnostics, followups, runId: recorder.count ? recorder.runId : null, conversationId };
 }
 
 export const sendJarvisMessage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((input: { message: string; mode?: Mode; page?: string }) => {
+  .validator((input: { message: string; mode?: Mode; page?: string; conversationId?: string | null }) => {
     if (typeof input?.message !== "string") throw new Error("Type a message first.");
     const message = input.message.trim();
     if (!message) throw new Error("Type a message first.");
     if (message.length > 4000) throw new Error("Keep your message under 4,000 characters.");
-    return { message, mode: parseMode(input.mode), page: adminPath(input.page) };
+    return { message, mode: parseMode(input.mode), page: adminPath(input.page), conversationId: parseConversationId(input.conversationId) };
   })
   .handler(async ({ context, data }) => {
     const db = await guardedAdmin(context);
     const userId = String(context.userId);
-    const inserted = await db.from("jarvis_messages").insert({ user_id: userId, role: "user", content: data.message });
+    // The database trigger rejects a conversation owned by someone else.
+    const inserted = await db.from("jarvis_messages").insert({ user_id: userId, role: "user", content: data.message, conversation_id: data.conversationId }).select("conversation_id").maybeSingle();
     if (inserted.error) throw new Error("Couldn't save your message.");
-    return runJarvis(db, userId, data.mode, data.page);
+    const conversationId = (inserted.data?.conversation_id as string | null | undefined) ?? null;
+    if (conversationId) {
+      await db.from("jarvis_conversations").update({ title: conversationTitle(data.message) }).eq("id", conversationId).eq("user_id", userId).eq("title", "New conversation");
+    }
+    return runJarvis(db, userId, data.mode, data.page, conversationId);
   });
 
 export const regenerateJarvisReply = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((input: { mode?: Mode } | undefined) => ({ mode: parseMode(input?.mode) }))
+  .validator((input: { mode?: Mode; conversationId?: string | null } | undefined) => ({ mode: parseMode(input?.mode), conversationId: parseConversationId(input?.conversationId) }))
   .handler(async ({ context, data }) => {
     const db = await guardedAdmin(context);
     const userId = String(context.userId);
-    const latest = await db.from("jarvis_messages").select("id,role")
-      .eq("user_id", userId).order("created_at", { ascending: false }).limit(1);
+    let latestQuery = db.from("jarvis_messages").select("id,role,conversation_id").eq("user_id", userId);
+    if (data.conversationId) latestQuery = latestQuery.eq("conversation_id", data.conversationId);
+    const latest = await latestQuery.order("created_at", { ascending: false }).limit(1);
     if (latest.error) throw new Error("Couldn't load your Jarvis chat.");
-    const last = (latest.data ?? [])[0] as { id: string; role: string } | undefined;
+    const last = (latest.data ?? [])[0] as { id: string; role: string; conversation_id: string | null } | undefined;
     if (!last) throw new Error("Nothing to regenerate yet.");
     if (last.role === "assistant") {
       const removed = await db.from("jarvis_messages").delete().eq("id", last.id).eq("user_id", userId);
       if (removed.error) throw new Error("Couldn't replace the last reply.");
     }
-    return runJarvis(db, userId, data.mode);
+    return runJarvis(db, userId, data.mode, null, last.conversation_id ?? data.conversationId);
   });
 
 
@@ -840,7 +854,8 @@ export const getJarvisModelStatus = createServerFn({ method: "GET" })
       db.from("ai_team_trace").select("provider,model,ok,created_at").gte("created_at", since).limit(10000),
     ]);
     if (runtime.error || trace.error) throw new Error("Couldn't read AI health records.");
-    const { classifyProviders, configuredProviders } = await import("./jarvis-model-status");
+    const { classifyProviders } = await import("./jarvis-model-status");
+    const { configuredProviders } = await import("./jarvis-model-status.server");
     return classifyProviders({
       runtime: (runtime.data ?? []) as never,
       trace: (trace.data ?? []) as never,
