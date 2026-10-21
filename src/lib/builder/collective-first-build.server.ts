@@ -168,6 +168,7 @@ function factSheet(facts: DnaFacts, brief: SiteBrief, creative: FirstBuildCreati
       hasPublishedPrices: Boolean(facts.hasPrices),
       hasTestimonials: (facts.testimonialCount ?? 0) > 0,
       buyerGoal: brief.buyerGoal,
+      ownerWebsiteRequest: brief.factAnswers["build_request"] ?? null,
       primaryAction: brief.primaryAction,
       mustAvoid: creative.industry.avoid,
       unknownFacts: creative.unknowns,

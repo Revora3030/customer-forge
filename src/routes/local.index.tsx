@@ -2,13 +2,13 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 
 import { SiteFooter, SiteHeader } from "@/components/marketing/Chrome";
 import { Button } from "@/components/ui/button";
-import { GROWTH_SYSTEM, usdExact } from "@/lib/offer";
+import { GROWTH_SYSTEM, usd } from "@/lib/offer";
 import { breadcrumbSchema, canonicalLink, ogUrl, metaDescription } from "@/lib/seo";
 import { LOCAL_INDUSTRIES } from "@/lib/local-pages";
 import { US_STATES } from "@/lib/us-states";
 
 const TITLE = "Local growth systems by trade and state — Revora";
-const DESCRIPTION = `Find the Revora growth system for your trade and your state: website, instant quotes, online booking, CRM, follow-up, reviews and local SEO. ${usdExact(GROWTH_SYSTEM.setupPrice)} setup, first month free, then ${usdExact(GROWTH_SYSTEM.monthlyPrice)}/month. Serving every US state.`;
+const DESCRIPTION = `Find the Revora growth system for your trade and your state: website, instant quotes, online booking, CRM, follow-up, reviews and local SEO. ${usd(GROWTH_SYSTEM.setupPrice)} setup, first month free, then ${usd(GROWTH_SYSTEM.monthlyPrice)}/month. Serving every US state.`;
 
 export const Route = createFileRoute("/local/")({
   head: () => ({

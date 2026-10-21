@@ -22,17 +22,21 @@ import { Route as GrowthAssessmentRouteImport } from './routes/growth-assessment
 import { Route as IndexnowKeyDottxtRouteImport } from './routes/indexnow-key[.]txt'
 import { Route as IndustriesRouteImport } from './routes/industries'
 import { Route as LlmsDottxtRouteImport } from './routes/llms[.]txt'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as ManifestDotwebmanifestRouteImport } from './routes/manifest[.]webmanifest'
+import { Route as McpRouteImport } from './routes/mcp'
 import { Route as PortalRouteImport } from './routes/portal'
 import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
 import { Route as ShareRouteImport } from './routes/share'
+import { Route as SignupRouteImport } from './routes/signup'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as ToolsRouteImport } from './routes/tools'
 import { Route as WebsiteAuditRouteImport } from './routes/website-audit'
+import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/app'
 import { Route as AuthenticatedMyRouteImport } from './routes/_authenticated/my'
@@ -56,6 +60,7 @@ import { Route as SSlugRouteImport } from './routes/s.$slug'
 import { Route as SitemapsSitesDotxmlRouteImport } from './routes/sitemaps.sites[.]xml'
 import { Route as StatesIndexRouteImport } from './routes/states.index'
 import { Route as StatesStateRouteImport } from './routes/states.$state'
+import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.oauth.consent'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
 import { Route as AuthenticatedAdminAiRouteImport } from './routes/_authenticated/admin.ai'
 import { Route as AuthenticatedAdminAnalyticsRouteImport } from './routes/_authenticated/admin.analytics'
@@ -103,7 +108,9 @@ import { Route as SSlugSitemapDotxmlRouteImport } from './routes/s.$slug.sitemap
 import { Route as UnsubscribeOutreachTokenRouteImport } from './routes/unsubscribe.outreach.$token'
 import { Route as AuthenticatedAdminClientsOrgIdRouteImport } from './routes/_authenticated/admin.clients.$orgId'
 import { Route as AuthenticatedDraftSlugPageRouteImport } from './routes/_authenticated/draft.$slug.$page'
+import { Route as ApiPublicInstagramCallbackRouteImport } from './routes/api/public/instagram/callback'
 import { Route as ApiPublicJobsBackupRouteImport } from './routes/api/public/jobs/backup'
+import { Route as ApiPublicJobsJarvisRoutinesRouteImport } from './routes/api/public/jobs/jarvis-routines'
 import { Route as ApiPublicJobsLeadAlertRetryRouteImport } from './routes/api/public/jobs/lead-alert-retry'
 import { Route as ApiPublicJobsLeadReminderRouteImport } from './routes/api/public/jobs/lead-reminder'
 import { Route as ApiPublicJobsLifecycleEmailRouteImport } from './routes/api/public/jobs/lifecycle-email'
@@ -184,9 +191,19 @@ const LlmsDottxtRoute = LlmsDottxtRouteImport.update({
   path: '/llms.txt',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ManifestDotwebmanifestRoute = ManifestDotwebmanifestRouteImport.update({
   id: '/manifest.webmanifest',
   path: '/manifest.webmanifest',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const McpRoute = McpRouteImport.update({
+  id: '/mcp',
+  path: '/mcp',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PortalRoute = PortalRouteImport.update({
@@ -219,6 +236,11 @@ const ShareRoute = ShareRouteImport.update({
   path: '/share',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SignupRoute = SignupRouteImport.update({
+  id: '/signup',
+  path: '/signup',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
   id: '/sitemap.xml',
   path: '/sitemap.xml',
@@ -239,6 +261,12 @@ const WebsiteAuditRoute = WebsiteAuditRouteImport.update({
   path: '/website-audit',
   getParentRoute: () => rootRouteImport,
 } as any)
+const Char91DotwellKnownChar93OauthProtectedResourceRoute =
+  Char91DotwellKnownChar93OauthProtectedResourceRouteImport.update({
+    id: '/.well-known/oauth-protected-resource',
+    path: '/.well-known/oauth-protected-resource',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
   id: '/admin',
   path: '/admin',
@@ -352,6 +380,11 @@ const StatesIndexRoute = StatesIndexRouteImport.update({
 const StatesStateRoute = StatesStateRouteImport.update({
   id: '/states/$state',
   path: '/states/$state',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DotlovableOauthConsentRoute = DotlovableOauthConsentRouteImport.update({
+  id: '/.lovable/oauth/consent',
+  path: '/.lovable/oauth/consent',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
@@ -609,11 +642,23 @@ const AuthenticatedDraftSlugPageRoute =
     path: '/$page',
     getParentRoute: () => AuthenticatedDraftSlugRoute,
   } as any)
+const ApiPublicInstagramCallbackRoute =
+  ApiPublicInstagramCallbackRouteImport.update({
+    id: '/api/public/instagram/callback',
+    path: '/api/public/instagram/callback',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicJobsBackupRoute = ApiPublicJobsBackupRouteImport.update({
   id: '/api/public/jobs/backup',
   path: '/api/public/jobs/backup',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicJobsJarvisRoutinesRoute =
+  ApiPublicJobsJarvisRoutinesRouteImport.update({
+    id: '/api/public/jobs/jarvis-routines',
+    path: '/api/public/jobs/jarvis-routines',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicJobsLeadAlertRetryRoute =
   ApiPublicJobsLeadAlertRetryRouteImport.update({
     id: '/api/public/jobs/lead-alert-retry',
@@ -713,17 +758,21 @@ export interface FileRoutesByFullPath {
   '/indexnow-key.txt': typeof IndexnowKeyDottxtRoute
   '/industries': typeof IndustriesRouteWithChildren
   '/llms.txt': typeof LlmsDottxtRoute
+  '/login': typeof LoginRoute
   '/manifest.webmanifest': typeof ManifestDotwebmanifestRoute
+  '/mcp': typeof McpRoute
   '/portal': typeof PortalRoute
   '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
   '/reset-password': typeof ResetPasswordRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/share': typeof ShareRoute
+  '/signup': typeof SignupRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/terms': typeof TermsRoute
   '/tools': typeof ToolsRoute
   '/website-audit': typeof WebsiteAuditRoute
+  '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/admin': typeof AuthenticatedAdminRouteWithChildren
   '/app': typeof AuthenticatedAppRouteWithChildren
   '/my': typeof AuthenticatedMyRouteWithChildren
@@ -747,6 +796,7 @@ export interface FileRoutesByFullPath {
   '/local/': typeof LocalIndexRoute
   '/locations/': typeof LocationsIndexRoute
   '/states/': typeof StatesIndexRoute
+  '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
   '/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
   '/admin/backups': typeof AuthenticatedAdminBackupsRoute
@@ -794,7 +844,9 @@ export interface FileRoutesByFullPath {
   '/local/$industry/': typeof LocalIndustryIndexRoute
   '/admin/clients/$orgId': typeof AuthenticatedAdminClientsOrgIdRoute
   '/draft/$slug/$page': typeof AuthenticatedDraftSlugPageRoute
+  '/api/public/instagram/callback': typeof ApiPublicInstagramCallbackRoute
   '/api/public/jobs/backup': typeof ApiPublicJobsBackupRoute
+  '/api/public/jobs/jarvis-routines': typeof ApiPublicJobsJarvisRoutinesRoute
   '/api/public/jobs/lead-alert-retry': typeof ApiPublicJobsLeadAlertRetryRoute
   '/api/public/jobs/lead-reminder': typeof ApiPublicJobsLeadReminderRoute
   '/api/public/jobs/lifecycle-email': typeof ApiPublicJobsLifecycleEmailRoute
@@ -822,17 +874,21 @@ export interface FileRoutesByTo {
   '/growth-assessment': typeof GrowthAssessmentRoute
   '/indexnow-key.txt': typeof IndexnowKeyDottxtRoute
   '/llms.txt': typeof LlmsDottxtRoute
+  '/login': typeof LoginRoute
   '/manifest.webmanifest': typeof ManifestDotwebmanifestRoute
+  '/mcp': typeof McpRoute
   '/portal': typeof PortalRoute
   '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
   '/reset-password': typeof ResetPasswordRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/share': typeof ShareRoute
+  '/signup': typeof SignupRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/terms': typeof TermsRoute
   '/tools': typeof ToolsRoute
   '/website-audit': typeof WebsiteAuditRoute
+  '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
   '/compare/$slug': typeof CompareSlugRoute
   '/crm/$trade': typeof CrmTradeRoute
@@ -853,6 +909,7 @@ export interface FileRoutesByTo {
   '/local': typeof LocalIndexRoute
   '/locations': typeof LocationsIndexRoute
   '/states': typeof StatesIndexRoute
+  '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
   '/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
   '/admin/backups': typeof AuthenticatedAdminBackupsRoute
@@ -900,7 +957,9 @@ export interface FileRoutesByTo {
   '/local/$industry': typeof LocalIndustryIndexRoute
   '/admin/clients/$orgId': typeof AuthenticatedAdminClientsOrgIdRoute
   '/draft/$slug/$page': typeof AuthenticatedDraftSlugPageRoute
+  '/api/public/instagram/callback': typeof ApiPublicInstagramCallbackRoute
   '/api/public/jobs/backup': typeof ApiPublicJobsBackupRoute
+  '/api/public/jobs/jarvis-routines': typeof ApiPublicJobsJarvisRoutinesRoute
   '/api/public/jobs/lead-alert-retry': typeof ApiPublicJobsLeadAlertRetryRoute
   '/api/public/jobs/lead-reminder': typeof ApiPublicJobsLeadReminderRoute
   '/api/public/jobs/lifecycle-email': typeof ApiPublicJobsLifecycleEmailRoute
@@ -932,17 +991,21 @@ export interface FileRoutesById {
   '/indexnow-key.txt': typeof IndexnowKeyDottxtRoute
   '/industries': typeof IndustriesRouteWithChildren
   '/llms.txt': typeof LlmsDottxtRoute
+  '/login': typeof LoginRoute
   '/manifest.webmanifest': typeof ManifestDotwebmanifestRoute
+  '/mcp': typeof McpRoute
   '/portal': typeof PortalRoute
   '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
   '/reset-password': typeof ResetPasswordRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/share': typeof ShareRoute
+  '/signup': typeof SignupRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/terms': typeof TermsRoute
   '/tools': typeof ToolsRoute
   '/website-audit': typeof WebsiteAuditRoute
+  '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
   '/_authenticated/app': typeof AuthenticatedAppRouteWithChildren
   '/_authenticated/my': typeof AuthenticatedMyRouteWithChildren
@@ -966,6 +1029,7 @@ export interface FileRoutesById {
   '/local/': typeof LocalIndexRoute
   '/locations/': typeof LocationsIndexRoute
   '/states/': typeof StatesIndexRoute
+  '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/_authenticated/admin/ai': typeof AuthenticatedAdminAiRoute
   '/_authenticated/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
   '/_authenticated/admin/backups': typeof AuthenticatedAdminBackupsRoute
@@ -1013,7 +1077,9 @@ export interface FileRoutesById {
   '/local/$industry/': typeof LocalIndustryIndexRoute
   '/_authenticated/admin/clients/$orgId': typeof AuthenticatedAdminClientsOrgIdRoute
   '/_authenticated/draft/$slug/$page': typeof AuthenticatedDraftSlugPageRoute
+  '/api/public/instagram/callback': typeof ApiPublicInstagramCallbackRoute
   '/api/public/jobs/backup': typeof ApiPublicJobsBackupRoute
+  '/api/public/jobs/jarvis-routines': typeof ApiPublicJobsJarvisRoutinesRoute
   '/api/public/jobs/lead-alert-retry': typeof ApiPublicJobsLeadAlertRetryRoute
   '/api/public/jobs/lead-reminder': typeof ApiPublicJobsLeadReminderRoute
   '/api/public/jobs/lifecycle-email': typeof ApiPublicJobsLifecycleEmailRoute
@@ -1045,17 +1111,21 @@ export interface FileRouteTypes {
     | '/indexnow-key.txt'
     | '/industries'
     | '/llms.txt'
+    | '/login'
     | '/manifest.webmanifest'
+    | '/mcp'
     | '/portal'
     | '/pricing'
     | '/privacy'
     | '/reset-password'
     | '/robots.txt'
     | '/share'
+    | '/signup'
     | '/sitemap.xml'
     | '/terms'
     | '/tools'
     | '/website-audit'
+    | '/.well-known/oauth-protected-resource'
     | '/admin'
     | '/app'
     | '/my'
@@ -1079,6 +1149,7 @@ export interface FileRouteTypes {
     | '/local/'
     | '/locations/'
     | '/states/'
+    | '/.lovable/oauth/consent'
     | '/admin/ai'
     | '/admin/analytics'
     | '/admin/backups'
@@ -1126,7 +1197,9 @@ export interface FileRouteTypes {
     | '/local/$industry/'
     | '/admin/clients/$orgId'
     | '/draft/$slug/$page'
+    | '/api/public/instagram/callback'
     | '/api/public/jobs/backup'
+    | '/api/public/jobs/jarvis-routines'
     | '/api/public/jobs/lead-alert-retry'
     | '/api/public/jobs/lead-reminder'
     | '/api/public/jobs/lifecycle-email'
@@ -1154,17 +1227,21 @@ export interface FileRouteTypes {
     | '/growth-assessment'
     | '/indexnow-key.txt'
     | '/llms.txt'
+    | '/login'
     | '/manifest.webmanifest'
+    | '/mcp'
     | '/portal'
     | '/pricing'
     | '/privacy'
     | '/reset-password'
     | '/robots.txt'
     | '/share'
+    | '/signup'
     | '/sitemap.xml'
     | '/terms'
     | '/tools'
     | '/website-audit'
+    | '/.well-known/oauth-protected-resource'
     | '/onboarding'
     | '/compare/$slug'
     | '/crm/$trade'
@@ -1185,6 +1262,7 @@ export interface FileRouteTypes {
     | '/local'
     | '/locations'
     | '/states'
+    | '/.lovable/oauth/consent'
     | '/admin/ai'
     | '/admin/analytics'
     | '/admin/backups'
@@ -1232,7 +1310,9 @@ export interface FileRouteTypes {
     | '/local/$industry'
     | '/admin/clients/$orgId'
     | '/draft/$slug/$page'
+    | '/api/public/instagram/callback'
     | '/api/public/jobs/backup'
+    | '/api/public/jobs/jarvis-routines'
     | '/api/public/jobs/lead-alert-retry'
     | '/api/public/jobs/lead-reminder'
     | '/api/public/jobs/lifecycle-email'
@@ -1263,17 +1343,21 @@ export interface FileRouteTypes {
     | '/indexnow-key.txt'
     | '/industries'
     | '/llms.txt'
+    | '/login'
     | '/manifest.webmanifest'
+    | '/mcp'
     | '/portal'
     | '/pricing'
     | '/privacy'
     | '/reset-password'
     | '/robots.txt'
     | '/share'
+    | '/signup'
     | '/sitemap.xml'
     | '/terms'
     | '/tools'
     | '/website-audit'
+    | '/.well-known/oauth-protected-resource'
     | '/_authenticated/admin'
     | '/_authenticated/app'
     | '/_authenticated/my'
@@ -1297,6 +1381,7 @@ export interface FileRouteTypes {
     | '/local/'
     | '/locations/'
     | '/states/'
+    | '/.lovable/oauth/consent'
     | '/_authenticated/admin/ai'
     | '/_authenticated/admin/analytics'
     | '/_authenticated/admin/backups'
@@ -1344,7 +1429,9 @@ export interface FileRouteTypes {
     | '/local/$industry/'
     | '/_authenticated/admin/clients/$orgId'
     | '/_authenticated/draft/$slug/$page'
+    | '/api/public/instagram/callback'
     | '/api/public/jobs/backup'
+    | '/api/public/jobs/jarvis-routines'
     | '/api/public/jobs/lead-alert-retry'
     | '/api/public/jobs/lead-reminder'
     | '/api/public/jobs/lifecycle-email'
@@ -1376,17 +1463,21 @@ export interface RootRouteChildren {
   IndexnowKeyDottxtRoute: typeof IndexnowKeyDottxtRoute
   IndustriesRoute: typeof IndustriesRouteWithChildren
   LlmsDottxtRoute: typeof LlmsDottxtRoute
+  LoginRoute: typeof LoginRoute
   ManifestDotwebmanifestRoute: typeof ManifestDotwebmanifestRoute
+  McpRoute: typeof McpRoute
   PortalRoute: typeof PortalRoute
   PricingRoute: typeof PricingRoute
   PrivacyRoute: typeof PrivacyRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   RobotsDottxtRoute: typeof RobotsDottxtRoute
   ShareRoute: typeof ShareRoute
+  SignupRoute: typeof SignupRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   TermsRoute: typeof TermsRoute
   ToolsRoute: typeof ToolsRoute
   WebsiteAuditRoute: typeof WebsiteAuditRoute
+  Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   CompareSlugRoute: typeof CompareSlugRoute
   CrmTradeRoute: typeof CrmTradeRoute
   GuidesSlugRoute: typeof GuidesSlugRoute
@@ -1402,6 +1493,7 @@ export interface RootRouteChildren {
   LocalIndexRoute: typeof LocalIndexRoute
   LocationsIndexRoute: typeof LocationsIndexRoute
   StatesIndexRoute: typeof StatesIndexRoute
+  DotlovableOauthConsentRoute: typeof DotlovableOauthConsentRoute
   ApiPublicJarvisVoiceRoute: typeof ApiPublicJarvisVoiceRoute
   ApiPublicPreviewBeaconRoute: typeof ApiPublicPreviewBeaconRoute
   ApiPublicSentryTestRoute: typeof ApiPublicSentryTestRoute
@@ -1409,7 +1501,9 @@ export interface RootRouteChildren {
   PTokenPageRoute: typeof PTokenPageRoute
   UnsubscribeOutreachTokenRoute: typeof UnsubscribeOutreachTokenRoute
   LocalIndustryIndexRoute: typeof LocalIndustryIndexRoute
+  ApiPublicInstagramCallbackRoute: typeof ApiPublicInstagramCallbackRoute
   ApiPublicJobsBackupRoute: typeof ApiPublicJobsBackupRoute
+  ApiPublicJobsJarvisRoutinesRoute: typeof ApiPublicJobsJarvisRoutinesRoute
   ApiPublicJobsLeadAlertRetryRoute: typeof ApiPublicJobsLeadAlertRetryRoute
   ApiPublicJobsLeadReminderRoute: typeof ApiPublicJobsLeadReminderRoute
   ApiPublicJobsLifecycleEmailRoute: typeof ApiPublicJobsLifecycleEmailRoute
@@ -1520,11 +1614,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LlmsDottxtRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/manifest.webmanifest': {
       id: '/manifest.webmanifest'
       path: '/manifest.webmanifest'
       fullPath: '/manifest.webmanifest'
       preLoaderRoute: typeof ManifestDotwebmanifestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/mcp': {
+      id: '/mcp'
+      path: '/mcp'
+      fullPath: '/mcp'
+      preLoaderRoute: typeof McpRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/portal': {
@@ -1569,6 +1677,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShareRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/signup': {
+      id: '/signup'
+      path: '/signup'
+      fullPath: '/signup'
+      preLoaderRoute: typeof SignupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/sitemap.xml': {
       id: '/sitemap.xml'
       path: '/sitemap.xml'
@@ -1595,6 +1710,13 @@ declare module '@tanstack/react-router' {
       path: '/website-audit'
       fullPath: '/website-audit'
       preLoaderRoute: typeof WebsiteAuditRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/.well-known/oauth-protected-resource': {
+      id: '/.well-known/oauth-protected-resource'
+      path: '/.well-known/oauth-protected-resource'
+      fullPath: '/.well-known/oauth-protected-resource'
+      preLoaderRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/admin': {
@@ -1756,6 +1878,13 @@ declare module '@tanstack/react-router' {
       path: '/states/$state'
       fullPath: '/states/$state'
       preLoaderRoute: typeof StatesStateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/.lovable/oauth/consent': {
+      id: '/.lovable/oauth/consent'
+      path: '/.lovable/oauth/consent'
+      fullPath: '/.lovable/oauth/consent'
+      preLoaderRoute: typeof DotlovableOauthConsentRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/admin/': {
@@ -2087,11 +2216,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDraftSlugPageRouteImport
       parentRoute: typeof AuthenticatedDraftSlugRoute
     }
+    '/api/public/instagram/callback': {
+      id: '/api/public/instagram/callback'
+      path: '/api/public/instagram/callback'
+      fullPath: '/api/public/instagram/callback'
+      preLoaderRoute: typeof ApiPublicInstagramCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/jobs/backup': {
       id: '/api/public/jobs/backup'
       path: '/api/public/jobs/backup'
       fullPath: '/api/public/jobs/backup'
       preLoaderRoute: typeof ApiPublicJobsBackupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/jobs/jarvis-routines': {
+      id: '/api/public/jobs/jarvis-routines'
+      path: '/api/public/jobs/jarvis-routines'
+      fullPath: '/api/public/jobs/jarvis-routines'
+      preLoaderRoute: typeof ApiPublicJobsJarvisRoutinesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/jobs/lead-alert-retry': {
@@ -2399,17 +2542,22 @@ const rootRouteChildren: RootRouteChildren = {
   IndexnowKeyDottxtRoute: IndexnowKeyDottxtRoute,
   IndustriesRoute: IndustriesRouteWithChildren,
   LlmsDottxtRoute: LlmsDottxtRoute,
+  LoginRoute: LoginRoute,
   ManifestDotwebmanifestRoute: ManifestDotwebmanifestRoute,
+  McpRoute: McpRoute,
   PortalRoute: PortalRoute,
   PricingRoute: PricingRoute,
   PrivacyRoute: PrivacyRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   RobotsDottxtRoute: RobotsDottxtRoute,
   ShareRoute: ShareRoute,
+  SignupRoute: SignupRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   TermsRoute: TermsRoute,
   ToolsRoute: ToolsRoute,
   WebsiteAuditRoute: WebsiteAuditRoute,
+  Char91DotwellKnownChar93OauthProtectedResourceRoute:
+    Char91DotwellKnownChar93OauthProtectedResourceRoute,
   CompareSlugRoute: CompareSlugRoute,
   CrmTradeRoute: CrmTradeRoute,
   GuidesSlugRoute: GuidesSlugRoute,
@@ -2425,6 +2573,7 @@ const rootRouteChildren: RootRouteChildren = {
   LocalIndexRoute: LocalIndexRoute,
   LocationsIndexRoute: LocationsIndexRoute,
   StatesIndexRoute: StatesIndexRoute,
+  DotlovableOauthConsentRoute: DotlovableOauthConsentRoute,
   ApiPublicJarvisVoiceRoute: ApiPublicJarvisVoiceRoute,
   ApiPublicPreviewBeaconRoute: ApiPublicPreviewBeaconRoute,
   ApiPublicSentryTestRoute: ApiPublicSentryTestRoute,
@@ -2432,7 +2581,9 @@ const rootRouteChildren: RootRouteChildren = {
   PTokenPageRoute: PTokenPageRoute,
   UnsubscribeOutreachTokenRoute: UnsubscribeOutreachTokenRoute,
   LocalIndustryIndexRoute: LocalIndustryIndexRoute,
+  ApiPublicInstagramCallbackRoute: ApiPublicInstagramCallbackRoute,
   ApiPublicJobsBackupRoute: ApiPublicJobsBackupRoute,
+  ApiPublicJobsJarvisRoutinesRoute: ApiPublicJobsJarvisRoutinesRoute,
   ApiPublicJobsLeadAlertRetryRoute: ApiPublicJobsLeadAlertRetryRoute,
   ApiPublicJobsLeadReminderRoute: ApiPublicJobsLeadReminderRoute,
   ApiPublicJobsLifecycleEmailRoute: ApiPublicJobsLifecycleEmailRoute,

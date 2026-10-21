@@ -13,6 +13,10 @@ export const Route = createFileRoute("/sitemap.xml")({
           site = await resolveHostSite(host, protocol);
         } catch (error) {
           console.error("sitemap host resolution failed", error);
+          return new Response("Sitemap temporarily unavailable", {
+            status: 503,
+            headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store", "retry-after": "60" },
+          });
         }
         const origin = site ? site.origin : platformOrigin(host ?? url.host, protocol);
         return new Response(xmlSitemap(sitemapUrls(site, origin)), {

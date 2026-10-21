@@ -1,4 +1,5 @@
 import { forwardRef, useCallback, useEffect, useMemo, useRef, useState, type Ref, type RefObject } from "react";
+import { nextPreviewLoadState, PREVIEW_LOAD_TIMEOUT_MS, type PreviewLoadState } from "@/lib/builder/preview-load";
 import {
   ExternalLink,
   Maximize2,
@@ -29,7 +30,8 @@ import {
 import {
   BUILDER_VIEWPORTS,
   compareScale,
-  draftDiffLabel,
+  comparisonStatus,
+  effectiveCompareMode,
   fitZoom,
   nextCompareMode,
   previewPath,
@@ -128,7 +130,7 @@ function BuilderPreviewFrame({
   // holding, and a full desktop render inside a phone is heavy.
   useEffect(() => {
     if (typeof window !== "undefined" && window.innerWidth < 768) {
-      const phone = BUILDER_VIEWPORTS.find((v) => v.width <= 430)?.key;
+      const phone = BUILDER_VIEWPORTS.find((v) => v.key === "phone")?.key;
       if (phone) setViewport(phone);
     }
   }, []);
@@ -140,6 +142,7 @@ function BuilderPreviewFrame({
   // (what Publish would put live), so every AI change can be checked first.
   const [compareMode, setCompareMode] = useState<CompareMode>("off");
   const compare = compareMode !== "off";
+  const visibleCompareMode = effectiveCompareMode(compareMode, livePublished);
   const [overlaySplit, setOverlaySplit] = useState(50);
   const [fitMode, setFitMode] = useState(false);
   const [overflow, setOverflow] = useState<{ width: number; scrollWidth: number; culprits: string[] } | null>(null);
@@ -152,7 +155,10 @@ function BuilderPreviewFrame({
   const diff = useQuery({
     queryKey: ["draft-diff", organizationId, refreshRevision, tabRevision],
     enabled: compare && Boolean(organizationId),
-    queryFn: () => loadDiff({ data: { organizationId: organizationId! } }),
+    queryFn: () => {
+      if (!organizationId) throw new Error("Choose a workspace before comparing drafts.");
+      return loadDiff({ data: { organizationId } });
+    },
     staleTime: 15_000,
   });
   const frameRef = useRef<HTMLIFrameElement>(null);
@@ -168,7 +174,7 @@ function BuilderPreviewFrame({
     });
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+  }, [fullscreen]);
   const page = ordered.find((item) => item.id === pageId) ?? ordered[0];
   const currentViewport = BUILDER_VIEWPORTS.find((item) => item.key === viewport);
   const viewportWidth = currentViewport?.width ?? 1280;
@@ -192,13 +198,51 @@ function BuilderPreviewFrame({
   const source = page ? previewPath(slug, page.slug) : previewPath(slug, "home");
   // Side by side, each pane gets half the stage.
   const fitted = fitMode ? fitZoom(stageWidth, viewportWidth) : scale;
-  const paneScale = compareScale(compareMode, fitted, stageWidth, viewportWidth);
+  const paneScale = compareScale(visibleCompareMode, fitted, stageWidth, viewportWidth);
 
   useEffect(() => {
     if (!fullscreen || typeof document === "undefined") return;
+    const previousOverflow = document.body.style.overflow;
+    const previousFocus = document.activeElement;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return;
+      if (event.key === "Tab") {
+        // Keep keyboard focus inside the fullscreen preview.
+        const root = stageRef.current?.closest("section");
+        if (!root) return;
+        const focusable = Array.from(
+          root.querySelectorAll<HTMLElement>('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), iframe, [tabindex]:not([tabindex="-1"])'),
+        ).filter((el) => el.getClientRects().length > 0);
+        if (focusable.length === 0) return;
+        const first = focusable[0]!;
+        const last = focusable[focusable.length - 1]!;
+        const active = document.activeElement;
+        if (event.shiftKey && (active === first || !root.contains(active))) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && (active === last || !root.contains(active))) {
+          event.preventDefault();
+          first.focus();
+        }
+        return;
+      }
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      setFullscreen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    stageRef.current?.closest("section")?.querySelector<HTMLButtonElement>('[aria-label="Exit fullscreen preview"]')?.focus();
     document.body.style.overflow = "hidden";
     return () => {
-      document.body.style.overflow = "";
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = previousOverflow;
+      window.requestAnimationFrame(() => {
+        if (previousFocus instanceof HTMLElement && previousFocus !== document.body && previousFocus.isConnected) previousFocus.focus();
+        else {
+          const controls = document.querySelectorAll<HTMLButtonElement>('[aria-label="Open fullscreen preview"], [aria-label="Preview options"]');
+          Array.from(controls).find((control) => control.getClientRects().length > 0)?.focus();
+        }
+      });
     };
   }, [fullscreen]);
 
@@ -501,23 +545,25 @@ function BuilderPreviewFrame({
             </span>
           ) : null}
           {a11y ? (
-            <button
+            <Button
               type="button"
+              size="sm"
+              variant="ghost"
               onClick={() => (a11y.issueCount ? setA11yOpen((open) => !open) : runA11y())}
               data-testid="builder-preview-a11y"
               className={cn(
                 "inline-flex cursor-pointer items-center gap-1 rounded-full border px-2 py-0.5 font-medium",
-                a11y.issueCount ? "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300" : "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+                a11y.issueCount ? "border-accent/40 bg-accent/10 text-accent" : "border-success/40 bg-success/10 text-success",
               )}
               aria-expanded={a11y.issueCount ? a11yOpen : undefined}
             >
               <Accessibility className="size-3" aria-hidden />
-              {a11y.issueCount ? `${a11y.issueCount} low-contrast item${a11y.issueCount === 1 ? "" : "s"}` : "AA Pass"}
-            </button>
+              {a11y.issueCount ? `${a11y.issueCount} low-contrast item${a11y.issueCount === 1 ? "" : "s"}` : "No contrast issues detected"}
+            </Button>
           ) : null}
           {compare ? (
             <span className="rounded-full border border-primary/40 bg-primary/10 px-2 py-0.5 font-medium text-foreground" data-testid="builder-preview-diff">
-              {diff.isLoading ? "Comparing…" : draftDiffLabel(diff.data?.diff ?? null)}
+              {comparisonStatus(diff.isLoading, diff.isError, diff.data?.diff ?? null)}
             </span>
           ) : null}
         </div>
@@ -533,14 +579,7 @@ function BuilderPreviewFrame({
             ))}
           </ul>
         ) : null}
-        {compareMode === "overlay" && !livePublished ? (
-          <UnpublishedComparePane
-            businessName={businessName}
-            viewportWidth={viewportWidth}
-            frameHeight={frameHeight}
-            scale={paneScale}
-          />
-        ) : compareMode === "overlay" ? (
+        {visibleCompareMode === "overlay" ? (
           <OverlayCompare
             liveSrc={`/s/${encodeURIComponent(slug)}${page && page.slug !== "home" ? `/${encodeURIComponent(page.slug)}` : ""}`}
             frameKey={`${source}-${refreshKey}-${refreshRevision}-${tabRevision}`}
@@ -606,29 +645,51 @@ const PreviewFrame = forwardRef<
   HTMLIFrameElement,
   { label: string | null; src: string; frameKey: string; viewportWidth: number; frameHeight: number; scale: number; title: string; testId?: string }
 >(function PreviewFrame({ label, src, frameKey, viewportWidth, frameHeight, scale, title, testId }, ref) {
+  const [attempt, setAttempt] = useState(0);
+  const [loadState, setLoadState] = useState<PreviewLoadState>("loading");
+  useEffect(() => {
+    setLoadState("loading");
+    const timer = window.setTimeout(() => setLoadState((s) => nextPreviewLoadState(s, "timeout")), PREVIEW_LOAD_TIMEOUT_MS);
+    return () => window.clearTimeout(timer);
+  }, [src, frameKey, attempt]);
   return (
     <figure className="m-0 min-w-0">
       {label ? (
         <figcaption className="mb-1.5 text-center text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</figcaption>
       ) : null}
       <div
-        className="overflow-hidden rounded-lg border border-border bg-background shadow-lift transition-[width,height] duration-300"
+        className="relative overflow-hidden rounded-lg border border-border bg-background shadow-lift transition-[width,height] duration-300"
         style={{ width: Math.round(viewportWidth * scale), height: Math.round(frameHeight * scale) }}
       >
         <div className="origin-top-left" style={{ width: viewportWidth, height: frameHeight, transform: `scale(${scale})` }}>
           <iframe
             ref={ref}
-            key={frameKey}
+            key={`${frameKey}-${attempt}`}
             {...(testId ? { "data-testid": testId } : {})}
             data-preview-src={src}
             title={title}
             src={src}
             loading="lazy"
+            onLoad={() => setLoadState((s) => nextPreviewLoadState(s, "load"))}
+            onError={() => setLoadState((s) => nextPreviewLoadState(s, "error"))}
             sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"
             className="block border-0"
             style={{ width: viewportWidth, minWidth: viewportWidth, maxWidth: viewportWidth, height: frameHeight, backgroundColor: "#fff" }}
           />
         </div>
+        {loadState === "failed" ? (
+          <div role="alert" className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-background p-4 text-center">
+            <p className="text-[14px] font-semibold">Preview couldn't load</p>
+            <p className="max-w-xs text-[12px] text-muted-foreground">Your site is safe. Check your connection and try again.</p>
+            <button
+              type="button"
+              onClick={() => setAttempt((n) => n + 1)}
+              className="min-h-11 rounded-md border border-border bg-elevated px-4 text-[13px] font-semibold hover:bg-muted"
+            >
+              Retry
+            </button>
+          </div>
+        ) : null}
       </div>
     </figure>
   );

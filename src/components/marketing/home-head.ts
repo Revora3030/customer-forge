@@ -1,16 +1,9 @@
 import { FAQ_ITEMS } from "@/components/marketing/FAQ";
 import { GROWTH_SYSTEM, usd } from "@/lib/offer";
-import {
-  GROWTH_SYSTEM_SCHEMA,
-  LOCAL_BUSINESS_SCHEMA,
-  canonicalLink,
-  faqPageSchema,
-  jsonLdScript,
-  ogUrl,
-} from "@/lib/seo";
+import { MARKETING_SEARCH, marketingSearchHead } from "@/lib/marketing-seo";
+import { GROWTH_SYSTEM_SCHEMA, LOCAL_BUSINESS_SCHEMA, faqPageSchema, jsonLdScript } from "@/lib/seo";
 
 const SETUP = usd(GROWTH_SYSTEM.setupPrice);
-const MONTHLY = usd(GROWTH_SYSTEM.monthlyPrice);
 
 /** The homepage H1: what a local service business gets, with no numbers or promises. */
 export const HOME_HEADLINE = "Your AI-built website, booking and customer follow-up in one system";
@@ -23,8 +16,6 @@ export const HOME_HEADLINE = "Your AI-built website, booking and customer follow
  */
 export const HOME_TRIAL_CHARGE_NOTE = `Nothing is charged during your ${GROWTH_SYSTEM.fullAccessWindow} of free access. The ${SETUP} setup is charged when you choose to launch.`;
 
-const DESCRIPTION = `AI-built website, CRM, booking, follow-up and SEO for any industry, anywhere. First month free, then ${MONTHLY}/month (${SETUP} one-time setup).`;
-
 /**
  * The <head> of Revora's own marketing homepage. The FAQPage is generated from
  * the same FAQ_ITEMS the page renders, and the offer comes from the shared
@@ -32,16 +23,8 @@ const DESCRIPTION = `AI-built website, CRM, booking, follow-up and SEO for any i
  */
 export function marketingHomeHead() {
   return {
-    meta: [
-      { title: "AI Website + CRM for Any Business | Revora Growth Systems" },
-      { name: "description", content: DESCRIPTION },
-      { property: "og:title", content: `Revora Growth Systems — ${SETUP} Setup, First Month Free` },
-      { property: "og:description", content: DESCRIPTION },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary_large_image" },
-      ogUrl("/"),
-    ],
-    links: [canonicalLink("/")],
+    // Title, description, social tags and canonical come from the shared marketing SEO table.
+    ...marketingSearchHead(MARKETING_SEARCH.home),
     scripts: [
       jsonLdScript(LOCAL_BUSINESS_SCHEMA),
       jsonLdScript(GROWTH_SYSTEM_SCHEMA),

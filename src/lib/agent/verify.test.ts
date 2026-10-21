@@ -31,7 +31,7 @@ describe("inspectHtml", () => {
   it("flags a page that is not readable on a phone", () => {
     const result = inspectHtml(good.replace(/<meta name="viewport"[^>]*>/, ""), "Home");
     expect(
-      result.checks.some((check) => !check.ok && check.label.includes("readable on a phone")),
+      result.checks.some((check) => !check.ok && check.label.includes("mobile viewport")),
     ).toBe(true);
   });
 
@@ -109,8 +109,20 @@ describe("summarise", () => {
 
   it("acknowledges a clean pass", () => {
     expect(summarise([{ label: "a", ok: true, severity: "critical", where: "Home" }]).summary).toBe(
-      "Verified the served page — every check passed.",
+      "Served-page checks passed. Rendered layouts, images and form submissions were not tested here.",
     );
+  });
+  it("never treats missing render evidence as a pass or a critical rollback reason", () => {
+    const report = summarise([{ label: "draft render", ok: false, severity: "warning", where: "Draft", notChecked: true }]);
+    expect(report.status).toBe("incomplete");
+    expect(report.notChecked).toBe(1);
+    expect(report.passed).toBe(0);
+    expect(report.critical).toBe(0);
+  });
+  it("distinguishes HTML evidence from browser interaction evidence", () => {
+    const report = summarise(inspectHtml(good, "Home").checks);
+    expect(report.evidence).toBe("served_html");
+    expect(report.summary).toContain("form submissions were not tested");
   });
 });
 

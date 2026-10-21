@@ -568,7 +568,24 @@ export async function executeJarvisDiagnosticTool(
           return { days, unavailable: ["funnel"] };
         }
       };
-      const [funnel7, funnel30] = await Promise.all([funnelFor(7), funnelFor(30)]);
+      // Builds parked for AI capacity: count and soonest retry, no job rows.
+      const buildsWaiting = async () => {
+        try {
+          const { data, error } = await db
+            .from("generation_jobs")
+            .select("resumes_at")
+            .in("status", ["queued", "processing"])
+            .not("resumes_at", "is", null)
+            .order("resumes_at", { ascending: true })
+            .limit(200);
+          if (error) return null;
+          const rows = (data ?? []) as { resumes_at: string | null }[];
+          return { count: rows.length, soonestRetryAt: rows[0]?.resumes_at ?? null };
+        } catch {
+          return null;
+        }
+      };
+      const [funnel7, funnel30, waiting] = await Promise.all([funnelFor(7), funnelFor(30), buildsWaiting()]);
       return result(toolId, values.some((value) => value === null) ? "needs_verification" : "observed", {
         period: { recentLeads: "last 7 days" },
         metrics: {
@@ -578,6 +595,7 @@ export async function executeJarvisDiagnosticTool(
           leadsCreatedLastSevenDays: recentLeads,
         },
         funnel: { last7Days: funnel7, last30Days: funnel30 },
+        buildsWaitingOnCapacity: waiting,
         definitions: {
           activeSubscriptionRecords: "Subscription records with status=active; not necessarily distinct paying customers.",
           unavailable: "null means the query was unavailable; it is not zero.",

@@ -1,34 +1,24 @@
 import { TenantOrMarketing } from "@/lib/tenant-page";
 import { loadTenantPage, tenantPageHead } from "@/lib/tenant-page-utils";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { SiteFooter, SiteHeader } from "@/components/marketing/Chrome";
 import { SalesCTA } from "@/components/marketing/SalesCTA";
 import { Panel } from "@/components/app/Bits";
 import { REVORA } from "@/lib/brand";
-import { canonicalLink, ogUrl } from "@/lib/seo";
+import { GROWTH_SYSTEM, usd } from "@/lib/offer";
+import { MARKETING_SEARCH, marketingSearchHead } from "@/lib/marketing-seo";
+import { RelatedLinks } from "@/components/marketing/SeoLinks";
+import { Button } from "@/components/ui/button";
+import { breadcrumbSchema } from "@/lib/seo";
+import { safeJsonLd } from "@/lib/json-ld";
 
 export const Route = createFileRoute("/about")({
   // On a client's own web address this path is THEIR page, not Revora's.
   loader: () => loadTenantPage("about"),
   head: ({ loaderData }) =>
     tenantPageHead(loaderData ?? null) ?? {
-      meta: [
-        { title: "About Revora — Built to help businesses grow" },
-        {
-          name: "description",
-          content:
-            "Revora is a business growth platform that helps companies get discovered, capture opportunities, convert leads, manage customers and automate follow-up.",
-        },
-        { property: "og:title", content: "About Revora" },
-        {
-          property: "og:description",
-          content: `Revora is a business growth platform founded by ${REVORA.founder.name}.`,
-        },
-        { property: "og:type", content: "website" },
-        { name: "twitter:card", content: "summary_large_image" },
-        ogUrl("/about"),
-      ],
-      links: [canonicalLink("/about")],
+      ...marketingSearchHead(MARKETING_SEARCH.about),
+      scripts: [{ type: "application/ld+json", children: safeJsonLd(breadcrumbSchema([{ name: "Revora Growth Systems", path: "/" }, { name: "About", path: "/about" }])) }],
     },
   component: AboutRoute,
 });
@@ -46,15 +36,15 @@ function AboutRoute() {
 const PILLARS = [
   {
     title: "Get discovered",
-    body: "A fast, conversion-first website with service and location pages tailored to your industry and city, structured data and a health score that says what to fix next.",
+    body: "AI-designed business pages, service-area content and search metadata built around the services and business details you provide.",
   },
   {
     title: "Capture every opportunity",
-    body: "Quote calculators, booking forms and call buttons on every screen, with each submission landing in one pipeline.",
+    body: "Lead capture, quote requests, booking and CRM workflows bring customer enquiries into a shared workspace.",
   },
   {
     title: "Follow up automatically",
-    body: "Automations chase quiet leads, request reviews after completed jobs and keep the calendar full without manual reminders.",
+    body: "Configure lead follow-up and review-request workflows for your business. Connected services and customer permissions determine which actions are available.",
   },
   {
     title: "Know what's working",
@@ -70,19 +60,20 @@ function About() {
         <section className="hero-aura border-b border-border">
           <div className="mx-auto max-w-6xl px-4 py-16 lg:py-20">
             <p className="eyebrow">About Revora</p>
-            <h1 className="mt-2 max-w-3xl font-display text-[clamp(2rem,4vw,2.8rem)] leading-tight font-semibold">
-              Built to help businesses <span className="gold-text">grow</span>.
+            <h1 className="mt-2 max-w-3xl font-display text-[32px] sm:text-[44px] leading-tight font-semibold">
+              About <span className="gold-text">Revora Growth Systems</span>
             </h1>
             <p className="mt-5 max-w-2xl text-[15px] leading-relaxed text-muted-foreground">
-              Revora is a business growth platform designed to help companies get discovered,
-              capture opportunities, convert leads, manage customers, automate follow-up, and
-              understand what's driving their growth.
+              Revora brings AI-designed business websites, lead capture, quotes, booking,
+              CRM and follow-up into one growth platform. Businesses across industries can
+              connect their online presence with the work that happens after an enquiry,
+              without treating a new website as the entire sales process.
             </p>
             <dl className="mt-10 grid gap-6 border-t border-border pt-6 sm:grid-cols-3">
               {[
-                ["One system", "Site, quotes, bookings, CRM and analytics together"],
-                ["1 day", "From signup to a live website address"],
-                ["Every trade", "Templates tuned to how each business sells"],
+                [usd(GROWTH_SYSTEM.setupPrice), "One-time setup when you choose to launch"],
+                [`${usd(GROWTH_SYSTEM.monthlyPrice)}/month`, "First month free; first monthly charge 30 days after setup"],
+                [GROWTH_SYSTEM.fullAccessWindow, "Free full access before you commit"],
               ].map(([value, label]) => (
                 <div key={label}>
                   <dt className="font-display text-[17px] leading-tight font-semibold">{value}</dt>
@@ -92,6 +83,10 @@ function About() {
                 </div>
               ))}
             </dl>
+            <div className="mt-7 flex flex-wrap gap-3">
+              <Button asChild variant="signal"><Link to="/get-started">Try Revora free</Link></Button>
+              <Button asChild variant="outline"><Link to="/pricing">See pricing and inclusions</Link></Button>
+            </div>
           </div>
         </section>
 
@@ -130,6 +125,17 @@ function About() {
           </div>
         </section>
 
+        <section className="border-b border-border">
+          <div className="mx-auto max-w-6xl px-4 py-12">
+            <h2 className="font-display text-[24px] font-semibold">Your business facts. Your approval. Your next step.</h2>
+            <div className="mt-5 grid gap-6 md:grid-cols-2">
+              <p className="text-sm leading-relaxed text-muted-foreground">Start with the services, audience, service areas and brand details that are true for your business. Review the AI-designed pages and request changes before publishing. Quotes depend on the prices you supply, and booking depends on the availability you configure. There is no fixed launch-time promise.</p>
+              <p className="text-sm leading-relaxed text-muted-foreground">Search visibility takes more than creating pages. Useful content, accurate business information and a clear enquiry path matter alongside ongoing measurement. Revora does not guarantee a Google position, traffic volume or number of paying customers. Explore the product and compare the offer against the workflow you actually need.</p>
+            </div>
+            <Link to="/demo" className="mt-5 inline-block text-sm text-primary underline underline-offset-4">Explore the example product dashboard</Link>
+          </div>
+        </section>
+        <RelatedLinks path="/about" heading="Explore Revora before you decide" />
         <section className="hero-aura bg-card">
           <div className="mx-auto max-w-6xl px-4 py-20">
             <SalesCTA />

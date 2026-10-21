@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { LoadingRows } from "@/components/app/Bits";
+import { QueryErrorNotice } from "@/components/app/QueryErrorNotice";
 import { Button } from "@/components/ui/button";
 import {
   useBusinessProfile,
@@ -50,6 +51,8 @@ import {
 } from "@/components/app/ProductionLaunch";
 import { useLaunchFlow, useProductionReadiness, useProductionStatus } from "@/lib/production.hooks";
 import { LaunchQualityCard } from "@/components/app/LaunchQualityCard";
+import { FactSourcesList } from "@/components/app/FactSourcesList";
+import { buildFactSources } from "@/lib/builder/fact-sources";
 import { useLaunchReview } from "@/lib/launch-review.hooks";
 import { planQualityImprovements } from "@/lib/builder/quality-improvement-plan";
 import { PublishRetryBar } from "@/components/app/PublishRetryBar";
@@ -195,7 +198,8 @@ function WebsitePage() {
   const { data: services } = useServices(orgId);
   const saveSettings = useSaveWebsiteSettings(orgId);
   const saveProfile = useSaveBusinessProfile(orgId);
-  const { data: pages } = useWebsiteContent(orgId);
+  const pagesQuery = useWebsiteContent(orgId);
+  const pages = pagesQuery.data;
 
   const profile = profileQuery.data as Record<string, unknown> | null | undefined;
   const settings = settingsQuery.data;
@@ -524,7 +528,10 @@ function WebsitePage() {
   const mediaCount = facts.data?.mediaCount ?? 0;
   const failingChecks = preflightResult.checks.filter((check) => check.status === "fail");
 
-  if (profileQuery.isLoading || settingsQuery.isLoading) return <LoadingRows rows={5} />;
+  if (profileQuery.isLoading || settingsQuery.isLoading || pagesQuery.isLoading) return <LoadingRows rows={5} />;
+  if (profileQuery.isError || settingsQuery.isError || pagesQuery.isError) return (
+    <QueryErrorNotice title="Your website couldn't be loaded. Your saved work hasn't been removed." retrying={profileQuery.isFetching || settingsQuery.isFetching || pagesQuery.isFetching} retry={() => Promise.all([profileQuery.refetch(), settingsQuery.refetch(), pagesQuery.refetch()])} />
+  );
 
   const geniusFacts = {
     businessName: org?.name ?? null,
@@ -686,7 +693,7 @@ function WebsitePage() {
                 try {
                   // The job records this chat request id and the worker writes
                   // its stages under it; jobs without one fall back to the job id.
-                  const started = await firstBuild.mutateAsync({ requestId: task.id });
+                  const started = await firstBuild.mutateAsync({ requestId: task.id, instruction: text });
                   setTrackedBuild({ taskId: task.id, jobId: started?.jobId ?? null });
                   if (!started?.jobId) requests.settleBuild(task.id, { ok: true, message: "Your build is queued. I'll keep working on it in the background." });
                 } catch (error) {
@@ -934,6 +941,16 @@ function WebsitePage() {
                 <>
                   {launchReview ? (
                     <div className="space-y-2">
+                      <FactSourcesList
+                        rows={buildFactSources({
+                          businessName: org?.name ?? null,
+                          services: (services ?? []).map((s) => s.name),
+                          city: (profile?.["city"] as string | null) ?? null,
+                          serviceArea: (profile?.["service_area"] as string | null) ?? null,
+                          email: (profile?.["email"] as string | null) ?? null,
+                          phone: (profile?.["phone"] as string | null) ?? null,
+                        })}
+                      />
                       <LaunchQualityCard
                         report={launchReview.report}
                         {...(manage

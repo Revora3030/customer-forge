@@ -132,7 +132,7 @@ describe("engine.today Jarvis action", () => {
   it("parses as an auto-running read and is described in the catalog with the rotation setting", () => {
     const parsed = parseActions([{ id: "engine.today", args: {} }], []);
     expect(parsed).toEqual({ reads: [{ id: "engine.today" }], proposals: [], rejected: [] });
-    expect(JARVIS_ACTION_CLASSES["engine.today"]).toEqual({ effect: "read", external: false, autoRuns: true });
+    expect(JARVIS_ACTION_CLASSES["engine.today"]).toEqual({ effect: "read", external: false, autoRuns: true, risk: "safe" });
     expect(describeRead({ id: "engine.today" })).toBe("Checked the prospect engine funnel");
     const prompt = actionCatalogPrompt([]);
     expect(prompt).toContain('{"id":"engine.today","args":{}}');

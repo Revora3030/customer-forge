@@ -19,7 +19,7 @@ import {
 } from "@/lib/jarvis-demo-site.functions";
 import { prospectDemoInput, type FoundProspect } from "@/lib/prospect-finder";
 import { pictureDataUrl } from "@/lib/picture-data-url";
-import { pumpSiteEngineQueue } from "@/lib/site-engine.functions";
+import { ACTIVE_DEMO_STATUSES, pollWhileActive } from "@/lib/prospect-demo-pump.hooks";
 
 const EMPTY = { businessName: "", industry: "", city: "", state: "", phone: "", email: "", services: "", description: "", placeId: "" };
 type Field = keyof typeof EMPTY;
@@ -33,49 +33,9 @@ const FIELDS: { key: Field; label: string; placeholder: string; required?: boole
   { key: "email", label: "Business email", placeholder: "owner@example.com" },
 ];
 
-const ACTIVE = new Set(["queued", "processing"]);
+const ACTIVE = ACTIVE_DEMO_STATUSES;
 
 type Prefill = Awaited<ReturnType<typeof prospectFromMapsFn>>;
-type DemoList = Awaited<ReturnType<typeof listProspectDemoBuilds>>;
-
-const pollWhileActive = (data: DemoList | undefined) =>
-  (data ?? []).some((demo) => demo.build && ACTIVE.has(demo.build.status)) ? 5_000 : false;
-
-/**
- * Keeps active demo builds moving, even without a scheduler: pumps each active
- * build's queue every 20s. Called by the Jarvis page so it runs while the page
- * is open, not only while the operations sheet happens to be mounted.
- */
-export function useProspectDemoPump(enabled: boolean) {
-  const list = useServerFn(listProspectDemoBuilds);
-  const pump = useServerFn(pumpSiteEngineQueue);
-  const demos = useQuery({
-    queryKey: ["jarvis", "prospect-demos"],
-    queryFn: () => list(),
-    refetchInterval: (query) => pollWhileActive(query.state.data),
-    enabled,
-  });
-  const activeIds = (demos.data ?? [])
-    .filter((demo) => demo.build && ACTIVE.has(demo.build.status))
-    .map((demo) => demo.organizationId)
-    .join(",");
-  useEffect(() => {
-    if (!enabled || !activeIds) return;
-    let stopped = false;
-    const tick = async () => {
-      for (const organizationId of activeIds.split(",")) {
-        if (stopped) return;
-        await pump({ data: { organizationId } }).catch(() => undefined);
-      }
-    };
-    void tick();
-    const timer = window.setInterval(() => void tick(), 20_000);
-    return () => {
-      stopped = true;
-      window.clearInterval(timer);
-    };
-  }, [activeIds, enabled, pump]);
-}
 
 /** A demo the Jarvis chat should follow in its live build card. */
 export type DemoCardTarget = { organizationId: string; name: string; previewToken?: string | undefined };

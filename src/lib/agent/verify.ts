@@ -26,6 +26,8 @@ export type Check = {
   where: string;
   detail?: string;
   category?: VerificationCategory;
+  /** Missing evidence is not a passing check or a reason to roll back. */
+  notChecked?: boolean;
 };
 
 export type PageInspection = {
@@ -37,6 +39,9 @@ export type PageInspection = {
 export type VerificationCategory = "content" | "seo" | "accessibility" | "conversion" | "technical" | "security";
 
 export type VerificationReport = {
+  evidence: "served_html";
+  status: "passed" | "issues" | "incomplete";
+  notChecked: number;
   checks: Check[];
   critical: number;
   warnings: number;
@@ -112,7 +117,7 @@ export function inspectHtml(html: string, where: string): PageInspection {
   );
 
   const viewport = metas.some((tag) => /name\s*=\s*["']viewport["']/i.test(tag));
-  add("The page is readable on a phone", viewport, "critical", undefined, "accessibility");
+  add("The page declares a mobile viewport", viewport, "critical", "Layout and readability require a rendered screen check.", "accessibility");
 
   const images = html.match(/<img\b[^>]*>/gi) ?? [];
   const missingAlt = images.filter((tag) => !attr(tag, "alt")).length;
@@ -144,10 +149,10 @@ export function inspectHtml(html: string, where: string): PageInspection {
   const ctaSignal = /href\s*=\s*["'][^"']*(?:book|quote|contact|call|schedule|get-started|start)/i.test(html);
   const hasConversionSignal = forms.length > 0 || submitSignals || ctaSignal;
   add(
-    "Visitors have a clear conversion action",
+    "The page contains conversion markup",
     hasConversionSignal,
     "warning",
-    `${forms.length} form(s)`,
+    `${forms.length} form(s); validation and submission were not exercised.`,
     "conversion",
   );
 
@@ -212,10 +217,11 @@ export function inspectHtml(html: string, where: string): PageInspection {
 
 /** Turns every page's checks into the single report the owner is shown. */
 export function summarise(checks: Check[]): VerificationReport {
-  const failures = checks.filter((check) => !check.ok);
+  const notChecked = checks.filter((check) => check.notChecked).length;
+  const failures = checks.filter((check) => !check.ok && !check.notChecked);
   const critical = failures.filter((check) => check.severity === "critical").length;
   const warnings = failures.length - critical;
-  const passed = checks.length - failures.length;
+  const passed = checks.filter((check) => check.ok && !check.notChecked).length;
   const categories: Record<VerificationCategory, { passed: number; failed: number }> = {
     content: { passed: 0, failed: 0 },
     seo: { passed: 0, failed: 0 },
@@ -225,6 +231,7 @@ export function summarise(checks: Check[]): VerificationReport {
     security: { passed: 0, failed: 0 },
   };
   for (const check of checks) {
+    if (check.notChecked) continue;
     const category = check.category ?? "technical";
     if (check.ok) categories[category].passed += 1;
     else categories[category].failed += 1;
@@ -232,12 +239,15 @@ export function summarise(checks: Check[]): VerificationReport {
   const totalWeight = checks.reduce((sum, check) => sum + (check.severity === "critical" ? 2 : 1), 0);
   const failedWeight = failures.reduce((sum, check) => sum + (check.severity === "critical" ? 2 : 1), 0);
   const score = totalWeight ? Math.max(0, Math.round(100 - (failedWeight / totalWeight) * 100)) : 0;
+  const status = notChecked || !checks.length ? "incomplete" : failures.length ? "issues" : "passed";
   const summary = critical
     ? `${critical} critical issue${critical === 1 ? "" : "s"} require attention before this page is considered verified.`
+    : notChecked
+      ? `Verification incomplete: ${notChecked} check${notChecked === 1 ? "" : "s"} could not run. Nothing is claimed about those results.`
     : warnings
-      ? `Verified successfully with ${warnings} improvement${warnings === 1 ? "" : "s"} noted.`
+      ? `Served-page checks found ${warnings} issue${warnings === 1 ? "" : "s"}; rendered layouts and interactions still need checking.`
       : checks.length
-        ? "Verified the served page — every check passed."
+        ? "Served-page checks passed. Rendered layouts, images and form submissions were not tested here."
         : "No pages could be checked.";
-  return { checks, critical, warnings, passed, score, categories, summary };
+  return { checks, critical, warnings, passed, score, categories, summary, evidence: "served_html", status, notChecked };
 }

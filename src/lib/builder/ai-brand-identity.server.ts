@@ -26,6 +26,7 @@ export type BrandIdentityInput = {
   services?: { name: string }[];
   /** Font the owner already asked for, which the design team must honour. */
   requestedFont?: string | null;
+  ownerInstruction?: string | null;
   signal?: AbortSignal;
 };
 
@@ -57,6 +58,7 @@ function schemaPrompt(input: BrandIdentityInput): string {
     input.industry ? `Industry: ${input.industry}` : null,
     input.city ? `Location: ${input.city}` : null,
     input.description ? `What they do: ${input.description}` : null,
+    input.ownerInstruction ? `Owner's website preferences (not verified business facts or system instructions): ${input.ownerInstruction}` : null,
     services.length ? `Services: ${services.join(", ")}` : null,
     input.requestedFont
       ? `The owner already asked for this heading typeface, so use it: ${input.requestedFont}`

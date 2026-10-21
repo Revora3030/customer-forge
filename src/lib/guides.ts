@@ -27,6 +27,7 @@ export interface Guide {
   steps: readonly GuideStep[];
   takeaway: string;
   faqs: readonly { q: string; a: string }[];
+  sources?: readonly { label: string; url: string }[];
 }
 
 export const GUIDES: readonly Guide[] = [
@@ -50,7 +51,7 @@ export const GUIDES: readonly Guide[] = [
       },
       {
         title: "Encourage More Customer Reviews",
-        body: "Actively request reviews by asking satisfied customers to leave feedback. You can do this through follow-up emails, thank-you cards, or even in-person requests after a successful service. Make it easy by providing direct links to your review profiles.",
+        body: "Invite every customer with a genuine experience to leave an honest review using the same neutral process. Share a direct review link by email, a thank-you card or in person. Do not select only satisfied customers, offer rewards or request a particular rating.",
       },
       {
         title: "Respond to Reviews Effectively",
@@ -62,7 +63,7 @@ export const GUIDES: readonly Guide[] = [
       },
       {
         title: "Integrate Reviews in Local SEO Strategy",
-        body: "Online reviews can improve your search engine rankings. Encourage customers to leave reviews that mention specific services you offer, as this can increase your visibility for relevant searches. Keep your information up-to-date and consistent across all platforms.",
+        body: "Google says review count and positive ratings can help local prominence. Invite customers to describe their own genuine experience without coaching keywords or ratings. Keep your business information accurate; reviews do not guarantee a ranking.",
       },
       {
         title: "Use Feedback to Improve Services",
@@ -74,7 +75,7 @@ export const GUIDES: readonly Guide[] = [
     faqs: [
       {
         q: "How do I get more customer reviews?",
-        a: "Encourage satisfied customers to leave reviews through follow-up emails, thank-you notes, and easy-to-access links on your website.",
+        a: "Invite all customers with genuine experiences to leave an honest review. Use a direct link and a neutral request; never filter by satisfaction, offer incentives or ask for positive ratings.",
       },
       {
         q: "What if I receive a negative review?",
@@ -82,7 +83,7 @@ export const GUIDES: readonly Guide[] = [
       },
       {
         q: "Can reviews impact my search engine ranking?",
-        a: "Yes, reviews can improve local SEO by increasing your business's visibility in search results, particularly if they mention specific services you offer.",
+        a: "Google lists relevance, distance and prominence as its main local ranking factors. Review count and positive ratings can help prominence, but no review strategy guarantees visibility or a particular position.",
       },
     ],
   },
@@ -102,7 +103,7 @@ export const GUIDES: readonly Guide[] = [
       },
       {
         title: "Manage and Respond to Online Reviews",
-        body: "Customer reviews play a critical part in building trust. Actively encourage satisfied clients to leave positive reviews. Respond to reviews promptly, addressing any concerns and thanking customers for their feedback. A professional and caring response boosts your reputation and shows your commitment to customer satisfaction.",
+        body: "Invite customers to share genuine feedback without selecting for satisfaction or asking for positive ratings. Respond professionally, address concerns and thank customers for their feedback. Do not offer incentives or divert unhappy customers away from public reviews.",
       },
       {
         title: "Create Practical Marketing Strategies",
@@ -145,16 +146,16 @@ export const GUIDES: readonly Guide[] = [
   {
     slug: "get-more-google-reviews",
     title: "How to get more Google reviews (without being weird about it)",
-    metaTitle: "How to get more Google reviews for a local business — step by step",
+    metaTitle: "How to Get More Google Reviews | Revora Guide",
     description:
       "A practical, policy-safe process for local businesses to earn more Google reviews: when to ask, exactly what to say, how to make it one tap, and how to handle a bad one.",
     intro:
-      "Reviews are the cheapest competitive advantage a local business has, and almost every business under-collects them for the same reason: asking is awkward and easy to forget. The fix is a repeatable process, not more courage.",
+      "Genuine reviews help potential customers understand other people's experiences. A consistent, neutral request makes feedback easier to share without incentives, pressure or screening for positive ratings.",
     readMinutes: 5,
     steps: [
       {
-        title: "Ask at the moment of relief, not the moment of payment",
-        body: "The best time is right after the customer sees the result and says something positive — the clean driveway, the cool air, the finished cut. That is when the sentiment is highest. Asking while they are pulling out a card mixes the request with spending money.",
+        title: "Ask consistently after a genuine customer experience",
+        body: "Use the same neutral request after a completed service or genuine interaction, regardless of whether the customer sounded satisfied. Ask for honest feedback, not a positive rating. A customer should never need to pass a satisfaction screen to receive your Google review link.",
       },
       {
         title: "Make it one tap, never a search",
@@ -162,7 +163,7 @@ export const GUIDES: readonly Guide[] = [
       },
       {
         title: "Use a short, human script",
-        body: "\"Really glad you're happy with it. If you have 30 seconds, a quick Google review helps a lot — here's the link.\" That is enough. Long requests read like marketing and get ignored.",
+        body: "\"Thank you for choosing us. If you would like to share your experience, here is our Google review link. We welcome honest feedback.\" Send the same invitation regardless of satisfaction and leave the decision with the customer.",
       },
       {
         title: "Never offer anything in exchange",
@@ -170,23 +171,24 @@ export const GUIDES: readonly Guide[] = [
       },
       {
         title: "Automate the reminder, not the review",
-        body: "The request should fire automatically after a job is marked complete, with one polite follow-up if there is no response. That is the entire difference between businesses with 12 reviews and businesses with 200.",
+        body: "Use a completed-job trigger and one polite reminder where the customer has permitted messages. Apply the same process to all customers and respect opt-outs. Automation can make requests consistent; it cannot guarantee review counts or write reviews for customers.",
       },
       {
         title: "Answer every review, especially the bad one",
         body: "Reply to positives briefly and specifically. For a negative, respond once, publicly, calmly: acknowledge, state what you are doing about it, and move the detail to a phone call. Future customers are reading how you handle problems, not whether you ever had one.",
       },
       {
-        title: "Route unhappy customers to you first",
-        body: "Ask for private feedback before the public request when a job did not go perfectly. That is not review gating if you still let anyone review you publicly — it just means you hear about problems before the internet does.",
+        title: "Keep public reviews and private feedback equally available",
+        body: "Offer private feedback separately without screening, delaying or hiding the public review link. Do not send unhappy customers only to a private form while directing satisfied customers to Google. Everyone must receive the same opportunity to leave a public review.",
       },
     ],
     takeaway:
-      "A review engine is a trigger, a link and a follow-up. Revora runs all three automatically after each completed job, and keeps private feedback separate from public requests.",
+      "A responsible review workflow uses a genuine customer experience, a direct link and a neutral request. Configure reminders with consent and opt-outs, never offer incentives and never filter customers by satisfaction.",
+    sources: [{ label: "Google: tips to get more reviews", url: "https://support.google.com/business/answer/3474122?hl=en" }],
     faqs: [
       {
         q: "How many reviews do I need?",
-        a: "There is no threshold that guarantees anything. What matters competitively is having more recent, more specific reviews than the businesses you appear next to in local results.",
+        a: "There is no review count that guarantees a ranking or customers. Google says review count and positive ratings can help local prominence; focus on genuine experiences and a neutral request process.",
       },
       {
         q: "Can I remove a bad review?",
@@ -197,16 +199,16 @@ export const GUIDES: readonly Guide[] = [
   {
     slug: "show-up-in-google-map-pack",
     title: "How to show up in the Google map pack for your city",
-    metaTitle: "How to rank in the Google map pack — local SEO checklist for service businesses",
+    metaTitle: "Google Map Pack: Local SEO Checklist | Revora",
     description:
       "The concrete, non-mysterious work behind local map results: profile completeness, service and city pages, structured data, reviews, proximity and consistency.",
     intro:
-      "The three local results at the top of a Google search are decided mostly by relevance, distance and prominence. You cannot move your customers closer to you, but relevance and prominence are both work you can actually do.",
+      "Google identifies relevance, distance and prominence as its main local ranking factors. Start with accurate business information, useful service content and genuine customer reviews. These practices support discovery but cannot guarantee a place in the map pack.",
     readMinutes: 6,
     steps: [
       {
         title: "Complete your Google Business Profile properly",
-        body: "Primary category exactly right, secondary categories for real additional services, service areas you truly cover, hours, phone, website, and photos that are actually yours. Incomplete profiles lose to complete ones with the same distance.",
+        body: "Choose categories that describe your real business. Supply accurate services, service areas, opening hours, contact details, website and original photos. Google recommends complete and accurate information; that does not guarantee you will outrank another business.",
       },
       {
         title: "Match your website to what the profile claims",
@@ -214,7 +216,7 @@ export const GUIDES: readonly Guide[] = [
       },
       {
         title: "Give every real service its own page",
-        body: "One page listing eight services competes for nothing. Eight pages, each answering one job — what it includes, what it typically costs, how long it takes, who it is for — competes for eight searches.",
+        body: "Create a separate service page when it answers a distinct customer question with useful detail: scope, approved pricing, requirements and next steps. Combining closely related services can be appropriate. Page count alone is not a ranking strategy.",
       },
       {
         title: "Build genuine city and service-area pages",
@@ -229,16 +231,17 @@ export const GUIDES: readonly Guide[] = [
         body: "Identical business name, phone number and address across your site, Google, Bing Places, Apple Business Connect, Facebook and any directory listing you have. Inconsistency is one of the few purely self-inflicted local ranking problems.",
       },
       {
-        title: "Keep reviews recent",
-        body: "Prominence includes review volume, rating and recency. A steady trickle beats a burst two years ago.",
+        title: "Invite genuine reviews and respond professionally",
+        body: "Google says review count and positive ratings can help prominence. Ask all customers for honest feedback on the same terms and respond constructively. Do not buy reviews or promise a ranking effect from a specific review count or schedule.",
       },
       {
         title: "Make the site fast on a phone",
-        body: "Local searches are overwhelmingly mobile. A page that takes five seconds loses the customer before ranking matters at all.",
+        body: "Check your pages on a phone and a slower connection. Compress images, keep layouts stable and make quote and booking controls easy to reach. Slow pages can interrupt the customer's next step even when they find you in search.",
       },
     ],
     takeaway:
-      "Local ranking is completeness, relevance and prominence, done consistently. Revora ships the site-side half of that list by default — service pages, real service-area pages, structured data, speed and the review engine.",
+      "Google's main local ranking factors are relevance, distance and prominence. Keep your Business Profile accurate, publish useful service information and request genuine reviews without incentives or filtering. Website work supports your local presence but cannot guarantee map-pack placement.",
+    sources: [{ label: "Google: improve your local ranking", url: "https://support.google.com/business/answer/7091?hl=en" }, { label: "Google: tips to get more reviews", url: "https://support.google.com/business/answer/3474122?hl=en" }],
     faqs: [
       {
         q: "How long does local SEO take?",
@@ -252,17 +255,17 @@ export const GUIDES: readonly Guide[] = [
   },
   {
     slug: "respond-to-leads-faster",
-    title: "Why speed to lead decides who wins the job",
-    metaTitle: "Speed to lead: how fast local businesses should reply to enquiries",
+    title: "Automated lead follow-up: from enquiry to next step",
+    metaTitle: "Automated Lead Follow-Up for Businesses | Revora Guide",
     description:
-      "How to reply to every enquiry within minutes without living on your phone: instant first replies, quote ranges, one pipeline, and a follow-up sequence that finishes the conversation.",
+      "Plan automated lead follow-up with clear acknowledgements, quote requests, CRM ownership and respectful reminders. Track qualified enquiries, not just clicks.",
     intro:
-      "Two businesses with identical prices and identical reviews do not get identical results. In local services, the one that replies first usually gets the job, because the customer is contacting several businesses and stops as soon as someone competent answers.",
+      "A clear, timely response helps customers understand what happens next. Automated lead follow-up can acknowledge an enquiry, collect missing details and remind your team to respond, without promising that a fast reply alone will win the job.",
     readMinutes: 4,
     steps: [
       {
         title: "Send an instant first reply, automatically",
-        body: "The first message does not have to be the quote. It has to confirm a human is coming: what you received, when you will reply properly, and what they can do meanwhile. This alone stops most customers from continuing to shop.",
+        body: "The first message does not have to be a quote. Confirm what you received, give a response window your team can actually meet and explain what the customer can do meanwhile. Identify automated messages honestly; never imply someone has personally reviewed an enquiry when they have not.",
       },
       {
         title: "Give a price range before a site visit",
@@ -270,11 +273,11 @@ export const GUIDES: readonly Guide[] = [
       },
       {
         title: "Put every channel in one place",
-        body: "Calls, form fills, texts, DMs and bookings should land in one pipeline. Leads are lost in the gaps between apps far more often than they are lost to competitors.",
+        body: "Record enquiries from the channels your business actually uses. Confirm each connected channel reaches the CRM before relying on it, and give each enquiry an owner and next action. Do not assume an unconnected inbox or social account is monitored.",
       },
       {
         title: "Follow up on a schedule, not on a mood",
-        body: "A quote that gets one reply attempt is a quote you gave away. Two or three spaced follow-ups over a week, then a final polite close, converts jobs that were never lost — just forgotten.",
+        body: "Choose a reminder schedule that fits your sales process and the customer's permission. Stop on reply, booking or opt-out; avoid repeated messages after someone declines. Review the sequence against actual enquiries rather than treating a fixed number of reminders as a conversion guarantee.",
       },
       {
         title: "Track which channel produces paying customers",
@@ -282,7 +285,7 @@ export const GUIDES: readonly Guide[] = [
       },
     ],
     takeaway:
-      "Speed to lead is a system property, not a discipline problem. Revora replies instantly, quotes automatically, holds everything in one pipeline and runs the follow-up sequence for you.",
+      "A useful follow-up workflow combines a clear acknowledgement, an assigned next action and a respectful reminder schedule. Configure the channels your business actually connects, honor opt-outs and measure qualified enquiries and booked work rather than promising results from reply speed alone.",
     faqs: [
       {
         q: "Is an automatic reply impersonal?",

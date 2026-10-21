@@ -1,5 +1,30 @@
 # Roadmap — Five-phase blocker elimination
 
+## Search acquisition upgrade (2026-10-21)
+- [x] Audit Google evidence (541 impressions / 8 clicks, Sep20–Oct17), public metadata, crawl boundaries and existing buying-focused pages; Semrush US estimates favor focused contractor/CRM/follow-up searches over broad AI-builder competition.
+- [x] Improve homepage, states and about content, contextual links and truthful metadata; remove unsupported one-day/template claims, share inventory copy, and add official Google sources with neutral review guidance. Billing and saved customer content unchanged.
+- [x] Correct local page self-referencing canonical/og:url without removing existing crawl eligibility; correct AI-named tenant home canonical; paginate sitemap reads and return uncached retryable failures on lookup errors. 3,172 tests passed, six gated live tests skipped; focused lint clean and harness build OK. Phone/desktop discovery→pricing→signup entry checked without page errors; account/payment submission not exercised.
+- [ ] Live search impact requires owner-authorized publishing and subsequent Google data; no traffic or customer guarantees.
+
+## Continued builder upgrade (2026-10-21)
+- [x] Unpublished overlay retains draft; failed diff says unavailable; fullscreen remeasures, Escape exits/restores focus and scrolling; phone starts at 390px; contrast scan no longer claims full AA compliance; draft notifications are workspace-scoped.
+- [x] Signed-in existing draft renders on desktop/phone; fullscreen/Escape/focus/compare controls checked without page errors or generation. Offline suite: 3,150 passed, 6 live tests skipped; focused lint clean; harness build OK.
+- [ ] Live generation/publishing and full interaction QA remain blocked by absent spend/publish authorization; fullscreen comprehensive keyboard trapping and iframe network-failure recovery need further implementation/verification.
+
+## Uploaded one-click website brief (2026-10-21)
+- [x] Audit current generation, brief controls, preview, rendered quality and publishing against the uploaded requirements; served HTML does not prove screen/form/image/browser QA.
+- [x] Implement saved first-build owner direction, guided brief, manager-only brief writes, read-error recovery, completed-result cache refresh and honest verification evidence using the existing pipeline.
+- [x] Signed-in guided brief tested at desktop/phone: reaches composer, fits screen, restores focus, no page errors; AI/mutation calls blocked. Generation, generated-site rendering and publishing were not exercised.
+- [ ] Full rendered-site interaction/form/image/network repair coverage remains incomplete; requires generated-site evidence and authorized live verification, not HTML scores.
+- [ ] Real generation and publishing verification BLOCKED: paid balances exhausted; no new provider spend or production publishing authorized. Preserve daily site limit 5.
+
+## Instagram posting through Jarvis (2026-10-21)
+- [x] Linked Reel caption can be read; video not watched. Owner asked to upload it for visual review.
+- [x] Custom Instagram authorization, encrypted owner-bound account credentials, disconnect/reconnect implemented; additive server-only storage migration applied.
+- [x] Exact-post review and individual approval, durable duplicate/uncertain-publish protection, Jarvis draft tools implemented for single-image feed posts.
+- [x] Offline approval/ownership/state/provider tests and signed-in Jarvis controls checked; latest harness build OK, no real posts sent.
+- [ ] Real authorization and posting verification BLOCKED: owner skipped Meta app credential form; callback update also needs publishing authorization, and each test post needs individual approval. No Instagram live access claimed.
+
 ## Admin accuracy pass (2026-10-20)
 - [x] AI health: totals were capped at 1,000 records; provider status came from one idle server's memory. Now counts every record and uses shared provider records.
 - [x] Command center model stats and build health totals count every record.
@@ -36,7 +61,7 @@
 - [x] Full suite green after fixing a test that read live provider state.
 - [ ] One build end to end (BLOCKED: workspace daily AI limit and $5/day paid cap reached today; free pool heavily rate-limited). Daily site limit stays 5 until it passes.
 - [ ] Migration drift: needs the remote migration version list (not readable from here) to reconcile.
-- [ ] Owner decision: canonical offer in code/DB is $350 setup + 3-day full access; owner brief cites $750 + 1-day.
+- [x] Retired stale offer conflict: current owner rule is $350 setup, first month free, then $100/month and 3-day full access; billing unchanged.
 - [x] Jarvis tool/permission inventory documented (docs/operations/jarvis-tool-inventory.md).
 - [x] Queued autopilot sends respect the off switch; launch review requires workspace membership.
 - [x] Migration reconciliation runbook (docs/operations/migration-reconciliation.md).
@@ -113,3 +138,16 @@
 - [x] SEO review: all checks pass, indexed; targets reported.
 - [x] Jarvis targets weak existing websites (verified gaps + public email).
 - [x] Jarvis: OpenStreetMap as free second lead source.
+
+## Stolen ideas from Terminal Jarvis Frankenstein (2026-10-21)
+Owner approved porting two ideas (audit of the uploaded Next.js project; auto package-install, sandboxed codegen, regex intent matching and conversation trimming rejected as inapplicable or worse than existing AI understanding).
+- [x] Self-healing preview: the browser quality check now captures runtime script errors and unhandled rejections inside the measured site, grades them as P0 findings, and the AI repair loop receives them in its repair brief (2026-10-20).
+- [x] Edit-intent scoping: the AI planner declares the smallest scope its plan touches (style/section/page/site) and point-and-edit carries the selected block id; the server drops any planned change outside that boundary before apply, failing open if the scope is unusable (2026-10-20).
+
+## Upgrade wave 2026-10-21 (no spend/publish)
+- [x] Fullscreen preview keeps keyboard focus inside; preview frame shows Retry after 20s or a load error.
+- [x] Admin totals checked against records: 0 real customers, $0 paid, 0 outreach; 3 demo invoices correctly excluded.
+- [x] Publish tab lists business facts with source (your details / missing).
+- [x] Jarvis funnel summary includes builds waiting on AI capacity + soonest retry.
+- [x] Guest (anonymous) sign-in turned off; leaked-password check on; security scan clean.
+- [x] Last code warning fixed (demo pump hook moved to its own file); lint 0 warnings.

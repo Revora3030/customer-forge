@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { JarvisDiagnostics } from "./jarvis-diagnostics.server";
-import { parsePullRequestProposal } from "./jarvis-actions";
+import { parsePullRequestProposal, parseRoutineDraft } from "./jarvis-actions";
 import { adminPath } from "./jarvis-page-context";
 
 type Turn = { role: "user" | "assistant"; content: string };
@@ -165,7 +165,7 @@ function splitFollowups(raw: string): { body: string; followups: string[] } {
   return { body, followups };
 }
 
-async function runJarvis(db: SupabaseClient, userId: string, mode: Mode, page: string | null = null) {
+export async function runJarvis(db: SupabaseClient, userId: string, mode: Mode, page: string | null = null) {
   const history = await db.from("jarvis_messages").select("role,content")
     .eq("user_id", userId).order("created_at", { ascending: false }).limit(30);
   if (history.error) throw new Error("Your message was saved, but chat history could not be loaded.");
@@ -173,10 +173,12 @@ async function runJarvis(db: SupabaseClient, userId: string, mode: Mode, page: s
   const { collectJarvisDiagnostics } = await import("./jarvis-diagnostics.server");
   const since = new Date(Date.now() - 7 * 86_400_000).toISOString();
   const { collectPageBrief } = await import("./jarvis-page-context.server");
-  const [diagnostics, accounts, trials, activeSubscriptions, leadsWeek, http, pageBrief] = await Promise.all([
+  const { memoryPromptBlock } = await import("./jarvis-memory.server");
+  const [diagnostics, accounts, trials, activeSubscriptions, leadsWeek, http, pageBrief, memories] = await Promise.all([
     collectJarvisDiagnostics(db), count(db, "platform_accounts"), count(db, "platform_trials"),
     count(db, "subscriptions", undefined, "active"), count(db, "leads", since), siteCheck(),
     page ? collectPageBrief(db, page).catch(() => null) : Promise.resolve(null),
+    memoryPromptBlock(db, userId),
   ]);
   // A folder map of the live codebase, so Jarvis searches and reads real paths
   // instead of guessing. Best effort: chat still works if GitHub is down.
@@ -211,6 +213,9 @@ async function runJarvis(db: SupabaseClient, userId: string, mode: Mode, page: s
     "Changes are review drafts only. Never suggest bypassing authentication, RLS, tenant isolation, publishing checks, provider access rules, or spending caps. Available paid and free models share the team; configuration alone does not prove availability.",
     "After your answer, on a new final line, add up to three short follow-up questions or commands the owner might want next, formatted exactly as <followups>[\"first\",\"second\",\"third\"]</followups> (valid JSON array of strings, each under 120 characters). Omit the tag if nothing useful comes to mind.",
     actionCatalogPrompt(toolIds),
+    "You have persistent memory across conversations (below, when present). Save durable owner preferences, decisions and goals with memory.save; forget them with memory.forget when the owner asks. Never save secrets or one-off task details.",
+    "You have routines: scheduled prompts that post into this chat and run like a normal message (Eastern time). Manage them with routines.list, routine.create, routine.update and routine.delete — all changes need owner approval.",
+    ...(memories ? [memories] : []),
     ...(pageBrief
       ? [
           `The owner is asking from the ${pageBrief.title} admin page (${page}). Answer about what is on that page first when the question allows it, using the currentPage facts below. A null fact could not be read: say so, never treat it as zero.`,
@@ -599,6 +604,115 @@ export const listClaudeCodeRequestsFn = createServerFn({ method: "GET" })
     await guardedAdmin(context);
     const { listClaudeCodeRequests } = await import("./jarvis-claude-code.server");
     return listClaudeCodeRequests();
+  });
+
+/** Lists the owner's persistent Jarvis memories (owner-scoped table, RLS-enforced). */
+export const listJarvisMemoriesFn = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const db = await guardedAdmin(context);
+    const { listJarvisMemories } = await import("./jarvis-memory.server");
+    return listJarvisMemories(db, String(context.userId));
+  });
+
+/** Forgets one memory after the owner approves Jarvis's memory.forget proposal. */
+export const forgetJarvisMemoryFn = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: { memoryId: unknown }) => {
+    const memoryId = typeof input?.memoryId === "string" ? input.memoryId : "";
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(memoryId)) {
+      throw new Error("Choose a memory from the list.");
+    }
+    return { memoryId };
+  })
+  .handler(async ({ context, data }) => {
+    const db = await guardedAdmin(context);
+    const { forgetJarvisMemory } = await import("./jarvis-memory.server");
+    const result = await forgetJarvisMemory(db, String(context.userId), data.memoryId);
+    await db.from("audit_logs").insert({
+      organization_id: null,
+      actor_id: String(context.userId),
+      action: "jarvis.memory.forgotten",
+      entity: "jarvis_memories",
+      entity_id: data.memoryId,
+      metadata: {},
+    });
+    return result;
+  });
+
+/** Lists the owner's scheduled routines. */
+export const listJarvisRoutinesFn = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const db = await guardedAdmin(context);
+    const { listJarvisRoutines } = await import("./jarvis-routines.server");
+    return listJarvisRoutines(db, String(context.userId));
+  });
+
+/** Creates or updates a routine after the owner approves Jarvis's proposal. */
+export const saveJarvisRoutineFn = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: { routineId?: unknown; routine?: unknown; patch?: unknown }) => {
+    const routineId = typeof input?.routineId === "string" ? input.routineId : null;
+    if (routineId) {
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(routineId)) throw new Error("That routine id is not valid.");
+      const patchRaw = (input?.patch && typeof input.patch === "object" ? input.patch : {}) as Record<string, unknown>;
+      const patch: Record<string, unknown> = {};
+      if (patchRaw["name"] !== undefined || patchRaw["prompt"] !== undefined || patchRaw["frequency"] !== undefined || patchRaw["hour"] !== undefined || patchRaw["minute"] !== undefined) {
+        const parsed = parseRoutineDraft({ name: "routine", prompt: "routine prompt", ...patchRaw });
+        if (patchRaw["name"] !== undefined) patch["name"] = parsed.name;
+        if (patchRaw["prompt"] !== undefined) patch["prompt"] = parsed.prompt;
+        if (patchRaw["frequency"] !== undefined) patch["frequency"] = parsed.frequency;
+        if (patchRaw["hour"] !== undefined) patch["hour"] = parsed.hour;
+        if (patchRaw["minute"] !== undefined) patch["minute"] = parsed.minute;
+      }
+      if (patchRaw["enabled"] !== undefined) patch["enabled"] = patchRaw["enabled"] === true;
+      if (!Object.keys(patch).length) throw new Error("Nothing to change.");
+      return { routineId, patch };
+    }
+    return { routineId: null, routine: parseRoutineDraft(input?.routine) };
+  })
+  .handler(async ({ context, data }) => {
+    const db = await guardedAdmin(context);
+    const userId = String(context.userId);
+    const { createJarvisRoutine, updateJarvisRoutine } = await import("./jarvis-routines.server");
+    const result = data.routineId
+      ? await updateJarvisRoutine(db, userId, data.routineId, data.patch as never)
+      : await createJarvisRoutine(db, userId, (data as { routine: never }).routine);
+    await db.from("audit_logs").insert({
+      organization_id: null,
+      actor_id: userId,
+      action: data.routineId ? "jarvis.routine.updated" : "jarvis.routine.created",
+      entity: "jarvis_routines",
+      entity_id: data.routineId ?? (result as { id?: string }).id ?? null,
+      metadata: {},
+    });
+    return result;
+  });
+
+/** Deletes a routine after the owner approves Jarvis's routine.delete proposal. */
+export const deleteJarvisRoutineFn = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: { routineId: unknown }) => {
+    const routineId = typeof input?.routineId === "string" ? input.routineId : "";
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(routineId)) {
+      throw new Error("Choose a routine from the list.");
+    }
+    return { routineId };
+  })
+  .handler(async ({ context, data }) => {
+    const db = await guardedAdmin(context);
+    const { deleteJarvisRoutine } = await import("./jarvis-routines.server");
+    const result = await deleteJarvisRoutine(db, String(context.userId), data.routineId);
+    await db.from("audit_logs").insert({
+      organization_id: null,
+      actor_id: String(context.userId),
+      action: "jarvis.routine.deleted",
+      entity: "jarvis_routines",
+      entity_id: data.routineId,
+      metadata: {},
+    });
+    return result;
   });
 
 /** Live facts and a spoken summary for the admin page the owner is on. */

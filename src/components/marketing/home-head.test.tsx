@@ -64,7 +64,7 @@ describe("homepage structured data", () => {
       (entry) => "name" in entry && entry.name === "description",
     ) as { content: string };
     expect(description.content).toContain(`${usd(GROWTH_SYSTEM.monthlyPrice)}/month`);
-    expect(description.content).toContain(`${usd(GROWTH_SYSTEM.setupPrice)} one-time setup`);
+    expect(description.content).toContain(`${usd(GROWTH_SYSTEM.setupPrice)} setup`);
   });
 });
 

@@ -4,6 +4,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { normaliseRequestId } from "@/lib/builder/chat-thread";
+import { parseFirstBuildInstruction, withFirstBuildInstruction } from "@/lib/builder/first-build-request";
 
 /**
  * Revora Site Engine server functions.
@@ -587,7 +588,7 @@ async function persistScreenshotReference(
  */
 export const analyzeSiteBrief = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((input: { organizationId: string }) => ({ organizationId: orgIdOf(input) }))
+  .validator((input: { organizationId: string; instruction?: string }) => ({ organizationId: orgIdOf(input), instruction: parseFirstBuildInstruction(input?.instruction) }))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     const orgId = data.organizationId;
@@ -608,10 +609,11 @@ export const analyzeSiteBrief = createServerFn({ method: "POST" })
     const generation = (settings.data?.generation ?? {}) as Record<string, unknown>;
     const previous = readBrief(generation["brief"]);
 
-    let brief = await analyzeBusiness(facts.copyFacts, { organizationId: orgId, userId });
+    let brief = await analyzeBusiness({ ...facts.copyFacts, ownerInstruction: data.instruction }, { organizationId: orgId, userId });
 
     // A new analysis always needs re-approval, but the owner's answers stay.
     brief = { ...brief, approved: false, factAnswers: previous?.factAnswers ?? {} };
+    brief = withFirstBuildInstruction(brief, data.instruction);
 
     const { error } = await supabase
       .from("website_settings")
@@ -641,7 +643,9 @@ export const saveSiteBrief = createServerFn({ method: "POST" })
     approved: input?.approved === true,
   }))
   .handler(async ({ data, context }) => {
-    const { supabase } = context;
+    const { supabase, userId } = context;
+    const { requireOrgRole } = await import("@/lib/org-authz.server");
+    await requireOrgRole(supabase, data.organizationId, userId, "manager");
     const { readBrief } = await import("@/lib/site-brief");
     const parsed = readBrief(data.brief);
     if (!parsed) throw new Error("That brief isn't complete enough to save.");
@@ -681,8 +685,10 @@ export const saveMissingFacts = createServerFn({ method: "POST" })
     return { organizationId: orgIdOf(input), answers };
   })
   .handler(async ({ data, context }) => {
-    const { supabase } = context;
+    const { supabase, userId } = context;
     const orgId = data.organizationId;
+    const { requireOrgRole } = await import("@/lib/org-authz.server");
+    await requireOrgRole(supabase, orgId, userId, "manager");
     const { readBrief } = await import("@/lib/site-brief");
     const { factGaps } = await import("@/lib/launch-qa");
     const { gatherBriefFacts } = await import("@/lib/site-brief.server");

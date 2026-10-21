@@ -1,7 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { BUILDER_VIEWPORTS, previewPath, previewZoom } from "./builder-preview";
+import { BUILDER_VIEWPORTS, previewPath, previewZoom, effectiveCompareMode, comparisonStatus } from "./builder-preview";
 
 describe("builder preview", () => {
+  it("keeps the saved draft visible when overlay compare has no published site", () => {
+    expect(effectiveCompareMode("overlay", false)).toBe("side");
+    expect(effectiveCompareMode("overlay", true)).toBe("overlay");
+    expect(effectiveCompareMode("off", false)).toBe("off");
+  });
+  it("never describes a failed comparison as an unpublished site", () => {
+    expect(comparisonStatus(false, true, null)).toBe("Comparison unavailable");
+    expect(comparisonStatus(true, false, null)).toBe("Comparing…");
+    expect(comparisonStatus(false, false, { updated: 0, added: 0, removed: 0 })).toBe("Draft matches live");
+  });
   it("links home and internal pages through the public customer preview", () => {
     expect(previewPath("acme-co", "home")).toBe("/draft/acme-co");
     expect(previewPath("acme co", "Our Work")).toBe("/draft/acme%20co/Our%20Work");

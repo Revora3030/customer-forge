@@ -2,7 +2,7 @@ import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 
 import { SiteFooter, SiteHeader } from "@/components/marketing/Chrome";
 import { Button } from "@/components/ui/button";
-import { GROWTH_SYSTEM, usdExact } from "@/lib/offer";
+import { GROWTH_SYSTEM, usd } from "@/lib/offer";
 import { breadcrumbSchema, canonicalLink, ogUrl, metaDescription } from "@/lib/seo";
 import { findLocalIndustry, localPath, type LocalIndustry } from "@/lib/local-pages";
 import { US_STATES } from "@/lib/us-states";
@@ -21,7 +21,7 @@ export const Route = createFileRoute("/local/$industry/")({
       };
     }
     const title = `${industry.name} websites, quotes & lead generation — every US state | Revora`;
-    const description = `Revora builds ${industry.name.toLowerCase()} businesses a complete customer acquisition system — website, instant quotes, booking, CRM, follow-up and reviews. Choose your state. ${usdExact(GROWTH_SYSTEM.setupPrice)} setup, first month free, then ${usdExact(GROWTH_SYSTEM.monthlyPrice)}/month.`;
+    const description = `Revora builds ${(industry.name === industry.name.toUpperCase() ? industry.name : industry.name.toLowerCase())} businesses a complete customer acquisition system — website, instant quotes, booking, CRM, follow-up and reviews. Choose your state. ${usd(GROWTH_SYSTEM.setupPrice)} setup, first month free, then ${usd(GROWTH_SYSTEM.monthlyPrice)}/month.`;
     const path = localPath(industry.slug);
     return {
       meta: [
@@ -69,7 +69,7 @@ function LocalIndustryHub() {
           <span className="gold-hl">{industry.name}</span> growth systems, state by state
         </h1>
         <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-muted-foreground">
-          Revora gives {industry.name.toLowerCase()} businesses the full system: a fast local
+          Revora gives {(industry.name === industry.name.toUpperCase() ? industry.name : industry.name.toLowerCase())} businesses the full system: a fast local
           website, instant quotes based on {industry.quoteInputs.slice(0, 3).join(", ")}, online
           booking, a CRM that holds every lead and follow-up that runs while you work. Pick your
           state to see how it applies where you operate.
@@ -80,7 +80,7 @@ function LocalIndustryHub() {
           </Button>
           <Button asChild variant="outline">
             <Link to="/pricing">
-              {usdExact(GROWTH_SYSTEM.setupPrice)} setup · {usdExact(GROWTH_SYSTEM.monthlyPrice)}/mo
+              {usd(GROWTH_SYSTEM.setupPrice)} setup · {usd(GROWTH_SYSTEM.monthlyPrice)}/mo
             </Link>
           </Button>
         </div>

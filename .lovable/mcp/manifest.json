@@ -1,0 +1,93 @@
+{
+  "version": 1,
+  "sdk_version": "3.1.1",
+  "path": "/mcp",
+  "auth": {
+    "type": "oauth",
+    "issuer": "https://smqngrtayopyirrqcbhq.supabase.co/auth/v1",
+    "accepted_audiences": [
+      "authenticated"
+    ]
+  },
+  "mcp": {
+    "server": {
+      "name": "revoragrowth",
+      "version": "0.1.0",
+      "title": "RevoraGrowth"
+    },
+    "tools": [
+      {
+        "name": "list_sites",
+        "title": "List sites",
+        "description": "List the signed-in user's workspaces and the publish status of each website.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "get_site_status",
+        "title": "Get site status",
+        "description": "Get publish, domain, SSL and review status for one of the signed-in user's websites, by workspace slug or ID.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "organization": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Workspace slug (e.g. \"elite-mobile-detail\") or organization ID."
+            }
+          },
+          "required": [
+            "organization"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "list_leads",
+        "title": "List leads",
+        "description": "List recent leads across the signed-in user's workspaces, newest first. Optionally filter by lead status.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "status": {
+              "description": "Optional lead status filter (e.g. \"new\", \"contacted\", \"won\", \"lost\").",
+              "type": "string",
+              "minLength": 1
+            },
+            "limit": {
+              "description": "Maximum leads to return (default 25, max 50).",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50
+            }
+          },
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      }
+    ]
+  }
+}

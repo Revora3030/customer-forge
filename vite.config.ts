@@ -8,6 +8,7 @@
 import path from "node:path";
 import { loadEnv } from "vite";
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
+import { mcpPlugin } from "@lovable.dev/mcp-js/stacks/tanstack/vite";
 import { assertPublicEnvironment } from "./src/lib/security/public-env-policy.mjs";
 
 // Load unprefixed env vars into process.env for server routes (never into the client bundle).
@@ -39,6 +40,9 @@ export default defineConfig({
     server: { entry: "server" },
   },
   vite: {
+    // Agent integrations (MCP): emits src/routes/mcp.ts and the OAuth
+    // protected-resource metadata route from src/lib/mcp/index.ts.
+    plugins: [mcpPlugin()],
     // The Lovable TanStack config owns preview/sandbox host detection. Do not
     // override its allowed-host list: Lovable editor/mobile previews can arrive
     // through sandbox/proxy hosts that are not customer domains.

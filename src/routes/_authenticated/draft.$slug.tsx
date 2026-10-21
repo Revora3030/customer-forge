@@ -11,7 +11,8 @@ import { useEffect, type ReactNode } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getOwnerDraftSite } from "@/lib/public-site.functions";
-import { DRAFT_CHANNEL, readDraftPing } from "@/lib/builder/preview-bridge";
+import { DRAFT_CHANNEL } from "@/lib/builder/preview-bridge";
+import { shouldRefreshDraft } from "@/lib/builder/draft-refresh";
 import { PreviewModeContext } from "@/components/site/preview-mode-context";
 import { stepLabel } from "@/lib/site-engine";
 import { PublicSiteView } from "@/routes/s.$slug";
@@ -171,10 +172,10 @@ function DraftHomeRouteContent() {
     if (typeof BroadcastChannel === "undefined" || window.parent !== window) return;
     const channel = new BroadcastChannel(DRAFT_CHANNEL);
     channel.onmessage = (event) => {
-      if (readDraftPing(event.data)) void router.invalidate().catch(() => undefined);
+      if (shouldRefreshDraft(event.data, result?.site?.org.id)) void router.invalidate().catch(() => undefined);
     };
     return () => channel.close();
-  }, [router]);
+  }, [router, result?.site?.org.id]);
 
   useEffect(() => {
     if (result?.status !== "pending") return;
