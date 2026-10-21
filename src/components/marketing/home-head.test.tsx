@@ -17,13 +17,9 @@ function schemas(): Schema[] {
 
 const byType = (type: string) => schemas().find((schema) => schema["@type"] === type);
 
-const decode = (html: string) =>
-  html
-    .replace(/&#x27;/g, "'")
-    .replace(/&quot;/g, '"')
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">");
+// One decoding pass, so "&amp;lt;" stays the text "&lt;".
+const ENTITIES: Record<string, string> = { "#x27": "'", quot: '"', amp: "&", lt: "<", gt: ">" };
+const decode = (html: string) => html.replace(/&(#x27|quot|amp|lt|gt);/g, (entity, name: string) => ENTITIES[name] ?? entity);
 
 describe("homepage structured data", () => {
   it("emits the FAQPage from exactly the FAQ the page renders", () => {

@@ -4,7 +4,7 @@ import { observe } from "@/lib/jarvis-prospecting.functions";
 const page = (body: string) =>
   vi.fn(async (input: string | URL | Request) => {
     const url = String(input);
-    if (url.includes("cloudflare-dns.com")) {
+    if (new URL(url).hostname === "cloudflare-dns.com") {
       return Response.json({ Answer: url.includes("type=AAAA") ? [] : [{ type: 1, data: "93.184.216.34" }] });
     }
     return new Response(`<html><head><title>Acme</title></head><body>${body}</body></html>`, {

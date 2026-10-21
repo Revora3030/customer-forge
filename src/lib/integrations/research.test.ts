@@ -15,7 +15,7 @@ describe("capability-routed research", () => {
       "fetch",
       vi.fn(async (input: string | URL | Request) => {
         const url = String(input);
-        if (url.includes("cloudflare-dns.com")) {
+        if (new URL(url).hostname === "cloudflare-dns.com") {
           const isIpv6 = url.includes("type=AAAA");
           return Response.json({ Answer: isIpv6 ? [] : [{ type: 1, data: "93.184.216.34" }] });
         }
@@ -42,7 +42,7 @@ describe("capability-routed research", () => {
       "fetch",
       vi.fn(async (input: string | URL | Request) => {
         const url = String(input);
-        if (url.includes("cloudflare-dns.com")) {
+        if (new URL(url).hostname === "cloudflare-dns.com") {
           return Response.json({ Answer: url.includes("type=AAAA") ? [] : [{ type: 1, data: "93.184.216.34" }] });
         }
         return new Response(
@@ -63,7 +63,7 @@ describe("capability-routed research", () => {
   it("reports honestly instead of inventing content when the page fails", async () => {
     vi.stubGlobal("fetch", vi.fn(async (input: string | URL | Request) => {
       const url = String(input);
-      if (url.includes("cloudflare-dns.com")) {
+      if (new URL(url).hostname === "cloudflare-dns.com") {
         return Response.json({ Answer: url.includes("type=AAAA") ? [] : [{ type: 1, data: "93.184.216.34" }] });
       }
       return new Response("no", { status: 500 });
