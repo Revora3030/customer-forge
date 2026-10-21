@@ -23,7 +23,7 @@ export function parseSpreadsheetId(input: unknown): string | null {
   if (typeof input !== "string") return null;
   const value = input.trim();
   const fromUrl = value.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]{20,})/);
-  if (fromUrl) return fromUrl[1];
+  if (fromUrl?.[1]) return fromUrl[1];
   return /^[a-zA-Z0-9_-]{20,100}$/.test(value) ? value : null;
 }
 
@@ -36,7 +36,7 @@ export function cleanDomain(input: unknown): string | null {
   return /^(?=.{3,253}$)([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/.test(value) ? value : null;
 }
 
-export function connectedServicePath(toolId: ConnectedToolId, args: { query?: string }): string | null {
+export function connectedServicePath(toolId: ConnectedToolId, args: { query?: string | undefined }): string | null {
   switch (toolId) {
     case "workspace.calendar.upcoming": {
       const now = new Date().toISOString();
