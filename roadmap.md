@@ -1,6 +1,7 @@
 # Roadmap — Five-phase blocker elimination
 
 ## Instagram posting through Jarvis (2026-10-21)
+- [ ] Check whether the owner's linked Instagram Reel Dca6lDKKTqx can be viewed; report access limits without guessing its content.
 - [ ] Custom Instagram authorization, encrypted owner-bound account credentials, disconnect/reconnect.
 - [ ] Exact-post review and individual approval, durable duplicate/uncertain-publish protection, Jarvis draft tools.
 - [ ] Offline security/approval/provider tests and signed-in UI verification; real authorization/posting waits on owner's Meta app credentials and individual post approval.
