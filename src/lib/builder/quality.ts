@@ -297,6 +297,8 @@ const VISUAL_CATEGORY: Record<
   distorted_image: "visual",
   overlapping_content: "visual",
   narrow_column: "visual",
+  large_blank_area: "visual",
+  missing_opening_visual: "visual",
 
   menu_unusable: "navigation",
 
