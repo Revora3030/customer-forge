@@ -548,6 +548,20 @@ export async function executeJarvisDiagnosticTool(
       });
     }
 
+    if (toolId === "website.lighthouse.audit") {
+      const { buildPageSpeedUrl, summarizePageSpeed } = await import("./jarvis-pagespeed");
+      const limitations = [
+        "One mobile Lighthouse lab run of the homepage via Google PageSpeed Insights; scores vary run to run.",
+        "Lab data is not real-visitor Core Web Vitals and does not cover other pages.",
+      ];
+      const res = await fetch(buildPageSpeedUrl(process.env["GOOGLE_PAGESPEED_API_KEY"]), { signal: AbortSignal.timeout(14000) });
+      if (!res.ok) {
+        return result(toolId, "unknown", { reason: res.status === 429 ? "free_quota_exhausted" : `pagespeed_http_${res.status}` }, { checkedAt, durationMs: Date.now() - started, limitations });
+      }
+      const summary = summarizePageSpeed(await res.json());
+      return result(toolId, summary ? "observed" : "unknown", summary ?? { reason: "unparseable_response" }, { checkedAt, durationMs: Date.now() - started, limitations });
+    }
+
     if (toolId === "growth.funnel.summary") {
       const since = new Date(Date.now() - 7 * 86_400_000).toISOString();
       const [accounts, trials, activeSubscriptionRecords, recentLeads] = await Promise.all([
