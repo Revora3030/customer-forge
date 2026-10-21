@@ -189,10 +189,17 @@ describe("worker queue behavior", () => {
   it("a retry that kept owner-edited partial pages fails for good instead of retrying", async () => {
     vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const row = queued("kept");
-    const { db } = database([row]);
+    const { db, tables } = database([row]);
     await drainSiteEngineQueue(db, { max: 1 }, async () => { throw new PartialBuildKeptError("pages were edited, so they were kept"); });
     expect(row["status"]).toBe("failed");
     expect(row["error_message"]).toBe("pages were edited, so they were kept");
+    // The kept-for-good path must still record when the attempt stopped
+    // writing, or every later retry hits the same unbounded cleanup and the
+    // job is stuck "kept" forever.
+    const ended = (tables["ai_generations"] ?? []).filter((r) => r["kind"] === "build_attempt_ended");
+    expect(ended).toEqual([
+      expect.objectContaining({ job_id: "kept", organization_id: "tenant-a", result: { attempt: 1, outcome: "kept" } }),
+    ]);
   });
 
   it("a fresh claim of a queued job records no lost attempt", async () => {
