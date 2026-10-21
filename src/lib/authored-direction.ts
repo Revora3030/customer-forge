@@ -40,6 +40,8 @@ export type DesignDirection = {
    */
   sectionEffects: Record<string, SectionEffectId>;
   defaultEffect: SectionEffectId;
+  /** AI-authored site-wide component treatments (questions, cards, buttons). */
+  tokens?: import("@/lib/builder/design-tokens").DesignTokens;
 };
 
 /** The AI's effect for one section type. No type is grouped with another. */
@@ -55,6 +57,8 @@ export function effectForKind(direction: DesignDirection, kind: string): Section
 export function readSectionEffects(r: Record<string, unknown>): {
   sectionEffects: Record<string, SectionEffectId>;
   defaultEffect: SectionEffectId;
+  /** AI-authored site-wide component treatments (questions, cards, buttons). */
+  tokens?: import("@/lib/builder/design-tokens").DesignTokens;
 } {
   const sectionEffects: Record<string, SectionEffectId> = {};
   const raw = r["sectionEffects"];

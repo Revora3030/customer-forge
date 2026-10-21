@@ -207,13 +207,16 @@ export async function authorBrandIdentity(
     heading = siteHeadingFont(str(data?.["headingFont"], 42));
     body = siteHeadingFont(str(data?.["bodyFont"], 42));
     const generic = primary && secondary ? paletteProblems({ primary, secondary, accent }) : [];
-    if (data && primary && secondary && heading && generic.length === 0) break;
+    tokens = safeDesignTokens(data?.["components"] ?? null);
+    const missingParts = missingComponentTokens(tokens);
+    if (data && primary && secondary && heading && generic.length === 0 && missingParts.length === 0) break;
     repairContext = [
       ...generic,
       !data ? "response was not a JSON object" : null,
       !primary ? "primary colour was missing or invalid" : null,
       !secondary ? "secondary colour was missing or invalid" : null,
       !heading ? "heading font was missing or invalid" : null,
+      missingParts.length ? `components.${missingParts.join(", components.")} must be one of the listed styles` : null,
     ].filter(Boolean).join(", ");
   }
 
@@ -244,6 +247,7 @@ export async function authorBrandIdentity(
       backdrop,
       backdropSpec: safeBackdropSpec(data["backdropSpec"]),
       ...readSectionEffects(data),
+      ...(tokens ? { tokens } : {}),
     },
     model: outcome.model ?? null,
     lane: outcome.lane,
