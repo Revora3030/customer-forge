@@ -8,6 +8,7 @@ import { fetchAllRows } from "@/lib/paginate";
 import { readWebsiteState, restoreWebsiteVersion } from "@/lib/site-restore.functions";
 import { insertVersionSnapshot, versionContent } from "@/lib/version-snapshot";
 import { jobLiveness, type JobLiveness } from "@/lib/builder/job-liveness";
+import { refreshGeneratedResult } from "@/lib/builder/generated-result-cache";
 import {
   aiEditSiteCopy,
   extractScreenshotReference,
@@ -101,9 +102,7 @@ export function useLatestGenerationJob(organizationId: string | undefined) {
   const queryClient = useQueryClient();
   useEffect(() => {
     if (status !== "completed") return;
-    void queryClient.invalidateQueries({ queryKey: ["website_settings"] });
-    void queryClient.invalidateQueries({ queryKey: ["website_versions"] });
-    void queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    void refreshGeneratedResult(queryClient);
   }, [status, queryClient]);
 
   return query;
@@ -167,9 +166,9 @@ export function useGenerateSectionsFromText(organizationId: string | undefined) 
   const run = useServerFn(runSiteGeneration);
 
   return useMutation({
-    mutationFn: async (vars?: { requestId?: string }) => {
+    mutationFn: async (vars?: { requestId?: string; instruction?: string }) => {
       if (!organizationId) throw new Error("Choose a workspace before generating your website.");
-      const analysis = await analyze({ data: { organizationId } });
+      const analysis = await analyze({ data: { organizationId, ...(vars?.instruction ? { instruction: vars.instruction } : {}) } });
       await save({
         data: { organizationId, brief: analysis.brief, approved: true },
       });

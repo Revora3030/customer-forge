@@ -1260,6 +1260,7 @@ async function runJob(
     // The platform's seeded default typeface is not an owner request; the AI
     // chooses the pairing unless the owner really picked a font.
     requestedFont: isPlatformDefaultFont(p["font_preference"]) ? null : ((p["font_preference"] as string) ?? null),
+    ownerInstruction: brief.factAnswers["build_request"] ?? null,
   };
   type BrandIdentity = Awaited<ReturnType<typeof authorBrandIdentity>>;
   const resumedIdentity = await stageStore.get<BrandIdentity>("identity", identityInputs);

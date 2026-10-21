@@ -106,4 +106,13 @@ describe("post-change website check", () => {
 
     expect(report?.critical ?? 0).toBeGreaterThan(0);
   });
+  it("reports an unavailable private draft as incomplete, not successfully verified", async () => {
+    vi.stubGlobal("fetch", async () => new Response("not found", { status: 503 }));
+    const { verifyWorkspaceSite } = await import("@/lib/agent/verify.server");
+    const report = await verifyWorkspaceSite(client("draft"), "11111111-1111-4111-8111-111111111111");
+    expect(report?.status).toBe("incomplete");
+    expect(report?.notChecked).toBe(1);
+    expect(report?.critical).toBe(0);
+    expect(revoked).toContain("link-1");
+  });
 });

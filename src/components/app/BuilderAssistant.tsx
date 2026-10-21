@@ -76,6 +76,7 @@ import { SectionHistoryButton } from "@/components/app/SectionHistoryButton";
 import { INSTRUCTION_LIMIT, type BuilderRequests } from "@/lib/builder-requests.hooks";
 import type { AgentAttachment } from "@/lib/site-agent";
 import { cn } from "@/lib/utils";
+import { WebsiteBriefDialog } from "@/components/app/WebsiteBriefDialog";
 
 /** How many suggestion chips sit above the composer before "More". */
 const CHIP_LIMIT = 3;
@@ -167,7 +168,10 @@ export function BuilderAssistant({
     enabled: Boolean(organizationId) && !requests.busy,
     staleTime: 10 * 60_000,
     retry: false,
-    queryFn: () => fetchSuggestions({ data: { organizationId: organizationId! } }),
+    queryFn: () => {
+      if (!organizationId) throw new Error("Choose a workspace first.");
+      return fetchSuggestions({ data: { organizationId } });
+    },
   });
   const SUGGESTIONS = suggestionsQuery.data?.suggestions ?? [];
   // Suggestions come from the free AI team and can be slow; after a short
@@ -668,6 +672,7 @@ export function BuilderAssistant({
             />
             <PromptInputFooter className="items-center justify-between gap-2 px-2 pb-2">
               <PromptInputTools className="gap-0.5">
+                <WebsiteBriefDialog businessName={businessName} disabled={composerLocked} onUse={setValue} />
                 <PromptInputButton
                   className={cn(
                     "size-9 rounded-full p-0 text-muted-foreground hover:text-foreground",
