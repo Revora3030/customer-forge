@@ -136,7 +136,7 @@ function Landing() {
               <Pill tone="signal">
                 <Sparkles className="size-3.5" aria-hidden="true" /> Revora Growth Systems™
               </Pill>
-              <p className="mt-5 text-[11px] font-semibold tracking-[0.32em] text-champagne/80">
+              <p className="mt-5 text-[10px] font-semibold tracking-[0.18em] text-champagne/80 sm:text-[11px] sm:tracking-[0.32em]">
                 BUILD · ATTRACT · AUTOMATE · CONVERT · GROW
               </p>
               <h1 className="mt-3 font-editorial text-[38px] leading-[1.02] sm:text-[60px] text-balance">
