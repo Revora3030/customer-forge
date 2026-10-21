@@ -102,7 +102,7 @@ export const JARVIS_DIAGNOSTIC_TOOLS = [
     id: "growth.funnel.summary",
     title: "Privacy-preserving funnel summary",
     category: "growth",
-    description: "Return the admin Analytics funnel (unique visitors, sessions, page views, accounts, trials, active trials, paid customers and conversion rates) for 7 and 30 days, plus lead counts; aggregate only, never prospect or customer rows.",
+    description: "Return the admin Analytics funnel (unique visitors, sessions, page views, accounts, trials, active trials, paid customers and conversion rates) for 7 and 30 days, plus lead counts and how many builds are waiting on AI capacity with the soonest retry time; aggregate only, never prospect or customer rows.",
     evidence: "Counts are available only where the database query succeeds; an unavailable count is unknown, not zero.",
     implementation: "implemented",
     access: "read",
