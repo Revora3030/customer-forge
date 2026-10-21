@@ -62,3 +62,33 @@ describe("free team failure fixes", () => {
     expect(result.text).toBe('{"a":1}');
   });
 });
+
+describe("account notices, blocked free tiers and failure samples", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("treats a spent-key notice sent as a normal answer as out of quota", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
+      choices: [{ message: { content: "The API key used for this request has reached its budget. Please raise the key budget." }, finish_reason: "stop" }],
+    }), { status: 200 })));
+    const adapter = createOpenAiCompatibleAdapter({ name: "pollinations", baseUrl: () => "https://x.example/v1" });
+    await expect(adapter.chat({ apiKey: "k", model: "m", messages: [{ role: "user", content: "hi" }] } as never))
+      .rejects.toMatchObject({ category: "quota" });
+  });
+
+  it("rests OpenCode when its free tier refuses app requests", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
+      type: "error", error: { type: "FreeTierError", message: "OpenCode's free tier can only be used from within OpenCode." },
+    }), { status: 403 })));
+    const adapter = createOpenAiCompatibleAdapter({ name: "opencode", baseUrl: () => "https://x.example/v1" });
+    await expect(adapter.chat({ apiKey: "k", model: "m-free", messages: [{ role: "user", content: "hi" }] } as never))
+      .rejects.toMatchObject({ category: "unauthorized" });
+  });
+
+  it("strips links and key-like strings from saved failure samples", async () => {
+    const { scrubErrorDetail } = await import("./telemetry.server");
+    const out = scrubErrorDetail("Budget hit https://enter.example/edit-key?id=abc key sk-ABCDEFGH12345678 done") ?? "";
+    expect(out).not.toContain("https://");
+    expect(out).not.toContain("sk-ABCDEFGH12345678");
+    expect(scrubErrorDetail("x".repeat(500))?.length).toBeLessThanOrEqual(240);
+  });
+});
