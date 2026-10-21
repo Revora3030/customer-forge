@@ -1,3 +1,4 @@
+import { conversationTitle, parseConversationId } from "./jarvis-conversations";
 import { createServerFn } from "@tanstack/react-start";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -40,8 +41,6 @@ export function parseHistoryCursor(input: { before?: unknown } | undefined): { b
   }
   return { before };
 }
-
-import { conversationTitle, parseConversationId } from "./jarvis-conversations";
 
 export const getJarvisHistory = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
