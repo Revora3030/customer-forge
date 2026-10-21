@@ -149,7 +149,7 @@ function LocationPage() {
           <p className="text-[13px] font-semibold uppercase tracking-wide text-primary">
             {location.county}, North Carolina
           </p>
-          <h1 className="mt-3 max-w-3xl font-display text-[clamp(1.7rem,4vw,2.6rem)] leading-tight font-semibold">
+          <h1 className="mt-3 max-w-3xl font-editorial text-balance text-[clamp(1.7rem,4vw,2.6rem)] leading-tight">
             The growth system for <span className="gold-hl">{location.city}</span> business owners
           </h1>
           <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-muted-foreground">

@@ -120,7 +120,7 @@ function Pricing() {
       <SiteHeader />
       <main className="hero-aura mx-auto max-w-5xl px-4 py-16">
         <p className="eyebrow">Pricing</p>
-        <h1 className="mt-2 font-display text-[clamp(2rem,4vw,2.8rem)] leading-tight font-semibold">
+        <h1 className="mt-2 font-editorial text-balance text-[clamp(2rem,4vw,2.8rem)] leading-tight">
           {GROWTH_SYSTEM.headline}
         </h1>
         <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-muted-foreground">

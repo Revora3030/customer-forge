@@ -65,7 +65,7 @@ function LocationsIndex() {
       <SiteHeader />
       <main>
         <section className="mx-auto max-w-6xl px-4 pt-14 pb-10 sm:px-6 sm:pt-20">
-          <h1 className="max-w-3xl font-display text-[clamp(1.7rem,4vw,2.6rem)] leading-tight font-semibold">
+          <h1 className="max-w-3xl font-editorial text-balance text-[clamp(1.7rem,4vw,2.6rem)] leading-tight">
             Built for <span className="gold-hl">North Carolina</span> business owners
           </h1>
           <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-muted-foreground">

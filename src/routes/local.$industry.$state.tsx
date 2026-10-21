@@ -127,7 +127,7 @@ function LocalIndustryStatePage() {
             <span aria-hidden> / </span>
             <span className="text-foreground">{state.name}</span>
           </nav>
-          <h1 className="mt-4 font-display text-[clamp(1.7rem,4vw,2.6rem)] leading-tight font-semibold">
+          <h1 className="mt-4 font-editorial text-balance text-[clamp(1.7rem,4vw,2.6rem)] leading-tight">
             {industry.name} lead generation in{" "}
             <span className="gold-hl">{state.metros.slice(0, 3).join(", ")}</span> and across {state.name}
           </h1>

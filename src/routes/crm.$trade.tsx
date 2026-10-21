@@ -95,7 +95,7 @@ function CrmSolutionPage() {
           <span className="text-foreground">{solution.label}</span>
         </nav>
 
-        <h1 className="mt-4 font-display text-[clamp(1.6rem,4vw,2.3rem)] leading-tight font-semibold">
+        <h1 className="mt-4 font-editorial text-balance text-[clamp(1.6rem,4vw,2.3rem)] leading-tight">
           {solution.heading}
         </h1>
         <p className="mt-5 text-[15px] leading-relaxed text-muted-foreground">{solution.intro}</p>

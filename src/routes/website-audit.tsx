@@ -48,7 +48,7 @@ function WebsiteAuditPage() {
         <section className="hero-aura border-b border-border">
           <div className="mx-auto max-w-6xl px-4 py-12 lg:py-16">
             <Pill tone="signal">Free website audit</Pill>
-            <h1 className="mt-5 max-w-3xl font-display text-[clamp(1.9rem,4.4vw,3rem)] leading-[1.06] font-semibold tracking-tight">
+            <h1 className="mt-5 max-w-3xl font-editorial text-balance text-[clamp(1.9rem,4.4vw,3rem)] leading-[1.06]">
               Your website looks fine. Is it{" "}
               <span className="gold-text">actually booking work</span>?
             </h1>
