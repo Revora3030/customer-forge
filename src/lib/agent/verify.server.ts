@@ -277,7 +277,7 @@ export async function verifyWorkspaceSite(
     // reverse an owner's work just because the site is not live yet: a draft
     // window that cannot be opened is reported as "not checked", never failed.
     const window = await openDraftWindow(organizationId);
-    if (!window) return null;
+    if (!window) return summarise([...checks, { label: "The draft website could be checked", ok: false, severity: "warning", notChecked: true, where: "Draft", detail: "A private preview could not be opened." }]);
     try {
       const { status, html } = await load(`${base}/p/${window.token}`, 10000);
       if (status !== 200 || !html) {
@@ -286,6 +286,7 @@ export async function verifyWorkspaceSite(
           ok: false,
           severity: "warning",
           where: String(home?.["title"] ?? "Home"),
+          notChecked: true,
           detail: status ? `the draft answered ${status}` : "the draft did not answer",
         });
       } else {
