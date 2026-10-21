@@ -130,7 +130,7 @@ function Pricing() {
           <TrialBadge />
         </div>
 
-        <section className="panel card-lift mt-10 overflow-hidden p-0">
+        <section className="panel hairline-gold card-lift mt-10 overflow-hidden p-0">
           <div className={`grid gap-0 ${split ? "md:grid-cols-[1.1fr_1fr]" : ""}`}>
             <div
               className={`min-w-0 border-b border-border p-6 sm:p-7 ${
