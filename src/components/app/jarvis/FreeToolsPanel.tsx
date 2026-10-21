@@ -35,6 +35,9 @@ const services = [
   { id: "image.huggingface", label: "Hugging Face AI images", key: "HUGGINGFACE_API_KEY", link: "https://huggingface.co/settings/tokens" },
   { id: "image.pollinations", label: "Pollinations AI images", key: "POLLINATIONS_API_KEY", link: "https://auth.pollinations.ai/" },
 ] as const;
+const serverTools = [
+  ["Ollama", "https://ollama.com"], ["vLLM", "https://github.com/vllm-project/vllm"], ["ComfyUI", "https://github.com/comfyanonymous/ComfyUI"], ["Whisper", "https://github.com/openai/whisper"], ["Piper voices", "https://github.com/rhasspy/piper"], ["Real-ESRGAN", "https://github.com/xinntao/Real-ESRGAN"], ["rembg", "https://github.com/danielgatis/rembg"], ["Wan video", "https://github.com/Wan-Video/Wan2.1"], ["SearXNG", "https://github.com/searxng/searxng"], ["Crawl4AI", "https://github.com/unclecode/crawl4ai"], ["Semgrep", "https://github.com/semgrep/semgrep"], ["Trivy", "https://github.com/aquasecurity/trivy"], ["Gitleaks", "https://github.com/gitleaks/gitleaks"], ["OWASP ZAP", "https://www.zaproxy.org"], ["Qdrant", "https://github.com/qdrant/qdrant"], ["Mem0", "https://github.com/mem0ai/mem0"], ["Twenty CRM", "https://github.com/twentyhq/twenty"],
+] as const;
 type Result = Awaited<ReturnType<typeof runJarvisDiagnosticTool>>;
 
 export function FreeToolsPanel() {
