@@ -268,7 +268,7 @@ export function evaluateDeviceMatrix(
           ? "The first page opens with a designed visual."
           : "The first page opens without a main picture or designed visual.",
       evidence: known ? "composition" : "none",
-      pageId: site.pages[0]?.id,
+      ...(site.pages[0]?.id ? { pageId: site.pages[0].id } : {}),
       sectionId: lead.id,
     });
   }

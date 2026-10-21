@@ -179,6 +179,7 @@ export async function authorBrandIdentity(
   let heading: string | null = null;
   let body: string | null = null;
   let repairContext = "";
+  let tokens: DesignTokens | null = null;
 
   // A valid but incomplete model response is repairable AI output, not provider
   // failure. Give the team one explicit correction pass before stopping. This
