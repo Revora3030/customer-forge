@@ -80,6 +80,7 @@ export const saveGrowthBusiness = createServerFn({ method: "POST" }).middleware(
   return { ok: true };
 });
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function business(db: { from: (t: string) => any }) {
   const { data } = await db.from("growth_businesses").select("*").order("created_at").limit(1).maybeSingle();
   if (!data) throw new Error("Add your business details first (Home tab).");
