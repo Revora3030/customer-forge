@@ -226,10 +226,6 @@ export function extractFacts(html: string, pageUrl: string): ImportedFacts & { l
     }
   }
 
-  // No logo in the page markup: try Logo.dev for this same (owner-given) domain.
-  // Still goes through the owner's import review before anything is applied.
-  if (!facts.logoUrl) facts.logoUrl = ownDomainLogoUrl(pageUrl);
-
   // Plain text: a phone number in the copy when there's no tel: link.
   // htmlToText already skips script, style, noscript, template and svg bodies.
   const body = clean(html, 200_000);
