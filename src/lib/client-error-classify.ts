@@ -114,6 +114,8 @@ export function classifyClientError(error: unknown, described = describeClientEr
   if (RECOVERABLE_REACT.some((pattern) => pattern.test(message))) return "warn";
   // Old code after a deploy: recovered by a reload, not an application fault.
   if (isStaleDeployError(message)) return "warn";
+  // Visitor's connection dropped mid-request (Safari/Chrome/Firefox wording).
+  if (isNetworkDropError(message)) return "warn";
   return "report";
 }
 
@@ -133,6 +135,11 @@ const STALE_DEPLOY = [
  */
 export function isStaleDeployError(message: string): boolean {
   return STALE_DEPLOY.some((pattern) => pattern.test(message));
+}
+
+/** Bare browser network-failure messages: the request never reached us. */
+export function isNetworkDropError(message: string): boolean {
+  return /^(load failed|failed to fetch|networkerror when attempting to fetch resource\.?|network request failed)$/i.test(message.trim());
 }
 
 /**
