@@ -734,29 +734,18 @@ export async function executeJarvisDiagnosticTool(
     }
 
     if (toolId === "images.stock.search") {
-      const { cleanPhotoQuery, unsplashSearchUrl, pexelsSearchUrl, normalizeUnsplash, normalizePexels } = await import("./jarvis-stock-photos");
-      const limitations = ["Search results only; check each photo fits the business and keep the photographer credit."];
+      const { cleanPhotoQuery, searchJarvisStockPhotos } = await import("./jarvis-stock-photos");
+      const limitations = [
+        "Search results only; Jarvis never saves or places photos. The owner saves a photo through the photo library.",
+        "Licences come from each library's own metadata; photos with an unknown, non-commercial or no-derivatives licence are excluded.",
+        "Show each photo's credit line wherever its licence requires it.",
+      ];
       const q = cleanPhotoQuery(args.query);
       if (!q) return result(toolId, "unknown", { reason: "missing_query" }, { checkedAt, durationMs: Date.now() - started, limitations });
-      const unsplashKey = process.env["UNSPLASH_ACCESS_KEY"];
-      const pexelsKey = process.env["PEXELS_API_KEY"];
-      if (!unsplashKey && !pexelsKey) return result(toolId, "unknown", { reason: "needs_key", secret: "UNSPLASH_ACCESS_KEY or PEXELS_API_KEY" }, { checkedAt, durationMs: Date.now() - started, limitations });
-      const sources: Record<string, string> = {};
-      const run = async (name: string, url: string, headers: Record<string, string>, norm: (raw: unknown) => unknown[]) => {
-        try {
-          const res = await fetch(url, { headers, signal: AbortSignal.timeout(8000) });
-          if (!res.ok) { sources[name] = res.status === 429 ? "free_quota_exhausted" : `http_${res.status}`; return []; }
-          const photos = norm(await res.json());
-          sources[name] = "ok";
-          return photos;
-        } catch { sources[name] = "unreachable"; return []; }
-      };
-      const [u, p] = await Promise.all([
-        unsplashKey ? run("unsplash", unsplashSearchUrl(q), { Authorization: `Client-ID ${unsplashKey}`, "Accept-Version": "v1" }, normalizeUnsplash) : (sources["unsplash"] = "needs_key", Promise.resolve([])),
-        pexelsKey ? run("pexels", pexelsSearchUrl(q), { Authorization: pexelsKey }, normalizePexels) : (sources["pexels"] = "needs_key", Promise.resolve([])),
-      ]);
-      const photos = [...u, ...p];
-      return result(toolId, photos.length ? "observed" : "unknown", { query: q, sources, photos }, { checkedAt, durationMs: Date.now() - started, limitations });
+      const outcome = await searchJarvisStockPhotos(q);
+      const data = { query: q, sources: outcome.sources, photos: outcome.photos, ...(outcome.omittedForSize ? { omittedForSize: outcome.omittedForSize } : {}) };
+      if (!outcome.anySourceAnswered) return result(toolId, "unknown", { reason: "all_sources_failed", ...data }, { checkedAt, durationMs: Date.now() - started, limitations });
+      return result(toolId, "observed", data, { checkedAt, durationMs: Date.now() - started, limitations });
     }
 
     if (toolId === "docs.lookup") {

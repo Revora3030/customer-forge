@@ -79,10 +79,9 @@ const TOOL_RULES: Record<JarvisDiagnosticToolId, Rule> = {
   "website.lighthouse.audit": sharedQuota("GOOGLE_PAGESPEED_API_KEY"),
   "website.browser.check": needs("BROWSERLESS_API_KEY"),
   "website.page.audit": needs("BROWSERBASE_API_KEY"),
-  "images.stock.search": (env) =>
-    has(env, "UNSPLASH_ACCESS_KEY") || has(env, "PEXELS_API_KEY")
-      ? { state: "key_present", secretName: "UNSPLASH_ACCESS_KEY or PEXELS_API_KEY" }
-      : { state: "needs_key", secretName: "UNSPLASH_ACCESS_KEY or PEXELS_API_KEY" },
+  // Openverse and Wikimedia need no key; Unsplash/Pexels keys only add sources
+  // (their own readiness is reported under stock.unsplash and stock.pexels).
+  "images.stock.search": keyless,
   "docs.lookup": needs("CONTEXT7_API_KEY"),
   "jarvis.capabilities.scorecard": keyless,
   "observability.export.status": keyless,
