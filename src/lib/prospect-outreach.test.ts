@@ -512,6 +512,6 @@ describe("fallbackDemoEmail", () => {
     expect(e.body).not.toContain("couldn't find a website");
   });
   it("no-site email says no website was found", () => {
-    expect(fallbackDemoEmail({ name: "Acme", siteGaps: [] }, "u").body).toContain("couldn't find a website");
+    expect(fallbackDemoEmail({ name: "Acme", siteGaps: [] }, "u").body).toContain("didn't see a website listed");
   });
 });
