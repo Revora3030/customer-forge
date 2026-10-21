@@ -1,5 +1,12 @@
 # Roadmap — Five-phase blocker elimination
 
+## Gap audit + Jarvis conversations (2026-10-21)
+- [x] Evidence matrix and prioritized backlog in docs/GAP_AUDIT_2026-10-21.md.
+- [x] Jarvis conversations: create/list/search/rename/archive, owner-only, foreign ids rejected.
+- [ ] Setup price $350 vs $750 — blocked on owner confirmation.
+- [ ] Meta/Instagram connection — blocked on META_APP_ID/META_APP_SECRET and Meta app review.
+- [ ] Backlog items 2–10 in the audit file.
+
 ## No-key Jarvis website tools (2026-10-21)
 - [x] Added four bounded direct HTML, accessibility/structured-data, security-header and link-inventory diagnostics through the existing authenticated executor, chat catalogue and page-check panel; no keys or paid providers required.
 - [x] 50 focused tests pass, changed-file lint clean, harness build OK. Real published homepage read (84,491 bytes, HTTP 200): metadata, links and security-header presence checks clean; static accessibility flags one unlabeled control and one heading skip. No repairs, publishing or outreach performed.
