@@ -4,6 +4,7 @@ import { Check, Copy, ExternalLink } from "lucide-react";
 import { toast } from "@/lib/ui/notify";
 
 import { Panel, Pill, SectionHeading } from "@/components/app/Bits";
+import { ProspectPipelinePanel } from "@/components/app/jarvis/ProspectPipelinePanel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -80,6 +81,8 @@ function AdminOutreach() {
         title="Outreach console"
         description="Every free channel, with tracked links and honest rules. Paid ads, bulk SMS and broadcast placement are bought outside Revora — the assets are ready here."
       />
+
+      <div className="mb-4"><ProspectPipelinePanel /></div>
 
       <Panel>
         <div className="grid gap-4 sm:grid-cols-2">

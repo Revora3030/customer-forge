@@ -21,7 +21,8 @@ export function ProspectPipelinePanel() {
   const fn = useServerFn(getProspectPipeline);
   const q = useQuery({ queryKey: ["admin", "prospect-pipeline"], queryFn: () => fn(), staleTime: 60000 });
   return (
-    <Panel title="Lead pipeline">
+    <Panel aria-labelledby="pipeline-heading">
+      <h2 id="pipeline-heading" className="mb-1 text-base font-semibold">Lead pipeline</h2>
       <p className="mb-3 text-xs text-muted-foreground">Counted from saved records. A sent email isn't proof it was read, and a demo isn't a customer until it's claimed and paid.</p>
       {q.isError ? (
         <p role="alert" className="text-sm text-destructive">Couldn't load the pipeline. Try again shortly.</p>
