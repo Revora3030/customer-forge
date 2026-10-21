@@ -70,6 +70,10 @@ describe("no third-party AI gateway remains", () => {
       "integrations/google.server",
       "integrations/capabilities.ts",
       "integrations/live-credentials",
+      // Jarvis read-only checks of Calendar, Sheets, Cloudflare and Resend go
+      // through the connector gateway; presence checks and data reads, no model.
+      "jarvis.functions.ts",
+      "jarvis-diagnostic-tools.server.ts",
       // The Astra backup chat lane reads the gateway credential to keep the
       // builder chat alive when the direct OpenAI route is down.
       "ai/gateway-chat.server.ts",
