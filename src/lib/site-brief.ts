@@ -103,7 +103,7 @@ function readAnswers(value: unknown): Record<string, string> {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
   const out: Record<string, string> = {};
   for (const [key, v] of Object.entries(value as Record<string, unknown>).slice(0, 20)) {
-    if (typeof v === "string" && v.trim()) out[key.slice(0, 60)] = v.trim().slice(0, 600);
+    if (typeof v === "string" && v.trim()) out[key.slice(0, 60)] = v.trim().slice(0, key === "build_request" ? 1200 : 600);
   }
   return out;
 }

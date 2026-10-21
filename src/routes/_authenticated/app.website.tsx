@@ -686,7 +686,7 @@ function WebsitePage() {
                 try {
                   // The job records this chat request id and the worker writes
                   // its stages under it; jobs without one fall back to the job id.
-                  const started = await firstBuild.mutateAsync({ requestId: task.id });
+                  const started = await firstBuild.mutateAsync({ requestId: task.id, instruction: text });
                   setTrackedBuild({ taskId: task.id, jobId: started?.jobId ?? null });
                   if (!started?.jobId) requests.settleBuild(task.id, { ok: true, message: "Your build is queued. I'll keep working on it in the background." });
                 } catch (error) {

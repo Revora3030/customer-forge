@@ -167,9 +167,9 @@ export function useGenerateSectionsFromText(organizationId: string | undefined) 
   const run = useServerFn(runSiteGeneration);
 
   return useMutation({
-    mutationFn: async (vars?: { requestId?: string }) => {
+    mutationFn: async (vars?: { requestId?: string; instruction?: string }) => {
       if (!organizationId) throw new Error("Choose a workspace before generating your website.");
-      const analysis = await analyze({ data: { organizationId } });
+      const analysis = await analyze({ data: { organizationId, instruction: vars?.instruction } });
       await save({
         data: { organizationId, brief: analysis.brief, approved: true },
       });
