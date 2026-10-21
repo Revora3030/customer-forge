@@ -14,7 +14,7 @@
 
 import { INDUSTRIES, industrySlug } from "@/lib/domain";
 import { US_STATES, findState, type UsState } from "@/lib/us-states";
-import { GROWTH_SYSTEM, usdExact } from "@/lib/offer";
+import { GROWTH_SYSTEM, usd } from "@/lib/offer";
 
 export interface LocalIndustry {
   slug: string;
@@ -179,8 +179,8 @@ export interface LocalPageContent {
   path: string;
 }
 
-const SETUP = usdExact(GROWTH_SYSTEM.setupPrice);
-const MONTHLY = usdExact(GROWTH_SYSTEM.monthlyPrice);
+const SETUP = usd(GROWTH_SYSTEM.setupPrice);
+const MONTHLY = usd(GROWTH_SYSTEM.monthlyPrice);
 
 /** Builds the grounded copy for one industry × state page. */
 export function localPageContent(
