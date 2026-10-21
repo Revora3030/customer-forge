@@ -14,7 +14,7 @@
 
 import { INDUSTRIES, industrySlug } from "@/lib/domain";
 import { US_STATES, findState, type UsState } from "@/lib/us-states";
-import { GROWTH_SYSTEM, usdExact } from "@/lib/offer";
+import { GROWTH_SYSTEM, usd } from "@/lib/offer";
 
 export interface LocalIndustry {
   slug: string;
@@ -179,8 +179,8 @@ export interface LocalPageContent {
   path: string;
 }
 
-const SETUP = usdExact(GROWTH_SYSTEM.setupPrice);
-const MONTHLY = usdExact(GROWTH_SYSTEM.monthlyPrice);
+const SETUP = usd(GROWTH_SYSTEM.setupPrice);
+const MONTHLY = usd(GROWTH_SYSTEM.monthlyPrice);
 
 /** Builds the grounded copy for one industry × state page. */
 export function localPageContent(
@@ -195,16 +195,16 @@ export function localPageContent(
   const metroList = metros.join(", ");
   const topMetros = metros.slice(0, 3).join(", ");
   const path = localPath(industry.slug, state.slug);
-  const lowerName = industry.name.toLowerCase();
+  const lowerName = industry.name === industry.name.toUpperCase() ? industry.name : industry.name.toLowerCase();
 
   return {
     industry,
     state,
     path,
-    title: `${industry.name} Lead Generation in ${state.name} | Revora`,
-    description: `Get more ${lowerName} jobs in ${topMetros}: website, instant quotes, booking and follow-up in one system. ${SETUP} setup, first month free.`,
-    heading: `${industry.name} growth system for ${state.name}`,
-    intro: `If you run a ${lowerName} business in ${state.name}, your next customer is already searching. Revora gives you the whole system that turns that search into a booked job — a fast local website, instant quotes, online booking, a CRM that holds every lead, and follow-up that runs while you work.`,
+    title: `${industry.name} Lead Generation ${state.name}: ${metros.slice(0, 2).join(", ")} & More`,
+    description: `${industry.name} lead generation for ${topMetros} and all of ${state.name}: website, instant quotes, booking and follow-up. ${SETUP} setup, first month free, then ${MONTHLY}/mo.`,
+    heading: `${industry.name} lead generation in ${topMetros} and across ${state.name}`,
+    intro: `If you run a ${lowerName} business in ${topMetros} or anywhere in ${state.name}, your next customer is already searching. Revora gives you the whole system that turns that search into a booked job — a fast local website, instant quotes, online booking, a CRM that holds every lead, and follow-up that runs while you work. ${SETUP} one-time setup, your first month free, then ${MONTHLY}/month, with 3 days of full access to try it first.`,
     metroLine: `Serving ${metroList} and every community across ${state.name} (${state.code}) — Revora works remotely, so there is no travel or install day.`,
     sections: [
       {
