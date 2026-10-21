@@ -60,3 +60,24 @@ export function claimErrorMessage(error: { message?: string } | null | undefined
     return "Please sign in again, then claim your website.";
   return "We couldn't claim this website right now. Please try again.";
 }
+
+const FREE_MAIL = new Set(["gmail.com", "googlemail.com", "yahoo.com", "outlook.com", "hotmail.com", "live.com", "icloud.com", "me.com", "aol.com", "proton.me", "protonmail.com", "msn.com", "gmx.com", "mail.com", "yandex.com", "zoho.com"]);
+
+export type ClaimOwnership = { allowed: true; verified: boolean; method: "email_match" | "domain_match" | "no_contact_on_file" } | { allowed: false; hint: string };
+
+/**
+ * Who may claim a prospect demo. Holding the preview link is not enough when
+ * the business's public email is on file: the claimant's account email must be
+ * that address or share its own (non-free-mail) business domain, so a
+ * forwarded link can't hand the business's site to a stranger.
+ */
+export function claimOwnership(businessEmail: string | null | undefined, claimantEmail: string | null | undefined): ClaimOwnership {
+  const biz = (businessEmail ?? "").trim().toLowerCase();
+  const me = (claimantEmail ?? "").trim().toLowerCase();
+  if (!biz.includes("@")) return { allowed: true, verified: false, method: "no_contact_on_file" };
+  if (me && me === biz) return { allowed: true, verified: true, method: "email_match" };
+  const domain = biz.split("@")[1]!;
+  if (me && !FREE_MAIL.has(domain) && me.split("@")[1] === domain) return { allowed: true, verified: true, method: "domain_match" };
+  const [user] = biz.split("@");
+  return { allowed: false, hint: `${user!.slice(0, 1)}***@${domain}` };
+}

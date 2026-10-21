@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { GROWTH_SYSTEM } from "@/lib/offer";
 import { readProspectDemoMarker } from "@/lib/jarvis-demo-site";
-import { claimErrorMessage, isClaimToken, NOT_CLAIMABLE, type ProspectClaimInfo } from "@/lib/prospect-claim";
+import { claimErrorMessage, claimOwnership, isClaimToken, NOT_CLAIMABLE, type ProspectClaimInfo } from "@/lib/prospect-claim";
 
 const parseToken = (input: { token?: unknown } | undefined) => {
   const token = input?.token;
@@ -95,6 +95,18 @@ export const claimProspectDemo = createServerFn({ method: "POST" })
   .validator(parseToken)
   .handler(async ({ context, data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    // Ownership check: when the business's public email is on file, the
+    // account must use it (or its business domain), not just hold the link.
+    const { data: link } = await supabaseAdmin.from("website_preview_links").select("organization_id").eq("token", data.token).maybeSingle();
+    const orgId = (link?.organization_id as string | undefined) ?? null;
+    const { data: profile } = orgId
+      ? await supabaseAdmin.from("business_profiles").select("email").eq("organization_id", orgId).maybeSingle()
+      : { data: null };
+    const claimantEmail = typeof (context.claims as Record<string, unknown> | undefined)?.["email"] === "string" ? String((context.claims as Record<string, unknown>)["email"]) : null;
+    const ownership = claimOwnership((profile?.email as string | null | undefined) ?? null, claimantEmail);
+    if (!ownership.allowed) {
+      throw new Error(`To protect this business, sign up with the email we contacted (${ownership.hint}) or an address at the same business domain. If you're the owner and use a different email, contact us and we'll verify you.`);
+    }
     // The RPC is newer than the generated types; its signature is fixed in
     // supabase/migrations/20261016090000_claim_prospect_demo.sql.
     const rpc = supabaseAdmin.rpc as unknown as (
@@ -115,7 +127,7 @@ export const claimProspectDemo = createServerFn({ method: "POST" })
     try {
       const { error: eventError } = await supabaseAdmin.from("marketing_conversions").insert({
         event_name: "prospect_demo_claimed",
-        metadata: { organization_id: organizationId } as never,
+        metadata: { organization_id: organizationId, ownership_verified: ownership.verified, ownership_method: ownership.method } as never,
       });
       if (eventError) console.warn("[claim] conversion event not recorded", eventError.message);
     } catch (eventFailure) {
