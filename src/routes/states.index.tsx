@@ -6,29 +6,19 @@ import { SiteFooter, SiteHeader } from "@/components/marketing/Chrome";
 import { SectionHeading } from "@/components/app/Bits";
 import { Button } from "@/components/ui/button";
 import { BusinessDetails } from "@/components/marketing/BusinessDetails";
+import { RelatedLinks } from "@/components/marketing/SeoLinks";
 import { statesAlphabetical } from "@/lib/us-states";
 import { INDUSTRIES, industrySlug } from "@/lib/domain";
-import { GROWTH_SYSTEM, usdExact } from "@/lib/offer";
-import { breadcrumbSchema, canonicalLink, ogUrl, metaDescription } from "@/lib/seo";
+import { GROWTH_SYSTEM, usd } from "@/lib/offer";
+import { breadcrumbSchema } from "@/lib/seo";
+import { MARKETING_SEARCH, marketingSearchHead } from "@/lib/marketing-seo";
 import { trackConversion } from "@/lib/conversion";
-
-const TITLE = "Websites, CRM & Lead Generation for Service Businesses in All 50 States | Revora";
-const DESCRIPTION = `Revora builds service businesses in every US state a complete customer acquisition system: website, instant quotes, online booking, CRM and follow-up. ${usdExact(GROWTH_SYSTEM.setupPrice)} setup, first month free, then ${usdExact(GROWTH_SYSTEM.monthlyPrice)}/month.`;
 
 export const Route = createFileRoute("/states/")({
   head: () => {
     const states = statesAlphabetical();
     return {
-      meta: [
-        { title: TITLE },
-        { name: "description", content: metaDescription(DESCRIPTION) },
-        { property: "og:title", content: TITLE },
-        { property: "og:description", content: DESCRIPTION },
-        { property: "og:type", content: "website" },
-        { name: "twitter:card", content: "summary_large_image" },
-        ogUrl("/states"),
-      ],
-      links: [canonicalLink("/states")],
+      ...marketingSearchHead(MARKETING_SEARCH.states),
       scripts: [
         {
           type: "application/ld+json",
@@ -74,14 +64,14 @@ function StatesIndex() {
           <p className="text-[13px] font-semibold tracking-wide text-primary uppercase">
             Every city · every industry · worldwide
           </p>
-          <h1 className="mt-3 max-w-3xl font-display text-[clamp(1.7rem,4vw,2.6rem)] leading-tight font-semibold">
-            Serving businesses in <span className="gold-hl">every state and beyond</span>
+          <h1 className="mt-3 max-w-3xl font-display text-[28px] sm:text-[40px] leading-tight font-semibold">
+            Business websites and CRM in <span className="gold-hl">all 50 states</span>
           </h1>
           <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-muted-foreground">
-            Revora is remote by design, so where you operate doesn't limit what you get. Describe
-            your business, and Revora builds the website, quote calculator, booking, CRM and
-            follow-up that turn searches into paying customers — in any industry, in any city,
-            anywhere in the world. Pick your state to see examples of what we build there.
+            Revora Growth Systems works remotely with businesses across the United States and
+            beyond. Connect your website, quote requests, booking, CRM and follow-up in one
+            system. Browse your state for listed metros and industry workflows; coverage does
+            not imply a local Revora office in each city.
           </p>
           <div className="mt-7 flex flex-wrap gap-3">
             <Button asChild variant="signal" size="lg">
@@ -92,12 +82,35 @@ function StatesIndex() {
             </Button>
           </div>
           <p className="mt-4 text-[12.5px] text-muted-foreground">
-            {usdExact(GROWTH_SYSTEM.setupPrice)} setup · first month free · then{" "}
-            {usdExact(GROWTH_SYSTEM.monthlyPrice)}/month · cancel anytime
+            {usd(GROWTH_SYSTEM.setupPrice)} setup · first month free · then{" "}
+            {usd(GROWTH_SYSTEM.monthlyPrice)}/month · cancel anytime
           </p>
         </section>
 
-        <section className="mx-auto max-w-6xl px-4 pb-14 sm:px-6">
+        <section className="border-y border-border bg-muted/30">
+          <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
+            <SectionHeading eyebrow="From search to enquiry" title="Match your system to how your business sells" />
+            <div className="mt-6 grid gap-6 md:grid-cols-3">
+              <article className="border-t border-border pt-4">
+                <h3 className="font-semibold">Show your real services and coverage</h3>
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">A useful business website answers what you offer, where you work and what the customer should do next. Provide your actual service area, original photos and approved business details; a city name alone is not a local SEO strategy.</p>
+                <Link to="/guides/$slug" params={{ slug: "show-up-in-google-map-pack" }} className="mt-3 inline-block text-sm text-primary underline underline-offset-4">Read the local search checklist</Link>
+              </article>
+              <article className="border-t border-border pt-4">
+                <h3 className="font-semibold">Choose a quote or booking workflow</h3>
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">Contracting work may need a quote request before a visit; appointment-based businesses may start with a booking. Explore the industry pages and CRM workflows to choose a path that fits your services, rather than sending every visitor through the same form.</p>
+                <Link to="/crm" className="mt-3 inline-block text-sm text-primary underline underline-offset-4">Explore service business CRM workflows</Link>
+              </article>
+              <article className="border-t border-border pt-4">
+                <h3 className="font-semibold">Review the offer before committing</h3>
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">Try full access for {GROWTH_SYSTEM.fullAccessWindow}. When you choose to launch, setup is {usd(GROWTH_SYSTEM.setupPrice)} once. The first monthly platform charge is due 30 days after setup, then {usd(GROWTH_SYSTEM.monthlyPrice)} each month unless canceled. SEO is ongoing work, not a guarantee of rankings or customers.</p>
+                <Link to="/pricing" className="mt-3 inline-block text-sm text-primary underline underline-offset-4">See setup, subscription and included services</Link>
+              </article>
+            </div>
+          </div>
+        </section>
+
+        <section className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
           <SectionHeading eyebrow="Service areas" title="Choose your state" />
           <ul className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {states.map((state) => (
@@ -137,6 +150,7 @@ function StatesIndex() {
           </ul>
         </section>
 
+        <RelatedLinks path="/states" heading="Plan your next step" />
         <BusinessDetails />
       </main>
       <SiteFooter />

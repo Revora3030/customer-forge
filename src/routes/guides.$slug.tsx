@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { findGuide, type Guide } from "@/lib/guides";
 import { BUSINESS } from "@/lib/business-identity";
 import { breadcrumbSchema, canonicalLink, ogUrl, SITE_URL, metaDescription } from "@/lib/seo";
+import { safeJsonLd } from "@/lib/json-ld";
 
 export const Route = createFileRoute("/guides/$slug")({
   beforeLoad: ({ params }) => {
@@ -35,7 +36,7 @@ export const Route = createFileRoute("/guides/$slug")({
       scripts: [
         {
           type: "application/ld+json",
-          children: JSON.stringify(
+          children: safeJsonLd(
             breadcrumbSchema([
               { name: "Revora", path: "/" },
               { name: "Guides", path: "/guides" },
@@ -45,7 +46,7 @@ export const Route = createFileRoute("/guides/$slug")({
         },
         {
           type: "application/ld+json",
-          children: JSON.stringify({
+          children: safeJsonLd({
             "@context": "https://schema.org",
             "@type": "Article",
             headline: guide.title,
@@ -57,7 +58,7 @@ export const Route = createFileRoute("/guides/$slug")({
         },
         {
           type: "application/ld+json",
-          children: JSON.stringify({
+          children: safeJsonLd({
             "@context": "https://schema.org",
             "@type": "FAQPage",
             mainEntity: guide.faqs.map((f) => ({
@@ -87,7 +88,7 @@ function GuidePage() {
           <span aria-hidden> / </span>
           <span className="text-foreground">{guide.title}</span>
         </nav>
-        <h1 className="mt-4 font-display text-[clamp(1.6rem,4vw,2.3rem)] leading-tight font-semibold">
+        <h1 className="mt-4 font-display text-[26px] sm:text-[36px] leading-tight font-semibold">
           {guide.title}
         </h1>
         <p className="mt-2 text-[13px] text-muted-foreground/80">{guide.readMinutes} min read</p>
@@ -125,6 +126,14 @@ function GuidePage() {
           </div>
         </section>
 
+        {guide.sources && guide.sources.length > 0 && (
+          <section className="mt-10 border-t border-border pt-6">
+            <h2 className="text-base font-semibold">Sources and policy guidance</h2>
+            <ul className="mt-3 space-y-2">
+              {guide.sources.map((source) => <li key={source.url}><a href={source.url} className="text-sm text-primary underline underline-offset-4">{source.label}</a></li>)}
+            </ul>
+          </section>
+        )}
         <div className="mt-10 flex flex-wrap gap-3">
           <Button asChild>
             <Link to="/get-started">Have Revora run this for you</Link>

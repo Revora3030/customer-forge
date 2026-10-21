@@ -20,7 +20,7 @@ export const Route = createFileRoute("/s/$slug")({
     // Canonical and og:url point at this page itself unless the client set
     // their own canonical address (e.g. after moving to a custom domain).
     const url =
-      canonicalSiteUrl(loaderData.settings, params.slug, page?.slug, page?.seo_canonical) ??
+      canonicalSiteUrl(loaderData.settings, params.slug, null, page?.seo_canonical) ??
       `https://revoragrowthsystems.com/s/${params.slug}`;
     // One head for every client address (title limits, share image, fonts,
     // LocalBusiness data): src/lib/site-head.ts tenantSiteHead.

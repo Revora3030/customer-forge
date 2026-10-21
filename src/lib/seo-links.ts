@@ -81,12 +81,14 @@ const L = {
     anchor: "How to get more Google reviews",
     note: "A policy-safe process that actually gets asked.",
   },
+  states: { path: "/states", anchor: "Business websites and CRM across all 50 states", note: "Browse real service areas and choose an industry workflow." },
+  about: { path: "/about", anchor: "About Revora Growth Systems", note: "Our approach, the product and what to expect before launching." },
 } satisfies Record<string, SeoLink>;
 
 const FALLBACK: SeoLink[] = [L.pricing, L.crm];
 
 const CLUSTERS: Record<string, SeoLink[]> = {
-  brand: [L.crm, L.local, L.pricing, L.audit],
+  brand: [L.crm, L.states, L.pricing, L.about],
   commercial: [L.industries, L.local, L.guides, L.pricing],
   transactional: [L.crm, L.compare, L.guides, L.audit],
   industry: [L.crm, L.local, L.reviews, L.pricing],
@@ -101,6 +103,8 @@ const CLUSTERS: Record<string, SeoLink[]> = {
  * Deterministic, so the audit sees exactly what the page renders.
  */
 export function internalLinksFor(path: string, limit = 4): SeoLink[] {
+  if (path === "/states") return [L.industries, L.local, L.pricing, L.about].slice(0, limit);
+  if (path === "/about") return [L.pricing, L.compare, L.states, L.getStarted].slice(0, limit);
   const intent = classifyIntent(path);
   const cluster = CLUSTERS[intent] ?? FALLBACK;
   return cluster.filter((link) => link.path !== path).slice(0, limit);

@@ -13,6 +13,10 @@ export const Route = createFileRoute("/robots.txt")({
           site = await resolveHostSite(host, protocol);
         } catch (error) {
           console.error("robots host resolution failed", error);
+          return new Response("Crawler rules temporarily unavailable", {
+            status: 503,
+            headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store", "retry-after": "60" },
+          });
         }
         const origin = site ? site.origin : platformOrigin(host ?? url.host, protocol);
         // Private application surfaces must never be indexed: the workspace, the

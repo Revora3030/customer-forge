@@ -12,7 +12,9 @@ import { Pill, SectionHeading } from "@/components/app/Bits";
 import { RouteError } from "@/components/app/RouteStates";
 import { Button } from "@/components/ui/button";
 import { GROWTH_SYSTEM, usd } from "@/lib/offer";
-import { GROWTH_SYSTEM_SCHEMA, LOCAL_BUSINESS_SCHEMA, canonicalLink, ogUrl } from "@/lib/seo";
+import { GROWTH_SYSTEM_SCHEMA, LOCAL_BUSINESS_SCHEMA } from "@/lib/seo";
+import { MARKETING_SEARCH, marketingSearchHead } from "@/lib/marketing-seo";
+import { RelatedLinks } from "@/components/marketing/SeoLinks";
 import { VisualComposition } from "@/components/site/VisualComposition";
 import { HOMEPAGE_COMPOSITION } from "@/lib/homepage-concept";
 import { SiteAddressProvider } from "@/components/site/site-links-context";
@@ -59,6 +61,8 @@ export const Route = createFileRoute("/")({
                 "Revora Growth Systems — AI websites and automated customer-growth systems. This address will be online shortly.",
             },
             { name: "robots", content: "noindex" },
+            { property: "og:type", content: "website" },
+            { name: "twitter:card", content: "summary" },
           ],
         }
       : loaderData
@@ -69,27 +73,7 @@ export const Route = createFileRoute("/")({
             businessUrl: `https://${loaderData.host}/`,
           })
         : ({
-            meta: [
-              { title: "AI Website + CRM for Any Business | Revora Growth Systems" },
-              {
-                name: "description",
-                content:
-                  "AI-built website, CRM, booking, follow-up and SEO for any industry, anywhere. First month free, then $100/month ($350 one-time setup).",
-              },
-              {
-                property: "og:title",
-                content: "Revora Growth Systems — $350 Setup, First Month Free",
-              },
-              {
-                property: "og:description",
-                content:
-                  "AI-built website, CRM, booking, follow-up and SEO for any industry, anywhere. First month free, then $100/month ($350 one-time setup).",
-              },
-              { property: "og:type", content: "website" },
-              { name: "twitter:card", content: "summary_large_image" },
-              ogUrl("/"),
-            ],
-            links: [canonicalLink("/")],
+            ...marketingSearchHead(MARKETING_SEARCH.home),
             scripts: [
               jsonLdScript(LOCAL_BUSINESS_SCHEMA),
               jsonLdScript(GROWTH_SYSTEM_SCHEMA),
@@ -178,9 +162,9 @@ function Landing() {
                 Revora Growth Systems
               </h1>
               <p className="mt-4 max-w-xl text-[15px] leading-relaxed text-muted-foreground">
-                Revora's AI builds and runs your{" "}
-                <span className="text-foreground">website, quotes, booking, follow-up and reviews</span> — so
-                more of the people who find you become paying customers.
+                AI-designed business websites with{" "}
+                <span className="text-foreground">lead capture, quotes, booking, CRM and follow-up</span>.
+                Bring your online presence and customer enquiries together in one growth system.
               </p>
 
               {/* The two doors, right in the hero: create an account, or sign
@@ -287,6 +271,7 @@ function Landing() {
           </div>
         </section>
 
+        <RelatedLinks path="/" heading="Find the right growth system for your business" />
       </main>
 
       {/* Spacer so the fixed free-access bar never covers the footer */}

@@ -6,13 +6,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 type Row = Record<string, unknown>;
-const db: { tables: Record<string, Row[]> } = { tables: {} };
+const db: { tables: Record<string, Row[]>; failTable: string | undefined } = { tables: {}, failTable: undefined };
 
 function fakeClient() {
   return {
     from(table: string) {
       const filters: ((row: Row) => boolean)[] = [];
       let notNull: string | null = null;
+      let bounds: [number, number] | null = null;
       const rows = () =>
         (db.tables[table] ?? []).filter(
           (row) => filters.every((filter) => filter(row)) && (!notNull || row[notNull] != null),
@@ -33,9 +34,10 @@ function fakeClient() {
           return chain;
         },
         order: () => chain,
+        range: (from: number, to: number) => { bounds = [from, to]; return chain; },
         limit: () => chain,
         maybeSingle: async () => ({ data: rows()[0] ?? null, error: null }),
-        then: (resolve: (value: { data: Row[]; error: null }) => unknown) => resolve({ data: rows(), error: null }),
+        then: (resolve: (value: { data: Row[] | null; error: { message: string } | null }) => unknown) => resolve(db.failTable === table ? { data: null, error: { message: "offline" } } : { data: bounds ? rows().slice(bounds[0], bounds[1] + 1) : rows(), error: null }),
       };
       return chain;
     },
@@ -80,6 +82,7 @@ const org = (id: string, slug: string, over: Row = {}) => ({
 });
 
 beforeEach(() => {
+  db.failTable = undefined;
   db.tables = {
     organizations: [
       org(ORG, "acme"),
@@ -151,6 +154,27 @@ describe("/s/<slug>/sitemap.xml", () => {
 });
 
 describe("/sitemaps/sites.xml", () => {
+  it("surfaces a failed published read instead of advertising an empty index", async () => {
+    db.failTable = "public_website_settings";
+    await expect(platformSitemapSlugs()).rejects.toThrow("Published site index unavailable");
+  });
+
+  it("reads beyond the backend's 1,000 row boundary without losing sites", async () => {
+    for (let i = 0; i < 1100; i++) {
+      const id = `org-${i}`;
+      db.tables["organizations"]?.push(org(id, `site-${i}`));
+      db.tables["public_website_settings"]?.push({ organization_id: id, published: true, publish_state: "published" });
+    }
+    const slugs = await platformSitemapSlugs();
+    expect(slugs.length).toBe(1101);
+    expect(slugs).toContain("site-1099");
+  });
+
+  it("does not silently omit sites on an eligibility lookup failure", async () => {
+    db.failTable = "organizations";
+    await expect(platformSitemapSlugs()).rejects.toThrow("Published site eligibility unavailable");
+  });
+
   it("indexes only published, live-allowed sites without a verified custom domain", async () => {
     expect(await platformSitemapSlugs()).toEqual(["acme"]);
     expect(xmlSitemapIndex(["acme"])).toContain(
