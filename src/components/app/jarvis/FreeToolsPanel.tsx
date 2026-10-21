@@ -98,6 +98,13 @@ export function FreeToolsPanel() {
           })}
         </ul>
       </div>
+      <div className="border-t border-border pt-3">
+        <p className="text-sm font-medium">Needs a server (later)</p>
+        <p className="mt-1 text-xs text-muted-foreground">These free tools run on their own computer or GPU, not inside Revora.</p>
+        <ul className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs">
+          {serverTools.map(([label, href]) => <li key={label}><a className="underline underline-offset-2" href={href} target="_blank" rel="noreferrer">{label}</a></li>)}
+        </ul>
+      </div>
       {readiness.error || error ? <p role="alert" className="text-xs text-destructive">{error ?? "Tool settings unavailable."}</p> : null}
     </div>
   </details>;
