@@ -13,6 +13,8 @@
 
 ## Whole-repository upgrade contract
 
+- Revora homepage, states and about search copy is shared through marketing-seo.ts with the SEO inventory; tenant head branches stay independent to prevent platform identity leaking onto customer sites.
+
 - First-build chat preferences travel through the existing saved brief to analysis, identity and composition checkpoints; keep them distinct from business fact evidence so owner direction survives retries without inventing claims.
 - Served-HTML verification reports its evidence type and missing checks explicitly; missing preview evidence must never be counted as passed or trigger rollback, because browser interaction and rendered QA are separate measurements.
 - Completed build polling refreshes generated content, settings, versions and readiness through the shared generated-result cache helper so customer views display saved output rather than stale empty states.

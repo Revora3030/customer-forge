@@ -19,6 +19,7 @@ import { LOCAL_INDUSTRIES, localPageContent, localPath } from "@/lib/local-pages
 import { GUIDES } from "@/lib/guides";
 import { COMPARISONS } from "@/lib/compare";
 import { CRM_SOLUTIONS } from "@/lib/crm-solutions";
+import { MARKETING_SEARCH } from "@/lib/marketing-seo";
 
 export type SearchIntent =
   | "commercial"
@@ -139,8 +140,8 @@ export function seoInventory(): SeoPage[] {
     page(
       "/",
       "ai growth software for local business",
-      "Revora — AI Growth Software That Books Local Jobs 24/7",
-      "AI growth software for businesses in every industry: lead-generating website, instant quotes, online booking, CRM, automated follow-up, review requests, local SEO and analytics in one system.",
+      MARKETING_SEARCH.home.title,
+      MARKETING_SEARCH.home.description,
       900,
     ),
     page(
@@ -216,8 +217,8 @@ export function seoInventory(): SeoPage[] {
     page(
       "/states",
       "local seo software by state",
-      "States Revora serves",
-      "Revora serves local businesses in every US state, remotely, with local search content built from real geography.",
+      MARKETING_SEARCH.states.title,
+      MARKETING_SEARCH.states.description,
       340,
     ),
     page(
@@ -234,7 +235,7 @@ export function seoInventory(): SeoPage[] {
       "How Revora compares to website builders, agencies, standalone CRMs and doing it yourself.",
       360,
     ),
-    page("/about", "about revora", "About Revora", "Who builds Revora and why it exists.", 320),
+    page("/about", "about revora growth systems", MARKETING_SEARCH.about.title, MARKETING_SEARCH.about.description, 420),
     page(
       "/contact",
       "contact revora",
