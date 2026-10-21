@@ -725,7 +725,10 @@ export function isFreeEligibleModel(provider: FreeProviderName, model: string): 
   // Kilo: only ":free" ids, never the auto-routers that may log prompts.
   if (provider === "kilo") return /:free$/i.test(name) && !/^(kilo-auto|openrouter)\//i.test(name) && !NON_CHAT_MODEL.test(name);
   // The owner's own OmniRoute server: the owner decides which providers it uses.
-  if (provider === "omniroute") return !NON_CHAT_MODEL.test(name) && !/embed/i.test(name);
+  // Its catalogue mixes paid and free routes, so only ids the owner lists in
+  // OMNIROUTE_FREE_MODELS (comma-separated) count as free. Empty = none.
+  if (provider === "omniroute")
+    return (env("OMNIROUTE_FREE_MODELS") ?? "").split(",").map((m) => m.trim().toLowerCase()).filter(Boolean).includes(name.toLowerCase());
   // Ollama Cloud meters usage per account, not per model, so its chat models are all inside the free tier's limits.
   if (provider === "ollama") return !NON_CHAT_MODEL.test(name) && !/embed/i.test(name);
   if (provider === "modelscope") return name.includes("/") && !NON_CHAT_MODEL.test(name);
