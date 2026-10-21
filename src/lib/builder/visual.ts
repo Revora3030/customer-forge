@@ -2424,7 +2424,7 @@ export const MEASURE_SCRIPT = `(() => {
 
   const viewportHeight = window.innerHeight;
   const docHeight = Math.max(document.documentElement.scrollHeight, document.body ? document.body.scrollHeight : 0);
-  const filled: [number, number][] = [];
+  const filled = [];
   for (const el of Array.from(document.querySelectorAll("body *"))) {
     if (!(el instanceof HTMLElement)) continue;
     const isMedia = /^(IMG|SVG|VIDEO|PICTURE|CANVAS|IFRAME)$/i.test(el.tagName);
