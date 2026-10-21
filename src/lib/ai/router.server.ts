@@ -672,10 +672,12 @@ async function run<T>(
 
       // DAILY PAID CAP. A paid model is only called with today's paid budget
       // reserved; over the cap (or with the ledger unreachable) it is skipped
-      // and the free pool answers instead. The reservation is settled to the
-      // real cost on success and released on failure.
+      // and the free pool answers instead. The reservation is settled in the
+      // `finally` below on every path: the real cost on success, 0 (released)
+      // on a provider error, timeout, abort or any throw. It is awaited, not
+      // fire-and-forget, so a worker that ends after the response cannot drop it.
       let paidReservation: PaidReservation | null = null;
-      let paidSettled = false;
+      let paidActual = 0;
       if (!candidate.free) {
         paidReservation = await reservePaidSpend(routerEstimate(model, limits.maxOutputTokens));
         if (!paidReservation) continue;
@@ -737,13 +739,8 @@ async function run<T>(
             fallbackUsed,
             toolCalls: 0,
           });
-          if (paidReservation) {
-            paidSettled = true;
-            void settlePaidSpend(
-              paidReservation,
-              routerActual(model, result.inputTokens ?? null, result.outputTokens ?? null, paidReservation.estimate),
-            );
-          }
+          if (paidReservation)
+            paidActual = routerActual(model, result.inputTokens ?? null, result.outputTokens ?? null, paidReservation.estimate);
           return {
             value: result.value,
             provider: config.name,
@@ -845,7 +842,7 @@ async function run<T>(
         }
       }
       } finally {
-        if (paidReservation && !paidSettled) void settlePaidSpend(paidReservation, 0);
+        if (paidReservation) await settlePaidSpend(paidReservation, paidActual);
       }
     }
 

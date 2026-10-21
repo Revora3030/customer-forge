@@ -332,7 +332,7 @@ export async function generatePaidImage(
     if (!check.ok) {
       // The call happened, so it is settled and recorded honestly, but the asset
       // is dropped rather than attached to a customer's website.
-      await settleBudget(caller.organizationId, estimate, estimate);
+      await settleBudget(caller.organizationId, estimate, estimate, reservation.paid);
       await recordUsage({
         organizationId: caller.organizationId,
         purpose: "image_generation",
@@ -348,7 +348,7 @@ export async function generatePaidImage(
         message: `Revora didn't keep that picture because ${check.problem}. Nothing was saved.`,
       };
     }
-    await settleBudget(caller.organizationId, estimate, estimate);
+    await settleBudget(caller.organizationId, estimate, estimate, reservation.paid);
     await recordUsage({
       organizationId: caller.organizationId,
       purpose: "image_generation",
@@ -373,7 +373,7 @@ export async function generatePaidImage(
     const rejected = error instanceof RevoraAiError &&
       [400, 401, 402, 403, 404, 413, 422, 429].includes(error.status);
     const accounted = rejected ? 0 : estimate;
-    await settleBudget(caller.organizationId, estimate, accounted);
+    await settleBudget(caller.organizationId, estimate, accounted, reservation.paid);
     await recordUsage({
       organizationId: caller.organizationId,
       purpose: "image_generation",

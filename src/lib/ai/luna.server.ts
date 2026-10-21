@@ -28,6 +28,8 @@ import {
   type TaskComplexity,
 } from "@/lib/ai/collective";
 import { isResponsesOnlyModel } from "@/lib/ai/providers/openai";
+import { scopedFreeOnly } from "@/lib/ai/spend-scope.server";
+import type { PaidReservation } from "@/lib/ai/paid-budget.server";
 
 /** Microcents: one hundred-millionth of a dollar. $20 => 2_000_000_000. */
 export const MICROCENTS_PER_DOLLAR = 100_000_000;
@@ -246,7 +248,12 @@ export async function reserveBudget(
   tenantCap: number;
   /** True when the month allowed the call but today's paid cap did not. */
   dailyCapped: boolean;
+  /** Today's paid-cap reservation; pass it back to settleBudget. */
+  paid: PaidReservation | null;
 } | null> {
+  // A free-only spending scope (demo builds) never touches a paid ledger,
+  // not even with a reserve-then-release on the monthly one.
+  if (scopedFreeOnly()) return null;
   const client = await admin();
   if (!client) return null;
   const { data, error } = await client.rpc("luna_budget_reserve_tenant", {
@@ -258,11 +265,13 @@ export async function reserveBudget(
   if (error || !Array.isArray(data) || !data.length) return null;
   const row = data[0] as ReserveRow;
   let dailyCapped = false;
+  let paid: PaidReservation | null = null;
   // The owner's daily paid cap applies on top of the monthly ledger: a call
   // the month allows but today's cap doesn't is released and refused.
   if (row.allowed) {
     const { reservePaidSpend } = await import("@/lib/ai/paid-budget.server");
-    if (!(await reservePaidSpend(estimate))) {
+    paid = await reservePaidSpend(estimate);
+    if (!paid) {
       await client.rpc("luna_budget_settle_tenant", {
         _organization_id: organizationId,
         _estimate_microcents: estimate,
@@ -275,6 +284,7 @@ export async function reserveBudget(
   return {
     allowed: Boolean(row.allowed),
     dailyCapped,
+    paid,
     spent: Number(row.spent_microcents) || 0,
     cap: Number(row.cap_microcents) || 0,
     calls: Number(row.calls) || 0,
@@ -283,21 +293,32 @@ export async function reserveBudget(
   };
 }
 
-/** Replaces the reservation with the real cost once usage is known. */
+/**
+ * Replaces the reservation with the real cost once usage is known. The daily
+ * paid reservation is settled by its own id (never by "today", which is the
+ * wrong day for a call that crossed midnight UTC), and in a `finally`, so a
+ * monthly-ledger failure cannot leave it holding today's cap.
+ */
 export async function settleBudget(
   organizationId: string | null,
   estimate: number,
   actual: number,
+  paid: PaidReservation | null = null,
 ) {
-  const client = await admin();
-  if (!client) return;
-  await client.rpc("luna_budget_settle_tenant", {
-    _organization_id: organizationId,
-    _estimate_microcents: estimate,
-    _actual_microcents: actual,
-  });
-  const { settlePaidSpend } = await import("@/lib/ai/paid-budget.server");
-  await settlePaidSpend({ day: new Date().toISOString().slice(0, 10), estimate }, actual);
+  try {
+    const client = await admin();
+    if (!client) return;
+    await client.rpc("luna_budget_settle_tenant", {
+      _organization_id: organizationId,
+      _estimate_microcents: estimate,
+      _actual_microcents: actual,
+    });
+  } finally {
+    if (paid) {
+      const { settlePaidSpend } = await import("@/lib/ai/paid-budget.server");
+      await settlePaidSpend(paid, actual);
+    }
+  }
 }
 
 export async function recordUsage(row: {
@@ -462,6 +483,7 @@ export async function callLuna(request: LunaRequest): Promise<LunaResult> {
   const estimate = estimateMicrocents(promptChars, maxOutputTokens, tier);
   const organizationId = request.organizationId ?? null;
 
+  if (scopedFreeOnly()) return skip("disabled", "paid AI is off for this free-only build");
   const reservation = await reserveBudget(estimate, organizationId);
   if (!reservation) return skip("ledger_unavailable", "spend ledger unreachable");
   if (!reservation.allowed) {
@@ -484,6 +506,40 @@ export async function callLuna(request: LunaRequest): Promise<LunaResult> {
           : `global cap ${formatUsd(reservation.cap)} reached`,
     );
   }
+
+  // Settled exactly once: by the call below with the real cost, or released
+  // with 0 here in `finally` if it returned early or threw before settling.
+  let settled = false;
+  const settle = async (actual: number) => {
+    if (settled) return;
+    settled = true;
+    await settleBudget(organizationId, estimate, actual, reservation.paid);
+  };
+  try {
+    return await sendReservedLuna({ request, key, tier, model, maxOutputTokens, organizationId, settle });
+  } finally {
+    await settle(0);
+  }
+}
+
+/** The paid request itself, made only with a reservation held by callLuna. */
+async function sendReservedLuna({
+  request,
+  key,
+  tier,
+  model,
+  maxOutputTokens,
+  organizationId,
+  settle,
+}: {
+  request: LunaRequest;
+  key: string;
+  tier: CollectiveTier;
+  model: string;
+  maxOutputTokens: number;
+  organizationId: string | null;
+  settle: (actual: number) => Promise<void>;
+}): Promise<LunaResult> {
 
   const base = env("LUNA_BASE_URL") ?? "https://api.openai.com/v1";
   // Pro-tier models (gpt-5.x-pro, o1-pro) only answer on /v1/responses; sending
@@ -556,7 +612,7 @@ export async function callLuna(request: LunaRequest): Promise<LunaResult> {
   } catch (error) {
     clearTimeout(timer);
     request.signal?.removeEventListener("abort", onUserCancel);
-    await settleBudget(organizationId, estimate, 0);
+    await settle(0);
     const detail = error instanceof Error ? error.message : "network error";
     await recordUsage({
       organizationId,
@@ -573,7 +629,7 @@ export async function callLuna(request: LunaRequest): Promise<LunaResult> {
   request.signal?.removeEventListener("abort", onUserCancel);
 
   if (!response.ok) {
-    await settleBudget(organizationId, estimate, 0);
+    await settle(0);
     const reason: LunaSkipReason =
       response.status === 401 || response.status === 403
         ? "unauthorized"
@@ -601,13 +657,13 @@ export async function callLuna(request: LunaRequest): Promise<LunaResult> {
   try {
     payload = await response.json();
   } catch {
-    await settleBudget(organizationId, estimate, 0);
+    await settle(0);
     return skip("bad_response", "unreadable body");
   }
 
   const usage = readUsage(payload);
   const actual = costMicrocents(usage, tier);
-  await settleBudget(organizationId, estimate, actual);
+  await settle(actual);
 
   const text = readText(payload);
   if (!text) {

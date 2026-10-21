@@ -31,9 +31,10 @@ describe("daily paid AI cap", () => {
     const router = readFileSync("src/lib/ai/router.server.ts", "utf8");
     expect(router).toContain("paidReservation = await reservePaidSpend(routerEstimate(model, limits.maxOutputTokens));");
     expect(router).toContain("if (!paidReservation) continue;");
-    expect(router).toContain("if (paidReservation && !paidSettled) void settlePaidSpend(paidReservation, 0);");
+    expect(router).toContain("if (paidReservation) await settlePaidSpend(paidReservation, paidActual);");
     const luna = readFileSync("src/lib/ai/luna.server.ts", "utf8");
-    expect(luna).toContain("if (!(await reservePaidSpend(estimate))) {");
+    expect(luna).toContain("paid = await reservePaidSpend(estimate);");
+    expect(luna).toContain("await settlePaidSpend(paid, actual);");
     const sql = readFileSync("supabase/migrations/20261017100000_ai_paid_daily_budget.sql", "utf8");
     expect(sql).toContain("IF _cap = 0 OR _spent + _estimate > _cap THEN");
     expect(sql).toContain("GRANT EXECUTE ON FUNCTION public.ai_paid_budget_reserve(BIGINT, BIGINT) TO service_role;");
