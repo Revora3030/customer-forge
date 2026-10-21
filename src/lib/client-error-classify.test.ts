@@ -103,3 +103,12 @@ describe("safeJsonLd", () => {
     expect(safeJsonLd(undefined)).toBe("{}");
   });
 });
+
+describe("network drop errors", () => {
+  it("treats Safari 'Load failed' as a warning, not an error", async () => {
+    const { classifyClientError } = await import("./client-error-classify");
+    expect(classifyClientError(new TypeError("Load failed"))).toBe("warn");
+    expect(classifyClientError(new TypeError("Failed to fetch"))).toBe("warn");
+    expect(classifyClientError(new Error("Load failed for user data"))).toBe("report");
+  });
+});
