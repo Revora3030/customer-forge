@@ -83,6 +83,24 @@ export function premiumSurface(hex: string | null | undefined): string | null {
   return `#${hexOf(blend(r))}${hexOf(blend(g))}${hexOf(blend(b))}`;
 }
 
+/**
+ * True when saved brand colours are only the old neutral placeholder (pure
+ * black and/or pure white with nothing else). Such profiles carry no real
+ * brand opinion, so the AI team authors the palette instead of inheriting a
+ * plain black-on-white look. A distinct accent counts as a real choice only
+ * when primary/secondary are themselves not the placeholder pair.
+ */
+export function isPlaceholderPalette(input: {
+  primaryColor?: string | null;
+  secondaryColor?: string | null;
+}): boolean {
+  const neutral = new Set(["#000000", "#ffffff"]);
+  const values = [clean(input.primaryColor), clean(input.secondaryColor)]
+    .filter((v): v is string => Boolean(v))
+    .map(expand);
+  return values.length > 0 && values.every((v) => neutral.has(v));
+}
+
 /** "light" when the site's surface colour is pale — used for copy and UI tone. */
 export function siteTone(secondaryColor: string | null | undefined): "light" | "dark" {
   const surface = clean(secondaryColor);

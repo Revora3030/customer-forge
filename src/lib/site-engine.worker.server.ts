@@ -20,6 +20,7 @@ import {
 } from "@/lib/builder/job-liveness";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { isPlaceholderPalette } from "@/lib/site-theme";
 
 const QUEUE_ID = "site_engine";
 export const LEASE_SECONDS = 300;
@@ -1303,7 +1304,14 @@ async function runJob(
   if (!resumedIdentity && identity.direction) await stageStore.put("identity", identityInputs, identity);
   await touchLease(db, job);
   const direction = identity.direction;
+  // Pure black/white saved colours are an old neutral placeholder, not an
+  // owner brand: the AI team authors the whole palette instead.
+  const placeholderPalette = isPlaceholderPalette({
+    primaryColor: p["primary_color"] as string | null,
+    secondaryColor: p["secondary_color"] as string | null,
+  });
   const ownerColour = (key: string) => {
+    if (placeholderPalette) return null;
     const value = p[key];
     return typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value.trim()) ? value.trim() : null;
   };
@@ -2069,9 +2077,10 @@ async function runJob(
   // without overwriting deliberate colours on an existing workspace.
   const hasOwnerBrand = Boolean(
     ((p["font_preference"] as string) && !isPlatformDefaultFont(p["font_preference"])) ||
-      (p["secondary_color"] as string) ||
-      (p["accent_color"] as string) ||
-      (p["primary_color"] as string),
+      (!placeholderPalette &&
+        ((p["secondary_color"] as string) ||
+          (p["accent_color"] as string) ||
+          (p["primary_color"] as string))),
   );
   if (!built.skipped && direction && !hasOwnerBrand) {
     const { error: themeError } = await db
