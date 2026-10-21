@@ -40,6 +40,7 @@ export type FreeProviderName =
   | "kilo"
   | "omniroute"
   | "selfhosted"
+  | "opencode"
   | "modelscope"
   | "github";
 
@@ -66,6 +67,7 @@ export const FREE_PROVIDERS: FreeProviderName[] = [
   "kilo",
   "omniroute",
   "selfhosted",
+  "opencode",
   "modelscope",
   "github",
 ];
@@ -188,6 +190,11 @@ export const FREE_ALLOWANCE: Record<
     label: "Your OmniRoute server",
     allowance: "Owner's self-hosted OmniRoute router; uses whichever providers and free tiers you configured on it.",
     dailyRequestCap: 300,
+  },
+  opencode: {
+    label: "OpenCode Zen free models",
+    allowance: "Free promo models (ids ending in -free), rate-limited; no card. Free models may use prompts for training.",
+    dailyRequestCap: 200,
   },
   selfhosted: {
     label: "Your own AI gateway (LiteLLM / vLLM)",
@@ -399,6 +406,14 @@ const FREE_MODEL_DEFAULTS: Record<FreeProviderName, Partial<Record<ModelRole, st
   // FREE_AI_OMNIROUTE_MODEL_<ROLE>. No vision default: not every combo reads images.
   // No default: the owner names each model via FREE_AI_SELFHOSTED_MODEL_<ROLE>.
   selfhosted: {},
+  opencode: {
+    primary: "deepseek-v4.1-flash-free",
+    design: "deepseek-v4.1-flash-free",
+    fast: "nemotron-3.5-lightning-free",
+    coding: "glm-5.3-flash-free",
+    vision: "nemotron-3.5-super-vl-free",
+    conversation: "minimax-m3.1-flash-free",
+  },
   omniroute: {
     primary: "auto",
     design: "auto",
@@ -736,6 +751,8 @@ export function isFreeEligibleModel(provider: FreeProviderName, model: string): 
   // The owner's own OmniRoute server: the owner decides which providers it uses.
   // Its catalogue mixes paid and free routes, so only ids the owner lists in
   // OMNIROUTE_FREE_MODELS (comma-separated) count as free. Empty = none.
+  // OpenCode Zen: only its "-free" ids are unbilled; everything else is paid.
+  if (provider === "opencode") return /-free$/i.test(name) && !NON_CHAT_MODEL.test(name);
   if (provider === "selfhosted")
     return (env("SELFHOSTED_AI_FREE_MODELS") ?? "").split(",").map((m) => m.trim().toLowerCase()).filter(Boolean).includes(name.toLowerCase());
   if (provider === "omniroute")
@@ -877,6 +894,10 @@ export function freeProviderCredentials(
     const apiKey = env("MODELSCOPE_API_KEY");
     return apiKey ? { apiKey } : null;
   }
+  if (provider === "opencode") {
+    const apiKey = env("OPENCODE_API_KEY");
+    return apiKey ? { apiKey } : null;
+  }
   if (provider === "selfhosted") {
     const apiKey = env("SELFHOSTED_AI_API_KEY");
     return apiKey && safeOmniRouteBaseUrl(env("SELFHOSTED_AI_BASE_URL")) ? { apiKey } : null;
@@ -939,6 +960,7 @@ const DEFAULT_ORDER: FreeProviderName[] = [
   "kilo",
   "omniroute",
   "selfhosted",
+  "opencode",
   "modelscope",
   "github",
 ];
