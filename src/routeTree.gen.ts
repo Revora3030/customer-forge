@@ -106,6 +106,7 @@ import { Route as SSlugSitemapDotxmlRouteImport } from './routes/s.$slug.sitemap
 import { Route as UnsubscribeOutreachTokenRouteImport } from './routes/unsubscribe.outreach.$token'
 import { Route as AuthenticatedAdminClientsOrgIdRouteImport } from './routes/_authenticated/admin.clients.$orgId'
 import { Route as AuthenticatedDraftSlugPageRouteImport } from './routes/_authenticated/draft.$slug.$page'
+import { Route as ApiPublicInstagramCallbackRouteImport } from './routes/api/public/instagram/callback'
 import { Route as ApiPublicJobsBackupRouteImport } from './routes/api/public/jobs/backup'
 import { Route as ApiPublicJobsJarvisRoutinesRouteImport } from './routes/api/public/jobs/jarvis-routines'
 import { Route as ApiPublicJobsLeadAlertRetryRouteImport } from './routes/api/public/jobs/lead-alert-retry'
@@ -629,6 +630,12 @@ const AuthenticatedDraftSlugPageRoute =
     path: '/$page',
     getParentRoute: () => AuthenticatedDraftSlugRoute,
   } as any)
+const ApiPublicInstagramCallbackRoute =
+  ApiPublicInstagramCallbackRouteImport.update({
+    id: '/api/public/instagram/callback',
+    path: '/api/public/instagram/callback',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicJobsBackupRoute = ApiPublicJobsBackupRouteImport.update({
   id: '/api/public/jobs/backup',
   path: '/api/public/jobs/backup',
@@ -823,6 +830,7 @@ export interface FileRoutesByFullPath {
   '/local/$industry/': typeof LocalIndustryIndexRoute
   '/admin/clients/$orgId': typeof AuthenticatedAdminClientsOrgIdRoute
   '/draft/$slug/$page': typeof AuthenticatedDraftSlugPageRoute
+  '/api/public/instagram/callback': typeof ApiPublicInstagramCallbackRoute
   '/api/public/jobs/backup': typeof ApiPublicJobsBackupRoute
   '/api/public/jobs/jarvis-routines': typeof ApiPublicJobsJarvisRoutinesRoute
   '/api/public/jobs/lead-alert-retry': typeof ApiPublicJobsLeadAlertRetryRoute
@@ -933,6 +941,7 @@ export interface FileRoutesByTo {
   '/local/$industry': typeof LocalIndustryIndexRoute
   '/admin/clients/$orgId': typeof AuthenticatedAdminClientsOrgIdRoute
   '/draft/$slug/$page': typeof AuthenticatedDraftSlugPageRoute
+  '/api/public/instagram/callback': typeof ApiPublicInstagramCallbackRoute
   '/api/public/jobs/backup': typeof ApiPublicJobsBackupRoute
   '/api/public/jobs/jarvis-routines': typeof ApiPublicJobsJarvisRoutinesRoute
   '/api/public/jobs/lead-alert-retry': typeof ApiPublicJobsLeadAlertRetryRoute
@@ -1050,6 +1059,7 @@ export interface FileRoutesById {
   '/local/$industry/': typeof LocalIndustryIndexRoute
   '/_authenticated/admin/clients/$orgId': typeof AuthenticatedAdminClientsOrgIdRoute
   '/_authenticated/draft/$slug/$page': typeof AuthenticatedDraftSlugPageRoute
+  '/api/public/instagram/callback': typeof ApiPublicInstagramCallbackRoute
   '/api/public/jobs/backup': typeof ApiPublicJobsBackupRoute
   '/api/public/jobs/jarvis-routines': typeof ApiPublicJobsJarvisRoutinesRoute
   '/api/public/jobs/lead-alert-retry': typeof ApiPublicJobsLeadAlertRetryRoute
@@ -1167,6 +1177,7 @@ export interface FileRouteTypes {
     | '/local/$industry/'
     | '/admin/clients/$orgId'
     | '/draft/$slug/$page'
+    | '/api/public/instagram/callback'
     | '/api/public/jobs/backup'
     | '/api/public/jobs/jarvis-routines'
     | '/api/public/jobs/lead-alert-retry'
@@ -1277,6 +1288,7 @@ export interface FileRouteTypes {
     | '/local/$industry'
     | '/admin/clients/$orgId'
     | '/draft/$slug/$page'
+    | '/api/public/instagram/callback'
     | '/api/public/jobs/backup'
     | '/api/public/jobs/jarvis-routines'
     | '/api/public/jobs/lead-alert-retry'
@@ -1393,6 +1405,7 @@ export interface FileRouteTypes {
     | '/local/$industry/'
     | '/_authenticated/admin/clients/$orgId'
     | '/_authenticated/draft/$slug/$page'
+    | '/api/public/instagram/callback'
     | '/api/public/jobs/backup'
     | '/api/public/jobs/jarvis-routines'
     | '/api/public/jobs/lead-alert-retry'
@@ -1462,6 +1475,7 @@ export interface RootRouteChildren {
   PTokenPageRoute: typeof PTokenPageRoute
   UnsubscribeOutreachTokenRoute: typeof UnsubscribeOutreachTokenRoute
   LocalIndustryIndexRoute: typeof LocalIndustryIndexRoute
+  ApiPublicInstagramCallbackRoute: typeof ApiPublicInstagramCallbackRoute
   ApiPublicJobsBackupRoute: typeof ApiPublicJobsBackupRoute
   ApiPublicJobsJarvisRoutinesRoute: typeof ApiPublicJobsJarvisRoutinesRoute
   ApiPublicJobsLeadAlertRetryRoute: typeof ApiPublicJobsLeadAlertRetryRoute
@@ -2162,6 +2176,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDraftSlugPageRouteImport
       parentRoute: typeof AuthenticatedDraftSlugRoute
     }
+    '/api/public/instagram/callback': {
+      id: '/api/public/instagram/callback'
+      path: '/api/public/instagram/callback'
+      fullPath: '/api/public/instagram/callback'
+      preLoaderRoute: typeof ApiPublicInstagramCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/jobs/backup': {
       id: '/api/public/jobs/backup'
       path: '/api/public/jobs/backup'
@@ -2518,6 +2539,7 @@ const rootRouteChildren: RootRouteChildren = {
   PTokenPageRoute: PTokenPageRoute,
   UnsubscribeOutreachTokenRoute: UnsubscribeOutreachTokenRoute,
   LocalIndustryIndexRoute: LocalIndustryIndexRoute,
+  ApiPublicInstagramCallbackRoute: ApiPublicInstagramCallbackRoute,
   ApiPublicJobsBackupRoute: ApiPublicJobsBackupRoute,
   ApiPublicJobsJarvisRoutinesRoute: ApiPublicJobsJarvisRoutinesRoute,
   ApiPublicJobsLeadAlertRetryRoute: ApiPublicJobsLeadAlertRetryRoute,
