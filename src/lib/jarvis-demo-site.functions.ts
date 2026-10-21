@@ -160,14 +160,15 @@ export const getDemoStatusFn = createServerFn({ method: "POST" })
  */
 export const findProspectsFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((input: { niche?: unknown; city?: unknown; state?: unknown }) => {
+  .validator((input: { niche?: unknown; city?: unknown; state?: unknown; source?: unknown }) => {
     const clean = (value: unknown, max: number) => (typeof value === "string" ? value.replace(/\s+/g, " ").trim().slice(0, max) : "");
     const niche = clean(input?.niche, 80);
     const city = clean(input?.city, 80);
     const state = clean(input?.state, 40);
     if (niche.length < 3) throw new Error("Enter the kind of business to look for, like \"mobile detailing\".");
     if (city.length < 2) throw new Error("Enter the city to search.");
-    return { niche, city, state };
+    const source: "free" | "google" = input?.source === "google" ? "google" : "free";
+    return { niche, city, state, source };
   })
   .handler(async ({ context, data }) => {
     const db = await guardedAdmin(context);

@@ -259,6 +259,14 @@ function newPreviewToken() {
     .slice(0, 40);
 }
 
+export type ProspectSearchSource = "free" | "google";
+const truthy = (v: string | undefined) => Boolean(v && !["false", "0", "no", "off", ""].includes(v.trim().toLowerCase()));
+/** Google Places only on explicit request and never while a zero-cost switch is on. */
+export function prospectSearchUsesGoogle(source: ProspectSearchSource | undefined, env: Readonly<Record<string, string | undefined>> = process.env) {
+  if (source !== "google") return false;
+  return !["ZERO_COST_ONLY", "AI_FREE_ONLY", "FREE_AI_ONLY"].some((k) => truthy(env[k]));
+}
+
 /**
  * Finds businesses in a niche and city with no real website (Google Places),
  * skipping ones that already have a demo. Capped per day and audit-logged so
@@ -267,8 +275,9 @@ function newPreviewToken() {
 export async function findProspects(
   db: SupabaseClient,
   actorId: string,
-  input: { niche: string; city: string; state?: string | null },
+  input: { niche: string; city: string; state?: string | null; source?: ProspectSearchSource },
 ) {
+  const useGoogle = prospectSearchUsesGoogle(input.source);
   const { MAX_SEARCHES_PER_DAY, selectProspects, isUpgradeProspect } = await import("@/lib/prospect-finder");
   const since = new Date();
   since.setUTCHours(0, 0, 0, 0);
@@ -281,8 +290,10 @@ export async function findProspects(
     throw new Error(`Daily search limit reached (${MAX_SEARCHES_PER_DAY}). It resets at midnight UTC, so Google Places costs stay bounded.`);
 
   const query = `${input.niche} in ${input.city}${input.state ? `, ${input.state}` : ""}`;
-  const { searchPlacesForProspects } = await import("@/lib/integrations/google.server");
-  const places = await searchPlacesForProspects(query, 20);
+  // Free mode (default) never calls Google Places, which can bill per request.
+  const places = useGoogle
+    ? await (await import("@/lib/integrations/google.server")).searchPlacesForProspects(query, 20)
+    : [];
   const existing = (await listProspectDemos(db, 100)).map((demo) => demo.name);
   const google = selectProspects(places, existing, { includeWebsites: true });
   // Free second source: OpenStreetMap. Same-name businesses already found on Google are skipped.
@@ -310,11 +321,11 @@ export async function findProspects(
     organization_id: null,
     actor_id: actorId,
     action: "jarvis.prospects.search",
-    entity: "google_places",
+    entity: useGoogle ? "google_places" : "openstreetmap",
     entity_id: null,
-    metadata: { query, results: places.length, osmResults: osm.length, prospects: prospects.length },
+    metadata: { query, source: useGoogle ? "google_and_osm" : "free_osm_only", results: places.length, osmResults: osm.length, prospects: prospects.length },
   });
-  return { query, searched: places.length, prospects };
+  return { query, source: useGoogle ? ("google_and_osm" as const) : ("free_osm_only" as const), searched: places.length + osm.length, prospects };
 }
 
 /** The demo form, prefilled from a Google Maps link or a picture. Empty means unknown. */
