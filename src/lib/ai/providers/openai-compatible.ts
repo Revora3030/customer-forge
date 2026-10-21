@@ -146,17 +146,36 @@ export function createOpenAiCompatibleAdapter(options: CompatAdapterOptions): Pr
         response = await send(fallback);
       }
       if (!response.ok) throw await providerHttpError(name, response);
-      const payload = (await response.json()) as {
-        choices?: { message?: { content?: string } }[];
+      type Payload = {
+        choices?: { message?: { content?: string | null; reasoning?: string | null; reasoning_content?: string | null }; finish_reason?: string | null }[];
         error?: { message?: string };
       };
+      let payload = (await response.json()) as Payload;
+      // Reasoning models (gpt-oss, nemotron, deepseek) can spend the whole
+      // output budget thinking and return empty content with finish "length".
+      // Ask once more with a larger budget instead of discarding the model.
+      if (
+        !stripReasoning(payload.choices?.[0]?.message?.content ?? "") &&
+        payload.choices?.[0]?.finish_reason === "length"
+      ) {
+        const retry = await send(Math.min(16_384, Math.max(4096, (maxOutputTokens ?? 2048) * 2)));
+        if (retry.ok) payload = (await retry.json()) as Payload;
+      }
       if (payload.error?.message)
         throw new RevoraAiError(502, `Revora's ${name} free model returned an error.`, {
           category: "bad_response",
           provider: name,
           detail: payload.error.message.slice(0, 200),
         });
-      const text = stripReasoning(payload.choices?.[0]?.message?.content ?? "");
+      const message = payload.choices?.[0]?.message;
+      let text = stripReasoning(message?.content ?? "");
+      // Last resort for JSON calls: some hosts put the final JSON only in the
+      // reasoning field. Use it only when it contains a JSON object.
+      if (!text && jsonMode) {
+        const reasoning = message?.reasoning_content ?? message?.reasoning ?? "";
+        const match = reasoning.match(/\{[\s\S]*\}/);
+        if (match) text = match[0];
+      }
       if (text.length === 0)
         throw new RevoraAiError(502, `Revora's ${name} free model returned nothing.`, {
           category: "bad_response",
