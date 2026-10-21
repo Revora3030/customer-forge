@@ -1,4 +1,4 @@
-import { Brain, CalendarClock, ExternalLink, GitPullRequest, Hammer, Mail, MessageSquare, RefreshCw, Trash2 } from "lucide-react";
+import { Brain, CalendarClock, ExternalLink, GitPullRequest, Globe, Hammer, Mail, MessageSquare, RefreshCw, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { WriteProposal } from "@/lib/jarvis-actions";
 import { readDemoSendProposal } from "./demo-build";
@@ -30,6 +30,14 @@ export function ProposalCard({ proposal, state, url, onApprove }: Props) {
       <a className="mt-2 block break-all text-xs underline" href={proposal.draft.imageUrl} target="_blank" rel="noreferrer">Review image</a>
       <Button className="mt-3" disabled={Boolean(state)} onClick={onApprove}>{state === "building" ? "Saving…" : state === "done" ? "Draft saved" : "Save for review"}</Button>
       <p className={disclaimer}>Nothing posts here. Review and approve the saved draft under Operations → Instagram.</p>
+    </div>
+  );
+  if (proposal.id === "research.ask") return (
+    <div className={card}>
+      <p className="flex items-start gap-1.5 text-sm font-medium"><Globe className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden /><span className="min-w-0 break-words">Paid web research{proposal.preset !== "fast" ? ` (${proposal.preset})` : ""}</span></p>
+      <p className="mt-1 whitespace-pre-wrap break-words text-sm text-muted-foreground">{proposal.question}</p>
+      <Button type="button" className="mt-3" data-jarvis-tap="" disabled={Boolean(state)} onClick={onApprove}>{state === "building" ? "Researching…" : state === "done" ? "Researched" : "Approve and research"}</Button>
+      <p className={disclaimer}>One grounded answer with citations, paid from your Perplexity credits. Approving runs it once; nothing else is unblocked.</p>
     </div>
   );
   if (proposal.id === "code.pr") {
