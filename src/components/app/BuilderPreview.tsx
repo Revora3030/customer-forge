@@ -1,4 +1,5 @@
 import { forwardRef, useCallback, useEffect, useMemo, useRef, useState, type Ref, type RefObject } from "react";
+import { nextPreviewLoadState, PREVIEW_LOAD_TIMEOUT_MS, type PreviewLoadState } from "@/lib/builder/preview-load";
 import {
   ExternalLink,
   Maximize2,
