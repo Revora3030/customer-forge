@@ -353,6 +353,10 @@ export const getJarvisFreeToolReadiness = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     await guardedAdmin(context);
     return {
+      "website.html.audit": true,
+      "website.accessibility.static": true,
+      "website.security.headers": true,
+      "website.links.inventory": true,
       "website.lighthouse.audit": Boolean(process.env["GOOGLE_PAGESPEED_API_KEY"]),
       "website.browser.check": Boolean(process.env["BROWSERLESS_API_KEY"]),
       "docs.lookup": Boolean(process.env["CONTEXT7_API_KEY"]),
