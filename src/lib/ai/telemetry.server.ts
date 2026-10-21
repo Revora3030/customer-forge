@@ -25,11 +25,25 @@ export type AiEvent = {
   latencyMs: number;
   ok: boolean;
   errorCategory: AiErrorCategory | null;
+  /** Short provider reason for a failure; URLs and key-like strings removed. */
+  errorDetail?: string | null;
   inputTokens: number | null;
   outputTokens: number | null;
   fallbackUsed: boolean;
   toolCalls: number;
 };
+
+/** Keeps a failure sample readable but free of links, keys and long text. */
+export function scrubErrorDetail(detail: string | null | undefined): string | null {
+  if (!detail) return null;
+  const clean = detail
+    .replace(/https?:\/\/\S+/gi, "[link]")
+    .replace(/\b(sk|pk|rk|key|gsk|pplx|hf|nvapi|csk)[-_][A-Za-z0-9_-]{8,}\b/g, "[key]")
+    .replace(/[A-Za-z0-9_-]{32,}/g, "[id]")
+    .replace(/\s+/g, " ")
+    .trim();
+  return clean ? clean.slice(0, 240) : null;
+}
 
 async function admin() {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -62,6 +76,7 @@ export async function recordAiEvent(event: AiEvent) {
       latency_ms: Math.round(event.latencyMs),
       ok: event.ok,
       error_category: event.errorCategory,
+      error_detail: scrubErrorDetail(event.errorDetail),
       input_tokens: event.inputTokens,
       output_tokens: event.outputTokens,
       estimated_cost_usd: estimateCostUsd(
