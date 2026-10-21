@@ -39,6 +39,7 @@ import {
   durableProviderResting,
   noteDurableFreeTokens,
   noteDurableFreeUse,
+  durableRuntimeFor,
   noteDurableProviderResult,
   refreshDurableRuntime,
 } from "@/lib/ai/durable-health.server";
@@ -496,11 +497,16 @@ export function freeAiStatus() {
         (latest, state) => Math.max(latest, state.openUntil > Date.now() ? state.openUntil : 0),
         0,
       );
+      // The shared circuit (every worker) is the fuller truth: a provider
+      // resting there after a spent allowance or rejected key is not ready.
+      const shared = durableRuntimeFor(entry.name);
+      const sharedUntil = shared?.openUntil && shared.openUntil > Date.now() ? shared.openUntil : 0;
+      const until = Math.max(cooldownUntil, sharedUntil);
       return {
         ...entry,
-        healthy: cooldownUntil === 0,
+        healthy: until === 0,
         openFailures: states.reduce((total, state) => total + state.failures, 0),
-        cooldownUntil: cooldownUntil || null,
+        cooldownUntil: until || null,
         isolatedScopes: states.length,
         remainingToday: freeBudgetRemaining(entry.name),
       };
