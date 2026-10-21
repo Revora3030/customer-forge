@@ -143,3 +143,5 @@ Owner approved porting two ideas (audit of the uploaded Next.js project; auto pa
 - [x] Admin totals checked against records: 0 real customers, $0 paid, 0 outreach; 3 demo invoices correctly excluded.
 - [x] Publish tab lists business facts with source (your details / missing).
 - [x] Jarvis funnel summary includes builds waiting on AI capacity + soonest retry.
+- [x] Guest (anonymous) sign-in turned off; leaked-password check on; security scan clean.
+- [x] Last code warning fixed (demo pump hook moved to its own file); lint 0 warnings.
