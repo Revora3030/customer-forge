@@ -254,7 +254,7 @@ describe("runProspectAutopilot", () => {
 
   it("builds the best new businesses up to the daily cap, skipping demoed and do-not-contact ones", async () => {
     const { db, tables } = seed({
-      prospect_autopilot_settings: [settings({ daily_build_cap: 2 })],
+      prospect_autopilot_settings: [settings({ daily_build_cap: 2, send_sms: true })],
       website_settings: [
         { organization_id: "old-1", generation: { prospectDemo: { kind: "prospect_demo", createdAt: "2026-10-01T00:00:00Z", source: "autopilot", placeId: "place-dup" } } },
         { organization_id: "old-2", generation: { prospectDemo: { kind: "prospect_demo", createdAt: "2026-10-01T00:00:00Z" } } },
@@ -321,7 +321,7 @@ describe("runProspectAutopilot", () => {
   });
 
   it("bounds public email enrichment to four lookups per run", async () => {
-    const { db } = seed({ prospect_autopilot_settings: [settings({ daily_build_cap: 7 })] });
+    const { db } = seed({ prospect_autopilot_settings: [settings({ daily_build_cap: 7, send_sms: true })] });
     mocks.findProspects.mockResolvedValue({
       query: "mobile detailing in Raleigh, NC",
       searched: 6,
@@ -496,8 +496,16 @@ describe("rotation, Places budget and the verified-email gate", () => {
     expect(tables["prospect_rotation_cursor"] ?? []).toHaveLength(0);
   });
 
-  it("keeps a rejected address off the profile and skips businesses with a real website", async () => {
+  it("skips building a demo for a business with no public email when texting is off", async () => {
     const { db } = seed();
+    mocks.findProspects.mockResolvedValue({ query: "q", searched: 1, prospects: [prospect({ placeId: "no-mail", name: "No Mail" })] });
+    const result = await runProspectAutopilot(db, { now: () => NOW });
+    expect(result.skipped).toContainEqual({ reason: "no_public_email", name: "No Mail", target: "mobile detailing in Raleigh, NC" });
+    expect(mocks.provisionProspectDemo).not.toHaveBeenCalled();
+  });
+
+  it("keeps a rejected address off the profile and skips businesses with a real website", async () => {
+    const { db } = seed({ prospect_autopilot_settings: [settings({ send_sms: true })] });
     mocks.lookupPublicEmail.mockResolvedValue({ email: "owner@dead-domain.com", source: "public_page", url: "https://facebook.com/shine" });
     mocks.fetch.mockImplementation(async () => Response.json({ Status: 3 }));
     mocks.findProspects.mockResolvedValue({
