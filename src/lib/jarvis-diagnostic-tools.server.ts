@@ -563,7 +563,7 @@ export async function executeJarvisDiagnosticTool(
       });
     }
 
-    if (toolId === "website.lighthouse.audit" || toolId === "website.browser.check") {
+    if (toolId === "website.lighthouse.audit" || toolId === "website.browser.check" || toolId === "website.page.audit") {
       const { resolveAllowedTarget } = await import("./jarvis-target-url");
       const target = await resolveAllowedTarget(args.target, (host) => isVerifiedCustomerDomain(db, host));
       if (!target) {
@@ -583,6 +583,22 @@ export async function executeJarvisDiagnosticTool(
         const summary = summarizePageSpeed(await res.json(), target, strategy);
         return result(toolId, summary ? "observed" : "unknown", summary ?? { reason: "unparseable_response" }, { checkedAt, durationMs: Date.now() - started, limitations });
       }
+      if (toolId === "website.page.audit") {
+        const bbKey = process.env["BROWSERBASE_API_KEY"];
+        const limitations = ["One server-side HTML fetch; page scripts were not run and other pages were not checked."];
+        if (!bbKey) return result(toolId, "unknown", { reason: "needs_key", secret: "BROWSERBASE_API_KEY" }, { checkedAt, durationMs: Date.now() - started, limitations });
+        const { BROWSERBASE_FETCH_ENDPOINT, summarizePageFetch } = await import("./jarvis-page-audit");
+        const res = await fetch(BROWSERBASE_FETCH_ENDPOINT, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-BB-API-Key": bbKey },
+          body: JSON.stringify({ url: target, allowRedirects: true }),
+          signal: AbortSignal.timeout(14000),
+        });
+        if (!res.ok) return result(toolId, "unknown", { reason: res.status === 429 ? "free_quota_exhausted" : `browserbase_http_${res.status}` }, { checkedAt, durationMs: Date.now() - started, limitations });
+        const summary = summarizePageFetch(await res.json(), target);
+        if (!summary) return result(toolId, "unknown", { reason: "unparseable_response" }, { checkedAt, durationMs: Date.now() - started, limitations });
+        return result(toolId, summary.issues.length ? "failed" : "observed", summary, { checkedAt, durationMs: Date.now() - started, limitations });
+      }
       const key = process.env["BROWSERLESS_API_KEY"];
       const limitations = ["One headless load per size; forms, logins and other pages were not tested."];
       if (!key) return result(toolId, "unknown", { reason: "needs_key", secret: "BROWSERLESS_API_KEY" }, { checkedAt, durationMs: Date.now() - started, limitations });
@@ -599,6 +615,32 @@ export async function executeJarvisDiagnosticTool(
       const summary = summarizeBrowserCheck(await res.json(), target);
       if (!summary) return result(toolId, "unknown", { reason: "unparseable_response" }, { checkedAt, durationMs: Date.now() - started, limitations });
       return result(toolId, browserCheckHasProblems(summary) ? "failed" : "observed", summary, { checkedAt, durationMs: Date.now() - started, limitations });
+    }
+
+    if (toolId === "images.stock.search") {
+      const { cleanPhotoQuery, unsplashSearchUrl, pexelsSearchUrl, normalizeUnsplash, normalizePexels } = await import("./jarvis-stock-photos");
+      const limitations = ["Search results only; check each photo fits the business and keep the photographer credit."];
+      const q = cleanPhotoQuery(args.query);
+      if (!q) return result(toolId, "unknown", { reason: "missing_query" }, { checkedAt, durationMs: Date.now() - started, limitations });
+      const unsplashKey = process.env["UNSPLASH_ACCESS_KEY"];
+      const pexelsKey = process.env["PEXELS_API_KEY"];
+      if (!unsplashKey && !pexelsKey) return result(toolId, "unknown", { reason: "needs_key", secret: "UNSPLASH_ACCESS_KEY or PEXELS_API_KEY" }, { checkedAt, durationMs: Date.now() - started, limitations });
+      const sources: Record<string, string> = {};
+      const run = async (name: string, url: string, headers: Record<string, string>, norm: (raw: unknown) => unknown[]) => {
+        try {
+          const res = await fetch(url, { headers, signal: AbortSignal.timeout(8000) });
+          if (!res.ok) { sources[name] = res.status === 429 ? "free_quota_exhausted" : `http_${res.status}`; return []; }
+          const photos = norm(await res.json());
+          sources[name] = "ok";
+          return photos;
+        } catch { sources[name] = "unreachable"; return []; }
+      };
+      const [u, p] = await Promise.all([
+        unsplashKey ? run("unsplash", unsplashSearchUrl(q), { Authorization: `Client-ID ${unsplashKey}`, "Accept-Version": "v1" }, normalizeUnsplash) : (sources["unsplash"] = "needs_key", Promise.resolve([])),
+        pexelsKey ? run("pexels", pexelsSearchUrl(q), { Authorization: pexelsKey }, normalizePexels) : (sources["pexels"] = "needs_key", Promise.resolve([])),
+      ]);
+      const photos = [...u, ...p];
+      return result(toolId, photos.length ? "observed" : "unknown", { query: q, sources, photos }, { checkedAt, durationMs: Date.now() - started, limitations });
     }
 
     if (toolId === "docs.lookup") {

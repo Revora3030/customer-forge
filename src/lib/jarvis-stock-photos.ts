@@ -26,19 +26,20 @@ export const pexelsSearchUrl = (q: string) =>
   `https://api.pexels.com/v1/search?per_page=6&query=${encodeURIComponent(q)}`;
 
 const s = (v: unknown) => (typeof v === "string" ? v : "");
+const g = (o: unknown, ...k: string[]): unknown => k.reduce<unknown>((a, key) => (a && typeof a === "object" ? (a as Record<string, unknown>)[key] : undefined), o);
 const httpsOnly = (u: string) => (u.startsWith("https://") ? u : "");
 
 export function normalizeUnsplash(raw: unknown): StockPhoto[] {
   const results = (raw as { results?: unknown })?.results;
   if (!Array.isArray(results)) return [];
   return results.slice(0, 6).flatMap((p): StockPhoto[] => {
-    const r = (p ?? {}) as Record<string, any>;
-    const url = httpsOnly(s(r.urls?.regular));
-    const name = s(r.user?.name);
+    const url = httpsOnly(s(g(p, "urls", "regular")));
+    const name = s(g(p, "user", "name"));
     if (!url || !name) return [];
     const ref = "?utm_source=revora_growth_systems&utm_medium=referral";
-    const photographerUrl = s(r.user?.links?.html) ? `${s(r.user.links.html)}${ref}` : "";
-    return [{ source: "unsplash", id: s(r.id), url, thumbUrl: httpsOnly(s(r.urls?.small)) || url, alt: s(r.alt_description) || s(r.description), photographer: name, photographerUrl, pageUrl: s(r.links?.html), credit: `Photo by ${name} on Unsplash` }];
+    const profile = s(g(p, "user", "links", "html"));
+    const photographerUrl = profile ? `${profile}${ref}` : "";
+    return [{ source: "unsplash", id: s(g(p, "id")), url, thumbUrl: httpsOnly(s(g(p, "urls", "small"))) || url, alt: s(g(p, "alt_description")) || s(g(p, "description")), photographer: name, photographerUrl, pageUrl: s(g(p, "links", "html")), credit: `Photo by ${name} on Unsplash` }];
   });
 }
 
@@ -46,10 +47,9 @@ export function normalizePexels(raw: unknown): StockPhoto[] {
   const photos = (raw as { photos?: unknown })?.photos;
   if (!Array.isArray(photos)) return [];
   return photos.slice(0, 6).flatMap((p): StockPhoto[] => {
-    const r = (p ?? {}) as Record<string, any>;
-    const url = httpsOnly(s(r.src?.large));
-    const name = s(r.photographer);
+    const url = httpsOnly(s(g(p, "src", "large")));
+    const name = s(g(p, "photographer"));
     if (!url || !name) return [];
-    return [{ source: "pexels", id: String(r.id ?? ""), url, thumbUrl: httpsOnly(s(r.src?.medium)) || url, alt: s(r.alt), photographer: name, photographerUrl: s(r.photographer_url), pageUrl: s(r.url), credit: `Photo by ${name} on Pexels` }];
+    return [{ source: "pexels", id: String(g(p, "id") ?? ""), url, thumbUrl: httpsOnly(s(g(p, "src", "medium"))) || url, alt: s(g(p, "alt")), photographer: name, photographerUrl: s(g(p, "photographer_url")), pageUrl: s(g(p, "url")), credit: `Photo by ${name} on Pexels` }];
   });
 }

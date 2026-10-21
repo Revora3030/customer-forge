@@ -356,7 +356,14 @@ export const getJarvisFreeToolReadiness = createServerFn({ method: "GET" })
       "website.lighthouse.audit": Boolean(process.env["GOOGLE_PAGESPEED_API_KEY"]),
       "website.browser.check": Boolean(process.env["BROWSERLESS_API_KEY"]),
       "docs.lookup": Boolean(process.env["CONTEXT7_API_KEY"]),
-    };
+      "website.page.audit": Boolean(process.env["BROWSERBASE_API_KEY"]),
+      "images.stock.search": Boolean(process.env["UNSPLASH_ACCESS_KEY"] || process.env["PEXELS_API_KEY"]),
+      "stock.unsplash": Boolean(process.env["UNSPLASH_ACCESS_KEY"]),
+      "stock.pexels": Boolean(process.env["PEXELS_API_KEY"]),
+      "image.cloudflare": Boolean(process.env["CLOUDFLARE_ACCOUNT_ID"] && (process.env["CLOUDFLARE_AI_API_TOKEN"] || process.env["CLOUDFLARE_API_TOKEN"])),
+      "image.huggingface": Boolean(process.env["HUGGINGFACE_API_KEY"] || process.env["HF_TOKEN"]),
+      "image.pollinations": Boolean(process.env["POLLINATIONS_API_KEY"]),
+    } as Record<string, boolean>;
   });
 
 /** Fixed registered tools only; bounded inputs are still allow-listed by the executor. */
