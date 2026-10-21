@@ -146,6 +146,25 @@ async function json(response: Response, provider: string) {
  */
 const SEARCH_PROVIDERS: SearchProvider[] = [
   {
+    // The owner's own Perplexity key calls the API directly and is preferred;
+    // the Lovable-managed gateway connection below stays as the fallback.
+    id: "perplexity",
+    configured: () => Boolean(key("PERPLEXITY_API_KEY_1")),
+    run: async (query, max, signal) => {
+      const payload = await json(
+        await fetch("https://api.perplexity.ai/search", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${key("PERPLEXITY_API_KEY_1")}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ query, max_results: max }),
+          redirect: "manual",
+          signal,
+        }),
+        "perplexity",
+      );
+      return (payload["results"] as Record<string, unknown>[] | undefined) ?? [];
+    },
+  },
+  {
     id: "perplexity",
     configured: () => Boolean(key("LOVABLE_API_KEY") && key("PERPLEXITY_API_KEY")),
     run: async (query, max, signal) => {
