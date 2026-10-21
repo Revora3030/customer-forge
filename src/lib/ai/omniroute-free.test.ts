@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { isolateProviderEnvironment } from "./provider-test-environment";
-import { freeProviderCredentials } from "./free";
+import { freeProviderCredentials, isFreeEligibleModel } from "./free";
 
 describe("OmniRoute free lane", () => {
   beforeEach(() => isolateProviderEnvironment());
@@ -13,5 +13,11 @@ describe("OmniRoute free lane", () => {
     expect(freeProviderCredentials("omniroute")).toBeNull();
     vi.stubEnv("OMNIROUTE_BASE_URL", "https://omni.example.com/v1");
     expect(freeProviderCredentials("omniroute")).toEqual({ apiKey: "k" });
+  });
+  it("treats no OmniRoute model as free unless the owner lists it", () => {
+    expect(isFreeEligibleModel("omniroute", "gpt-5")).toBe(false);
+    vi.stubEnv("OMNIROUTE_FREE_MODELS", "my-free-combo");
+    expect(isFreeEligibleModel("omniroute", "my-free-combo")).toBe(true);
+    expect(isFreeEligibleModel("omniroute", "gpt-5")).toBe(false);
   });
 });
