@@ -29,7 +29,8 @@ import {
 import {
   BUILDER_VIEWPORTS,
   compareScale,
-  draftDiffLabel,
+  comparisonStatus,
+  effectiveCompareMode,
   fitZoom,
   nextCompareMode,
   previewPath,
@@ -128,7 +129,7 @@ function BuilderPreviewFrame({
   // holding, and a full desktop render inside a phone is heavy.
   useEffect(() => {
     if (typeof window !== "undefined" && window.innerWidth < 768) {
-      const phone = BUILDER_VIEWPORTS.find((v) => v.width <= 430)?.key;
+      const phone = BUILDER_VIEWPORTS.find((v) => v.key === "phone")?.key;
       if (phone) setViewport(phone);
     }
   }, []);
@@ -140,6 +141,7 @@ function BuilderPreviewFrame({
   // (what Publish would put live), so every AI change can be checked first.
   const [compareMode, setCompareMode] = useState<CompareMode>("off");
   const compare = compareMode !== "off";
+  const visibleCompareMode = effectiveCompareMode(compareMode, livePublished);
   const [overlaySplit, setOverlaySplit] = useState(50);
   const [fitMode, setFitMode] = useState(false);
   const [overflow, setOverflow] = useState<{ width: number; scrollWidth: number; culprits: string[] } | null>(null);
@@ -152,7 +154,10 @@ function BuilderPreviewFrame({
   const diff = useQuery({
     queryKey: ["draft-diff", organizationId, refreshRevision, tabRevision],
     enabled: compare && Boolean(organizationId),
-    queryFn: () => loadDiff({ data: { organizationId: organizationId! } }),
+    queryFn: () => {
+      if (!organizationId) throw new Error("Choose a workspace before comparing drafts.");
+      return loadDiff({ data: { organizationId } });
+    },
     staleTime: 15_000,
   });
   const frameRef = useRef<HTMLIFrameElement>(null);
@@ -168,7 +173,7 @@ function BuilderPreviewFrame({
     });
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+  }, [fullscreen]);
   const page = ordered.find((item) => item.id === pageId) ?? ordered[0];
   const currentViewport = BUILDER_VIEWPORTS.find((item) => item.key === viewport);
   const viewportWidth = currentViewport?.width ?? 1280;
@@ -192,13 +197,30 @@ function BuilderPreviewFrame({
   const source = page ? previewPath(slug, page.slug) : previewPath(slug, "home");
   // Side by side, each pane gets half the stage.
   const fitted = fitMode ? fitZoom(stageWidth, viewportWidth) : scale;
-  const paneScale = compareScale(compareMode, fitted, stageWidth, viewportWidth);
+  const paneScale = compareScale(visibleCompareMode, fitted, stageWidth, viewportWidth);
 
   useEffect(() => {
     if (!fullscreen || typeof document === "undefined") return;
+    const previousOverflow = document.body.style.overflow;
+    const previousFocus = document.activeElement;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      event.preventDefault();
+      setFullscreen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    stageRef.current?.closest("section")?.querySelector<HTMLButtonElement>('[aria-label="Exit fullscreen preview"]')?.focus();
     document.body.style.overflow = "hidden";
     return () => {
-      document.body.style.overflow = "";
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = previousOverflow;
+      window.requestAnimationFrame(() => {
+        if (previousFocus instanceof HTMLElement && previousFocus !== document.body && previousFocus.isConnected) previousFocus.focus();
+        else {
+          const controls = document.querySelectorAll<HTMLButtonElement>('[aria-label="Open fullscreen preview"], [aria-label="Preview options"]');
+          Array.from(controls).find((control) => control.getClientRects().length > 0)?.focus();
+        }
+      });
     };
   }, [fullscreen]);
 
@@ -501,23 +523,25 @@ function BuilderPreviewFrame({
             </span>
           ) : null}
           {a11y ? (
-            <button
+            <Button
               type="button"
+              size="sm"
+              variant="ghost"
               onClick={() => (a11y.issueCount ? setA11yOpen((open) => !open) : runA11y())}
               data-testid="builder-preview-a11y"
               className={cn(
                 "inline-flex cursor-pointer items-center gap-1 rounded-full border px-2 py-0.5 font-medium",
-                a11y.issueCount ? "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300" : "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+                a11y.issueCount ? "border-accent/40 bg-accent/10 text-accent" : "border-success/40 bg-success/10 text-success",
               )}
               aria-expanded={a11y.issueCount ? a11yOpen : undefined}
             >
               <Accessibility className="size-3" aria-hidden />
-              {a11y.issueCount ? `${a11y.issueCount} low-contrast item${a11y.issueCount === 1 ? "" : "s"}` : "AA Pass"}
-            </button>
+              {a11y.issueCount ? `${a11y.issueCount} low-contrast item${a11y.issueCount === 1 ? "" : "s"}` : "No contrast issues detected"}
+            </Button>
           ) : null}
           {compare ? (
             <span className="rounded-full border border-primary/40 bg-primary/10 px-2 py-0.5 font-medium text-foreground" data-testid="builder-preview-diff">
-              {diff.isLoading ? "Comparing…" : draftDiffLabel(diff.data?.diff ?? null)}
+              {comparisonStatus(diff.isLoading, diff.isError, diff.data?.diff ?? null)}
             </span>
           ) : null}
         </div>
@@ -533,14 +557,7 @@ function BuilderPreviewFrame({
             ))}
           </ul>
         ) : null}
-        {compareMode === "overlay" && !livePublished ? (
-          <UnpublishedComparePane
-            businessName={businessName}
-            viewportWidth={viewportWidth}
-            frameHeight={frameHeight}
-            scale={paneScale}
-          />
-        ) : compareMode === "overlay" ? (
+        {visibleCompareMode === "overlay" ? (
           <OverlayCompare
             liveSrc={`/s/${encodeURIComponent(slug)}${page && page.slug !== "home" ? `/${encodeURIComponent(page.slug)}` : ""}`}
             frameKey={`${source}-${refreshKey}-${refreshRevision}-${tabRevision}`}

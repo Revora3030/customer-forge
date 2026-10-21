@@ -16,6 +16,7 @@
 - First-build chat preferences travel through the existing saved brief to analysis, identity and composition checkpoints; keep them distinct from business fact evidence so owner direction survives retries without inventing claims.
 - Served-HTML verification reports its evidence type and missing checks explicitly; missing preview evidence must never be counted as passed or trigger rollback, because browser interaction and rendered QA are separate measurements.
 - Completed build polling refreshes generated content, settings, versions and readiness through the shared generated-result cache helper so customer views display saved output rather than stale empty states.
+- Draft refresh notifications match the viewed organization; unpublished overlay comparison retains a draft pane and failed comparisons report unavailable rather than claiming no published site.
 
 - Instagram is owner-scoped custom OAuth with encrypted server-only credentials; models may propose drafts but only the explicit authenticated review endpoint may atomically approve and publish an immutable saved caption/image URL/account. Uncertain submissions never auto-retry, preventing duplicate posts.
 
