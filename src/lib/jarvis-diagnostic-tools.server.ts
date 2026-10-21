@@ -314,9 +314,24 @@ async function releaseEvidence() {
 }
 
 /** Execute only a fixed, read-only diagnostic. This function contains no generic DB/HTTP execution path. */
+export type JarvisDiagnosticToolArgs = { target?: string; strategy?: string; query?: string };
+
+async function isVerifiedCustomerDomain(db: SupabaseClient, host: string): Promise<boolean> {
+  const bare = host.replace(/^www\./, "");
+  const { data, error } = await db
+    .from("website_settings")
+    .select("custom_domain")
+    .in("custom_domain", [bare, `www.${bare}`])
+    .eq("domain_verified", true)
+    .eq("published", true)
+    .limit(1);
+  return !error && Array.isArray(data) && data.length > 0;
+}
+
 export async function executeJarvisDiagnosticTool(
   db: SupabaseClient,
   requestedToolId: string,
+  args: JarvisDiagnosticToolArgs = {},
 ): Promise<JarvisDiagnosticToolResult> {
   if (!isJarvisDiagnosticToolId(requestedToolId)) throw new Error("Unknown Jarvis diagnostic tool.");
   const toolId = requestedToolId;
@@ -548,18 +563,60 @@ export async function executeJarvisDiagnosticTool(
       });
     }
 
-    if (toolId === "website.lighthouse.audit") {
-      const { buildPageSpeedUrl, summarizePageSpeed } = await import("./jarvis-pagespeed");
-      const limitations = [
-        "One mobile Lighthouse lab run of the homepage via Google PageSpeed Insights; scores vary run to run.",
-        "Lab data is not real-visitor Core Web Vitals and does not cover other pages.",
-      ];
-      const res = await fetch(buildPageSpeedUrl(process.env["GOOGLE_PAGESPEED_API_KEY"]), { signal: AbortSignal.timeout(14000) });
-      if (!res.ok) {
-        return result(toolId, "unknown", { reason: res.status === 429 ? "free_quota_exhausted" : `pagespeed_http_${res.status}` }, { checkedAt, durationMs: Date.now() - started, limitations });
+    if (toolId === "website.lighthouse.audit" || toolId === "website.browser.check") {
+      const { resolveAllowedTarget } = await import("./jarvis-target-url");
+      const target = await resolveAllowedTarget(args.target, (host) => isVerifiedCustomerDomain(db, host));
+      if (!target) {
+        return result(toolId, "unknown", { reason: "target_not_allowed" }, { checkedAt, durationMs: Date.now() - started, limitations: ["Only https Revora pages or verified, published customer domains can be checked."] });
       }
-      const summary = summarizePageSpeed(await res.json());
-      return result(toolId, summary ? "observed" : "unknown", summary ?? { reason: "unparseable_response" }, { checkedAt, durationMs: Date.now() - started, limitations });
+      if (toolId === "website.lighthouse.audit") {
+        const { buildPageSpeedUrl, summarizePageSpeed, normalizeStrategy } = await import("./jarvis-pagespeed");
+        const strategy = normalizeStrategy(args.strategy);
+        const limitations = [
+          `One ${strategy} Lighthouse lab run via Google PageSpeed Insights; scores vary run to run.`,
+          "Lab data is not real-visitor Core Web Vitals and covers only this URL.",
+        ];
+        const res = await fetch(buildPageSpeedUrl(process.env["GOOGLE_PAGESPEED_API_KEY"], target, strategy), { signal: AbortSignal.timeout(14000) });
+        if (!res.ok) {
+          return result(toolId, "unknown", { reason: res.status === 429 ? "free_quota_exhausted" : `pagespeed_http_${res.status}`, keyConfigured: Boolean(process.env["GOOGLE_PAGESPEED_API_KEY"]) }, { checkedAt, durationMs: Date.now() - started, limitations });
+        }
+        const summary = summarizePageSpeed(await res.json(), target, strategy);
+        return result(toolId, summary ? "observed" : "unknown", summary ?? { reason: "unparseable_response" }, { checkedAt, durationMs: Date.now() - started, limitations });
+      }
+      const key = process.env["BROWSERLESS_API_KEY"];
+      const limitations = ["One headless load per size; forms, logins and other pages were not tested."];
+      if (!key) return result(toolId, "unknown", { reason: "needs_key", secret: "BROWSERLESS_API_KEY" }, { checkedAt, durationMs: Date.now() - started, limitations });
+      const { BROWSERLESS_ENDPOINT, BROWSER_CHECK_CODE, summarizeBrowserCheck, browserCheckHasProblems } = await import("./jarvis-browser-check");
+      const res = await fetch(`${BROWSERLESS_ENDPOINT}?token=${encodeURIComponent(key)}&timeout=40000`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: BROWSER_CHECK_CODE, context: { url: target } }),
+        signal: AbortSignal.timeout(44000),
+      });
+      if (!res.ok) {
+        return result(toolId, "unknown", { reason: res.status === 429 ? "free_quota_exhausted" : `browserless_http_${res.status}` }, { checkedAt, durationMs: Date.now() - started, limitations });
+      }
+      const summary = summarizeBrowserCheck(await res.json(), target);
+      if (!summary) return result(toolId, "unknown", { reason: "unparseable_response" }, { checkedAt, durationMs: Date.now() - started, limitations });
+      return result(toolId, browserCheckHasProblems(summary) ? "failed" : "observed", summary, { checkedAt, durationMs: Date.now() - started, limitations });
+    }
+
+    if (toolId === "docs.lookup") {
+      const key = process.env["CONTEXT7_API_KEY"];
+      const limitations = ["Third-party documentation index; confirm against the official docs before relying on edge cases."];
+      const { cleanDocsQuery, buildSearchUrl, buildDocsUrl, pickLibraryId } = await import("./jarvis-docs-lookup");
+      const q = cleanDocsQuery(args.query);
+      if (!q) return result(toolId, "unknown", { reason: "missing_query", format: "library: topic" }, { checkedAt, durationMs: Date.now() - started, limitations });
+      if (!key) return result(toolId, "unknown", { reason: "needs_key", secret: "CONTEXT7_API_KEY" }, { checkedAt, durationMs: Date.now() - started, limitations });
+      const headers = { Authorization: `Bearer ${key}` };
+      const search = await fetch(buildSearchUrl(q.library), { headers, signal: AbortSignal.timeout(7000) });
+      if (!search.ok) return result(toolId, "unknown", { reason: search.status === 429 ? "free_quota_exhausted" : `context7_http_${search.status}` }, { checkedAt, durationMs: Date.now() - started, limitations });
+      const lib = pickLibraryId(await search.json());
+      if (!lib) return result(toolId, "unknown", { reason: "library_not_found", library: q.library }, { checkedAt, durationMs: Date.now() - started, limitations });
+      const docs = await fetch(buildDocsUrl(lib.id, q.topic), { headers, signal: AbortSignal.timeout(7000) });
+      if (!docs.ok) return result(toolId, "unknown", { reason: `context7_http_${docs.status}`, source: lib.id }, { checkedAt, durationMs: Date.now() - started, limitations });
+      const text = (await docs.text()).slice(0, 7500);
+      return result(toolId, "observed", { source: lib.id, library: lib.title, topic: q.topic || null, excerpt: text }, { checkedAt, durationMs: Date.now() - started, limitations });
     }
 
     if (toolId === "growth.funnel.summary") {
