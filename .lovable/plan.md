@@ -1,41 +1,30 @@
-# Add more free tools for building customer websites
+# Jarvis: add the free tools from your list that can actually run inside Revora
 
-## What "free" honestly means here
-- No picture tool is unlimited. Free options have daily limits and can be slow or rate-limited.
-- Free pictures are illustrations only. They are never shown as a customer's real work, and they are not allowed to include made-up phone numbers, logos or text.
-- Your existing rule stays: only free models while paid funds are off, with the $100 monthly cap and your approval for anything paid.
+## What's realistic
+Most of the list (ComfyUI, Ollama, vLLM, Whisper, Semgrep, Trivy, n8n self-hosted, Qdrant, video models) is software that needs its own server or GPU. Revora runs on Cloudflare's edge, so that software can't run inside the app. Those items go on a "needs a server" list for later, not into this build.
 
-## 1. Free picture making (main focus)
-- Reuse the existing Cloudflare picture connection as the first free picture source.
-- Add two more free sources as backups: Hugging Face (free key) and Pollinations (no key).
-- Each picture goes through the existing quality check: no fake text or numbers, right size, and a label saying it is an AI illustration.
-- When every free source is busy, the build waits and shows the retry time, the same way it waits for writing models now.
+Already covered: Context7, Lighthouse/PageSpeed, browser checks (Browserless/Browserbase), Supabase/pgvector, Sentry, n8n, GitHub, Cloudflare, free-model routing (OpenRouter, Groq, Cerebras, Gemini, Cloudflare Workers AI, Hugging Face).
 
-## 2. Free tools for the rest of the build
-- Free stock photos from Unsplash and Pexels (free keys), with the photographer credit shown on the site.
-- Free icons and fonts already in the app stay the default.
-- The page speed, live page check and docs tools you just added also run on each customer site before it is called ready.
-- Free accessibility check (contrast, labels, headings) on every page after a build.
+## New Jarvis checks (all free, no key, read-only)
+1. **HTML validator** — checks a page for broken markup using the official W3C validator (validator.w3.org/nu).
+2. **Dependency vulnerability check** — looks up the app's own packages in the free OSV.dev database (the same data OSV-Scanner uses) and lists known security issues.
+3. **Security grade** — runs Mozilla Observatory on an allowed page and returns its header grade.
+4. **Domain registration lookup** — RDAP (the free, official replacement for WHOIS): who the registrar is, plus expiry date and status. Useful for prospect and customer domains.
+5. **Wayback history** — Internet Archive check: has this site existed before, and when was it last saved? Helps Jarvis tell new businesses from established ones.
+6. **Readable page text** — pulls the main text out of an allowed page (Readability-style), so Jarvis can summarize it. It is treated only as evidence, never as instructions.
 
-## 3. Jarvis and builder controls
-- New "Free tools" status card listing each source: connected, missing key, or over its limit.
-- Jarvis can explain which source made each picture and why.
+Each check uses the existing rules: it only accepts allowed addresses, never posts or changes anything, and reports "unknown" rather than "passed" when a service fails or hits its limit.
 
-## 4. Checks
-- Tests for picture order, fallback when a source is busy, credit lines, and the fake-text rejection.
-- One small free test picture per source, only after you confirm.
+## Jarvis panel
+- Adds a button for each new check in "Page checks & docs".
+- Adds a "Needs a server (later)" list, with links to the self-hosted tools you named, so nothing on your list is lost.
 
-## Keys you would need (all free)
-- Hugging Face: https://huggingface.co/settings/tokens
-- Unsplash: https://unsplash.com/oauth/applications
-- Pexels: https://www.pexels.com/api/new/
-- Cloudflare is already connected; Pollinations needs no key.
-
-## Not included
-- Paid picture or video models, publishing, emails, or live customer builds without your OK.
+## Not doing
+- No paid calls and no publishing.
+- No emails, posts, or database writes.
+- No second agent framework (Mastra/LangGraph), so Jarvis doesn't end up with two control systems fighting each other.
 
 ## Technical details
-- Extend `src/lib/media/image-capability.server.ts` and the provider list next to `src/lib/ai/providers/cloudflare-image.ts`; no second picture system.
-- Stock sources fill the existing `assetSource: "stock"` and `license`/`attribution` fields in `first-build-images.types.ts`.
-- Busy sources go through the existing worker capacity deferral only.
-- Status card extends `src/components/app/jarvis/FreeToolsPanel.tsx`.
+- New `src/lib/jarvis-free-checks.ts`: URL builders and response summarizers for these services: W3C Nu (`out=json`), OSV `querybatch` (packages read from bundled package.json at build time), Observatory v2 `/api/v2/scan`, `rdap.org/domain/{d}`, `archive.org/wayback/available`, and bounded HTML-to-text extraction that reuses the keyless page reader.
+- Registry entries are added to `jarvis-tool-registry.ts` (read, low risk), with executor branches in `jarvis-diagnostic-tools.server.ts`, readiness flags set to `true`, and buttons in `FreeToolsPanel.tsx`.
+- Tests cover input validation, domain/URL allow-listing, summary trimming, and the unknown-on-failure behavior.
