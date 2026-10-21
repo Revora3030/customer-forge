@@ -10,6 +10,7 @@
         "@lovable.dev/email-js": "0.1.0",
         "@lovable.dev/mcp-js": "^3.1.1",
         "@lovable.dev/webhooks-js": "^0.0.1",
+        "@perplexity-ai/perplexity_ai": "^0.39.1",
         "@radix-ui/react-accordion": "^1.2.12",
         "@radix-ui/react-alert-dialog": "^1.1.15",
         "@radix-ui/react-aspect-ratio": "^1.1.8",
@@ -361,6 +362,8 @@
     "@oxc-parser/binding-win32-x64-msvc": ["@oxc-parser/binding-win32-x64-msvc@0.120.0", "https://europe-west1-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache/@oxc-parser/binding-win32-x64-msvc/-/binding-win32-x64-msvc-0.120.0.tgz", { "os": "win32", "cpu": "x64" }, "sha512-ys+upfqNtSu58huAhJMBKl3XCkGzyVFBlMlGPzHeFKgpFF/OdgNs1MMf8oaJIbgMH8ZxgGF7qfue39eJohmKIg=="],
 
     "@oxc-project/types": ["@oxc-project/types@0.142.0", "https://europe-west1-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache/@oxc-project/types/-/types-0.142.0.tgz", {}, "sha512-7W+2q5AKQVU36fkaryontrHn3YDt1RyUYXatw9i5H8ocYe2sPKSFB6eS8WNPeRKiN1qAWWZUPm7gwFzJGrccqQ=="],
+
+    "@perplexity-ai/perplexity_ai": ["@perplexity-ai/perplexity_ai@0.39.1", "https://europe-west1-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache/@perplexity-ai/perplexity_ai/-/perplexity_ai-0.39.1.tgz", {}, "sha512-hTYweSKbDX9lwKTQLUXZ7S3/oKnwf4tL3TsbBhTXrOqUcV1PGKv0Ml2XZ7ls/ETOyQssFD0eBrAbG4rS6Gvk4g=="],
 
     "@pkgr/core": ["@pkgr/core@0.3.6", "https://europe-west1-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache/@pkgr/core/-/core-0.3.6.tgz", {}, "sha512-SEeaJLb3qBNF/OaXnaR1NmmBbFYk1zC0ZH/52fATcRPLFg/p791YrcyFFy44Bo9sLaGuSuLp5Q6axbb/O+v/RA=="],
 
