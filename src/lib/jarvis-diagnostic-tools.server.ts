@@ -849,6 +849,19 @@ export async function executeJarvisDiagnosticTool(
       });
     }
 
+    if (toolId === "integrations.status") {
+      const { collectIntegrationStatus } = await import("./jarvis-integration-status.server");
+      const report = await collectIntegrationStatus(db);
+      return result(toolId, report.status, report, {
+        checkedAt,
+        durationMs: Date.now() - started,
+        limitations: [
+          "A saved key is configuration, not proof the service works; only a recorded run or durable usage row counts as live-tested.",
+          "Connector runtime health is process-local and resets on restart.",
+        ],
+      });
+    }
+
     return result(toolId, "unknown", { reason: "unhandled_registered_tool" }, {
       checkedAt, durationMs: Date.now() - started,
       limitations: ["Registered tool has no executor path; fail-closed result."],

@@ -74,6 +74,8 @@ describe("no third-party AI gateway remains", () => {
       // through the connector gateway; presence checks and data reads, no model.
       "jarvis.functions.ts",
       "jarvis-diagnostic-tools.server.ts",
+      // Presence-only readiness names the gateway credential those checks need.
+      "jarvis-tool-readiness",
       // Growth Engine posts approved Google profile updates through the
       // connector gateway; AI drafting goes through the shared router.
       "growth-engine/service.server.ts",
