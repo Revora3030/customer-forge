@@ -36,3 +36,17 @@ describe("local landing pages", () => {
     expect(localPaths().length).toBeGreaterThan(count);
   });
 });
+
+import { localTitle } from "./local-pages";
+describe("localTitle", () => {
+  it("names three metros when it fits", () => {
+    expect(localTitle("HVAC", "Alabama", ["Birmingham", "Montgomery", "Huntsville", "Mobile"])).toBe(
+      "HVAC Lead Generation Alabama: Birmingham, Montgomery, Huntsville",
+    );
+  });
+  it("falls back to two metros when too long", () => {
+    expect(localTitle("Landscaping", "Massachusetts", ["Boston", "Worcester", "Springfield"])).toBe(
+      "Landscaping Lead Generation Massachusetts: Boston, Worcester & More",
+    );
+  });
+});
