@@ -137,3 +137,9 @@
 Owner approved porting two ideas (audit of the uploaded Next.js project; auto package-install, sandboxed codegen, regex intent matching and conversation trimming rejected as inapplicable or worse than existing AI understanding).
 - [x] Self-healing preview: the browser quality check now captures runtime script errors and unhandled rejections inside the measured site, grades them as P0 findings, and the AI repair loop receives them in its repair brief (2026-10-20).
 - [x] Edit-intent scoping: the AI planner declares the smallest scope its plan touches (style/section/page/site) and point-and-edit carries the selected block id; the server drops any planned change outside that boundary before apply, failing open if the scope is unusable (2026-10-20).
+
+## Upgrade wave 2026-10-21 (no spend/publish)
+- [x] Fullscreen preview keeps keyboard focus inside; preview frame shows Retry after 20s or a load error.
+- [x] Admin totals checked against records: 0 real customers, $0 paid, 0 outreach; 3 demo invoices correctly excluded.
+- [x] Publish tab lists business facts with source (your details / missing).
+- [x] Jarvis funnel summary includes builds waiting on AI capacity + soonest retry.
