@@ -233,6 +233,8 @@ export async function runJarvis(db: SupabaseClient, userId: string, mode: Mode, 
   let followups: string[] = [];
   const ran: string[] = [];
   const proposals: import("./jarvis-actions").WriteProposal[] = [];
+  const { createRunRecorder } = await import("./jarvis-events.server");
+  const recorder = createRunRecorder(userId);
   const conversation: { role: "system" | "user" | "assistant"; content: string }[] = [
     { role: "system", content: system },
     // Stored replies carry action metadata for the UI; the model only needs the text.
@@ -241,18 +243,35 @@ export async function runJarvis(db: SupabaseClient, userId: string, mode: Mode, 
   try {
     // Act, observe, answer: up to MAX_ACTION_STEPS rounds of read actions.
     for (let step = 0; step <= MAX_ACTION_STEPS; step += 1) {
-      const result = await generateText({ userId, task: "admin.jarvis" },
-        jarvisModelRequest(conversation, MODE_CONFIG[mode].tokens));
+      const modelStart = Date.now();
+      let result: Awaited<ReturnType<typeof generateText>>;
+      try {
+        result = await generateText({ userId, task: "admin.jarvis" },
+          jarvisModelRequest(conversation, MODE_CONFIG[mode].tokens));
+      } catch (modelError) {
+        recorder.add({ step, kind: "model_call", status: "failed", label: "AI answer", startedAt: modelStart, finishedAt: Date.now(), error: modelError instanceof Error ? modelError.message : "model call failed" });
+        throw modelError;
+      }
+      recorder.add({ step, kind: "model_call", status: "ok", label: "AI answer", startedAt: modelStart, finishedAt: Date.now(), provider: result.provider, model: result.model, output: `${result.text.length} characters${result.fallbackUsed ? ", fallback model" : ""}` });
       const { text, requested } = extractActionBlock(result.text);
       const parsed = parseActions(requested, toolIds);
-      proposals.push(...parsed.proposals.slice(0, Math.max(0, 5 - proposals.length)));
+      const accepted = parsed.proposals.slice(0, Math.max(0, 5 - proposals.length));
+      proposals.push(...accepted);
+      for (const proposal of accepted) recorder.add({ step, kind: "proposal", status: "ok", toolId: (proposal as { id?: string }).id ?? null, label: "Proposed — waiting for your approval", startedAt: Date.now(), finishedAt: Date.now(), input: proposal });
+      for (const rejected of parsed.rejected) recorder.add({ step, kind: "tool", status: "rejected", label: "Request rejected", startedAt: Date.now(), finishedAt: Date.now(), error: rejected });
       if (!parsed.reads.length || step === MAX_ACTION_STEPS) {
         const final = splitFollowups(text);
         reply = final.body;
         followups = final.followups;
         break;
       }
+      const toolStart = Date.now();
       const results = await runReadActions(db, parsed.reads, userId);
+      const toolEnd = Date.now();
+      results.forEach((item, i) => {
+        const action = parsed.reads[i] as { id?: string; args?: unknown } | undefined;
+        recorder.add({ step, kind: "tool", status: item.ok ? "ok" : "failed", toolId: action?.id ?? null, label: item.label, startedAt: toolStart, finishedAt: toolEnd, input: action?.args ?? null, ...(item.ok ? { output: item.result } : { error: item.result }) });
+      });
       ran.push(...results.map((item) => (item.ok ? item.label : `${item.label} (failed)`)));
       conversation.push(
         { role: "assistant", content: result.text.slice(0, 8000) },
@@ -273,9 +292,10 @@ export async function runJarvis(db: SupabaseClient, userId: string, mode: Mode, 
       : "Diagnostics were collected, but no eligible AI model could finish the answer. Check model access, quotas and spending limits.";
   }
   reply = appendReplyMeta(reply.slice(0, 40000), { ran, proposals });
-  const saved = await db.from("jarvis_messages").insert({ user_id: userId, role: "assistant", content: reply });
+  const saved = await db.from("jarvis_messages").insert({ user_id: userId, role: "assistant", content: reply, run_id: recorder.count ? recorder.runId : null }).select("id").maybeSingle();
   if (saved.error) throw new Error("Jarvis answered, but the reply could not be saved. Refresh before retrying.");
-  return { reply, diagnostics, followups };
+  await recorder.flush(db, (saved.data?.id as string | undefined) ?? null);
+  return { reply, diagnostics, followups, runId: recorder.count ? recorder.runId : null };
 }
 
 export const sendJarvisMessage = createServerFn({ method: "POST" })
