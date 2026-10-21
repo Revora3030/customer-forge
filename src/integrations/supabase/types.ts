@@ -1855,6 +1855,114 @@ export type Database = {
         }
         Relationships: []
       }
+      jarvis_instagram_connections: {
+        Row: {
+          connected_at: string
+          expires_at: string
+          instagram_id: string
+          token_ciphertext: string
+          user_id: string
+          username: string
+        }
+        Insert: {
+          connected_at?: string
+          expires_at: string
+          instagram_id: string
+          token_ciphertext: string
+          user_id: string
+          username: string
+        }
+        Update: {
+          connected_at?: string
+          expires_at?: string
+          instagram_id?: string
+          token_ciphertext?: string
+          user_id?: string
+          username?: string
+        }
+        Relationships: []
+      }
+      jarvis_instagram_oauth: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          state_hash: string
+          used_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          id?: string
+          state_hash: string
+          used_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          state_hash?: string
+          used_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      jarvis_instagram_posts: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          caption: string
+          container_id: string | null
+          content_hash: string
+          created_at: string
+          error: string | null
+          id: string
+          image_url: string
+          instagram_id: string
+          media_id: string | null
+          permalink: string | null
+          status: string
+          user_id: string
+          username: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          caption: string
+          container_id?: string | null
+          content_hash: string
+          created_at?: string
+          error?: string | null
+          id?: string
+          image_url: string
+          instagram_id: string
+          media_id?: string | null
+          permalink?: string | null
+          status?: string
+          user_id: string
+          username: string
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          caption?: string
+          container_id?: string | null
+          content_hash?: string
+          created_at?: string
+          error?: string | null
+          id?: string
+          image_url?: string
+          instagram_id?: string
+          media_id?: string | null
+          permalink?: string | null
+          status?: string
+          user_id?: string
+          username?: string
+        }
+        Relationships: []
+      }
       jarvis_memories: {
         Row: {
           content: string

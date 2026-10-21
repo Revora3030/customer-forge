@@ -1,5 +1,10 @@
 # Roadmap — Five-phase blocker elimination
 
+## Instagram posting through Jarvis (2026-10-21)
+- [ ] Custom Instagram authorization, encrypted owner-bound account credentials, disconnect/reconnect.
+- [ ] Exact-post review and individual approval, durable duplicate/uncertain-publish protection, Jarvis draft tools.
+- [ ] Offline security/approval/provider tests and signed-in UI verification; real authorization/posting waits on owner's Meta app credentials and individual post approval.
+
 ## Admin accuracy pass (2026-10-20)
 - [x] AI health: totals were capped at 1,000 records; provider status came from one idle server's memory. Now counts every record and uses shared provider records.
 - [x] Command center model stats and build health totals count every record.
