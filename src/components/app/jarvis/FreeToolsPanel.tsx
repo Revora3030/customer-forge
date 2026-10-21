@@ -23,6 +23,9 @@ const tools = [
   { id: "domain.rdap.lookup", title: "Domain registration · no key", icon: Landmark },
   { id: "domain.wayback.history", title: "Wayback history · no key", icon: Archive },
   { id: "website.text.extract", title: "Readable page text · no key", icon: FileText },
+  { id: "website.seo.crawl", title: "SEO crawl check · no key", icon: FileSearch },
+  { id: "domain.certificates.lookup", title: "SSL certificates · no key", icon: Lock },
+  { id: "places.osm.search", title: "Map lookup · no key", icon: Globe },
   { id: "workspace.calendar.upcoming", title: "Google Calendar · next 7 days", icon: CalendarDays },
   { id: "workspace.sheets.read", title: "Google Sheets outline", icon: Sheet },
   { id: "cloudflare.zones.summary", title: "Cloudflare domains", icon: Cloud },
@@ -57,7 +60,7 @@ export function FreeToolsPanel() {
     setRunning(toolId);
     setError(null);
     try {
-      const args = toolId === "docs.lookup" ? { query } : toolId === "images.stock.search" ? { query: photoQuery } : toolId === "workspace.sheets.read" ? { query: sheetUrl } : toolId === "website.dns.lookup" || toolId === "domain.rdap.lookup" || toolId === "domain.wayback.history" ? { query: target } : { target, strategy };
+      const args = toolId === "docs.lookup" ? { query } : toolId === "images.stock.search" ? { query: photoQuery } : toolId === "workspace.sheets.read" ? { query: sheetUrl } : toolId === "places.osm.search" ? { query: placeQuery } : toolId === "website.dns.lookup" || toolId === "domain.certificates.lookup" || toolId === "domain.rdap.lookup" || toolId === "domain.wayback.history" ? { query: target } : { target, strategy };
       const result = await run({ data: { toolId, args } });
       setResults((previous) => ({ ...previous, [toolId]: result }));
     } catch {

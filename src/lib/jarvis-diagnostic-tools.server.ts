@@ -664,6 +664,26 @@ export async function executeJarvisDiagnosticTool(
           const s = free.summarizeOsv(await res.json(), deps);
           return done(s.vulnerablePackages.length ? "failed" : "observed", s, lim);
         }
+        if (toolId === "places.osm.search") {
+          const lim = ["OpenStreetMap community data; may be missing or outdated. Not verified business facts."];
+          const q = free.cleanPlaceQuery(args.query);
+          if (!q) return done("unknown", { reason: "invalid_query" }, lim);
+          const res = await fetch(free.NOMINATIM_URL(q), { headers: { Accept: "application/json", ...ua }, signal: AbortSignal.timeout(12000) });
+          if (!res.ok) return fail(res, lim);
+          return done("observed", { query: q, ...free.summarizeNominatim(await res.json()) }, lim);
+        }
+        if (toolId === "domain.certificates.lookup") {
+          const { cleanDomain } = await import("./jarvis-connected-services");
+          const lim = ["Public Certificate Transparency logs (crt.sh); unexpired certificates only; service is often slow."];
+          const domain = cleanDomain(args.query ?? args.target);
+          if (!domain) return done("unknown", { reason: "invalid_domain" }, lim);
+          const r = await free.readBoundedText(free.CRTSH_URL(domain), 2_000_000, { Accept: "application/json", ...ua }, 20000);
+          if (!r.ok) return done("unknown", { reason: r.status === 429 ? "free_quota_exhausted" : `http_${r.status}` }, lim);
+          if (r.truncated) return done("unknown", { reason: "response_too_large" }, lim);
+          let parsed: unknown; try { parsed = JSON.parse(r.text || "[]"); } catch { return done("unknown", { reason: "unparseable_response" }, lim); }
+          const s = free.summarizeCrtsh(parsed, domain);
+          return done(s.daysUntilLatestExpiry !== null && s.daysUntilLatestExpiry < 14 ? "failed" : "observed", s, lim);
+        }
         if (toolId === "domain.rdap.lookup" || toolId === "domain.wayback.history") {
           const { cleanDomain } = await import("./jarvis-connected-services");
           const lim = ["Public registry/archive data; may be incomplete or redacted."];
@@ -683,6 +703,20 @@ export async function executeJarvisDiagnosticTool(
         const target = await resolveAllowedTarget(args.target, (host) => isVerifiedCustomerDomain(db, host));
         const lim = ["One allowed URL only; other pages were not checked."];
         if (!target) return done("unknown", { reason: "target_not_allowed" }, lim);
+        if (toolId === "website.seo.crawl") {
+          const { readKeylessPage } = await import("./jarvis-keyless-page");
+          const origin = new URL(target).origin;
+          const [robots, sitemap, page] = await Promise.all([
+            free.readBoundedText(`${origin}/robots.txt`, 64_000, ua).catch(() => null),
+            free.readBoundedText(`${origin}/sitemap.xml`, 1_000_000, ua).catch(() => null),
+            readKeylessPage(target),
+          ]);
+          const seoLim = [...lim, "robots.txt and /sitemap.xml at the site root only; redirects are not followed; not a ranking check."];
+          if (!("html" in page)) return done("unknown", page, seoLim);
+          const s = { url: target, robots: free.summarizeRobots(robots?.ok ? robots.text : null), sitemap: free.summarizeSitemap(sitemap?.ok ? sitemap.text : null), page: free.summarizeSeoTags(page.html) };
+          const bad = s.robots.blocksAllCrawlers || s.page.noindex || !s.sitemap.present || s.page.missing.length > 0 || s.page.invalidJsonLd > 0;
+          return done(bad ? "failed" : "observed", s, seoLim);
+        }
         if (toolId === "website.html.validate") {
           const res = await fetch(free.W3C_URL(target), { headers: ua, signal: AbortSignal.timeout(14000) });
           if (!res.ok) return fail(res, lim);
