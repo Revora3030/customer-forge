@@ -1,9 +1,10 @@
 # Roadmap — Five-phase blocker elimination
 
 ## Uploaded one-click website brief (2026-10-21)
-- [ ] Audit current generation, brief controls, preview, rendered quality and publishing against the uploaded requirements.
-- [ ] Implement evidence-backed gaps using the existing AI pipeline and customer builder, with offline regression tests.
-- [ ] Verify signed-in controls and preview at mobile/desktop; report measured checks separately from unrun generation/publishing.
+- [x] Audit current generation, brief controls, preview, rendered quality and publishing against the uploaded requirements; served HTML does not prove screen/form/image/browser QA.
+- [x] Implement saved first-build owner direction, guided brief, manager-only brief writes, read-error recovery, completed-result cache refresh and honest verification evidence using the existing pipeline.
+- [x] Signed-in guided brief tested at desktop/phone: reaches composer, fits screen, restores focus, no page errors; AI/mutation calls blocked. Generation, generated-site rendering and publishing were not exercised.
+- [ ] Full rendered-site interaction/form/image/network repair coverage remains incomplete; requires generated-site evidence and authorized live verification, not HTML scores.
 - [ ] Real generation and publishing verification BLOCKED: paid balances exhausted; no new provider spend or production publishing authorized. Preserve daily site limit 5.
 
 ## Instagram posting through Jarvis (2026-10-21)

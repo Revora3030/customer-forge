@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog";
 import { cancelInstagramDraftFn, disconnectInstagramFn, getInstagramStatusFn, publishInstagramDraftFn, saveInstagramDraftFn, startInstagramConnectFn } from "@/lib/instagram.functions";
 import type { InstagramPostRow } from "@/lib/instagram.server";
 
@@ -43,7 +44,13 @@ export function InstagramPanel() {
             if (!popup) { toast.error("Allow popups to connect Instagram."); return; }
             void run(async () => { try { const result = await connect(); popup.location.href = result.authorizationUrl; } catch (error) { popup.close(); throw error; } });
           }}>{account.data?.account ? "Reconnect Instagram" : "Connect Instagram"}</Button>
-          {account.data?.account ? <Button variant="ghost" size="sm" disabled={busy} onClick={() => { if (window.confirm("Disconnect Instagram from Jarvis? Pending posts will not be sent.")) void run(async () => { await disconnect(); toast.success("Instagram disconnected."); }); }}>Disconnect</Button> : null}
+          {account.data?.account ? <AlertDialog>
+            <AlertDialogTrigger asChild><Button variant="ghost" size="sm" disabled={busy}>Disconnect</Button></AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader><AlertDialogTitle>Disconnect Instagram from Jarvis?</AlertDialogTitle><AlertDialogDescription>Pending posts will not be sent.</AlertDialogDescription></AlertDialogHeader>
+              <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction disabled={busy} onClick={() => { void run(async () => { await disconnect(); toast.success("Instagram disconnected."); }); }}>Disconnect Instagram</AlertDialogAction></AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog> : null}
           <Button variant="ghost" size="icon" aria-label="Refresh Instagram" disabled={busy || account.isFetching} onClick={() => { void refresh(); }}><RefreshCw className="size-4" /></Button>
         </div>
         <Input aria-label="Instagram image URL" placeholder="Public HTTPS image URL" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} />
