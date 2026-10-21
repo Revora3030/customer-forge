@@ -67,7 +67,7 @@ export function ParticleField({ className }: { className?: string }) {
     const ro = new ResizeObserver(() => { resize(); if (reduce) draw(); });
     ro.observe(canvas);
     const io = new IntersectionObserver(([e]) => {
-      visible = e.isIntersecting;
+      visible = e?.isIntersecting ?? true;
       cancelAnimationFrame(raf);
       if (visible && !reduce) raf = requestAnimationFrame(draw);
     });
