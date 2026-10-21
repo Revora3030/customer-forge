@@ -2586,6 +2586,24 @@ export async function drainSiteEngineQueue(
 
       if (error instanceof FreshRebuildRollbackError || error instanceof PartialBuildKeptError) {
         failed += 1;
+        // This path fails the job for good WITHOUT the ordinary-failure
+        // bookkeeping below — but the attempt still stopped writing, so it
+        // needs the same end marker. Without it a retry's cleanup cannot
+        // bound the attempt's rows (findOwnPartialBuild) and throws
+        // PartialBuildKeptError again: the job is stuck "kept" forever.
+        try {
+          await db.from("ai_generations").insert({
+            organization_id: job.organization_id,
+            job_id: job.id,
+            kind: "build_attempt_ended",
+            model: "none",
+            instruction: null,
+            result: { attempt: Number(job.attempts), outcome: "kept" } as unknown as never,
+            created_by: job.created_by ?? null,
+          } as never);
+        } catch (endError) {
+          console.warn(`[site-engine] attempt-end record for job ${job.id} skipped`, endError);
+        }
         await db
           .from("generation_jobs")
           .update({
