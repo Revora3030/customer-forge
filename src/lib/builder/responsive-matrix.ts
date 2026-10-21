@@ -51,6 +51,8 @@ export type MatrixSection = {
   componentCount: number;
   /** Items rendered as a grid/list inside the section, when the section has any. */
   itemCount?: number;
+  /** Whether the section carries a picture, video or authored visual. */
+  hasMedia?: boolean;
 };
 
 export type MatrixPage = {
@@ -72,7 +74,46 @@ export type MatrixMeasurement = {
   clientWidth: number;
   clippedSelectors?: string[];
   consoleErrors?: number;
+  /** Tallest measured stretch with no visible content, px. */
+  largestBlankGap?: number;
+  /** Visible viewport height at this width, px. */
+  viewportHeight?: number;
 };
+
+/** A blank stretch taller than this share of the screen is a design defect. */
+export const MAX_BLANK_GAP_SHARE = 0.5;
+
+function emptyGapCheck(
+  device: (typeof DEVICE_MATRIX)[number],
+  pageId: string,
+  measured: MatrixMeasurement,
+): MatrixCheck {
+  const gap = measured.largestBlankGap;
+  const height = measured.viewportHeight;
+  if (typeof gap !== "number" || typeof height !== "number" || height <= 0) {
+    return {
+      width: device.width,
+      device: device.label,
+      check: "no large empty areas",
+      verdict: "NOT_VERIFIED",
+      detail: "Blank-space size was not measured for this page.",
+      evidence: "none",
+      pageId,
+    };
+  }
+  const tooLarge = gap > height * MAX_BLANK_GAP_SHARE;
+  return {
+    width: device.width,
+    device: device.label,
+    check: "no large empty areas",
+    verdict: tooLarge ? "FAIL" : "PASS",
+    detail: tooLarge
+      ? `A ${Math.round(gap)}px blank stretch is more than half the ${Math.round(height)}px screen.`
+      : "No oversized blank stretches were measured.",
+    evidence: "measurement",
+    pageId,
+  };
+}
 
 /** Columns the renderer uses for a multi-item section at a given width. */
 export function columnsAt(width: number): number {
@@ -205,7 +246,31 @@ export function evaluateDeviceMatrix(
         evidence: "measurement",
         pageId: page.id,
       });
+
+      checks.push(emptyGapCheck(device, page.id, measured));
     }
+  }
+
+  // The first page must open with a designed first impression: a lead section
+  // that carries a picture, video or authored visual. Composition-level, so it
+  // always produces a verdict when the section data says whether media exists.
+  const lead = site.pages[0]?.sections[0];
+  if (lead) {
+    const known = typeof lead.hasMedia === "boolean";
+    checks.push({
+      width: 0,
+      device: "All devices",
+      check: "opening section has a main visual",
+      verdict: !known ? "NOT_VERIFIED" : lead.hasMedia ? "PASS" : "FAIL",
+      detail: !known
+        ? "The opening section's media was not reported."
+        : lead.hasMedia
+          ? "The first page opens with a designed visual."
+          : "The first page opens without a main picture or designed visual.",
+      evidence: known ? "composition" : "none",
+      ...(site.pages[0]?.id ? { pageId: site.pages[0].id } : {}),
+      sectionId: lead.id,
+    });
   }
 
   return checks;

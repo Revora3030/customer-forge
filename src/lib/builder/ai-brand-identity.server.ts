@@ -16,6 +16,14 @@ import { safeColor } from "@/lib/site-style";
 import { siteHeadingFont } from "@/lib/site-theme";
 import { callBestThinker } from "@/lib/ai/hall-of-fame.server";
 import { paletteProblems } from "@/lib/builder/palette-guard";
+import {
+  BUTTON_STYLES,
+  CARD_STYLES,
+  FAQ_STYLES,
+  missingComponentTokens,
+  safeDesignTokens,
+  type DesignTokens,
+} from "@/lib/builder/design-tokens";
 
 export type BrandIdentityInput = {
   organizationId: string;
@@ -84,6 +92,15 @@ function schemaPrompt(input: BrandIdentityInput): string {
         },
         sectionEffects: { "<any section type you plan, e.g. hero>": "motion id" },
         defaultEffect: "motion id for section types you did not list",
+        components: {
+          faq: FAQ_STYLES.join(" | "),
+          card: CARD_STYLES.join(" | "),
+          button: BUTTON_STYLES.join(" | "),
+          radius: "0-40 px corner radius for cards and panels",
+          buttonRadius: "0-999 px (999 = pill)",
+          space: "0.6-1.6 section spacing rhythm",
+          shadow: "none | subtle | medium | strong",
+        },
       },
       null,
       2,
@@ -162,6 +179,7 @@ export async function authorBrandIdentity(
   let heading: string | null = null;
   let body: string | null = null;
   let repairContext = "";
+  let tokens: DesignTokens | null = null;
 
   // A valid but incomplete model response is repairable AI output, not provider
   // failure. Give the team one explicit correction pass before stopping. This
@@ -190,13 +208,16 @@ export async function authorBrandIdentity(
     heading = siteHeadingFont(str(data?.["headingFont"], 42));
     body = siteHeadingFont(str(data?.["bodyFont"], 42));
     const generic = primary && secondary ? paletteProblems({ primary, secondary, accent }) : [];
-    if (data && primary && secondary && heading && generic.length === 0) break;
+    tokens = safeDesignTokens(data?.["components"] ?? null);
+    const missingParts = missingComponentTokens(tokens);
+    if (data && primary && secondary && heading && generic.length === 0 && missingParts.length === 0) break;
     repairContext = [
       ...generic,
       !data ? "response was not a JSON object" : null,
       !primary ? "primary colour was missing or invalid" : null,
       !secondary ? "secondary colour was missing or invalid" : null,
       !heading ? "heading font was missing or invalid" : null,
+      missingParts.length ? `components.${missingParts.join(", components.")} must be one of the listed styles` : null,
     ].filter(Boolean).join(", ");
   }
 
@@ -227,6 +248,7 @@ export async function authorBrandIdentity(
       backdrop,
       backdropSpec: safeBackdropSpec(data["backdropSpec"]),
       ...readSectionEffects(data),
+      ...(tokens ? { tokens } : {}),
     },
     model: outcome.model ?? null,
     lane: outcome.lane,

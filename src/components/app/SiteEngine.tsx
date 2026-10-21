@@ -50,6 +50,7 @@ export function SiteEnginePanel({
   const { data: job } = useLatestGenerationJob(organizationId);
   const { data: readiness } = useBuildReadiness(organizationId);
   const run = useRunSiteEngine(organizationId);
+  const [confirmRedesign, setConfirmRedesign] = useState(false);
   const cancel = useCancelSiteEngine(organizationId);
   const [freshConfirm, setFreshConfirm] = useState("");
 
@@ -117,6 +118,35 @@ export function SiteEnginePanel({
                 ? "Rebuild from my info"
                 : "Build my complete website"}
           </Button>
+        ) : null}
+        {canManage && hasCopy && !running ? (
+          confirmRedesign ? (
+            <div role="group" aria-label="Confirm redesign" className="flex flex-wrap items-center gap-2">
+              <p className="text-[12px] text-muted-foreground max-w-xs">
+                Your AI team redesigns the draft: colours (unless you picked them), questions, cards and buttons.
+                Uses AI credits, or the free team when credits are out. Counts toward 5 builds a day. Your live site
+                stays as it is until you publish.
+              </p>
+              <Button
+                variant="signal"
+                disabled={blocked || run.isPending}
+                onClick={() => {
+                  setConfirmRedesign(false);
+                  run.mutate({ mode: "safe" });
+                }}
+              >
+                Start redesign
+              </Button>
+              <Button variant="ghost" onClick={() => setConfirmRedesign(false)}>
+                Not now
+              </Button>
+            </div>
+          ) : (
+            <Button variant="outline" disabled={blocked} onClick={() => setConfirmRedesign(true)} title={blockedReason ?? undefined}>
+              <Sparkles className="size-4" />
+              Redesign with AI team
+            </Button>
+          )
         ) : null}
         {canManage && running && jobId && !run.isPending ? (
           <Button

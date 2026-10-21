@@ -83,7 +83,7 @@ export function AiSiteHeader(props: {
   }, [open]);
 
   return (
-    <header className="rv-site-header rv-ai-header sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur-md pt-[env(safe-area-inset-top)]">
+    <header className="rv-site-header rv-ai-header sticky top-0 z-40 isolate border-b border-border bg-background pt-[env(safe-area-inset-top)]">
       <nav aria-label="Main" className="hidden md:block">
         <div className="rv-site-header-nav mx-auto flex max-w-6xl items-center gap-4 px-4 py-3">
           {logo ? (

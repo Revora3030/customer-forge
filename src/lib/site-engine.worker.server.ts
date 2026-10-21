@@ -2212,6 +2212,9 @@ async function runJob(
         screenshotReference,
         screenshotReferenceObservations: storedReferenceObservations ?? null,
         ...(!built.skipped && direction ? { effects: { backdrop: direction.backdrop, ...(direction.backdropSpec ? { spec: direction.backdropSpec } : {}) } } : {}),
+        // The design team's component treatments (questions, cards, buttons)
+        // ride with the site design so the renderer never invents its own.
+        ...(!built.skipped && direction?.tokens ? { designTokens: direction.tokens } : {}),
       } as unknown as Record<string, unknown>,
       generated_at: new Date().toISOString(),
       review_state: "ready_for_review",
