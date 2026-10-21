@@ -1,23 +1,29 @@
 /**
- * Free Lighthouse audit via Google's PageSpeed Insights API (no key needed;
- * optional GOOGLE_PAGESPEED_API_KEY raises quota). Fixed Revora URL only, so
- * the model cannot point it at arbitrary hosts.
+ * Free Lighthouse audit via Google's PageSpeed Insights API. Optional
+ * GOOGLE_PAGESPEED_API_KEY raises quota. The target URL must already have been
+ * allow-listed by jarvis-target-url.
  */
 export const PAGESPEED_TARGET = "https://revoragrowthsystems.com/";
 const CATEGORIES = ["performance", "accessibility", "best-practices", "seo"] as const;
 
+export type PageSpeedStrategy = "mobile" | "desktop";
+
 export type PageSpeedSummary = {
   url: string;
-  strategy: "mobile";
+  strategy: PageSpeedStrategy;
   scores: Record<(typeof CATEGORIES)[number], number | null>;
   metrics: Record<string, string | null>;
   topOpportunities: string[];
 };
 
-export function buildPageSpeedUrl(apiKey?: string): string {
+export function normalizeStrategy(value: unknown): PageSpeedStrategy {
+  return value === "desktop" ? "desktop" : "mobile";
+}
+
+export function buildPageSpeedUrl(apiKey?: string, target: string = PAGESPEED_TARGET, strategy: PageSpeedStrategy = "mobile"): string {
   const u = new URL("https://www.googleapis.com/pagespeedonline/v5/runPagespeed");
-  u.searchParams.set("url", PAGESPEED_TARGET);
-  u.searchParams.set("strategy", "mobile");
+  u.searchParams.set("url", target);
+  u.searchParams.set("strategy", strategy);
   for (const c of CATEGORIES) u.searchParams.append("category", c.toUpperCase().replace("-", "_"));
   if (apiKey) u.searchParams.set("key", apiKey);
   return u.toString();
@@ -25,7 +31,7 @@ export function buildPageSpeedUrl(apiKey?: string): string {
 
 type Raw = { lighthouseResult?: { categories?: Record<string, { score?: number | null }>; audits?: Record<string, { title?: string; displayValue?: string; score?: number | null; details?: { type?: string } }> } };
 
-export function summarizePageSpeed(raw: unknown): PageSpeedSummary | null {
+export function summarizePageSpeed(raw: unknown, target: string = PAGESPEED_TARGET, strategy: PageSpeedStrategy = "mobile"): PageSpeedSummary | null {
   const lr = (raw as Raw)?.lighthouseResult;
   if (!lr?.categories) return null;
   const scores = Object.fromEntries(CATEGORIES.map((c) => {
@@ -39,5 +45,5 @@ export function summarizePageSpeed(raw: unknown): PageSpeedSummary | null {
     .filter((a) => a.details?.type === "opportunity" && typeof a.score === "number" && a.score < 0.9 && a.title)
     .slice(0, 5)
     .map((a) => `${a.title}${a.displayValue ? ` (${a.displayValue})` : ""}`.slice(0, 160));
-  return { url: PAGESPEED_TARGET, strategy: "mobile", scores, metrics, topOpportunities };
+  return { url: target, strategy, scores, metrics, topOpportunities };
 }
