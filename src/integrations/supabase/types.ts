@@ -6132,6 +6132,24 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      book_appointment: {
+        Args: {
+          p_activity_body: string
+          p_email: string
+          p_ends_at: string
+          p_estimated_value: number
+          p_lead_id: string
+          p_name: string
+          p_notes: string
+          p_organization_id: string
+          p_phone: string
+          p_quote_id: string
+          p_service_id: string
+          p_starts_at: string
+          p_status: Database["public"]["Enums"]["appointment_status"]
+        }
+        Returns: Json
+      }
       call_revora_job: {
         Args: { path: string; timeout_ms?: number }
         Returns: number
@@ -6280,6 +6298,20 @@ export type Database = {
       restore_website_state: {
         Args: { _organization_id: string; _snapshot: Json }
         Returns: Json
+      }
+      save_owner_quote: {
+        Args: {
+          p_customer_email: string
+          p_customer_name: string
+          p_customer_phone: string
+          p_lead_id: string
+          p_lines: Json
+          p_notes: string
+          p_organization_id: string
+          p_quote_id: string
+          p_status: string
+        }
+        Returns: string
       }
       set_prospect_demo_enrichment: {
         Args: { p_enrichment: Json; p_organization_id: string }
