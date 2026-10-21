@@ -4,6 +4,7 @@ import {
   applyEdits,
   parsePullRequestProposal,
   extractActionBlock,
+  JARVIS_ACTION_CLASSES,
   MAX_ACTIONS_PER_STEP,
   parseActions,
   speakableText,
@@ -179,5 +180,28 @@ describe("build recovery", () => {
     expect(parsed.proposals).toEqual([{ id: "builds.recover" }]);
     const stored = appendReplyMeta("Builds look stuck.", { ran: [], proposals: parsed.proposals });
     expect(splitReplyMeta(stored).meta.proposals).toEqual([{ id: "builds.recover" }]);
+  });
+});
+
+describe("research.ask proposals", () => {
+  it("parses a valid question as an approval-gated proposal, never a read", () => {
+    const parsed = parseActions([{ id: "research.ask", args: { question: "What do HVAC companies in Raleigh charge for maintenance plans?", preset: "low" } }], TOOLS);
+    expect(parsed.reads).toEqual([]);
+    expect(parsed.rejected).toEqual([]);
+    expect(parsed.proposals).toEqual([{ id: "research.ask", question: "What do HVAC companies in Raleigh charge for maintenance plans?", preset: "low" }]);
+    expect(JARVIS_ACTION_CLASSES["research.ask"]).toEqual({ effect: "write", external: true, autoRuns: false, risk: "ask" });
+  });
+
+  it("defaults the preset to fast and rejects a too-short question", () => {
+    const ok = parseActions([{ id: "research.ask", args: { question: "What is the average ticket size for mobile detailing?" } }], TOOLS);
+    expect(ok.proposals[0]).toMatchObject({ id: "research.ask", preset: "fast" });
+    const bad = parseActions([{ id: "research.ask", args: { question: "hi" } }], TOOLS);
+    expect(bad.proposals).toEqual([]);
+    expect(bad.rejected[0]).toContain("research.ask");
+  });
+
+  it("survives a reload through reply metadata", () => {
+    const stored = appendReplyMeta("Worth a paid look.", { ran: [], proposals: [{ id: "research.ask", question: "Which CRMs do roofers actually use?", preset: "medium" }] });
+    expect(splitReplyMeta(stored).meta.proposals).toEqual([{ id: "research.ask", question: "Which CRMs do roofers actually use?", preset: "medium" }]);
   });
 });

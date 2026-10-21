@@ -69,3 +69,51 @@ export const verifyPerplexityAgent = createServerFn({ method: "POST" })
       searchResultCount: outcome.searchResults.length,
     };
   });
+
+const approvedResearchInput = z.object({
+  question: z.string().min(10).max(2_000),
+  preset: z.enum(["fast", "low", "medium"]).optional(),
+});
+
+/**
+ * Runs one paid Perplexity Agent research request — only ever called from the
+ * owner's explicit Approve tap on Jarvis's research.ask proposal. That tap IS
+ * the per-request approval, so this path intentionally does not consult the
+ * free-only gate; every other paid provider stays blocked by it. Super-admin
+ * only, input re-validated server-side, and every run is written to the audit
+ * log. The answer is third-party research with citations, never a fact.
+ */
+export const approvePerplexityResearch = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data) => approvedResearchInput.parse(data))
+  .handler(async ({ data, context }) => {
+    const { assertSuperAdmin } = await import("@/lib/admin.server");
+    await assertSuperAdmin(
+      context.supabase as unknown as Parameters<typeof assertSuperAdmin>[0],
+      String(context.userId),
+    );
+    const { runPerplexityAgent } = await import("./perplexity-agent.server");
+    const outcome = await runPerplexityAgent({
+      input: data.question,
+      preset: data.preset ?? "fast",
+    });
+    await context.supabase.from("audit_logs").insert({
+      organization_id: null,
+      actor_id: String(context.userId),
+      action: outcome.ok ? "jarvis.research.approved" : "jarvis.research.failed",
+      entity: "perplexity_agent",
+      entity_id: null,
+      metadata: { question: data.question.slice(0, 200), preset: data.preset ?? "fast", reason: outcome.ok ? null : outcome.reason },
+    });
+    if (!outcome.ok) {
+      return { ok: false as const, reason: outcome.reason, detail: outcome.detail };
+    }
+    return {
+      ok: true as const,
+      question: data.question,
+      model: outcome.model,
+      text: outcome.text,
+      citations: outcome.citations,
+      searchResults: outcome.searchResults,
+    };
+  });
