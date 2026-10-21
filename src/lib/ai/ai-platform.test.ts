@@ -86,6 +86,8 @@ describe("no third-party AI gateway remains", () => {
       "integrations/research.server.ts",
       // Semrush keyword data for SEO reviewers, via the connector gateway; no model.
       "builder/review-evidence.server.ts",
+      // Calendly booking options for Revora's contact page, via the connector gateway; no model.
+      "calendly.functions.ts",
     ];
     const offenders = APP_FILES.filter((file) => {
       if (!readFileSync(file, "utf8").includes("LOVABLE_API_KEY")) return false;
