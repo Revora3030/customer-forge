@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { ArrowUp, FilePenLine } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -13,10 +13,10 @@ export function WebsiteBriefDialog({ businessName, disabled, onUse }: { business
   const [error, setError] = useState<string | null>(null);
   const field = (key: keyof WebsiteRequest, value: string) => { setDraft((prior) => ({ ...prior, [key]: value })); setError(null); };
   return <>
-    <Button variant="ghost" size="icon-sm" disabled={disabled} aria-label="Website brief" title="Website brief" onClick={() => setOpen(true)}>
-      <FilePenLine className="size-4" aria-hidden />
-    </Button>
     <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="ghost" size="icon-sm" disabled={disabled} aria-label="Website brief" title="Website brief"><FilePenLine className="size-4" aria-hidden /></Button>
+      </DialogTrigger>
       <DialogContent>
         <DialogHeader><DialogTitle>Your website brief</DialogTitle><DialogDescription>Your business, your brand, your next website.</DialogDescription></DialogHeader>
         <form className="grid gap-4" onSubmit={(event) => {
