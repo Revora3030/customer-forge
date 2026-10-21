@@ -8,6 +8,7 @@ import { useState } from "react";
 import { toast } from "@/lib/ui/notify";
 import { Mail } from "lucide-react";
 import { SiteFooter, SiteHeader } from "@/components/marketing/Chrome";
+import { BookACall } from "@/components/marketing/BookACall";
 import { RevoraMobileBar, SupportCard } from "@/components/marketing/SalesCTA";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -109,6 +110,8 @@ function Contact() {
                 <Link to="/demo">Request a demo</Link>
               </Button>
             </div>
+
+            <BookACall />
 
             <div className="mt-8">
               <SupportCard />
