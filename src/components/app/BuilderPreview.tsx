@@ -204,7 +204,28 @@ function BuilderPreviewFrame({
     const previousOverflow = document.body.style.overflow;
     const previousFocus = document.activeElement;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || event.defaultPrevented) return;
+      if (event.defaultPrevented) return;
+      if (event.key === "Tab") {
+        // Keep keyboard focus inside the fullscreen preview.
+        const root = stageRef.current?.closest("section");
+        if (!root) return;
+        const focusable = Array.from(
+          root.querySelectorAll<HTMLElement>('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), iframe, [tabindex]:not([tabindex="-1"])'),
+        ).filter((el) => el.getClientRects().length > 0);
+        if (focusable.length === 0) return;
+        const first = focusable[0]!;
+        const last = focusable[focusable.length - 1]!;
+        const active = document.activeElement;
+        if (event.shiftKey && (active === first || !root.contains(active))) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && (active === last || !root.contains(active))) {
+          event.preventDefault();
+          first.focus();
+        }
+        return;
+      }
+      if (event.key !== "Escape") return;
       event.preventDefault();
       setFullscreen(false);
     };
@@ -623,29 +644,51 @@ const PreviewFrame = forwardRef<
   HTMLIFrameElement,
   { label: string | null; src: string; frameKey: string; viewportWidth: number; frameHeight: number; scale: number; title: string; testId?: string }
 >(function PreviewFrame({ label, src, frameKey, viewportWidth, frameHeight, scale, title, testId }, ref) {
+  const [attempt, setAttempt] = useState(0);
+  const [loadState, setLoadState] = useState<PreviewLoadState>("loading");
+  useEffect(() => {
+    setLoadState("loading");
+    const timer = window.setTimeout(() => setLoadState((s) => nextPreviewLoadState(s, "timeout")), PREVIEW_LOAD_TIMEOUT_MS);
+    return () => window.clearTimeout(timer);
+  }, [src, frameKey, attempt]);
   return (
     <figure className="m-0 min-w-0">
       {label ? (
         <figcaption className="mb-1.5 text-center text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</figcaption>
       ) : null}
       <div
-        className="overflow-hidden rounded-lg border border-border bg-background shadow-lift transition-[width,height] duration-300"
+        className="relative overflow-hidden rounded-lg border border-border bg-background shadow-lift transition-[width,height] duration-300"
         style={{ width: Math.round(viewportWidth * scale), height: Math.round(frameHeight * scale) }}
       >
         <div className="origin-top-left" style={{ width: viewportWidth, height: frameHeight, transform: `scale(${scale})` }}>
           <iframe
             ref={ref}
-            key={frameKey}
+            key={`${frameKey}-${attempt}`}
             {...(testId ? { "data-testid": testId } : {})}
             data-preview-src={src}
             title={title}
             src={src}
             loading="lazy"
+            onLoad={() => setLoadState((s) => nextPreviewLoadState(s, "load"))}
+            onError={() => setLoadState((s) => nextPreviewLoadState(s, "error"))}
             sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"
             className="block border-0"
             style={{ width: viewportWidth, minWidth: viewportWidth, maxWidth: viewportWidth, height: frameHeight, backgroundColor: "#fff" }}
           />
         </div>
+        {loadState === "failed" ? (
+          <div role="alert" className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-background p-4 text-center">
+            <p className="text-[14px] font-semibold">Preview couldn't load</p>
+            <p className="max-w-xs text-[12px] text-muted-foreground">Your site is safe. Check your connection and try again.</p>
+            <button
+              type="button"
+              onClick={() => setAttempt((n) => n + 1)}
+              className="min-h-11 rounded-md border border-border bg-elevated px-4 text-[13px] font-semibold hover:bg-muted"
+            >
+              Retry
+            </button>
+          </div>
+        ) : null}
       </div>
     </figure>
   );
