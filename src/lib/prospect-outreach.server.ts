@@ -469,7 +469,7 @@ export async function loadDemoForOutreach(db: SupabaseClient, organizationId: st
 
 const DEMO_EMAIL_SYSTEM = [
   "You write a short, honest first-touch email from Revora Growth Systems to the owner of a local service business.",
-  "If currentSiteGaps is empty, the business has no website of its own. If it lists gaps, they have a website and we checked it: mention at most two of those exact gaps, politely, and nothing else about their site.",
+  "If currentSiteGaps is empty, no website was listed for the business in the public data we checked; that is not proof they have none, so never say they have no website: say we did not see one listed. If it lists gaps, they have a website and we checked it: mention at most two of those exact gaps, politely, and nothing else about their site.",
   "We already built them a free draft website from their public business details. The email shares the private preview link and invites them to claim it.",
   "Explain in one or two plain sentences that if they sign up from the preview, the site is already saved in their account: they keep it, can edit anything, and get full access to every Revora service (website, lead capture, follow-up, bookings) during the free trial.",
   "Then state the price plainly in one sentence, using exactly the offerTerms text provided: there is a one-time setup fee and a monthly fee after the first free month. Never call the whole service free.",
@@ -520,7 +520,7 @@ export function fallbackDemoEmail(demo: { name: string; siteGaps: string[] }, pr
       "",
       weakSite
         ? `I looked at your current website and noticed ${demo.siteGaps.slice(0, 2).join(" and ").toLowerCase()}, so I put together a free updated draft from your public details:`
-        : "I couldn't find a website for your business, so I put together a free draft from your public details:",
+        : "I didn't see a website listed for your business, so I put together a free draft from your public details:",
       previewUrl,
       "",
       "It's private and nothing is published. If you sign up from that page, the site is already saved in your account: you keep it, can edit anything, and get full access to every Revora service (website, lead capture, follow-up and bookings).",
