@@ -57,8 +57,6 @@ export function effectForKind(direction: DesignDirection, kind: string): Section
 export function readSectionEffects(r: Record<string, unknown>): {
   sectionEffects: Record<string, SectionEffectId>;
   defaultEffect: SectionEffectId;
-  /** AI-authored site-wide component treatments (questions, cards, buttons). */
-  tokens?: import("@/lib/builder/design-tokens").DesignTokens;
 } {
   const sectionEffects: Record<string, SectionEffectId> = {};
   const raw = r["sectionEffects"];
