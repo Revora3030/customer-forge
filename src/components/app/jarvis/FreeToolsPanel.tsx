@@ -45,7 +45,7 @@ export function FreeToolsPanel() {
       <label className="block space-y-1 text-xs">Documentation query<Input aria-label="Documentation query" value={query} onChange={(event) => setQuery(event.target.value)} /></label>
       {tools.map((tool) => {
         const result = results[tool.id];
-        const reason = result?.data && typeof result.data === "object" && !Array.isArray(result.data) ? result.data["reason"] : null;
+        const reason = result?.data && typeof result.data === "object" && !Array.isArray(result.data) && "reason" in result.data ? result.data["reason"] : null;
         const configured = readiness.data?.[tool.id];
         const status = reason === "free_quota_exhausted" ? "Quota reached" : result ? result.status === "observed" ? "Checked" : result.status === "failed" ? "Issues found" : "Unavailable" : configured ? "Ready · not checked" : configured === false ? "Needs key" : "Not checked";
         const Icon = tool.icon;

@@ -370,7 +370,7 @@ export const runJarvisDiagnosticTool = createServerFn({ method: "POST" })
     for (const value of [args.target, args.strategy, args.query]) {
       if (value !== undefined && (typeof value !== "string" || value.length > 300)) throw new Error("Invalid diagnostic input.");
     }
-    return { toolId: input.toolId, args: { target: args.target, strategy: args.strategy, query: args.query } };
+    return { toolId: input.toolId, args: { ...(args.target !== undefined ? { target: args.target } : {}), ...(args.strategy !== undefined ? { strategy: args.strategy } : {}), ...(args.query !== undefined ? { query: args.query } : {}) } };
   })
   .handler(async ({ context, data }) => {
     const db = await guardedAdmin(context);
