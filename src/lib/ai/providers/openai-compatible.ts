@@ -171,7 +171,7 @@ export function createOpenAiCompatibleAdapter(options: CompatAdapterOptions): Pr
       let text = stripReasoning(message?.content ?? "");
       // Last resort for JSON calls: some hosts put the final JSON only in the
       // reasoning field. Use it only when it contains a JSON object.
-      if (!text && jsonMode) {
+      if (!text && json === true) {
         const reasoning = message?.reasoning_content ?? message?.reasoning ?? "";
         const match = reasoning.match(/\{[\s\S]*\}/);
         if (match) text = match[0];
