@@ -85,6 +85,7 @@ import { zaiAdapter } from "@/lib/ai/providers/zai";
 import { ollamaAdapter } from "@/lib/ai/providers/ollama";
 import { ovhAdapter } from "@/lib/ai/providers/ovh";
 import { kiloAdapter } from "@/lib/ai/providers/kilo";
+import { omnirouteAdapter } from "@/lib/ai/providers/omniroute";
 import { modelscopeAdapter } from "@/lib/ai/providers/modelscope";
 import { githubModelsAdapter } from "@/lib/ai/providers/github";
 import { nvidiaAdapter } from "@/lib/ai/providers/nvidia";
@@ -133,6 +134,7 @@ const ADAPTERS: Record<ProviderName, ProviderAdapter> = {
   ollama: ollamaAdapter,
   ovh: ovhAdapter,
   kilo: kiloAdapter,
+  omniroute: omnirouteAdapter,
   modelscope: modelscopeAdapter,
   github: githubModelsAdapter,
 };
