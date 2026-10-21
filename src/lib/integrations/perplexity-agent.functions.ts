@@ -56,7 +56,6 @@ export const verifyPerplexityAgent = createServerFn({ method: "POST" })
       input: "What is today's date in UTC? Answer with the date only.",
       maxOutputTokens: 64,
     });
-const approvedResearchInput = z.object({
   question: z.string().min(10).max(2_000),
   preset: z.enum(["fast", "low", "medium"]).optional(),
 });
