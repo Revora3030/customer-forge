@@ -113,6 +113,8 @@ export const getAiHealth = createServerFn({ method: "GET" })
 
     const { freeAiStatus } = await import("@/lib/ai/router.server");
     const { builderAiAvailable } = await import("@/lib/ai/availability");
+    const { refreshDurableRuntime } = await import("@/lib/ai/durable-health.server");
+    await Promise.resolve(refreshDurableRuntime(true)).catch(() => undefined);
     const free = freeAiStatus() as AiFreeStatus;
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
