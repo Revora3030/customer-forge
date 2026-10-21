@@ -516,11 +516,17 @@ export async function callLuna(request: LunaRequest): Promise<LunaResult> {
     await settleBudget(organizationId, estimate, actual, reservation.paid);
   };
   try {
-    return await sendReservedLuna({ request, key, tier, model, maxOutputTokens, organizationId, settle });
+    return await sendReservedLuna({ request, key, tier, model, maxOutputTokens, organizationId, estimate, settle });
   } finally {
     await settle(0);
   }
 }
+
+/**
+ * Provider answers that definitely refused the request before any generation
+ * ran, so nothing is billed. Mirrors the paid picture lane.
+ */
+const UNBILLED_REJECTION_STATUSES = [400, 401, 402, 403, 404, 413, 422, 429];
 
 /** The paid request itself, made only with a reservation held by callLuna. */
 async function sendReservedLuna({
@@ -530,6 +536,7 @@ async function sendReservedLuna({
   model,
   maxOutputTokens,
   organizationId,
+  estimate,
   settle,
 }: {
   request: LunaRequest;
@@ -538,6 +545,8 @@ async function sendReservedLuna({
   model: string;
   maxOutputTokens: number;
   organizationId: string | null;
+  /** The reservation held for this call; an unknown outcome is billed at it. */
+  estimate: number;
   settle: (actual: number) => Promise<void>;
 }): Promise<LunaResult> {
 
@@ -563,8 +572,13 @@ async function sendReservedLuna({
     () => controller.abort(new Error(`paid model did not answer within ${Math.round(timeoutMs / 1000)}s`)),
     timeoutMs,
   );
-  const send = (effort: "none" | "low") =>
-    fetch(`${base}/${responsesOnly ? "responses" : "chat/completions"}`, {
+  // True once a request has been handed to fetch. A failure before that (the
+  // caller cancelled first) never reached the provider and is not billed.
+  let dispatched = false;
+  const send = (effort: "none" | "low") => {
+    if (controller.signal.aborted) return Promise.reject(new Error("cancelled before the paid request was sent"));
+    dispatched = true;
+    return fetch(`${base}/${responsesOnly ? "responses" : "chat/completions"}`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -593,6 +607,7 @@ async function sendReservedLuna({
             },
       ),
     });
+  };
   let response: Response;
   // The provider's error text, when the first answer's body was already read.
   let readFailure: string | null | undefined;
@@ -612,14 +627,18 @@ async function sendReservedLuna({
   } catch (error) {
     clearTimeout(timer);
     request.signal?.removeEventListener("abort", onUserCancel);
-    await settle(0);
+    // A timeout, abort or network error after the request was sent may still
+    // be billed by the provider, so it counts at the estimate. Only a failure
+    // before anything was sent releases the reservation.
+    const charged = dispatched ? estimate : 0;
+    await settle(charged);
     const detail = error instanceof Error ? error.message : "network error";
     await recordUsage({
       organizationId,
       purpose: request.purpose,
       model,
       usage: { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0 },
-      cost: 0,
+      cost: charged,
       outcome: "failed",
       reason: detail.slice(0, 200),
     });
@@ -629,7 +648,9 @@ async function sendReservedLuna({
   request.signal?.removeEventListener("abort", onUserCancel);
 
   if (!response.ok) {
-    await settle(0);
+    // A definite rejection is not billed; a 5xx or any other answer may be.
+    const charged = UNBILLED_REJECTION_STATUSES.includes(response.status) ? 0 : estimate;
+    await settle(charged);
     const reason: LunaSkipReason =
       response.status === 401 || response.status === 403
         ? "unauthorized"
@@ -646,7 +667,7 @@ async function sendReservedLuna({
       purpose: request.purpose,
       model,
       usage: { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0 },
-      cost: 0,
+      cost: charged,
       outcome: "failed",
       reason: httpFailureReason(response.status, providerMessage),
     });
@@ -657,7 +678,8 @@ async function sendReservedLuna({
   try {
     payload = await response.json();
   } catch {
-    await settle(0);
+    // The provider answered 2xx, so the call was billed; its cost is unknown.
+    await settle(estimate);
     return skip("bad_response", "unreadable body");
   }
 
