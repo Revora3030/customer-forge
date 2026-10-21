@@ -39,6 +39,7 @@ export type FreeProviderName =
   | "ovh"
   | "kilo"
   | "omniroute"
+  | "selfhosted"
   | "modelscope"
   | "github";
 
@@ -64,6 +65,7 @@ export const FREE_PROVIDERS: FreeProviderName[] = [
   "ovh",
   "kilo",
   "omniroute",
+  "selfhosted",
   "modelscope",
   "github",
 ];
@@ -185,6 +187,11 @@ export const FREE_ALLOWANCE: Record<
   omniroute: {
     label: "Your OmniRoute server",
     allowance: "Owner's self-hosted OmniRoute router; uses whichever providers and free tiers you configured on it.",
+    dailyRequestCap: 300,
+  },
+  selfhosted: {
+    label: "Your own AI gateway (LiteLLM / vLLM)",
+    allowance: "Owner's self-hosted OpenAI-compatible gateway; only models listed in SELFHOSTED_AI_FREE_MODELS are used.",
     dailyRequestCap: 300,
   },
   modelscope: {
@@ -727,6 +734,8 @@ export function isFreeEligibleModel(provider: FreeProviderName, model: string): 
   // The owner's own OmniRoute server: the owner decides which providers it uses.
   // Its catalogue mixes paid and free routes, so only ids the owner lists in
   // OMNIROUTE_FREE_MODELS (comma-separated) count as free. Empty = none.
+  if (provider === "selfhosted")
+    return (env("SELFHOSTED_AI_FREE_MODELS") ?? "").split(",").map((m) => m.trim().toLowerCase()).filter(Boolean).includes(name.toLowerCase());
   if (provider === "omniroute")
     return (env("OMNIROUTE_FREE_MODELS") ?? "").split(",").map((m) => m.trim().toLowerCase()).filter(Boolean).includes(name.toLowerCase());
   // Ollama Cloud meters usage per account, not per model, so its chat models are all inside the free tier's limits.
@@ -866,6 +875,10 @@ export function freeProviderCredentials(
     const apiKey = env("MODELSCOPE_API_KEY");
     return apiKey ? { apiKey } : null;
   }
+  if (provider === "selfhosted") {
+    const apiKey = env("SELFHOSTED_AI_API_KEY");
+    return apiKey && safeOmniRouteBaseUrl(env("SELFHOSTED_AI_BASE_URL")) ? { apiKey } : null;
+  }
   if (provider === "omniroute") {
     const apiKey = env("OMNIROUTE_API_KEY");
     return apiKey && safeOmniRouteBaseUrl(env("OMNIROUTE_BASE_URL")) ? { apiKey } : null;
@@ -923,6 +936,7 @@ const DEFAULT_ORDER: FreeProviderName[] = [
   "ovh",
   "kilo",
   "omniroute",
+  "selfhosted",
   "modelscope",
   "github",
 ];
