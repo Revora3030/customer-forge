@@ -144,7 +144,7 @@ export const JARVIS_DIAGNOSTIC_TOOLS = [
     risk: "low",
     requiresApproval: false,
     timeoutMs: 8000,
-    maxOutputBytes: 6000,
+    maxOutputBytes: 9000,
   },
   {
     id: "website.lighthouse.audit",
