@@ -100,7 +100,12 @@ describe("writes that used to be unchecked", () => {
     expect(src).toContain("if (recordWrite.error)");
   });
   it("lead status, backups and checkout sessions are checked", () => {
-    expect(read("src/lib/queries.ts")).toContain("if (leadStatusError) throw leadStatusError");
+    // Booking's lead-status write now runs inside the book_appointment
+    // transaction, which raises (and rolls back) when the lead isn't updated.
+    expect(read("supabase/migrations/20261021120000_automation_runs_server_queue_and_booking.sql")).toMatch(
+      /SET status = 'booked'[\s\S]*?IF NOT FOUND THEN\s+RAISE EXCEPTION 'lead_not_found'/,
+    );
+    expect(read("src/lib/queries.ts")).toContain("if (leadStatusError) {");
     const backup = read("src/lib/backup.server.ts");
     expect(backup).toContain("deleteError");
     expect(backup).toContain("markError");

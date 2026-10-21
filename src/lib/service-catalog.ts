@@ -28,6 +28,63 @@ export type QuoteLineDraft = {
   from_starting_price?: boolean;
 };
 
+/**
+ * A line while it is being edited: price and quantity keep exactly what the
+ * owner typed ("12.", "0.5", "1,250.00") and are parsed only on save, so a
+ * decimal point is never swallowed mid-typing.
+ */
+export type EditableQuoteLine = Omit<QuoteLineDraft, "unit_price" | "quantity"> & {
+  unit_price: string;
+  quantity: string;
+};
+
+/** A typed amount as a number: "$1,250.50" -> 1250.5; blank -> null; junk -> NaN. */
+export function parseAmount(text: string | number | null | undefined): number | null {
+  if (typeof text === "number") return Number.isFinite(text) ? text : Number.NaN;
+  const raw = String(text ?? "")
+    .trim()
+    .replace(/^\$\s*/, "")
+    .replace(/,(?=\d{3}(?:\D|$))/g, "");
+  if (!raw) return null;
+  if (!/^\d*\.?\d*$/.test(raw) || raw === ".") return Number.NaN;
+  return Number(raw);
+}
+
+export const editableLine = (line: QuoteLineDraft): EditableQuoteLine => ({
+  ...line,
+  unit_price: String(line.unit_price),
+  quantity: String(line.quantity),
+});
+
+/**
+ * Parses edited lines for saving. A blank price is 0 and a blank quantity 1;
+ * anything that isn't a number is reported by line instead of silently
+ * becoming 0 or 1.
+ */
+export function parseEditableLines(
+  lines: EditableQuoteLine[],
+): { ok: true; lines: QuoteLineDraft[] } | { ok: false; error: string } {
+  const parsed: QuoteLineDraft[] = [];
+  for (const [index, line] of lines.entries()) {
+    const label = line.name.trim() || `Line ${index + 1}`;
+    const price = parseAmount(line.unit_price);
+    const quantity = parseAmount(line.quantity);
+    if (price !== null && (!Number.isFinite(price) || price < 0)) {
+      return { ok: false, error: `${label}: the price isn't a number.` };
+    }
+    if (quantity !== null && (!Number.isFinite(quantity) || quantity <= 0)) {
+      return { ok: false, error: `${label}: the quantity must be a number above 0.` };
+    }
+    parsed.push({
+      service_id: line.service_id,
+      name: line.name,
+      unit_price: price ?? 0,
+      quantity: quantity ?? 1,
+    });
+  }
+  return { ok: true, lines: parsed };
+}
+
 export type QuoteStatus = "draft" | "sent" | "accepted" | "declined";
 export const QUOTE_STATUSES: { value: QuoteStatus; label: string }[] = [
   { value: "draft", label: "Draft" },
@@ -82,7 +139,8 @@ export const DEFAULT_BOOKING_MINUTES = 60;
 
 /**
  * What the one-click "Book this job" pre-fills from an accepted quote. The
- * length is the sum of the catalog durations of the quoted services; with no
+ * length is the sum of each quoted service's catalog duration times its line
+ * quantity (two washes take twice as long), in whole minutes; with no
  * catalog service on the quote it falls back to the calendar's 60 minutes and
  * says so (`durationFromServices: false`).
  */
@@ -97,16 +155,24 @@ export function bookingFromQuote(
   services: CatalogService[],
 ) {
   const byId = new Map(services.map((service) => [service.id, service]));
-  const quoted = lines
-    .map((line) => (line.service_id ? byId.get(line.service_id) : undefined))
-    .filter((service): service is CatalogService => Boolean(service));
-  const minutes = quoted.reduce((sum, service) => sum + Math.max(0, Number(service.duration_minutes ?? 0)), 0);
+  const quoted = lines.flatMap((line) => {
+    const service = line.service_id ? byId.get(line.service_id) : undefined;
+    if (!service) return [];
+    const quantity = Number(line.quantity);
+    return [{ service, quantity: Number.isFinite(quantity) && quantity > 0 ? quantity : 1 }];
+  });
+  const minutes = Math.round(
+    quoted.reduce(
+      (sum, { service, quantity }) => sum + Math.max(0, Number(service.duration_minutes ?? 0)) * quantity,
+      0,
+    ),
+  );
   return {
     name: quote.customer_name,
     email: quote.customer_email,
     phone: quote.customer_phone,
     leadId: quote.lead_id,
-    serviceId: quoted[0]?.id ?? null,
+    serviceId: quoted[0]?.service.id ?? null,
     durationMinutes: minutes > 0 ? minutes : DEFAULT_BOOKING_MINUTES,
     durationFromServices: minutes > 0,
     estimatedValue: quoteTotal(lines),
@@ -208,28 +274,45 @@ export function serviceUsage(
 
 export type ReviewOffer =
   | { kind: "not_completed" }
-  | { kind: "automated" }
+  | { kind: "automated"; channel: "email" | "sms" }
   | { kind: "no_contact" }
-  | { kind: "offer"; channel: "email" | "sms"; recipient: string };
+  | { kind: "offer"; channel: "email" | "sms"; recipient: string; needsOptIn: boolean };
+
+export type ReviewAutomation = {
+  trigger_event: string;
+  is_active: boolean;
+  automation_steps?: { action_type: string | null; channel?: string | null }[] | null;
+};
 
 /**
- * After a booking is completed: when an active "appointment completed"
- * automation exists, completing it already queued the request, so no second
- * manual offer is shown (it would message the customer twice). Otherwise the
- * owner is offered one click. Email is preferred; a text is offered only when
- * there is no email, and the server still enforces STOP, opt-in and quiet hours.
+ * After a booking is completed: an active "appointment completed" automation
+ * only counts as following up when one of its steps can actually reach this
+ * customer — an email step with an email on file, or a text step to a number
+ * with a recorded SMS opt-in (review texts need one, and a business's own
+ * customers rarely have it). Only then is the manual offer hidden, so nobody
+ * is messaged twice and nobody is silently skipped.
+ * Otherwise the owner is offered one click: email first; a text only without
+ * an email, flagged `needsOptIn` because the server enforces STOP, opt-in and
+ * quiet hours and will not text a review request without the opt-in.
  */
 export function reviewOfferFor(
   appointment: { status: string; email: string | null; phone: string | null },
-  automations: { trigger_event: string; is_active: boolean }[],
+  automations: ReviewAutomation[],
+  options: { hasSmsOptIn?: (phone: string) => boolean } = {},
 ): ReviewOffer {
   if (appointment.status !== "completed") return { kind: "not_completed" };
-  if (automations.some((automation) => automation.is_active && automation.trigger_event === "appointment_completed")) {
-    return { kind: "automated" };
+  const email = appointment.email?.trim() || null;
+  const phone = appointment.phone?.trim() || null;
+  const optedIn = (value: string | null) => Boolean(value && options.hasSmsOptIn?.(value));
+  for (const automation of automations) {
+    if (!automation.is_active || automation.trigger_event !== "appointment_completed") continue;
+    for (const step of automation.automation_steps ?? []) {
+      const channel = step.channel ?? step.action_type;
+      if (channel === "email" && email) return { kind: "automated", channel: "email" };
+      if (channel === "sms" && optedIn(phone)) return { kind: "automated", channel: "sms" };
+    }
   }
-  const email = appointment.email?.trim();
-  if (email) return { kind: "offer", channel: "email", recipient: email };
-  const phone = appointment.phone?.trim();
-  if (phone) return { kind: "offer", channel: "sms", recipient: phone };
+  if (email) return { kind: "offer", channel: "email", recipient: email, needsOptIn: false };
+  if (phone) return { kind: "offer", channel: "sms", recipient: phone, needsOptIn: !optedIn(phone) };
   return { kind: "no_contact" };
 }

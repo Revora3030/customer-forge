@@ -26,12 +26,11 @@ import {
 import {
   useAppointments,
   useAutomations,
-  useBusinessProfile,
   useCreateAppointment,
   useSaveAppointment,
   useServices,
 } from "@/lib/queries";
-import { useRequestReview } from "@/lib/growth-hooks";
+import { useRequestReview, useReviewRequestedAppointments } from "@/lib/growth-hooks";
 import { reviewOfferFor } from "@/lib/service-catalog";
 import { QueryErrorNotice } from "@/components/app/QueryErrorNotice";
 import { useWorkspace } from "@/lib/use-tenant";
@@ -78,9 +77,9 @@ function CalendarPage() {
   } = useAppointments(orgId);
   const { data: services } = useServices(orgId);
   const { data: automations } = useAutomations(orgId);
-  const profile = useBusinessProfile(orgId);
   const requestReview = useRequestReview(orgId);
-  const [askedIds, setAskedIds] = useState<Set<string>>(() => new Set());
+  // Saved review requests (queued or sent), so "asked" survives a reload.
+  const reviewRequests = useReviewRequestedAppointments(orgId);
   const saveAppointment = useSaveAppointment(orgId, businessName);
   const createAppointment = useCreateAppointment(orgId, businessName);
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
@@ -248,141 +247,152 @@ function CalendarPage() {
         </div>
       </PageHead>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <MetricCard label="Jobs this week" value={String(thisWeek.length)} tone="signal" />
-        <MetricCard
-          label="Awaiting confirmation"
-          value={String(pending.length)}
-          tone={pending.length ? "attention" : "neutral"}
+      {appointmentsError ? (
+        // A failed read is not an empty week: no zero counts, no $0, no blank grid.
+        <QueryErrorNotice
+          title="Your bookings couldn't be loaded, so this week's calendar and totals aren't shown."
+          retry={retryAppointments}
+          retrying={appointmentsFetching}
         />
-        <MetricCard
-          label="Booked value this week"
-          value={currency(weekValue)}
-          hint="based on service pricing"
-        />
-        <MetricCard
-          label="Completed all time"
-          value={String(all.filter((a) => a.status === "completed").length)}
-        />
-      </div>
+      ) : (
+        <>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <MetricCard label="Jobs this week" value={String(thisWeek.length)} tone="signal" />
+            <MetricCard
+              label="Awaiting confirmation"
+              value={String(pending.length)}
+              tone={pending.length ? "attention" : "neutral"}
+            />
+            <MetricCard
+              label="Booked value this week"
+              value={currency(weekValue)}
+              hint="based on service pricing"
+            />
+            <MetricCard
+              label="Completed all time"
+              value={String(all.filter((a) => a.status === "completed").length)}
+            />
+          </div>
 
-      {pending.length ? (
-        <Panel className="border-accent/30 p-5">
-          <SectionHeading
-            eyebrow="Needs your answer"
-            title={`${pending.length} booking request${pending.length > 1 ? "s" : ""}`}
-          />
-          <ul className="mt-4 divide-y divide-border">
-            {pending.map((appt) => (
-              <li key={appt.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
-                <div className="min-w-0">
-                  <p className="text-[13px] font-medium">{appt.name}</p>
-                  <p className="text-[11px] text-muted-foreground">
-                    {dateLong(appt.starts_at)} · {timeShort(appt.starts_at)}
-                    {serviceName(appt.service_id) ? ` · ${serviceName(appt.service_id)}` : ""}
-                  </p>
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    variant="signal"
-                    size="sm"
-                    onClick={() =>
-                      saveAppointment.mutate({ appointment: appt, patch: { status: "confirmed" } })
-                    }
-                  >
-                    Confirm
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => setRescheduleId(appt.id)}>
-                    Reschedule
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() =>
-                      saveAppointment.mutate({ appointment: appt, patch: { status: "cancelled" } })
-                    }
-                  >
-                    Decline
-                  </Button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </Panel>
-      ) : null}
-
-      <div className="-mx-4 overflow-x-auto px-4">
-        <div className="grid w-max min-w-full grid-cols-7 gap-2">
-          {days.map((day, index) => {
-            const isToday = day.toDateString() === new Date().toDateString();
-            const items = byDay.get(day.toDateString()) ?? [];
-            return (
-              <section
-                key={day.toISOString()}
-                className={cn(
-                  "w-40 rounded-lg border p-2.5",
-                  isToday ? "border-primary/40 bg-card" : "border-border bg-card",
-                )}
-              >
-                <p className={cn("eyebrow", isToday && "text-primary")}>{DAY_LABELS[index]}</p>
-                <p className="tnum mt-0.5 font-display text-[15px] font-semibold">
-                  {day.getDate()}
-                </p>
-                <div className="mt-2.5 space-y-1.5">
-                  {items.map((appt) => (
-                    <div key={appt.id} className="panel-inset p-2">
-                      <p className="tnum text-[11px] text-primary">{timeShort(appt.starts_at)}</p>
-                      <p className="mt-0.5 truncate text-[12px] font-medium">{appt.name}</p>
-                      <p className="mt-1">
-                        <Pill tone={appointmentStatusMeta(appt.status).tone}>
-                          {appointmentStatusMeta(appt.status).label}
-                        </Pill>
+          {pending.length ? (
+            <Panel className="border-accent/30 p-5">
+              <SectionHeading
+                eyebrow="Needs your answer"
+                title={`${pending.length} booking request${pending.length > 1 ? "s" : ""}`}
+              />
+              <ul className="mt-4 divide-y divide-border">
+                {pending.map((appt) => (
+                  <li key={appt.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+                    <div className="min-w-0">
+                      <p className="text-[13px] font-medium">{appt.name}</p>
+                      <p className="text-[11px] text-muted-foreground">
+                        {dateLong(appt.starts_at)} · {timeShort(appt.starts_at)}
+                        {serviceName(appt.service_id) ? ` · ${serviceName(appt.service_id)}` : ""}
                       </p>
-                      <div className="mt-1.5 flex flex-wrap gap-2">
-                        {appt.status === "pending" ? (
-                          <button
-                            type="button"
-                            className="cursor-pointer text-[11px] text-primary hover:underline"
-                            onClick={() =>
-                              saveAppointment.mutate({
-                                appointment: appt,
-                                patch: { status: "confirmed" },
-                              })
-                            }
-                          >
-                            Confirm
-                          </button>
-                        ) : null}
-                        {appt.status === "confirmed" ? (
-                          <button
-                            type="button"
-                            className="cursor-pointer text-[11px] text-primary hover:underline"
-                            onClick={() =>
-                              saveAppointment.mutate({
-                                appointment: appt,
-                                patch: { status: "completed" },
-                              })
-                            }
-                          >
-                            Mark done
-                          </button>
-                        ) : null}
-                        <button
-                          type="button"
-                          className="cursor-pointer text-[11px] text-muted-foreground hover:underline"
-                          onClick={() => setRescheduleId(appt.id)}
-                        >
-                          Move
-                        </button>
-                      </div>
                     </div>
-                  ))}
-                </div>
-              </section>
-            );
-          })}
-        </div>
-      </div>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="signal"
+                        size="sm"
+                        onClick={() =>
+                          saveAppointment.mutate({ appointment: appt, patch: { status: "confirmed" } })
+                        }
+                      >
+                        Confirm
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => setRescheduleId(appt.id)}>
+                        Reschedule
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                          saveAppointment.mutate({ appointment: appt, patch: { status: "cancelled" } })
+                        }
+                      >
+                        Decline
+                      </Button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </Panel>
+          ) : null}
+
+          <div className="-mx-4 overflow-x-auto px-4">
+            <div className="grid w-max min-w-full grid-cols-7 gap-2">
+              {days.map((day, index) => {
+                const isToday = day.toDateString() === new Date().toDateString();
+                const items = byDay.get(day.toDateString()) ?? [];
+                return (
+                  <section
+                    key={day.toISOString()}
+                    className={cn(
+                      "w-40 rounded-lg border p-2.5",
+                      isToday ? "border-primary/40 bg-card" : "border-border bg-card",
+                    )}
+                  >
+                    <p className={cn("eyebrow", isToday && "text-primary")}>{DAY_LABELS[index]}</p>
+                    <p className="tnum mt-0.5 font-display text-[15px] font-semibold">
+                      {day.getDate()}
+                    </p>
+                    <div className="mt-2.5 space-y-1.5">
+                      {items.map((appt) => (
+                        <div key={appt.id} className="panel-inset p-2">
+                          <p className="tnum text-[11px] text-primary">{timeShort(appt.starts_at)}</p>
+                          <p className="mt-0.5 truncate text-[12px] font-medium">{appt.name}</p>
+                          <p className="mt-1">
+                            <Pill tone={appointmentStatusMeta(appt.status).tone}>
+                              {appointmentStatusMeta(appt.status).label}
+                            </Pill>
+                          </p>
+                          <div className="mt-1.5 flex flex-wrap gap-2">
+                            {appt.status === "pending" ? (
+                              <button
+                                type="button"
+                                className="cursor-pointer text-[11px] text-primary hover:underline"
+                                onClick={() =>
+                                  saveAppointment.mutate({
+                                    appointment: appt,
+                                    patch: { status: "confirmed" },
+                                  })
+                                }
+                              >
+                                Confirm
+                              </button>
+                            ) : null}
+                            {appt.status === "confirmed" ? (
+                              <button
+                                type="button"
+                                className="cursor-pointer text-[11px] text-primary hover:underline"
+                                onClick={() =>
+                                  saveAppointment.mutate({
+                                    appointment: appt,
+                                    patch: { status: "completed" },
+                                  })
+                                }
+                              >
+                                Mark done
+                              </button>
+                            ) : null}
+                            <button
+                              type="button"
+                              className="cursor-pointer text-[11px] text-muted-foreground hover:underline"
+                              onClick={() => setRescheduleId(appt.id)}
+                            >
+                              Move
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                );
+              })}
+            </div>
+          </div>
+        </>
+      )}
 
       <Panel className="p-5">
         <SectionHeading eyebrow="All bookings" title="Upcoming and past" />
@@ -441,11 +451,14 @@ function CalendarPage() {
                     Reschedule
                   </Button>
                   {(() => {
+                    // SMS opt-ins live in a server-only list, so the page never
+                    // assumes one: a text-only automation doesn't count as
+                    // following up, and a text offer says it needs the opt-in.
                     const offer = reviewOfferFor(appt, automations ?? []);
                     if (offer.kind === "automated") {
                       return (
                         <span className="text-[11px] text-muted-foreground">
-                          Your “Appointment completed” automation follows up
+                          Your “Appointment completed” automation follows up by {offer.channel === "email" ? "email" : "text"}
                         </span>
                       );
                     }
@@ -457,36 +470,40 @@ function CalendarPage() {
                       );
                     }
                     if (offer.kind !== "offer") return null;
-                    const asked = askedIds.has(appt.id);
+                    const asked = reviewRequests.data?.has(appt.id) ?? false;
                     return (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="min-h-11 sm:min-h-0"
-                        disabled={asked || requestReview.isPending}
-                        onClick={() =>
-                          requestReview.mutate(
-                            {
-                              name: appt.name,
-                              recipient: offer.recipient,
-                              channel: offer.channel,
-                              businessName: businessName ?? "our team",
-                              reviewLink: profile.data?.review_link ?? null,
-                              leadId: appt.lead_id,
-                              appointmentId: appt.id,
-                            },
-                            {
-                              onSuccess: () =>
-                                setAskedIds((current) => new Set(current).add(appt.id)),
-                            },
-                          )
-                        }
-                      >
-                        <Star className="size-4" />
-                        {asked
-                          ? "Review request queued"
-                          : `Ask for a review by ${offer.channel === "email" ? "email" : "text"}`}
-                      </Button>
+                      <span className="flex flex-col items-end gap-0.5">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="min-h-11 sm:min-h-0"
+                          // Until the saved requests are read we can't tell
+                          // whether this job was already asked.
+                          disabled={asked || !reviewRequests.isSuccess || requestReview.isPending}
+                          onClick={() =>
+                            requestReview.mutate({ appointmentId: appt.id, channel: offer.channel })
+                          }
+                        >
+                          <Star className="size-4" />
+                          {asked
+                            ? "Review request queued"
+                            : `Ask for a review by ${offer.channel === "email" ? "email" : "text"}`}
+                        </Button>
+                        {reviewRequests.isError ? (
+                          <button
+                            type="button"
+                            className="cursor-pointer text-[11px] text-destructive hover:underline"
+                            onClick={() => void reviewRequests.refetch()}
+                          >
+                            Couldn't check earlier review requests — retry
+                          </button>
+                        ) : offer.channel === "sms" && offer.needsOptIn && !asked ? (
+                          <span className="text-[11px] text-muted-foreground">
+                            Texting needs the customer's opt-in (a START reply); without it the
+                            text isn't sent.
+                          </span>
+                        ) : null}
+                      </span>
                     );
                   })()}
                 </div>
