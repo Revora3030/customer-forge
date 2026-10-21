@@ -11,6 +11,9 @@ export const FREE_CHECK_TOOLS = [
   "domain.rdap.lookup",
   "domain.wayback.history",
   "website.text.extract",
+  "website.seo.crawl",
+  "domain.certificates.lookup",
+  "places.osm.search",
 ] as const;
 export type FreeCheckTool = (typeof FREE_CHECK_TOOLS)[number];
 export const isFreeCheckTool = (id: string): id is FreeCheckTool => (FREE_CHECK_TOOLS as readonly string[]).includes(id);
@@ -107,4 +110,98 @@ export function extractReadableText(html: string, maxChars = 6000) {
     .replace(/\n\s*\n+/g, "\n")
     .trim();
   return { title, text: text.slice(0, maxChars), truncated: text.length > maxChars, wordCount: text.split(/\s+/).filter(Boolean).length };
+}
+
+/* ---- SEO crawl, certificate and map lookups (keyless) ---- */
+
+/** Bounded text read: no redirects, capped bytes. */
+export async function readBoundedText(url: string, maxBytes: number, headers: Record<string, string> = {}, timeoutMs = 12000) {
+  const res = await fetch(url, { redirect: "manual", credentials: "omit", headers, signal: AbortSignal.timeout(timeoutMs) });
+  if (!res.ok) { await res.body?.cancel(); return { ok: false as const, status: res.status }; }
+  const reader = res.body?.getReader();
+  if (!reader) return { ok: true as const, status: res.status, text: "", truncated: false };
+  const dec = new TextDecoder(); let text = ""; let bytes = 0; let truncated = false;
+  while (true) {
+    const p = await reader.read();
+    if (p.done) break;
+    if (bytes + p.value.byteLength > maxBytes) { truncated = true; await reader.cancel(); break; }
+    bytes += p.value.byteLength; text += dec.decode(p.value, { stream: true });
+  }
+  return { ok: true as const, status: res.status, text, truncated };
+}
+
+export function summarizeRobots(text: string | null) {
+  if (text === null) return { present: false, blocksAllCrawlers: false, sitemaps: [] as string[] };
+  const lines = text.split(/\r?\n/).map((l) => l.replace(/#.*/, "").trim()).filter(Boolean);
+  let star = false; let blocksAll = false;
+  for (const l of lines) {
+    const [k, ...rest] = l.split(":"); const key = k!.trim().toLowerCase(); const v = rest.join(":").trim();
+    if (key === "user-agent") star = v === "*";
+    else if (star && key === "disallow" && v === "/") blocksAll = true;
+  }
+  const sitemaps = lines.filter((l) => /^sitemap\s*:/i.test(l)).map((l) => l.replace(/^sitemap\s*:/i, "").trim()).slice(0, 10);
+  return { present: true, blocksAllCrawlers: blocksAll, sitemaps };
+}
+
+export function summarizeSitemap(xml: string | null) {
+  if (xml === null) return { present: false, urlCount: 0, isIndex: false };
+  return { present: /<(urlset|sitemapindex)[\s>]/i.test(xml), urlCount: (xml.match(/<loc>/gi) ?? []).length, isIndex: /<sitemapindex[\s>]/i.test(xml) };
+}
+
+const metaContent = (html: string, attr: "name" | "property", key: string) => {
+  const re = new RegExp(`<meta[^>]+${attr}=["']${key}["'][^>]*>`, "i");
+  const tag = html.match(re)?.[0];
+  return tag ? (tag.match(/content=["']([^"']*)["']/i)?.[1] ?? "").slice(0, 300) : null;
+};
+export function summarizeSeoTags(html: string) {
+  const types = new Set<string>(); let invalidJsonLd = 0;
+  for (const m of html.matchAll(/<script[^>]+application\/ld\+json[^>]*>([\s\S]*?)<\/script>/gi)) {
+    try {
+      const walk = (v: unknown): void => {
+        if (Array.isArray(v)) return v.forEach(walk);
+        const o = obj(v); const t = o["@type"];
+        if (typeof t === "string") types.add(t); else arr(t).forEach((x) => typeof x === "string" && types.add(x));
+        arr(o["@graph"]).forEach(walk);
+      };
+      walk(JSON.parse(m[1]!));
+    } catch { invalidJsonLd += 1; }
+  }
+  const canonical = html.match(/<link[^>]+rel=["']canonical["'][^>]*>/i)?.[0]?.match(/href=["']([^"']*)["']/i)?.[1] ?? null;
+  const robotsMeta = metaContent(html, "name", "robots");
+  const og = { title: metaContent(html, "property", "og:title"), description: metaContent(html, "property", "og:description"), image: metaContent(html, "property", "og:image"), type: metaContent(html, "property", "og:type") };
+  const twitterCard = metaContent(html, "name", "twitter:card");
+  const missing = [!canonical && "canonical", !og.title && "og:title", !og.description && "og:description", !og.image && "og:image", !twitterCard && "twitter:card", types.size === 0 && "structured data"].filter(Boolean) as string[];
+  return { canonical, robotsMeta, noindex: /noindex/i.test(robotsMeta ?? ""), openGraph: og, twitterCard, structuredDataTypes: [...types].slice(0, 20), invalidJsonLd, missing };
+}
+
+export const CRTSH_URL = (domain: string) => `https://crt.sh/?q=${encodeURIComponent(`%.${domain}`)}&output=json&exclude=expired`;
+export function summarizeCrtsh(raw: unknown, domain: string, now = Date.now()) {
+  const rows = arr(raw).map(obj);
+  const names = new Set<string>(); const issuers = new Set<string>(); let latestExpiry: string | null = null;
+  for (const r of rows) {
+    for (const n of (str(r["name_value"]) ?? "").split("\n")) {
+      const h = n.trim().toLowerCase();
+      if (h && (h === domain || h.endsWith(`.${domain}`))) names.add(h);
+    }
+    const iss = str(r["issuer_name"])?.match(/O=([^,]+)/)?.[1]; if (iss) issuers.add(iss.trim());
+    const na = str(r["not_after"]); if (na && (!latestExpiry || na > latestExpiry)) latestExpiry = na;
+  }
+  const days = latestExpiry ? Math.floor((Date.parse(`${latestExpiry}Z`) - now) / 86400000) : null;
+  return { domain, activeCertificates: rows.length, hostnames: [...names].sort().slice(0, 40), hostnameCount: names.size, issuers: [...issuers].slice(0, 6), latestExpiry, daysUntilLatestExpiry: Number.isFinite(days) ? days : null };
+}
+
+export const NOMINATIM_URL = (q: string) => `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&q=${encodeURIComponent(q)}`;
+export function cleanPlaceQuery(v: unknown) {
+  const q = typeof v === "string" ? v.replace(/[\u0000-\u001f]/g, " ").trim().slice(0, 160) : "";
+  return q.length >= 3 ? q : null;
+}
+export function summarizeNominatim(raw: unknown) {
+  return {
+    results: arr(raw).map(obj).slice(0, 5).map((r) => ({
+      name: str(r["name"]) || null, address: str(r["display_name"])?.slice(0, 240) ?? null,
+      kind: [str(r["category"]), str(r["type"])].filter(Boolean).join("/") || null,
+      lat: str(r["lat"]), lon: str(r["lon"]),
+    })),
+    attribution: "© OpenStreetMap contributors (ODbL)",
+  };
 }

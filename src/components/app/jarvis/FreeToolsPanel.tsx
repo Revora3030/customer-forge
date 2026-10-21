@@ -23,6 +23,9 @@ const tools = [
   { id: "domain.rdap.lookup", title: "Domain registration · no key", icon: Landmark },
   { id: "domain.wayback.history", title: "Wayback history · no key", icon: Archive },
   { id: "website.text.extract", title: "Readable page text · no key", icon: FileText },
+  { id: "website.seo.crawl", title: "SEO crawl check · no key", icon: FileSearch },
+  { id: "domain.certificates.lookup", title: "SSL certificates · no key", icon: Lock },
+  { id: "places.osm.search", title: "Map lookup · no key", icon: Globe },
   { id: "workspace.calendar.upcoming", title: "Google Calendar · next 7 days", icon: CalendarDays },
   { id: "workspace.sheets.read", title: "Google Sheets outline", icon: Sheet },
   { id: "cloudflare.zones.summary", title: "Cloudflare domains", icon: Cloud },
@@ -48,6 +51,7 @@ export function FreeToolsPanel() {
   const [target, setTarget] = useState("https://revoragrowthsystems.com/");
   const [query, setQuery] = useState("tanstack start: server functions");
   const [photoQuery, setPhotoQuery] = useState("auto detailing foam wash");
+  const [placeQuery, setPlaceQuery] = useState("mobile detailing Durham NC");
   const [sheetUrl, setSheetUrl] = useState("");
   const [strategy, setStrategy] = useState("mobile");
   const [running, setRunning] = useState<string | null>(null);
@@ -57,7 +61,7 @@ export function FreeToolsPanel() {
     setRunning(toolId);
     setError(null);
     try {
-      const args = toolId === "docs.lookup" ? { query } : toolId === "images.stock.search" ? { query: photoQuery } : toolId === "workspace.sheets.read" ? { query: sheetUrl } : toolId === "website.dns.lookup" || toolId === "domain.rdap.lookup" || toolId === "domain.wayback.history" ? { query: target } : { target, strategy };
+      const args = toolId === "docs.lookup" ? { query } : toolId === "images.stock.search" ? { query: photoQuery } : toolId === "workspace.sheets.read" ? { query: sheetUrl } : toolId === "places.osm.search" ? { query: placeQuery } : toolId === "website.dns.lookup" || toolId === "domain.certificates.lookup" || toolId === "domain.rdap.lookup" || toolId === "domain.wayback.history" ? { query: target } : { target, strategy };
       const result = await run({ data: { toolId, args } });
       setResults((previous) => ({ ...previous, [toolId]: result }));
     } catch {
@@ -76,6 +80,7 @@ export function FreeToolsPanel() {
       <label className="block space-y-1 text-xs">Documentation query<Input aria-label="Documentation query" value={query} onChange={(event) => setQuery(event.target.value)} /></label>
       <label className="block space-y-1 text-xs">Google Sheets link<Input aria-label="Google Sheets link" placeholder="https://docs.google.com/spreadsheets/d/…" value={sheetUrl} onChange={(event) => setSheetUrl(event.target.value)} /></label>
       <label className="block space-y-1 text-xs">Photo search<Input aria-label="Stock photo search" value={photoQuery} onChange={(event) => setPhotoQuery(event.target.value)} /></label>
+      <label className="block space-y-1 text-xs">Map search<Input aria-label="Map search" value={placeQuery} onChange={(event) => setPlaceQuery(event.target.value)} /></label>
       {tools.map((tool) => {
         const result = results[tool.id];
         const reason = result?.data && typeof result.data === "object" && !Array.isArray(result.data) && "reason" in result.data ? result.data["reason"] : null;
