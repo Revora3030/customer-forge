@@ -215,8 +215,11 @@ function BuilderPreviewFrame({
       document.removeEventListener("keydown", onKey);
       document.body.style.overflow = previousOverflow;
       window.requestAnimationFrame(() => {
-        if (previousFocus instanceof HTMLElement && previousFocus.isConnected) previousFocus.focus();
-        else document.querySelector<HTMLButtonElement>('[aria-label="Open fullscreen preview"]')?.focus();
+        if (previousFocus instanceof HTMLElement && previousFocus !== document.body && previousFocus.isConnected) previousFocus.focus();
+        else {
+          const controls = document.querySelectorAll<HTMLButtonElement>('[aria-label="Open fullscreen preview"], [aria-label="Preview options"]');
+          Array.from(controls).find((control) => control.getClientRects().length > 0)?.focus();
+        }
       });
     };
   }, [fullscreen]);
