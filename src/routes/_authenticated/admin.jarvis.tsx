@@ -32,6 +32,9 @@ import { prospectFromImageFn, startProspectDemoBuild } from "@/lib/jarvis-demo-s
 import { pictureDataUrl } from "@/lib/picture-data-url";
 import { isAutopilotProposal, useApproveAutopilotProposal } from "@/components/app/jarvis/autopilot-proposal";
 import { saveInstagramDraftFn } from "@/lib/instagram.functions";
+import { approvePerplexityResearch } from "@/lib/integrations/perplexity-agent.functions";
+import { readResearchResults, rememberResearchResult, type ResearchResults } from "@/components/app/jarvis/research-results";
+import { ResearchResultCard } from "@/components/app/jarvis/ResearchResultCard";
 
 type RecognitionResult = ArrayLike<{ transcript: string }> & { isFinal?: boolean };
 type Recognition = {
@@ -202,6 +205,7 @@ function Jarvis() {
     return () => { query.removeEventListener?.("change", update); touch.removeEventListener?.("change", update); };
   }, []);
   const [approved, setApproved] = useState<Record<string, "building" | "done">>({});
+  const [researchResults, setResearchResults] = useState<ResearchResults>(() => readResearchResults());
   const [remembered, setRemembered] = useState<Approvals>({});
   // Live demo build cards: under the chat proposal that started them (kept on this device),
   // or at the end of the chat for builds and previews opened from Operations.
@@ -542,6 +546,26 @@ function Jarvis() {
   };
   const approveProposal = async (key: string, proposal: WriteProposal) => {
     setApproved((current) => ({ ...current, [key]: "building" }));
+    if (proposal.id === "research.ask") {
+      try {
+        const result = await approvePerplexityResearch({ data: { question: proposal.question, preset: proposal.preset } });
+        if (!result.ok) throw new Error(result.detail);
+        markDone(key);
+        setResearchResults(rememberResearchResult(key, {
+          question: proposal.question,
+          model: result.model,
+          text: result.text,
+          citations: result.citations,
+          searchResults: result.searchResults,
+          at: new Date().toISOString(),
+        }));
+        toast.success("Research complete — the cited answer is below.");
+      } catch (error) {
+        forget(key);
+        toast.error(error instanceof Error ? error.message : "The research request failed.");
+      }
+      return;
+    }
     if (proposal.id === "instagram.post") {
       try {
         await saveInstagramDraftFn({ data: proposal.draft });
@@ -685,6 +709,8 @@ function Jarvis() {
         />
       );
     }
+    const research = researchResults[key];
+    if (research) return <ResearchResultCard result={research} />;
     const demo = demoCards[key];
     return demo ? <DemoBuildCard card={demo} /> : null;
   };
