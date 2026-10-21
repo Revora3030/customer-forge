@@ -183,7 +183,7 @@ export async function generateSiteVideo(
     message: string,
     charged: number,
   ): Promise<PaidVideoResult> => {
-    await settleBudget(caller.organizationId, estimate, charged);
+    await settleBudget(caller.organizationId, estimate, charged, reservation.paid);
     await recordUsage({
       organizationId: caller.organizationId,
       purpose: "video_generation",
@@ -219,7 +219,7 @@ export async function generateSiteVideo(
         outcome.charged ? estimate : 0,
       );
 
-    await settleBudget(caller.organizationId, estimate, estimate);
+    await settleBudget(caller.organizationId, estimate, estimate, reservation.paid);
     await recordUsage({
       organizationId: caller.organizationId,
       purpose: "video_generation",
