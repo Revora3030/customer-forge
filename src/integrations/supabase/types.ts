@@ -4289,57 +4289,6 @@ export type Database = {
           },
         ]
       }
-      quote_line_items: {
-        Row: {
-          created_at: string
-          id: string
-          name: string
-          organization_id: string
-          quantity: number
-          quote_id: string
-          service_id: string | null
-          sort_order: number
-          unit_price: number
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          name: string
-          organization_id: string
-          quantity?: number
-          quote_id: string
-          service_id?: string | null
-          sort_order?: number
-          unit_price?: number
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          name?: string
-          organization_id?: string
-          quantity?: number
-          quote_id?: string
-          service_id?: string | null
-          sort_order?: number
-          unit_price?: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "quote_line_items_quote_same_org_fkey"
-            columns: ["quote_id", "organization_id"]
-            isOneToOne: false
-            referencedRelation: "quotes"
-            referencedColumns: ["id", "organization_id"]
-          },
-          {
-            foreignKeyName: "quote_line_items_service_same_org_fkey"
-            columns: ["service_id", "organization_id"]
-            isOneToOne: false
-            referencedRelation: "services"
-            referencedColumns: ["id", "organization_id"]
-          },
-        ]
-      }
       quote_options: {
         Row: {
           created_at: string
@@ -4537,66 +4486,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "public_organizations"
             referencedColumns: ["id"]
-          },
-        ]
-      }
-      quotes: {
-        Row: {
-          accepted_at: string | null
-          appointment_id: string | null
-          created_at: string
-          customer_email: string | null
-          customer_name: string
-          customer_phone: string | null
-          id: string
-          lead_id: string | null
-          notes: string | null
-          organization_id: string
-          status: string
-          updated_at: string
-        }
-        Insert: {
-          accepted_at?: string | null
-          appointment_id?: string | null
-          created_at?: string
-          customer_email?: string | null
-          customer_name: string
-          customer_phone?: string | null
-          id?: string
-          lead_id?: string | null
-          notes?: string | null
-          organization_id: string
-          status?: string
-          updated_at?: string
-        }
-        Update: {
-          accepted_at?: string | null
-          appointment_id?: string | null
-          created_at?: string
-          customer_email?: string | null
-          customer_name?: string
-          customer_phone?: string | null
-          id?: string
-          lead_id?: string | null
-          notes?: string | null
-          organization_id?: string
-          status?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "quotes_appointment_same_org_fkey"
-            columns: ["appointment_id", "organization_id"]
-            isOneToOne: false
-            referencedRelation: "appointments"
-            referencedColumns: ["id", "organization_id"]
-          },
-          {
-            foreignKeyName: "quotes_lead_same_org_fkey"
-            columns: ["lead_id", "organization_id"]
-            isOneToOne: false
-            referencedRelation: "leads"
-            referencedColumns: ["id", "organization_id"]
           },
         ]
       }
