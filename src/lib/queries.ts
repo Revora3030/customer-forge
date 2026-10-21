@@ -5,8 +5,9 @@ import { toast } from "@/lib/ui/notify";
 import { friendlyError } from "@/lib/user-error";
 import { supabase } from "@/integrations/supabase/client";
 import type { AppointmentStatus, LeadStatus } from "@/lib/domain";
-import { AUTOMATION_RECIPES, enqueueAutomations } from "@/lib/automation-engine";
+import { AUTOMATION_RECIPES } from "@/lib/automation-engine";
 import { runDueAutomations } from "@/lib/automations.functions";
+import { queueAutomationEvent } from "@/lib/automation-queue.functions";
 import { setWebsiteReviewState } from "@/lib/website-review.functions";
 
 /**
@@ -27,19 +28,33 @@ async function flushAutomations(organizationId: string) {
 }
 
 /**
- * The record itself is already saved when follow-ups are queued, so a queueing
- * failure is reported as a warning rather than failing the whole save.
+ * Follow-ups are queued only by the server (`queueAutomationEvent`), which
+ * builds every message from the workspace's automations and its own records
+ * and delivers what is due in the same pass. The record itself is already
+ * saved here, so a queueing failure is a warning rather than a failed save.
  */
-async function queueFollowUps(run: () => Promise<unknown>, organizationId: string) {
+async function queueFollowUps(input: {
+  organizationId: string;
+  trigger: "quote_requested" | "booking_created" | "appointment_completed";
+  leadId?: string | null;
+  appointmentId?: string | null;
+}) {
   try {
-    await run();
+    await queueAutomationEvent({
+      data: {
+        organizationId: input.organizationId,
+        trigger: input.trigger,
+        leadId: input.leadId ?? null,
+        appointmentId: input.appointmentId ?? null,
+      },
+    });
   } catch (error) {
     console.warn("automation queueing failed", error);
     toast.warning("Saved — but the automatic follow-ups for this couldn't be queued.");
-    return;
   }
-  await flushAutomations(organizationId);
 }
+
+const CLIENT_TRIGGERS = new Set(["quote_requested", "booking_created", "appointment_completed"]);
 
 const DAY = 86_400_000;
 
@@ -566,7 +581,7 @@ export function useLogActivity(organizationId: string | undefined) {
 }
 
 /** One place for every pipeline action: status, notes, contact logging and automations. */
-export function useLeadAction(organizationId: string | undefined, businessName?: string | null) {
+export function useLeadAction(organizationId: string | undefined, _businessName?: string | null) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({
@@ -602,17 +617,12 @@ export function useLeadAction(organizationId: string | undefined, businessName?:
           body: activity.body ?? null,
         } as never);
       }
-      if (trigger) {
-        await queueFollowUps(
-          () =>
-            enqueueAutomations(supabase, {
-              organizationId: organizationId!,
-              trigger,
-              businessName: businessName ?? null,
-              lead,
-            }),
-          organizationId!,
-        );
+      if (trigger && CLIENT_TRIGGERS.has(trigger)) {
+        await queueFollowUps({
+          organizationId: organizationId!,
+          trigger: trigger as "quote_requested" | "booking_created",
+          leadId: lead.id,
+        });
       }
     },
     onSuccess: () => {
@@ -678,9 +688,33 @@ export function useConvertLeadToCustomer(organizationId: string | undefined) {
 
 /* -------------------------------- bookings ---------------------------------- */
 
+/** Errors the booking RPC raises, in owner language. */
+export const BOOKING_ERRORS: Record<string, string> = {
+  quote_already_booked: "This quote is already booked — open the calendar to see it.",
+  quote_not_found: "That quote wasn't found, or you can't book from it.",
+  quote_not_accepted: "Only an accepted quote can be booked.",
+  lead_not_found: "That lead wasn't found in this workspace.",
+  invalid_time: "Pick a valid date and time.",
+  missing_name: "Add the customer's name.",
+  not_allowed: "You don't have permission to book in this workspace.",
+};
+
+export function bookingErrorMessage(error: { message?: string } | null | undefined): string | null {
+  const message = String(error?.message ?? "");
+  const code = Object.keys(BOOKING_ERRORS).find((key) => message.includes(key));
+  return code ? BOOKING_ERRORS[code]! : null;
+}
+
+/**
+ * Books a job in ONE database transaction (`book_appointment`, SECURITY
+ * INVOKER, tenant-checked): creates the lead when needed, the appointment and
+ * its activity, and — when booked from a quote — links the quote only while it
+ * is still unbooked. A second click or a second tab gets "already booked" and
+ * no duplicate appointment. Follow-ups are then queued by the server.
+ */
 export function useCreateAppointment(
   organizationId: string | undefined,
-  businessName?: string | null,
+  _businessName?: string | null,
 ) {
   const queryClient = useQueryClient();
   return useMutation({
@@ -695,96 +729,67 @@ export function useCreateAppointment(
       leadId?: string | null;
       status?: AppointmentStatus;
       estimatedValue?: number;
+      /** Booking an accepted quote: links it atomically, once. */
+      quoteId?: string | null;
     }) => {
+      if (!organizationId) throw new Error("Workspace not loaded yet.");
       const starts = new Date(input.startsAt);
       if (Number.isNaN(starts.getTime())) throw new Error("Pick a valid date and time.");
-      const ends = new Date(starts.getTime() + input.durationMinutes * 60_000);
+      const minutes = Math.max(1, Math.round(Number(input.durationMinutes) || 0));
+      const ends = new Date(starts.getTime() + minutes * 60_000);
 
-      let leadId = input.leadId ?? null;
-      if (!leadId) {
-        const { data: created, error: leadError } = await supabase
-          .from("leads")
-          .insert({
-            organization_id: organizationId!,
-            name: input.name,
-            email: input.email ?? null,
-            phone: input.phone ?? null,
-            service_id: input.serviceId ?? null,
-            source: "manual",
-            status: "booked",
-            estimated_value: input.estimatedValue ?? 0,
-          } as never)
-          .select("id")
-          .single();
-        if (leadError) throw leadError;
-        leadId = created.id;
-      } else {
-        const { error: leadStatusError } = await supabase
-          .from("leads")
-          .update({ status: "booked" } as never)
-          .eq("id", leadId);
-        if (leadStatusError) throw leadStatusError;
-      }
-
-      const { data: appt, error } = await supabase
-        .from("appointments")
-        .insert({
-          organization_id: organizationId!,
-          lead_id: leadId,
-          service_id: input.serviceId ?? null,
-          name: input.name,
-          email: input.email ?? null,
-          phone: input.phone ?? null,
-          starts_at: starts.toISOString(),
-          ends_at: ends.toISOString(),
-          status: input.status ?? "confirmed",
-          notes: input.notes ?? null,
-        } as never)
-        .select("id, name, email, phone, starts_at")
-        .single();
-      if (error) throw error;
-
-      await supabase.from("lead_activities").insert({
-        organization_id: organizationId!,
-        lead_id: leadId,
-        appointment_id: appt.id,
-        kind: "booked",
-        body: `Appointment set for ${starts.toLocaleString()}.`,
-      } as never);
-
-      await queueFollowUps(
-        () =>
-          enqueueAutomations(supabase, {
-            organizationId: organizationId!,
-            trigger: "booking_created",
-            businessName: businessName ?? null,
-            lead: {
-              id: leadId,
-              name: input.name,
-              email: input.email ?? null,
-              phone: input.phone ?? null,
-            },
-            appointment: appt,
-          }),
-        organizationId!,
+      const { data, error } = await supabase.rpc(
+        "book_appointment" as never,
+        {
+          p_organization_id: organizationId,
+          p_name: input.name,
+          p_email: input.email ?? null,
+          p_phone: input.phone ?? null,
+          p_starts_at: starts.toISOString(),
+          p_ends_at: ends.toISOString(),
+          p_service_id: input.serviceId ?? null,
+          p_notes: input.notes ?? null,
+          p_lead_id: input.leadId ?? null,
+          p_status: input.status ?? "confirmed",
+          p_estimated_value: input.estimatedValue ?? 0,
+          p_quote_id: input.quoteId ?? null,
+          p_activity_body: `Appointment set for ${starts.toLocaleString()}.`,
+        } as never,
       );
+      if (error) {
+        const friendly = bookingErrorMessage(error);
+        throw friendly ? new Error(friendly) : error;
+      }
+      const booked = (data ?? {}) as { appointment_id?: string; lead_id?: string };
+      if (!booked.appointment_id) throw new Error("The booking couldn't be confirmed. Refresh and check the calendar.");
 
-      return appt.id;
+      await queueFollowUps({
+        organizationId,
+        trigger: "booking_created",
+        leadId: booked.lead_id ?? null,
+        appointmentId: booked.appointment_id,
+      });
+
+      return booked.appointment_id;
     },
     onSuccess: () => {
       toast.success("Booking added to the calendar.");
-      for (const key of ["appointments", "leads", "automation_runs", "notifications"]) {
+      for (const key of ["appointments", "leads", "automation_runs", "notifications", "quotes"]) {
         void queryClient.invalidateQueries({ queryKey: [key, organizationId] });
       }
       void queryClient.invalidateQueries({ queryKey: ["lead_activities"] });
     },
-    onError: (error: Error) => toast.error(friendlyError(error, "Couldn't create that booking.")),
+    onError: (error: Error) => {
+      // An already-booked quote is stale on screen: refresh it so the button goes.
+      void queryClient.invalidateQueries({ queryKey: ["quotes", organizationId] });
+      toast.error(friendlyError(error, "Couldn't create that booking."));
+    },
   });
 }
 
 export function useSaveAppointment(
   organizationId: string | undefined,
-  businessName?: string | null,
+  _businessName?: string | null,
 ) {
   const queryClient = useQueryClient();
   return useMutation({
@@ -838,24 +843,11 @@ export function useSaveAppointment(
       }
 
       if (patch.status === "completed") {
-        await queueFollowUps(
-          () =>
-            enqueueAutomations(supabase, {
-              organizationId: organizationId!,
-              trigger: "appointment_completed",
-              businessName: businessName ?? null,
-              lead: appointment.lead_id
-                ? {
-                    id: appointment.lead_id,
-                    name: appointment.name,
-                    email: appointment.email ?? null,
-                    phone: appointment.phone ?? null,
-                  }
-                : null,
-              appointment,
-            }),
-          organizationId!,
-        );
+        await queueFollowUps({
+          organizationId: organizationId!,
+          trigger: "appointment_completed",
+          appointmentId: appointment.id,
+        });
       }
     },
     onSuccess: () => {

@@ -17,7 +17,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useQuoteBuilder, useQuoteBuilderMutations, useQuoteRequests } from "@/lib/queries";
-import { useWorkspace } from "@/lib/use-tenant";
+import { canManage, useWorkspace } from "@/lib/use-tenant";
 import { currency, relative } from "@/lib/format";
 
 export const Route = createFileRoute("/_authenticated/app/quotes")({
@@ -145,6 +145,7 @@ function QuotesPage() {
         businessName={businessName}
         prefill={quotePrefill}
         onPrefillUsed={clearPrefill}
+        canDelete={canManage(ws?.workspace?.role)}
       />
 
       {/* Form settings */}

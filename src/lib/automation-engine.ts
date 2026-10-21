@@ -148,6 +148,7 @@ export type RunDelivery = (run: {
   subject: string | null;
   body: string | null;
   trigger_event?: string | null;
+  appointment_starts_at?: string | null;
 }) => Promise<
   { ok: true } | { ok: false; retry: boolean; reason: string; retryAfterSeconds?: number }
 >;
@@ -162,7 +163,12 @@ const REASON_TEXT: Record<string, string> = {
   sms_no_opt_in: "they haven't opted in to texts, so the review request wasn't texted",
   sms_provider_not_connected: "no text-message provider is connected yet",
   sms_provider_not_configured: "the text-message provider isn't finished configuring",
+  sms_region_unsupported: "texts only go to US and Canadian (+1) numbers",
+  appointment_already_started: "the appointment had already started, so the reminder was dropped",
 };
+
+/** Outcomes that mean "nothing to send any more" rather than a failed send. */
+const SKIP_REASONS = new Set(["appointment_already_started"]);
 
 /**
  * Delivers everything that is due. Email and SMS steps are handed to the
@@ -185,6 +191,27 @@ export async function processDueRuns(
 
   if (!due?.length) return { sent: 0, skipped: 0, failed: 0 };
 
+  // Reminders need their appointment's start, so a stale one is dropped
+  // instead of being sent after the job began.
+  const appointmentIds = [
+    ...new Set(due.map((run) => run.appointment_id).filter((id): id is string => Boolean(id))),
+  ];
+  const startsById = new Map<string, string>();
+  if (appointmentIds.length) {
+    const { data: appointments, error: appointmentError } = await client
+      .from("appointments")
+      .select("id, starts_at")
+      .eq("organization_id", organizationId)
+      .in("id", appointmentIds);
+    // Without the start time a reminder could go out late: leave every run
+    // queued for the next pass instead of guessing.
+    if (appointmentError) {
+      console.warn("automation appointment lookup failed", appointmentError.message);
+      return { sent: 0, skipped: 0, failed: 0 };
+    }
+    for (const appointment of appointments ?? []) startsById.set(appointment.id, appointment.starts_at);
+  }
+
   const nowIso = new Date().toISOString();
   let sent = 0;
   let skipped = 0;
@@ -198,7 +225,14 @@ export async function processDueRuns(
     // No delivery transport available here: leave it queued for the server pass.
     if (isMessage && !options.deliver) continue;
 
-    const outcome = isMessage ? await options.deliver!(run) : ({ ok: true } as { ok: true });
+    const outcome = isMessage
+      ? await options.deliver!({
+          ...run,
+          appointment_starts_at: run.appointment_id
+            ? (startsById.get(run.appointment_id) ?? null)
+            : null,
+        })
+      : ({ ok: true } as { ok: true });
 
     if (!outcome.ok && outcome.retry) {
       // Transient: push it out and try again on the next pass.
@@ -211,13 +245,17 @@ export async function processDueRuns(
         .update({
           scheduled_for: new Date(Date.now() + delaySeconds * 1000).toISOString(),
         })
-        .eq("id", run.id);
+        .eq("id", run.id)
+        .eq("organization_id", organizationId)
+        .eq("status", "queued");
       continue;
     }
 
     const delivered = outcome.ok;
-    if (delivered) sent += 1;
-    else if (run.recipient) failed += 1;
+    const dropped = !outcome.ok && SKIP_REASONS.has(outcome.reason);
+    const finalStatus = delivered ? "sent" : run.recipient && !dropped ? "failed" : "skipped";
+    if (finalStatus === "sent") sent += 1;
+    else if (finalStatus === "failed") failed += 1;
     else skipped += 1;
 
     // Only the pass that moves the run out of "queued" records it: two passes
@@ -226,15 +264,16 @@ export async function processDueRuns(
     const { data: claimed } = await client
       .from("automation_runs")
       .update({
-        status: delivered ? "sent" : run.recipient ? "failed" : "skipped",
+        status: finalStatus,
         sent_at: delivered ? nowIso : null,
       })
       .eq("id", run.id)
+      .eq("organization_id", organizationId)
       .eq("status", "queued")
       .select("id");
     if (!claimed?.length) {
-      if (delivered) sent -= 1;
-      else if (run.recipient) failed -= 1;
+      if (finalStatus === "sent") sent -= 1;
+      else if (finalStatus === "failed") failed -= 1;
       else skipped -= 1;
       continue;
     }
@@ -272,6 +311,25 @@ export async function processDueRuns(
   }
 
   return { sent, skipped, failed };
+}
+
+/**
+ * The manual review request's wording. Built on the server from the
+ * appointment and business profile, never taken from the browser.
+ */
+export function reviewRequestMessage(input: {
+  customerName: string;
+  businessName: string | null | undefined;
+  reviewLink: string | null | undefined;
+}) {
+  const first = input.customerName.trim().split(/\s+/)[0] || "there";
+  const business = input.businessName?.trim() || "our team";
+  const link = input.reviewLink?.trim();
+  const safeLink = link && /^https?:\/\/[^\s]+$/i.test(link) ? link : null;
+  return {
+    subject: `How did we do, ${first}?`,
+    body: `Hi ${first} — thanks again for choosing ${business}. Would you leave us a quick review?${safeLink ? ` ${safeLink}` : ""}`,
+  };
 }
 
 /** Ready-made automations a business can switch on in one click. */

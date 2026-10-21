@@ -841,7 +841,7 @@ export const submitPublicLead = createServerFn({ method: "POST" })
       const [{ data: profile }, { data: routingSettings }, { data: signing }] = await Promise.all([
         supabase
           .from("business_profiles")
-          .select("email, owner_email, notification_email, notify_on_lead, phone")
+          .select("email, owner_email, notification_email, notify_on_lead, phone, state")
           .eq("organization_id", orgId)
           .maybeSingle(),
         supabase
@@ -1026,7 +1026,12 @@ export const submitPublicLead = createServerFn({ method: "POST" })
         },
         {
           businessName: org.name,
-          deliver: (run) => deliverRun(run, { businessName: org.name, replyTo: ownerEmail }),
+          deliver: (run) =>
+            deliverRun(run, {
+              businessName: org.name,
+              replyTo: ownerEmail,
+              businessState: profile?.state ?? null,
+            }),
         },
       );
     } catch (sideEffectError) {

@@ -11,8 +11,8 @@ import {
   SectionHeading,
 } from "@/components/app/Bits";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { QueryErrorNotice } from "@/components/app/QueryErrorNotice";
 import {
   Dialog,
   DialogContent,
@@ -23,7 +23,11 @@ import {
 } from "@/components/ui/dialog";
 import { useWorkspace } from "@/lib/use-tenant";
 import { useAppointments, useBusinessProfile, useReviews } from "@/lib/queries";
-import { useRequestReview, useSetReviewPublished } from "@/lib/growth-hooks";
+import {
+  useRequestReview,
+  useReviewRequestedAppointments,
+  useSetReviewPublished,
+} from "@/lib/growth-hooks";
 import { relative } from "@/lib/format";
 import { REVIEWS_META } from "@/lib/app-meta";
 import { MetaPreview } from "@/components/app/MetaPreview";
@@ -56,17 +60,16 @@ function Stars({ rating }: { rating: number }) {
 function ReviewsPage() {
   const { data } = useWorkspace();
   const orgId = data?.workspace?.organizationId;
-  const org = data?.workspace?.organization;
   const reviews = useReviews(orgId);
   const profile = useBusinessProfile(orgId);
   const appointments = useAppointments(orgId);
   const setPublished = useSetReviewPublished(orgId);
   const request = useRequestReview(orgId);
-  const [asking, setAsking] = useState<{
-    name: string;
-    recipient: string;
-    channel: "email" | "sms";
-  } | null>(null);
+  const asked = useReviewRequestedAppointments(orgId);
+  /** The completed booking being asked about, and the channel to use. */
+  const [asking, setAsking] = useState<{ appointmentId: string; channel: "email" | "sms" } | null>(
+    null,
+  );
 
   const reviewLink = profile.data?.review_link ?? null;
   const rows = reviews.data ?? [];
@@ -75,13 +78,22 @@ function ReviewsPage() {
     : null;
   const published = rows.filter((review) => review.is_published).length;
 
-  const completed = useMemo(
+  const allCompleted = useMemo(
     () =>
-      (appointments.data ?? [])
-        .filter((appointment) => appointment.status === "completed")
-        .slice(0, 8),
+      (appointments.data ?? []).filter(
+        (appointment) =>
+          appointment.status === "completed" && Boolean(appointment.email?.trim() || appointment.phone?.trim()),
+      ),
     [appointments.data],
   );
+  const completed = allCompleted.slice(0, 8);
+  const askingAppointment = asking
+    ? (allCompleted.find((appointment) => appointment.id === asking.appointmentId) ?? null)
+    : null;
+
+  /** Review requests go to a completed job's own email or phone, never a typed-in address. */
+  const startAsking = (appointment: { id: string; email: string | null; phone: string | null }) =>
+    setAsking({ appointmentId: appointment.id, channel: appointment.email?.trim() ? "email" : "sms" });
 
   return (
     <div className="product-page">
@@ -93,7 +105,8 @@ function ReviewsPage() {
           <Button
             variant="signal"
             size="sm"
-            onClick={() => setAsking({ name: "", recipient: "", channel: "email" })}
+            disabled={!allCompleted.length}
+            onClick={() => allCompleted[0] && startAsking(allCompleted[0])}
           >
             <Send className="size-4" /> Request a review
           </Button>
@@ -104,16 +117,20 @@ function ReviewsPage() {
         <Panel>
           <p className="eyebrow">Average rating</p>
           <p className="tnum mt-1 font-display text-[24px] font-semibold">
-            {average ? average.toFixed(1) : "—"}
+            {reviews.isError ? "—" : average ? average.toFixed(1) : "—"}
           </p>
         </Panel>
         <Panel>
           <p className="eyebrow">Total reviews</p>
-          <p className="tnum mt-1 font-display text-[24px] font-semibold">{rows.length}</p>
+          <p className="tnum mt-1 font-display text-[24px] font-semibold">
+            {reviews.isError ? "—" : rows.length}
+          </p>
         </Panel>
         <Panel>
           <p className="eyebrow">Shown on your website</p>
-          <p className="tnum mt-1 font-display text-[24px] font-semibold">{published}</p>
+          <p className="tnum mt-1 font-display text-[24px] font-semibold">
+            {reviews.isError ? "—" : published}
+          </p>
         </Panel>
       </div>
 
@@ -141,41 +158,58 @@ function ReviewsPage() {
         ) : null}
       </Panel>
 
-      {completed.length ? (
+      {appointments.isError ? (
+        <QueryErrorNotice
+          title="Your completed jobs couldn't be loaded."
+          retry={appointments.refetch}
+          retrying={appointments.isFetching}
+        />
+      ) : completed.length ? (
         <Panel className="space-y-2">
           <p className="text-[13px] font-medium">Recently completed jobs</p>
           <div className="space-y-1.5">
-            {completed.map((appointment) => (
-              <div
-                key={appointment.id}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border px-3 py-2"
-              >
-                <div className="min-w-0">
-                  <p className="truncate text-[13px]">{appointment.name}</p>
-                  <p className="text-[11px] text-muted-foreground">
-                    {relative(appointment.starts_at)}
-                  </p>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() =>
-                    setAsking({
-                      name: appointment.name,
-                      recipient: appointment.email || appointment.phone || "",
-                      channel: appointment.email ? "email" : "sms",
-                    })
-                  }
+            {completed.map((appointment) => {
+              const already = asked.data?.has(appointment.id) ?? false;
+              return (
+                <div
+                  key={appointment.id}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border px-3 py-2"
                 >
-                  <Send className="size-3.5" /> Ask for a review
-                </Button>
-              </div>
-            ))}
+                  <div className="min-w-0">
+                    <p className="truncate text-[13px]">{appointment.name}</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      {relative(appointment.starts_at)}
+                    </p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={already || !asked.isSuccess}
+                    onClick={() => startAsking(appointment)}
+                  >
+                    <Send className="size-3.5" /> {already ? "Review requested" : "Ask for a review"}
+                  </Button>
+                </div>
+              );
+            })}
           </div>
+          {asked.isError ? (
+            <QueryErrorNotice
+              title="Earlier review requests couldn't be checked."
+              retry={asked.refetch}
+              retrying={asked.isFetching}
+            />
+          ) : null}
         </Panel>
       ) : null}
 
-      {reviews.isLoading ? (
+      {reviews.isError ? (
+        <QueryErrorNotice
+          title="Your reviews couldn't be loaded."
+          retry={reviews.refetch}
+          retrying={reviews.isFetching}
+        />
+      ) : reviews.isLoading ? (
         <LoadingRows rows={3} />
       ) : rows.length === 0 ? (
         <EmptyState
@@ -238,69 +272,75 @@ function ReviewsPage() {
           <DialogHeader>
             <DialogTitle>Request a review</DialogTitle>
             <DialogDescription>
-              The message is queued through your follow-up pipeline and marked sent only once it is
-              actually delivered.
+              Goes to the contact details saved on the completed job. The message is queued
+              through your follow-up pipeline and marked sent only once it is actually delivered.
             </DialogDescription>
           </DialogHeader>
-          {asking ? (
+          {asking && askingAppointment ? (
             <form
               className="space-y-3"
               onSubmit={(e) => {
                 e.preventDefault();
-                if (!asking.name.trim() || !asking.recipient.trim()) {
-                  toast.error("Add a name and an email or phone number.");
-                  return;
-                }
                 request.mutate(
-                  {
-                    name: asking.name.trim(),
-                    recipient: asking.recipient.trim(),
-                    channel: asking.channel,
-                    businessName: org?.name ?? "our team",
-                    reviewLink,
-                  },
+                  { appointmentId: askingAppointment.id, channel: asking.channel },
                   { onSuccess: () => setAsking(null) },
                 );
               }}
             >
               <div className="space-y-1.5">
-                <Label htmlFor="r-name">Customer name</Label>
-                <Input
-                  id="r-name"
-                  value={asking.name}
-                  onChange={(e) => setAsking({ ...asking, name: e.target.value })}
-                  required
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="r-recipient">
-                  {asking.channel === "email" ? "Email address" : "Mobile number"}
-                </Label>
-                <Input
-                  id="r-recipient"
-                  value={asking.recipient}
-                  onChange={(e) => setAsking({ ...asking, recipient: e.target.value })}
-                  required
-                />
+                <Label htmlFor="r-job">Completed job</Label>
+                <select
+                  id="r-job"
+                  value={askingAppointment.id}
+                  onChange={(e) => {
+                    const next = allCompleted.find((appointment) => appointment.id === e.target.value);
+                    if (next) startAsking(next);
+                  }}
+                  className="h-11 w-full cursor-pointer rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  {allCompleted.map((appointment) => (
+                    <option key={appointment.id} value={appointment.id}>
+                      {appointment.name} · {relative(appointment.starts_at)}
+                      {asked.data?.has(appointment.id) ? " · already asked" : ""}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="flex gap-2">
-                {(["email", "sms"] as const).map((channel) => (
-                  <Button
-                    key={channel}
-                    type="button"
-                    variant={asking.channel === channel ? "signal" : "outline"}
-                    size="sm"
-                    onClick={() => setAsking({ ...asking, channel })}
-                  >
-                    {channel === "email" ? "Email" : "Text"}
-                  </Button>
-                ))}
+                {(["email", "sms"] as const).map((channel) => {
+                  const contact =
+                    channel === "email" ? askingAppointment.email?.trim() : askingAppointment.phone?.trim();
+                  return (
+                    <Button
+                      key={channel}
+                      type="button"
+                      variant={asking.channel === channel ? "signal" : "outline"}
+                      size="sm"
+                      disabled={!contact}
+                      onClick={() => setAsking({ ...asking, channel })}
+                    >
+                      {channel === "email" ? "Email" : "Text"}
+                    </Button>
+                  );
+                })}
               </div>
+              <p className="text-[12px] text-muted-foreground">
+                To:{" "}
+                {(asking.channel === "email" ? askingAppointment.email : askingAppointment.phone) ??
+                  "—"}
+                {asking.channel === "sms"
+                  ? " · Texting needs the customer's opt-in (a START reply); without it the text isn't sent."
+                  : ""}
+              </p>
               <DialogFooter>
                 <Button type="button" variant="ghost" onClick={() => setAsking(null)}>
                   Cancel
                 </Button>
-                <Button type="submit" variant="signal" disabled={request.isPending}>
+                <Button
+                  type="submit"
+                  variant="signal"
+                  disabled={request.isPending || !asked.isSuccess || asked.data.has(askingAppointment.id)}
+                >
                   Queue request
                 </Button>
               </DialogFooter>

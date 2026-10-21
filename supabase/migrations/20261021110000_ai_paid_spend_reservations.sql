@@ -141,8 +141,12 @@ BEGIN
 END;
 $$;
 
--- Legacy entry points (old workers during rollout): unchanged behaviour on
--- spent_microcents, and the same delta mirrored into settled_microcents.
+-- Legacy entry points (old workers during rollout): same signatures and the
+-- same writes to spent_microcents, with the delta mirrored into
+-- settled_microcents. The legacy reserve checks the cap exactly as the
+-- tracked one does (settled + open non-stale tracked reservations + this
+-- estimate, under the day row lock), so a mix of old and new workers cannot
+-- together overshoot the cap.
 CREATE OR REPLACE FUNCTION public.ai_paid_budget_reserve(
   _estimate_microcents BIGINT,
   _cap_microcents BIGINT
@@ -156,18 +160,29 @@ DECLARE
   _day DATE := (now() AT TIME ZONE 'utc')::date;
   _estimate BIGINT := GREATEST(COALESCE(_estimate_microcents, 0), 0);
   _cap BIGINT := GREATEST(COALESCE(_cap_microcents, 0), 0);
+  -- Old workers pass no stale window; they get the tracked default.
+  _stale INTERVAL := make_interval(secs => 900);
   _spent BIGINT;
+  _settled BIGINT;
+  _open BIGINT;
 BEGIN
   INSERT INTO public.ai_paid_daily_budget AS b (day, cap_microcents)
   VALUES (_day, _cap)
   ON CONFLICT ON CONSTRAINT ai_paid_daily_budget_pkey DO UPDATE SET cap_microcents = _cap, updated_at = now();
 
-  SELECT b.spent_microcents INTO _spent
+  -- Day row lock first (same order as the tracked reserve and settle).
+  SELECT b.spent_microcents, b.settled_microcents INTO _spent, _settled
   FROM public.ai_paid_daily_budget b
   WHERE b.day = _day
   FOR UPDATE;
 
-  IF _cap = 0 OR _spent + _estimate > _cap THEN
+  SELECT COALESCE(SUM(r.estimate_microcents), 0)::BIGINT INTO _open
+  FROM public.ai_paid_spend_reservations r
+  WHERE r.day = _day
+    AND r.settled_at IS NULL
+    AND r.created_at > clock_timestamp() - _stale;
+
+  IF _cap = 0 OR _settled + _open + _estimate > _cap THEN
     RETURN QUERY SELECT FALSE, _day, _spent, _cap;
     RETURN;
   END IF;

@@ -673,9 +673,11 @@ async function run<T>(
       // DAILY PAID CAP. A paid model is only called with today's paid budget
       // reserved; over the cap (or with the ledger unreachable) it is skipped
       // and the free pool answers instead. The reservation is settled in the
-      // `finally` below on every path: the real cost on success, 0 (released)
-      // on a provider error, timeout, abort or any throw. It is awaited, not
-      // fire-and-forget, so a worker that ends after the response cannot drop it.
+      // `finally` below on every path: the real cost on success; 0 only for a
+      // definite unbilled rejection or a failure before the request left; the
+      // estimate for a timeout, abort, network error or 5xx, which the
+      // provider may still bill. It is awaited, not fire-and-forget, so a
+      // worker that ends after the response cannot drop it.
       let paidReservation: PaidReservation | null = null;
       let paidActual = 0;
       if (!candidate.free) {
@@ -740,7 +742,7 @@ async function run<T>(
             toolCalls: 0,
           });
           if (paidReservation)
-            paidActual = routerActual(model, result.inputTokens ?? null, result.outputTokens ?? null, paidReservation.estimate);
+            paidActual += routerActual(model, result.inputTokens ?? null, result.outputTokens ?? null, paidReservation.estimate);
           return {
             value: result.value,
             provider: config.name,
@@ -761,6 +763,9 @@ async function run<T>(
                   })
                 : providerUnavailable(config.name, (rawError as Error)?.message?.slice(0, 120));
           lastError = error;
+          // A paid attempt whose outcome is unknown may still be billed, so it
+          // is charged at the estimate; only a definite rejection is free.
+          if (paidReservation) paidActual += paidFailureCharge(error, paidReservation.estimate);
           if (error.retryable) noteFailure(breakerScope);
           if (!candidate.free) noteProviderFailure(config.name, error.category);
           // The shared (cross-worker) health record is per PROVIDER, so only
@@ -852,6 +857,23 @@ async function run<T>(
   } finally {
     release(concurrencyKey);
   }
+}
+
+/**
+ * Provider answers that definitely refused the request before any generation
+ * ran, so nothing is billed. Mirrors the paid picture lane.
+ */
+const UNBILLED_REJECTION_STATUSES = [400, 401, 402, 403, 404, 413, 422, 429];
+
+/**
+ * What one failed paid attempt is charged against the daily cap. A definite
+ * HTTP rejection, or a failure raised before the request left (no provider
+ * configured), costs nothing. A timeout, abort, network error after sending,
+ * 5xx or unreadable answer may still be billed, so it counts at the estimate.
+ */
+export function paidFailureCharge(error: RevoraAiError, estimate: number): number {
+  if (error.category === "not_configured") return 0;
+  return UNBILLED_REJECTION_STATUSES.includes(error.status) ? 0 : estimate;
 }
 
 /** A caller override, only ever lowering the configured ceiling. */

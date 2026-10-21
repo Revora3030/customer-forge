@@ -9,7 +9,7 @@ const results: Record<string, { data: unknown; error: unknown }> = {};
 function builder(table: string) {
   const record = (op: string, args: unknown[]) => calls.push({ table, op, args });
   const chain: Record<string, unknown> = {};
-  for (const op of ["select", "insert", "update", "delete", "eq", "not", "order", "limit", "single", "maybeSingle"]) {
+  for (const op of ["select", "insert", "update", "delete", "eq", "in", "not", "order", "limit", "single", "maybeSingle"]) {
     chain[op] = (...args: unknown[]) => {
       record(op, args);
       return chain;
@@ -21,7 +21,13 @@ function builder(table: string) {
 }
 
 vi.mock("@/integrations/supabase/client", () => ({
-  supabase: { from: (table: string) => builder(table) },
+  supabase: {
+    from: (table: string) => builder(table),
+    rpc: (name: string, args: unknown) => {
+      calls.push({ table: `rpc:${name}`, op: "rpc", args: [args] });
+      return Promise.resolve(results[`rpc:${name}`] ?? { data: null, error: null });
+    },
+  },
 }));
 vi.mock("@tanstack/react-query", () => ({
   useQuery: (options: unknown) => options,
@@ -36,9 +42,12 @@ import {
   bookingFromQuote,
   canOfferBooking,
   cleanLines,
+  editableLine,
   filterLeadsByService,
   leadServiceId,
   lineFromService,
+  parseAmount,
+  parseEditableLines,
   quoteTotal,
   reviewOfferFor,
   servicePageFor,
@@ -47,7 +56,6 @@ import {
 } from "@/lib/service-catalog";
 import {
   useDeleteQuote,
-  useLinkQuoteBooking,
   useQuoteLineServiceRefs,
   useQuotes,
   useSaveQuote,
@@ -91,9 +99,8 @@ describe("(a) quote lines come from the services catalog", () => {
     expect(quoteTotal([])).toBe(0);
   });
 
-  it("saves the quote and its lines scoped to the workspace", async () => {
-    results["quotes"] = { data: { id: "q1" }, error: null };
-    results["quote_line_items"] = { data: [{ id: "l1" }], error: null };
+  it("saves the quote and its lines in one tenant-checked RPC call", async () => {
+    results["rpc:save_owner_quote"] = { data: "q1", error: null };
     const save = useSaveQuote(ORG) as unknown as { mutationFn: (input: unknown) => Promise<string> };
     const id = await save.mutationFn({
       customer_name: "Pat",
@@ -105,12 +112,17 @@ describe("(a) quote lines come from the services catalog", () => {
       lines: [lineFromService(wash)],
     });
     expect(id).toBe("q1");
-    const quoteInsert = calls.find((c) => c.table === "quotes" && c.op === "insert");
-    expect(quoteInsert?.args[0]).toMatchObject({ organization_id: ORG, customer_name: "Pat" });
-    const lineInsert = calls.find((c) => c.table === "quote_line_items" && c.op === "insert");
-    expect(lineInsert?.args[0]).toEqual([
-      expect.objectContaining({ organization_id: ORG, quote_id: "q1", service_id: "svc-wash", name: "Exterior Wash", unit_price: 80 }),
-    ]);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatchObject({ table: "rpc:save_owner_quote", op: "rpc" });
+    expect(calls[0]!.args[0]).toMatchObject({
+      p_organization_id: ORG,
+      p_quote_id: null,
+      p_customer_name: "Pat",
+      p_status: "draft",
+      p_lines: [{ service_id: "svc-wash", name: "Exterior Wash", unit_price: 80, quantity: 1, sort_order: 0 }],
+    });
+    // accepted_at is owned by the database trigger, never sent by the client.
+    expect(JSON.stringify(calls[0]!.args[0])).not.toMatch(/accepted_at/);
   });
 
   it("refuses a quote with no lines (empty / no-services state)", async () => {
@@ -121,8 +133,8 @@ describe("(a) quote lines come from the services catalog", () => {
     expect(calls).toHaveLength(0);
   });
 
-  it("editing replaces lines inside the same workspace only", async () => {
-    results["quote_line_items"] = { data: [{ id: "new-1" }], error: null };
+  it("editing updates the same quote and replaces its lines atomically (no doubled lines)", async () => {
+    results["rpc:save_owner_quote"] = { data: "q1", error: null };
     const save = useSaveQuote(ORG) as unknown as { mutationFn: (input: unknown) => Promise<string> };
     await save.mutationFn({
       id: "q1",
@@ -134,14 +146,72 @@ describe("(a) quote lines come from the services catalog", () => {
       status: "sent",
       lines: [lineFromService(detail)],
     });
-    const update = calls.filter((c) => c.table === "quotes");
-    expect(update.map((c) => c.op)).toEqual(["update", "eq", "eq"]);
-    expect(update).toContainEqual({ table: "quotes", op: "eq", args: ["organization_id", ORG] });
-    const lineOps = calls.filter((c) => c.table === "quote_line_items").map((c) => c.op);
-    // insert new first, then delete the old rows
-    expect(lineOps.indexOf("insert")).toBeLessThan(lineOps.indexOf("delete"));
-    expect(calls).toContainEqual({ table: "quote_line_items", op: "eq", args: ["organization_id", ORG] });
-    expect(calls).toContainEqual({ table: "quote_line_items", op: "not", args: ["id", "in", "(new-1)"] });
+    // One call: no separate insert-then-delete round trips that could half-apply.
+    expect(calls.map((c) => c.table)).toEqual(["rpc:save_owner_quote"]);
+    expect(calls[0]!.args[0]).toMatchObject({ p_organization_id: ORG, p_quote_id: "q1", p_status: "sent" });
+  });
+
+  it("reports a refused or other-workspace quote in owner language", async () => {
+    results["rpc:save_owner_quote"] = { data: null, error: { message: "quote_not_found" } };
+    const save = useSaveQuote(ORG) as unknown as { mutationFn: (input: unknown) => Promise<string> };
+    await expect(
+      save.mutationFn({ id: "q-other-org", customer_name: "Pat", customer_email: null, customer_phone: null, lead_id: null, notes: null, status: "draft", lines: [lineFromService(wash)] }),
+    ).rejects.toThrow(/wasn't found, or you can't edit it/);
+  });
+
+  it("the save RPC is transactional, tenant-checked and replaces lines in place", () => {
+    const sql = readFileSync("supabase/migrations/20261021100000_owner_quotes_from_services.sql", "utf8");
+    const fn = sql.slice(sql.indexOf("CREATE OR REPLACE FUNCTION public.save_owner_quote"));
+    expect(fn).toMatch(/SECURITY INVOKER/);
+    expect(fn).toMatch(/SET search_path = pg_catalog, public/);
+    expect(fn).toMatch(/private\.org_role_at_least\(p_organization_id, 'staff'\)/);
+    expect(fn).toMatch(/WHERE q\.id = p_quote_id\s+AND q\.organization_id = p_organization_id/);
+    expect(fn).toMatch(/DELETE FROM public\.quote_line_items AS li\s+WHERE li\.quote_id = v_quote_id\s+AND li\.organization_id = p_organization_id/);
+    expect(fn).toMatch(/REVOKE ALL ON FUNCTION public\.save_owner_quote\([^)]*\) FROM anon/);
+    expect(fn).toMatch(/GRANT EXECUTE ON FUNCTION public\.save_owner_quote\([^)]*\) TO authenticated, service_role/);
+  });
+
+  it("the editor keeps the saved id on the draft", () => {
+    const ui = readFileSync("src/components/app/OwnerQuotes.tsx", "utf8");
+    expect(ui).toMatch(/onSuccess: \(id\) => \{[\s\S]*?\{ \.\.\.current, id \}/);
+  });
+});
+
+describe("price and quantity accept decimals", () => {
+  it("keeps the typed text and parses it only on save", () => {
+    expect(parseAmount("12.")).toBe(12);
+    expect(parseAmount("0.5")).toBe(0.5);
+    expect(parseAmount("$1,250.75")).toBe(1250.75);
+    expect(parseAmount("")).toBeNull();
+    expect(Number.isNaN(parseAmount("abc"))).toBe(true);
+    expect(Number.isNaN(parseAmount("."))).toBe(true);
+    const line = editableLine(lineFromService(wash));
+    expect(line).toMatchObject({ unit_price: "80", quantity: "1" });
+    const parsed = parseEditableLines([{ ...line, unit_price: "79.99", quantity: "1.5" }]);
+    expect(parsed).toEqual({ ok: true, lines: [{ service_id: "svc-wash", name: "Exterior Wash", unit_price: 79.99, quantity: 1.5 }] });
+  });
+
+  it("blank price is 0 and blank quantity 1; junk is reported per line", () => {
+    expect(parseEditableLines([{ service_id: null, name: "Haul", unit_price: "", quantity: "" }])).toEqual({
+      ok: true,
+      lines: [{ service_id: null, name: "Haul", unit_price: 0, quantity: 1 }],
+    });
+    expect(parseEditableLines([{ service_id: null, name: "Haul", unit_price: "12a", quantity: "1" }])).toEqual({
+      ok: false,
+      error: "Haul: the price isn't a number.",
+    });
+    expect(parseEditableLines([{ service_id: null, name: "", unit_price: "1", quantity: "0" }])).toMatchObject({
+      ok: false,
+      error: expect.stringMatching(/Line 1: the quantity/),
+    });
+  });
+
+  it("the editor stores raw text instead of coercing on every keystroke", () => {
+    const ui = readFileSync("src/components/app/OwnerQuotes.tsx", "utf8");
+    expect(ui).toMatch(/unit_price: e\.target\.value/);
+    expect(ui).toMatch(/quantity: e\.target\.value/);
+    expect(ui).not.toMatch(/Number\(e\.target\.value/);
+    expect(ui).toMatch(/parseEditableLines\(draft\.lines\)/);
   });
 });
 
@@ -184,6 +254,19 @@ describe("(c) accepted quote -> one-click booking", () => {
     expect(canOfferBooking({ status: "draft", appointment_id: null })).toBe(false);
   });
 
+  it("sizes the booking from each service's duration times its quantity", () => {
+    const plan = bookingFromQuote(
+      quote,
+      [
+        { service_id: "svc-wash", unit_price: 80, quantity: 2 },
+        { service_id: "svc-detail", unit_price: 250, quantity: "1.5" },
+      ],
+      catalog,
+    );
+    // 45 * 2 + 180 * 1.5
+    expect(plan).toMatchObject({ durationMinutes: 360, durationFromServices: true, estimatedValue: 535 });
+  });
+
   it("sizes the booking from the quoted services' durations", () => {
     const plan = bookingFromQuote(
       quote,
@@ -209,15 +292,37 @@ describe("(c) accepted quote -> one-click booking", () => {
     expect(plan).toMatchObject({ serviceId: null, durationMinutes: 60, durationFromServices: false });
   });
 
-  it("status changes and the booking link stay tenant-scoped", async () => {
+  it("status changes stay tenant-scoped and never send accepted_at", async () => {
+    results["quotes"] = { data: [{ id: "q1" }], error: null };
     const setStatus = useSetQuoteStatus(ORG) as unknown as { mutationFn: (i: unknown) => Promise<void> };
     await setStatus.mutationFn({ id: "q1", status: "accepted" });
-    const link = useLinkQuoteBooking(ORG) as unknown as { mutationFn: (i: unknown) => Promise<void> };
-    await link.mutationFn({ id: "q1", appointmentId: "appt-9" });
     const updates = calls.filter((c) => c.table === "quotes" && c.op === "update").map((c) => c.args[0]);
-    expect(updates[0]).toMatchObject({ status: "accepted" });
-    expect(updates[1]).toEqual({ appointment_id: "appt-9" });
-    expect(calls.filter((c) => c.op === "eq" && c.args[0] === "organization_id")).toHaveLength(2);
+    expect(updates).toEqual([{ status: "accepted" }]);
+    expect(calls).toContainEqual({ table: "quotes", op: "eq", args: ["organization_id", ORG] });
+  });
+
+  it("a refused status change is reported, not silently ignored", async () => {
+    results["quotes"] = { data: [], error: null };
+    const setStatus = useSetQuoteStatus(ORG) as unknown as { mutationFn: (i: unknown) => Promise<void> };
+    await expect(setStatus.mutationFn({ id: "q1", status: "sent" })).rejects.toThrow(/permission/);
+  });
+
+  it("accepted_at is set only on the transition to accepted", () => {
+    const sql = readFileSync("supabase/migrations/20261021100000_owner_quotes_from_services.sql", "utf8");
+    expect(sql).toMatch(
+      /IF TG_OP = 'INSERT' OR OLD\.status IS DISTINCT FROM 'accepted' THEN\s+NEW\.accepted_at := now\(\);\s+ELSE\s+NEW\.accepted_at := OLD\.accepted_at;/,
+    );
+    expect(sql).toMatch(/CREATE TRIGGER quotes_track_accepted_at BEFORE INSERT OR UPDATE OF status, accepted_at ON public\.quotes/);
+    const hooks = readFileSync("src/lib/service-catalog.hooks.ts", "utf8");
+    expect(hooks).not.toMatch(/accepted_at:/);
+  });
+
+  it("booking a quote goes through the one transactional booking RPC and hides the button at once", () => {
+    const ui = readFileSync("src/components/app/OwnerQuotes.tsx", "utf8");
+    expect(ui).toMatch(/quoteId,\n\s+\},/);
+    expect(ui).not.toMatch(/useLinkQuoteBooking|linkBooking/);
+    expect(ui).toMatch(/canOfferBooking\(quote\) && !bookedIds\.has\(quote\.id\)/);
+    expect(ui).toMatch(/setBookedIds\(\(current\) => new Set\(current\)\.add\(quoteId\)\)/);
   });
 
   it("the page books only on the owner's click", () => {
@@ -229,26 +334,78 @@ describe("(c) accepted quote -> one-click booking", () => {
 
 describe("(d) completed booking -> review request", () => {
   const done = { status: "completed", email: "c@example.com", phone: "+15125550100" };
+  const smsOnly = {
+    trigger_event: "appointment_completed",
+    is_active: true,
+    automation_steps: [{ action_type: "sms", channel: "sms" }],
+  };
+  const withEmail = {
+    trigger_event: "appointment_completed",
+    is_active: true,
+    automation_steps: [
+      { action_type: "sms", channel: "sms" },
+      { action_type: "email", channel: null },
+    ],
+  };
 
-  it("offers email first, text only without an email", () => {
-    expect(reviewOfferFor(done, [])).toEqual({ kind: "offer", channel: "email", recipient: "c@example.com" });
-    expect(reviewOfferFor({ ...done, email: null }, [])).toEqual({ kind: "offer", channel: "sms", recipient: "+15125550100" });
+  it("offers email first, text only without an email (flagged as needing opt-in)", () => {
+    expect(reviewOfferFor(done, [])).toEqual({ kind: "offer", channel: "email", recipient: "c@example.com", needsOptIn: false });
+    expect(reviewOfferFor({ ...done, email: null }, [])).toEqual({
+      kind: "offer",
+      channel: "sms",
+      recipient: "+15125550100",
+      needsOptIn: true,
+    });
+    expect(reviewOfferFor({ ...done, email: null }, [], { hasSmsOptIn: () => true })).toMatchObject({
+      channel: "sms",
+      needsOptIn: false,
+    });
     expect(reviewOfferFor({ ...done, email: null, phone: " " }, [])).toEqual({ kind: "no_contact" });
   });
 
-  it("does not offer a second request when the completion automation is on", () => {
-    expect(reviewOfferFor(done, [{ trigger_event: "appointment_completed", is_active: true }])).toEqual({ kind: "automated" });
-    expect(reviewOfferFor(done, [{ trigger_event: "appointment_completed", is_active: false }]).kind).toBe("offer");
+  it("counts the completion automation only when a step can actually deliver", () => {
+    // An email step with an email on file delivers.
+    expect(reviewOfferFor(done, [withEmail])).toEqual({ kind: "automated", channel: "email" });
+    // A text-only automation can't reach a customer without a recorded opt-in,
+    // so the manual email offer stays visible.
+    expect(reviewOfferFor(done, [smsOnly])).toMatchObject({ kind: "offer", channel: "email" });
+    expect(reviewOfferFor(done, [smsOnly], { hasSmsOptIn: (p) => p === "+15125550100" })).toEqual({
+      kind: "automated",
+      channel: "sms",
+    });
+    // Email step but no email on file: it can't deliver either.
+    expect(reviewOfferFor({ ...done, email: null }, [withEmail])).toMatchObject({
+      kind: "offer",
+      channel: "sms",
+      needsOptIn: true,
+    });
+    // Inactive, another trigger, or no steps loaded: nothing is automated.
+    expect(reviewOfferFor(done, [{ ...withEmail, is_active: false }]).kind).toBe("offer");
+    expect(reviewOfferFor(done, [{ ...withEmail, trigger_event: "booking_created" }]).kind).toBe("offer");
+    expect(reviewOfferFor(done, [{ trigger_event: "appointment_completed", is_active: true }]).kind).toBe("offer");
   });
 
   it("nothing is offered before the job is completed", () => {
     expect(reviewOfferFor({ ...done, status: "confirmed" }, []).kind).toBe("not_completed");
   });
 
-  it("uses the existing review-request queue, not a new sending path", () => {
+  it("uses the server review-request queue and remembers requests from saved runs", () => {
     const calendar = readFileSync("src/routes/_authenticated/app.calendar.tsx", "utf8");
     expect(calendar).toMatch(/useRequestReview/);
     expect(calendar).not.toMatch(/sendTemplateEmail|sendTwilioSms|deliverRun/);
+    expect(calendar).not.toMatch(/askedIds|setAskedIds/);
+    expect(calendar).toMatch(/useReviewRequestedAppointments\(orgId\)/);
+    expect(calendar).toMatch(/requestReview\.mutate\(\{ appointmentId: appt\.id, channel: offer\.channel \}\)/);
+    expect(calendar).toMatch(/Texting needs the customer's opt-in/);
+  });
+
+  it("the calendar shows QueryErrorNotice instead of an empty week and $0 on a failed read", () => {
+    const calendar = readFileSync("src/routes/_authenticated/app.calendar.tsx", "utf8");
+    const errorAt = calendar.indexOf("{appointmentsError ? (");
+    expect(errorAt).toBeGreaterThan(-1);
+    expect(errorAt).toBeLessThan(calendar.indexOf('label="Jobs this week"'));
+    expect(errorAt).toBeLessThan(calendar.indexOf('label="Booked value this week"'));
+    expect(errorAt).toBeLessThan(calendar.indexOf("days.map((day, index)"));
   });
 });
 
@@ -312,10 +469,28 @@ describe("tenant scoping of every catalog read and write", () => {
     expect((useQuotes(undefined) as unknown as { enabled: boolean }).enabled).toBe(false);
   });
 
-  it("delete is scoped too", async () => {
+  it("delete is scoped too, and checks a row was really deleted", async () => {
+    results["quotes"] = { data: [{ id: "q1" }], error: null };
     const remove = useDeleteQuote(ORG) as unknown as { mutationFn: (id: string) => Promise<void> };
     await remove.mutationFn("q1");
     expect(calls).toContainEqual({ table: "quotes", op: "eq", args: ["organization_id", ORG] });
+    expect(calls).toContainEqual({ table: "quotes", op: "select", args: ["id"] });
+  });
+
+  it("a delete RLS refused (0 rows) is 'not allowed', never 'Quote deleted'", async () => {
+    results["quotes"] = { data: [], error: null };
+    const remove = useDeleteQuote(ORG) as unknown as { mutationFn: (id: string) => Promise<void> };
+    await expect(remove.mutationFn("q1")).rejects.toThrow(/only managers and owners can delete/);
+  });
+
+  it("delete is hidden below manager and asks for confirmation", () => {
+    const ui = readFileSync("src/components/app/OwnerQuotes.tsx", "utf8");
+    expect(ui).toMatch(/\{canDelete \? \(/);
+    expect(ui).toMatch(/onClick=\{\(\) => setDeleting\(/);
+    expect(ui).toMatch(/AlertDialogAction/);
+    expect(ui).not.toMatch(/onClick=\{\(\) => remove\.mutate\(quote\.id\)\}/);
+    const page = readFileSync("src/routes/_authenticated/app.quotes.tsx", "utf8");
+    expect(page).toMatch(/canDelete=\{canManage\(ws\?\.workspace\?\.role\)\}/);
   });
 
   it("the migration is additive with RLS and grants matching sibling tables", () => {
