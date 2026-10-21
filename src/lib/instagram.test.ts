@@ -71,6 +71,11 @@ describe("Instagram owner approval", () => {
     await expect(publishInstagramDraft(db, "owner", approval)).rejects.toThrow(/already submitted/);
     expect(instagramGraph).not.toHaveBeenCalled();
   });
+  it("rejects account replacement at the actual publishing boundary", async () => {
+    const { db } = fakeDb([{ data: post }, { data: { ...account, instagram_id: "456" } }]);
+    await expect(publishInstagramDraft(db, "owner", approval)).rejects.toThrow(/account changed/);
+    expect(instagramGraph).not.toHaveBeenCalled();
+  });
   it("never resubmits already-published posts", async () => {
     const { db } = fakeDb([{ data: { ...post, status: "published" } }, { data: account }]);
     await expect(publishInstagramDraft(db, "owner", approval)).rejects.toThrow(/already submitted/);
@@ -95,6 +100,11 @@ describe("Instagram owner approval", () => {
   it("rejects expired or reused OAuth state before exchanging credentials", async () => {
     const { db } = fakeDb([{ data: null }]);
     await expect(finishInstagramOAuth(db, "a".repeat(64), "code")).rejects.toThrow(/expired or was already used/);
+    expect(exchangeInstagramCode).not.toHaveBeenCalled();
+  });
+  it("rechecks the initiating owner's role on OAuth completion", async () => {
+    const { db } = fakeDb([{ data: { user_id: "owner" } }, { data: null }]);
+    await expect(finishInstagramOAuth(db, "a".repeat(64), "code")).rejects.toThrow(/Owner access/);
     expect(exchangeInstagramCode).not.toHaveBeenCalled();
   });
 });

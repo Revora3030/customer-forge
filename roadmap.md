@@ -1,10 +1,11 @@
 # Roadmap — Five-phase blocker elimination
 
 ## Instagram posting through Jarvis (2026-10-21)
-- [ ] Check whether the owner's linked Instagram Reel Dca6lDKKTqx can be viewed; report access limits without guessing its content.
-- [ ] Custom Instagram authorization, encrypted owner-bound account credentials, disconnect/reconnect.
-- [ ] Exact-post review and individual approval, durable duplicate/uncertain-publish protection, Jarvis draft tools.
-- [ ] Offline security/approval/provider tests and signed-in UI verification; real authorization/posting waits on owner's Meta app credentials and individual post approval.
+- [x] Linked Reel caption can be read; video not watched. Owner asked to upload it for visual review.
+- [x] Custom Instagram authorization, encrypted owner-bound account credentials, disconnect/reconnect implemented; additive server-only storage migration applied.
+- [x] Exact-post review and individual approval, durable duplicate/uncertain-publish protection, Jarvis draft tools implemented for single-image feed posts.
+- [x] Offline approval/ownership/state/provider tests and signed-in Jarvis controls checked; latest harness build OK, no real posts sent.
+- [ ] Real authorization and posting verification BLOCKED: owner skipped Meta app credential form; callback update also needs publishing authorization, and each test post needs individual approval. No Instagram live access claimed.
 
 ## Admin accuracy pass (2026-10-20)
 - [x] AI health: totals were capped at 1,000 records; provider status came from one idle server's memory. Now counts every record and uses shared provider records.
