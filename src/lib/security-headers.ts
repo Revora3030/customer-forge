@@ -77,7 +77,7 @@ export const CONTENT_SECURITY_POLICY = [
     "https://www.google.com",
     "https://google.com",
   ].join(" "),
-  `frame-src 'self' https://www.google.com https://maps.google.com https://js.stripe.com https://hooks.stripe.com https://googleads.g.doubleclick.net https://td.doubleclick.net ${EMBED_FRAME_SOURCES}`,
+  `frame-src ${[...new Set(["'self'", "https://www.google.com", "https://maps.google.com", "https://js.stripe.com", "https://hooks.stripe.com", "https://googleads.g.doubleclick.net", "https://td.doubleclick.net", ...EMBED_FRAME_SOURCES.split(" ")])].join(" ")}`,
   "worker-src 'self' blob:",
   "manifest-src 'self'",
   "upgrade-insecure-requests",

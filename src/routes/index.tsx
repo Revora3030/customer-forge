@@ -157,7 +157,7 @@ function Landing() {
                 <span className="preview-orbit-dot" />
               </div>
               <DashboardPreview />
-              <div className="hero-live-badge" aria-label="Example dashboard">
+              <div className="hero-live-badge" role="group" aria-label="Example dashboard">
                 <span className="hero-live-dot" aria-hidden="true" />
                 <span>EXAMPLE DASHBOARD</span>
                 <span className="hero-live-divider" aria-hidden="true" />

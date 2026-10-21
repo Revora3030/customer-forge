@@ -289,6 +289,8 @@ export function ProductTour() {
                 key={key}
                 type="button"
                 role="tab"
+                id={`tour-tab-${key}`}
+                aria-controls="tour-panel"
                 aria-selected={selected}
                 onClick={() => setView(key)}
                 className={`flex min-h-11 cursor-pointer items-center gap-2.5 rounded-lg border px-3 py-2.5 text-left transition-colors ${
@@ -320,7 +322,7 @@ export function ProductTour() {
         </Button>
       </div>
 
-      <Panel className="min-w-0 p-4 sm:p-5">
+      <Panel className="min-w-0 p-4 sm:p-5" id="tour-panel" role="tabpanel" aria-labelledby={`tour-tab-${view}`}>
         <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-b border-border pb-3">
           <p className="font-display text-[13px] font-semibold">{active.label}</p>
           <span className="rounded-full border border-primary/35 bg-primary/10 px-2.5 py-0.5 text-[10.5px] text-primary">

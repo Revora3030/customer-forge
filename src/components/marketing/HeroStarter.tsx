@@ -81,9 +81,9 @@ function InstantPreview({
             {industry || "Your Industry"}
           </span>
         </div>
-        <h3 className="mt-2 font-display text-[17px] leading-tight font-semibold text-foreground">
+        <p className="mt-2 font-display text-[17px] leading-tight font-semibold text-foreground">
           {name}
-        </h3>
+        </p>
         <p className="mt-1 text-[11.5px] leading-snug text-muted-foreground">
           Professional {industry ? industry.toLowerCase() : "services"} you can trust.
         </p>
