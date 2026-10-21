@@ -260,16 +260,5 @@ export function routeCommand(input: string): RoutedCommand {
   };
 }
 
-/** Suggestions shown under the command box. Real capabilities only. */
-export const COMMAND_EXAMPLES = [
-  "Build my website",
-  "Fix anything that's broken",
-  "Show me what's wrong",
-  "Make my homepage convert better",
-  "Add a page for gutter cleaning",
-  "Improve my SEO",
-  "Connect my domain",
-  "Add booking",
-  "Add a quote calculator",
-  "Make this more premium",
-] as const;
+// Suggestions shown under the command box are built per business from real
+// workspace data in business-suggestions.ts; this module only routes text.

@@ -16,10 +16,15 @@ export function CapacityWaitNotice({
   job,
   state,
   compact = false,
+  announce = true,
+  className = "",
 }: {
   job?: Parameters<typeof capacityWaitState>[0];
   state?: CapacityWaitState | null;
   compact?: boolean;
+  /** False inside a container that already announces changes (aria-live). */
+  announce?: boolean;
+  className?: string;
 }) {
   const [now, setNow] = useState<number | null>(null);
   useEffect(() => {
@@ -31,7 +36,10 @@ export function CapacityWaitNotice({
   const wait = state ?? capacityWaitState(job, now);
   if (!wait || Date.parse(wait.resumesAt) <= now) return null;
   return (
-    <div role="status" className="flex items-start gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-[12.5px]">
+    <div
+      role={announce ? "status" : undefined}
+      className={`flex items-start gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-[12.5px] ${className}`.trim()}
+    >
       <Clock className="mt-0.5 size-3.5 shrink-0 text-primary" aria-hidden />
       <div className="min-w-0">
         <p className="font-medium text-foreground">{capacityWaitHeadline(wait)}</p>

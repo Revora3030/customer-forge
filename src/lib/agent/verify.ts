@@ -13,6 +13,8 @@
  * left for the owner to decide on.
  */
 
+import { htmlToText } from "@/lib/html-text";
+
 export type CheckSeverity = "critical" | "warning";
 
 export type Check = {
@@ -52,14 +54,7 @@ export type VerificationReport = {
 
 const PLACEHOLDER = /(lorem ipsum|\bTODO\b|\bFIXME\b|\{\{\s*\w+\s*\}\}|\[insert\b|\bundefined\b)/i;
 
-const stripped = (html: string) =>
-  html
-    .replace(/<script[\s\S]*?<\/script>/gi, " ")
-    .replace(/<style[\s\S]*?<\/style>/gi, " ")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&nbsp;/gi, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+const stripped = (html: string) => htmlToText(html);
 
 const attr = (tag: string, name: string) => {
   const match = new RegExp(String.raw`${name}\s*=\s*("([^"]*)"|'([^']*)')`, "i").exec(tag);

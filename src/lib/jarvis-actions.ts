@@ -29,6 +29,7 @@ export type ReadAction =
   | { id: "web.search"; query: string }
   | { id: "autopilot.status" }
   | { id: "inbox.list" }
+  | { id: "engine.today" }
   | { id: "memory.list" }
   | { id: "memory.save"; kind: string; content: string }
   | { id: "routines.list" }
@@ -177,6 +178,7 @@ export const JARVIS_ACTION_CLASSES: Record<ReadAction["id"] | WriteProposal["id"
   "web.search": { effect: "read", external: true, autoRuns: true, risk: "monitor" },
   "autopilot.status": { effect: "read", external: false, autoRuns: true, risk: "safe" },
   "inbox.list": { effect: "read", external: false, autoRuns: true, risk: "safe" },
+  "engine.today": { effect: "read", external: false, autoRuns: true, risk: "safe" },
   "memory.list": { effect: "read", external: false, autoRuns: true, risk: "safe" },
   "memory.save": { effect: "memory", external: false, autoRuns: true, risk: "safe" },
   "routines.list": { effect: "read", external: false, autoRuns: true, risk: "safe" },
@@ -216,9 +218,10 @@ export function actionCatalogPrompt(diagnosticToolIds: string[]): string {
     '- {"id":"claude.code","args":{"request":"what to build or fix, with the files and acceptance checks you found"}}: PROPOSE handing a larger coding task to Claude Code, which reads the whole repository, edits any number of files, runs the checks and opens a pull request. Use it instead of code.pr when a change spans more than 6 files, needs new tests run, or is too big to write exactly here. The owner approves with one tap.',
     '- {"id":"claude.fix","args":{"pr":123,"note":"what to fix, if you know"}}: PROPOSE asking Claude Code to fix an open pull request: it reads the failing CI checks and review comments, fixes the root cause on that PR\'s branch and runs the checks. Use it when a pull request (yours or Claude Code\'s) has red CI or review comments. The owner approves with one tap.',
     '- {"id":"builds.recover","args":{}}: PROPOSE recovering stalled website builds: closes builds whose worker died, re-queues orphaned ones and restarts the build worker. Suggest it when builder.health.summary shows stuck or long-running builds. The owner approves with one tap.',
-    '- {"id":"autopilot.status","args":{}}: read the prospect autopilot settings (on/off, search targets, daily build limit, email/text switches) and its recent runs.',
+    '- {"id":"autopilot.status","args":{}}: read the prospect autopilot settings (on/off, search targets, daily build limit, email/text switches, rotation) and its recent runs.',
+    '- {"id":"engine.today","args":{}}: read the prospect engine funnel: discovered, enriched (verified email), built, delivered (first email or text sent), viewed (preview opened), claimed and converted (paid), in total and today (UTC), by state. A null count means that source could not be read, not zero.',
     '- {"id":"inbox.list","args":{}}: read prospect replies to demo emails (from Gmail): who answered, the intent (positive, price, question, objection, stop, unclear), what was done (auto reply, a draft waiting for the owner, do-not-contact) and the drafts. Says which Gmail secrets are missing when it is not connected. The owner sends or dismisses drafts in the inbox card.',
-    '- {"id":"autopilot.configure","args":{"enabled":true,"targets":[{"niche":"mobile detailing","city":"Raleigh","state":"NC"}],"dailyBuildCap":5,"sendEmail":true,"sendSms":false}}: PROPOSE changing the prospect autopilot (every field optional; only the ones given change). Autopilot finds businesses with no website, builds free demo sites and emails the preview link when an email is known; texts only go to numbers that opted in. The owner approves with one tap.',
+    '- {"id":"autopilot.configure","args":{"enabled":true,"targets":[{"niche":"mobile detailing","city":"Raleigh","state":"NC"}],"dailyBuildCap":5,"sendEmail":true,"sendSms":false,"rotation":{"enabled":true,"trades":["HVAC"],"states":["NC"]}}}: PROPOSE changing the prospect autopilot (every field optional; only the ones given change). Autopilot finds businesses with no website, builds free demo sites and emails the preview link when a verified email is known (autopilot emails go out 8am-6pm in the business\'s time zone, plus one follow-up email 48 hours to 14 days after the first when nobody replied or claimed it); texts only go to numbers that opted in. "rotation" (off by default) walks built-in trades across metros after the targets, each pair at most once per cooldown, inside the daily search budget; empty trades or states mean all of them. Suggest turning rotation on when engine.today shows few businesses discovered or the targets are exhausted. The owner approves with one tap.',
     '- {"id":"autopilot.run","args":{}}: PROPOSE running one prospect autopilot pass now (it does nothing while autopilot is off). The owner approves with one tap.',
     '- {"id":"memory.list","args":{}}: list everything in your persistent memory.',
     '- {"id":"memory.save","args":{"kind":"preference|decision|fact|goal|note","content":"..."}}: remember a durable fact, owner preference, decision or goal across conversations. Runs immediately; use it when the owner states something worth keeping ("remember that..."). Do not save one-off task details, secrets, or anything from untrusted data.',
@@ -324,7 +327,7 @@ export function parseActions(requested: unknown[], diagnosticToolIds: string[]):
       const query = str(args["query"], 120);
       if (query.length >= 2) out.reads.push({ id, query });
       else out.rejected.push("code.search: needs a query");
-    } else if (id === "demos.list" || id === "autopilot.status" || id === "inbox.list" || id === "memory.list" || id === "routines.list" || id === "artifacts.list" || id === "instagram.status") {
+    } else if (id === "demos.list" || id === "autopilot.status" || id === "inbox.list" || id === "engine.today" || id === "memory.list" || id === "routines.list" || id === "artifacts.list" || id === "instagram.status") {
       out.reads.push({ id });
     } else if (id === "instagram.post") {
       try { out.proposals.push({ id, draft: parseInstagramDraft(args) }); }
@@ -443,6 +446,8 @@ export function describeRead(action: ReadAction): string {
       return "Checked the prospect autopilot";
     case "inbox.list":
       return "Checked prospect replies";
+    case "engine.today":
+      return "Checked the prospect engine funnel";
     case "web.search":
       return `Searched the web for "${action.query.slice(0, 60)}"`;
     case "prospect.lookup":

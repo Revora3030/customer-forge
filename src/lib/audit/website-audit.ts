@@ -1,4 +1,5 @@
 import { guardedFetch, isFetchableHostname } from "@/lib/net-guard.server";
+import { htmlToText } from "@/lib/html-text";
 
 export type AuditSeverity = "high" | "medium" | "low" | "pass";
 export type AuditCategory =
@@ -93,14 +94,7 @@ async function fetchPublicHtml(startUrl: URL, signal: AbortSignal) {
 }
 
 function textContent(html: string) {
-  return html
-    .replace(/<script[\s\S]*?<\/script\b[^>]*>/gi, " ")
-    .replace(/<style[\s\S]*?<\/style\b[^>]*>/gi, " ")
-    .replace(/<noscript[\s\S]*?<\/noscript\b[^>]*>/gi, " ")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&nbsp;/gi, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  return htmlToText(html);
 }
 
 function count(html: string, pattern: RegExp) {

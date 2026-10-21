@@ -206,7 +206,7 @@ function DemoDashboard() {
                     type="button"
                     aria-selected={tab === t.id}
                     onClick={() => setTab(t.id)}
-                    className={`shrink-0 rounded-full border px-3 py-1.5 text-[13px] font-medium transition-all duration-200 ${
+                    className={`inline-flex min-h-11 shrink-0 items-center rounded-full border px-3 py-1.5 text-[13px] font-medium transition-all duration-200 ${
                       tab === t.id
                         ? "border-primary/45 bg-primary/12 text-primary gold-glow"
                         : "border-border bg-elevated text-muted-foreground hover:-translate-y-px hover:border-primary/30 hover:text-foreground"
@@ -223,7 +223,7 @@ function DemoDashboard() {
                     type="button"
                     aria-pressed={range === r.id}
                     onClick={() => setRange(r.id)}
-                    className={`rounded-md border px-2.5 py-1.5 text-[13px] transition-colors ${
+                    className={`inline-flex min-h-11 items-center rounded-md border px-2.5 py-1.5 text-[13px] transition-colors ${
                       range === r.id
                         ? "border-primary/40 bg-primary/12 text-primary"
                         : "border-border bg-elevated text-muted-foreground hover:text-foreground"

@@ -16,7 +16,32 @@ export type DeliverableRun = {
   recipient: string | null;
   subject: string | null;
   body: string | null;
+  /** Which event queued the run; review requests need SMS opt-in. */
+  trigger_event?: string | null;
 };
+
+/**
+ * Consent lookups for the automation gate (src/lib/automation-consent.ts),
+ * backed by the platform do-not-contact and consent lists. Those lists are
+ * service-role only, so they are read with the admin client by exact value;
+ * a failed read blocks the message (fail closed).
+ */
+async function consentGate(run: DeliverableRun, recipient: string) {
+  const [{ automationContactGate }, outreach, { supabaseAdmin }] = await Promise.all([
+    import("@/lib/automation-consent"),
+    import("@/lib/prospect-outreach.server"),
+    import("@/integrations/supabase/client.server"),
+  ]);
+  const db = supabaseAdmin as never;
+  return automationContactGate(
+    { action_type: run.action_type, recipient, trigger_event: run.trigger_event ?? null },
+    {
+      isDoNotContact: (value) => outreach.isDoNotContact(db, value).catch(() => true),
+      hasSmsConsent: (phone) => outreach.hasSmsConsent(db, phone).catch(() => false),
+      smsAllowedAt: (when, phone) => outreach.smsAllowedNow(when, null, phone),
+    },
+  );
+}
 
 const isE164ish = (v: string) => /^\+?[0-9][0-9\s().-]{6,19}$/.test(v);
 
@@ -27,6 +52,8 @@ export async function deliverEmail(
 ): Promise<DeliveryResult> {
   const to = (run.recipient ?? "").trim();
   if (!to) return { ok: false, retry: false, reason: "no_email_address" };
+  const gate = await consentGate(run, to);
+  if (!gate.ok) return gate;
   try {
     const result = await sendTemplateEmail("automation-message", to, {
       // Same run never sends twice, even if the processor runs concurrently.
@@ -77,6 +104,8 @@ export async function deliverSms(run: DeliverableRun): Promise<DeliveryResult> {
     const { normalizePhone, withStopLine } = await import("@/lib/prospect-outreach.server");
     const phone = normalizePhone(to);
     if (!phone) return { ok: false, retry: false, reason: "invalid_phone_number" };
+    const gate = await consentGate(run, phone);
+    if (!gate.ok) return gate;
     const result = await sendTwilioSms(phone, withStopLine(run.body ?? ""));
     return result.ok ? { ok: true } : { ok: false, retry: result.retry, reason: result.reason };
   }

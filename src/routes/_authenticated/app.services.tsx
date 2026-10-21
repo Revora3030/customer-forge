@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import {
   EmptyState,
@@ -22,7 +22,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useDeleteService, useQuoteRequests, useSaveService, useServices } from "@/lib/queries";
+import {
+  useAppointments,
+  useDeleteService,
+  useLeads,
+  useQuoteRequests,
+  useSaveService,
+  useServices,
+} from "@/lib/queries";
+import { useQuoteLineServiceRefs, useWebsitePageRefs } from "@/lib/service-catalog.hooks";
+import { serviceUsage } from "@/lib/service-catalog";
 import { useWorkspace } from "@/lib/use-tenant";
 import { currency, relative } from "@/lib/format";
 import { QueryErrorNotice } from "@/components/app/QueryErrorNotice";
@@ -78,6 +87,23 @@ function ServicesPage() {
   const saveService = useSaveService(orgId);
   const deleteService = useDeleteService(orgId);
   const [editing, setEditing] = useState<Editing | null>(null);
+  const leads = useLeads(orgId);
+  const appointments = useAppointments(orgId);
+  const quoteLines = useQuoteLineServiceRefs(orgId);
+  const pages = useWebsitePageRefs(orgId);
+  const usageSources = [leads, appointments, quoteLines, pages];
+  const usageFailed = usageSources.some((q) => q.isError);
+  const usageReady = usageSources.every((q) => q.isSuccess);
+  const usage = useMemo(
+    () =>
+      serviceUsage(services ?? [], {
+        leads: leads.data ?? [],
+        appointments: appointments.data ?? [],
+        quoteLines: quoteLines.data ?? [],
+        pages: pages.data ?? [],
+      }),
+    [services, leads.data, appointments.data, quoteLines.data, pages.data],
+  );
 
   if (isLoading) return <LoadingRows rows={5} />;
 
@@ -130,6 +156,40 @@ function ServicesPage() {
                   {service.description}
                 </p>
               ) : null}
+              {(() => {
+                const stats = usage.get(service.id);
+                if (usageFailed || !stats) {
+                  return usageFailed ? (
+                    <p className="mt-2.5 text-[12px] text-muted-foreground">
+                      Usage counts couldn't be loaded right now.
+                    </p>
+                  ) : null;
+                }
+                if (!usageReady) return null;
+                return (
+                  <dl className="mt-3 grid grid-cols-3 gap-2 text-center" aria-label={`${service.name} usage`}>
+                    {(
+                      [
+                        ["Leads", stats.leads],
+                        ["Quotes", stats.quotes],
+                        ["Bookings", stats.bookings],
+                      ] as const
+                    ).map(([label, value]) => (
+                      <div key={label} className="rounded-md border border-border px-2 py-1.5">
+                        <dt className="text-[11px] text-muted-foreground">{label}</dt>
+                        <dd className="tnum text-[14px] font-semibold">{value}</dd>
+                      </div>
+                    ))}
+                    <div className="col-span-3 text-left text-[12px] text-muted-foreground">
+                      {stats.page ? (
+                        <>Website page: <span className="text-foreground">/{stats.page.slug}</span></>
+                      ) : (
+                        "No page of its own on your website yet."
+                      )}
+                    </div>
+                  </dl>
+                );
+              })()}
               <div className="mt-3.5 flex gap-2">
                 <Button
                   variant="outline"

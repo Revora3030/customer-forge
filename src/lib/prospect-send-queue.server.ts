@@ -110,7 +110,18 @@ export async function claimQueuedOutreach(db: SupabaseClient, owner: string, lim
 /** Provider or storage trouble that may clear on its own: retried with backoff. */
 export const TRANSIENT_SEND_REASONS = new Set(["rate_limited", "gmail_unavailable", "storage_error", "email_error_500", "email_error_502", "email_error_503"]);
 /** "Not right now": rescheduled without spending an attempt. */
-export const WAIT_SEND_REASONS = new Set(["quiet_hours", "daily_cap"]);
+export const WAIT_SEND_REASONS = new Set(["quiet_hours", "daily_cap", "outside_business_hours"]);
+
+/**
+ * When a waiting item is tried again: tomorrow for the daily cap, the window's
+ * opening for business hours (never sooner than a minute), else in an hour.
+ */
+export function waitRetryAt(reason: string, now: Date, retryAt?: string): Date {
+  if (reason === "daily_cap") return nextUtcDay(now);
+  const at = Date.parse(retryAt ?? "");
+  if (reason === "outside_business_hours" && Number.isFinite(at)) return new Date(Math.max(at, now.getTime() + 60_000));
+  return new Date(now.getTime() + 60 * 60_000);
+}
 /** The send must never happen (or may already have): cancelled. unconfirmed_transport is recorded as sent. */
 export const CANCEL_SEND_REASONS = new Set(["do_not_contact", "already_sent", "unconfirmed_transport", "demo_claimed", "recipient_suppressed", "recipient_opted_out", "no_consent", "quality_gate", "demo_not_found"]);
 
@@ -168,7 +179,7 @@ export async function drainSendQueue(
       await finish({ status: "sent", outreach_id: result.outreachId, last_error: null });
     } else if (WAIT_SEND_REASONS.has(result.reason)) {
       summary.retried += 1;
-      const at = result.reason === "daily_cap" ? nextUtcDay(now()) : new Date(now().getTime() + 60 * 60_000);
+      const at = waitRetryAt(result.reason, now(), "retryAt" in result ? result.retryAt : undefined);
       await finish({ not_before: at.toISOString(), attempts: Math.max(0, row.attempts - 1), last_error: result.reason });
     } else if (TRANSIENT_SEND_REASONS.has(result.reason) && row.attempts < MAX_QUEUE_ATTEMPTS) {
       summary.retried += 1;

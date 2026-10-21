@@ -147,6 +147,7 @@ export type RunDelivery = (run: {
   recipient: string | null;
   subject: string | null;
   body: string | null;
+  trigger_event?: string | null;
 }) => Promise<
   { ok: true } | { ok: false; retry: boolean; reason: string; retryAfterSeconds?: number }
 >;
@@ -157,7 +158,8 @@ const REASON_TEXT: Record<string, string> = {
   no_email_address: "no email address on file",
   no_phone_number: "no phone number on file",
   invalid_phone_number: "the phone number isn't a valid mobile number",
-  recipient_suppressed: "the recipient unsubscribed or previously bounced",
+  recipient_suppressed: "the recipient unsubscribed, replied STOP or previously bounced",
+  sms_no_opt_in: "they haven't opted in to texts, so the review request wasn't texted",
   sms_provider_not_connected: "no text-message provider is connected yet",
   sms_provider_not_configured: "the text-message provider isn't finished configuring",
 };
@@ -174,7 +176,7 @@ export async function processDueRuns(
 ) {
   const { data: due } = await client
     .from("automation_runs")
-    .select("id, action_type, recipient, subject, body, lead_id, appointment_id")
+    .select("id, action_type, recipient, subject, body, lead_id, appointment_id, trigger_event")
     .eq("organization_id", organizationId)
     .eq("status", "queued")
     .lte("scheduled_for", new Date().toISOString())

@@ -96,8 +96,7 @@ export function BuildLive({ organizationId }: { organizationId: string | null | 
         </span>
         <span className="min-w-0 flex-1">
           <span className="block truncate text-[14px] font-medium">
-            <CapacityWaitNotice job={row} />
-          {stalled ? (
+            {stalled ? (
               <span className="text-amber-500">Reconnecting to your build…</span>
             ) : active ? (
               <Shimmer as="span">{latest ? `${latest.stage}…` : "Starting your website build…"}</Shimmer>
@@ -124,6 +123,9 @@ export function BuildLive({ organizationId }: { organizationId: string | null | 
           aria-hidden
         />
       </button>
+      {/* A build parked for AI capacity says when it resumes. Outside the toggle
+          button (a status box isn't valid button content); the panel announces it. */}
+      <CapacityWaitNotice job={row} compact announce={false} className="mx-5 mb-4 -mt-1" />
 
       {open ? (
         <div className="space-y-3 border-t border-border/60 px-5 py-4">

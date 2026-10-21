@@ -40,7 +40,7 @@ export function AuthActions({
   if (signedIn)
     return (
       <div className={`flex items-center gap-2 ${className}`}>
-        <Button asChild variant="signal" size={size}>
+        <Button asChild variant="signal" size={size} className="min-h-11">
           <Link to="/app" onClick={onNavigate}>
             <LayoutDashboard className="size-4" aria-hidden="true" />
             {compact ? "Dashboard" : "Go to my dashboard"}
@@ -49,6 +49,7 @@ export function AuthActions({
         <Button
           variant={compact ? "ghost" : "outline"}
           size={size}
+          className="min-h-11"
           onClick={() => {
             onNavigate?.();
             void signOut();
@@ -68,7 +69,7 @@ export function AuthActions({
           : `flex flex-col gap-3 sm:flex-row sm:items-center ${className}`
       }
     >
-      <Button asChild variant="signal" size={size}>
+      <Button asChild variant="signal" size={size} className="min-h-11">
         <Link to="/auth" search={SIGN_UP_SEARCH} onClick={onNavigate}>
           <UserPlus className="size-4" aria-hidden="true" />
           {compact
@@ -76,7 +77,7 @@ export function AuthActions({
             : `Sign up free — ${GROWTH_SYSTEM.fullAccessWindow} full access`}
         </Link>
       </Button>
-      <Button asChild variant={compact ? "ghost" : "outline"} size={size}>
+      <Button asChild variant={compact ? "ghost" : "outline"} size={size} className="min-h-11">
         <Link to="/auth" search={SIGN_IN_SEARCH} onClick={onNavigate}>
           <LogIn className="size-4" aria-hidden="true" />
           Sign in

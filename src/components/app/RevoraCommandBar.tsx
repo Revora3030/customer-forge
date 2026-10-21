@@ -5,21 +5,93 @@
  * owns that work, then this component either hands the request to the website
  * assistant or navigates to the panel where the work actually happens. It never
  * says the work is done — it takes you to where it happens.
+ *
+ * The placeholder and suggestion chips come from this business's own records
+ * (services, site state, waiting leads, review/quote/booking counts) through
+ * buildBusinessSuggestions, so a tenant never sees another trade's examples.
  */
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { ArrowRight, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { askAssistant } from "@/lib/assistant-bridge";
-import { COMMAND_EXAMPLES, routeCommand, type RoutedCommand } from "@/lib/command-router";
+import {
+  buildBusinessSuggestions,
+  type BusinessSuggestionInput,
+  type SuggestionChip,
+} from "@/lib/business-suggestions";
+import { routeCommand, type RoutedCommand } from "@/lib/command-router";
+import { useCommandBarSignals } from "@/lib/queries";
 import { scrollElementIntoView } from "@/lib/use-step-scroll";
 
-export function RevoraCommandBar({ className }: { className?: string }) {
+export type RevoraCommandBarBusiness = Pick<
+  BusinessSuggestionInput,
+  "businessName" | "industry" | "services" | "newLeads" | "bookings"
+>;
+
+export function RevoraCommandBar({
+  className,
+  organizationId,
+  business,
+}: {
+  className?: string;
+  organizationId?: string;
+  /** Facts the host page already loaded; unknown values stay unknown. */
+  business?: RevoraCommandBarBusiness;
+}) {
   const navigate = useNavigate();
   const [value, setValue] = useState("");
   const [last, setLast] = useState<RoutedCommand | null>(null);
+  const signals = useCommandBarSignals(organizationId);
+
+  const suggestions = useMemo(
+    () =>
+      buildBusinessSuggestions({
+        businessName: business?.businessName,
+        industry: business?.industry,
+        services: business?.services,
+        newLeads: business?.newLeads,
+        bookings: business?.bookings,
+        // Until the site facts load (or if they fail), the site state is unknown:
+        // no build/launch/domain step, no service-page or count chips.
+        siteState: signals.isSuccess ? signals.data.siteState : "unknown",
+        pages: signals.data?.pages ?? null,
+        reviews: signals.data?.reviews ?? null,
+        quotes: signals.data?.quotes ?? null,
+      }),
+    [business, signals.data, signals.isSuccess],
+  );
+
+  const runChip = (chip: SuggestionChip) => {
+    setValue(chip.label);
+    if (chip.route) {
+      setLast({
+        target: "assistant",
+        action: chip.label,
+        route: chip.route,
+        anchor: null,
+        instruction: null,
+        confident: true,
+      });
+      void navigate({ to: chip.route });
+      return;
+    }
+    if (chip.assistant) {
+      setLast({
+        target: "assistant",
+        action: chip.label,
+        route: null,
+        anchor: "website-assistant",
+        instruction: chip.label,
+        confident: true,
+      });
+      askAssistant(chip.label);
+      return;
+    }
+    run(chip.label);
+  };
 
   const run = (text: string) => {
     const routed = routeCommand(text);
@@ -70,7 +142,7 @@ export function RevoraCommandBar({ className }: { className?: string }) {
           id="revora-command-input"
           value={value}
           onChange={(event) => setValue(event.target.value)}
-          placeholder="e.g. I want more emergency callouts from my home page"
+          placeholder={suggestions.placeholder}
           autoComplete="off"
         />
         <Button type="submit" disabled={!value.trim()} className="shrink-0 whitespace-nowrap">
@@ -78,17 +150,14 @@ export function RevoraCommandBar({ className }: { className?: string }) {
         </Button>
       </form>
       <div className="mt-3 flex flex-wrap gap-2">
-        {COMMAND_EXAMPLES.slice(0, 6).map((example) => (
+        {suggestions.chips.map((chip) => (
           <button
-            key={example}
+            key={chip.label}
             type="button"
             className="rounded-full border border-border/70 px-3 py-1 text-[12px] text-muted-foreground transition hover:border-primary/60 hover:text-foreground"
-            onClick={() => {
-              setValue(example);
-              run(example);
-            }}
+            onClick={() => runChip(chip)}
           >
-            {example}
+            {chip.label}
           </button>
         ))}
       </div>

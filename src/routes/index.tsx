@@ -6,14 +6,13 @@ import { SiteFooter, SiteHeader } from "@/components/marketing/Chrome";
 import { AuthHint } from "@/components/marketing/AuthButtons";
 import { HeroStarter } from "@/components/marketing/HeroStarter";
 import { DashboardPreview } from "@/components/marketing/DashboardPreview";
-import { FAQ, FAQ_ITEMS } from "@/components/marketing/FAQ";
+import { FAQ } from "@/components/marketing/FAQ";
+import { HOME_HEADLINE, HOME_TRIAL_CHARGE_NOTE, marketingHomeHead } from "@/components/marketing/home-head";
 import { ProductTour } from "@/components/marketing/ProductTour";
 import { Pill, SectionHeading } from "@/components/app/Bits";
 import { RouteError } from "@/components/app/RouteStates";
 import { Button } from "@/components/ui/button";
 import { GROWTH_SYSTEM, usd } from "@/lib/offer";
-import { GROWTH_SYSTEM_SCHEMA, LOCAL_BUSINESS_SCHEMA } from "@/lib/seo";
-import { MARKETING_SEARCH, marketingSearchHead } from "@/lib/marketing-seo";
 import { RelatedLinks } from "@/components/marketing/SeoLinks";
 import { VisualComposition } from "@/components/site/VisualComposition";
 import { HOMEPAGE_COMPOSITION } from "@/lib/homepage-concept";
@@ -72,35 +71,12 @@ export const Route = createFileRoute("/")({
             canonical: `https://${loaderData.host}/`,
             businessUrl: `https://${loaderData.host}/`,
           })
-        : ({
-            ...marketingSearchHead(MARKETING_SEARCH.home),
-            scripts: [
-              jsonLdScript(LOCAL_BUSINESS_SCHEMA),
-              jsonLdScript(GROWTH_SYSTEM_SCHEMA),
-              jsonLdScript({
-                "@context": "https://schema.org",
-                "@type": "FAQPage",
-                mainEntity: FAQ_ITEMS.map((item) => ({
-                  "@type": "Question",
-                  name: item.q,
-                  acceptedAnswer: { "@type": "Answer", text: item.a },
-                })),
-              }),
-            ],
-          } as const),
+        : marketingHomeHead(),
   component: HomeRoute,
   errorComponent: RouteError,
 });
 
 /** Client website on a client host, Revora's sales site on Revora's host. */
-function jsonLdScript(schema: unknown) {
-  const serialized = JSON.stringify(schema);
-  return {
-    type: "application/ld+json" as const,
-    children: typeof serialized === "string" ? serialized.replace(/</g, "\\u003c") : "{}",
-  };
-}
-
 function HomeRoute() {
   const hostSite = Route.useLoaderData();
   if (hostSite && "pending" in hostSite) {
@@ -156,10 +132,10 @@ function Landing() {
           <div className="mx-auto grid max-w-6xl grid-cols-1 gap-8 px-4 py-10 lg:grid-cols-[1.02fr_0.98fr] lg:items-center lg:gap-10 lg:py-20">
             <div className="hero-stagger min-w-0">
               <Pill tone="signal">
-                <Sparkles className="size-3.5" aria-hidden="true" /> REVORA™ — AI growth system
+                <Sparkles className="size-3.5" aria-hidden="true" /> Revora Growth Systems™
               </Pill>
               <h1 className="mt-5 font-display text-[32px] sm:text-[48px] leading-[1.04] font-semibold tracking-tight">
-                Revora Growth Systems
+                {HOME_HEADLINE}
               </h1>
               <p className="mt-4 max-w-xl text-[15px] leading-relaxed text-muted-foreground">
                 AI-designed business websites with{" "}
@@ -240,7 +216,10 @@ function Landing() {
                 >
                   <Link to="/get-started">{GROWTH_SYSTEM.ctaShort}</Link>
                 </Button>
-                <p className="mt-2.5 text-[13px] text-muted-foreground">
+                <p className="mt-2.5 text-[13px] font-medium text-foreground">
+                  {HOME_TRIAL_CHARGE_NOTE}
+                </p>
+                <p className="mt-1.5 text-[13px] text-muted-foreground">
                   {GROWTH_SYSTEM.explainer}
                 </p>
               </div>

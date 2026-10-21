@@ -33,7 +33,7 @@ export function FreeAccessButton({
       asChild
       variant="signal"
       size={size}
-      className={`h-auto py-3 text-center leading-snug whitespace-normal ${className}`}
+      className={`h-auto min-h-11 py-3 text-center leading-snug whitespace-normal ${className}`}
     >
       <Link
         to={FREE_ACCESS_TO}

@@ -146,12 +146,14 @@ export function useRequestReview(organizationId: string | undefined) {
       businessName: string;
       reviewLink: string | null;
       leadId?: string | null;
+      appointmentId?: string | null;
     }) => {
       const link = input.reviewLink?.trim();
       const body = `Hi ${input.name.split(" ")[0] ?? "there"} — thanks again for choosing ${input.businessName}. Would you leave us a quick review?${link ? ` ${link}` : ""}`;
       const { error } = await supabase.from("automation_runs").insert({
         organization_id: organizationId!,
         lead_id: input.leadId ?? null,
+        appointment_id: input.appointmentId ?? null,
         trigger_event: "review_request",
         action_type: input.channel,
         recipient: input.recipient,

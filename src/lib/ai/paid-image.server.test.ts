@@ -4,6 +4,7 @@ import { RevoraAiError } from "./errors";
 const calls: { model: string; hasSource: boolean }[] = [];
 const usage: { outcome: string; reason: string | null; model?: string }[] = [];
 let reservationAllowed = true;
+const PAID_RESERVATION = { id: "paid-1", day: "2026-10-21", estimate: 1 };
 let modelReachable = { available: true, detail: "available on this account" };
 
 vi.mock("@/lib/ai/router.server", () => ({
@@ -35,6 +36,7 @@ vi.mock("@/lib/ai/luna.server", () => ({
     allowed: reservationAllowed,
     spent: 0,
     cap: 20_000_000,
+    paid: PAID_RESERVATION,
   })),
   settleBudget: vi.fn(async () => undefined),
   recordUsage: vi.fn(async (row: { outcome: string; reason: string | null; model?: string }) => {
@@ -172,7 +174,7 @@ describe("premium picture lane", () => {
     const result = await generatePaidImageBase64("supporting photo", { organizationId: "org" });
     const estimate = paidImagePriceMicrocents("flare");
     expect(result.ok).toBe(false);
-    expect(ledger.settleBudget).toHaveBeenLastCalledWith("org", estimate, estimate);
+    expect(ledger.settleBudget).toHaveBeenLastCalledWith("org", estimate, estimate, PAID_RESERVATION);
     expect(usage.at(-1)).toMatchObject({ outcome: "failed", reason: "provider_outcome_unknown", cost: estimate });
     expect(!result.ok && result.message).not.toContain("Nothing was charged");
   });
@@ -183,6 +185,6 @@ describe("premium picture lane", () => {
     vi.mocked(router.callPinnedPaidImage).mockRejectedValueOnce(new RevoraAiError(403, "Forbidden"));
     const { generatePaidImageBase64, paidImagePriceMicrocents } = await paidImage();
     await generatePaidImageBase64("supporting photo", { organizationId: "org" });
-    expect(ledger.settleBudget).toHaveBeenLastCalledWith("org", paidImagePriceMicrocents("flare"), 0);
+    expect(ledger.settleBudget).toHaveBeenLastCalledWith("org", paidImagePriceMicrocents("flare"), 0, PAID_RESERVATION);
   });
 });

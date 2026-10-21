@@ -150,7 +150,7 @@ export function ProspectAutopilotCard({ className }: { className?: string }) {
       if (result.status === "disabled") toast.message("Autopilot is off, so nothing ran. Turn it on and save first.");
       else if (result.status === "busy") toast.message("An autopilot run is already going.");
       else if (result.status === "failed") toast.error(`The run stopped: ${result.error ?? "unknown error"}`);
-      else toast.success(`Found ${result.found}, built ${result.built}, emailed ${result.emailed}, texted ${result.texted}.`);
+      else toast.success(`Found ${result.found}, built ${result.built}, emailed ${result.emailed}, texted ${result.texted}${result.legacyChecked ? `, re-checked ${result.legacyChecked} older email${result.legacyChecked === 1 ? "" : "s"} (${result.legacyWritten} updated)` : ""}.`);
       void qc.invalidateQueries({ queryKey: KEY });
       void qc.invalidateQueries({ queryKey: ["jarvis", "prospect-demos"] });
     },

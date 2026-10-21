@@ -69,7 +69,7 @@ function ComparePage() {
       <SiteHeader />
       <main className="mx-auto max-w-4xl px-4 pt-14 pb-20 sm:px-6 sm:pt-20">
         <nav aria-label="Breadcrumb" className="text-xs text-muted-foreground">
-          <Link to="/compare" className="hover:text-primary">
+          <Link to="/compare" className="inline-flex min-h-11 items-center hover:text-primary">
             Comparisons
           </Link>
           <span aria-hidden> / </span>

@@ -9,6 +9,7 @@
 import { GROWTH_SYSTEM } from "@/lib/offer";
 import { REVORA } from "@/lib/brand";
 import { BUSINESS } from "@/lib/business-identity";
+import { safeJsonLd } from "@/lib/json-ld";
 
 export const SITE_URL = "https://revoragrowthsystems.com";
 
@@ -180,6 +181,7 @@ export const GROWTH_SYSTEM_SCHEMA = {
   "@context": "https://schema.org",
   "@type": "Service",
   name: GROWTH_SYSTEM.name,
+  "@id": `${SITE_URL}/#growth-system`,
   serviceType: "Customer acquisition system for businesses",
   provider: { "@id": `${SITE_URL}/#organization` },
   areaServed: BUSINESS.areasServed.map((name) => ({ "@type": "AdministrativeArea", name })),
@@ -190,6 +192,7 @@ export const GROWTH_SYSTEM_SCHEMA = {
     {
       "@type": "Offer",
       name: "One-time setup",
+      description: "Charged once, at checkout. Free access before checkout needs no card.",
       price: GROWTH_SYSTEM.setupPrice,
       category: "Service",
       priceCurrency: "USD",
@@ -221,6 +224,27 @@ export const GROWTH_SYSTEM_SCHEMA = {
     },
   ],
 };
+
+/**
+ * FAQPage built from the exact question/answer list a page renders, so the
+ * structured data and the visible FAQ can never drift apart.
+ */
+export function faqPageSchema(items: readonly { q: string; a: string }[]) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: items.map((item) => ({
+      "@type": "Question",
+      name: item.q,
+      acceptedAnswer: { "@type": "Answer", text: item.a },
+    })),
+  };
+}
+
+/** A <head> JSON-LD script entry, escaped so text can never close the tag. */
+export function jsonLdScript(schema: unknown) {
+  return { type: "application/ld+json" as const, children: safeJsonLd(schema) };
+}
 
 /** Breadcrumbs help search engines understand deep pages. */
 export function breadcrumbSchema(trail: { name: string; path: string }[]) {

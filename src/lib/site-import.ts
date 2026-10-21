@@ -9,7 +9,9 @@
  * and creative choices for the new site are still written by the AI team.
  */
 
-export type ImportedService = { name: string; description: string };
+import { decodeHtmlEntities, htmlToText } from "@/lib/html-text";
+
+export type ImportedService ={ name: string; description: string };
 
 export type ImportedFacts = {
   businessName: string;
@@ -47,19 +49,15 @@ export const EMPTY_FACTS: ImportedFacts = {
   services: [],
 };
 
-const ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ", "#39": "'", rsquo: "'", lsquo: "'", ndash: "–", mdash: "—" };
-
+/** One decoding pass, so "&amp;lt;" reads as the text "&lt;", never "<". */
 export function decodeEntities(text: string): string {
-  return text
-    .replace(/&#(\d+);/g, (_, code: string) => String.fromCharCode(Number(code)))
-    .replace(/&#x([0-9a-f]+);/gi, (_, code: string) => String.fromCharCode(parseInt(code, 16)))
-    .replace(/&([a-z#0-9]+);/gi, (match, name: string) => ENTITIES[name.toLowerCase()] ?? match);
+  return decodeHtmlEntities(text);
 }
 
 const clean = (text: string, max = 400) =>
   // Imported text is plain facts: after decoding entities, any angle bracket
   // left over (including a decoded "&lt;") is removed, never kept as markup.
-  decodeEntities(text.replace(/<[^>]*>/g, " ")).replace(/[<>]/g, " ").replace(/\s+/g, " ").trim().slice(0, max);
+  htmlToText(text).replace(/[<>]/g, " ").replace(/\s+/g, " ").trim().slice(0, max);
 
 function attr(tag: string, name: string): string {
   const match = tag.match(new RegExp(`\\b${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`, "i"));
@@ -229,7 +227,8 @@ export function extractFacts(html: string, pageUrl: string): ImportedFacts & { l
   }
 
   // Plain text: a phone number in the copy when there's no tel: link.
-  const body = clean(html.replace(/<(script|style|noscript|svg)\b[\s\S]*?<\/\1>/gi, " "), 200_000);
+  // htmlToText already skips script, style, noscript, template and svg bodies.
+  const body = clean(html, 200_000);
   facts.phone ||= formatPhone(body);
 
   // On a services page, short headings are service names.

@@ -6,7 +6,8 @@ import { authenticateCronRequest } from "@/integrations/supabase/cron-auth";
  * Bearer-authenticated like the other jobs. POST-only because a run sends
  * queued outreach and in-thread replies. Drains the send queue, then polls
  * the Gmail threads of sent outreach; without the GMAIL_* secrets it returns
- * status "gmail_not_configured" after draining.
+ * status "gmail_not_configured" after draining. Single-flight: while another
+ * run holds the poll lease it returns 200 with status "busy" and does nothing.
  */
 function noStore(response: Response): Response {
   const headers = new Headers(response.headers);

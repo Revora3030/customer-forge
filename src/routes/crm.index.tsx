@@ -105,7 +105,7 @@ function CrmHubPage() {
           <Link to="/compare" className="inline-flex min-h-11 items-center hover:text-primary">
             Compare the alternatives
           </Link>
-          <Link to="/guides" className="inline-flex min-h-11 items-center hover:text-primary">
+          <Link to="/guides" className="inline-flex min-h-11 min-w-11 items-center hover:text-primary">
             Guides
           </Link>
         </nav>

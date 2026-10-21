@@ -21,21 +21,34 @@ const mocks = vi.hoisted(() => ({
   lookupPublicEmail: vi.fn(),
   fetch: vi.fn(),
   assessDemoForOutreach: vi.fn(),
+  reverifyLegacyDemos: vi.fn(),
+  enqueued: [] as Array<{ organizationId: string; channel: string; kind: string; notBefore: string }>,
 }));
 vi.mock("@/lib/jarvis-demo-site.server", () => ({
   findProspects: mocks.findProspects,
   provisionProspectDemo: mocks.provisionProspectDemo,
 }));
-vi.mock("@/lib/prospect-outreach.server", () => ({
-  sendDemoOutreach: mocks.sendDemoOutreach,
-  isDoNotContact: mocks.isDoNotContact,
-  smsAllowedNow: mocks.smsAllowedNow,
+vi.mock("@/lib/prospect-outreach.server", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/prospect-outreach.server")>();
+  return {
+    sendDemoOutreach: mocks.sendDemoOutreach,
+    isDoNotContact: mocks.isDoNotContact,
+    smsAllowedNow: mocks.smsAllowedNow,
+    // The real business-hours math: the tests read when each email was queued for.
+    nextEmailBusinessHour: actual.nextEmailBusinessHour,
+  };
+});
+// Enrichment stays real (its DNS calls go to the stubbed fetch); the legacy re-check is stubbed.
+vi.mock("@/lib/prospect-enrichment.server", async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  reverifyLegacyDemos: mocks.reverifyLegacyDemos,
 }));
 vi.mock("@/lib/prospect-email.server", () => ({ lookupPublicEmail: mocks.lookupPublicEmail }));
 // The queue hands each item to sendDemoOutreach when it drains; here the
 // hand-off is immediate so the tests read what autopilot queued.
 vi.mock("@/lib/prospect-send-queue.server", () => ({
-  enqueueOutreach: async (db: unknown, item: { organizationId: string; channel: string; to: string; mode: string; notBefore: Date }) => {
+  enqueueOutreach: async (db: unknown, item: { organizationId: string; channel: string; to: string; mode: string; notBefore: Date; kind?: string }) => {
+    mocks.enqueued.push({ organizationId: item.organizationId, channel: item.channel, kind: item.kind ?? "first_touch", notBefore: item.notBefore.toISOString() });
     const result = await mocks.sendDemoOutreach(db, { organizationId: item.organizationId, channel: item.channel, to: item.to, mode: item.mode, actorId: null });
     return result?.ok ? { ok: true, id: "q-1", notBefore: item.notBefore.toISOString(), duplicate: false } : { ok: false, reason: result?.reason ?? "unknown" };
   },
@@ -143,6 +156,8 @@ function seed(overrides: Record<string, Row[]> = {}) {
 
 beforeEach(() => {
   vi.resetAllMocks();
+  mocks.enqueued.length = 0;
+  mocks.reverifyLegacyDemos.mockResolvedValue({ checked: 0, written: 0, results: [] });
   mocks.isDoNotContact.mockResolvedValue(false);
   mocks.smsAllowedNow.mockReturnValue(true);
   mocks.lookupPublicEmail.mockResolvedValue(null);
@@ -580,5 +595,66 @@ describe("rotation, Places budget and the verified-email gate", () => {
     expect(tables["prospect_autopilot_settings"]![0]!["rotation"]).toBeUndefined();
     const saved = await saveAutopilotSettings(db, { rotation: { enabled: true, trades: [], states: ["TX"] } }, OWNER);
     expect(saved.rotation).toEqual({ enabled: true, trades: [], states: ["TX"] });
+  });
+});
+
+describe("email business hours in the autopilot queue", () => {
+  const LATE = new Date("2026-10-19T03:00:00.000Z"); // 23:00 EDT in Raleigh
+  const demoSeed = (outreach: Row[] = []) =>
+    seed({
+      prospect_autopilot_settings: [settings({ targets: [] })],
+      website_settings: [{ organization_id: "a", generation: { prospectDemo: { kind: "prospect_demo", createdAt: "2026-10-12T00:00:00Z", source: "autopilot", enrichment: verified("a@shop.com") } } }],
+      organizations: [{ id: "a", name: "a" }],
+      generation_jobs: [{ organization_id: "a", status: "completed", created_at: "2026-10-12T00:00:00Z" }],
+      business_profiles: [{ organization_id: "a", email: "a@shop.com", phone: "919-555-0100", state: "NC" }],
+      prospect_outreach: outreach,
+    });
+  const firstTouch = { organization_id: "a", channel: "email", status: "sent", mode: "autopilot", kind: "first_touch", created_at: "2026-10-15T15:00:00.000Z" };
+
+  it("queues a first touch for 8:00 the next morning in the business's zone", async () => {
+    await runProspectAutopilot(demoSeed().db, { now: () => LATE, random: () => 0 });
+    expect(mocks.enqueued).toEqual([{ organizationId: "a", channel: "email", kind: "first_touch", notBefore: "2026-10-19T12:00:00.000Z" }]);
+  });
+
+  it("queues Lovable's follow-up inside the window too, and right away when the window is open", async () => {
+    await runProspectAutopilot(demoSeed([firstTouch]).db, { now: () => LATE, random: () => 0 });
+    expect(mocks.enqueued).toEqual([{ organizationId: "a", channel: "email", kind: "follow_up", notBefore: "2026-10-19T12:00:00.000Z" }]);
+
+    mocks.enqueued.length = 0;
+    await runProspectAutopilot(demoSeed([firstTouch]).db, { now: () => NOW, random: () => 0 });
+    expect(mocks.enqueued).toEqual([{ organizationId: "a", channel: "email", kind: "follow_up", notBefore: NOW.toISOString() }]);
+  });
+
+  it("doesn't queue a follow-up to a do-not-contact address or a demo that fails the launch gate", async () => {
+    mocks.isDoNotContact.mockResolvedValue(true);
+    const dnc = await runProspectAutopilot(demoSeed([firstTouch]).db, { now: () => NOW });
+    expect(mocks.enqueued).toEqual([]);
+    expect(dnc.skipped).toContainEqual({ reason: "follow_up_do_not_contact", name: "a" });
+
+    mocks.isDoNotContact.mockResolvedValue(false);
+    mocks.assessDemoForOutreach.mockResolvedValue({ ok: false, blockers: [{ code: "unsupported_claim", message: "Unsupported claim.", safety: true }] });
+    const gated = await runProspectAutopilot(demoSeed([firstTouch]).db, { now: () => NOW });
+    expect(mocks.enqueued).toEqual([]);
+    expect(gated.skipped).toContainEqual({ reason: "follow_up_quality_gate: Unsupported claim.", name: "a" });
+  });
+});
+
+describe("legacy demo re-verification", () => {
+  it("runs once per run before sending, counts its results, and never blocks the run", async () => {
+    mocks.reverifyLegacyDemos.mockImplementation(async () => {
+      // Before the send phase: nothing has been handed to the sender yet.
+      expect(mocks.sendDemoOutreach).not.toHaveBeenCalled();
+      return { checked: 3, written: 2, results: [] };
+    });
+    const { db } = seed({ prospect_autopilot_settings: [settings({ targets: [] })] });
+    const result = await runProspectAutopilot(db, { now: () => NOW });
+    expect(mocks.reverifyLegacyDemos).toHaveBeenCalledTimes(1);
+    expect(mocks.reverifyLegacyDemos.mock.calls[0]![0]).toBe(db);
+    expect(result).toMatchObject({ status: "done", legacyChecked: 3, legacyWritten: 2 });
+
+    mocks.reverifyLegacyDemos.mockRejectedValue(new Error("dns down"));
+    const failed = await runProspectAutopilot(seed({ prospect_autopilot_settings: [settings({ targets: [] })] }).db, { now: () => NOW });
+    expect(failed).toMatchObject({ status: "done", error: null, legacyChecked: 0 });
+    expect(failed.skipped).toContainEqual({ reason: "legacy_reverify_failed: dns down" });
   });
 });
