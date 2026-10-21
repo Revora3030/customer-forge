@@ -61,7 +61,7 @@ export async function runReadActions(db: SupabaseClient, reads: ReadAction[], ac
           result = await instagramStatus(db, actorId);
         } else if (action.id === "diagnostic.run") {
           const { executeJarvisDiagnosticTool } = await import("./jarvis-diagnostic-tools.server");
-          result = await executeJarvisDiagnosticTool(db, action.toolId);
+          result = await executeJarvisDiagnosticTool(db, action.toolId, action.args ?? {});
         } else if (action.id === "code.read") {
           const { readFiles } = await import("./jarvis-repo.server");
           return { label, ok: true, result: bounded(await readFiles(action.paths, action.line), MAX_CODE_RESULT_CHARS) };

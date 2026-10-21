@@ -18,7 +18,7 @@ export const MAX_ACTIONS_PER_STEP = 3;
 export const MAX_ACTION_STEPS = 3;
 
 export type ReadAction =
-  | { id: "diagnostic.run"; toolId: string }
+  | { id: "diagnostic.run"; toolId: string; args?: { target?: string; strategy?: string; query?: string } }
   | { id: "code.read"; paths: string[]; line: number }
   | { id: "code.list"; page: number; dir: string | null }
   | { id: "code.search"; query: string }
@@ -208,7 +208,7 @@ export const JARVIS_ACTION_CLASSES: Record<ReadAction["id"] | WriteProposal["id"
 export function actionCatalogPrompt(diagnosticToolIds: string[]): string {
   return [
     "ACTIONS. You can act, not just advise. To use one, end your reply with <actions>[...]</actions> holding up to 3 JSON objects, and nothing after it. You will get the results and can then answer or act again.",
-    `- {"id":"diagnostic.run","args":{"toolId":ONE_OF ${JSON.stringify(diagnosticToolIds)}}}: run a read-only platform check (errors, builds, schema, SEO, AI providers, connectors, funnel, CI, security, capability scorecard).`,
+    `- {"id":"diagnostic.run","args":{"toolId":ONE_OF ${JSON.stringify(diagnosticToolIds)}}}: run a read-only platform check (errors, builds, schema, SEO, AI providers, connectors, funnel, CI, security, capability scorecard). Optional args: "target" (https URL of a Revora page or verified customer domain) for website.lighthouse.audit and website.browser.check, "strategy" ("mobile"|"desktop") for website.lighthouse.audit, "query" ("library: topic") for docs.lookup.`,
     '- {"id":"code.search","args":{"query":"getPlatformMetrics"}}: find files whose path or contents match (a function, component, table, route or error text). Use it first instead of guessing paths.',
     '- {"id":"code.list","args":{"dir":"src/lib","page":1}}: list files in a folder of the live lovable-sync branch (300 per page). Without dir it lists everything plus a folder map.',
     '- {"id":"code.read","args":{"paths":["src/..."],"line":1}}: read up to 3 files, 300 numbered lines each, from line. A missing path comes back with didYouMean suggestions; to keep reading a long file, call again with the line it gives.',
@@ -312,7 +312,14 @@ export function parseActions(requested: unknown[], diagnosticToolIds: string[]):
     const args = (raw["args"] && typeof raw["args"] === "object" ? raw["args"] : {}) as Record<string, unknown>;
     if (id === "diagnostic.run") {
       const toolId = str(args["toolId"], 120);
-      if (diagnosticToolIds.includes(toolId)) out.reads.push({ id, toolId });
+      const extra: { target?: string; strategy?: string; query?: string } = {};
+      const target = str(args["target"], 300);
+      const strategy = str(args["strategy"], 10);
+      const query = str(args["query"], 200);
+      if (target) extra.target = target;
+      if (strategy) extra.strategy = strategy;
+      if (query) extra.query = query;
+      if (diagnosticToolIds.includes(toolId)) out.reads.push(Object.keys(extra).length ? { id, toolId, args: extra } : { id, toolId });
       else out.rejected.push(`diagnostic.run: unknown toolId "${toolId}"`);
     } else if (id === "code.read") {
       const paths = (Array.isArray(args["paths"]) ? args["paths"] : [])
