@@ -24,8 +24,8 @@ export const Route = createFileRoute("/local/$industry/$state")({
         meta: [{ title: "Page not found — Revora" }, { name: "robots", content: "noindex" }],
       };
     }
-    // Template variants remain out of search until they earn unique value.
-    // Self-reference their actual address so sharing does not attribute their copy to the hub.
+    // Preserve existing crawl eligibility, including pages already earning Google impressions.
+    // Self-reference the served page rather than attributing its city-specific copy to the hub.
     return {
       meta: [
         { title: content.title },
@@ -34,7 +34,6 @@ export const Route = createFileRoute("/local/$industry/$state")({
         { property: "og:description", content: content.description },
         { property: "og:type", content: "website" },
         { name: "twitter:card", content: "summary_large_image" },
-        { name: "robots", content: "noindex, follow" },
         ogUrl(content.path),
       ],
       links: [canonicalLink(content.path)],

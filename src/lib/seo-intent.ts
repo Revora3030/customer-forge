@@ -346,8 +346,8 @@ export function seoInventory(): SeoPage[] {
           words,
           // Trade x state combinations are generated from one template, so they
           // are near-duplicates of each other and of the trade hub. They stay
-          // live with self-referencing metadata but noindex and remain out of
-          // the sitemap until they carry genuine page-specific value.
+          // live and crawlable with self-referencing metadata, but remain out
+          // of the promoted sitemap inventory until they carry unique value.
           false,
         ),
       );

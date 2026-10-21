@@ -6,7 +6,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 type Row = Record<string, unknown>;
-const db: { tables: Record<string, Row[]>; failTable?: string } = { tables: {} };
+const db: { tables: Record<string, Row[]>; failTable: string | undefined } = { tables: {}, failTable: undefined };
 
 function fakeClient() {
   return {
@@ -162,8 +162,8 @@ describe("/sitemaps/sites.xml", () => {
   it("reads beyond the backend's 1,000 row boundary without losing sites", async () => {
     for (let i = 0; i < 1100; i++) {
       const id = `org-${i}`;
-      db.tables["organizations"].push(org(id, `site-${i}`));
-      db.tables["public_website_settings"].push({ organization_id: id, published: true, publish_state: "published" });
+      db.tables["organizations"]?.push(org(id, `site-${i}`));
+      db.tables["public_website_settings"]?.push({ organization_id: id, published: true, publish_state: "published" });
     }
     const slugs = await platformSitemapSlugs();
     expect(slugs.length).toBe(1101);
