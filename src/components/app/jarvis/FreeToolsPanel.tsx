@@ -51,6 +51,7 @@ export function FreeToolsPanel() {
   const [target, setTarget] = useState("https://revoragrowthsystems.com/");
   const [query, setQuery] = useState("tanstack start: server functions");
   const [photoQuery, setPhotoQuery] = useState("auto detailing foam wash");
+  const [placeQuery, setPlaceQuery] = useState("mobile detailing Durham NC");
   const [sheetUrl, setSheetUrl] = useState("");
   const [strategy, setStrategy] = useState("mobile");
   const [running, setRunning] = useState<string | null>(null);
@@ -79,6 +80,7 @@ export function FreeToolsPanel() {
       <label className="block space-y-1 text-xs">Documentation query<Input aria-label="Documentation query" value={query} onChange={(event) => setQuery(event.target.value)} /></label>
       <label className="block space-y-1 text-xs">Google Sheets link<Input aria-label="Google Sheets link" placeholder="https://docs.google.com/spreadsheets/d/…" value={sheetUrl} onChange={(event) => setSheetUrl(event.target.value)} /></label>
       <label className="block space-y-1 text-xs">Photo search<Input aria-label="Stock photo search" value={photoQuery} onChange={(event) => setPhotoQuery(event.target.value)} /></label>
+      <label className="block space-y-1 text-xs">Map search<Input aria-label="Map search" value={placeQuery} onChange={(event) => setPlaceQuery(event.target.value)} /></label>
       {tools.map((tool) => {
         const result = results[tool.id];
         const reason = result?.data && typeof result.data === "object" && !Array.isArray(result.data) && "reason" in result.data ? result.data["reason"] : null;
