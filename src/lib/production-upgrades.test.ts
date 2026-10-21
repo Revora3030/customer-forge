@@ -55,6 +55,20 @@ describe("build failure classification", () => {
     expect(classifyBuildFailure(new Error("fetch failed")).retryable).toBe(true);
   });
 
+  it("treats a reviewer refusal over thin facts as an intake problem, not a worker fault", () => {
+    const thinFacts = classifyBuildFailure(
+      new Error(
+        'The AI design team couldn\'t finish the page plan right now (the reviewer refused the proposed structure: [{"field":"structure","reason":"Not approvable as proposed. The supplied facts establish only the business name, audience and industry."}]).',
+      ),
+    );
+    expect(thinFacts).toMatchObject({ kind: "intake_validation", retryable: false });
+    expect(thinFacts.ownerMessage).toMatch(/add them/i);
+    const structural = classifyBuildFailure(
+      new Error('the reviewer refused the proposed structure: [{"field":"pages","reason":"Services page has no conversion path."}]'),
+    );
+    expect(structural).toMatchObject({ kind: "content", retryable: true });
+  });
+
   it("round-trips a stable tag on the stored message", () => {
     const tagged = tagFailureMessage("image", "Hero failed");
     expect(tagged).toBe("[image] Hero failed");
