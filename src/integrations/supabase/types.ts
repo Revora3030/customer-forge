@@ -2358,6 +2358,7 @@ export type Database = {
           created_at: string
           id: string
           role: string
+          run_id: string | null
           user_id: string
         }
         Insert: {
@@ -2365,6 +2366,7 @@ export type Database = {
           created_at?: string
           id?: string
           role: string
+          run_id?: string | null
           user_id?: string
         }
         Update: {
@@ -2372,6 +2374,7 @@ export type Database = {
           created_at?: string
           id?: string
           role?: string
+          run_id?: string | null
           user_id?: string
         }
         Relationships: []
@@ -2420,6 +2423,72 @@ export type Database = {
           name?: string
           prompt?: string
           updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      jarvis_run_events: {
+        Row: {
+          artifact_url: string | null
+          created_at: string
+          duration_ms: number | null
+          error: string | null
+          finished_at: string | null
+          id: string
+          input_summary: string | null
+          kind: string
+          label: string | null
+          message_id: string | null
+          model: string | null
+          output_summary: string | null
+          provider: string | null
+          run_id: string
+          started_at: string
+          status: string
+          step: number
+          tool_id: string | null
+          user_id: string
+        }
+        Insert: {
+          artifact_url?: string | null
+          created_at?: string
+          duration_ms?: number | null
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          input_summary?: string | null
+          kind: string
+          label?: string | null
+          message_id?: string | null
+          model?: string | null
+          output_summary?: string | null
+          provider?: string | null
+          run_id: string
+          started_at?: string
+          status: string
+          step?: number
+          tool_id?: string | null
+          user_id: string
+        }
+        Update: {
+          artifact_url?: string | null
+          created_at?: string
+          duration_ms?: number | null
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          input_summary?: string | null
+          kind?: string
+          label?: string | null
+          message_id?: string | null
+          model?: string | null
+          output_summary?: string | null
+          provider?: string | null
+          run_id?: string
+          started_at?: string
+          status?: string
+          step?: number
+          tool_id?: string | null
           user_id?: string
         }
         Relationships: []
