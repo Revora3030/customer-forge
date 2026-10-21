@@ -151,7 +151,7 @@ export function PageHead({
     >
       <div className="min-w-0">
         <p className="eyebrow">{eyebrow}</p>
-        <h1 className="mt-1 font-display text-[22px] leading-tight font-semibold text-balance sm:text-[24px]">
+        <h1 className="mt-1 font-editorial text-[28px] leading-tight text-balance sm:text-[32px]">
           {title}
         </h1>
         {purpose ? (

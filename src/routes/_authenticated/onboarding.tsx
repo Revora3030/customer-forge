@@ -630,7 +630,7 @@ function Onboarding() {
   if (ws?.workspace?.organization.onboarding_completed) {
     return (
       <div className="mx-auto max-w-md px-4 py-20 text-center">
-        <h1 className="font-display text-[20px] font-semibold">You're already set up</h1>
+        <h1 className="font-editorial text-[26px] leading-tight">You're already set up</h1>
         <Button variant="signal" className="mt-6" onClick={() => navigate({ to: "/app" })}>
           Go to dashboard
         </Button>
@@ -698,7 +698,7 @@ function Onboarding() {
           {step === 0 ? (
             <div className="space-y-5">
               <div>
-                <h1 className="font-display text-[20px] font-semibold">
+                <h1 className="font-editorial text-[26px] leading-tight">
                   Tell us about the business
                 </h1>
                 <p className="mt-1.5 text-[13px] text-muted-foreground">
@@ -785,7 +785,7 @@ function Onboarding() {
           {step === 1 ? (
             <div className="space-y-5">
               <div>
-                <h1 className="font-display text-[20px] font-semibold">What do you sell?</h1>
+                <h1 className="font-editorial text-[26px] leading-tight">What do you sell?</h1>
                 <p className="mt-1.5 text-[13px] text-muted-foreground">
                   Add each service you want on the website. Leave price blank if you quote per job.
                 </p>
@@ -876,7 +876,7 @@ function Onboarding() {
           {step === 2 ? (
             <div className="space-y-5">
               <div>
-                <h1 className="font-display text-[20px] font-semibold">Brand and visuals</h1>
+                <h1 className="font-editorial text-[26px] leading-tight">Brand and visuals</h1>
                 <p className="mt-1.5 text-[13px] text-muted-foreground">
                   Optional. Upload your own photos or paste links — your photos always go on your site first.
                 </p>
@@ -934,7 +934,7 @@ function Onboarding() {
           {step === 3 ? (
             <div className="space-y-5">
               <div>
-                <h1 className="font-display text-[20px] font-semibold">
+                <h1 className="font-editorial text-[26px] leading-tight">
                   How can customers reach you?
                 </h1>
                 <p className="mt-1.5 text-[13px] text-muted-foreground">
@@ -1026,7 +1026,7 @@ function Onboarding() {
           {step === 4 ? (
             <div className="space-y-5">
               <div>
-                <h1 className="font-display text-[20px] font-semibold">Proof and credentials</h1>
+                <h1 className="font-editorial text-[26px] leading-tight">Proof and credentials</h1>
                 <p className="mt-1.5 text-[13px] text-muted-foreground">
                   Only what you provide gets published. Revora never writes fake reviews or awards.
                 </p>
@@ -1120,7 +1120,7 @@ function Onboarding() {
           {step === 5 ? (
             <div className="space-y-5">
               <div>
-                <h1 className="font-display text-[20px] font-semibold">What should visitors do?</h1>
+                <h1 className="font-editorial text-[26px] leading-tight">What should visitors do?</h1>
                 <p className="mt-1.5 text-[13px] text-muted-foreground">
                   Pick every action that matters. The first one becomes your main button.
                 </p>

@@ -501,7 +501,7 @@ function AppShell() {
           ) : paymentLocked ? (
             <div className="panel mx-auto mt-10 max-w-lg p-8 text-center">
               <p className="eyebrow">Access paused</p>
-              <h1 className="mt-2 font-display text-2xl font-bold">
+              <h1 className="mt-2 font-editorial text-[30px] leading-tight">
                 Activate your Revora Growth System
               </h1>
               <p className="mt-3 text-[14px] text-muted-foreground">

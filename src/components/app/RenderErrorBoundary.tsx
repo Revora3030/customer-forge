@@ -39,7 +39,7 @@ export class RenderErrorBoundary extends Component<Props, State> {
       <div className="flex min-h-screen items-center justify-center bg-background px-4">
         <div className="w-full max-w-md text-center">
           <p className="eyebrow">Revora recovery</p>
-          <h1 className="mt-3 font-display text-2xl font-semibold text-foreground">{title}</h1>
+          <h1 className="mt-3 font-editorial text-[30px] leading-tight text-foreground">{title}</h1>
           <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{body}</p>
           <div className="mt-6 flex flex-wrap justify-center gap-2">
             <button

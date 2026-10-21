@@ -75,7 +75,7 @@ function WelcomePage() {
     <div className="product-page">
       <div>
         <p className="eyebrow">Welcome</p>
-        <h1 className="mt-1 font-display text-[24px] font-semibold">
+        <h1 className="mt-1 font-editorial text-[30px] leading-tight">
           {setupPaid && subActive
             ? "You're officially onboard with Revora."
             : "We're confirming your payment"}
