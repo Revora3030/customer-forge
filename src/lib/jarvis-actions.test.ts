@@ -4,6 +4,7 @@ import {
   applyEdits,
   parsePullRequestProposal,
   extractActionBlock,
+  JARVIS_ACTION_CLASSES,
   MAX_ACTIONS_PER_STEP,
   parseActions,
   speakableText,
