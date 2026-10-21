@@ -84,7 +84,7 @@ function AdminWebsites() {
     <div className="product-page">
       <div>
         <p className="eyebrow">Quality control</p>
-        <h1 className="mt-1 font-display text-[24px] font-semibold">Website queue</h1>
+        <h1 className="mt-1 font-editorial text-[30px] leading-tight">Website queue</h1>
         <p className="mt-1.5 text-[13px] text-muted-foreground">
           Every client website state and change request in one place.
         </p>

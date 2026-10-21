@@ -59,7 +59,7 @@ export function DraftMessage({
   return (
     <div className="flex min-h-screen items-center justify-center px-4 text-center">
       <div>
-        <h1 className="font-display text-[20px] font-semibold">{title}</h1>
+        <h1 className="font-editorial text-[26px] leading-tight">{title}</h1>
         <p className="mt-2 text-[13px] text-muted-foreground">{body}</p>
         {typeof progress === "number" ? (
           <div className="mx-auto mt-4 w-full max-w-xs">

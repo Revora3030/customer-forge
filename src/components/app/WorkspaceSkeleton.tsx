@@ -11,7 +11,7 @@ export function WorkspaceSkeleton({
     <div className="product-page">
       <div>
         <p className="eyebrow">Workspace</p>
-        <h1 className="mt-1 font-display text-[24px] font-semibold">{title}</h1>
+        <h1 className="mt-1 font-editorial text-[30px] leading-tight">{title}</h1>
         <p className="mt-2 max-w-2xl text-[14px] leading-relaxed text-muted-foreground">{body}</p>
       </div>
       <div className="grid gap-3 sm:grid-cols-3">

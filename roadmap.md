@@ -182,3 +182,5 @@ Owner approved porting two ideas (audit of the uploaded Next.js project; auto pa
 - [x] Search Console: local page titles now name a third city (e.g. Huntsville); existing Search Growth panel reused instead of a duplicate card
 - [x] Business Profile description replaced with truthful text
 - [ ] Business Profile hours: waiting on owner's real reply hours
+- [x] Redesign phase 3 (part): serif page titles across signed-in and admin pages; checked 5 pages signed in, no errors
+- [ ] Redesign: deeper restyle of signed-in cards/tables and sidebar
