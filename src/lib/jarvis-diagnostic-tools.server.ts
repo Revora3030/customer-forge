@@ -576,7 +576,7 @@ export async function executeJarvisDiagnosticTool(
           `One ${strategy} Lighthouse lab run via Google PageSpeed Insights; scores vary run to run.`,
           "Lab data is not real-visitor Core Web Vitals and covers only this URL.",
         ];
-        const res = await fetch(buildPageSpeedUrl(process.env["GOOGLE_PAGESPEED_API_KEY"], target, strategy), { signal: AbortSignal.timeout(14000) });
+        const res = await fetch(buildPageSpeedUrl(process.env["GOOGLE_PAGESPEED_API_KEY"], target, strategy), { signal: AbortSignal.timeout(59000) });
         if (!res.ok) {
           return result(toolId, "unknown", { reason: res.status === 429 ? "free_quota_exhausted" : `pagespeed_http_${res.status}`, keyConfigured: Boolean(process.env["GOOGLE_PAGESPEED_API_KEY"]) }, { checkedAt, durationMs: Date.now() - started, limitations });
         }
@@ -615,7 +615,8 @@ export async function executeJarvisDiagnosticTool(
       if (!lib) return result(toolId, "unknown", { reason: "library_not_found", library: q.library }, { checkedAt, durationMs: Date.now() - started, limitations });
       const docs = await fetch(buildDocsUrl(lib.id, q.topic), { headers, signal: AbortSignal.timeout(7000) });
       if (!docs.ok) return result(toolId, "unknown", { reason: `context7_http_${docs.status}`, source: lib.id }, { checkedAt, durationMs: Date.now() - started, limitations });
-      const text = (await docs.text()).slice(0, 7500);
+      const text = (await readLimited(docs, 12000)).slice(0, 7500);
+      if (!text.trim()) return result(toolId, "unknown", { reason: "empty_documentation", source: lib.id }, { checkedAt, durationMs: Date.now() - started, limitations });
       return result(toolId, "observed", { source: lib.id, library: lib.title, topic: q.topic || null, excerpt: text }, { checkedAt, durationMs: Date.now() - started, limitations });
     }
 
@@ -694,8 +695,9 @@ export async function executeJarvisDiagnosticTool(
       checkedAt, durationMs: Date.now() - started,
       limitations: ["Registered tool has no executor path; fail-closed result."],
     });
-  } catch {
-    return result(toolId, "unknown", { reason: "diagnostic_execution_failed" }, {
+  } catch (error) {
+    const timedOut = error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
+    return result(toolId, "unknown", { reason: timedOut ? "diagnostic_timeout" : "diagnostic_execution_failed" }, {
       checkedAt,
       durationMs: Date.now() - started,
       limitations: ["No successful evidence was recorded for this diagnostic run."],

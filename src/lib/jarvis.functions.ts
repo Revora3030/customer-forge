@@ -347,19 +347,35 @@ export const getJarvisDiagnosticTools = createServerFn({ method: "GET" })
     return getJarvisDiagnosticToolCatalog();
   });
 
-/** A caller can select a tool ID only; tool-specific arguments are not accepted. */
+/** Server-owned credential presence only; no credentials or automatic provider calls. */
+export const getJarvisFreeToolReadiness = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await guardedAdmin(context);
+    return {
+      "website.lighthouse.audit": Boolean(process.env["GOOGLE_PAGESPEED_API_KEY"]),
+      "website.browser.check": Boolean(process.env["BROWSERLESS_API_KEY"]),
+      "docs.lookup": Boolean(process.env["CONTEXT7_API_KEY"]),
+    };
+  });
+
+/** Fixed registered tools only; bounded inputs are still allow-listed by the executor. */
 export const runJarvisDiagnosticTool = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((input: { toolId: string }) => {
+  .validator((input: { toolId: string; args?: { target?: string; strategy?: string; query?: string } }) => {
     if (typeof input?.toolId !== "string" || input.toolId.length > 120) {
       throw new Error("Choose a registered Jarvis diagnostic tool.");
     }
-    return { toolId: input.toolId };
+    const args = input.args ?? {};
+    for (const value of [args.target, args.strategy, args.query]) {
+      if (value !== undefined && (typeof value !== "string" || value.length > 300)) throw new Error("Invalid diagnostic input.");
+    }
+    return { toolId: input.toolId, args: { ...(args.target !== undefined ? { target: args.target } : {}), ...(args.strategy !== undefined ? { strategy: args.strategy } : {}), ...(args.query !== undefined ? { query: args.query } : {}) } };
   })
   .handler(async ({ context, data }) => {
     const db = await guardedAdmin(context);
     const { executeJarvisDiagnosticTool } = await import("./jarvis-diagnostic-tools.server");
-    return executeJarvisDiagnosticTool(db, data.toolId);
+    return executeJarvisDiagnosticTool(db, data.toolId, data.args);
   });
 
 
