@@ -5,6 +5,7 @@ import {
 import { SiteFooter, SiteHeader } from "@/components/marketing/Chrome";
 import { AuthHint } from "@/components/marketing/AuthButtons";
 import { HeroStarter } from "@/components/marketing/HeroStarter";
+import { ParticleField } from "@/components/marketing/ParticleField";
 import { DashboardPreview } from "@/components/marketing/DashboardPreview";
 import { FAQ } from "@/components/marketing/FAQ";
 import { HOME_HEADLINE, HOME_TRIAL_CHARGE_NOTE, marketingHomeHead } from "@/components/marketing/home-head";
@@ -125,16 +126,20 @@ function Landing() {
 
       <main>
         {/* HERO */}
-        <section className="hero-aura border-b border-border">
+        <section className="hero-aura relative overflow-hidden border-b border-border">
+          <ParticleField className="pointer-events-none absolute inset-0 h-full w-full opacity-70" />
           {/* grid-cols-1 pins the mobile column to minmax(0,1fr); without it the
               implicit auto column grows to the widest child's min-content width
               and the hero text is clipped off-screen on phones. */}
-          <div className="mx-auto grid max-w-6xl grid-cols-1 gap-8 px-4 py-10 lg:grid-cols-[1.02fr_0.98fr] lg:items-center lg:gap-10 lg:py-20">
+          <div className="relative mx-auto grid max-w-6xl grid-cols-1 gap-8 px-4 py-12 lg:grid-cols-[1.02fr_0.98fr] lg:items-center lg:gap-10 lg:py-24">
             <div className="hero-stagger min-w-0">
               <Pill tone="signal">
                 <Sparkles className="size-3.5" aria-hidden="true" /> Revora Growth Systems™
               </Pill>
-              <h1 className="mt-5 font-display text-[32px] sm:text-[48px] leading-[1.04] font-semibold tracking-tight">
+              <p className="mt-5 text-[10px] font-semibold tracking-[0.18em] text-champagne/80 sm:text-[11px] sm:tracking-[0.32em]">
+                BUILD · ATTRACT · AUTOMATE · CONVERT · GROW
+              </p>
+              <h1 className="mt-3 font-editorial text-[38px] leading-[1.02] sm:text-[60px] text-balance">
                 {HOME_HEADLINE}
               </h1>
               <p className="mt-4 max-w-xl text-[15px] leading-relaxed text-muted-foreground">
