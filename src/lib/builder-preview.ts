@@ -18,6 +18,15 @@ export function previewZoom(value: number): number {
   return Math.min(1, Math.max(0.5, Math.round(value * 20) / 20));
 }
 export type CompareMode = "off" | "side" | "overlay";
+/** Overlay requires a live image; unpublished sites still retain their draft pane. */
+export function effectiveCompareMode(mode: CompareMode, livePublished: boolean): CompareMode {
+  return mode === "overlay" && !livePublished ? "side" : mode;
+}
+export function comparisonStatus(loading: boolean, failed: boolean, diff: DraftDiff | null): string {
+  if (loading) return "Comparing…";
+  if (failed) return "Comparison unavailable";
+  return draftDiffLabel(diff);
+}
 export function nextCompareMode(mode: CompareMode): CompareMode {
   return mode === "off" ? "side" : mode === "side" ? "overlay" : "off";
 }
