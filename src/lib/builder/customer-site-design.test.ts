@@ -16,7 +16,7 @@ describe("AI component tokens", () => {
   });
 });
 
-const site = (hasMedia?: boolean) => ({
+const site = (hasMedia: boolean) => ({
   navItemCount: 4,
   pages: [{ id: "home", sections: [{ id: "s1", kind: "hero", componentCount: 3, hasMedia }] }],
 });
