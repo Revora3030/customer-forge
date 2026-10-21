@@ -62,6 +62,8 @@ export const clearJarvisHistory = createServerFn({ method: "POST" })
     const db = await guardedAdmin(context);
     const { error } = await db.from("jarvis_messages").delete().eq("user_id", String(context.userId));
     if (error) throw new Error("Couldn't clear your Jarvis chat.");
+    // Emptied conversations go to Archived so the list doesn't fill with blanks.
+    await db.from("jarvis_conversations").update({ archived: true }).eq("user_id", String(context.userId)).eq("archived", false);
     return { ok: true };
   });
 

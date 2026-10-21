@@ -310,6 +310,8 @@ function Jarvis() {
       setFollowups([]);
       setOlder([]);
       setMoreEarlier(true);
+      setConversationId(null);
+      void qc.invalidateQueries({ queryKey: ["jarvis", "conversations"] });
       return qc.invalidateQueries({ queryKey: ["jarvis", "history"] });
     },
     onError: (error: Error) => toast.error(error.message),
