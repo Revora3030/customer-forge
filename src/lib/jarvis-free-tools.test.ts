@@ -31,6 +31,12 @@ describe("Lighthouse options", () => {
 });
 
 describe("Live page check", () => {
+  it("keeps canceled requests visible without treating them as proven page failures", () => {
+    const summary = summarizeBrowserCheck({ viewports: [{ viewport: "phone", httpStatus: 200, canceledRequests: ["https://revoragrowthsystems.com/ net::ERR_ABORTED"] }] }, DEFAULT_TARGET);
+    if (!summary) throw new Error("Expected report");
+    expect(summary.viewports[0]?.canceledRequests).toHaveLength(1);
+    expect(browserCheckHasProblems(summary)).toBe(false);
+  });
   it("accepts the official Browserless response envelope", () => {
     expect(summarizeBrowserCheck({ data: { viewports: [{ viewport: "desktop", httpStatus: 200 }] }, type: "application/json" }, DEFAULT_TARGET)?.viewports[0]?.httpStatus).toBe(200);
   });

@@ -12,6 +12,7 @@ export type ViewportReport = {
   title: string | null;
   scriptErrors: string[];
   failedRequests: string[];
+  canceledRequests: string[];
   horizontalOverflowPx: number;
   brokenLinks: string[];
 };
@@ -24,10 +25,10 @@ export default async function ({ page, context }) {
   const sizes = [["phone", 390, 844], ["desktop", 1280, 900]];
   const out = [];
   for (const [name, w, h] of sizes) {
-    const errors = []; const failed = [];
+    const errors = []; const failed = []; const canceled = [];
     page.removeAllListeners("pageerror"); page.removeAllListeners("requestfailed"); page.removeAllListeners("response");
     page.on("pageerror", (e) => errors.push(String(e && e.message || e).slice(0, 200)));
-    page.on("requestfailed", (r) => failed.push((r.url() + " " + (r.failure()?.errorText || "")).slice(0, 200)));
+    page.on("requestfailed", (r) => { const reason = r.failure()?.errorText || ""; (reason.includes("ERR_ABORTED") ? canceled : failed).push((r.url() + " " + reason).slice(0, 200)); });
     page.on("response", (r) => { if (r.status() >= 400) failed.push((r.status() + " " + r.url()).slice(0, 200)); });
     await page.setViewport({ width: w, height: h });
     let status = null;
@@ -39,7 +40,7 @@ export default async function ({ page, context }) {
       for (const href of links) { try { const r = await fetch(href, { method: "HEAD" }); if (r.status >= 400) broken.push(r.status + " " + href); } catch { broken.push("unreachable " + href); } }
       return { overflow, broken, title: document.title || null };
     }).catch(() => ({ overflow: 0, broken: [], title: null }));
-    out.push({ viewport: name, httpStatus: status, title: info.title, scriptErrors: errors.slice(0, 10), failedRequests: failed.slice(0, 10), horizontalOverflowPx: info.overflow, brokenLinks: info.broken.slice(0, 10) });
+    out.push({ viewport: name, httpStatus: status, title: info.title, scriptErrors: errors.slice(0, 10), failedRequests: failed.slice(0, 10), canceledRequests: canceled.slice(0, 10), horizontalOverflowPx: info.overflow, brokenLinks: info.broken.slice(0, 10) });
   }
   return { data: { viewports: out }, type: "application/json" };
 }`;
@@ -58,6 +59,7 @@ export function summarizeBrowserCheck(raw: unknown, url: string): BrowserCheckSu
       title: typeof r["title"] === "string" ? r["title"].slice(0, 160) : null,
       scriptErrors: strList(r["scriptErrors"]),
       failedRequests: strList(r["failedRequests"]),
+      canceledRequests: strList(r["canceledRequests"]),
       horizontalOverflowPx: typeof r["horizontalOverflowPx"] === "number" ? r["horizontalOverflowPx"] : 0,
       brokenLinks: strList(r["brokenLinks"]),
     };

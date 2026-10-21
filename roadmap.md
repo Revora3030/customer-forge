@@ -1,8 +1,8 @@
 # Roadmap — Five-phase blocker elimination
 
 ## Finish free Jarvis tools (2026-10-21)
-- [ ] Finish page-check/docs inputs and readiness controls; fix offline test failures.
-- [ ] Verify the three keys the owner already supplied, without requesting them again; run bounded smoke checks.
+- [x] Finish page-check/docs inputs and readiness controls; update Context7 API and Browserless envelope; correct speed timeout and preserve canceled requests separately.
+- [x] All three supplied keys are saved; signed-in smoke checks returned docs with sources, mobile Lighthouse scores (62 performance / 95 accessibility / 100 best practices / 100 SEO), and phone/desktop browser evidence. Browser reports failed tracking requests, but no script errors, broken links or sideways overflow; no all-clear claim.
 - [ ] Live availability requires authorized publishing; no publishing requested.
 
 ## Search acquisition upgrade (2026-10-21)
