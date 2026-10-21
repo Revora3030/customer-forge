@@ -1,5 +1,6 @@
 import { guardedFetch } from "./net-guard.server";
 import { validatePublicWebsiteUrl } from "./audit/website-audit";
+import { ownDomainLogoUrl } from "./brand-logos";
 import { extractFacts, mergeFacts, nextPages, type ImportedFacts } from "./site-import";
 
 const MAX_PAGE_BYTES = 1_500_000;
@@ -92,5 +93,9 @@ export async function importSite(rawUrl: string): Promise<SiteImportResult> {
     }),
   );
   const pages = [{ url: home.url, facts: first }, ...extra.filter((page): page is NonNullable<typeof page> => page !== null)];
-  return { url: home.url, pagesRead: pages.map((page) => page.url), facts: mergeFacts(pages.map((page) => page.facts)) };
+  const facts = mergeFacts(pages.map((page) => page.facts));
+  // No logo in any page's markup: try Logo.dev for the owner's own domain.
+  // The owner still reviews imported facts before anything is applied.
+  if (!facts.logoUrl) facts.logoUrl = ownDomainLogoUrl(home.url);
+  return { url: home.url, pagesRead: pages.map((page) => page.url), facts };
 }

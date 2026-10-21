@@ -42,3 +42,23 @@ export function resolveImageSource(src: string): string {
     return src;
   }
 }
+
+/**
+ * Logo for the customer's OWN website domain only (from the address they
+ * gave us). `fallback=404` makes Logo.dev return nothing rather than a
+ * made-up monogram, so an unknown brand never gets a fake logo.
+ */
+export function ownDomainLogoUrl(ownWebsiteUrl: string): string {
+  let host = "";
+  try {
+    const u = new URL(ownWebsiteUrl);
+    if (u.protocol !== "https:" && u.protocol !== "http:") return "";
+    host = u.hostname.toLowerCase().replace(/^www\./, "");
+  } catch {
+    return "";
+  }
+  if (!host.includes(".") || /^[\d.]+$/.test(host) || host === "localhost") return "";
+  const url = new URL(logoDevUrl(host, 256));
+  url.searchParams.set("fallback", "404");
+  return url.toString();
+}
