@@ -397,6 +397,8 @@ const FREE_MODEL_DEFAULTS: Record<FreeProviderName, Partial<Record<ModelRole, st
   },
   // OmniRoute's own auto routing combo; override per role with
   // FREE_AI_OMNIROUTE_MODEL_<ROLE>. No vision default: not every combo reads images.
+  // No default: the owner names each model via FREE_AI_SELFHOSTED_MODEL_<ROLE>.
+  selfhosted: {},
   omniroute: {
     primary: "auto",
     design: "auto",
