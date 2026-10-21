@@ -6,7 +6,7 @@ import { SiteFooter, SiteHeader } from "@/components/marketing/Chrome";
 import { RelatedLinks } from "@/components/marketing/SeoLinks";
 import { Button } from "@/components/ui/button";
 import { BUSINESS } from "@/lib/business-identity";
-import { GROWTH_SYSTEM, usdExact } from "@/lib/offer";
+import { GROWTH_SYSTEM, usd } from "@/lib/offer";
 import { breadcrumbSchema, canonicalLink, ogUrl, SITE_URL, metaDescription } from "@/lib/seo";
 import { localPageContent, localPath, type LocalPageContent } from "@/lib/local-pages";
 import { trackConversion } from "@/lib/conversion";
@@ -76,7 +76,7 @@ export const Route = createFileRoute("/local/$industry/$state")({
               "@type": "Offer",
               price: GROWTH_SYSTEM.setupPrice,
               priceCurrency: "USD",
-              description: `${usdExact(GROWTH_SYSTEM.setupPrice)} setup, first month free, then ${usdExact(GROWTH_SYSTEM.monthlyPrice)}/month`,
+              description: `${usd(GROWTH_SYSTEM.setupPrice)} setup, first month free, then ${usd(GROWTH_SYSTEM.monthlyPrice)}/month`,
               url: `${SITE_URL}/get-started`,
             },
           }),
@@ -148,8 +148,8 @@ function LocalIndustryStatePage() {
             </Button>
           </div>
           <p className="mt-3 text-[13px] text-muted-foreground">
-            {usdExact(GROWTH_SYSTEM.setupPrice)} one-time setup · first month free · then{" "}
-            {usdExact(GROWTH_SYSTEM.monthlyPrice)}/month · cancel anytime
+            {usd(GROWTH_SYSTEM.setupPrice)} one-time setup · first month free · then{" "}
+            {usd(GROWTH_SYSTEM.monthlyPrice)}/month · cancel anytime
           </p>
         </section>
 
@@ -226,8 +226,8 @@ function LocalIndustryStatePage() {
               Ready to stop losing {state.name} jobs to whoever answers first?
             </h2>
             <p className="mx-auto mt-2 max-w-xl text-[14px] text-muted-foreground">
-              Get {GROWTH_SYSTEM.fullAccessWindow} of free full access, then {usdExact(GROWTH_SYSTEM.setupPrice)} to launch and
-              your first month of the {usdExact(GROWTH_SYSTEM.monthlyPrice)}/month platform fee
+              Get {GROWTH_SYSTEM.fullAccessWindow} of free full access, then {usd(GROWTH_SYSTEM.setupPrice)} to launch and
+              your first month of the {usd(GROWTH_SYSTEM.monthlyPrice)}/month platform fee
               free.
             </p>
             <div className="mt-5 flex flex-wrap justify-center gap-3">
