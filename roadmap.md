@@ -1,5 +1,11 @@
 # Roadmap — Five-phase blocker elimination
 
+## Search acquisition upgrade (2026-10-21)
+- [ ] Audit Google evidence, public metadata, crawl boundaries and existing buying-focused pages.
+- [ ] Improve existing homepage, states and about content, contextual links and truthful search metadata without changing billing or customer sites.
+- [ ] Repair reproducible search infrastructure inconsistencies; run focused regressions and browser-check discovery → pricing → signup.
+- [ ] Live search impact requires owner-authorized publishing and subsequent Google data; no traffic or customer guarantees.
+
 ## Continued builder upgrade (2026-10-21)
 - [x] Unpublished overlay retains draft; failed diff says unavailable; fullscreen remeasures, Escape exits/restores focus and scrolling; phone starts at 390px; contrast scan no longer claims full AA compliance; draft notifications are workspace-scoped.
 - [x] Signed-in existing draft renders on desktop/phone; fullscreen/Escape/focus/compare controls checked without page errors or generation. Offline suite: 3,150 passed, 6 live tests skipped; focused lint clean; harness build OK.
