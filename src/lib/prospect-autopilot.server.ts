@@ -438,7 +438,7 @@ async function buildPhase(
       const publicEmail = enrichment?.email && enrichment.status !== "rejected" ? enrichment.email : listedEmail;
       // Contact first: outreach is email-only, so a demo with no public email
       // could never be shared. Skip it before spending a build on it.
-      if (!publicEmail) {
+      if (!publicEmail && !(settings.sendSms && e164)) {
         skip({ reason: "no_public_email", name: prospect.name, target: query });
         continue;
       }
