@@ -112,6 +112,12 @@ export type ViewportMeasurement = {
   overlapping?: string[] | undefined;
   narrowColumns?: string[] | undefined;
   stickyFooterHeight?: number | undefined;
+  /** Tallest vertical stretch of the page with no visible content, px. */
+  largestBlankGap?: number | undefined;
+  /** Visible viewport height at this width, px. */
+  viewportHeight?: number | undefined;
+  /** True when the first screen shows no photo, picture or video. */
+  openingVisualMissing?: boolean | undefined;
 
   /** Runtime script errors and unhandled rejections seen inside the page. */
   runtimeErrors?: string[] | undefined;
@@ -371,6 +377,25 @@ export function gradeViewport(
       "p0",
       `At ${width}px no visible conversion action was detected.`,
       "Provide an appropriate next step such as booking, quote, contact, enquiry, application, purchase, or consultation.",
+    );
+  }
+
+  const blankGap = measurement.largestBlankGap;
+  const screen = measurement.viewportHeight;
+  if (typeof blankGap === "number" && typeof screen === "number" && screen > 0 && blankGap > screen * 0.5) {
+    add(
+      "large_blank_area",
+      "p0",
+      `At ${width}px there is a ${Math.round(blankGap)}px stretch with nothing on it, more than half the screen.`,
+      "Fill or remove the empty stretch: tighten section spacing, add the missing content or visual, or collapse the empty block.",
+    );
+  }
+  if (measurement.openingVisualMissing === true) {
+    add(
+      "missing_opening_visual",
+      "p0",
+      `At ${width}px the first screen shows no photo or picture.`,
+      "Give the opening section a real business photo or an approved generated visual that fits the brand.",
     );
   }
 
@@ -2394,6 +2419,41 @@ export const MEASURE_SCRIPT = `(() => {
   };
 
   /* ---------------------------------------------------------------------- */
+  /* BLANK STRETCHES + OPENING VISUAL                                        */
+  /* ---------------------------------------------------------------------- */
+
+  const viewportHeight = window.innerHeight;
+  const docHeight = Math.max(document.documentElement.scrollHeight, document.body ? document.body.scrollHeight : 0);
+  const filled: [number, number][] = [];
+  for (const el of Array.from(document.querySelectorAll("body *"))) {
+    if (!(el instanceof HTMLElement)) continue;
+    const isMedia = /^(IMG|SVG|VIDEO|PICTURE|CANVAS|IFRAME)$/i.test(el.tagName);
+    const hasText = Array.from(el.childNodes).some(
+      (node) => node.nodeType === 3 && (node.textContent ?? "").trim().length > 0,
+    );
+    const style = getComputedStyle(el);
+    const hasBgImage = style.backgroundImage !== "none";
+    if (!isMedia && !hasText && !hasBgImage) continue;
+    if (style.visibility === "hidden" || Number(style.opacity) === 0) continue;
+    const rect = el.getBoundingClientRect();
+    if (rect.height <= 0 || rect.width <= 0) continue;
+    filled.push([rect.top + window.scrollY, rect.bottom + window.scrollY]);
+  }
+  filled.sort((a, b) => a[0] - b[0]);
+  let largestBlankGap = 0;
+  let reach = 0;
+  for (const [top, bottom] of filled) {
+    if (top > reach) largestBlankGap = Math.max(largestBlankGap, top - reach);
+    reach = Math.max(reach, bottom);
+  }
+  if (filled.length > 0) largestBlankGap = Math.max(largestBlankGap, docHeight - reach);
+  const openingVisualMissing = !Array.from(document.querySelectorAll("img, picture, video, svg[role='img'], [style*='background-image']")).some((el) => {
+    const rect = el.getBoundingClientRect();
+    const top = rect.top + window.scrollY;
+    return top < viewportHeight && rect.width >= Math.min(200, window.innerWidth * 0.4) && rect.height >= 120;
+  });
+
+  /* ---------------------------------------------------------------------- */
   /* FINAL MEASUREMENT                                                       */
   /* ---------------------------------------------------------------------- */
 
@@ -2422,6 +2482,9 @@ export const MEASURE_SCRIPT = `(() => {
     overlapping,
     narrowColumns,
     stickyFooterHeight,
+    largestBlankGap: Math.round(largestBlankGap),
+    viewportHeight,
+    openingVisualMissing,
     runtimeErrors: Array.isArray(window.__revoraRuntimeErrors)
       ? window.__revoraRuntimeErrors.slice(0, 20)
       : [],
