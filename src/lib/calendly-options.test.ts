@@ -19,3 +19,17 @@ describe("pickPublicEventTypes", () => {
     expect(r).toEqual([]);
   });
 });
+
+import { ownDomainLogoUrl } from "./brand-logos";
+describe("ownDomainLogoUrl", () => {
+  it("uses only the owner's own domain and never a made-up fallback", () => {
+    const u = new URL(ownDomainLogoUrl("https://www.acmeplumbing.com/about"));
+    expect(u.hostname).toBe("img.logo.dev");
+    expect(u.pathname).toBe("/acmeplumbing.com");
+    expect(u.searchParams.get("fallback")).toBe("404");
+  });
+  it("rejects non-web addresses", () => {
+    expect(ownDomainLogoUrl("javascript:alert(1)")).toBe("");
+    expect(ownDomainLogoUrl("http://localhost:8080")).toBe("");
+  });
+});
