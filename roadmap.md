@@ -1,5 +1,9 @@
 # Roadmap — Five-phase blocker elimination
 
+## Continued builder upgrade (2026-10-21)
+- [ ] Repair preview compare, fullscreen measurement and unavailable comparison states; validate signed-in controls without generation or publishing.
+- [ ] Run offline regression suite and report remaining live-verification blockers.
+
 ## Uploaded one-click website brief (2026-10-21)
 - [x] Audit current generation, brief controls, preview, rendered quality and publishing against the uploaded requirements; served HTML does not prove screen/form/image/browser QA.
 - [x] Implement saved first-build owner direction, guided brief, manager-only brief writes, read-error recovery, completed-result cache refresh and honest verification evidence using the existing pipeline.
