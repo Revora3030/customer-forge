@@ -42,21 +42,24 @@ export const Route = createFileRoute("/auth")({
       out.redirect = rawRedirect;
     return out;
   },
-  head: () => ({
+  head: ({ match }) => {
+    const label = match.search.mode === "signup" ? "Create your account — Revora" : "Sign in — Revora";
+    return {
     meta: [
-      { title: "Sign in — Revora" },
+      { title: label },
       {
         name: "description",
         content:
           "Sign in or create your Revora account to manage leads, bookings and your business website.",
       },
-      { property: "og:title", content: "Sign in — Revora" },
+      { property: "og:title", content: label },
       { property: "og:description", content: "Access your business command center." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "robots", content: "noindex" },
     ],
-  }),
+    };
+  },
   component: AuthPage,
   errorComponent: RouteError,
 });
