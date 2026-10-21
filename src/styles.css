@@ -316,6 +316,19 @@
 
 /* Product surfaces follow one calm workspace rhythm. Dense tools remain
    available, but secondary detail no longer competes with the current task. */
+/* Signed-in workspace cards get a faint gold top hairline to match the
+   premium marketing layer. Scoped so customer sites never inherit it. */
+.product-workspace .panel {
+  background-image: linear-gradient(
+    to right,
+    transparent,
+    color-mix(in oklab, var(--primary) 28%, transparent),
+    transparent
+  );
+  background-size: 100% 1px;
+  background-repeat: no-repeat;
+  background-position: top;
+}
 .product-workspace {
   background: var(--color-background);
 }
