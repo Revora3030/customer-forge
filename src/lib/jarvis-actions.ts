@@ -383,6 +383,12 @@ export function parseActions(requested: unknown[], diagnosticToolIds: string[]):
       const proposal = parseDemoSendProposal(args);
       if (typeof proposal === "string") out.rejected.push(`demo.send: ${proposal}`);
       else out.proposals.push(proposal);
+    } else if (id === "research.ask") {
+      const question = str(args["question"], 2000);
+      const presetRaw = str(args["preset"], 10);
+      const preset: ResearchPreset = presetRaw === "low" || presetRaw === "medium" ? presetRaw : "fast";
+      if (question.length >= 10) out.proposals.push({ id, question, preset });
+      else out.rejected.push("research.ask: phrase the research question in at least a few words");
     } else if (id === "web.search") {
       const query = str(args["query"], 300);
       if (query.length >= 3) out.reads.push({ id, query });
@@ -498,6 +504,12 @@ export function splitReplyMeta(content: string): { body: string; meta: JarvisRep
         else if (proposal?.id === "demo.build") proposals.push({ id: "demo.build", input: parseProspectDemoInput(proposal.input) });
         else if (proposal?.id === "code.pr") proposals.push({ id: "code.pr", pr: parsePullRequestProposal(proposal.pr) });
         else if (proposal?.id === "builds.recover") proposals.push({ id: "builds.recover" });
+        else if (proposal?.id === "research.ask" && typeof proposal.question === "string" && proposal.question.trim().length >= 10)
+          proposals.push({
+            id: "research.ask",
+            question: proposal.question.trim().slice(0, 2000),
+            preset: proposal.preset === "low" || proposal.preset === "medium" ? proposal.preset : "fast",
+          });
         else if (proposal?.id === "demo.send") {
           const restored = parseDemoSendProposal(proposal);
           if (typeof restored !== "string") proposals.push(restored);
