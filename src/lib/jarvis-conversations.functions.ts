@@ -8,10 +8,9 @@ type Ctx = { supabase: unknown; userId: unknown };
 
 /** Jarvis is super-admin only; RLS additionally limits rows to the caller. */
 async function ownerDb(context: Ctx) {
-  const db = context.supabase as import("@supabase/supabase-js").SupabaseClient;
-  const { data, error } = await db.rpc("is_platform_admin" as never);
-  if (error || data !== true) throw new Error("Jarvis is only available to platform admins.");
-  return db;
+  const { assertSuperAdmin } = await import("./admin.server");
+  await assertSuperAdmin(context.supabase as Parameters<typeof assertSuperAdmin>[0], String(context.userId));
+  return context.supabase as import("@supabase/supabase-js").SupabaseClient;
 }
 
 export const listJarvisConversations = createServerFn({ method: "POST" })
