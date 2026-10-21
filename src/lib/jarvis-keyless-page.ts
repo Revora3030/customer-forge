@@ -1,5 +1,6 @@
 import { parseDocument } from "htmlparser2";
-import { findAll, getText, isTag } from "domutils";
+import { findAll, getText, textContent } from "domutils";
+import { isTag } from "domhandler";
 
 export const KEYLESS_PAGE_TOOLS = ["website.html.audit", "website.accessibility.static", "website.security.headers", "website.links.inventory"] as const;
 export type KeylessPageTool = typeof KEYLESS_PAGE_TOOLS[number];
@@ -89,7 +90,7 @@ export function analyzeKeylessPage(html: string, url: string, headers = new Head
   add(namelessButtons > 0, "buttons_missing_names"); add(duplicateIds > 0, "duplicate_ids"); add(headingSkips > 0, "heading_level_skips");
   const scripts = tags("script").filter((e) => e.attribs["type"]?.toLowerCase() === "application/ld+json");
   let invalidStructuredData = 0;
-  for (const script of scripts) { try { const value: unknown = JSON.parse(getText(script)); if (!value || typeof value !== "object") invalidStructuredData++; } catch { invalidStructuredData++; } }
+  for (const script of scripts) { try { const value: unknown = JSON.parse(textContent(script)); if (!value || typeof value !== "object") invalidStructuredData++; } catch { invalidStructuredData++; } }
   add(invalidStructuredData > 0, "invalid_structured_data_json");
   const accessibility = { imagesMissingAlt, unlabeledControls, namelessButtons, duplicateIds, headingSkips, structuredDataBlocks: scripts.length, invalidStructuredData, issues: [...issues] };
   issues.length = 0;
