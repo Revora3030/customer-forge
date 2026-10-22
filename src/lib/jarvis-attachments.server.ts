@@ -80,7 +80,6 @@ async function describeImage(userId: string, bytes: Uint8Array, mime: string) {
   try {
     const { analyzeImage } = await import("@/lib/ai/router.server");
     const result = await analyzeImage({ userId, task: "admin.jarvis.attachment" }, {
-      freeOnly: true,
       maxOutputTokens: 500,
       messages: [
         {
