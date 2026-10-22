@@ -10,9 +10,11 @@
  * provider is configuration plus one adapter.
  *
  * Guarantees enforced here, in one place:
- * - Fail closed: with no Revora-owned provider key configured, every call
- *   throws the single "Revora AI is not configured" error. There is no hidden
- *   fallback to any hosted gateway.
+ * - Fail closed: with no provider key configured, every call throws the
+ *   single "Revora AI is not configured" error. Lovable's AI Gateway is a
+ *   keyed paid provider here, not a hidden fallback: it is reachable only
+ *   when LOVABLE_API_KEY is present, outside free-only scopes, and under the
+ *   same daily paid cap as every other paid provider.
  * - Bounded work: request size, output tokens, attachment size, timeout,
  *   attempts and workspace concurrency all come from `aiLimits()`.
  * - Only retryable failures are retried, with backoff and a hard attempt cap.
@@ -93,6 +95,7 @@ import { modelscopeAdapter } from "@/lib/ai/providers/modelscope";
 import { githubModelsAdapter } from "@/lib/ai/providers/github";
 import { nvidiaAdapter } from "@/lib/ai/providers/nvidia";
 import { openRouterAdapter } from "@/lib/ai/providers/openrouter";
+import { lovableAdapter } from "@/lib/ai/providers/lovable";
 import {
   openAiAdapter,
   openaiModelReachable,
@@ -142,6 +145,7 @@ const ADAPTERS: Record<ProviderName, ProviderAdapter> = {
   opencode: opencodeAdapter,
   modelscope: modelscopeAdapter,
   github: githubModelsAdapter,
+  lovable: lovableAdapter,
 };
 
 /* ----------------------------- circuit breaker ----------------------------- */

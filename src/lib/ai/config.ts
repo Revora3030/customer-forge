@@ -14,9 +14,10 @@ import { notConfigured } from "@/lib/ai/errors";
 
 /**
  * Every provider Revora can address. `cloudflare` and `openrouter` exist only
- * as free providers (see `src/lib/ai/free.ts`); the paid chain below can still
- * only ever contain `google` or `openai`, and only when an operator has
- * explicitly opted out of free-only mode.
+ * as free providers (see `src/lib/ai/free.ts`); the paid chain below can only
+ * ever contain `google`, `openai` or `lovable` (the owner's Lovable AI
+ * Gateway workspace), and only when an operator has explicitly opted out of
+ * free-only mode.
  */
 export type ProviderName =
   | "google"
@@ -43,10 +44,11 @@ export type ProviderName =
   | "selfhosted"
   | "opencode"
   | "modelscope"
-  | "github";
+  | "github"
+  | "lovable";
 
-/** Providers that bill Revora per call. */
-export type PaidProviderName = "google" | "openai";
+/** Providers that bill Revora (or the owner's Lovable workspace) per call. */
+export type PaidProviderName = "google" | "openai" | "lovable";
 
 /** The kinds of work Revora routes; each maps to a model per provider. */
 /**
@@ -105,11 +107,27 @@ const DEFAULT_MODELS: Record<PaidProviderName, Record<ModelRole, string>> = {
     transcription: "gpt-transcribe",
     conversation: "gpt-6-astra",
   },
+  lovable: {
+    // Verified against the live Lovable AI Gateway catalogue on 2026-10-22:
+    // every id below exists, is not deprecated, and answers on
+    // chat-completions with zero data retention. Anthropic models are left
+    // out on purpose: the gateway serves them only on /v1/messages, which
+    // the lovable adapter does not speak.
+    primary: "openai/gpt-6.1-sol",
+    design: "openai/gpt-6-sol",
+    fast: "google/gemini-3.1-flash-lite",
+    vision: "google/gemini-3.8-flash",
+    coding: "openai/gpt-6.1-sol",
+    image: "openai/gpt-image-2.5-sunburst",
+    transcription: "google/gemini-3.5-transcribe",
+    conversation: "openai/gpt-6-astra",
+  },
 };
 
 const KEY_ENV: Record<PaidProviderName, string> = {
   google: "GOOGLE_AI_API_KEY",
   openai: "OPENAI_API_KEY",
+  lovable: "LOVABLE_API_KEY",
 };
 
 const ROLES: ModelRole[] = [
@@ -156,13 +174,16 @@ export function providerConfig(provider: PaidProviderName): ProviderConfig | nul
 }
 
 function readProviderName(value: string | null): PaidProviderName | null {
-  return value === "google" || value === "openai" ? value : null;
+  return value === "google" || value === "openai" || value === "lovable" ? value : null;
 }
 
 /**
  * Provider order for a task: the configured default first, then the configured
  * secondary, then any other provider that happens to hold a key. Lovable's AI
- * Gateway is not in this list and can never be reached from here.
+ * Gateway is a keyed paid lane like the other two — reachable only when
+ * LOVABLE_API_KEY is present and the request is not in a free-only scope —
+ * and sits last so Revora's own keys are tried before the owner's workspace
+ * credits.
  */
 export function providerChain(): ProviderConfig[] {
   const preferred = [
@@ -172,6 +193,7 @@ export function providerChain(): ProviderConfig[] {
     // Google key never delays a call with a guaranteed first-provider failure.
     "openai" as PaidProviderName,
     "google" as PaidProviderName,
+    "lovable" as PaidProviderName,
   ].filter((name): name is PaidProviderName => name !== null);
 
   const chain: ProviderConfig[] = [];
