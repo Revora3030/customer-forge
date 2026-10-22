@@ -2641,6 +2641,22 @@ export async function drainSiteEngineQueue(
     // expire mid-stage, so the client pump claimed the same job again and two
     // attempts wrote the site at once. The heartbeat keeps the lease alive for
     // the whole run and stops renewing once the attempt fence no longer holds.
+    // Who runs this attempt, recorded up front: when an attempt dies, its own
+    // start row says which caller was holding it (the lost row only names the
+    // caller that found it dead).
+    try {
+      await db.from("ai_generations").insert({
+        organization_id: job.organization_id,
+        job_id: job.id,
+        kind: "build_attempt_started",
+        model: "none",
+        instruction: null,
+        result: { attempt: Number(job.attempts), invoker: options.invoker ?? "unknown", startedAt: attemptStartedAt } as unknown as never,
+        created_by: job.created_by ?? null,
+      } as never);
+    } catch (error) {
+      console.warn(`[site-engine] attempt-start record for job ${job.id} skipped`, error);
+    }
     const heartbeat = startLeaseHeartbeat(db, job);
     try {
       // Demo (is_demo) workspaces build on the free pool only. The scope is
