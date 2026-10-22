@@ -3,7 +3,10 @@ import { firstBuildCoverageProblems } from "./first-build-saved-coverage";
 
 const pages = [{ id: "home", slug: "home" }, { id: "services", slug: "services" }];
 const settings = { composition: { version: 1, root: { type: "stack", children: [{ type: "heading", text: "Real business", level: 1 }] } } };
-const sections = pages.map(page => ({ id: `${page.id}-opening`, page_id: page.id, kind: "composition", settings }));
+const sections = [
+  { id: "home-opening", page_id: "home", kind: "composition", settings },
+  { id: "services-opening", page_id: "services", kind: "composition", settings },
+] as const;
 const expected = { pages: 2, sections: 2 };
 describe("first customer website saved coverage", () => {
   it("accepts authored sections on every saved page", () => {

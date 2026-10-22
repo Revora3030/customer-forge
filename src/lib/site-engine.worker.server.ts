@@ -2174,6 +2174,11 @@ async function runJob(
 
   const keepState = await nextPublishState(db, orgId);
 
+  if (!built.skipped) {
+    const { assertFirstBuildSavedCoverage } = await import("@/lib/builder/first-build-saved-coverage.server");
+    await assertFirstBuildSavedCoverage(db, orgId, { pages: built.pages, sections: built.sections });
+  }
+
   // Re-read generation right before the final save. Stages above (the AI
   // header/footer, the build marker) wrote into it after `priorGeneration`
   // was read; merging from the stale copy erased the authored menu and footer.
@@ -2253,11 +2258,6 @@ async function runJob(
   }
   await step("checks");
   await step("leads");
-
-  if (!built.skipped) {
-    const { assertFirstBuildSavedCoverage } = await import("@/lib/builder/first-build-saved-coverage.server");
-    await assertFirstBuildSavedCoverage(db, orgId, { pages: built.pages, sections: built.sections });
-  }
 
   const completion = await db
     .from("generation_jobs")
