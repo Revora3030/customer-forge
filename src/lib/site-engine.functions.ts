@@ -268,6 +268,8 @@ export const runSiteGeneration = createServerFn({ method: "POST" })
           return { jobId: running.id, status: running.status, progress: running.progress, queued: true, mode: "safe" };
         }
       }
+      if (error?.message?.includes("DAILY_BUILD_LIMIT"))
+        throw new Error("You've used all 5 website builds for the last 24 hours. Try again tomorrow — chat edits still work.");
       throw new Error(error?.message ?? "Couldn't queue the build.");
     }
 
