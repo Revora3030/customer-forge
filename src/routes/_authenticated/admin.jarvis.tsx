@@ -255,12 +255,13 @@ function Jarvis() {
   const onVoiceFallback = useCallback((reason: string) => {
     toast.message("Using your browser voice because the server voice was unavailable.", { description: reason });
   }, []);
-  const voiceStream = useCallback(
+  const voiceStreamLink = useCallback(
     async (value: string) => (await voiceLinks({ data: { texts: [value] } })).urls[0]!,
     [voiceLinks],
   );
   // Streaming links are ElevenLabs-only; Lovable speech is generated per sentence.
-  const jarvisVoice = useJarvisVoice(voiceSynth, onVoiceFallback, voiceProvider === "lovable" ? undefined : voiceStream);
+  const voiceStream = voiceProvider === "lovable" ? undefined : voiceStreamLink;
+  const jarvisVoice = useJarvisVoice(voiceSynth, onVoiceFallback, voiceStream);
   const { stop: stopVoice } = jarvisVoice;
 
   const announce = (message: string) => {
