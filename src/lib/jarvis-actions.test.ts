@@ -1,7 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getJarvisDiagnosticToolCatalog } from "./jarvis-tool-registry";
 import {
-  actionCatalogPrompt,
   appendReplyMeta,
   applyEdits,
   parsePullRequestProposal,
@@ -205,25 +203,5 @@ describe("research.ask proposals", () => {
   it("survives a reload through reply metadata", () => {
     const stored = appendReplyMeta("Worth a paid look.", { ran: [], proposals: [{ id: "research.ask", question: "Which CRMs do roofers actually use?", preset: "medium" }] });
     expect(splitReplyMeta(stored).meta.proposals).toEqual([{ id: "research.ask", question: "Which CRMs do roofers actually use?", preset: "medium" }]);
-  });
-});
-
-describe("action catalog prompt", () => {
-  it("describes every registered diagnostic tool by id and description within a size budget", () => {
-    const catalog = getJarvisDiagnosticToolCatalog();
-    const prompt = actionCatalogPrompt(catalog);
-    const diagnosticLine = prompt.split("\n- ")[1] ?? "";
-    expect(diagnosticLine.startsWith('{"id":"diagnostic.run"')).toBe(true);
-    for (const tool of catalog) {
-      expect(diagnosticLine).toContain(`· ${tool.id}: `);
-      expect(diagnosticLine).toContain(tool.description.replace(/\s+/g, " ").slice(0, 100));
-    }
-    expect(diagnosticLine.length).toBeLessThan(9000);
-  });
-
-  it("bounds a long tool description", () => {
-    const prompt = actionCatalogPrompt([{ id: "x.tool", description: "a".repeat(500) }]);
-    expect(prompt).toContain(`· x.tool: ${"a".repeat(139)}…`);
-    expect(prompt).not.toContain("a".repeat(141));
   });
 });

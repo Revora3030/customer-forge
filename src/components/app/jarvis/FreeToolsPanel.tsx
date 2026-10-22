@@ -33,23 +33,9 @@ const services = [
   { id: "stock.unsplash", label: "Unsplash photos", key: "UNSPLASH_ACCESS_KEY", link: "https://unsplash.com/oauth/applications" },
   { id: "stock.pexels", label: "Pexels photos", key: "PEXELS_API_KEY", link: "https://www.pexels.com/api/new/" },
   { id: "image.cloudflare", label: "Cloudflare AI images", key: "CLOUDFLARE_AI_API_TOKEN", link: "https://dash.cloudflare.com/profile/api-tokens" },
+  { id: "image.huggingface", label: "Hugging Face AI images", key: "HUGGINGFACE_API_KEY", link: "https://huggingface.co/settings/tokens" },
+  { id: "image.pollinations", label: "Pollinations AI images", key: "POLLINATIONS_API_KEY", link: "https://auth.pollinations.ai/" },
 ] as const;
-type Readiness = Awaited<ReturnType<typeof getJarvisFreeToolReadiness>>["tools"][string];
-const STATE_LABEL: Record<Readiness["state"], string> = {
-  keyless: "Ready · no key",
-  keyless_shared_quota: "Ready · shared free quota",
-  key_present: "Key saved · not checked",
-  needs_key: "Needs key",
-  not_implemented: "Not available",
-};
-const RUN_LABEL: Record<string, string> = { observed: "checked", failed: "issues found", unknown: "unavailable", needs_verification: "needs verification" };
-function lastRunText(entry: Readiness | undefined): string | null {
-  const run = entry?.lastRun;
-  if (!run) return null;
-  const at = new Date(run.at);
-  const when = Number.isNaN(at.getTime()) ? "unknown time" : at.toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
-  return `Last run ${when}: ${RUN_LABEL[run.status] ?? "unavailable"}${run.reason ? ` (${run.reason.replace(/_/g, " ")})` : ""}`;
-}
 const serverTools = [
   ["Ollama", "https://ollama.com"], ["vLLM", "https://github.com/vllm-project/vllm"], ["ComfyUI", "https://github.com/comfyanonymous/ComfyUI"], ["Whisper", "https://github.com/openai/whisper"], ["Piper voices", "https://github.com/rhasspy/piper"], ["Real-ESRGAN", "https://github.com/xinntao/Real-ESRGAN"], ["rembg", "https://github.com/danielgatis/rembg"], ["Wan video", "https://github.com/Wan-Video/Wan2.1"], ["SearXNG", "https://github.com/searxng/searxng"], ["Crawl4AI", "https://github.com/unclecode/crawl4ai"], ["Semgrep", "https://github.com/semgrep/semgrep"], ["Trivy", "https://github.com/aquasecurity/trivy"], ["Gitleaks", "https://github.com/gitleaks/gitleaks"], ["OWASP ZAP", "https://www.zaproxy.org"], ["Qdrant", "https://github.com/qdrant/qdrant"], ["Mem0", "https://github.com/mem0ai/mem0"], ["Twenty CRM", "https://github.com/twentyhq/twenty"],
 ] as const;
@@ -93,15 +79,13 @@ export function FreeToolsPanel() {
       {tools.map((tool) => {
         const result = results[tool.id];
         const reason = result?.data && typeof result.data === "object" && !Array.isArray(result.data) && "reason" in result.data ? result.data["reason"] : null;
-        const entry = readiness.data?.tools[tool.id];
-        const runnable = entry?.ready === true;
-        const status = reason === "free_quota_exhausted" ? "Quota reached" : result ? result.status === "observed" ? "Checked" : result.status === "failed" ? "Issues found" : "Unavailable" : entry ? `${STATE_LABEL[entry.state]}${entry.state === "needs_key" && entry.secretName ? ` · ${entry.secretName}` : ""}` : "Not checked";
-        const previous = result ? null : lastRunText(entry);
+        const configured = readiness.data?.[tool.id];
+        const status = reason === "free_quota_exhausted" ? "Quota reached" : result ? result.status === "observed" ? "Checked" : result.status === "failed" ? "Issues found" : "Unavailable" : configured ? "Ready · not checked" : configured === false ? "Needs key" : "Not checked";
         const Icon = tool.icon;
         return <div key={tool.id} className="border-t border-border pt-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="min-w-0"><p className="flex items-center gap-2 text-sm font-medium"><Icon className="size-4" aria-hidden />{tool.title}</p><p className="text-xs text-muted-foreground" role="status">{running === tool.id ? "Checking…" : status}</p>{previous ? <p className="text-xs text-muted-foreground">{previous}</p> : null}</div>
-            <Button size="icon" variant="outline" aria-label={`Run ${tool.title}`} title={`Run ${tool.title}`} disabled={running !== null || !runnable} onClick={() => { void check(tool.id); }}><Play className="size-4" aria-hidden /></Button>
+            <div className="min-w-0"><p className="flex items-center gap-2 text-sm font-medium"><Icon className="size-4" aria-hidden />{tool.title}</p><p className="text-xs text-muted-foreground" role="status">{running === tool.id ? "Checking…" : status}</p></div>
+            <Button size="icon" variant="outline" aria-label={`Run ${tool.title}`} title={`Run ${tool.title}`} disabled={running !== null || configured !== true} onClick={() => { void check(tool.id); }}><Play className="size-4" aria-hidden /></Button>
           </div>
           {result ? <div className="mt-2 space-y-2"><pre className="max-h-64 overflow-auto whitespace-pre-wrap break-words text-xs">{JSON.stringify(result.data, null, 2)}</pre><p className="text-xs text-muted-foreground">{result.limitations.join(" ")}</p></div> : null}
         </div>;
@@ -110,14 +94,13 @@ export function FreeToolsPanel() {
         <p className="text-sm font-medium">Picture services</p>
         <ul className="mt-2 space-y-1 text-xs">
           {services.map((service) => {
-            const entry = readiness.data?.tools[service.id];
+            const ready = readiness.data?.[service.id];
             return <li key={service.id} className="flex flex-wrap items-center justify-between gap-2">
               <span>{service.label}</span>
-              {entry?.state === "needs_key" ? <a className="underline underline-offset-2" href={service.link} target="_blank" rel="noreferrer">Needs {service.key} · get key</a> : entry ? <span className="text-muted-foreground">{STATE_LABEL[entry.state]}</span> : <span className="text-muted-foreground">Unknown</span>}
+              {ready ? <span className="text-muted-foreground">Key saved · not checked</span> : ready === false ? <a className="underline underline-offset-2" href={service.link} target="_blank" rel="noreferrer">Needs {service.key} · get key</a> : <span className="text-muted-foreground">Unknown</span>}
             </li>;
           })}
         </ul>
-        <p className="mt-2 text-xs text-muted-foreground">Hugging Face and Pollinations have no picture path in Revora, so a saved key for them would not make pictures.</p>
       </div>
       <div className="border-t border-border pt-3">
         <p className="text-sm font-medium">Needs a server (later)</p>
@@ -126,7 +109,6 @@ export function FreeToolsPanel() {
           {serverTools.map(([label, href]) => <li key={label}><a className="underline underline-offset-2" href={href} target="_blank" rel="noreferrer">{label}</a></li>)}
         </ul>
       </div>
-      {readiness.data && !readiness.data.runsRecorded ? <p className="text-xs text-muted-foreground">Run history unavailable; last results are unknown, not passed.</p> : null}
       {readiness.error || error ? <p role="alert" className="text-xs text-destructive">{error ?? "Tool settings unavailable."}</p> : null}
     </div>
   </details>;

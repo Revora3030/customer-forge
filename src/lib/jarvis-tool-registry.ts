@@ -250,19 +250,6 @@ export const JARVIS_DIAGNOSTIC_TOOLS = [
     timeoutMs: 10000,
     maxOutputBytes: 5000,
   },
-  {
-    id: "integrations.status",
-    title: "Integrations: connected and actually working",
-    category: "platform",
-    description: "One view per tool, connector and AI provider: code path exists, key saved, last recorded run and last error. Configured alone is never called verified.",
-    evidence: "Configuration plus durable recorded Jarvis runs and usage rows; a tool with no recorded run is untested, and connector runtime is process-local.",
-    implementation: "implemented",
-    access: "read",
-    risk: "low",
-    requiresApproval: false,
-    timeoutMs: 15000,
-    maxOutputBytes: 12000,
-  },
 ] as const satisfies readonly JarvisDiagnosticTool[];
 
 export type JarvisDiagnosticToolId = (typeof JARVIS_DIAGNOSTIC_TOOLS)[number]["id"];

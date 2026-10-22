@@ -188,8 +188,7 @@ export async function runJarvis(db: SupabaseClient, userId: string, mode: Mode, 
     .catch((error: unknown) => ({ unavailable: error instanceof Error ? error.message : "GitHub unreachable" }));
   const { actionCatalogPrompt, extractActionBlock, parseActions, appendReplyMeta, MAX_ACTION_STEPS } = await import("./jarvis-actions");
   const { getJarvisDiagnosticToolCatalog } = await import("./jarvis-tool-registry");
-  const toolCatalog = getJarvisDiagnosticToolCatalog();
-  const toolIds = toolCatalog.map((tool) => tool.id);
+  const toolIds = getJarvisDiagnosticToolCatalog().map((tool) => tool.id);
   const now = new Date().toLocaleString("en-US", { timeZone: "America/New_York", dateStyle: "full", timeStyle: "short" });
   const system = [
     "You are Jarvis, Revora's private super-admin chief of staff: part diagnostician, part growth strategist, part writer, part senior engineer.",
@@ -213,7 +212,7 @@ export async function runJarvis(db: SupabaseClient, userId: string, mode: Mode, 
     "Never invent reviews, awards, pricing, customers, ranking guarantees, billing guarantees, or universal 10/10 quality. No phone numbers in outreach.",
     "Changes are review drafts only. Never suggest bypassing authentication, RLS, tenant isolation, publishing checks, provider access rules, or spending caps. Available paid and free models share the team; configuration alone does not prove availability.",
     "After your answer, on a new final line, add up to three short follow-up questions or commands the owner might want next, formatted exactly as <followups>[\"first\",\"second\",\"third\"]</followups> (valid JSON array of strings, each under 120 characters). Omit the tag if nothing useful comes to mind.",
-    actionCatalogPrompt(toolCatalog),
+    actionCatalogPrompt(toolIds),
     "You have persistent memory across conversations (below, when present). Save durable owner preferences, decisions and goals with memory.save; forget them with memory.forget when the owner asks. Never save secrets or one-off task details.",
     "You have routines: scheduled prompts that post into this chat and run like a normal message (Eastern time). Manage them with routines.list, routine.create, routine.update and routine.delete — all changes need owner approval.",
     ...(memories ? [memories] : []),
@@ -348,35 +347,38 @@ export const getJarvisDiagnosticTools = createServerFn({ method: "GET" })
     return getJarvisDiagnosticToolCatalog();
   });
 
-/**
- * Server-owned credential presence only; no credential values and no provider
- * calls. Each entry carries a readiness state plus a boolean-compatible
- * `ready` for older callers, and the last recorded run when one exists.
- */
+/** Server-owned credential presence only; no credentials or automatic provider calls. */
 export const getJarvisFreeToolReadiness = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const db = await guardedAdmin(context);
-    const { jarvisToolReadiness, isRunnableReadiness } = await import("./jarvis-tool-readiness");
-    const { latestJarvisToolRuns } = await import("./jarvis-tool-runs.server");
-    const runs = await latestJarvisToolRuns(db, 300).catch(() => null);
-    const entries = Object.entries(jarvisToolReadiness()).map(([id, readiness]) => {
-      const run = runs?.[id];
-      return [id, {
-        ...readiness,
-        ready: isRunnableReadiness(readiness),
-        lastRun: run ? { at: run.at, status: run.status, reason: run.reason } : null,
-      }] as const;
-    });
+    await guardedAdmin(context);
+    const { jarvisImageReadiness } = await import("@/lib/ai/jarvis-image-readiness.server");
     return {
-      tools: Object.fromEntries(entries) as Record<string, {
-        state: import("./jarvis-tool-readiness").JarvisToolReadinessState;
-        secretName?: string;
-        ready: boolean;
-        lastRun: { at: string; status: string; reason: string | null } | null;
-      }>,
-      runsRecorded: runs !== null,
-    };
+      "website.html.audit": true,
+      "website.accessibility.static": true,
+      "website.security.headers": true,
+      "website.links.inventory": true,
+      "website.lighthouse.audit": Boolean(process.env["GOOGLE_PAGESPEED_API_KEY"]),
+      "website.browser.check": Boolean(process.env["BROWSERLESS_API_KEY"]),
+      "docs.lookup": Boolean(process.env["CONTEXT7_API_KEY"]),
+      "website.page.audit": Boolean(process.env["BROWSERBASE_API_KEY"]),
+      "images.stock.search": Boolean(process.env["UNSPLASH_ACCESS_KEY"] || process.env["PEXELS_API_KEY"]),
+      "stock.unsplash": Boolean(process.env["UNSPLASH_ACCESS_KEY"]),
+      "stock.pexels": Boolean(process.env["PEXELS_API_KEY"]),
+      ...jarvisImageReadiness(),
+      "website.dns.lookup": true,
+      "ai.omniroute.models": Boolean(process.env["OMNIROUTE_BASE_URL"] && process.env["OMNIROUTE_API_KEY"]),
+      "website.html.validate": true,
+      "security.dependencies.osv": true,
+      "website.security.observatory": true,
+      "domain.rdap.lookup": true,
+      "domain.wayback.history": true,
+      "website.text.extract": true,
+      "workspace.calendar.upcoming": Boolean(process.env["LOVABLE_API_KEY"] && process.env["GOOGLE_CALENDAR_API_KEY"]),
+      "workspace.sheets.read": Boolean(process.env["LOVABLE_API_KEY"] && process.env["GOOGLE_SHEETS_API_KEY"]),
+      "cloudflare.zones.summary": Boolean(process.env["LOVABLE_API_KEY"] && process.env["CLOUDFLARE_API_KEY"]),
+      "email.resend.domains": Boolean(process.env["LOVABLE_API_KEY"] && process.env["RESEND_API_KEY"]),
+    } as Record<string, boolean>;
   });
 
 /** Fixed registered tools only; bounded inputs are still allow-listed by the executor. */
@@ -395,10 +397,7 @@ export const runJarvisDiagnosticTool = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const db = await guardedAdmin(context);
     const { executeJarvisDiagnosticTool } = await import("./jarvis-diagnostic-tools.server");
-    const output = await executeJarvisDiagnosticTool(db, data.toolId, data.args);
-    const { recordJarvisToolRun, resultReason } = await import("./jarvis-tool-runs.server");
-    await recordJarvisToolRun({ toolId: output.toolId, status: output.status, reason: resultReason(output.data), durationMs: output.durationMs, requestId: crypto.randomUUID(), userId: String(context.userId) });
-    return output;
+    return executeJarvisDiagnosticTool(db, data.toolId, data.args);
   });
 
 
