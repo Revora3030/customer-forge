@@ -735,7 +735,7 @@ export function BuilderAssistant({
               {requests.summary}
             </p>
           ) : null}
-          <p className="sr-only">Every change saves a restore point first. Nothing goes live until you publish.</p>
+          <p className="sr-only">Every change saves a restore point first. On a live website, checked changes go live straight away.</p>
         </div>
       </div>
     </section>
