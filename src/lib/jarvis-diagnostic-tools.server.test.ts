@@ -210,21 +210,8 @@ describe("Jarvis diagnostic executor", () => {
     let currentHead = "a".repeat(40);
     const runCommit = currentHead;
     const workflowNames = ["Revora Quality Gate", "Revora Security Gate", "Revora Browser QA"];
-    const workflowConclusions: Record<string, string> = {};
-    let checkRuns = [
-      { name: "Typecheck, lint, test, build", conclusion: "success" },
-      { name: "Repository security audit", conclusion: "success" },
-      { name: "Chromium rendered-site QA", conclusion: "success" },
-      { name: "Analyze (javascript-typescript)", conclusion: "success" },
-    ];
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = new URL(String(input));
-      if (url.hostname === "api.github.com" && url.pathname.endsWith("/check-runs")) {
-        return Response.json({
-          total_count: checkRuns.length,
-          check_runs: checkRuns.map((run) => ({ ...run, status: "completed", head_sha: runCommit, app: { slug: "github-actions" } })),
-        });
-      }
       if (url.hostname === "api.github.com" && url.pathname.endsWith("/commits/lovable-sync")) {
         return new Response(JSON.stringify({ sha: currentHead }), {
           status: 200, headers: { "content-type": "application/json" },
@@ -234,7 +221,7 @@ describe("Jarvis diagnostic executor", () => {
         return new Response(JSON.stringify({
           total_count: workflowNames.length,
           workflow_runs: workflowNames.map((name) => ({
-            name, status: "completed", conclusion: workflowConclusions[name] ?? "success", head_sha: runCommit,
+            name, status: "completed", conclusion: "success", head_sha: runCommit,
             created_at: "2026-10-15T12:00:00Z", updated_at: "2026-10-15T12:01:00Z",
             html_url: "https://github.com/Revora3030/customer-forge/actions/runs/123",
           })),
@@ -272,30 +259,11 @@ describe("Jarvis diagnostic executor", () => {
     // Once the branch moves ahead, the same green workflows are stale. They must
     // no longer count as verification for the new release commit.
     currentHead = "b".repeat(40);
-    checkRuns = [];
     const staleOutput = await executeJarvisDiagnosticTool(db, "jarvis.capabilities.scorecard");
     const staleScorecard = staleOutput.data as unknown as typeof scorecard;
     const staleEngineering = staleScorecard.areas.find((area) => area.id === "engineering");
     expect(staleEngineering?.checks.find((check) => check.id === "engineering.typecheck")?.status).toBe("unknown");
     expect(staleScorecard.areas.find((area) => area.id === "growth")?.checks.find((check) => check.id === "growth.offerConsistency")?.status).toBe("unknown");
-    expect(staleEngineering?.checks.find((check) => check.id === "engineering.security")?.status).toBe("unknown");
-
-    // On the head: a skipped Browser QA is not_run (never failed, never
-    // verified), and a CodeQL failure fails the security check.
-    currentHead = runCommit;
-    checkRuns = [
-      { name: "Typecheck, lint, test, build", conclusion: "success" },
-      { name: "Repository security audit", conclusion: "success" },
-      { name: "Chromium rendered-site QA", conclusion: "skipped" },
-      { name: "Analyze (javascript-typescript)", conclusion: "failure" },
-    ];
-    workflowConclusions["Revora Browser QA"] = "skipped";
-    const mixed = (await executeJarvisDiagnosticTool(db, "jarvis.capabilities.scorecard")).data as unknown as typeof scorecard;
-    const mixedEngineering = mixed.areas.find((area) => area.id === "engineering");
-    expect(mixedEngineering?.checks.find((check) => check.id === "engineering.browser")?.status).toBe("not_run");
-    expect(mixedEngineering?.checks.find((check) => check.id === "engineering.security")?.status).toBe("failed");
-    expect(mixedEngineering?.checks.find((check) => check.id === "engineering.typecheck")?.status).toBe("verified");
-    expect(mixed.areas.find((area) => area.id === "reliability")?.checks.find((check) => check.id === "reliability.ciSameHead")?.status).toBe("unknown");
   });
 
   it("returns partial security evidence rather than a false green security verdict", async () => {

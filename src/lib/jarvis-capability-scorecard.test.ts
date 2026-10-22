@@ -63,20 +63,6 @@ describe("Jarvis evidence-backed capability scorecard", () => {
     expect(safety?.blockers.some((item) => item.includes("Cross-tenant negative test"))).toBe(true);
   });
 
-  it("never counts not_run as verified and scores it exactly like unknown", () => {
-    const notRun = completeEvidence();
-    notRun["engineering.browser"] = { status: "not_run", summary: "Browser QA was skipped on the scored commit." };
-    const unknown = completeEvidence();
-    unknown["engineering.browser"] = { status: "unknown", summary: "Browser QA evidence unavailable." };
-    const notRunArea = scoreJarvisCapabilities(notRun).areas.find((area) => area.id === "engineering");
-    const unknownArea = scoreJarvisCapabilities(unknown).areas.find((area) => area.id === "engineering");
-    expect(notRunArea?.checks.find((check) => check.id === "engineering.browser")?.status).toBe("not_run");
-    expect(notRunArea?.verified).toBe(4);
-    expect(notRunArea?.score).toBe(unknownArea?.score);
-    expect(notRunArea?.status).toBe("evidence_incomplete");
-    expect(unknownArea?.status).toBe("evidence_incomplete");
-  });
-
   it("rejects malformed evidence rather than granting a green check", () => {
     const evidence = completeEvidence() as unknown as Record<string, unknown>;
     evidence["reliability.rollback"] = { status: "verified", summary: 123 };

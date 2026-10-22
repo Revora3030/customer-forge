@@ -5,11 +5,7 @@
  * or indirect evidence never counts as a pass. This module scores evidence; it
  * does not grant permission or enable automation.
  */
-/**
- * not_run: the check was skipped, cancelled or neutral on the scored commit. It
- * scores like unknown: it never passes and is not reported as a failure.
- */
-export type JarvisCapabilityEvidenceStatus = "verified" | "failed" | "unknown" | "configured" | "not_run";
+export type JarvisCapabilityEvidenceStatus = "verified" | "failed" | "unknown" | "configured";
 
 export type JarvisCapabilityEvidence = {
   status: JarvisCapabilityEvidenceStatus;
@@ -106,7 +102,7 @@ export type JarvisCapabilityScorecard = {
   policy: string;
 };
 
-const statusValues = new Set<JarvisCapabilityEvidenceStatus>(["verified", "failed", "unknown", "configured", "not_run"]);
+const statusValues = new Set<JarvisCapabilityEvidenceStatus>(["verified", "failed", "unknown", "configured"]);
 
 function validEvidence(value: unknown): value is JarvisCapabilityEvidence {
   if (!value || typeof value !== "object") return false;
@@ -125,7 +121,7 @@ function roundScore(value: number): number {
 
 /**
  * Returns a conservative score. Only literal status="verified" counts.
- * Configured, unknown, not_run, malformed, failed, and omitted evidence are blockers.
+ * Configured, unknown, malformed, failed, and omitted evidence are blockers.
  */
 export function scoreJarvisCapabilities(
   evidence: Partial<Record<JarvisCapabilityCheckId, JarvisCapabilityEvidence>>,

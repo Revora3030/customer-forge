@@ -5,10 +5,11 @@ import { redactJarvisSummary } from "./jarvis-autopilot-policy";
 import { getJarvisDiagnosticTool, isJarvisDiagnosticToolId, type JarvisDiagnosticToolId } from "./jarvis-tool-registry";
 import { providerSnapshots } from "./integrations/registry.server";
 import { collectDemoEngineEvidence } from "./jarvis-diagnostic-engine.server";
-import { collectReleaseEvidence, type ReleaseGateId } from "./jarvis-release-evidence.server";
 import { scoreDemoEngine, scoreJarvisCapabilities, type JarvisCapabilityCheckId, type JarvisCapabilityEvidence, type JarvisCapabilityEvidenceStatus } from "./jarvis-capability-scorecard";
 
 const SITE_ORIGIN = "https://revoragrowthsystems.com";
+const GITHUB_REPOSITORY = "Revora3030/customer-forge";
+const GITHUB_BRANCH = "lovable-sync";
 
 export type JarvisToolEvidenceStatus = "observed" | "failed" | "unknown" | "needs_verification";
 
@@ -222,6 +223,96 @@ async function providerEvidence() {
   };
 }
 
+async function releaseEvidence() {
+  const token = process.env["REVORA_GITHUB_READ_TOKEN"];
+  const apiRoot = `https://api.github.com/repos/${GITHUB_REPOSITORY}`;
+  const headers = {
+    Accept: "application/vnd.github+json",
+    "X-GitHub-Api-Version": "2022-11-28",
+    "User-Agent": "Revora-Jarvis-ReadOnly-Diagnostics",
+    ...(token ? { Authorization: "Bearer " + token } : {}),
+  };
+  try {
+    // CI on an old commit is not evidence for the current release. Fetch the
+    // release branch's current commit independently and bind every verdict to it.
+    const [headResponse, runsResponse] = await Promise.all([
+      fetch(apiRoot + "/commits/" + encodeURIComponent(GITHUB_BRANCH), {
+        headers,
+        redirect: "manual",
+        signal: AbortSignal.timeout(7000),
+      }),
+      fetch(apiRoot + "/actions/runs?branch=" + encodeURIComponent(GITHUB_BRANCH) + "&per_page=100", {
+        headers,
+        redirect: "manual",
+        signal: AbortSignal.timeout(7000),
+      }),
+    ]);
+    if (!headResponse.ok || !runsResponse.ok) {
+      const failedStatus = !headResponse.ok ? headResponse.status : runsResponse.status;
+      return {
+        status: "needs_verification" as const,
+        httpStatus: failedStatus,
+        reason: failedStatus === 401 || failedStatus === 403 ? "github_access_or_rate_limit" : "github_api_unavailable",
+        branchHeadCommit: null,
+        runs: [],
+      };
+    }
+    const head = await headResponse.json() as { sha?: string };
+    const currentHead = /^[a-f0-9]{40}$/i.test(head.sha ?? "") ? head.sha! : null;
+    const json = await runsResponse.json() as {
+      total_count?: number;
+      workflow_runs?: Array<{
+        name?: string | null;
+        status?: string | null;
+        conclusion?: string | null;
+        event?: string | null;
+        created_at?: string | null;
+        updated_at?: string | null;
+        head_sha?: string | null;
+        html_url?: string | null;
+      }>;
+    };
+    const rawRuns = (json.workflow_runs ?? []).map((run) => ({
+      name: (run.name ?? "Unnamed workflow").slice(0, 160),
+      status: run.status ?? "unknown",
+      conclusion: run.conclusion ?? null,
+      event: (run.event ?? "unknown").slice(0, 60),
+      createdAt: run.created_at ?? null,
+      updatedAt: run.updated_at ?? null,
+      commit: /^[a-f0-9]{40}$/i.test(run.head_sha ?? "") ? run.head_sha : null,
+      url: run.html_url?.startsWith("https://github.com/Revora3030/customer-forge/actions/runs/") ? run.html_url : null,
+    }));
+    // Keep the newest relevant run per workflow name for the current release
+    // SHA. Include missing evidence as absent so consumers cannot infer a pass.
+    const names = [
+      /revora quality gate/i,
+      /revora security gate/i,
+      /revora browser qa/i,
+    ];
+    const runs = names.flatMap((pattern) => {
+      const relevant = rawRuns.filter((run) => pattern.test(run.name));
+      const current = currentHead ? relevant.find((run) => run.commit === currentHead) : undefined;
+      // Preserve the newest historical result for explanation, but never as a pass.
+      return current ? [current] : relevant.slice(0, 1);
+    });
+    const status = currentHead && runs.length > 0
+      ? "observed" as const
+      : "needs_verification" as const;
+    return {
+      status,
+      repository: GITHUB_REPOSITORY,
+      branch: GITHUB_BRANCH,
+      branchHeadCommit: currentHead,
+      checkedAt: new Date().toISOString(),
+      totalCountReported: Number.isInteger(json.total_count) ? json.total_count : null,
+      runs,
+      limitation: "A workflow passes for the current release only when it is completed successfully on the exact current branch commit. CI evidence is not proof of a deployed production revision.",
+    };
+  } catch {
+    return { status: "unknown" as const, reason: "github_api_unreachable", branchHeadCommit: null, runs: [] };
+  }
+}
+
 /** Execute only a fixed, read-only diagnostic. This function contains no generic DB/HTTP execution path. */
 export type JarvisDiagnosticToolArgs = { target?: string; strategy?: string; query?: string };
 
@@ -254,7 +345,7 @@ export async function executeJarvisDiagnosticTool(
       const [diagnostics, website, ci] = await Promise.all([
         collectJarvisDiagnostics(db),
         publicWebsiteSmoke(),
-        collectReleaseEvidence(),
+        releaseEvidence(),
       ]);
       const evidence: Partial<Record<JarvisCapabilityCheckId, JarvisCapabilityEvidence>> = {};
       const setEvidence = (
@@ -272,48 +363,43 @@ export async function executeJarvisDiagnosticTool(
       setEvidence("diagnostics.schemaProbe", sectionStatus(diagnostics.sections["schema"]), "Read-only schema contract probe " + (diagnostics.sections["schema"]?.status ?? "unknown") + "; does not enumerate RLS or migration history.", "live database diagnostic");
       setEvidence("diagnostics.redaction", "configured", "Redaction helpers and regression tests exist in code; a production adversarial execution was not performed by this check.", "code configuration only");
 
-      // Every gate verdict is already bound to the current release head; a
-      // historical, skipped or absent run can never map to verified.
-      const currentReleaseCommit = ci.branchHeadCommit;
-      const gate = (id: ReleaseGateId) => ci.gates?.[id]?.verdict ?? "missing";
-      const gateStatus = (id: ReleaseGateId): JarvisCapabilityEvidenceStatus => {
-        const verdict = gate(id);
-        if (!currentReleaseCommit) return "unknown";
-        if (verdict === "passed") return "verified";
-        if (verdict === "failed") return "failed";
-        if (verdict === "not_run") return "not_run";
+      const ciRuns = Array.isArray(ci.runs) ? ci.runs : [];
+      const qualityRun = ciRuns.find((run) => /quality gate/i.test(String(run.name)));
+      const securityRun = ciRuns.find((run) => /security gate|authority validation|codeql/i.test(String(run.name)));
+      const browserRun = ciRuns.find((run) => /browser qa|browser journey/i.test(String(run.name)));
+      const requiredRuns = [qualityRun, securityRun, browserRun];
+      const currentReleaseCommit = typeof ci.branchHeadCommit === "string" && /^[a-f0-9]{40}$/i.test(ci.branchHeadCommit)
+        ? ci.branchHeadCommit
+        : null;
+      const sharedCommit = Boolean(currentReleaseCommit) && requiredRuns.every((run) =>
+        Boolean(run) &&
+        run?.status === "completed" &&
+        run?.conclusion === "success" &&
+        typeof run?.commit === "string" &&
+        run.commit === currentReleaseCommit
+      );
+      const runStatus = (run: (typeof ciRuns)[number] | undefined): JarvisCapabilityEvidenceStatus => {
+        const sameCommit = Boolean(run?.commit && requiredRuns[0]?.commit && run.commit === requiredRuns[0].commit);
+        if (run?.status === "completed" && run.conclusion === "success" && sharedCommit && sameCommit) return "verified";
+        if (run?.status === "completed" && run.conclusion && run.conclusion !== "success" && sameCommit) return "failed";
         return "unknown";
       };
-      const headLabel = "current release commit " + (currentReleaseCommit ?? "unknown");
-      const qualityStatus = gateStatus("quality");
+      const qualityStatus = runStatus(qualityRun);
       setEvidence(
         "diagnostics.redaction",
         qualityStatus,
-        "Quality Gate on head: " + gate("quality") +
+        "Redaction regression fixtures: " + (qualityRun?.conclusion ?? qualityRun?.status ?? "missing") +
           "; only a successful Quality Gate on the exact current release commit proves the checked-in adversarial/regression suite ran.",
         "same-commit GitHub Actions Quality Gate",
       );
-      const qualityDetail = "Quality Gate on head: " + gate("quality") + "; " + headLabel +
-        "; single Quality Gate job; individual step results not exposed.";
-      setEvidence("engineering.typecheck", qualityStatus, qualityDetail, "GitHub Actions Quality Gate (same head)");
-      setEvidence("engineering.lint", qualityStatus, qualityDetail, "GitHub Actions Quality Gate (same head)");
-      setEvidence("engineering.tests", qualityStatus, qualityDetail, "GitHub Actions Quality Gate (same head)");
-      const securityGates = ["security", "codeql", "semgrep", "trivy", "zap"] as const;
-      const securityStatus: JarvisCapabilityEvidenceStatus = !currentReleaseCommit
-        ? "unknown"
-        : securityGates.some((id) => gate(id) === "failed")
-          ? "failed"
-          : gate("security") === "passed" && gate("codeql") === "passed"
-            ? "verified"
-            : gate("security") === "not_run" || gate("codeql") === "not_run" ? "not_run" : "unknown";
-      setEvidence(
-        "engineering.security",
-        securityStatus,
-        securityGates.map((id) => id + " " + gate(id)).join(", ") + " on head; verified needs Security Gate and CodeQL passed.",
-        "GitHub Actions and code scanning check runs (same head)",
-      );
-      setEvidence("engineering.browser", gateStatus("browser"), "Browser QA on head: " + gate("browser") + "; " + headLabel + ".", "GitHub Actions Browser QA (same head)");
-      const sharedCommit = Boolean(currentReleaseCommit) && (["quality", "security", "browser"] as const).every((id) => gate(id) === "passed");
+      const qualityDetail = "Quality Gate: " + (qualityRun?.conclusion ?? qualityRun?.status ?? "missing") +
+        "; run commit " + (qualityRun?.commit ?? "unknown") + ", current release commit " + (currentReleaseCommit ?? "unknown") +
+        "; completed success on the exact current release commit is required.";
+      setEvidence("engineering.typecheck", qualityStatus, qualityDetail, "GitHub Actions");
+      setEvidence("engineering.lint", qualityStatus, qualityDetail, "GitHub Actions");
+      setEvidence("engineering.tests", qualityStatus, qualityDetail, "GitHub Actions");
+      setEvidence("engineering.security", runStatus(securityRun), "Security/authority gate: " + (securityRun?.conclusion ?? securityRun?.status ?? "missing") + ".", "GitHub Actions");
+      setEvidence("engineering.browser", runStatus(browserRun), "Browser QA: " + (browserRun?.conclusion ?? browserRun?.status ?? "missing") + ".", "GitHub Actions");
       setEvidence("reliability.ciSameHead", sharedCommit ? "verified" : "unknown", sharedCommit ? "Quality, security, and browser gates passed for one shared commit." : "Required gate results were not all verified as successful for the same commit.", "GitHub Actions");
 
       const siteHasFailure = website.status === "failed";
@@ -323,10 +409,11 @@ export async function executeJarvisDiagnosticTool(
       setEvidence("reliability.rollback", "unknown", "A recovery plan does not prove a successful rollback exercise.", "rollback exercise unavailable");
 
       setEvidence("growth.funnelSignals", "configured", "Aggregate funnel queries are implemented; record counts are not represented as campaign-attributed revenue.", "read-only database query capability");
+      const offerConsistencyStatus = runStatus(securityRun);
       setEvidence(
         "growth.offerConsistency",
-        gateStatus("security"),
-        "Revora Security Gate on head: " + gate("security") +
+        offerConsistencyStatus,
+        "Revora Security Gate: " + (securityRun?.conclusion ?? securityRun?.status ?? "missing") +
           "; its live Stripe catalog contract must pass on the exact current release commit before the published offer is treated as verified.",
         "same-commit GitHub Actions Security Gate with live Stripe catalog contract",
       );
@@ -732,7 +819,7 @@ export async function executeJarvisDiagnosticTool(
     }
 
     if (toolId === "release.ci.evidence") {
-      const evidence = await collectReleaseEvidence();
+      const evidence = await releaseEvidence();
       const status: JarvisToolEvidenceStatus = evidence.status === "observed"
         ? "observed"
         : evidence.status === "unknown" ? "unknown" : "needs_verification";
