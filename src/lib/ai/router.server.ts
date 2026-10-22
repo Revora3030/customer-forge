@@ -381,6 +381,7 @@ async function buildChain(
   role: ModelRole,
   capable?: (model: string) => boolean,
   forceFreeOnly = false,
+  forcePaidOnly = false,
 ): Promise<Candidate[]> {
   // The AI model lane is the builder's creative execution path. Keep the
   // reachability seam here, but never substitute deterministic creative work
