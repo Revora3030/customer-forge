@@ -201,7 +201,10 @@ export function SiteChatbot({
         {
           role: "assistant",
           content:
-            `Done — ${result.applied} change${result.applied === 1 ? "" : "s"} are live in your draft.` +
+            ("live" in result && result.live?.published
+              ? `Done — ${result.applied} change${result.applied === 1 ? "" : "s"} are now on your live site.`
+              : `Done — ${result.applied} change${result.applied === 1 ? "" : "s"} saved in your draft.` +
+                ("live" in result && result.live ? ` ${result.live.reason}` : "")) +
             ` I saved a version called "${result.snapshotLabel}" first, so you can roll back any time.` +
             (result.verification ? ` ${result.verification.summary}` : "") +
             (result.failed
