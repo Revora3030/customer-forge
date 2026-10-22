@@ -153,6 +153,61 @@ function anthropicPart(part: AiPart): AnthropicPart {
   });
 }
 
+/** Reads a Messages SSE stream to the end: answer text, stop reason and usage. */
+async function readAnthropicStream(stream: ReadableStream<Uint8Array>) {
+  const reader = stream.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let text = "";
+  let stop_reason: string | undefined;
+  const usage: { input_tokens?: number; output_tokens?: number } = {};
+  const handle = (frame: string) => {
+    const data = frame
+      .split("\n")
+      .filter((line) => line.startsWith("data:"))
+      .map((line) => line.slice(5).trim())
+      .join("");
+    if (!data) return;
+    let event: Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+    try {
+      event = JSON.parse(data);
+    } catch {
+      return;
+    }
+    if (event["type"] === "error")
+      throw new RevoraAiError(502, "Revora's AI model stopped with an error.", { category: "bad_response", provider: "lovable" });
+    if (event["type"] === "message_start" && typeof event["message"]?.usage?.input_tokens === "number")
+      usage.input_tokens = event["message"].usage.input_tokens;
+    if (event["type"] === "content_block_delta" && event["delta"]?.type === "text_delta")
+      text += String(event["delta"].text ?? "");
+    if (event["type"] === "message_delta") {
+      if (typeof event["delta"]?.stop_reason === "string") stop_reason = event["delta"].stop_reason;
+      if (typeof event["usage"]?.output_tokens === "number") usage.output_tokens = event["usage"].output_tokens;
+    }
+  };
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let cut: number;
+    while ((cut = buffer.indexOf("\n\n")) !== -1) {
+      handle(buffer.slice(0, cut));
+      buffer = buffer.slice(cut + 2);
+    }
+  }
+  if (buffer.trim()) handle(buffer);
+  return { text, stop_reason, usage };
+}
+
+/**
+ * Claude models with adaptive thinking take minutes at the default effort.
+ * The builder runs many short calls, so it asks for low effort: fast answers
+ * that still think (owner wants Lovable-like speed, 2026-10-22).
+ */
+function anthropicEffort(model: string) {
+  return /claude-(opus|sonnet|fable)/.test(model) ? { output_config: { effort: "low" } } : {};
+}
+
 /** The Messages API takes system prompts as a top-level field, not a message. */
 function anthropicRequest(input: {
   model: string;
@@ -183,6 +238,7 @@ function anthropicRequest(input: {
   return {
     model: input.model,
     max_tokens: input.maxOutputTokens,
+    ...anthropicEffort(input.model),
     ...(system.length > 0 ? { system: system.join("\n\n") } : {}),
     messages,
     ...(typeof input.temperature === "number" ? { temperature: input.temperature } : {}),
@@ -197,25 +253,25 @@ async function anthropicChat(input: {
   temperature?: number;
   signal: AbortSignal;
 }): Promise<{ text: string; usage: AiUsage }> {
+  const body = anthropicRequest({
+    model: input.model,
+    messages: input.messages,
+    maxOutputTokens: input.maxOutputTokens,
+    ...(input.temperature !== undefined ? { temperature: input.temperature } : {}),
+  });
   const response = await fetch(`${BASE}/messages`, {
     method: "POST",
-    headers: { ...headers(input.apiKey), "anthropic-version": "2023-06-01" },
-    body: JSON.stringify(
-      anthropicRequest({
-        model: input.model,
-        messages: input.messages,
-        maxOutputTokens: input.maxOutputTokens,
-        ...(input.temperature !== undefined ? { temperature: input.temperature } : {}),
-      }),
-    ),
+    headers: { ...headers(input.apiKey), "anthropic-version": "2023-06-01", accept: "text/event-stream" },
+    // Streamed so long answers never sit on an idle connection; the answer is
+    // accumulated here and returned whole (final-only callers).
+    body: JSON.stringify({ ...body, stream: true }),
     signal: input.signal,
   });
   if (!response.ok) throw await providerHttpError("lovable", response);
-  const payload = (await response.json()) as {
-    content?: { type?: string; text?: string }[];
-    stop_reason?: string;
-    usage?: { input_tokens?: number; output_tokens?: number };
-  };
+  if (!response.body)
+    throw new RevoraAiError(502, "Revora AI returned an empty stream.", { category: "bad_response", provider: "lovable" });
+  const payload = await readAnthropicStream(response.body);
+  const text = payload.text;
   // A refusal is terminal for this model: report it as a failed answer so the
   // router moves on, and never present an empty reply as success.
   if (payload.stop_reason === "refusal")
@@ -224,10 +280,6 @@ async function anthropicChat(input: {
       provider: "lovable",
     });
   if (payload.stop_reason === "max_tokens") throw truncated();
-  const text = (payload.content ?? [])
-    .filter((block) => block.type === "text" && typeof block.text === "string")
-    .map((block) => block.text as string)
-    .join("");
   return {
     text: answerOrThrow(text),
     usage: {
