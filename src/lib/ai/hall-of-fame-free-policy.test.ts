@@ -29,7 +29,7 @@ vi.mock("@/lib/ai/telemetry.server", () => ({ recordTeamStep: mocks.trace }));
 vi.mock("@/lib/ai/free-reputation", () => ({
   freeModelForm: () => ({ score: 0 }), recordFreeModelOutcome: vi.fn(),
 }));
-import { callBestThinker, resetHallOfFameRuns } from "@/lib/ai/hall-of-fame.server";
+import { callBestThinker, resetHallOfFameRuns } from "@/lib/ai/thinker.server";
 import { withAiSpendScope } from "@/lib/ai/spend-scope.server";
 
 const cases: Array<[FreeOnlyEnvironment, boolean]> = [

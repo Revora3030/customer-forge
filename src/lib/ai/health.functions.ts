@@ -467,7 +467,7 @@ export type AiOrchestration = {
         };
       }[];
     }[];
-    runs: import("@/lib/ai/hall-of-fame.server").HallOfFameRun[];
+    runs: import("@/lib/ai/thinker.server").HallOfFameRun[];
     /** Recent form across every free model that has actually been tried. */
     form: {
       provider: string;
@@ -547,7 +547,7 @@ export const getAiOrchestration = createServerFn({ method: "GET" })
     });
     const models = (snapshot?.models ?? []).map(shape);
 
-    const { hallOfFameSquad, recentHallOfFameRuns } = await import("@/lib/ai/hall-of-fame.server");
+    const { hallOfFameSquad, recentHallOfFameRuns } = await import("@/lib/ai/thinker.server");
     const { freeModelForm, freeModelFormSnapshot } = await import("@/lib/ai/free-reputation");
     const squadPurposes = [
       "creative_direction",

@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { composeSiteChrome } from "./first-build-chrome.server";
 import { readSiteChrome } from "./site-chrome";
-import { callBestThinker } from "@/lib/ai/hall-of-fame.server";
+import { callBestThinker } from "@/lib/ai/thinker.server";
 
-vi.mock("@/lib/ai/hall-of-fame.server", () => ({ callBestThinker: vi.fn() }));
+vi.mock("@/lib/ai/thinker.server", () => ({ callBestThinker: vi.fn() }));
 const header = { version: 1, root: { type: "row", children: [
   { type: "link", text: "Home", href: "/" }, { type: "button", text: "Contact", href: "/contact" },
 ] } };

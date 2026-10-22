@@ -3,7 +3,7 @@
  * shared router, under Luna's monthly + per-workspace reservation.
  */
 import { COLLECTIVE_TIERS, selectTier, type CollectivePurpose, type CollectiveTier, type TaskComplexity } from "@/lib/ai/collective";
-import { roleForPurpose } from "@/lib/ai/hall-of-fame";
+import { roleForPurpose } from "@/lib/ai/thinker-role";
 import {
   costMicrocents,
   estimateMicrocents,

@@ -40,7 +40,7 @@ vi.mock("@/lib/ai/free-reputation", () => ({
   recordFreeModelOutcome: vi.fn(),
 }));
 import { inferCapabilities } from "@/lib/ai/registry.server";
-import { callHallOfFame, resetHallOfFameRuns } from "@/lib/ai/hall-of-fame.server";
+import { callHallOfFame, resetHallOfFameRuns } from "@/lib/ai/thinker.server";
 
 const candidate = (
   provider: string,

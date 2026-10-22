@@ -13,7 +13,7 @@
  * passes through the fact gate before it can reach the page. Callers require
  * complete AI output and stop the build when the team cannot provide it.
  */
-import { callBestThinker } from "@/lib/ai/hall-of-fame.server";
+import { callBestThinker } from "@/lib/ai/thinker.server";
 import { screenClaims, type DnaFacts } from "@/lib/business-dna";
 import { formatLocality } from "@/lib/locality";
 import type { SiteCopy } from "@/lib/site-engine";

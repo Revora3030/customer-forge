@@ -62,7 +62,7 @@ describe("the menu bar always gets its action button", () => {
 describe("composeSiteChrome repairs instead of rejecting", () => {
   it("saves a design that forgot a page link and the action button", async () => {
     vi.resetModules();
-    vi.doMock("@/lib/ai/hall-of-fame.server", () => ({
+    vi.doMock("@/lib/ai/thinker.server", () => ({
       callBestThinker: async () => ({
         ok: true,
         model: "sol",
@@ -112,7 +112,7 @@ describe("composeSiteChrome repairs instead of rejecting", () => {
     const foot = JSON.stringify(chrome.footer);
     expect(foot).toContain("tel:9195550100");
     expect(foot).not.toContain("5552223333");
-    vi.doUnmock("@/lib/ai/hall-of-fame.server");
+    vi.doUnmock("@/lib/ai/thinker.server");
   });
 });
 

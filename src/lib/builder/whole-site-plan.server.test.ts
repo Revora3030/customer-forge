@@ -3,7 +3,7 @@ import { isolateProviderEnvironment } from "@/lib/ai/provider-test-environment";
 import type { AgentContext } from "@/lib/site-agent.server";
 
 const { thinker } = vi.hoisted(() => ({ thinker: vi.fn() }));
-vi.mock("@/lib/ai/hall-of-fame.server", () => ({ callBestThinker: thinker }));
+vi.mock("@/lib/ai/thinker.server", () => ({ callBestThinker: thinker }));
 import { planWebsiteChangesWithAi } from "./ai-agent-plan.server";
 
 const home = "11111111-1111-4111-8111-111111111111";

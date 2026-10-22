@@ -15,7 +15,7 @@ const state: { calls: string[]; handler: (req: Req) => Promise<Reply> | Reply } 
   handler: () => ({ ok: false, reason: "unset", detail: null }),
 };
 
-vi.mock("@/lib/ai/hall-of-fame.server", () => ({
+vi.mock("@/lib/ai/thinker.server", () => ({
   callBestThinker: vi.fn(async (req: Req) => {
     state.calls.push(req.user);
     return state.handler(req);

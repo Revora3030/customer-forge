@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { CompositionTree } from "./composition-tree";
 
-vi.mock("@/lib/ai/hall-of-fame.server", () => ({ callBestThinker: vi.fn() }));
+vi.mock("@/lib/ai/thinker.server", () => ({ callBestThinker: vi.fn() }));
 
 const { chromeFeedback } = await import("./first-build-chrome.server");
 

@@ -7,7 +7,7 @@
  * fingerprint, archetype, field list, preset or deterministic look; callers may
  * save the brief for later AI composition or report an honest failure.
  */
-import { callBestThinker } from "@/lib/ai/hall-of-fame.server";
+import { callBestThinker } from "@/lib/ai/thinker.server";
 import { craftBarPrompt } from "@/lib/builder/world-class-craft";
 
 export type RedesignChange = { field: string; from: string; to: string };
