@@ -330,6 +330,14 @@ export async function kickWorker(origin: string, organizationId: string) {
         "Builds will only progress while the owner's browser is open. Set the secret in Lovable Cloud.",
     );
   }
+  // Durable first: the database holds the worker connection open for the
+  // whole build, independent of this (short-lived) request.
+  try {
+    const { requestDurableWorkerRun } = await import("@/lib/builder/durable-worker-kick.server");
+    if (await requestDurableWorkerRun(organizationId)) return;
+  } catch {
+    // Fall through to the HTTP kick below.
+  }
   const base = process.env["APP_URL"] ?? origin;
   // Try the HTTP kick first (fastest path when the scheduler is running).
   if (secret && base) {
@@ -380,13 +388,12 @@ export const pumpSiteEngineQueue = createServerFn({ method: "POST" })
       .maybeSingle();
     if (!member) throw new Error("You don't have access to that workspace.");
 
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { drainSiteEngineQueue } = await import("@/lib/site-engine.worker.server");
-    return drainSiteEngineQueue(supabaseAdmin as never, {
-      max: 1,
-      organizationId: data.organizationId,
-      invoker: "pump",
-    });
+    // The build never runs inside this browser request: a phone locking or a
+    // page reload used to kill the build with it. The database makes the
+    // worker call itself and holds that connection open for up to 15 minutes.
+    const { requestDurableWorkerRun } = await import("@/lib/builder/durable-worker-kick.server");
+    const started = await requestDurableWorkerRun(data.organizationId);
+    return { processed: 0, failed: 0, paused: false, pauseReason: null, idle: true, handedOff: started };
   });
 
 /** AI edit assistant: rewrites only the requested fields. */
