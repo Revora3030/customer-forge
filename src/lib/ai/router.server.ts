@@ -960,12 +960,13 @@ export async function streamResponse(
  * permission and the durable monthly cap are enforced by the caller before this
  * runs; this function never decides whether paid AI is allowed.
  */
-/** Gateway-catalogue picture models (verified against the authenticated listing). */
-const LOVABLE_IMAGE_MODELS = new Set([
+/** Lovable AI picture models (verified against the authenticated listing). */
+export const LOVABLE_IMAGE_MODELS = new Set([
   "openai/gpt-image-2.5-sunburst",
   "openai/gpt-image-2.5-flare",
   "openai/gpt-image-2",
   "google/gemini-3-pro-image",
+  "google/gemini-3.1-flash-lite-image",
 ]);
 
 /** Lovable ids carry the vendor prefix; Revora's tier names do not. */
@@ -973,32 +974,25 @@ export function lovableImageModelId(model: string): string {
   return model.includes("/") ? model : `openai/${model}`;
 }
 
+/**
+ * ONE picture from a pinned Lovable AI image model. Spending permission and
+ * the durable monthly cap are enforced by the caller before this runs.
+ */
 export async function callPinnedPaidImage(
   caller: AiCaller,
   prompt: string,
   model: string,
-  /**
-   * Supplying a source picture makes this a precision EDIT rather than a fresh
-   * frame. It still goes through the same guard, concurrency limit and adapter,
-   * so no caller can reach a provider directly.
-   */
+  /** Supplying a source picture makes this a precision EDIT. */
   source: { dataUrl: string; mimeType: string } | null = null,
 ): Promise<{ base64: string; mimeType: string; provider: ProviderName; model: string }> {
   const limits = aiLimits();
   if (prompt.length > limits.maxRequestChars)
-    throw new RevoraAiError(413, "That image brief is too long for Revora AI.", {
-      category: "too_large",
-    });
-  // Callers reserve first (and a free-only scope refuses that reservation);
-  // this is the last line so no free-only build can reach a paid model.
-  if (scopedFreeOnly()) throw freeAiUnavailable("paid pictures are off for this free-only build");
-  // Lovable's gateway leads paid pictures (owner decision 2026-10-22); the
-  // direct OpenAI key is used only when no Lovable key is configured.
-  const lovable = providerConfig("lovable");
-  const config = lovable?.apiKey ? lovable : providerConfig("openai");
-  if (!config?.apiKey) throw freeAiUnavailable("no paid picture provider has credentials configured");
-  const pictureProvider: "lovable" | "openai" = config === lovable ? "lovable" : "openai";
-  const pictureModel = pictureProvider === "lovable" ? lovableImageModelId(model) : model;
+    throw new RevoraAiError(413, "That image brief is too long for Revora AI.", { category: "too_large" });
+  if (scopedFreeOnly())
+    throw new RevoraAiError(503, "AI spending is switched off for this build.", { category: "not_configured" });
+  const config = providerConfig();
+  if (!config) throw notConfigured();
+  const pictureModel = lovableImageModelId(model);
 
   const concurrencyKey = caller.organizationId ?? caller.userId ?? "platform";
   if (!(await acquireWaiting(concurrencyKey, limits.maxConcurrentPerWorkspace)))
@@ -1008,92 +1002,100 @@ export async function callPinnedPaidImage(
   const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    // An unbounded provider request can hold a workspace slot forever. A
-    // timeout does not prove zero provider cost; the paid caller retains its
-    // conservative reservation for an indeterminate result.
     const deadline = new Promise<never>((_resolve, reject) => {
       timer = setTimeout(() => {
-        const error = new RevoraAiError(408, "The picture provider did not finish within the time limit.", { category: "timeout", provider: pictureProvider });
+        const error = new RevoraAiError(408, "The picture provider did not finish within the time limit.", { category: "timeout", provider: "lovable" });
         controller.abort(error);
         reject(error);
       }, limits.requestTimeoutMs);
     });
-    const result = await Promise.race([ADAPTERS[pictureProvider].image({
-      apiKey: config.apiKey,
-      model: pictureModel,
-      prompt,
-      source,
-      signal: controller.signal,
-    }), deadline]);
-    return { base64: result.base64, mimeType: result.mimeType, provider: pictureProvider, model: pictureModel };
+    const result = await Promise.race([
+      ADAPTERS.lovable.image({ apiKey: config.apiKey, model: pictureModel, prompt, source, signal: controller.signal }),
+      deadline,
+    ]);
+    return { base64: result.base64, mimeType: result.mimeType, provider: "lovable", model: pictureModel };
   } finally {
     clearTimeout(timer);
     release(concurrencyKey);
   }
 }
 
-/**
- * Proves whether a pinned paid picture model is actually reachable on Revora's
- * account, without generating anything. Returns a precise, secret-free reason so
- * a caller can report a genuine blocker instead of pretending a picture was made.
- */
-export async function paidImageModelReachable(
-  model: string,
-): Promise<{ available: boolean; detail: string }> {
-  // Lovable's image models are listed in the verified gateway catalogue; a
-  // real failure is still reported by the call itself, never hidden.
-  if (providerConfig("lovable")?.apiKey && LOVABLE_IMAGE_MODELS.has(lovableImageModelId(model)))
-    return { available: true, detail: "available through Lovable AI" };
-  const config = providerConfig("openai");
-  if (!config?.apiKey) return { available: false, detail: "no credential configured" };
-  const probe = await openaiModelReachable(config.apiKey, model);
-  if (probe.available) return { available: true, detail: "available on this account" };
-  if (probe.status === 403 || probe.status === 404)
-    return { available: false, detail: "this account does not have access to the model yet" };
-  return {
-    available: false,
-    detail:
-      probe.status === null
-        ? "the picture service could not be reached"
-        : `the picture service answered ${probe.status}`,
-  };
+/** Whether a pinned picture model is in Lovable's verified picture roster. */
+export async function paidImageModelReachable(model: string): Promise<{ available: boolean; detail: string }> {
+  if (!providerConfig()) return { available: false, detail: "Lovable AI is not configured" };
+  return LOVABLE_IMAGE_MODELS.has(lovableImageModelId(model))
+    ? { available: true, detail: "available through Lovable AI" }
+    : { available: false, detail: "not a Lovable AI picture model" };
 }
 
 /* -------------------------- pinned paid video call -------------------------- */
 
+export type VideoOutcome =
+  | { ok: true; bytes: Uint8Array }
+  | { ok: false; kind: "model_unavailable" | "provider_error" | "timed_out" | "invalid_video"; detail: string; charged: boolean };
+
+const GATEWAY = "https://ai.gateway.lovable.dev/v1";
+
 /**
- * ONE silent clip from the paid OpenAI video model, pinned by name. Lives in the
- * router for the same reason the picture lane does: the request guard, the
- * per-workspace concurrency limit and the provider adapter are the router's, and
- * no module outside it may reach a provider. Spending permission and the durable
- * cap are enforced by the caller before this runs.
+ * ONE clip from a Lovable AI video model (Gemini Omni request body). Creates
+ * one job, polls it, downloads the MP4. Never resubmits a failed job.
  */
 export async function callPinnedPaidVideo(
   caller: AiCaller,
   input: { model: string; prompt: string; seconds: number; size: string },
   waiting: { maxWaitMs: number; pollMs: number },
-): Promise<OpenAiVideoOutcome> {
+): Promise<VideoOutcome> {
   const limits = aiLimits();
   if (input.prompt.length > limits.maxRequestChars)
-    throw new RevoraAiError(413, "That video brief is too long for Revora AI.", {
-      category: "too_large",
-    });
-  if (scopedFreeOnly()) throw freeAiUnavailable("paid video is off for this free-only build");
-  const config = providerConfig("openai");
-  if (!config?.apiKey) throw freeAiUnavailable("openai has no credentials configured");
+    throw new RevoraAiError(413, "That video brief is too long for Revora AI.", { category: "too_large" });
+  if (scopedFreeOnly())
+    throw new RevoraAiError(503, "AI spending is switched off for this build.", { category: "not_configured" });
+  const config = providerConfig();
+  if (!config) throw notConfigured();
 
   const concurrencyKey = caller.organizationId ?? caller.userId ?? "platform";
   if (!(await acquireWaiting(concurrencyKey, limits.maxConcurrentPerWorkspace)))
-    throw new RevoraAiError(429, "Revora AI is already working on this workspace's requests.", {
-      category: "rate_limited",
-    });
+    throw new RevoraAiError(429, "Revora AI is already working on this workspace's requests.", { category: "rate_limited" });
+  const headers = { Authorization: `Bearer ${config.apiKey}`, "Content-Type": "application/json" };
   try {
-    return await openaiVideo(config.apiKey, input, waiting);
+    const portrait = input.size === "720x1280";
+    const seconds = Math.min(10, Math.max(3, Math.round(input.seconds)));
+    const created = await fetch(`${GATEWAY}/videos`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        model: input.model,
+        input: `${input.prompt} In a single continuous shot. No dialogue. No on-screen text.`,
+        response_format: { type: "video", resolution: "720p", duration: `${seconds}s`, aspect_ratio: portrait ? "9:16" : "16:9" },
+      }),
+    });
+    if (!created.ok) {
+      const detail = `create answered ${created.status}`;
+      return { ok: false, kind: created.status === 403 || created.status === 404 ? "model_unavailable" : "provider_error", detail, charged: false };
+    }
+    const job = (await created.json()) as { id?: string };
+    if (!job.id) return { ok: false, kind: "provider_error", detail: "no job id returned", charged: false };
+    const until = Date.now() + waiting.maxWaitMs;
+    for (;;) {
+      if (Date.now() >= until) return { ok: false, kind: "timed_out", detail: "job still rendering", charged: true };
+      await wait(waiting.pollMs);
+      const polled = await fetch(`${GATEWAY}/videos/${encodeURIComponent(job.id)}`, { headers });
+      if (!polled.ok) continue;
+      const state = (await polled.json()) as { status?: string; error?: { message?: string } };
+      if (state.status === "failed")
+        return { ok: false, kind: "provider_error", detail: (state.error?.message ?? "job failed").slice(0, 160), charged: true };
+      if (state.status !== "completed") continue;
+      const content = await fetch(`${GATEWAY}/videos/${encodeURIComponent(job.id)}/content`, { headers });
+      if (!content.ok) return { ok: false, kind: "provider_error", detail: `download answered ${content.status}`, charged: true };
+      const bytes = new Uint8Array(await content.arrayBuffer());
+      if (bytes.byteLength === 0) return { ok: false, kind: "invalid_video", detail: "empty clip", charged: true };
+      reportModelAnswered("lovable", input.model);
+      return { ok: true, bytes };
+    }
   } finally {
     release(concurrencyKey);
   }
 }
-
 
 /** JSON parse that reports failure as null instead of throwing. */
 function safeJsonObject(text: string): Record<string, unknown> | null {
