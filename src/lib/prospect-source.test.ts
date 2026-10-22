@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mapsLookupFrom, mapsRedirectTarget, parseImageFacts } from "./prospect-source";
+import { mapsLookupFrom, mapsRedirectTarget, parseImageFacts, pickPlaceMatch } from "./prospect-source";
 
 describe("mapsLookupFrom", () => {
   it("reads the business and map center from a place link", () => {
