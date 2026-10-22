@@ -59,6 +59,23 @@ export type AiHealth = {
   byTask: AiTaskStat[];
   byModel: { provider: string; model: string; calls: number; failures: number }[];
   refusedToolCalls: { tool: string; reason: string; count: number }[];
+  /** Live catalogue vs app routes, with real last-24h telemetry per model. */
+  catalogue: {
+    state: "live" | "stale" | "unavailable";
+    fetchedAt: string | null;
+    error: string | null;
+    staleRosterIds: { role: string; id: string; reason: string }[];
+    models: CatalogueModelReport[];
+  };
+};
+
+export type CatalogueModelReport = {
+  id: string;
+  outputs: string[];
+  roles: string[];
+  eligible: boolean;
+  reason: string | null;
+  last24h: { attempts: number; successes: number; failures: number; medianLatencyMs: number | null; estimatedCostUsd: number | null; lastUsedAt: string | null };
 };
 
 const percentile = (values: number[], fraction: number) => {
@@ -207,7 +224,52 @@ export const getAiHealth = createServerFn({ method: "GET" })
       refused.set(key, entry);
     }
 
+    const { liveCatalogue } = await import("@/lib/ai/catalogue.server");
+    const { routeStatus, staleRosterIds } = await import("@/lib/ai/catalogue");
+    const snapshot = await liveCatalogue();
+    const rosters = Object.fromEntries(lovable.roles.map((entry) => [entry.role, entry.models]));
+    const usage = new Map<string, { attempts: number; successes: number; latency: number[]; cost: number; priced: boolean; last: string | null }>();
+    for (const row of day) {
+      // Telemetry stores the provider's model id; normalise to the catalogue's vendor/id form.
+      const id = String(row.model ?? "");
+      const entry = usage.get(id) ?? { attempts: 0, successes: 0, latency: [], cost: 0, priced: false, last: null };
+      entry.attempts += 1;
+      if (row.ok) entry.successes += 1;
+      if (typeof row.latency_ms === "number") entry.latency.push(row.latency_ms);
+      if (row.estimated_cost_usd !== null) { entry.cost += Number(row.estimated_cost_usd); entry.priced = true; }
+      if (!entry.last || row.created_at > entry.last) entry.last = row.created_at;
+      usage.set(id, entry);
+    }
+    const usageFor = (id: string) => usage.get(id) ?? usage.get(id.split("/").pop() ?? id);
+    const catalogue: AiHealth["catalogue"] = snapshot.models
+      ? {
+          state: snapshot.state,
+          fetchedAt: snapshot.fetchedAt,
+          error: snapshot.error,
+          staleRosterIds: staleRosterIds(snapshot.models, rosters),
+          models: routeStatus(snapshot.models, rosters).map((model) => {
+            const u = usageFor(model.id);
+            return {
+              id: model.id,
+              outputs: model.outputs,
+              roles: model.roles,
+              eligible: model.roles.length > 0,
+              reason: model.reason ?? (u ? null : "Routed, but no calls in the last 24 hours."),
+              last24h: {
+                attempts: u?.attempts ?? 0,
+                successes: u?.successes ?? 0,
+                failures: u ? u.attempts - u.successes : 0,
+                medianLatencyMs: u?.latency.length ? percentile(u.latency, 0.5) : null,
+                estimatedCostUsd: u?.priced ? Math.round(u.cost * 10000) / 10000 : null,
+                lastUsedAt: u?.last ?? null,
+              },
+            };
+          }),
+        }
+      : { state: "unavailable", fetchedAt: null, error: snapshot.error, staleRosterIds: [], models: [] };
+
     return {
+      catalogue,
       configured: chain.length > 0,
       lovable,
       builderAiAvailable: builderAiAvailable(),
