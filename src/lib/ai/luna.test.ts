@@ -59,6 +59,7 @@ describe("luna configuration", () => {
 
   it("is off when no key is present", () => {
     delete process.env["OPENAI_API_KEY"];
+    delete process.env["LOVABLE_API_KEY"];
     expect(lunaEnabled()).toBe(false);
   });
 

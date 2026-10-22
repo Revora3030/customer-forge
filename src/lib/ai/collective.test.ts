@@ -151,6 +151,7 @@ describe("credential and opt-in gating", () => {
   it("offers no tier without a key, even when opted in", () => {
     enablePaidLane();
     delete process.env["OPENAI_API_KEY"];
+    delete process.env["LOVABLE_API_KEY"];
     expect(availableTiers()).toEqual([]);
   });
 
