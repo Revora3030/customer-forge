@@ -26,6 +26,7 @@
 import type { AgentAction } from "@/lib/site-agent";
 import { readBlockStyle, readComponentVisual } from "@/lib/site-style";
 import { LEGACY_CONTENT_KINDS } from "@/lib/builder/legacy-composition";
+import { validateComposition } from "./composition-tree";
 
 /** Ids that really exist in the database right now, per table. */
 export type KnownTargets = {
@@ -264,7 +265,7 @@ export type PlanFeedback = {
   type: AgentAction["type"];
   /** The section/component id or temp_* ref the feedback is about. */
   target: string;
-  reason: "needs_composition" | "image_without_media";
+  reason: "needs_composition" | "image_without_media" | "invalid_composition" | "incomplete_site";
   problem: string;
 };
 
@@ -288,8 +289,14 @@ const text = (value: unknown) => (typeof value === "string" ? value : "");
  */
 export function missingCompositionFeedback(plan: readonly unknown[] | { actions?: unknown }): PlanFeedback[] {
   const rows = planRows(plan);
-  const composed = new Set(rows.filter((row) => row["type"] === "set_composition").map((row) => text(row["sectionId"])).filter(Boolean));
+  const composed = new Set<string>();
   const out: PlanFeedback[] = [];
+  rows.forEach((row, index) => {
+    if (row["type"] !== "set_composition") return;
+    const checked = validateComposition(row["tree"]);
+    if (checked.ok) composed.add(text(row["sectionId"]));
+    else out.push({ index, type: "set_composition", target: text(row["sectionId"]), reason: "invalid_composition", problem: checked.issues.join("; ") });
+  });
   rows.forEach((row, index) => {
     if (row["type"] !== "add_section") return;
     const kind = text(row["kind"]);

@@ -18,6 +18,7 @@ import { MAX_ACTIONS } from "@/lib/site-agent";
 import { COMPOSITION_PRIMITIVES, MOTION_KINDS, MOTION_EASINGS, PRIMITIVE_GUIDE, validateComposition, type CompositionTree } from "@/lib/builder/composition-tree";
 import { auditSectionDesign, needsDesignRepair } from "@/lib/builder/design-quality";
 import { designGuidancePrompt, mobileFirstChecklist } from "@/lib/builder/design-guidance";
+import { missingRedesignSections } from "./site-plan-coverage";
 
 export type AiPlanFailure = {
   ok: false;
@@ -63,7 +64,8 @@ function actionContract(context: AgentContext): string {
   const fonts = "any Google Fonts family name";
   return [
     "Reply with ONE JSON object and nothing else:",
-    '{"reply":string,"summary":string,"requirements":string[],"questions":string[],"notes":string[],"scope":{"breadth":"style|section|page|site","sectionIds":[id,...],"pageIds":[id,...]},"actions":Action[]}',
+    '{"reply":string,"summary":string,"requirements":string[],"questions":string[],"notes":string[],"scope":{"breadth":"style|section|page|site","operation":"edit|redesign","sectionIds":[id,...],"pageIds":[id,...]},"actions":Action[]}',
+    'For a whole-website rebuild/redesign declare scope breadth "site" and operation "redesign". Author set_composition for EVERY retained existing section on EVERY page, not just home, and fill any new pages. For a site-wide property tweak declare operation "edit". Never claim work is completed before apply: reply describes the proposal in future tense.',
     'scope declares the smallest part of the site your plan touches: "style" or "section" when only the listed sections change, "page" when whole listed pages change, "site" only for genuinely site-wide changes. sectionIds and pageIds must be real ids copied from the website below. Changes outside your declared scope are dropped before anything is applied, so declare honestly.',
     "",
     "Action is one of:",
@@ -207,28 +209,30 @@ export function applyReview(
         .filter((value) => Number.isInteger(value))
     : [];
   for (const value of rejectNumbers) rejected.add(value);
-  // Dependency-aware: a rejected action that CREATES a ref (a new section,
-  // component or page) is reinstated when a kept action builds on that ref —
-  // otherwise the kept action would be orphaned and silently dropped. The
-  // reviewer's objection ("empty section") is answered by the dependent.
+  // Rejection is authoritative: never revive fabricated content just because
+  // another action uses it. Remove its dependants (including nested media refs).
   const refOf = (action: unknown) => {
     const ref = (action as Record<string, unknown> | null)?.["ref"];
     return typeof ref === "string" && ref ? ref : null;
   };
-  const uses = (action: unknown, ref: string) =>
-    Object.entries((action ?? {}) as Record<string, unknown>).some(
-      ([key, value]) => key !== "ref" && typeof value === "string" && value === ref,
-    );
+  const usesValue = (value: unknown, ref: string): boolean => {
+    if (typeof value === "string") return value === ref;
+    if (Array.isArray(value)) return value.some(item => usesValue(item, ref));
+    if (!value || typeof value !== "object") return false;
+    return Object.entries(value).some(([key, item]) => key !== "ref" && usesValue(item, ref));
+  };
   let changed = true;
   while (changed) {
     changed = false;
     actions.forEach((action, index) => {
       const ref = refOf(action);
       if (!ref || !rejected.has(index)) return;
-      if (actions.some((other, j) => j !== index && !rejected.has(j) && uses(other, ref))) {
-        rejected.delete(index);
-        changed = true;
-      }
+      actions.forEach((other, j) => {
+        if (j !== index && !rejected.has(j) && usesValue(other, ref)) {
+          rejected.add(j);
+          changed = true;
+        }
+      });
     });
   }
   const kept = actions.filter((_, index) => !rejected.has(index));
@@ -440,7 +444,11 @@ export async function planWebsiteChangesWithAi(input: {
   {
     const { verifyPlan, skipUnverifiedSteps, existingComponents } = await import("@/lib/site-agent.server");
     const existing = existingComponents(context);
-    let feedback = verifyPlan({ actions }, existing);
+    const coverageFeedback = () => missingRedesignSections(proposal, actions, context).map(target => ({
+      index: -1, type: "set_composition" as const, target, reason: "incomplete_site" as const,
+      problem: "Whole-site redesign omitted this existing section. Author its composition on its own page; do not only redesign home.",
+    }));
+    let feedback = [...verifyPlan({ actions }, existing), ...coverageFeedback()];
     if (feedback.length) {
       input.onStage?.("checking the plan", "making sure every new section has a layout and every picture is real");
       const repair = await callBestThinker({
@@ -491,13 +499,18 @@ export async function planWebsiteChangesWithAi(input: {
             const applied = applyReview(revised.list, parseJsonObject(recheck.text));
             if (applied.actions.length) {
               actions = applied.actions;
+              proposal = revised.parsed;
               notes = [...notes, ...applied.notes].slice(0, 8);
-              feedback = verifyPlan({ actions }, existing);
+              feedback = [...verifyPlan({ actions }, existing), ...coverageFeedback()];
             }
           }
         }
       }
       if (feedback.length) {
+        if (feedback.some(item => item.reason === "incomplete_site")) return {
+          ok: false, reason: "incomplete_site",
+          detail: `The whole-site redesign still omits ${coverageFeedback().length} existing sections. Nothing was applied.`,
+        };
         const kept = skipUnverifiedSteps({ actions, notes }, feedback);
         actions = (kept["actions"] as typeof actions) ?? actions;
         notes = (Array.isArray(kept["notes"]) ? (kept["notes"] as string[]) : notes).slice(0, 8);
@@ -579,9 +592,25 @@ export async function planWebsiteChangesWithAi(input: {
     }
   }
 
+  // Validate the exact actions the writer can consume, after polish and scope.
+  // Invalid compositions must not silently disappear into a theme-only update.
+  const { readActions: parseActions } = await import("@/lib/site-agent");
+  const dropped: string[] = [];
+  const parsedActions = parseActions(actions, {
+    pageIds: new Set(context.pages.map(page => page.id)),
+    sectionIds: new Set(context.pages.flatMap(page => page.sections.map(section => section.id))),
+    componentIds: new Set(context.pages.flatMap(page => page.sections.flatMap(section => section.components.map(component => component.id)))),
+  }, dropped);
+  const omitted = missingRedesignSections(proposal, parsedActions, context);
+  if (omitted.length || !parsedActions.length) return {
+    ok: false, reason: "incomplete_site",
+    detail: `The validated plan is incomplete${omitted.length ? `: ${omitted.length} sections still need layouts` : ""}. Nothing was applied.`,
+  };
+  actions = parsedActions;
+  notes = [...notes, ...dropped].slice(0, 8);
   const requirements = textList(proposal["requirements"], 8, 120).map((label) => ({
     label,
-    covered: true,
+    covered: dropped.length === 0 && actions.length === proposedActions.length,
   }));
 
   const trace = [
