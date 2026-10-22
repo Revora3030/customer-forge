@@ -109,18 +109,19 @@ const DEFAULT_MODELS: Record<PaidProviderName, Record<ModelRole, string>> = {
   },
   lovable: {
     // Verified against the live Lovable AI Gateway catalogue on 2026-10-22:
-    // every id below exists, is not deprecated, and answers on
-    // chat-completions with zero data retention. Anthropic models are left
-    // out on purpose: the gateway serves them only on /v1/messages, which
-    // the lovable adapter does not speak.
-    primary: "openai/gpt-6.1-sol",
-    design: "openai/gpt-6-sol",
-    fast: "google/gemini-3.1-flash-lite",
-    vision: "google/gemini-3.8-flash",
-    coding: "openai/gpt-6.1-sol",
+    // every id below exists, is not deprecated, and answers either on
+    // chat-completions with zero data retention or (the anthropic/* ids) on
+    // the native /v1/messages endpoint, which the lovable adapter speaks.
+    // A role may name a comma-separated roster; the router fails over across
+    // every id in order, so the whole verified catalogue is reachable.
+    primary: "openai/gpt-6.1-sol,anthropic/claude-sonnet-5,google/gemini-3.8-flash,openai/gpt-5.5",
+    design: "openai/gpt-6-sol,anthropic/claude-opus-5-5,anthropic/claude-fable-5-1,google/gemini-3.1-pro-preview",
+    fast: "google/gemini-3.1-flash-lite,openai/gpt-5.4-mini,anthropic/claude-haiku-4-5,google/gemini-3-flash-preview",
+    vision: "google/gemini-3.8-flash,anthropic/claude-sonnet-5,openai/gpt-6.1-sol,google/gemini-4-argon",
+    coding: "openai/gpt-6.1-sol,anthropic/claude-opus-5-5,anthropic/claude-sonnet-5,google/gemini-3.8-flash",
     image: "openai/gpt-image-2.5-sunburst",
     transcription: "google/gemini-3.5-transcribe",
-    conversation: "openai/gpt-6-astra",
+    conversation: "openai/gpt-6-astra,anthropic/claude-haiku-4-5,google/gemini-3.1-flash-lite,openai/gpt-5.6-luna",
   },
 };
 

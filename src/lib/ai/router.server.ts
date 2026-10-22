@@ -406,9 +406,16 @@ async function buildChain(
   // into free-only mode. Free routing is a cost lane, never creative authority.
   if (!forceFreeOnly)
     for (const config of providerChain()) {
-      const model = config.models[role];
-      if (capable && !capable(model)) continue;
-      candidates.push({ config, model, free: null });
+      // A role may name a comma-separated roster (the Lovable lane lists the
+      // whole verified gateway catalogue per role); every id is its own
+      // failover candidate.
+      for (const model of config.models[role]
+        .split(",")
+        .map((id) => id.trim())
+        .filter(Boolean)) {
+        if (capable && !capable(model)) continue;
+        candidates.push({ config, model, free: null });
+      }
     }
 
   // QUALITY-FIRST ORDER. Candidates are ranked by capability fit, then quality,
