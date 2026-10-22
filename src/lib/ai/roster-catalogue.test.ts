@@ -6,7 +6,7 @@ import { REVIEW_AREA_MODELS } from "@/lib/builder/review-panel.server";
 
 /**
  * Snapshot of the authenticated /v1/models listing taken during this audit
- * (tests/fixtures/lovable-models.json). Every configured roster id must be
+ * (src/lib/ai/fixtures/lovable-models.json, ids and capability fields only). Every configured roster id must be
  * eligible for the surface its role calls.
  */
 const FIXTURE = "src/lib/ai/fixtures/lovable-models.json";
@@ -31,7 +31,7 @@ describe("reviewer diversity", () => {
     const lead = providerConfig()!.models.design.split(",")[0];
     for (const [area, ids] of Object.entries(REVIEW_AREA_MODELS)) expect(ids?.[0], area).not.toBe(lead);
   });
-  it("uses at least four distinct vendors' models across review areas", () => {
+  it("uses at least three distinct vendors' models across review areas", () => {
     const vendors = new Set(Object.values(REVIEW_AREA_MODELS).flatMap((ids) => (ids ?? []).map((id) => id.split("/")[0])));
     expect(vendors.size).toBeGreaterThanOrEqual(3);
     const models = new Set(Object.values(REVIEW_AREA_MODELS).flat());
