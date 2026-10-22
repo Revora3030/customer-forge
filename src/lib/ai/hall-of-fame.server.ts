@@ -506,7 +506,7 @@ async function callPaidThinker(request: {
       userId: request.userId ?? null,
     };
     const aiRequest = {
-      role: roleForPurpose(request.purpose) as Parameters<typeof generateText>[1]["role"],
+      role: roleForPurpose(request.purpose) as NonNullable<Parameters<typeof generateText>[1]["role"]>,
       messages: [
         { role: "system" as const, content: request.system },
         { role: "user" as const, content: request.user },
