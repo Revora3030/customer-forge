@@ -1564,7 +1564,11 @@ async function runJob(
   // Never leave an unhandled rejection if pictures fail first; the error is
   // re-raised where the plan is awaited.
   architecturePlan?.catch(() => undefined);
-  noteStage(orgId, runId, "generating your pictures");
+  // Honest progress: on a first build the page plan is written WHILE the
+  // pictures are made, so the label names both instead of only pictures.
+  let architectureSettled = architecturePlan === null;
+  void architecturePlan?.then(() => { architectureSettled = true; }, () => { architectureSettled = true; });
+  noteStage(orgId, runId, architecturePlan ? "planning your pages and making your pictures" : "generating your pictures");
   // A retry of an interrupted build reuses the pictures its earlier attempt
   // already stored (only this job's own generated files, by creation time).
   // Checked on every attempt: a capacity-deferred rerun is attempt 1 again.
@@ -1714,7 +1718,7 @@ async function runJob(
   const architectBusinessName = org.data.name ?? "";
   const architectIndustry = org.data.industry ?? null;
   const architectGoal = goals[0] ?? org.data.conversion_goal ?? null;
-  noteStage(orgId, runId, "writing the pages");
+  noteStage(orgId, runId, architectureSettled ? "writing the pages" : "planning your pages");
   // Persist ownership before materialization so a failed attempt leaves a
   // verifiable job marker for safe retry cleanup. The marker is metadata only;
   // it does not publish or replace customer content.
@@ -2637,6 +2641,22 @@ export async function drainSiteEngineQueue(
     // expire mid-stage, so the client pump claimed the same job again and two
     // attempts wrote the site at once. The heartbeat keeps the lease alive for
     // the whole run and stops renewing once the attempt fence no longer holds.
+    // Who runs this attempt, recorded up front: when an attempt dies, its own
+    // start row says which caller was holding it (the lost row only names the
+    // caller that found it dead).
+    try {
+      await db.from("ai_generations").insert({
+        organization_id: job.organization_id,
+        job_id: job.id,
+        kind: "build_attempt_started",
+        model: "none",
+        instruction: null,
+        result: { attempt: Number(job.attempts), invoker: options.invoker ?? "unknown", startedAt: attemptStartedAt } as unknown as never,
+        created_by: job.created_by ?? null,
+      } as never);
+    } catch (error) {
+      console.warn(`[site-engine] attempt-start record for job ${job.id} skipped`, error);
+    }
     const heartbeat = startLeaseHeartbeat(db, job);
     try {
       // Demo (is_demo) workspaces build on the free pool only. The scope is

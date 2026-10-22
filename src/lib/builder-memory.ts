@@ -358,7 +358,47 @@ export async function listSavedBranches(organizationId: string): Promise<string[
   return [...seen];
 }
 
-export async function saveTurns(organizationId: string, turns: Array<Omit<SavedTurn, "at">>): Promise<void> {
+/**
+ * Drops assistant turns already saved for the same request with the same text.
+ * A request resumed after a reload or reconnect re-sent its "waiting for the
+ * first build" reply each time, filling the chat with copies of one answer.
+ */
+export function withoutRepeatedReplies<T extends { role: string; content: string; requestId?: string | null | undefined }>(
+  turns: T[],
+  saved: Array<{ role: string; content: string; requestId?: string | null | undefined }>,
+  normalise: (id: string | null | undefined) => string | null | undefined = (id) => id,
+): T[] {
+  const key = (turn: { role: string; content: string; requestId?: string | null | undefined }) =>
+    turn.role === "assistant" && turn.requestId ? `${normalise(turn.requestId)}\u0000${turn.content.trim()}` : null;
+  const seen = new Set(saved.map(key).filter((value): value is string => value !== null));
+  return turns.filter((turn) => {
+    const id = key(turn);
+    if (id === null) return true;
+    if (seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
+}
+
+export async function saveTurns(organizationId: string, incoming: Array<Omit<SavedTurn, "at">>): Promise<void> {
+  if (!incoming.length) return;
+  let turns = withoutRepeatedReplies(incoming, readCachedTurns(organizationId));
+  const requestIds = [...new Set(turns.filter((turn) => turn.role === "assistant" && turn.requestId).map((turn) => normaliseRequestId(turn.requestId)).filter(Boolean))];
+  if (requestIds.length) {
+    const { data: prior } = await (supabase as unknown as SupabaseClient)
+      .from("builder_messages")
+      .select("role, content, request_id")
+      .eq("organization_id", organizationId)
+      .eq("role", "assistant")
+      .in("request_id", requestIds as string[])
+      .limit(200);
+    if (Array.isArray(prior))
+      turns = withoutRepeatedReplies(
+        turns,
+        (prior as Array<{ role: string; content: string; request_id: string | null }>).map((row) => ({ role: row.role, content: row.content, requestId: row.request_id })),
+        normaliseRequestId,
+      );
+  }
   if (!turns.length) return;
   // Turns saved together get distinct times so they always read back in order.
   const base = Date.now();

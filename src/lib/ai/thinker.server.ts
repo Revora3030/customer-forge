@@ -174,6 +174,7 @@ async function callPaidThinker(request: {
     };
     const lane = {
       budgetReservedExternally: true,
+      longAttemptMs: thinkerAttemptTimeoutMs(maxOutputTokens),
       ...(request.signal ? { signal: request.signal } : {}),
     };
     const outcome =
@@ -299,4 +300,13 @@ export async function callBestThinker(
     costMicrocents: outcome.ok ? outcome.costMicrocents ?? 0 : 0,
   });
   return outcome;
+}
+
+/**
+ * Per-attempt time for one thinker answer, scaled to its length. A full page
+ * plan (8k tokens) took ~90s and the flat 90s limit aborted it just before it
+ * finished, so long answers get up to ~4 minutes; short ones keep 90s.
+ */
+export function thinkerAttemptTimeoutMs(maxOutputTokens: number): number {
+  return Math.min(240_000, Math.max(90_000, 30_000 + Math.ceil(maxOutputTokens) * 25));
 }
