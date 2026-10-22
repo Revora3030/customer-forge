@@ -72,16 +72,114 @@ describe("lovable provider registration", () => {
     expect(providerChain().map((entry) => entry.name)).toEqual(["openai", "google", "lovable"]);
   });
 
-  it("serves a model for every role from the verified gateway catalogue", () => {
+  it("serves a model roster for every role from the verified gateway catalogue", () => {
     process.env["LOVABLE_API_KEY"] = "test-lovable";
     const config = providerConfig("lovable");
     expect(config).not.toBeNull();
-    for (const model of Object.values(config!.models)) {
-      expect(model).toMatch(/^(openai|google)\//);
+    for (const roster of Object.values(config!.models)) {
+      for (const model of roster.split(",").map((id) => id.trim())) {
+        expect(model).toMatch(/^(openai|google|anthropic)\//);
+      }
     }
-    // Anthropic ids must never appear: the gateway serves them only on
-    // /v1/messages, which this adapter does not speak.
-    expect(Object.values(config!.models).some((model) => model.startsWith("anthropic/"))).toBe(false);
+    // Claude is part of the team: the adapter speaks the native /v1/messages
+    // endpoint for anthropic/* ids.
+    expect(
+      Object.values(config!.models).some((roster) => roster.includes("anthropic/claude-")),
+    ).toBe(true);
+  });
+});
+
+describe("lovable anthropic messages wire format", () => {
+  it("calls /v1/messages with a top-level system prompt and Anthropic usage", async () => {
+    const calls = stubGateway(200, {
+      content: [{ type: "text", text: "claude answered" }],
+      stop_reason: "end_turn",
+      usage: { input_tokens: 11, output_tokens: 6 },
+    });
+    const result = await lovableAdapter.chat({
+      apiKey: "test-lovable",
+      model: "anthropic/claude-sonnet-5",
+      messages: [
+        { role: "system", content: "be terse" },
+        { role: "user", content: "hello" },
+      ],
+      json: false,
+      maxOutputTokens: 256,
+      signal: new AbortController().signal,
+    });
+    expect(result.text).toBe("claude answered");
+    expect(result.usage).toEqual({ inputTokens: 11, outputTokens: 6 });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.url).toBe("https://ai.gateway.lovable.dev/v1/messages");
+    expect(calls[0]!.headers["authorization"]).toBe("Bearer test-lovable");
+    expect(calls[0]!.headers["anthropic-version"]).toBe("2023-06-01");
+    expect(calls[0]!.body["model"]).toBe("anthropic/claude-sonnet-5");
+    expect(calls[0]!.body["system"]).toBe("be terse");
+    expect(calls[0]!.body["max_tokens"]).toBe(256);
+    expect(calls[0]!.body["messages"]).toEqual([{ role: "user", content: "hello" }]);
+  });
+
+  it("converts image parts to base64 Messages blocks", async () => {
+    const calls = stubGateway(200, {
+      content: [{ type: "text", text: "seen" }],
+      usage: { input_tokens: 3, output_tokens: 1 },
+    });
+    await lovableAdapter.chat({
+      apiKey: "test-lovable",
+      model: "anthropic/claude-haiku-4-5",
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "what is this?" },
+            { type: "image", dataUrl: "data:image/png;base64,QUJD", mimeType: "image/png" },
+          ],
+        },
+      ],
+      json: false,
+      maxOutputTokens: 64,
+      signal: new AbortController().signal,
+    });
+    expect(calls[0]!.body["messages"]).toEqual([
+      {
+        role: "user",
+        content: [
+          { type: "text", text: "what is this?" },
+          { type: "image", source: { type: "base64", media_type: "image/png", data: "QUJD" } },
+        ],
+      },
+    ]);
+  });
+
+  it("treats a refusal stop_reason as a failed answer so the router fails over", async () => {
+    stubGateway(200, { content: [], stop_reason: "refusal" });
+    await expect(
+      lovableAdapter.chat({
+        apiKey: "test-lovable",
+        model: "anthropic/claude-opus-5-5",
+        messages: [{ role: "user", content: "hello" }],
+        json: false,
+        maxOutputTokens: 64,
+        signal: new AbortController().signal,
+      }),
+    ).rejects.toMatchObject({ category: "bad_response", provider: "lovable" });
+  });
+
+  it("streams anthropic answers as chat-completions SSE", async () => {
+    stubGateway(200, {
+      content: [{ type: "text", text: "streamed claude" }],
+      usage: { input_tokens: 2, output_tokens: 2 },
+    });
+    const stream = await lovableAdapter.stream({
+      apiKey: "test-lovable",
+      model: "anthropic/claude-sonnet-5",
+      messages: [{ role: "user", content: "hello" }],
+      maxOutputTokens: 64,
+      signal: new AbortController().signal,
+    });
+    const text = await new Response(stream).text();
+    expect(text).toContain("streamed claude");
+    expect(text).toContain("data: [DONE]");
   });
 });
 

@@ -14,7 +14,7 @@
 import type { FreeProviderName } from "@/lib/ai/free";
 
 const VISION_MODEL =
-  /vision|-vl\b|-vl-|[-_/]vl\d|\bvl-|llava|moondream|internvl|pixtral|multimodal|llama-4-(?:scout|maverick)|gemini-[\d.]+-(?:flash|pro)|gemini-(?:flash|pro)|gemma-3|gpt-4o|gpt-4\.1|gpt-5|omni|phi-[\d.]+-(?:multimodal|vision)/i;
+  /vision|-vl\b|-vl-|[-_/]vl\d|\bvl-|llava|moondream|internvl|pixtral|multimodal|llama-4-(?:scout|maverick)|gemini-[\d.]+-(?:flash|pro)|gemini-(?:flash|pro)|gemma-3|gpt-4o|gpt-4\.1|gpt-5|gpt-6|claude|omni|phi-[\d.]+-(?:multimodal|vision)/i;
 const TEXT_ONLY_MODEL =
   /glm(?!.*(?:-?4v|-?4\.\dv|vision))|gpt-oss|deepseek|qwen(?:\d(?:\.\d)?)?-?coder|codestral|coder|nemotron(?!.*vl)|mistral-nemo|ministral|command|north|kimi(?!.*vl)|minimax|ling-(?!.*-vl)|transcribe|whisper|flux|stable-diffusion|sdxl|dreamshaper|lightning|embed|guard/i;
 
