@@ -111,7 +111,7 @@ describe("liveCatalogue (server)", () => {
     expect(fetcher).toHaveBeenCalledTimes(1);
     const [url, init] = fetcher.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe("https://ai.gateway.lovable.dev/v1/models");
-    expect((init.headers as Record<string, string>).Authorization).toBe("Bearer test-key");
+    expect((init.headers as Record<string, string>)["Authorization"]).toBe("Bearer test-key");
   });
 
   it("reports unavailable honestly with no key, without calling out", async () => {
