@@ -48,12 +48,14 @@ const APP_FILES = SOURCE_FILES.filter((file) => !file.endsWith("ai-platform.test
 describe("no third-party AI gateway remains", () => {
   it("references the AI gateway host only in the two sanctioned lanes", () => {
     // gateway-chat.server.ts is the sanctioned Astra backup chat lane, and
-    // ai/providers/lovable.ts is the router's keyed Lovable paid provider.
-    // No other file may name the gateway host.
+    // ai/providers/lovable.ts is the router's keyed Lovable paid provider
+    // (its unit test names the host to assert the request URL). No other
+    // file may name the gateway host.
     const offenders = APP_FILES.filter(
       (file) =>
         !file.includes("gateway-chat.server.ts") &&
         !file.includes("ai/providers/lovable.ts") &&
+        !file.includes("ai/lovable-provider.test.ts") &&
         readFileSync(file, "utf8").includes("ai.gateway.lovable.dev"),
     );
     expect(offenders).toEqual([]);
