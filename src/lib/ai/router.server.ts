@@ -643,6 +643,8 @@ async function run<T>(
     freeOnly?: boolean;
     /** Walk only the paid team; the free pool is left to the caller's own fallback. */
     paidOnly?: boolean;
+    preferModels?: string[];
+    avoidModels?: string[];
     /**
      * The caller already reserved this call against the shared paid ledgers
      * (monthly + daily) and settles it itself, so the router must not reserve
@@ -673,7 +675,7 @@ async function run<T>(
   // mode; whatever is reachable is then ranked on capability and quality, with
   // cost last. An empty chain is an explicit AI failure; creative callers stop
   // rather than substituting a built-in website engine.
-  const chain = await buildChain(
+  const rawChain = await buildChain(
     caller,
     role,
     roleCapability(role, options?.capable),
@@ -681,6 +683,7 @@ async function run<T>(
     options?.freeOnly === true || scopedFreeOnly(),
     options?.paidOnly === true,
   );
+  const chain = applyModelPreference(rawChain, options?.preferModels, options?.avoidModels);
   const attemptTimeoutMs = clampPositive(options?.timeoutMs, limits.requestTimeoutMs);
   const chainBudgetMs = clampPositive(options?.chainDeadlineMs, chainDeadlineMs());
   if (chain.length === 0)
@@ -1001,6 +1004,28 @@ function carriesAttachment(messages: AiRequest["messages"]): boolean {
   );
 }
 
+/**
+ * Per-job model choice: preferred paid models move to the front in the given
+ * order; avoided ones (e.g. the model that wrote what is being reviewed) move
+ * to the very back so they answer only if nobody else can. Nothing is removed.
+ */
+export function applyModelPreference<T extends { model: string; free: unknown }>(
+  chain: T[],
+  prefer?: string[],
+  avoid?: string[],
+): T[] {
+  if (!prefer?.length && !avoid?.length) return chain;
+  const avoided = new Set(avoid ?? []);
+  const rank = (entry: T) => {
+    const index = entry.free === null && prefer ? prefer.indexOf(entry.model) : -1;
+    return index >= 0 ? index : Number.POSITIVE_INFINITY;
+  };
+  const kept = chain.filter((entry) => !avoided.has(entry.model));
+  const preferred = kept.filter((entry) => rank(entry) !== Number.POSITIVE_INFINITY).sort((a, b) => rank(a) - rank(b));
+  const rest = kept.filter((entry) => rank(entry) === Number.POSITIVE_INFINITY);
+  return [...preferred, ...rest, ...chain.filter((entry) => avoided.has(entry.model))];
+}
+
 /* ------------------------------ public surface ----------------------------- */
 
 /** Router options derived from one text/structured request. */
@@ -1009,6 +1034,8 @@ function runOptionsFor(request: AiRequest) {
     nextProviderOnInvalidRequest: carriesAttachment(request.messages),
     freeOnly: request.freeOnly === true,
     paidOnly: request.paidOnly === true,
+    ...(request.preferModels?.length ? { preferModels: request.preferModels } : {}),
+    ...(request.avoidModels?.length ? { avoidModels: request.avoidModels } : {}),
     ...(request.timeoutMs ? { timeoutMs: request.timeoutMs } : {}),
     ...(request.chainDeadlineMs ? { chainDeadlineMs: request.chainDeadlineMs } : {}),
   };
