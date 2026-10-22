@@ -207,7 +207,7 @@ export async function paidImageCapability(): Promise<PaidImageCapability> {
   if (!status.allowed)
     return { available: false, message: status.message, tiers: listed(false, "switched off") };
 
-  const apiKey = env("LOVABLE_API_KEY") ?? env("OPENAI_API_KEY");
+  const apiKey = providerConfig("lovable")?.apiKey ?? env("OPENAI_API_KEY");
   if (!apiKey)
     return {
       available: false,
@@ -258,7 +258,7 @@ export async function generatePaidImage(
   if (!paidImageAllowed())
     return { ok: false, reason: "disabled", message: paidImageStatus().message };
 
-  const apiKey = env("LOVABLE_API_KEY") ?? env("OPENAI_API_KEY");
+  const apiKey = providerConfig("lovable")?.apiKey ?? env("OPENAI_API_KEY");
   if (!apiKey)
     return {
       ok: false,
