@@ -50,7 +50,7 @@ describe("straight-to-live builder rules (owner decision 2026-10-22)", () => {
   it("caps full builds at 5 per workspace per 24 hours in the database", () => {
     const { readdirSync } = require("node:fs") as typeof import("node:fs");
     const dir = "drizzle/migrations";
-    const sql = readdirSync(dir).map((f: string) => readFileSync(`${dir}/${f}`, "utf8")).join("\n");
+    const sql = readdirSync(dir).filter((f: string) => f.endsWith(".sql")).map((f: string) => readFileSync(`${dir}/${f}`, "utf8")).join("\n");
     expect(sql).toMatch(/interval '24 hours'\) >= 5/);
   });
 });
