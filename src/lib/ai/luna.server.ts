@@ -27,7 +27,9 @@ import {
   type CollectiveTier,
   type TaskComplexity,
 } from "@/lib/ai/collective";
-import { isResponsesOnlyModel } from "@/lib/ai/providers/openai";
+function isResponsesOnlyModel(model: string) {
+  return /(^o\d+-pro$)|(^gpt-5(\.\d+)?-pro$)/i.test(model);
+}
 import { scopedFreeOnly } from "@/lib/ai/spend-scope.server";
 import type { PaidReservation } from "@/lib/ai/paid-budget.server";
 
