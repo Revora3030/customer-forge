@@ -45,6 +45,20 @@ function stubGateway(status = 200, payload?: unknown) {
         body: init?.body ? (JSON.parse(String(init.body)) as Record<string, unknown>) : {},
       });
       if (status !== 200) return new Response("gateway failure", { status });
+      if (String(input).endsWith("/messages") && payload) {
+        // The adapter streams Messages calls; replay the payload as SSE frames.
+        const p = payload as { content?: { text?: string }[]; stop_reason?: string; usage?: { input_tokens?: number; output_tokens?: number } };
+        const frames = [
+          { type: "message_start", message: { usage: { input_tokens: p.usage?.input_tokens } } },
+          ...(p.content ?? []).map((block) => ({ type: "content_block_delta", delta: { type: "text_delta", text: block.text ?? "" } })),
+          { type: "message_delta", delta: { stop_reason: p.stop_reason }, usage: { output_tokens: p.usage?.output_tokens } },
+          { type: "message_stop" },
+        ];
+        return new Response(frames.map((f) => `event: ${f.type}\ndata: ${JSON.stringify(f)}\n\n`).join(""), {
+          status: 200,
+          headers: { "content-type": "text/event-stream" },
+        });
+      }
       return new Response(
         JSON.stringify(
           payload ?? {
