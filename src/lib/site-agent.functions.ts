@@ -260,7 +260,14 @@ export const planWebsiteChanges = createServerFn({ method: "POST" })
     const supabase = context.supabase as unknown as SupabaseLike;
     const picked = await adminPickedModel(supabase, String(context.userId), data.model);
     const { withModelPreference } = await import("@/lib/ai/model-preference-scope.server");
-    return withModelPreference(picked, () => planImpl(supabase, String(context.userId), data));
+    const { withModelActivity } = await import("@/lib/ai/model-activity-scope.server");
+    const { noteStage } = await import("@/lib/builder/progress.server");
+    const runId = data.requestId || crypto.randomUUID();
+    const scoped = { ...data, requestId: runId };
+    return withModelActivity(
+      (provider, model) => noteStage(data.organizationId, runId, "model at work", `${provider} · ${model}`),
+      () => withModelPreference(picked, () => planImpl(supabase, String(context.userId), scoped)),
+    );
   });
 
 /** Only a super admin's pick is honoured; everyone else always gets Auto. */
@@ -842,9 +849,17 @@ export const applyWebsiteChanges = createServerFn({ method: "POST" })
       operationKey: str(input?.operationKey, 80),
     }),
   )
-  .handler(async ({ data, context }) =>
-    applyImpl(context.supabase as unknown as SupabaseLike, String(context.userId), data),
-  );
+  .handler(async ({ data, context }) => {
+    const runId = data.operationKey?.split(":")[0];
+    const work = () => applyImpl(context.supabase as unknown as SupabaseLike, String(context.userId), data);
+    if (!runId) return work();
+    const { withModelActivity } = await import("@/lib/ai/model-activity-scope.server");
+    const { noteStage } = await import("@/lib/builder/progress.server");
+    return withModelActivity(
+      (provider, model) => noteStage(data.organizationId, runId, "model at work", `${provider} · ${model}`),
+      work,
+    );
+  });
 
 type ApplyInput = {
   organizationId: string;

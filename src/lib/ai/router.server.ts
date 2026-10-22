@@ -818,6 +818,7 @@ async function run<T>(
             fallbackUsed,
             toolCalls: 0,
           });
+          reportModelAnswered(config.name, model);
           if (paidReservation)
             paidActual += routerActual(model, result.inputTokens ?? null, result.outputTokens ?? null, paidReservation.estimate);
           return {
@@ -1620,6 +1621,7 @@ export async function callPinnedFreeModel(
     }
     const latencyMs = Date.now() - started;
     void noteDurableProviderResult({ provider: call.provider, ok: true, latencyMs });
+    reportModelAnswered(call.provider, call.model);
     void recordAiEvent({
       requestId,
       provider: call.provider as ProviderName,
