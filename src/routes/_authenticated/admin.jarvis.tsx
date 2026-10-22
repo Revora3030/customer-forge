@@ -826,6 +826,22 @@ function Jarvis() {
             onClear={() => clearing.mutate()}
             onOpenConversations={() => setShowConversations(true)}
           />
+          {voice || live ? (
+            <div className="flex items-center justify-end gap-2 border-b border-border px-3 py-1.5 text-xs text-muted-foreground sm:px-6">
+              <label htmlFor="jarvis-voice-provider">Voice</label>
+              <select
+                id="jarvis-voice-provider"
+                value={voiceProvider}
+                onChange={(event) => chooseVoiceProvider(event.target.value as JarvisVoiceProvider)}
+                className="rounded-md border border-input bg-background px-2 py-1 text-xs text-foreground"
+              >
+                <option value="auto">Auto</option>
+                <option value="elevenlabs">ElevenLabs</option>
+                <option value="lovable">Lovable AI (uses AI allowance)</option>
+              </select>
+            </div>
+          ) : null}
+
 
           <Conversation contextRef={conversation} className="min-h-0 flex-1" aria-label="Jarvis conversation" aria-live="off">
             <ConversationContent scrollClassName="overscroll-contain" className="mx-auto w-full max-w-[var(--jarvis-measure)] gap-6 px-3 py-4 sm:px-6">
