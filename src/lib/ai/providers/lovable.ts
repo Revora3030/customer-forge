@@ -72,10 +72,15 @@ function isReasoningModel(model: string) {
   return /^(gpt-5|gpt-6|o\d)/i.test(bareModel(model));
 }
 
+/**
+ * Speed-first effort for every thinking model: the builder makes many short
+ * calls under a per-request time limit, so default (high) thinking times out.
+ */
 function reasoningEffortFor(model: string): Record<string, string> {
   const bare = bareModel(model);
   if (/^gpt-5\.6-/i.test(bare)) return { reasoning_effort: "none" };
-  if (/^gpt-6/i.test(bare)) return { reasoning_effort: "low" };
+  if (/^(gpt-5|gpt-6|o\d)/i.test(bare)) return { reasoning_effort: "low" };
+  if (/^gemini-(2\.5|3)/i.test(bare) && !/image|tts|embedding/i.test(bare)) return { reasoning_effort: "low" };
   return {};
 }
 
@@ -121,6 +126,7 @@ function requestBody(input: {
         }
       : {
           max_tokens: input.maxOutputTokens,
+          ...reasoningEffortFor(input.model),
           ...(typeof input.temperature === "number" ? { temperature: input.temperature } : {}),
         }),
   };
