@@ -499,9 +499,7 @@ async function callPaidThinker(request: {
     await settleBudget(organizationId, estimate, actual, reservation.paid);
   };
   try {
-    const { extractJsonObject, generateStructuredOutput, generateText, paidFailureCharge } = await import(
-      "@/lib/ai/router.server"
-    );
+    const { extractJsonObject, generateStructuredOutput, generateText } = router;
     const caller = {
       task: `builder-thinker.${request.purpose}`,
       organizationId,
@@ -571,7 +569,7 @@ async function callPaidThinker(request: {
       costMicrocents: billed,
     };
   } catch (error) {
-    const charge = paidFailureCharge(error as Parameters<typeof paidFailureCharge>[0], estimate);
+    const charge = router.paidFailureCharge(error as Parameters<typeof router.paidFailureCharge>[0], estimate);
     await settle(charge);
     const detail = error instanceof Error ? error.message.slice(0, 160) : "paid call failed";
     await recordUsage({
