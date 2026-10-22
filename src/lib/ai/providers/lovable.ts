@@ -126,6 +126,7 @@ function requestBody(input: {
         }
       : {
           max_tokens: input.maxOutputTokens,
+          ...reasoningEffortFor(input.model),
           ...(typeof input.temperature === "number" ? { temperature: input.temperature } : {}),
         }),
   };
