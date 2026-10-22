@@ -456,6 +456,14 @@ async function callPaidThinker(request: {
   // A cancelled build never reaches a paid provider.
   if (request.signal?.aborted)
     return { ok: false, tier, wanted, reason: "provider_unavailable", detail: "request cancelled" };
+  // Loaded before any reservation, so a router that cannot load fails closed
+  // with no spend held.
+  let router: typeof import("@/lib/ai/router.server");
+  try {
+    router = await import("@/lib/ai/router.server");
+  } catch {
+    return { ok: false, tier, wanted, reason: "provider_unavailable", detail: "AI router unavailable" };
+  }
 
   const organizationId = request.organizationId ?? null;
   const maxOutputTokens = Math.max(request.maxOutputTokens ?? 900, 64);
