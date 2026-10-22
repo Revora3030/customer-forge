@@ -1,10 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { answeringModel, formatModelLabel } from "./jarvis-model-label";
-import { resolveModelConfig } from "./ai/config";
+import { providerConfig } from "./ai/config";
 
 describe("Jarvis model label", () => {
   it("formats recorded Lovable models", () => {
-    expect(formatModelLabel("anthropic/claude-sonnet-4-6", "lovable")).toBe("Claude Sonnet 4.6 · Lovable");
+    expect(formatModelLabel("anthropic/claude-sonnet-5", "lovable")).toBe("Claude Sonnet 5 · Lovable");
     expect(formatModelLabel("openai/gpt-6-sol", "lovable")).toBe("GPT-6 Sol · Lovable");
   });
   it("shows nothing when no model was recorded", () => {
@@ -21,8 +21,11 @@ describe("Jarvis model label", () => {
 });
 
 describe("Jarvis conversation roster", () => {
+  afterEach(() => vi.unstubAllEnvs());
   it("leads with strong Lovable models and includes Claude", () => {
-    const roster = resolveModelConfig({ LOVABLE_API_KEY: "x" } as never).lovable.conversation.split(",");
+    vi.stubEnv("LOVABLE_API_KEY", "test");
+    vi.stubEnv("AI_LOVABLE_MODEL_CONVERSATION", "");
+    const roster = providerConfig("lovable")!.models.conversation.split(",");
     expect(roster[0]).toBe("openai/gpt-6.1-sol");
     expect(roster).toContain("anthropic/claude-sonnet-5");
     expect(roster.length).toBeGreaterThanOrEqual(8);
