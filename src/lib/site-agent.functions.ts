@@ -1,3 +1,4 @@
+import { parsePickedModel } from "@/lib/ai/lovable-models";
 import type { SupabaseClient } from "@supabase/supabase-js";
 /**
  * Authenticated Site Agent endpoints.
@@ -224,6 +225,7 @@ export const planWebsiteChanges = createServerFn({ method: "POST" })
       attachments?: unknown;
       brand?: unknown;
       requestId?: string;
+      model?: string | null;
     }) => {
       const organizationId = orgIdOf(input);
       const instruction = str(input?.instruction, PLAN_INSTRUCTION_LIMIT);
@@ -248,14 +250,26 @@ export const planWebsiteChanges = createServerFn({ method: "POST" })
         attachments,
         brand: readBrand(input?.brand),
         requestId: str(input?.requestId, 80),
+        model: parsePickedModel(input?.model),
       };
     },
   )
 
 
-  .handler(async ({ data, context }) =>
-    planImpl(context.supabase as unknown as SupabaseLike, String(context.userId), data),
-  );
+  .handler(async ({ data, context }) => {
+    const supabase = context.supabase as unknown as SupabaseLike;
+    const picked = await adminPickedModel(supabase, String(context.userId), data.model);
+    const { withModelPreference } = await import("@/lib/ai/model-preference-scope.server");
+    return withModelPreference(picked, () => planImpl(supabase, String(context.userId), data));
+  });
+
+/** Only a super admin's pick is honoured; everyone else always gets Auto. */
+async function adminPickedModel(supabase: SupabaseLike, userId: string, model: string | null): Promise<string | null> {
+  if (!model) return null;
+  const { data } = await (supabase as unknown as import("@supabase/supabase-js").SupabaseClient)
+    .from("user_roles").select("role").eq("user_id", userId).eq("role", "super_admin").maybeSingle();
+  return data ? model : null;
+}
 
 type PlanInput = {
   organizationId: string;
