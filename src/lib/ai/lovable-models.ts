@@ -22,6 +22,10 @@ export const LOVABLE_CONVERSATION_MODELS = [
   "openai/gpt-5.6-sol",
   "openai/gpt-5.6-terra",
   "openai/gpt-5.4",
+  "anthropic/claude-opus-5",
+  "openai/gpt-6-luna",
+  "openai/gpt-5.5-pro",
+  "openai/chat-latest",
 ] as const;
 
 /** The owner-picked model, or null for "Auto". Unknown ids are ignored, never forwarded. */
