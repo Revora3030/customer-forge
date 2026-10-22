@@ -13,6 +13,7 @@
  * substitute design.
  */
 import { callBestThinker } from "@/lib/ai/hall-of-fame.server";
+import { readAll } from "@/lib/db/read-all";
 import { craftBarPrompt } from "@/lib/builder/world-class-craft";
 import { screenText } from "@/lib/builder/collective-copy";
 import { repairContactDetails } from "@/lib/builder/chrome-repair";
@@ -309,11 +310,11 @@ export async function composeFirstBuildSections(input: {
   const direction = input.depthDirection ?? depthDirectionFromLook(input.lookSummary);
   const withinBudget = () => input.optionalPassDeadline === undefined || Date.now() < input.optionalPassDeadline;
   const [{ data: sections, error }, { data: components, error: componentsError }] = await Promise.all([
-    db.from("website_sections").select("id,page_id,kind,heading,subheading,body,settings").eq("organization_id", organizationId).order("sort_order"),
-    db.from("website_components").select("id,section_id,kind,label,body,media_url,link_url,link_label,settings").eq("organization_id", organizationId).order("sort_order"),
+    readAll<SectionRow>(() => db.from("website_sections").select("id,page_id,kind,heading,subheading,body,settings").eq("organization_id", organizationId).order("sort_order").order("id")),
+    readAll<ComponentRow>(() => db.from("website_components").select("id,section_id,kind,label,body,media_url,link_url,link_label,settings").eq("organization_id", organizationId).order("sort_order").order("id")),
   ]);
-  if (error) throw new Error(error.message);
-  if (componentsError) throw new Error(componentsError.message);
+  if (error) throw new Error("Couldn't read the website sections to design");
+  if (componentsError) throw new Error("Couldn't read the website material to design");
   const rows = (sections ?? []) as SectionRow[];
   const parts = (components ?? []) as ComponentRow[];
   // Prices already written on the owner's own site are supplied facts.
@@ -328,8 +329,8 @@ export async function composeFirstBuildSections(input: {
   };
   // A made-up phone number or email in a layout is corrected to the owner's
   // real one (or the contact page) instead of costing the whole section.
-  const pageRows = await db.from("website_pages").select("id,slug,kind").eq("organization_id", organizationId);
-  if (pageRows.error) throw new Error(pageRows.error.message);
+  const pageRows = await readAll<{ id: string; slug: string; kind: string | null }>(() => db.from("website_pages").select("id,slug,kind").eq("organization_id", organizationId).order("id"));
+  if (pageRows.error) throw new Error("Couldn't read every website page to design");
   const pageList = (pageRows.data ?? []) as { id?: string; slug: string; kind: string | null }[];
   const contactSlug = pageList.find((page) =>
     ["contact", "book", "booking", "quote", "contact-us"].includes(page.slug) || /contact|book|quote/i.test(String(page.kind ?? "")),
