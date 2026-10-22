@@ -29,7 +29,8 @@ Scan before broad changes; preserve generated files and tenant/auth/billing/publ
 - Builder progress uses the chat request ID from planning through apply; this keeps every live stage attached to the request that caused it.
 - AI router unit tests use the shared provider environment isolation helper and stub HTTP and spend reservations; ambient deployment credentials must not trigger provider calls or ledger writes.
 - Admin Jarvis uses the shared conversation request helper and router rather than forcing its own free-only lane; this preserves one eligibility, budget and failover boundary for chat and build teamwork.
-- Site builds checkpoint each finished AI stage on the job row (stage and section checkpoints, digest-matched and job-scoped) so retries resume instead of regenerating; cleared on completion.
+- Site builds checkpoint each finished AI stage on the job row (stage checkpoints incl. section wording, section checkpoints; digest-matched and job-scoped) and a capacity park keeps the attempt's pictures, so resumes reuse inputs the saved section designs depend on instead of regenerating; cleared on completion.
+- Free squad walks share short per-worker provider cooldowns (rate limit, or two timeouts in a row) so concurrent walks stop re-calling a busy provider; the durable circuit still owns longer rests.
 - Builds parked for AI capacity go only through the worker's capacity deferral, which mirrors its retry time into generation_jobs.resumes_at/wait_reason/wait_providers for owner display; never add a second deferral path.
 - Marketing cookie consent occupies normal document flow on phones and floats only on larger screens; this keeps signup usable without hiding consent or weakening measurement controls.
 - Shared list-query recovery uses QueryErrorNotice before empty states; failed reads must not be presented as missing customer records.
