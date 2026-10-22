@@ -291,6 +291,27 @@ describe("a failed attempt's cleanup (3.R-a step 3)", () => {
     expect(rollback).not.toHaveBeenCalled();
   });
 
+  it("a capacity park keeps its pictures for the resumed attempt", async () => {
+    const { AiCapacityParkError } = await import("@/lib/builder/ai-step-error");
+    const { db } = database({ generation_jobs: [{ id: JOB, status: "processing" }] });
+    const cleanupImages = vi.fn(async () => undefined);
+    const rollback = vi.fn(async () => ({ restored: false, restoreError: null }));
+    await expect(
+      settleFailedAttempt(db, { error: new AiCapacityParkError("section layouts", "busy"), jobId: JOB, generatedAssets: [asset], freshReplace: false, backupId: null }, { cleanupImages, rollback }),
+    ).rejects.toThrow();
+    expect(cleanupImages).not.toHaveBeenCalled();
+  });
+
+  it("a genuine failure still removes its pictures", async () => {
+    const { db } = database({ generation_jobs: [{ id: JOB, status: "processing" }] });
+    const cleanupImages = vi.fn(async () => undefined);
+    const rollback = vi.fn(async () => ({ restored: false, restoreError: null }));
+    await expect(
+      settleFailedAttempt(db, { error: new Error("boom"), jobId: JOB, generatedAssets: [asset], freshReplace: false, backupId: null }, { cleanupImages, rollback }),
+    ).rejects.toThrow();
+    expect(cleanupImages).toHaveBeenCalledTimes(1);
+  });
+
   it("a cancelled attempt cleans up and restores", async () => {
     const { db } = database({ generation_jobs: [{ id: JOB, status: "cancelled" }] });
     const cleanupImages = vi.fn(async () => undefined);

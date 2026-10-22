@@ -546,7 +546,15 @@ export async function settleFailedAttempt(
     const { data: latest } = await db.from("generation_jobs").select("status").eq("id", input.jobId).maybeSingle();
     if ((latest as { status?: string } | null)?.status !== "cancelled") throw error;
   }
-  if (input.generatedAssets.length) await deps.cleanupImages(input.generatedAssets).catch(() => undefined);
+  // A capacity park hands the SAME job back to the queue to resume from its
+  // checkpoints. Its pictures are kept so the resumed attempt reuses them by
+  // file name (and the saved section designs that reference them still
+  // match) instead of re-making and re-reviewing every picture. A resumed
+  // attempt carries the reused pictures in its own generatedAssets, so a
+  // later genuine failure or cancellation still removes them.
+  const { AiCapacityParkError } = await import("@/lib/builder/ai-step-error");
+  const parked = error instanceof AiCapacityParkError;
+  if (input.generatedAssets.length && !parked) await deps.cleanupImages(input.generatedAssets).catch(() => undefined);
   const message = error instanceof Error ? error.message : "Generation failed.";
   if (input.freshReplace && input.backupId) {
     if (deps.claimMarker && !(await deps.claimMarker())) {
@@ -1867,33 +1875,60 @@ async function runJob(
     // makes the refinement return no patches (the authored wording stays)
     // instead of holding the worker until it is cut off at 74%.
     const wordingAbort = new AbortController();
-    const wordingTimer = setTimeout(() => wordingAbort.abort(), WORDING_BUDGET_MS);
-    (wordingTimer as { unref?: () => void }).unref?.();
     type WordingOutcome = Awaited<ReturnType<typeof refineSectionWordingWithCollective>>;
     const keepAuthored: WordingOutcome = { patches: [], passes: [], totalCostMicrocents: 0 };
+    const directionSummary = [creative.brief.concept, creative.brief.personality].filter(Boolean).join(" · ");
+    const depthNotes = built.depth
+      ? Object.fromEntries(Object.entries(built.depth).map(([slug, page]) => [slug, page.notes]).filter(([, notes]) => (notes as string[]).length))
+      : undefined;
+    // A resumed attempt of this job reapplies the wording the AI team already
+    // accepted (same job, same starting copy) instead of rewriting it again.
+    const wordingCheckpoint = await import("@/lib/builder/wording-checkpoint");
+    const wordingInputs = wordingCheckpoint.wordingCheckpointInputs(wording, {
+      facts: buildFacts,
+      directionSummary,
+      pageFacts,
+      depthNotes: depthNotes ?? null,
+    });
+    const resumedWording = wordingCheckpoint.fromStoredWordingPatches(
+      wording,
+      await stageStore.get<unknown>("wording", wordingInputs),
+    );
+    const wordingTimer = setTimeout(() => wordingAbort.abort(), WORDING_BUDGET_MS);
+    (wordingTimer as { unref?: () => void }).unref?.();
     // Raced against the abort as well, because not every provider fallback
     // honours the signal; the stage must return on time either way.
     const timedOut = new Promise<WordingOutcome>((resolve) =>
       wordingAbort.signal.addEventListener("abort", () => resolve(keepAuthored), { once: true }),
     );
-    const outcome = await Promise.race([
-      refineSectionWordingWithCollective({
-        organizationId: orgId,
-        facts: buildFacts,
-        sections: wording,
-        directionSummary: [creative.brief.concept, creative.brief.personality].filter(Boolean).join(" · "),
-        hardGenericityGate: true,
-        signal: wordingAbort.signal,
-        ...(Object.keys(pageFacts).length ? { pageFacts } : {}),
-        ...(built.depth ? { depthNotes: Object.fromEntries(Object.entries(built.depth).map(([slug, page]) => [slug, page.notes]).filter(([, notes]) => (notes as string[]).length)) } : {}),
-      }).catch((error: unknown) => {
-        if (!wordingAbort.signal.aborted) throw error;
-        return keepAuthored;
-      }),
-      timedOut,
-    ]).finally(() => clearTimeout(wordingTimer));
-    if (wordingAbort.signal.aborted) {
-      console.warn(`[site-engine] job ${job.id}: section wording refinement exceeded its budget; keeping the authored wording.`);
+    const outcome: WordingOutcome = resumedWording
+      ? { patches: resumedWording, passes: [], totalCostMicrocents: 0 }
+      : await Promise.race([
+          refineSectionWordingWithCollective({
+            organizationId: orgId,
+            facts: buildFacts,
+            sections: wording,
+            directionSummary,
+            hardGenericityGate: true,
+            signal: wordingAbort.signal,
+            ...(Object.keys(pageFacts).length ? { pageFacts } : {}),
+            ...(depthNotes ? { depthNotes } : {}),
+          }).catch((error: unknown) => {
+            if (!wordingAbort.signal.aborted) throw error;
+            return keepAuthored;
+          }),
+          timedOut,
+        ]);
+    clearTimeout(wordingTimer);
+    if (resumedWording) {
+      console.info(`[site-engine] job ${job.id}: reused ${resumedWording.length} saved section wording change(s) from this job's earlier attempt.`);
+    } else {
+      if (wordingAbort.signal.aborted) {
+        console.warn(`[site-engine] job ${job.id}: section wording refinement exceeded its budget; keeping the authored wording.`);
+      }
+      // Saved either way (an overrun saves "no changes"), so a resumed attempt
+      // keeps exactly the wording its saved section designs were made from.
+      await stageStore.put("wording", wordingInputs, wordingCheckpoint.toStoredWordingPatches(wording, outcome.patches as never));
     }
     await touchLease(db, job);
     for (const patch of outcome.patches) {

@@ -46,6 +46,8 @@ export function recentHallOfFameRuns(limit = 20): HallOfFameRun[] {
 }
 export function resetHallOfFameRuns() {
   RUNS.length = 0;
+  // Per-worker cooldowns are run memory too; tests start from a clean slate.
+  resetHallOfFameCooldowns();
 }
 export type HallOfFameOutcome =
   | { ok: true; text: string; provider: string; model: string; attempts: HallOfFameAttempt[] }
@@ -155,6 +157,56 @@ function leave(provider: string) {
   else inFlight.set(provider, next);
 }
 
+/**
+ * Short process-wide cooldowns shared by every concurrent walk. A walk already
+ * skips a provider that rate-limited IT, but a build runs dozens of walks at
+ * once: each one used to call the same 429-ing free service again (one test
+ * build logged 21 rate-limit answers from one provider) and each one waited
+ * out the same wedged provider's 45s timeout. A rate limit cools the provider
+ * for every walk at once; two timeouts in a row do the same. A success clears
+ * it. The shared durable circuit still decides longer rests.
+ */
+export const HALL_OF_FAME_RATE_LIMIT_COOL_MS = 60_000;
+export const HALL_OF_FAME_TIMEOUT_COOL_MS = 120_000;
+const coolUntil = new Map<string, number>();
+const consecutiveTimeouts = new Map<string, number>();
+export function hallOfFameProviderCooling(provider: string, now = Date.now()): boolean {
+  const until = coolUntil.get(provider);
+  if (until === undefined) return false;
+  if (until > now) return true;
+  coolUntil.delete(provider);
+  return false;
+}
+function errorCategory(error: unknown): string | null {
+  if (!error || typeof error !== "object" || !("category" in error)) return null;
+  const category = (error as { category: unknown }).category;
+  return typeof category === "string" ? category : null;
+}
+export function noteHallOfFameFailure(provider: string, error: unknown, now = Date.now()): void {
+  const category = errorCategory(error);
+  if (category === "rate_limited") {
+    coolUntil.set(provider, now + HALL_OF_FAME_RATE_LIMIT_COOL_MS);
+    return;
+  }
+  if (category === "timeout") {
+    const count = (consecutiveTimeouts.get(provider) ?? 0) + 1;
+    consecutiveTimeouts.set(provider, count);
+    if (count >= 2) {
+      coolUntil.set(provider, now + HALL_OF_FAME_TIMEOUT_COOL_MS);
+      consecutiveTimeouts.delete(provider);
+    }
+  }
+}
+export function noteHallOfFameSuccess(provider: string): void {
+  consecutiveTimeouts.delete(provider);
+  coolUntil.delete(provider);
+}
+/** Test helper. */
+export function resetHallOfFameCooldowns(): void {
+  coolUntil.clear();
+  consecutiveTimeouts.clear();
+}
+
 /** Per-member time limit: free models routinely need 15-40s for a full answer. */
 export const HALL_OF_FAME_MEMBER_MS_DEFAULT = 45_000;
 
@@ -217,7 +269,7 @@ export async function callHallOfFame(request: HallOfFameRequest): Promise<HallOf
     if (member.provider === "groq" && request.system.length + request.user.length > GROQ_MAX_PROMPT_CHARS) continue;
     // A provider resting on its shared circuit (spent quota, repeated failures)
     // is skipped without a call, so the walk's time goes to models that answer.
-    if (durableProviderResting(member.provider)) {
+    if (durableProviderResting(member.provider) || hallOfFameProviderCooling(member.provider)) {
       deadProviders.add(member.provider);
       continue;
     }
@@ -278,12 +330,14 @@ export async function callHallOfFame(request: HallOfFameRequest): Promise<HallOf
         latencyMs: result.latencyMs,
       });
       if (usable) {
+        noteHallOfFameSuccess(member.provider);
         finish(`${member.provider} · ${member.model}`);
         return { ok: true, text, provider: member.provider, model: member.model, attempts };
       }
     } catch (error) {
       const latencyMs = Date.now() - started;
       recordFreeModelOutcome({ provider: member.provider, model: member.model, ok: false, latencyMs });
+      noteHallOfFameFailure(member.provider, error);
       if (providerWideFailure(error)) deadProviders.add(member.provider);
       attempts.push({
         provider: member.provider,

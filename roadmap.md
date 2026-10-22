@@ -1,5 +1,11 @@
 # Roadmap — Five-phase blocker elimination
 
+## Test build resume fixes (2026-10-22)
+- [x] Resume no longer redoes finished work: busy-AI pauses keep the build's pictures; section wording is saved and reapplied; section designs therefore stay valid.
+- [x] Busy (rate-limited) or repeatedly slow free services rest briefly for every concurrent step instead of being re-called.
+- [ ] Resume test build "Revora Internal Test Plumbing" with fixed engine, then verify every page, image, form and final quality check (no publish, no paid calls).
+- [ ] Published worker still runs the old engine until the owner publishes.
+
 ## Raise rating gaps (2026-10-22 plan)
 - [ ] Phase 1: one free-model test-workspace build + every-page report — waiting on owner approval to run.
 - [x] Phase 2a: live Jarvis step events shown while working (tested).
