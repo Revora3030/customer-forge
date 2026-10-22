@@ -32,14 +32,17 @@ const RETENTION_ALLOWED: Record<string, AppSurface[]> = {
 /** Surfaces the gateway offers that no app feature calls yet (reported, never routed). */
 export const UNROUTED_SURFACE_REASON: Record<string, string> = {
   speech: "Text-to-speech: Jarvis voice calls one selected speech model (AI_LOVABLE_MODEL_SPEECH); this one is not selected.",
-  embeddings: "Embeddings: no app feature stores or searches vectors yet.",
-  music: "Music: no app feature generates music.",
-  live: "Live voice: no app feature runs two-way voice sessions.",
+  embeddings: "Embeddings: not integrated; search memory needs a reviewed vector-storage migration (pgvector) that has not been applied.",
+  music: "Music: not integrated; no owner-approved music workflow or saved-audio storage exists yet.",
+  live: "Live voice: not integrated; needs a server-minted short-lived session flow, not built yet.",
   systemone: "Typed decisions: no app feature uses the /v1/systemone endpoint.",
   "image-edit": "Image edit: picture edits go through image generation with a reference image.",
   responses: "Responses-only: the app's adapter calls chat-completions for OpenAI ids.",
   interactions: "Interactions: not used by the app.",
 };
+
+/** Veo is listed on /v1/videos, but the app's video handler is built for Gemini Omni's body; Veo's body and price are unverified. */
+export const VEO_REASON = "Video: not routed; the app's video request body is Gemini Omni-specific and Veo's request shape and pricing are not verified.";
 
 const strings = (value: unknown): string[] => (Array.isArray(value) ? value.filter((v): v is string => typeof v === "string") : []);
 
@@ -122,7 +125,7 @@ export function routeStatus(catalogue: CatalogueModel[], rosters: Record<string,
         if (reasons.length) reason = reasons.join(" ");
         else if (model.deprecated) reason = "Deprecated in the live catalogue; not routed.";
         else {
-          const known = model.surfaces.map((s) => UNROUTED_SURFACE_REASON[s]).find(Boolean);
+          const known = (model.id.startsWith("google/veo-") ? VEO_REASON : undefined) ?? model.surfaces.map((s) => UNROUTED_SURFACE_REASON[s]).find(Boolean);
           reason = known ?? `Not in any app roster (surfaces: ${model.surfaces.join(", ") || "none"}).`;
         }
       }

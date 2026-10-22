@@ -164,3 +164,12 @@ describe("model picker authorization", () => {
     expect(LOVABLE_CONVERSATION_MODELS).not.toContain("openai/gpt-5.5-pro");
   });
 });
+
+import { VEO_REASON } from "./catalogue";
+describe("unverified video models", () => {
+  it("labels Veo as not routed with the exact blocker", () => {
+    const status = routeStatus([{ id: "google/veo-3.1", deprecated: false, surfaces: ["videos"], inputs: ["text"], outputs: ["video"], retentionBySurface: {} }], {});
+    expect(status[0]!.roles).toEqual([]);
+    expect(status[0]!.reason).toBe(VEO_REASON);
+  });
+});
