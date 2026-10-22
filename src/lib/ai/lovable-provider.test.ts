@@ -65,11 +65,18 @@ describe("lovable provider registration", () => {
     expect(providerChain().map((entry) => entry.name)).not.toContain("lovable");
   });
 
-  it("joins the paid chain behind Revora's own keys when its key is present", () => {
+  it("leads the paid chain ahead of Revora's own keys when its key is present", () => {
     process.env["GOOGLE_AI_API_KEY"] = "test-google";
     process.env["OPENAI_API_KEY"] = "test-openai";
     process.env["LOVABLE_API_KEY"] = "test-lovable";
-    expect(providerChain().map((entry) => entry.name)).toEqual(["openai", "google", "lovable"]);
+    expect(providerChain().map((entry) => entry.name)).toEqual(["lovable", "openai", "google"]);
+  });
+
+  it("still honors an explicit AI_DEFAULT_PROVIDER override", () => {
+    process.env["AI_DEFAULT_PROVIDER"] = "openai";
+    process.env["OPENAI_API_KEY"] = "test-openai";
+    process.env["LOVABLE_API_KEY"] = "test-lovable";
+    expect(providerChain().map((entry) => entry.name)).toEqual(["openai", "lovable"]);
   });
 
   it("serves a model roster for every role from the verified gateway catalogue", () => {

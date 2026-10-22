@@ -183,18 +183,17 @@ function readProviderName(value: string | null): PaidProviderName | null {
  * secondary, then any other provider that happens to hold a key. Lovable's AI
  * Gateway is a keyed paid lane like the other two — reachable only when
  * LOVABLE_API_KEY is present and the request is not in a free-only scope —
- * and sits last so Revora's own keys are tried before the owner's workspace
- * credits.
+ * and leads the default order (owner decision 2026-10-22) so the full
+ * GPT/Gemini/Claude catalogue runs the builder and Jarvis first, with
+ * Revora's own keys as failover.
  */
 export function providerChain(): ProviderConfig[] {
   const preferred = [
     readProviderName(env("AI_DEFAULT_PROVIDER")),
     readProviderName(env("AI_FALLBACK_PROVIDER")),
-    // OpenAI is the verified-active lane; Google is tried after it so a stale
-    // Google key never delays a call with a guaranteed first-provider failure.
+    "lovable" as PaidProviderName,
     "openai" as PaidProviderName,
     "google" as PaidProviderName,
-    "lovable" as PaidProviderName,
   ].filter((name): name is PaidProviderName => name !== null);
 
   const chain: ProviderConfig[] = [];
