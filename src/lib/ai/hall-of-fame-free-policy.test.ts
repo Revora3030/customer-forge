@@ -147,32 +147,56 @@ describe("Hall of Fame spending boundary", () => {
     const providers = mocks.pinned.mock.calls.map((call) => (call[1] as { provider: string }).provider);
     expect(providers).toHaveLength(12);
     expect(providers.some((p) => p === "openai" || p === "google")).toBe(false);
-    expect(mocks.paid).not.toHaveBeenCalled();
+    expect(mocks.reserve).not.toHaveBeenCalled();
+    expect(mocks.generate).not.toHaveBeenCalled();
   });
-  it("uses the paid collective for a hard step by default, within the daily cap", async () => {
-    mocks.paid.mockResolvedValue({ ok: true, tier: "sol", wanted: "sol", downgraded: false, text: "Paid answer", model: "paid-test", costMicrocents: 1 });
-    expect(await callBestThinker(request)).toMatchObject({ ok: true, lane: "paid" });
-    expect(mocks.paid).toHaveBeenCalledTimes(1);
+  it("uses the paid team for a hard step by default, through the shared router's paid-only walk", async () => {
+    expect(await callBestThinker(request)).toMatchObject({ ok: true, lane: "paid", model: "lovable · paid-test" });
+    // One monthly + daily reservation held by the thinker; the router itself
+    // is told not to reserve again, and the walk is paid-only so no free model
+    // can answer inside it.
+    expect(mocks.reserve).toHaveBeenCalledTimes(1);
+    expect(mocks.generate).toHaveBeenCalledTimes(1);
+    expect(mocks.generate.mock.calls[0]?.[1]).toMatchObject({ paidOnly: true });
+    expect(mocks.generate.mock.calls[0]?.[2]).toMatchObject({ budgetReservedExternally: true });
+    expect(mocks.settle).toHaveBeenCalledTimes(1);
+    expect(mocks.pinned).not.toHaveBeenCalled();
   });
   it("allows paid specialists on high-volume steps too", async () => {
-    mocks.paid.mockResolvedValue({ ok: true, tier: "luna", wanted: "luna", downgraded: false, text: "Metadata", model: "paid-test", costMicrocents: 1 });
     const outcome = await callBestThinker({ ...request, purpose: "metadata" });
     expect(outcome).toMatchObject({ lane: "paid" });
-    expect(mocks.paid).toHaveBeenCalledTimes(1);
+    expect(mocks.reserve).toHaveBeenCalledTimes(1);
+    expect(mocks.generate).toHaveBeenCalledTimes(1);
+  });
+  it("never reserves paid spend when the monthly or daily cap is already spent", async () => {
+    mocks.reserve.mockResolvedValue({
+      allowed: false,
+      dailyCapped: false,
+      paid: null,
+      spent: 100,
+      cap: 100,
+      calls: 1,
+      tenantSpent: 0,
+      tenantCap: 100,
+    });
+    const outcome = await callBestThinker(request);
+    // The free squad answers instead; the paid router is never called.
+    expect(outcome).toMatchObject({ ok: true, lane: "free", handoverReason: expect.stringContaining("budget_exhausted") });
+    expect(mocks.generate).not.toHaveBeenCalled();
+    expect(mocks.settle).not.toHaveBeenCalled();
   });
   it("preserves the optional paid path only after explicit opt-out", async () => {
     vi.stubEnv("AI_FREE_ONLY", "false");
-    mocks.paid.mockResolvedValue({ ok: true, tier: "sol", wanted: "sol", downgraded: false, text: "Explicitly enabled paid answer", model: "paid-test", costMicrocents: 1 });
     expect(await callBestThinker(request)).toMatchObject({ ok: true, lane: "paid" });
-    expect(mocks.paid).toHaveBeenCalledTimes(1);
+    expect(mocks.generate).toHaveBeenCalledTimes(1);
     expect(mocks.pinned).not.toHaveBeenCalled();
   });
   it("skips the paid collective for a hard step inside a free-only spending scope (demo builds)", async () => {
     vi.stubEnv("AI_FREE_ONLY", "false");
-    mocks.paid.mockResolvedValue({ ok: true, tier: "sol", wanted: "sol", downgraded: false, text: "Paid answer", model: "paid-test", costMicrocents: 1 });
     const outcome = await withAiSpendScope({ freeOnly: true, reason: "demo_workspace" }, () => callBestThinker(request));
     expect(outcome).toMatchObject({ ok: true, lane: "free", downgraded: false });
-    expect(mocks.paid).not.toHaveBeenCalled();
+    expect(mocks.reserve).not.toHaveBeenCalled();
+    expect(mocks.generate).not.toHaveBeenCalled();
     // Outside the scope the same request may use paid again.
     expect(await callBestThinker(request)).toMatchObject({ ok: true, lane: "paid" });
   });
