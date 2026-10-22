@@ -3,7 +3,7 @@
 ## Gap audit + Jarvis conversations (2026-10-21)
 - [x] Evidence matrix and prioritized backlog in docs/GAP_AUDIT_2026-10-21.md.
 - [x] Jarvis conversations: create/list/search/rename/archive, owner-only, foreign ids rejected.
-- [ ] Setup price $350 vs $750 — blocked on owner confirmation.
+- [x] Setup price confirmed $350 everywhere (2026-10-22); locked by offer-price-lock test.
 - [ ] Meta/Instagram connection — blocked on META_APP_ID/META_APP_SECRET and Meta app review.
 - [ ] Backlog items 2–10 in the audit file.
 
