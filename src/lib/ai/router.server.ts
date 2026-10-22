@@ -394,12 +394,15 @@ async function buildChain(
   const first: Candidate[] = [];
   const deeper: Candidate[] = [];
 
-  for (const pool of await freeModelPool(role, capable, caller.task.startsWith("admin.") ? "admin" : "customer"))
-    pool.models.forEach((model, index) => {
-      const candidate = freeCandidate(pool.provider, pool.credentials.apiKey, model, role);
-      if (index === 0) first.push(candidate);
-      else deeper.push(candidate);
-    });
+  // A paid-only walk (the builder's thinker lane) never touches the free
+  // catalogue: the caller runs its own free fallback afterwards.
+  if (!forcePaidOnly)
+    for (const pool of await freeModelPool(role, capable, caller.task.startsWith("admin.") ? "admin" : "customer"))
+      pool.models.forEach((model, index) => {
+        const candidate = freeCandidate(pool.provider, pool.credentials.apiKey, model, role);
+        if (index === 0) first.push(candidate);
+        else deeper.push(candidate);
+      });
 
   const candidates = [...first, ...deeper];
 
@@ -638,6 +641,16 @@ async function run<T>(
     capable?: (model: string) => boolean;
     nextProviderOnInvalidRequest?: boolean;
     freeOnly?: boolean;
+    /** Walk only the paid team; the free pool is left to the caller's own fallback. */
+    paidOnly?: boolean;
+    /**
+     * The caller already reserved this call against the shared paid ledgers
+     * (monthly + daily) and settles it itself, so the router must not reserve
+     * a second time. Only the builder's thinker lane sets this.
+     */
+    budgetReservedExternally?: boolean;
+    /** External cancellation (a cancelled build stops the walk). */
+    signal?: AbortSignal;
     /** Per-attempt timeout; clamped to the configured ceiling. */
     timeoutMs?: number;
     /** Whole-chain wall-clock budget; clamped to the configured deadline. */
