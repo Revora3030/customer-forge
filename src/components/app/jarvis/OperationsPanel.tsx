@@ -105,6 +105,7 @@ export function OperationsPanel({ diagnostics, acquisition, scorecard, prospecto
   return (
     <div className="space-y-3">
       <ModelsPanel />
+      <LovableModelsPanel />
       <ToolsPanel />
       <ProspectDemoBuilder onBuildStarted={onShowDemo} onPreview={onShowDemo} />
       <ClaudeCodePanel />
