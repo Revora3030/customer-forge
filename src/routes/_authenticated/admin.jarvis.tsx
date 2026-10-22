@@ -31,7 +31,7 @@ import "@/components/app/jarvis/jarvis.css";
 import { askClaudeToFixPullRequestFn, openJarvisPullRequestFn, recoverStalledBuildsFn, sendClaudeCodeRequestFn, clearJarvisHistory, getJarvisHistory, getJarvisDiagnostics, getJarvisAcquisitionReadiness, getJarvisDiagnosticTools, runJarvisDiagnosticTool, regenerateJarvisReply, sendJarvisMessage, forgetJarvisMemoryFn, saveJarvisRoutineFn, deleteJarvisRoutineFn, JARVIS_HISTORY_PAGE } from "@/lib/jarvis.functions";
 import { draftProspectOutreach, type ProspectDraft } from "@/lib/jarvis-prospecting.functions";
 import { formatRevoraOffer } from "@/lib/jarvis-acquisition-policy";
-import { jarvisVoiceLinks, synthesizeJarvisVoice } from "@/lib/jarvis-voice.functions";
+import { jarvisVoiceLinks, synthesizeJarvisVoice, type JarvisVoiceProvider } from "@/lib/jarvis-voice.functions";
 import { speakableText, type WriteProposal } from "@/lib/jarvis-actions";
 import { prospectFromImageFn, startProspectDemoBuild } from "@/lib/jarvis-demo-site.functions";
 import { pictureDataUrl } from "@/lib/picture-data-url";
@@ -242,15 +242,25 @@ function Jarvis() {
   const recognition = useRef<Recognition | null>(null);
   const conversation = useRef<StickToBottomContext>(null);
   const input = useRef<HTMLTextAreaElement>(null);
-  const voiceSynth = useCallback((value: string) => synthesizeVoice({ data: { text: value } }), [synthesizeVoice]);
+  const [voiceProvider, setVoiceProvider] = useState<JarvisVoiceProvider>("auto");
+  useEffect(() => {
+    const saved = window.localStorage.getItem("jarvis.voiceProvider");
+    if (saved === "elevenlabs" || saved === "lovable") setVoiceProvider(saved);
+  }, []);
+  const chooseVoiceProvider = (next: JarvisVoiceProvider) => {
+    setVoiceProvider(next);
+    window.localStorage.setItem("jarvis.voiceProvider", next);
+  };
+  const voiceSynth = useCallback((value: string) => synthesizeVoice({ data: { text: value, provider: voiceProvider } }), [synthesizeVoice, voiceProvider]);
   const onVoiceFallback = useCallback((reason: string) => {
-    toast.message("Using your browser voice because ElevenLabs was unavailable.", { description: reason });
+    toast.message("Using your browser voice because the server voice was unavailable.", { description: reason });
   }, []);
   const voiceStream = useCallback(
     async (value: string) => (await voiceLinks({ data: { texts: [value] } })).urls[0]!,
     [voiceLinks],
   );
-  const jarvisVoice = useJarvisVoice(voiceSynth, onVoiceFallback, voiceStream);
+  // Streaming links are ElevenLabs-only; Lovable speech is generated per sentence.
+  const jarvisVoice = useJarvisVoice(voiceSynth, onVoiceFallback, voiceProvider === "lovable" ? undefined : voiceStream);
   const { stop: stopVoice } = jarvisVoice;
 
   const announce = (message: string) => {
