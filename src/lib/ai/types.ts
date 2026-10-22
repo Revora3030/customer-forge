@@ -38,6 +38,10 @@ export type AiRequest = {
    * wall-clock budget. Spend is still reserved against the shared caps.
    */
   paidOnly?: boolean;
+  /** Paid models to try first, in order (per-job / per-review-area choice). */
+  preferModels?: string[];
+  /** Paid models to skip unless nothing else is left (e.g. the section's author). */
+  avoidModels?: string[];
   /** Force JSON output. */
   json?: boolean;
   maxOutputTokens?: number;

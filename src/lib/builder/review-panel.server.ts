@@ -55,6 +55,29 @@ const FULL_PANEL: Reviewer[] = [
 
 const LIGHT_AREAS: ReviewArea[] = ["truthfulness", "seo", "accessibility", "mobile", "completeness", "funnel", "consistency", "visual_craft"];
 
+/**
+ * Best Lovable model per review area (owner decision 2026-10-22), so each
+ * reviewer gives an independent opinion instead of one model repeated. The
+ * router still fails over to the rest of the paid team, then the free squad.
+ */
+export const REVIEW_AREA_MODELS: Partial<Record<ReviewArea, string[]>> = {
+  truthfulness: ["anthropic/claude-sonnet-5"],
+  seo: ["google/gemini-4-argon"],
+  conversion: ["openai/gpt-6-sol"],
+  deep_conversion: ["openai/gpt-6-sol"],
+  accessibility: ["anthropic/claude-haiku-4-5"],
+  mobile: ["google/gemini-3.8-flash"],
+  completeness: ["openai/gpt-6.1-sol"],
+  senior: ["anthropic/claude-opus-5-5"],
+  whole_site: ["anthropic/claude-fable-5-1"],
+  markup: ["openai/gpt-6.1-sol"],
+  funnel: ["google/gemini-3.1-pro-preview"],
+  consistency: ["openai/gpt-5.5"],
+  industry_fit: ["google/gemini-4-argon"],
+  visual_craft: ["google/gemini-3.8-flash"],
+  distinctiveness: ["anthropic/claude-opus-5-5"],
+};
+
 export function panelFor(mode: "full" | "light"): Reviewer[] {
   return mode === "full" ? FULL_PANEL : FULL_PANEL.filter((r) => LIGHT_AREAS.includes(r.area));
 }
@@ -127,10 +150,11 @@ export async function runReviewPanel(
     (input.mode === "full" && input.industry?.trim()
       ? await gatherReviewEvidence({ industry: input.industry }).catch(() => NO_EVIDENCE)
       : NO_EVIDENCE);
-  const settled = await Promise.allSettled(
-    reviewers.map((reviewer) =>
+  const ask = (reviewer: Reviewer, avoid: string[] = []) =>
       thinker({
         area: reviewer.area,
+        ...(REVIEW_AREA_MODELS[reviewer.area] ? { preferModels: REVIEW_AREA_MODELS[reviewer.area] } : {}),
+        ...(avoid.length ? { avoidModels: avoid } : {}),
         stage: `${input.stage ?? "review"}.${reviewer.area}`,
         json: true,
         purpose: reviewer.purpose,
@@ -145,8 +169,17 @@ export async function runReviewPanel(
         ].join(" "),
         user:
           [input.material, ...evidenceFor(reviewer.area, evidence)].join("\n\n"),
-      }).then((call) => ({ reviewer, call })),
-    ),
+      }).then((call) => ({ reviewer, call }));
+  const settled = await Promise.allSettled(reviewers.map((reviewer) => ask(reviewer)));
+  // One retry per dropped reviewer, steering away from its first-choice model;
+  // a reviewer still failing is reported in `failed`, never fails the panel.
+  await Promise.all(
+    settled.map(async (entry, index) => {
+      if (entry.status === "fulfilled" && entry.value.call.ok) return;
+      const reviewer = reviewers[index]!;
+      const retry = await Promise.allSettled([ask(reviewer, REVIEW_AREA_MODELS[reviewer.area] ?? [])]);
+      settled[index] = retry[0]!;
+    }),
   );
   const notes: ReviewNote[] = [];
   const models: string[] = [];

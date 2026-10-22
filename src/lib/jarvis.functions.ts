@@ -866,3 +866,25 @@ export const getJarvisModelStatus = createServerFn({ method: "GET" })
       now: Date.now(),
     });
   });
+
+/**
+ * Per-model usage of the Lovable lane over the last 24 hours, from recorded
+ * calls only. Every roster model is listed so unused ones are visible.
+ */
+export const getLovableModelUsage = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const db = await guardedAdmin(context);
+    const since = new Date(Date.now() - 86400000).toISOString();
+    const { data, error } = await db
+      .from("ai_usage_events")
+      .select("model,task,ok,estimated_cost_usd")
+      .eq("provider", "lovable")
+      .gte("created_at", since)
+      .limit(10000);
+    if (error) throw new Error("Couldn't read model usage records.");
+    const { summarizeModelUsage } = await import("./lovable-model-usage");
+    const { providerConfig } = await import("./ai/config");
+    const rosters = Object.values(providerConfig("lovable")?.models ?? {}).flatMap((r) => String(r).split(","));
+    return summarizeModelUsage((data ?? []) as never, rosters);
+  });

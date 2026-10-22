@@ -443,6 +443,8 @@ async function callPaidThinker(request: {
   maxOutputTokens?: number;
   json?: boolean;
   signal?: AbortSignal;
+  preferModels?: string[];
+  avoidModels?: string[];
 }): Promise<PaidThinkerOutcome> {
   const selection = selectTier({
     purpose: request.purpose,
@@ -512,6 +514,8 @@ async function callPaidThinker(request: {
         { role: "user" as const, content: request.user },
       ],
       paidOnly: true,
+      ...(request.preferModels?.length ? { preferModels: request.preferModels } : {}),
+      ...(request.avoidModels?.length ? { avoidModels: request.avoidModels } : {}),
       maxOutputTokens,
       // One thinker step gets a bounded share of the build's wall-clock, not
       // the router's whole six-minute chain budget.
@@ -595,6 +599,8 @@ async function callBestThinkerInner(request: {
   json?: boolean;
   signal?: AbortSignal;
   onAttempt?: (provider: string, model: string) => void;
+  preferModels?: string[];
+  avoidModels?: string[];
 }): Promise<ThinkerOutcome> {
   // Paid runs for the hardest steps within the daily cap (owner's choice);
   // everything else, an explicit free-only flag, or a free-only spending scope

@@ -287,3 +287,21 @@ describe("lovable through the router", () => {
     expect(calls.some((call) => call.url.includes("ai.gateway.lovable.dev"))).toBe(false);
   }, 30_000);
 });
+
+describe("per-job model preference", () => {
+  it("moves preferred paid models first and avoided ones last without dropping any", async () => {
+    const { applyModelPreference } = await import("./router.server");
+    const chain = [
+      { model: "a", free: null },
+      { model: "b", free: null },
+      { model: "c", free: null },
+      { model: "free-x", free: {} },
+    ];
+    expect(applyModelPreference(chain, ["c"], ["a"]).map((e) => e.model)).toEqual(["c", "b", "free-x", "a"]);
+  });
+  it("gives fact checking to Claude Sonnet 5 and SEO to Gemini 4 Argon", async () => {
+    const { REVIEW_AREA_MODELS } = await import("@/lib/builder/review-panel.server");
+    expect(REVIEW_AREA_MODELS.truthfulness).toEqual(["anthropic/claude-sonnet-5"]);
+    expect(REVIEW_AREA_MODELS.seo).toEqual(["google/gemini-4-argon"]);
+  });
+});

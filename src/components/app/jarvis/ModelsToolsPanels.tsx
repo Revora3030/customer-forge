@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Cpu, Wrench } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { getJarvisDiagnosticTools, getJarvisFreeToolReadiness, getJarvisModelStatus } from "@/lib/jarvis.functions";
+import { getJarvisDiagnosticTools, getJarvisFreeToolReadiness, getJarvisModelStatus, getLovableModelUsage } from "@/lib/jarvis.functions";
 import type { ProviderLevel } from "@/lib/jarvis-model-status";
 
 const LEVEL: Record<ProviderLevel, { label: string; tone: string }> = {
@@ -44,6 +44,36 @@ export function ModelsPanel() {
                 {p.lastLatencyMs !== null ? ` · ${(p.lastLatencyMs / 1000).toFixed(1)}s last reply` : ""}
               </p>
               {p.models.length ? <p className="mt-1 break-words text-xs text-muted-foreground">Models used: {p.models.map((m) => `${m.model} (${m.ok}/${m.calls})`).join(", ")}</p> : null}
+            </li>
+          ))}
+        </ul>
+      </div>
+    </details>
+  );
+}
+
+export function LovableModelsPanel() {
+  const fn = useServerFn(getLovableModelUsage);
+  const q = useQuery({ queryKey: ["jarvis", "lovable-model-usage"], queryFn: () => fn(), staleTime: 60000 });
+  return (
+    <details className="rounded-xl border border-border bg-card">
+      <summary className={summaryRow}><Cpu className="size-4" aria-hidden />Lovable models used · last 24 h</summary>
+      <div className="space-y-2 border-t border-border/60 p-3">
+        <p className="text-xs text-muted-foreground">Recorded calls only. Cost shows "unknown" when no cost was recorded.</p>
+        {q.isPending ? <p className="text-sm text-muted-foreground">Loading…</p> : null}
+        {q.isError ? <div role="alert" className="text-sm">Couldn't read model usage. <Button size="sm" variant="link" onClick={() => void q.refetch()}>Retry</Button></div> : null}
+        <ul className="space-y-2">
+          {(q.data ?? []).map((m) => (
+            <li key={m.model} className="rounded-lg border border-border/70 p-2.5 text-sm">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <span className="break-all font-medium">{m.model}</span>
+                <span className={`text-xs font-medium ${m.calls ? "text-foreground" : "text-muted-foreground"}`}>{m.calls ? `${m.ok}/${m.calls} worked` : "Not used yet"}</span>
+              </div>
+              {m.calls ? (
+                <p className="mt-1 break-words text-xs text-muted-foreground">
+                  {m.failed} failed · cost {m.costUsd === null ? "unknown" : `$${m.costUsd.toFixed(4)}`}{m.jobs.length ? ` · jobs: ${m.jobs.join(", ")}` : ""}
+                </p>
+              ) : null}
             </li>
           ))}
         </ul>
