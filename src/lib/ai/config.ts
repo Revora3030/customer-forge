@@ -122,7 +122,7 @@ const DEFAULT_MODELS: Record<PaidProviderName, Record<ModelRole, string>> = {
     image: "openai/gpt-image-2.5-sunburst",
     transcription: "google/gemini-3.5-transcribe",
     // Jarvis: strongest verified models first, then faster ones as failover.
-    conversation: "openai/gpt-6.1-sol,anthropic/claude-sonnet-5,anthropic/claude-opus-5-5,google/gemini-3.8-flash,openai/gpt-6-astra,google/gemini-3.1-pro-preview,anthropic/claude-haiku-4-5,openai/gpt-5.6-luna,google/gemini-3.1-flash-lite",
+    conversation: "openai/gpt-6.1-sol,anthropic/claude-sonnet-5,anthropic/claude-opus-5-5,openai/gpt-6-sol,google/gemini-3.8-flash,anthropic/claude-fable-5-1,google/gemini-4-argon,openai/gpt-6-astra,google/gemini-3.1-pro-preview,openai/gpt-5.5,anthropic/claude-haiku-4-5,openai/gpt-5.6-luna,openai/gpt-5.4-mini,google/gemini-3-flash-preview,google/gemini-3.1-flash-lite",
   },
 };
 
