@@ -54,6 +54,7 @@ describe("no third-party AI gateway remains", () => {
     const offenders = APP_FILES.filter(
       (file) =>
         !file.includes("ai/catalogue.server.ts") &&
+        !file.includes("ai/catalogue.test.ts") &&
         !file.includes("ai/providers/lovable.ts") &&
         !file.includes("ai/lovable-provider.test.ts") &&
         readFileSync(file, "utf8").includes("ai.gateway.lovable.dev"),
@@ -86,6 +87,9 @@ describe("no third-party AI gateway remains", () => {
       "growth-engine/service.server.ts",
       // The live model-catalogue listing (GET /v1/models, no generation).
       "ai/catalogue.server.ts",
+      // Catalogue and roster tests stub the key with fake values.
+      "ai/catalogue.test.ts",
+      "ai/roster-catalogue.test.ts",
       // The router's keyed Lovable paid provider and its unit tests.
       "ai/config.ts",
       "ai/providers/lovable.ts",

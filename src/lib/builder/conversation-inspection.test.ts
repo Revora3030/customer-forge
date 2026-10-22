@@ -26,7 +26,7 @@ describe("chat inspection integration contract", () => {
   const conversation = readFileSync(new URL("./conversation.server.ts", import.meta.url), "utf8");
   const inspection = readFileSync(new URL("./conversation-inspection.server.ts", import.meta.url), "utf8");
   it("collects inspection evidence before asking a model", () => {
-    expect(conversation.indexOf("await inspectConversation(input)")).toBeLessThan(conversation.indexOf("await gatewayChatText"));
+    expect(conversation.indexOf("await inspectConversation(input)")).toBeLessThan(conversation.indexOf("await generateStructuredOutput"));
     expect(conversation).not.toContain("Never say you lack access");
     expect(conversation).not.toContain("the change is applied to the live site immediately");
   });
