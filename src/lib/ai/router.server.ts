@@ -320,7 +320,7 @@ async function run<T>(
   const rawChain = await buildChain(
     caller,
     role,
-    roleCapability(role, options?.capable),
+    options?.capable,
     // A no-spend scope keeps every AI call out.
     scopedFreeOnly(),
   );

@@ -91,7 +91,7 @@ export function paidImageTierModel(tier: ImageTier): string {
   const override = env(IMAGE_TIER_MODEL_ENV[tier]);
   if (override) return override;
   if (tier === "sunburst") {
-    const legacy = env("PAID_IMAGE_MODEL") ?? providerConfig("openai")?.models.image ?? null;
+    const legacy = env("PAID_IMAGE_MODEL");
     if (legacy) return legacy;
   }
   return DEFAULT_IMAGE_TIER_MODELS[tier];

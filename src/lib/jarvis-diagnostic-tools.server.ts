@@ -535,20 +535,6 @@ export async function executeJarvisDiagnosticTool(
       });
     }
 
-    if (toolId === "ai.omniroute.models") {
-      const limitations = ["Lists models your OmniRoute server offers; does not send a prompt or prove each upstream provider works."];
-      const done = (status: JarvisToolEvidenceStatus, data: Parameters<typeof result>[2]) =>
-        result(toolId, status, data, { checkedAt, durationMs: Date.now() - started, limitations });
-      const { omniRouteBaseUrl } = await import("@/lib/ai/providers/omniroute");
-      const base = omniRouteBaseUrl();
-      const key = process.env["OMNIROUTE_API_KEY"];
-      if (!base || !key) return done("unknown", { reason: "needs_setup", secrets: ["OMNIROUTE_BASE_URL", "OMNIROUTE_API_KEY"] });
-      const res = await fetch(`${base}/models`, { headers: { Authorization: `Bearer ${key}` }, redirect: "manual", signal: AbortSignal.timeout(12000) });
-      if (!res.ok) return done("failed", { reason: res.status === 401 || res.status === 403 ? "key_rejected" : `http_${res.status}` });
-      const body = (await res.json().catch(() => null)) as { data?: Array<{ id?: unknown }> } | null;
-      const models = (body?.data ?? []).map((m) => (typeof m.id === "string" ? m.id.slice(0, 120) : null)).filter((m): m is string => Boolean(m));
-      return done(models.length ? "observed" : "unknown", { modelCount: models.length, models: models.slice(0, 60) });
-    }
     if (toolId === "ai.providers.snapshot" || toolId === "connectors.permissions.snapshot") {
       const evidence = await providerEvidence();
       const data = toolId === "ai.providers.snapshot"
