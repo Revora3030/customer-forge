@@ -1,6 +1,8 @@
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useEffect, useRef, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { AdminModelPicker } from "@/components/app/AdminModelPicker";
 import { createFileRoute } from "@tanstack/react-router";
 import { LoadingRows } from "@/components/app/Bits";
 import { QueryErrorNotice } from "@/components/app/QueryErrorNotice";
@@ -251,7 +253,18 @@ function WebsitePage() {
   const [selected, setSelected] = useState<PreviewSelection | null>(null);
 
   /** One request engine for the whole workspace. */
-  const requests = useBuilderRequests({ organizationId: orgId ?? null, canManage: manage });
+  const superAdmin = useQuery({
+    queryKey: ["self", "super-admin"],
+    queryFn: async () => {
+      const { data: auth } = await supabase.auth.getUser();
+      if (!auth.user) return false;
+      const { data } = await supabase.from("user_roles").select("role").eq("user_id", auth.user.id).eq("role", "super_admin").maybeSingle();
+      return Boolean(data);
+    },
+    staleTime: 5 * 60_000,
+  });
+  const [pickedModel, setPickedModel] = useState<string | null>(null);
+  const requests = useBuilderRequests({ organizationId: orgId ?? null, canManage: manage, pickedModel: superAdmin.data ? pickedModel : null });
   const queryClient = useQueryClient();
   // The newest real progress stage of the running request, floated on the preview.
   const activeTask = requests.tasks.find((task) => !task.tracking && (task.state === "planning" || task.state === "building"));
@@ -604,6 +617,7 @@ function WebsitePage() {
       ) : null}
       <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(340px,430px)_minmax(0,1fr)]">
         <div className={previewOpen ? "hidden lg:block" : "min-w-0 lg:sticky lg:top-20 lg:self-start"}>
+          {superAdmin.data ? <AdminModelPicker value={pickedModel} onChange={setPickedModel} /> : null}
           <BuilderAssistant
             compact
             banner={

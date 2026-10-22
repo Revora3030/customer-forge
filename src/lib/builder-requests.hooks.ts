@@ -183,10 +183,15 @@ async function recoverPlan(
 export function useBuilderRequests({
   organizationId,
   canManage,
+  pickedModel = null,
 }: {
   organizationId: string | null;
   canManage: boolean;
+  /** Super-admin model pick; the server ignores it for anyone else. */
+  pickedModel?: string | null;
 }) {
+  const pickedModelRef = useRef(pickedModel);
+  pickedModelRef.current = pickedModel;
   const [tasks, setTasks] = useState<ChatTask[]>([]);
   const [capabilities, setCapabilities] = useState<BuilderCapabilities | null>(null);
   // Active conversation branch (spec A). Alternate directions are saved under
@@ -575,6 +580,7 @@ export function useBuilderRequests({
             history: conversation.slice(-24),
             attachments: task.attachments ?? [],
             requestId: task.id,
+            ...(pickedModelRef.current ? { model: pickedModelRef.current } : {}),
             ...(brand && hasBrandChoices(brand) ? { brand } : {}),
           },
         });

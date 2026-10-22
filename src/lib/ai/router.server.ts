@@ -1,3 +1,4 @@
+import { scopedPreferredModels } from "./model-preference-scope.server";
 /**
  * The Revora AI orchestrator: the only place in Revora that talks to an AI
  * provider.
@@ -683,7 +684,7 @@ async function run<T>(
     options?.freeOnly === true || scopedFreeOnly(),
     options?.paidOnly === true,
   );
-  const chain = applyModelPreference(rawChain, options?.preferModels, options?.avoidModels);
+  const chain = applyModelPreference(rawChain, scopedPreferredModels(options?.preferModels), options?.avoidModels);
   const attemptTimeoutMs = clampPositive(options?.timeoutMs, limits.requestTimeoutMs);
   const chainBudgetMs = clampPositive(options?.chainDeadlineMs, chainDeadlineMs());
   if (chain.length === 0)
