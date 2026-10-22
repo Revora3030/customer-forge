@@ -72,11 +72,11 @@ describe("lovable provider registration", () => {
     expect(providerChain().map((entry) => entry.name)).toEqual(["lovable", "openai", "google"]);
   });
 
-  it("still honors an explicit AI_DEFAULT_PROVIDER override", () => {
+  it("keeps Lovable first even when AI_DEFAULT_PROVIDER names a direct key", () => {
     process.env["AI_DEFAULT_PROVIDER"] = "openai";
     process.env["OPENAI_API_KEY"] = "test-openai";
     process.env["LOVABLE_API_KEY"] = "test-lovable";
-    expect(providerChain().map((entry) => entry.name)).toEqual(["openai", "lovable"]);
+    expect(providerChain().map((entry) => entry.name)).toEqual(["lovable", "openai"]);
   });
 
   it("serves a model roster for every role from the verified gateway catalogue", () => {

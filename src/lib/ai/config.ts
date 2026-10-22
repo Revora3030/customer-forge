@@ -189,10 +189,13 @@ function readProviderName(value: string | null): PaidProviderName | null {
  * Revora's own keys as failover.
  */
 export function providerChain(): ProviderConfig[] {
+  // Lovable's gateway always leads the paid team when configured (owner
+  // decision 2026-10-22); the operator's default/fallback provider settings
+  // only order Revora's own direct keys behind it.
   const preferred = [
+    "lovable" as PaidProviderName,
     readProviderName(env("AI_DEFAULT_PROVIDER")),
     readProviderName(env("AI_FALLBACK_PROVIDER")),
-    "lovable" as PaidProviderName,
     "openai" as PaidProviderName,
     "google" as PaidProviderName,
   ].filter((name): name is PaidProviderName => name !== null);
