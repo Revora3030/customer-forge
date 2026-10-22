@@ -12,6 +12,9 @@
  */
 
 import { callBestThinker } from "@/lib/ai/thinker.server";
+
+/** Fast, strong models first for the long page-plan answer. */
+export const PAGE_PLAN_MODELS = ["google/gemini-4-argon", "anthropic/claude-sonnet-5"];
 import type { PageArchitecture } from "@/lib/builder/creative-authority";
 import {
   normalizePageArchitecture,
@@ -122,6 +125,10 @@ export async function proposePageArchitecture(input: {
     complexity: "high",
     organizationId: input.organizationId,
     maxOutputTokens: 8000,
+    // The page plan is a ~4k-token answer; GPT-6.1 Sol needed ~90s for it
+    // and the build worker was cut off mid-answer three times in a row.
+    // A faster strong model leads; the full roster still fails over.
+    preferModels: PAGE_PLAN_MODELS,
     ...(input.signal ? { signal: input.signal } : {}),
     system,
     user: prompt,
@@ -136,6 +143,7 @@ export async function proposePageArchitecture(input: {
       complexity: "high",
       organizationId: input.organizationId,
       maxOutputTokens: 8000,
+      preferModels: PAGE_PLAN_MODELS,
       ...(input.signal ? { signal: input.signal } : {}),
       system,
       user: `${prompt}\n\nREPAIR: Your previous page plan was not valid JSON in the required shape. Return one complete JSON object only, with a non-empty pages array and a home page.`,
@@ -173,6 +181,7 @@ export async function proposePageArchitecture(input: {
       complexity: "high",
       organizationId: input.organizationId,
       maxOutputTokens: 8000,
+      preferModels: PAGE_PLAN_MODELS,
       ...(input.signal ? { signal: input.signal } : {}),
       system,
       user: `${prompt}\n\nREPAIR: Your previous page plan could not be used. ${architectureShortfall({ proposal, candidate: input.candidate, thinFacts })} Return one complete JSON object only.`,
