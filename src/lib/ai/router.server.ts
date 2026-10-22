@@ -1093,6 +1093,21 @@ export async function callLovableSpeech(model: string, body: unknown, signal?: A
     return response;
   } finally {
     const { recordAiEvent } = await import("@/lib/ai/telemetry.server");
-    await recordAiEvent({ task: "speech", provider: "lovable", model, ok, latencyMs: Date.now() - started, errorCode: ok ? null : String(status || "network") } as never).catch(() => undefined);
+    await recordAiEvent({
+      requestId: crypto.randomUUID(),
+      provider: "lovable",
+      model,
+      task: "speech",
+      organizationId: null,
+      userId: null,
+      latencyMs: Date.now() - started,
+      ok,
+      errorCategory: ok ? null : "provider_error",
+      errorDetail: ok ? null : `HTTP ${status || "network"}`,
+      inputTokens: null,
+      outputTokens: null,
+      fallbackUsed: false,
+      toolCalls: 0,
+    }).catch(() => undefined);
   }
 }
