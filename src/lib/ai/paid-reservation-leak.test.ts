@@ -263,8 +263,8 @@ describe("router settles every paid reservation", () => {
     process.env["BUILDER_EXTERNAL_AI_ALLOWED"] = "true";
     process.env["FREE_AI_ENABLED"] = "false";
     process.env["FREE_AI_ONLY"] = "false";
-    process.env["OPENAI_API_KEY"] = "test-openai";
-    process.env["AI_DEFAULT_PROVIDER"] = "openai";
+    process.env["LOVABLE_API_KEY"] = "test-lovable";
+    process.env["AI_LOVABLE_MODEL_PRIMARY"] = "openai/gpt-6.1-sol";
     process.env["AI_MAX_ATTEMPTS_PER_PROVIDER"] = "1";
   });
 
