@@ -77,7 +77,26 @@ describe("Hall of Fame spending boundary", () => {
     vi.stubEnv("FREE_AI_ONLY", undefined);
     vi.stubEnv("ZERO_COST_ONLY", undefined);
     resetHallOfFameRuns();
-    mocks.paid.mockRejectedValue(new Error("Paid collective must not run in free-only mode."));
+    // Paid lane: one monthly + daily reservation, then the router's paid team.
+    mocks.reserve.mockResolvedValue({
+      allowed: true,
+      dailyCapped: false,
+      paid: null,
+      spent: 0,
+      cap: 1,
+      calls: 0,
+      tenantSpent: 0,
+      tenantCap: 1,
+    });
+    mocks.settle.mockResolvedValue(undefined);
+    mocks.generate.mockResolvedValue({
+      text: "Paid answer",
+      provider: "lovable",
+      model: "paid-test",
+      usage: { inputTokens: 10, outputTokens: 5 },
+      fallbackUsed: false,
+      requestId: "r",
+    });
     mocks.registry.mockResolvedValue([{
       provider: "groq", model: "openai/gpt-oss-120b",
       capabilities: ["design", "planning", "reasoning", "critique"],
