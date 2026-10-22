@@ -114,11 +114,16 @@ const DEFAULT_MODELS: Record<PaidProviderName, Record<ModelRole, string>> = {
     // the native /v1/messages endpoint, which the lovable adapter speaks.
     // A role may name a comma-separated roster; the router fails over across
     // every id in order, so the whole verified catalogue is reachable.
-    primary: "openai/gpt-6.1-sol,anthropic/claude-sonnet-5,google/gemini-3.8-flash,openai/gpt-5.5",
-    design: "openai/gpt-6-sol,anthropic/claude-opus-5-5,anthropic/claude-fable-5-1,google/gemini-3.1-pro-preview",
+    // Per-job rosters (owner decision 2026-10-22: best model per job).
+    // Wording and review: Claude Sonnet 5 leads, then GPT-6.1 Sol.
+    primary: "anthropic/claude-sonnet-5,openai/gpt-6.1-sol,google/gemini-4-argon,openai/gpt-6-sol,google/gemini-3.8-flash,openai/gpt-5.5",
+    // Identity, design and layout: Claude Opus 5.5, GPT-6.1 Sol, Claude Fable 5.1.
+    design: "anthropic/claude-opus-5-5,openai/gpt-6.1-sol,anthropic/claude-fable-5-1,openai/gpt-6-sol,google/gemini-4-argon,google/gemini-3.1-pro-preview",
     fast: "google/gemini-3.1-flash-lite,openai/gpt-5.4-mini,anthropic/claude-haiku-4-5,google/gemini-3-flash-preview",
-    vision: "google/gemini-3.8-flash,anthropic/claude-sonnet-5,openai/gpt-6.1-sol,google/gemini-4-argon",
-    coding: "openai/gpt-6.1-sol,anthropic/claude-opus-5-5,anthropic/claude-sonnet-5,google/gemini-3.8-flash",
+    // Picture and screenshot review: Gemini 3.8 Flash reads images best.
+    vision: "google/gemini-3.8-flash,google/gemini-4-argon,anthropic/claude-sonnet-5,openai/gpt-6.1-sol",
+    // Plan checking and layout repair: GPT-6.1 Sol, then Gemini 4 Argon.
+    coding: "openai/gpt-6.1-sol,google/gemini-4-argon,anthropic/claude-opus-5-5,anthropic/claude-sonnet-5,google/gemini-3.8-flash",
     image: "openai/gpt-image-2.5-sunburst",
     transcription: "google/gemini-3.5-transcribe",
     // Jarvis: strongest verified models first, then faster ones as failover.

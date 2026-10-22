@@ -93,6 +93,7 @@ describe("no third-party AI gateway remains", () => {
       "ai/router.server.ts",
       "ai/provider-test-environment",
       "ai/lovable-provider.test.ts",
+      "ai/pinned-image-timeout.test.ts",
       // The Perplexity search connector is a Lovable integration reached
       // through the connector gateway; it returns research links, never model
       // output, and its results are marked third-party research.

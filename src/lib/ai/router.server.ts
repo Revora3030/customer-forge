@@ -1341,6 +1341,19 @@ export async function streamResponse(
  * permission and the durable monthly cap are enforced by the caller before this
  * runs; this function never decides whether paid AI is allowed.
  */
+/** Gateway-catalogue picture models (verified against the authenticated listing). */
+const LOVABLE_IMAGE_MODELS = new Set([
+  "openai/gpt-image-2.5-sunburst",
+  "openai/gpt-image-2.5-flare",
+  "openai/gpt-image-2",
+  "google/gemini-3-pro-image",
+]);
+
+/** Lovable ids carry the vendor prefix; Revora's tier names do not. */
+export function lovableImageModelId(model: string): string {
+  return model.includes("/") ? model : `openai/${model}`;
+}
+
 export async function callPinnedPaidImage(
   caller: AiCaller,
   prompt: string,
@@ -1360,8 +1373,13 @@ export async function callPinnedPaidImage(
   // Callers reserve first (and a free-only scope refuses that reservation);
   // this is the last line so no free-only build can reach a paid model.
   if (scopedFreeOnly()) throw freeAiUnavailable("paid pictures are off for this free-only build");
-  const config = providerConfig("openai");
-  if (!config?.apiKey) throw freeAiUnavailable("openai has no credentials configured");
+  // Lovable's gateway leads paid pictures (owner decision 2026-10-22); the
+  // direct OpenAI key is used only when no Lovable key is configured.
+  const lovable = providerConfig("lovable");
+  const config = lovable?.apiKey ? lovable : providerConfig("openai");
+  if (!config?.apiKey) throw freeAiUnavailable("no paid picture provider has credentials configured");
+  const pictureProvider: "lovable" | "openai" = config === lovable ? "lovable" : "openai";
+  const pictureModel = pictureProvider === "lovable" ? lovableImageModelId(model) : model;
 
   const concurrencyKey = caller.organizationId ?? caller.userId ?? "platform";
   if (!(await acquireWaiting(concurrencyKey, limits.maxConcurrentPerWorkspace)))
@@ -1376,19 +1394,19 @@ export async function callPinnedPaidImage(
     // conservative reservation for an indeterminate result.
     const deadline = new Promise<never>((_resolve, reject) => {
       timer = setTimeout(() => {
-        const error = new RevoraAiError(408, "The picture provider did not finish within the time limit.", { category: "timeout", provider: "openai" });
+        const error = new RevoraAiError(408, "The picture provider did not finish within the time limit.", { category: "timeout", provider: pictureProvider });
         controller.abort(error);
         reject(error);
       }, limits.requestTimeoutMs);
     });
-    const result = await Promise.race([ADAPTERS["openai"].image({
+    const result = await Promise.race([ADAPTERS[pictureProvider].image({
       apiKey: config.apiKey,
-      model,
+      model: pictureModel,
       prompt,
       source,
       signal: controller.signal,
     }), deadline]);
-    return { base64: result.base64, mimeType: result.mimeType, provider: "openai", model };
+    return { base64: result.base64, mimeType: result.mimeType, provider: pictureProvider, model: pictureModel };
   } finally {
     clearTimeout(timer);
     release(concurrencyKey);
@@ -1403,6 +1421,10 @@ export async function callPinnedPaidImage(
 export async function paidImageModelReachable(
   model: string,
 ): Promise<{ available: boolean; detail: string }> {
+  // Lovable's image models are listed in the verified gateway catalogue; a
+  // real failure is still reported by the call itself, never hidden.
+  if (providerConfig("lovable")?.apiKey && LOVABLE_IMAGE_MODELS.has(lovableImageModelId(model)))
+    return { available: true, detail: "available through Lovable AI" };
   const config = providerConfig("openai");
   if (!config?.apiKey) return { available: false, detail: "no credential configured" };
   const probe = await openaiModelReachable(config.apiKey, model);

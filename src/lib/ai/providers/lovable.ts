@@ -16,7 +16,7 @@
 
 import type { AiMessage, AiPart, AiUsage, ProviderAdapter } from "@/lib/ai/types";
 import { RevoraAiError } from "@/lib/ai/errors";
-import { base64FromDataUrl, providerHttpError } from "@/lib/ai/providers/shared";
+import { base64FromDataUrl, bytesFromDataUrl, providerHttpError } from "@/lib/ai/providers/shared";
 
 const BASE = "https://ai.gateway.lovable.dev/v1";
 
@@ -288,8 +288,31 @@ export const lovableAdapter: ProviderAdapter = {
     return response.body;
   },
 
-  async image() {
-    return unsupported("image generation");
+  // Pictures use the gateway's OpenAI-format image endpoints. Server-side and
+  // final-only, so the request is not streamed; the caller's deadline bounds it.
+  async image({ apiKey, model, prompt, source, signal }) {
+    let response: Response;
+    if (source) {
+      const form = new FormData();
+      form.set("model", model);
+      form.set("prompt", prompt);
+      form.set("image", new Blob([bytesFromDataUrl(source.dataUrl)], { type: source.mimeType }), "source.png");
+      const { "content-type": _omit, ...auth } = headers(apiKey);
+      response = await fetch(`${BASE}/images/edits`, { method: "POST", headers: auth, body: form, signal });
+    } else {
+      response = await fetch(`${BASE}/images/generations`, {
+        method: "POST",
+        headers: headers(apiKey),
+        body: JSON.stringify({ model, prompt }),
+        signal,
+      });
+    }
+    if (!response.ok) throw await providerHttpError("lovable", response);
+    const body = (await response.json()) as { data?: { b64_json?: string }[] };
+    const base64 = body.data?.[0]?.b64_json;
+    if (!base64)
+      throw new RevoraAiError(502, "The picture model returned no image.", { category: "bad_response", provider: "lovable" });
+    return { base64, mimeType: "image/png" };
   },
 
   async transcribe() {
