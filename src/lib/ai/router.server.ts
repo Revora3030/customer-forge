@@ -1077,6 +1077,7 @@ export async function generateText(
 export async function generateStructuredOutput(
   caller: AiCaller,
   request: AiRequest,
+  lane?: RouterLaneOptions,
 ): Promise<AiJsonResult> {
   guardRequest(request.messages);
   const limits = aiLimits();
@@ -1106,7 +1107,7 @@ export async function generateStructuredOutput(
         outputTokens: result.usage.outputTokens,
       };
     },
-    runOptionsFor(request),
+    { ...runOptionsFor(request), ...laneOptions(lane) },
   );
   return {
     text: outcome.value.text,
