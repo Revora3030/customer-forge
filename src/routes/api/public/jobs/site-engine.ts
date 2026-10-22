@@ -15,7 +15,9 @@ async function handle(request: Request): Promise<Response> {
 
   // Who is holding this request open, recorded when a later attempt finds
   // this one dead. Only known invokers are kept; anything else is "unknown".
-  const invokerHeader = (request.headers.get("x-revora-invoker") ?? "").trim().toLowerCase();
+  // The database caller (pg_net) cannot set headers per call, so it names
+  // itself in the query string; only known names are kept either way.
+  const invokerHeader = (request.headers.get("x-revora-invoker") ?? new URL(request.url).searchParams.get("invoker") ?? "").trim().toLowerCase();
   const invoker = (["pg_net", "kick", "pump", "runner"] as const).find((name) => name === invokerHeader) ?? "unknown";
 
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");

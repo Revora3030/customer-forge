@@ -10,7 +10,7 @@ export const DURABLE_WORKER_TIMEOUT_MS = 900_000;
 
 export function durableWorkerPath(organizationId: string): string {
   if (!UUID.test(organizationId)) throw new Error("Invalid workspace");
-  return `site-engine?organizationId=${organizationId.toLowerCase()}`;
+  return `site-engine?organizationId=${organizationId.toLowerCase()}&invoker=pg_net`;
 }
 
 export async function requestDurableWorkerRun(organizationId: string): Promise<boolean> {
