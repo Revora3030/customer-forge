@@ -372,6 +372,15 @@ export async function planWebsiteChangesWithAi(input: {
     ...(input.onAttempt ? { onAttempt: input.onAttempt } : {}),
   });
 
+  // Changes go straight to the live site, so the made-up-facts review is
+  // mandatory: if it cannot run, nothing is applied (owner decision 2026-10-22).
+  if (!review.ok) {
+    return {
+      ok: false,
+      reason: "review_unavailable",
+      detail: "the fact and safety check could not run, so nothing was changed — try again in a moment",
+    };
+  }
   let actions = proposedActions;
   if (review.ok) {
     reviewModel = review.model;
