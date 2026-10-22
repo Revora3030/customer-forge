@@ -461,6 +461,24 @@ async function buildChain(
   return ordered.slice(0, cap);
 }
 
+/**
+ * Small, mechanical roles the free pool serves first (owner decision
+ * 2026-10-22): quick drafts and client-facing conversation. The paid Lovable
+ * lane is reserved for creative/building work and acts as failover here.
+ */
+export const SMALL_TASK_ROLES: ReadonlySet<ModelRole> = new Set(["fast", "conversation"]);
+
+/**
+ * Stable group order for a role: the free pool leads small tasks, the paid
+ * team leads everything else. Only group placement changes; each group keeps
+ * its quality-first internal order.
+ */
+export function groupForRole<T extends { free: unknown | null }>(role: ModelRole, ranked: T[]): T[] {
+  const paid = ranked.filter((entry) => entry.free === null);
+  const free = ranked.filter((entry) => entry.free !== null);
+  return SMALL_TASK_ROLES.has(role) ? [...free, ...paid] : [...paid, ...free];
+}
+
 /** Stable reorder: preferred fast free vision models first, inside the free group. */
 export function fastVisionFirst<T extends { free: FreeProviderName | null; model: string }>(entries: T[]): T[] {
   const paid = entries.filter((entry) => entry.free === null);
