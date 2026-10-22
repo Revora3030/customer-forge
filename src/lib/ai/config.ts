@@ -52,10 +52,11 @@ const DEFAULT_MODELS: Record<ModelRole, string> = {
     "anthropic/claude-opus-5", "openai/gpt-6-sol", "google/gemini-3.8-flash", "openai/gpt-5.6-sol",
     "openai/gpt-5.5", "openai/gpt-5.6-terra",
   ].join(","),
-  // Identity, design and layout: Claude Opus 5.5, GPT-6.1 Sol, Claude Fable 5.1.
+  // Identity, design and layout: GPT-6.1 Sol leads for speed (long Opus 5.5
+  // design answers ran past the request time limit), then Sonnet 5, then Opus.
   design: [
-    "anthropic/claude-opus-5-5", "openai/gpt-6.1-sol", "anthropic/claude-fable-5-1", "openai/gpt-6-astra",
-    "anthropic/claude-opus-5", "openai/gpt-6-sol", "google/gemini-4-argon", "google/gemini-3.1-pro-preview",
+    "openai/gpt-6.1-sol", "anthropic/claude-sonnet-5", "google/gemini-4-argon", "anthropic/claude-opus-5-5",
+    "openai/gpt-6-astra", "anthropic/claude-fable-5-1", "openai/gpt-6-sol", "google/gemini-3.1-pro-preview",
   ].join(","),
   fast: [
     "google/gemini-3.1-flash-lite", "openai/gpt-5.4-mini", "anthropic/claude-haiku-4-5", "openai/gpt-6-luna",
