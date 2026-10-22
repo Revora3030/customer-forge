@@ -43,7 +43,6 @@ export const JARVIS_DIAGNOSTIC_TOOLS = [
     { id: "cloudflare.zones.summary", title: "Cloudflare domains", category: "platform", description: "List Cloudflare zones with status and plan. Never changes DNS, cache or security settings." },
     { id: "email.resend.domains", title: "Resend sending domains", category: "platform", description: "List Resend sending domains and their verification status. Never sends email." },
     { id: "website.dns.lookup", title: "DNS lookup · no key", category: "website", description: "Look up A, AAAA, CNAME, MX, TXT and NS records for a domain via public DNS-over-HTTPS." },
-    { id: "ai.omniroute.models", title: "OmniRoute models (your server)", category: "ai", description: "List the models your own OmniRoute server offers, to confirm the AI team can reach it. Sends no prompt." },
   ] as const).map((tool) => ({ ...tool, evidence: "Read-only service response at check time; summary fields only.", implementation: "implemented", access: "read", risk: "low", requiresApproval: false, timeoutMs: 15000, maxOutputBytes: 6000 } as const)),
   {
     id: "platform.errors.summary",

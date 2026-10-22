@@ -1,20 +1,9 @@
 /**
- * Luna — the paid MASTER ORCHESTRATOR lane.
+ * Luna — the monthly + per-workspace spending ledger for Lovable AI.
  *
- * Luna is deliberately outside the worker provider chain in `config.ts`. It is
- * never selectable for a worker role (`primary`, `design`, `fast`, `vision`,
- * `coding`, `image`, `transcription`): those stay free-first forever. Luna only
- * ever does coordination work — understanding a request, holding design intent,
- * approving a plan and reviewing a result — and every call is:
- *
- *  1. gated on `OPENAI_API_KEY` existing,
- *  2. gated on a durable monthly spend cap enforced in our own database
- *     (default $100/month; OpenAI is never trusted to enforce it),
- *  3. non-blocking — any failure returns a reason and the builder continues on
- *     the free model pool.
- *
- * Server-only. The key is read inside functions, never at module scope, and is
- * never returned to a caller.
+ * Every AI call reserves against a durable monthly cap (default $100/month)
+ * enforced in our own database before it runs, and settles the real cost
+ * after. Server-only; never returns a key.
  */
 
 import {
