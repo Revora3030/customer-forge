@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { slugify } from "@/lib/admin.server";
 import {
   DEMO_PREVIEW_DAYS,
+  hoursRecord,
   readProspectDemoMarker,
   type ProspectDemoInput,
   type ProspectDemoMarker,
@@ -443,7 +444,7 @@ export const MAX_SOURCE_IMAGE_BYTES = 4 * 1024 * 1024;
 
 /**
  * Facts visible in a picture of a business (Maps screenshot, card, flyer,
- * sign), read by a free vision model. If the picture names the business, the
+ * sign), read by a Lovable vision model. If the picture names the business, the
  * Google Maps listing fills what the picture didn't show. The picture itself
  * is not stored or used on the site.
  */
@@ -456,7 +457,6 @@ export async function prospectFromImage(db: SupabaseClient, actorId: string, dat
   let text = "";
   try {
     const result = await analyzeImage({ userId: actorId, task: "admin.jarvis.prospect_image" }, {
-      freeOnly: true,
       maxOutputTokens: 600,
       temperature: 0,
       messages: [
@@ -472,7 +472,7 @@ export async function prospectFromImage(db: SupabaseClient, actorId: string, dat
     });
     text = result.text;
   } catch {
-    throw new Error("No free vision model could read the picture right now. Try again in a minute, or paste a Google Maps link.");
+    throw new Error("No AI model could read the picture right now. Try again in a minute, or paste a Google Maps link.");
   }
   const facts = parseImageFacts(text);
   if (!facts.businessName && !facts.phone && !facts.city)
@@ -502,7 +502,9 @@ export async function prospectFromImage(db: SupabaseClient, actorId: string, dat
   try {
     const maps = await prospectFromMaps(db, actorId, [facts.businessName, facts.city, facts.state].filter(Boolean).join(" "));
     const merged = { ...prefill };
-    for (const key of Object.keys(merged) as (keyof ProspectPrefill)[]) if (!merged[key]) merged[key] = maps.prefill[key];
+    for (const key of Object.keys(merged) as (keyof ProspectPrefill)[]) if (!merged[key]) (merged as Record<string, unknown>)[key] = maps.prefill[key];
+    if (maps.prefill.address) merged.address = maps.prefill.address;
+    if (maps.prefill.hours?.length) merged.hours = maps.prefill.hours;
     return {
       prefill: merged,
       source: "image_and_google_maps",

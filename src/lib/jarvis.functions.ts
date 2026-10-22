@@ -252,6 +252,7 @@ export async function runJarvis(db: SupabaseClient, userId: string, mode: Mode, 
     ...turns.map((turn) => ({ role: turn.role, content: splitReplyMeta(turn.content).body.slice(0, 6000) })),
   ];
   try {
+    let correctionUsed = false;
     // Act, observe, answer: up to MAX_ACTION_STEPS rounds of read actions.
     for (let step = 0; step <= MAX_ACTION_STEPS; step += 1) {
       const modelStart = Date.now();
@@ -270,6 +271,15 @@ export async function runJarvis(db: SupabaseClient, userId: string, mode: Mode, 
       proposals.push(...accepted);
       for (const proposal of accepted) recorder.add({ step, kind: "proposal", status: "ok", toolId: (proposal as { id?: string }).id ?? null, label: "Proposed — waiting for your approval", startedAt: Date.now(), finishedAt: Date.now(), input: proposal });
       for (const rejected of parsed.rejected) recorder.add({ step, kind: "tool", status: "rejected", label: "Request rejected", startedAt: Date.now(), finishedAt: Date.now(), error: rejected });
+      // A rejected proposal gets one correction round instead of a reply that promises a card that never appears.
+      if (!parsed.reads.length && parsed.rejected.length && !correctionUsed && step < MAX_ACTION_STEPS) {
+        correctionUsed = true;
+        conversation.push(
+          { role: "assistant", content: result.text.slice(0, 8000) },
+          { role: "user", content: `REJECTED (not shown to the owner): ${parsed.rejected.join("; ")}. Fix the details from the facts you already have and resend the action, or tell the owner exactly which fact is missing. Do not say a card is waiting unless the action is accepted.` },
+        );
+        continue;
+      }
       if (!parsed.reads.length || step === MAX_ACTION_STEPS) {
         const final = splitFollowups(text);
         reply = final.body;
