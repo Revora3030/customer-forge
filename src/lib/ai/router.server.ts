@@ -1102,7 +1102,7 @@ export async function callLovableSpeech(model: string, body: unknown, signal?: A
       userId: null,
       latencyMs: Date.now() - started,
       ok,
-      errorCategory: ok ? null : "provider_error",
+      errorCategory: ok ? null : status === 429 ? "rate_limited" : status === 402 ? "quota" : status === 400 ? "invalid_request" : "provider_unavailable",
       errorDetail: ok ? null : `HTTP ${status || "network"}`,
       inputTokens: null,
       outputTokens: null,
