@@ -1,3 +1,4 @@
+import { generateStudioImage } from "@/lib/image-studio.functions";
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -584,6 +585,18 @@ function Jarvis() {
       } catch (error) {
         forget(key);
         toast.error(error instanceof Error ? error.message : "The research request failed.");
+      }
+      return;
+    }
+    if (proposal.id === "image.create") {
+      try {
+        const result = await generateStudioImage({ data: { organizationId: proposal.organizationId, prompt: proposal.prompt, altText: proposal.altText, aspectRatio: proposal.aspectRatio, label: "jarvis-image" } });
+        if (!result.ok) throw new Error(result.message ?? "The picture couldn't be created.");
+        markDone(key);
+        toast.success("Picture saved to that website's pictures.");
+      } catch (error) {
+        forget(key);
+        toast.error(error instanceof Error ? error.message : "The picture couldn't be created.");
       }
       return;
     }

@@ -205,3 +205,17 @@ describe("research.ask proposals", () => {
     expect(splitReplyMeta(stored).meta.proposals).toEqual([{ id: "research.ask", question: "Which CRMs do roofers actually use?", preset: "medium" }]);
   });
 });
+
+import { parseImageCreateProposal as parseImg } from "./jarvis-actions";
+describe("image.create proposals", () => {
+  const org = "08921e2e-03b8-4b60-b5e6-52c646438819";
+  it("is approval-only", () => {
+    expect(JARVIS_ACTION_CLASSES["image.create"].autoRuns).toBe(false);
+  });
+  it("rejects a missing website id", () => {
+    expect(typeof parseImg({ prompt: "a wide shot of a clean garage bay", altText: "garage" })).toBe("string");
+  });
+  it("defaults unknown framing to 16:9", () => {
+    expect(parseImg({ organizationId: org, prompt: "a wide shot of a clean garage bay", altText: "garage", aspectRatio: "7:1" })).toMatchObject({ aspectRatio: "16:9" });
+  });
+});
