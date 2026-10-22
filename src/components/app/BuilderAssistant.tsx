@@ -782,7 +782,13 @@ function LiveActivity({
   requestId?: string;
   fallback: string;
 }) {
-  const { latest, steps } = useBuildProgress(organizationId, true, requestId);
+  const { latest: rawLatest, steps: allSteps } = useBuildProgress(organizationId, true, requestId);
+  // "model at work" rows name the model that actually answered; they show as a
+  // badge rather than as a step. Only genuinely recorded answers appear.
+  const MODEL_STAGE = "model at work";
+  const workingModel = allSteps.find((step) => step.stage === MODEL_STAGE)?.detail ?? null;
+  const steps = allSteps.filter((step) => step.stage !== MODEL_STAGE);
+  const latest = rawLatest?.stage === MODEL_STAGE ? (steps[0] ?? null) : rawLatest;
   const [startedAt] = useState(() => Date.now());
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -847,6 +853,14 @@ function LiveActivity({
                 </li>
               ))}
             </ol>
+          ) : null}
+          {workingModel ? (
+            <p className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+              <span>Model answering:</span>
+              <span className="rounded-full border border-primary/40 bg-primary/10 px-2 py-0.5 font-medium text-foreground break-all">
+                {workingModel}
+              </span>
+            </p>
           ) : null}
           {latest?.detail ? (
             <p className="text-xs break-words text-muted-foreground">{latest.detail}</p>
