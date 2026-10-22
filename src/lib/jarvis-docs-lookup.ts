@@ -7,6 +7,7 @@ const BASE = "https://context7.com/api/v2";
 
 export function cleanDocsQuery(raw: unknown): { library: string; topic: string } | null {
   if (typeof raw !== "string") return null;
+  // eslint-disable-next-line no-control-regex -- strips control characters from untrusted input
   const q = raw.replace(/[\u0000-\u001f]/g, " ").trim().slice(0, 200);
   if (q.length < 2) return null;
   const [library, ...rest] = q.split(/\s*[:|]\s*/);

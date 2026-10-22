@@ -22,12 +22,17 @@ export const ESTIMATED_PRICE_PER_MTOK: Readonly<Record<string, ModelPrice>> = {
   /* ---- Lovable AI Gateway roster (config.ts DEFAULT_MODELS.lovable) ---- */
   "anthropic/claude-fable-5-1": { input: 10, output: 50 },
   "anthropic/claude-opus-5-5": { input: 4, output: 20 },
+  "anthropic/claude-opus-5": { input: 5, output: 25 },
   "anthropic/claude-sonnet-5": { input: 2, output: 10 },
   "anthropic/claude-haiku-4-5": { input: 1, output: 5 },
   // OpenAI flagship ids on the gateway: no confirmed list price, rounded up.
   "openai/gpt-6.1-sol": { input: 2.5, output: 15 },
   "openai/gpt-6-sol": { input: 2.5, output: 15 },
   "openai/gpt-6-astra": { input: 2.5, output: 15 },
+  "openai/gpt-6-luna": { input: 2.5, output: 15 },
+  // Pro tier: priced high on purpose so it cannot slip under the cap.
+  "openai/gpt-5.5-pro": { input: 15, output: 120 },
+  "openai/chat-latest": { input: 2.5, output: 15 },
   "openai/gpt-5.6-sol": { input: 1.25, output: 10 },
   "openai/gpt-5.6-terra": { input: 0.5, output: 4 },
   "openai/gpt-5.6-luna": { input: 0.5, output: 4 },
