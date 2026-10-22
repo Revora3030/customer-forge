@@ -254,7 +254,7 @@ export const getAiHealth = createServerFn({ method: "GET" })
               outputs: model.outputs,
               roles: model.roles,
               eligible: model.roles.length > 0,
-              reason: model.reason ?? (u ? null : "Routed, but no calls in the last 24 hours."),
+              reason: model.reason ?? (u ? null : "Not used yet: routed, but no recorded calls in the last 24 hours, so untested."),
               last24h: {
                 attempts: u?.attempts ?? 0,
                 successes: u?.successes ?? 0,
@@ -266,7 +266,31 @@ export const getAiHealth = createServerFn({ method: "GET" })
             };
           }),
         }
-      : { state: "unavailable", fetchedAt: null, error: snapshot.error, staleRosterIds: [], models: [] };
+      : {
+          state: "unavailable",
+          fetchedAt: null,
+          error: snapshot.error,
+          staleRosterIds: [],
+          // Static rosters in use, unverified against the live catalogue.
+          models: [...new Set(Object.values(rosters).flat())].sort().map((id) => {
+            const u = usageFor(id);
+            return {
+              id,
+              outputs: [],
+              roles: Object.entries(rosters).filter(([, ids]) => ids.includes(id)).map(([role]) => role),
+              eligible: false,
+              reason: "Unverified: live catalogue unavailable, using the saved model list.",
+              last24h: {
+                attempts: u?.attempts ?? 0,
+                successes: u?.successes ?? 0,
+                failures: u ? u.attempts - u.successes : 0,
+                medianLatencyMs: u?.latency.length ? percentile(u.latency, 0.5) : null,
+                estimatedCostUsd: u?.priced ? Math.round(u.cost * 10000) / 10000 : null,
+                lastUsedAt: u?.last ?? null,
+              },
+            };
+          }),
+        };
 
     return {
       catalogue,
