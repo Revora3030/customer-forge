@@ -228,11 +228,11 @@ Owner approved porting two ideas (audit of the uploaded Next.js project; auto pa
 - [ ] Redesign: deeper restyle of signed-in cards/tables and sidebar
 
 ## Model-routing audit follow-up (2026-10-22)
-- [ ] Honest health labels: "not used yet" for unexercised models; static fallback marked unverified
-- [ ] Video tiers: same model must not imply premium quality
-- [ ] Builder progress shows actual per-step models from recorded usage
-- [ ] Reviewer diversity/bounded repair audit
+- [x] Honest health labels: "not used yet" for unexercised models; static fallback marked unverified
+- [x] Video tiers: same model must not imply premium quality
+- [x] Builder progress shows actual per-step models from recorded usage
+- [x] Reviewer diversity/bounded repair audit
 - [ ] Lovable speech for Jarvis voice (only if supported) / embeddings, music, live voice labelled not integrated
-- [ ] Prospect/outreach admin drafts: decide router vs free-only
+- [x] Prospect/outreach admin drafts: decide router vs free-only
 - [ ] Maps → fact review/edit → first build handoff, official-site enrichment, provenance
-- [ ] Durable build worker/cancellation audit
+- [x] Durable build worker/cancellation audit
