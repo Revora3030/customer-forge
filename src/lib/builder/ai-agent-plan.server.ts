@@ -343,6 +343,7 @@ export async function planWebsiteChangesWithAi(input: {
   }
 
   let costMicrocents = direction.costMicrocents + retryCost;
+  const requestedScope = proposal;
   let reviewModel: string | null = null;
   let notes = textList(proposal["notes"], 6);
 
@@ -444,7 +445,7 @@ export async function planWebsiteChangesWithAi(input: {
   {
     const { verifyPlan, skipUnverifiedSteps, existingComponents } = await import("@/lib/site-agent.server");
     const existing = existingComponents(context);
-    const coverageFeedback = () => missingRedesignSections(proposal, actions, context).map(target => ({
+    const coverageFeedback = () => missingRedesignSections(requestedScope, actions, context).map(target => ({
       index: -1, type: "set_composition" as const, target, reason: "incomplete_site" as const,
       problem: "Whole-site redesign omitted this existing section. Author its composition on its own page; do not only redesign home.",
     }));
@@ -499,7 +500,7 @@ export async function planWebsiteChangesWithAi(input: {
             const applied = applyReview(revised.list, parseJsonObject(recheck.text));
             if (applied.actions.length) {
               actions = applied.actions;
-              proposal = revised.parsed;
+              if (revised.parsed) proposal = revised.parsed;
               notes = [...notes, ...applied.notes].slice(0, 8);
               feedback = [...verifyPlan({ actions }, existing), ...coverageFeedback()];
             }
@@ -601,7 +602,7 @@ export async function planWebsiteChangesWithAi(input: {
     sectionIds: new Set(context.pages.flatMap(page => page.sections.map(section => section.id))),
     componentIds: new Set(context.pages.flatMap(page => page.sections.flatMap(section => section.components.map(component => component.id)))),
   }, dropped);
-  const omitted = missingRedesignSections(proposal, parsedActions, context);
+  const omitted = missingRedesignSections(requestedScope, parsedActions, context);
   if (omitted.length || !parsedActions.length) return {
     ok: false, reason: "incomplete_site",
     detail: `The validated plan is incomplete${omitted.length ? `: ${omitted.length} sections still need layouts` : ""}. Nothing was applied.`,
