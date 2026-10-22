@@ -679,10 +679,16 @@ async function run<T>(
     roleCapability(role, options?.capable),
     // A free-only spending scope (demo workspace builds) also keeps paid out.
     options?.freeOnly === true || scopedFreeOnly(),
+    options?.paidOnly === true,
   );
   const attemptTimeoutMs = clampPositive(options?.timeoutMs, limits.requestTimeoutMs);
   const chainBudgetMs = clampPositive(options?.chainDeadlineMs, chainDeadlineMs());
-  if (chain.length === 0) throw freeAiUnavailable("no free provider configured or in budget");
+  if (chain.length === 0)
+    throw options?.paidOnly === true
+      ? new RevoraAiError(503, "Revora AI is not configured: no paid provider configured or in budget.", {
+          category: "not_configured",
+        })
+      : freeAiUnavailable("no free provider configured or in budget");
 
   const verdict = await checkAiLimits(caller);
   if (!verdict.allowed) throw new RevoraAiError(429, verdict.reason, { category: "rate_limited" });
@@ -734,7 +740,10 @@ async function run<T>(
       // worker that ends after the response cannot drop it.
       let paidReservation: PaidReservation | null = null;
       let paidActual = 0;
-      if (!candidate.free) {
+      // The builder's thinker lane holds one monthly + daily reservation for
+      // its whole paid walk and settles it itself; the router must not
+      // reserve a second time for each candidate it tries.
+      if (!candidate.free && options?.budgetReservedExternally !== true) {
         paidReservation = await reservePaidSpend(routerEstimate(model, limits.maxOutputTokens));
         if (!paidReservation) continue;
       }
