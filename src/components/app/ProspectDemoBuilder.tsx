@@ -49,7 +49,7 @@ type BuilderProps = {
 
 /**
  * Jarvis panel: build a private demo website for a business with no website.
- * The build runs on the normal AI builder (free model pool, fact and safety
+ * The build runs on the normal AI builder (Lovable AI team, fact and safety
  * gates). Nothing is published or sent from here; the operator shares the
  * preview link, or sends it from the chat's build card.
  */
@@ -150,7 +150,7 @@ export function ProspectDemoBuilder({ onBuildStarted, onPreview }: BuilderProps 
       <div className="space-y-3 border-t border-border p-3">
         <p className="text-xs text-muted-foreground">
           Enter only real, public facts about the business. Jarvis creates a private draft workspace and the AI team
-          builds the site on your free model pool. Missing facts are left out, never invented. The site is not
+          builds the site with your Lovable AI team. Missing facts are left out, never invented. The site is not
           published; you get a private 30-day preview link to share.
         </p>
         <section aria-label="Find businesses without a website" className="space-y-2 rounded-lg border border-border p-3">
@@ -391,7 +391,7 @@ export function ProspectDemoBuilder({ onBuildStarted, onPreview }: BuilderProps 
                     <div className="mt-3 space-y-2 rounded-md border border-border p-2">
                       <p className="text-xs text-muted-foreground">
                         To: {draft.email ?? "no business email on file, so copy the text and reach them another way"} ·{" "}
-                        {draft.aiWritten ? "written by the free AI pool" : "AI unavailable, plain template used"}
+                        {draft.aiWritten ? "written by the Lovable AI team" : "AI unavailable, plain template used"}
                       </p>
                       <p className="text-sm font-medium">{draft.subject}</p>
                       <Textarea
