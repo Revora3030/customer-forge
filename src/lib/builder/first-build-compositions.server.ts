@@ -308,11 +308,12 @@ export async function composeFirstBuildSections(input: {
   const { db, organizationId, facts } = input;
   const direction = input.depthDirection ?? depthDirectionFromLook(input.lookSummary);
   const withinBudget = () => input.optionalPassDeadline === undefined || Date.now() < input.optionalPassDeadline;
-  const [{ data: sections, error }, { data: components }] = await Promise.all([
+  const [{ data: sections, error }, { data: components, error: componentsError }] = await Promise.all([
     db.from("website_sections").select("id,page_id,kind,heading,subheading,body,settings").eq("organization_id", organizationId).order("sort_order"),
     db.from("website_components").select("id,section_id,kind,label,body,media_url,link_url,link_label,settings").eq("organization_id", organizationId).order("sort_order"),
   ]);
   if (error) throw new Error(error.message);
+  if (componentsError) throw new Error(componentsError.message);
   const rows = (sections ?? []) as SectionRow[];
   const parts = (components ?? []) as ComponentRow[];
   // Prices already written on the owner's own site are supplied facts.
@@ -328,6 +329,7 @@ export async function composeFirstBuildSections(input: {
   // A made-up phone number or email in a layout is corrected to the owner's
   // real one (or the contact page) instead of costing the whole section.
   const pageRows = await db.from("website_pages").select("id,slug,kind").eq("organization_id", organizationId);
+  if (pageRows.error) throw new Error(pageRows.error.message);
   const pageList = (pageRows.data ?? []) as { id?: string; slug: string; kind: string | null }[];
   const contactSlug = pageList.find((page) =>
     ["contact", "book", "booking", "quote", "contact-us"].includes(page.slug) || /contact|book|quote/i.test(String(page.kind ?? "")),

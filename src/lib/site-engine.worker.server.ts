@@ -1933,9 +1933,8 @@ async function runJob(
 
   await step("wording");
   // Every content section is laid out by Sol as its own composition. No
-  // built-in section layout is used for a new site; if the AI layout fails,
-  // the build continues with the default section layout so the customer still
-  // gets a complete site.
+  // built-in section layout is used for a new site; missing layouts stop or
+  // park the existing job until the AI team can finish them.
   if (!built.skipped) {
     const { composeFirstBuildSections } = await import("@/lib/builder/first-build-compositions.server");
     const composed = await composeFirstBuildSections({
@@ -2254,6 +2253,11 @@ async function runJob(
   }
   await step("checks");
   await step("leads");
+
+  if (!built.skipped) {
+    const { assertFirstBuildSavedCoverage } = await import("@/lib/builder/first-build-saved-coverage.server");
+    await assertFirstBuildSavedCoverage(db, orgId, { pages: built.pages, sections: built.sections });
+  }
 
   const completion = await db
     .from("generation_jobs")
