@@ -36,7 +36,7 @@ export type MediaEnvironment = {
   /** Names of credentials present. Values are never read here. */
   presentSecrets: readonly string[];
   /**
-   * The LIVE state of free AI picture making, measured by
+   * The LIVE state of Lovable AI picture making, measured by
    * `imageGenerationCapability()`. It is passed in rather than read here so this
    * module stays pure and so nothing can be reported as available on the
    * strength of code existing. Omitted means "not measured", which is treated
@@ -164,8 +164,7 @@ export function planMedia(env: MediaEnvironment, options?: { mustBeReal?: boolea
     };
   }
 
-  // Free AI picture making, but only when a live check says a free provider, a
-  // free-verified model and today's allowance are all genuinely there.
+  // Lovable AI picture making, when a live check says it is configured.
   const generated = byId("ai_generation");
   if (generated.state === "available") {
     return {
@@ -173,7 +172,7 @@ export function planMedia(env: MediaEnvironment, options?: { mustBeReal?: boolea
       considered,
       usesGeneratedArt: false,
       explanation:
-        "Making a picture with the connected free picture service, inside its free daily allowance.",
+        "Making a picture with Lovable AI, inside the monthly spending cap.",
     };
   }
 
