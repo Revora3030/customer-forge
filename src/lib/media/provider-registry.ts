@@ -89,15 +89,13 @@ export function resolveMediaSources(env: MediaEnvironment): MediaSource[] {
       id: "ai_generation",
       kind: "ai_generation",
       label: "AI image generation",
-      // Only ever "available" when a live check confirmed a free provider, a
-      // free-verified model and unspent daily allowance.
+      // Only ever "available" when a live check confirmed Lovable AI is configured.
       state: ai?.state ?? "not_configured",
       reason:
         ai?.reason ??
-        "Free picture making has not been measured in this environment, so it is treated as unavailable.",
-      // A picture is only ever generated inside a provider's free allowance;
-      // paid image models can never be selected.
-      zeroCost: true,
+        "Picture making has not been measured in this environment, so it is treated as unavailable.",
+      // Lovable AI pictures count against the monthly spending cap.
+      zeroCost: false,
     },
   ];
 }
