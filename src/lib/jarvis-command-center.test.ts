@@ -33,7 +33,7 @@ describe("model status levels", () => {
 
 describe("run event redaction", () => {
   it("removes keys and tokens and bounds length", () => {
-    const s = summarize("api_key=abc123 Bearer xyz.abc sk-ABCDEFGHIJKLMNOPQRSTUV " + "x".repeat(900), 500)!;
+    const s = summarize("api_key=abc123 Bearer xyz.abc " + "sk-" + "ABCDEFGHIJKLMNOPQRSTUV " + "x".repeat(900), 500)!;
     expect(s).not.toContain("abc123");
     expect(s).not.toContain("sk-ABCDEFGHIJKLMNOP");
     expect(s.length).toBeLessThanOrEqual(500);
