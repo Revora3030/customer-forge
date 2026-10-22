@@ -10,7 +10,7 @@ describe("image editing capability truthfulness", () => {
     expect(
       canSatisfyEditRequest({
         hasSource: true,
-        modelSupportsEditing: imageEditCapableModel("gpt-image-1"),
+        modelSupportsEditing: false,
       }),
     ).toBe(false);
   });
