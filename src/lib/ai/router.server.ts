@@ -381,6 +381,7 @@ async function buildChain(
   role: ModelRole,
   capable?: (model: string) => boolean,
   forceFreeOnly = false,
+  forcePaidOnly = false,
 ): Promise<Candidate[]> {
   // The AI model lane is the builder's creative execution path. Keep the
   // reachability seam here, but never substitute deterministic creative work
@@ -393,12 +394,15 @@ async function buildChain(
   const first: Candidate[] = [];
   const deeper: Candidate[] = [];
 
-  for (const pool of await freeModelPool(role, capable, caller.task.startsWith("admin.") ? "admin" : "customer"))
-    pool.models.forEach((model, index) => {
-      const candidate = freeCandidate(pool.provider, pool.credentials.apiKey, model, role);
-      if (index === 0) first.push(candidate);
-      else deeper.push(candidate);
-    });
+  // A paid-only walk (the builder's thinker lane) never touches the free
+  // catalogue: the caller runs its own free fallback afterwards.
+  if (!forcePaidOnly)
+    for (const pool of await freeModelPool(role, capable, caller.task.startsWith("admin.") ? "admin" : "customer"))
+      pool.models.forEach((model, index) => {
+        const candidate = freeCandidate(pool.provider, pool.credentials.apiKey, model, role);
+        if (index === 0) first.push(candidate);
+        else deeper.push(candidate);
+      });
 
   const candidates = [...first, ...deeper];
 
@@ -637,6 +641,16 @@ async function run<T>(
     capable?: (model: string) => boolean;
     nextProviderOnInvalidRequest?: boolean;
     freeOnly?: boolean;
+    /** Walk only the paid team; the free pool is left to the caller's own fallback. */
+    paidOnly?: boolean;
+    /**
+     * The caller already reserved this call against the shared paid ledgers
+     * (monthly + daily) and settles it itself, so the router must not reserve
+     * a second time. Only the builder's thinker lane sets this.
+     */
+    budgetReservedExternally?: boolean;
+    /** External cancellation (a cancelled build stops the walk). */
+    signal?: AbortSignal;
     /** Per-attempt timeout; clamped to the configured ceiling. */
     timeoutMs?: number;
     /** Whole-chain wall-clock budget; clamped to the configured deadline. */
@@ -665,10 +679,16 @@ async function run<T>(
     roleCapability(role, options?.capable),
     // A free-only spending scope (demo workspace builds) also keeps paid out.
     options?.freeOnly === true || scopedFreeOnly(),
+    options?.paidOnly === true,
   );
   const attemptTimeoutMs = clampPositive(options?.timeoutMs, limits.requestTimeoutMs);
   const chainBudgetMs = clampPositive(options?.chainDeadlineMs, chainDeadlineMs());
-  if (chain.length === 0) throw freeAiUnavailable("no free provider configured or in budget");
+  if (chain.length === 0)
+    throw options?.paidOnly === true
+      ? new RevoraAiError(503, "Revora AI is not configured: no paid provider configured or in budget.", {
+          category: "not_configured",
+        })
+      : freeAiUnavailable("no free provider configured or in budget");
 
   const verdict = await checkAiLimits(caller);
   if (!verdict.allowed) throw new RevoraAiError(429, verdict.reason, { category: "rate_limited" });
@@ -720,7 +740,10 @@ async function run<T>(
       // worker that ends after the response cannot drop it.
       let paidReservation: PaidReservation | null = null;
       let paidActual = 0;
-      if (!candidate.free) {
+      // The builder's thinker lane holds one monthly + daily reservation for
+      // its whole paid walk and settles it itself; the router must not
+      // reserve a second time for each candidate it tries.
+      if (!candidate.free && options?.budgetReservedExternally !== true) {
         paidReservation = await reservePaidSpend(routerEstimate(model, limits.maxOutputTokens));
         if (!paidReservation) continue;
       }
@@ -736,6 +759,12 @@ async function run<T>(
         const freeCap = candidate.free ? FREE_ATTEMPT_CAP_MS : Number.POSITIVE_INFINITY;
         const attemptBudget = Math.max(1, Math.min(attemptTimeoutMs, freeCap, chainDeadline - Date.now()));
         const timer = setTimeout(() => controller.abort(), attemptBudget);
+        // A cancelled request (build aborted, page closed) aborts the in-flight
+        // paid call too, so the walk does not burn budget after the caller left.
+        const external = options?.signal ?? null;
+        const onExternalAbort = () => controller.abort();
+        if (external?.aborted) controller.abort();
+        external?.addEventListener("abort", onExternalAbort);
         try {
           if (candidate.free) {
             noteFreeUse(candidate.free, role);
@@ -889,6 +918,7 @@ async function run<T>(
           }
         } finally {
           clearTimeout(timer);
+          external?.removeEventListener("abort", onExternalAbort);
         }
       }
       } finally {
@@ -978,13 +1008,35 @@ function runOptionsFor(request: AiRequest) {
   return {
     nextProviderOnInvalidRequest: carriesAttachment(request.messages),
     freeOnly: request.freeOnly === true,
+    paidOnly: request.paidOnly === true,
     ...(request.timeoutMs ? { timeoutMs: request.timeoutMs } : {}),
     ...(request.chainDeadlineMs ? { chainDeadlineMs: request.chainDeadlineMs } : {}),
   };
 }
 
+/**
+ * Internal lane options: only callers that hold their own monthly + daily
+ * budget reservation may pass `budgetReservedExternally` (the builder's
+ * thinker lane), and only long-running build steps pass a cancel `signal`.
+ */
+export interface RouterLaneOptions {
+  budgetReservedExternally?: boolean;
+  signal?: AbortSignal;
+}
+
+function laneOptions(lane?: RouterLaneOptions) {
+  return {
+    ...(lane?.budgetReservedExternally === true ? { budgetReservedExternally: true } : {}),
+    ...(lane?.signal ? { signal: lane.signal } : {}),
+  };
+}
+
 /** Plain text generation. */
-export async function generateText(caller: AiCaller, request: AiRequest): Promise<AiTextResult> {
+export async function generateText(
+  caller: AiCaller,
+  request: AiRequest,
+  lane?: RouterLaneOptions,
+): Promise<AiTextResult> {
   guardRequest(request.messages);
   const limits = aiLimits();
   const outcome = await run(
@@ -1009,7 +1061,7 @@ export async function generateText(caller: AiCaller, request: AiRequest): Promis
         outputTokens: result.usage.outputTokens,
       };
     },
-    runOptionsFor(request),
+    { ...runOptionsFor(request), ...laneOptions(lane) },
   );
   return {
     text: outcome.value,
@@ -1025,6 +1077,7 @@ export async function generateText(caller: AiCaller, request: AiRequest): Promis
 export async function generateStructuredOutput(
   caller: AiCaller,
   request: AiRequest,
+  lane?: RouterLaneOptions,
 ): Promise<AiJsonResult> {
   guardRequest(request.messages);
   const limits = aiLimits();
@@ -1054,7 +1107,7 @@ export async function generateStructuredOutput(
         outputTokens: result.usage.outputTokens,
       };
     },
-    runOptionsFor(request),
+    { ...runOptionsFor(request), ...laneOptions(lane) },
   );
   return {
     text: outcome.value.text,
