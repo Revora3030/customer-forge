@@ -16,7 +16,7 @@
 
 import type { AiMessage, AiPart, AiUsage, ProviderAdapter } from "@/lib/ai/types";
 import { RevoraAiError } from "@/lib/ai/errors";
-import { base64FromDataUrl, providerHttpError } from "@/lib/ai/providers/shared";
+import { base64FromDataUrl, bytesFromDataUrl, providerHttpError } from "@/lib/ai/providers/shared";
 
 const BASE = "https://ai.gateway.lovable.dev/v1";
 

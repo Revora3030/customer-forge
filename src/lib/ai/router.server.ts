@@ -1460,13 +1460,8 @@ export async function callPinnedPaidVideo(
       category: "too_large",
     });
   if (scopedFreeOnly()) throw freeAiUnavailable("paid video is off for this free-only build");
-  // Lovable's gateway leads paid pictures (owner decision 2026-10-22); the
-  // direct OpenAI key is used only when no Lovable key is configured.
-  const lovable = providerConfig("lovable");
-  const config = lovable?.apiKey ? lovable : providerConfig("openai");
-  if (!config?.apiKey) throw freeAiUnavailable("no paid picture provider has credentials configured");
-  const pictureProvider: "lovable" | "openai" = config === lovable ? "lovable" : "openai";
-  const pictureModel = pictureProvider === "lovable" ? lovableImageModelId(model) : model;
+  const config = providerConfig("openai");
+  if (!config?.apiKey) throw freeAiUnavailable("openai has no credentials configured");
 
   const concurrencyKey = caller.organizationId ?? caller.userId ?? "platform";
   if (!(await acquireWaiting(concurrencyKey, limits.maxConcurrentPerWorkspace)))
