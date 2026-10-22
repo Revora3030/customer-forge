@@ -26,21 +26,6 @@ export type AiTaskStat = {
   estimatedCostUsd: number | null;
 };
 
-export type AiFreeProviderStatus = {
-  name: string;
-  label: string;
-  allowance: string;
-  configured: boolean;
-  healthy: boolean;
-  openFailures: number;
-  cooldownUntil: number | null;
-  remainingToday: number | null;
-  models: { role: string; model: string }[];
-  /** Recorded calls and failures in the last 24 hours, across all workers. */
-  calls24h?: number;
-  failures24h?: number;
-};
-
 export type AiLastOutcome = {
   at: number;
   provider: string;
@@ -49,22 +34,19 @@ export type AiLastOutcome = {
   ok: boolean;
   category: string | null;
   fallbackUsed: boolean;
-  free: boolean;
 };
 
-export type AiFreeStatus = {
-  freeAiEnabled: boolean;
-  /** Who served the most recent request, and how it ended. */
+/** Lovable AI status: the per-job rosters and the most recent call. */
+export type AiLovableStatus = {
+  configured: boolean;
   last: AiLastOutcome | null;
-  providers: AiFreeProviderStatus[];
+  roles: { role: string; models: string[] }[];
 };
-
 
 export type AiHealth = {
   configured: boolean;
-  /** Free-AI-first status: what is reachable at no cost right now. */
-  free: AiFreeStatus;
-  /** Whether the builder can reach any model at all (free or explicitly paid). */
+  lovable: AiLovableStatus;
+  /** Whether the builder can reach Lovable AI at all. */
   builderAiAvailable: boolean;
   /** The exact sentence users see when Revora owns no provider key. */
   unconfiguredMessage: string;
@@ -98,24 +80,24 @@ export const getAiHealth = createServerFn({ method: "GET" })
     const { providerChain, providerConfig } = await import("@/lib/ai/config");
     const { AI_NOT_CONFIGURED_MESSAGE } = await import("@/lib/ai/errors");
     const chain = providerChain();
-    const providers: AiProviderStatus[] = (["google", "openai"] as const).map((name) => {
-      const config = providerConfig(name);
-      const order = chain.findIndex((entry) => entry.name === name);
-      return {
-        name,
+    const config = providerConfig();
+    const providers: AiProviderStatus[] = [
+      {
+        name: "lovable",
         configured: config !== null,
-        order: order === -1 ? null : order + 1,
-        models: config
-          ? Object.entries(config.models).map(([role, model]) => ({ role, model }))
-          : [],
-      };
-    });
-
-    const { freeAiStatus } = await import("@/lib/ai/router.server");
+        order: config ? 1 : null,
+        models: config ? Object.entries(config.models).map(([role, model]) => ({ role, model })) : [],
+      },
+    ];
+    const { aiRuntimeStatus } = await import("@/lib/ai/router.server");
     const { builderAiAvailable } = await import("@/lib/ai/availability");
-    const { refreshDurableRuntime } = await import("@/lib/ai/durable-health.server");
-    await Promise.resolve(refreshDurableRuntime(true)).catch(() => undefined);
-    const free = freeAiStatus() as AiFreeStatus;
+    const lovable: AiLovableStatus = {
+      configured: config !== null,
+      last: aiRuntimeStatus().last,
+      roles: config
+        ? Object.entries(config.models).map(([role, list]) => ({ role, models: list.split(",").map((id) => id.trim()).filter(Boolean) }))
+        : [],
+    };
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
@@ -198,17 +180,9 @@ export const getAiHealth = createServerFn({ method: "GET" })
       models.set(key, model);
     }
 
-    // Shared, cross-worker truth for provider status (see health-merge.ts).
     {
-      const { refreshDurableRuntime, durableRuntimeSnapshot } = await import("@/lib/ai/durable-health.server");
-      const { freeBudgetCap } = await import("@/lib/ai/free");
-      const { mergeProviderHealth, lastRecordedOutcome } = await import("@/lib/ai/health-merge");
-      await refreshDurableRuntime(true);
-      const caps = Object.fromEntries(
-        free.providers.map((entry) => [entry.name, freeBudgetCap(entry.name as Parameters<typeof freeBudgetCap>[0])]),
-      );
-      free.providers = mergeProviderHealth(free.providers, durableRuntimeSnapshot(), caps, events);
-      free.last = lastRecordedOutcome(events, new Set(free.providers.map((entry) => entry.name))) ?? free.last;
+      const { lastRecordedOutcome } = await import("@/lib/ai/health-merge");
+      lovable.last = lastRecordedOutcome(events, new Set(["lovable"])) ?? lovable.last;
     }
 
     const { rows: audit } = await fetchAllRows((from, to) =>
@@ -234,8 +208,8 @@ export const getAiHealth = createServerFn({ method: "GET" })
     }
 
     return {
-      configured: chain.length > 0 || free.providers.some((entry) => entry.configured),
-      free,
+      configured: chain.length > 0,
+      lovable,
       builderAiAvailable: builderAiAvailable(),
       unconfiguredMessage: AI_NOT_CONFIGURED_MESSAGE,
       providers,
@@ -265,343 +239,6 @@ export const getAiHealth = createServerFn({ method: "GET" })
         .slice(0, 20),
       byModel: [...models.values()].sort((a, b) => b.calls - a.calls).slice(0, 20),
       refusedToolCalls: [...refused.values()].sort((a, b) => b.count - a.count).slice(0, 20),
-    };
-  });
-
-/**
- * Provider priority, for the platform admin only.
- *
- * Changes the order free providers are tried in for this server process. It
- * cannot introduce a paid provider and it never touches credentials.
- */
-export const setFreeAiProviderOrder = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .validator((input: { order: string[] | null }) => ({
-    order: input.order === null ? null : input.order.slice(0, 8).map((name) => String(name)),
-  }))
-  .handler(async ({ data, context }) => {
-    const { assertSuperAdmin } = await import("@/lib/admin.server");
-    await assertSuperAdmin(
-      context.supabase as unknown as Parameters<typeof assertSuperAdmin>[0],
-      String(context.userId),
-    );
-    const { setRuntimeFreeProviderOrder, isFreeProvider, freeProviderOrder } =
-      await import("@/lib/ai/free");
-    if (data.order && data.order.some((name) => !isFreeProvider(name)))
-      throw new Error("Only free providers can be ordered here.");
-    setRuntimeFreeProviderOrder(data.order);
-    return { order: freeProviderOrder() };
-  });
-
-/* --------------------------- free model inventory -------------------------- */
-
-export type InventoryModel = {
-  provider: string;
-  model: string;
-  displayName: string;
-  modality: string;
-  capabilities: string[];
-  weight: number;
-  /** "live" when the provider's own catalogue listed it, "configured" otherwise. */
-  confidence: string;
-  freeEvidence: string;
-  structuredOutput: boolean;
-  streaming: boolean;
-  healthy: boolean;
-  remainingToday: number | null;
-};
-
-export type AiModelInventory = {
-  /** Every verified free model Revora can actually reach right now. */
-  models: InventoryModel[];
-  totals: { models: number; providers: number; free: number };
-  byProvider: { provider: string; models: number; healthy: boolean }[];
-  /** The last few multi-model builds, with each model's part in them. */
-  runs: import("@/lib/ai/ensemble.server").EnsembleRun[];
-  lanes: { id: string; title: string; capability: string }[];
-  /** Measured reliability/latency per model, derived only from recorded calls. */
-  benchmarks: import("@/lib/ai/benchmark.server").ModelBenchmark[];
-};
-
-/**
- * The live inventory of the free model pool, for the platform admin only.
- *
- * Nothing is listed as reachable unless the free-eligibility gate accepts it,
- * and no credential value is ever returned.
- */
-export const getAiModelInventory = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }): Promise<AiModelInventory> => {
-    const { assertSuperAdmin } = await import("@/lib/admin.server");
-    await assertSuperAdmin(
-      context.supabase as unknown as Parameters<typeof assertSuperAdmin>[0],
-      String(context.userId),
-    );
-
-    const { buildFreeModelRegistry } = await import("@/lib/ai/registry.server");
-    const { ensembleRuns, ENSEMBLE_LANES } = await import("@/lib/ai/ensemble.server");
-    const { modelBenchmarks } = await import("@/lib/ai/benchmark.server");
-
-    const deduped = new Map<string, InventoryModel>();
-    for (const role of ["design", "primary", "coding", "fast", "vision"] as const) {
-      let models: Awaited<ReturnType<typeof buildFreeModelRegistry>> = [];
-      try {
-        models = await buildFreeModelRegistry(role);
-      } catch {
-        // A provider catalogue being unreachable means fewer rows, not an error page.
-      }
-      for (const entry of models) {
-        const key = `${entry.provider}|${entry.model}`;
-        const existing = deduped.get(key);
-        if (existing && existing.capabilities.length >= entry.capabilities.length) continue;
-        deduped.set(key, {
-          provider: entry.provider,
-          model: entry.model,
-          displayName: entry.displayName,
-          modality: entry.modality,
-          capabilities: entry.capabilities,
-          weight: entry.weight,
-          confidence: entry.confidence,
-          freeEvidence: entry.freeEvidence,
-          structuredOutput: entry.structuredOutput,
-          streaming: entry.streaming,
-          healthy: entry.health.healthy,
-          remainingToday: entry.quota.remainingToday,
-        });
-      }
-    }
-
-    const models = [...deduped.values()].sort(
-      (a, b) => a.provider.localeCompare(b.provider) || b.weight - a.weight,
-    );
-    const providers = new Map<string, { provider: string; models: number; healthy: boolean }>();
-    for (const entry of models) {
-      const row = providers.get(entry.provider) ?? {
-        provider: entry.provider,
-        models: 0,
-        healthy: false,
-      };
-      row.models += 1;
-      row.healthy = row.healthy || entry.healthy;
-      providers.set(entry.provider, row);
-    }
-
-    return {
-      models,
-      totals: { models: models.length, providers: providers.size, free: models.length },
-      byProvider: [...providers.values()].sort((a, b) => b.models - a.models),
-      runs: ensembleRuns(),
-      lanes: ENSEMBLE_LANES.map((lane) => ({
-        id: lane.id,
-        title: lane.title,
-        capability: lane.capability,
-      })),
-      benchmarks: await modelBenchmarks(),
-    };
-  });
-
-/* ------------------------- orchestration visibility ------------------------ */
-
-export type OrchestrationModel = {
-  provider: string;
-  model: string;
-  displayName: string;
-  quality: number;
-  reliability: number;
-  healthy: boolean;
-  blockedReason: string | null;
-  /** Where the capability data came from: a live probe, provider metadata, or a declaration. */
-  evidence: string;
-  verifiedAt: number;
-  costPerMTok: number | null;
-  paid: boolean;
-  /** Only capabilities Revora has actually proven. */
-  proven: string[];
-  /** Capabilities that are still unproven — never advertised as supported. */
-  unknown: string[];
-};
-
-export type AiOrchestration = {
-  at: number | null;
-  /**
-   * Honest, separated counts. "Discovered" is only what the provider catalogues
-   * listed; nothing here is a marketing number.
-   */
-  totals: {
-    discovered: number;
-    verified: number;
-    healthy: number;
-    specialists: number;
-    specialistsHealthy: number;
-    participated: number;
-  };
-  specialists: (OrchestrationModel & { charter: string; domains: string[] })[];
-  /** A bounded window of the catalogue for display; `totals.discovered` is the truth. */
-  models: OrchestrationModel[];
-  modelsShown: number;
-  decisions: import("@/lib/ai/orchestration/telemetry").RoutingDecision[];
-  participation: ReturnType<
-    typeof import("@/lib/ai/orchestration/telemetry").participationSummary
-  >;
-  outcomes: import("@/lib/ai/orchestration/telemetry").CallOutcome[];
-  probe: { version: number; capabilities: string[] };
-  /**
-   * The free stand-in squads that keep building when the paid lanes are spent,
-   * plus the most recent hand-overs. Nothing here is a capability claim: a
-   * member is only listed because a real capability check passed.
-   */
-  hallOfFame: {
-    squads: {
-      purpose: string;
-      capability: string;
-      members: {
-        provider: string;
-        model: string;
-        ready: boolean;
-        /** Recent real outcomes for this model. Never any prompt content. */
-        form: {
-          attempts: number;
-          wins: number;
-          averageLatencyMs: number | null;
-          score: number;
-        };
-      }[];
-    }[];
-    runs: import("@/lib/ai/thinker.server").HallOfFameRun[];
-    /** Recent form across every free model that has actually been tried. */
-    form: {
-      provider: string;
-      model: string;
-      attempts: number;
-      wins: number;
-      averageLatencyMs: number | null;
-      score: number;
-    }[];
-  };
-
-};
-
-/**
- * The live orchestration picture, for the platform admin only: what was
- * discovered, what is proven, what is healthy, which models actually
- * participated in recent work, and why each was chosen or skipped.
- */
-export const getAiOrchestration = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }): Promise<AiOrchestration> => {
-    const { assertSuperAdmin } = await import("@/lib/admin.server");
-    await assertSuperAdmin(
-      context.supabase as unknown as Parameters<typeof assertSuperAdmin>[0],
-      String(context.userId),
-    );
-
-    const { buildModelCatalog } = await import("@/lib/ai/orchestration/catalog.server");
-    const { SPECIALIST_SIX } = await import("@/lib/ai/orchestration/specialists");
-    const { PROBE_VERSION, probeableCapabilities } = await import(
-      "@/lib/ai/orchestration/probe.server"
-    );
-    const { recentRoutingDecisions, recentCallOutcomes, participationSummary } = await import(
-      "@/lib/ai/orchestration/telemetry"
-    );
-
-    let snapshot: Awaited<ReturnType<typeof buildModelCatalog>> | null = null;
-    try {
-      snapshot = await buildModelCatalog();
-    } catch {
-      // A provider catalogue being unreachable means fewer rows, not an error page.
-    }
-
-    const shape = (
-      record: import("@/lib/ai/orchestration/contracts").ModelRecord,
-    ): OrchestrationModel => {
-      const proven: string[] = [];
-      const unknown: string[] = [];
-      for (const [capability, state] of Object.entries(record.capabilities))
-        if (state === "supported") proven.push(capability);
-        else if (state !== "unsupported") unknown.push(capability);
-      return {
-        provider: record.provider,
-        model: record.id,
-        displayName: record.displayName,
-        quality: record.quality,
-        reliability: record.reliability,
-        healthy: record.healthy,
-        blockedReason: record.blockedReason,
-        evidence: record.evidence,
-        verifiedAt: record.verifiedAt,
-        costPerMTok: record.costPerMTok,
-        paid: record.paid,
-        proven,
-        unknown,
-      };
-    };
-
-    const participation = participationSummary();
-    const specialists = (snapshot?.specialists ?? []).map((record) => {
-      const entry = SPECIALIST_SIX.find((candidate) => candidate.model === record.id);
-      return {
-        ...shape(record),
-        charter: entry?.charter ?? "",
-        domains: entry ? [...entry.domains] : [],
-      };
-    });
-    const models = (snapshot?.models ?? []).map(shape);
-
-    const { hallOfFameSquad, recentHallOfFameRuns } = await import("@/lib/ai/thinker.server");
-    const { freeModelForm, freeModelFormSnapshot } = await import("@/lib/ai/free-reputation");
-    const squadPurposes = [
-      "creative_direction",
-      "content_strategy",
-      "adversarial_review",
-      "page_planning",
-      "metadata",
-    ] as const;
-    const squads = await Promise.all(
-      squadPurposes.map(async (purpose) => {
-        const built = await hallOfFameSquad(purpose);
-        return {
-          purpose,
-          capability: built.capability,
-          members: built.squad.map((member) => {
-            const form = freeModelForm(member.provider, member.model);
-            return {
-              provider: member.provider,
-              model: member.model,
-              ready: member.healthy && (member.remainingToday ?? 1) > 0,
-              form: {
-                attempts: form.attempts,
-                wins: form.wins,
-                averageLatencyMs: form.averageLatencyMs,
-                score: Number(form.score.toFixed(3)),
-              },
-            };
-          }),
-        };
-      }),
-    );
-
-    return {
-      at: snapshot?.at ?? null,
-      totals: {
-        discovered: snapshot?.totals.discovered ?? 0,
-        verified: snapshot?.totals.verified ?? 0,
-        healthy: snapshot?.totals.healthy ?? 0,
-        specialists: specialists.length,
-        specialistsHealthy: specialists.filter((entry) => entry.healthy).length,
-        participated: participation.length,
-      },
-      specialists,
-      models: models.slice(0, 200),
-      modelsShown: Math.min(models.length, 200),
-      decisions: recentRoutingDecisions(15),
-      participation,
-      outcomes: recentCallOutcomes(25),
-      probe: { version: PROBE_VERSION, capabilities: probeableCapabilities() },
-      hallOfFame: {
-        squads,
-        runs: recentHallOfFameRuns(15),
-        form: freeModelFormSnapshot().slice(0, 30),
-      },
     };
   });
 
