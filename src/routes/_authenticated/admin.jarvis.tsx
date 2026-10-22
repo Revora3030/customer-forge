@@ -16,6 +16,7 @@ import { JarvisHeader, type ChecksSummary } from "@/components/app/jarvis/Jarvis
 import { JarvisComposer, type JarvisMode } from "@/components/app/jarvis/JarvisComposer";
 import { AssistantMessage, UserMessage, type JarvisRow } from "@/components/app/jarvis/JarvisMessage";
 import { RunStepsSheet } from "@/components/app/jarvis/RunStepsSheet";
+import { LiveRunSteps } from "@/components/app/jarvis/LiveRunSteps";
 import { ConversationsSheet } from "@/components/app/jarvis/ConversationsSheet";
 import { OperationsPanel, DIAGNOSTIC_SECTIONS, type ProspectorState } from "@/components/app/jarvis/OperationsPanel";
 import { CommandPalette } from "@/components/app/jarvis/CommandPalette";
@@ -190,6 +191,7 @@ function Jarvis() {
   const [text, setText] = useState("");
   const [mode, setMode] = useState<Mode>("balanced");
   const [pending, setPending] = useState<string | null>(null);
+  const [liveRun, setLiveRun] = useState<string | null>(null);
   const [followups, setFollowups] = useState<string[]>([]);
   const [voice, setVoice] = useState(false);
   const [live, setLive] = useState(false);
@@ -286,7 +288,11 @@ function Jarvis() {
     if (voice || liveRef.current) void speak(result.reply, latestAssistantId());
   };
   const mutation = useMutation({
-    mutationFn: (message: string) => send({ data: { message, mode, conversationId } }),
+    mutationFn: (message: string) => {
+      const runId = crypto.randomUUID();
+      setLiveRun(runId);
+      return send({ data: { message, mode, conversationId, runId } });
+    },
     onSuccess: finish,
     onError: async (error: Error, message: string) => {
       toast.error(error.message);
@@ -297,7 +303,7 @@ function Jarvis() {
       if (lastUser?.content !== message) setText((current) => current || message);
       resumeLive();
     },
-    onSettled: () => setPending(null),
+    onSettled: () => { setPending(null); setLiveRun(null); },
   });
   const regen = useMutation({
     mutationFn: () => redo({ data: { mode, conversationId } }),
@@ -868,6 +874,10 @@ function Jarvis() {
                   <span aria-hidden><TypingDots /></span>
                   <span>Working<span aria-hidden> · {elapsed}s</span></span>
                 </div>
+              ) : null}
+              {busy && liveRun ? <LiveRunSteps runId={liveRun} /> : null}
+              {false ? (
+                <div />
               ) : null}
               {!busy && !pending && lastMessage?.role === "user" ? (
                 <div>
