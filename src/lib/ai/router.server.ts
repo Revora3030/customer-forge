@@ -427,17 +427,15 @@ async function buildChain(
     healthy: providerHealthy({ caller, provider: entry.config.name, model: entry.model }),
     paid: entry.free === null,
   }));
-  // Quality decides where the paid chain sits; the operator still decides which
+  // Quality decides where each lane sits; the operator still decides which
   // paid provider is tried first, so an explicitly configured default/fallback
   // provider order is preserved inside the paid group.
-  // PAID TEAM FIRST: the free Hall of Fame pool is the backup squad. It takes
-  // over only after every reachable paid candidate has failed, and within each
+  // LANE BY TASK SIZE (owner decision 2026-10-22): small, mechanical roles
+  // (`fast`, `conversation`) are served by the free pool first with the paid
+  // Lovable lane as failover; every creative/building role runs the paid team
+  // first and the free Hall of Fame pool is the backup squad. Within each
   // group the strongest model is still tried first.
-  const paidFirst = [
-    ...ranked.filter((entry) => entry.free === null),
-    ...ranked.filter((entry) => entry.free !== null),
-  ];
-  const groupedRaw = preserveGroupOrder(paidFirst, candidates, (entry) => entry.free === null);
+  const groupedRaw = preserveGroupOrder(groupForRole(role, ranked), candidates, (entry) => entry.free === null);
   // Visual review is latency-critical: inside the free group, the verified fast
   // vision endpoints go first (NIM llama-3.2-11b-vision, then Workers AI), and
   // everything else keeps its quality-first place behind them.
