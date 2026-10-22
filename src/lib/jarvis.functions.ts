@@ -169,7 +169,7 @@ function splitFollowups(raw: string): { body: string; followups: string[] } {
   return { body, followups };
 }
 
-export async function runJarvis(db: SupabaseClient, userId: string, mode: Mode, page: string | null = null, conversationId: string | null = null) {
+export async function runJarvis(db: SupabaseClient, userId: string, mode: Mode, page: string | null = null, conversationId: string | null = null, liveRunId: string | null = null) {
   // Without an explicit conversation, continue the one the latest message joined.
   if (!conversationId) {
     const latest = await db.from("jarvis_messages").select("conversation_id").eq("user_id", userId).order("created_at", { ascending: false }).limit(1).maybeSingle();
@@ -244,7 +244,7 @@ export async function runJarvis(db: SupabaseClient, userId: string, mode: Mode, 
   const ran: string[] = [];
   const proposals: import("./jarvis-actions").WriteProposal[] = [];
   const { createRunRecorder } = await import("./jarvis-events.server");
-  const recorder = createRunRecorder(userId);
+  const recorder = createRunRecorder(userId, liveRunId ? { db, runId: liveRunId } : undefined);
   const conversation: { role: "system" | "user" | "assistant"; content: string }[] = [
     { role: "system", content: system },
     // Stored replies carry action metadata for the UI; the model only needs the text.
@@ -310,12 +310,13 @@ export async function runJarvis(db: SupabaseClient, userId: string, mode: Mode, 
 
 export const sendJarvisMessage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((input: { message: string; mode?: Mode; page?: string; conversationId?: string | null }) => {
+  .validator((input: { message: string; mode?: Mode; page?: string; conversationId?: string | null; runId?: string | null }) => {
     if (typeof input?.message !== "string") throw new Error("Type a message first.");
     const message = input.message.trim();
     if (!message) throw new Error("Type a message first.");
     if (message.length > 4000) throw new Error("Keep your message under 4,000 characters.");
-    return { message, mode: parseMode(input.mode), page: adminPath(input.page), conversationId: parseConversationId(input.conversationId) };
+    const runId = typeof input.runId === "string" && /^[0-9a-f-]{36}$/i.test(input.runId) ? input.runId : null;
+    return { message, mode: parseMode(input.mode), page: adminPath(input.page), conversationId: parseConversationId(input.conversationId), runId };
   })
   .handler(async ({ context, data }) => {
     const db = await guardedAdmin(context);
@@ -327,7 +328,7 @@ export const sendJarvisMessage = createServerFn({ method: "POST" })
     if (conversationId) {
       await db.from("jarvis_conversations").update({ title: conversationTitle(data.message) }).eq("id", conversationId).eq("user_id", userId).eq("title", "New conversation");
     }
-    return runJarvis(db, userId, data.mode, data.page, conversationId);
+    return runJarvis(db, userId, data.mode, data.page, conversationId, data.runId);
   });
 
 export const regenerateJarvisReply = createServerFn({ method: "POST" })
