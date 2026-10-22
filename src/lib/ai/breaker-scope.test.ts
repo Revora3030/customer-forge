@@ -4,7 +4,7 @@ import { breakerScopeKey } from "./router.server";
 describe("AI breaker isolation", () => {
   const base = {
     caller: { organizationId: "org-a", userId: "user-a", task: "visual-review" },
-    provider: "google" as const,
+    provider: "lovable" as const,
     model: "model-a",
   };
 
