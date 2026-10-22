@@ -12,7 +12,6 @@ import {
   SectionHeading,
 } from "@/components/app/Bits";
 import { CapabilityCenter } from "@/components/app/CapabilityCenter";
-import { OrchestrationCenter } from "@/components/app/OrchestrationCenter";
 import { AiTeamTrace } from "@/components/app/AiTeamTrace";
 import { TeamReviewLog } from "@/components/app/TeamReviewLog";
 import { getAiHealth } from "@/lib/ai/health.functions";
@@ -101,71 +100,28 @@ function AdminAi() {
       <Panel>
 
         <SectionHeading
-          title="Free AI"
-          description="Revora tries these free providers first, in this order. A provider is only usable when its own credentials are set, and only models that provider currently serves for free are ever chosen."
+          title="Lovable AI team"
+          description="Every AI job runs on Lovable AI models, best model first for each job. If Lovable AI is unavailable or the spending cap is reached, work waits — there is no backup provider."
         />
         {health.isLoading ? <LoadingRows /> : null}
         <div className="space-y-2">
-          {(data?.free.providers ?? []).map((provider) => (
-            <div
-              key={provider.name}
-              className="product-tile"
-            >
+          {(data?.lovable.roles ?? []).map((entry) => (
+            <div key={entry.role} className="product-tile">
               <div className="flex flex-wrap items-center gap-2">
-                <Pill
-                  tone={
-                    !provider.configured ? "attention" : provider.healthy ? "signal" : "attention"
-                  }
-                >
-                  {!provider.configured
-                    ? "Not set up"
-                    : provider.healthy
-                      ? "Free · ready"
-                      : provider.remainingToday === 0
-                        ? "Out of quota today"
-                        : "Resting after errors"}
-                </Pill>
-                <span className="font-medium">{provider.label}</span>
-                {provider.remainingToday !== null ? (
-                  <span className="text-muted-foreground">
-                    {provider.remainingToday} requests left today
-                  </span>
-                ) : null}
-                {provider.calls24h ? (
-                  <span className="text-muted-foreground">
-                    {provider.calls24h} calls in 24h
-                    {provider.failures24h ? `, ${provider.failures24h} failed (${Math.round((provider.failures24h / provider.calls24h) * 100)}%)` : ", none failed"}
-                  </span>
-                ) : null}
-                {provider.cooldownUntil ? (
-                  <span className="text-muted-foreground">
-                    resting until {new Date(provider.cooldownUntil).toLocaleTimeString("en-US")}
-                  </span>
-                ) : provider.openFailures > 0 ? (
-                  <span className="text-muted-foreground">
-                    {provider.openFailures} recent problem
-                    {provider.openFailures === 1 ? "" : "s"}
-                  </span>
-                ) : null}
+                <Pill tone="signal">{entry.role}</Pill>
+                <span className="text-muted-foreground">{entry.models.length} models</span>
               </div>
-              <p className="mt-1.5 text-muted-foreground">{provider.allowance}</p>
-              {provider.models.length ? (
-                <p className="mt-1 text-muted-foreground">
-                  {provider.models.map((entry) => `${entry.role}: ${entry.model}`).join(" · ")}
-                </p>
-              ) : null}
+              <p className="mt-1.5 text-muted-foreground">{entry.models.join(" · ")}</p>
             </div>
           ))}
         </div>
-        {data?.free.last ? (
+        {data?.lovable.last ? (
           <p className="mt-3 text-[13px] text-muted-foreground">
-            Last request: <span className="font-medium capitalize">{data.free.last.provider}</span>{" "}
-            {data.free.last.model} · {data.free.last.task} ·{" "}
-            {data.free.last.ok
+            Last request: <span className="font-medium">{data.lovable.last.model}</span> · {data.lovable.last.task} ·{" "}
+            {data.lovable.last.ok
               ? "answered"
-              : `failed (${data.free.last.category?.replace(/_/g, " ") ?? "unknown"})`}
-            {data.free.last.fallbackUsed ? " · a backup provider covered it" : ""}
-            {data.free.last.free ? " · free" : ""}
+              : `failed (${data.lovable.last.category?.replace(/_/g, " ") ?? "unknown"})`}
+            {data.lovable.last.fallbackUsed ? " · a backup model covered it" : ""}
           </p>
         ) : null}
         {data ? (
@@ -173,9 +129,6 @@ function AdminAi() {
             {data.builderAiAvailable
               ? "AI is reachable, so the builder can use the configured model team. "
               : "No AI is reachable right now; the builder does not substitute a stock or deterministic design. "}
-            {data.providers.length > 0
-              ? "A configured paid provider is available as another model lane."
-              : "No configured paid provider is currently available."}
           </p>
         ) : null}
 
@@ -317,7 +270,6 @@ function AdminAi() {
         </Panel>
       </div>
 
-      <OrchestrationCenter />
       <TeamReviewLog />
 
 
@@ -344,7 +296,7 @@ function LunaPanel() {
     <Panel>
       <SectionHeading
         title="Master planner (paid)"
-        description="One paid model coordinates the free workforce. It never builds a website itself, and it stops for the month the moment this cap is reached — websites keep building on the free engine either way."
+        description="All Lovable AI spending counts against this monthly cap. When it is reached, AI work waits until next month or until you raise the cap."
       />
       {status.isLoading ? <LoadingRows /> : null}
       {status.error ? <ErrorNote message="Could not read the master planner's spending." /> : null}
