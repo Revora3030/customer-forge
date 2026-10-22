@@ -87,6 +87,8 @@ describe("no third-party AI gateway remains", () => {
       "ai/gateway-chat.server.ts",
       // The router's keyed Lovable paid provider and its unit tests.
       "ai/config.ts",
+      "ai/providers/lovable.ts",
+      "ai/router.server.ts",
       "ai/provider-test-environment",
       "ai/lovable-provider.test.ts",
       // The Perplexity search connector is a Lovable integration reached
