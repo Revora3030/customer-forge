@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { firstBuildCoverageProblems } from "./first-build-saved-coverage";
+import { firstBuildCoverageProblems, missingPictureProblems } from "./first-build-saved-coverage";
 
 const pages = [{ id: "home", slug: "home" }, { id: "services", slug: "services" }];
 const settings = { composition: { version: 1, root: { type: "stack", children: [{ type: "heading", text: "Real business", level: 1 }] } } };
