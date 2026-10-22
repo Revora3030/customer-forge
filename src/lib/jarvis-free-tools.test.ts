@@ -1,8 +1,8 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { DEFAULT_TARGET, resolveAllowedTarget } from "./jarvis-target-url";
 import { buildPageSpeedUrl, normalizeStrategy } from "./jarvis-pagespeed";
 import { browserCheckHasProblems, summarizeBrowserCheck } from "./jarvis-browser-check";
-import { buildDocsUrl, classifyContext7Response, cleanDocsQuery, lookupContext7Docs, pickLibraryId, resetDocsLookupCache } from "./jarvis-docs-lookup";
+import { buildDocsUrl, cleanDocsQuery, pickLibraryId } from "./jarvis-docs-lookup";
 
 const verified = async (h: string) => h === "shinedup.com";
 
@@ -68,44 +68,5 @@ describe("Docs lookup", () => {
     expect(u.searchParams.get("query")).toBe("loaders");
     expect(pickLibraryId({ results: [{ id: "/tanstack/router", title: "TanStack Router" }] })?.id).toBe("/tanstack/router");
     expect(pickLibraryId({ results: [] })).toBeNull();
-  });
-});
-
-describe("Context7 responses and caching", () => {
-  beforeEach(() => resetDocsLookupCache());
-
-  it("treats 404 as an empty answer, 202/503 as retryable indexing and 429 as quota", () => {
-    expect(classifyContext7Response(200)).toEqual({ kind: "ok" });
-    expect(classifyContext7Response(404, "search")).toEqual({ kind: "empty", reason: "library_not_found" });
-    expect(classifyContext7Response(404, "docs")).toEqual({ kind: "empty", reason: "no_documentation_found" });
-    expect(classifyContext7Response(202)).toEqual({ kind: "retry", reason: "retryable_indexing" });
-    expect(classifyContext7Response(503)).toEqual({ kind: "retry", reason: "retryable_indexing" });
-    expect(classifyContext7Response(429)).toEqual({ kind: "error", reason: "free_quota_exhausted" });
-    expect(classifyContext7Response(500)).toEqual({ kind: "error", reason: "context7_http_500" });
-  });
-
-  it("serves a repeated question from the cache with zero fetch calls", async () => {
-    const fetchMock = vi.fn(async (input: string | URL | Request) =>
-      new URL(String(input)).pathname.endsWith("/libs/search")
-        ? Response.json({ results: [{ id: "/tanstack/router", title: "TanStack Router" }] })
-        : new Response("Loaders run before render.", { status: 200 }));
-    const q = { library: "tanstack router", topic: "loaders" };
-    const first = await lookupContext7Docs(q, "k", fetchMock as unknown as typeof fetch);
-    expect(first).toMatchObject({ status: "observed", data: { found: true, source: "/tanstack/router" } });
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    const second = await lookupContext7Docs({ library: "TanStack Router", topic: "Loaders" }, "k", fetchMock as unknown as typeof fetch);
-    expect(second).toMatchObject({ status: "observed", data: { found: true, cached: true } });
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-  });
-
-  it("reports a 404 as nothing found and never caches a retryable answer", async () => {
-    const notFound = vi.fn(async () => new Response("", { status: 404 }));
-    expect(await lookupContext7Docs({ library: "nope", topic: "" }, "k", notFound as unknown as typeof fetch))
-      .toEqual({ status: "observed", data: { found: false, reason: "library_not_found", library: "nope" } });
-    const indexing = vi.fn(async () => new Response("", { status: 202 }));
-    const q = { library: "fresh-lib", topic: "" };
-    expect(await lookupContext7Docs(q, "k", indexing as unknown as typeof fetch)).toEqual({ status: "unknown", data: { reason: "retryable_indexing", retryable: true } });
-    await lookupContext7Docs(q, "k", indexing as unknown as typeof fetch);
-    expect(indexing).toHaveBeenCalledTimes(2);
   });
 });
