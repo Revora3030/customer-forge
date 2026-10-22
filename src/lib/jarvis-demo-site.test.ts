@@ -26,8 +26,10 @@ describe("parseProspectDemoInput", () => {
     expect(() => parseProspectDemoInput({ ...valid, city: "" })).toThrow(/city/);
   });
 
-  it("needs real services or a real description, never invents them", () => {
-    expect(() => parseProspectDemoInput({ ...valid, services: "" })).toThrow(/service/);
+  it("with no services, describes only the stated trade and city, never invented services", () => {
+    const bare = parseProspectDemoInput({ ...valid, services: "", description: "" });
+    expect(bare.services).toEqual([]);
+    expect(bare.description).toBe(`${bare.industry} serving ${[bare.city, bare.state].filter(Boolean).join(", ")}.`);
     const described = parseProspectDemoInput({
       ...valid,
       services: "",
