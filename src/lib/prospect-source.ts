@@ -10,7 +10,71 @@
 
 export type MapsLookup =
   | { kind: "query"; query: string; lat: number | null; lng: number | null }
+  | { kind: "place_id"; placeId: string; query: string | null; lat: number | null; lng: number | null }
   | { kind: "short_link"; url: string };
+
+/** Places API (New) ids look like "ChIJ…" (base64url, 20–300 chars). Hex "0x…:0x…" feature ids are NOT Places ids. */
+const PLACE_ID = /^(?:ChIJ|GhIJ|EiI|Ei[A-Za-z0-9])[A-Za-z0-9_-]{16,300}$/;
+
+/** The Places id a Maps link carries, if any: ?query_place_id=, ?q=place_id:, ?place_id=, or !19s<id> in the data path. */
+export function placeIdFromMapsUrl(url: URL): string | null {
+  const candidates = [
+    url.searchParams.get("query_place_id"),
+    url.searchParams.get("place_id"),
+    (url.searchParams.get("q") ?? url.searchParams.get("query") ?? "").replace(/^place_id:/i, ""),
+    url.pathname.match(/!19s([A-Za-z0-9_-]+)/)?.[1] ?? null,
+    decodeURIComponent(url.pathname).match(/place_id:([A-Za-z0-9_-]+)/)?.[1] ?? null,
+  ];
+  return candidates.map((value) => (value ?? "").trim()).find((value) => PLACE_ID.test(value)) ?? null;
+}
+
+export type PlaceCandidate = { placeId: string; name: string; address: string | null; lat?: number | null; lng?: number | null };
+
+const norm = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+
+function nameScore(query: string, name: string): number {
+  const q = new Set(norm(query).split(" ").filter((word) => word.length > 1));
+  const n = norm(name).split(" ").filter((word) => word.length > 1);
+  if (!q.size || !n.length) return 0;
+  if (norm(query).includes(norm(name))) return 1;
+  return n.filter((word) => q.has(word)).length / n.length;
+}
+
+function km(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
+  const rad = Math.PI / 180;
+  const dLat = (b.lat - a.lat) * rad;
+  const dLng = (b.lng - a.lng) * rad;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dLng / 2) ** 2;
+  return 12742 * Math.asin(Math.sqrt(h));
+}
+
+/**
+ * Which search result is the business the link pointed at. Picks one only when
+ * its name clearly matches (and, with a map center, it's within 2 km); else
+ * returns the candidates so the owner confirms instead of a silent first-result guess.
+ */
+export function pickPlaceMatch(
+  query: string,
+  candidates: PlaceCandidate[],
+  near: { lat: number; lng: number } | null,
+): { match: PlaceCandidate } | { ambiguous: PlaceCandidate[] } {
+  const scored = candidates
+    .map((candidate) => {
+      const distance = near && typeof candidate.lat === "number" && typeof candidate.lng === "number" ? km(near, { lat: candidate.lat, lng: candidate.lng }) : null;
+      return { candidate, score: nameScore(query, candidate.name), distance };
+    })
+    .filter((entry) => entry.score >= 0.6 && (entry.distance === null || entry.distance <= 2))
+    .sort((a, b) => b.score - a.score || (a.distance ?? 0) - (b.distance ?? 0));
+  const [best, second] = scored;
+  if (best && (!second || best.score > second.score || (best.distance !== null && second.distance !== null && second.distance - best.distance > 0.5)))
+    return { match: best.candidate };
+  return { ambiguous: candidates.slice(0, 5) };
+}
 
 const SHORT_LINK_HOSTS = new Set(["maps.app.goo.gl", "goo.gl", "g.co", "g.page"]);
 
@@ -61,7 +125,7 @@ export function mapsLookupFrom(input: string): MapsLookup {
   }
   if (!isGoogleMapsHost(host)) throw new Error("That link isn't a Google Maps link. Open the business in Google Maps and use Share → Copy link.");
 
-  const at = url.pathname.match(/@(-?\d{1,3}\.\d+),(-?\d{1,3}\.\d+)/);
+  const at = url.pathname.match(/@(-?\d{1,3}\.\d+),(-?\d{1,3}\.\d+)/) ?? url.pathname.match(/!3d(-?\d{1,3}\.\d+)!4d(-?\d{1,3}\.\d+)/);
   const lat = at ? Number(at[1]) : null;
   const lng = at ? Number(at[2]) : null;
   const coords = { lat: lat !== null && Math.abs(lat) <= 90 ? lat : null, lng: lng !== null && Math.abs(lng) <= 180 ? lng : null };
@@ -69,8 +133,11 @@ export function mapsLookupFrom(input: string): MapsLookup {
   const place = url.pathname.match(/\/maps\/(?:place|search)\/([^/@]+)/);
   const fromPath = place ? words(decode(place[1]!)) : "";
   const fromQuery = words(url.searchParams.get("q") ?? url.searchParams.get("query") ?? "");
-  // A place_id or bare coordinates can't be text-searched; ask for the share link instead.
   const query = [fromPath, fromQuery].find((value) => value && !/^place_id:/i.test(value) && !/^-?\d+(\.\d+)?,\s*-?\d+(\.\d+)?$/.test(value));
+  // An exact Places id beats any text search: it names one specific listing.
+  const placeId = placeIdFromMapsUrl(url);
+  if (placeId) return { kind: "place_id", placeId, query: query ? query.slice(0, 200) : null, ...coords };
+  // Bare coordinates can't identify a business; ask for the share link instead.
   if (!query) throw new Error("Couldn't read the business from that link. Open the business in Google Maps, tap Share → Copy link, and paste that.");
   return { kind: "query", query: query.slice(0, 200), ...coords };
 }
