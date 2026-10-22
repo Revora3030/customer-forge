@@ -5,7 +5,7 @@
  * own area; Sol decides what to change. A reviewer that fails is skipped, so
  * the panel can never block or degrade a build.
  */
-import { callBestThinker, callHallOfFame } from "@/lib/ai/hall-of-fame.server";
+import { callBestThinker } from "@/lib/ai/hall-of-fame.server";
 import type { CollectivePurpose } from "@/lib/ai/collective";
 import { NO_EVIDENCE, evidenceFor, gatherReviewEvidence, type ReviewEvidence } from "@/lib/builder/review-evidence.server";
 import { DISTINCTIVENESS_REVIEW_BRIEF, VISUAL_CRAFT_REVIEW_BRIEF } from "@/lib/builder/world-class-craft";
@@ -75,23 +75,6 @@ export function parseNote(text: string, area: ReviewArea, model: string | null):
   }
 }
 
-/**
- * Areas where an independent free model gives a genuinely different opinion.
- * Truthfulness stays with Terra (paid-first) because it guards against
- * invented facts; the other areas go to the Hall-of-Fame free squad so the
- * panel draws on several providers instead of one model repeated six times.
- * Completeness is here too: spotting a thin page or a dead-end link is
- * checkable work, so it is an extra pair of eyes at no extra spend, and the
- * paid senior reviewer still judges the result.
- * If the free squad cannot answer, that reviewer falls back to Terra/Sol.
- */
-const DIVERSE_AREAS = new Set<ReviewArea>([
-  "conversion",
-  "seo",
-  "accessibility",
-  "mobile",
-  "completeness",
-]);
 
 /**
  * Reviewers and advisers run on the paid Lovable team first (owner decision
