@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getJarvisRunEvents } from "@/lib/jarvis.functions";
+import { formatModelLabel } from "@/lib/jarvis-model-label";
 
 /** Steps Jarvis has finished so far in the reply it's still writing; polls every 2 seconds. */
 export function LiveRunSteps({ runId }: { runId: string }) {
@@ -15,7 +16,7 @@ export function LiveRunSteps({ runId }: { runId: string }) {
         return (
           <li key={e.id} className={bad ? "text-destructive" : ""}>
             <span className="font-medium text-foreground">{e.label ?? e.tool_id ?? e.kind}</span>
-            {e.model ? ` · ${e.model}` : ""}
+            {e.model ? ` · ${formatModelLabel(e.model, e.provider)}` : ""}
             {e.duration_ms !== null ? ` · ${(e.duration_ms / 1000).toFixed(1)}s` : ""}
             {bad ? " · failed" : ""}
           </li>
