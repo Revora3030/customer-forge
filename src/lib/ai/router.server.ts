@@ -1008,13 +1008,35 @@ function runOptionsFor(request: AiRequest) {
   return {
     nextProviderOnInvalidRequest: carriesAttachment(request.messages),
     freeOnly: request.freeOnly === true,
+    paidOnly: request.paidOnly === true,
     ...(request.timeoutMs ? { timeoutMs: request.timeoutMs } : {}),
     ...(request.chainDeadlineMs ? { chainDeadlineMs: request.chainDeadlineMs } : {}),
   };
 }
 
+/**
+ * Internal lane options: only callers that hold their own monthly + daily
+ * budget reservation may pass `budgetReservedExternally` (the builder's
+ * thinker lane), and only long-running build steps pass a cancel `signal`.
+ */
+export interface RouterLaneOptions {
+  budgetReservedExternally?: boolean;
+  signal?: AbortSignal;
+}
+
+function laneOptions(lane?: RouterLaneOptions) {
+  return {
+    ...(lane?.budgetReservedExternally === true ? { budgetReservedExternally: true } : {}),
+    ...(lane?.signal ? { signal: lane.signal } : {}),
+  };
+}
+
 /** Plain text generation. */
-export async function generateText(caller: AiCaller, request: AiRequest): Promise<AiTextResult> {
+export async function generateText(
+  caller: AiCaller,
+  request: AiRequest,
+  lane?: RouterLaneOptions,
+): Promise<AiTextResult> {
   guardRequest(request.messages);
   const limits = aiLimits();
   const outcome = await run(
@@ -1039,7 +1061,7 @@ export async function generateText(caller: AiCaller, request: AiRequest): Promis
         outputTokens: result.usage.outputTokens,
       };
     },
-    runOptionsFor(request),
+    { ...runOptionsFor(request), ...laneOptions(lane) },
   );
   return {
     text: outcome.value,
