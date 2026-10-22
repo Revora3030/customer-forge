@@ -269,7 +269,7 @@ export async function callHallOfFame(request: HallOfFameRequest): Promise<HallOf
     if (member.provider === "groq" && request.system.length + request.user.length > GROQ_MAX_PROMPT_CHARS) continue;
     // A provider resting on its shared circuit (spent quota, repeated failures)
     // is skipped without a call, so the walk's time goes to models that answer.
-    if (durableProviderResting(member.provider)) {
+    if (durableProviderResting(member.provider) || hallOfFameProviderCooling(member.provider)) {
       deadProviders.add(member.provider);
       continue;
     }
@@ -330,12 +330,14 @@ export async function callHallOfFame(request: HallOfFameRequest): Promise<HallOf
         latencyMs: result.latencyMs,
       });
       if (usable) {
+        noteHallOfFameSuccess(member.provider);
         finish(`${member.provider} · ${member.model}`);
         return { ok: true, text, provider: member.provider, model: member.model, attempts };
       }
     } catch (error) {
       const latencyMs = Date.now() - started;
       recordFreeModelOutcome({ provider: member.provider, model: member.model, ok: false, latencyMs });
+      noteHallOfFameFailure(member.provider, error);
       if (providerWideFailure(error)) deadProviders.add(member.provider);
       attempts.push({
         provider: member.provider,
