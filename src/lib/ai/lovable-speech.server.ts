@@ -110,6 +110,7 @@ export async function synthesizeLovableSpeech(
   }
 
   let actual = 0;
+  let delivered = false;
   try {
     let response: Response;
     try {
@@ -138,6 +139,7 @@ export async function synthesizeLovableSpeech(
     const audio = await readCapped(response, LOVABLE_SPEECH_MAX_BYTES);
     if (!audio) return { ok: false, code: "too_large", message: "The generated voice was larger than the safety limit." };
     if (!isWav(audio)) return { ok: false, code: "bad_response", message: "Lovable AI speech returned something other than audio." };
+    delivered = true;
     return { ok: true, audio, contentType: "audio/wav", model, estimatedMicrocents: estimate };
   } finally {
     await settleBudget(caller.organizationId, estimate, actual, reservation.paid);
@@ -147,7 +149,7 @@ export async function synthesizeLovableSpeech(
       model,
       usage: { inputTokens: text.length, cachedInputTokens: 0, outputTokens: 0 },
       cost: actual,
-      outcome: actual > 0 ? "succeeded" : "failed",
+      outcome: delivered ? "succeeded" : "failed",
       reason: actual > 0 ? "estimated_cost" : null,
     }).catch(() => undefined);
   }
