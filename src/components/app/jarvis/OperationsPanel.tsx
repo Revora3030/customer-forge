@@ -1,4 +1,4 @@
-import { ModelsPanel, ToolsPanel } from "./ModelsToolsPanels";
+import { LovableModelsPanel, ModelsPanel, ToolsPanel } from "./ModelsToolsPanels";
 import { ApprovalLogCard } from "./ApprovalLogCard";
 import { InstagramPanel } from "./InstagramPanel";
 import { FreeToolsPanel } from "./FreeToolsPanel";
