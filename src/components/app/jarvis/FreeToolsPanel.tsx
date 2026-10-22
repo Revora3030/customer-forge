@@ -14,7 +14,7 @@ const tools = [
   { id: "website.lighthouse.audit", title: "Speed & SEO", icon: Gauge },
   { id: "website.browser.check", title: "Live page", icon: MonitorCheck },
   { id: "website.page.audit", title: "Page SEO (Browserbase)", icon: FileSearch },
-  { id: "images.stock.search", title: "Licensed photos · no key", icon: ImageIcon },
+  { id: "images.stock.search", title: "Stock photos", icon: ImageIcon },
   { id: "docs.lookup", title: "Documentation", icon: BookOpen },
   { id: "website.dns.lookup", title: "DNS records · no key", icon: Globe },
   { id: "website.html.validate", title: "HTML validator · no key", icon: Code2 },

@@ -15,11 +15,11 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import {
   buildStockQuery,
   normaliseStockResults,
-  openverseSearchUrl,
   stockMediaRow,
   type StockPhoto,
 } from "@/lib/builder/stock-photos";
 
+const ENDPOINT = "https://api.openverse.org/v1/images/";
 const PAGE_SIZE = 12;
 const TIMEOUT_MS = 12_000;
 
@@ -52,7 +52,12 @@ export const searchStockPhotos = createServerFn({ method: "POST" })
     const query = buildStockQuery(data.topic, data.industry);
     if (!query) return { photos: [], query: "", error: "Type what the picture should show." };
 
-    const url = openverseSearchUrl(query, { page: data.page, pageSize: PAGE_SIZE });
+    const url = new URL(ENDPOINT);
+    url.searchParams.set("q", query);
+    url.searchParams.set("page_size", String(PAGE_SIZE));
+    url.searchParams.set("page", String(data.page));
+    url.searchParams.set("license_type", "commercial,modification");
+    url.searchParams.set("mature", "false");
 
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);

@@ -37,23 +37,6 @@ export type StockPhoto = {
   height: number | null;
 };
 
-const OPENVERSE_ENDPOINT = "https://api.openverse.org/v1/images/";
-
-/**
- * Openverse search address restricted to licences that allow commercial use and
- * modification, with mature results excluded. Shared by the owner's photo panel
- * and Jarvis so both ask the library the same question.
- */
-export function openverseSearchUrl(query: string, options: { page?: number; pageSize?: number } = {}): URL {
-  const url = new URL(OPENVERSE_ENDPOINT);
-  url.searchParams.set("q", query);
-  url.searchParams.set("page_size", String(options.pageSize ?? 12));
-  url.searchParams.set("page", String(options.page ?? 1));
-  url.searchParams.set("license_type", "commercial,modification");
-  url.searchParams.set("mature", "false");
-  return url;
-}
-
 /** Licences that forbid commercial use or forbid cropping/resizing. */
 const BLOCKED_LICENCE_PARTS = ["nc", "nd"];
 
