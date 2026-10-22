@@ -126,7 +126,7 @@ const DEFAULT_MODELS: Record<PaidProviderName, Record<ModelRole, string>> = {
     // Plan checking and layout repair: GPT-6.1 Sol, then Gemini 4 Argon.
     coding: "openai/gpt-6.1-sol,google/gemini-4-argon,anthropic/claude-opus-5-5,anthropic/claude-sonnet-5,google/gemini-3.8-flash",
     image: "openai/gpt-image-2.5-sunburst",
-    transcription: "google/gemini-3.5-transcribe",
+    transcription: "openai/gpt-transcribe",
     // Jarvis: strongest verified models first, then faster ones as failover.
     conversation: LOVABLE_CONVERSATION_MODELS.join(","),
   },
