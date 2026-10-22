@@ -226,3 +226,13 @@ Owner approved porting two ideas (audit of the uploaded Next.js project; auto pa
 - [ ] Business Profile hours: waiting on owner's real reply hours
 - [x] Redesign phase 3 (part): serif page titles across signed-in and admin pages; checked 5 pages signed in, no errors
 - [ ] Redesign: deeper restyle of signed-in cards/tables and sidebar
+
+## Model-routing audit follow-up (2026-10-22)
+- [ ] Honest health labels: "not used yet" for unexercised models; static fallback marked unverified
+- [ ] Video tiers: same model must not imply premium quality
+- [ ] Builder progress shows actual per-step models from recorded usage
+- [ ] Reviewer diversity/bounded repair audit
+- [ ] Lovable speech for Jarvis voice (only if supported) / embeddings, music, live voice labelled not integrated
+- [ ] Prospect/outreach admin drafts: decide router vs free-only
+- [ ] Maps → fact review/edit → first build handoff, official-site enrichment, provenance
+- [ ] Durable build worker/cancellation audit
