@@ -12,7 +12,7 @@
  */
 
 import { providerConfig } from "@/lib/ai/config";
-import { postLovableSpeech } from "@/lib/ai/providers/lovable";
+import { callLovableSpeech } from "@/lib/ai/router.server";
 import { MICROCENTS_PER_DOLLAR, recordUsage, reserveBudget, settleBudget } from "@/lib/ai/luna.server";
 
 export const LOVABLE_SPEECH_DEFAULT_MODEL = "google/gemini-3.1-flash-tts-preview";
@@ -115,7 +115,7 @@ export async function synthesizeLovableSpeech(
   try {
     let response: Response;
     try {
-      response = await postLovableSpeech(lovableSpeechBody(model, text), apiKey, caller.signal);
+      response = await callLovableSpeech(model, lovableSpeechBody(model, text), caller.signal);
     } catch (error) {
       const aborted = error instanceof Error && error.name === "AbortError";
       return { ok: false, code: aborted ? "aborted" : "provider_error", message: aborted ? "Voice was stopped." : "Lovable AI speech could not be reached." };

@@ -13,7 +13,7 @@ vi.mock("@/lib/ai/luna.server", () => ({
 let key: string | null = "k";
 vi.mock("@/lib/ai/config", () => ({ providerConfig: () => (key ? { apiKey: key } : null) }));
 const post = vi.fn();
-vi.mock("@/lib/ai/providers/lovable", () => ({ postLovableSpeech: (...a: unknown[]) => post(...a) }));
+vi.mock("@/lib/ai/router.server", () => ({ callLovableSpeech: (_m: string, ...a: unknown[]) => post(...a) }));
 
 import { lovableSpeechBody, synthesizeLovableSpeech, LOVABLE_SPEECH_MAX_BYTES } from "./lovable-speech.server";
 import { resolveVoiceProvider } from "@/lib/jarvis-voice.functions";

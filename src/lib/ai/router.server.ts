@@ -40,7 +40,7 @@ import {
 import { RevoraAiError, notConfigured, providerUnavailable } from "@/lib/ai/errors";
 import { durableRuntimeFor } from "@/lib/ai/durable-health.server";
 import { preserveGroupOrder, qualityFirstOrder } from "@/lib/ai/orchestration/order";
-import { lovableAdapter, lovableVideo, type VideoOutcome } from "@/lib/ai/providers/lovable";
+import { lovableAdapter, lovableVideo, postLovableSpeech, type VideoOutcome } from "@/lib/ai/providers/lovable";
 
 import { base64ByteLength } from "@/lib/ai/providers/shared";
 import { compactMessages } from "@/lib/ai/context-compaction";
@@ -1072,5 +1072,27 @@ function safeJsonObject(text: string): Record<string, unknown> | null {
     return parseJsonObject(text);
   } catch {
     return null;
+  }
+}
+
+/**
+ * Text-to-speech through the router. Budget reservation, settlement and usage
+ * rows are owned by the caller (lovable-speech.server.ts) because speech is
+ * priced per character, not per token. Records telemetry for the model panel.
+ */
+export async function callLovableSpeech(model: string, body: unknown, signal?: AbortSignal): Promise<Response> {
+  const apiKey = providerConfig()?.apiKey;
+  if (!apiKey) throw new Error("Lovable AI is not configured on the server.");
+  const started = Date.now();
+  let ok = false;
+  let status = 0;
+  try {
+    const response = await postLovableSpeech(body, apiKey, signal);
+    status = response.status;
+    ok = response.ok;
+    return response;
+  } finally {
+    const { recordAiEvent } = await import("@/lib/ai/telemetry.server");
+    await recordAiEvent({ task: "speech", provider: "lovable", model, ok, latencyMs: Date.now() - started, errorCode: ok ? null : String(status || "network") } as never).catch(() => undefined);
   }
 }
