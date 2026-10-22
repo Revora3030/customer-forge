@@ -1,3 +1,4 @@
+import { LOVABLE_CONVERSATION_MODELS, modelDisplayName } from "@/lib/ai/lovable-models";
 import { generateStudioImage } from "@/lib/image-studio.functions";
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
@@ -191,6 +192,7 @@ function Jarvis() {
   });
   const [text, setText] = useState("");
   const [mode, setMode] = useState<Mode>("balanced");
+  const [pickedModel, setPickedModel] = useState<string | null>(null);
   const [pending, setPending] = useState<string | null>(null);
   const [liveRun, setLiveRun] = useState<string | null>(null);
   const [followups, setFollowups] = useState<string[]>([]);
@@ -292,7 +294,7 @@ function Jarvis() {
     mutationFn: (message: string) => {
       const runId = crypto.randomUUID();
       setLiveRun(runId);
-      return send({ data: { message, mode, conversationId, runId } });
+      return send({ data: { message, mode, conversationId, runId, model: pickedModel } });
     },
     onSuccess: finish,
     onError: async (error: Error, message: string) => {
@@ -927,6 +929,21 @@ function Jarvis() {
                   ))}
                 </div>
               ) : null}
+              <label className="mb-1.5 flex items-center gap-2 text-xs text-muted-foreground">
+                <span className="shrink-0">Model</span>
+                <select
+                  value={pickedModel ?? ""}
+                  onChange={(event) => setPickedModel(event.target.value || null)}
+                  className="h-9 min-w-0 flex-1 rounded-md border border-border bg-card px-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:max-w-xs"
+                >
+                  <option value="">Auto (best per job)</option>
+                  {(["openai", "anthropic", "google"] as const).map((family) => (
+                    <optgroup key={family} label={family === "openai" ? "OpenAI" : family === "anthropic" ? "Anthropic" : "Google"}>
+                      {LOVABLE_CONVERSATION_MODELS.filter((id) => id.startsWith(`${family}/`)).map((id) => <option key={id} value={id}>{modelDisplayName(id)}</option>)}
+                    </optgroup>
+                  ))}
+                </select>
+              </label>
               <JarvisComposer
                 value={text}
                 onChange={setText}

@@ -1,3 +1,4 @@
+import { parsePickedModel } from "@/lib/ai/lovable-models";
 import { conversationTitle, parseConversationId } from "./jarvis-conversations";
 import { createServerFn } from "@tanstack/react-start";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -169,7 +170,7 @@ function splitFollowups(raw: string): { body: string; followups: string[] } {
   return { body, followups };
 }
 
-export async function runJarvis(db: SupabaseClient, userId: string, mode: Mode, page: string | null = null, conversationId: string | null = null, liveRunId: string | null = null) {
+export async function runJarvis(db: SupabaseClient, userId: string, mode: Mode, page: string | null = null, conversationId: string | null = null, liveRunId: string | null = null, pickedModel: string | null = null) {
   // Without an explicit conversation, continue the one the latest message joined.
   if (!conversationId) {
     const latest = await db.from("jarvis_messages").select("conversation_id").eq("user_id", userId).order("created_at", { ascending: false }).limit(1).maybeSingle();
@@ -257,7 +258,7 @@ export async function runJarvis(db: SupabaseClient, userId: string, mode: Mode, 
       let result: Awaited<ReturnType<typeof generateText>>;
       try {
         result = await generateText({ userId, task: "admin.jarvis" },
-          jarvisModelRequest(conversation, MODE_CONFIG[mode].tokens));
+          jarvisModelRequest(conversation, MODE_CONFIG[mode].tokens, pickedModel));
       } catch (modelError) {
         recorder.add({ step, kind: "model_call", status: "failed", label: "AI answer", startedAt: modelStart, finishedAt: Date.now(), error: modelError instanceof Error ? modelError.message : "model call failed" });
         throw modelError;
@@ -310,13 +311,13 @@ export async function runJarvis(db: SupabaseClient, userId: string, mode: Mode, 
 
 export const sendJarvisMessage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((input: { message: string; mode?: Mode; page?: string; conversationId?: string | null; runId?: string | null }) => {
+  .validator((input: { message: string; mode?: Mode; page?: string; conversationId?: string | null; runId?: string | null; model?: string | null }) => {
     if (typeof input?.message !== "string") throw new Error("Type a message first.");
     const message = input.message.trim();
     if (!message) throw new Error("Type a message first.");
     if (message.length > 4000) throw new Error("Keep your message under 4,000 characters.");
     const runId = typeof input.runId === "string" && /^[0-9a-f-]{36}$/i.test(input.runId) ? input.runId : null;
-    return { message, mode: parseMode(input.mode), page: adminPath(input.page), conversationId: parseConversationId(input.conversationId), runId };
+    return { message, mode: parseMode(input.mode), page: adminPath(input.page), conversationId: parseConversationId(input.conversationId), runId, model: parsePickedModel(input.model) };
   })
   .handler(async ({ context, data }) => {
     const db = await guardedAdmin(context);
@@ -328,7 +329,7 @@ export const sendJarvisMessage = createServerFn({ method: "POST" })
     if (conversationId) {
       await db.from("jarvis_conversations").update({ title: conversationTitle(data.message) }).eq("id", conversationId).eq("user_id", userId).eq("title", "New conversation");
     }
-    return runJarvis(db, userId, data.mode, data.page, conversationId, data.runId);
+    return runJarvis(db, userId, data.mode, data.page, conversationId, data.runId, data.model);
   });
 
 export const regenerateJarvisReply = createServerFn({ method: "POST" })
