@@ -12,6 +12,12 @@ describe("palette guard", () => {
 
   it("accepts a deliberate branded palette", () => {
     expect(paletteProblems({ primary: "#e8a317", secondary: "#0f1b2d", accent: "#1f3a5f" })).toEqual([]);
-    expect(paletteProblems({ primary: "#c2410c", secondary: "#f6efe4", accent: "#3f2a1d" })).toEqual([]);
+    expect(paletteProblems({ primary: "#c2410c", secondary: "#143e38", accent: "#c8e5da" })).toEqual([]);
+  });
+  it("rejects white dominant surfaces even with saturated actions", () => {
+    expect(paletteProblems({ primary: "#c2410c", secondary: "#ffffff", accent: "#3f2a1d" }).some(problem => problem.includes("white/cream"))).toBe(true);
+  });
+  it("rejects the old cream page wash even with a branded accent", () => {
+    expect(paletteProblems({ primary: "#c2410c", secondary: "#f6efe4", accent: "#3f2a1d" }).some(problem => problem.includes("white/cream"))).toBe(true);
   });
 });

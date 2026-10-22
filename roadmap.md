@@ -1,5 +1,11 @@
 # Roadmap — Five-phase blocker elimination
 
+## Reject generic white/cream customer defaults (2026-10-22)
+- [x] Removed cream/bone/sand suggestions from AI identity guidance; reject dominant near-white/cream generated surfaces even with colorful accents.
+- [x] Final identity acceptance rechecks palette and required design tokens after repair attempts; invalid final answers cannot slip through.
+- [x] 3,493 tests passed, 6 gated live tests skipped; changed-file lint clean and automatic build OK. Existing customer sites unchanged.
+- [ ] Legacy saved palettes/checkpoints and missing-palette renderer fallback still need provenance-aware cleanup; they are not silently recolored by this guard. Live AI redesign unrun.
+
 ## Complete customer first websites (2026-10-22)
 - [x] Traced signup → onboarding facts/approval → existing queue → AI architecture, sections and chrome; no duplicate pipeline.
 - [x] First builds now read back every saved page/section and renderable AI composition before ready/completed; all composition material reads paginate and fail closed.
