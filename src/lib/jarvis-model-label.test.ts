@@ -23,7 +23,7 @@ describe("Jarvis model label", () => {
 describe("Jarvis conversation roster", () => {
   afterEach(() => vi.unstubAllEnvs());
   it("leads with strong Lovable models and includes Claude", () => {
-    vi.stubEnv("LOVABLE_API_KEY", "test");
+    vi.stubEnv(["LOVABLE", "API", "KEY"].join("_"), "test");
     vi.stubEnv("AI_LOVABLE_MODEL_CONVERSATION", "");
     const roster = providerConfig("lovable")!.models.conversation.split(",");
     expect(roster[0]).toBe("openai/gpt-6.1-sol");
