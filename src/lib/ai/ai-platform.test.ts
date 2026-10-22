@@ -296,7 +296,7 @@ describe("provider fallback", () => {
     expect(result.provider).toBe("openai");
     expect(result.fallbackUsed).toBe(true);
     expect(calls.some((url) => url.includes("generativelanguage"))).toBe(true);
-    expect(calls.some((url) => url.includes("api.openai.com"))).toBe(true);
+    expect(calls.some((url) => new URL(url).hostname === "api.openai.com")).toBe(true);
     expect(calls.every((url) => !url.includes("lovable"))).toBe(true);
   });
 

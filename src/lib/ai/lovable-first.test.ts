@@ -32,7 +32,7 @@ function stubProviders(options: { lovableDelayMs?: number } = {}) {
       calls.push({ url, body });
       const json = (payload: unknown) =>
         new Response(JSON.stringify(payload), { status: 200, headers: { "content-type": "application/json" } });
-      if (url.includes("ai.gateway.lovable.dev")) {
+      if (new URL(url).hostname === "ai.gateway.lovable.dev") {
         if (options.lovableDelayMs) await new Promise((resolve) => setTimeout(resolve, options.lovableDelayMs));
         if (url.endsWith("/messages"))
           return json({
@@ -156,7 +156,7 @@ describe("visitor Jarvis stays free-only", () => {
       },
     );
     expect(result.provider).not.toBe("lovable");
-    expect(calls.some((call) => call.url.includes("ai.gateway.lovable.dev"))).toBe(false);
+    expect(calls.some((call) => new URL(call.url).hostname === "ai.gateway.lovable.dev")).toBe(false);
     expect(reserve).not.toHaveBeenCalled();
   }, 30_000);
 

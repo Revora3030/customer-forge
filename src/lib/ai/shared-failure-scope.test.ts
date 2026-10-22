@@ -181,7 +181,7 @@ describe("paid account demotion is shared across workers", () => {
   it("records a paid quota refusal in the shared runtime table", async () => {
     configurePaidAndFree();
     stubFetch((url) =>
-      url.includes("api.openai.com")
+      new URL(url).hostname === "api.openai.com"
         ? new Response('{"error":{"code":"insufficient_quota"}}', { status: 429 })
         : ok("free team answered"),
     );
@@ -211,7 +211,7 @@ describe("paid account demotion is shared across workers", () => {
       messages: [{ role: "user", content: "hi" }],
     });
     expect(result.text).toBe("free team answered");
-    expect(calls.some((url) => url.includes("api.openai.com"))).toBe(false);
+    expect(calls.some((url) => new URL(url).hostname === "api.openai.com")).toBe(false);
   }, 30_000);
 });
 
