@@ -44,16 +44,6 @@ export async function decideConversation(input: {
     return data["mode"] === "answer" && reply ? { mode: "answer", reply: reply.slice(0, 20000) } : { mode: "change" };
   };
   try {
-    const { gatewayChatText } = await import("@/lib/ai/gateway-chat.server");
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 45000);
-    try {
-      const text = await gatewayChatText({ system, messages: turns, json: true, signal: controller.signal });
-      const match = text.match(/\{[\s\S]*\}/);
-      return decide(JSON.parse(match ? match[0] : text) as Record<string, unknown>);
-    } finally { clearTimeout(timer); }
-  } catch { console.warn("builder conversation gateway unavailable"); }
-  try {
     const result = await generateStructuredOutput({ organizationId: input.organizationId, userId: input.userId, task: "builder.converse" }, { role: "conversation", json: true, maxOutputTokens: 6000, messages: [{ role: "system", content: system }, ...turns] });
     return decide(result.data);
   } catch { return fallbackDecision(input.instruction); }

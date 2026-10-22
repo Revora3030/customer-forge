@@ -76,7 +76,7 @@ const DEFAULT_MODELS: Record<ModelRole, string> = {
     "openai/gpt-image-2.5-sunburst", "google/gemini-3-pro-image", "openai/gpt-image-2",
     "openai/gpt-image-2.5-flare", "google/gemini-3.1-flash-lite-image",
   ].join(","),
-  transcription: "openai/gpt-transcribe",
+  transcription: "openai/gpt-transcribe,google/gemini-3.5-transcribe",
   // Jarvis: strongest verified models first, then faster ones as failover.
   conversation: LOVABLE_CONVERSATION_MODELS.join(","),
 };

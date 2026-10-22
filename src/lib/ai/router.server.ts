@@ -163,9 +163,15 @@ async function buildChain(
   // A no-spend scope means no AI at all: Lovable AI is the only team.
   if (noSpend) return [];
   const candidates: Candidate[] = [];
-  for (const config of providerChain())
+  const chain = providerChain();
+  // Live catalogue check: drop stale, deprecated, retention-blocked or
+  // endpoint-incompatible ids. Null (catalogue unreadable) keeps the static roster.
+  const { catalogueFilterFor } = await import("@/lib/ai/catalogue.server");
+  const listed = chain.length ? await catalogueFilterFor(role) : null;
+  for (const config of chain)
     for (const model of config.models[role].split(",").map((id) => id.trim()).filter(Boolean)) {
       if (capable && !capable(model)) continue;
+      if (listed && !listed(model)) continue;
       candidates.push({ config, model });
     }
   const ranked = qualityFirstOrder(candidates, (entry) => ({
