@@ -44,12 +44,13 @@ describe("creative authority firewall", () => {
   });
 
   it("a cut-off model answer is a failure that hands over, never a partial plan", () => {
-    const src = readFileSync("src/lib/ai/luna.server.ts", "utf8");
-    expect(src).toMatch(/readFinishReason\(payload\) === "length"/);
-    const thinker = readFileSync("src/lib/ai/hall-of-fame.server.ts", "utf8");
+    const adapter = readFileSync("src/lib/ai/providers/lovable.ts", "utf8");
+    expect(adapter).toContain('finish_reason === "length") throw truncated();');
+    expect(adapter).toContain('stop_reason === "max_tokens") throw truncated();');
+    const thinker = readFileSync("src/lib/ai/thinker.server.ts", "utf8");
     const body = thinker.slice(thinker.indexOf("async function callBestThinkerInner"));
-    // The only fallback after the paid lane is the free model squad.
-    expect(body).toContain("callHallOfFame(");
+    // No fallback after the Lovable AI team: the step fails and waits.
+    expect(body).not.toContain("callHallOfFame(");
     expect(body).not.toMatch(/archetype|template|preset/i);
   });
 

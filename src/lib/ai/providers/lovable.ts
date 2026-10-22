@@ -126,6 +126,14 @@ function requestBody(input: {
   };
 }
 
+/** A model answer cut off at the output limit: reported as a failure so the router fails over. */
+function truncated() {
+  return new RevoraAiError(502, "Revora's AI model ran out of room before finishing its answer.", {
+    category: "bad_response",
+    provider: "lovable",
+  });
+}
+
 /* ------------------------------ Anthropic /v1/messages ------------------------------ */
 
 type AnthropicPart =
@@ -215,6 +223,7 @@ async function anthropicChat(input: {
       category: "bad_response",
       provider: "lovable",
     });
+  if (payload.stop_reason === "max_tokens") throw truncated();
   const text = (payload.content ?? [])
     .filter((block) => block.type === "text" && typeof block.text === "string")
     .map((block) => block.text as string)
@@ -263,8 +272,10 @@ export const lovableAdapter: ProviderAdapter = {
     });
     if (!response.ok) throw await providerHttpError("lovable", response);
     const payload = (await response.json()) as {
-      choices?: { message?: { content?: string } }[];
+      choices?: { message?: { content?: string }; finish_reason?: string }[];
     };
+    // A cut-off answer is a failure that hands over to the next model, never a partial plan.
+    if (payload.choices?.[0]?.finish_reason === "length") throw truncated();
     return { text: answerOrThrow(payload.choices?.[0]?.message?.content ?? ""), usage: usageOf(payload) };
   },
 
