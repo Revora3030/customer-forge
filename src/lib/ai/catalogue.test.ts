@@ -83,7 +83,8 @@ describe("routeStatus and stale roster report", () => {
     expect(status.find((m) => m.id === "openai/gpt-image-2")?.roles).toEqual(["image"]);
     expect(status.find((m) => m.id === "openai/gpt-5.5-pro")?.reason).toMatch(/chat-completions/);
     expect(status.find((m) => m.id === "google/gemini-embedding-2")?.reason).toMatch(/Embeddings/);
-    expect(status.find((m) => m.id === "google/gemini-2.5-flash-tts")?.reason).toMatch(/Text-to-speech/);
+    expect(status.find((m) => m.id === "google/gemini-2.5-flash-tts")?.reason).toMatch(/Text-to-speech/)
+    expect(routeStatus(models, { speech: ["google/gemini-2.5-flash-tts"] }).find((m) => m.id === "google/gemini-2.5-flash-tts")?.roles).toEqual(["speech"]);;
     expect(status.find((m) => m.id === "openai/gpt-5")?.reason).toMatch(/Deprecated/);
     for (const m of status) expect(m.roles.length > 0 || Boolean(m.reason)).toBe(true);
   });

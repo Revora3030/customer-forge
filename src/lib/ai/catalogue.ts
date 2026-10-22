@@ -17,7 +17,7 @@ export type CatalogueModel = {
 };
 
 /** Gateway surfaces this app actually calls, per router role. */
-export type AppSurface = "chat-completions" | "messages" | "image-generation" | "transcription" | "videos";
+export type AppSurface = "chat-completions" | "messages" | "image-generation" | "transcription" | "videos" | "speech";
 
 /** Retained endpoints the workspace policy explicitly allows. */
 const RETENTION_ALLOWED: Record<string, AppSurface[]> = {
@@ -31,7 +31,7 @@ const RETENTION_ALLOWED: Record<string, AppSurface[]> = {
 
 /** Surfaces the gateway offers that no app feature calls yet (reported, never routed). */
 export const UNROUTED_SURFACE_REASON: Record<string, string> = {
-  speech: "Text-to-speech: no app feature uses it (Jarvis voice uses the separate ElevenLabs key).",
+  speech: "Text-to-speech: Jarvis voice calls one selected speech model (AI_LOVABLE_MODEL_SPEECH); this one is not selected.",
   embeddings: "Embeddings: no app feature stores or searches vectors yet.",
   music: "Music: no app feature generates music.",
   live: "Live voice: no app feature runs two-way voice sessions.",
@@ -76,6 +76,7 @@ export function surfaceFor(role: string, id: string): AppSurface {
   if (role === "image") return "image-generation";
   if (role === "transcription") return "transcription";
   if (role === "video") return "videos";
+  if (role === "speech") return "speech";
   return id.startsWith("anthropic/") ? "messages" : "chat-completions";
 }
 
