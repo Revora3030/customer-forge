@@ -46,7 +46,7 @@ describe("Jarvis is on every admin page", () => {
     expect(dock).toContain('send({ data: { message, mode: "brief", page } })');
     expect(dock).toContain("refetchInterval: 60_000");
     const fns = readFileSync("src/lib/jarvis.functions.ts", "utf8");
-    expect(fns).toContain("return runJarvis(db, userId, data.mode, data.page, conversationId);");
+    expect(fns).toContain("return runJarvis(db, userId, data.mode, data.page, conversationId, data.runId);");
     expect(fns.slice(fns.indexOf("export const getJarvisPageBrief"))).toContain("await guardedAdmin(context);");
   });
 
