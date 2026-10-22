@@ -305,6 +305,8 @@ async function run<T>(
     timeoutMs?: number;
     /** Whole-chain wall-clock budget; clamped to the configured deadline. */
     chainDeadlineMs?: number;
+    /** Internal lanes only: raises the per-attempt limit for long answers (capped). */
+    longAttemptMs?: number;
   },
 ): Promise<{
   value: T;
@@ -331,7 +333,7 @@ async function run<T>(
     scopedFreeOnly(),
   );
   const chain = applyModelPreference(rawChain, scopedPreferredModels(options?.preferModels), options?.avoidModels);
-  const attemptTimeoutMs = clampPositive(options?.timeoutMs, limits.requestTimeoutMs);
+  const attemptTimeoutMs = attemptTimeoutFor(clampPositive(options?.timeoutMs, limits.requestTimeoutMs), options?.longAttemptMs);
   const chainBudgetMs = clampPositive(options?.chainDeadlineMs, chainDeadlineMs());
   if (chain.length === 0)
     throw notConfigured();
@@ -564,6 +566,15 @@ export function paidFailureCharge(error: RevoraAiError, estimate: number): numbe
 }
 
 /** A caller override, only ever lowering the configured ceiling. */
+/** Hard ceiling for one long answer (a full page plan is ~4-8k tokens). */
+export const LONG_ANSWER_ATTEMPT_MAX_MS = 240_000;
+
+/** Per-attempt limit: a long-answer lane may raise it, never past the hard ceiling. */
+export function attemptTimeoutFor(base: number, longAttemptMs?: number): number {
+  if (typeof longAttemptMs !== "number" || !Number.isFinite(longAttemptMs) || longAttemptMs <= base) return base;
+  return Math.min(Math.floor(longAttemptMs), LONG_ANSWER_ATTEMPT_MAX_MS);
+}
+
 function clampPositive(value: number | undefined, ceiling: number): number {
   return typeof value === "number" && Number.isFinite(value) && value > 0 ? Math.min(Math.floor(value), ceiling) : ceiling;
 }
@@ -653,12 +664,15 @@ function runOptionsFor(request: AiRequest) {
 export interface RouterLaneOptions {
   budgetReservedExternally?: boolean;
   signal?: AbortSignal;
+  /** Long answers (page plans) need more than the default per-attempt limit. */
+  longAttemptMs?: number;
 }
 
 function laneOptions(lane?: RouterLaneOptions) {
   return {
     ...(lane?.budgetReservedExternally === true ? { budgetReservedExternally: true } : {}),
     ...(lane?.signal ? { signal: lane.signal } : {}),
+    ...(lane?.longAttemptMs ? { longAttemptMs: lane.longAttemptMs } : {}),
   };
 }
 
