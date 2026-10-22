@@ -115,7 +115,7 @@ export function DemoBuildCardView({ card, status, loadError, checking, onRetry, 
               ))}
             </ol>
           </details>
-          <p className="text-xs text-muted-foreground">Your AI team (paid and free models) is building this site. This card updates every few seconds and turns into a live preview when the draft is ready.</p>
+          <p className="text-xs text-muted-foreground">Your Lovable AI team is building this site. This card updates every few seconds and turns into a live preview when the draft is ready.</p>
         </div>
       ) : null}
 

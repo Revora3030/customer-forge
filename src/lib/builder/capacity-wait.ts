@@ -63,7 +63,7 @@ export function capacityWaitState(job: JobLike | null | undefined, now = Date.no
   const reset = typeof raw["earliestResetAt"] === "string" ? (raw["earliestResetAt"] as string) : null;
   return {
     resumesAt: new Date(at).toISOString(),
-    reason: job.wait_reason || "The free AI team is at capacity right now.",
+    reason: job.wait_reason || "The Lovable AI team is busy or at the spending cap right now.",
     providers,
     earliestResetAt: reset,
   };

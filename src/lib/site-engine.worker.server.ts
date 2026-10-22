@@ -2756,13 +2756,13 @@ export async function drainSiteEngineQueue(
             capacity_deferrals: deferral.count,
             error_message: tagFailureMessage(
               "provider",
-              `The free AI team is at capacity right now (${deferral.summary}). The build will retry automatically at ${deferral.retryAt.toISOString().slice(11, 16)} UTC.`,
+              `The Lovable AI team is busy or at the spending cap right now (${deferral.summary}). The build will retry automatically at ${deferral.retryAt.toISOString().slice(11, 16)} UTC.`,
             ),
             failure_kind: "provider",
             lease_expires_at: deferral.retryAt.toISOString(),
             // Owner-visible mirror of the same deferral (no second mechanism).
             resumes_at: deferral.retryAt.toISOString(),
-            wait_reason: `The free AI team is at capacity right now (${deferral.summary}).`,
+            wait_reason: `The Lovable AI team is busy or at the spending cap right now (${deferral.summary}).`,
             wait_providers: deferral.pressure,
           } as never)
           .eq("id", job.id)

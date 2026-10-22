@@ -12,7 +12,6 @@ import {
   SectionHeading,
 } from "@/components/app/Bits";
 import { CapabilityCenter } from "@/components/app/CapabilityCenter";
-import { FreeModelCollective } from "@/components/app/FreeModelCollective";
 import { OrchestrationCenter } from "@/components/app/OrchestrationCenter";
 import { AiTeamTrace } from "@/components/app/AiTeamTrace";
 import { TeamReviewLog } from "@/components/app/TeamReviewLog";
@@ -321,7 +320,6 @@ function AdminAi() {
       <OrchestrationCenter />
       <TeamReviewLog />
 
-      <FreeModelCollective />
 
       <CapabilityCenter />
     </div>
