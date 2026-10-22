@@ -1,5 +1,10 @@
 # Roadmap — Five-phase blocker elimination
 
+## Complete customer first websites (2026-10-22)
+- [ ] Trace signup queue and first-build all-page composition completion.
+- [ ] Strengthen saved-output completion checks without templates or paid calls.
+- [ ] Run regression checks; live signup/build remains separately measured, never assumed.
+
 ## Whole customer-site repair (2026-10-22)
 - [x] Inspect all eight Elite Mobile Detail pages and saved requests; no active generation job or duplicate rebuild started.
 - [x] Reject model-declared full redesigns missing retained sections; repair invalid composition properties; cascade safety rejections through nested references. Existing every-page visual grader retained.
