@@ -3,7 +3,13 @@
  * collective entirely. Provider discovery, transport policy and account-level
  * free eligibility remain separate integration and verification requirements.
  */
-import { selectTier, type CollectivePurpose, type CollectiveTier, type TaskComplexity } from "@/lib/ai/collective";
+import {
+  COLLECTIVE_TIERS,
+  selectTier,
+  type CollectivePurpose,
+  type CollectiveTier,
+  type TaskComplexity,
+} from "@/lib/ai/collective";
 import {
   DEFAULT_CHAIN_MS,
   DEFAULT_MAX_ATTEMPTS,
@@ -15,7 +21,14 @@ import {
   type HallOfFameCandidate,
 } from "@/lib/ai/hall-of-fame";
 import { freeModelForm, recordFreeModelOutcome } from "@/lib/ai/free-reputation";
-import { callCollective, type LunaSkipReason } from "@/lib/ai/luna.server";
+import {
+  costMicrocents,
+  estimateMicrocents,
+  recordUsage,
+  reserveBudget,
+  settleBudget,
+  type LunaSkipReason,
+} from "@/lib/ai/luna.server";
 import { paidCollectiveAllowed } from "@/lib/ai/free-only-policy.server";
 import { scopedFreeOnly } from "@/lib/ai/spend-scope.server";
 
