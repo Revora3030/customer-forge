@@ -36,3 +36,21 @@ describe("phase 6: AI layouts by default, approval is safety-only", () => {
     }
   });
 });
+
+describe("straight-to-live builder rules (owner decision 2026-10-22)", () => {
+  it("never applies a change when the made-up-facts review cannot run", () => {
+    const plan = readFileSync("src/lib/builder/ai-agent-plan.server.ts", "utf8");
+    expect(plan).toContain('reason: "review_unavailable"');
+  });
+  it("publishes only after the broken-page check ran, through the shared publish gates", () => {
+    const apply = readFileSync("src/lib/site-agent.functions.ts", "utf8");
+    expect(apply).toContain("if (!verification) {");
+    expect(apply).toContain("publishSiteNow(supabase as never, userId, orgId, { liveEdit: true })");
+  });
+  it("caps full builds at 5 per workspace per 24 hours in the database", () => {
+    const { readdirSync } = require("node:fs") as typeof import("node:fs");
+    const dir = "drizzle/migrations";
+    const sql = readdirSync(dir).filter((f: string) => f.endsWith(".sql")).map((f: string) => readFileSync(`${dir}/${f}`, "utf8")).join("\n");
+    expect(sql).toMatch(/interval '24 hours'\) >= 5/);
+  });
+});

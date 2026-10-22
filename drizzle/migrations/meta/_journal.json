@@ -127,6 +127,13 @@
       "when": 1792626528255,
       "tag": "0017_jarvis_conversations",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1792644981191,
+      "tag": "0018_migration",
+      "breakpoints": true
     }
   ]
 }

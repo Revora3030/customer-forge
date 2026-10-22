@@ -331,9 +331,21 @@ export const checkProductionReadiness = createServerFn({ method: "POST" })
 export const activateProduction = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator(orgIdValidator)
-  .handler(async ({ data, context }): Promise<ActivationResult> => {
-    const { supabase, userId } = context;
-    const orgId = data.organizationId;
+  .handler(({ data, context }) => publishSiteNow(context.supabase, context.userId, data.organizationId));
+
+/**
+ * The one publish path: role check, payment/readiness gates, a permanent
+ * production snapshot, then the live switch. Used by the Publish button and by
+ * the builder's straight-to-live apply, so both keep the same gates.
+ */
+export async function publishSiteNow(
+  supabase: Parameters<typeof gatherReadiness>[0],
+  userId: string,
+  orgId: string,
+  options: { liveEdit?: boolean } = {},
+): Promise<ActivationResult> {
+  {
+    const context = { supabase };
 
     // Ownership + role, verified server-side. Never trust a browser-supplied id.
     const { data: membership } = await supabase
@@ -469,9 +481,12 @@ export const activateProduction = createServerFn({ method: "POST" })
 
     return {
       activated: true,
-      reason: "Your website is live. Edits you make from now on stay in your draft until you press Publish again — visitors keep seeing this version.",
+      reason: options.liveEdit
+        ? "Your change is live."
+        : "Your website is live. Changes Revora makes from now on go straight to the live site, with an undo point saved before each one.",
       version: nextVersion,
       publishState: "published",
       readiness,
     };
-  });
+  }
+}

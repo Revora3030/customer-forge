@@ -87,7 +87,7 @@ describe("builder chat accessibility", () => {
     expect(html).toContain('id="task-t1"');
     expect(html).toContain('aria-label="Chat options"');
     // The restore-point promise stays for screen readers.
-    expect(html).toContain("Every change saves a restore point first. Nothing goes live until you publish.");
+    expect(html).toContain("Every change saves a restore point first. On a live website, checked changes go live straight away.");
   });
 
   it("dims and disables the composer when the access check blocks editing", () => {
