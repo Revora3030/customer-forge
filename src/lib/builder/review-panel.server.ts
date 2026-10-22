@@ -94,61 +94,14 @@ const DIVERSE_AREAS = new Set<ReviewArea>([
 ]);
 
 /**
- * A thinker that tries the free squad first for the given areas and falls back
- * to the paid team whenever the free squad cannot answer. `"all"` sends every
- * area to the free squad first — used for the pre-design advisory pass, which
- * is groundwork rather than creative authorship.
+ * Reviewers and advisers run on the paid Lovable team first (owner decision
+ * 2026-10-22: site building uses the top models); `callBestThinker` hands the
+ * step to the free Hall-of-Fame squad only when paid capacity is unavailable.
  */
-function freeFirstThinker(areas: Set<ReviewArea> | "all"): Thinker {
-  return async (request) => {
-    const purpose = request.purpose;
-    const area = (request as { area?: ReviewArea }).area;
-    const tryFree = areas === "all" ? true : Boolean(area && areas.has(area));
-    if (tryFree) {
-      const started = Date.now();
-      const free = await callHallOfFame({
-        purpose,
-        system: request.system,
-        user: request.user,
-        json: true,
-        squadSize: 2,
-        ...(request.maxOutputTokens === undefined ? {} : { maxOutputTokens: request.maxOutputTokens }),
-        ...(request.organizationId === undefined ? {} : { organizationId: request.organizationId }),
-      });
-      if (free.ok) {
-        const { recordTeamStep } = await import("@/lib/ai/telemetry.server");
-        await recordTeamStep({
-          organizationId: request.organizationId ?? null,
-          stage: request.stage ?? `review.${area ?? "panel"}`,
-          purpose,
-          lane: "free",
-          model: `${free.provider} · ${free.model}`,
-          ok: true,
-          latencyMs: Date.now() - started,
-          reason: `independent ${area ?? "panel"} reviewer from the free squad`,
-          contribution: "critique notes",
-          costMicrocents: 0,
-        });
-        return {
-          ok: true, lane: "free", tier: null, wanted: "terra", downgraded: false,
-          text: free.text, model: `${free.provider} · ${free.model}`, costMicrocents: 0,
-          attempts: free.attempts, handoverReason: null,
-        } satisfies Awaited<ReturnType<Thinker>>;
-      }
-    }
-    return callBestThinker(request);
-  };
-}
+export const diverseThinker: Thinker = (request) => callBestThinker(request);
 
-export const diverseThinker: Thinker = freeFirstThinker(DIVERSE_AREAS);
-
-/**
- * The pre-design pass is groundwork: every adviser tries the free squad first,
- * so the paid designers spend their effort on design and writing instead of
- * research. Anything the free squad cannot answer still falls back to the paid
- * team, so no advice is lost.
- */
-export const advisoryThinker: Thinker = freeFirstThinker("all");
+/** The pre-design advisory pass follows the same paid-first rule. */
+export const advisoryThinker: Thinker = (request) => callBestThinker(request);
 
 /**
  * Advisers speak BEFORE Sol designs: they read only the supplied material and
