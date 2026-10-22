@@ -100,6 +100,7 @@ describe("no third-party AI gateway remains", () => {
       "ai/ai-platform.test.ts",
       "ai/paid-reservation-leak.test.ts",
       "ai/paid-video.server.ts",
+      "ai/luna.functions.ts",
       "ai/availability.ts",
       "ai/jarvis-image-readiness.server.ts",
       "jarvis-model-status.server.ts",
