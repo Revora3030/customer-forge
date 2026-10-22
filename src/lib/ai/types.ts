@@ -31,6 +31,13 @@ export type AiRequest = {
   role?: ModelRole;
   /** Keep this call on verified free models only, even when paid AI is enabled. */
   freeOnly?: boolean;
+  /**
+   * Walk only the paid team (Lovable's gateway first, then Revora's own paid
+   * keys); the free pool is not tried. Used by callers that run their own
+   * free fallback afterwards, so a free answer never spends the paid chain's
+   * wall-clock budget. Spend is still reserved against the shared caps.
+   */
+  paidOnly?: boolean;
   /** Force JSON output. */
   json?: boolean;
   maxOutputTokens?: number;
