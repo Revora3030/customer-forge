@@ -184,7 +184,7 @@ export function ProspectAutopilotCard({ className }: { className?: string }) {
         ) : null}
       </div>
       <p className="text-xs text-muted-foreground">
-        Every hour: searches your targets for businesses with no website, builds free demo sites (free AI only) up to
+        Every hour: searches your targets for businesses with no website, builds free demo sites (Lovable AI) up to
         the daily limit, and emails the preview link only to an address the business published and that passed
         verification (real mailbox domain, not a role address, not opted out). Texts only go to numbers that opted in.
       </p>

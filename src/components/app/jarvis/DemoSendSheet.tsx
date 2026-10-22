@@ -21,7 +21,7 @@ type FormProps = {
   onSubjectChange: (value: string) => void;
   body: string;
   onBodyChange: (value: string) => void;
-  /** True while the free AI pool writes the email. */
+  /** True while the Lovable AI team writes the email. */
   drafting: boolean;
   /** Who wrote the draft, or why there is none. */
   draftNote: string | null;
@@ -150,7 +150,7 @@ export function DemoSendSheet({ channel, onClose, card, status, link, initialTo,
   const [resend, setResend] = useState(false);
   const [error, setError] = useState<SendError | null>(null);
 
-  // The email is written by the free AI pool on the server; texts start from a short editable line.
+  // The email is written by the Lovable AI team on the server; texts start from a short editable line.
   const draft = useQuery({
     queryKey: ["jarvis", "demo-draft", card.organizationId],
     queryFn: () => draftFn({ data: { organizationId: card.organizationId } }),
@@ -207,7 +207,7 @@ export function DemoSendSheet({ channel, onClose, card, status, link, initialTo,
     : draft.error
       ? `Jarvis couldn't write the email (${draft.error.message}). Write it yourself above.`
       : draft.data
-        ? draft.data.aiWritten ? "Written by the free AI pool. Edit anything." : "The AI was unavailable, so a plain template was used."
+        ? draft.data.aiWritten ? "Written by the Lovable AI team. Edit anything." : "The AI was unavailable, so a plain template was used."
         : null;
   const blocker = email && draft.data && !draft.data.mailingAddressConfigured
     ? "Set REVORA_MAILING_ADDRESS (a real street address or PO box) in your server secrets before sending. Commercial email must include it."

@@ -91,7 +91,7 @@ export function paidImageTierModel(tier: ImageTier): string {
   const override = env(IMAGE_TIER_MODEL_ENV[tier]);
   if (override) return override;
   if (tier === "sunburst") {
-    const legacy = env("PAID_IMAGE_MODEL") ?? providerConfig("openai")?.models.image ?? null;
+    const legacy = env("PAID_IMAGE_MODEL");
     if (legacy) return legacy;
   }
   return DEFAULT_IMAGE_TIER_MODELS[tier];
@@ -207,7 +207,7 @@ export async function paidImageCapability(): Promise<PaidImageCapability> {
   if (!status.allowed)
     return { available: false, message: status.message, tiers: listed(false, "switched off") };
 
-  const apiKey = providerConfig("lovable")?.apiKey ?? env("OPENAI_API_KEY");
+  const apiKey = providerConfig()?.apiKey;
   if (!apiKey)
     return {
       available: false,
@@ -258,7 +258,7 @@ export async function generatePaidImage(
   if (!paidImageAllowed())
     return { ok: false, reason: "disabled", message: paidImageStatus().message };
 
-  const apiKey = providerConfig("lovable")?.apiKey ?? env("OPENAI_API_KEY");
+  const apiKey = providerConfig()?.apiKey;
   if (!apiKey)
     return {
       ok: false,

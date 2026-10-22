@@ -290,9 +290,8 @@ export const studioImageStatus = createServerFn({ method: "POST" })
       reason: capability.reason,
       message: capability.message,
       editSupported,
-      remainingToday: capability.providers.length
-        ? capability.providers.reduce((total, entry) => total + entry.remainingToday, 0)
-        : null,
+      // Lovable AI pictures are limited by the monthly spending cap, not a daily count.
+      remainingToday: null,
       providers: capability.providers.map((entry) => ({
         provider: entry.provider,
         models: entry.models.length,

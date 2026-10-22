@@ -30,9 +30,7 @@ describe("phase 6: AI layouts by default, approval is safety-only", () => {
   });
 
   it("model fallback hands over only to other models, never to rule-based design", () => {
-    const luna = readFileSync("src/lib/ai/luna.server.ts", "utf8");
-    expect(luna).toMatch(/length/);
-    for (const f of ["src/lib/ai/luna.server.ts", "src/lib/ai/router.server.ts", "src/lib/ai/hall-of-fame.server.ts"]) {
+    for (const f of ["src/lib/ai/luna.server.ts", "src/lib/ai/router.server.ts", "src/lib/ai/thinker.server.ts"]) {
       const s = readFileSync(f, "utf8");
       expect(s).not.toMatch(/createAiDesignRecord|SITE_ARCHETYPES|template-gallery|site-archetypes/);
     }

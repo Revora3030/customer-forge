@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { imageEditCapableModel } from "@/lib/ai/free";
 import {
   MANUAL_EDIT_CAPABILITY,
   canSatisfyEditRequest,
@@ -7,31 +6,11 @@ import {
 } from "./image-edit-state";
 
 describe("image editing capability truthfulness", () => {
-  it("never treats a generation-only model as edit capable", () => {
-    for (const model of [
-      "gemini-2.5-flash-image",
-      "gpt-image-1",
-      "stable-diffusion-xl-base-1.0",
-      "flux-1-schnell",
-      "black-forest-labs/flux-dev",
-    ])
-      expect(imageEditCapableModel(model)).toBe(false);
-  });
-
-  it("recognises genuine image-to-image models", () => {
-    for (const model of [
-      "stable-diffusion-xl-img2img",
-      "some/image-to-image-model",
-      "sd-inpainting-2",
-    ])
-      expect(imageEditCapableModel(model)).toBe(true);
-  });
-
   it("refuses an edit request that would run on a generation-only model", () => {
     expect(
       canSatisfyEditRequest({
         hasSource: true,
-        modelSupportsEditing: imageEditCapableModel("gpt-image-1"),
+        modelSupportsEditing: false,
       }),
     ).toBe(false);
   });

@@ -126,6 +126,14 @@ function requestBody(input: {
   };
 }
 
+/** A model answer cut off at the output limit: reported as a failure so the router fails over. */
+function truncated() {
+  return new RevoraAiError(502, "Revora's AI model ran out of room before finishing its answer.", {
+    category: "bad_response",
+    provider: "lovable",
+  });
+}
+
 /* ------------------------------ Anthropic /v1/messages ------------------------------ */
 
 type AnthropicPart =
@@ -215,6 +223,7 @@ async function anthropicChat(input: {
       category: "bad_response",
       provider: "lovable",
     });
+  if (payload.stop_reason === "max_tokens") throw truncated();
   const text = (payload.content ?? [])
     .filter((block) => block.type === "text" && typeof block.text === "string")
     .map((block) => block.text as string)
@@ -263,8 +272,10 @@ export const lovableAdapter: ProviderAdapter = {
     });
     if (!response.ok) throw await providerHttpError("lovable", response);
     const payload = (await response.json()) as {
-      choices?: { message?: { content?: string } }[];
+      choices?: { message?: { content?: string }; finish_reason?: string }[];
     };
+    // A cut-off answer is a failure that hands over to the next model, never a partial plan.
+    if (payload.choices?.[0]?.finish_reason === "length") throw truncated();
     return { text: answerOrThrow(payload.choices?.[0]?.message?.content ?? ""), usage: usageOf(payload) };
   },
 
@@ -335,3 +346,52 @@ export const lovableAdapter: ProviderAdapter = {
     return { text: (payload.text ?? "").trim() };
   },
 };
+
+export type VideoOutcome =
+  | { ok: true; bytes: Uint8Array }
+  | { ok: false; kind: "model_unavailable" | "provider_error" | "timed_out" | "invalid_video"; detail: string; charged: boolean };
+
+
+const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** One Lovable AI video job (Gemini Omni body): create, poll, download. Never resubmits. */
+export async function lovableVideo(
+  apiKey: string,
+  input: { model: string; prompt: string; seconds: number; size: string },
+  waiting: { maxWaitMs: number; pollMs: number },
+): Promise<VideoOutcome> {
+  const headers = { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" };
+    const portrait = input.size === "720x1280";
+    const seconds = Math.min(10, Math.max(3, Math.round(input.seconds)));
+    const created = await fetch(`${BASE}/videos`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        model: input.model,
+        input: `${input.prompt} In a single continuous shot. No dialogue. No on-screen text.`,
+        response_format: { type: "video", resolution: "720p", duration: `${seconds}s`, aspect_ratio: portrait ? "9:16" : "16:9" },
+      }),
+    });
+    if (!created.ok) {
+      const detail = `create answered ${created.status}`;
+      return { ok: false, kind: created.status === 403 || created.status === 404 ? "model_unavailable" : "provider_error", detail, charged: false };
+    }
+    const job = (await created.json()) as { id?: string };
+    if (!job.id) return { ok: false, kind: "provider_error", detail: "no job id returned", charged: false };
+    const until = Date.now() + waiting.maxWaitMs;
+    for (;;) {
+      if (Date.now() >= until) return { ok: false, kind: "timed_out", detail: "job still rendering", charged: true };
+      await pause(waiting.pollMs);
+      const polled = await fetch(`${BASE}/videos/${encodeURIComponent(job.id)}`, { headers });
+      if (!polled.ok) continue;
+      const state = (await polled.json()) as { status?: string; error?: { message?: string } };
+      if (state.status === "failed")
+        return { ok: false, kind: "provider_error", detail: (state.error?.message ?? "job failed").slice(0, 160), charged: true };
+      if (state.status !== "completed") continue;
+      const content = await fetch(`${BASE}/videos/${encodeURIComponent(job.id)}/content`, { headers });
+      if (!content.ok) return { ok: false, kind: "provider_error", detail: `download answered ${content.status}`, charged: true };
+      const bytes = new Uint8Array(await content.arrayBuffer());
+      if (bytes.byteLength === 0) return { ok: false, kind: "invalid_video", detail: "empty clip", charged: true };
+      return { ok: true, bytes };
+    }
+}

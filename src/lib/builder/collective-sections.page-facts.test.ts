@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 const prompts: string[] = [];
-vi.mock("@/lib/ai/hall-of-fame.server", () => ({
+vi.mock("@/lib/ai/thinker.server", () => ({
   callBestThinker: vi.fn(async (request: { user: string }) => {
     prompts.push(request.user);
     return { ok: false, reason: "provider_unavailable", detail: "test", wanted: "test-model" };

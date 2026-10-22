@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 process.env["CHROME_RETRY_PAUSE_MS"] = "0";
 
-vi.mock("@/lib/ai/hall-of-fame.server", () => ({
+vi.mock("@/lib/ai/thinker.server", () => ({
   callBestThinker: async () => ({ ok: false, reason: "unavailable" }),
 }));
 

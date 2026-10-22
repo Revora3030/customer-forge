@@ -21,7 +21,7 @@
  *   - Cost-free: it records usage, it never authorises a paid call.
  */
 
-import type { FreeProviderName } from "@/lib/ai/free";
+type FreeProviderName = string;
 
 export type DurableProviderRuntime = {
   provider: string;

@@ -109,7 +109,7 @@ export async function openJarvisPullRequest(pr: PullRequestProposal) {
         ...pr.changes.map((change) => `- \`${change.path}\` (${"content" in change ? "new file" : `${change.edits.length} edit${change.edits.length === 1 ? "" : "s"}`})`),
         "",
         "---",
-        "Proposed by Jarvis (free AI pool) and approved in Revora by an admin. Not tested by Jarvis: check CI and review the diff before merging.",
+        "Proposed by Jarvis (Lovable AI) and approved in Revora by an admin. Not tested by Jarvis: check CI and review the diff before merging.",
       ].join("\n"),
     },
   });

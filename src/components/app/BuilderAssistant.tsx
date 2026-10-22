@@ -174,7 +174,7 @@ export function BuilderAssistant({
     },
   });
   const SUGGESTIONS = suggestionsQuery.data?.suggestions ?? [];
-  // Suggestions come from the free AI team and can be slow; after a short
+  // Suggestions come from the Lovable AI team and can be slow; after a short
   // wait the empty placeholders give way to the composer instead of pulsing.
   const [suggestionsSlow, setSuggestionsSlow] = useState(false);
   useEffect(() => {

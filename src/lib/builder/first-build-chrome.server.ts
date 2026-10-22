@@ -8,7 +8,7 @@ import { pageNavLabel } from "@/lib/website-content";
  * only genuine design faults go back to Sol. No built-in menu or footer design
  * is ever substituted.
  */
-import { callBestThinker } from "@/lib/ai/hall-of-fame.server";
+import { callBestThinker } from "@/lib/ai/thinker.server";
 import { screenText } from "@/lib/builder/collective-copy";
 import { COMPOSITION_PRIMITIVES, PRIMITIVE_GUIDE, validateComposition, type CompositionIssue, type CompositionNode, type CompositionTree } from "@/lib/builder/composition-tree";
 import { collectHrefs, readSiteChrome, requiredChromeLinks, writeSiteChrome } from "@/lib/builder/site-chrome";

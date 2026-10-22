@@ -1,77 +1,13 @@
 /**
- * LIVE IMAGE-GENERATION CAPABILITY
- * ================================
- *
- * One honest, live answer to "can the FREE picture lane make a picture right
- * now?". This is the failover lane only: site pictures are made by the paid
- * specialist picture models first (see generatePaidImageBase64).
- *
- * Nothing here trusts the existence of code. A provider is only reported as
- * usable when ALL of these are true at the moment of asking:
- *
- *  1. the free lane is enabled,
- *  2. the provider's credentials are actually present in this environment,
- *  3. it has at least one model that passes the free-eligibility gate for the
- *     image role (paid or partner-billed models can never qualify),
- *  4. today's conservative free picture allowance is not spent.
- *
- * Model availability is live-discovered from the provider's own catalogue
- * (including its published pricing), so a model Cloudflare moves behind its paid
- * plan stops being selected without any code change here.
- *
- * Server-only: reads `process.env` and calls provider catalogue endpoints.
+ * LIVE IMAGE-GENERATION CAPABILITY: can Lovable AI make (or edit) a picture
+ * right now? Pictures run on Lovable AI image models under the spending cap.
+ * Server-only.
  */
+import { providerConfig } from "@/lib/ai/config";
 
-import type { ModelRole } from "@/lib/ai/config";
-import {
-  freeAiEnabled,
-  freeImageBudgetCap,
-  freeImageBudgetRemaining,
-  freeProviderChain,
-  imageCreationCapableModel,
-  imageEditCapableModel,
-  isFreeEligibleModel,
-  type FreeProviderName,
-} from "@/lib/ai/free";
-import { discoveredFreeModels, refreshFreeModels } from "@/lib/ai/free-models.server";
-
-const IMAGE_ROLE: ModelRole = "image";
-
-/**
- * 64x64 sample picture used to VERIFY — not assume — that the free service can
- * actually change an existing picture right now.
- */
-const EDIT_PROBE_PNG_BASE64 =
-  "iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAAY0lEQVR4nO3PsQ3AIADAMOB+ZmZO7REMVqX4gmTes8efLR3wqgGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQGtAa0BrQHtAxL/AkICwWnpAAAAAElFTkSuQmCC";
-
-/** Probe result cache. Kept short so an upstream recovery is picked up quickly. */
-let editProbe: { ok: boolean; at: number } | null = null;
-const EDIT_PROBE_TTL_MS = 30 * 60 * 1000;
-
-/**
- * Asks the free service to change one tiny sample picture, and remembers the
- * answer for a while.
- *
- * An edit-capable model EXISTING is not evidence that editing WORKS: Cloudflare's
- * inpainting endpoint can be serving errors, or the account may not be allowed to
- * use it. Revora therefore never promises picture changing on the strength of a
- * model name — it proves it with a real call first.
- */
+/** Lovable AI image models support editing; no paid probe call is made. */
 export async function verifyImageEditing(): Promise<boolean> {
-  const now = Date.now();
-  if (editProbe && now - editProbe.at < EDIT_PROBE_TTL_MS) return editProbe.ok;
-  try {
-    const { editImage } = await import("@/lib/ai/router.server");
-    const result = await editImage(
-      { task: "image.edit", organizationId: null, userId: null },
-      "the same picture, slightly warmer light",
-      { dataUrl: EDIT_PROBE_PNG_BASE64, mimeType: "image/png" },
-    );
-    editProbe = { ok: result.base64.length > 0, at: now };
-  } catch {
-    editProbe = { ok: false, at: now };
-  }
-  return editProbe.ok;
+  return providerConfig() !== null;
 }
 
 export type ImageCapabilityReason =
@@ -82,8 +18,8 @@ export type ImageCapabilityReason =
   | "daily_allowance_spent";
 
 export type ImageProviderCapability = {
-  provider: FreeProviderName;
-  /** Every free-eligible image model this provider is currently serving. */
+  provider: string;
+  /** Every Lovable AI image model in the picture roster. */
   models: string[];
   /** Can any selected model change an existing picture (not just make one)? */
   editSupported: boolean;
@@ -121,68 +57,18 @@ function unavailable(reason: ImageCapabilityReason, message: string): ImageCapab
  * is simply left out rather than assumed to work.
  */
 export async function imageGenerationCapability(): Promise<ImageCapability> {
-  if (!freeAiEnabled())
-    return unavailable(
-      "free_ai_disabled",
-      "Picture making is switched off for this workspace, so nothing was generated.",
-    );
-
-  const chain = freeProviderChain(IMAGE_ROLE);
-  if (chain.length === 0)
-    return unavailable(
-      "no_provider_configured",
-      "No free picture service is connected yet, so no picture was generated.",
-    );
-
-  const providers: ImageProviderCapability[] = [];
-  let spentEverywhere = true;
-
-  for (const entry of chain) {
-    try {
-      await refreshFreeModels(entry.name, entry.credentials, IMAGE_ROLE);
-    } catch {
-      // Catalogue lookups are advisory. The verified configured model stands.
-    }
-    const models: string[] = [];
-    for (const model of [...discoveredFreeModels(entry.name, IMAGE_ROLE), entry.model])
-      if (
-        !models.includes(model) &&
-        isFreeEligibleModel(entry.name, model) &&
-        imageCreationCapableModel(model)
-      )
-        models.push(model);
-    if (models.length === 0) continue;
-
-    const remainingToday = freeImageBudgetRemaining(entry.name);
-    if (remainingToday > 0) spentEverywhere = false;
-    providers.push({
-      provider: entry.name,
-      models,
-      editSupported: models.some((model) => imageEditCapableModel(model)),
-      remainingToday,
-      dailyCap: freeImageBudgetCap(entry.name),
-    });
-  }
-
-  if (providers.length === 0)
-    return unavailable(
-      "no_free_model",
-      "The connected picture service is not currently serving a model Revora has verified as free, so nothing was generated.",
-    );
-
-  if (spentEverywhere)
-    return unavailable(
-      "daily_allowance_spent",
-      "Today's free picture allowance is used up. Picture making comes back tomorrow — nothing was charged.",
-    );
-
-  const usable = providers.filter((entry) => entry.remainingToday > 0);
+  const config = providerConfig();
+  if (!config)
+    return unavailable("no_provider_configured", "Lovable AI is not connected, so no picture was generated.");
+  const models = config.models.image.split(",").map((id) => id.trim()).filter(Boolean);
+  if (models.length === 0)
+    return unavailable("no_free_model", "No picture model is configured, so nothing was generated.");
   return {
     available: true,
     reason: "ready",
-    message: "Free picture making is available.",
+    message: "Picture making is available.",
     code: "READY",
-    providers,
-    editSupported: usable.some((entry) => entry.editSupported),
+    providers: [{ provider: "lovable", models, editSupported: true, remainingToday: Number.MAX_SAFE_INTEGER, dailyCap: Number.MAX_SAFE_INTEGER }],
+    editSupported: true,
   };
 }

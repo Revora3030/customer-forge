@@ -113,7 +113,7 @@ describe("Jarvis page keeps every behaviour the rebuild must preserve", () => {
     expect(history).toContain("await guardedAdmin(context);");
     expect(history).toContain("parseHistoryCursor(input)");
     expect(history).toContain('query.lt("created_at", cursor.before)');
-    expect(fns).toContain("return runJarvis(db, userId, data.mode, data.page, conversationId, data.runId);");
+    expect(fns).toContain("return runJarvis(db, userId, data.mode, data.page, conversationId, data.runId, data.model);");
   });
 
   it("mounts a fresh send card for every demo.send approval, so re-approving after Cancel reopens the sheet", () => {

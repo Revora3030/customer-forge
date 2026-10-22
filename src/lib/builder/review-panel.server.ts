@@ -5,7 +5,7 @@
  * own area; Sol decides what to change. A reviewer that fails is skipped, so
  * the panel can never block or degrade a build.
  */
-import { callBestThinker } from "@/lib/ai/hall-of-fame.server";
+import { callBestThinker } from "@/lib/ai/thinker.server";
 import type { CollectivePurpose } from "@/lib/ai/collective";
 import { NO_EVIDENCE, evidenceFor, gatherReviewEvidence, type ReviewEvidence } from "@/lib/builder/review-evidence.server";
 import { DISTINCTIVENESS_REVIEW_BRIEF, VISUAL_CRAFT_REVIEW_BRIEF } from "@/lib/builder/world-class-craft";

@@ -22,24 +22,18 @@ describe("attachment failover", () => {
     );
   });
 
-  it("stops at once for an oversized or bad paid request", () => {
-    expect(source).toContain('if (error.category === "too_large") {\n            if (!candidate.free) throw error;');
-    expect(source).toContain("if (!candidate.free) throw error;");
-  });
-
-  it("moves an oversized free request to a model with a larger context, six at most", () => {
+  it("moves an oversized request to a model with a larger context, six at most", () => {
     expect(source).toContain("if (tooLargeBy.size >= 6) throw error;");
     expect(source).toContain("if (invalidBy.size >= 3) throw error;");
   });
 
-  it("stops a plain text bad request once three free providers agree it is malformed", () => {
+  it("stops a plain text bad request once three models agree it is malformed", () => {
     expect(source).toContain("if (invalidBy.size >= 3) throw error;");
   });
 
   it("only sets the flag from the request's own attachment parts", () => {
     expect(source).toContain("function carriesAttachment(");
     expect(source).toContain("nextProviderOnInvalidRequest: carriesAttachment(request.messages)");
-    expect(source).toContain("freeOnly: request.freeOnly === true");
     // Text chat never hardcodes the flag: a text-only call keeps the strict rule.
     // Picture calls are the one deliberate exception (a model that cannot make a
     // new picture must not block the generator behind it), so the only literal

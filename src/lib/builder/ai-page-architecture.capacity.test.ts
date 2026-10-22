@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const thinker = vi.fn();
-vi.mock("@/lib/ai/hall-of-fame.server", () => ({ callBestThinker: (...args: unknown[]) => thinker(...args) }));
+vi.mock("@/lib/ai/thinker.server", () => ({ callBestThinker: (...args: unknown[]) => thinker(...args) }));
 
 import { proposePageArchitecture } from "@/lib/builder/ai-page-architecture.server";
 import { deriveCandidateArchitecture } from "@/lib/builder/ai-page-architecture";

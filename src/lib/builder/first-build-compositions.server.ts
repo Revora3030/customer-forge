@@ -12,7 +12,7 @@
  * section still without a valid AI layout stops the build — there is no
  * substitute design.
  */
-import { callBestThinker } from "@/lib/ai/hall-of-fame.server";
+import { callBestThinker } from "@/lib/ai/thinker.server";
 import { readAll } from "@/lib/db/read-all";
 import { craftBarPrompt } from "@/lib/builder/world-class-craft";
 import { screenText } from "@/lib/builder/collective-copy";
