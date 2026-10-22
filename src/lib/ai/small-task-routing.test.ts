@@ -16,25 +16,21 @@ const free = (model: string): Entry => ({ model, free: "groq" });
 const ranked: Entry[] = [paid("openai/gpt-6.1-sol"), free("llama-3.3-70b"), paid("anthropic/claude-sonnet-5")];
 
 describe("small-task lane routing", () => {
-  it("names exactly the fast role as a small task", () => {
-    expect([...SMALL_TASK_ROLES]).toEqual(["fast"]);
+  it("has no role where the free pool leads", () => {
+    expect([...SMALL_TASK_ROLES]).toEqual([]);
   });
 
-  it("leads the fast role with the free pool, paid team as failover", () => {
-    for (const role of ["fast"] as ModelRole[]) {
-      const ordered = groupForRole(role, ranked);
-      expect(ordered.map((entry) => entry.free !== null)).toEqual([true, false, false]);
-      // Quality-first order is preserved inside each group.
-      expect(ordered.map((entry) => entry.model)).toEqual([
-        "llama-3.3-70b",
-        "openai/gpt-6.1-sol",
-        "anthropic/claude-sonnet-5",
-      ]);
-    }
+  it("leads even the fast role with the paid team, free pool as backup", () => {
+    const ordered = groupForRole("fast", ranked);
+    expect(ordered.map((entry) => entry.model)).toEqual([
+      "openai/gpt-6.1-sol",
+      "anthropic/claude-sonnet-5",
+      "llama-3.3-70b",
+    ]);
   });
 
   it("leads creative, building and Jarvis conversation roles with the paid team, free pool as backup", () => {
-    for (const role of ["primary", "design", "vision", "coding", "image", "conversation"] as ModelRole[]) {
+    for (const role of ["fast", "primary", "design", "vision", "coding", "image", "conversation"] as ModelRole[]) {
       const ordered = groupForRole(role, ranked);
       expect(ordered.map((entry) => entry.free !== null)).toEqual([false, false, true]);
     }

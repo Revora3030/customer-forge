@@ -113,7 +113,9 @@ export function lunaEnabled(): boolean {
     return raw === "true" || raw === "1" || raw === "on" || raw === "yes";
   };
   if (off("LUNA_ENABLED")) return false;
-  return Boolean(env("OPENAI_API_KEY"));
+  // The Lovable AI Gateway key serves the paid team since the owner removed
+  // the direct OpenAI key (2026-10-22); either key enables the capped lane.
+  return Boolean(env("LOVABLE_API_KEY") || env("OPENAI_API_KEY"));
 }
 
 export function lunaModel(): string {

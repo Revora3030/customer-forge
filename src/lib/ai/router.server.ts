@@ -468,12 +468,11 @@ async function buildChain(
 }
 
 /**
- * Small, mechanical roles the free pool serves first (owner decision
- * 2026-10-22): only `fast` (quick checks and simple text). Jarvis conversation
- * is NOT a small task — the owner chose Lovable's top models for Jarvis — so
- * it stays on the paid team. The paid lane acts as failover here.
+ * Roles the free pool would serve first. Empty (owner decision 2026-10-22,
+ * later the same day): Lovable's paid team leads every role, and the free
+ * pool is backup only when Lovable is unavailable or the spend cap is hit.
  */
-export const SMALL_TASK_ROLES: ReadonlySet<ModelRole> = new Set(["fast"]);
+export const SMALL_TASK_ROLES: ReadonlySet<ModelRole> = new Set<ModelRole>();
 
 /**
  * Stable group order for a role: the free pool leads small tasks, the paid

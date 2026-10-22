@@ -315,7 +315,23 @@ export const lovableAdapter: ProviderAdapter = {
     return { base64, mimeType: "image/png" };
   },
 
-  async transcribe() {
-    return unsupported("transcription");
+  async transcribe({ apiKey, model, audio, signal }) {
+    const extension = audio.mimeType.split("/")[1]?.replace(/[^a-z0-9]/g, "") || "webm";
+    const form = new FormData();
+    form.append("model", model);
+    form.append(
+      "file",
+      new Blob([bytesFromDataUrl(audio.dataUrl)], { type: audio.mimeType }),
+      `${audio.name || "voice"}.${extension}`,
+    );
+    const response = await fetch(`${BASE}/audio/transcriptions`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${apiKey}`, "Lovable-API-Key": apiKey },
+      body: form,
+      signal,
+    });
+    if (!response.ok) throw await providerHttpError("lovable", response);
+    const payload = (await response.json()) as { text?: string };
+    return { text: (payload.text ?? "").trim() };
   },
 };

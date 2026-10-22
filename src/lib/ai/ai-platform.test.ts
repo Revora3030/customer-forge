@@ -90,6 +90,10 @@ describe("no third-party AI gateway remains", () => {
       // The router's keyed Lovable paid provider and its unit tests.
       "ai/config.ts",
       "ai/providers/lovable.ts",
+      // The paid-lane switch: either the Lovable or the OpenAI key enables it.
+      "ai/luna.server.ts",
+      "ai/collective.test.ts",
+      "ai/luna.test.ts",
       "ai/router.server.ts",
       "ai/provider-test-environment",
       "ai/lovable-provider.test.ts",
