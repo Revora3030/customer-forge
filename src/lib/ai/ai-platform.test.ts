@@ -85,6 +85,10 @@ describe("no third-party AI gateway remains", () => {
       // The Astra backup chat lane reads the gateway credential to keep the
       // builder chat alive when the direct OpenAI route is down.
       "ai/gateway-chat.server.ts",
+      // The router's keyed Lovable paid provider and its unit tests.
+      "ai/config.ts",
+      "ai/provider-test-environment",
+      "ai/lovable-provider.test.ts",
       // The Perplexity search connector is a Lovable integration reached
       // through the connector gateway; it returns research links, never model
       // output, and its results are marked third-party research.
