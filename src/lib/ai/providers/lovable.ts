@@ -16,7 +16,7 @@
 
 import type { AiMessage, AiPart, AiUsage, ProviderAdapter } from "@/lib/ai/types";
 import { RevoraAiError } from "@/lib/ai/errors";
-import { base64FromDataUrl, bytesFromDataUrl, providerHttpError } from "@/lib/ai/providers/shared";
+import { base64ByteLength, base64FromDataUrl, bytesFromDataUrl, providerHttpError } from "@/lib/ai/providers/shared";
 
 const BASE = "https://ai.gateway.lovable.dev/v1";
 
@@ -132,8 +132,20 @@ type AnthropicPart =
   | { type: "text"; text: string }
   | { type: "image"; source: { type: "base64"; media_type: string; data: string } };
 
+/**
+ * The Messages API refuses an image over 5 MB (decoded). A full-size PNG from
+ * the picture lane can exceed it; refusing before the upload makes the router
+ * move to the next roster model at once instead of paying for a 400.
+ */
+export const ANTHROPIC_MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+
 function anthropicPart(part: AiPart): AnthropicPart {
   if (part.type === "text") return { type: "text", text: part.text };
+  if (part.type === "image" && base64ByteLength(part.dataUrl) > ANTHROPIC_MAX_IMAGE_BYTES)
+    throw new RevoraAiError(413, "That picture is larger than this Revora AI model accepts.", {
+      category: "invalid_request",
+      provider: "lovable",
+    });
   if (part.type === "image")
     return {
       type: "image",
@@ -145,12 +157,16 @@ function anthropicPart(part: AiPart): AnthropicPart {
   });
 }
 
-/** The Messages API takes system prompts as a top-level field, not a message. */
-function anthropicRequest(input: {
+/**
+ * The Messages API takes system prompts as a top-level field, not a message.
+ * Sampling parameters are never sent: Claude 4.7-and-later models (every
+ * anthropic/* id on the roster) answer 400 to any `temperature`, which used to
+ * fail every Claude call a caller passed a temperature to.
+ */
+export function anthropicRequest(input: {
   model: string;
   messages: AiMessage[];
   maxOutputTokens: number;
-  temperature?: number;
 }) {
   const system: string[] = [];
   const messages: { role: "user" | "assistant"; content: string | AnthropicPart[] }[] = [];
@@ -177,7 +193,6 @@ function anthropicRequest(input: {
     max_tokens: input.maxOutputTokens,
     ...(system.length > 0 ? { system: system.join("\n\n") } : {}),
     messages,
-    ...(typeof input.temperature === "number" ? { temperature: input.temperature } : {}),
   };
 }
 
@@ -186,7 +201,6 @@ async function anthropicChat(input: {
   model: string;
   messages: AiMessage[];
   maxOutputTokens: number;
-  temperature?: number;
   signal: AbortSignal;
 }): Promise<{ text: string; usage: AiUsage }> {
   const response = await fetch(`${BASE}/messages`, {
@@ -197,7 +211,6 @@ async function anthropicChat(input: {
         model: input.model,
         messages: input.messages,
         maxOutputTokens: input.maxOutputTokens,
-        ...(input.temperature !== undefined ? { temperature: input.temperature } : {}),
       }),
     ),
     signal: input.signal,
@@ -244,15 +257,7 @@ export const lovableAdapter: ProviderAdapter = {
   name: "lovable",
 
   async chat({ apiKey, model, messages, json, maxOutputTokens, temperature, signal }) {
-    if (isAnthropic(model))
-      return anthropicChat({
-        apiKey,
-        model,
-        messages,
-        maxOutputTokens,
-        ...(temperature !== undefined ? { temperature } : {}),
-        signal,
-      });
+    if (isAnthropic(model)) return anthropicChat({ apiKey, model, messages, maxOutputTokens, signal });
     const response = await fetch(`${BASE}/chat/completions`, {
       method: "POST",
       headers: headers(apiKey),

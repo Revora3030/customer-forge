@@ -77,13 +77,21 @@ describe("Issue 2: only verified vision models may review pictures", () => {
     expect(visionCapableModel(model)).toBe(false);
   });
 
-  it("ranks NVIDIA NIM llama-3.2-11b-vision first, then Workers AI, then Gemini", () => {
+  it("ranks NVIDIA NIM llama-3.2-11b-vision first, then Workers AI scout, then current Gemini", () => {
     const nim = preferredVisionRank("nvidia", "meta/llama-3.2-11b-vision-instruct");
-    const cf = preferredVisionRank("cloudflare", "@cf/meta/llama-3.2-11b-vision-instruct");
-    const gemini = preferredVisionRank("google", "gemini-2.5-flash");
+    const cf = preferredVisionRank("cloudflare", "@cf/meta/llama-4-scout-17b-16e-instruct");
+    const gemini = preferredVisionRank("google", "gemini-3.8-flash");
     expect(nim).toBeLessThan(cf);
     expect(cf).toBeLessThan(gemini);
+    expect(Number.isFinite(gemini)).toBe(true);
     expect(preferredVisionRank("cloudflare", "@cf/zai-org/glm-5.2")).toBe(Number.POSITIVE_INFINITY);
+  });
+
+  it("never prefers the retired Gemini 2.5 id or the licence-gated Workers AI llama vision", () => {
+    // gemini-2.5-flash answers 404; @cf/meta/llama-3.2-11b-vision-instruct
+    // answers 403 until Meta's licence is accepted on the account.
+    expect(preferredVisionRank("google", "gemini-2.5-flash")).toBe(Number.POSITIVE_INFINITY);
+    expect(preferredVisionRank("cloudflare", "@cf/meta/llama-3.2-11b-vision-instruct")).toBe(Number.POSITIVE_INFINITY);
   });
 
   it("asks the router for a fast-fail visual review", async () => {
@@ -169,14 +177,17 @@ describe("Issue 2: router vision routing", async () => {
       { free: null, model: "gpt-5.6-terra" },
       { free: "google", model: "gemini-3.8-flash" },
       { free: "cloudflare", model: "@cf/meta/llama-3.2-11b-vision-instruct" },
+      { free: "cloudflare", model: "@cf/meta/llama-4-scout-17b-16e-instruct" },
       { free: "nvidia", model: "meta/llama-3.2-11b-vision-instruct" },
       { free: "huggingface", model: "Qwen/Qwen2.5-VL-72B-Instruct" },
     ] as Parameters<typeof router.fastVisionFirst>[0]);
     expect(ordered.map((entry) => entry.model)).toEqual([
       "gpt-5.6-terra",
       "meta/llama-3.2-11b-vision-instruct",
-      "@cf/meta/llama-3.2-11b-vision-instruct",
+      "@cf/meta/llama-4-scout-17b-16e-instruct",
       "gemini-3.8-flash",
+      // Licence-gated on Workers AI: kept reachable, but behind working models.
+      "@cf/meta/llama-3.2-11b-vision-instruct",
       "Qwen/Qwen2.5-VL-72B-Instruct",
     ]);
   });

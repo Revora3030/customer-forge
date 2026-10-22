@@ -32,12 +32,17 @@ export function visionCapableModel(model: string): boolean {
  * Fast, high-accuracy free vision models, best first. The router puts these at
  * the front of the visual-review chain when the provider is configured, so the
  * ~600ms NIM endpoint answers before a slower general multimodal model.
+ *
+ * Deliberately absent:
+ *  - `@cf/meta/llama-3.2-11b-vision-instruct`: Workers AI answers 403 until the
+ *    account has accepted Meta's licence, so it failed every call in production.
+ *  - `gemini-2.5-flash`: retired (404). Google's entry is the current vision
+ *    default named in free.ts.
  */
 export const PREFERRED_FREE_VISION_MODELS: ReadonlyArray<{ provider: FreeProviderName; model: string }> = [
   { provider: "nvidia", model: "meta/llama-3.2-11b-vision-instruct" },
-  { provider: "cloudflare", model: "@cf/meta/llama-3.2-11b-vision-instruct" },
   { provider: "cloudflare", model: "@cf/meta/llama-4-scout-17b-16e-instruct" },
-  { provider: "google", model: "gemini-2.5-flash" },
+  { provider: "google", model: "gemini-3.8-flash" },
 ];
 
 /** Rank of a model in the preferred fast-vision list (lower is better). */

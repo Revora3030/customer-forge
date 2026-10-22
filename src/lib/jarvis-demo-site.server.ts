@@ -432,7 +432,7 @@ export const MAX_SOURCE_IMAGE_BYTES = 4 * 1024 * 1024;
 
 /**
  * Facts visible in a picture of a business (Maps screenshot, card, flyer,
- * sign), read by a free vision model. If the picture names the business, the
+ * sign), read by a vision model (Lovable first, free pool as failover). If the picture names the business, the
  * Google Maps listing fills what the picture didn't show. The picture itself
  * is not stored or used on the site.
  */
@@ -444,8 +444,9 @@ export async function prospectFromImage(db: SupabaseClient, actorId: string, dat
   const { analyzeImage } = await import("@/lib/ai/router.server");
   let text = "";
   try {
+    // Admin Jarvis work: the router's Lovable-first team reads the picture,
+    // with the free vision pool as failover (owner decision 2026-10-22).
     const result = await analyzeImage({ userId: actorId, task: "admin.jarvis.prospect_image" }, {
-      freeOnly: true,
       maxOutputTokens: 600,
       temperature: 0,
       messages: [
@@ -461,7 +462,7 @@ export async function prospectFromImage(db: SupabaseClient, actorId: string, dat
     });
     text = result.text;
   } catch {
-    throw new Error("No free vision model could read the picture right now. Try again in a minute, or paste a Google Maps link.");
+    throw new Error("No vision model could read the picture right now. Try again in a minute, or paste a Google Maps link.");
   }
   const facts = parseImageFacts(text);
   if (!facts.businessName && !facts.phone && !facts.city)

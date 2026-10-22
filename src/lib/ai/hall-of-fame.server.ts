@@ -22,7 +22,6 @@ import {
 } from "@/lib/ai/hall-of-fame";
 import { freeModelForm, recordFreeModelOutcome } from "@/lib/ai/free-reputation";
 import {
-  costMicrocents,
   estimateMicrocents,
   recordUsage,
   reserveBudget,
@@ -30,6 +29,16 @@ import {
   type LunaSkipReason,
 } from "@/lib/ai/luna.server";
 import { paidCollectiveAllowed } from "@/lib/ai/free-only-policy.server";
+import { modelCostMicrocents, rosterEstimateMicrocents } from "@/lib/ai/model-prices";
+import { providerChain, type ModelRole } from "@/lib/ai/config";
+
+/** Every paid model the router may try for a role (plus preferred ids), for pricing a walk. */
+export function paidRosterFor(role: string, prefer: readonly string[] = []): string[] {
+  const models = new Set<string>(prefer);
+  for (const config of providerChain())
+    for (const id of (config.models[role as ModelRole] ?? "").split(",")) if (id.trim()) models.add(id.trim());
+  return [...models];
+}
 import { scopedFreeOnly } from "@/lib/ai/spend-scope.server";
 
 export type HallOfFameAttempt = {
@@ -470,7 +479,13 @@ async function callPaidThinker(request: {
   const organizationId = request.organizationId ?? null;
   const maxOutputTokens = Math.max(request.maxOutputTokens ?? 900, 64);
   const promptChars = request.system.length + request.user.length;
-  const estimate = estimateMicrocents(promptChars, maxOutputTokens, tier);
+  // Priced from the ESTIMATED per-model table (model-prices.ts): the walk may
+  // be answered by any paid roster model, so the reservation covers the most
+  // expensive one, never less than the tier's own estimate.
+  const estimate = Math.max(
+    estimateMicrocents(promptChars, maxOutputTokens, tier),
+    rosterEstimateMicrocents(paidRosterFor(roleForPurpose(request.purpose), request.preferModels), promptChars, maxOutputTokens),
+  );
   const reservation = await reserveBudget(estimate, organizationId);
   if (!reservation)
     return { ok: false, tier, wanted, reason: "ledger_unavailable", detail: "spend ledger unreachable" };
@@ -530,16 +545,15 @@ async function callPaidThinker(request: {
         ? await generateStructuredOutput(caller, aiRequest, lane)
         : await generateText(caller, aiRequest, lane);
     const text = outcome.text.trim();
+    // The answering model's estimated price, so a Claude Opus answer is
+    // charged at Opus rates against the daily cap, not at a tier average.
     const billed =
       outcome.usage.inputTokens === null && outcome.usage.outputTokens === null
         ? estimate
-        : costMicrocents(
-            {
-              inputTokens: outcome.usage.inputTokens ?? Math.ceil(promptChars / 4),
-              cachedInputTokens: 0,
-              outputTokens: outcome.usage.outputTokens ?? 0,
-            },
-            tier,
+        : modelCostMicrocents(
+            outcome.model,
+            outcome.usage.inputTokens ?? Math.ceil(promptChars / 4),
+            outcome.usage.outputTokens ?? 0,
           );
     const model = `${outcome.provider} · ${outcome.model}`;
     const usable =

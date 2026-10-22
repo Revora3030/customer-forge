@@ -536,7 +536,6 @@ async function composeEmail(demo: DemoContext, previewUrl: string, actorId: stri
     const { generateText } = await import("@/lib/ai/router.server");
     const result = await generateText({ userId: actorId, task: "admin.jarvis" }, {
       role: "conversation",
-      freeOnly: true,
       maxOutputTokens: 500,
       messages: [
         { role: "system", content: DEMO_EMAIL_SYSTEM },

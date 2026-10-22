@@ -308,6 +308,7 @@ describe("router settles every paid reservation", () => {
 
   it("settles a timed-out (aborted) call at the estimate, never as free", async () => {
     process.env["AI_REQUEST_TIMEOUT_MS"] = "30";
+    process.env["AI_PAID_REQUEST_TIMEOUT_MS"] = "30";
     vi.stubGlobal(
       "fetch",
       vi.fn(

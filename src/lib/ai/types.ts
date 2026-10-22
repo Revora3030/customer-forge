@@ -53,6 +53,12 @@ export type AiRequest = {
    */
   timeoutMs?: number;
   /**
+   * Per-attempt timeout for PAID candidates (the Lovable gateway). Never
+   * raises the router's paid ceiling (`AI_PAID_REQUEST_TIMEOUT_MS`); omitted,
+   * a paid attempt gets that ceiling. `timeoutMs` applies to free models only.
+   */
+  paidTimeoutMs?: number;
+  /**
    * Total wall-clock budget for the whole failover chain of this one call.
    * Never raises the router's configured chain deadline.
    */

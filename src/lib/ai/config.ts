@@ -242,6 +242,12 @@ export type AiLimits = {
   maxAttachmentBytes: number;
   /** Wall-clock ceiling for one provider call. */
   requestTimeoutMs: number;
+  /**
+   * Wall-clock ceiling for one PAID-lane attempt (the Lovable gateway's large
+   * models writing a whole section design or reading a screenshot). Kept
+   * below the build worker's 300s lease so the heartbeat always outlives it.
+   */
+  paidRequestTimeoutMs: number;
   /** Attempts per provider for retryable failures (1 = no retry). */
   maxAttemptsPerProvider: number;
   /** Agent loop ceilings. */
@@ -251,6 +257,11 @@ export type AiLimits = {
   /** Concurrent model calls per workspace. */
   maxConcurrentPerWorkspace: number;
 };
+
+/** Default paid-lane attempt ceiling: large models need minutes for long answers. */
+export const PAID_REQUEST_TIMEOUT_MS_DEFAULT = 180_000;
+/** Hard ceiling, under the site-engine lease (LEASE_SECONDS = 300). */
+export const PAID_REQUEST_TIMEOUT_MS_MAX = 240_000;
 
 export function aiLimits(): AiLimits {
   return {
@@ -263,6 +274,7 @@ export function aiLimits(): AiLimits {
     maxOutputTokens: numberEnv("AI_MAX_OUTPUT_TOKENS", 32000),
     maxAttachmentBytes: numberEnv("AI_MAX_ATTACHMENT_BYTES", 24 * 1024 * 1024),
     requestTimeoutMs: numberEnv("AI_REQUEST_TIMEOUT_MS", 90_000),
+    paidRequestTimeoutMs: Math.min(numberEnv("AI_PAID_REQUEST_TIMEOUT_MS", PAID_REQUEST_TIMEOUT_MS_DEFAULT), PAID_REQUEST_TIMEOUT_MS_MAX),
     maxAttemptsPerProvider: numberEnv("AI_MAX_ATTEMPTS_PER_PROVIDER", 2),
     maxAgentIterations: numberEnv("AI_MAX_AGENT_ITERATIONS", 6),
     maxToolCalls: numberEnv("AI_MAX_TOOL_CALLS", 24),
@@ -273,34 +285,8 @@ export function aiLimits(): AiLimits {
   };
 }
 
-/** Rough per-million-token prices, used only for an estimate in admin reporting. */
-const PRICE_PER_MTOK: Record<string, { input: number; output: number }> = {
-  "gemini-3.8-flash": { input: 0.3, output: 2.5 },
-  "gemini-3.6-flash": { input: 0.3, output: 2.5 },
-  "gemini-3.5-flash-lite": { input: 0.1, output: 0.4 },
-  "gemini-3.1-flash-lite": { input: 0.1, output: 0.4 },
-  "gemini-3.1-flash-image": { input: 0.3, output: 2.5 },
-  "gemini-3.5-transcribe": { input: 0.3, output: 2.5 },
-  "gpt-4.1": { input: 2, output: 8 },
-  "gpt-4.1-mini": { input: 0.4, output: 1.6 },
-  "gpt-image-1": { input: 5, output: 40 },
-  "gpt-5.4-mini": { input: 0.4, output: 1.6 },
-  "gpt-5.6-terra": { input: 0.5, output: 4 },
-  "gpt-5.6-sol": { input: 1.25, output: 10 },
-  "gpt-image-2": { input: 5, output: 40 },
-  "gpt-image-2.5-sunburst": { input: 5, output: 40 },
-  "gpt-image-2.5-flare": { input: 2, output: 16 },
-  "whisper-1": { input: 0, output: 0 },
-  "gpt-5.4-nano": { input: 0, output: 0 },
-  "gpt-5-mini": { input: 0, output: 0 },
-  "o4-mini": { input: 0, output: 0 },
-  "o3-mini": { input: 0, output: 0 },
-};
-
-/** Returns null rather than a guess when the model's price isn't known. */
-export function estimateCostUsd(model: string, inputTokens: number, outputTokens: number) {
-  const price = PRICE_PER_MTOK[model];
-  if (!price) return null;
-  const cost = (inputTokens / 1_000_000) * price.input + (outputTokens / 1_000_000) * price.output;
-  return Math.round(cost * 1_000_000) / 1_000_000;
-}
+/**
+ * Per-model price ESTIMATES live in one place (`model-prices.ts`); re-exported
+ * here for existing callers (telemetry).
+ */
+export { estimateCostUsd } from "@/lib/ai/model-prices";

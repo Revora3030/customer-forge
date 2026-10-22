@@ -56,6 +56,7 @@ describe("no third-party AI gateway remains", () => {
         !file.includes("gateway-chat.server.ts") &&
         !file.includes("ai/providers/lovable.ts") &&
         !file.includes("ai/lovable-provider.test.ts") &&
+        !file.includes("ai/lovable-first.test.ts") &&
         readFileSync(file, "utf8").includes("ai.gateway.lovable.dev"),
     );
     expect(offenders).toEqual([]);
@@ -97,6 +98,7 @@ describe("no third-party AI gateway remains", () => {
       "ai/router.server.ts",
       "ai/provider-test-environment",
       "ai/lovable-provider.test.ts",
+      "ai/lovable-first.test.ts",
       "ai/pinned-image-timeout.test.ts",
       // The Perplexity search connector is a Lovable integration reached
       // through the connector gateway; it returns research links, never model
