@@ -47,13 +47,13 @@ const APP_FILES = SOURCE_FILES.filter((file) => !file.endsWith("ai-platform.test
 
 describe("no third-party AI gateway remains", () => {
   it("references the AI gateway host only in the two sanctioned lanes", () => {
-    // gateway-chat.server.ts is the sanctioned Astra backup chat lane, and
+    // ai/catalogue.server.ts reads the model listing (no generation), and
     // ai/providers/lovable.ts is the router's keyed Lovable paid provider
     // (its unit test names the host to assert the request URL). No other
     // file may name the gateway host.
     const offenders = APP_FILES.filter(
       (file) =>
-        !file.includes("gateway-chat.server.ts") &&
+        !file.includes("ai/catalogue.server.ts") &&
         !file.includes("ai/providers/lovable.ts") &&
         !file.includes("ai/lovable-provider.test.ts") &&
         readFileSync(file, "utf8").includes("ai.gateway.lovable.dev"),
@@ -84,9 +84,8 @@ describe("no third-party AI gateway remains", () => {
       // Growth Engine posts approved Google profile updates through the
       // connector gateway; AI drafting goes through the shared router.
       "growth-engine/service.server.ts",
-      // The Astra backup chat lane reads the gateway credential to keep the
-      // builder chat alive when the direct OpenAI route is down.
-      "ai/gateway-chat.server.ts",
+      // The live model-catalogue listing (GET /v1/models, no generation).
+      "ai/catalogue.server.ts",
       // The router's keyed Lovable paid provider and its unit tests.
       "ai/config.ts",
       "ai/providers/lovable.ts",
