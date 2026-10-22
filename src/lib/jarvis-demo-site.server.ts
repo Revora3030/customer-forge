@@ -87,7 +87,8 @@ export async function provisionProspectDemo(
       city: input.city,
       state: input.state,
       service_area: input.city,
-      hours: {},
+      address: input.address ?? null,
+      hours: hoursRecord(input.hours),
     }),
   );
   await must(
@@ -339,6 +340,8 @@ export type ProspectPrefill = {
   services: string;
   description: string;
   placeId: string;
+  address?: string;
+  hours?: string[];
 };
 
 export type ProspectSourceResult = {
@@ -395,7 +398,7 @@ export async function prospectFromMaps(db: SupabaseClient, actorId: string, inpu
   await assertSearchBudget(db);
   const { searchPlacesForProspects } = await import("@/lib/integrations/google.server");
   const near = lookup.lat !== null && lookup.lng !== null ? { lat: lookup.lat, lng: lookup.lng } : null;
-  const places = await searchPlacesForProspects(lookup.query, 3, near);
+  const places = await searchPlacesForProspects(lookup.query, 3, near, ["places.editorialSummary"]);
   await db.from("audit_logs").insert({
     organization_id: null,
     actor_id: actorId,
@@ -407,20 +410,28 @@ export async function prospectFromMaps(db: SupabaseClient, actorId: string, inpu
   const { normalizePlace } = await import("@/lib/prospect-finder");
   const place = places.map(normalizePlace).find(Boolean);
   if (!place) throw new Error(`Google Maps has no open business matching "${lookup.query}". Check the link, or type the name and city.`);
+  const category = place.category ?? "";
+  const where = [place.city, place.state].filter(Boolean).join(", ");
+  const missing = [
+    ...(category ? [] : ["industry: Google lists no category. Use the trade the business name itself states (for example \"Auto Detail\" in the name means auto detailing); if the name states none, ask the owner."]),
+    ...(place.city ? [] : ["city: not in the listing; ask the owner."]),
+  ];
   return {
     prefill: {
       businessName: place.name,
-      industry: place.category ?? "",
+      industry: category,
       city: place.city ?? "",
       state: place.state ?? "",
       phone: place.phone ?? "",
       email: "",
       services: "",
-      description: "",
+      description: place.summary ?? (category && where ? `${category} serving ${where}.` : ""),
       placeId: place.placeId,
+      ...(place.address ? { address: place.address } : {}),
+      ...(place.hours?.length ? { hours: place.hours } : {}),
     },
     source: "google_maps",
-    note: `From the Google Maps listing: ${[place.name, place.address].filter(Boolean).join(", ")}.`,
+    note: `From the Google Maps listing: ${[place.name, place.address].filter(Boolean).join(", ")}.${missing.length ? ` Missing: ${missing.join(" ")}` : ""} Copy every prefill field (including placeId, address and hours) into demo.build.`,
     website: place.website,
     hasRealWebsite: place.presence === "has_website",
     mapsUri: place.mapsUri,
