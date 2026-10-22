@@ -1,4 +1,5 @@
 import { scopedPreferredModels } from "./model-preference-scope.server";
+import { reportModelAnswered } from "./model-activity-scope.server";
 /**
  * The Revora AI orchestrator: the only place in Revora that talks to an AI
  * provider.
