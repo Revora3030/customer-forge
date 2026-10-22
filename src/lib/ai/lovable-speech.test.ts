@@ -10,6 +10,11 @@ vi.mock("@/lib/ai/luna.server", () => ({
   recordUsage: (...a: unknown[]) => recordUsage(...a),
 }));
 
+let key: string | null = "k";
+vi.mock("@/lib/ai/config", () => ({ providerConfig: () => (key ? { apiKey: key } : null) }));
+const post = vi.fn();
+vi.mock("@/lib/ai/providers/lovable", () => ({ postLovableSpeech: (...a: unknown[]) => post(...a) }));
+
 import { lovableSpeechBody, synthesizeLovableSpeech, LOVABLE_SPEECH_MAX_BYTES } from "./lovable-speech.server";
 import { resolveVoiceProvider } from "@/lib/jarvis-voice.functions";
 
@@ -21,62 +26,54 @@ const wav = () => {
 };
 
 beforeEach(() => {
-  process.env["LOVABLE_API_KEY"] = "test-key";
+  key = "k";
   reserveBudget.mockResolvedValue({ allowed: true, paid: null, cap: 1 });
   settleBudget.mockResolvedValue(undefined);
   recordUsage.mockResolvedValue(undefined);
 });
 afterEach(() => {
-  vi.unstubAllGlobals();
   vi.clearAllMocks();
-  delete process.env["LOVABLE_API_KEY"];
 });
 
 describe("Lovable speech", () => {
   it("sends the Gemini TTS body to /v1/audio/speech and returns WAV", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(new Response(wav(), { status: 200 }));
-    vi.stubGlobal("fetch", fetchMock);
+    post.mockResolvedValue(new Response(wav(), { status: 200 }));
     const r = await synthesizeLovableSpeech("Hello there", { organizationId: null });
     expect(r.ok && r.contentType).toBe("audio/wav");
-    const [url, init] = fetchMock.mock.calls[0]!;
-    expect(url).toBe("https://ai.gateway.lovable.dev/v1/audio/speech");
-    expect(JSON.parse(init.body).stream_format).toBe("audio");
+    expect((post.mock.calls[0]![0] as { stream_format: string }).stream_format).toBe("audio");
     expect(settleBudget).toHaveBeenCalledWith(null, expect.any(Number), expect.any(Number), null);
   });
 
   it("refuses without calling the provider when the cap is used up", async () => {
     reserveBudget.mockResolvedValue({ allowed: false, paid: null, cap: 1 });
-    const fetchMock = vi.fn();
-    vi.stubGlobal("fetch", fetchMock);
     const r = await synthesizeLovableSpeech("Hi", { organizationId: null });
     expect(r.ok ? "" : r.code).toBe("budget_exhausted");
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(post).not.toHaveBeenCalled();
   });
 
   it("refuses when the ledger cannot be read", async () => {
     reserveBudget.mockResolvedValue(null);
-    vi.stubGlobal("fetch", vi.fn());
     const r = await synthesizeLovableSpeech("Hi", { organizationId: null });
     expect(r.ok ? "" : r.code).toBe("ledger_unavailable");
   });
 
   it("reports upstream failure and settles the reservation to zero", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("no", { status: 402 })));
+    post.mockResolvedValue((new Response("no", { status: 402 })));
     const r = await synthesizeLovableSpeech("Hi", { organizationId: null });
     expect(r.ok ? "" : r.code).toBe("provider_error");
     expect(settleBudget.mock.calls[0]![2]).toBe(0);
   });
 
   it("rejects non-audio bodies and oversize audio", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("{\"x\":1}".padEnd(200, " "), { status: 200 })));
+    post.mockResolvedValue((new Response("{\"x\":1}".padEnd(200, " "), { status: 200 })));
     expect((await synthesizeLovableSpeech("Hi", { organizationId: null })).ok).toBe(false);
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(new Uint8Array(LOVABLE_SPEECH_MAX_BYTES + 1), { status: 200 })));
+    post.mockResolvedValue((new Response(new Uint8Array(LOVABLE_SPEECH_MAX_BYTES + 1), { status: 200 })));
     const r = await synthesizeLovableSpeech("Hi", { organizationId: null });
     expect(r.ok ? "" : r.code).toBe("too_large");
   });
 
   it("is unavailable without a key", async () => {
-    delete process.env["LOVABLE_API_KEY"];
+    key = null;
     const r = await synthesizeLovableSpeech("Hi", { organizationId: null });
     expect(r.ok ? "" : r.code).toBe("not_configured");
   });

@@ -11,6 +11,8 @@
  * does not return a price; it is labelled as an estimate wherever shown.
  */
 
+import { providerConfig } from "@/lib/ai/config";
+import { postLovableSpeech } from "@/lib/ai/providers/lovable";
 import { MICROCENTS_PER_DOLLAR, recordUsage, reserveBudget, settleBudget } from "@/lib/ai/luna.server";
 
 export const LOVABLE_SPEECH_DEFAULT_MODEL = "google/gemini-3.1-flash-tts-preview";
@@ -26,7 +28,6 @@ export const LOVABLE_SPEECH_MAX_CHARS = 1_500;
 /** Conservative estimate; not a quoted price. Override with LOVABLE_TTS_USD_PER_1K_CHARS. */
 export const DEFAULT_TTS_USD_PER_1K_CHARS = 0.02;
 
-const GATEWAY = "https://ai.gateway.lovable.dev/v1/audio/speech";
 
 export type LovableSpeechResult =
   | { ok: true; audio: Uint8Array; contentType: "audio/wav"; model: string; estimatedMicrocents: number }
@@ -61,7 +62,7 @@ export function lovableSpeechBody(model: string, text: string) {
 }
 
 export function lovableSpeechConfigured(): boolean {
-  return Boolean(process.env["LOVABLE_API_KEY"]?.trim());
+  return Boolean(providerConfig()?.apiKey);
 }
 
 async function readCapped(response: Response, max: number): Promise<Uint8Array | null> {
@@ -96,7 +97,7 @@ export async function synthesizeLovableSpeech(
   text: string,
   caller: { organizationId: string | null; signal?: AbortSignal },
 ): Promise<LovableSpeechResult> {
-  const apiKey = process.env["LOVABLE_API_KEY"]?.trim();
+  const apiKey = providerConfig()?.apiKey;
   if (!apiKey) return { ok: false, code: "not_configured", message: "Lovable AI speech is not connected on the server." };
   if (text.length > LOVABLE_SPEECH_MAX_CHARS) return { ok: false, code: "too_long", message: "That reply is too long to speak in one go." };
 
@@ -114,13 +115,7 @@ export async function synthesizeLovableSpeech(
   try {
     let response: Response;
     try {
-      response = await fetch(GATEWAY, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify(lovableSpeechBody(model, text)),
-        redirect: "manual",
-        ...(caller.signal ? { signal: caller.signal } : {}),
-      });
+      response = await postLovableSpeech(lovableSpeechBody(model, text), apiKey, caller.signal);
     } catch (error) {
       const aborted = error instanceof Error && error.name === "AbortError";
       return { ok: false, code: aborted ? "aborted" : "provider_error", message: aborted ? "Voice was stopped." : "Lovable AI speech could not be reached." };
