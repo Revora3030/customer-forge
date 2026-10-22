@@ -759,6 +759,12 @@ async function run<T>(
         const freeCap = candidate.free ? FREE_ATTEMPT_CAP_MS : Number.POSITIVE_INFINITY;
         const attemptBudget = Math.max(1, Math.min(attemptTimeoutMs, freeCap, chainDeadline - Date.now()));
         const timer = setTimeout(() => controller.abort(), attemptBudget);
+        // A cancelled request (build aborted, page closed) aborts the in-flight
+        // paid call too, so the walk does not burn budget after the caller left.
+        const external = options?.signal ?? null;
+        const onExternalAbort = () => controller.abort();
+        if (external?.aborted) controller.abort();
+        external?.addEventListener("abort", onExternalAbort);
         try {
           if (candidate.free) {
             noteFreeUse(candidate.free, role);
