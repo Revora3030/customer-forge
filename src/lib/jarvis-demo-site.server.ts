@@ -1,3 +1,4 @@
+import { websiteSuggestions, type WebsiteSuggestion } from "@/lib/jarvis-demo-site";
 import { capacityWaitState, type CapacityWaitState } from "@/lib/builder/capacity-wait";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { slugify } from "@/lib/admin.server";
@@ -353,6 +354,10 @@ export type ProspectSourceResult = {
   website: string | null;
   hasRealWebsite: boolean;
   mapsUri: string | null;
+  /** Facts read from the business's own website; the operator must accept each one. */
+  suggestions?: WebsiteSuggestion[];
+  /** Outcome of reading the business's own website, when it lists one. */
+  websiteRead?: { state: "read" | "failed" | "skipped"; message: string };
 };
 
 const MAX_SHORT_LINK_HOPS = 4;
@@ -447,7 +452,21 @@ export async function prospectFromMaps(db: SupabaseClient, actorId: string, inpu
     ...(category ? [] : ["industry: Google lists no category. Use the trade the business name itself states (for example \"Auto Detail\" in the name means auto detailing); if the name states none, ask the owner."]),
     ...(place.city ? [] : ["city: not in the listing; ask the owner."]),
   ];
+  let suggestions: WebsiteSuggestion[] = [];
+  let websiteRead: ProspectSourceResult["websiteRead"] = { state: "skipped", message: "The listing has no website of its own." };
+  if (place.presence === "has_website" && place.website) {
+    try {
+      const { auditPublicWebsite } = await import("@/lib/audit/website-audit");
+      const read = await auditPublicWebsite(place.website);
+      suggestions = websiteSuggestions(read);
+      websiteRead = { state: "read", message: `Read ${read.finalUrl}. ${suggestions.length ? "Suggestions below need your approval." : "No usable description found."}` };
+    } catch (error) {
+      websiteRead = { state: "failed", message: `Couldn't read the business's website safely (${error instanceof Error ? error.message : "unknown error"}). Nothing from it was used.` };
+    }
+  }
   return {
+    suggestions,
+    websiteRead,
     prefill: {
       businessName: place.name,
       industry: category,

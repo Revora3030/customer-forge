@@ -127,3 +127,29 @@ export function readProspectDemoMarker(value: unknown): ProspectDemoMarker | nul
   if (!createdBy || !createdAt || !/^[A-Za-z0-9_-]{16,}$/.test(previewToken)) return null;
   return { kind: "prospect_demo", createdBy, createdAt, previewToken };
 }
+
+/** Where one fact on the review form came from. */
+export type FactOrigin = "listing" | "edited" | "owner" | "missing";
+
+/**
+ * Compares the current form value with what the listing supplied. A value the
+ * listing did not have is "owner" (typed by the operator), never "listing".
+ */
+export function factOrigin(listed: string | null | undefined, current: string | null | undefined): FactOrigin {
+  const a = (listed ?? "").replace(/\s+/g, " ").trim();
+  const b = (current ?? "").replace(/\s+/g, " ").trim();
+  if (!b) return "missing";
+  if (!a) return "owner";
+  return a === b ? "listing" : "edited";
+}
+
+/** A fact read from the business's own website: shown for approval, never applied automatically. */
+export type WebsiteSuggestion = { field: "description"; value: string; source: string };
+
+/** Turns a safe website read into suggestions. Empty or junk text yields none. */
+export function websiteSuggestions(read: { finalUrl: string; description: string | null; title: string | null } | null): WebsiteSuggestion[] {
+  if (!read) return [];
+  const description = (read.description ?? "").replace(/\s+/g, " ").trim();
+  if (description.length < 20 || description.length > 400) return [];
+  return [{ field: "description", value: description, source: read.finalUrl }];
+}
