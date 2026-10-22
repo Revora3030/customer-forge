@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { firstBuildCoverageProblems } from "./first-build-saved-coverage";
+import { firstBuildCoverageProblems, missingPictureProblems } from "./first-build-saved-coverage";
 
 const pages = [{ id: "home", slug: "home" }, { id: "services", slug: "services" }];
 const settings = { composition: { version: 1, root: { type: "stack", children: [{ type: "heading", text: "Real business", level: 1 }] } } };
@@ -27,5 +27,11 @@ describe("first customer website saved coverage", () => {
   it("keeps only the two existing noncomposition mechanics exempt", () => {
     expect(firstBuildCoverageProblems(pages, [sections[0], { ...sections[1], kind: "embed", settings: {} }], expected)).toEqual([]);
     expect(firstBuildCoverageProblems(pages, [sections[0], { ...sections[1], kind: "contact", settings: {} }], expected)).toContain("Section services-opening has no renderable AI design");
+  });
+  it("rejects a design that shows a picture never saved to the website", () => {
+    const pic = { composition: { version: 1, root: { type: "image", mediaRef: "temp_hero", alt: "x" } } };
+    const withPic = [{ id: "hero", page_id: "home", kind: "composition", settings: pic }];
+    expect(missingPictureProblems(withPic, new Set())).toEqual(["Section hero shows a picture that was never saved"]);
+    expect(missingPictureProblems(withPic, new Set(["temp_hero"]))).toEqual([]);
   });
 });
