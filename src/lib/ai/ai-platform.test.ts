@@ -46,24 +46,32 @@ const SOURCE_FILES = walk("src");
 const APP_FILES = SOURCE_FILES.filter((file) => !file.endsWith("ai-platform.test.ts"));
 
 describe("no third-party AI gateway remains", () => {
-  it("never references an AI gateway host anywhere in the app", () => {
-    // gateway-chat.server.ts is the sanctioned Astra backup chat lane; it is
-    // the only file allowed to name the gateway host.
+  it("references the AI gateway host only in the two sanctioned lanes", () => {
+    // gateway-chat.server.ts is the sanctioned Astra backup chat lane, and
+    // ai/providers/lovable.ts is the router's keyed Lovable paid provider
+    // (its unit test names the host to assert the request URL). No other
+    // file may name the gateway host.
     const offenders = APP_FILES.filter(
       (file) =>
         !file.includes("gateway-chat.server.ts") &&
+        !file.includes("ai/providers/lovable.ts") &&
+        !file.includes("ai/lovable-provider.test.ts") &&
+        !file.includes("ai/lovable-first.test.ts") &&
         readFileSync(file, "utf8").includes("ai.gateway.lovable.dev"),
     );
     expect(offenders).toEqual([]);
   });
 
-  it("reads LOVABLE_API_KEY only for email, Stripe and Google data, never for AI", () => {
+  it("reads LOVABLE_API_KEY only for sanctioned integrations and the keyed paid AI lane", () => {
     // Email delivery, Stripe, and the Google Search Console / Maps connectors
     // are separate Lovable integrations that never run a model. The capability
     // registry only names the credential so the admin page can show whether a
     // connection exists.
     // integrations/live-credentials.ts only lists the credential NAME so the
     // live email suite can say whether it may run. It never calls a model.
+    // ai/config.ts names the credential for the router's keyed Lovable paid
+    // provider; the adapter receives the key from that config and the
+    // test-isolation helper clears it so unit tests never call the gateway.
     const allowed = [
       "email",
       "stripe.server.ts",
@@ -80,6 +88,18 @@ describe("no third-party AI gateway remains", () => {
       // The Astra backup chat lane reads the gateway credential to keep the
       // builder chat alive when the direct OpenAI route is down.
       "ai/gateway-chat.server.ts",
+      // The router's keyed Lovable paid provider and its unit tests.
+      "ai/config.ts",
+      "ai/providers/lovable.ts",
+      // The paid-lane switch: either the Lovable or the OpenAI key enables it.
+      "ai/luna.server.ts",
+      "ai/collective.test.ts",
+      "ai/luna.test.ts",
+      "ai/router.server.ts",
+      "ai/provider-test-environment",
+      "ai/lovable-provider.test.ts",
+      "ai/lovable-first.test.ts",
+      "ai/pinned-image-timeout.test.ts",
       // The Perplexity search connector is a Lovable integration reached
       // through the connector gateway; it returns research links, never model
       // output, and its results are marked third-party research.

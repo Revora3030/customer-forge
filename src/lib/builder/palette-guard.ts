@@ -34,6 +34,11 @@ export function paletteProblems(palette: {
   const problems: string[] = [];
   const primaryChroma = chroma(palette.primary);
   const accentChroma = chroma(palette.accent ?? null);
+  const surface = toRgb(palette.secondary);
+  if (surface && Math.min(surface.r, surface.g, surface.b) >= 220 &&
+      Math.max(surface.r, surface.g, surface.b) - Math.min(surface.r, surface.g, surface.b) <= 32) {
+    problems.push("the dominant page surface is generic white/cream — author a distinctive customer brand surface instead; do not use white, ivory, bone or cream as the default page wash");
+  }
   if (isMidGrey(palette.secondary))
     problems.push("the page surface is a flat grey — choose a tinted brand surface instead");
   const surfaceChroma = chroma(palette.secondary);

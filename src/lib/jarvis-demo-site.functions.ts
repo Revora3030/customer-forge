@@ -160,14 +160,15 @@ export const getDemoStatusFn = createServerFn({ method: "POST" })
  */
 export const findProspectsFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((input: { niche?: unknown; city?: unknown; state?: unknown }) => {
+  .validator((input: { niche?: unknown; city?: unknown; state?: unknown; source?: unknown }) => {
     const clean = (value: unknown, max: number) => (typeof value === "string" ? value.replace(/\s+/g, " ").trim().slice(0, max) : "");
     const niche = clean(input?.niche, 80);
     const city = clean(input?.city, 80);
     const state = clean(input?.state, 40);
     if (niche.length < 3) throw new Error("Enter the kind of business to look for, like \"mobile detailing\".");
     if (city.length < 2) throw new Error("Enter the city to search.");
-    return { niche, city, state };
+    const source: "free" | "google" = input?.source === "google" ? "google" : "free";
+    return { niche, city, state, source };
   })
   .handler(async ({ context, data }) => {
     const db = await guardedAdmin(context);
@@ -209,4 +210,53 @@ export const prospectFromImageFn = createServerFn({ method: "POST" })
     const db = await guardedAdmin(context);
     const { prospectFromImage } = await import("./jarvis-demo-site.server");
     return prospectFromImage(db, String(context.userId), data.dataUrl);
+  });
+
+/**
+ * Super-admin only: the prospect pipeline from source records, all-time.
+ * Each stage is a distinct count; demo workspaces are never customers and an
+ * accepted email is not proof it was read.
+ */
+export const getProspectPipeline = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const db = await guardedAdmin(context);
+    const since30 = new Date(Date.now() - 30 * 86400000).toISOString();
+    const head = { count: "exact" as const, head: true };
+    const { data: demoRows, error: demoError } = await db
+      .from("website_settings")
+      .select("organization_id, generation->prospectDemo")
+      .not("generation->prospectDemo", "is", null)
+      .limit(5000);
+    if (demoError) throw new Error("Couldn't read prospect demos.");
+    const demos = (demoRows ?? []) as Array<{ organization_id: string; prospectDemo: Record<string, unknown> | null }>;
+    const ids = demos.map((d) => d.organization_id);
+    const claimedIds = demos.filter((d) => typeof d.prospectDemo?.["claimedAt"] === "string").map((d) => d.organization_id);
+    const distinct = (rows: Array<{ organization_id: string }> | null) => new Set((rows ?? []).map((r) => r.organization_id)).size;
+    const none = Promise.resolve({ data: [] as Array<Record<string, unknown>>, count: 0, error: null });
+    const [searches, jobs, sent, failed, optOuts, replies, views, paid] = await Promise.all([
+      db.from("audit_logs").select("id", head).eq("action", "jarvis.prospects.search").gte("created_at", since30),
+      ids.length ? db.from("generation_jobs").select("organization_id, status").in("organization_id", ids.slice(0, 1000)).limit(5000) : none,
+      db.from("prospect_outreach").select("organization_id").eq("status", "sent").limit(10000),
+      db.from("prospect_outreach").select("id", head).eq("status", "failed"),
+      db.from("prospect_do_not_contact").select("*", head),
+      db.from("prospect_inbound").select("organization_id").limit(10000),
+      db.from("prospect_preview_events").select("organization_id").limit(20000),
+      claimedIds.length ? db.from("organizations").select("id", head).in("id", claimedIds).not("setup_paid_at", "is", null) : none,
+    ]);
+    const jobRows = (jobs.data ?? []) as Array<{ organization_id: string; status: string }>;
+    const withStatus = (s: string) => new Set(jobRows.filter((j) => j.status === s).map((j) => j.organization_id)).size;
+    return {
+      searchesLast30Days: searches.count ?? 0,
+      demosCreated: demos.length,
+      demosBuilt: withStatus("completed"),
+      demosFailed: withStatus("failed"),
+      businessesEmailed: distinct(sent.data as Array<{ organization_id: string }> | null),
+      emailsFailed: failed.count ?? 0,
+      optedOut: optOuts.count ?? 0,
+      previewsOpened: distinct(views.data as Array<{ organization_id: string }> | null),
+      businessesReplied: distinct(replies.data as Array<{ organization_id: string }> | null),
+      demosClaimed: claimedIds.length,
+      paidCustomers: paid.count ?? 0,
+    };
   });

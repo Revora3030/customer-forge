@@ -1,3 +1,4 @@
+import { parsePickedModel } from "@/lib/ai/lovable-models";
 import type { SupabaseClient } from "@supabase/supabase-js";
 /**
  * Authenticated Site Agent endpoints.
@@ -224,6 +225,7 @@ export const planWebsiteChanges = createServerFn({ method: "POST" })
       attachments?: unknown;
       brand?: unknown;
       requestId?: string;
+      model?: string | null;
     }) => {
       const organizationId = orgIdOf(input);
       const instruction = str(input?.instruction, PLAN_INSTRUCTION_LIMIT);
@@ -248,14 +250,33 @@ export const planWebsiteChanges = createServerFn({ method: "POST" })
         attachments,
         brand: readBrand(input?.brand),
         requestId: str(input?.requestId, 80),
+        model: parsePickedModel(input?.model),
       };
     },
   )
 
 
-  .handler(async ({ data, context }) =>
-    planImpl(context.supabase as unknown as SupabaseLike, String(context.userId), data),
-  );
+  .handler(async ({ data, context }) => {
+    const supabase = context.supabase as unknown as SupabaseLike;
+    const picked = await adminPickedModel(supabase, String(context.userId), data.model);
+    const { withModelPreference } = await import("@/lib/ai/model-preference-scope.server");
+    const { withModelActivity } = await import("@/lib/ai/model-activity-scope.server");
+    const { noteStage } = await import("@/lib/builder/progress.server");
+    const runId = data.requestId || crypto.randomUUID();
+    const scoped = { ...data, requestId: runId };
+    return withModelActivity(
+      (provider, model) => noteStage(data.organizationId, runId, "model at work", `${provider} · ${model}`),
+      () => withModelPreference(picked, () => planImpl(supabase, String(context.userId), scoped)),
+    );
+  });
+
+/** Only a super admin's pick is honoured; everyone else always gets Auto. */
+async function adminPickedModel(supabase: SupabaseLike, userId: string, model: string | null): Promise<string | null> {
+  if (!model) return null;
+  const { data } = await (supabase as unknown as import("@supabase/supabase-js").SupabaseClient)
+    .from("user_roles").select("role").eq("user_id", userId).eq("role", "super_admin").maybeSingle();
+  return data ? model : null;
+}
 
 type PlanInput = {
   organizationId: string;
@@ -828,9 +849,17 @@ export const applyWebsiteChanges = createServerFn({ method: "POST" })
       operationKey: str(input?.operationKey, 80),
     }),
   )
-  .handler(async ({ data, context }) =>
-    applyImpl(context.supabase as unknown as SupabaseLike, String(context.userId), data),
-  );
+  .handler(async ({ data, context }) => {
+    const runId = data.operationKey?.split(":")[0];
+    const work = () => applyImpl(context.supabase as unknown as SupabaseLike, String(context.userId), data);
+    if (!runId) return work();
+    const { withModelActivity } = await import("@/lib/ai/model-activity-scope.server");
+    const { noteStage } = await import("@/lib/builder/progress.server");
+    return withModelActivity(
+      (provider, model) => noteStage(data.organizationId, runId, "model at work", `${provider} · ${model}`),
+      work,
+    );
+  });
 
 type ApplyInput = {
   organizationId: string;

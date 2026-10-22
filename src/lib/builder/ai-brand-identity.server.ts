@@ -51,7 +51,7 @@ const SYSTEM = [
   "Choose real typeface families by name (any family available on Google Fonts). Pair a heading face with a body face that genuinely complements it; avoid default system sans pairings unless the business identity truly calls for them.",
   "Industry pairing intelligence: luxury/hospitality should consider an elegant display serif with an understated grotesque body; trades/automotive/engineering should consider a confident geometric or industrial headline with an ultra-legible functional sans; modern tech/SaaS should consider a crisp neo-grotesque headline with a humanist body. Treat these as intelligent starting points, not presets, and adapt them to the actual business.",
   "Palette architecture: design a 60/30/10 balance — roughly 60% dominant brand surface, 30% structural grounding tone, and 10% high-intent action accent. Never wash the entire page in a uniform neon or purple-blue gradient. The three supplied colours must work as roles, not as three equally dominant colours.",
-  "Banned: generic grey, greige, silver, plain white-and-black, and any colourless palette. The surface must carry a deliberate tint (for example deep ink-navy, warm bone, forest, oxblood, espresso, midnight, sand) and the action colour must be saturated and memorable. Every colour must look chosen for THIS business, the way a top studio (Lovable, Framer, Pentagram) would brand it.",
+  "Banned AI defaults: generic grey, greige, silver, white, cream, ivory, bone or sand dominant page washes and any colourless palette. Author a distinctive brand surface for THIS customer; white may be used sparingly for readable text or local contrast, not as the site's default background. Never substitute Revora's house style. The action colour must be memorable and accessible.",
   craftBarPrompt("brand_identity"),
   "Reply with JSON only.",
 ].join(" ");
@@ -221,7 +221,9 @@ export async function authorBrandIdentity(
     ].filter(Boolean).join(", ");
   }
 
-  if (!outcome?.ok || !data || !primary || !secondary || !heading) {
+  if (!outcome?.ok || !data || !primary || !secondary || !heading ||
+      paletteProblems({ primary, secondary, accent }).length > 0 ||
+      missingComponentTokens(tokens).length > 0) {
     // No stock "safe neutral" look is substituted: the identity is the AI
     // team's, or the build stops and is retried.
     const { AiStepUnavailableError } = await import("@/lib/builder/ai-step-error");

@@ -31,6 +31,17 @@ export type AiRequest = {
   role?: ModelRole;
   /** Keep this call on verified free models only, even when paid AI is enabled. */
   freeOnly?: boolean;
+  /**
+   * Walk only the paid team (Lovable's gateway first, then Revora's own paid
+   * keys); the free pool is not tried. Used by callers that run their own
+   * free fallback afterwards, so a free answer never spends the paid chain's
+   * wall-clock budget. Spend is still reserved against the shared caps.
+   */
+  paidOnly?: boolean;
+  /** Paid models to try first, in order (per-job / per-review-area choice). */
+  preferModels?: string[];
+  /** Paid models to skip unless nothing else is left (e.g. the section's author). */
+  avoidModels?: string[];
   /** Force JSON output. */
   json?: boolean;
   maxOutputTokens?: number;
@@ -41,6 +52,12 @@ export type AiRequest = {
    * slow model fails fast and the next candidate is tried immediately.
    */
   timeoutMs?: number;
+  /**
+   * Per-attempt timeout for PAID candidates (the Lovable gateway). Never
+   * raises the router's paid ceiling (`AI_PAID_REQUEST_TIMEOUT_MS`); omitted,
+   * a paid attempt gets that ceiling. `timeoutMs` applies to free models only.
+   */
+  paidTimeoutMs?: number;
   /**
    * Total wall-clock budget for the whole failover chain of this one call.
    * Never raises the router's configured chain deadline.

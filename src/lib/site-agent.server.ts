@@ -466,6 +466,10 @@ export function skipUnverifiedSteps(plan: Record<string, unknown>, feedback: Pla
   const reasonNote = (reason: PlanFeedback["reason"]) =>
     reason === "needs_composition"
       ? "Skipped a new section the design team did not lay out (needs_composition)."
+      : reason === "invalid_composition"
+        ? "Skipped a layout the renderer could not read (invalid_composition)."
+        : reason === "incomplete_site"
+          ? "The whole-site redesign did not cover every section (incomplete_site)."
       : "Skipped an image item with no real picture (image_without_media).";
   return {
     ...plan,

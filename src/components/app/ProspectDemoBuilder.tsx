@@ -155,7 +155,7 @@ export function ProspectDemoBuilder({ onBuildStarted, onPreview }: BuilderProps 
         </p>
         <section aria-label="Find businesses without a website" className="space-y-2 rounded-lg border border-border p-3">
           <h3 className="flex items-center gap-1.5 text-sm font-semibold"><Search className="size-4" aria-hidden />Find businesses without a website</h3>
-          <p className="text-xs text-muted-foreground">Searches Google Places and keeps only businesses with no website or just a social/directory page. Up to 20 results per search, 40 searches a day.</p>
+          <p className="text-xs text-muted-foreground">Free by default: searches OpenStreetMap only and never calls paid Google Places. Keeps businesses with no website, just a social/directory page, or a website with checked problems. A missing website in the map data is a lead, not proof; check before saying so. Map data © OpenStreetMap contributors.</p>
           <form
             className="grid gap-2 sm:grid-cols-[1fr_1fr_5rem_auto]"
             onSubmit={(event) => {
@@ -171,7 +171,7 @@ export function ProspectDemoBuilder({ onBuildStarted, onPreview }: BuilderProps 
           {found ? (
             <div className="space-y-2">
               <p className="text-xs text-muted-foreground">
-                {found.prospects.length} of {found.searched} results for "{found.query}" have no real website.
+                {found.prospects.length} of {found.searched} results for "{found.query}" are worth a look (no website listed, or a website with checked problems).
               </p>
               {found.prospects.map((prospect) => {
                 const state = builtIds[prospect.placeId];

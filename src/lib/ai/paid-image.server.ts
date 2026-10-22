@@ -64,7 +64,7 @@ export type PaidImageResult =
       ok: true;
       base64: string;
       mimeType: string;
-      provider: "openai";
+      provider: "openai" | "lovable";
       model: string;
       tier: ImageTier;
       costMicrocents: number;
@@ -207,7 +207,7 @@ export async function paidImageCapability(): Promise<PaidImageCapability> {
   if (!status.allowed)
     return { available: false, message: status.message, tiers: listed(false, "switched off") };
 
-  const apiKey = env("OPENAI_API_KEY");
+  const apiKey = providerConfig("lovable")?.apiKey ?? env("OPENAI_API_KEY");
   if (!apiKey)
     return {
       available: false,
@@ -258,7 +258,7 @@ export async function generatePaidImage(
   if (!paidImageAllowed())
     return { ok: false, reason: "disabled", message: paidImageStatus().message };
 
-  const apiKey = env("OPENAI_API_KEY");
+  const apiKey = providerConfig("lovable")?.apiKey ?? env("OPENAI_API_KEY");
   if (!apiKey)
     return {
       ok: false,
@@ -362,8 +362,8 @@ export async function generatePaidImage(
       ok: true,
       base64: result.base64,
       mimeType: result.mimeType,
-      provider: "openai",
-      model,
+      provider: result.provider === "lovable" ? "lovable" : "openai",
+      model: result.model,
       tier: plan.tier,
       costMicrocents: estimate,
     };

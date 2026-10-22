@@ -1,5 +1,47 @@
 # Roadmap — Five-phase blocker elimination
 
+## Test build resume fixes (2026-10-22)
+- [x] Resume no longer redoes finished work: busy-AI pauses keep the build's pictures; section wording is saved and reapplied; section designs therefore stay valid.
+- [x] Busy (rate-limited) or repeatedly slow free services rest briefly for every concurrent step instead of being re-called.
+- [ ] Resume test build "Revora Internal Test Plumbing" with fixed engine, then verify every page, image, form and final quality check (no publish, no paid calls).
+- [ ] Published worker still runs the old engine until the owner publishes.
+
+## Raise rating gaps (2026-10-22 plan)
+- [ ] Phase 1: one free-model test-workspace build + every-page report — waiting on owner approval to run.
+- [x] Phase 2a: live Jarvis step events shown while working (tested).
+- [ ] Phase 2: Stop/Resume, expiring single-use approvals, unified approvals list.
+- [x] Phase 3 (partial): security scan clean; linter shows 28 server-only tables locked by design (no browser policies) and 1 extension-in-public warning.
+- [ ] Phase 3: cross-workspace isolation test suite.
+- [ ] Phase 4: honest status page (Instagram blocked on Meta credentials).
+- [ ] Phase 5: 320/390/768/1280 sweep.
+
+## Reject generic white/cream customer defaults (2026-10-22)
+- [x] Removed cream/bone/sand suggestions from AI identity guidance; reject dominant near-white/cream generated surfaces even with colorful accents.
+- [x] Final identity acceptance rechecks palette and required design tokens after repair attempts; invalid final answers cannot slip through.
+- [x] 3,493 tests passed, 6 gated live tests skipped; changed-file lint clean and automatic build OK. Existing customer sites unchanged.
+- [ ] Legacy saved palettes/checkpoints and missing-palette renderer fallback still need provenance-aware cleanup; they are not silently recolored by this guard. Live AI redesign unrun.
+
+## Complete customer first websites (2026-10-22)
+- [x] Traced signup → onboarding facts/approval → existing queue → AI architecture, sections and chrome; no duplicate pipeline.
+- [x] First builds now read back every saved page/section and renderable AI composition before ready/completed; all composition material reads paginate and fail closed.
+- [x] Full regression suite: 3,491 passed, 6 live tests skipped; changed-code lint and automatic build checked.
+- [ ] Live new-customer signup-to-generated-site verification unrun under standing no-live-build/no-paid-spend restriction. Provider capacity is not guaranteed; existing pause/resume and publication gates retained.
+- [ ] Investigation follow-ups: accepted-contract identity/multiplicity comparison, unmarked partial-site handling, service-card architecture coverage and zero-row composition writes still require targeted hardening; no complete-production claim.
+
+## Whole customer-site repair (2026-10-22)
+- [x] Inspect all eight Elite Mobile Detail pages and saved requests; no active generation job or duplicate rebuild started.
+- [x] Reject model-declared full redesigns missing retained sections; repair invalid composition properties; cascade safety rejections through nested references. Existing every-page visual grader retained.
+- [x] 68 focused regressions and changed-file lint pass; harness build OK; all eight authenticated pages rendered at phone/desktop without script errors or horizontal overflow. Evidence: docs/elite-mobile-detail-whole-site-audit.md.
+- [x] Complete offline suite: 429 files passed, 3,485 tests passed, 6 credential-gated live tests skipped.
+- [ ] Actual free-only redesign and saved-output/full interaction verification remain unrun; existing draft still has plain pages. No paid calls, publishing or outreach performed.
+
+## Gap audit + Jarvis conversations (2026-10-21)
+- [x] Evidence matrix and prioritized backlog in docs/GAP_AUDIT_2026-10-21.md.
+- [x] Jarvis conversations: create/list/search/rename/archive, owner-only, foreign ids rejected.
+- [x] Setup price confirmed $350 everywhere (2026-10-22); locked by offer-price-lock test.
+- [ ] Meta/Instagram connection — blocked on META_APP_ID/META_APP_SECRET and Meta app review.
+- [ ] Backlog items 2–10 in the audit file.
+
 ## No-key Jarvis website tools (2026-10-21)
 - [x] Added four bounded direct HTML, accessibility/structured-data, security-header and link-inventory diagnostics through the existing authenticated executor, chat catalogue and page-check panel; no keys or paid providers required.
 - [x] 50 focused tests pass, changed-file lint clean, harness build OK. Real published homepage read (84,491 bytes, HTTP 200): metadata, links and security-header presence checks clean; static accessibility flags one unlabeled control and one heading skip. No repairs, publishing or outreach performed.

@@ -1,3 +1,4 @@
+import { LOVABLE_CONVERSATION_MODELS } from "./lovable-models";
 /**
  * The one place Revora decides which AI provider and model runs a task.
  *
@@ -14,9 +15,10 @@ import { notConfigured } from "@/lib/ai/errors";
 
 /**
  * Every provider Revora can address. `cloudflare` and `openrouter` exist only
- * as free providers (see `src/lib/ai/free.ts`); the paid chain below can still
- * only ever contain `google` or `openai`, and only when an operator has
- * explicitly opted out of free-only mode.
+ * as free providers (see `src/lib/ai/free.ts`); the paid chain below can only
+ * ever contain `google`, `openai` or `lovable` (the owner's Lovable AI
+ * Gateway workspace), and only when an operator has explicitly opted out of
+ * free-only mode.
  */
 export type ProviderName =
   | "google"
@@ -43,10 +45,11 @@ export type ProviderName =
   | "selfhosted"
   | "opencode"
   | "modelscope"
-  | "github";
+  | "github"
+  | "lovable";
 
-/** Providers that bill Revora per call. */
-export type PaidProviderName = "google" | "openai";
+/** Providers that bill Revora (or the owner's Lovable workspace) per call. */
+export type PaidProviderName = "google" | "openai" | "lovable";
 
 /** The kinds of work Revora routes; each maps to a model per provider. */
 /**
@@ -105,11 +108,34 @@ const DEFAULT_MODELS: Record<PaidProviderName, Record<ModelRole, string>> = {
     transcription: "gpt-transcribe",
     conversation: "gpt-6-astra",
   },
+  lovable: {
+    // Verified against the live Lovable AI Gateway catalogue on 2026-10-22:
+    // every id below exists, is not deprecated, and answers either on
+    // chat-completions with zero data retention or (the anthropic/* ids) on
+    // the native /v1/messages endpoint, which the lovable adapter speaks.
+    // A role may name a comma-separated roster; the router fails over across
+    // every id in order, so the whole verified catalogue is reachable.
+    // Per-job rosters (owner decision 2026-10-22: best model per job).
+    // Wording and review: Claude Sonnet 5 leads, then GPT-6.1 Sol.
+    primary: "anthropic/claude-sonnet-5,openai/gpt-6.1-sol,google/gemini-4-argon,openai/gpt-6-sol,google/gemini-3.8-flash,openai/gpt-5.5",
+    // Identity, design and layout: Claude Opus 5.5, GPT-6.1 Sol, Claude Fable 5.1.
+    design: "anthropic/claude-opus-5-5,openai/gpt-6.1-sol,anthropic/claude-fable-5-1,openai/gpt-6-sol,google/gemini-4-argon,google/gemini-3.1-pro-preview",
+    fast: "google/gemini-3.1-flash-lite,openai/gpt-5.4-mini,anthropic/claude-haiku-4-5,google/gemini-3-flash-preview",
+    // Picture and screenshot review: Gemini 3.8 Flash reads images best.
+    vision: "google/gemini-3.8-flash,google/gemini-4-argon,anthropic/claude-sonnet-5,openai/gpt-6.1-sol",
+    // Plan checking and layout repair: GPT-6.1 Sol, then Gemini 4 Argon.
+    coding: "openai/gpt-6.1-sol,google/gemini-4-argon,anthropic/claude-opus-5-5,anthropic/claude-sonnet-5,google/gemini-3.8-flash",
+    image: "openai/gpt-image-2.5-sunburst",
+    transcription: "openai/gpt-transcribe",
+    // Jarvis: strongest verified models first, then faster ones as failover.
+    conversation: LOVABLE_CONVERSATION_MODELS.join(","),
+  },
 };
 
 const KEY_ENV: Record<PaidProviderName, string> = {
   google: "GOOGLE_AI_API_KEY",
   openai: "OPENAI_API_KEY",
+  lovable: "LOVABLE_API_KEY",
 };
 
 const ROLES: ModelRole[] = [
@@ -156,20 +182,26 @@ export function providerConfig(provider: PaidProviderName): ProviderConfig | nul
 }
 
 function readProviderName(value: string | null): PaidProviderName | null {
-  return value === "google" || value === "openai" ? value : null;
+  return value === "google" || value === "openai" || value === "lovable" ? value : null;
 }
 
 /**
  * Provider order for a task: the configured default first, then the configured
  * secondary, then any other provider that happens to hold a key. Lovable's AI
- * Gateway is not in this list and can never be reached from here.
+ * Gateway is a keyed paid lane like the other two — reachable only when
+ * LOVABLE_API_KEY is present and the request is not in a free-only scope —
+ * and leads the default order (owner decision 2026-10-22) so the full
+ * GPT/Gemini/Claude catalogue runs the builder and Jarvis first, with
+ * Revora's own keys as failover.
  */
 export function providerChain(): ProviderConfig[] {
+  // Lovable's gateway always leads the paid team when configured (owner
+  // decision 2026-10-22); the operator's default/fallback provider settings
+  // only order Revora's own direct keys behind it.
   const preferred = [
+    "lovable" as PaidProviderName,
     readProviderName(env("AI_DEFAULT_PROVIDER")),
     readProviderName(env("AI_FALLBACK_PROVIDER")),
-    // OpenAI is the verified-active lane; Google is tried after it so a stale
-    // Google key never delays a call with a guaranteed first-provider failure.
     "openai" as PaidProviderName,
     "google" as PaidProviderName,
   ].filter((name): name is PaidProviderName => name !== null);
@@ -210,6 +242,12 @@ export type AiLimits = {
   maxAttachmentBytes: number;
   /** Wall-clock ceiling for one provider call. */
   requestTimeoutMs: number;
+  /**
+   * Wall-clock ceiling for one PAID-lane attempt (the Lovable gateway's large
+   * models writing a whole section design or reading a screenshot). Kept
+   * below the build worker's 300s lease so the heartbeat always outlives it.
+   */
+  paidRequestTimeoutMs: number;
   /** Attempts per provider for retryable failures (1 = no retry). */
   maxAttemptsPerProvider: number;
   /** Agent loop ceilings. */
@@ -219,6 +257,11 @@ export type AiLimits = {
   /** Concurrent model calls per workspace. */
   maxConcurrentPerWorkspace: number;
 };
+
+/** Default paid-lane attempt ceiling: large models need minutes for long answers. */
+export const PAID_REQUEST_TIMEOUT_MS_DEFAULT = 180_000;
+/** Hard ceiling, under the site-engine lease (LEASE_SECONDS = 300). */
+export const PAID_REQUEST_TIMEOUT_MS_MAX = 240_000;
 
 export function aiLimits(): AiLimits {
   return {
@@ -231,6 +274,7 @@ export function aiLimits(): AiLimits {
     maxOutputTokens: numberEnv("AI_MAX_OUTPUT_TOKENS", 32000),
     maxAttachmentBytes: numberEnv("AI_MAX_ATTACHMENT_BYTES", 24 * 1024 * 1024),
     requestTimeoutMs: numberEnv("AI_REQUEST_TIMEOUT_MS", 90_000),
+    paidRequestTimeoutMs: Math.min(numberEnv("AI_PAID_REQUEST_TIMEOUT_MS", PAID_REQUEST_TIMEOUT_MS_DEFAULT), PAID_REQUEST_TIMEOUT_MS_MAX),
     maxAttemptsPerProvider: numberEnv("AI_MAX_ATTEMPTS_PER_PROVIDER", 2),
     maxAgentIterations: numberEnv("AI_MAX_AGENT_ITERATIONS", 6),
     maxToolCalls: numberEnv("AI_MAX_TOOL_CALLS", 24),
@@ -241,34 +285,8 @@ export function aiLimits(): AiLimits {
   };
 }
 
-/** Rough per-million-token prices, used only for an estimate in admin reporting. */
-const PRICE_PER_MTOK: Record<string, { input: number; output: number }> = {
-  "gemini-3.8-flash": { input: 0.3, output: 2.5 },
-  "gemini-3.6-flash": { input: 0.3, output: 2.5 },
-  "gemini-3.5-flash-lite": { input: 0.1, output: 0.4 },
-  "gemini-3.1-flash-lite": { input: 0.1, output: 0.4 },
-  "gemini-3.1-flash-image": { input: 0.3, output: 2.5 },
-  "gemini-3.5-transcribe": { input: 0.3, output: 2.5 },
-  "gpt-4.1": { input: 2, output: 8 },
-  "gpt-4.1-mini": { input: 0.4, output: 1.6 },
-  "gpt-image-1": { input: 5, output: 40 },
-  "gpt-5.4-mini": { input: 0.4, output: 1.6 },
-  "gpt-5.6-terra": { input: 0.5, output: 4 },
-  "gpt-5.6-sol": { input: 1.25, output: 10 },
-  "gpt-image-2": { input: 5, output: 40 },
-  "gpt-image-2.5-sunburst": { input: 5, output: 40 },
-  "gpt-image-2.5-flare": { input: 2, output: 16 },
-  "whisper-1": { input: 0, output: 0 },
-  "gpt-5.4-nano": { input: 0, output: 0 },
-  "gpt-5-mini": { input: 0, output: 0 },
-  "o4-mini": { input: 0, output: 0 },
-  "o3-mini": { input: 0, output: 0 },
-};
-
-/** Returns null rather than a guess when the model's price isn't known. */
-export function estimateCostUsd(model: string, inputTokens: number, outputTokens: number) {
-  const price = PRICE_PER_MTOK[model];
-  if (!price) return null;
-  const cost = (inputTokens / 1_000_000) * price.input + (outputTokens / 1_000_000) * price.output;
-  return Math.round(cost * 1_000_000) / 1_000_000;
-}
+/**
+ * Per-model price ESTIMATES live in one place (`model-prices.ts`); re-exported
+ * here for existing callers (telemetry).
+ */
+export { estimateCostUsd } from "@/lib/ai/model-prices";

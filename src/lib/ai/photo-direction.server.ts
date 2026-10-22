@@ -145,10 +145,22 @@ export type PhotoVerdict = {
   reviewFailed: boolean;
 };
 
-/** Per-attempt ceiling for one visual review call (fail fast, fail over). */
+/** Per-attempt ceiling for one FREE vision model (fail fast, fail over). */
 export const VISUAL_REVIEW_TIMEOUT_MS = 9_000;
-/** Whole-chain budget for one visual review, across every vision model. */
-export const VISUAL_REVIEW_CHAIN_MS = 25_000;
+/**
+ * Per-attempt ceiling for one PAID (Lovable gateway) vision model. Large
+ * models reading a full-size generated picture took longer than the free
+ * lane's 9s: Gemini 3.8 Flash answered 6/19, Claude Sonnet 5 1/7 and GPT-6.1
+ * Sol 0/3 inside it. 60s covers a reasoning model reading a 1.5MP image.
+ */
+export const VISUAL_REVIEW_PAID_TIMEOUT_MS = 60_000;
+/**
+ * Whole-chain budget for one visual review, across every vision model: room
+ * for one slow paid model plus the next, then the free pool. Two reviews of
+ * one picture (VISUAL_REVIEW_RETRIES) stay inside the worker's 300s lease,
+ * which the heartbeat renews during the call anyway.
+ */
+export const VISUAL_REVIEW_CHAIN_MS = 100_000;
 /** Review-only retries after an infrastructure failure. Never a reshoot. */
 export const VISUAL_REVIEW_RETRIES = 1;
 
@@ -321,9 +333,11 @@ async function reviewOnce(
         role: "vision",
         json: true,
         maxOutputTokens: 700,
-        // Fail fast and fail over: a slow vision model must not hold a build
-        // worker for a minute. The router clamps these to its own ceilings.
+        // Free vision models fail fast and fail over; the paid Lovable lane
+        // gets a realistic budget for a large model reading the picture. The
+        // router clamps both to its own ceilings.
         timeoutMs: VISUAL_REVIEW_TIMEOUT_MS,
+        paidTimeoutMs: VISUAL_REVIEW_PAID_TIMEOUT_MS,
         chainDeadlineMs: VISUAL_REVIEW_CHAIN_MS,
         messages: [
           { role: "system", content: REVIEWER_SYSTEM },

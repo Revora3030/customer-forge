@@ -10,7 +10,14 @@ import {
 } from "@/lib/ai/hall-of-fame";
 
 const mocks = vi.hoisted(() => ({ registry: vi.fn(), pinned: vi.fn() }));
-vi.mock("@/lib/ai/luna.server", () => ({ callCollective: vi.fn() }));
+vi.mock("@/lib/ai/luna.server", () => ({
+  callCollective: vi.fn(),
+  estimateMicrocents: vi.fn(() => 1),
+  costMicrocents: vi.fn(() => 1),
+  reserveBudget: vi.fn(),
+  settleBudget: vi.fn(),
+  recordUsage: vi.fn(),
+}));
 vi.mock("@/lib/ai/registry.server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/ai/registry.server")>()),
   buildFreeModelRegistry: mocks.registry,
@@ -324,5 +331,40 @@ describe("Hall of Fame squad walk", () => {
     await callHallOfFame(request);
     const providers = mocks.pinned.mock.calls.map((call) => (call[1] as { provider: string }).provider);
     expect(providers).toEqual(["groq"]);
+  });
+});
+
+describe("shared cooldown across concurrent walks", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    vi.stubEnv("AI_FREE_ONLY", "true");
+    resetHallOfFameRuns();
+  });
+  afterEach(() => vi.unstubAllEnvs());
+  const request = { purpose: "creative_direction" as const, system: "s", user: "u" };
+
+  it("a provider that rate-limited one walk is not called by the next walk", async () => {
+    mocks.registry.mockResolvedValue([registryEntry("cerebras", "c-1", 95), registryEntry("mistral", "m-1", 90)]);
+    mocks.pinned.mockImplementation(async (_caller: unknown, call: { provider: string }) => {
+      if (call.provider === "cerebras") throw Object.assign(new Error("429"), { category: "rate_limited" });
+      return { text: "Mistral answers", data: null, latencyMs: 1 };
+    });
+    await callHallOfFame(request);
+    await callHallOfFame(request);
+    const cerebrasCalls = mocks.pinned.mock.calls.filter(([, call]) => (call as { provider: string }).provider === "cerebras");
+    expect(cerebrasCalls).toHaveLength(1);
+  });
+
+  it("two timeouts in a row rest the provider for later walks; one timeout does not", async () => {
+    mocks.registry.mockResolvedValue([registryEntry("nvidia", "n-1", 95), registryEntry("mistral", "m-1", 90)]);
+    mocks.pinned.mockImplementation(async (_caller: unknown, call: { provider: string }) => {
+      if (call.provider === "nvidia") throw Object.assign(new Error("slow"), { category: "timeout" });
+      return { text: "ok", data: null, latencyMs: 1 };
+    });
+    await callHallOfFame(request);
+    await callHallOfFame(request);
+    await callHallOfFame(request);
+    const nvidiaCalls = mocks.pinned.mock.calls.filter(([, call]) => (call as { provider: string }).provider === "nvidia");
+    expect(nvidiaCalls).toHaveLength(2);
   });
 });

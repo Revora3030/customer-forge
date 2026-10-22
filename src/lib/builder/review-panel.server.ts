@@ -5,7 +5,7 @@
  * own area; Sol decides what to change. A reviewer that fails is skipped, so
  * the panel can never block or degrade a build.
  */
-import { callBestThinker, callHallOfFame } from "@/lib/ai/hall-of-fame.server";
+import { callBestThinker } from "@/lib/ai/hall-of-fame.server";
 import type { CollectivePurpose } from "@/lib/ai/collective";
 import { NO_EVIDENCE, evidenceFor, gatherReviewEvidence, type ReviewEvidence } from "@/lib/builder/review-evidence.server";
 import { DISTINCTIVENESS_REVIEW_BRIEF, VISUAL_CRAFT_REVIEW_BRIEF } from "@/lib/builder/world-class-craft";
@@ -55,6 +55,29 @@ const FULL_PANEL: Reviewer[] = [
 
 const LIGHT_AREAS: ReviewArea[] = ["truthfulness", "seo", "accessibility", "mobile", "completeness", "funnel", "consistency", "visual_craft"];
 
+/**
+ * Best Lovable model per review area (owner decision 2026-10-22), so each
+ * reviewer gives an independent opinion instead of one model repeated. The
+ * router still fails over to the rest of the paid team, then the free squad.
+ */
+export const REVIEW_AREA_MODELS: Partial<Record<ReviewArea, string[]>> = {
+  truthfulness: ["anthropic/claude-sonnet-5"],
+  seo: ["google/gemini-4-argon"],
+  conversion: ["openai/gpt-6-sol"],
+  deep_conversion: ["openai/gpt-6-sol"],
+  accessibility: ["anthropic/claude-haiku-4-5"],
+  mobile: ["google/gemini-3.8-flash"],
+  completeness: ["openai/gpt-6.1-sol"],
+  senior: ["anthropic/claude-opus-5-5"],
+  whole_site: ["anthropic/claude-fable-5-1"],
+  markup: ["openai/gpt-6.1-sol"],
+  funnel: ["google/gemini-3.1-pro-preview"],
+  consistency: ["openai/gpt-5.5"],
+  industry_fit: ["google/gemini-4-argon"],
+  visual_craft: ["google/gemini-3.8-flash"],
+  distinctiveness: ["anthropic/claude-opus-5-5"],
+};
+
 export function panelFor(mode: "full" | "light"): Reviewer[] {
   return mode === "full" ? FULL_PANEL : FULL_PANEL.filter((r) => LIGHT_AREAS.includes(r.area));
 }
@@ -75,80 +98,16 @@ export function parseNote(text: string, area: ReviewArea, model: string | null):
   }
 }
 
-/**
- * Areas where an independent free model gives a genuinely different opinion.
- * Truthfulness stays with Terra (paid-first) because it guards against
- * invented facts; the other areas go to the Hall-of-Fame free squad so the
- * panel draws on several providers instead of one model repeated six times.
- * Completeness is here too: spotting a thin page or a dead-end link is
- * checkable work, so it is an extra pair of eyes at no extra spend, and the
- * paid senior reviewer still judges the result.
- * If the free squad cannot answer, that reviewer falls back to Terra/Sol.
- */
-const DIVERSE_AREAS = new Set<ReviewArea>([
-  "conversion",
-  "seo",
-  "accessibility",
-  "mobile",
-  "completeness",
-]);
 
 /**
- * A thinker that tries the free squad first for the given areas and falls back
- * to the paid team whenever the free squad cannot answer. `"all"` sends every
- * area to the free squad first — used for the pre-design advisory pass, which
- * is groundwork rather than creative authorship.
+ * Reviewers and advisers run on the paid Lovable team first (owner decision
+ * 2026-10-22: site building uses the top models); `callBestThinker` hands the
+ * step to the free Hall-of-Fame squad only when paid capacity is unavailable.
  */
-function freeFirstThinker(areas: Set<ReviewArea> | "all"): Thinker {
-  return async (request) => {
-    const purpose = request.purpose;
-    const area = (request as { area?: ReviewArea }).area;
-    const tryFree = areas === "all" ? true : Boolean(area && areas.has(area));
-    if (tryFree) {
-      const started = Date.now();
-      const free = await callHallOfFame({
-        purpose,
-        system: request.system,
-        user: request.user,
-        json: true,
-        squadSize: 2,
-        ...(request.maxOutputTokens === undefined ? {} : { maxOutputTokens: request.maxOutputTokens }),
-        ...(request.organizationId === undefined ? {} : { organizationId: request.organizationId }),
-      });
-      if (free.ok) {
-        const { recordTeamStep } = await import("@/lib/ai/telemetry.server");
-        await recordTeamStep({
-          organizationId: request.organizationId ?? null,
-          stage: request.stage ?? `review.${area ?? "panel"}`,
-          purpose,
-          lane: "free",
-          model: `${free.provider} · ${free.model}`,
-          ok: true,
-          latencyMs: Date.now() - started,
-          reason: `independent ${area ?? "panel"} reviewer from the free squad`,
-          contribution: "critique notes",
-          costMicrocents: 0,
-        });
-        return {
-          ok: true, lane: "free", tier: null, wanted: "terra", downgraded: false,
-          text: free.text, model: `${free.provider} · ${free.model}`, costMicrocents: 0,
-          attempts: free.attempts, handoverReason: null,
-        } satisfies Awaited<ReturnType<Thinker>>;
-      }
-    }
-    return callBestThinker(request);
-  };
-}
+export const diverseThinker: Thinker = (request) => callBestThinker(request);
 
-export const diverseThinker: Thinker = freeFirstThinker(DIVERSE_AREAS);
-
-/**
- * The pre-design pass is groundwork: every adviser tries the free squad first,
- * so the paid designers spend their effort on design and writing instead of
- * research. Anything the free squad cannot answer still falls back to the paid
- * team, so no advice is lost.
- */
-export const advisoryThinker: Thinker = freeFirstThinker("all");
+/** The pre-design advisory pass follows the same paid-first rule. */
+export const advisoryThinker: Thinker = (request) => callBestThinker(request);
 
 /**
  * Advisers speak BEFORE Sol designs: they read only the supplied material and
@@ -191,10 +150,11 @@ export async function runReviewPanel(
     (input.mode === "full" && input.industry?.trim()
       ? await gatherReviewEvidence({ industry: input.industry }).catch(() => NO_EVIDENCE)
       : NO_EVIDENCE);
-  const settled = await Promise.allSettled(
-    reviewers.map((reviewer) =>
+  const ask = (reviewer: Reviewer, avoid: string[] = []) =>
       thinker({
         area: reviewer.area,
+        ...(REVIEW_AREA_MODELS[reviewer.area] ? { preferModels: REVIEW_AREA_MODELS[reviewer.area] } : {}),
+        ...(avoid.length ? { avoidModels: avoid } : {}),
         stage: `${input.stage ?? "review"}.${reviewer.area}`,
         json: true,
         purpose: reviewer.purpose,
@@ -209,8 +169,17 @@ export async function runReviewPanel(
         ].join(" "),
         user:
           [input.material, ...evidenceFor(reviewer.area, evidence)].join("\n\n"),
-      }).then((call) => ({ reviewer, call })),
-    ),
+      }).then((call) => ({ reviewer, call }));
+  const settled = await Promise.allSettled(reviewers.map((reviewer) => ask(reviewer)));
+  // One retry per dropped reviewer, steering away from its first-choice model;
+  // a reviewer still failing is reported in `failed`, never fails the panel.
+  await Promise.all(
+    settled.map(async (entry, index) => {
+      if (entry.status === "fulfilled" && entry.value.call.ok) return;
+      const reviewer = reviewers[index]!;
+      const retry = await Promise.allSettled([ask(reviewer, REVIEW_AREA_MODELS[reviewer.area] ?? [])]);
+      settled[index] = retry[0]!;
+    }),
   );
   const notes: ReviewNote[] = [];
   const models: string[] = [];

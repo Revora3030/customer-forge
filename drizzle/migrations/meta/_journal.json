@@ -113,6 +113,20 @@
       "when": 1792622772853,
       "tag": "0015_ai_usage_error_detail",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1792625889252,
+      "tag": "0016_jarvis_run_events",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1792626528255,
+      "tag": "0017_jarvis_conversations",
+      "breakpoints": true
     }
   ]
 }

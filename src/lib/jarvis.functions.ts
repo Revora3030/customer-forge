@@ -1,3 +1,5 @@
+import { parsePickedModel } from "@/lib/ai/lovable-models";
+import { conversationTitle, parseConversationId } from "./jarvis-conversations";
 import { createServerFn } from "@tanstack/react-start";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -43,15 +45,16 @@ export function parseHistoryCursor(input: { before?: unknown } | undefined): { b
 
 export const getJarvisHistory = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .validator((input: { before?: string } | undefined) => parseHistoryCursor(input))
+  .validator((input: { before?: string; conversationId?: string | null } | undefined) => ({ ...parseHistoryCursor(input), conversationId: parseConversationId(input?.conversationId) }))
   .handler(async ({ context, data: cursor }) => {
     const db = await guardedAdmin(context);
-    let query = db.from("jarvis_messages").select("id,role,content,created_at")
+    let query = db.from("jarvis_messages").select("id,role,content,created_at,run_id")
       .eq("user_id", String(context.userId));
+    if (cursor.conversationId) query = query.eq("conversation_id", cursor.conversationId);
     if (cursor.before) query = query.lt("created_at", cursor.before);
     const { data, error } = await query.order("created_at", { ascending: false }).limit(JARVIS_HISTORY_PAGE);
     if (error) throw new Error("Couldn't load your Jarvis chat.");
-    return ((data ?? []) as (Turn & { id: string; created_at: string })[]).reverse();
+    return ((data ?? []) as (Turn & { id: string; created_at: string; run_id: string | null })[]).reverse();
   });
 
 export const clearJarvisHistory = createServerFn({ method: "POST" })
@@ -60,6 +63,8 @@ export const clearJarvisHistory = createServerFn({ method: "POST" })
     const db = await guardedAdmin(context);
     const { error } = await db.from("jarvis_messages").delete().eq("user_id", String(context.userId));
     if (error) throw new Error("Couldn't clear your Jarvis chat.");
+    // Emptied conversations go to Archived so the list doesn't fill with blanks.
+    await db.from("jarvis_conversations").update({ archived: true }).eq("user_id", String(context.userId)).eq("archived", false);
     return { ok: true };
   });
 
@@ -165,9 +170,15 @@ function splitFollowups(raw: string): { body: string; followups: string[] } {
   return { body, followups };
 }
 
-export async function runJarvis(db: SupabaseClient, userId: string, mode: Mode, page: string | null = null) {
-  const history = await db.from("jarvis_messages").select("role,content")
-    .eq("user_id", userId).order("created_at", { ascending: false }).limit(30);
+export async function runJarvis(db: SupabaseClient, userId: string, mode: Mode, page: string | null = null, conversationId: string | null = null, liveRunId: string | null = null, pickedModel: string | null = null) {
+  // Without an explicit conversation, continue the one the latest message joined.
+  if (!conversationId) {
+    const latest = await db.from("jarvis_messages").select("conversation_id").eq("user_id", userId).order("created_at", { ascending: false }).limit(1).maybeSingle();
+    conversationId = (latest.data?.conversation_id as string | null | undefined) ?? null;
+  }
+  let historyQuery = db.from("jarvis_messages").select("role,content").eq("user_id", userId);
+  if (conversationId) historyQuery = historyQuery.eq("conversation_id", conversationId);
+  const history = await historyQuery.order("created_at", { ascending: false }).limit(30);
   if (history.error) throw new Error("Your message was saved, but chat history could not be loaded.");
   const turns = ((history.data ?? []) as Turn[]).reverse();
   const { collectJarvisDiagnostics } = await import("./jarvis-diagnostics.server");
@@ -233,6 +244,8 @@ export async function runJarvis(db: SupabaseClient, userId: string, mode: Mode, 
   let followups: string[] = [];
   const ran: string[] = [];
   const proposals: import("./jarvis-actions").WriteProposal[] = [];
+  const { createRunRecorder } = await import("./jarvis-events.server");
+  const recorder = createRunRecorder(userId, liveRunId ? { db, runId: liveRunId } : undefined);
   const conversation: { role: "system" | "user" | "assistant"; content: string }[] = [
     { role: "system", content: system },
     // Stored replies carry action metadata for the UI; the model only needs the text.
@@ -241,18 +254,35 @@ export async function runJarvis(db: SupabaseClient, userId: string, mode: Mode, 
   try {
     // Act, observe, answer: up to MAX_ACTION_STEPS rounds of read actions.
     for (let step = 0; step <= MAX_ACTION_STEPS; step += 1) {
-      const result = await generateText({ userId, task: "admin.jarvis" },
-        jarvisModelRequest(conversation, MODE_CONFIG[mode].tokens));
+      const modelStart = Date.now();
+      let result: Awaited<ReturnType<typeof generateText>>;
+      try {
+        result = await generateText({ userId, task: "admin.jarvis" },
+          jarvisModelRequest(conversation, MODE_CONFIG[mode].tokens, pickedModel));
+      } catch (modelError) {
+        recorder.add({ step, kind: "model_call", status: "failed", label: "AI answer", startedAt: modelStart, finishedAt: Date.now(), error: modelError instanceof Error ? modelError.message : "model call failed" });
+        throw modelError;
+      }
+      recorder.add({ step, kind: "model_call", status: "ok", label: "AI answer", startedAt: modelStart, finishedAt: Date.now(), provider: result.provider, model: result.model, output: `${result.text.length} characters${result.fallbackUsed ? ", fallback model" : ""}` });
       const { text, requested } = extractActionBlock(result.text);
       const parsed = parseActions(requested, toolIds);
-      proposals.push(...parsed.proposals.slice(0, Math.max(0, 5 - proposals.length)));
+      const accepted = parsed.proposals.slice(0, Math.max(0, 5 - proposals.length));
+      proposals.push(...accepted);
+      for (const proposal of accepted) recorder.add({ step, kind: "proposal", status: "ok", toolId: (proposal as { id?: string }).id ?? null, label: "Proposed — waiting for your approval", startedAt: Date.now(), finishedAt: Date.now(), input: proposal });
+      for (const rejected of parsed.rejected) recorder.add({ step, kind: "tool", status: "rejected", label: "Request rejected", startedAt: Date.now(), finishedAt: Date.now(), error: rejected });
       if (!parsed.reads.length || step === MAX_ACTION_STEPS) {
         const final = splitFollowups(text);
         reply = final.body;
         followups = final.followups;
         break;
       }
+      const toolStart = Date.now();
       const results = await runReadActions(db, parsed.reads, userId);
+      const toolEnd = Date.now();
+      results.forEach((item, i) => {
+        const action = parsed.reads[i] as { id?: string; args?: unknown } | undefined;
+        recorder.add({ step, kind: "tool", status: item.ok ? "ok" : "failed", toolId: action?.id ?? null, label: item.label, startedAt: toolStart, finishedAt: toolEnd, input: action?.args ?? null, ...(item.ok ? { output: item.result } : { error: item.result }) });
+      });
       ran.push(...results.map((item) => (item.ok ? item.label : `${item.label} (failed)`)));
       conversation.push(
         { role: "assistant", content: result.text.slice(0, 8000) },
@@ -273,44 +303,52 @@ export async function runJarvis(db: SupabaseClient, userId: string, mode: Mode, 
       : "Diagnostics were collected, but no eligible AI model could finish the answer. Check model access, quotas and spending limits.";
   }
   reply = appendReplyMeta(reply.slice(0, 40000), { ran, proposals });
-  const saved = await db.from("jarvis_messages").insert({ user_id: userId, role: "assistant", content: reply });
+  const saved = await db.from("jarvis_messages").insert({ user_id: userId, role: "assistant", content: reply, run_id: recorder.count ? recorder.runId : null, conversation_id: conversationId }).select("id").maybeSingle();
   if (saved.error) throw new Error("Jarvis answered, but the reply could not be saved. Refresh before retrying.");
-  return { reply, diagnostics, followups };
+  await recorder.flush(db, (saved.data?.id as string | undefined) ?? null);
+  return { reply, diagnostics, followups, runId: recorder.count ? recorder.runId : null, conversationId };
 }
 
 export const sendJarvisMessage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((input: { message: string; mode?: Mode; page?: string }) => {
+  .validator((input: { message: string; mode?: Mode; page?: string; conversationId?: string | null; runId?: string | null; model?: string | null }) => {
     if (typeof input?.message !== "string") throw new Error("Type a message first.");
     const message = input.message.trim();
     if (!message) throw new Error("Type a message first.");
     if (message.length > 4000) throw new Error("Keep your message under 4,000 characters.");
-    return { message, mode: parseMode(input.mode), page: adminPath(input.page) };
+    const runId = typeof input.runId === "string" && /^[0-9a-f-]{36}$/i.test(input.runId) ? input.runId : null;
+    return { message, mode: parseMode(input.mode), page: adminPath(input.page), conversationId: parseConversationId(input.conversationId), runId, model: parsePickedModel(input.model) };
   })
   .handler(async ({ context, data }) => {
     const db = await guardedAdmin(context);
     const userId = String(context.userId);
-    const inserted = await db.from("jarvis_messages").insert({ user_id: userId, role: "user", content: data.message });
+    // The database trigger rejects a conversation owned by someone else.
+    const inserted = await db.from("jarvis_messages").insert({ user_id: userId, role: "user", content: data.message, conversation_id: data.conversationId }).select("conversation_id").maybeSingle();
     if (inserted.error) throw new Error("Couldn't save your message.");
-    return runJarvis(db, userId, data.mode, data.page);
+    const conversationId = (inserted.data?.conversation_id as string | null | undefined) ?? null;
+    if (conversationId) {
+      await db.from("jarvis_conversations").update({ title: conversationTitle(data.message) }).eq("id", conversationId).eq("user_id", userId).eq("title", "New conversation");
+    }
+    return runJarvis(db, userId, data.mode, data.page, conversationId, data.runId, data.model);
   });
 
 export const regenerateJarvisReply = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((input: { mode?: Mode } | undefined) => ({ mode: parseMode(input?.mode) }))
+  .validator((input: { mode?: Mode; conversationId?: string | null } | undefined) => ({ mode: parseMode(input?.mode), conversationId: parseConversationId(input?.conversationId) }))
   .handler(async ({ context, data }) => {
     const db = await guardedAdmin(context);
     const userId = String(context.userId);
-    const latest = await db.from("jarvis_messages").select("id,role")
-      .eq("user_id", userId).order("created_at", { ascending: false }).limit(1);
+    let latestQuery = db.from("jarvis_messages").select("id,role,conversation_id").eq("user_id", userId);
+    if (data.conversationId) latestQuery = latestQuery.eq("conversation_id", data.conversationId);
+    const latest = await latestQuery.order("created_at", { ascending: false }).limit(1);
     if (latest.error) throw new Error("Couldn't load your Jarvis chat.");
-    const last = (latest.data ?? [])[0] as { id: string; role: string } | undefined;
+    const last = (latest.data ?? [])[0] as { id: string; role: string; conversation_id: string | null } | undefined;
     if (!last) throw new Error("Nothing to regenerate yet.");
     if (last.role === "assistant") {
       const removed = await db.from("jarvis_messages").delete().eq("id", last.id).eq("user_id", userId);
       if (removed.error) throw new Error("Couldn't replace the last reply.");
     }
-    return runJarvis(db, userId, data.mode);
+    return runJarvis(db, userId, data.mode, null, last.conversation_id ?? data.conversationId);
   });
 
 
@@ -374,6 +412,9 @@ export const getJarvisFreeToolReadiness = createServerFn({ method: "GET" })
       "domain.rdap.lookup": true,
       "domain.wayback.history": true,
       "website.text.extract": true,
+      "website.seo.crawl": true,
+      "domain.certificates.lookup": true,
+      "places.osm.search": true,
       "workspace.calendar.upcoming": Boolean(process.env["LOVABLE_API_KEY"] && process.env["GOOGLE_CALENDAR_API_KEY"]),
       "workspace.sheets.read": Boolean(process.env["LOVABLE_API_KEY"] && process.env["GOOGLE_SHEETS_API_KEY"]),
       "cloudflare.zones.summary": Boolean(process.env["LOVABLE_API_KEY"] && process.env["CLOUDFLARE_API_KEY"]),
@@ -782,4 +823,69 @@ export const listJarvisApprovalLogFn = createServerFn({ method: "GET" })
       entityId: row.entity_id ? String(row.entity_id) : null,
       at: String(row.created_at),
     }));
+  });
+
+/** Owner-only: the recorded steps of one Jarvis run, oldest first. */
+export const getJarvisRunEvents = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: { runId?: unknown }) => {
+    const runId = typeof input?.runId === "string" && /^[0-9a-f-]{36}$/i.test(input.runId) ? input.runId : null;
+    if (!runId) throw new Error("Invalid run");
+    return { runId };
+  })
+  .handler(async ({ context, data }) => {
+    await guardedAdmin(context);
+    const supabase = context.supabase as unknown as import("@supabase/supabase-js").SupabaseClient;
+    const { data: rows, error } = await supabase
+      .from("jarvis_run_events")
+      .select("id,run_id,step,kind,tool_id,label,status,started_at,finished_at,duration_ms,input_summary,output_summary,error,artifact_url,provider,model")
+      .eq("run_id", data.runId)
+      .order("step")
+      .order("started_at")
+      .limit(200);
+    if (error) throw new Error("Couldn't load this run's steps.");
+    return (rows ?? []) as import("./jarvis-events").RunEvent[];
+  });
+
+/** Owner-only: provider health from recorded calls; key presence is a boolean only. */
+export const getJarvisModelStatus = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const db = await guardedAdmin(context);
+    const since = new Date(Date.now() - 86400000).toISOString();
+    const [runtime, trace] = await Promise.all([
+      db.from("ai_provider_runtime").select("provider,day,used,failures,open_until,last_success_at,last_failure_at,last_latency_ms,rate_limited_at").order("day", { ascending: false }).limit(500),
+      db.from("ai_team_trace").select("provider,model,ok,created_at").gte("created_at", since).limit(10000),
+    ]);
+    if (runtime.error || trace.error) throw new Error("Couldn't read AI health records.");
+    const { classifyProviders } = await import("./jarvis-model-status");
+    const { configuredProviders } = await import("./jarvis-model-status.server");
+    return classifyProviders({
+      runtime: (runtime.data ?? []) as never,
+      trace: (trace.data ?? []) as never,
+      configured: configuredProviders(process.env),
+      now: Date.now(),
+    });
+  });
+
+/**
+ * Per-model usage of the Lovable lane over the last 24 hours, from recorded
+ * calls only. Every roster model is listed so unused ones are visible.
+ */
+export const getLovableModelUsage = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const db = await guardedAdmin(context);
+    const since = new Date(Date.now() - 86400000).toISOString();
+    const { data, error } = await db
+      .from("ai_usage_events")
+      .select("model,task,ok,estimated_cost_usd")
+      .eq("provider", "lovable")
+      .gte("created_at", since)
+      .limit(10000);
+    if (error) throw new Error("Couldn't read model usage records.");
+    const { summarizeModelUsage } = await import("./lovable-model-usage");
+    const { providerConfig } = await import("./ai/config");
+    const rosters = Object.values(providerConfig("lovable")?.models ?? {}).flatMap((r) => String(r).split(","));
+    return summarizeModelUsage((data ?? []) as never, rosters);
   });

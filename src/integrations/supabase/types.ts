@@ -2214,6 +2214,33 @@ export type Database = {
         }
         Relationships: []
       }
+      jarvis_conversations: {
+        Row: {
+          archived: boolean
+          created_at: string
+          id: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          archived?: boolean
+          created_at?: string
+          id?: string
+          title?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          archived?: boolean
+          created_at?: string
+          id?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       jarvis_instagram_connections: {
         Row: {
           connected_at: string
@@ -2355,26 +2382,40 @@ export type Database = {
       jarvis_messages: {
         Row: {
           content: string
+          conversation_id: string | null
           created_at: string
           id: string
           role: string
+          run_id: string | null
           user_id: string
         }
         Insert: {
           content: string
+          conversation_id?: string | null
           created_at?: string
           id?: string
           role: string
+          run_id?: string | null
           user_id?: string
         }
         Update: {
           content?: string
+          conversation_id?: string | null
           created_at?: string
           id?: string
           role?: string
+          run_id?: string | null
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "jarvis_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "jarvis_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       jarvis_routines: {
         Row: {
@@ -2420,6 +2461,72 @@ export type Database = {
           name?: string
           prompt?: string
           updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      jarvis_run_events: {
+        Row: {
+          artifact_url: string | null
+          created_at: string
+          duration_ms: number | null
+          error: string | null
+          finished_at: string | null
+          id: string
+          input_summary: string | null
+          kind: string
+          label: string | null
+          message_id: string | null
+          model: string | null
+          output_summary: string | null
+          provider: string | null
+          run_id: string
+          started_at: string
+          status: string
+          step: number
+          tool_id: string | null
+          user_id: string
+        }
+        Insert: {
+          artifact_url?: string | null
+          created_at?: string
+          duration_ms?: number | null
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          input_summary?: string | null
+          kind: string
+          label?: string | null
+          message_id?: string | null
+          model?: string | null
+          output_summary?: string | null
+          provider?: string | null
+          run_id: string
+          started_at?: string
+          status: string
+          step?: number
+          tool_id?: string | null
+          user_id: string
+        }
+        Update: {
+          artifact_url?: string | null
+          created_at?: string
+          duration_ms?: number | null
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          input_summary?: string | null
+          kind?: string
+          label?: string | null
+          message_id?: string | null
+          model?: string | null
+          output_summary?: string | null
+          provider?: string | null
+          run_id?: string
+          started_at?: string
+          status?: string
+          step?: number
+          tool_id?: string | null
           user_id?: string
         }
         Relationships: []

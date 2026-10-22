@@ -14,7 +14,7 @@
 import type { FreeProviderName } from "@/lib/ai/free";
 
 const VISION_MODEL =
-  /vision|-vl\b|-vl-|[-_/]vl\d|\bvl-|llava|moondream|internvl|pixtral|multimodal|llama-4-(?:scout|maverick)|gemini-[\d.]+-(?:flash|pro)|gemini-(?:flash|pro)|gemma-3|gpt-4o|gpt-4\.1|gpt-5|omni|phi-[\d.]+-(?:multimodal|vision)/i;
+  /vision|-vl\b|-vl-|[-_/]vl\d|\bvl-|llava|moondream|internvl|pixtral|multimodal|llama-4-(?:scout|maverick)|gemini-[\d.]+-(?:flash|pro)|gemini-(?:flash|pro)|gemma-3|gpt-4o|gpt-4\.1|gpt-5|gpt-6|claude|omni|phi-[\d.]+-(?:multimodal|vision)/i;
 const TEXT_ONLY_MODEL =
   /glm(?!.*(?:-?4v|-?4\.\dv|vision))|gpt-oss|deepseek|qwen(?:\d(?:\.\d)?)?-?coder|codestral|coder|nemotron(?!.*vl)|mistral-nemo|ministral|command|north|kimi(?!.*vl)|minimax|ling-(?!.*-vl)|transcribe|whisper|flux|stable-diffusion|sdxl|dreamshaper|lightning|embed|guard/i;
 
@@ -32,12 +32,17 @@ export function visionCapableModel(model: string): boolean {
  * Fast, high-accuracy free vision models, best first. The router puts these at
  * the front of the visual-review chain when the provider is configured, so the
  * ~600ms NIM endpoint answers before a slower general multimodal model.
+ *
+ * Deliberately absent:
+ *  - `@cf/meta/llama-3.2-11b-vision-instruct`: Workers AI answers 403 until the
+ *    account has accepted Meta's licence, so it failed every call in production.
+ *  - `gemini-2.5-flash`: retired (404). Google's entry is the current vision
+ *    default named in free.ts.
  */
 export const PREFERRED_FREE_VISION_MODELS: ReadonlyArray<{ provider: FreeProviderName; model: string }> = [
   { provider: "nvidia", model: "meta/llama-3.2-11b-vision-instruct" },
-  { provider: "cloudflare", model: "@cf/meta/llama-3.2-11b-vision-instruct" },
   { provider: "cloudflare", model: "@cf/meta/llama-4-scout-17b-16e-instruct" },
-  { provider: "google", model: "gemini-2.5-flash" },
+  { provider: "google", model: "gemini-3.8-flash" },
 ];
 
 /** Rank of a model in the preferred fast-vision list (lower is better). */

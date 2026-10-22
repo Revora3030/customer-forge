@@ -32,6 +32,15 @@ export function ProposalCard({ proposal, state, url, onApprove }: Props) {
       <p className={disclaimer}>Nothing posts here. Review and approve the saved draft under Operations → Instagram.</p>
     </div>
   );
+  if (proposal.id === "image.create") return (
+    <div className={card}>
+      <p className="text-sm font-medium">AI picture ({proposal.aspectRatio})</p>
+      <p className="mt-1 whitespace-pre-wrap break-words text-sm text-muted-foreground">{proposal.prompt}</p>
+      <p className="mt-1 break-words text-xs text-muted-foreground">Alt text: {proposal.altText}</p>
+      <Button type="button" className="mt-3" data-jarvis-tap="" disabled={Boolean(state)} onClick={onApprove}>{state === "building" ? "Creating…" : state === "done" ? "Saved to pictures" : "Approve and create"}</Button>
+      <p className={disclaimer}>Uses workspace AI credits within your spending cap. Saved to that website's pictures, labelled AI-generated, never as real work.</p>
+    </div>
+  );
   if (proposal.id === "research.ask") return (
     <div className={card}>
       <p className="flex items-start gap-1.5 text-sm font-medium"><Globe className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden /><span className="min-w-0 break-words">Paid web research{proposal.preset !== "fast" ? ` (${proposal.preset})` : ""}</span></p>

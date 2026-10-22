@@ -781,8 +781,10 @@ export function isFreeEligibleModel(provider: FreeProviderName, model: string): 
   if (provider === "groq") return groqFreeEligible(name);
   if (provider === "nvidia") return nvidiaFreeEligible(name);
   if (provider === "llm7") return llm7FreeEligible(name);
+  // `^codestral` also matches codestral-embed(-2505), an embedding model that
+  // can never write an answer, so non-chat models are excluded here too.
   if (provider === "mistral")
-    return /^(mistral-small|mistral-nemo|codestral|ministral-3b|open-mistral|open-mixtral)/i.test(name);
+    return /^(mistral-small|mistral-nemo|codestral|ministral-3b|open-mistral|open-mixtral)/i.test(name) && !NON_CHAT_MODEL.test(name);
   // Hugging Face hosts every kind of model; only chat generators may write.
   if (provider === "huggingface") return name.includes("/") && !NON_CHAT_MODEL.test(name);
   if (provider === "deepseek")

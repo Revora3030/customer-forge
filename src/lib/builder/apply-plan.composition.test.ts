@@ -22,6 +22,11 @@ describe("new content sections need the AI's own layout", () => {
   it("ignores kinds that are not legacy content kinds (custom blocks, quote, booking)", () => {
     expect(missingCompositionFeedback([{ type: "add_section", pageId: "p", ref: "temp_c", kind: "custom" }])).toEqual([]);
   });
+  it("returns invalid layout properties for AI repair instead of accepting a missing layout", () => {
+    const feedback = missingCompositionFeedback([hero, { ...composition, tree: { version: 1, root: { type: "stack", style: { bgColor: "#000000" } } } }]);
+    expect(feedback.some(item => item.reason === "invalid_composition")).toBe(true);
+    expect(feedback.some(item => item.reason === "needs_composition")).toBe(true);
+  });
 });
 
 describe("image items need a real picture", () => {

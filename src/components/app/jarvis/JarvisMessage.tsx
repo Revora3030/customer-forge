@@ -5,8 +5,9 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { JarvisMarkdown } from "@/components/app/JarvisMarkdown";
 import { splitReplyMeta, type WriteProposal } from "@/lib/jarvis-actions";
 import { ProposalCard, type ProposalState } from "./ProposalCard";
+import { ModelTag } from "./ModelTag";
 
-export type JarvisRow = { id: string; role: "user" | "assistant"; content: string; created_at: string };
+export type JarvisRow = { id: string; role: "user" | "assistant"; content: string; created_at: string; run_id?: string | null };
 
 const clock = (iso: string) => {
   const date = new Date(iso);
@@ -56,9 +57,11 @@ type AssistantProps = {
   onRegenerate: () => void;
   /** Live content under a proposal once it was approved, such as a demo build card. */
   renderAfterProposal?: ((key: string) => ReactNode) | undefined;
+  /** Opens the recorded steps of this reply, when they exist. */
+  onShowSteps?: ((runId: string) => void) | undefined;
 };
 
-export function AssistantMessage({ message, isLast, busy, regenerating, speakingThis, approvalState, approvalUrl, onApprove, onCopy, onListen, onStopListening, onRegenerate, renderAfterProposal }: AssistantProps) {
+export function AssistantMessage({ message, isLast, busy, regenerating, speakingThis, approvalState, approvalUrl, onApprove, onCopy, onListen, onStopListening, onRegenerate, renderAfterProposal, onShowSteps }: AssistantProps) {
   const { body, meta } = splitReplyMeta(message.content);
   return (
     <article className={`group flex min-w-0 gap-3 transition-opacity ${regenerating ? "opacity-50" : ""}`}>
@@ -71,6 +74,12 @@ export function AssistantMessage({ message, isLast, busy, regenerating, speaking
           </ul>
         ) : null}
         <div className="text-[15px] leading-7"><JarvisMarkdown>{body}</JarvisMarkdown></div>
+        {message.run_id ? <div><ModelTag runId={message.run_id} /></div> : null}
+        {message.run_id && onShowSteps ? (
+          <button type="button" onClick={() => onShowSteps(message.run_id!)} className="mt-1 inline-flex min-h-11 items-center gap-1 rounded-md px-1 text-xs text-muted-foreground underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-ring">
+            See what Jarvis did
+          </button>
+        ) : null}
         {meta.proposals.map((proposal, index) => {
           const key = `${message.id}:${index}`;
           return (

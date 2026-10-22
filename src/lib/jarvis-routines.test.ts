@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { parseRoutineInput, routineIsDue } from "./jarvis-routines.server";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { parseRoutineInput, routineIsDue, runDueJarvisRoutines } from "./jarvis-routines.server";
 import { parseMemoryContent, parseMemoryKind } from "./jarvis-memory.server";
 import { parseRoutineDraft } from "./jarvis-actions";
 
@@ -74,5 +75,36 @@ describe("memory input validation", () => {
     expect(parseMemoryKind("preference")).toBe("preference");
     expect(parseMemoryKind("secret")).toBe("note");
     expect(parseMemoryKind(undefined)).toBe("note");
+  });
+});
+
+describe("routine cron pass and transient clock skew", () => {
+  /** A jarvis_routines read that answers each queued result in turn. */
+  function fakeDb(results: { data: unknown; error: { message: string } | null }[]) {
+    let reads = 0;
+    const query = {
+      select: () => query,
+      eq: () => query,
+      limit: async () => results[Math.min(reads++, results.length - 1)],
+    };
+    return { db: { from: () => query } as unknown as SupabaseClient, reads: () => reads };
+  }
+
+  it("retries the routine read once after a 'JWT issued at future' answer", async () => {
+    const { db, reads } = fakeDb([
+      { data: null, error: { message: "JWT issued at future" } },
+      { data: [], error: null },
+    ]);
+    await expect(runDueJarvisRoutines(db, new Date(), { retryDelayMs: 1 })).resolves.toEqual({ ran: 0, results: [] });
+    expect(reads()).toBe(2);
+  });
+
+  it("still fails when the skew persists, and never retries other errors", async () => {
+    const skew = fakeDb([{ data: null, error: { message: "JWT issued at future" } }]);
+    await expect(runDueJarvisRoutines(skew.db, new Date(), { retryDelayMs: 1 })).rejects.toThrow("JWT issued at future");
+    expect(skew.reads()).toBe(2);
+    const other = fakeDb([{ data: null, error: { message: "permission denied" } }]);
+    await expect(runDueJarvisRoutines(other.db, new Date(), { retryDelayMs: 1 })).rejects.toThrow("permission denied");
+    expect(other.reads()).toBe(1);
   });
 });

@@ -5,7 +5,8 @@
  */
 import { readFileSync } from "node:fs";
 import { describe, expect, it, vi, afterEach } from "vitest";
-import { extractJsonObject } from "@/lib/ai/router.server";
+import { extractJsonObject, sharedFailureScope } from "@/lib/ai/router.server";
+import { RevoraAiError } from "@/lib/ai/errors";
 import { providerHttpError } from "@/lib/ai/providers/shared";
 import {
   createOpenAiCompatibleAdapter,
@@ -108,6 +109,13 @@ describe("free-eligibility keeps non-writers out of the team", () => {
     expect(isFreeEligibleModel("huggingface", "BAAI/bge-large-embed")).toBe(false);
     expect(isFreeEligibleModel("huggingface", "meta-llama/Llama-3.3-70B-Instruct")).toBe(true);
   });
+  it("keeps Mistral's Codestral embedders out of the chat lanes", () => {
+    // Production: codestral-embed(-2505) was dispatched as a writer 242 times.
+    expect(isFreeEligibleModel("mistral", "codestral-embed")).toBe(false);
+    expect(isFreeEligibleModel("mistral", "codestral-embed-2505")).toBe(false);
+    expect(isFreeEligibleModel("mistral", "codestral-latest")).toBe(true);
+    expect(isFreeEligibleModel("mistral", "mistral-small-latest")).toBe(true);
+  });
   it("points Cohere at its OpenAI-compatible endpoint", () => {
     expect(readFileSync("src/lib/ai/providers/cohere.ts", "utf8")).toContain(
       "api.cohere.ai/compatibility/v1",
@@ -117,14 +125,16 @@ describe("free-eligibility keeps non-writers out of the team", () => {
 
 describe("router teamwork rules", () => {
   it("moves to the next free model on a refused request instead of stopping", () => {
-    expect(router).toMatch(/if \(!candidate\.free\) throw error;/);
+    expect(router).toMatch(/if \(!candidate\.free && !rosterModel\) throw error;/);
     expect(router).toMatch(/invalidBy\.size >= 3/);
   });
   it("skips every model of a provider whose key or quota was refused", () => {
     expect(router).toMatch(/deadProviders\.add\(config\.name\)/);
   });
   it("only benches a whole provider for provider-wide trouble", () => {
-    expect(router).toMatch(/candidate\.free && providerWideFailure\(error\)/);
+    expect(router).toMatch(/if \(candidate\.free\) recordSharedFreeFailure\(/);
+    expect(sharedFailureScope(new RevoraAiError(429, "spent", { category: "quota" }))).toBe("provider");
+    expect(sharedFailureScope(new RevoraAiError(429, "busy", { category: "rate_limited" }))).toBe("model_rest");
   });
   it("bounds the whole failover walk with a deadline", () => {
     expect(router).toMatch(/AI_CHAIN_DEADLINE_MS/);

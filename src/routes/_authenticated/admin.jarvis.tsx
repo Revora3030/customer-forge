@@ -1,3 +1,5 @@
+import { LOVABLE_CONVERSATION_MODELS, modelDisplayName } from "@/lib/ai/lovable-models";
+import { generateStudioImage } from "@/lib/image-studio.functions";
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -15,6 +17,9 @@ import { useProspectDemoPump } from "@/lib/prospect-demo-pump.hooks";
 import { JarvisHeader, type ChecksSummary } from "@/components/app/jarvis/JarvisHeader";
 import { JarvisComposer, type JarvisMode } from "@/components/app/jarvis/JarvisComposer";
 import { AssistantMessage, UserMessage, type JarvisRow } from "@/components/app/jarvis/JarvisMessage";
+import { RunStepsSheet } from "@/components/app/jarvis/RunStepsSheet";
+import { LiveRunSteps } from "@/components/app/jarvis/LiveRunSteps";
+import { ConversationsSheet } from "@/components/app/jarvis/ConversationsSheet";
 import { OperationsPanel, DIAGNOSTIC_SECTIONS, type ProspectorState } from "@/components/app/jarvis/OperationsPanel";
 import { CommandPalette } from "@/components/app/jarvis/CommandPalette";
 import { LiveSurface, type VoiceState } from "@/components/app/jarvis/LiveSurface";
@@ -165,7 +170,11 @@ function Jarvis() {
   const [readingPicture, setReadingPicture] = useState(false);
   const [picturePreview, setPicturePreview] = useState<string | null>(null);
   const [openedPrs, setOpenedPrs] = useState<Record<string, string>>({});
-  const history = useQuery({ queryKey: ["jarvis", "history"], queryFn: () => load({ data: {} }) });
+  // null = continue the most recent conversation; set once a conversation is known.
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [showConversations, setShowConversations] = useState(false);
+  const historyKey = ["jarvis", "history", conversationId] as const;
+  const history = useQuery({ queryKey: historyKey, queryFn: () => load({ data: { conversationId } }) });
   const diagnostics = useQuery({ queryKey: ["jarvis", "diagnostics"], queryFn: () => inspect(), staleTime: 60_000, retry: false });
   const acquisition = useQuery({ queryKey: ["jarvis", "acquisition-readiness"], queryFn: () => inspectAcquisition(), enabled: false, retry: false });
   const capabilityScorecard = useQuery({
@@ -183,7 +192,9 @@ function Jarvis() {
   });
   const [text, setText] = useState("");
   const [mode, setMode] = useState<Mode>("balanced");
+  const [pickedModel, setPickedModel] = useState<string | null>(null);
   const [pending, setPending] = useState<string | null>(null);
+  const [liveRun, setLiveRun] = useState<string | null>(null);
   const [followups, setFollowups] = useState<string[]>([]);
   const [voice, setVoice] = useState(false);
   const [live, setLive] = useState(false);
@@ -191,6 +202,7 @@ function Jarvis() {
   // Set when the owner stops playback (Stop, mute, Tap to talk) so a finishing reply doesn't restart listening twice.
   const userStoppedRef = useRef(false);
   const [showTools, setShowTools] = useState(false);
+  const [stepsRun, setStepsRun] = useState<string | null>(null);
   // Wide screens show the operations panel beside the chat; phones use a sheet.
   // null until measured, so the first paint never swaps one for the other.
   const [wide, setWide] = useState<boolean | null>(null);
@@ -246,7 +258,7 @@ function Jarvis() {
     window.setTimeout(() => setAnnouncement(message), 60);
   };
   const latestAssistantId = () => {
-    const rows = qc.getQueryData<JarvisRow[]>(["jarvis", "history"]) ?? [];
+    const rows = qc.getQueryData<JarvisRow[]>(historyKey) ?? [];
     const last = rows[rows.length - 1];
     return last?.role === "assistant" ? last.id : null;
   };
@@ -265,7 +277,13 @@ function Jarvis() {
     stopVoice();
     resumeLive();
   };
-  const finish = async (result: { reply: string; diagnostics: unknown; followups?: string[] }) => {
+  const finish = async (result: { reply: string; diagnostics: unknown; followups?: string[]; conversationId?: string | null }) => {
+    if (result.conversationId && result.conversationId !== conversationId) {
+      // Carry the loaded rows over so the chat doesn't flash empty.
+      qc.setQueryData(["jarvis", "history", result.conversationId], qc.getQueryData(historyKey));
+      setConversationId(result.conversationId);
+    }
+    void qc.invalidateQueries({ queryKey: ["jarvis", "conversations"] });
     qc.setQueryData(["jarvis", "diagnostics"], result.diagnostics);
     setFollowups(result.followups ?? []);
     await qc.invalidateQueries({ queryKey: ["jarvis", "history"] });
@@ -273,21 +291,25 @@ function Jarvis() {
     if (voice || liveRef.current) void speak(result.reply, latestAssistantId());
   };
   const mutation = useMutation({
-    mutationFn: (message: string) => send({ data: { message, mode } }),
+    mutationFn: (message: string) => {
+      const runId = crypto.randomUUID();
+      setLiveRun(runId);
+      return send({ data: { message, mode, conversationId, runId, model: pickedModel } });
+    },
     onSuccess: finish,
     onError: async (error: Error, message: string) => {
       toast.error(error.message);
       // The server saves the message before answering, so it may already be in the chat.
       await qc.invalidateQueries({ queryKey: ["jarvis", "history"] }).catch(() => undefined);
-      const rows = qc.getQueryData<JarvisRow[]>(["jarvis", "history"]) ?? [];
+      const rows = qc.getQueryData<JarvisRow[]>(historyKey) ?? [];
       const lastUser = [...rows].reverse().find((row) => row.role === "user");
       if (lastUser?.content !== message) setText((current) => current || message);
       resumeLive();
     },
-    onSettled: () => setPending(null),
+    onSettled: () => { setPending(null); setLiveRun(null); },
   });
   const regen = useMutation({
-    mutationFn: () => redo({ data: { mode } }),
+    mutationFn: () => redo({ data: { mode, conversationId } }),
     onSuccess: finish,
     onError: (error: Error) => toast.error(error.message),
   });
@@ -297,6 +319,8 @@ function Jarvis() {
       setFollowups([]);
       setOlder([]);
       setMoreEarlier(true);
+      setConversationId(null);
+      void qc.invalidateQueries({ queryKey: ["jarvis", "conversations"] });
       return qc.invalidateQueries({ queryKey: ["jarvis", "history"] });
     },
     onError: (error: Error) => toast.error(error.message),
@@ -451,7 +475,7 @@ function Jarvis() {
     if (!oldest || loadingEarlier) return;
     setLoadingEarlier(true);
     try {
-      const rows = await load({ data: { before: oldest.created_at } });
+      const rows = await load({ data: { before: oldest.created_at, conversationId } });
       setOlder((current) => mergeRows(rows, current));
       setMoreEarlier(rows.length >= JARVIS_HISTORY_PAGE);
       if (!rows.length) toast.message("That's the start of your Jarvis chat.");
@@ -563,6 +587,18 @@ function Jarvis() {
       } catch (error) {
         forget(key);
         toast.error(error instanceof Error ? error.message : "The research request failed.");
+      }
+      return;
+    }
+    if (proposal.id === "image.create") {
+      try {
+        const result = await generateStudioImage({ data: { organizationId: proposal.organizationId, prompt: proposal.prompt, altText: proposal.altText, aspectRatio: proposal.aspectRatio, label: "jarvis-image" } });
+        if (!result.ok) throw new Error(result.message ?? "The picture couldn't be created.");
+        markDone(key);
+        toast.success("Picture saved to that website's pictures.");
+      } catch (error) {
+        forget(key);
+        toast.error(error instanceof Error ? error.message : "The picture couldn't be created.");
       }
       return;
     }
@@ -778,6 +814,7 @@ function Jarvis() {
             onOpenOperations={() => setShowTools(true)}
             clearDisabled={clearing.isPending || busy}
             onClear={() => clearing.mutate()}
+            onOpenConversations={() => setShowConversations(true)}
           />
 
           <Conversation contextRef={conversation} className="min-h-0 flex-1" aria-label="Jarvis conversation" aria-live="off">
@@ -837,6 +874,7 @@ function Jarvis() {
                         onStopListening={stopSpeaking}
                         onRegenerate={() => regen.mutate()}
                         renderAfterProposal={renderAfterProposal}
+                        onShowSteps={setStepsRun}
                       />
                     )}
                   </Fragment>
@@ -852,6 +890,7 @@ function Jarvis() {
                   <span>Working<span aria-hidden> · {elapsed}s</span></span>
                 </div>
               ) : null}
+              {busy && liveRun ? <LiveRunSteps runId={liveRun} /> : null}
               {!busy && !pending && lastMessage?.role === "user" ? (
                 <div>
                   <Button type="button" variant="outline" size="sm" data-jarvis-tap="" className="gap-1.5 rounded-full" onClick={() => regen.mutate()}>
@@ -890,6 +929,21 @@ function Jarvis() {
                   ))}
                 </div>
               ) : null}
+              <label className="mb-1.5 flex items-center gap-2 text-xs text-muted-foreground">
+                <span className="shrink-0">Model</span>
+                <select
+                  value={pickedModel ?? ""}
+                  onChange={(event) => setPickedModel(event.target.value || null)}
+                  className="h-9 min-w-0 flex-1 rounded-md border border-border bg-card px-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:max-w-xs"
+                >
+                  <option value="">Auto (best per job)</option>
+                  {(["openai", "anthropic", "google"] as const).map((family) => (
+                    <optgroup key={family} label={family === "openai" ? "OpenAI" : family === "anthropic" ? "Anthropic" : "Google"}>
+                      {LOVABLE_CONVERSATION_MODELS.filter((id) => id.startsWith(`${family}/`)).map((id) => <option key={id} value={id}>{modelDisplayName(id)}</option>)}
+                    </optgroup>
+                  ))}
+                </select>
+              </label>
               <JarvisComposer
                 value={text}
                 onChange={setText}
@@ -936,6 +990,9 @@ function Jarvis() {
           </Sheet>
         ) : null}
 
+        <ConversationsSheet open={showConversations} onOpenChange={setShowConversations} wide={wide === true} activeId={conversationId}
+          onSelect={(id) => { if (id === conversationId) return; setOlder([]); setMoreEarlier(true); setFollowups([]); setConversationId(id); }} />
+        <RunStepsSheet runId={stepsRun} open={stepsRun !== null} onOpenChange={(o) => { if (!o) setStepsRun(null); }} wide={wide === true} />
         <CommandPalette open={commandsOpen} onOpenChange={setCommandsOpen} desktop={!coarse} commands={COMMANDS} disabled={busy} onRun={(prompt) => submit(prompt)} />
       </div>
     </TooltipProvider>
