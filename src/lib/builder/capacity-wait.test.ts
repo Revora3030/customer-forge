@@ -10,7 +10,7 @@ describe("resume-time display data", () => {
   const job = {
     status: "queued",
     resumes_at: "2026-10-20T10:15:00Z",
-    wait_reason: "The free AI team is at capacity right now (9 of 12 AI calls were rate-limited or timed out).",
+    wait_reason: "The Lovable AI team is busy or at the spending cap right now (9 of 12 AI calls were rate-limited or timed out).",
     wait_providers: { providers: ["groq", "cerebras"], earliestResetAt: "2026-10-20T10:12:00Z" },
   };
 
