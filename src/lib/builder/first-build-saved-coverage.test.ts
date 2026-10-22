@@ -28,7 +28,6 @@ describe("first customer website saved coverage", () => {
     expect(firstBuildCoverageProblems(pages, [sections[0], { ...sections[1], kind: "embed", settings: {} }], expected)).toEqual([]);
     expect(firstBuildCoverageProblems(pages, [sections[0], { ...sections[1], kind: "contact", settings: {} }], expected)).toContain("Section services-opening has no renderable AI design");
   });
-  });
   it("rejects a design that shows a picture never saved to the website", () => {
     const pic = { composition: { version: 1, root: { type: "image", mediaRef: "temp_hero", alt: "x" } } };
     const withPic = [{ id: "hero", page_id: "home", kind: "composition", settings: pic }];
