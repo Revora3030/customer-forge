@@ -15,7 +15,13 @@ import {
 import { paidCollectiveAllowed } from "@/lib/ai/free-only-policy.server";
 import { scopedFreeOnly } from "@/lib/ai/spend-scope.server";
 
-export type HallOfFameAttempt = { provider: string; model: string; ok: boolean; reason?: string | null; latencyMs?: number };
+export type HallOfFameAttempt = {
+  provider: string;
+  model: string;
+  ok: boolean;
+  detail: string | null;
+  latencyMs: number;
+};
 
 export type ThinkerOutcome =
   | {
