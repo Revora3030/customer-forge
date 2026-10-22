@@ -14,6 +14,7 @@ import {
 import { CapabilityCenter } from "@/components/app/CapabilityCenter";
 import { AiTeamTrace } from "@/components/app/AiTeamTrace";
 import { TeamReviewLog } from "@/components/app/TeamReviewLog";
+import { CatalogueModelsPanel } from "@/components/app/CatalogueModelsPanel";
 import { getAiHealth } from "@/lib/ai/health.functions";
 import { getLunaStatus } from "@/lib/ai/luna.functions";
 
@@ -193,6 +194,8 @@ function AdminAi() {
           ))}
         </div>
       </Panel>
+
+      <CatalogueModelsPanel catalogue={data?.catalogue} />
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Panel>
