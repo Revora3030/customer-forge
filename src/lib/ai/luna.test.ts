@@ -49,19 +49,18 @@ describe("luna configuration", () => {
   });
 
   it("is off when no key is present", () => {
-    delete process.env["OPENAI_API_KEY"];
     delete process.env["LOVABLE_API_KEY"];
     expect(lunaEnabled()).toBe(false);
   });
 
   it("is off when an operator disables it even with a key present", () => {
-    process.env["OPENAI_API_KEY"] = "sk-test";
+    process.env["LOVABLE_API_KEY"] = "test-key";
     process.env["LUNA_ENABLED"] = "false";
     expect(lunaEnabled()).toBe(false);
   });
 
   it("is on with a key and no operator switch", () => {
-    process.env["OPENAI_API_KEY"] = "sk-test";
+    process.env["LOVABLE_API_KEY"] = "test-key";
     delete process.env["LUNA_ENABLED"];
     expect(lunaEnabled()).toBe(true);
   });
@@ -130,7 +129,7 @@ describe("cost accounting", () => {
 
 describe("no built-in engine switch", () => {
   it("can never switch the AI team off", () => {
-    process.env["OPENAI_API_KEY"] = "sk-test";
+    process.env["LOVABLE_API_KEY"] = "test-key";
     expect(providerChain().length).toBeGreaterThan(0);
   });
 });
