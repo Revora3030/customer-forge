@@ -42,6 +42,18 @@ const TIER_MODEL: Record<VideoTier, string> = {
   premium: "google/gemini-omni-1.1-flash",
 };
 
+/**
+ * "Premium" is only a real tier when it calls a different model than standard.
+ * Both default to the same Gemini Omni model today, so a premium request runs
+ * and is priced as standard rather than charging more for the same clip.
+ */
+export function effectiveVideoTier(tier: VideoTier): VideoTier {
+  if (tier !== "premium") return "standard";
+  const premium = env("PAID_VIDEO_MODEL_PREMIUM") ?? TIER_MODEL.premium;
+  const standard = env("PAID_VIDEO_MODEL") ?? TIER_MODEL.standard;
+  return premium === standard ? "standard" : "premium";
+}
+
 const DEFAULT_PRICE_USD: Record<VideoTier, number> = {
   standard: 0.6,
   premium: 1.8,
@@ -141,7 +153,7 @@ export async function generateSiteVideo(
   if (!apiKey)
     return { ok: false, reason: "no_key", message: status.message };
 
-  const tier: VideoTier = job.tier === "premium" ? "premium" : "standard";
+  const tier: VideoTier = effectiveVideoTier(job.tier === "premium" ? "premium" : "standard");
   const model = paidVideoModel(tier);
   const seconds = job.seconds && job.seconds >= 3 && job.seconds <= 10 ? Math.round(job.seconds) : 8;
   const estimate = paidVideoPriceMicrocents(tier);

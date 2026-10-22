@@ -42,7 +42,7 @@ export function CatalogueModelsPanel({ catalogue }: { catalogue: AiHealth["catal
               <tr key={model.id} className="border-t border-border align-top">
                 <td className="py-1.5 pr-3 font-medium">{model.id}</td>
                 <td className="py-1.5 pr-3">
-                  {model.roles.length ? model.roles.join(", ") : <Pill tone="neutral">not routed</Pill>}
+                  {model.roles.length ? model.roles.join(", ") : <Pill tone="neutral">{catalogue.state === "unavailable" ? "unverified" : "not routed"}</Pill>}
                 </td>
                 <td className="py-1.5 pr-3">{model.last24h.attempts}</td>
                 <td className="py-1.5 pr-3">
@@ -51,7 +51,7 @@ export function CatalogueModelsPanel({ catalogue }: { catalogue: AiHealth["catal
                 <td className="py-1.5 pr-3">{model.last24h.medianLatencyMs === null ? "—" : `${(model.last24h.medianLatencyMs / 1000).toFixed(1)}s`}</td>
                 <td className="py-1.5 pr-3">{model.last24h.estimatedCostUsd === null ? "—" : `$${model.last24h.estimatedCostUsd.toFixed(4)}`}</td>
                 <td className="py-1.5 text-muted-foreground">
-                  {model.last24h.lastUsedAt ? new Date(model.last24h.lastUsedAt).toLocaleString() : model.reason}
+                  {model.last24h.lastUsedAt ? `${new Date(model.last24h.lastUsedAt).toLocaleString()}${model.reason ? ` · ${model.reason}` : ""}` : model.reason}
                 </td>
               </tr>
             ))}
