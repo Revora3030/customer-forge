@@ -189,7 +189,7 @@ describe("provider configuration", () => {
   it("treats Revora AI as unconfigured until Revora owns a key", () => {
     expect(isAiConfigured()).toBe(false);
     expect(providerChain()).toEqual([]);
-    expect(providerConfig("google")).toBeNull();
+    expect(providerConfig("lovable")).toBeNull();
   });
 
   it("fails closed with one clear message when no provider is configured", async () => {
@@ -225,7 +225,7 @@ describe("provider configuration", () => {
   it("lets a model be changed by configuration, without a code change", () => {
     process.env["GOOGLE_AI_API_KEY"] = "test-google";
     process.env["AI_GOOGLE_MODEL_FAST"] = "gemini-test-fast";
-    expect(providerConfig("google")?.models.fast).toBe("gemini-test-fast");
+    expect(providerConfig("lovable")?.models.fast).toBe("gemini-test-fast");
   });
 
   it("keeps sane ceilings on cost, size and agent loops", () => {
