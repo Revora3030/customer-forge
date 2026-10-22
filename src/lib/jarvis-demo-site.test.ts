@@ -64,3 +64,20 @@ describe("readProspectDemoMarker", () => {
     expect(readProspectDemoMarker(null)).toBeNull();
   });
 });
+
+import { factOrigin, websiteSuggestions } from "./jarvis-demo-site";
+describe("Maps fact review provenance", () => {
+  it("labels listing, edited, owner-entered and missing facts", () => {
+    expect(factOrigin("Woods Auto Detail", "Woods Auto Detail")).toBe("listing");
+    expect(factOrigin("Woods Auto Detail", "Woods Detailing")).toBe("edited");
+    expect(factOrigin("", "owner@woods.com")).toBe("owner");
+    expect(factOrigin("Graham", "  ")).toBe("missing");
+  });
+  it("website text is only a suggestion and junk is dropped", () => {
+    expect(websiteSuggestions(null)).toEqual([]);
+    expect(websiteSuggestions({ finalUrl: "https://a.com/", title: null, description: "Hi" })).toEqual([]);
+    expect(websiteSuggestions({ finalUrl: "https://a.com/", title: null, description: "Mobile detailing for cars across Graham." })).toEqual([
+      { field: "description", value: "Mobile detailing for cars across Graham.", source: "https://a.com/" },
+    ]);
+  });
+});

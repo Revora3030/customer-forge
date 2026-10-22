@@ -453,3 +453,18 @@ export async function lovableVideo(
       return { ok: true, bytes };
     }
 }
+
+/**
+ * Text-to-speech on the Lovable gateway (/v1/audio/speech). Returns null when
+ * no server key is configured. Spending is reserved by the caller
+ * (lovable-speech.server.ts) before this is called. Redirects are refused.
+ */
+export async function postLovableSpeech(body: unknown, apiKey: string, signal?: AbortSignal): Promise<Response> {
+  return fetch(`${BASE}/audio/speech`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    redirect: "manual",
+    ...(signal ? { signal } : {}),
+  });
+}

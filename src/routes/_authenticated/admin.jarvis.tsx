@@ -31,7 +31,7 @@ import "@/components/app/jarvis/jarvis.css";
 import { askClaudeToFixPullRequestFn, openJarvisPullRequestFn, recoverStalledBuildsFn, sendClaudeCodeRequestFn, clearJarvisHistory, getJarvisHistory, getJarvisDiagnostics, getJarvisAcquisitionReadiness, getJarvisDiagnosticTools, runJarvisDiagnosticTool, regenerateJarvisReply, sendJarvisMessage, forgetJarvisMemoryFn, saveJarvisRoutineFn, deleteJarvisRoutineFn, JARVIS_HISTORY_PAGE } from "@/lib/jarvis.functions";
 import { draftProspectOutreach, type ProspectDraft } from "@/lib/jarvis-prospecting.functions";
 import { formatRevoraOffer } from "@/lib/jarvis-acquisition-policy";
-import { jarvisVoiceLinks, synthesizeJarvisVoice } from "@/lib/jarvis-voice.functions";
+import { jarvisVoiceLinks, synthesizeJarvisVoice, type JarvisVoiceProvider } from "@/lib/jarvis-voice.functions";
 import { speakableText, type WriteProposal } from "@/lib/jarvis-actions";
 import { prospectFromImageFn, startProspectDemoBuild } from "@/lib/jarvis-demo-site.functions";
 import { pictureDataUrl } from "@/lib/picture-data-url";
@@ -242,14 +242,25 @@ function Jarvis() {
   const recognition = useRef<Recognition | null>(null);
   const conversation = useRef<StickToBottomContext>(null);
   const input = useRef<HTMLTextAreaElement>(null);
-  const voiceSynth = useCallback((value: string) => synthesizeVoice({ data: { text: value } }), [synthesizeVoice]);
-  const onVoiceFallback = useCallback((reason: string) => {
-    toast.message("Using your browser voice because ElevenLabs was unavailable.", { description: reason });
+  const [voiceProvider, setVoiceProvider] = useState<JarvisVoiceProvider>("auto");
+  useEffect(() => {
+    const saved = window.localStorage.getItem("jarvis.voiceProvider");
+    if (saved === "elevenlabs" || saved === "lovable") setVoiceProvider(saved);
   }, []);
-  const voiceStream = useCallback(
+  const chooseVoiceProvider = (next: JarvisVoiceProvider) => {
+    setVoiceProvider(next);
+    window.localStorage.setItem("jarvis.voiceProvider", next);
+  };
+  const voiceSynth = useCallback((value: string) => synthesizeVoice({ data: { text: value, provider: voiceProvider } }), [synthesizeVoice, voiceProvider]);
+  const onVoiceFallback = useCallback((reason: string) => {
+    toast.message("Using your browser voice because the server voice was unavailable.", { description: reason });
+  }, []);
+  const voiceStreamLink = useCallback(
     async (value: string) => (await voiceLinks({ data: { texts: [value] } })).urls[0]!,
     [voiceLinks],
   );
+  // Streaming links are ElevenLabs-only; Lovable speech is generated per sentence.
+  const voiceStream = voiceProvider === "lovable" ? undefined : voiceStreamLink;
   const jarvisVoice = useJarvisVoice(voiceSynth, onVoiceFallback, voiceStream);
   const { stop: stopVoice } = jarvisVoice;
 
@@ -816,6 +827,22 @@ function Jarvis() {
             onClear={() => clearing.mutate()}
             onOpenConversations={() => setShowConversations(true)}
           />
+          {voice || live ? (
+            <div className="flex items-center justify-end gap-2 border-b border-border px-3 py-1.5 text-xs text-muted-foreground sm:px-6">
+              <label htmlFor="jarvis-voice-provider">Voice</label>
+              <select
+                id="jarvis-voice-provider"
+                value={voiceProvider}
+                onChange={(event) => chooseVoiceProvider(event.target.value as JarvisVoiceProvider)}
+                className="rounded-md border border-input bg-background px-2 py-1 text-xs text-foreground"
+              >
+                <option value="auto">Auto</option>
+                <option value="elevenlabs">ElevenLabs</option>
+                <option value="lovable">Lovable AI (uses AI allowance)</option>
+              </select>
+            </div>
+          ) : null}
+
 
           <Conversation contextRef={conversation} className="min-h-0 flex-1" aria-label="Jarvis conversation" aria-live="off">
             <ConversationContent scrollClassName="overscroll-contain" className="mx-auto w-full max-w-[var(--jarvis-measure)] gap-6 px-3 py-4 sm:px-6">

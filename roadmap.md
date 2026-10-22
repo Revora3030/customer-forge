@@ -1,5 +1,14 @@
 # Roadmap — Five-phase blocker elimination
 
+## All-model wiring (2026-10-22)
+- [x] Jarvis voice choice: Auto / ElevenLabs / Lovable AI speech (Gemini TTS, budgeted, router telemetry). No live speech call made.
+- [x] Maps review form: per-fact source labels, editable address and hours, website suggestions needing approval, existing build handoff kept.
+- [x] Veo, music, live voice and embeddings labelled with exact blockers in the model panel.
+- [ ] Veo routes: request shape and pricing unverified.
+- [ ] Search memory: needs a vector-storage migration the owner approves.
+- [ ] Music and two-way live voice: not built.
+- [ ] Live end-to-end check of Lovable voice and a Maps-to-build run (needs a paid call / live build approval).
+
 ## Test build resume fixes (2026-10-22)
 - [x] Resume no longer redoes finished work: busy-AI pauses keep the build's pictures; section wording is saved and reapplied; section designs therefore stay valid.
 - [x] Busy (rate-limited) or repeatedly slow free services rest briefly for every concurrent step instead of being re-called.

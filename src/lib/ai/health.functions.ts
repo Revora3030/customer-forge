@@ -227,7 +227,9 @@ export const getAiHealth = createServerFn({ method: "GET" })
     const { liveCatalogue } = await import("@/lib/ai/catalogue.server");
     const { routeStatus, staleRosterIds } = await import("@/lib/ai/catalogue");
     const snapshot = await liveCatalogue();
-    const rosters = Object.fromEntries(lovable.roles.map((entry) => [entry.role, entry.models]));
+    const rosters: Record<string, string[]> = Object.fromEntries(lovable.roles.map((entry) => [entry.role, entry.models]));
+    const { speechModel } = await import("./lovable-speech.server");
+    rosters["speech"] = [speechModel()];
     const usage = new Map<string, { attempts: number; successes: number; latency: number[]; cost: number; priced: boolean; last: string | null }>();
     for (const row of day) {
       // Telemetry stores the provider's model id; normalise to the catalogue's vendor/id form.
