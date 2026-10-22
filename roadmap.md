@@ -4,6 +4,7 @@
 - [x] Inspect all eight Elite Mobile Detail pages and saved requests; no active generation job or duplicate rebuild started.
 - [x] Reject model-declared full redesigns missing retained sections; repair invalid composition properties; cascade safety rejections through nested references. Existing every-page visual grader retained.
 - [x] 68 focused regressions and changed-file lint pass; harness build OK; all eight authenticated pages rendered at phone/desktop without script errors or horizontal overflow. Evidence: docs/elite-mobile-detail-whole-site-audit.md.
+- [x] Complete offline suite: 429 files passed, 3,485 tests passed, 6 credential-gated live tests skipped.
 - [ ] Actual free-only redesign and saved-output/full interaction verification remain unrun; existing draft still has plain pages. No paid calls, publishing or outreach performed.
 
 ## Gap audit + Jarvis conversations (2026-10-21)
