@@ -52,7 +52,7 @@ export function parseCatalogue(payload: unknown): CatalogueModel[] {
     if (!raw || typeof raw !== "object") continue;
     const entry = raw as Record<string, unknown>;
     const id = typeof entry["id"] === "string" ? entry["id"] : "";
-    if (!/^[a-z0-9-]+\/[a-z0-9.\-]+$/i.test(id)) continue;
+    if (!/^[a-z0-9-]+\/[a-z0-9.-]+$/i.test(id)) continue;
     const modalities = (entry["modalities"] ?? {}) as { input?: unknown; output?: unknown };
     const retention = entry["data_retention_by_surface"];
     models.push({
