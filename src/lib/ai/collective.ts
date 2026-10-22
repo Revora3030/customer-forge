@@ -151,7 +151,7 @@ export const PEER_PURPOSE_MODELS: Partial<Record<CollectivePurpose, { model: str
   final_review: { model: "gpt-5.6-sol", env: "SOL_PEER_MODEL" },
   whole_site_review: { model: "gpt-5.6-sol", env: "SOL_PEER_MODEL" },
   markup_review: { model: "gpt-5.6-sol", env: "SOL_PEER_MODEL" },
-  deep_conversion_audit: { model: "gpt-5.4-pro", env: "CONVERSION_AUDIT_MODEL" },
+  deep_conversion_audit: { model: "gpt-5.5", env: "CONVERSION_AUDIT_MODEL" },
   // Astra (GPT-6 Astra) takes the deep plan and specialist reviews plus its own
   // verification and advisory lanes: a strong reasoner that authored none of the
   // work it checks. Terra keeps the adversarial, visual, SEO and repair lanes.
