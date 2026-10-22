@@ -34,7 +34,8 @@ export type LunaPurpose =
   | "visual_review"
   | "repair_review"
   | "image_generation"
-  | "video_generation";
+  | "video_generation"
+  | "speech_generation";
 
 
 /**
