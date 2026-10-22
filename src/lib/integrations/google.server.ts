@@ -290,7 +290,7 @@ export function resetLocalListingCache() {
  * ------------------------------------------------------------------ */
 
 const PROSPECT_FIELDS =
-  "places.id,places.displayName,places.formattedAddress,places.addressComponents,places.nationalPhoneNumber,places.websiteUri,places.primaryTypeDisplayName,places.businessStatus,places.rating,places.userRatingCount,places.googleMapsUri";
+  "places.id,places.displayName,places.formattedAddress,places.addressComponents,places.nationalPhoneNumber,places.websiteUri,places.primaryTypeDisplayName,places.businessStatus,places.rating,places.userRatingCount,places.googleMapsUri,places.primaryType,places.types,places.regularOpeningHours.weekdayDescriptions";
 
 /**
  * One Places text search for the prospect finder. Uses the owner's own
@@ -301,7 +301,10 @@ export async function searchPlacesForProspects(
   textQuery: string,
   maxResultCount = 20,
   near?: { lat: number; lng: number } | null,
+  /** Extra Places fields for a single-business lookup (e.g. "places.editorialSummary"). */
+  extraFields: string[] = [],
 ): Promise<Record<string, unknown>[]> {
+  const fieldMask = [PROSPECT_FIELDS, ...extraFields.filter((field) => /^places\.[A-Za-z.]+$/.test(field))].join(",");
   const body: Record<string, unknown> = { textQuery: textQuery.slice(0, 200), maxResultCount: Math.min(20, Math.max(1, maxResultCount)), languageCode: "en" };
   // A Maps link carries the map's center: prefer the listing the owner was looking at.
   if (near) body["locationBias"] = { circle: { center: { latitude: near.lat, longitude: near.lng }, radius: 5000 } };
@@ -309,7 +312,7 @@ export async function searchPlacesForProspects(
   if (ownKey) {
     const response = await fetch("https://places.googleapis.com/v1/places:searchText", {
       method: "POST",
-      headers: { "X-Goog-Api-Key": ownKey, "X-Goog-FieldMask": PROSPECT_FIELDS, "Content-Type": "application/json" },
+      headers: { "X-Goog-Api-Key": ownKey, "X-Goog-FieldMask": fieldMask, "Content-Type": "application/json" },
       body: JSON.stringify(body),
       // Workers reject redirect: "error"; a 3xx fails the ok check below.
       redirect: "manual",
@@ -330,7 +333,7 @@ export async function searchPlacesForProspects(
   const payload = (await callGateway("google_maps", "/places/v1/places:searchText", {
     method: "POST",
     body,
-    headers: { "X-Goog-FieldMask": PROSPECT_FIELDS },
+    headers: { "X-Goog-FieldMask": fieldMask },
   })) as { places?: Record<string, unknown>[] } | null;
   return Array.isArray(payload?.places) ? payload!.places! : [];
 }

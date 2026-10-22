@@ -20,6 +20,10 @@ export type ProspectDemoInput = {
   email: string | null;
   description: string | null;
   services: string[];
+  /** Street address from the listing, when known. */
+  address?: string | null;
+  /** Opening hours exactly as the listing states them ("Monday: 9 AM – 5 PM"). */
+  hours?: string[];
   /** Google Maps place ID, when the facts came from a listing; its photos are used first. */
   placeId?: string | null;
   /** Verified gaps on the business's current website, when it has one. */
@@ -47,13 +51,32 @@ export function parseServiceList(value: unknown): string[] {
   return out;
 }
 
+const DAY_LINE = /^(monday|tuesday|wednesday|thursday|friday|saturday|sunday):\s*(.{1,70})$/i;
+
+/** Listing hour lines ("Monday: 9 AM – 5 PM"); anything else is dropped. */
+export function parseHoursLines(value: unknown): string[] {
+  const raw = Array.isArray(value) ? value : typeof value === "string" ? value.split(/\n+/) : [];
+  return raw.map((line) => text(line, 80)).filter((line) => DAY_LINE.test(line)).slice(0, 7);
+}
+
+/** Hour lines as the { Monday: "9 AM – 5 PM" } record business profiles store. */
+export function hoursRecord(lines: readonly string[] | undefined): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const line of lines ?? []) {
+    const match = DAY_LINE.exec(line);
+    if (match) out[match[1]!.charAt(0).toUpperCase() + match[1]!.slice(1).toLowerCase()] = match[2]!.trim();
+  }
+  return out;
+}
+
 /** Validates operator input. Throws a plain-language error for the first problem found. */
 export function parseProspectDemoInput(input: unknown): ProspectDemoInput {
   const raw = (input && typeof input === "object" ? input : {}) as Record<string, unknown>;
   const businessName = text(raw["businessName"], 120);
   if (businessName.length < 2) throw new Error("Enter the business name.");
   const industry = text(raw["industry"], 80);
-  if (industry.length < 3) throw new Error("Enter the business's trade or category.");
+  if (industry.length < 3)
+    throw new Error("Enter the business's trade or category (Google may not list one; use the trade the business name states, or ask the owner).");
   const city = text(raw["city"], 80);
   if (city.length < 2) throw new Error("Enter the city the business serves.");
 
@@ -62,8 +85,10 @@ export function parseProspectDemoInput(input: unknown): ProspectDemoInput {
   const email = optional(raw["email"], 160)?.toLowerCase() ?? null;
   if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error("Enter a valid email, or leave it blank.");
 
-  const description = optional(raw["description"], 600);
   const services = parseServiceList(raw["services"]);
+  const state = optional(raw["state"], 40);
+  // With no services, the listing's own category and city are a true one-line description.
+  const description = optional(raw["description"], 600) ?? (services.length ? null : `${industry} serving ${[city, state].filter(Boolean).join(", ")}.`);
   // Same bar as a customer's own first build: real services, or a real description.
   if (services.length === 0 && (description ?? "").length < 12)
     throw new Error("Add at least one real service, or describe what the business does.");
@@ -72,11 +97,13 @@ export function parseProspectDemoInput(input: unknown): ProspectDemoInput {
     businessName,
     industry,
     city,
-    state: optional(raw["state"], 40),
+    state,
     phone,
     email,
     description,
     services,
+    ...(optional(raw["address"], 200) ? { address: optional(raw["address"], 200) } : {}),
+    ...(parseHoursLines(raw["hours"]).length ? { hours: parseHoursLines(raw["hours"]) } : {}),
     placeId: typeof raw["placeId"] === "string" && /^[A-Za-z0-9_-]{10,300}$/.test(raw["placeId"]) ? raw["placeId"] : null,
     ...(parseSiteGaps(raw["siteGaps"]).length ? { siteGaps: parseSiteGaps(raw["siteGaps"]) } : {}),
   };
