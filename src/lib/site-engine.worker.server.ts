@@ -1564,7 +1564,11 @@ async function runJob(
   // Never leave an unhandled rejection if pictures fail first; the error is
   // re-raised where the plan is awaited.
   architecturePlan?.catch(() => undefined);
-  noteStage(orgId, runId, "generating your pictures");
+  // Honest progress: on a first build the page plan is written WHILE the
+  // pictures are made, so the label names both instead of only pictures.
+  let architectureSettled = architecturePlan === null;
+  void architecturePlan?.then(() => { architectureSettled = true; }, () => { architectureSettled = true; });
+  noteStage(orgId, runId, architecturePlan ? "planning your pages and making your pictures" : "generating your pictures");
   // A retry of an interrupted build reuses the pictures its earlier attempt
   // already stored (only this job's own generated files, by creation time).
   // Checked on every attempt: a capacity-deferred rerun is attempt 1 again.
@@ -1714,7 +1718,7 @@ async function runJob(
   const architectBusinessName = org.data.name ?? "";
   const architectIndustry = org.data.industry ?? null;
   const architectGoal = goals[0] ?? org.data.conversion_goal ?? null;
-  noteStage(orgId, runId, "writing the pages");
+  noteStage(orgId, runId, architectureSettled ? "writing the pages" : "planning your pages");
   // Persist ownership before materialization so a failed attempt leaves a
   // verifiable job marker for safe retry cleanup. The marker is metadata only;
   // it does not publish or replace customer content.
