@@ -338,6 +338,31 @@ export async function searchPlacesForProspects(
   return Array.isArray(payload?.places) ? payload!.places! : [];
 }
 
+/**
+ * Place Details for one exact Places id (from a Maps link). Same permitted
+ * fields as the prospect search, requested with Details' bare field mask.
+ */
+export async function placeDetailsForProspect(placeId: string): Promise<Record<string, unknown> | null> {
+  if (!/^[A-Za-z0-9_-]{20,300}$/.test(placeId)) throw new GoogleDataError("That Google Maps place id isn't valid.", "provider_error");
+  const fieldMask = `${PROSPECT_FIELDS},places.location,places.editorialSummary`.replace(/places\./g, "");
+  const path = `/places/v1/places/${encodeURIComponent(placeId)}?languageCode=en`;
+  const ownKey = process.env["GOOGLE_PLACES_API_KEY"]?.trim();
+  if (ownKey) {
+    const response = await fetch(`https://places.googleapis.com${path.replace("/places/v1", "/v1")}`, {
+      headers: { "X-Goog-Api-Key": ownKey, "X-Goog-FieldMask": fieldMask },
+      redirect: "manual",
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (response.status === 404) return null;
+    if (response.status === 403) throw new GoogleDataError("Google rejected GOOGLE_PLACES_API_KEY for Place Details.", "no_access");
+    if (response.status === 429) throw new GoogleDataError("Google's Places quota is used up for now. Try again later.", "rate_limited");
+    if (!response.ok) throw new GoogleDataError(`Google Places couldn't answer (${response.status}).`, "provider_error");
+    return (await response.json()) as Record<string, unknown>;
+  }
+  const payload = await callGateway("google_maps", path, { headers: { "X-Goog-FieldMask": fieldMask } });
+  return payload && typeof payload === "object" ? (payload as Record<string, unknown>) : null;
+}
+
 /** Read-only Places (New) GET through the connected Google Maps connector (used for live demo photos). */
 export async function placesGatewayGet(path: string, fieldMask?: string): Promise<unknown> {
   return callGateway("google_maps", path, fieldMask ? { headers: { "X-Goog-FieldMask": fieldMask } } : {});

@@ -395,22 +395,52 @@ export async function prospectFromMaps(db: SupabaseClient, actorId: string, inpu
   const { mapsLookupFrom } = await import("@/lib/prospect-source");
   let lookup = mapsLookupFrom(input);
   if (lookup.kind === "short_link") lookup = mapsLookupFrom(await resolveShortLink(lookup.url));
-  if (lookup.kind !== "query") throw new Error("Couldn't read the business from that link.");
+  if (lookup.kind === "short_link") throw new Error("Couldn't read the business from that link.");
   await assertSearchBudget(db);
-  const { searchPlacesForProspects } = await import("@/lib/integrations/google.server");
+  const { searchPlacesForProspects, placeDetailsForProspect } = await import("@/lib/integrations/google.server");
+  const { normalizePlace } = await import("@/lib/prospect-finder");
+  const { pickPlaceMatch } = await import("@/lib/prospect-source");
   const near = lookup.lat !== null && lookup.lng !== null ? { lat: lookup.lat, lng: lookup.lng } : null;
-  const places = await searchPlacesForProspects(lookup.query, 3, near, ["places.editorialSummary"]);
+  const label = lookup.query ?? (lookup.kind === "place_id" ? lookup.placeId : "");
+  let raw: Record<string, unknown> | null = null;
+  let results = 0;
+  if (lookup.kind === "place_id") {
+    // Exact listing: Place Details by id, never a fuzzy search.
+    raw = await placeDetailsForProspect(lookup.placeId);
+    results = raw ? 1 : 0;
+  }
+  if (!raw) {
+    if (!lookup.query) throw new Error("Google Maps couldn't find that place. Open the business in Google Maps, tap Share → Copy link, and paste that.");
+    const places = await searchPlacesForProspects(lookup.query, 5, near, ["places.editorialSummary", "places.location"]);
+    results = places.length;
+    const candidates = places.flatMap((entry) => {
+      const normalized = normalizePlace(entry);
+      const location = entry["location"] as { latitude?: unknown; longitude?: unknown } | undefined;
+      return normalized
+        ? [{ raw: entry, placeId: normalized.placeId, name: normalized.name, address: normalized.address, lat: typeof location?.latitude === "number" ? location.latitude : null, lng: typeof location?.longitude === "number" ? location.longitude : null }]
+        : [];
+    });
+    const picked = pickPlaceMatch(lookup.query, candidates, near);
+    if ("ambiguous" in picked) {
+      const list = picked.ambiguous.map((c) => `${c.name}${c.address ? ` (${c.address})` : ""}`).join("; ");
+      throw new Error(
+        list
+          ? `That link matches more than one listing, so nothing was filled in: ${list}. Ask the owner which one, or paste that listing's own Share link.`
+          : `Google Maps has no open business matching "${lookup.query}". Check the link, or type the name and city.`,
+      );
+    }
+    raw = candidates.find((c) => c.placeId === picked.match.placeId)!.raw;
+  }
   await db.from("audit_logs").insert({
     organization_id: null,
     actor_id: actorId,
     action: "jarvis.prospects.search",
     entity: "google_places_lookup",
     entity_id: null,
-    metadata: { query: lookup.query, results: places.length },
+    metadata: { query: label.slice(0, 200), kind: lookup.kind, results },
   });
-  const { normalizePlace } = await import("@/lib/prospect-finder");
-  const place = places.map(normalizePlace).find(Boolean);
-  if (!place) throw new Error(`Google Maps has no open business matching "${lookup.query}". Check the link, or type the name and city.`);
+  const place = raw ? normalizePlace(raw) : null;
+  if (!place) throw new Error(`Google Maps has no open business matching "${label}". Check the link, or type the name and city.`);
   const category = place.category ?? "";
   const where = [place.city, place.state].filter(Boolean).join(", ");
   const missing = [
