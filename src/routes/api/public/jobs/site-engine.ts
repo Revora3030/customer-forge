@@ -21,19 +21,18 @@ async function handle(request: Request): Promise<Response> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { drainSiteEngineQueue } = await import("@/lib/site-engine.worker.server");
 
-  try {
-    const result = await drainSiteEngineQueue(supabaseAdmin as never, {
-      // One long-lived request per build; do not pile several multi-minute
-      // builds behind the same HTTP request or override an operator pause.
-      max: 1,
-      invoker,
-      ...(organizationId ? { organizationId } : {}),
-    });
-    return Response.json(result);
-  } catch (error) {
+  const run = drainSiteEngineQueue(supabaseAdmin as never, {
+    // One long-lived request per build; do not pile several multi-minute
+    // builds behind the same HTTP request or override an operator pause.
+    max: 1,
+    invoker,
+    ...(organizationId ? { organizationId } : {}),
+  });
+  const { keepAliveJsonResponse } = await import("@/lib/builder/keep-alive-response");
+  return keepAliveJsonResponse(run, (error) => {
     console.error("[site-engine worker]", error);
-    return Response.json({ error: "Worker run failed" }, { status: 500 });
-  }
+    return { error: "Worker run failed" };
+  });
 }
 
 export const Route = createFileRoute("/api/public/jobs/site-engine")({
