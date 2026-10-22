@@ -1,5 +1,12 @@
 # Roadmap — Five-phase blocker elimination
 
+## Complete customer first websites (2026-10-22)
+- [x] Traced signup → onboarding facts/approval → existing queue → AI architecture, sections and chrome; no duplicate pipeline.
+- [x] First builds now read back every saved page/section and renderable AI composition before ready/completed; all composition material reads paginate and fail closed.
+- [x] Full regression suite: 3,491 passed, 6 live tests skipped; changed-code lint and automatic build checked.
+- [ ] Live new-customer signup-to-generated-site verification unrun under standing no-live-build/no-paid-spend restriction. Provider capacity is not guaranteed; existing pause/resume and publication gates retained.
+- [ ] Investigation follow-ups: accepted-contract identity/multiplicity comparison, unmarked partial-site handling, service-card architecture coverage and zero-row composition writes still require targeted hardening; no complete-production claim.
+
 ## Whole customer-site repair (2026-10-22)
 - [x] Inspect all eight Elite Mobile Detail pages and saved requests; no active generation job or duplicate rebuild started.
 - [x] Reject model-declared full redesigns missing retained sections; repair invalid composition properties; cascade safety rejections through nested references. Existing every-page visual grader retained.
