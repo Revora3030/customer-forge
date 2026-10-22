@@ -40,7 +40,7 @@ import {
 import { RevoraAiError, notConfigured, providerUnavailable } from "@/lib/ai/errors";
 import { durableRuntimeFor } from "@/lib/ai/durable-health.server";
 import { preserveGroupOrder, qualityFirstOrder } from "@/lib/ai/orchestration/order";
-import { lovableAdapter } from "@/lib/ai/providers/lovable";
+import { lovableAdapter, lovableVideo, type VideoOutcome } from "@/lib/ai/providers/lovable";
 
 import { base64ByteLength } from "@/lib/ai/providers/shared";
 import { compactMessages } from "@/lib/ai/context-compaction";
@@ -1030,11 +1030,6 @@ export async function paidImageModelReachable(model: string): Promise<{ availabl
 
 /* -------------------------- pinned paid video call -------------------------- */
 
-export type VideoOutcome =
-  | { ok: true; bytes: Uint8Array }
-  | { ok: false; kind: "model_unavailable" | "provider_error" | "timed_out" | "invalid_video"; detail: string; charged: boolean };
-
-const GATEWAY = "https://ai.gateway.lovable.dev/v1";
 
 /**
  * ONE clip from a Lovable AI video model (Gemini Omni request body). Creates
@@ -1056,42 +1051,10 @@ export async function callPinnedPaidVideo(
   const concurrencyKey = caller.organizationId ?? caller.userId ?? "platform";
   if (!(await acquireWaiting(concurrencyKey, limits.maxConcurrentPerWorkspace)))
     throw new RevoraAiError(429, "Revora AI is already working on this workspace's requests.", { category: "rate_limited" });
-  const headers = { Authorization: `Bearer ${config.apiKey}`, "Content-Type": "application/json" };
   try {
-    const portrait = input.size === "720x1280";
-    const seconds = Math.min(10, Math.max(3, Math.round(input.seconds)));
-    const created = await fetch(`${GATEWAY}/videos`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        model: input.model,
-        input: `${input.prompt} In a single continuous shot. No dialogue. No on-screen text.`,
-        response_format: { type: "video", resolution: "720p", duration: `${seconds}s`, aspect_ratio: portrait ? "9:16" : "16:9" },
-      }),
-    });
-    if (!created.ok) {
-      const detail = `create answered ${created.status}`;
-      return { ok: false, kind: created.status === 403 || created.status === 404 ? "model_unavailable" : "provider_error", detail, charged: false };
-    }
-    const job = (await created.json()) as { id?: string };
-    if (!job.id) return { ok: false, kind: "provider_error", detail: "no job id returned", charged: false };
-    const until = Date.now() + waiting.maxWaitMs;
-    for (;;) {
-      if (Date.now() >= until) return { ok: false, kind: "timed_out", detail: "job still rendering", charged: true };
-      await wait(waiting.pollMs);
-      const polled = await fetch(`${GATEWAY}/videos/${encodeURIComponent(job.id)}`, { headers });
-      if (!polled.ok) continue;
-      const state = (await polled.json()) as { status?: string; error?: { message?: string } };
-      if (state.status === "failed")
-        return { ok: false, kind: "provider_error", detail: (state.error?.message ?? "job failed").slice(0, 160), charged: true };
-      if (state.status !== "completed") continue;
-      const content = await fetch(`${GATEWAY}/videos/${encodeURIComponent(job.id)}/content`, { headers });
-      if (!content.ok) return { ok: false, kind: "provider_error", detail: `download answered ${content.status}`, charged: true };
-      const bytes = new Uint8Array(await content.arrayBuffer());
-      if (bytes.byteLength === 0) return { ok: false, kind: "invalid_video", detail: "empty clip", charged: true };
-      reportModelAnswered("lovable", input.model);
-      return { ok: true, bytes };
-    }
+    const outcome = await lovableVideo(config.apiKey, input, waiting);
+    if (outcome.ok) reportModelAnswered("lovable", input.model);
+    return outcome;
   } finally {
     release(concurrencyKey);
   }
