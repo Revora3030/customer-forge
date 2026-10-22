@@ -13,7 +13,23 @@
  * free-only. Anything else is an explicit "unavailable" result, never a silent
  * downgrade.
  */
-import type { ModelCapability } from "@/lib/ai/registry.server";
+export type ModelCapability =
+  | "planning"
+  | "reasoning"
+  | "coding"
+  | "frontend"
+  | "design"
+  | "copy"
+  | "seo"
+  | "cro"
+  | "accessibility"
+  | "qa"
+  | "critique"
+  | "facts"
+  | "security"
+  | "vision"
+  | "image"
+  | "transcription";
 
 export type TeamMember = "sol" | "terra" | "luna" | "sunburst" | "flare" | "sora";
 
