@@ -2,7 +2,8 @@
 
 ## Raise rating gaps (2026-10-22 plan)
 - [ ] Phase 1: one free-model test-workspace build + every-page report — waiting on owner approval to run.
-- [ ] Phase 2: live Jarvis step events, Stop/Resume, expiring single-use approvals, unified approvals list.
+- [x] Phase 2a: live Jarvis step events shown while working (tested).
+- [ ] Phase 2: Stop/Resume, expiring single-use approvals, unified approvals list.
 - [x] Phase 3 (partial): security scan clean; linter shows 28 server-only tables locked by design (no browser policies) and 1 extension-in-public warning.
 - [ ] Phase 3: cross-workspace isolation test suite.
 - [ ] Phase 4: honest status page (Instagram blocked on Meta credentials).
