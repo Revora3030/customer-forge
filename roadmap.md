@@ -1,5 +1,13 @@
 # Roadmap — Five-phase blocker elimination
 
+## Raise rating gaps (2026-10-22 plan)
+- [ ] Phase 1: one free-model test-workspace build + every-page report — waiting on owner approval to run.
+- [ ] Phase 2: live Jarvis step events, Stop/Resume, expiring single-use approvals, unified approvals list.
+- [x] Phase 3 (partial): security scan clean; linter shows 28 server-only tables locked by design (no browser policies) and 1 extension-in-public warning.
+- [ ] Phase 3: cross-workspace isolation test suite.
+- [ ] Phase 4: honest status page (Instagram blocked on Meta credentials).
+- [ ] Phase 5: 320/390/768/1280 sweep.
+
 ## Reject generic white/cream customer defaults (2026-10-22)
 - [x] Removed cream/bone/sand suggestions from AI identity guidance; reject dominant near-white/cream generated surfaces even with colorful accents.
 - [x] Final identity acceptance rechecks palette and required design tokens after repair attempts; invalid final answers cannot slip through.
