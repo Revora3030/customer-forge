@@ -876,9 +876,6 @@ function Jarvis() {
                 </div>
               ) : null}
               {busy && liveRun ? <LiveRunSteps runId={liveRun} /> : null}
-              {false ? (
-                <div />
-              ) : null}
               {!busy && !pending && lastMessage?.role === "user" ? (
                 <div>
                   <Button type="button" variant="outline" size="sm" data-jarvis-tap="" className="gap-1.5 rounded-full" onClick={() => regen.mutate()}>
