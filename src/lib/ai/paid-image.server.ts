@@ -362,8 +362,8 @@ export async function generatePaidImage(
       ok: true,
       base64: result.base64,
       mimeType: result.mimeType,
-      provider: "openai",
-      model,
+      provider: result.provider === "lovable" ? "lovable" : "openai",
+      model: result.model,
       tier: plan.tier,
       costMicrocents: estimate,
     };
