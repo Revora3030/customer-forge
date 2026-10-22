@@ -110,14 +110,16 @@ describe("Hall of Fame spending boundary", () => {
   it("skips the paid collective when free-only is forced and uses the free specialist", async () => {
     vi.stubEnv("AI_FREE_ONLY", "true");
     expect(await callBestThinker(request)).toMatchObject({ ok: true, lane: "free", downgraded: false });
-    expect(mocks.paid).not.toHaveBeenCalled();
+    expect(mocks.reserve).not.toHaveBeenCalled();
+    expect(mocks.generate).not.toHaveBeenCalled();
     expect(mocks.pinned).toHaveBeenCalledTimes(1);
   });
   it("does not use paid fallback when the free squad is empty", async () => {
     vi.stubEnv("AI_FREE_ONLY", "true");
     mocks.registry.mockResolvedValue([]);
     expect(await callBestThinker(request)).toMatchObject({ ok: false, reason: "no_free_model" });
-    expect(mocks.paid).not.toHaveBeenCalled();
+    expect(mocks.reserve).not.toHaveBeenCalled();
+    expect(mocks.generate).not.toHaveBeenCalled();
     expect(mocks.pinned).not.toHaveBeenCalled();
   });
   it("keeps direct OpenAI and Google entries out of the strict squad", async () => {
@@ -127,7 +129,8 @@ describe("Hall of Fame spending boundary", () => {
       { provider: "google", model: "google-origin-test", capabilities: ["design"], weight: 98, health: { healthy: true }, quota: { remainingToday: 10 } },
     ]);
     expect(await callBestThinker(request)).toMatchObject({ ok: false, reason: "no_free_model" });
-    expect(mocks.paid).not.toHaveBeenCalled();
+    expect(mocks.reserve).not.toHaveBeenCalled();
+    expect(mocks.generate).not.toHaveBeenCalled();
     expect(mocks.pinned).not.toHaveBeenCalled();
   });
   it("walks the wider squad without ever reaching OpenAI or Google or the paid lane", async () => {
