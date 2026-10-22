@@ -37,73 +37,10 @@ import {
   type ProviderConfig,
   type ProviderName,
 } from "@/lib/ai/config";
-import { RevoraAiError, freeAiUnavailable, providerUnavailable } from "@/lib/ai/errors";
-import {
-  durableBudgetExhausted,
-  durableProviderResting,
-  noteDurableFreeTokens,
-  noteDurableFreeUse,
-  durableRuntimeFor,
-  noteDurableProviderResult,
-  refreshDurableRuntime,
-} from "@/lib/ai/durable-health.server";
-import {
-  freeAiEnabled,
-  freeBudgetAllows,
-  freeBudgetCap,
-  freeBudgetRemaining,
-  freeImageBudgetCap,
-  freeImageBudgetKey,
-  freeProviderChain,
-  freeProviderCredentials,
-  freeProviderReadiness,
-  imageCreationCapableModel,
-  imageEditCapableModel,
-  isFreeEligibleModel,
-  noteFreeUse,
-  noteOpenAiTokens,
-  openAiTokenPool,
-  openAiTokenPoolCap,
-  openAiTokenPoolKey,
-  openAiTokensLocallyExhausted,
-  OPENAI_UNKNOWN_USAGE_TOKENS,
-  type FreeProviderName,
-  ADMIN_ONLY_FREE_PROVIDERS,
-} from "@/lib/ai/free";
-import { PREFERRED_FREE_VISION_MODELS, preferredVisionRank, visionCapableModel } from "@/lib/ai/vision-models";
-import { pickDiscoveredModels, refreshFreeModels } from "@/lib/ai/free-models.server";
+import { RevoraAiError, notConfigured, providerUnavailable } from "@/lib/ai/errors";
+import { durableRuntimeFor } from "@/lib/ai/durable-health.server";
 import { preserveGroupOrder, qualityFirstOrder } from "@/lib/ai/orchestration/order";
-import { cloudflareAdapter } from "@/lib/ai/providers/cloudflare";
-import { googleAdapter } from "@/lib/ai/providers/google";
-import { groqAdapter } from "@/lib/ai/providers/groq";
-import { llm7Adapter } from "@/lib/ai/providers/llm7";
-import { mistralAdapter } from "@/lib/ai/providers/mistral";
-import { huggingfaceAdapter } from "@/lib/ai/providers/huggingface";
-import { deepseekAdapter } from "@/lib/ai/providers/deepseek";
-import { cerebrasAdapter } from "@/lib/ai/providers/cerebras";
-import { cohereAdapter } from "@/lib/ai/providers/cohere";
-import { sambanovaAdapter } from "@/lib/ai/providers/sambanova";
-import { togetherAdapter } from "@/lib/ai/providers/together";
-import { siliconflowAdapter } from "@/lib/ai/providers/siliconflow";
-import { pollinationsAdapter } from "@/lib/ai/providers/pollinations";
-import { zaiAdapter } from "@/lib/ai/providers/zai";
-import { ollamaAdapter } from "@/lib/ai/providers/ollama";
-import { ovhAdapter } from "@/lib/ai/providers/ovh";
-import { kiloAdapter } from "@/lib/ai/providers/kilo";
-import { omnirouteAdapter } from "@/lib/ai/providers/omniroute";
-import { selfhostedAdapter } from "@/lib/ai/providers/selfhosted";
-import { opencodeAdapter } from "@/lib/ai/providers/opencode";
-import { modelscopeAdapter } from "@/lib/ai/providers/modelscope";
-import { githubModelsAdapter } from "@/lib/ai/providers/github";
-import { nvidiaAdapter } from "@/lib/ai/providers/nvidia";
-import { openRouterAdapter } from "@/lib/ai/providers/openrouter";
 import { lovableAdapter } from "@/lib/ai/providers/lovable";
-import {
-  openAiAdapter,
-  openaiModelReachable,
-  openaiVideo,
-  type OpenAiVideoOutcome,
-} from "@/lib/ai/providers/openai";
 
 import { base64ByteLength } from "@/lib/ai/providers/shared";
 import { compactMessages } from "@/lib/ai/context-compaction";
@@ -122,31 +59,6 @@ import type {
 } from "@/lib/ai/types";
 
 const ADAPTERS: Record<ProviderName, ProviderAdapter> = {
-  google: googleAdapter,
-  openai: openAiAdapter,
-  cloudflare: cloudflareAdapter,
-  openrouter: openRouterAdapter,
-  groq: groqAdapter,
-  nvidia: nvidiaAdapter,
-  llm7: llm7Adapter,
-  mistral: mistralAdapter,
-  huggingface: huggingfaceAdapter,
-  deepseek: deepseekAdapter,
-  cerebras: cerebrasAdapter,
-  cohere: cohereAdapter,
-  sambanova: sambanovaAdapter,
-  together: togetherAdapter,
-  siliconflow: siliconflowAdapter,
-  pollinations: pollinationsAdapter,
-  zai: zaiAdapter,
-  ollama: ollamaAdapter,
-  ovh: ovhAdapter,
-  kilo: kiloAdapter,
-  omniroute: omnirouteAdapter,
-  selfhosted: selfhostedAdapter,
-  opencode: opencodeAdapter,
-  modelscope: modelscopeAdapter,
-  github: githubModelsAdapter,
   lovable: lovableAdapter,
 };
 
@@ -202,7 +114,6 @@ export type LastAiOutcome = {
   ok: boolean;
   category: string | null;
   fallbackUsed: boolean;
-  free: boolean;
 };
 
 let lastOutcome: LastAiOutcome | null = null;
@@ -239,314 +150,47 @@ export function providerHealth() {
 }
 
 
-/* ------------------------------ the free chain ----------------------------- */
+/* --------------------------------- chain --------------------------------- */
 
-type Candidate = { config: ProviderConfig; model: string; free: FreeProviderName | null };
-
-function freeCandidate(
-  name: FreeProviderName,
-  apiKey: string,
-  model: string,
-  role: ModelRole,
-): Candidate {
-  const models = {
-    primary: model,
-    fast: model,
-    vision: model,
-    coding: model,
-    image: model,
-    transcription: model,
-    conversation: model,
-  } as Record<ModelRole, string>;
-
-  models[role] = model;
-  return { config: { name: name as ProviderName, apiKey, models }, model, free: name };
-}
-
-/**
- * The provider order for one request:
- *
- * 1. every configured FREE provider that has a free-eligible model for the
- *    role, still inside its daily budget, healthiest first;
- * 2. a paid provider ONLY when an operator has explicitly turned off both
- *    free-only mode and zero-cost mode. There is no implicit paid fallback.
- *
- * Live discovery is consulted first so a provider's current free pool is used
- * instead of a fixed list; a discovered id must still pass the free-eligibility
- * check before it can replace the configured model.
- */
-/**
- * How deep one provider's free pool may back a single role.
- *
- * There is NO fixed cap: the whole verified free catalogue of every configured
- * provider is usable. `FREE_AI_MODELS_PER_PROVIDER` exists only as an operator
- * safety valve (set a positive number to trim the failover depth); unset or 0
- * means "use the entire verified free pool".
- */
-export function freeModelPoolDepth(): number {
-  const raw = Number(process.env["FREE_AI_MODELS_PER_PROVIDER"] ?? "");
-  return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : Number.POSITIVE_INFINITY;
-}
-
-/** True once an OpenAI shared-traffic pool's tokens for today are spent, on this worker or shared. */
-function openAiPoolSpent(model: string) {
-  const pool = openAiTokenPool(model);
-  return (
-    openAiTokensLocallyExhausted(model) ||
-    durableBudgetExhausted(openAiTokenPoolKey(pool), openAiTokenPoolCap(pool))
-  );
-}
-
-/**
- * Every verified free model available for one role, grouped by provider and in
- * preference order. This is the authoritative pool: no fixed per-provider cap.
- */
-export async function freeModelPool(
-  role: ModelRole,
-  /**
-   * Optional extra gate on top of free-eligibility, for a request that needs a
-   * specific capability (editing an existing picture needs an image-to-image or
-   * inpainting model, so a text-to-image model must never be dispatched).
-   */
-  capable?: (model: string) => boolean,
-  /** Admin-only providers (GitHub Models) serve Revora's own admin work only. */
-  audience: "admin" | "customer" = "customer",
-): Promise<{ provider: FreeProviderName; credentials: { apiKey: string; accountId?: string }; models: string[] }[]> {
-  if (!freeAiEnabled()) return [];
-  const depth = freeModelPoolDepth();
-  const pools: {
-    provider: FreeProviderName;
-    credentials: { apiKey: string; accountId?: string };
-    models: string[];
-  }[] = [];
-  await refreshDurableRuntime();
-  for (const entry of freeProviderChain(role)) {
-    if (audience !== "admin" && ADMIN_ONLY_FREE_PROVIDERS.has(entry.name)) continue;
-    // Pictures are metered separately from words: one generated picture costs
-    // far more of the free daily allowance than one short answer.
-    if (!freeBudgetAllows(entry.name, role)) continue;
-    // Shared counters: skip a provider another worker has already exhausted.
-    const durableKey = role === "image" ? freeImageBudgetKey(entry.name) : entry.name;
-    const durableCap = role === "image" ? freeImageBudgetCap(entry.name) : freeBudgetCap(entry.name);
-    if (durableBudgetExhausted(durableKey, durableCap)) continue;
-    if (durableProviderResting(entry.name)) continue;
-    const models: string[] = [];
-    const consider = (model: string) => {
-      // Belt and braces: never dispatch a model that isn't free-eligible.
-      if (models.length >= depth) return;
-      if (capable && !capable(model)) return;
-      // OpenAI bills past its shared-traffic token allowance instead of
-      // refusing, so a pool whose tokens are spent is never offered as free.
-      if (entry.name === "openai" && openAiPoolSpent(model)) return;
-      if (!models.includes(model) && isFreeEligibleModel(entry.name, model)) models.push(model);
-    };
-    const configuredModel = entry.model;
-    // FAST VISION FIRST: the verified low-latency vision endpoints lead each
-    // provider's vision pool so a visual review answers in about a second
-    // instead of waiting on a large general multimodal model.
-    if (role === "vision")
-      for (const preferred of PREFERRED_FREE_VISION_MODELS)
-        if (preferred.provider === entry.name) consider(preferred.model);
-    // Keep a known-good creation route in every Cloudflare image pool. An
-    // operator override or a stale discovery cache may point the configured
-    // image model at an inpainting-only endpoint; capability filtering then
-    // correctly removes it, but must not leave a customer request with no
-    // usable generator. These two endpoints have both been live-verified with
-    // the plain `{ prompt }` request shape used by the adapter.
-    if (role === "image" && entry.name === "cloudflare") {
-      // Flux-1-schnell first: sharper automotive/product detail, fewer
-      // geometric artifacts than the 4-step SDXL-Lightning endpoint.
-      consider("@cf/black-forest-labs/flux-1-schnell");
-      consider("@cf/bytedance/stable-diffusion-xl-lightning");
-    }
-    // The configured default is the model proven against this account. Put it
-    // before name-matched catalogue discoveries: metadata can identify a model
-    // as image-capable without proving its exact request schema is compatible.
-    consider(configuredModel);
-    try {
-      // Image models come from a different catalogue endpoint, so the role is
-      // passed through and the right pool is refreshed.
-      await refreshFreeModels(entry.name, entry.credentials, role);
-      // No truncation: the provider's whole verified free catalogue for this
-      // role is ranked and offered.
-      for (const model of pickDiscoveredModels(entry.name, role, depth)) consider(model);
-    } catch {
-      // Discovery is advisory only; the configured free model still runs.
-    }
-    if (models.length) pools.push({ provider: entry.name, credentials: entry.credentials, models });
-  }
-  return pools;
-}
+type Candidate = { config: ProviderConfig; model: string };
 
 async function buildChain(
   caller: AiCaller,
   role: ModelRole,
   capable?: (model: string) => boolean,
-  forceFreeOnly = false,
-  forcePaidOnly = false,
+  noSpend = false,
 ): Promise<Candidate[]> {
-  // The AI model lane is the builder's creative execution path. Keep the
-  // reachability seam here, but never substitute deterministic creative work
-  // when models are unavailable: callers must fail closed or retry with AI.
-
-  // First choice per provider (breadth), then each provider's remaining free
-  // models (depth). Breadth first means a provider outage costs one attempt,
-  // while depth means a single retired or rate-limited model is covered by
-  // another model from the same free catalogue.
-  const first: Candidate[] = [];
-  const deeper: Candidate[] = [];
-
-  // A paid-only walk (the builder's thinker lane) never touches the free
-  // catalogue: the caller runs its own free fallback afterwards.
-  if (!forcePaidOnly)
-    for (const pool of await freeModelPool(role, capable, caller.task.startsWith("admin.") ? "admin" : "customer"))
-      pool.models.forEach((model, index) => {
-        const candidate = freeCandidate(pool.provider, pool.credentials.apiKey, model, role);
-        if (index === 0) first.push(candidate);
-        else deeper.push(candidate);
-      });
-
-  const candidates = [...first, ...deeper];
-
-  // Paid providers remain available when the request is not explicitly forced
-  // into free-only mode. Free routing is a cost lane, never creative authority.
-  if (!forceFreeOnly)
-    for (const config of providerChain()) {
-      // A role may name a comma-separated roster (the Lovable lane lists the
-      // whole verified gateway catalogue per role); every id is its own
-      // failover candidate.
-      for (const model of config.models[role]
-        .split(",")
-        .map((id) => id.trim())
-        .filter(Boolean)) {
-        if (capable && !capable(model)) continue;
-        candidates.push({ config, model, free: null });
-      }
+  // A no-spend scope means no AI at all: Lovable AI is the only team.
+  if (noSpend) return [];
+  const candidates: Candidate[] = [];
+  for (const config of providerChain())
+    for (const model of config.models[role].split(",").map((id) => id.trim()).filter(Boolean)) {
+      if (capable && !capable(model)) continue;
+      candidates.push({ config, model });
     }
-
-  // QUALITY-FIRST ORDER. Candidates are ranked by capability fit, then quality,
-  // then recent health, with cost considered only after quality. Free routing is
-  // a provider lane; it never becomes a deterministic creative substitute.
   const ranked = qualityFirstOrder(candidates, (entry) => ({
     model: entry.model,
     provider: entry.config.name,
     healthy: providerHealthy({ caller, provider: entry.config.name, model: entry.model }),
-    paid: entry.free === null,
+    paid: true,
   }));
-  // Quality decides where each lane sits; the operator still decides which
-  // paid provider is tried first, so an explicitly configured default/fallback
-  // provider order is preserved inside the paid group.
-  // LANE BY TASK SIZE (owner decision 2026-10-22): the small, mechanical
-  // `fast` role is served by the free pool first with the paid Lovable lane
-  // as failover; every other role — site building, design, coding and Jarvis
-  // conversation — runs the paid team first and the free Hall of Fame pool is
-  // the backup squad. Within each group the strongest model is tried first.
-  const groupedRaw = preserveGroupOrder(groupForRole(role, ranked), candidates, (entry) => entry.free === null);
-  // Visual review is latency-critical: inside the free group, the verified fast
-  // vision endpoints go first (NIM llama-3.2-11b-vision, then Workers AI), and
-  // everything else keeps its quality-first place behind them.
-  const grouped = role === "vision" ? fastVisionFirst(groupedRaw) : groupedRaw;
+  // The configured roster order (best model per job) is preserved.
+  const grouped = preserveGroupOrder(ranked, candidates, () => true);
   // LIVE ADMIN ROUTING: pins and pauses set in the Command Center.
   const { loadCommandSettings, applyRoutingOverrides } = await import("@/lib/ai/command-settings.server");
   const overridden = applyRoutingOverrides(grouped, (entry) => entry.model, await loadCommandSettings());
-  // FREE-FIRST AUTO-SWITCH: a paid provider that recently answered 402/quota/
-  // key-rejected/rate-limited moves behind the free pool until its backoff
-  // lapses, so an unfunded account never adds latency to every build step.
-  const backedOff = demoteDegradedPaid(overridden);
-  // OPEN BREAKER: a paid model that just failed three times (timeouts, 5xx)
-  // also waits behind the free pool until its cooldown ends, so a hanging paid
-  // provider can't spend every request's deadline before a free model is tried.
-  const cooling = (entry: Candidate) =>
-    entry.free === null && !providerHealthy({ caller, provider: entry.config.name, model: entry.model });
-  const ordered = [...backedOff.filter((entry) => !cooling(entry)), ...backedOff.filter(cooling)];
-  // Keep the full eligible pool reachable. Timeouts, concurrency and the
-  // chain deadline bound actual work, not an arbitrary catalog cutoff.
-  // A positive operator override may still narrow the candidate list.
+  const cooling = (entry: Candidate) => !providerHealthy({ caller, provider: entry.config.name, model: entry.model });
+  const ordered = [...overridden.filter((entry) => !cooling(entry)), ...overridden.filter(cooling)];
   const failoverLimit = Number(process.env["AI_MAX_FAILOVER_CANDIDATES"] ?? "");
   const cap = Number.isFinite(failoverLimit) && failoverLimit > 0 ? Math.floor(failoverLimit) : Number.POSITIVE_INFINITY;
   return ordered.slice(0, cap);
 }
 
-/**
- * Roles the free pool would serve first. Empty (owner decision 2026-10-22,
- * later the same day): Lovable's paid team leads every role, and the free
- * pool is backup only when Lovable is unavailable or the spend cap is hit.
- */
-export const SMALL_TASK_ROLES: ReadonlySet<ModelRole> = new Set<ModelRole>();
-
-/**
- * Stable group order for a role: the free pool leads small tasks, the paid
- * team leads everything else. Only group placement changes; each group keeps
- * its quality-first internal order.
- */
-export function groupForRole<T extends { free: unknown | null }>(role: ModelRole, ranked: T[]): T[] {
-  const paid = ranked.filter((entry) => entry.free === null);
-  const free = ranked.filter((entry) => entry.free !== null);
-  return SMALL_TASK_ROLES.has(role) ? [...free, ...paid] : [...paid, ...free];
+/** Lovable AI status for the admin surface: last call and breaker state. */
+export function aiRuntimeStatus() {
+  const shared = durableRuntimeFor("lovable");
+  return { last: lastAiOutcome(), providers: providerHealth(), sharedOpenUntil: shared?.openUntil ?? null };
 }
-
-/** Stable reorder: preferred fast free vision models first, inside the free group. */
-export function fastVisionFirst<T extends { free: FreeProviderName | null; model: string }>(entries: T[]): T[] {
-  const paid = entries.filter((entry) => entry.free === null);
-  const free = entries.filter((entry) => entry.free !== null);
-  const preferred = free
-    .map((entry, index) => ({ entry, index, rank: preferredVisionRank(entry.free as string, entry.model) }))
-    .filter((row) => Number.isFinite(row.rank))
-    .sort((a, b) => a.rank - b.rank || a.index - b.index)
-    .map((row) => row.entry);
-  const rest = free.filter((entry) => !preferred.includes(entry));
-  return [...paid, ...preferred, ...rest];
-}
-
-/**
- * The capability gate a role needs on top of free eligibility. Vision is strict:
- * a model that cannot read pixels is never handed a picture, so visual review
- * no longer times out on text-only models (`glm-5.2`, `gpt-oss`, ...).
- */
-export function roleCapability(
-  role: ModelRole,
-  capable?: (model: string) => boolean,
-): ((model: string) => boolean) | undefined {
-  if (role !== "vision") return capable;
-  return capable ? (model: string) => visionCapableModel(model) && capable(model) : visionCapableModel;
-}
-
-/**
- * Free AI status for the admin surface. Reports what is configured, what the
- * provider publishes as its free allowance, what budget is left in this
- * process, and which providers are in a breaker cooldown. No key material and
- * no secret-derived value is included.
- */
-export function freeAiStatus() {
-  return {
-    freeAiEnabled: freeAiEnabled(),
-    /** The most recent model call: who served it and how it ended. */
-    last: lastAiOutcome(),
-    providers: freeProviderReadiness().map((entry) => {
-      const states = [...breaker.entries()]
-        .filter(([key]) => key.split("\u001f")[2] === entry.name)
-        .map(([, state]) => state);
-      const cooldownUntil = states.reduce(
-        (latest, state) => Math.max(latest, state.openUntil > Date.now() ? state.openUntil : 0),
-        0,
-      );
-      // The shared circuit (every worker) is the fuller truth: a provider
-      // resting there after a spent allowance or rejected key is not ready.
-      const shared = durableRuntimeFor(entry.name);
-      const sharedUntil = shared?.openUntil && shared.openUntil > Date.now() ? shared.openUntil : 0;
-      const until = Math.max(cooldownUntil, sharedUntil);
-      return {
-        ...entry,
-        healthy: until === 0,
-        openFailures: states.reduce((total, state) => total + state.failures, 0),
-        cooldownUntil: until || null,
-        isolatedScopes: states.length,
-        remainingToday: freeBudgetRemaining(entry.name),
-      };
-    }),
-  };
-}
-
 
 /* ------------------------------- concurrency ------------------------------- */
 
