@@ -2,10 +2,29 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { freeAiOnly, paidCollectiveAllowed, type FreeOnlyEnvironment } from "@/lib/ai/free-only-policy.server";
 import { isolateProviderEnvironment } from "./provider-test-environment";
 
-const mocks = vi.hoisted(() => ({ paid: vi.fn(), registry: vi.fn(), pinned: vi.fn(), trace: vi.fn() }));
-vi.mock("@/lib/ai/luna.server", () => ({ callCollective: mocks.paid }));
+const mocks = vi.hoisted(() => ({
+  reserve: vi.fn(),
+  settle: vi.fn(),
+  generate: vi.fn(),
+  registry: vi.fn(),
+  pinned: vi.fn(),
+  trace: vi.fn(),
+}));
+vi.mock("@/lib/ai/luna.server", () => ({
+  reserveBudget: mocks.reserve,
+  settleBudget: mocks.settle,
+  estimateMicrocents: () => 10,
+  costMicrocents: () => 7,
+  recordUsage: vi.fn(async () => undefined),
+}));
 vi.mock("@/lib/ai/registry.server", () => ({ buildFreeModelRegistry: mocks.registry }));
-vi.mock("@/lib/ai/router.server", () => ({ callPinnedFreeModel: mocks.pinned, extractJsonObject: () => null }));
+vi.mock("@/lib/ai/router.server", () => ({
+  callPinnedFreeModel: mocks.pinned,
+  extractJsonObject: () => null,
+  generateText: mocks.generate,
+  generateStructuredOutput: mocks.generate,
+  paidFailureCharge: () => 0,
+}));
 vi.mock("@/lib/ai/telemetry.server", () => ({ recordTeamStep: mocks.trace }));
 vi.mock("@/lib/ai/free-reputation", () => ({
   freeModelForm: () => ({ score: 0 }), recordFreeModelOutcome: vi.fn(),

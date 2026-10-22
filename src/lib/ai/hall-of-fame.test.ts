@@ -10,7 +10,14 @@ import {
 } from "@/lib/ai/hall-of-fame";
 
 const mocks = vi.hoisted(() => ({ registry: vi.fn(), pinned: vi.fn() }));
-vi.mock("@/lib/ai/luna.server", () => ({ callCollective: vi.fn() }));
+vi.mock("@/lib/ai/luna.server", () => ({
+  callCollective: vi.fn(),
+  estimateMicrocents: vi.fn(() => 1),
+  costMicrocents: vi.fn(() => 1),
+  reserveBudget: vi.fn(),
+  settleBudget: vi.fn(),
+  recordUsage: vi.fn(),
+}));
 vi.mock("@/lib/ai/registry.server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/ai/registry.server")>()),
   buildFreeModelRegistry: mocks.registry,
