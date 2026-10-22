@@ -1,9 +1,10 @@
 # Roadmap — Five-phase blocker elimination
 
 ## Whole customer-site repair (2026-10-22)
-- [ ] Inspect Elite Mobile Detail's complete saved page inventory and recent requests without duplicating active jobs.
-- [ ] Repair whole-site planning/apply and every-page QA gaps using the existing AI pipeline.
-- [ ] Run regression tests and inspect every available draft page; no paid calls, publishing or outreach.
+- [x] Inspect all eight Elite Mobile Detail pages and saved requests; no active generation job or duplicate rebuild started.
+- [x] Reject model-declared full redesigns missing retained sections; repair invalid composition properties; cascade safety rejections through nested references. Existing every-page visual grader retained.
+- [x] 68 focused regressions and changed-file lint pass; harness build OK; all eight authenticated pages rendered at phone/desktop without script errors or horizontal overflow. Evidence: docs/elite-mobile-detail-whole-site-audit.md.
+- [ ] Actual free-only redesign and saved-output/full interaction verification remain unrun; existing draft still has plain pages. No paid calls, publishing or outreach performed.
 
 ## Gap audit + Jarvis conversations (2026-10-21)
 - [x] Evidence matrix and prioritized backlog in docs/GAP_AUDIT_2026-10-21.md.
