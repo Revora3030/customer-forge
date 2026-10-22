@@ -27,3 +27,27 @@ export function firstBuildCoverageProblems(
   }
   return problems;
 }
+
+/** Every website-picture reference saved in compositions (temp_ refs are never valid after apply). */
+export function savedPictureRefs(sections: readonly SavedBuildSection[]): Map<string, string> {
+  const refs = new Map<string, string>();
+  const visit = (value: unknown, sectionId: string) => {
+    if (Array.isArray(value)) return value.forEach(item => visit(item, sectionId));
+    if (!value || typeof value !== "object") return;
+    for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+      if (key === "mediaRef" && typeof child === "string" && child) refs.set(child, sectionId);
+      else visit(child, sectionId);
+    }
+  };
+  for (const section of sections) visit(section.settings, section.id);
+  return refs;
+}
+
+/** Pictures the design asks for but the website's media library does not hold render as blanks. */
+export function missingPictureProblems(sections: readonly SavedBuildSection[], savedMediaIds: ReadonlySet<string>): string[] {
+  const problems: string[] = [];
+  for (const [ref, sectionId] of savedPictureRefs(sections)) {
+    if (!savedMediaIds.has(ref)) problems.push(`Section ${sectionId} shows a picture that was never saved`);
+  }
+  return problems;
+}
