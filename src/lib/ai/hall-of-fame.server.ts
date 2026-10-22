@@ -443,6 +443,8 @@ async function callPaidThinker(request: {
   maxOutputTokens?: number;
   json?: boolean;
   signal?: AbortSignal;
+  preferModels?: string[];
+  avoidModels?: string[];
 }): Promise<PaidThinkerOutcome> {
   const selection = selectTier({
     purpose: request.purpose,
