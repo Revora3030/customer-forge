@@ -182,7 +182,7 @@ export const getAiHealth = createServerFn({ method: "GET" })
 
     {
       const { lastRecordedOutcome } = await import("@/lib/ai/health-merge");
-      lovable.last = lastRecordedOutcome(events, new Set(["lovable"])) ?? lovable.last;
+      lovable.last = lastRecordedOutcome(events) ?? lovable.last;
     }
 
     const { rows: audit } = await fetchAllRows((from, to) =>
