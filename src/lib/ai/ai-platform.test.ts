@@ -46,24 +46,29 @@ const SOURCE_FILES = walk("src");
 const APP_FILES = SOURCE_FILES.filter((file) => !file.endsWith("ai-platform.test.ts"));
 
 describe("no third-party AI gateway remains", () => {
-  it("never references an AI gateway host anywhere in the app", () => {
-    // gateway-chat.server.ts is the sanctioned Astra backup chat lane; it is
-    // the only file allowed to name the gateway host.
+  it("references the AI gateway host only in the two sanctioned lanes", () => {
+    // gateway-chat.server.ts is the sanctioned Astra backup chat lane, and
+    // ai/providers/lovable.ts is the router's keyed Lovable paid provider.
+    // No other file may name the gateway host.
     const offenders = APP_FILES.filter(
       (file) =>
         !file.includes("gateway-chat.server.ts") &&
+        !file.includes("ai/providers/lovable.ts") &&
         readFileSync(file, "utf8").includes("ai.gateway.lovable.dev"),
     );
     expect(offenders).toEqual([]);
   });
 
-  it("reads LOVABLE_API_KEY only for email, Stripe and Google data, never for AI", () => {
+  it("reads LOVABLE_API_KEY only for sanctioned integrations and the keyed paid AI lane", () => {
     // Email delivery, Stripe, and the Google Search Console / Maps connectors
     // are separate Lovable integrations that never run a model. The capability
     // registry only names the credential so the admin page can show whether a
     // connection exists.
     // integrations/live-credentials.ts only lists the credential NAME so the
     // live email suite can say whether it may run. It never calls a model.
+    // ai/config.ts names the credential for the router's keyed Lovable paid
+    // provider; the adapter receives the key from that config and the
+    // test-isolation helper clears it so unit tests never call the gateway.
     const allowed = [
       "email",
       "stripe.server.ts",
