@@ -918,6 +918,7 @@ async function run<T>(
           }
         } finally {
           clearTimeout(timer);
+          external?.removeEventListener("abort", onExternalAbort);
         }
       }
       } finally {
