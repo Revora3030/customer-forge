@@ -4,37 +4,51 @@ import type { CollectivePurpose } from "@/lib/ai/collective";
 export type HallOfFameRole = "primary" | "design" | "fast" | "coding" | "vision";
 
 /**
- * Which role a thinking purpose recruits from.
- *
- * Keep implementation work on the coding roster and visual inspection on the
- * vision roster. A purpose omitted here safely falls back to primary reasoning;
- * adding a new purpose should trigger an explicit routing decision in tests.
+ * Purpose routing is exhaustive by design. Adding a new CollectivePurpose
+ * requires choosing a role here instead of silently falling into primary and
+ * leaving a specialist roster unused.
  */
+const PURPOSE_ROLE: Record<CollectivePurpose, HallOfFameRole> = {
+  creative_direction: "design",
+  information_architecture: "primary",
+  conversion_architecture: "primary",
+  content_strategy: "primary",
+  content_strategy_targeted_revision: "primary",
+  visual_review: "vision",
+  repair_priority: "primary",
+  quality_review: "primary",
+  adversarial_review: "primary",
+  synthesis: "primary",
+  hard_request: "primary",
+  second_opinion: "primary",
+  page_planning: "design",
+  seo_analysis: "primary",
+  design_alternative: "design",
+  specialist_review: "primary",
+  repair_plan: "coding",
+  plan_review: "primary",
+  funnel_verification: "primary",
+  site_consistency_audit: "vision",
+  industry_gap_analysis: "primary",
+  final_review: "primary",
+  whole_site_review: "vision",
+  markup_review: "coding",
+  deep_conversion_audit: "primary",
+  intent: "fast",
+  extraction: "fast",
+  classification: "fast",
+  rewrite: "fast",
+  small_edit: "fast",
+  metadata: "fast",
+  schema_markup: "fast",
+  completeness_check: "fast",
+  mobile_responsiveness_audit: "vision",
+  performance_audit: "coding",
+  conversion_friction_audit: "vision",
+  accessibility_audit: "coding",
+  content_quality_review: "primary",
+};
+
 export function roleForPurpose(purpose: CollectivePurpose): HallOfFameRole {
-  switch (purpose) {
-    case "visual_review":
-    case "whole_site_review":
-    case "site_consistency_audit":
-    case "mobile_responsiveness_audit":
-      return "vision";
-    case "creative_direction":
-    case "design_alternative":
-      return "design";
-    case "repair_plan":
-    case "markup_review":
-    case "accessibility_audit":
-    case "performance_audit":
-      return "coding";
-    case "intent":
-    case "extraction":
-    case "classification":
-    case "rewrite":
-    case "small_edit":
-    case "metadata":
-    case "schema_markup":
-    case "completeness_check":
-      return "fast";
-    default:
-      return "primary";
-  }
+  return PURPOSE_ROLE[purpose];
 }
