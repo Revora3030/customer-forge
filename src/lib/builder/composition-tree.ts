@@ -81,9 +81,14 @@ export type MotionFrom = { opacity?: number; x?: number; y?: number; scale?: num
 export const MOTION_FROM_LIMITS: Record<keyof MotionFrom, [number, number]> = {
   opacity: [0, 100], x: [-240, 240], y: [-240, 240], scale: [0.5, 1.5], rotate: [-45, 45], blur: [0, 24],
 };
-export type NodeHover = { scale?: number; x?: number; y?: number; rotate?: number; opacity?: number; shadow?: "none" | "subtle" | "medium" | "strong"; durationMs?: number };
-export const HOVER_LIMITS: Record<"scale" | "x" | "y" | "rotate" | "opacity" | "durationMs", [number, number]> = {
-  scale: [0.9, 1.15], x: [-24, 24], y: [-24, 24], rotate: [-10, 10], opacity: [40, 100], durationMs: [100, 800],
+export type NodeHover = {
+  scale?: number; x?: number; y?: number; z?: number;
+  rotate?: number; rotateX?: number; rotateY?: number;
+  opacity?: number; shadow?: "none" | "subtle" | "medium" | "strong"; durationMs?: number;
+};
+export const HOVER_LIMITS: Record<"scale" | "x" | "y" | "z" | "rotate" | "rotateX" | "rotateY" | "opacity" | "durationMs", [number, number]> = {
+  scale: [0.9, 1.15], x: [-24, 24], y: [-24, 24], z: [-80, 80],
+  rotate: [-10, 10], rotateX: [-15, 15], rotateY: [-15, 15], opacity: [40, 100], durationMs: [100, 800],
 };
 export type NodeMotion = {
   kind: MotionKind; delayMs?: number; durationMs?: number; easing?: MotionEasing;
