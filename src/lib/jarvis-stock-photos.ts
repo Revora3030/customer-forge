@@ -1,3 +1,5 @@
+import { replaceControlCharacters } from "@/lib/sanitize-control-characters";
+
 /**
  * Free stock photo search (Unsplash: UNSPLASH_ACCESS_KEY, Pexels: PEXELS_API_KEY).
  * Returns hotlinkable URLs with required photographer credit; never stores files.
@@ -16,7 +18,7 @@ export type StockPhoto = {
 
 export function cleanPhotoQuery(q: unknown): string | null {
   if (typeof q !== "string") return null;
-  const v = q.replace(/[\u0000-\u001f]/g, " ").replace(/\s+/g, " ").trim().slice(0, 100);
+  const v = replaceControlCharacters(q).replace(/\s+/g, " ").trim().slice(0, 100);
   return v.length >= 2 ? v : null;
 }
 
