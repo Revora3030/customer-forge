@@ -3,11 +3,13 @@
  * Two steps: resolve a library ID by name, then fetch focused doc snippets.
  * Each answer carries its source library ID so Jarvis can cite it.
  */
+import { replaceControlCharacters } from "@/lib/sanitize-control-characters";
+
 const BASE = "https://context7.com/api/v2";
 
 export function cleanDocsQuery(raw: unknown): { library: string; topic: string } | null {
   if (typeof raw !== "string") return null;
-  const q = raw.replace(/[\u0000-\u001f]/g, " ").trim().slice(0, 200);
+  const q = replaceControlCharacters(raw).trim().slice(0, 200);
   if (q.length < 2) return null;
   const [library, ...rest] = q.split(/\s*[:|]\s*/);
   return { library: (library ?? q).slice(0, 80), topic: rest.join(" ").slice(0, 120) };
