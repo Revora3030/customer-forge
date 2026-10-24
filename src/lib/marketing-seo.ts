@@ -5,8 +5,8 @@ import { canonicalLink, ogUrl } from "@/lib/seo";
 export const MARKETING_SEARCH = {
   home: {
     path: "/",
-    title: "AI Websites, CRM & Follow-Up | Revora Growth Systems",
-    description: `Build your business website, capture leads, manage bookings and automate follow-up. ${usd(GROWTH_SYSTEM.setupPrice)} setup, first month free, then ${usd(GROWTH_SYSTEM.monthlyPrice)}/month.`,
+    title: "AI Websites That Win You Customers | Revora Growth Systems",
+    description: `Get an AI-built website with lead capture, booking, CRM and automated follow-up — one system that turns visitors into customers. ${usd(GROWTH_SYSTEM.setupPrice)} setup, first month free, then ${usd(GROWTH_SYSTEM.monthlyPrice)}/month.`,
   },
   states: {
     path: "/states",

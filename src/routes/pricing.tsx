@@ -35,17 +35,17 @@ export const Route = createFileRoute("/pricing")({
   head: ({ loaderData }) =>
     tenantPageHead(loaderData ?? null) ?? {
       meta: [
-        { title: "Pricing — Revora Growth System | $350 setup + $100/mo" },
+        {
+          title: `Pricing — Revora Growth System | ${usd(GROWTH_SYSTEM.setupPrice)} setup + ${usd(GROWTH_SYSTEM.monthlyPrice)}/mo`,
+        },
         {
           name: "description",
-          content:
-            "$350 one-time setup + $100/month, first month free. Website, lead capture, CRM, booking, quotes, follow-up, reviews, local SEO, analytics and support.",
+          content: `${usd(GROWTH_SYSTEM.setupPrice)} one-time setup + ${usd(GROWTH_SYSTEM.monthlyPrice)}/month, first month free. Website, lead capture, CRM, booking, quotes, follow-up, reviews, local SEO, analytics and support.`,
         },
         { property: "og:title", content: "Pricing — Revora Growth System" },
         {
           property: "og:description",
-          content:
-            "$350 one-time setup + first month free + $100/month afterward. One complete growth system.",
+          content: `${usd(GROWTH_SYSTEM.setupPrice)} one-time setup + first month free + ${usd(GROWTH_SYSTEM.monthlyPrice)}/month afterward. One complete growth system.`,
         },
         { property: "og:type", content: "website" },
         { name: "twitter:card", content: "summary_large_image" },
