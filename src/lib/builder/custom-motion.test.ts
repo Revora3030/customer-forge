@@ -61,4 +61,18 @@ describe("AI-described hover/touch response", () => {
     const r = validateComposition({ version: 1, root: { type: "card", text: "x", hover: { scale: 3, glow: 1 } } });
     expect(r.ok).toBe(false);
   });
+  it("supports bounded pointer depth and two-axis tilt in 3D compositions", () => {
+    const r = validateComposition({
+      version: 1,
+      root: { type: "scene3d", children: [{ type: "card", text: "Interactive surface", hover: { z: 28, rotateX: 8, rotateY: -9 } }] },
+    });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const css = hoverCss("tilt", r.tree.root.children![0]!.hover!);
+    expect(css).toContain("translate3d(0px,0px,28px)");
+    expect(css).toContain("rotateX(8deg)");
+    expect(css).toContain("rotateY(-9deg)");
+    expect(css).toContain("prefers-reduced-motion: no-preference");
+  });
+
 });
