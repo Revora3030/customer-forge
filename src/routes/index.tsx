@@ -10,6 +10,8 @@ import { DashboardPreview } from "@/components/marketing/DashboardPreview";
 import { FAQ } from "@/components/marketing/FAQ";
 import { HOME_HEADLINE, HOME_TRIAL_CHARGE_NOTE, marketingHomeHead } from "@/components/marketing/home-head";
 import { ProductTour } from "@/components/marketing/ProductTour";
+import { AiModelShowcase } from "@/components/marketing/AiModelShowcase";
+import { CinematicBackdrop } from "@/components/marketing/CinematicBackdrop";
 import { Pill, SectionHeading } from "@/components/app/Bits";
 import { RouteError } from "@/components/app/RouteStates";
 import { Button } from "@/components/ui/button";
@@ -120,7 +122,9 @@ function PriceLine({ className = "" }: { className?: string }) {
 
 function Landing() {
   return (
-    <div className="min-h-screen">
+    <div className="relative isolate min-h-screen overflow-x-clip">
+      <CinematicBackdrop />
+      <div className="relative z-10">
       <VisualComposition composition={HOMEPAGE_COMPOSITION} />
       <SiteHeader />
 
@@ -178,6 +182,8 @@ function Landing() {
             <ProductTour />
           </div>
         </section>
+
+        <AiModelShowcase />
 
         {/* VALUE + PRICING */}
         <section id="pricing" className="scroll-mt-20 border-b border-border">
@@ -262,6 +268,7 @@ function Landing() {
       <div className="h-16" aria-hidden="true" />
 
       <SiteFooter />
+      </div>
     </div>
   );
 }
