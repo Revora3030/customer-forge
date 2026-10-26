@@ -2781,7 +2781,7 @@ html.reveal-ready [data-reveal] {
 
 .cinematic-backdrop__glow--gold {
   top: -26rem;
-  left: -18rem;
+  left: clamp(-18rem, -12vw, -4rem);
   width: min(84vw, 72rem);
   background: radial-gradient(
     circle,
@@ -2793,7 +2793,7 @@ html.reveal-ready [data-reveal] {
 
 .cinematic-backdrop__glow--blue {
   top: 18%;
-  right: -21rem;
+  right: clamp(-21rem, -18vw, -4rem);
   width: min(62vw, 48rem);
   background: radial-gradient(
     circle,
