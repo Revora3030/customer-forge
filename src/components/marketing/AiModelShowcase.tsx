@@ -197,7 +197,7 @@ export function AiModelShowcase() {
               className={
                 "min-h-11 min-w-0 rounded-full border px-3 py-2 text-left text-xs font-medium leading-snug transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring sm:text-sm " +
                 (activeFilter === filter.id
-                  ? "border-primary/55 bg-primary/12 text-primary"
+                  ? "border-primary/55 bg-primary/10 text-primary"
                   : "border-border bg-card/60 text-muted-foreground hover:border-primary/35 hover:text-foreground")
               }
             >
@@ -273,7 +273,10 @@ export function AiModelShowcase() {
                 </div>
                 <ul className="mt-3 grid gap-2 border-t border-border/70 pt-3">
                   {model.tasks.map((task) => (
-                    <li key={task} className="flex min-w-0 items-start gap-2 text-xs leading-relaxed text-muted-foreground">
+                    <li
+                      key={task}
+                      className="flex min-w-0 items-start gap-2 text-xs leading-relaxed text-muted-foreground"
+                    >
                       <Check className="mt-0.5 size-3.5 shrink-0 text-primary" aria-hidden="true" />
                       <span className="min-w-0">{task}</span>
                     </li>
