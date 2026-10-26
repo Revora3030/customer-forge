@@ -223,8 +223,9 @@ export function AiModelShowcase() {
                 44-Model Collective Orchestration
               </p>
               <p className="mt-1 text-xs leading-relaxed text-muted-foreground sm:text-sm">
-                Sol, Terra and Luna represent creative, review and growth-focused workflows—not a
-                promise that every model runs on every request.
+                No generic templates: Sol supports creative direction, Terra structural review, and
+                Luna conversion and SEO. The task-based router selects eligible models—every model
+                does not run on every request.
               </p>
             </div>
           </div>
