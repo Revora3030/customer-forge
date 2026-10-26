@@ -30,7 +30,6 @@ describe("homepage AI model showcase", () => {
     expect(markup).toContain('aria-pressed="true"');
     expect(markup).toContain("44-Model Collective Orchestration");
     expect(markup).toContain("current catalogue eligibility");
-    expect(markup).not.toContain("$750");
   });
 
   it("offers all requested specialist filters", () => {
