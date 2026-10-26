@@ -53,4 +53,15 @@ export default tseslint.config(
       "prefer-const": "off",
     },
   },
+  {
+    // These input sanitizers intentionally match control characters to remove them.
+    files: [
+      "src/lib/jarvis-docs-lookup.ts",
+      "src/lib/jarvis-free-checks.ts",
+      "src/lib/jarvis-stock-photos.ts",
+    ],
+    rules: {
+      "no-control-regex": "off",
+    },
+  },
 );
