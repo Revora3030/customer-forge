@@ -2738,3 +2738,114 @@ html.reveal-ready [data-reveal] {
 @media (prefers-reduced-motion: reduce) {
   .gold-sheen { animation: none; }
 }
+
+
+/* Cinematic atmosphere for the Revora marketing homepage. All hues come from
+   the shared theme tokens so the backdrop follows the product palette. */
+.cinematic-backdrop {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  isolation: isolate;
+}
+
+.cinematic-backdrop__grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(
+      to right,
+      color-mix(in oklab, var(--color-border) 52%, transparent) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      to bottom,
+      color-mix(in oklab, var(--color-border) 52%, transparent) 1px,
+      transparent 1px
+    );
+  background-size: clamp(52px, 5vw, 80px) clamp(52px, 5vw, 80px);
+  mask-image: radial-gradient(ellipse 76% 62% at 50% 10%, black 0%, transparent 82%);
+  opacity: 0.26;
+}
+
+.cinematic-backdrop__glow {
+  position: absolute;
+  aspect-ratio: 1;
+  border-radius: 9999px;
+  filter: blur(18px);
+  will-change: transform;
+  animation: cinematic-orb-drift 26s ease-in-out infinite alternate;
+}
+
+.cinematic-backdrop__glow--gold {
+  top: -26rem;
+  left: -18rem;
+  width: min(84vw, 72rem);
+  background: radial-gradient(
+    circle,
+    color-mix(in oklab, var(--color-primary) 19%, transparent) 0%,
+    color-mix(in oklab, var(--color-primary) 7%, transparent) 36%,
+    transparent 70%
+  );
+}
+
+.cinematic-backdrop__glow--blue {
+  top: 18%;
+  right: -21rem;
+  width: min(62vw, 48rem);
+  background: radial-gradient(
+    circle,
+    color-mix(in oklab, var(--color-info) 14%, transparent) 0%,
+    color-mix(in oklab, var(--color-info) 4%, transparent) 42%,
+    transparent 72%
+  );
+  animation-delay: -9s;
+}
+
+.cinematic-backdrop__glow--slate {
+  right: 16%;
+  bottom: -32rem;
+  width: min(78vw, 64rem);
+  background: radial-gradient(
+    circle,
+    color-mix(in oklab, var(--color-elevated) 60%, transparent) 0%,
+    color-mix(in oklab, var(--color-elevated) 20%, transparent) 38%,
+    transparent 72%
+  );
+  animation-delay: -15s;
+}
+
+.cinematic-backdrop__horizon {
+  position: absolute;
+  top: 4.5rem;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in oklab, var(--color-primary) 24%, transparent) 28%,
+    color-mix(in oklab, var(--color-primary) 38%, transparent) 50%,
+    color-mix(in oklab, var(--color-primary) 24%, transparent) 72%,
+    transparent
+  );
+  opacity: 0.7;
+}
+
+@keyframes cinematic-orb-drift {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(1.5%, -1.5%, 0) scale(1.04);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cinematic-backdrop__glow {
+    animation: none;
+    will-change: auto;
+  }
+}
