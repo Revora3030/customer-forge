@@ -26,7 +26,7 @@ type ModelCard = {
   tasks: string[];
 };
 
-const MODEL_CARDS: ModelCard[] = [
+const CONFIGURED_MODEL_CARDS: ModelCard[] = [
   {
     id: "openai/gpt-6.1-sol",
     family: "OpenAI",
@@ -144,7 +144,11 @@ const MODEL_CARDS: ModelCard[] = [
       "Focused follow-up on bounded tasks",
     ],
   },
-].filter((model) => (LOVABLE_CONVERSATION_MODELS as readonly string[]).includes(model.id));
+];
+
+const MODEL_CARDS = CONFIGURED_MODEL_CARDS.filter((model) =>
+  (LOVABLE_CONVERSATION_MODELS as readonly string[]).includes(model.id),
+);
 
 const PERSONA_META: Record<Persona, { label: string; icon: typeof Sparkles }> = {
   sol: { label: "Creative authority", icon: Palette },
