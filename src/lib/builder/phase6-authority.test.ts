@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { planAutonomousReleaseLoop } from "@/lib/agent/autonomous-release-loop";
 import { buildExecutionBlueprint } from "./execution-blueprint";
 import type { AgentAction } from "@/lib/site-agent";
@@ -48,7 +48,7 @@ describe("straight-to-live builder rules (owner decision 2026-10-22)", () => {
     expect(apply).toContain("publishSiteNow(supabase as never, userId, orgId, { liveEdit: true })");
   });
   it("caps full builds at 5 per workspace per 24 hours in the database", () => {
-    const { readdirSync } = require("node:fs") as typeof import("node:fs");
+    
     const dir = "drizzle/migrations";
     const sql = readdirSync(dir).filter((f: string) => f.endsWith(".sql")).map((f: string) => readFileSync(`${dir}/${f}`, "utf8")).join("\n");
     expect(sql).toMatch(/interval '24 hours'\) >= 5/);
