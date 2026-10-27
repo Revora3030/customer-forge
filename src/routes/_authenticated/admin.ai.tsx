@@ -92,7 +92,7 @@ function AdminAi() {
         <MetricCard
           label="Estimated spend (7d)"
           value={money(data?.estimatedCostUsd ?? null)}
-          hint="Estimate from token counts — providers bill on their own accounting"
+          hint="Recorded Lovable estimates; not your credit balance or provider invoice"
         />
       </div>
 
@@ -200,8 +200,8 @@ function AdminAi() {
       <div className="grid gap-4 lg:grid-cols-2">
         <Panel>
           <SectionHeading
-            title="Recorded model usage (7 days)"
-            description="Historical calls are retained for accounting, not offered as routing choices. Retired providers cannot serve new work."
+            title="Recorded Lovable model usage (7 days)"
+            description="Only Lovable calls appear here. Retired-provider records remain in the accounting history, never in active model controls."
           />
           {!health.isLoading && !data?.byModel.length ? (
             <EmptyState
