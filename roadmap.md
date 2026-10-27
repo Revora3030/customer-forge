@@ -1,9 +1,10 @@
 # Roadmap — Five-phase blocker elimination
 
 ## Roadmap continuation (2026-10-27)
-- [ ] Priority 1: reject zero-row first-build composition saves; test tenant-scoped persistence success and failure offline.
-- [ ] Priority 2: compare saved page/section identities and multiplicity with the materialized build inventory, not only aggregate counts; test substituted and duplicate inventories.
-- [ ] Review remaining job controls and durable approvals after reliability batches; do not describe client-side approval memory as server authorization.
+- [x] Priority 1: reject zero-row first-build composition saves; eight initial tests passed, including exact tenant filters and missing/duplicate/wrong-row failures.
+- [x] Priority 2: compare saved page/section identities, original roles and multiplicity with the materialized build inventory, not only aggregate counts; substituted pages, moved/duplicate sections and lost roles rejected. Completion readback tested with a fake database; no hosted writes.
+- [x] Existing controls reviewed: queued/running generation cancellation and recovery already exist; client-side request dismissal is not remote cancellation, and local approval memory is not server authorization. Durable approval consumption and unified inbox remain later work, not claimed complete.
+- [x] Batch verification: 144 affected test files / 1,079 tests passed; changed-code lint clean; automatic build OK. Evidence: docs/roadmap-reliability-verification-2026-10-27.md.
 - [ ] Live generation, real lead delivery, paid provider calls, publishing and production mutations require separate owner authorization; none authorized by this continuation.
 
 ## Interactive tools and conversion completion (2026-10-27)
@@ -49,7 +50,8 @@
 - [x] First builds now read back every saved page/section and renderable AI composition before ready/completed; all composition material reads paginate and fail closed.
 - [x] Full regression suite: 3,491 passed, 6 live tests skipped; changed-code lint and automatic build checked.
 - [ ] Live new-customer signup-to-generated-site verification unrun under standing no-live-build/no-paid-spend restriction. Provider capacity is not guaranteed; existing pause/resume and publication gates retained.
-- [ ] Investigation follow-ups: accepted-contract identity/multiplicity comparison, unmarked partial-site handling, service-card architecture coverage and zero-row composition writes still require targeted hardening; no complete-production claim.
+- [x] Materialized inventory identity/multiplicity and zero-row composition saves hardened (2026-10-27); completion now requires exact inserted page IDs/slugs and section IDs/page ownership/roles.
+- [ ] Investigation follow-ups: unmarked partial-site handling and upstream service-card architecture coverage still require targeted hardening; this readback verifies inserted inventory, not independent completeness of the architect's design or rendered quality.
 
 ## Whole customer-site repair (2026-10-22)
 - [x] Inspect all eight Elite Mobile Detail pages and saved requests; no active generation job or duplicate rebuild started.
