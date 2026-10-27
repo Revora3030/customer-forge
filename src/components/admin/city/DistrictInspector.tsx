@@ -3,7 +3,8 @@ import { Link } from "@tanstack/react-router";
 import { ArrowUpRight, Radar, Send, Sparkles, Terminal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { CITY_DISTRICTS, districtState, pipelineStages, workIsActive, type CitySnapshot, type CityWork, type DistrictId, type SalesMission } from "@/lib/ai-city";
+import { Sparkline } from "./Sparkline";
+import { CITY_DISTRICTS, districtState, hourlyBuckets, pipelineStages, workIsActive, type CitySnapshot, type CityWork, type DistrictId, type SalesMission } from "@/lib/ai-city";
 
 type Props = {
   open: boolean;
@@ -51,6 +52,7 @@ export function DistrictInspector({ open, onOpenChange, district, snapshot, now,
         <Stat label="Queued" value={snapshot ? queued.length : null} />
         <Stat label="Errors" value={snapshot ? errors.length : null} />
       </div>
+      <section className="mt-5" aria-label="Throughput"><h3 className="text-xs font-semibold uppercase">Records per hour · last 24 hours</h3><div className="mt-2">{snapshot ? <Sparkline values={hourlyBuckets(rows, now, 24)} label="Records per hour, last 24 hours" /> : <p className="text-[11px] text-muted-foreground">Unavailable.</p>}</div></section>
       {district === "growth" ? <section className="mt-5" aria-label="Sales pipeline">
         <h3 className="text-xs font-semibold uppercase">Sales pipeline</h3>
         <ol className="mt-2 grid grid-cols-5 gap-1">{pipelineStages(snapshot?.pipeline).map(s => <li key={s.key} className="min-w-0 rounded-md border border-border p-2 text-center"><p className="break-words font-display text-sm font-semibold">{s.display === "Unavailable" ? "—" : s.display}</p><p className="mt-1 text-[10px] leading-tight text-muted-foreground">{s.label}</p>{s.display === "Unavailable" ? <span className="sr-only">Unavailable</span> : null}</li>)}</ol>

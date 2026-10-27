@@ -1,7 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AiCity } from "@/components/admin/city/AiCity";
+import { districtFromParam } from "@/lib/ai-city";
 
 export const Route = createFileRoute("/_authenticated/admin/city")({
+  validateSearch: (search: Record<string, unknown>) => ({ district: districtFromParam(search["district"]) ?? undefined }),
   head: () => ({ meta: [
     { title: "AI City — Revora workforce operations" },
     { name: "description", content: "Founder-controlled workforce operations, department queues and recorded Lovable AI evidence." },

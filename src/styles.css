@@ -81,6 +81,8 @@
   --city-magenta: #dc84ad;
   --city-light: #f5f1e7;
   --city-muted: #89949d;
+  --city-ok: #5fcf9a;
+  --city-danger: #e5645f;
   --radius: 0.625rem;
 
   --font-heading: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;

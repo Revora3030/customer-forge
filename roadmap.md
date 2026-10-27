@@ -1,5 +1,14 @@
 # Roadmap — Five-phase blocker elimination
 
+## AI City upgrade (2026-10-27)
+- [x] "Needs you" triage panel: every failed or waiting record, failures first then longest-standing, opening the record's evidence; says "records unavailable" rather than looking calm when sources cannot be read.
+- [x] 3D scene: rings and beacons coloured by recorded state (green working with pulse waves, red failures, gold waiting, grey unreadable), floating labels with live running/waiting/failed counts, smooth camera flight between districts, colour key.
+- [x] "All activity" tab: newest-first feed across every district with text search and district filters; per-district records-per-hour chart in the inspector.
+- [x] District shareable in the address (?district=growth); keys 1-7 and arrows switch district (ignored inside fields and dialogs).
+- [x] 23 City tests (triage ranking, counts, hourly buckets, search, feed, deep-link parsing, key mapping, panel rendering). Rendered with a stand-in model and sample records at 1280 and 390: no errors, no overflow.
+- [ ] Not built: model "sprites" travelling between districts. Records do not say which district hands work to which, so any movement would be invented.
+- [ ] Not verified against live records or your real building models (needs your signed-in /admin/city).
+
 ## Jarvis event nudges (2026-10-27)
 - [x] The routines job now also posts a plain, no-AI notice into each super admin's Jarvis chat when a site build failed in the last day (cooldown per workspace, at most 5 per pass), with a suggested question to ask. 4 tests.
 - [ ] `ci.failed` and `lead.unanswered` have rules but no emitter yet.

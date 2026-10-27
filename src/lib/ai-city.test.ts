@@ -80,3 +80,69 @@ describe("AI City sales pipeline", () => {
     expect(salesMissionDraft("scout", GROWTH_SYSTEM)).toContain("OpenStreetMap");
   });
 });
+
+import { activityFeed, ageLabel, attentionItems, districtCounts, districtForKey, districtFromParam, hourlyBuckets, searchWork } from "./ai-city";
+
+describe("AI City triage and activity", () => {
+  const T = Date.parse("2026-10-27T18:00:00Z");
+  const at = (minutesAgo: number) => new Date(T - minutesAgo * 60_000).toISOString();
+  const row = (id: string, district: CityWork["district"], status: string, minutesAgo: number, extra: Partial<CityWork> = {}): CityWork => ({ id, title: `Record ${id}`, district, status, source: "generation_jobs", at: at(minutesAgo), ...extra });
+  const snap: CitySnapshot = {
+    checkedAt: "",
+    sources: {
+      jobs: { available: true, total: 4, truncated: false, rows: [row("a", "factory", "failed", 600), row("b", "factory", "running", 2), row("c", "factory", "queued", 300)] },
+      approvals: { available: true, total: 2, truncated: false, rows: [row("d", "growth", "pending", 900, { title: "Pitch to Acme" }), row("e", "growth", "failed", 30)] },
+      memories: { available: true, total: 1, truncated: false, rows: [row("f", "knowledge", "recorded", 10)] },
+    },
+  };
+
+  it("ranks failures before waiting items and the longest-standing first", () => {
+    const items = attentionItems(snap, T);
+    expect(items.map((i) => i.row.id)).toEqual(["a", "e", "d", "c"]);
+    expect(items.map((i) => i.kind)).toEqual(["failed", "failed", "waiting", "waiting"]);
+    expect(attentionItems(snap, T, 2)).toHaveLength(2);
+    expect(attentionItems(undefined, T)).toEqual([]);
+  });
+
+  it("counts running, queued and failed per district, and is null when nothing could be read", () => {
+    expect(districtCounts(snap, "factory", T)).toEqual({ running: 1, queued: 1, errors: 1, total: 3 });
+    expect(districtCounts(snap, "security", T)).toEqual({ running: 0, queued: 0, errors: 0, total: 0 });
+    expect(districtCounts(undefined, "factory", T)).toBeNull();
+  });
+
+  it("buckets only recorded timestamps into the last day, oldest first", () => {
+    const rows = [row("1", "factory", "ok", 10), row("2", "factory", "ok", 20), row("3", "factory", "ok", 90), row("4", "factory", "ok", 60 * 30), { ...row("5", "factory", "ok", 5), at: "garbage" }];
+    const buckets = hourlyBuckets(rows, T, 24);
+    expect(buckets).toHaveLength(24);
+    expect(buckets[23]).toBe(2);
+    expect(buckets[22]).toBe(1);
+    expect(buckets.reduce((a, b) => a + b, 0)).toBe(3);
+  });
+
+  it("searches every recorded field and requires all terms", () => {
+    const rows = [row("1", "growth", "pending", 1, { title: "Pitch to Acme", detail: "outreach" }), row("2", "factory", "ok", 1, { model: "openai/gpt-6.1-sol" })];
+    expect(searchWork(rows, "acme outreach").map((r) => r.id)).toEqual(["1"]);
+    expect(searchWork(rows, "SOL").map((r) => r.id)).toEqual(["2"]);
+    expect(searchWork(rows, "acme sol")).toEqual([]);
+    expect(searchWork(rows, "  ")).toHaveLength(2);
+  });
+
+  it("builds a newest-first cross-district feed that can be narrowed", () => {
+    expect(activityFeed(snap).map((r) => r.id)).toEqual(["b", "f", "e", "c", "a", "d"]);
+    expect(activityFeed(snap, { district: "growth" }).map((r) => r.id)).toEqual(["e", "d"]);
+    expect(activityFeed(snap, { query: "pitch" }).map((r) => r.id)).toEqual(["d"]);
+    expect(activityFeed(snap, { limit: 2 })).toHaveLength(2);
+  });
+
+  it("parses district links, labels ages and maps keys", () => {
+    expect(districtFromParam("growth")).toBe("growth");
+    expect(districtFromParam("nope")).toBeNull();
+    expect(districtFromParam(undefined)).toBeNull();
+    expect([0, 5 * 60_000, 3 * 3_600_000, 5 * 86_400_000].map(ageLabel)).toEqual(["now", "5m", "3h", "5d"]);
+    expect(districtForKey("3", "executive")).toBe("institute");
+    expect(districtForKey("8", "executive")).toBeNull();
+    expect(districtForKey("ArrowRight", "knowledge")).toBe("executive");
+    expect(districtForKey("ArrowLeft", "executive")).toBe("knowledge");
+    expect(districtForKey("x", "executive")).toBeNull();
+  });
+});
