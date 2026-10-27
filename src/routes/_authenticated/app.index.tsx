@@ -19,6 +19,7 @@ import { ActivityFeed } from "@/components/app/ActivityFeed";
 import { RevoraCommandBar } from "@/components/app/RevoraCommandBar";
 import { ClientWebsiteSummary } from "@/components/app/ClientWebsiteSummary";
 import { SpeedToLeadCard } from "@/components/app/SpeedToLeadCard";
+import { WinbackCard } from "@/components/app/WinbackCard";
 
 import { useProductionStatus } from "@/lib/production.hooks";
 
@@ -471,6 +472,8 @@ function Dashboard() {
         leadsFailed={leadsQuery.isError}
         retryLeads={leadsQuery.refetch}
       />
+
+      <WinbackCard organizationId={orgId} businessName={org?.name ?? null} />
 
       <ProductionSummaryCard status={production} />
 
