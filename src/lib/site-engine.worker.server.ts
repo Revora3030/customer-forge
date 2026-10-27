@@ -36,6 +36,117 @@ const LAYOUT_OPTIONAL_BUDGET_MS = 240_000;
 export const LAYOUT_RESCUE_BUDGET_MS = 420_000;
 const MAX_ATTEMPTS = 3;
 
+/**
+ * BUILD LIFETIME. A build is no longer one long request: every worker run
+ * works under a wall-clock budget and, at a resumable point once the budget
+ * is nearly spent, saves where it is and hands the job back to the queue
+ * (BuildHandBackError -> handBackLease). The next run (chained through the
+ * database-held worker call, or the backstop schedule) resumes from the
+ * stage and section checkpoints. A clean hand-back never costs an attempt;
+ * only a run that dies (its heartbeat lapses) does.
+ *
+ * The ceiling budgeted against: the app is deployed by Lovable as a
+ * Cloudflare Worker (nitro `cloudflare-module`, generated wrangler config;
+ * the repository sets no `limits`). Workers do not promise a fixed HTTP
+ * wall-clock, but cap CPU at 5 minutes at most and recycle long-lived
+ * isolates, and the rest of this worker is already sized to 300 s (the lease,
+ * and the paid AI attempt cap of 240 s). One run is held to 80% of that.
+ */
+export const PLATFORM_REQUEST_LIMIT_MS = 300_000;
+export const RUN_BUDGET_MS = Math.floor(PLATFORM_REQUEST_LIMIT_MS * 0.8);
+/**
+ * A run does not start another stage with less than this left of its budget:
+ * single stages (identity, wording, pictures) can take a minute or more.
+ */
+export const NEXT_STAGE_RESERVE_MS = 90_000;
+/**
+ * In-process kick fallback (inside the enqueue request's short background
+ * grace): at most a short first slice, then the job goes back to the queue.
+ */
+export const KICK_SLICE_BUDGET_MS = 20_000;
+/**
+ * Fuse: after this many hand-backs of one job, its runs stop handing back,
+ * so a stage whose checkpoint never matches cannot cycle forever.
+ */
+export const MAX_HAND_BACKS = 12;
+const HAND_BACK_KEY = "handback";
+/**
+ * Stage boundaries where everything finished so far resumes from the job's
+ * checkpoints (or is cheap to redo). Pictures, pages, identity, wording copy
+ * and incomplete layouts have their own points in runJob; nothing after the
+ * site chrome is composed hands back, because that work is not checkpointed.
+ */
+const HAND_BACK_STEPS = new Set(["business", "services", "brand", "analysis", "structure", "copy", "conversion", "wording"]);
+const HAND_BACK_INPUTS = { version: 1 };
+
+/** Thrown at a resumable point once the run's budget is spent; the drain hands the lease back. */
+export class BuildHandBackError extends Error {
+  constructor(
+    jobId: string,
+    public readonly point: string,
+  ) {
+    super(`Build run for job ${jobId} reached its time budget at "${point}"; handing back to resume.`);
+    this.name = "BuildHandBackError";
+  }
+}
+
+/** True once a run with this deadline should stop before starting another stage. */
+export function handBackDue(deadline: number, now = Date.now(), reserveMs = NEXT_STAGE_RESERVE_MS): boolean {
+  return now >= deadline - reserveMs;
+}
+
+type HandBackStore = {
+  get: <T>(key: string, inputs: unknown) => Promise<T | null>;
+  put: (key: string, inputs: unknown, value: unknown) => Promise<boolean>;
+};
+
+export type RunSlice = {
+  deadline: number;
+  /** This run saved new resumable work (a checkpoint, new pictures, new section designs). */
+  progressed: () => void;
+  /** True once the deadline itself has passed. */
+  expired: () => boolean;
+  /** Throws BuildHandBackError when the budget is spent and the run has progressed. */
+  handBackIfDue: (point: string) => Promise<void>;
+};
+
+/**
+ * One run's budget. A run only hands back after it made progress the next
+ * run can reuse (a brand-new job counts: nothing would be redone), so slices
+ * always move the build forward; MAX_HAND_BACKS bounds the rest.
+ */
+export function createRunSlice(input: {
+  jobId: string;
+  deadline: number;
+  /** Nothing to redo before handing back: a brand-new job, or a short (kick) slice. */
+  fresh: boolean;
+  store: HandBackStore;
+  now?: () => number;
+}): RunSlice {
+  const now = input.now ?? Date.now;
+  let progress = input.fresh;
+  let fuseBlown = false;
+  return {
+    deadline: input.deadline,
+    progressed: () => {
+      progress = true;
+    },
+    expired: () => now() >= input.deadline,
+    handBackIfDue: async (point) => {
+      if (!progress || fuseBlown || !Number.isFinite(input.deadline) || !handBackDue(input.deadline, now())) return;
+      const count = (await input.store.get<{ count?: number }>(HAND_BACK_KEY, HAND_BACK_INPUTS))?.count ?? 0;
+      if (count >= MAX_HAND_BACKS) {
+        fuseBlown = true;
+        console.warn(`[site-engine] job ${input.jobId} handed back ${count} times; this run finishes without another hand-back.`);
+        return;
+      }
+      // Recorded before handing back; without the count the fuse cannot work.
+      if (!(await input.store.put(HAND_BACK_KEY, HAND_BACK_INPUTS, { count: count + 1, point }))) return;
+      throw new BuildHandBackError(input.jobId, point);
+    },
+  };
+}
+
 type Db = SupabaseClient;
 
 type PendingBuild = {
@@ -542,6 +653,9 @@ export async function settleFailedAttempt(
   deps: AttemptFailureDeps,
 ): Promise<never> {
   const { error } = input;
+  // A run that handed back keeps everything (pictures, fresh-rebuild marker):
+  // the same job resumes from here.
+  if (error instanceof BuildHandBackError) throw error;
   if (error instanceof StaleAttemptError) {
     const { data: latest } = await db.from("generation_jobs").select("status").eq("id", input.jobId).maybeSingle();
     if ((latest as { status?: string } | null)?.status !== "cancelled") throw error;
@@ -732,6 +846,48 @@ export async function touchLease(db: Db, job: { id: string; attempts: number }):
 }
 
 /**
+ * Ends a run that reached its budget cleanly: records the attempt's end (it
+ * bounds the partial rows the next run may clear, see findOwnPartialBuild),
+ * then returns the job to the queue with its attempt given back and no lease,
+ * so the next run claims it at once and resumes from its checkpoints. Fenced
+ * on the attempt and "processing": a cancelled or superseded job is untouched.
+ * This is not a capacity wait; those stay in the capacity deferral.
+ */
+export async function handBackLease(
+  db: Db,
+  job: { id: string; organization_id: string; created_by: string | null; attempts: number },
+  point: string,
+): Promise<boolean> {
+  try {
+    await db.from("ai_generations").insert({
+      organization_id: job.organization_id,
+      job_id: job.id,
+      kind: "build_attempt_ended",
+      model: "none",
+      instruction: null,
+      result: { attempt: Number(job.attempts), outcome: "handed_back", point } as unknown as never,
+      created_by: job.created_by ?? null,
+    } as never);
+  } catch (error) {
+    console.warn(`[site-engine] attempt-end record for job ${job.id} skipped`, error);
+  }
+  const { data, error } = await db
+    .from("generation_jobs")
+    .update({
+      status: "queued",
+      attempts: Math.max(0, Number(job.attempts) - 1),
+      lease_expires_at: null,
+      updated_at: new Date().toISOString(),
+    } as never)
+    .eq("id", job.id)
+    .eq("attempts", job.attempts)
+    .eq("status", "processing")
+    .select("id");
+  if (error) console.warn(`[site-engine] hand-back of job ${job.id} failed: ${error.message}`);
+  return !error && Boolean(data?.length);
+}
+
+/**
  * A job whose LAST allowed attempt died mid-run (the worker was cut off, the
  * platform recycled it) keeps status "processing" with an expired lease. The
  * claimer skips it because its attempts are used up, so without this sweep the
@@ -898,6 +1054,8 @@ export async function deferCutOffJobs(db: Db, now: string, organizationId?: stri
 
 /** Claims one runnable job with a lease. Returns null when there is nothing to do. */
 export type WorkerInvoker = "pg_net" | "kick" | "pump" | "runner" | "unknown";
+/** current_step is where the previous run left the job (null for a new job). */
+export type ClaimedJob = { id: string; organization_id: string; created_by: string | null; attempts: number; current_step?: string | null };
 
 export async function claimJob(db: Db, organizationId?: string, invoker: WorkerInvoker = "unknown") {
   const now = new Date();
@@ -942,7 +1100,7 @@ export async function claimJob(db: Db, organizationId?: string, invoker: WorkerI
       .eq("attempts", job.attempts as number)
       .eq("status", job.status)
       .or(`lease_expires_at.is.null,lease_expires_at.lte.${now.toISOString()}`)
-      .select("id, organization_id, created_by, attempts")
+      .select("id, organization_id, created_by, attempts, current_step")
       .maybeSingle();
     if (claimed && recovering) {
       // Attribution for the attempt that died: the values are the ones read
@@ -970,7 +1128,7 @@ export async function claimJob(db: Db, organizationId?: string, invoker: WorkerI
       }
     }
     if (claimed)
-      return claimed as { id: string; organization_id: string; created_by: string | null; attempts: number };
+      return claimed as ClaimedJob;
   }
   return null;
 }
@@ -978,7 +1136,8 @@ export async function claimJob(db: Db, organizationId?: string, invoker: WorkerI
 /** Runs the generation stages (GENERATION_STEPS) for one claimed job using the privileged client. */
 async function runJob(
   db: Db,
-  job: { id: string; organization_id: string; created_by: string | null; attempts: number },
+  job: ClaimedJob,
+  run: { deadline: number; short?: boolean } = { deadline: Number.POSITIVE_INFINITY },
 ) {
   const orgId = job.organization_id;
   const { GENERATION_STEPS } = await import("@/lib/site-engine");
@@ -1000,6 +1159,20 @@ async function runJob(
   // the chat records its stages under that request id; otherwise the job id.
   const requestId = await readJobRequestId(db, job.id);
   const runId = requestId ?? job.id;
+  // Early-stage checkpoints: an interrupted attempt of this same job reuses the
+  // AI team's finished work instead of asking for it again.
+  const stageStore = (await import("@/lib/builder/job-stage-checkpoints")).jobStageCheckpointStore(db as never, {
+    jobId: job.id,
+    organizationId: orgId,
+    attempts: job.attempts,
+  });
+  // This run's wall-clock budget. At the resumable points below the run hands
+  // the job back once the budget is nearly spent; the next run resumes here.
+  // A short slice (the in-process kick) stops at the first resumable point.
+  const slice = createRunSlice({ jobId: job.id, deadline: run.deadline, fresh: !job.current_step || run.short === true, store: stageStore });
+  const saved = (ok: boolean) => {
+    if (ok) slice.progressed();
+  };
   const WORKER_STAGE_LABELS: Record<string, string> = {
     business: "reading your business",
     services: "reading your services",
@@ -1048,6 +1221,7 @@ async function runJob(
     const nextKey = GENERATION_STEPS[GENERATION_STEPS.findIndex((s) => s.key === key) + 1]?.key;
     const starting = nextKey ? WORKER_STAGE_LABELS[nextKey] : undefined;
     if (starting) noteStage(orgId, runId, starting);
+    if (HAND_BACK_STEPS.has(key)) await slice.handBackIfDue(key);
   };
   noteStage(orgId, runId, WORKER_STAGE_LABELS["business"] ?? "reading your business");
 
@@ -1221,18 +1395,11 @@ async function runJob(
   const approvedBrief = readBrief(priorGeneration["brief"]);
 
   // No built-in strategy: an unapproved brief is written by the AI.
-  // Early-stage checkpoints: an interrupted attempt of this same job reuses the
-  // AI team's finished work instead of asking for it again.
-  const stageStore = (await import("@/lib/builder/job-stage-checkpoints")).jobStageCheckpointStore(db as never, {
-    jobId: job.id,
-    organizationId: orgId,
-    attempts: job.attempts,
-  });
   const resumedBrief = approvedBrief?.approved ? null : await stageStore.get<Awaited<ReturnType<typeof analyzeBusiness>>>("brief", copyFacts);
   const brief = approvedBrief?.approved
     ? approvedBrief
     : resumedBrief ?? await analyzeBusiness(copyFacts, { organizationId: orgId, userId: job.created_by });
-  if (!approvedBrief?.approved && !resumedBrief) await stageStore.put("brief", copyFacts, brief);
+  if (!approvedBrief?.approved && !resumedBrief) saved(await stageStore.put("brief", copyFacts, brief));
   if (!approvedBrief?.approved && !resumedBrief) {
     await db.from("ai_generations").insert({
       organization_id: orgId,
@@ -1309,8 +1476,10 @@ async function runJob(
   type BrandIdentity = Awaited<ReturnType<typeof authorBrandIdentity>>;
   const resumedIdentity = await stageStore.get<BrandIdentity>("identity", identityInputs);
   const identity = resumedIdentity ?? await authorBrandIdentity(identityInputs);
-  if (!resumedIdentity && identity.direction) await stageStore.put("identity", identityInputs, identity);
+  if (!resumedIdentity && identity.direction) saved(await stageStore.put("identity", identityInputs, identity));
   await touchLease(db, job);
+  // Resumable only when the identity is stored (or came from the store).
+  if (resumedIdentity || identity.direction) await slice.handBackIfDue("identity");
   const direction = identity.direction;
   // Pure black/white saved colours are an old neutral placeholder, not an
   // owner brand: the AI team authors the whole palette instead.
@@ -1413,9 +1582,11 @@ async function runJob(
   type Refined = Awaited<ReturnType<typeof refineFirstBuildWithCollective>>;
   const resumedRefined = await stageStore.get<Refined>("refined", refineInputs);
   const refined = resumedRefined ?? await refineFirstBuildWithCollective(refineInputs);
-  if (!resumedRefined && refined.creativeChanged && refined.changed && missingAiCopy(refined.copy).length === 0)
-    await stageStore.put("refined", refineInputs, refined);
+  const refinedUsable = refined.creativeChanged && refined.changed && missingAiCopy(refined.copy).length === 0;
+  if (!resumedRefined && refinedUsable) saved(await stageStore.put("refined", refineInputs, refined));
   await touchLease(db, job);
+  // Unusable wording is not handed back: the checks below fail it now.
+  if (resumedRefined || refinedUsable) await slice.handBackIfDue("refined");
   if (refined.creativeChanged) creative = refined.creative;
   if (refined.changed) {
     copy = refined.copy;
@@ -1548,7 +1719,7 @@ async function runJob(
         };
         const resumedPlan = await stageStore.get<PageArchitectureOutcome>("architecture", architectureInputs);
         const outcome = resumedPlan ?? await proposePageArchitecture(architectureInputs);
-        if (!resumedPlan && outcome.architecture?.length) await stageStore.put("architecture", architectureInputs, outcome);
+        if (!resumedPlan && outcome.architecture?.length) saved(await stageStore.put("architecture", architectureInputs, outcome));
         architectureRef.current = outcome;
         if (!outcome.architecture?.length) {
           // Carry the real reason (provider, shape, or review refusal) so the
@@ -1567,7 +1738,8 @@ async function runJob(
   // Honest progress: on a first build the page plan is written WHILE the
   // pictures are made, so the label names both instead of only pictures.
   let architectureSettled = architecturePlan === null;
-  void architecturePlan?.then(() => { architectureSettled = true; }, () => { architectureSettled = true; });
+  let architectureReady = architecturePlan === null;
+  void architecturePlan?.then(() => { architectureSettled = true; architectureReady = true; }, () => { architectureSettled = true; });
   noteStage(orgId, runId, architecturePlan ? "planning your pages and making your pictures" : "generating your pictures");
   // A retry of an interrupted build reuses the pictures its earlier attempt
   // already stored (only this job's own generated files, by creation time).
@@ -1614,6 +1786,14 @@ async function runJob(
   });
   await touchLease(db, job);
   await step("pictures");
+  {
+    // New pictures are kept for the next run (see settleFailedAttempt), so
+    // they are progress; reused ones are not.
+    const reusedIds = new Set(reusablePictures.map((row) => row.id));
+    if (starterImages.assets.some((asset) => !asset.mediaId || !reusedIds.has(asset.mediaId))) slice.progressed();
+    // Never hand back with the page plan still being written: that answer would be lost.
+    if (architectureReady) await slice.handBackIfDue("pictures");
+  }
   // Picture records (spec D): one per generated slot with its art direction,
   // pending owner approval. Cosmetic bookkeeping — never blocks the build.
   if (starterImages.assets.length) {
@@ -1835,6 +2015,8 @@ async function runJob(
     result: attachedEvidence as unknown as never,
     created_by: job.created_by,
   } as never);
+  // Pages are re-assembled from the saved plan on resume; the wording pass is next.
+  await slice.handBackIfDue("pages");
 
   // Section-by-section wording authority. Sol reviews every authored section,
   // Terra approves it individually and the same fact gate blocks invention.
@@ -1932,7 +2114,7 @@ async function runJob(
       }
       // Saved either way (an overrun saves "no changes"), so a resumed attempt
       // keeps exactly the wording its saved section designs were made from.
-      await stageStore.put("wording", wordingInputs, wordingCheckpoint.toStoredWordingPatches(wording, outcome.patches as never));
+      saved(await stageStore.put("wording", wordingInputs, wordingCheckpoint.toStoredWordingPatches(wording, outcome.patches as never)));
     }
     await touchLease(db, job);
     for (const patch of outcome.patches) {
@@ -1982,8 +2164,10 @@ async function runJob(
       facts: buildFacts,
       // Optional review/craft rounds stop once this build has used its layout
       // budget; the required AI design and safety checks always complete.
-      optionalPassDeadline: Date.now() + LAYOUT_OPTIONAL_BUDGET_MS,
-      rescueDeadline: Date.now() + LAYOUT_RESCUE_BUDGET_MS,
+      // Both also end with this run's budget; designs accepted so far are
+      // checkpointed and the next run continues with the rest.
+      optionalPassDeadline: Math.min(Date.now() + LAYOUT_OPTIONAL_BUDGET_MS, slice.deadline),
+      rescueDeadline: Math.min(Date.now() + LAYOUT_RESCUE_BUDGET_MS, slice.deadline),
       onPageDone: () => touchLease(db, job),
       // Accepted section designs are checkpointed on the job after every
       // chunk; a retry of this job restores the ones whose inputs still match.
@@ -2019,6 +2203,13 @@ async function runJob(
     // Every section is designed by the AI team. A section left without its
     // layout stops the build (it is retried) instead of shipping a default.
     if ((composed.fallback ?? 0) > 0) {
+      // Stopped by this run's budget after designing new sections: hand back
+      // so the next run designs the rest. Otherwise the existing rules apply
+      // (capacity -> the capacity deferral; anything else fails the attempt).
+      if (slice.expired() && composed.composed > (composed.resumed ?? 0)) {
+        slice.progressed();
+        await slice.handBackIfDue("layout");
+      }
       const { AiStepUnavailableError, AiCapacityParkError } = await import("@/lib/builder/ai-step-error");
       if (composed.capacityParked)
         throw new AiCapacityParkError(
@@ -2566,18 +2757,37 @@ export type DrainResult = {
   paused: boolean;
   pauseReason: string | null;
   idle: boolean;
+  /** Runs that reached their budget and returned the job to the queue to resume. */
+  handedBack?: number;
 };
+
+/** Asks the database-held worker call to run the next slice of a handed-back build. */
+async function requestNextSlice(organizationId: string): Promise<unknown> {
+  const { requestDurableWorkerRun } = await import("@/lib/builder/durable-worker-kick.server");
+  return requestDurableWorkerRun(organizationId);
+}
 
 /**
  * Processes a bounded batch of jobs. Safe to call from cron, from a kick after
  * enqueue, or from the client's polling hook — the lease keeps it single-flight.
+ * Each job runs under `sliceBudgetMs` (RUN_BUDGET_MS by default); a run that
+ * hands back ends this drain and asks for the next slice (the backstop
+ * schedule picks it up if that request cannot be made).
  */
 export async function drainSiteEngineQueue(
   db: Db,
-  options: { max?: number; organizationId?: string; probeWhilePaused?: boolean; invoker?: WorkerInvoker } = {},
+  options: {
+    max?: number;
+    organizationId?: string;
+    probeWhilePaused?: boolean;
+    invoker?: WorkerInvoker;
+    sliceBudgetMs?: number;
+    continueBuild?: (organizationId: string) => Promise<unknown>;
+  } = {},
   executeJob: typeof runJob = runJob,
 ): Promise<DrainResult> {
   const max = Math.min(Math.max(options.max ?? 2, 1), 5);
+  const sliceBudgetMs = Math.max(0, Math.min(options.sliceBudgetMs ?? RUN_BUDGET_MS, RUN_BUDGET_MS));
   let state = await readQueueState(db);
 
   // Recover legacy automatic pauses. A tenant's quota/policy/provider failure
@@ -2664,7 +2874,10 @@ export async function drainSiteEngineQueue(
       // process keeps its own paid allowance.
       const { buildSpendScope, withAiSpendScope } = await import("@/lib/ai/spend-scope.server");
       const spendScope = await buildSpendScope(db as never, job.organization_id);
-      await withAiSpendScope(spendScope, () => executeJob(db, job));
+      const deadline = Date.parse(attemptStartedAt) + sliceBudgetMs;
+      await withAiSpendScope(spendScope, () =>
+        executeJob(db, job, { deadline, short: sliceBudgetMs < NEXT_STAGE_RESERVE_MS }),
+      );
       heartbeat.stop();
       processed += 1;
     } catch (error) {
@@ -2672,6 +2885,19 @@ export async function drainSiteEngineQueue(
       // A superseded attempt must not requeue, fail or restore anything —
       // the newer attempt owns the job and the site now.
       if (error instanceof StaleAttemptError) continue;
+      // Budget spent at a resumable point: give the lease (and the attempt)
+      // back and let the next run continue. This drain's budget is used up.
+      if (error instanceof BuildHandBackError) {
+        if (await handBackLease(db, job, error.point)) {
+          console.info(`[site-engine] job ${job.id} handed back at "${error.point}" to resume in the next run.`);
+          try {
+            await (options.continueBuild ?? requestNextSlice)(job.organization_id);
+          } catch (continueError) {
+            console.warn(`[site-engine] next-run request for job ${job.id} failed; the backstop schedule resumes it.`, continueError);
+          }
+        }
+        return { processed, failed, paused: false, pauseReason: null, idle: false, handedBack: 1 };
+      }
       // An owner-cancelled build stays cancelled: never requeue or relabel it.
       {
         const { data: latest } = await db
