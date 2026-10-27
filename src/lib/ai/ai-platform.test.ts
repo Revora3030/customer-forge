@@ -114,6 +114,8 @@ describe("no third-party AI gateway remains", () => {
       // through the connector gateway; it returns research links, never model
       // output, and its results are marked third-party research.
       "integrations/research.server.ts",
+      // Verifies the client-safe capability registry declares the managed key name, never its value.
+      "integrations/registry.test.ts",
       // Semrush keyword data for SEO reviewers, via the connector gateway; no model.
       "builder/review-evidence.server.ts",
       // Calendly booking options for Revora's contact page, via the connector gateway; no model.
