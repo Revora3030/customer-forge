@@ -1785,6 +1785,20 @@ async function runJob(
     reusable: reusablePictures,
   });
   await touchLease(db, job);
+  {
+    // Finish-line rule: never complete a site with zero pictures when the
+    // owner supplied none; stop for retry instead of shipping text-only pages.
+    const { firstBuildPictureGap } = await import("@/lib/builder/first-build-picture-gate");
+    const gap = firstBuildPictureGap({
+      ownerPhotoCount: realMediaCount,
+      generatedStatus: starterImages.evidence.status,
+      keptPictures: starterImages.assets.length,
+    });
+    if (gap) {
+      const { AiStepUnavailableError } = await import("@/lib/builder/ai-step-error");
+      throw new AiStepUnavailableError("pictures", starterImages.evidence.message || gap);
+    }
+  }
   await step("pictures");
   {
     // New pictures are kept for the next run (see settleFailedAttempt), so
