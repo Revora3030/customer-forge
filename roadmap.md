@@ -1,10 +1,11 @@
 # Roadmap — Five-phase blocker elimination
 
 ## AI City and workforce-first continuation (2026-10-27)
+- [x] Harden existing routine runner with conditional pre-execution claims, owner/attempt-fenced settlement and explicit uncertain outcomes; overlapping wake-ups, changed prompts and failed settlement tested without paid calls or production writes. 51 focused tests pass; lint clean; automatic build OK. Hosted concurrency and live cron remain unverified (docs/workforce-routine-verification.md).
 - [x] Build authenticated AI City with all seven operational districts, real queues/evidence, full returned Lovable capability catalogue and phone/desktop navigation. Super-admin reads preserve owner-filtered Jarvis records and per-source failures.
 - [x] Connect read-only department checks to the existing executor and prepare review-only missions in Jarvis; no simulated jobs, second worker or automatic spend/send/publish path. Existing department review pages remain execution entry points.
 - [x] Signed-in real records, 3D scene, district selection, Operations fallback, full catalogue, mission composer handoff and real read-only error diagnostic checked; 320/390/768/1280/2560 no overflow, reduced-motion fallback, no page errors after repair; 78 focused regressions pass, lint clean, automatic build OK. Evidence: docs/ai-city-verification.md.
-- [ ] Full workforce automation beyond existing executors: durable approval consumption/unified inbox, claimed non-overlapping routines, persistent employee task contracts and evaluated media workflows remain unfinished. No approved paid employee run or complete all-pillar acceptance evidence exists; city controls do not imply these are complete.
+- [ ] Full workforce automation beyond existing executors: durable approval consumption/unified inbox, persistent employee task contracts and evaluated media workflows remain unfinished. Same-routine claims implemented; owner-wide serialization and live scheduler acceptance remain unverified. No approved paid employee run or complete all-pillar acceptance evidence exists; city controls do not imply these are complete.
 - [ ] Continue unfinished pillars after city; live paid work, outbound sends and publishing wait for specific approval; external credentials and measured live evidence remain blockers, not completed milestones.
 
 ## Admin account Lovable-only repair (2026-10-27)

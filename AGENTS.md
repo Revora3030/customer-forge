@@ -14,6 +14,7 @@
 ## Whole-repository upgrade contract
 
 - AI City is an authenticated super-admin projection of existing queues, owner-scoped Jarvis evidence and Lovable traces; polling never dispatches work, recent running heartbeats alone animate activity, and missions enter existing reviewed executors rather than a second worker or approval system.
+- Scheduled Jarvis routines claim the unchanged owner-scoped row before dispatch and fence settlement to a unique attempt marker; unresolved running claims never auto-retry, preventing duplicate spend without a second scheduler or schema.
 
 - Revora homepage, states and about search copy is shared through marketing-seo.ts with the SEO inventory; tenant head branches stay independent to prevent platform identity leaking onto customer sites.
 - Crawler handlers return retryable uncached failures on lookup errors; sitemap content reads paginate existing public projections and preserve publication/tenant gates so incomplete inventories never look successful.
