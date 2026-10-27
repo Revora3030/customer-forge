@@ -517,7 +517,7 @@ export function hasInteractive(tree: CompositionTree): boolean {
 }
 
 /** Gates that always go back to the AI, whatever their severity. */
-const ALWAYS_REPAIR = new Set<DesignFinding["code"]>(["flat_page", "lead_not_scene", "scene_text_contrast", "page_missing_interactive"]);
+const ALWAYS_REPAIR = new Set<DesignFinding["code"]>(["flat_page", "lead_not_scene", "scene_text_contrast", "page_missing_interactive", "duplicate_text", "empty_column"]);
 
 /** True when any finding must be fixed before the section ships. */
 export function needsDesignRepair(findings: DesignFinding[]): boolean {
