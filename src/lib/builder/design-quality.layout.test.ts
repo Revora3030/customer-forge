@@ -26,7 +26,7 @@ describe("page layout checks", () => {
 
   it("does not flag a grid where every column has content", () => {
     const out = auditPageDesign([
-      { id: "a", role: "about", tree: tree({ type: "grid", children: [{ type: "text", text: "Our story" }, { type: "image", mediaRef: "m1" }] }) },
+      { id: "a", role: "about", tree: tree({ type: "grid", children: [{ type: "text", text: "Our story" }, { type: "media", mediaRef: "m1" }] }) },
     ] as never);
     expect(codes(out, "a")).not.toContain("empty_column");
   });
