@@ -69,7 +69,12 @@ export function jobStageCheckpointStore(db: Db, job: { jobId: string; organizati
     async get<T>(key: string, inputs: unknown): Promise<T | null> {
       return readStage<T>(await load(), job.jobId, key, inputs);
     },
-    async put(key: string, inputs: unknown, value: unknown): Promise<void> {
+    /**
+     * True when the save was accepted (no storage error), so a resumed run can
+     * reuse the stage. A fenced-out attempt also reads true; its next stage
+     * fence stops it.
+     */
+    async put(key: string, inputs: unknown, value: unknown): Promise<boolean> {
       try {
         const next = writeStage(await load(), job.jobId, key, inputs, value);
         const { error } = await db
@@ -79,11 +84,15 @@ export function jobStageCheckpointStore(db: Db, job: { jobId: string; organizati
           .eq("organization_id", job.organizationId)
           .eq("attempts", job.attempts)
           .eq("status", "processing");
-        if (!error) cache = next;
-        else console.warn(`[stage-checkpoints] job ${job.jobId}: save of ${key} skipped (${error.message ?? error})`);
+        if (!error) {
+          cache = next;
+          return true;
+        }
+        console.warn(`[stage-checkpoints] job ${job.jobId}: save of ${key} skipped (${error.message ?? error})`);
       } catch (error) {
         console.warn(`[stage-checkpoints] job ${job.jobId}: save of ${key} skipped (${error instanceof Error ? error.message : "unknown"})`);
       }
+      return false;
     },
     async clear(): Promise<void> {
       try {

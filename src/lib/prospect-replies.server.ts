@@ -33,11 +33,11 @@ import {
  *   1. drains the outreach send queue,
  *   2. reads the Gmail threads of emails we sent (prospect_outreach.gmail_thread_id),
  *      least recently checked first, and stores each new message from the
- *      prospect in prospect_inbound with its intent (free AI pool, with a
- *      deterministic stop override),
+ *      prospect in prospect_inbound with its intent (Lovable AI lane under
+ *      the daily paid cap, with a deterministic stop override),
  *   3. follows up: stop => do-not-contact, no reply; positive/price/question =>
  *      an AI reply limited to the facts sheet, checked deterministically and
- *      by a second free-model review, sent in-thread (max 2 per thread, held
+ *      by a second model review, sent in-thread (max 2 per thread, held
  *      by a unique slot index); anything else, or a reply that fails a check
  *      => a draft the operator reviews in Jarvis.
  * Without the four GMAIL_* secrets, polling returns "gmail_not_configured".
@@ -135,7 +135,6 @@ export async function classifyInbound(message: { text: string; subject: string }
     const { generateText } = await import("@/lib/ai/router.server");
     const result = await generateText({ userId: null, task: "admin.jarvis" }, {
       role: "fast",
-      freeOnly: true,
       json: true,
       maxOutputTokens: 80,
       messages: [
@@ -340,7 +339,6 @@ async function writeReply(facts: FactsSheet, inbound: InboundItem): Promise<stri
     const { generateText } = await import("@/lib/ai/router.server");
     const result = await generateText({ userId: null, task: "admin.jarvis" }, {
       role: "conversation",
-      freeOnly: true,
       maxOutputTokens: 400,
       messages: [
         { role: "system", content: REPLY_SYSTEM },
@@ -356,13 +354,12 @@ async function writeReply(facts: FactsSheet, inbound: InboundItem): Promise<stri
   }
 }
 
-/** Second, independent free-model pass. Anything but an explicit pass is a fail. */
+/** Second, independent model pass. Anything but an explicit pass is a fail. */
 async function reviewReply(facts: FactsSheet, body: string): Promise<{ pass: boolean; problems: string[] }> {
   try {
     const { generateText } = await import("@/lib/ai/router.server");
     const result = await generateText({ userId: null, task: "admin.jarvis" }, {
       role: "fast",
-      freeOnly: true,
       json: true,
       maxOutputTokens: 200,
       messages: [
