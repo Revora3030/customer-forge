@@ -6,7 +6,8 @@ import { designTokenClasses, designTokenVars, readDesignTokens } from "@/lib/bui
  * anything else the builder laid out. Each one carries its own metadata and its
  * own lead-capture blocks.
  */
-import { createFileRoute, notFound } from "@tanstack/react-router";
+import { createFileRoute, Link, notFound, useParams } from "@tanstack/react-router";
+import { Button } from "@/components/ui/button";
 import { useEffect } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { SiteSection } from "@/components/site/SiteSections";
@@ -74,15 +75,28 @@ export const Route = createFileRoute("/s/$slug/$page")({
       </p>
     </div>
   ),
-  notFoundComponent: () => (
+  notFoundComponent: PageNotFound,
+});
+
+/** A missing page is a way back into the business, not a dead end. */
+function PageNotFound() {
+  const { slug } = useParams({ strict: false }) as { slug?: string };
+  return (
     <div className="flex min-h-screen items-center justify-center px-4 text-center">
       <div>
         <h1 className="font-display text-[22px] font-semibold">Page not found</h1>
         <p className="mt-2 text-[13px] text-muted-foreground">This page isn't published yet.</p>
+        {slug ? (
+          <Button asChild className="mt-5 min-h-11">
+            <Link to="/s/$slug" params={{ slug }}>
+              Back to the home page
+            </Link>
+          </Button>
+        ) : null}
       </div>
     </div>
-  ),
-});
+  );
+}
 
 function SitePageRoute() {
   return <SitePageView site={Route.useLoaderData()} />;

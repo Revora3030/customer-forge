@@ -1,5 +1,11 @@
 # Roadmap — Five-phase blocker elimination
 
+## Free upgrades from the model scan (2026-10-27)
+- [x] Printable / save-as-PDF estimate after a quote request (browser print, no server cost, labelled as an estimate not a quote).
+- [x] Customer-site "page not found" now links back to the business's home page.
+- [ ] Already present, not rebuilt: QR codes (campaigns), voice dictation (Jarvis dock, chat tools), dashboard install manifest.
+- [ ] Not built: SVG social cards (Facebook, iMessage and X do not accept SVG share images; needs PNG rendering), tenant service worker (stale-site risk), tsvector search and audit triggers (migrations need approval).
+
 ## Cognitive architecture foundations (2026-10-27)
 - [x] Six-pillar foundations in `src/lib/cognition/` with 33 tests (plan graph, ReAct loop, memory recall, approval tokens, vision review, event rules, deliberation); see docs/COGNITIVE_ARCHITECTURE.md.
 - [x] Jarvis memory now recalls relevant memories from all 200 for the owner's latest message instead of only the newest 40.
