@@ -279,3 +279,11 @@ Owner approved porting two ideas (audit of the uploaded Next.js project; auto pa
 
 - [x] AI City sales pipeline strip (Found → Demo ready → Awaiting approval → Sent → Replied) with approval-gated Scout/Demo/Pitch missions
 - [x] AI City district inspector panel (bottom sheet on phone, side panel on desktop)
+
+## Website Factory finish rate (2026-10-27)
+- [x] Unsaved picture repaired per section instead of failing the site
+- [x] Reviewer notes that clear themselves ("Not a violation") count as advice
+- [x] September design-setting spellings confirmed tolerated
+- [ ] Signup brief carry-through audit (homepage → builder)
+- [ ] Completeness + craft score gate (≥8) with one improvement round
+- [ ] Approved paid test builds for 2–3 business types (needs owner approval)
