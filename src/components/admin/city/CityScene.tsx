@@ -42,7 +42,8 @@ function Ground({ palette }: { palette: Palette }) {
 function Building({ index, palette, selected, active, onSelect }: { index: number; palette: Palette; selected: boolean; active: boolean; onSelect: () => void }) {
   const district = CITY_DISTRICTS[index];
   const url = MODEL_URLS[index];
-  const { scene } = useGLTF(url ?? towerA.url);
+  // These CC0 assets are uncompressed: never initialize WASM decoders or fetch CDN decoder code.
+  const { scene } = useGLTF(url ?? towerA.url, false, false);
   const building = useMemo(() => {
     const clone = scene.clone(true);
     const box = new THREE.Box3().setFromObject(clone);
