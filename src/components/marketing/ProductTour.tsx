@@ -322,7 +322,7 @@ export function ProductTour() {
         </Button>
       </div>
 
-      <Panel className="min-w-0 p-4 sm:p-5" id="tour-panel" role="tabpanel" aria-labelledby={`tour-tab-${view}`}>
+      <Panel className="min-w-0 p-4 sm:p-5 lg:sticky lg:top-24 lg:self-start" id="tour-panel" role="tabpanel" aria-labelledby={`tour-tab-${view}`}>
         <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-b border-border pb-3">
           <p className="font-display text-[13px] font-semibold">{active.label}</p>
           <span className="rounded-full border border-primary/35 bg-primary/10 px-2.5 py-0.5 text-[10.5px] text-primary">
