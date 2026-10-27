@@ -110,6 +110,28 @@ function artDirectionNote(creative: FirstBuildCreativeDirection, shot: PlannedSh
   ].join(" ");
 }
 
+const roleKey = (value: string) => value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+
+/**
+ * The shot-list direction for this picture: the AI-authored art direction of
+ * the section the picture is placed in, plus the campaign's continuity
+ * thread, so every picture on the site is shot as one coherent set. Empty
+ * when the brief carries no shot list (older briefs); nothing is invented.
+ */
+export function shotDirectionFor(creative: Pick<FirstBuildCreativeDirection, "brief">, shot: Pick<PlannedShot, "slot" | "placement">): string {
+  const list = creative.brief?.shotList;
+  if (!list?.sections?.length) return "";
+  const wanted = [...shot.placement, shot.slot].map(roleKey).filter(Boolean);
+  const entry = list.sections.find((item) => wanted.includes(roleKey(item.section)));
+  if (!entry) return list.continuity ? `Site-wide continuity: ${list.continuity}.` : "";
+  return [
+    `Scene direction for the ${entry.section} section: setting ${entry.setting}; light ${entry.light}; camera angle ${entry.cameraAngle}; mood ${entry.mood}.`,
+    entry.paletteTieIn ? `Palette tie-in: ${entry.paletteTieIn}.` : "",
+    entry.copySpace ? `Leave calm copy space: ${entry.copySpace}.` : "",
+    list.continuity ? `Site-wide continuity: ${list.continuity}.` : "",
+  ].filter(Boolean).join(" ");
+}
+
 function fileStem(shot: PlannedShot, index: number) {
   return `first-build-${index + 1}-${shot.slot}-${shot.label || "image"}`;
 }
@@ -291,6 +313,9 @@ export async function generateFirstBuildImages(
       spec.mobileCrop ? `Mobile crop: ${spec.mobileCrop}.` : "",
       spec.palette ? `Palette: ${spec.palette}.` : "",
       spec.mood ? `Mood: ${spec.mood}.` : "",
+      // The section's shot-list art direction keeps every picture on the site
+      // one coherent campaign (AI-authored in the creative-direction pass).
+      shotDirectionFor(input.creative, shot),
       artDirectionNote(input.creative, shot),
       ...spec.constraints,
       "Starter marketing image only. Do not depict a real employee, actual customer, award, review, brand logo, licence plate, address, or before-and-after result.",

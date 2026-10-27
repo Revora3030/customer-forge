@@ -2008,6 +2008,9 @@ async function runJob(
         shapeLanguage: creative.brief.shapeLanguage,
         motion: creative.brief.motion,
         photography: creative.brief.photography,
+        // The AI's per-section art direction the pictures were shot to, so
+        // scenes anchor copy where the photo left space.
+        ...(creative.brief.shotList?.sections?.length ? { shotList: creative.brief.shotList } : {}),
         // The palette the site will actually wear: the owner's own colours
         // when set (they are never overwritten), else the AI identity. Sections
         // composed against a different palette than the theme clashed with it.

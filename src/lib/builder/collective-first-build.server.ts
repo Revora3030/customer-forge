@@ -19,7 +19,7 @@ import { formatLocality } from "@/lib/locality";
 import type { SiteCopy } from "@/lib/site-engine";
 import type { SiteBrief } from "@/lib/site-brief";
 import type { FirstBuildCreativeDirection } from "@/lib/builder/first-build-contract";
-import type { CreativeBrief } from "@/lib/builder/first-build-contract";
+import type { CreativeBrief, SectionArtDirection, ShotList } from "@/lib/builder/first-build-contract";
 import {
   approvableFields,
   mergeRefinement,
@@ -79,7 +79,49 @@ type CreativeBriefPatch = Partial<
   shapeLanguage?: Partial<CreativeBrief["shapeLanguage"]>;
   motion?: Partial<CreativeBrief["motion"]>;
   imageInventory?: CreativeBrief["imageInventory"];
+  shotList?: ShotList;
 };
+
+const SHOT_FIELDS = ["setting", "light", "cameraAngle", "mood", "paletteTieIn", "copySpace"] as const;
+
+/**
+ * Reads Sol's per-section art direction (the shot list). Every field is the
+ * AI's own words, screened like the rest of the brief: a direction that tries
+ * to state proof or an unsupported claim is refused, never rewritten. An
+ * entry needs a section role plus setting, light, camera angle and mood.
+ */
+export function shotListAt(value: unknown, facts: DnaFacts): { shotList: ShotList | null; rejected: RefinementRejection[] } {
+  const rejected: RefinementRejection[] = [];
+  if (!value || typeof value !== "object" || Array.isArray(value)) return { shotList: null, rejected };
+  const raw = value as Record<string, unknown>;
+  const continuity = textAt(raw["continuity"], 240) ?? "";
+  if (continuity && visualTextProblem(continuity, facts)) {
+    rejected.push({ field: "brief.shotList.continuity", reason: visualTextProblem(continuity, facts)! });
+  }
+  const sections: SectionArtDirection[] = [];
+  const seen = new Set<string>();
+  for (const [index, entry] of (Array.isArray(raw["sections"]) ? raw["sections"] : []).slice(0, 16).entries()) {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) continue;
+    const item = entry as Record<string, unknown>;
+    const section = textAt(item["section"], 60)?.toLowerCase().replace(/[^a-z0-9_-]+/g, "_").replace(/^_+|_+$/g, "") ?? "";
+    if (!section || seen.has(section)) continue;
+    const out = { section } as SectionArtDirection;
+    for (const field of SHOT_FIELDS) out[field] = textAt(item[field], 180) ?? "";
+    if (!out.setting || !out.light || !out.cameraAngle || !out.mood) {
+      rejected.push({ field: `brief.shotList.sections[${index}]`, reason: "a shot needs setting, light, cameraAngle and mood" });
+      continue;
+    }
+    const problem = SHOT_FIELDS.map((field) => (out[field] ? visualTextProblem(out[field], facts) : null)).find(Boolean);
+    if (problem) {
+      rejected.push({ field: `brief.shotList.sections[${index}]`, reason: problem });
+      continue;
+    }
+    seen.add(section);
+    sections.push(out);
+  }
+  const safeContinuity = continuity && !visualTextProblem(continuity, facts) ? continuity : "";
+  return { shotList: sections.length ? { continuity: safeContinuity, sections } : null, rejected };
+}
 
 export type CreativeRefinement = {
   brief?: CreativeBriefPatch;
@@ -442,6 +484,9 @@ export function reviewCreativeProposal(input: {
 
     const imageInventory = imageInventoryAt(briefRaw["imageInventory"], input.facts);
     if (imageInventory.length) brief.imageInventory = imageInventory;
+    const shots = shotListAt(briefRaw["shotList"], input.facts);
+    rejected.push(...shots.rejected);
+    if (shots.shotList) brief.shotList = shots.shotList;
     if (Object.keys(brief).length) accepted.brief = brief;
   }
 
@@ -552,6 +597,7 @@ async function refineCreativeWithCollective(input: {
         "industryConventions",
         "photography",
         "imageInventory",
+        "shotList",
       ],
     },
     null,
@@ -563,7 +609,7 @@ async function refineCreativeWithCollective(input: {
     purpose: "creative_direction",
     complexity: "high",
     organizationId: input.organizationId,
-    maxOutputTokens: 8000,
+    maxOutputTokens: 9500,
     ...(input.signal ? { signal: input.signal } : {}),
     system: `${CREATIVE_RULES} You are Sol, the master creative director. Improve the design strategy so it can materially shape layout, imagery and section composition across every page. ${creativeQualityPrompt(input.creative.brief.qualityMatrix)} ${craftBarPrompt("creative_direction")}`,
     user: [
@@ -582,6 +628,7 @@ async function refineCreativeWithCollective(input: {
       `brief.imageInventory must be a page-aware picture campaign that gives EVERY page of the site real photography on the first build: one hero picture for the home page, one picture for each real service (${(input.facts.services ?? []).length || "each"} service${(input.facts.services ?? []).length === 1 ? "" : "s"}), one for the about/story page, and one for each other page you plan — at least 5 pictures, at most 28 for generation cost. An empty or thin campaign is refused.`,
       "Each picture's section array names the exact section roles it belongs to (for example [\"hero\"], [\"services\"], [\"story\"], [\"process\"]). Invent a short lowercase-hyphenated semantic slot for each image; there is no slot catalogue. Each item: slot, label, purpose, subject, environment, action, lighting, camera, framing, focalPoint and negativeSpace (your own words), aspectRatio (any positive ratio written like width:height), palette, mood, section (array of exact intended section roles), mobileCrop, altText, and serviceName (only for a picture of one real service: that service's name exactly as supplied; omit it otherwise).",
       "Every picture must have a distinct job in the final site. Generated images are marketing visuals, never staff, customer proof, completed-work evidence, reviews, awards or results.",
+      "brief.shotList is your art-direction shot list so every picture on the site reads as one coherent campaign: {\"continuity\": \"the thread shared by every picture (time of day, colour grade, lens family)\", \"sections\": [{\"section\": \"exact section role, matching imageInventory section entries\", \"setting\": \"...\", \"light\": \"...\", \"cameraAngle\": \"...\", \"mood\": \"...\", \"paletteTieIn\": \"how the picture's colours tie into the site palette and its accent\", \"copySpace\": \"where the frame leaves calm space for overlaid headline copy\"}]}. One entry per section role that carries a picture, at most 16. Your own words for this business; describe places, light and framing only — never people, results, reviews or claims.",
     ].join("\n"),
   });
 
