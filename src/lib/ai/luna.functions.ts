@@ -83,7 +83,7 @@ export const getLunaStatus = createServerFn({ method: "GET" })
 
     return {
       enabled: lunaEnabled(),
-      keyPresent: Boolean(process.env["OPENAI_API_KEY"]),
+      keyPresent: Boolean(process.env["LOVABLE_API_KEY"]),
       model: lunaModel(),
       tiers: collectiveStatus(),
       capUsd: usd(capMicrocents),

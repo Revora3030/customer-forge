@@ -157,7 +157,7 @@ describe("premium picture lane", () => {
     vi.mocked(router.callPinnedPaidImage).mockResolvedValueOnce({
       base64: "AAAA",
       mimeType: "image/png",
-      provider: "openai",
+      provider: "lovable",
       model: "gpt-image-2.5-flare",
     });
     const { generatePaidImageBase64 } = await paidImage();

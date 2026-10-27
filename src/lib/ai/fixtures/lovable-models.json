@@ -1,0 +1,1284 @@
+{
+  "data": [
+    {
+      "id": "anthropic/claude-fable-5-1",
+      "deprecated": false,
+      "supported_surfaces": [
+        "messages"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text",
+          "search"
+        ]
+      },
+      "data_retention_by_surface": {
+        "messages": "provider_retained"
+      }
+    },
+    {
+      "id": "anthropic/claude-haiku-4-5",
+      "deprecated": false,
+      "supported_surfaces": [
+        "messages"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text",
+          "search"
+        ]
+      },
+      "data_retention_by_surface": {
+        "messages": "provider_retained"
+      }
+    },
+    {
+      "id": "anthropic/claude-opus-5",
+      "deprecated": false,
+      "supported_surfaces": [
+        "messages"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text",
+          "search"
+        ]
+      },
+      "data_retention_by_surface": {
+        "messages": "provider_retained"
+      }
+    },
+    {
+      "id": "anthropic/claude-opus-5-5",
+      "deprecated": false,
+      "supported_surfaces": [
+        "messages"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text",
+          "search"
+        ]
+      },
+      "data_retention_by_surface": {
+        "messages": "provider_retained"
+      }
+    },
+    {
+      "id": "anthropic/claude-sonnet-5",
+      "deprecated": false,
+      "supported_surfaces": [
+        "messages"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text",
+          "search"
+        ]
+      },
+      "data_retention_by_surface": {
+        "messages": "provider_retained"
+      }
+    },
+    {
+      "id": "google/gemini-2.5-flash",
+      "deprecated": true,
+      "supported_surfaces": [
+        "chat-completions"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "data_retention_by_surface": {
+        "chat-completions": "zero"
+      }
+    },
+    {
+      "id": "google/gemini-2.5-flash-image",
+      "deprecated": true,
+      "supported_surfaces": [
+        "chat-completions",
+        "image-generation"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output": [
+          "text",
+          "image"
+        ]
+      },
+      "data_retention_by_surface": {
+        "chat-completions": "zero",
+        "image-generation": "zero"
+      }
+    },
+    {
+      "id": "google/gemini-2.5-flash-lite",
+      "deprecated": true,
+      "supported_surfaces": [
+        "chat-completions"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "data_retention_by_surface": {
+        "chat-completions": "zero"
+      }
+    },
+    {
+      "id": "google/gemini-2.5-flash-lite-preview-tts",
+      "deprecated": true,
+      "supported_surfaces": [
+        "speech"
+      ],
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "audio"
+        ]
+      },
+      "data_retention_by_surface": {
+        "speech": "zero"
+      }
+    },
+    {
+      "id": "google/gemini-2.5-flash-tts",
+      "deprecated": false,
+      "supported_surfaces": [
+        "speech"
+      ],
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "audio"
+        ]
+      },
+      "data_retention_by_surface": {
+        "speech": "zero"
+      }
+    },
+    {
+      "id": "google/gemini-2.5-pro",
+      "deprecated": true,
+      "supported_surfaces": [
+        "chat-completions"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "data_retention_by_surface": {
+        "chat-completions": "zero"
+      }
+    },
+    {
+      "id": "google/gemini-2.5-pro-tts",
+      "deprecated": false,
+      "supported_surfaces": [
+        "speech"
+      ],
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "audio"
+        ]
+      },
+      "data_retention_by_surface": {
+        "speech": "zero"
+      }
+    },
+    {
+      "id": "google/gemini-3-flash-preview",
+      "deprecated": false,
+      "supported_surfaces": [
+        "chat-completions"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "data_retention_by_surface": {
+        "chat-completions": "zero",
+        "interactions": "provider_retained"
+      }
+    },
+    {
+      "id": "google/gemini-3-pro-image",
+      "deprecated": false,
+      "supported_surfaces": [
+        "chat-completions",
+        "image-generation"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output": [
+          "text",
+          "image"
+        ]
+      },
+      "data_retention_by_surface": {
+        "chat-completions": "zero",
+        "image-generation": "zero"
+      }
+    },
+    {
+      "id": "google/gemini-3.1-flash-image",
+      "deprecated": true,
+      "supported_surfaces": [
+        "chat-completions",
+        "image-generation"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output": [
+          "text",
+          "image"
+        ]
+      },
+      "data_retention_by_surface": {
+        "chat-completions": "zero",
+        "image-generation": "zero"
+      }
+    },
+    {
+      "id": "google/gemini-3.1-flash-lite",
+      "deprecated": false,
+      "supported_surfaces": [
+        "chat-completions"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "data_retention_by_surface": {
+        "chat-completions": "zero",
+        "interactions": "provider_retained"
+      }
+    },
+    {
+      "id": "google/gemini-3.1-flash-lite-image",
+      "deprecated": false,
+      "supported_surfaces": [
+        "image-generation"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output": [
+          "text",
+          "image"
+        ]
+      },
+      "data_retention_by_surface": {
+        "image-generation": "zero"
+      }
+    },
+    {
+      "id": "google/gemini-3.1-flash-tts-preview",
+      "deprecated": false,
+      "supported_surfaces": [
+        "speech"
+      ],
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "audio"
+        ]
+      },
+      "data_retention_by_surface": {
+        "speech": "zero"
+      }
+    },
+    {
+      "id": "google/gemini-3.1-pro-preview",
+      "deprecated": false,
+      "supported_surfaces": [
+        "chat-completions"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "data_retention_by_surface": {
+        "chat-completions": "zero",
+        "interactions": "provider_retained"
+      }
+    },
+    {
+      "id": "google/gemini-3.5-flash",
+      "deprecated": true,
+      "supported_surfaces": [
+        "chat-completions"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "data_retention_by_surface": {
+        "chat-completions": "zero"
+      }
+    },
+    {
+      "id": "google/gemini-3.5-transcribe",
+      "deprecated": false,
+      "supported_surfaces": [
+        "transcription"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "data_retention_by_surface": {
+        "transcription": "zero"
+      }
+    },
+    {
+      "id": "google/gemini-3.6-flash",
+      "deprecated": true,
+      "supported_surfaces": [
+        "chat-completions"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "data_retention_by_surface": {
+        "chat-completions": "zero",
+        "interactions": "provider_retained"
+      }
+    },
+    {
+      "id": "google/gemini-3.7-flash",
+      "deprecated": true,
+      "supported_surfaces": [
+        "chat-completions"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "data_retention_by_surface": {
+        "chat-completions": "zero",
+        "interactions": "provider_retained"
+      }
+    },
+    {
+      "id": "google/gemini-3.8-flash",
+      "deprecated": false,
+      "supported_surfaces": [
+        "chat-completions"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "data_retention_by_surface": {
+        "chat-completions": "zero",
+        "interactions": "provider_retained"
+      }
+    },
+    {
+      "id": "google/gemini-4-argon",
+      "deprecated": false,
+      "supported_surfaces": [
+        "chat-completions"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "data_retention_by_surface": {
+        "chat-completions": "zero"
+      }
+    },
+    {
+      "id": "google/gemini-embedding-001",
+      "deprecated": false,
+      "supported_surfaces": [
+        "embeddings"
+      ],
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "data_retention_by_surface": {
+        "embeddings": "zero"
+      }
+    },
+    {
+      "id": "google/gemini-embedding-2",
+      "deprecated": false,
+      "supported_surfaces": [
+        "embeddings"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "data_retention_by_surface": {
+        "embeddings": "zero"
+      }
+    },
+    {
+      "id": "google/gemini-omni-1.1-flash",
+      "deprecated": false,
+      "supported_surfaces": [
+        "videos"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "video"
+        ]
+      },
+      "data_retention_by_surface": {
+        "videos": "provider_retained"
+      }
+    },
+    {
+      "id": "google/lyria-3-clip-preview",
+      "deprecated": false,
+      "supported_surfaces": [
+        "music"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "audio"
+        ]
+      },
+      "data_retention_by_surface": {
+        "music": "zero"
+      }
+    },
+    {
+      "id": "google/lyria-3-pro-preview",
+      "deprecated": false,
+      "supported_surfaces": [
+        "music"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "audio"
+        ]
+      },
+      "data_retention_by_surface": {
+        "music": "zero"
+      }
+    },
+    {
+      "id": "google/veo-3.1",
+      "deprecated": false,
+      "supported_surfaces": [
+        "videos"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "video"
+        ]
+      },
+      "data_retention_by_surface": {
+        "videos": "zero"
+      }
+    },
+    {
+      "id": "google/veo-3.1-fast",
+      "deprecated": false,
+      "supported_surfaces": [
+        "videos"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "video"
+        ]
+      },
+      "data_retention_by_surface": {
+        "videos": "zero"
+      }
+    },
+    {
+      "id": "google/veo-3.1-lite",
+      "deprecated": false,
+      "supported_surfaces": [
+        "videos"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "video"
+        ]
+      },
+      "data_retention_by_surface": {
+        "videos": "zero"
+      }
+    },
+    {
+      "id": "openai/chat-latest",
+      "deprecated": false,
+      "supported_surfaces": [
+        "chat-completions",
+        "responses"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "data_retention_by_surface": {
+        "chat-completions": "zero",
+        "responses": "zero"
+      }
+    },
+    {
+      "id": "openai/gpt-4o-mini-transcribe",
+      "deprecated": true,
+      "supported_surfaces": [
+        "transcription"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "data_retention_by_surface": {
+        "transcription": "zero"
+      }
+    },
+    {
+      "id": "openai/gpt-4o-mini-tts",
+      "deprecated": true,
+      "supported_surfaces": [
+        "speech"
+      ],
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "audio"
+        ]
+      },
+      "data_retention_by_surface": {
+        "speech": "zero"
+      }
+    },
+    {
+      "id": "openai/gpt-4o-transcribe",
+      "deprecated": true,
+      "supported_surfaces": [
+        "transcription"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "data_retention_by_surface": {
+        "transcription": "zero"
+      }
+    },
+    {
+      "id": "openai/gpt-5",
+      "deprecated": true,
+      "supported_surfaces": [
+        "chat-completions",
+        "responses"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "data_retention_by_surface": {
+        "chat-completions": "zero",
+        "responses": "zero"
+      }
+    },
+    {
+      "id": "openai/gpt-5-mini",
+      "deprecated": true,
+      "supported_surfaces": [
+        "chat-completions",
+        "responses"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "data_retention_by_surface": {
+        "chat-completions": "zero",
+        "responses": "zero"
+      }
+    },
+    {
+      "id": "openai/gpt-5-nano",
+      "deprecated": true,
+      "supported_surfaces": [
+        "chat-completions",
+        "responses"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "data_retention_by_surface": {
+        "chat-completions": "zero",
+        "responses": "zero"
+      }
+    },
+    {
+      "id": "openai/gpt-5.2",
+      "deprecated": true,
+      "supported_surfaces": [
+        "chat-completions",
+        "responses"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "data_retention_by_surface": {
+        "chat-completions": "zero",
+        "responses": "zero"
+      }
+    },
+    {
+      "id": "openai/gpt-5.4",
+      "deprecated": false,
+      "supported_surfaces": [
+        "chat-completions",
+        "responses"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "data_retention_by_surface": {
+        "chat-completions": "zero",
+        "responses": "zero"
+      }
+    },
+    {
+      "id": "openai/gpt-5.4-mini",
+      "deprecated": false,
+      "supported_surfaces": [
+        "chat-completions",
+        "responses"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "data_retention_by_surface": {
+        "chat-completions": "zero",
+        "responses": "zero"
+      }
+    },
+    {
+      "id": "openai/gpt-5.4-nano",
+      "deprecated": true,
+      "supported_surfaces": [
+        "chat-completions",
+        "responses"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "data_retention_by_surface": {
+        "chat-completions": "zero",
+        "responses": "zero"
+      }
+    },
+    {
+      "id": "openai/gpt-5.4-pro",
+      "deprecated": true,
+      "supported_surfaces": [
+        "responses"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "data_retention_by_surface": {
+        "responses": "zero"
+      }
+    },
+    {
+      "id": "openai/gpt-5.5",
+      "deprecated": false,
+      "supported_surfaces": [
+        "chat-completions",
+        "responses"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "data_retention_by_surface": {
+        "chat-completions": "zero",
+        "responses": "zero"
+      }
+    },
+    {
+      "id": "openai/gpt-5.5-pro",
+      "deprecated": false,
+      "supported_surfaces": [
+        "responses"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "data_retention_by_surface": {
+        "responses": "zero"
+      }
+    },
+    {
+      "id": "openai/gpt-5.6-luna",
+      "deprecated": false,
+      "supported_surfaces": [
+        "chat-completions",
+        "responses"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "data_retention_by_surface": {
+        "chat-completions": "zero",
+        "responses": "zero"
+      }
+    },
+    {
+      "id": "openai/gpt-5.6-sol",
+      "deprecated": false,
+      "supported_surfaces": [
+        "chat-completions",
+        "responses"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "data_retention_by_surface": {
+        "chat-completions": "zero",
+        "responses": "zero"
+      }
+    },
+    {
+      "id": "openai/gpt-5.6-terra",
+      "deprecated": false,
+      "supported_surfaces": [
+        "chat-completions",
+        "responses"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "data_retention_by_surface": {
+        "chat-completions": "zero",
+        "responses": "zero"
+      }
+    },
+    {
+      "id": "openai/gpt-6-astra",
+      "deprecated": false,
+      "supported_surfaces": [
+        "chat-completions",
+        "responses"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "data_retention_by_surface": {
+        "chat-completions": "zero",
+        "responses": "zero"
+      }
+    },
+    {
+      "id": "openai/gpt-6-luna",
+      "deprecated": false,
+      "supported_surfaces": [
+        "chat-completions",
+        "responses"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "data_retention_by_surface": {
+        "chat-completions": "zero",
+        "responses": "zero"
+      }
+    },
+    {
+      "id": "openai/gpt-6-sol",
+      "deprecated": false,
+      "supported_surfaces": [
+        "chat-completions",
+        "responses"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "data_retention_by_surface": {
+        "chat-completions": "zero",
+        "responses": "zero"
+      }
+    },
+    {
+      "id": "openai/gpt-6.1-sol",
+      "deprecated": false,
+      "supported_surfaces": [
+        "chat-completions",
+        "responses"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "data_retention_by_surface": {
+        "chat-completions": "zero",
+        "responses": "zero"
+      }
+    },
+    {
+      "id": "openai/gpt-image-1-mini",
+      "deprecated": true,
+      "supported_surfaces": [
+        "image-generation",
+        "image-edit"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "image"
+        ]
+      },
+      "data_retention_by_surface": {
+        "image-edit": "zero",
+        "image-generation": "zero"
+      }
+    },
+    {
+      "id": "openai/gpt-image-2",
+      "deprecated": false,
+      "supported_surfaces": [
+        "image-generation",
+        "image-edit"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "image"
+        ]
+      },
+      "data_retention_by_surface": {
+        "image-edit": "zero",
+        "image-generation": "zero"
+      }
+    },
+    {
+      "id": "openai/gpt-image-2.5-flare",
+      "deprecated": false,
+      "supported_surfaces": [
+        "image-generation",
+        "image-edit"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "image"
+        ]
+      },
+      "data_retention_by_surface": {
+        "image-edit": "zero",
+        "image-generation": "zero"
+      }
+    },
+    {
+      "id": "openai/gpt-image-2.5-sunburst",
+      "deprecated": false,
+      "supported_surfaces": [
+        "image-generation",
+        "image-edit"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "image"
+        ]
+      },
+      "data_retention_by_surface": {
+        "image-edit": "zero",
+        "image-generation": "zero"
+      }
+    },
+    {
+      "id": "openai/gpt-live-1",
+      "deprecated": false,
+      "supported_surfaces": [
+        "live"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "audio"
+        ],
+        "output": [
+          "text",
+          "audio"
+        ]
+      },
+      "data_retention_by_surface": {
+        "live": "zero"
+      }
+    },
+    {
+      "id": "openai/gpt-transcribe",
+      "deprecated": false,
+      "supported_surfaces": [
+        "transcription"
+      ],
+      "modalities": {
+        "input": [
+          "text",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "data_retention_by_surface": {
+        "transcription": "zero"
+      }
+    },
+    {
+      "id": "openai/text-embedding-3-large",
+      "deprecated": false,
+      "supported_surfaces": [
+        "embeddings"
+      ],
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "data_retention_by_surface": {
+        "embeddings": "zero"
+      }
+    },
+    {
+      "id": "openai/text-embedding-3-small",
+      "deprecated": false,
+      "supported_surfaces": [
+        "embeddings"
+      ],
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "data_retention_by_surface": {
+        "embeddings": "zero"
+      }
+    },
+    {
+      "id": "typesafe/jev-1.13",
+      "deprecated": false,
+      "supported_surfaces": [
+        "systemone"
+      ],
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "data_retention_by_surface": {
+        "systemone": "zero"
+      }
+    }
+  ]
+}

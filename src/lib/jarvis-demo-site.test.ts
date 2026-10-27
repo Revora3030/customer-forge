@@ -26,8 +26,10 @@ describe("parseProspectDemoInput", () => {
     expect(() => parseProspectDemoInput({ ...valid, city: "" })).toThrow(/city/);
   });
 
-  it("needs real services or a real description, never invents them", () => {
-    expect(() => parseProspectDemoInput({ ...valid, services: "" })).toThrow(/service/);
+  it("with no services, describes only the stated trade and city, never invented services", () => {
+    const bare = parseProspectDemoInput({ ...valid, services: "", description: "" });
+    expect(bare.services).toEqual([]);
+    expect(bare.description).toBe(`${bare.industry} serving ${[bare.city, bare.state].filter(Boolean).join(", ")}.`);
     const described = parseProspectDemoInput({
       ...valid,
       services: "",
@@ -60,5 +62,22 @@ describe("readProspectDemoMarker", () => {
     expect(readProspectDemoMarker({ ...marker, previewToken: "short" })).toBeNull();
     expect(readProspectDemoMarker({ ...marker, kind: "other" })).toBeNull();
     expect(readProspectDemoMarker(null)).toBeNull();
+  });
+});
+
+import { factOrigin, websiteSuggestions } from "./jarvis-demo-site";
+describe("Maps fact review provenance", () => {
+  it("labels listing, edited, owner-entered and missing facts", () => {
+    expect(factOrigin("Woods Auto Detail", "Woods Auto Detail")).toBe("listing");
+    expect(factOrigin("Woods Auto Detail", "Woods Detailing")).toBe("edited");
+    expect(factOrigin("", "owner@woods.com")).toBe("owner");
+    expect(factOrigin("Graham", "  ")).toBe("missing");
+  });
+  it("website text is only a suggestion and junk is dropped", () => {
+    expect(websiteSuggestions(null)).toEqual([]);
+    expect(websiteSuggestions({ finalUrl: "https://a.com/", title: null, description: "Hi" })).toEqual([]);
+    expect(websiteSuggestions({ finalUrl: "https://a.com/", title: null, description: "Mobile detailing for cars across Graham." })).toEqual([
+      { field: "description", value: "Mobile detailing for cars across Graham.", source: "https://a.com/" },
+    ]);
   });
 });

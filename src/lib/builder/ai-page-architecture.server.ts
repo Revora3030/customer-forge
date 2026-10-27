@@ -11,7 +11,7 @@
  * caller stops. The material inventory is never promoted into a design.
  */
 
-import { callBestThinker } from "@/lib/ai/hall-of-fame.server";
+import { callBestThinker } from "@/lib/ai/thinker.server";
 import type { PageArchitecture } from "@/lib/builder/creative-authority";
 import {
   normalizePageArchitecture,

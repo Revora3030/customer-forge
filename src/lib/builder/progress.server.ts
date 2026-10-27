@@ -30,6 +30,8 @@ export const BUILD_STAGES = [
   "saving a restore point",
   "writing the pages",
   "generating your pictures",
+  "planning your pages and making your pictures",
+  "planning your pages",
   "designing your brand identity",
   "reading your services",
   "planning the page layout",

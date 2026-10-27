@@ -24,25 +24,25 @@ describe("paid provider backoff (free-first auto-switch)", () => {
   });
 
   it("only billing/limit failures degrade a provider", () => {
-    noteProviderFailure("openai", "invalid_request", 0);
-    noteProviderFailure("openai", "bad_response", 0);
-    expect(providerDegraded("openai", 1)).toBe(false);
-    noteProviderFailure("openai", "quota", 0);
-    expect(providerDegraded("openai", 1)).toBe(true);
-    expect(providerDegraded("openai", 120_001)).toBe(false);
+    noteProviderFailure("lovable", "invalid_request", 0);
+    noteProviderFailure("lovable", "bad_response", 0);
+    expect(providerDegraded("lovable", 1)).toBe(false);
+    noteProviderFailure("lovable", "quota", 0);
+    expect(providerDegraded("lovable", 1)).toBe(true);
+    expect(providerDegraded("lovable", 120_001)).toBe(false);
   });
 
   it("moves a degraded paid provider behind the free pool, keeping it as last resort", () => {
-    noteProviderFailure("openai", "quota", 0);
-    const order = demoteDegradedPaid([paid("openai"), paid("google"), free("groq"), free("cloudflare")], 10);
-    expect(order.map((entry) => entry.config.name)).toEqual(["google", "groq", "cloudflare", "openai"]);
+    noteProviderFailure("lovable", "quota", 0);
+    const order = demoteDegradedPaid([paid("lovable"), paid("google"), free("groq"), free("cloudflare")], 10);
+    expect(order.map((entry) => entry.config.name)).toEqual(["google", "groq", "cloudflare", "lovable"]);
   });
 
   it("restores paid-first order after a funded success", () => {
-    noteProviderFailure("openai", "quota", 0);
-    noteProviderSuccess("openai");
-    const order = demoteDegradedPaid([paid("openai"), free("groq")], 10);
-    expect(order[0]!.config.name).toBe("openai");
+    noteProviderFailure("lovable", "quota", 0);
+    noteProviderSuccess("lovable");
+    const order = demoteDegradedPaid([paid("lovable"), free("groq")], 10);
+    expect(order[0]!.config.name).toBe("lovable");
     expect(degradedProviders(10)).toEqual([]);
   });
 
@@ -60,11 +60,11 @@ describe("paid provider backoff (free-first auto-switch)", () => {
 
   it("classifies a 429 insufficient_quota as quota, not a busy moment", async () => {
     const error = await providerHttpError(
-      "openai",
+      "lovable",
       new Response('{"error":{"code":"insufficient_quota","message":"You exceeded your current quota"}}', { status: 429 }),
     );
     expect(error.category).toBe("quota");
-    const busy = await providerHttpError("openai", new Response("slow down", { status: 429 }));
+    const busy = await providerHttpError("lovable", new Response("slow down", { status: 429 }));
     expect(busy.category).toBe("rate_limited");
   });
 });

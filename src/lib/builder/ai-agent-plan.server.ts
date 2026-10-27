@@ -12,7 +12,7 @@
  * ships a stock layout or filler wording.
  */
 
-import { callBestThinker } from "@/lib/ai/hall-of-fame.server";
+import { callBestThinker } from "@/lib/ai/thinker.server";
 import type { AgentContext } from "@/lib/site-agent.server";
 import { MAX_ACTIONS } from "@/lib/site-agent";
 import { COMPOSITION_PRIMITIVES, MOTION_KINDS, MOTION_EASINGS, PRIMITIVE_GUIDE, validateComposition, type CompositionTree } from "@/lib/builder/composition-tree";
@@ -372,6 +372,15 @@ export async function planWebsiteChangesWithAi(input: {
     ...(input.onAttempt ? { onAttempt: input.onAttempt } : {}),
   });
 
+  // Changes go straight to the live site, so the made-up-facts review is
+  // mandatory: if it cannot run, nothing is applied (owner decision 2026-10-22).
+  if (!review.ok) {
+    return {
+      ok: false,
+      reason: "review_unavailable",
+      detail: "the fact and safety check could not run, so nothing was changed — try again in a moment",
+    };
+  }
   let actions = proposedActions;
   if (review.ok) {
     reviewModel = review.model;

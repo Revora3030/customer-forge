@@ -124,7 +124,7 @@ export function SiteEnginePanel({
             <div role="group" aria-label="Confirm redesign" className="flex flex-wrap items-center gap-2">
               <p className="text-[12px] text-muted-foreground max-w-xs">
                 Your AI team redesigns the draft: colours (unless you picked them), questions, cards and buttons.
-                Uses AI credits, or the free team when credits are out. Counts toward 5 builds a day. Your live site
+                Uses Lovable AI credits within your monthly cap. Counts toward 5 builds a day. Your live site
                 stays as it is until you publish.
               </p>
               <Button

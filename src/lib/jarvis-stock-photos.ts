@@ -16,7 +16,6 @@ export type StockPhoto = {
 
 export function cleanPhotoQuery(q: unknown): string | null {
   if (typeof q !== "string") return null;
-  // eslint-disable-next-line no-control-regex -- strips control characters from untrusted input
   const v = q.replace(/[\u0000-\u001f]/g, " ").replace(/\s+/g, " ").trim().slice(0, 100);
   return v.length >= 2 ? v : null;
 }

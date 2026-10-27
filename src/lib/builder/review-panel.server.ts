@@ -5,7 +5,7 @@
  * own area; Sol decides what to change. A reviewer that fails is skipped, so
  * the panel can never block or degrade a build.
  */
-import { callBestThinker } from "@/lib/ai/hall-of-fame.server";
+import { callBestThinker } from "@/lib/ai/thinker.server";
 import type { CollectivePurpose } from "@/lib/ai/collective";
 import { NO_EVIDENCE, evidenceFor, gatherReviewEvidence, type ReviewEvidence } from "@/lib/builder/review-evidence.server";
 import { DISTINCTIVENESS_REVIEW_BRIEF, VISUAL_CRAFT_REVIEW_BRIEF } from "@/lib/builder/world-class-craft";
@@ -67,10 +67,10 @@ export const REVIEW_AREA_MODELS: Partial<Record<ReviewArea, string[]>> = {
   deep_conversion: ["openai/gpt-6-sol"],
   accessibility: ["anthropic/claude-haiku-4-5"],
   mobile: ["google/gemini-3.8-flash"],
-  completeness: ["openai/gpt-6.1-sol"],
+  completeness: ["openai/gpt-6-astra"],
   senior: ["anthropic/claude-opus-5-5"],
   whole_site: ["anthropic/claude-fable-5-1"],
-  markup: ["openai/gpt-6.1-sol"],
+  markup: ["anthropic/claude-opus-5"],
   funnel: ["google/gemini-3.1-pro-preview"],
   consistency: ["openai/gpt-5.5"],
   industry_fit: ["google/gemini-4-argon"],

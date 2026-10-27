@@ -25,15 +25,15 @@ describe("model status levels", () => {
     expect(classifyProviders({ runtime: [rt({ rate_limited_at: "2026-10-21T11:50:00Z" })], trace: calls(5, 5), configured: { groq: true }, now: NOW })[0]!.level).toBe("rate_limited");
   });
   it("reports key presence as booleans only", () => {
-    const c = configuredProviders({ GROQ_API_KEY: "secret-value" });
-    expect(c["groq"]).toBe(true);
+    const c = configuredProviders({ LOVABLE_API_KEY: "secret-value" });
+    expect(c["lovable"]).toBe(true);
     expect(JSON.stringify(c)).not.toContain("secret-value");
   });
 });
 
 describe("run event redaction", () => {
   it("removes keys and tokens and bounds length", () => {
-    const s = summarize("api_key=abc123 Bearer xyz.abc " + "sk-" + "ABCDEFGHIJKLMNOPQRSTUV " + "x".repeat(900), 500)!;
+    const s = summarize("api_key=abc123 Bearer xyz.abc sk-ABCDEFGHIJKLMNOPQRSTUV " + "x".repeat(900), 500)!;
     expect(s).not.toContain("abc123");
     expect(s).not.toContain("sk-ABCDEFGHIJKLMNOP");
     expect(s.length).toBeLessThanOrEqual(500);

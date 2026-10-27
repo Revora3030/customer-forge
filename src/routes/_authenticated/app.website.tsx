@@ -276,7 +276,9 @@ function WebsitePage() {
   const latestJob = useLatestGenerationJob(orgId);
   useEnsureFirstBuild(orgId, {
     jobsLoaded: latestJob.isSuccess,
-    hasAnyJob: !!latestJob.data && ["queued", "processing"].includes((latestJob.data as { status?: string })?.status ?? ""),
+    // A build the owner cancelled counts too: an open builder must never
+    // restart a build the owner stopped.
+    hasAnyJob: !!latestJob.data && ["queued", "processing", "cancelled"].includes((latestJob.data as { status?: string })?.status ?? ""),
     pageCount: pages ? (pages as unknown[]).length : undefined,
     canManage: manage,
     ready: !!readiness && readiness.requiredGaps.length === 0,

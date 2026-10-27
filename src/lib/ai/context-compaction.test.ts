@@ -61,10 +61,10 @@ describe("context compaction", () => {
       "Please reduce the length of the messages or completion.",
       "Request too large for model on tokens per minute (TPM)",
     ]) {
-      const error = await providerHttpError("groq", new Response(body, { status: 400 }));
+      const error = await providerHttpError("lovable", new Response(body, { status: 400 }));
       expect(error.category).toBe("too_large");
     }
-    expect((await providerHttpError("groq", new Response("response_format is not supported", { status: 400 }))).category).toBe("invalid_request");
+    expect((await providerHttpError("lovable", new Response("response_format is not supported", { status: 400 }))).category).toBe("invalid_request");
   });
 
   it("is wired into text and structured generation", () => {

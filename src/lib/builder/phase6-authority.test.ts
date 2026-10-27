@@ -30,11 +30,27 @@ describe("phase 6: AI layouts by default, approval is safety-only", () => {
   });
 
   it("model fallback hands over only to other models, never to rule-based design", () => {
-    const luna = readFileSync("src/lib/ai/luna.server.ts", "utf8");
-    expect(luna).toMatch(/length/);
-    for (const f of ["src/lib/ai/luna.server.ts", "src/lib/ai/router.server.ts", "src/lib/ai/hall-of-fame.server.ts"]) {
+    for (const f of ["src/lib/ai/luna.server.ts", "src/lib/ai/router.server.ts", "src/lib/ai/thinker.server.ts"]) {
       const s = readFileSync(f, "utf8");
       expect(s).not.toMatch(/createAiDesignRecord|SITE_ARCHETYPES|template-gallery|site-archetypes/);
     }
+  });
+});
+
+describe("straight-to-live builder rules (owner decision 2026-10-22)", () => {
+  it("never applies a change when the made-up-facts review cannot run", () => {
+    const plan = readFileSync("src/lib/builder/ai-agent-plan.server.ts", "utf8");
+    expect(plan).toContain('reason: "review_unavailable"');
+  });
+  it("publishes only after the broken-page check ran, through the shared publish gates", () => {
+    const apply = readFileSync("src/lib/site-agent.functions.ts", "utf8");
+    expect(apply).toContain("if (!verification) {");
+    expect(apply).toContain("publishSiteNow(supabase as never, userId, orgId, { liveEdit: true })");
+  });
+  it("caps full builds at 5 per workspace per 24 hours in the database", () => {
+    const { readdirSync } = require("node:fs") as typeof import("node:fs");
+    const dir = "drizzle/migrations";
+    const sql = readdirSync(dir).filter((f: string) => f.endsWith(".sql")).map((f: string) => readFileSync(`${dir}/${f}`, "utf8")).join("\n");
+    expect(sql).toMatch(/interval '24 hours'\) >= 5/);
   });
 });

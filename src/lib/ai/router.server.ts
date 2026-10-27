@@ -37,80 +37,12 @@ import {
   type ProviderConfig,
   type ProviderName,
 } from "@/lib/ai/config";
-import { RevoraAiError, freeAiUnavailable, providerUnavailable } from "@/lib/ai/errors";
-import {
-  durableBudgetExhausted,
-  durableModelResting,
-  durablePaidDegraded,
-  durablePaidKey,
-  durableProviderResting,
-  noteDurableFreeTokens,
-  noteDurableFreeUse,
-  noteDurableModelFailure,
-  noteDurableModelSuccess,
-  durableRuntimeFor,
-  noteDurableProviderResult,
-  refreshDurableRuntime,
-} from "@/lib/ai/durable-health.server";
-import {
-  freeAiEnabled,
-  freeBudgetAllows,
-  freeBudgetCap,
-  freeBudgetRemaining,
-  freeImageBudgetCap,
-  freeImageBudgetKey,
-  freeProviderChain,
-  freeProviderCredentials,
-  freeProviderReadiness,
-  imageCreationCapableModel,
-  imageEditCapableModel,
-  isFreeEligibleModel,
-  noteFreeUse,
-  noteOpenAiTokens,
-  openAiTokenPool,
-  openAiTokenPoolCap,
-  openAiTokenPoolKey,
-  openAiTokensLocallyExhausted,
-  OPENAI_UNKNOWN_USAGE_TOKENS,
-  type FreeProviderName,
-  ADMIN_ONLY_FREE_PROVIDERS,
-} from "@/lib/ai/free";
-import { PREFERRED_FREE_VISION_MODELS, preferredVisionRank, visionCapableModel } from "@/lib/ai/vision-models";
-import { pickDiscoveredModels, refreshFreeModels } from "@/lib/ai/free-models.server";
+import { RevoraAiError, notConfigured, providerUnavailable } from "@/lib/ai/errors";
+import { durableRuntimeFor } from "@/lib/ai/durable-health.server";
 import { preserveGroupOrder, qualityFirstOrder } from "@/lib/ai/orchestration/order";
-import { cloudflareAdapter } from "@/lib/ai/providers/cloudflare";
-import { googleAdapter } from "@/lib/ai/providers/google";
-import { groqAdapter } from "@/lib/ai/providers/groq";
-import { llm7Adapter } from "@/lib/ai/providers/llm7";
-import { mistralAdapter } from "@/lib/ai/providers/mistral";
-import { huggingfaceAdapter } from "@/lib/ai/providers/huggingface";
-import { deepseekAdapter } from "@/lib/ai/providers/deepseek";
-import { cerebrasAdapter } from "@/lib/ai/providers/cerebras";
-import { cohereAdapter } from "@/lib/ai/providers/cohere";
-import { sambanovaAdapter } from "@/lib/ai/providers/sambanova";
-import { togetherAdapter } from "@/lib/ai/providers/together";
-import { siliconflowAdapter } from "@/lib/ai/providers/siliconflow";
-import { pollinationsAdapter } from "@/lib/ai/providers/pollinations";
-import { zaiAdapter } from "@/lib/ai/providers/zai";
-import { ollamaAdapter } from "@/lib/ai/providers/ollama";
-import { ovhAdapter } from "@/lib/ai/providers/ovh";
-import { kiloAdapter } from "@/lib/ai/providers/kilo";
-import { omnirouteAdapter } from "@/lib/ai/providers/omniroute";
-import { selfhostedAdapter } from "@/lib/ai/providers/selfhosted";
-import { opencodeAdapter } from "@/lib/ai/providers/opencode";
-import { modelscopeAdapter } from "@/lib/ai/providers/modelscope";
-import { githubModelsAdapter } from "@/lib/ai/providers/github";
-import { nvidiaAdapter } from "@/lib/ai/providers/nvidia";
-import { openRouterAdapter } from "@/lib/ai/providers/openrouter";
-import { lovableAdapter } from "@/lib/ai/providers/lovable";
-import {
-  openAiAdapter,
-  openaiModelReachable,
-  openaiVideo,
-  type OpenAiVideoOutcome,
-} from "@/lib/ai/providers/openai";
+import { lovableAdapter, lovableVideo, postLovableSpeech, type VideoOutcome } from "@/lib/ai/providers/lovable";
 
-import { base64ByteLength, modelUnavailableError } from "@/lib/ai/providers/shared";
+import { base64ByteLength } from "@/lib/ai/providers/shared";
 import { compactMessages } from "@/lib/ai/context-compaction";
 import { demoteDegradedPaid, noteProviderFailure, noteProviderSuccess } from "@/lib/ai/provider-backoff";
 import { checkAiLimits, recordAiEvent } from "@/lib/ai/telemetry.server";
@@ -127,31 +59,6 @@ import type {
 } from "@/lib/ai/types";
 
 const ADAPTERS: Record<ProviderName, ProviderAdapter> = {
-  google: googleAdapter,
-  openai: openAiAdapter,
-  cloudflare: cloudflareAdapter,
-  openrouter: openRouterAdapter,
-  groq: groqAdapter,
-  nvidia: nvidiaAdapter,
-  llm7: llm7Adapter,
-  mistral: mistralAdapter,
-  huggingface: huggingfaceAdapter,
-  deepseek: deepseekAdapter,
-  cerebras: cerebrasAdapter,
-  cohere: cohereAdapter,
-  sambanova: sambanovaAdapter,
-  together: togetherAdapter,
-  siliconflow: siliconflowAdapter,
-  pollinations: pollinationsAdapter,
-  zai: zaiAdapter,
-  ollama: ollamaAdapter,
-  ovh: ovhAdapter,
-  kilo: kiloAdapter,
-  omniroute: omnirouteAdapter,
-  selfhosted: selfhostedAdapter,
-  opencode: opencodeAdapter,
-  modelscope: modelscopeAdapter,
-  github: githubModelsAdapter,
   lovable: lovableAdapter,
 };
 
@@ -207,7 +114,6 @@ export type LastAiOutcome = {
   ok: boolean;
   category: string | null;
   fallbackUsed: boolean;
-  free: boolean;
 };
 
 let lastOutcome: LastAiOutcome | null = null;
@@ -244,321 +150,53 @@ export function providerHealth() {
 }
 
 
-/* ------------------------------ the free chain ----------------------------- */
+/* --------------------------------- chain --------------------------------- */
 
-type Candidate = { config: ProviderConfig; model: string; free: FreeProviderName | null };
-
-function freeCandidate(
-  name: FreeProviderName,
-  apiKey: string,
-  model: string,
-  role: ModelRole,
-): Candidate {
-  const models = {
-    primary: model,
-    fast: model,
-    vision: model,
-    coding: model,
-    image: model,
-    transcription: model,
-    conversation: model,
-  } as Record<ModelRole, string>;
-
-  models[role] = model;
-  return { config: { name: name as ProviderName, apiKey, models }, model, free: name };
-}
-
-/**
- * The provider order for one request:
- *
- * 1. every configured FREE provider that has a free-eligible model for the
- *    role, still inside its daily budget, healthiest first;
- * 2. a paid provider ONLY when an operator has explicitly turned off both
- *    free-only mode and zero-cost mode. There is no implicit paid fallback.
- *
- * Live discovery is consulted first so a provider's current free pool is used
- * instead of a fixed list; a discovered id must still pass the free-eligibility
- * check before it can replace the configured model.
- */
-/**
- * How deep one provider's free pool may back a single role.
- *
- * There is NO fixed cap: the whole verified free catalogue of every configured
- * provider is usable. `FREE_AI_MODELS_PER_PROVIDER` exists only as an operator
- * safety valve (set a positive number to trim the failover depth); unset or 0
- * means "use the entire verified free pool".
- */
-export function freeModelPoolDepth(): number {
-  const raw = Number(process.env["FREE_AI_MODELS_PER_PROVIDER"] ?? "");
-  return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : Number.POSITIVE_INFINITY;
-}
-
-/** True once an OpenAI shared-traffic pool's tokens for today are spent, on this worker or shared. */
-function openAiPoolSpent(model: string) {
-  const pool = openAiTokenPool(model);
-  return (
-    openAiTokensLocallyExhausted(model) ||
-    durableBudgetExhausted(openAiTokenPoolKey(pool), openAiTokenPoolCap(pool))
-  );
-}
-
-/**
- * Every verified free model available for one role, grouped by provider and in
- * preference order. This is the authoritative pool: no fixed per-provider cap.
- */
-export async function freeModelPool(
-  role: ModelRole,
-  /**
-   * Optional extra gate on top of free-eligibility, for a request that needs a
-   * specific capability (editing an existing picture needs an image-to-image or
-   * inpainting model, so a text-to-image model must never be dispatched).
-   */
-  capable?: (model: string) => boolean,
-  /** Admin-only providers (GitHub Models) serve Revora's own admin work only. */
-  audience: "admin" | "customer" = "customer",
-): Promise<{ provider: FreeProviderName; credentials: { apiKey: string; accountId?: string }; models: string[] }[]> {
-  if (!freeAiEnabled()) return [];
-  const depth = freeModelPoolDepth();
-  const pools: {
-    provider: FreeProviderName;
-    credentials: { apiKey: string; accountId?: string };
-    models: string[];
-  }[] = [];
-  await refreshDurableRuntime();
-  for (const entry of freeProviderChain(role)) {
-    if (audience !== "admin" && ADMIN_ONLY_FREE_PROVIDERS.has(entry.name)) continue;
-    // Pictures are metered separately from words: one generated picture costs
-    // far more of the free daily allowance than one short answer.
-    if (!freeBudgetAllows(entry.name, role)) continue;
-    // Shared counters: skip a provider another worker has already exhausted.
-    const durableKey = role === "image" ? freeImageBudgetKey(entry.name) : entry.name;
-    const durableCap = role === "image" ? freeImageBudgetCap(entry.name) : freeBudgetCap(entry.name);
-    if (durableBudgetExhausted(durableKey, durableCap)) continue;
-    if (durableProviderResting(entry.name)) continue;
-    const models: string[] = [];
-    const consider = (model: string) => {
-      // Belt and braces: never dispatch a model that isn't free-eligible.
-      if (models.length >= depth) return;
-      if (capable && !capable(model)) return;
-      // Model-scoped shared rests: a model that keeps answering "no such
-      // model" (24h), or one resting after repeated rate limits/timeouts, is
-      // left out while the provider's other models stay in the pool.
-      if (durableModelResting(entry.name, model)) return;
-      // OpenAI bills past its shared-traffic token allowance instead of
-      // refusing, so a pool whose tokens are spent is never offered as free.
-      if (entry.name === "openai" && openAiPoolSpent(model)) return;
-      if (!models.includes(model) && isFreeEligibleModel(entry.name, model)) models.push(model);
-    };
-    const configuredModel = entry.model;
-    // FAST VISION FIRST: the verified low-latency vision endpoints lead each
-    // provider's vision pool so a visual review answers in about a second
-    // instead of waiting on a large general multimodal model.
-    if (role === "vision")
-      for (const preferred of PREFERRED_FREE_VISION_MODELS)
-        if (preferred.provider === entry.name) consider(preferred.model);
-    // Keep a known-good creation route in every Cloudflare image pool. An
-    // operator override or a stale discovery cache may point the configured
-    // image model at an inpainting-only endpoint; capability filtering then
-    // correctly removes it, but must not leave a customer request with no
-    // usable generator. These two endpoints have both been live-verified with
-    // the plain `{ prompt }` request shape used by the adapter.
-    if (role === "image" && entry.name === "cloudflare") {
-      // Flux-1-schnell first: sharper automotive/product detail, fewer
-      // geometric artifacts than the 4-step SDXL-Lightning endpoint.
-      consider("@cf/black-forest-labs/flux-1-schnell");
-      consider("@cf/bytedance/stable-diffusion-xl-lightning");
-    }
-    // The configured default is the model proven against this account. Put it
-    // before name-matched catalogue discoveries: metadata can identify a model
-    // as image-capable without proving its exact request schema is compatible.
-    consider(configuredModel);
-    try {
-      // Image models come from a different catalogue endpoint, so the role is
-      // passed through and the right pool is refreshed.
-      await refreshFreeModels(entry.name, entry.credentials, role);
-      // No truncation: the provider's whole verified free catalogue for this
-      // role is ranked and offered.
-      for (const model of pickDiscoveredModels(entry.name, role, depth)) consider(model);
-    } catch {
-      // Discovery is advisory only; the configured free model still runs.
-    }
-    if (models.length) pools.push({ provider: entry.name, credentials: entry.credentials, models });
-  }
-  return pools;
-}
+type Candidate = { config: ProviderConfig; model: string };
 
 async function buildChain(
   caller: AiCaller,
   role: ModelRole,
   capable?: (model: string) => boolean,
-  forceFreeOnly = false,
-  forcePaidOnly = false,
+  noSpend = false,
 ): Promise<Candidate[]> {
-  // The AI model lane is the builder's creative execution path. Keep the
-  // reachability seam here, but never substitute deterministic creative work
-  // when models are unavailable: callers must fail closed or retry with AI.
-
-  // First choice per provider (breadth), then each provider's remaining free
-  // models (depth). Breadth first means a provider outage costs one attempt,
-  // while depth means a single retired or rate-limited model is covered by
-  // another model from the same free catalogue.
-  const first: Candidate[] = [];
-  const deeper: Candidate[] = [];
-
-  // A paid-only walk (the builder's thinker lane) never touches the free
-  // catalogue: the caller runs its own free fallback afterwards.
-  if (!forcePaidOnly)
-    for (const pool of await freeModelPool(role, capable, caller.task.startsWith("admin.") ? "admin" : "customer"))
-      pool.models.forEach((model, index) => {
-        const candidate = freeCandidate(pool.provider, pool.credentials.apiKey, model, role);
-        if (index === 0) first.push(candidate);
-        else deeper.push(candidate);
-      });
-
-  const candidates = [...first, ...deeper];
-
-  // Paid providers remain available when the request is not explicitly forced
-  // into free-only mode. Free routing is a cost lane, never creative authority.
-  if (!forceFreeOnly)
-    for (const config of providerChain()) {
-      // A role may name a comma-separated roster (the Lovable lane lists the
-      // whole verified gateway catalogue per role); every id is its own
-      // failover candidate.
-      for (const model of config.models[role]
-        .split(",")
-        .map((id) => id.trim())
-        .filter(Boolean)) {
-        if (capable && !capable(model)) continue;
-        candidates.push({ config, model, free: null });
-      }
+  // A no-spend scope means no AI at all: Lovable AI is the only team.
+  if (noSpend) return [];
+  const candidates: Candidate[] = [];
+  const chain = providerChain();
+  // Live catalogue check: drop stale, deprecated, retention-blocked or
+  // endpoint-incompatible ids. Null (catalogue unreadable) keeps the static roster.
+  const { catalogueFilterFor } = await import("@/lib/ai/catalogue.server");
+  const listed = chain.length ? await catalogueFilterFor(role) : null;
+  for (const config of chain)
+    for (const model of config.models[role].split(",").map((id) => id.trim()).filter(Boolean)) {
+      if (capable && !capable(model)) continue;
+      if (listed && !listed(model)) continue;
+      candidates.push({ config, model });
     }
-
-  // QUALITY-FIRST ORDER. Candidates are ranked by capability fit, then quality,
-  // then recent health, with cost considered only after quality. Free routing is
-  // a provider lane; it never becomes a deterministic creative substitute.
   const ranked = qualityFirstOrder(candidates, (entry) => ({
     model: entry.model,
     provider: entry.config.name,
     healthy: providerHealthy({ caller, provider: entry.config.name, model: entry.model }),
-    paid: entry.free === null,
+    paid: true,
   }));
-  // Quality decides where each lane sits; the operator still decides which
-  // paid provider is tried first, so an explicitly configured default/fallback
-  // provider order is preserved inside the paid group.
-  // LANE BY TASK SIZE (owner decision 2026-10-22): the small, mechanical
-  // `fast` role is served by the free pool first with the paid Lovable lane
-  // as failover; every other role — site building, design, coding and Jarvis
-  // conversation — runs the paid team first and the free Hall of Fame pool is
-  // the backup squad. Within each group the strongest model is tried first.
-  const groupedRaw = preserveGroupOrder(groupForRole(role, ranked), candidates, (entry) => entry.free === null);
-  // Visual review is latency-critical: inside the free group, the verified fast
-  // vision endpoints go first (NIM llama-3.2-11b-vision, then Workers AI), and
-  // everything else keeps its quality-first place behind them.
-  const grouped = role === "vision" ? fastVisionFirst(groupedRaw) : groupedRaw;
+  // The configured roster order (best model per job) is preserved.
+  const grouped = preserveGroupOrder(ranked, candidates, () => true);
   // LIVE ADMIN ROUTING: pins and pauses set in the Command Center.
   const { loadCommandSettings, applyRoutingOverrides } = await import("@/lib/ai/command-settings.server");
   const overridden = applyRoutingOverrides(grouped, (entry) => entry.model, await loadCommandSettings());
-  // FREE-FIRST AUTO-SWITCH: a paid provider that recently answered 402/quota/
-  // key-rejected/rate-limited moves behind the free pool until its backoff
-  // lapses, so an unfunded account never adds latency to every build step.
-  // The shared record carries a quota/key refusal to every worker, so a fresh
-  // worker does not rediscover an unfunded paid account on its first call.
-  await refreshDurableRuntime();
-  const backedOff = demoteDegradedPaid(overridden, Date.now(), (provider) => durablePaidDegraded(provider));
-  // OPEN BREAKER: a paid model that just failed three times (timeouts, 5xx)
-  // also waits behind the free pool until its cooldown ends, so a hanging paid
-  // provider can't spend every request's deadline before a free model is tried.
-  const cooling = (entry: Candidate) =>
-    entry.free === null && !providerHealthy({ caller, provider: entry.config.name, model: entry.model });
-  const ordered = [...backedOff.filter((entry) => !cooling(entry)), ...backedOff.filter(cooling)];
-  // Keep the full eligible pool reachable. Timeouts, concurrency and the
-  // chain deadline bound actual work, not an arbitrary catalog cutoff.
-  // A positive operator override may still narrow the candidate list.
+  const cooling = (entry: Candidate) => !providerHealthy({ caller, provider: entry.config.name, model: entry.model });
+  const ordered = [...overridden.filter((entry) => !cooling(entry)), ...overridden.filter(cooling)];
   const failoverLimit = Number(process.env["AI_MAX_FAILOVER_CANDIDATES"] ?? "");
   const cap = Number.isFinite(failoverLimit) && failoverLimit > 0 ? Math.floor(failoverLimit) : Number.POSITIVE_INFINITY;
   return ordered.slice(0, cap);
 }
 
-/**
- * Roles the free pool would serve first. Empty (owner decision 2026-10-22,
- * later the same day): Lovable's paid team leads every role, and the free
- * pool is backup only when Lovable is unavailable or the spend cap is hit.
- */
-export const SMALL_TASK_ROLES: ReadonlySet<ModelRole> = new Set<ModelRole>();
-
-/**
- * Stable group order for a role: the free pool leads small tasks, the paid
- * team leads everything else. Only group placement changes; each group keeps
- * its quality-first internal order.
- */
-export function groupForRole<T extends { free: unknown | null }>(role: ModelRole, ranked: T[]): T[] {
-  const paid = ranked.filter((entry) => entry.free === null);
-  const free = ranked.filter((entry) => entry.free !== null);
-  return SMALL_TASK_ROLES.has(role) ? [...free, ...paid] : [...paid, ...free];
+/** Lovable AI status for the admin surface: last call and breaker state. */
+export function aiRuntimeStatus() {
+  const shared = durableRuntimeFor("lovable");
+  return { last: lastAiOutcome(), providers: providerHealth(), sharedOpenUntil: shared?.openUntil ?? null };
 }
-
-/** Stable reorder: preferred fast free vision models first, inside the free group. */
-export function fastVisionFirst<T extends { free: FreeProviderName | null; model: string }>(entries: T[]): T[] {
-  const paid = entries.filter((entry) => entry.free === null);
-  const free = entries.filter((entry) => entry.free !== null);
-  const preferred = free
-    .map((entry, index) => ({ entry, index, rank: preferredVisionRank(entry.free as string, entry.model) }))
-    .filter((row) => Number.isFinite(row.rank))
-    .sort((a, b) => a.rank - b.rank || a.index - b.index)
-    .map((row) => row.entry);
-  const rest = free.filter((entry) => !preferred.includes(entry));
-  return [...paid, ...preferred, ...rest];
-}
-
-/**
- * The capability gate a role needs on top of free eligibility. Vision is strict:
- * a model that cannot read pixels is never handed a picture, so visual review
- * no longer times out on text-only models (`glm-5.2`, `gpt-oss`, ...).
- */
-export function roleCapability(
-  role: ModelRole,
-  capable?: (model: string) => boolean,
-): ((model: string) => boolean) | undefined {
-  if (role !== "vision") return capable;
-  return capable ? (model: string) => visionCapableModel(model) && capable(model) : visionCapableModel;
-}
-
-/**
- * Free AI status for the admin surface. Reports what is configured, what the
- * provider publishes as its free allowance, what budget is left in this
- * process, and which providers are in a breaker cooldown. No key material and
- * no secret-derived value is included.
- */
-export function freeAiStatus() {
-  return {
-    freeAiEnabled: freeAiEnabled(),
-    /** The most recent model call: who served it and how it ended. */
-    last: lastAiOutcome(),
-    providers: freeProviderReadiness().map((entry) => {
-      const states = [...breaker.entries()]
-        .filter(([key]) => key.split("\u001f")[2] === entry.name)
-        .map(([, state]) => state);
-      const cooldownUntil = states.reduce(
-        (latest, state) => Math.max(latest, state.openUntil > Date.now() ? state.openUntil : 0),
-        0,
-      );
-      // The shared circuit (every worker) is the fuller truth: a provider
-      // resting there after a spent allowance or rejected key is not ready.
-      const shared = durableRuntimeFor(entry.name);
-      const sharedUntil = shared?.openUntil && shared.openUntil > Date.now() ? shared.openUntil : 0;
-      const until = Math.max(cooldownUntil, sharedUntil);
-      return {
-        ...entry,
-        healthy: until === 0,
-        openFailures: states.reduce((total, state) => total + state.failures, 0),
-        cooldownUntil: until || null,
-        isolatedScopes: states.length,
-        remainingToday: freeBudgetRemaining(entry.name),
-      };
-    }),
-  };
-}
-
 
 /* ------------------------------- concurrency ------------------------------- */
 
@@ -653,9 +291,6 @@ async function run<T>(
   options?: {
     capable?: (model: string) => boolean;
     nextProviderOnInvalidRequest?: boolean;
-    freeOnly?: boolean;
-    /** Walk only the paid team; the free pool is left to the caller's own fallback. */
-    paidOnly?: boolean;
     preferModels?: string[];
     avoidModels?: string[];
     /**
@@ -668,16 +303,10 @@ async function run<T>(
     signal?: AbortSignal;
     /** Per-attempt timeout; clamped to the configured ceiling. */
     timeoutMs?: number;
-    /**
-     * Per-attempt timeout for PAID candidates (the Lovable gateway's large
-     * models); clamped to `paidRequestTimeoutMs`. Without it a paid attempt
-     * gets the paid ceiling, never the free lane's fail-fast `timeoutMs`.
-     */
-    paidTimeoutMs?: number;
-    /** Size of this request, so the daily paid reservation is priced to it. */
-    spend?: { promptChars: number; maxOutputTokens: number };
     /** Whole-chain wall-clock budget; clamped to the configured deadline. */
     chainDeadlineMs?: number;
+    /** Internal lanes only: raises the per-attempt limit for long answers (capped). */
+    longAttemptMs?: number;
   },
 ): Promise<{
   value: T;
@@ -699,21 +328,15 @@ async function run<T>(
   const rawChain = await buildChain(
     caller,
     role,
-    roleCapability(role, options?.capable),
-    // A free-only spending scope (demo workspace builds) also keeps paid out.
-    options?.freeOnly === true || scopedFreeOnly(),
-    options?.paidOnly === true,
+    options?.capable,
+    // A no-spend scope keeps every AI call out.
+    scopedFreeOnly(),
   );
   const chain = applyModelPreference(rawChain, scopedPreferredModels(options?.preferModels), options?.avoidModels);
-  const attemptTimeoutMs = clampPositive(options?.timeoutMs, limits.requestTimeoutMs);
-  const paidAttemptTimeoutMs = clampPositive(options?.paidTimeoutMs, limits.paidRequestTimeoutMs);
+  const attemptTimeoutMs = attemptTimeoutFor(clampPositive(options?.timeoutMs, limits.requestTimeoutMs), options?.longAttemptMs);
   const chainBudgetMs = clampPositive(options?.chainDeadlineMs, chainDeadlineMs());
   if (chain.length === 0)
-    throw options?.paidOnly === true
-      ? new RevoraAiError(503, "Revora AI is not configured: no paid provider configured or in budget.", {
-          category: "not_configured",
-        })
-      : freeAiUnavailable("no free provider configured or in budget");
+    throw notConfigured();
 
   const verdict = await checkAiLimits(caller);
   if (!verdict.allowed) throw new RevoraAiError(429, verdict.reason, { category: "rate_limited" });
@@ -768,14 +391,8 @@ async function run<T>(
       // The builder's thinker lane holds one monthly + daily reservation for
       // its whole paid walk and settles it itself; the router must not
       // reserve a second time for each candidate it tries.
-      if (!candidate.free && options?.budgetReservedExternally !== true) {
-        paidReservation = await reservePaidSpend(
-          routerEstimate(
-            model,
-            options?.spend?.maxOutputTokens ?? limits.maxOutputTokens,
-            options?.spend?.promptChars,
-          ),
-        );
+      if (options?.budgetReservedExternally !== true) {
+        paidReservation = await reservePaidSpend(routerEstimate(model, limits.maxOutputTokens));
         if (!paidReservation) continue;
       }
 
@@ -787,11 +404,7 @@ async function run<T>(
         // Never let one slow model eat past the chain budget either.
         // A free model that hangs past a minute is not coming back; move on so
         // one stalled provider cannot eat the whole chain (seen: 90s hangs).
-        // A paid (Lovable gateway) attempt gets the paid ceiling: its large
-        // models read screenshots and write whole designs, which a free
-        // lane's fail-fast timeout cut off before they could answer.
-        const ownTimeout = candidate.free ? Math.min(attemptTimeoutMs, FREE_ATTEMPT_CAP_MS) : paidAttemptTimeoutMs;
-        const attemptBudget = Math.max(1, Math.min(ownTimeout, chainDeadline - Date.now()));
+        const attemptBudget = Math.max(1, Math.min(attemptTimeoutMs, chainDeadline - Date.now()));
         const timer = setTimeout(() => controller.abort(), attemptBudget);
         // A cancelled request (build aborted, page closed) aborts the in-flight
         // paid call too, so the walk does not burn budget after the caller left.
@@ -800,22 +413,9 @@ async function run<T>(
         if (external?.aborted) controller.abort();
         external?.addEventListener("abort", onExternalAbort);
         try {
-          if (candidate.free) {
-            noteFreeUse(candidate.free, role);
-            const durableKey = role === "image" ? freeImageBudgetKey(candidate.free) : candidate.free;
-            const durableCap = role === "image" ? freeImageBudgetCap(candidate.free) : freeBudgetCap(candidate.free);
-            void noteDurableFreeUse(durableKey, durableCap);
-          }
           const result = await execute({ adapter, config, model, signal: controller.signal, compaction });
           noteSuccess(breakerScope);
-          if (candidate.free === "openai") {
-            const used = (result.inputTokens ?? 0) + (result.outputTokens ?? 0);
-            const tokens = used > 0 ? used : OPENAI_UNKNOWN_USAGE_TOKENS;
-            noteOpenAiTokens(model, tokens);
-            void noteDurableFreeTokens(openAiTokenPoolKey(openAiTokenPool(model)), tokens);
-          }
-          if (!candidate.free) recordSharedPaidSuccess(config.name, model);
-          if (candidate.free) recordSharedFreeSuccess(candidate.free, model, Date.now() - started);
+noteProviderSuccess(config.name);
           lastOutcome = {
             at: Date.now(),
             provider: config.name,
@@ -824,7 +424,6 @@ async function run<T>(
             ok: true,
             category: null,
             fallbackUsed,
-            free: candidate.free !== null,
           };
 
           void recordAiEvent({
@@ -869,8 +468,10 @@ async function run<T>(
           // is charged at the estimate; only a definite rejection is free.
           if (paidReservation) paidActual += paidFailureCharge(error, paidReservation.estimate);
           if (error.retryable) noteFailure(breakerScope);
-          if (!candidate.free) recordSharedPaidFailure(config.name, error, model);
-          if (candidate.free) recordSharedFreeFailure(candidate.free, model, error, Date.now() - started);
+          noteProviderFailure(config.name, error.category);
+          // The shared (cross-worker) health record is per PROVIDER, so only
+          // provider-wide trouble goes into it. A retired model id or one bad
+          // answer must not bench every other model that provider serves.
           lastOutcome = {
             at: Date.now(),
             provider: config.name,
@@ -879,7 +480,6 @@ async function run<T>(
             ok: false,
             category: error.category,
             fallbackUsed,
-            free: candidate.free !== null,
           };
 
           void recordAiEvent({
@@ -909,24 +509,14 @@ async function run<T>(
           // Free models have very different context windows (Groq's free tier
           // is small; NVIDIA, Mistral and others are large), so one model
           // refusing a long conversation moves on to the next free model.
-          // The Lovable gateway is a multi-vendor roster: Claude, GPT and
-          // Gemini differ in context window and accepted request shape (the
-          // Messages API rejects what chat-completions accepts), so one roster
-          // model refusing moves on to the next, bounded like the free pool.
-          const rosterModel = candidate.free === null && config.name === "lovable";
           if (error.category === "too_large") {
-            if (!candidate.free && !rosterModel) throw error;
             tooLargeBy.add(config.name);
             if (tooLargeBy.size >= 6) throw error;
             compaction += 1;
             break;
           }
           if (error.category === "invalid_request") {
-            // Free models differ in what they accept (parameters, message
-            // shapes, context size), so one refusal moves on to the next model.
-            // Paid-only chains and a request three providers reject still stop.
-            if (!candidate.free && !rosterModel) throw error;
-            invalidBy.add(rosterModel ? `${config.name}:${model}` : config.name);
+            invalidBy.add(config.name);
             if (invalidBy.size >= 3) throw error;
             break;
           }
@@ -934,10 +524,6 @@ async function run<T>(
           // In the free pool the next model is usually faster than waiting out
           // a rate limit or a slow model: only a transient 5xx is worth a retry
           // of the same model.
-          if (candidate.free && error.category !== "provider_unavailable") break;
-          // A roster model that ran out its (long) paid attempt budget is not
-          // retried: the next roster model is a better use of the deadline.
-          if (rosterModel && error.category === "timeout") break;
           if (attempt < limits.maxAttemptsPerProvider) {
             const backoff = error.retryAfterSeconds
               ? Math.min(error.retryAfterSeconds * 1000, 10_000)
@@ -980,6 +566,15 @@ export function paidFailureCharge(error: RevoraAiError, estimate: number): numbe
 }
 
 /** A caller override, only ever lowering the configured ceiling. */
+/** Hard ceiling for one long answer (a full page plan is ~4-8k tokens). */
+export const LONG_ANSWER_ATTEMPT_MAX_MS = 240_000;
+
+/** Per-attempt limit: a long-answer lane may raise it, never past the hard ceiling. */
+export function attemptTimeoutFor(base: number, longAttemptMs?: number): number {
+  if (typeof longAttemptMs !== "number" || !Number.isFinite(longAttemptMs) || longAttemptMs <= base) return base;
+  return Math.min(Math.floor(longAttemptMs), LONG_ANSWER_ATTEMPT_MAX_MS);
+}
+
 function clampPositive(value: number | undefined, ceiling: number): number {
   return typeof value === "number" && Number.isFinite(value) && value > 0 ? Math.min(Math.floor(value), ceiling) : ceiling;
 }
@@ -1006,66 +601,15 @@ export function accountRestFor(category: string, now = Date.now()): { failureThr
   return {};
 }
 
-/** Longest one free-model attempt may run before the chain moves on. */
-export const FREE_ATTEMPT_CAP_MS = 60_000;
-
-/**
- * Where one free failure is recorded on the SHARED (cross-worker) circuit:
- *  - "provider": the account itself cannot serve (spent quota, rejected key,
- *    provider down) — every model of that provider rests.
- *  - "model_rest": one model is busy or slow right now (rate limit, timeout).
- *    It rests that model only, after the normal 3 strikes, so a build's review
- *    storm can never cut Jarvis or chat off from the provider's other models.
- *  - "model_gone": the provider says this model does not exist for this key
- *    (404 / retired id / licence never accepted); after 3 in a row it is
- *    skipped for 24 hours.
- *  - null: one bad answer or request; nothing shared.
- */
-export function sharedFailureScope(error: RevoraAiError): "provider" | "model_rest" | "model_gone" | null {
-  if (error.category === "quota" || error.category === "unauthorized" || error.category === "provider_unavailable")
-    return "provider";
-  if (error.category === "rate_limited" || error.category === "timeout") return "model_rest";
-  if (modelUnavailableError(error)) return "model_gone";
-  return null;
-}
-
-function recordSharedFreeFailure(provider: string, model: string, error: RevoraAiError, latencyMs: number) {
-  const scope = sharedFailureScope(error);
-  if (scope === "provider")
-    void noteDurableProviderResult({ provider, ok: false, latencyMs, ...accountRestFor(error.category) });
-  else if (scope === "model_rest")
-    void noteDurableModelFailure({
-      provider,
-      model,
-      record: "rest",
-      latencyMs,
-      rateLimited: error.category === "rate_limited",
-    });
-  else if (scope === "model_gone") void noteDurableModelFailure({ provider, model, record: "gone", latencyMs });
-}
-
-function recordSharedFreeSuccess(provider: string, model: string, latencyMs: number) {
-  void noteDurableProviderResult({ provider, ok: true, latencyMs });
-  noteDurableModelSuccess(provider, model);
-}
-
-/**
- * A paid account that answered quota or rejected its key is demoted behind the
- * free team on EVERY worker until the rest lapses (quota: next UTC day, key:
- * 6h; the database re-arms each rest at most an hour at a time). Rate limits
- * stay local and short: they are not an account fact.
- */
-function recordSharedPaidFailure(provider: string, error: RevoraAiError, model?: string) {
-  noteProviderFailure(provider, error.category, Date.now(), model);
-  if (error.category === "quota" || error.category === "unauthorized")
-    void noteDurableProviderResult({ provider: durablePaidKey(provider), ok: false, ...accountRestFor(error.category) });
-}
-
-function recordSharedPaidSuccess(provider: string, model?: string) {
-  noteProviderSuccess(provider, model);
-  const shared = durableRuntimeFor(durablePaidKey(provider));
-  if (shared && (shared.failures > 0 || shared.openUntil != null))
-    void noteDurableProviderResult({ provider: durablePaidKey(provider), ok: true });
+/** Failures that describe the whole provider, not one model or one answer. */
+function providerWideFailure(error: RevoraAiError) {
+  return (
+    error.category === "rate_limited" ||
+    error.category === "timeout" ||
+    error.category === "provider_unavailable" ||
+    error.category === "unauthorized" ||
+    error.category === "quota"
+  );
 }
 
 /** True when any message carries a picture, video or recording. */
@@ -1082,7 +626,7 @@ function carriesAttachment(messages: AiRequest["messages"]): boolean {
  * order; avoided ones (e.g. the model that wrote what is being reviewed) move
  * to the very back so they answer only if nobody else can. Nothing is removed.
  */
-export function applyModelPreference<T extends { model: string; free: unknown }>(
+export function applyModelPreference<T extends { model: string }>(
   chain: T[],
   prefer?: string[],
   avoid?: string[],
@@ -1090,7 +634,7 @@ export function applyModelPreference<T extends { model: string; free: unknown }>
   if (!prefer?.length && !avoid?.length) return chain;
   const avoided = new Set(avoid ?? []);
   const rank = (entry: T) => {
-    const index = entry.free === null && prefer ? prefer.indexOf(entry.model) : -1;
+    const index = prefer ? prefer.indexOf(entry.model) : -1;
     return index >= 0 ? index : Number.POSITIVE_INFINITY;
   };
   const kept = chain.filter((entry) => !avoided.has(entry.model));
@@ -1101,29 +645,13 @@ export function applyModelPreference<T extends { model: string; free: unknown }>
 
 /* ------------------------------ public surface ----------------------------- */
 
-/** Characters one attached picture/recording is assumed to cost (~1,600 tokens). */
-const ATTACHMENT_PROMPT_CHARS = 6_400;
-
-/** The size the daily paid reservation is priced at for one request. */
-export function requestSpendSize(request: AiRequest): { promptChars: number; maxOutputTokens: number } {
-  const limits = aiLimits();
-  return {
-    promptChars: messageChars(request.messages) + attachmentParts(request.messages).length * ATTACHMENT_PROMPT_CHARS,
-    maxOutputTokens: Math.min(request.maxOutputTokens ?? limits.maxOutputTokens, limits.maxOutputTokens),
-  };
-}
-
 /** Router options derived from one text/structured request. */
 function runOptionsFor(request: AiRequest) {
   return {
     nextProviderOnInvalidRequest: carriesAttachment(request.messages),
-    freeOnly: request.freeOnly === true,
-    paidOnly: request.paidOnly === true,
     ...(request.preferModels?.length ? { preferModels: request.preferModels } : {}),
     ...(request.avoidModels?.length ? { avoidModels: request.avoidModels } : {}),
     ...(request.timeoutMs ? { timeoutMs: request.timeoutMs } : {}),
-    ...(request.paidTimeoutMs ? { paidTimeoutMs: request.paidTimeoutMs } : {}),
-    spend: requestSpendSize(request),
     ...(request.chainDeadlineMs ? { chainDeadlineMs: request.chainDeadlineMs } : {}),
   };
 }
@@ -1136,12 +664,15 @@ function runOptionsFor(request: AiRequest) {
 export interface RouterLaneOptions {
   budgetReservedExternally?: boolean;
   signal?: AbortSignal;
+  /** Long answers (page plans) need more than the default per-attempt limit. */
+  longAttemptMs?: number;
 }
 
 function laneOptions(lane?: RouterLaneOptions) {
   return {
     ...(lane?.budgetReservedExternally === true ? { budgetReservedExternally: true } : {}),
     ...(lane?.signal ? { signal: lane.signal } : {}),
+    ...(lane?.longAttemptMs ? { longAttemptMs: lane.longAttemptMs } : {}),
   };
 }
 
@@ -1381,16 +912,10 @@ async function imageCall(
     // A text-to-image model would ignore the source and hand back an unrelated
     // picture, so it is kept out of the chain entirely.
     {
-      capable: source ? imageEditCapableModel : imageCreationCapableModel,
       // Provider catalogues group several incompatible image schemas under one
       // role. A model rejecting the request shape must hand off to the next
       // capability-matched model instead of aborting the whole picture request.
       nextProviderOnInvalidRequest: true,
-      // This is the FREE picture lane. Paid pictures go only through the capped
-      // lane in paid-image.server.ts (callPinnedPaidImage), which reserves
-      // against the durable monthly cap; letting the paid image model into this
-      // chain billed every "free" picture outside that cap.
-      freeOnly: true,
     },
   );
   return {
@@ -1455,12 +980,13 @@ export async function streamResponse(
  * permission and the durable monthly cap are enforced by the caller before this
  * runs; this function never decides whether paid AI is allowed.
  */
-/** Gateway-catalogue picture models (verified against the authenticated listing). */
-const LOVABLE_IMAGE_MODELS = new Set([
+/** Lovable AI picture models (verified against the authenticated listing). */
+export const LOVABLE_IMAGE_MODELS = new Set([
   "openai/gpt-image-2.5-sunburst",
   "openai/gpt-image-2.5-flare",
   "openai/gpt-image-2",
   "google/gemini-3-pro-image",
+  "google/gemini-3.1-flash-lite-image",
 ]);
 
 /** Lovable ids carry the vendor prefix; Revora's tier names do not. */
@@ -1468,32 +994,25 @@ export function lovableImageModelId(model: string): string {
   return model.includes("/") ? model : `openai/${model}`;
 }
 
+/**
+ * ONE picture from a pinned Lovable AI image model. Spending permission and
+ * the durable monthly cap are enforced by the caller before this runs.
+ */
 export async function callPinnedPaidImage(
   caller: AiCaller,
   prompt: string,
   model: string,
-  /**
-   * Supplying a source picture makes this a precision EDIT rather than a fresh
-   * frame. It still goes through the same guard, concurrency limit and adapter,
-   * so no caller can reach a provider directly.
-   */
+  /** Supplying a source picture makes this a precision EDIT. */
   source: { dataUrl: string; mimeType: string } | null = null,
 ): Promise<{ base64: string; mimeType: string; provider: ProviderName; model: string }> {
   const limits = aiLimits();
   if (prompt.length > limits.maxRequestChars)
-    throw new RevoraAiError(413, "That image brief is too long for Revora AI.", {
-      category: "too_large",
-    });
-  // Callers reserve first (and a free-only scope refuses that reservation);
-  // this is the last line so no free-only build can reach a paid model.
-  if (scopedFreeOnly()) throw freeAiUnavailable("paid pictures are off for this free-only build");
-  // Lovable's gateway leads paid pictures (owner decision 2026-10-22); the
-  // direct OpenAI key is used only when no Lovable key is configured.
-  const lovable = providerConfig("lovable");
-  const config = lovable?.apiKey ? lovable : providerConfig("openai");
-  if (!config?.apiKey) throw freeAiUnavailable("no paid picture provider has credentials configured");
-  const pictureProvider: "lovable" | "openai" = config === lovable ? "lovable" : "openai";
-  const pictureModel = pictureProvider === "lovable" ? lovableImageModelId(model) : model;
+    throw new RevoraAiError(413, "That image brief is too long for Revora AI.", { category: "too_large" });
+  if (scopedFreeOnly())
+    throw new RevoraAiError(503, "AI spending is switched off for this build.", { category: "not_configured" });
+  const config = providerConfig();
+  if (!config) throw notConfigured();
+  const pictureModel = lovableImageModelId(model);
 
   const concurrencyKey = caller.organizationId ?? caller.userId ?? "platform";
   if (!(await acquireWaiting(concurrencyKey, limits.maxConcurrentPerWorkspace)))
@@ -1503,271 +1022,60 @@ export async function callPinnedPaidImage(
   const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    // An unbounded provider request can hold a workspace slot forever. A
-    // timeout does not prove zero provider cost; the paid caller retains its
-    // conservative reservation for an indeterminate result.
     const deadline = new Promise<never>((_resolve, reject) => {
       timer = setTimeout(() => {
-        const error = new RevoraAiError(408, "The picture provider did not finish within the time limit.", { category: "timeout", provider: pictureProvider });
+        const error = new RevoraAiError(408, "The picture provider did not finish within the time limit.", { category: "timeout", provider: "lovable" });
         controller.abort(error);
         reject(error);
       }, limits.requestTimeoutMs);
     });
-    const result = await Promise.race([ADAPTERS[pictureProvider].image({
-      apiKey: config.apiKey,
-      model: pictureModel,
-      prompt,
-      source,
-      signal: controller.signal,
-    }), deadline]);
-    return { base64: result.base64, mimeType: result.mimeType, provider: pictureProvider, model: pictureModel };
+    const result = await Promise.race([
+      ADAPTERS.lovable.image({ apiKey: config.apiKey, model: pictureModel, prompt, source, signal: controller.signal }),
+      deadline,
+    ]);
+    return { base64: result.base64, mimeType: result.mimeType, provider: "lovable", model: pictureModel };
   } finally {
     clearTimeout(timer);
     release(concurrencyKey);
   }
 }
 
-/**
- * Proves whether a pinned paid picture model is actually reachable on Revora's
- * account, without generating anything. Returns a precise, secret-free reason so
- * a caller can report a genuine blocker instead of pretending a picture was made.
- */
-export async function paidImageModelReachable(
-  model: string,
-): Promise<{ available: boolean; detail: string }> {
-  // Lovable's image models are listed in the verified gateway catalogue; a
-  // real failure is still reported by the call itself, never hidden.
-  if (providerConfig("lovable")?.apiKey && LOVABLE_IMAGE_MODELS.has(lovableImageModelId(model)))
-    return { available: true, detail: "available through Lovable AI" };
-  const config = providerConfig("openai");
-  if (!config?.apiKey) return { available: false, detail: "no credential configured" };
-  const probe = await openaiModelReachable(config.apiKey, model);
-  if (probe.available) return { available: true, detail: "available on this account" };
-  if (probe.status === 403 || probe.status === 404)
-    return { available: false, detail: "this account does not have access to the model yet" };
-  return {
-    available: false,
-    detail:
-      probe.status === null
-        ? "the picture service could not be reached"
-        : `the picture service answered ${probe.status}`,
-  };
+/** Whether a pinned picture model is in Lovable's verified picture roster. */
+export async function paidImageModelReachable(model: string): Promise<{ available: boolean; detail: string }> {
+  if (!providerConfig()) return { available: false, detail: "Lovable AI is not configured" };
+  return LOVABLE_IMAGE_MODELS.has(lovableImageModelId(model))
+    ? { available: true, detail: "available through Lovable AI" }
+    : { available: false, detail: "not a Lovable AI picture model" };
 }
 
 /* -------------------------- pinned paid video call -------------------------- */
 
+
 /**
- * ONE silent clip from the paid OpenAI video model, pinned by name. Lives in the
- * router for the same reason the picture lane does: the request guard, the
- * per-workspace concurrency limit and the provider adapter are the router's, and
- * no module outside it may reach a provider. Spending permission and the durable
- * cap are enforced by the caller before this runs.
+ * ONE clip from a Lovable AI video model (Gemini Omni request body). Creates
+ * one job, polls it, downloads the MP4. Never resubmits a failed job.
  */
 export async function callPinnedPaidVideo(
   caller: AiCaller,
   input: { model: string; prompt: string; seconds: number; size: string },
   waiting: { maxWaitMs: number; pollMs: number },
-): Promise<OpenAiVideoOutcome> {
+): Promise<VideoOutcome> {
   const limits = aiLimits();
   if (input.prompt.length > limits.maxRequestChars)
-    throw new RevoraAiError(413, "That video brief is too long for Revora AI.", {
-      category: "too_large",
-    });
-  if (scopedFreeOnly()) throw freeAiUnavailable("paid video is off for this free-only build");
-  const config = providerConfig("openai");
-  if (!config?.apiKey) throw freeAiUnavailable("openai has no credentials configured");
+    throw new RevoraAiError(413, "That video brief is too long for Revora AI.", { category: "too_large" });
+  if (scopedFreeOnly())
+    throw new RevoraAiError(503, "AI spending is switched off for this build.", { category: "not_configured" });
+  const config = providerConfig();
+  if (!config) throw notConfigured();
 
   const concurrencyKey = caller.organizationId ?? caller.userId ?? "platform";
   if (!(await acquireWaiting(concurrencyKey, limits.maxConcurrentPerWorkspace)))
-    throw new RevoraAiError(429, "Revora AI is already working on this workspace's requests.", {
-      category: "rate_limited",
-    });
+    throw new RevoraAiError(429, "Revora AI is already working on this workspace's requests.", { category: "rate_limited" });
   try {
-    return await openaiVideo(config.apiKey, input, waiting);
+    const outcome = await lovableVideo(config.apiKey, input, waiting);
+    if (outcome.ok) reportModelAnswered("lovable", input.model);
+    return outcome;
   } finally {
-    release(concurrencyKey);
-  }
-}
-
-
-/* ---------------------- pinned free-model calls (ensemble) ------------------ */
-
-/**
- * One call against ONE named free model.
- *
- * The ensemble orchestrator needs to run many specific models side by side
- * rather than take the first that answers, so this is the router's pinned
- * entry point. It stays inside the router on purpose: the free-eligibility
- * gate, the daily budget, the circuit breaker, the request guard, the timeout
- * and the telemetry are all the same ones the failover chain uses, so no
- * caller can reach a provider directly and no paid model can be pinned.
- */
-export type PinnedFreeCall = {
-  provider: FreeProviderName;
-  model: string;
-  role: ModelRole;
-  messages: AiMessage[];
-  json?: boolean;
-  maxOutputTokens?: number;
-  temperature?: number;
-  /** Overrides the router timeout for one call; never raises it above the limit. */
-  timeoutMs?: number;
-};
-
-export type PinnedFreeResult = {
-  provider: FreeProviderName;
-  model: string;
-  text: string;
-  data: Record<string, unknown> | null;
-  latencyMs: number;
-  inputTokens: number | null;
-  outputTokens: number | null;
-};
-
-export async function callPinnedFreeModel(
-  caller: AiCaller,
-  call: PinnedFreeCall,
-): Promise<PinnedFreeResult> {
-  if (!freeAiEnabled()) throw freeAiUnavailable("free AI is disabled");
-  // ZERO-COST INVARIANT: a pinned id must be free-eligible for that provider.
-  if (!isFreeEligibleModel(call.provider, call.model))
-    throw new RevoraAiError(403, "That model is not verified free, so Revora will not call it.", {
-      category: "invalid_request",
-      provider: call.provider,
-    });
-  if (!freeBudgetAllows(call.provider))
-    throw new RevoraAiError(429, "That free provider is out of budget for today.", {
-      category: "rate_limited",
-      provider: call.provider,
-    });
-  const breakerScope = {
-    caller,
-    provider: call.provider as ProviderName,
-    model: call.model,
-  };
-  if (!providerHealthy(breakerScope))
-    throw providerUnavailable(call.provider, "cooling down after repeated failures");
-  // SHARED STATE: many workers spend one free allowance, so the cross-worker
-  // counters get a say too. They may only ever add caution, never remove it,
-  // and an unreachable store simply leaves the local gates in charge.
-  const cap = freeBudgetCap(call.provider);
-  await refreshDurableRuntime();
-  if (durableBudgetExhausted(call.provider, cap))
-    throw new RevoraAiError(429, "That free provider is out of budget for today.", {
-      category: "rate_limited",
-      provider: call.provider,
-    });
-  if (durableProviderResting(call.provider))
-    throw providerUnavailable(call.provider, "cooling down after repeated failures");
-  if (durableModelResting(call.provider, call.model))
-    throw new RevoraAiError(503, `Revora's ${call.provider} model is resting after repeated failures.`, {
-      category: "bad_response",
-      provider: call.provider,
-    });
-  if (call.provider === "openai" && openAiPoolSpent(call.model))
-    throw new RevoraAiError(429, "OpenAI's free daily token allowance for that model is used up.", {
-      category: "rate_limited",
-      provider: call.provider,
-    });
-  const credentials = freeProviderCredentials(call.provider);
-  if (!credentials) throw freeAiUnavailable(`${call.provider} has no credentials configured`);
-
-  guardRequest(call.messages);
-  const limits = aiLimits();
-  const adapter = ADAPTERS[call.provider as ProviderName];
-  const requestId = caller.requestId ?? newRequestId();
-  const concurrencyKey = caller.organizationId ?? caller.userId ?? "platform";
-  if (!(await acquireWaiting(concurrencyKey, limits.maxConcurrentPerWorkspace, 5_000)))
-    throw new RevoraAiError(429, "Revora AI is already working on this workspace's requests.", {
-      category: "rate_limited",
-    });
-  // The clock starts once the call actually goes out, not while it queued.
-  const controller = new AbortController();
-  const timeout = Math.min(call.timeoutMs ?? limits.requestTimeoutMs, limits.requestTimeoutMs);
-  const timer = setTimeout(() => controller.abort(), timeout);
-  const started = Date.now();
-  try {
-    noteFreeUse(call.provider);
-    void noteDurableFreeUse(call.provider, cap);
-    const result = await adapter.chat({
-      apiKey: credentials.apiKey,
-      model: call.model,
-      messages: call.messages,
-      json: call.json === true,
-      maxOutputTokens: Math.min(
-        call.maxOutputTokens ?? limits.maxOutputTokens,
-        limits.maxOutputTokens,
-      ),
-      ...(call.temperature === undefined ? {} : { temperature: call.temperature }),
-      signal: controller.signal,
-    });
-    noteSuccess(breakerScope);
-    if (call.provider === "openai") {
-      const used = (result.usage.inputTokens ?? 0) + (result.usage.outputTokens ?? 0);
-      const tokens = used > 0 ? used : OPENAI_UNKNOWN_USAGE_TOKENS;
-      noteOpenAiTokens(call.model, tokens);
-      void noteDurableFreeTokens(openAiTokenPoolKey(openAiTokenPool(call.model)), tokens);
-    }
-    const latencyMs = Date.now() - started;
-    recordSharedFreeSuccess(call.provider, call.model, latencyMs);
-    reportModelAnswered(call.provider, call.model);
-    void recordAiEvent({
-      requestId,
-      provider: call.provider as ProviderName,
-      model: call.model,
-      task: caller.task,
-      organizationId: caller.organizationId ?? null,
-      userId: caller.userId ?? null,
-      latencyMs,
-      ok: true,
-      errorCategory: null,
-      inputTokens: result.usage.inputTokens,
-      outputTokens: result.usage.outputTokens,
-      fallbackUsed: false,
-      toolCalls: 0,
-    });
-    return {
-      provider: call.provider,
-      model: call.model,
-      text: result.text,
-      // A malformed answer is the model's failure, not a crash: the ensemble
-      // scores it out instead of the whole build stopping.
-      data: call.json === true ? safeJsonObject(result.text) : null,
-      latencyMs,
-      inputTokens: result.usage.inputTokens,
-      outputTokens: result.usage.outputTokens,
-    };
-  } catch (rawError) {
-    const error =
-      rawError instanceof RevoraAiError
-        ? rawError
-        : controller.signal.aborted
-          ? new RevoraAiError(408, "Revora AI took too long to answer.", {
-              category: "timeout",
-              provider: call.provider,
-            })
-          : providerUnavailable(call.provider, (rawError as Error)?.message?.slice(0, 120));
-    if (error.retryable) noteFailure(breakerScope);
-    recordSharedFreeFailure(call.provider, call.model, error, Date.now() - started);
-    void recordAiEvent({
-      requestId,
-      provider: call.provider as ProviderName,
-      model: call.model,
-      task: caller.task,
-      organizationId: caller.organizationId ?? null,
-      userId: caller.userId ?? null,
-      latencyMs: Date.now() - started,
-      ok: false,
-      errorCategory: error.category,
-      errorDetail: error.detail,
-      inputTokens: null,
-      outputTokens: null,
-      fallbackUsed: false,
-      toolCalls: 0,
-    });
-    throw error;
-  } finally {
-    clearTimeout(timer);
     release(concurrencyKey);
   }
 }
@@ -1778,5 +1086,42 @@ function safeJsonObject(text: string): Record<string, unknown> | null {
     return parseJsonObject(text);
   } catch {
     return null;
+  }
+}
+
+/**
+ * Text-to-speech through the router. Budget reservation, settlement and usage
+ * rows are owned by the caller (lovable-speech.server.ts) because speech is
+ * priced per character, not per token. Records telemetry for the model panel.
+ */
+export async function callLovableSpeech(model: string, body: unknown, signal?: AbortSignal): Promise<Response> {
+  const apiKey = providerConfig()?.apiKey;
+  if (!apiKey) throw new Error("Lovable AI is not configured on the server.");
+  const started = Date.now();
+  let ok = false;
+  let status = 0;
+  try {
+    const response = await postLovableSpeech(body, apiKey, signal);
+    status = response.status;
+    ok = response.ok;
+    return response;
+  } finally {
+    const { recordAiEvent } = await import("@/lib/ai/telemetry.server");
+    await recordAiEvent({
+      requestId: crypto.randomUUID(),
+      provider: "lovable",
+      model,
+      task: "speech",
+      organizationId: null,
+      userId: null,
+      latencyMs: Date.now() - started,
+      ok,
+      errorCategory: ok ? null : status === 429 ? "rate_limited" : status === 402 ? "quota" : status === 400 ? "invalid_request" : "provider_unavailable",
+      errorDetail: ok ? null : `HTTP ${status || "network"}`,
+      inputTokens: null,
+      outputTokens: null,
+      fallbackUsed: false,
+      toolCalls: 0,
+    }).catch(() => undefined);
   }
 }

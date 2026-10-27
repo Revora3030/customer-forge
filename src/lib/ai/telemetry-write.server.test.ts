@@ -5,7 +5,7 @@ const db = vi.hoisted(() => ({ from: vi.fn(), insert: vi.fn() }));
 vi.mock("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from: db.from } }));
 
 const event: AiEvent = {
-  requestId: "test-request", provider: "groq", model: "test-model", task: "copy",
+  requestId: "test-request", provider: "lovable", model: "test-model", task: "copy",
   organizationId: null, userId: null, latencyMs: 12, ok: true, errorCategory: null,
   inputTokens: null, outputTokens: null, fallbackUsed: false, toolCalls: 0,
 };

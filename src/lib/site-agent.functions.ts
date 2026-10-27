@@ -2191,8 +2191,37 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
       console.warn("[site-agent] memory not recorded", error);
     }
 
+    // STRAIGHT TO LIVE (owner decision 2026-10-22). A site that is already
+    // live gets each verified change published at once. The undo point above is
+    // already saved, and the broken-page check must have actually run and
+    // passed; anything else leaves the change in the draft with the reason.
+    let live: { published: boolean; reason: string } | null = null;
+    if (applied.length > 0) {
+      const { data: liveState } = await supabase
+        .from("website_settings")
+        .select("publish_state")
+        .eq("organization_id", orgId)
+        .maybeSingle();
+      if ((liveState as { publish_state?: string } | null)?.publish_state === "published") {
+        if (!verification) {
+          live = { published: false, reason: "The broken-page check couldn't run, so this change is saved in your draft only." };
+        } else {
+          noteApplyStage(orgId, applyRunId, "going live");
+          try {
+            const { publishSiteNow } = await import("@/lib/production.functions");
+            const result = await publishSiteNow(supabase as never, userId, orgId, { liveEdit: true });
+            live = { published: result.activated, reason: result.activated ? result.reason : result.reason || "Saved in your draft." };
+          } catch (error) {
+            live = { published: false, reason: (error as Error)?.message || "Saved in your draft; going live failed." };
+          }
+        }
+      }
+    }
+
     return {
       applied: applied.length,
+      /** Whether this change was published to the live site straight away. */
+      live,
       failed: failed.length,
       /** Writes whose saved value did not match on read-back — never reported as done. */
       unconfirmed,

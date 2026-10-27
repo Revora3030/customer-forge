@@ -10,7 +10,7 @@
  *
  * A missing or unusable model result is a hard failure for a new build.
  */
-import { callBestThinker } from "@/lib/ai/hall-of-fame.server";
+import { callBestThinker } from "@/lib/ai/thinker.server";
 import { craftBarPrompt } from "@/lib/builder/world-class-craft";
 import type { DnaFacts } from "@/lib/business-dna";
 import { parseRefinement, parseReview, screenText } from "@/lib/builder/collective-copy";

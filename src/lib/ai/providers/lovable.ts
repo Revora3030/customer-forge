@@ -16,7 +16,7 @@
 
 import type { AiMessage, AiPart, AiUsage, ProviderAdapter } from "@/lib/ai/types";
 import { RevoraAiError } from "@/lib/ai/errors";
-import { base64ByteLength, base64FromDataUrl, bytesFromDataUrl, providerHttpError } from "@/lib/ai/providers/shared";
+import { base64FromDataUrl, bytesFromDataUrl, providerHttpError } from "@/lib/ai/providers/shared";
 
 const BASE = "https://ai.gateway.lovable.dev/v1";
 
@@ -72,10 +72,15 @@ function isReasoningModel(model: string) {
   return /^(gpt-5|gpt-6|o\d)/i.test(bareModel(model));
 }
 
+/**
+ * Speed-first effort for every thinking model: the builder makes many short
+ * calls under a per-request time limit, so default (high) thinking times out.
+ */
 function reasoningEffortFor(model: string): Record<string, string> {
   const bare = bareModel(model);
   if (/^gpt-5\.6-/i.test(bare)) return { reasoning_effort: "none" };
-  if (/^gpt-6/i.test(bare)) return { reasoning_effort: "low" };
+  if (/^(gpt-5|gpt-6|o\d)/i.test(bare)) return { reasoning_effort: "low" };
+  if (/^gemini-(2\.5|3)/i.test(bare) && !/image|tts|embedding/i.test(bare)) return { reasoning_effort: "low" };
   return {};
 }
 
@@ -121,9 +126,18 @@ function requestBody(input: {
         }
       : {
           max_tokens: input.maxOutputTokens,
+          ...reasoningEffortFor(input.model),
           ...(typeof input.temperature === "number" ? { temperature: input.temperature } : {}),
         }),
   };
+}
+
+/** A model answer cut off at the output limit: reported as a failure so the router fails over. */
+function truncated() {
+  return new RevoraAiError(502, "Revora's AI model ran out of room before finishing its answer.", {
+    category: "bad_response",
+    provider: "lovable",
+  });
 }
 
 /* ------------------------------ Anthropic /v1/messages ------------------------------ */
@@ -132,20 +146,8 @@ type AnthropicPart =
   | { type: "text"; text: string }
   | { type: "image"; source: { type: "base64"; media_type: string; data: string } };
 
-/**
- * The Messages API refuses an image over 5 MB (decoded). A full-size PNG from
- * the picture lane can exceed it; refusing before the upload makes the router
- * move to the next roster model at once instead of paying for a 400.
- */
-export const ANTHROPIC_MAX_IMAGE_BYTES = 5 * 1024 * 1024;
-
 function anthropicPart(part: AiPart): AnthropicPart {
   if (part.type === "text") return { type: "text", text: part.text };
-  if (part.type === "image" && base64ByteLength(part.dataUrl) > ANTHROPIC_MAX_IMAGE_BYTES)
-    throw new RevoraAiError(413, "That picture is larger than this Revora AI model accepts.", {
-      category: "invalid_request",
-      provider: "lovable",
-    });
   if (part.type === "image")
     return {
       type: "image",
@@ -157,16 +159,67 @@ function anthropicPart(part: AiPart): AnthropicPart {
   });
 }
 
+/** Reads a Messages SSE stream to the end: answer text, stop reason and usage. */
+async function readAnthropicStream(stream: ReadableStream<Uint8Array>) {
+  const reader = stream.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let text = "";
+  let stop_reason: string | undefined;
+  const usage: { input_tokens?: number; output_tokens?: number } = {};
+  const handle = (frame: string) => {
+    const data = frame
+      .split("\n")
+      .filter((line) => line.startsWith("data:"))
+      .map((line) => line.slice(5).trim())
+      .join("");
+    if (!data) return;
+    let event: Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+    try {
+      event = JSON.parse(data);
+    } catch {
+      return;
+    }
+    if (event["type"] === "error")
+      throw new RevoraAiError(502, "Revora's AI model stopped with an error.", { category: "bad_response", provider: "lovable" });
+    if (event["type"] === "message_start" && typeof event["message"]?.usage?.input_tokens === "number")
+      usage.input_tokens = event["message"].usage.input_tokens;
+    if (event["type"] === "content_block_delta" && event["delta"]?.type === "text_delta")
+      text += String(event["delta"].text ?? "");
+    if (event["type"] === "message_delta") {
+      if (typeof event["delta"]?.stop_reason === "string") stop_reason = event["delta"].stop_reason;
+      if (typeof event["usage"]?.output_tokens === "number") usage.output_tokens = event["usage"].output_tokens;
+    }
+  };
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let cut: number;
+    while ((cut = buffer.indexOf("\n\n")) !== -1) {
+      handle(buffer.slice(0, cut));
+      buffer = buffer.slice(cut + 2);
+    }
+  }
+  if (buffer.trim()) handle(buffer);
+  return { text, stop_reason, usage };
+}
+
 /**
- * The Messages API takes system prompts as a top-level field, not a message.
- * Sampling parameters are never sent: Claude 4.7-and-later models (every
- * anthropic/* id on the roster) answer 400 to any `temperature`, which used to
- * fail every Claude call a caller passed a temperature to.
+ * Claude models with adaptive thinking take minutes at the default effort.
+ * The builder runs many short calls, so it asks for low effort: fast answers
+ * that still think (owner wants Lovable-like speed, 2026-10-22).
  */
-export function anthropicRequest(input: {
+function anthropicEffort(model: string) {
+  return /claude-(opus|sonnet|fable)/.test(model) ? { output_config: { effort: "low" } } : {};
+}
+
+/** The Messages API takes system prompts as a top-level field, not a message. */
+function anthropicRequest(input: {
   model: string;
   messages: AiMessage[];
   maxOutputTokens: number;
+  temperature?: number;
 }) {
   const system: string[] = [];
   const messages: { role: "user" | "assistant"; content: string | AnthropicPart[] }[] = [];
@@ -191,8 +244,10 @@ export function anthropicRequest(input: {
   return {
     model: input.model,
     max_tokens: input.maxOutputTokens,
+    ...anthropicEffort(input.model),
     ...(system.length > 0 ? { system: system.join("\n\n") } : {}),
     messages,
+    ...(typeof input.temperature === "number" ? { temperature: input.temperature } : {}),
   };
 }
 
@@ -201,26 +256,28 @@ async function anthropicChat(input: {
   model: string;
   messages: AiMessage[];
   maxOutputTokens: number;
+  temperature?: number;
   signal: AbortSignal;
 }): Promise<{ text: string; usage: AiUsage }> {
+  const body = anthropicRequest({
+    model: input.model,
+    messages: input.messages,
+    maxOutputTokens: input.maxOutputTokens,
+    ...(input.temperature !== undefined ? { temperature: input.temperature } : {}),
+  });
   const response = await fetch(`${BASE}/messages`, {
     method: "POST",
-    headers: { ...headers(input.apiKey), "anthropic-version": "2023-06-01" },
-    body: JSON.stringify(
-      anthropicRequest({
-        model: input.model,
-        messages: input.messages,
-        maxOutputTokens: input.maxOutputTokens,
-      }),
-    ),
+    headers: { ...headers(input.apiKey), "anthropic-version": "2023-06-01", accept: "text/event-stream" },
+    // Streamed so long answers never sit on an idle connection; the answer is
+    // accumulated here and returned whole (final-only callers).
+    body: JSON.stringify({ ...body, stream: true }),
     signal: input.signal,
   });
   if (!response.ok) throw await providerHttpError("lovable", response);
-  const payload = (await response.json()) as {
-    content?: { type?: string; text?: string }[];
-    stop_reason?: string;
-    usage?: { input_tokens?: number; output_tokens?: number };
-  };
+  if (!response.body)
+    throw new RevoraAiError(502, "Revora AI returned an empty stream.", { category: "bad_response", provider: "lovable" });
+  const payload = await readAnthropicStream(response.body);
+  const text = payload.text;
   // A refusal is terminal for this model: report it as a failed answer so the
   // router moves on, and never present an empty reply as success.
   if (payload.stop_reason === "refusal")
@@ -228,10 +285,7 @@ async function anthropicChat(input: {
       category: "bad_response",
       provider: "lovable",
     });
-  const text = (payload.content ?? [])
-    .filter((block) => block.type === "text" && typeof block.text === "string")
-    .map((block) => block.text as string)
-    .join("");
+  if (payload.stop_reason === "max_tokens") throw truncated();
   return {
     text: answerOrThrow(text),
     usage: {
@@ -257,7 +311,15 @@ export const lovableAdapter: ProviderAdapter = {
   name: "lovable",
 
   async chat({ apiKey, model, messages, json, maxOutputTokens, temperature, signal }) {
-    if (isAnthropic(model)) return anthropicChat({ apiKey, model, messages, maxOutputTokens, signal });
+    if (isAnthropic(model))
+      return anthropicChat({
+        apiKey,
+        model,
+        messages,
+        maxOutputTokens,
+        ...(temperature !== undefined ? { temperature } : {}),
+        signal,
+      });
     const response = await fetch(`${BASE}/chat/completions`, {
       method: "POST",
       headers: headers(apiKey),
@@ -268,8 +330,10 @@ export const lovableAdapter: ProviderAdapter = {
     });
     if (!response.ok) throw await providerHttpError("lovable", response);
     const payload = (await response.json()) as {
-      choices?: { message?: { content?: string } }[];
+      choices?: { message?: { content?: string }; finish_reason?: string }[];
     };
+    // A cut-off answer is a failure that hands over to the next model, never a partial plan.
+    if (payload.choices?.[0]?.finish_reason === "length") throw truncated();
     return { text: answerOrThrow(payload.choices?.[0]?.message?.content ?? ""), usage: usageOf(payload) };
   },
 
@@ -340,3 +404,67 @@ export const lovableAdapter: ProviderAdapter = {
     return { text: (payload.text ?? "").trim() };
   },
 };
+
+export type VideoOutcome =
+  | { ok: true; bytes: Uint8Array }
+  | { ok: false; kind: "model_unavailable" | "provider_error" | "timed_out" | "invalid_video"; detail: string; charged: boolean };
+
+
+const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** One Lovable AI video job (Gemini Omni body): create, poll, download. Never resubmits. */
+export async function lovableVideo(
+  apiKey: string,
+  input: { model: string; prompt: string; seconds: number; size: string },
+  waiting: { maxWaitMs: number; pollMs: number },
+): Promise<VideoOutcome> {
+  const headers = { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" };
+    const portrait = input.size === "720x1280";
+    const seconds = Math.min(10, Math.max(3, Math.round(input.seconds)));
+    const created = await fetch(`${BASE}/videos`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        model: input.model,
+        input: `${input.prompt} In a single continuous shot. No dialogue. No on-screen text.`,
+        response_format: { type: "video", resolution: "720p", duration: `${seconds}s`, aspect_ratio: portrait ? "9:16" : "16:9" },
+      }),
+    });
+    if (!created.ok) {
+      const detail = `create answered ${created.status}`;
+      return { ok: false, kind: created.status === 403 || created.status === 404 ? "model_unavailable" : "provider_error", detail, charged: false };
+    }
+    const job = (await created.json()) as { id?: string };
+    if (!job.id) return { ok: false, kind: "provider_error", detail: "no job id returned", charged: false };
+    const until = Date.now() + waiting.maxWaitMs;
+    for (;;) {
+      if (Date.now() >= until) return { ok: false, kind: "timed_out", detail: "job still rendering", charged: true };
+      await pause(waiting.pollMs);
+      const polled = await fetch(`${BASE}/videos/${encodeURIComponent(job.id)}`, { headers });
+      if (!polled.ok) continue;
+      const state = (await polled.json()) as { status?: string; error?: { message?: string } };
+      if (state.status === "failed")
+        return { ok: false, kind: "provider_error", detail: (state.error?.message ?? "job failed").slice(0, 160), charged: true };
+      if (state.status !== "completed") continue;
+      const content = await fetch(`${BASE}/videos/${encodeURIComponent(job.id)}/content`, { headers });
+      if (!content.ok) return { ok: false, kind: "provider_error", detail: `download answered ${content.status}`, charged: true };
+      const bytes = new Uint8Array(await content.arrayBuffer());
+      if (bytes.byteLength === 0) return { ok: false, kind: "invalid_video", detail: "empty clip", charged: true };
+      return { ok: true, bytes };
+    }
+}
+
+/**
+ * Text-to-speech on the Lovable gateway (/v1/audio/speech). Returns null when
+ * no server key is configured. Spending is reserved by the caller
+ * (lovable-speech.server.ts) before this is called. Redirects are refused.
+ */
+export async function postLovableSpeech(body: unknown, apiKey: string, signal?: AbortSignal): Promise<Response> {
+  return fetch(`${BASE}/audio/speech`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    redirect: "manual",
+    ...(signal ? { signal } : {}),
+  });
+}

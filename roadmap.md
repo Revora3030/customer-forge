@@ -1,5 +1,14 @@
 # Roadmap — Five-phase blocker elimination
 
+## All-model wiring (2026-10-22)
+- [x] Jarvis voice choice: Auto / ElevenLabs / Lovable AI speech (Gemini TTS, budgeted, router telemetry). No live speech call made.
+- [x] Maps review form: per-fact source labels, editable address and hours, website suggestions needing approval, existing build handoff kept.
+- [x] Veo, music, live voice and embeddings labelled with exact blockers in the model panel.
+- [ ] Veo routes: request shape and pricing unverified.
+- [ ] Search memory: needs a vector-storage migration the owner approves.
+- [ ] Music and two-way live voice: not built.
+- [ ] Live end-to-end check of Lovable voice and a Maps-to-build run (needs a paid call / live build approval).
+
 ## Test build resume fixes (2026-10-22)
 - [x] Resume no longer redoes finished work: busy-AI pauses keep the build's pictures; section wording is saved and reapplied; section designs therefore stay valid.
 - [x] Busy (rate-limited) or repeatedly slow free services rest briefly for every concurrent step instead of being re-called.
@@ -226,3 +235,13 @@ Owner approved porting two ideas (audit of the uploaded Next.js project; auto pa
 - [ ] Business Profile hours: waiting on owner's real reply hours
 - [x] Redesign phase 3 (part): serif page titles across signed-in and admin pages; checked 5 pages signed in, no errors
 - [ ] Redesign: deeper restyle of signed-in cards/tables and sidebar
+
+## Model-routing audit follow-up (2026-10-22)
+- [x] Honest health labels: "not used yet" for unexercised models; static fallback marked unverified
+- [x] Video tiers: same model must not imply premium quality
+- [x] Builder progress shows actual per-step models from recorded usage
+- [x] Reviewer diversity/bounded repair audit
+- [ ] Lovable speech for Jarvis voice (only if supported) / embeddings, music, live voice labelled not integrated
+- [x] Prospect/outreach admin drafts: decide router vs free-only
+- [ ] Maps → fact review/edit → first build handoff, official-site enrichment, provenance
+- [x] Durable build worker/cancellation audit

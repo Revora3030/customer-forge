@@ -174,7 +174,7 @@ export function BuilderAssistant({
     },
   });
   const SUGGESTIONS = suggestionsQuery.data?.suggestions ?? [];
-  // Suggestions come from the free AI team and can be slow; after a short
+  // Suggestions come from the Lovable AI team and can be slow; after a short
   // wait the empty placeholders give way to the composer instead of pulsing.
   const [suggestionsSlow, setSuggestionsSlow] = useState(false);
   useEffect(() => {
@@ -735,7 +735,7 @@ export function BuilderAssistant({
               {requests.summary}
             </p>
           ) : null}
-          <p className="sr-only">Every change saves a restore point first. Nothing goes live until you publish.</p>
+          <p className="sr-only">Every change saves a restore point first. On a live website, checked changes go live straight away.</p>
         </div>
       </div>
     </section>

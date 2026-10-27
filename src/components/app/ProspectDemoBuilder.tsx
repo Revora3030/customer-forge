@@ -18,10 +18,11 @@ import {
   type DemoOutreachDraft,
 } from "@/lib/jarvis-demo-site.functions";
 import { prospectDemoInput, type FoundProspect } from "@/lib/prospect-finder";
+import { factOrigin, type FactOrigin } from "@/lib/jarvis-demo-site";
 import { pictureDataUrl } from "@/lib/picture-data-url";
 import { ACTIVE_DEMO_STATUSES, pollWhileActive } from "@/lib/prospect-demo-pump.hooks";
 
-const EMPTY = { businessName: "", industry: "", city: "", state: "", phone: "", email: "", services: "", description: "", placeId: "" };
+const EMPTY = { businessName: "", industry: "", city: "", state: "", phone: "", email: "", services: "", description: "", placeId: "", address: "", hours: "" };
 type Field = keyof typeof EMPTY;
 
 const FIELDS: { key: Field; label: string; placeholder: string; required?: boolean }[] = [
@@ -31,7 +32,20 @@ const FIELDS: { key: Field; label: string; placeholder: string; required?: boole
   { key: "state", label: "State", placeholder: "NC" },
   { key: "phone", label: "Phone (as listed publicly)", placeholder: "(919) 555-0142" },
   { key: "email", label: "Business email", placeholder: "owner@example.com" },
+  { key: "address", label: "Street address", placeholder: "120 Main St, Raleigh, NC" },
 ];
+
+const ORIGIN_LABEL: Record<FactOrigin, string> = {
+  listing: "From Google Maps",
+  edited: "Edited by you",
+  owner: "Entered by you",
+  missing: "Missing",
+};
+
+function OriginBadge({ origin }: { origin: FactOrigin }) {
+  const tone = origin === "listing" ? "text-primary" : origin === "missing" ? "text-muted-foreground" : "text-accent";
+  return <span className={`ml-1.5 text-[10px] font-normal uppercase tracking-wide ${tone}`}>{ORIGIN_LABEL[origin]}</span>;
+}
 
 const ACTIVE = ACTIVE_DEMO_STATUSES;
 
@@ -49,7 +63,7 @@ type BuilderProps = {
 
 /**
  * Jarvis panel: build a private demo website for a business with no website.
- * The build runs on the normal AI builder (free model pool, fact and safety
+ * The build runs on the normal AI builder (Lovable AI team, fact and safety
  * gates). Nothing is published or sent from here; the operator shares the
  * preview link, or sends it from the chat's build card.
  */
@@ -89,10 +103,17 @@ export function ProspectDemoBuilder({ onBuildStarted, onPreview }: BuilderProps 
   const [sourceInput, setSourceInput] = useState("");
   const [prefilled, setPrefilled] = useState<Prefill | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
+  const listed = (key: Field): string => {
+    if (!prefilled || prefilled.source === "image") return "";
+    if (key === "hours") return (prefilled.prefill.hours ?? []).join("\n");
+    const value = (prefilled.prefill as Record<string, unknown>)[key];
+    return typeof value === "string" ? value : "";
+  };
+  const origin = (key: Field) => factOrigin(listed(key), form[key]);
   const fileRef = useRef<HTMLInputElement>(null);
   const applyPrefill = (result: Prefill) => {
     // Replace the form: these are facts for one specific business.
-    setForm({ ...EMPTY, ...result.prefill });
+    setForm({ ...EMPTY, ...result.prefill, address: result.prefill.address ?? "", hours: (result.prefill.hours ?? []).join("\n") });
     setPrefilled(result);
     toast.success("Form filled. Check the facts, then build.");
     window.setTimeout(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
@@ -127,7 +148,7 @@ export function ProspectDemoBuilder({ onBuildStarted, onPreview }: BuilderProps 
   // The queue pump lives in useProspectDemoPump, which the Jarvis page runs.
 
   const building = useMutation({
-    mutationFn: (input: typeof EMPTY) => start({ data: input }),
+    mutationFn: (input: typeof EMPTY) => start({ data: { ...input, hours: input.hours.split("\n").filter(Boolean) } }),
     onSuccess: (result, input) => {
       toast.success("Demo build started. The AI team is writing the site now.");
       onBuildStarted?.({ organizationId: result.organizationId, name: input.businessName, previewToken: result.previewToken });
@@ -150,7 +171,7 @@ export function ProspectDemoBuilder({ onBuildStarted, onPreview }: BuilderProps 
       <div className="space-y-3 border-t border-border p-3">
         <p className="text-xs text-muted-foreground">
           Enter only real, public facts about the business. Jarvis creates a private draft workspace and the AI team
-          builds the site on your free model pool. Missing facts are left out, never invented. The site is not
+          builds the site with your Lovable AI team. Missing facts are left out, never invented. The site is not
           published; you get a private 30-day preview link to share.
         </p>
         <section aria-label="Find businesses without a website" className="space-y-2 rounded-lg border border-border p-3">
@@ -257,6 +278,19 @@ export function ProspectDemoBuilder({ onBuildStarted, onPreview }: BuilderProps 
                   upgrade of their current site may land better.
                 </p>
               ) : null}
+              {prefilled.websiteRead && prefilled.websiteRead.state !== "skipped" ? (
+                <p className={prefilled.websiteRead.state === "failed" ? "text-destructive" : "text-muted-foreground"}>{prefilled.websiteRead.message}</p>
+              ) : null}
+              {(prefilled.suggestions ?? []).map((suggestion) => (
+                <div key={suggestion.field + suggestion.source} className="rounded-md border border-border bg-background p-2">
+                  <p className="text-muted-foreground">Suggestion from the business's own website ({suggestion.source}). Not used unless you accept it:</p>
+                  <p className="mt-1 text-foreground">"{suggestion.value}"</p>
+                  <Button type="button" size="sm" variant="outline" className="mt-1.5 h-7" onClick={() => setForm((current) => ({ ...current, [suggestion.field]: suggestion.value }))}>
+                    Use as description
+                  </Button>
+                </div>
+              ))}
+              <p className="text-muted-foreground">Business facts © Google. Email and services are never taken from the listing; add them only if you know them.</p>
               {prefilled.mapsUri ? (
                 <a href={prefilled.mapsUri} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-primary underline-offset-2 hover:underline">
                   <ExternalLink className="size-3" aria-hidden />Check the listing on Google Maps
@@ -279,6 +313,7 @@ export function ProspectDemoBuilder({ onBuildStarted, onPreview }: BuilderProps 
                 <Label htmlFor={`demo-${field.key}`} className="text-xs">
                   {field.label}
                   {field.required ? " *" : ""}
+                  {prefilled ? <OriginBadge origin={origin(field.key)} /> : null}
                 </Label>
                 <Input
                   id={`demo-${field.key}`}
@@ -291,7 +326,22 @@ export function ProspectDemoBuilder({ onBuildStarted, onPreview }: BuilderProps 
             ))}
           </div>
           <div className="space-y-1">
-            <Label htmlFor="demo-services" className="text-xs">Services (one per line or comma separated)</Label>
+            <Label htmlFor="demo-hours" className="text-xs">
+              Opening hours (one day per line, e.g. "Monday: 9 AM – 5 PM")
+              {prefilled ? <OriginBadge origin={origin("hours")} /> : null}
+            </Label>
+            <Textarea
+              id="demo-hours"
+              rows={3}
+              value={form.hours}
+              onChange={(event) => setForm((current) => ({ ...current, hours: event.target.value }))}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="demo-services" className="text-xs">
+              Services (one per line or comma separated)
+              {prefilled ? <OriginBadge origin={origin("services")} /> : null}
+            </Label>
             <Textarea
               id="demo-services"
               rows={3}
@@ -301,7 +351,10 @@ export function ProspectDemoBuilder({ onBuildStarted, onPreview }: BuilderProps 
             />
           </div>
           <div className="space-y-1">
-            <Label htmlFor="demo-description" className="text-xs">What the business does (optional)</Label>
+            <Label htmlFor="demo-description" className="text-xs">
+              What the business does (optional)
+              {prefilled ? <OriginBadge origin={origin("description")} /> : null}
+            </Label>
             <Textarea
               id="demo-description"
               rows={2}
@@ -391,7 +444,7 @@ export function ProspectDemoBuilder({ onBuildStarted, onPreview }: BuilderProps 
                     <div className="mt-3 space-y-2 rounded-md border border-border p-2">
                       <p className="text-xs text-muted-foreground">
                         To: {draft.email ?? "no business email on file, so copy the text and reach them another way"} ·{" "}
-                        {draft.aiWritten ? "written by the free AI pool" : "AI unavailable, plain template used"}
+                        {draft.aiWritten ? "written by the Lovable AI team" : "AI unavailable, plain template used"}
                       </p>
                       <p className="text-sm font-medium">{draft.subject}</p>
                       <Textarea

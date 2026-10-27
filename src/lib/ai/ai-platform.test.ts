@@ -47,16 +47,16 @@ const APP_FILES = SOURCE_FILES.filter((file) => !file.endsWith("ai-platform.test
 
 describe("no third-party AI gateway remains", () => {
   it("references the AI gateway host only in the two sanctioned lanes", () => {
-    // gateway-chat.server.ts is the sanctioned Astra backup chat lane, and
+    // ai/catalogue.server.ts reads the model listing (no generation), and
     // ai/providers/lovable.ts is the router's keyed Lovable paid provider
     // (its unit test names the host to assert the request URL). No other
     // file may name the gateway host.
     const offenders = APP_FILES.filter(
       (file) =>
-        !file.includes("gateway-chat.server.ts") &&
+        !file.includes("ai/catalogue.server.ts") &&
+        !file.includes("ai/catalogue.test.ts") &&
         !file.includes("ai/providers/lovable.ts") &&
         !file.includes("ai/lovable-provider.test.ts") &&
-        !file.includes("ai/lovable-first.test.ts") &&
         readFileSync(file, "utf8").includes("ai.gateway.lovable.dev"),
     );
     expect(offenders).toEqual([]);
@@ -85,9 +85,11 @@ describe("no third-party AI gateway remains", () => {
       // Growth Engine posts approved Google profile updates through the
       // connector gateway; AI drafting goes through the shared router.
       "growth-engine/service.server.ts",
-      // The Astra backup chat lane reads the gateway credential to keep the
-      // builder chat alive when the direct OpenAI route is down.
-      "ai/gateway-chat.server.ts",
+      // The live model-catalogue listing (GET /v1/models, no generation).
+      "ai/catalogue.server.ts",
+      // Catalogue and roster tests stub the key with fake values.
+      "ai/catalogue.test.ts",
+      "ai/roster-catalogue.test.ts",
       // The router's keyed Lovable paid provider and its unit tests.
       "ai/config.ts",
       "ai/providers/lovable.ts",
@@ -98,8 +100,15 @@ describe("no third-party AI gateway remains", () => {
       "ai/router.server.ts",
       "ai/provider-test-environment",
       "ai/lovable-provider.test.ts",
-      "ai/lovable-first.test.ts",
-      "ai/pinned-image-timeout.test.ts",
+      "ai/ai-platform.test.ts",
+      "ai/paid-reservation-leak.test.ts",
+      "ai/paid-video.server.ts",
+      "ai/luna.functions.ts",
+      "ai/availability.ts",
+      "ai/jarvis-image-readiness.server.ts",
+      "jarvis-model-status.server.ts",
+      "jarvis-command-center.test.ts",
+      "media/image-capability.server.ts",
       // The Perplexity search connector is a Lovable integration reached
       // through the connector gateway; it returns research links, never model
       // output, and its results are marked third-party research.
@@ -191,12 +200,12 @@ describe("provider configuration", () => {
   it("treats Revora AI as unconfigured until Revora owns a key", () => {
     expect(isAiConfigured()).toBe(false);
     expect(providerChain()).toEqual([]);
-    expect(providerConfig("google")).toBeNull();
+    expect(providerConfig("lovable")).toBeNull();
   });
 
   it("fails closed with one clear message when no provider is configured", async () => {
-    // FREE-AI-FIRST: with no free credentials and no paid opt-in the router
-    // contacts nobody and reports an unavailable state, never a non-AI builder.
+    // With no Lovable AI key the router contacts nobody and reports the
+    // single not-configured error, never a non-AI builder.
     const { generateText } = await import("@/lib/ai/router.server");
     isolateProviderEnvironment();
     await expect(
@@ -206,28 +215,23 @@ describe("provider configuration", () => {
           messages: [{ role: "user", content: "hello" }],
         },
       ),
-    ).rejects.toMatchObject({ category: "free_unavailable", retryable: false });
+    ).rejects.toMatchObject({ category: "not_configured" });
     expect(AI_NOT_CONFIGURED_MESSAGE).toContain("Revora AI is not configured");
   }, 20000);
 
-  it("puts the configured default provider first and the fallback second", () => {
+  it("uses Lovable AI as the only provider, ignoring old provider keys", () => {
     process.env["GOOGLE_AI_API_KEY"] = "test-google";
     process.env["OPENAI_API_KEY"] = "test-openai";
     process.env["AI_DEFAULT_PROVIDER"] = "openai";
-    process.env["AI_FALLBACK_PROVIDER"] = "google";
-    expect(providerChain().map((entry) => entry.name)).toEqual(["openai", "google"]);
-  });
-
-  it("uses a provider that holds a key even when it isn't the configured default", () => {
-    process.env["AI_DEFAULT_PROVIDER"] = "openai";
-    process.env["GOOGLE_AI_API_KEY"] = "test-google";
-    expect(providerChain().map((entry) => entry.name)).toEqual(["google"]);
+    expect(providerChain()).toEqual([]);
+    process.env["LOVABLE_API_KEY"] = "test-lovable";
+    expect(providerChain().map((entry) => entry.name)).toEqual(["lovable"]);
   });
 
   it("lets a model be changed by configuration, without a code change", () => {
-    process.env["GOOGLE_AI_API_KEY"] = "test-google";
-    process.env["AI_GOOGLE_MODEL_FAST"] = "gemini-test-fast";
-    expect(providerConfig("google")?.models.fast).toBe("gemini-test-fast");
+    process.env["LOVABLE_API_KEY"] = "test-lovable";
+    process.env["AI_LOVABLE_MODEL_FAST"] = "google/gemini-3.1-flash-lite";
+    expect(providerConfig("lovable")?.models.fast).toBe("google/gemini-3.1-flash-lite");
   });
 
   it("keeps sane ceilings on cost, size and agent loops", () => {
@@ -247,14 +251,8 @@ describe("provider fallback", () => {
   beforeEach(() => {
     isolateProviderEnvironment();
     vi.resetModules();
-    process.env["BUILDER_EXTERNAL_AI_ALLOWED"] = "true";
-    // These tests cover the optional PAID chain, so the free chain is off.
-    process.env["FREE_AI_ENABLED"] = "false";
-    process.env["FREE_AI_ONLY"] = "false";
-    process.env["GOOGLE_AI_API_KEY"] = "test-google";
-    process.env["OPENAI_API_KEY"] = "test-openai";
-    process.env["AI_DEFAULT_PROVIDER"] = "google";
-    process.env["AI_FALLBACK_PROVIDER"] = "openai";
+    process.env["LOVABLE_API_KEY"] = "test-lovable";
+    process.env["AI_LOVABLE_MODEL_PRIMARY"] = "openai/gpt-6.1-sol,google/gemini-4-argon";
   });
 
   afterEach(() => {
@@ -267,14 +265,14 @@ describe("provider fallback", () => {
     vi.resetModules();
   });
 
-  it("covers a failing primary provider with the secondary one", async () => {
+  it("covers a failing model with the next Lovable AI model", async () => {
     const calls: string[] = [];
     vi.stubGlobal(
       "fetch",
-      vi.fn(async (input: unknown) => {
-        const url = String(input);
-        calls.push(url);
-        if (url.includes("generativelanguage"))
+      vi.fn(async (input: unknown, init?: RequestInit) => {
+        const model = String(JSON.parse(String(init?.body ?? "{}")).model);
+        calls.push(model);
+        if (model === "openai/gpt-6.1-sol")
           return new Response("upstream down", { status: 503 });
         return new Response(
           JSON.stringify({
@@ -293,11 +291,10 @@ describe("provider fallback", () => {
     );
 
     expect(result.text).toBe("second provider answered");
-    expect(result.provider).toBe("openai");
+    expect(result.provider).toBe("lovable");
+    expect(result.model).toBe("google/gemini-4-argon");
     expect(result.fallbackUsed).toBe(true);
-    expect(calls.some((url) => url.includes("generativelanguage"))).toBe(true);
-    expect(calls.some((url) => new URL(url).hostname === "api.openai.com")).toBe(true);
-    expect(calls.every((url) => !url.includes("lovable"))).toBe(true);
+    expect(calls).toContain("openai/gpt-6.1-sol");
   });
 
   it("does not shop around after a refused key: it reports the refusal", async () => {
@@ -323,9 +320,8 @@ describe("provider fallback", () => {
     // the request with a misleading rate-limit error.
     vi.stubGlobal(
       "fetch",
-      vi.fn(async (input: unknown) => {
-        const url = String(input);
-        if (url.includes("generativelanguage"))
+      vi.fn(async (_input: unknown, init?: RequestInit) => {
+        if (String(JSON.parse(String(init?.body ?? "{}")).model) === "openai/gpt-6.1-sol")
           return new Response("upstream down", { status: 503 });
         return new Response(
           JSON.stringify({
@@ -342,7 +338,7 @@ describe("provider fallback", () => {
       { messages: [{ role: "user", content: "hello" }] },
     );
     expect(result.text).toBe("second provider answered");
-    expect(result.provider).toBe("openai");
+    expect(result.provider).toBe("lovable");
   });
 
   it("refuses an oversized request before paying a provider to refuse it", async () => {

@@ -1,8 +1,10 @@
+import { websiteSuggestions, type WebsiteSuggestion } from "@/lib/jarvis-demo-site";
 import { capacityWaitState, type CapacityWaitState } from "@/lib/builder/capacity-wait";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { slugify } from "@/lib/admin.server";
 import {
   DEMO_PREVIEW_DAYS,
+  hoursRecord,
   readProspectDemoMarker,
   type ProspectDemoInput,
   type ProspectDemoMarker,
@@ -87,7 +89,8 @@ export async function provisionProspectDemo(
       city: input.city,
       state: input.state,
       service_area: input.city,
-      hours: {},
+      address: input.address ?? null,
+      hours: hoursRecord(input.hours),
     }),
   );
   await must(
@@ -339,6 +342,8 @@ export type ProspectPrefill = {
   services: string;
   description: string;
   placeId: string;
+  address?: string;
+  hours?: string[];
 };
 
 export type ProspectSourceResult = {
@@ -349,6 +354,10 @@ export type ProspectSourceResult = {
   website: string | null;
   hasRealWebsite: boolean;
   mapsUri: string | null;
+  /** Facts read from the business's own website; the operator must accept each one. */
+  suggestions?: WebsiteSuggestion[];
+  /** Outcome of reading the business's own website, when it lists one. */
+  websiteRead?: { state: "read" | "failed" | "skipped"; message: string };
 };
 
 const MAX_SHORT_LINK_HOPS = 4;
@@ -391,36 +400,88 @@ export async function prospectFromMaps(db: SupabaseClient, actorId: string, inpu
   const { mapsLookupFrom } = await import("@/lib/prospect-source");
   let lookup = mapsLookupFrom(input);
   if (lookup.kind === "short_link") lookup = mapsLookupFrom(await resolveShortLink(lookup.url));
-  if (lookup.kind !== "query") throw new Error("Couldn't read the business from that link.");
+  if (lookup.kind === "short_link") throw new Error("Couldn't read the business from that link.");
   await assertSearchBudget(db);
-  const { searchPlacesForProspects } = await import("@/lib/integrations/google.server");
+  const { searchPlacesForProspects, placeDetailsForProspect } = await import("@/lib/integrations/google.server");
+  const { normalizePlace } = await import("@/lib/prospect-finder");
+  const { pickPlaceMatch } = await import("@/lib/prospect-source");
   const near = lookup.lat !== null && lookup.lng !== null ? { lat: lookup.lat, lng: lookup.lng } : null;
-  const places = await searchPlacesForProspects(lookup.query, 3, near);
+  const label = lookup.query ?? (lookup.kind === "place_id" ? lookup.placeId : "");
+  let raw: Record<string, unknown> | null = null;
+  let results = 0;
+  if (lookup.kind === "place_id") {
+    // Exact listing: Place Details by id, never a fuzzy search.
+    raw = await placeDetailsForProspect(lookup.placeId);
+    results = raw ? 1 : 0;
+  }
+  if (!raw) {
+    if (!lookup.query) throw new Error("Google Maps couldn't find that place. Open the business in Google Maps, tap Share → Copy link, and paste that.");
+    const places = await searchPlacesForProspects(lookup.query, 5, near, ["places.editorialSummary", "places.location"]);
+    results = places.length;
+    const candidates = places.flatMap((entry) => {
+      const normalized = normalizePlace(entry);
+      const location = entry["location"] as { latitude?: unknown; longitude?: unknown } | undefined;
+      return normalized
+        ? [{ raw: entry, placeId: normalized.placeId, name: normalized.name, address: normalized.address, lat: typeof location?.latitude === "number" ? location.latitude : null, lng: typeof location?.longitude === "number" ? location.longitude : null }]
+        : [];
+    });
+    const picked = pickPlaceMatch(lookup.query, candidates, near);
+    if ("ambiguous" in picked) {
+      const list = picked.ambiguous.map((c) => `${c.name}${c.address ? ` (${c.address})` : ""}`).join("; ");
+      throw new Error(
+        list
+          ? `That link matches more than one listing, so nothing was filled in: ${list}. Ask the owner which one, or paste that listing's own Share link.`
+          : `Google Maps has no open business matching "${lookup.query}". Check the link, or type the name and city.`,
+      );
+    }
+    raw = candidates.find((c) => c.placeId === picked.match.placeId)!.raw;
+  }
   await db.from("audit_logs").insert({
     organization_id: null,
     actor_id: actorId,
     action: "jarvis.prospects.search",
     entity: "google_places_lookup",
     entity_id: null,
-    metadata: { query: lookup.query, results: places.length },
+    metadata: { query: label.slice(0, 200), kind: lookup.kind, results },
   });
-  const { normalizePlace } = await import("@/lib/prospect-finder");
-  const place = places.map(normalizePlace).find(Boolean);
-  if (!place) throw new Error(`Google Maps has no open business matching "${lookup.query}". Check the link, or type the name and city.`);
+  const place = raw ? normalizePlace(raw) : null;
+  if (!place) throw new Error(`Google Maps has no open business matching "${label}". Check the link, or type the name and city.`);
+  const category = place.category ?? "";
+  const where = [place.city, place.state].filter(Boolean).join(", ");
+  const missing = [
+    ...(category ? [] : ["industry: Google lists no category. Use the trade the business name itself states (for example \"Auto Detail\" in the name means auto detailing); if the name states none, ask the owner."]),
+    ...(place.city ? [] : ["city: not in the listing; ask the owner."]),
+  ];
+  let suggestions: WebsiteSuggestion[] = [];
+  let websiteRead: ProspectSourceResult["websiteRead"] = { state: "skipped", message: "The listing has no website of its own." };
+  if (place.presence === "has_website" && place.website) {
+    try {
+      const { auditPublicWebsite } = await import("@/lib/audit/website-audit");
+      const read = await auditPublicWebsite(place.website);
+      suggestions = websiteSuggestions(read);
+      websiteRead = { state: "read", message: `Read ${read.finalUrl}. ${suggestions.length ? "Suggestions below need your approval." : "No usable description found."}` };
+    } catch (error) {
+      websiteRead = { state: "failed", message: `Couldn't read the business's website safely (${error instanceof Error ? error.message : "unknown error"}). Nothing from it was used.` };
+    }
+  }
   return {
+    suggestions,
+    websiteRead,
     prefill: {
       businessName: place.name,
-      industry: place.category ?? "",
+      industry: category,
       city: place.city ?? "",
       state: place.state ?? "",
       phone: place.phone ?? "",
       email: "",
       services: "",
-      description: "",
+      description: place.summary ?? (category && where ? `${category} serving ${where}.` : ""),
       placeId: place.placeId,
+      ...(place.address ? { address: place.address } : {}),
+      ...(place.hours?.length ? { hours: place.hours } : {}),
     },
     source: "google_maps",
-    note: `From the Google Maps listing: ${[place.name, place.address].filter(Boolean).join(", ")}.`,
+    note: `From the Google Maps listing: ${[place.name, place.address].filter(Boolean).join(", ")}.${missing.length ? ` Missing: ${missing.join(" ")}` : ""} Copy every prefill field (including placeId, address and hours) into demo.build.`,
     website: place.website,
     hasRealWebsite: place.presence === "has_website",
     mapsUri: place.mapsUri,
@@ -432,7 +493,7 @@ export const MAX_SOURCE_IMAGE_BYTES = 4 * 1024 * 1024;
 
 /**
  * Facts visible in a picture of a business (Maps screenshot, card, flyer,
- * sign), read by a vision model (Lovable first, free pool as failover). If the picture names the business, the
+ * sign), read by a Lovable vision model. If the picture names the business, the
  * Google Maps listing fills what the picture didn't show. The picture itself
  * is not stored or used on the site.
  */
@@ -444,8 +505,6 @@ export async function prospectFromImage(db: SupabaseClient, actorId: string, dat
   const { analyzeImage } = await import("@/lib/ai/router.server");
   let text = "";
   try {
-    // Admin Jarvis work: the router's Lovable-first team reads the picture,
-    // with the free vision pool as failover (owner decision 2026-10-22).
     const result = await analyzeImage({ userId: actorId, task: "admin.jarvis.prospect_image" }, {
       maxOutputTokens: 600,
       temperature: 0,
@@ -462,7 +521,7 @@ export async function prospectFromImage(db: SupabaseClient, actorId: string, dat
     });
     text = result.text;
   } catch {
-    throw new Error("No vision model could read the picture right now. Try again in a minute, or paste a Google Maps link.");
+    throw new Error("No AI model could read the picture right now. Try again in a minute, or paste a Google Maps link.");
   }
   const facts = parseImageFacts(text);
   if (!facts.businessName && !facts.phone && !facts.city)
@@ -492,7 +551,9 @@ export async function prospectFromImage(db: SupabaseClient, actorId: string, dat
   try {
     const maps = await prospectFromMaps(db, actorId, [facts.businessName, facts.city, facts.state].filter(Boolean).join(" "));
     const merged = { ...prefill };
-    for (const key of Object.keys(merged) as (keyof ProspectPrefill)[]) if (!merged[key]) merged[key] = maps.prefill[key];
+    for (const key of Object.keys(merged) as (keyof ProspectPrefill)[]) if (!merged[key]) (merged as Record<string, unknown>)[key] = maps.prefill[key];
+    if (maps.prefill.address) merged.address = maps.prefill.address;
+    if (maps.prefill.hours?.length) merged.hours = maps.prefill.hours;
     return {
       prefill: merged,
       source: "image_and_google_maps",

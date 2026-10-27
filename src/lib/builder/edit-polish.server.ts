@@ -5,7 +5,7 @@
  * The owner's requested change always happens; taste is left to Sol.
  * Any failure returns Sol's original proposal untouched.
  */
-import { callBestThinker } from "@/lib/ai/hall-of-fame.server";
+import { callBestThinker } from "@/lib/ai/thinker.server";
 import { craftBarPrompt } from "@/lib/builder/world-class-craft";
 import { validateComposition } from "@/lib/builder/composition-tree";
 import { runReviewPanel } from "@/lib/builder/review-panel.server";

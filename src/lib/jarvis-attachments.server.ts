@@ -98,9 +98,9 @@ async function describeImage(userId: string, bytes: Uint8Array, mime: string) {
     const text = result.text.trim();
     return text
       ? { status: "analyzed" as const, summary: text }
-      : { status: "unavailable" as const, summary: "The vision model returned no description." };
+      : { status: "unavailable" as const, summary: "The free vision model returned no description." };
   } catch {
-    return { status: "unavailable" as const, summary: "No vision model could describe this image right now. The file is stored but was not analyzed." };
+    return { status: "unavailable" as const, summary: "No free vision model could describe this image right now. The file is stored but was not analyzed." };
   }
 }
 

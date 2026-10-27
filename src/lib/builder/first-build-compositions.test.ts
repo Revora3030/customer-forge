@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 const calls: string[] = [];
-vi.mock("@/lib/ai/hall-of-fame.server", () => ({
+vi.mock("@/lib/ai/thinker.server", () => ({
   callBestThinker: vi.fn(async (req: { user: string }) => {
     calls.push(req.user);
     const widgetPresentation = {

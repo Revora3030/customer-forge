@@ -21,7 +21,7 @@
  *   - Cost-free: it records usage, it never authorises a paid call.
  */
 
-import type { FreeProviderName } from "@/lib/ai/free";
+type FreeProviderName = string;
 
 export type DurableProviderRuntime = {
   provider: string;
@@ -118,6 +118,7 @@ export function durableRuntimeFor(provider: string): DurableProviderRuntime | nu
 export function durableRuntimeSnapshot(): DurableProviderRuntime[] {
   return [...snapshot.values()].sort((a, b) => a.provider.localeCompare(b.provider));
 }
+
 /**
  * Is this provider resting according to the SHARED circuit state?
  * Unknown (never recorded, or database unreachable) means "not resting" — this
@@ -227,100 +228,6 @@ export async function noteDurableProviderResult(input: {
   } catch {
     return null;
   }
-}
-
-/* ----------------------------- model-scoped rows ---------------------------- */
-
-/**
- * One model's own record in the same runtime table. The provider column holds
- * at most 40 characters, so the model id is folded into a short stable hash:
- *   "mr:<provider>:<hash>"  — a short rest after repeated rate limits/timeouts
- *   "mx:<provider>:<hash>"  — a model the provider says does not exist (404)
- * Neither row benches the provider's other models.
- */
-export type DurableModelRecord = "rest" | "gone";
-
-function shortHash(value: string): string {
-  // FNV-1a, 32 bit: stable across workers, no crypto dependency.
-  let hash = 0x811c9dc5;
-  for (let index = 0; index < value.length; index += 1) {
-    hash ^= value.charCodeAt(index);
-    hash = Math.imul(hash, 0x01000193) >>> 0;
-  }
-  return hash.toString(16).padStart(8, "0");
-}
-
-export function durableModelKey(record: DurableModelRecord, provider: string, model: string): string {
-  return `${record === "gone" ? "mx" : "mr"}:${provider.slice(0, 24)}:${shortHash(model)}`;
-}
-
-/** Consecutive model-missing answers before a model is skipped. */
-export const MODEL_GONE_STRIKES = 3;
-/** How long a model that keeps answering "no such model" is skipped. */
-export const MODEL_GONE_REST_MS = 24 * 3600_000;
-/** The database caps one rest at an hour; the 24h window is measured from it. */
-const MODEL_GONE_DB_COOLDOWN_SECONDS = 3600;
-
-/** True while this model rests on the shared model-scoped circuit. */
-export function durableModelResting(provider: string, model: string, now = Date.now()): boolean {
-  const rest = snapshot.get(durableModelKey("rest", provider, model));
-  if (rest?.openUntil != null && rest.openUntil > now) return true;
-  // A model-missing circuit opened within the last 24h with no success since
-  // (a success clears open_until). Measured from the moment it opened, so the
-  // database's one-hour cap on a single rest does not shorten it.
-  const gone = snapshot.get(durableModelKey("gone", provider, model));
-  return (
-    gone?.openUntil != null &&
-    gone.openUntil - MODEL_GONE_DB_COOLDOWN_SECONDS * 1000 + MODEL_GONE_REST_MS > now
-  );
-}
-
-/** Record one model-scoped failure (rate limit/timeout rest, or model missing). */
-export async function noteDurableModelFailure(input: {
-  provider: string;
-  model: string;
-  record: DurableModelRecord;
-  latencyMs?: number | null;
-  rateLimited?: boolean;
-}): Promise<DurableProviderRuntime | null> {
-  return noteDurableProviderResult({
-    provider: durableModelKey(input.record, input.provider, input.model),
-    ok: false,
-    latencyMs: input.latencyMs ?? null,
-    rateLimited: input.rateLimited === true,
-    ...(input.record === "gone"
-      ? { failureThreshold: MODEL_GONE_STRIKES, cooldownSeconds: MODEL_GONE_DB_COOLDOWN_SECONDS }
-      : {}),
-  });
-}
-
-/**
- * A model answered: clear its model-scoped rows, but only where one is known to
- * hold a failure, so a normal answer costs no extra database write.
- */
-export function noteDurableModelSuccess(provider: string, model: string): void {
-  for (const record of ["rest", "gone"] as const) {
-    const key = durableModelKey(record, provider, model);
-    const state = snapshot.get(key);
-    if (state && (state.failures > 0 || state.openUntil != null))
-      void noteDurableProviderResult({ provider: key, ok: true });
-  }
-}
-
-/* ------------------------------- paid accounts ------------------------------ */
-
-/** Shared key for a PAID provider account's degraded (quota / key) state. */
-export function durablePaidKey(provider: string): string {
-  return `paid:${provider.slice(0, 32)}`;
-}
-
-/**
- * True while another worker (or this one) saw this paid account refuse for
- * quota or a rejected key, so every fresh worker also tries the free team first.
- */
-export function durablePaidDegraded(provider: string, now = Date.now()): boolean {
-  const state = snapshot.get(durablePaidKey(provider));
-  return state?.openUntil != null && state.openUntil > now;
 }
 
 /** Test/operations helper: forget the cached shared picture. */

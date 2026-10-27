@@ -15,25 +15,26 @@ async function handle(request: Request): Promise<Response> {
 
   // Who is holding this request open, recorded when a later attempt finds
   // this one dead. Only known invokers are kept; anything else is "unknown".
-  const invokerHeader = (request.headers.get("x-revora-invoker") ?? "").trim().toLowerCase();
+  // The database caller (pg_net) cannot set headers per call, so it names
+  // itself in the query string; only known names are kept either way.
+  const invokerHeader = (request.headers.get("x-revora-invoker") ?? new URL(request.url).searchParams.get("invoker") ?? "").trim().toLowerCase();
   const invoker = (["pg_net", "kick", "pump", "runner"] as const).find((name) => name === invokerHeader) ?? "unknown";
 
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { drainSiteEngineQueue } = await import("@/lib/site-engine.worker.server");
 
-  try {
-    const result = await drainSiteEngineQueue(supabaseAdmin as never, {
-      // One long-lived request per build; do not pile several multi-minute
-      // builds behind the same HTTP request or override an operator pause.
-      max: 1,
-      invoker,
-      ...(organizationId ? { organizationId } : {}),
-    });
-    return Response.json(result);
-  } catch (error) {
+  const run = drainSiteEngineQueue(supabaseAdmin as never, {
+    // One long-lived request per build; do not pile several multi-minute
+    // builds behind the same HTTP request or override an operator pause.
+    max: 1,
+    invoker,
+    ...(organizationId ? { organizationId } : {}),
+  });
+  const { keepAliveJsonResponse } = await import("@/lib/builder/keep-alive-response");
+  return keepAliveJsonResponse(run, (error) => {
     console.error("[site-engine worker]", error);
-    return Response.json({ error: "Worker run failed" }, { status: 500 });
-  }
+    return { error: "Worker run failed" };
+  });
 }
 
 export const Route = createFileRoute("/api/public/jobs/site-engine")({

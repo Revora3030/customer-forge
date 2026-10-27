@@ -12,31 +12,6 @@ import type { ProviderName } from "@/lib/ai/config";
 export const CONTEXT_TOO_LONG_TEXT =
   /context[_ ]length|maximum context|context window|too many (?:input )?tokens|reduce the length|prompt is too long|input is too long|exceeds? the (?:model'?s? )?(?:maximum|max)(?:imum)? (?:context|token|input)|request too large/i;
 
-/** Provider wording for "this model id is retired or not served to this key". */
-export const MODEL_MISSING_TEXT =
-  /model[^"]{0,40}(not found|does not exist|not available|unknown|decommission|deprecat)|no such model|invalid model/i;
-
-/**
- * Provider wording for a model that needs a one-time licence acceptance on the
- * account first (Workers AI's Meta Llama vision models answer 403 until the
- * prompt "agree" has been submitted once). Every call fails the same way.
- */
-export const MODEL_LICENCE_TEXT =
-  /submit the prompt ['"]?agree|licen[cs]e agreement|accept the (?:model'?s? )?licen[cs]e|agree to the (?:model'?s? )?licen[cs]e/i;
-
-/**
- * True when a failure says this one model can never answer this account (a
- * retired id, a 404, or a licence that was never accepted) — a fact about the
- * model, not the provider and not a busy moment.
- */
-export function modelUnavailableError(error: RevoraAiError): boolean {
-  const detail = error.detail ?? "";
-  if (error.category === "bad_response")
-    return error.status !== 429 && error.status < 500 && (error.status === 404 || MODEL_MISSING_TEXT.test(detail));
-  if (error.category === "policy") return MODEL_LICENCE_TEXT.test(detail);
-  return false;
-}
-
 export function base64FromDataUrl(dataUrl: string) {
   const comma = dataUrl.indexOf(",");
   return comma >= 0 ? dataUrl.slice(comma + 1) : dataUrl;
@@ -73,7 +48,9 @@ export async function providerHttpError(
   // A 404 means this one model id is retired or not served to this key. That
   // is a fact about the model, not an outage: it must not be retried or bench
   // the provider, and the next model in the pool should answer instead.
-  const modelMissing = response.status === 404 || MODEL_MISSING_TEXT.test(detail);
+  const modelMissing =
+    response.status === 404 ||
+    /model[^"]{0,40}(not found|does not exist|not available|unknown|decommission|deprecat)|no such model|invalid model/i.test(detail);
   // "Out of credit" is often sent as 429 or 400 (OpenAI insufficient_quota).
   // It is an account fact, not a busy moment: classify it as quota so the
   // provider is skipped and backed off instead of retried.

@@ -290,7 +290,7 @@ export function resetLocalListingCache() {
  * ------------------------------------------------------------------ */
 
 const PROSPECT_FIELDS =
-  "places.id,places.displayName,places.formattedAddress,places.addressComponents,places.nationalPhoneNumber,places.websiteUri,places.primaryTypeDisplayName,places.businessStatus,places.rating,places.userRatingCount,places.googleMapsUri";
+  "places.id,places.displayName,places.formattedAddress,places.addressComponents,places.nationalPhoneNumber,places.websiteUri,places.primaryTypeDisplayName,places.businessStatus,places.rating,places.userRatingCount,places.googleMapsUri,places.primaryType,places.types,places.regularOpeningHours.weekdayDescriptions";
 
 /**
  * One Places text search for the prospect finder. Uses the owner's own
@@ -301,7 +301,10 @@ export async function searchPlacesForProspects(
   textQuery: string,
   maxResultCount = 20,
   near?: { lat: number; lng: number } | null,
+  /** Extra Places fields for a single-business lookup (e.g. "places.editorialSummary"). */
+  extraFields: string[] = [],
 ): Promise<Record<string, unknown>[]> {
+  const fieldMask = [PROSPECT_FIELDS, ...extraFields.filter((field) => /^places\.[A-Za-z.]+$/.test(field))].join(",");
   const body: Record<string, unknown> = { textQuery: textQuery.slice(0, 200), maxResultCount: Math.min(20, Math.max(1, maxResultCount)), languageCode: "en" };
   // A Maps link carries the map's center: prefer the listing the owner was looking at.
   if (near) body["locationBias"] = { circle: { center: { latitude: near.lat, longitude: near.lng }, radius: 5000 } };
@@ -309,7 +312,7 @@ export async function searchPlacesForProspects(
   if (ownKey) {
     const response = await fetch("https://places.googleapis.com/v1/places:searchText", {
       method: "POST",
-      headers: { "X-Goog-Api-Key": ownKey, "X-Goog-FieldMask": PROSPECT_FIELDS, "Content-Type": "application/json" },
+      headers: { "X-Goog-Api-Key": ownKey, "X-Goog-FieldMask": fieldMask, "Content-Type": "application/json" },
       body: JSON.stringify(body),
       // Workers reject redirect: "error"; a 3xx fails the ok check below.
       redirect: "manual",
@@ -330,9 +333,34 @@ export async function searchPlacesForProspects(
   const payload = (await callGateway("google_maps", "/places/v1/places:searchText", {
     method: "POST",
     body,
-    headers: { "X-Goog-FieldMask": PROSPECT_FIELDS },
+    headers: { "X-Goog-FieldMask": fieldMask },
   })) as { places?: Record<string, unknown>[] } | null;
   return Array.isArray(payload?.places) ? payload!.places! : [];
+}
+
+/**
+ * Place Details for one exact Places id (from a Maps link). Same permitted
+ * fields as the prospect search, requested with Details' bare field mask.
+ */
+export async function placeDetailsForProspect(placeId: string): Promise<Record<string, unknown> | null> {
+  if (!/^[A-Za-z0-9_-]{20,300}$/.test(placeId)) throw new GoogleDataError("That Google Maps place id isn't valid.", "provider_error");
+  const fieldMask = `${PROSPECT_FIELDS},places.location,places.editorialSummary`.replace(/places\./g, "");
+  const path = `/places/v1/places/${encodeURIComponent(placeId)}?languageCode=en`;
+  const ownKey = process.env["GOOGLE_PLACES_API_KEY"]?.trim();
+  if (ownKey) {
+    const response = await fetch(`https://places.googleapis.com${path.replace("/places/v1", "/v1")}`, {
+      headers: { "X-Goog-Api-Key": ownKey, "X-Goog-FieldMask": fieldMask },
+      redirect: "manual",
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (response.status === 404) return null;
+    if (response.status === 403) throw new GoogleDataError("Google rejected GOOGLE_PLACES_API_KEY for Place Details.", "no_access");
+    if (response.status === 429) throw new GoogleDataError("Google's Places quota is used up for now. Try again later.", "rate_limited");
+    if (!response.ok) throw new GoogleDataError(`Google Places couldn't answer (${response.status}).`, "provider_error");
+    return (await response.json()) as Record<string, unknown>;
+  }
+  const payload = await callGateway("google_maps", path, { headers: { "X-Goog-FieldMask": fieldMask } });
+  return payload && typeof payload === "object" ? (payload as Record<string, unknown>) : null;
 }
 
 /** Read-only Places (New) GET through the connected Google Maps connector (used for live demo photos). */

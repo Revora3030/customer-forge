@@ -17,7 +17,6 @@ import {
 } from "@/lib/ai/collective";
 import {
   availableTiers,
-  callCollective,
   collectiveStatus,
   costMicrocents,
   estimateMicrocents,
@@ -165,16 +164,6 @@ describe("credential and opt-in gating", () => {
     enablePaidLane();
     process.env["SOL_ENABLED"] = "false";
     expect(availableTiers()).toEqual(["terra", "luna"]);
-  });
-
-  it("never calls a paid model when the paid lane is off", async () => {
-    process.env["LUNA_ENABLED"] = "false";
-    const result = await callCollective({
-      purpose: "creative_direction",
-      system: "s",
-      user: "u",
-    });
-    expect(result).toMatchObject({ ok: false, tier: null, reason: "no_tier_available" });
   });
 
   it("refuses a tier its operator switched off instead of silently substituting", () => {

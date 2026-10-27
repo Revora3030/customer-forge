@@ -25,6 +25,10 @@ export type FoundProspect = {
   rating: number | null;
   reviewCount: number | null;
   mapsUri: string | null;
+  /** Opening hours exactly as the listing states them ("Monday: 9 AM – 5 PM"). */
+  hours?: string[];
+  /** Google's own one-line summary of the business, when the listing has one. */
+  summary?: string | null;
   /** Verified gaps on the business's own website (only set when it was checked). */
   siteGaps?: SiteGap[];
 };
@@ -88,6 +92,26 @@ function component(place: Record<string, unknown>, type: string, short = false):
   return value || null;
 }
 
+// Google tags every listing with these; they say nothing about the trade.
+const GENERIC_TYPES = new Set(["point_of_interest", "establishment", "store", "service", "premise", "geocode", "street_address", "local_business"]);
+
+/** "car_detailing_service" -> "Car detailing service". */
+function humanType(type: string): string {
+  const words = type.replace(/_/g, " ").trim();
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+/** The listing's category: Google's display name, else its most specific type tag. */
+export function placeCategory(place: Record<string, unknown>): string | null {
+  const display = text((place["primaryTypeDisplayName"] as { text?: unknown } | undefined)?.text);
+  if (display) return display.slice(0, 80);
+  const primary = text(place["primaryType"]);
+  if (primary && !GENERIC_TYPES.has(primary)) return humanType(primary).slice(0, 80);
+  const types = Array.isArray(place["types"]) ? (place["types"] as unknown[]) : [];
+  const specific = types.find((type): type is string => typeof type === "string" && /^[a-z_]{3,60}$/.test(type) && !GENERIC_TYPES.has(type));
+  return specific ? humanType(specific).slice(0, 80) : null;
+}
+
 export function normalizePlace(place: Record<string, unknown>): FoundProspect | null {
   const name = text((place["displayName"] as { text?: unknown } | undefined)?.text);
   const placeId = text(place["id"]);
@@ -97,7 +121,7 @@ export function normalizePlace(place: Record<string, unknown>): FoundProspect | 
   return {
     placeId,
     name: name.slice(0, 120),
-    category: text((place["primaryTypeDisplayName"] as { text?: unknown } | undefined)?.text) || null,
+    category: placeCategory(place),
     address: text(place["formattedAddress"]) || null,
     city: component(place, "locality") ?? component(place, "postal_town") ?? component(place, "administrative_area_level_2"),
     state: component(place, "administrative_area_level_1", true),
@@ -107,7 +131,15 @@ export function normalizePlace(place: Record<string, unknown>): FoundProspect | 
     rating: typeof place["rating"] === "number" ? place["rating"] : null,
     reviewCount: typeof place["userRatingCount"] === "number" ? place["userRatingCount"] : null,
     mapsUri: text(place["googleMapsUri"]) || null,
+    ...listingExtras(place),
   };
+}
+
+function listingExtras(place: Record<string, unknown>): { hours?: string[]; summary?: string | null } {
+  const raw = (place["regularOpeningHours"] as { weekdayDescriptions?: unknown } | undefined)?.weekdayDescriptions;
+  const hours = Array.isArray(raw) ? raw.filter((line): line is string => typeof line === "string").map((line) => line.replace(/\s+/g, " ").trim().slice(0, 80)).filter(Boolean).slice(0, 7) : [];
+  const summary = text((place["editorialSummary"] as { text?: unknown } | undefined)?.text).slice(0, 300) || null;
+  return { ...(hours.length ? { hours } : {}), ...(summary ? { summary } : {}) };
 }
 
 const normalName = (name: string) => name.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();

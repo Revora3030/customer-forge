@@ -79,8 +79,12 @@ const errorMiddleware = createMiddleware().server(async ({ next, request }) => {
     if (error != null && typeof error === "object" && "statusCode" in error) {
       throw error;
     }
-    // The visitor left before the response finished: nothing crashed.
-    if (request?.signal?.aborted) throw error;
+    // The visitor left (reload/navigation) before the response finished:
+    // nothing crashed. Answer with 499 "client closed" instead of letting the
+    // framework turn the abort into a false 500.
+    if (request?.signal?.aborted || (error instanceof Error && error.message === "aborted")) {
+      return new Response(null, { status: 499, headers: { "cache-control": "no-store" } }) as never;
+    }
     console.error(error);
     // Record real production crashes so they are actionable instead of lost in
     // a log. Never let tracking failure mask the original error.

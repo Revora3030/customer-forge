@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mapsLookupFrom, mapsRedirectTarget, parseImageFacts } from "./prospect-source";
+import { mapsLookupFrom, mapsRedirectTarget, parseImageFacts, pickPlaceMatch } from "./prospect-source";
 
 describe("mapsLookupFrom", () => {
   it("reads the business and map center from a place link", () => {
@@ -27,6 +27,36 @@ describe("mapsLookupFrom", () => {
     expect(() => mapsLookupFrom("https://goo.gl/abc")).toThrow(/isn't a Google Maps link/);
     expect(() => mapsLookupFrom("https://www.google.com/maps?q=35.1,-78.2")).toThrow(/Share/);
     expect(() => mapsLookupFrom("")).toThrow();
+  });
+
+  it("uses the exact Places id a link carries instead of a text search", () => {
+    const id = "ChIJN1t_tDeuEmsRUsoyG83frY4";
+    expect(mapsLookupFrom(`https://www.google.com/maps/search/?api=1&query=Woods+Auto&query_place_id=${id}`)).toMatchObject({ kind: "place_id", placeId: id, query: "Woods Auto" });
+    expect(mapsLookupFrom(`https://www.google.com/maps?q=place_id:${id}`)).toMatchObject({ kind: "place_id", placeId: id, query: null });
+    expect(mapsLookupFrom(`https://www.google.com/maps/place/Woods+Auto/data=!4m6!3m5!1s0x89ac:0x1!8m2!3d36.07!4d-79.40!19s${id}`)).toEqual({
+      kind: "place_id", placeId: id, query: "Woods Auto", lat: 36.07, lng: -79.4,
+    });
+  });
+
+  it("does not treat hex feature ids as Places ids", () => {
+    expect(mapsLookupFrom("https://www.google.com/maps/place/Woods+Auto/data=!1s0x89ac1:0x2ab")).toMatchObject({ kind: "query" });
+  });
+});
+
+describe("pickPlaceMatch", () => {
+  const a = { placeId: "a", name: "Woods Auto Detail", address: "Graham, NC", lat: 36.07, lng: -79.4 };
+  const b = { placeId: "b", name: "Graham Tire Center", address: "Graham, NC", lat: 36.06, lng: -79.39 };
+  it("picks the listing whose name matches, not the first result", () => {
+    expect(pickPlaceMatch("Woods Auto Detail", [b, a], null)).toEqual({ match: a });
+  });
+  it("refuses a same-name listing far from the link's map center", () => {
+    expect(pickPlaceMatch("Woods Auto Detail", [a], { lat: 40.7, lng: -74 })).toHaveProperty("ambiguous");
+  });
+  it("asks for confirmation when two listings match equally", () => {
+    expect(pickPlaceMatch("Woods Auto Detail", [a, { ...a, placeId: "c", address: "Burlington, NC" }], null)).toHaveProperty("ambiguous");
+  });
+  it("returns no match when nothing resembles the name", () => {
+    expect(pickPlaceMatch("Woods Auto Detail", [b], null)).toEqual({ ambiguous: [b] });
   });
 });
 

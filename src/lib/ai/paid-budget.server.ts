@@ -1,7 +1,4 @@
-import { MICROCENTS_PER_DOLLAR } from "@/lib/ai/luna.server";
-import { modelCostMicrocents, modelEstimateMicrocents } from "@/lib/ai/model-prices";
-
-export { modelCostMicrocents, modelEstimateMicrocents, rosterEstimateMicrocents } from "@/lib/ai/model-prices";
+import { MICROCENTS_PER_DOLLAR, costMicrocents, estimateMicrocents } from "@/lib/ai/luna.server";
 import type { CollectiveTier } from "@/lib/ai/collective";
 import { scopedFreeOnly } from "@/lib/ai/spend-scope.server";
 
@@ -153,13 +150,15 @@ export async function settlePaidSpend(reservation: PaidReservation, actual: numb
   return false;
 }
 
-/** Pre-call estimate for one router attempt, priced by the model it will call. */
+/** Pre-call estimate for a router call whose prompt size isn't known here. */
 export function routerEstimate(model: string, maxOutputTokens: number, promptChars = 24_000): number {
-  return modelEstimateMicrocents(model, promptChars, maxOutputTokens);
+  return estimateMicrocents(promptChars, maxOutputTokens, tierForModel(model));
 }
 
-/** Settled cost of one router attempt; the reservation's estimate when usage is unknown. */
 export function routerActual(model: string, inputTokens: number | null, outputTokens: number | null, fallback: number): number {
   if (inputTokens === null && outputTokens === null) return fallback;
-  return modelCostMicrocents(model, inputTokens ?? 0, outputTokens ?? 0);
+  return costMicrocents(
+    { inputTokens: inputTokens ?? 0, cachedInputTokens: 0, outputTokens: outputTokens ?? 0 },
+    tierForModel(model),
+  );
 }

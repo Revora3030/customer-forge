@@ -36,7 +36,7 @@ export type MediaEnvironment = {
   /** Names of credentials present. Values are never read here. */
   presentSecrets: readonly string[];
   /**
-   * The LIVE state of free AI picture making, measured by
+   * The LIVE state of Lovable AI picture making, measured by
    * `imageGenerationCapability()`. It is passed in rather than read here so this
    * module stays pure and so nothing can be reported as available on the
    * strength of code existing. Omitted means "not measured", which is treated
@@ -89,15 +89,13 @@ export function resolveMediaSources(env: MediaEnvironment): MediaSource[] {
       id: "ai_generation",
       kind: "ai_generation",
       label: "AI image generation",
-      // Only ever "available" when a live check confirmed a free provider, a
-      // free-verified model and unspent daily allowance.
+      // Only ever "available" when a live check confirmed Lovable AI is configured.
       state: ai?.state ?? "not_configured",
       reason:
         ai?.reason ??
-        "Free picture making has not been measured in this environment, so it is treated as unavailable.",
-      // A picture is only ever generated inside a provider's free allowance;
-      // paid image models can never be selected.
-      zeroCost: true,
+        "Picture making has not been measured in this environment, so it is treated as unavailable.",
+      // Lovable AI pictures count against the monthly spending cap.
+      zeroCost: false,
     },
   ];
 }
@@ -164,8 +162,7 @@ export function planMedia(env: MediaEnvironment, options?: { mustBeReal?: boolea
     };
   }
 
-  // Free AI picture making, but only when a live check says a free provider, a
-  // free-verified model and today's allowance are all genuinely there.
+  // Lovable AI picture making, when a live check says it is configured.
   const generated = byId("ai_generation");
   if (generated.state === "available") {
     return {
@@ -173,7 +170,7 @@ export function planMedia(env: MediaEnvironment, options?: { mustBeReal?: boolea
       considered,
       usesGeneratedArt: false,
       explanation:
-        "Making a picture with the connected free picture service, inside its free daily allowance.",
+        "Making a picture with Lovable AI, inside the monthly spending cap.",
     };
   }
 

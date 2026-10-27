@@ -12,7 +12,7 @@
  * section still without a valid AI layout stops the build — there is no
  * substitute design.
  */
-import { callBestThinker } from "@/lib/ai/hall-of-fame.server";
+import { callBestThinker } from "@/lib/ai/thinker.server";
 import { readAll } from "@/lib/db/read-all";
 import { craftBarPrompt } from "@/lib/builder/world-class-craft";
 import { screenText } from "@/lib/builder/collective-copy";
@@ -46,12 +46,13 @@ import {
   type SectionCheckpointStore,
 } from "@/lib/builder/first-build-section-checkpoints";
 
-const IMPROVEMENT_ROUNDS = 2;
+/** One review → improvement pass per page (owner chose speed, 2026-10-22). */
+const IMPROVEMENT_ROUNDS = 1;
 
 type Db = { from: (table: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any
 
 /** How many pages are designed at the same time on a first build. */
-const PAGE_CONCURRENCY = 3;
+const PAGE_CONCURRENCY = 4;
 
 /** Sections whose job is a working feature, not a layout. */
 export const FUNCTIONAL_SECTION_KINDS = new Set([
@@ -794,7 +795,7 @@ async function repairDesignQuality(input: {
   direction?: DepthDirection | null;
 }) {
   const options = { direction: input.direction ?? null };
-  for (let round = 0; round < 2; round += 1) {
+  for (let round = 0; round < 1; round += 1) {
     const ordered = input.sections.filter((s) => input.designed.has(s.id));
     const audit = auditPageDesign(ordered.map((s) => ({ id: s.id, role: s.kind, tree: input.designed.get(s.id)! })), options);
     const failing = ordered.filter((s) => audit[s.id] && needsDesignRepair(audit[s.id]!));

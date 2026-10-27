@@ -15,16 +15,35 @@ const ADMIN_BUDGET_REFUSED = "Today's ElevenLabs voice budget for Jarvis is used
  * to the browser; the endpoint is available only to authenticated super-admins.
  * This buffered version is the fallback when a streamed link can't play.
  */
+export type JarvisVoiceProvider = "auto" | "elevenlabs" | "lovable";
+
+/** Auto keeps the existing ElevenLabs voice when its key is set, else Lovable AI speech. */
+export function resolveVoiceProvider(choice: JarvisVoiceProvider, elevenLabsConfigured: boolean, lovableConfigured: boolean): "elevenlabs" | "lovable" | null {
+  if (choice === "elevenlabs") return elevenLabsConfigured ? "elevenlabs" : null;
+  if (choice === "lovable") return lovableConfigured ? "lovable" : null;
+  return elevenLabsConfigured ? "elevenlabs" : lovableConfigured ? "lovable" : null;
+}
+
 export const synthesizeJarvisVoice = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((input: { text: string }) => {
+  .validator((input: { text: string; provider?: JarvisVoiceProvider }) => {
     if (typeof input?.text !== "string") throw new Error("Enter text for Jarvis to speak.");
     const text = speakableText(input.text);
     if (!text) throw new Error("There is no readable text to speak.");
-    return { text };
+    const provider: JarvisVoiceProvider = input.provider === "elevenlabs" || input.provider === "lovable" ? input.provider : "auto";
+    return { text, provider };
   })
   .handler(async ({ context, data }) => {
     await assertAdmin(context);
+    const { lovableSpeechConfigured } = await import("./ai/lovable-speech.server");
+    const lane = resolveVoiceProvider(data.provider, Boolean(process.env["ELEVENLABS_API_KEY"]?.trim()), lovableSpeechConfigured());
+    if (!lane) throw new Error(data.provider === "lovable" ? "Lovable AI speech is not connected on the server." : "No server voice is configured.");
+    if (lane === "lovable") {
+      const { synthesizeLovableSpeech } = await import("./ai/lovable-speech.server");
+      const result = await synthesizeLovableSpeech(data.text, { organizationId: null });
+      if (!result.ok) throw new Error(result.message);
+      return { audioBase64: Buffer.from(result.audio).toString("base64"), contentType: result.contentType, provider: "lovable" as const, model: result.model };
+    }
     const { requestElevenLabsSpeech, readAudio } = await import("./jarvis-voice.server");
     const { reserveVoiceChars } = await import("./jarvis-voice-budget.server");
     if (!(await reserveVoiceChars("admin", data.text.length)).allowed) throw new Error(ADMIN_BUDGET_REFUSED);
@@ -32,7 +51,7 @@ export const synthesizeJarvisVoice = createServerFn({ method: "POST" })
     const chunks = await readAudio(response);
     if (!chunks.length) throw new Error("ElevenLabs returned empty audio.");
     const audio = Buffer.concat(chunks.map((chunk) => Buffer.from(chunk))).toString("base64");
-    return { audioBase64: audio, contentType: "audio/mpeg" as const, provider: "elevenlabs" as const };
+    return { audioBase64: audio, contentType: "audio/mpeg" as const, provider: "elevenlabs" as const, model: "eleven_flash_v2_5" };
   });
 
 /**

@@ -14,7 +14,7 @@ import { readSectionEffects } from "@/lib/authored-direction";
 import { isBackdropId, safeBackdropSpec, type BackdropId } from "@/lib/site-effects";
 import { safeColor } from "@/lib/site-style";
 import { siteHeadingFont } from "@/lib/site-theme";
-import { callBestThinker } from "@/lib/ai/hall-of-fame.server";
+import { callBestThinker } from "@/lib/ai/thinker.server";
 import { paletteProblems } from "@/lib/builder/palette-guard";
 import {
   BUTTON_STYLES,

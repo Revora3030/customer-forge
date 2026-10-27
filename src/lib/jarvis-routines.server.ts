@@ -128,31 +128,12 @@ export function routineIsDue(routine: Pick<JarvisRoutine, "frequency" | "hour" |
  * Jarvis chat and runs the normal Jarvis loop, so approvals and safety rules
  * are unchanged. AI spend goes through the same router and caps as chat.
  */
-/**
- * "JWT issued at future" is the database gateway seeing the caller's token a
- * moment before its own clock reaches the token's issue time (clock skew). It
- * clears within a second or two, so it is retried once instead of failing the
- * whole cron pass.
- */
-export const TRANSIENT_CLOCK_SKEW = /issued at (?:a )?future/i;
-const CLOCK_SKEW_RETRY_MS = 1_500;
-
-export async function runDueJarvisRoutines(
-  db: SupabaseClient,
-  now = new Date(),
-  options: { retryDelayMs?: number } = {},
-) {
-  const loadEnabled = () =>
-    db
-      .from("jarvis_routines")
-      .select("id,user_id,name,prompt,frequency,hour,minute,enabled,last_run_at")
-      .eq("enabled", true)
-      .limit(200);
-  let { data, error } = await loadEnabled();
-  if (error && TRANSIENT_CLOCK_SKEW.test(error.message ?? "")) {
-    await new Promise((resolve) => setTimeout(resolve, options.retryDelayMs ?? CLOCK_SKEW_RETRY_MS));
-    ({ data, error } = await loadEnabled());
-  }
+export async function runDueJarvisRoutines(db: SupabaseClient, now = new Date()) {
+  const { data, error } = await db
+    .from("jarvis_routines")
+    .select("id,user_id,name,prompt,frequency,hour,minute,enabled,last_run_at")
+    .eq("enabled", true)
+    .limit(200);
   if (error) throw new Error(error.message);
   const due = ((data ?? []) as JarvisRoutine[]).filter((routine) => routineIsDue(routine, now)).slice(0, MAX_RUNS_PER_PASS);
   const results: { id: string; name: string; ok: boolean; detail: string }[] = [];

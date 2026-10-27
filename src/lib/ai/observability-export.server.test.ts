@@ -1,7 +1,7 @@
 import {afterEach,describe,expect,it,vi} from "vitest";
 import type {AiEvent} from "./telemetry.server";
 import {buildOtlpTracePayload,exportAiTelemetry,getAiObservabilityExportStatus} from "./observability-export.server";
-const event:AiEvent={requestId:"8a78c39b-3a67-46a1-a070-8476a7df4c20",provider:"openai",model:"gpt-test-model",task:"site.plan",organizationId:"tenant-secret-id-123",userId:"user-private-id-456",latencyMs:123.4,ok:false,errorCategory:"provider_unavailable",inputTokens:120,outputTokens:45,fallbackUsed:true,toolCalls:2};
+const event:AiEvent={requestId:"8a78c39b-3a67-46a1-a070-8476a7df4c20",provider:"lovable",model:"gpt-test-model",task:"site.plan",organizationId:"tenant-secret-id-123",userId:"user-private-id-456",latencyMs:123.4,ok:false,errorCategory:"provider_unavailable",inputTokens:120,outputTokens:45,fallbackUsed:true,toolCalls:2};
 afterEach(()=>{vi.unstubAllEnvs();vi.unstubAllGlobals();});
 describe("privacy-minimal OTLP/Langfuse export",()=>{
  it("omits customer identifiers and model content",()=>{const text=JSON.stringify(buildOtlpTracePayload(event,1_800_000_000_000));expect(text).toContain("gen_ai.provider.name");expect(text).toContain("gen_ai.usage.input_tokens");expect(text).not.toContain("tenant-secret-id-123");expect(text).not.toContain("user-private-id-456");expect(text).not.toContain("prompt");expect(text).not.toContain("completion");});
