@@ -30,8 +30,8 @@ ${S} .rv-scene-offers[data-anchor="center"]{transform:translate(-50%,-50%)}
 }
 @media (max-width:767px){
 ${S} .rv-scene-offers{position:static;width:100%;max-width:420px}
-:root:has(.rv-cn-mobile-sticky-bar) ${S} .rv-scene-inner{padding-bottom:calc(96px + env(safe-area-inset-bottom,0px))}
-html:has(.rv-cn-mobile-sticky-bar,[data-testid="site-sticky-actions"]) body{padding-bottom:calc(84px + env(safe-area-inset-bottom,0px))}
+:root:has(.rv-cn-mobile-sticky-bar) ${S} .rv-scene-inner{padding-bottom:calc(max(var(--rv-sticky-height,84px),84px) + 12px + env(safe-area-inset-bottom,0px))}
+html:has(.rv-cn-mobile-sticky-bar,[data-testid="site-sticky-actions"]) body{padding-bottom:calc(max(var(--rv-sticky-height,84px),84px) + env(safe-area-inset-bottom,0px))}
 }
 ${S} .rv-offer{display:grid;gap:12px;padding:16px;border-radius:16px;min-width:0;-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
 ${S} .rv-offer-media{width:100%;aspect-ratio:4 / 3;height:auto!important;object-fit:cover;border-radius:10px;display:block}
