@@ -4,7 +4,7 @@
 - [x] Priority 1: reject zero-row first-build composition saves; eight initial tests passed, including exact tenant filters and missing/duplicate/wrong-row failures.
 - [x] Priority 2: compare saved page/section identities, original roles and multiplicity with the materialized build inventory, not only aggregate counts; substituted pages, moved/duplicate sections and lost roles rejected. Completion readback tested with a fake database; no hosted writes.
 - [x] Existing controls reviewed: queued/running generation cancellation and recovery already exist; client-side request dismissal is not remote cancellation, and local approval memory is not server authorization. Durable approval consumption and unified inbox remain later work, not claimed complete.
-- [x] Batch verification: 144 affected test files / 1,079 tests passed; changed-code lint clean; automatic build OK. Evidence: docs/roadmap-reliability-verification-2026-10-27.md.
+- [x] Batch verification: 144 affected files / 1,079 tests passed; full offline suite: 436 files / 3,365 passed / 6 live tests skipped; changed-code lint clean; automatic build OK. Evidence: docs/roadmap-reliability-verification-2026-10-27.md.
 - [ ] Live generation, real lead delivery, paid provider calls, publishing and production mutations require separate owner authorization; none authorized by this continuation.
 
 ## Interactive tools and conversion completion (2026-10-27)

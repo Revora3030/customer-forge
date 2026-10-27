@@ -11,8 +11,9 @@ No new schema, job scheduler, provider, publishing path or approval bypass was i
 
 - Batch 1: 8 tests passed for persistence and the existing composed-section pipeline.
 - Broader affected batch: `bunx vitest run src/lib/builder src/lib/site-materialize.test.ts src/lib/site-engine.fresh-rebuild.test.ts` — 144 files, 1,079 tests passed.
+- Full offline regression suite: 436 files passed, 3,365 tests passed, 6 credential-gated live tests skipped; no external integration tests selected.
 - Changed-code ESLint: clean.
-- Automatic preview build: latest observed entry at 17:03:09 UTC, build OK.
+- Automatic preview build: latest observed entry at 17:03:58 UTC, build OK.
 - Fake-database completion-readback tests cover exact tenant filters, equal-count substitution, and page/section lookup failure.
 - Existing checkpoint fixture updated to return the persisted identity required by the new save contract; checkpoint resumption regressions pass.
 
