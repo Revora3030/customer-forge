@@ -1,5 +1,11 @@
 # Roadmap — Five-phase blocker elimination
 
+## Admin account Lovable-only repair (2026-10-27)
+- [ ] Inspect all admin pages signed in as the requesting owner; record page-load evidence separately from paid-operation verification.
+- [ ] Replace usage-derived routing controls with eligible configured Lovable model IDs; reject obsolete pins/pauses server-side and retain immutable usage history.
+- [ ] Remove outdated multi-provider claims, misleading readiness wording and phone-clipped AI reporting; preserve real operational integrations and approval/budget gates.
+- [ ] Run focused and broader regressions; verify affected signed-in pages after repairs. No publishing or paid AI calls.
+
 ## Roadmap continuation (2026-10-27)
 - [x] Priority 1: reject zero-row first-build composition saves; eight initial tests passed, including exact tenant filters and missing/duplicate/wrong-row failures.
 - [x] Priority 2: compare saved page/section identities, original roles and multiplicity with the materialized build inventory, not only aggregate counts; substituted pages, moved/duplicate sections and lost roles rejected. Completion readback tested with a fake database; no hosted writes.
