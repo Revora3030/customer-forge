@@ -39,7 +39,9 @@ export type DesignFinding = {
     | "flat_page"
     | "lead_not_scene"
     | "scene_text_contrast"
-    | "page_missing_interactive";
+    | "page_missing_interactive"
+    | "duplicate_text"
+    | "empty_column";
   severity: "critical" | "major";
   path: string;
   /** Plain repair instruction for the art director. */
@@ -454,6 +456,45 @@ export function auditPageDesign(
         severity: "critical",
         path: visit.path,
         fix: "This page already has a level-1 heading in an earlier section. A page has exactly one; make this heading level 2 (keep its look if it should stay large).",
+      });
+    }
+  }
+
+  // Repeated wording: the same sentence shown twice on one page reads as filler.
+  const seenText = new Map<string, string>();
+  for (const section of sections) {
+    for (const visit of walk(section.tree.root)) {
+      const raw = (visit.node.text ?? "").trim();
+      const key = raw.toLowerCase().replace(/\s+/g, " ");
+      if (key.length < 40) continue;
+      if (seenText.has(key)) {
+        (out[section.id] ??= []).push({
+          code: "duplicate_text",
+          severity: "major",
+          path: visit.path,
+          fix: "This exact wording already appears earlier on this page. Rewrite it so each section says something new, or remove the repeat.",
+        });
+      } else seenText.set(key, section.id);
+    }
+  }
+
+  // Empty column: a multi-column grid/row with a cell that has no words or picture
+  // leaves a blank area on desktop.
+  const hasContent = (node: CompositionNode): boolean =>
+    walk(node).some(({ node: n }) => !CONTAINERS.has(n.type) || Boolean((n.text ?? "").trim()) || Boolean(n.src || n.mediaRef));
+  for (const section of sections) {
+    for (const visit of walk(section.tree.root)) {
+      if (visit.node.type !== "grid" && visit.node.type !== "row") continue;
+      const kids = visit.node.children ?? [];
+      if (kids.length < 2) continue;
+      kids.forEach((child, index) => {
+        if (hasContent(child)) return;
+        (out[section.id] ??= []).push({
+          code: "empty_column",
+          severity: "major",
+          path: `${visit.path}.children[${index}]`,
+          fix: "This column has no words or picture, so desktop shows a blank area. Fill it with supplied content or a supplied picture, or remove the column and let the layout span full width.",
+        });
       });
     }
   }
