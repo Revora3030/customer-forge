@@ -86,6 +86,7 @@ jobs:
           agent-browser close
       - name: Upload browser evidence
         if: always()
+        continue-on-error: true  # a full Actions artifact quota must not fail a job whose checks passed
         uses: actions/upload-artifact@v4
         with:
           name: revora-browser-qa-${{ github.run_id }}
