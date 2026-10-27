@@ -17,6 +17,7 @@ import {
 } from "@/lib/ai/command-center.functions";
 import type { DesignTokens } from "@/lib/builder/design-tokens";
 import { metaDescription } from "@/lib/seo";
+import type { AdminRoutingModel } from "@/lib/ai/admin-model-routing";
 
 export const Route = createFileRoute("/_authenticated/admin/command")({
   head: () => ({
@@ -42,17 +43,17 @@ function CommandCenter() {
     <div className="product-page space-y-6">
       <SectionHeading
         title="AI Command Center"
-        description="Steer which models do the work, set any website's design tokens, and decide how strict the visual check is. Changes take effect within 30 seconds."
+        description="Lovable AI routing, website design settings and measured quality controls."
       />
       {query.error ? <ErrorNote message={(query.error as Error).message} /> : null}
-      {query.isLoading || !query.data ? (
+      {query.isLoading ? (
         <LoadingRows rows={6} />
-      ) : (
+      ) : query.data ? (
         <>
-          <RoutingAndGate initial={query.data.settings} models={query.data.models} />
+          <RoutingAndGate initial={query.data.settings} models={query.data.models} catalogueState={query.data.catalogueState} />
           <SiteDesign orgs={query.data.orgs} />
         </>
-      )}
+      ) : <Button variant="outline" onClick={() => query.refetch()}>Retry Command Center</Button>}
     </div>
   );
 }
@@ -60,9 +61,11 @@ function CommandCenter() {
 function RoutingAndGate({
   initial,
   models,
+  catalogueState,
 }: {
   initial: Settings;
-  models: { model: string; provider: string; calls: number; failures: number; quality: number }[];
+  models: AdminRoutingModel[];
+  catalogueState: "live" | "stale" | "unavailable";
 }) {
   const save = useServerFn(saveCommandSettings);
   const qc = useQueryClient();
@@ -70,7 +73,7 @@ function RoutingAndGate({
   const mutation = useMutation({
     mutationFn: (next: Settings) => save({ data: next }),
     onSuccess: () => {
-      toast.success("AI settings saved — live within 30 seconds.");
+      toast.success("AI settings saved. Routing refreshes within 30 seconds.");
       void qc.invalidateQueries({ queryKey: ["admin-command"] });
     },
     onError: (e: Error) => toast.error(e.message),
@@ -89,31 +92,32 @@ function RoutingAndGate({
   return (
     <>
       <Panel>
-        <h2 className="text-lg font-semibold">Live model routing</h2>
+        <h2 className="text-lg font-semibold">Lovable AI model routing</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           Pinned models are tried first, in the order you pin them. Paused models are skipped, unless every option is paused.
-          This applies to text and planning work; picture generation keeps its quality ranking.
+          Text, planning and vision use these controls. Pictures, video and voice keep their dedicated model selection and spending checks.
         </p>
+        {catalogueState !== "live" ? <p role="status" className="mt-3 text-sm text-destructive">Model eligibility could not be refreshed. Routing changes are disabled until the live Lovable list is available.</p> : null}
         <ul className="mt-4 divide-y divide-border">
           {models.map((m) => {
             const pinIndex = s.pinnedModels.indexOf(m.model);
             const paused = s.pausedModels.includes(m.model);
-            const rate = m.calls ? Math.round(((m.calls - m.failures) / m.calls) * 100) : null;
+            const rate = m.calls ? Math.round((m.successes / m.calls) * 100) : null;
             return (
               <li key={m.model} className="flex flex-wrap items-center gap-3 py-3">
                 <div className="min-w-0 flex-1">
-                  <p className="truncate font-mono text-sm">{m.model}</p>
+                  <p className="break-all font-mono text-sm">{m.model}</p>
                   <p className="text-xs text-muted-foreground">
-                    {m.provider || "provider"} · quality {m.quality} · {m.calls} calls in 7 days
-                    {rate !== null ? ` · ${rate}% succeeded` : ""}
+                    Lovable AI · {m.roles.join(", ")} · {m.calls} calls in 7 days
+                    {rate !== null ? ` · ${rate}% succeeded` : " · not used yet"}
                   </p>
                 </div>
                 {pinIndex >= 0 ? <Pill tone="signal">Pinned #{pinIndex + 1}</Pill> : null}
                 {paused ? <Pill tone="attention">Paused</Pill> : null}
-                <Button size="sm" variant={pinIndex >= 0 ? "default" : "outline"} onClick={() => toggle("pinnedModels", m.model)}>
+                <Button size="sm" disabled={catalogueState !== "live" || mutation.isPending} variant={pinIndex >= 0 ? "default" : "outline"} onClick={() => toggle("pinnedModels", m.model)}>
                   {pinIndex >= 0 ? "Unpin" : "Pin"}
                 </Button>
-                <Button size="sm" variant="ghost" onClick={() => toggle("pausedModels", m.model)}>
+                <Button size="sm" disabled={catalogueState !== "live" || mutation.isPending} variant="ghost" onClick={() => toggle("pausedModels", m.model)}>
                   {paused ? "Resume" : "Pause"}
                 </Button>
               </li>
@@ -125,8 +129,7 @@ function RoutingAndGate({
       <Panel>
         <h2 className="text-lg font-semibold">Visual QA gate</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          After every chat change, Revora checks phone, tablet and desktop. When the AI can't repair a failure and the score stays
-          below this line, the change is undone automatically.
+          Automatic undo applies only when a current measured check proves the change failed. Missing browser evidence is not a passing check or a reason to undo.
         </p>
         <div className="mt-4 flex items-center justify-between gap-4">
           <Label htmlFor="qa-revert">Undo clearly-worse changes automatically</Label>
@@ -139,7 +142,7 @@ function RoutingAndGate({
       </Panel>
 
       <div className="flex justify-end">
-        <Button onClick={() => mutation.mutate(s)} disabled={mutation.isPending}>
+        <Button onClick={() => mutation.mutate(s)} disabled={catalogueState !== "live" || mutation.isPending}>
           {mutation.isPending ? "Saving…" : "Save routing and QA gate"}
         </Button>
       </div>
@@ -188,7 +191,8 @@ function SiteDesign({ orgs }: { orgs: { id: string; name: string; slug: string }
           <option key={o.id} value={o.id}>{o.name} ({o.slug})</option>
         ))}
       </select>
-      {design.isLoading ? <LoadingRows rows={3} /> : (
+      {design.error ? <ErrorNote message="Couldn't read this website's design. Retry before saving." /> : null}
+      {design.isLoading ? <LoadingRows rows={3} /> : design.data ? (
         <div className="mt-5 grid gap-5 sm:grid-cols-2">
           {(["primary_color", "secondary_color", "accent_color"] as const).map((key) => (
             <div key={key}>
@@ -224,9 +228,9 @@ function SiteDesign({ orgs }: { orgs: { id: string; name: string; slug: string }
             </select>
           </div>
         </div>
-      )}
+      ) : null}
       <div className="mt-5 flex justify-end">
-        <Button onClick={() => mutation.mutate()} disabled={!orgId || mutation.isPending}>
+        <Button onClick={() => mutation.mutate()} disabled={!orgId || !design.data || design.isFetching || design.isError || mutation.isPending}>
           {mutation.isPending ? "Saving…" : "Save design"}
         </Button>
       </div>

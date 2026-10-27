@@ -20,31 +20,26 @@ export const getCommandCenter = createServerFn({ method: "GET" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as unknown as AnyDb;
     const { toCommandSettings } = await import("@/lib/ai/command-settings.server");
-    const { SPECIALIST_SIX } = await import("@/lib/ai/orchestration/specialists");
-    const { candidateQuality } = await import("@/lib/ai/orchestration/order");
+    const { providerConfig } = await import("@/lib/ai/config");
+    const { liveCatalogue } = await import("@/lib/ai/catalogue.server");
+    const { adminRoutingModels } = await import("@/lib/ai/admin-model-routing");
     const since = new Date(Date.now() - 7 * 86_400_000).toISOString();
-    const [{ data: row }, { data: usage }, { data: orgs }] = await Promise.all([
+    const [settingsRead, usageRead, orgsRead, catalogue] = await Promise.all([
       db.from("ai_command_settings").select("*").eq("id", 1).maybeSingle(),
       (await import("@/lib/paginate")).fetchAllRows((from, to) => db.from("ai_usage_events").select("model,provider,ok").gte("created_at", since).order("id", { ascending: true }).range(from, to)).then((r) => ({ data: r.rows, error: r.error })),
       db.from("organizations").select("id,name,slug").order("created_at", { ascending: false }).limit(200),
+      liveCatalogue(),
     ]);
-    const stats = new Map<string, { model: string; provider: string; calls: number; failures: number }>();
-    for (const u of (usage ?? []) as { model: string | null; provider: string | null; ok: boolean | null }[]) {
-      if (!u.model) continue;
-      const s = stats.get(u.model) ?? { model: u.model, provider: u.provider ?? "", calls: 0, failures: 0 };
-      s.calls += 1;
-      if (u.ok === false) s.failures += 1;
-      stats.set(u.model, s);
-    }
-    for (const s of SPECIALIST_SIX as readonly { model: string; provider?: string }[])
-      if (!stats.has(s.model)) stats.set(s.model, { model: s.model, provider: s.provider ?? "", calls: 0, failures: 0 });
-    const models = [...stats.values()]
-      .map((s) => ({ ...s, quality: Math.round(candidateQuality(s.model)) }))
-      .sort((a, b) => b.quality - a.quality || b.calls - a.calls);
+    if (settingsRead.error || usageRead.error || orgsRead.error) throw new Error("Couldn't read the AI Command Center. Try again.");
+    const models = adminRoutingModels(providerConfig()?.models ?? {}, catalogue.models ?? [], usageRead.data ?? []);
+    const settings = toCommandSettings(settingsRead.data as Record<string, unknown> | null);
+    const allowed = new Set(models.map(model => model.model));
     return {
-      settings: toCommandSettings(row as Record<string, unknown> | null),
+      settings: { ...settings, pinnedModels: settings.pinnedModels.filter(id => allowed.has(id)), pausedModels: settings.pausedModels.filter(id => allowed.has(id)) },
       models,
-      orgs: (orgs ?? []) as { id: string; name: string; slug: string }[],
+      catalogueState: catalogue.state,
+      catalogueError: catalogue.error,
+      orgs: (orgsRead.data ?? []) as { id: string; name: string; slug: string }[],
     };
   });
 
@@ -63,11 +58,19 @@ export const saveCommandSettings = createServerFn({ method: "POST" })
   })
   .handler(async ({ data, context }) => {
     await superAdmin(context);
+    const { liveCatalogue } = await import("@/lib/ai/catalogue.server");
+    const { providerConfig } = await import("@/lib/ai/config");
+    const { adminRoutingModels, validateAdminRoutingIds } = await import("@/lib/ai/admin-model-routing");
+    const catalogue = await liveCatalogue();
+    if (catalogue.state !== "live") throw new Error("Refresh the live Lovable model list before saving routing changes.");
+    const models = adminRoutingModels(providerConfig()?.models ?? {}, catalogue.models ?? [], []);
+    const pinnedModels = validateAdminRoutingIds(data.pinnedModels, models);
+    const pausedModels = validateAdminRoutingIds(data.pausedModels, models);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { error } = await (supabaseAdmin as unknown as AnyDb).from("ai_command_settings").upsert({
       id: 1,
-      pinned_models: data.pinnedModels,
-      paused_models: data.pausedModels.filter((m) => !data.pinnedModels.includes(m)),
+      pinned_models: pinnedModels,
+      paused_models: pausedModels.filter((m) => !pinnedModels.includes(m)),
       qa_auto_revert: data.qaAutoRevert,
       qa_min_score: data.qaMinScore,
       updated_at: new Date().toISOString(),
@@ -107,10 +110,13 @@ export const getSiteDesign = createServerFn({ method: "GET" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as unknown as AnyDb;
     const { readDesignTokens } = await import("@/lib/builder/design-tokens");
-    const [{ data: profile }, { data: settings }] = await Promise.all([
+    const [profileRead, settingsRead] = await Promise.all([
       db.from("business_profiles").select("primary_color,secondary_color,accent_color,font_preference").eq("organization_id", data.organizationId).maybeSingle(),
       db.from("website_settings").select("generation").eq("organization_id", data.organizationId).maybeSingle(),
     ]);
+    if (profileRead.error || settingsRead.error) throw new Error("Couldn't read that website's design.");
+    const profile = profileRead.data;
+    const settings = settingsRead.data;
     return {
       colors: (profile ?? {}) as { primary_color?: string | null; secondary_color?: string | null; accent_color?: string | null },
       tokens: readDesignTokens((settings as { generation?: unknown } | null)?.generation ?? null) ?? {},
@@ -130,7 +136,8 @@ export const saveSiteDesign = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as unknown as AnyDb;
     const { writeDesignTokens } = await import("@/lib/builder/design-tokens");
-    const { data: settings } = await db.from("website_settings").select("generation").eq("organization_id", data.organizationId).maybeSingle();
+    const { data: settings, error: readError } = await db.from("website_settings").select("generation").eq("organization_id", data.organizationId).maybeSingle();
+    if (readError) throw new Error("Couldn't read the existing design. Nothing was changed.");
     const generation = writeDesignTokens((settings as { generation?: unknown } | null)?.generation ?? null, data.tokens);
     const writes = [
       db.from("website_settings").upsert({ organization_id: data.organizationId, generation }, { onConflict: "organization_id" }),

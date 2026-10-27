@@ -1,5 +1,12 @@
 # Roadmap — Five-phase blocker elimination
 
+## Admin account Lovable-only repair (2026-10-27)
+- [x] Inspect all 16 admin index/list screens signed in as the requesting owner; no page script errors or document overflow. Client-detail permutations and every mutation are not covered by this route-load audit.
+- [x] Replace usage-derived routing controls with eligible configured Lovable model IDs; reject obsolete pins/pauses server-side and retain immutable usage history. Special media selectors and existing roster order preserved.
+- [x] Remove outdated multi-provider/free-router claims, filter current AI health to Lovable records, distinguish configuration from verified calls, fail budget/design reads honestly, and fix phone-clipped AI reporting.
+- [x] 29 initial routing checks passed; full suite 438 files / 3,371 tests passed / 6 live tests skipped; changed-file lint clean and automatic build OK. Signed-in Command Center/AI health verified at 390/1280, local Pin/Unpin exercised without saving. Evidence: docs/admin-lovable-only-verification.md.
+- [ ] Real AI requests, saved routing changes, every admin mutation and client-detail permutations remain unverified; paid actions/publishing require explicit approval. No provider calls or publishing performed.
+
 ## Roadmap continuation (2026-10-27)
 - [x] Priority 1: reject zero-row first-build composition saves; eight initial tests passed, including exact tenant filters and missing/duplicate/wrong-row failures.
 - [x] Priority 2: compare saved page/section identities, original roles and multiplicity with the materialized build inventory, not only aggregate counts; substituted pages, moved/duplicate sections and lost roles rejected. Completion readback tested with a fake database; no hosted writes.

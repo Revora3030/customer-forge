@@ -70,6 +70,7 @@ export const getLunaStatus = createServerFn({ method: "GET" })
     const spent = Number(state.data?.spent_microcents ?? 0);
     const calls = Number(state.data?.calls ?? 0);
     const capMicrocents = Number(state.data?.cap_microcents ?? cap) || cap;
+    if (state.error) throw new Error("Couldn't read the monthly AI budget.");
 
     const recent = await supabaseAdmin
       .from("luna_usage_events")
@@ -78,6 +79,7 @@ export const getLunaStatus = createServerFn({ method: "GET" })
       )
       .order("created_at", { ascending: false })
       .limit(20);
+    if (recent.error) throw new Error("Couldn't read recent AI budget events.");
 
     const usd = (value: number) => Math.round((value / MICROCENTS_PER_DOLLAR) * 10_000) / 10_000;
 

@@ -133,13 +133,13 @@ export const CAPABILITY_LABELS: Record<Capability, string> = {
 export const PROVIDERS: ProviderDefinition[] = [
   {
     id: "revora-ai-router",
-    label: "Revora free-AI router",
+    label: "Lovable AI router",
     capabilities: ["ai.text", "ai.vision"],
-    credentials: [],
-    cost: "free",
+    credentials: ["LOVABLE_API_KEY"],
+    cost: "paid",
     scope: "platform",
     implemented: true,
-    permission: "Server-side only. Free providers first; paid models are rejected in free-only mode.",
+    permission: "Server-side Lovable AI only; monthly and daily spend reservations, tenant limits and approval checks remain enforced. No free-provider fallback.",
   },
   {
     id: "revora-native-fetch",

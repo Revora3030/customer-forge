@@ -9,6 +9,11 @@ export type UsageRow = {
   fallback_used: boolean;
 };
 
+/** Retired direct-provider records remain in storage, but are not current Lovable health evidence. */
+export function currentLovableUsage<T extends { provider: string }>(rows: readonly T[]): T[] {
+  return rows.filter(row => row.provider === "lovable");
+}
+
 export function lastRecordedOutcome(recent: UsageRow[]) {
   const row = recent[0];
   if (!row) return null;

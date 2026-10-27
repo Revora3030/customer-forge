@@ -136,7 +136,8 @@ export const getAiHealth = createServerFn({ method: "GET" })
     );
     if (error) throw new Error("Couldn't read AI usage.");
 
-    const events = rows ?? [];
+    const { currentLovableUsage } = await import("@/lib/ai/health-merge");
+    const events = currentLovableUsage(rows ?? []);
     const day = events.filter((row) => new Date(row.created_at).getTime() >= dayAgo);
 
     const tasks = new Map<
