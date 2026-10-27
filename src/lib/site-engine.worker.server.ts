@@ -2409,7 +2409,8 @@ async function runJob(
 
   if (!built.skipped) {
     const { assertFirstBuildSavedCoverage } = await import("@/lib/builder/first-build-saved-coverage.server");
-    await assertFirstBuildSavedCoverage(db, orgId, { pages: built.pages, sections: built.sections });
+    if (!built.inventory) throw new Error("Couldn't verify the accepted website inventory");
+    await assertFirstBuildSavedCoverage(db, orgId, { pages: built.pages, sections: built.sections, inventory: built.inventory });
   }
 
   // Re-read generation right before the final save. Stages above (the AI

@@ -136,6 +136,15 @@ async function build(extra: Partial<MaterializeInput>) {
 }
 
 describe("first-build media truth and page material", () => {
+  it("returns the exact inserted page and section identities for completion readback", async () => {
+    const { result, tables } = await build({ architect: plan([
+      { slug: "home", title: "Home", purpose: "home", primaryAction: "Get a price", sections: [{ role: "hero" }, { role: "contact" }] },
+    ]) });
+    expect(result.inventory?.pages).toEqual(tables.website_pages.map(row => ({ id: row["id"], slug: row["slug"] })));
+    expect(result.inventory?.sections).toEqual(tables.website_sections.map(row => ({ id: row["id"], page_id: row["page_id"], role: row["kind"] })));
+    expect(result.inventory?.pages.length).toBe(result.pages);
+    expect(result.inventory?.sections.length).toBe(result.sections);
+  });
   it("keeps an owner photo as the owner's own, with no AI credit", async () => {
     const owner = asset({ provider: "owner", model: "owner", path: "org/IMG_2341.jpg", category: "work", placement: ["about"] });
     const { componentsOf } = await build({

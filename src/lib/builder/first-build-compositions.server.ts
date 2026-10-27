@@ -14,6 +14,7 @@
  */
 import { callBestThinker } from "@/lib/ai/thinker.server";
 import { readAll } from "@/lib/db/read-all";
+import { saveFirstBuildComposition as saveTree } from "./save-first-build-composition.server";
 import { craftBarPrompt } from "@/lib/builder/world-class-craft";
 import { screenText } from "@/lib/builder/collective-copy";
 import { repairContactDetails } from "@/lib/builder/chrome-repair";
@@ -22,7 +23,6 @@ import {
   isSafeHref,
   readComposition,
   validateComposition,
-  writeComposition,
   type CompositionIssue,
   type CompositionTree,
 } from "@/lib/builder/composition-tree";
@@ -866,19 +866,6 @@ async function repairDesignQuality(input: {
     input.result.designRepairs = (input.result.designRepairs ?? 0) + improved;
     if (!improved) return;
   }
-}
-
-async function saveTree(db: Db, organizationId: string, section: SectionRow, tree: CompositionTree) {
-  // The section's original job (contact, services, booking…) is kept so the
-  // renderer can give it a matching anchor: "#contact" buttons then scroll to
-  // the real contact section instead of doing nothing.
-  const settings = { ...writeComposition(section.settings, tree), role: section.kind };
-  const { error } = await db
-    .from("website_sections")
-    .update({ kind: "composition", settings } as never)
-    .eq("id", section.id)
-    .eq("organization_id", organizationId);
-  if (error) throw new Error(error.message);
 }
 
 /**
