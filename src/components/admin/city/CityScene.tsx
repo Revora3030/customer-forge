@@ -1,6 +1,6 @@
 import { Suspense, useEffect, useMemo, useRef } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { Environment, Html, Lightformer, OrbitControls, useGLTF } from "@react-three/drei";
+import { Environment, Lightformer, OrbitControls, useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import type { OrbitControls as OrbitControlsType } from "three-stdlib";
 import { CITY_DISTRICTS, districtState, type CitySnapshot, type DistrictId } from "@/lib/ai-city";
@@ -52,9 +52,29 @@ function Building({ index, palette, selected, active, onSelect }: { index: numbe
     const scaled = new THREE.Box3().setFromObject(clone);
     const center = scaled.getCenter(new THREE.Vector3());
     clone.position.set(-center.x, -scaled.min.y, -center.z);
-    clone.traverse(object => { if (object instanceof THREE.Mesh) { object.castShadow = true; object.receiveShadow = true; } });
+    clone.traverse(object => {
+      if (!(object instanceof THREE.Mesh)) return;
+      object.castShadow = true;
+      object.receiveShadow = true;
+      const tint = (material: THREE.Material) => {
+        const copy = material.clone();
+        if (copy instanceof THREE.MeshStandardMaterial) {
+          copy.color.set(palette.structure);
+          copy.metalness = 0.45;
+          copy.roughness = 0.55;
+        }
+        return copy;
+      };
+      object.material = Array.isArray(object.material) ? object.material.map(tint) : tint(object.material);
+    });
     return clone;
-  }, [scene, district]);
+  }, [scene, district, palette.structure]);
+  useEffect(() => () => building.traverse(object => {
+    if (object instanceof THREE.Mesh) {
+      const materials = Array.isArray(object.material) ? object.material : [object.material];
+      materials.forEach(material => material.dispose());
+    }
+  }), [building]);
   if (!district) return null;
   const color = palette[district.tone];
   return <group position={[district.position[0], 0, district.position[1]]} onClick={event => { event.stopPropagation(); if (event.delta < 5) onSelect(); }}>
@@ -109,7 +129,7 @@ export default function CityScene({ snapshot, selected, onSelect, palette, motio
     <directionalLight position={[10, 20, 8]} intensity={2.5} castShadow shadow-mapSize-width={1024} shadow-mapSize-height={1024} shadow-camera-left={-20} shadow-camera-right={20} shadow-camera-top={20} shadow-camera-bottom={-20} />
     <Environment resolution={64}><Lightformer intensity={2} position={[0, 12, 0]} rotation-x={Math.PI / 2} scale={[25, 25, 1]} /><Lightformer intensity={1.5} color={palette.cyan} position={[-15, 3, 0]} rotation-y={Math.PI / 2} scale={[20, 10, 1]} /></Environment>
     <Ground palette={palette} />
-    {CITY_DISTRICTS.map((d, index) => <Suspense key={d.id} fallback={<Html position={[d.position[0], 1, d.position[1]]} center><span className="text-xs text-muted-foreground">Loading {d.name}…</span></Html>}><Building index={index} palette={palette} selected={selected === d.id} active={motion && districtState(d.id, snapshot, Date.now()) === "working"} onSelect={() => onSelect(d.id)} /></Suspense>)}
+    {CITY_DISTRICTS.map((d, index) => <Suspense key={d.id} fallback={null}><Building index={index} palette={palette} selected={selected === d.id} active={motion && districtState(d.id, snapshot, Date.now()) === "working"} onSelect={() => onSelect(d.id)} /></Suspense>)}
     <OrbitControls ref={controls} makeDefault enableDamping enableRotate minZoom={8} maxZoom={65} minPolarAngle={0.35} maxPolarAngle={1.25} target={[0, 1.5, 0]} touches={{ ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_ROTATE }} />
     <CityControls selected={selected} reset={reset} controls={controls} />
   </Canvas>;
