@@ -22,6 +22,7 @@ const clean = (width: number): ViewportMeasurement => ({
   unreachable: [],
   navigable: true,
   ctas: 2,
+  overlayConflicts: [],
   accessibility: {
     imagesMissingAlt: [],
     unlabeledControls: [],

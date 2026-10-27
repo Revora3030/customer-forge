@@ -122,6 +122,13 @@ export type ViewportMeasurement = {
   /** Runtime script errors and unhandled rejections seen inside the page. */
   runtimeErrors?: string[] | undefined;
 
+  /**
+   * Offer cards / sticky or fixed bars found on top of a link, button or form
+   * field. Undefined means the measurement did not run (older evidence), which
+   * is reported as not measured — never as passed.
+   */
+  overlayConflicts?: string[] | undefined;
+
   accessibility?: AccessibilityMeasurement | undefined;
   performance?: PerformanceMeasurement | undefined;
 };
@@ -409,6 +416,21 @@ export function gradeViewport(
       "p0",
       `“${control}” appears interactive but does not have a usable destination.`,
       "Give the control a real destination/action or remove it.",
+    );
+  }
+
+  // Offer cards, sticky bars and fixed bottom bars covering a control. A
+  // phone-width conflict is P0 (it blocks the visitor); wider screens advise.
+  for (
+    const conflict of (
+      measurement.overlayConflicts ?? []
+    ).slice(0, MAX_FINDINGS_PER_CATEGORY)
+  ) {
+    add(
+      "overlay_covers_control",
+      phone ? "p0" : "advice",
+      `At ${width}px an overlay sits on top of a control — ${conflict}.`,
+      "Move the offer card or sticky bar so it never covers a link, button or form field: let it flow below the copy on phones, change its anchor, or reserve bottom space for the bar.",
     );
   }
 
@@ -2454,6 +2476,57 @@ export const MEASURE_SCRIPT = `(() => {
   });
 
   /* ---------------------------------------------------------------------- */
+  /* OVERLAYS COVERING CONTROLS                                              */
+  /* ---------------------------------------------------------------------- */
+
+  // Floating offer cards, sticky action bars and any fixed bottom bar must
+  // never sit on top of a link, button or form field. A fixed bar covers a
+  // control for good when the control lies in the last bar-height of the
+  // document (no scroll position can reveal it); anything else covers a
+  // control when their boxes intersect.
+  const fixedAncestor = (el) => {
+    for (let node = el; node && node !== document.documentElement; node = node.parentElement) {
+      if (getComputedStyle(node).position === "fixed") return true;
+    }
+    return false;
+  };
+  const overlayNodes = [
+    ...document.querySelectorAll("[data-rv-overlay]"),
+    ...fixedBars,
+  ].filter((el, index, list) => visible(el) && list.indexOf(el) === index);
+  const docBottom = Math.max(
+    document.documentElement.scrollHeight,
+    document.body ? document.body.scrollHeight : 0
+  );
+  const overlayConflicts = [];
+  for (const overlay of overlayNodes) {
+    if (overlayConflicts.length >= 12) break;
+    const o = overlay.getBoundingClientRect();
+    const fixed = fixedAncestor(overlay);
+    for (const control of controls) {
+      if (overlay.contains(control) || control.contains(overlay)) continue;
+      if (fixedAncestor(control) && fixed) continue;
+      const c = control.getBoundingClientRect();
+      const overlapX = Math.min(o.right, c.right) - Math.max(o.left, c.left);
+      if (overlapX <= 4) continue;
+      let covered = false;
+      if (fixed) {
+        const controlBottom = c.bottom + window.scrollY;
+        covered = controlBottom > docBottom - o.height + 4;
+      } else {
+        const overlapY = Math.min(o.bottom, c.bottom) - Math.max(o.top, c.top);
+        covered = overlapY > 4;
+      }
+      if (covered) {
+        overlayConflicts.push(
+          ((overlay.getAttribute("data-rv-overlay") || "fixed bar") + ": " + label(overlay) + " covers " + label(control)).slice(0, 160)
+        );
+        break;
+      }
+    }
+  }
+
+  /* ---------------------------------------------------------------------- */
   /* FINAL MEASUREMENT                                                       */
   /* ---------------------------------------------------------------------- */
 
@@ -2485,6 +2558,7 @@ export const MEASURE_SCRIPT = `(() => {
     largestBlankGap: Math.round(largestBlankGap),
     viewportHeight,
     openingVisualMissing,
+    overlayConflicts,
     runtimeErrors: Array.isArray(window.__revoraRuntimeErrors)
       ? window.__revoraRuntimeErrors.slice(0, 20)
       : [],

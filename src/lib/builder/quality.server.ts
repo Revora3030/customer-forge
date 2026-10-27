@@ -63,6 +63,9 @@ export function freshVisualReport(
   if (evidence.missingPerformanceWidths.length) {
     add("incomplete_performance_evidence", "Performance evidence is incomplete at one or more required widths.");
   }
+  if (evidence.missingOverlayWidths.length) {
+    add("overlay_overlap_not_measured", `The check that offer cards and sticky bars never cover a control did not run at ${evidence.missingOverlayWidths.join(", ")}px.`);
+  }
   return {
     ...report,
     passed: report.passed && blockers.length === 0,
