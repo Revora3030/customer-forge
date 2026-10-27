@@ -1,4 +1,5 @@
-import { useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { Button } from "@/components/ui/button";
 import type { Breakpoint, CompositionFaqItem, CompositionNode, CompositionTab, CompositionTree, MotionEasing, NodeHover, NodeMotion, NodeStyle, WidgetPresentation } from "@/lib/builder/composition-tree";
 import type { PersistedComponentVisual } from "@/lib/site-style";
 import { resolveImageSource } from "@/lib/brand-logos";
@@ -716,6 +717,7 @@ function BeforeAfterSlider({ props, before, after, initialSplit }: {
   return (
     <figure {...props} className={`${props.className ?? ""} rv-cn-compare`.trim()} style={{ position: "relative", overflow: "hidden", aspectRatio: props.style.aspectRatio ?? "16 / 10", width: "100%", touchAction: "pan-y", userSelect: "none", ...props.style }}
       onPointerDown={(event) => {
+        if (event.button !== 0 || !event.isPrimary) return;
         dragging.current = true;
         event.currentTarget.setPointerCapture?.(event.pointerId);
         moveTo(event);
@@ -725,11 +727,12 @@ function BeforeAfterSlider({ props, before, after, initialSplit }: {
       }}
       onPointerUp={() => (dragging.current = false)}
       onPointerCancel={() => (dragging.current = false)}
+      onLostPointerCapture={() => (dragging.current = false)}
     >
       {/* Both pictures fill the same frame with object-fit: cover, so neither is ever stretched. */}
       <img src={after.src} alt={after.alt} loading="lazy" draggable={false} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
       <div aria-hidden="true" style={{ position: "absolute", inset: 0, overflow: "hidden", clipPath: `inset(0 ${100 - pos}% 0 0)` }}>
-        <img src={before.src} alt="" loading="lazy" draggable={false} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+        <img src={before.src} alt={before.alt} loading="lazy" draggable={false} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
       </div>
       <div className="rv-cn-compare-label rv-cn-compare-label-before">{before.label}</div>
       <div className="rv-cn-compare-label rv-cn-compare-label-after">{after.label}</div>
@@ -738,6 +741,7 @@ function BeforeAfterSlider({ props, before, after, initialSplit }: {
         role="slider"
         tabIndex={0}
         aria-label="Before and after comparison slider"
+        aria-description={`${before.alt}. ${after.alt}.`}
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={Math.round(pos)}
@@ -781,6 +785,8 @@ function TabGroup({ props, tabs, renderPanel }: {
     const next = Math.max(0, Math.min(tabs.length - 1, index));
     document.getElementById(`${id}-tab-${next}`)?.focus();
   };
+  const activeTab = tabs[active];
+  if (!activeTab) return null;
   return (
     <div {...props} className={`${props.className ?? ""} rv-cn-tab-group`.trim()}>
       <div role="tablist" aria-label="Options" className="rv-cn-tab-list">
@@ -799,7 +805,7 @@ function TabGroup({ props, tabs, renderPanel }: {
         ))}
       </div>
       <div role="tabpanel" id={`${id}-panel-${active}`} aria-labelledby={`${id}-tab-${active}`} className="rv-cn-tab-panel">
-        {renderPanel(tabs[active]!, active)}
+        {renderPanel(activeTab, active)}
       </div>
     </div>
   );
@@ -810,21 +816,40 @@ function MobileStickyBar({ props, primary, secondary }: {
   primary: { label: string; href: string; ariaLabel: string };
   secondary?: { label: string; href: string; ariaLabel: string };
 }) {
+  const bar = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const element = bar.current;
+    if (!element) return;
+    const measure = () => {
+      const height = Math.max(0, ...Array.from(document.querySelectorAll<HTMLElement>(".rv-cn-mobile-sticky-bar")).map((item) => item.getBoundingClientRect().height));
+      document.documentElement.style.setProperty("--rv-sticky-height", `${Math.ceil(height)}px`);
+    };
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
+    observer?.observe(element);
+    window.addEventListener("resize", measure);
+    measure();
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", measure);
+      document.documentElement.style.removeProperty("--rv-sticky-height");
+    };
+  }, []);
   return (
-    <div {...props} data-rv-overlay="sticky" className={`${props.className ?? ""} rv-cn-mobile-sticky-bar`.trim()} style={{
+    <div ref={bar} {...props} role="navigation" aria-label="Quick actions" data-rv-overlay="sticky" className={`${props.className ?? ""} rv-cn-mobile-sticky-bar`.trim()} style={{
       ...props.style,
       position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 50, display: "flex", gap: 8, alignItems: "stretch",
       padding: "10px 12px", paddingBottom: "max(10px, env(safe-area-inset-bottom, 0px))",
-      background: props.style.background ?? "Canvas", color: props.style.color ?? "CanvasText",
+      background: props.style.background ?? "var(--background)", color: props.style.color ?? "var(--foreground)",
+      backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)",
     }}>
-      <a href={primary.href} aria-label={primary.ariaLabel ?? primary.label} style={{ flex: secondary ? 1 : "0 1 100%", minWidth: 0, minHeight: 44, display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "0 14px", textDecoration: "none", touchAction: "manipulation", ...mobileCtaStyle(true) }}>{primary.label}</a>
-      {secondary ? <a href={secondary.href} aria-label={secondary.ariaLabel ?? secondary.label} style={{ flex: 1, minWidth: 0, minHeight: 44, display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "0 14px", textDecoration: "none", touchAction: "manipulation", ...mobileCtaStyle(false) }}>{secondary.label}</a> : null}
+      <Button asChild variant="outline" style={mobileCtaStyle()}><a href={primary.href} aria-label={primary.ariaLabel}>{primary.label}</a></Button>
+      {secondary ? <Button asChild variant="outline" style={mobileCtaStyle()}><a href={secondary.href} aria-label={secondary.ariaLabel}>{secondary.label}</a></Button> : null}
     </div>
   );
 }
 
-function mobileCtaStyle(primary: boolean): CSSProperties {
-  return { borderRadius: 10, border: "1px solid currentColor", font: "inherit", fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", background: primary ? "currentColor" : "transparent", color: primary ? "Canvas" : "inherit" };
+function mobileCtaStyle(): CSSProperties {
+  return { flex: 1, minWidth: 44, minHeight: 44, padding: "8px 14px", borderRadius: 8, border: "1px solid currentColor", font: "inherit", fontWeight: 700, whiteSpace: "normal", overflowWrap: "anywhere", background: "transparent", color: "inherit", touchAction: "manipulation" };
 }
 
 const MARQUEE_CSS = `@media (prefers-reduced-motion: no-preference){.rv-cn-marquee{animation:rv-cn-marquee 30s linear infinite}}@keyframes rv-cn-marquee{to{transform:translateX(-50%)}}`;
@@ -835,6 +860,7 @@ const INTERACTIVE_CSS = `
 .rv-cn-interactive a:focus-visible,.rv-cn-interactive button:focus-visible{outline:3px solid currentColor;outline-offset:3px}
 @media (prefers-reduced-motion: reduce){.rv-cn-interactive{transition:none!important}.rv-cn-interactive:hover{transform:none}}
 .rv-cn-compare{cursor:ew-resize}
+[data-composition][data-composition] .rv-cn-compare img{height:100%!important;width:100%!important;max-width:none!important}
 .rv-cn-compare-divider{position:absolute;top:0;bottom:0;width:3px;background:#fff;box-shadow:0 0 0 1px rgb(0 0 0 / .45),0 0 12px rgb(0 0 0 / .35);transform:translateX(-50%);pointer-events:none;z-index:2}
 .rv-cn-compare-handle{position:absolute;top:50%;width:48px;height:48px;border-radius:999px;border:2px solid #fff;background:rgb(17 17 20 / .55);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);box-shadow:0 4px 18px rgb(0 0 0 / .35);transform:translate(-50%,-50%);z-index:3;cursor:ew-resize;touch-action:none;color:#fff;transition:transform .15s ease}
 .rv-cn-compare-handle:focus-visible{outline:3px solid #fff;outline-offset:3px}
@@ -866,6 +892,7 @@ const INTERACTIVE_CSS = `
 .rv-cn-faq-panel{display:grid;grid-template-rows:0fr;transition:grid-template-rows .24s ease}
 .rv-cn-faq details[open] .rv-cn-faq-panel{grid-template-rows:1fr}
 .rv-cn-faq-panel-inner{min-height:0;overflow:hidden;padding:0 0 14px;white-space:pre-wrap}
+@supports (interpolate-size:allow-keywords){.rv-cn-faq details{interpolate-size:allow-keywords}.rv-cn-faq details::details-content{block-size:0;overflow:clip;transition:block-size .24s ease,content-visibility .24s;transition-behavior:allow-discrete}.rv-cn-faq details[open]::details-content{block-size:auto}}
 .rv-cn-tab-list{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;border-bottom:1px solid currentColor}
 .rv-cn-tab{position:relative;min-height:44px;padding:0 16px;border:0;border-radius:0;background:transparent;color:inherit;font:inherit;font-weight:650;cursor:pointer;opacity:.65}
 .rv-cn-tab::after{content:"";position:absolute;left:12px;right:12px;bottom:-1px;height:3px;background:currentColor;transform:scaleX(0);transform-origin:center;transition:transform .22s ease}
@@ -874,6 +901,8 @@ const INTERACTIVE_CSS = `
 .rv-cn-mobile-sticky-bar{display:none}
 @media (max-width:767px){.rv-cn-mobile-sticky-bar{display:flex!important;position:fixed!important;left:0!important;right:0!important;bottom:0!important;z-index:50!important;padding-bottom:max(10px,env(safe-area-inset-bottom,0px))!important}.rv-cn-mobile-sticky-bar a{min-height:44px;min-width:44px}}
 @media (min-width:768px){.rv-cn-mobile-sticky-bar{display:none!important}}
+@media (max-width:767px){html:has(input:focus,textarea:focus,select:focus) .rv-cn-mobile-sticky-bar{display:none!important}}
+@media (prefers-reduced-motion: reduce){.rv-cn-faq details::details-content{transition:none!important}}
 @media (prefers-reduced-motion: reduce){.rv-cn-faq-chevron,.rv-cn-faq-panel,.rv-cn-tab::after{transition:none!important}}
 `;
 

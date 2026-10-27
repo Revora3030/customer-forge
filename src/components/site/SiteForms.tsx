@@ -1,5 +1,5 @@
 import { checkBookingTime } from "@/lib/booking-hours";
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "@/lib/ui/notify";
 import { friendlyError } from "@/lib/user-error";
@@ -19,6 +19,7 @@ import { DirectContact } from "@/components/site/ContactDetails";
 import { widgetPresentationStyle } from "@/components/site/contact-details-utils";
 import type { WidgetPresentation } from "@/lib/builder/composition-tree";
 import { usePreviewMode } from "@/components/site/preview-mode-context";
+import { shouldTrackFormEvent } from "@/lib/site-event-once";
 
 type Site = NonNullable<PublicSite>;
 
@@ -35,7 +36,10 @@ function currentSessionId(): string {
 
 function useTracker(slug: string) {
   const track = useServerFn(trackPublicEvent);
+  const preview = usePreviewMode();
+  const seen = useRef(new Set<string>());
   return (eventType: string) => {
+    if (!shouldTrackFormEvent(seen.current, eventType, preview)) return;
     void track({
       data: {
         slug,
@@ -111,6 +115,8 @@ function useLeadSubmit(): typeof submitPublicLead {
 }
 
 export function QuoteCalculator({ site, presentation }: { site: Site; presentation?: WidgetPresentation }) {
+  const uid = useId();
+  const fid = (key: string) => `q-${key}-${uid}`;
   const quote = site.quote;
   const submit = useLeadSubmit();
   const track = useTracker(site.org.slug);
@@ -183,23 +189,24 @@ export function QuoteCalculator({ site, presentation }: { site: Site; presentati
                 {question.options.map((option) => {
                   const active = answers[question.id] === option.id;
                   return (
-                    <button
+                    <Button
                       key={option.id}
                       type="button"
+                      variant="outline"
                       onClick={() => {
-                        if (!answered) track("quote_start");
+                        track("quote_start");
                         setAnswers((prev) => ({ ...prev, [question.id]: option.id }));
                       }}
                       aria-pressed={active}
                       className={cn(
-                        "min-h-11 cursor-pointer rounded-md border px-3.5 py-2.5 text-left text-[14px] transition-colors",
+                        "min-h-11 justify-start rounded-md border px-3.5 py-2.5 text-left text-[14px] transition-colors",
                         active
                           ? "border-primary bg-primary/10 text-foreground"
                           : "border-border hover:bg-elevated",
                       )}
                     >
                       {option.label}
-                    </button>
+                    </Button>
                   );
                 })}
               </div>
@@ -213,9 +220,10 @@ export function QuoteCalculator({ site, presentation }: { site: Site; presentati
                 {addons.map((addon) => {
                   const active = picked.includes(addon.id);
                   return (
-                    <button
+                    <Button
                       key={addon.id}
                       type="button"
+                      variant="outline"
                       aria-pressed={active}
                       onClick={() =>
                         setPicked((prev) =>
@@ -225,7 +233,7 @@ export function QuoteCalculator({ site, presentation }: { site: Site; presentati
                         )
                       }
                       className={cn(
-                        "min-h-11 cursor-pointer rounded-md border px-3.5 py-2.5 text-left text-[14px] transition-colors",
+                        "min-h-11 flex-col items-stretch rounded-md border px-3.5 py-2.5 text-left text-[14px] transition-colors",
                         active
                           ? "border-primary bg-primary/10 text-foreground"
                           : "border-border hover:bg-elevated",
@@ -240,7 +248,7 @@ export function QuoteCalculator({ site, presentation }: { site: Site; presentati
                           {addon.description}
                         </span>
                       ) : null}
-                    </button>
+                    </Button>
                   );
                 })}
               </div>
@@ -253,7 +261,7 @@ export function QuoteCalculator({ site, presentation }: { site: Site; presentati
               {/* Before the visitor has chosen, an empty dash reads as broken.
                   Say what is needed instead — never show an invented number. */}
               {complete ? (
-                <p className="tnum mt-1 font-display text-[24px] font-semibold text-primary">
+                <p role="status" aria-live="polite" className="tnum mt-1 font-display text-[24px] font-semibold text-primary">
                   {currency(min)} – {currency(max)}
                 </p>
               ) : (
@@ -286,6 +294,7 @@ export function QuoteCalculator({ site, presentation }: { site: Site; presentati
           className="space-y-4 px-5 py-5"
           onSubmit={(e) => {
             e.preventDefault();
+            if (pending) return;
             const form = new FormData(e.currentTarget);
             const email = String(form.get("email") ?? "").trim();
             const problem = contactProblem(email, String(form.get("phone") ?? "").trim());
@@ -314,13 +323,11 @@ export function QuoteCalculator({ site, presentation }: { site: Site; presentati
                 quote: {
                   formId: quote.form.id,
                   answers: [
-                    ...selected
-                      .filter((s) => s.option)
-                      .map((s) => ({
+                    ...selected.flatMap((s) => s.option ? [{
                         question: s.question.label,
-                        answer: s.option!.label,
-                        modifier: s.option!.price_modifier,
-                      })),
+                        answer: s.option.label,
+                        modifier: s.option.price_modifier,
+                      }] : []),
                     ...chosenAddons.map((a) => ({
                       question: "Add-on",
                       answer: a.label,
@@ -345,22 +352,22 @@ export function QuoteCalculator({ site, presentation }: { site: Site; presentati
             </span>
           </p>
           <div className="space-y-1.5">
-            <Label htmlFor="q-name">{presentation?.fieldLabels?.name ?? "Your name"}</Label>
-            <Input id="q-name" name="name" required autoComplete="name" />
+            <Label htmlFor={fid("name")}>{presentation?.fieldLabels?.name ?? "Your name"}</Label>
+            <Input id={fid("name")} name="name" required autoComplete="name" />
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label htmlFor="q-phone">{presentation?.fieldLabels?.phone ?? "Phone"}</Label>
-              <Input id="q-phone" name="phone" type="tel" autoComplete="tel" inputMode="tel" />
+              <Label htmlFor={fid("phone")}>{presentation?.fieldLabels?.phone ?? "Phone"}</Label>
+              <Input id={fid("phone")} name="phone" type="tel" autoComplete="tel" inputMode="tel" />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="q-email">{presentation?.fieldLabels?.email ?? "Email"}</Label>
-              <Input id="q-email" name="email" type="email" autoComplete="email" inputMode="email" />
+              <Label htmlFor={fid("email")}>{presentation?.fieldLabels?.email ?? "Email"}</Label>
+              <Input id={fid("email")} name="email" type="email" autoComplete="email" inputMode="email" />
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="q-message">{presentation?.fieldLabels?.details ?? "Anything we should know?"}</Label>
-            <Textarea id="q-message" name="message" rows={3} />
+            <Label htmlFor={fid("message")}>{presentation?.fieldLabels?.details ?? "Anything we should know?"}</Label>
+            <Textarea id={fid("message")} name="message" rows={3} />
           </div>
           <div className="flex gap-2">
             <Button type="submit" variant="signal" disabled={pending}>

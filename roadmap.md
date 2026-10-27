@@ -1,5 +1,13 @@
 # Roadmap — Five-phase blocker elimination
 
+## Interactive tools and conversion completion (2026-10-27)
+- [x] Complete existing comparison slider pointer and image behavior; preserve real-work provenance.
+- [x] Complete FAQ structured-data parity for dedicated visible customer FAQ compositions; inactive tabs deliberately omitted.
+- [x] Harden existing mobile sticky actions for contrast, long labels, and measured variable-height clearance; hide while typing.
+- [x] Complete existing quote selection controls, unique field identifiers, and prevent duplicate/preview tracking.
+- [x] 89 focused regressions pass, changed-file lint clean, automatic build OK; isolated browser fixture comparison/FAQ/quote simulated submission and 320/390/768/1280/2560 layout checks pass without script errors. Evidence: docs/interactive-tools-verification.md.
+- [ ] Actual customer generation and real lead delivery remain unverified: require authorized AI spending and production mutations. The broader workforce/connector/growth roadmap is not completed by this focused tools pass.
+
 ## All-model wiring (2026-10-22)
 - [x] Jarvis voice choice: Auto / ElevenLabs / Lovable AI speech (Gemini TTS, budgeted, router telemetry). No live speech call made.
 - [x] Maps review form: per-fact source labels, editable address and hours, website suggestions needing approval, existing build handoff kept.

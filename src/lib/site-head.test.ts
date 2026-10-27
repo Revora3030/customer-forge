@@ -142,6 +142,20 @@ describe("tenantSiteHead (one head for every client route)", () => {
 });
 
 describe("client site head", () => {
+  it("adds customer FAQ data from that page's saved composition only", () => {
+    const head = tenantSiteHead({
+      site: site({ kind: "page", slug: "faq", title: "Questions" }, {
+        content: { page: { kind: "page", slug: "faq", title: "Questions" }, sections: [{ settings: { composition: { version: 1, root: {
+          type: "faq_accordion", faqItems: [{ question: "When can I book?", answer: "By appointment." }],
+        } } } }] },
+      }),
+      canonical: "https://acme.test/faq", businessUrl: "https://acme.test/", pageSlug: "faq",
+    });
+    const faq = head.scripts.map((script) => JSON.parse(script.children) as Record<string, unknown>).find((schema) => schema["@type"] === "FAQPage");
+    expect(faq?.["mainEntity"]).toEqual([{ "@type": "Question", name: "When can I book?", acceptedAnswer: { "@type": "Answer", text: "By appointment." } }]);
+    const other = tenantSiteHead({ site: site({ kind: "home", title: "Home" }), canonical: "https://other.test/", businessUrl: "https://other.test/" });
+    expect(other.scripts.some((script) => script.children.includes('"FAQPage"'))).toBe(false);
+  });
   it("builds LocalBusiness data only from real facts", () => {
     const schema = localBusinessSchema({
       name: "Acme Roofing",
