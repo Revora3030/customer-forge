@@ -110,10 +110,13 @@ export const getSiteDesign = createServerFn({ method: "GET" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as unknown as AnyDb;
     const { readDesignTokens } = await import("@/lib/builder/design-tokens");
-    const [{ data: profile }, { data: settings }] = await Promise.all([
+    const [profileRead, settingsRead] = await Promise.all([
       db.from("business_profiles").select("primary_color,secondary_color,accent_color,font_preference").eq("organization_id", data.organizationId).maybeSingle(),
       db.from("website_settings").select("generation").eq("organization_id", data.organizationId).maybeSingle(),
     ]);
+    if (profileRead.error || settingsRead.error) throw new Error("Couldn't read that website's design.");
+    const profile = profileRead.data;
+    const settings = settingsRead.data;
     return {
       colors: (profile ?? {}) as { primary_color?: string | null; secondary_color?: string | null; accent_color?: string | null },
       tokens: readDesignTokens((settings as { generation?: unknown } | null)?.generation ?? null) ?? {},
@@ -133,7 +136,8 @@ export const saveSiteDesign = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as unknown as AnyDb;
     const { writeDesignTokens } = await import("@/lib/builder/design-tokens");
-    const { data: settings } = await db.from("website_settings").select("generation").eq("organization_id", data.organizationId).maybeSingle();
+    const { data: settings, error: readError } = await db.from("website_settings").select("generation").eq("organization_id", data.organizationId).maybeSingle();
+    if (readError) throw new Error("Couldn't read the existing design. Nothing was changed.");
     const generation = writeDesignTokens((settings as { generation?: unknown } | null)?.generation ?? null, data.tokens);
     const writes = [
       db.from("website_settings").upsert({ organization_id: data.organizationId, generation }, { onConflict: "organization_id" }),
