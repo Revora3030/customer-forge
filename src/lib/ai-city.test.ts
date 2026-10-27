@@ -45,7 +45,7 @@ describe("AI City data boundary", () => {
     await collectCitySnapshot(fake.db, "owner-a");
     for (const table of ["jarvis_run_events", "jarvis_routines", "jarvis_memories"]) expect(fake.filters).toContainEqual({ table, column: "user_id", value: "owner-a" });
     expect(fake.filters).toContainEqual({ table: "ai_team_trace", column: "provider", value: "lovable" });
-    expect(fake.tables).toHaveLength(9);
+    expect(fake.tables).toHaveLength(13);
   });
   it("preserves workspace identity and exact totals while declaring sample truncation", async () => {
     const fake = fakeDb();
@@ -58,5 +58,25 @@ describe("AI City data boundary", () => {
     const result = await collectCitySnapshot(fakeDb("generation_jobs").db, "owner-a");
     expect(result.sources["jobs"]).toEqual({ available: false, rows: [], total: null, truncated: false });
     expect(result.sources["memories"]?.available).toBe(true);
+  });
+});
+import { pipelineStages, salesMissionDraft, offerPriceSentence } from "./ai-city";
+import { GROWTH_SYSTEM } from "./offer";
+describe("AI City sales pipeline", () => {
+  it("shows real counts for each stage in order", () => {
+    const stages = pipelineStages({ found: 12, demoReady: 4, awaitingApproval: 2, sent: 3, replied: 1 });
+    expect(stages.map(s => [s.label, s.display])).toEqual([["Found", "12"], ["Demo ready", "4"], ["Awaiting approval", "2"], ["Sent", "3"], ["Replied", "1"]]);
+  });
+  it("marks unreadable stages unavailable instead of zero", () => {
+    expect(pipelineStages({ found: 0, demoReady: null, awaitingApproval: 0, sent: null, replied: 0 }).map(s => s.display)).toEqual(["0", "Unavailable", "0", "Unavailable", "0"]);
+    expect(pipelineStages(undefined).every(s => s.display === "Unavailable")).toBe(true);
+  });
+  it("pitch drafts carry the official $350 setup / $100 monthly sentence", () => {
+    expect(offerPriceSentence(GROWTH_SYSTEM)).toBe("$350 one-time setup, first month free, then $100/month.");
+    expect(salesMissionDraft("pitch", GROWTH_SYSTEM)).toContain("$350 one-time setup, first month free, then $100/month.");
+  });
+  it("every sales mission requires approval before sending", () => {
+    for (const kind of ["scout", "demo", "pitch"] as const) expect(salesMissionDraft(kind, GROWTH_SYSTEM)).toContain("Do not send, publish or spend without my explicit approval.");
+    expect(salesMissionDraft("scout", GROWTH_SYSTEM)).toContain("OpenStreetMap");
   });
 });

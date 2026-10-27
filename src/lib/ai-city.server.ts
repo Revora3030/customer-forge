@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
-import type { CitySnapshot, CitySource, CityWork } from "./ai-city";
+import type { CitySnapshot, CitySource, CityWork, PipelineCounts } from "./ai-city";
 import { summarize } from "./jarvis-events";
 
 export async function collectCitySnapshot(db: SupabaseClient<Database>, userId: string): Promise<CitySnapshot> {
@@ -26,5 +26,29 @@ export async function collectCitySnapshot(db: SupabaseClient<Database>, userId: 
     source(db.from("error_events").select("id,message,created_at", { count: "exact" }).gte("created_at", since).order("created_at", { ascending: false }).limit(limit), r => ({ ...base(r, "security", "error_events", summarize(r["message"], 120) || "Recorded error"), status: "error" })),
     source(db.from("jarvis_memories").select("id,kind,source,updated_at", { count: "exact" }).eq("user_id", userId).order("updated_at", { ascending: false }).limit(limit), r => ({ ...base(r, "knowledge", "jarvis_memories", text(r, "kind") || "Saved memory"), detail: text(r, "source") })),
   ]);
-  return { checkedAt: new Date().toISOString(), sources: { jobs, events, routines, traces, images, approvals, automations, errors, memories } };
+  const pipeline = await collectSalesPipeline(db);
+  return { checkedAt: new Date().toISOString(), sources: { jobs, events, routines, traces, images, approvals, automations, errors, memories }, pipeline };
+}
+
+type Read = { data: unknown; error: unknown; count?: number | null };
+const distinctOrgs = (r: Read) => (r.error || !Array.isArray(r.data) ? null : new Set((r.data as Array<{ organization_id?: unknown }>).map(x => x.organization_id)).size);
+
+// Each stage reads existing records; a failed read stays null ("Unavailable").
+export async function collectSalesPipeline(db: SupabaseClient<Database>): Promise<PipelineCounts> {
+  const safe = async (q: () => PromiseLike<Read>): Promise<Read> => { try { return await q(); } catch { return { data: null, error: true }; } };
+  const demos = await safe(() => db.from("website_settings").select("organization_id").not("generation->prospectDemo", "is", null).limit(5000));
+  const ids = demos.error || !Array.isArray(demos.data) ? null : (demos.data as Array<{ organization_id: string }>).map(d => d.organization_id);
+  const [ready, approvals, sent, replied] = await Promise.all([
+    ids === null ? Promise.resolve<Read>({ data: null, error: true }) : ids.length ? safe(() => db.from("generation_jobs").select("organization_id").in("organization_id", ids.slice(0, 1000)).eq("status", "completed").limit(5000)) : Promise.resolve<Read>({ data: [], error: null }),
+    safe(() => db.from("approval_queue").select("id", { count: "exact", head: true }).eq("status", "pending")),
+    safe(() => db.from("prospect_outreach").select("organization_id").eq("status", "sent").limit(10000)),
+    safe(() => db.from("prospect_inbound").select("organization_id").limit(10000)),
+  ]);
+  return {
+    found: ids === null ? null : new Set(ids).size,
+    demoReady: distinctOrgs(ready),
+    awaitingApproval: approvals.error || typeof approvals.count !== "number" ? null : approvals.count,
+    sent: distinctOrgs(sent),
+    replied: distinctOrgs(replied),
+  };
 }
