@@ -13,7 +13,9 @@
  * minimum, and lists the controls that miss it, most widespread first, so shared chrome shows up.
  * Without Playwright the run is NOT_VERIFIED (exit 2), never a pass.
  */
+import { execFileSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
 
 const args = process.argv.slice(2);
 const base = (args.find((a) => /^https?:/.test(a)) ?? "http://127.0.0.1:5199").replace(/\/$/, "");
@@ -27,11 +29,22 @@ const VIEWPORTS = [
 // Paths that are not pages, or that need a signed-in user or a one-time token.
 const SKIP = /^\/(api|_authenticated|app|admin|my|portal|invite|unsubscribe|p\/|s\/|mcp|lovable|\.well-known)|\.(xml|txt|webmanifest|png|jpg|svg|ico)$/;
 
-let playwright;
-try {
-  playwright = await import("playwright");
-} catch {
-  console.log(JSON.stringify({ status: "NOT_VERIFIED", reason: "playwright is not installed" }));
+// Playwright may be installed locally or only globally (cloud images pre-install it that way).
+async function loadPlaywright() {
+  try {
+    return await import("playwright");
+  } catch { /* try the global install next */ }
+  try {
+    const root = execFileSync("npm", ["root", "-g"], { encoding: "utf8", timeout: 15_000 }).trim();
+    const require = createRequire(`${root}/`);
+    return require("playwright");
+  } catch {
+    return null;
+  }
+}
+const playwright = await loadPlaywright();
+if (!playwright) {
+  console.log(JSON.stringify({ status: "NOT_VERIFIED", reason: "playwright is not installed locally or globally" }));
   process.exit(2);
 }
 
