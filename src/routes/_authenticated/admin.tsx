@@ -47,6 +47,7 @@ export const Route = createFileRoute("/_authenticated/admin")({
 
 const PRIMARY_NAV = [
   { to: "/admin", label: "Overview", icon: LayoutGrid, exact: true },
+  { to: "/admin/city", label: "AI City", icon: Building2, exact: false },
   { to: "/admin/jarvis", label: "Jarvis", icon: Bot, exact: false },
   { to: "/admin/clients", label: "Clients", icon: Building2, exact: false },
   { to: "/admin/websites", label: "Websites", icon: ClipboardList, exact: false },
