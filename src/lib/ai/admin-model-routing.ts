@@ -4,7 +4,7 @@ export type AdminRoutingModel = { model: string; provider: "lovable"; roles: str
 export type RoutingUsage = { model: string | null; provider: string | null; ok: boolean | null };
 
 /** Only regular text/vision rosters use Command Center overrides; media has dedicated selectors. */
-export function adminRoutingModels(rosters: Record<string, string>, catalogue: CatalogueModel[], usage: readonly RoutingUsage[]): AdminRoutingModel[] {
+export function adminRoutingModels(rosters: Record<string, string>, catalogue: CatalogueModel[], usage: readonly unknown[]): AdminRoutingModel[] {
   const byId = new Map(catalogue.map(model => [model.id, model]));
   const models = new Map<string, AdminRoutingModel>();
   for (const [role, list] of Object.entries(rosters)) {
@@ -16,7 +16,9 @@ export function adminRoutingModels(rosters: Record<string, string>, catalogue: C
       models.set(id, row);
     }
   }
-  for (const event of usage) {
+  for (const raw of usage) {
+    if (!raw || typeof raw !== "object") continue;
+    const event = raw as Partial<RoutingUsage>;
     // Legacy direct-provider events must never become current routing eligibility or success evidence.
     if (event.provider !== "lovable" || !event.model) continue;
     const id = models.has(event.model) ? event.model : [...models.keys()].find(id => id.split("/").pop() === event.model);
