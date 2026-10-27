@@ -71,7 +71,7 @@ const businessSchema = z.object({
   website_url: z.string().trim().max(200).optional().default(""),
 });
 
-export const saveGrowthBusiness = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).inputValidator((d: unknown) => businessSchema.parse(d)).handler(async ({ data, context }) => {
+export const saveGrowthBusiness = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).validator((d: unknown) => businessSchema.parse(d)).handler(async ({ data, context }) => {
   const db = await guard(context);
   const { data: existing } = await db.from("growth_businesses").select("id").order("created_at").limit(1).maybeSingle();
   const row = { ...data, website_status: data.website_url ? "active" : "none" };
@@ -92,7 +92,7 @@ async function business(db: { from: (t: string) => any }) {
 
 export const listApprovals = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ status: z.enum(["pending", "approved", "executed", "rejected", "failed", "all"]).default("pending") }).parse(d))
+  .validator((d: unknown) => z.object({ status: z.enum(["pending", "approved", "executed", "rejected", "failed", "all"]).default("pending") }).parse(d))
   .handler(async ({ data, context }) => {
     const db = await guard(context);
     let q = db.from("approval_queue").select("*").order("created_at", { ascending: false }).limit(100);
@@ -107,7 +107,7 @@ export const listApprovals = createServerFn({ method: "POST" })
 
 export const decideApproval = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({
+  .validator((d: unknown) => z.object({
     id: z.string().uuid(),
     decision: z.enum(["approve", "reject"]),
     reason: z.string().max(300).optional(),
@@ -144,7 +144,7 @@ export const decideApproval = createServerFn({ method: "POST" })
 
 export const editApproval = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ id: z.string().uuid(), preview: z.string().min(1).max(4000) }).parse(d))
+  .validator((d: unknown) => z.object({ id: z.string().uuid(), preview: z.string().min(1).max(4000) }).parse(d))
   .handler(async ({ data, context }) => {
     const db = await guard(context);
     const { statusAfterEdit } = await rules();
@@ -163,7 +163,7 @@ export const editApproval = createServerFn({ method: "POST" })
 
 export const approvalHistory = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
+  .validator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const db = await guard(context);
     const { data: rows } = await db.from("approval_item_versions").select("version, content, created_at").eq("queue_id", data.id).order("version", { ascending: false });
@@ -181,7 +181,7 @@ const gbpSchema = z.object({
   profileUrl: z.string().max(300).optional().default(""),
 });
 
-export const auditGbp = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).inputValidator((d: unknown) => gbpSchema.parse(d)).handler(async ({ data, context }) => {
+export const auditGbp = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).validator((d: unknown) => gbpSchema.parse(d)).handler(async ({ data, context }) => {
   const db = await guard(context);
   const b = await business(db);
   const { gbpScore } = await rules();
@@ -204,7 +204,7 @@ export const getGbp = createServerFn({ method: "POST" }).middleware([requireSupa
 
 export const draftGbpPost = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ topic: z.string().trim().min(3).max(300) }).parse(d))
+  .validator((d: unknown) => z.object({ topic: z.string().trim().min(3).max(300) }).parse(d))
   .handler(async ({ data, context }) => {
     const db = await guard(context);
     const b = await business(db);
@@ -220,7 +220,7 @@ export const draftGbpPost = createServerFn({ method: "POST" })
 
 export const draftReviewReply = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ reviewer: z.string().max(80), rating: z.number().int().min(1).max(5), text: z.string().max(3000), gbpPath: z.string().max(300).optional().default("") }).parse(d))
+  .validator((d: unknown) => z.object({ reviewer: z.string().max(80), rating: z.number().int().min(1).max(5), text: z.string().max(3000), gbpPath: z.string().max(300).optional().default("") }).parse(d))
   .handler(async ({ data, context }) => {
     const db = await guard(context);
     const b = await business(db);
@@ -258,7 +258,7 @@ export const buildDirectoryPackages = createServerFn({ method: "POST" }).middlew
 
 export const updateDirectory = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ id: z.string().uuid(), status: z.enum(["pending", "submitted", "live", "rejected", "needs_update"]), url: z.string().max(300).optional(), listedName: z.string().max(120).optional(), listedAddress: z.string().max(200).optional(), listedPhone: z.string().max(30).optional() }).parse(d))
+  .validator((d: unknown) => z.object({ id: z.string().uuid(), status: z.enum(["pending", "submitted", "live", "rejected", "needs_update"]), url: z.string().max(300).optional(), listedName: z.string().max(120).optional(), listedAddress: z.string().max(200).optional(), listedPhone: z.string().max(30).optional() }).parse(d))
   .handler(async ({ data, context }) => {
     const db = await guard(context);
     const b = await business(db);
@@ -281,7 +281,7 @@ export const listContent = createServerFn({ method: "POST" }).middleware([requir
 
 export const draftContent = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ type: z.enum(["blog", "faq"]), keyword: z.string().trim().min(3).max(150) }).parse(d))
+  .validator((d: unknown) => z.object({ type: z.enum(["blog", "faq"]), keyword: z.string().trim().min(3).max(150) }).parse(d))
   .handler(async ({ data, context }) => {
     const db = await guard(context);
     const b = await business(db);
@@ -316,7 +316,7 @@ export const listReviewRequests = createServerFn({ method: "POST" }).middleware(
 
 export const createReviewRequest = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ name: z.string().trim().min(1).max(80), email: z.string().trim().max(120).optional().default(""), phone: z.string().trim().max(30).optional().default(""), channel: z.enum(["email", "sms"]), smsOptIn: z.boolean(), reviewLink: z.string().url().max(400), jobId: z.string().max(80).optional().default("") }).parse(d))
+  .validator((d: unknown) => z.object({ name: z.string().trim().min(1).max(80), email: z.string().trim().max(120).optional().default(""), phone: z.string().trim().max(30).optional().default(""), channel: z.enum(["email", "sms"]), smsOptIn: z.boolean(), reviewLink: z.string().url().max(400), jobId: z.string().max(80).optional().default("") }).parse(d))
   .handler(async ({ data, context }) => {
     const db = await guard(context);
     const b = await business(db);
@@ -331,7 +331,7 @@ export const createReviewRequest = createServerFn({ method: "POST" })
 
 export const markReviewRequest = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ id: z.string().uuid(), field: z.enum(["clicked", "review_left"]) }).parse(d))
+  .validator((d: unknown) => z.object({ id: z.string().uuid(), field: z.enum(["clicked", "review_left"]) }).parse(d))
   .handler(async ({ data, context }) => {
     const db = await guard(context);
     await db.from("review_requests").update({ [data.field]: true }).eq("id", data.id);
@@ -362,7 +362,7 @@ export const scanQna = createServerFn({ method: "POST" }).middleware([requireSup
 
 export const draftQnaReply = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
+  .validator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const db = await guard(context);
     const b = await business(db);
@@ -381,7 +381,7 @@ export const draftQnaReply = createServerFn({ method: "POST" })
 
 export const setQnaStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ id: z.string().uuid(), status: z.enum(["posted", "skipped"]) }).parse(d))
+  .validator((d: unknown) => z.object({ id: z.string().uuid(), status: z.enum(["posted", "skipped"]) }).parse(d))
   .handler(async ({ data, context }) => {
     const db = await guard(context);
     await db.from("qna_monitor").update({ status: data.status, posted_at: data.status === "posted" ? new Date().toISOString() : null }).eq("id", data.id);
@@ -398,7 +398,7 @@ export const listReferrals = createServerFn({ method: "POST" }).middleware([requ
 
 export const createReferral = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ name: z.string().trim().min(1).max(80), email: z.string().email().max(120), optIn: z.literal(true), reward: z.number().min(0).max(10000).nullable() }).parse(d))
+  .validator((d: unknown) => z.object({ name: z.string().trim().min(1).max(80), email: z.string().email().max(120), optIn: z.literal(true), reward: z.number().min(0).max(10000).nullable() }).parse(d))
   .handler(async ({ data, context }) => {
     const db = await guard(context);
     const s = await svc();
@@ -411,7 +411,7 @@ export const createReferral = createServerFn({ method: "POST" })
 
 export const setReferralStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ id: z.string().uuid(), status: z.enum(["shared", "redeemed", "closed", "expired"]) }).parse(d))
+  .validator((d: unknown) => z.object({ id: z.string().uuid(), status: z.enum(["shared", "redeemed", "closed", "expired"]) }).parse(d))
   .handler(async ({ data, context }) => {
     const db = await guard(context);
     await db.from("referral_program").update({ status: data.status }).eq("id", data.id);
@@ -430,7 +430,7 @@ export const listPartners = createServerFn({ method: "POST" }).middleware([requi
 
 export const addPartner = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ name: z.string().trim().min(1).max(120), type: z.string().trim().max(80), email: z.string().trim().max(120).optional().default("") }).parse(d))
+  .validator((d: unknown) => z.object({ name: z.string().trim().min(1).max(120), type: z.string().trim().max(80), email: z.string().trim().max(120).optional().default("") }).parse(d))
   .handler(async ({ data, context }) => {
     const db = await guard(context);
     const b = await business(db);
@@ -445,7 +445,7 @@ export const addPartner = createServerFn({ method: "POST" })
 
 export const setPartnerStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ id: z.string().uuid(), status: z.enum(["sent", "responded"]) }).parse(d))
+  .validator((d: unknown) => z.object({ id: z.string().uuid(), status: z.enum(["sent", "responded"]) }).parse(d))
   .handler(async ({ data, context }) => {
     const db = await guard(context);
     await db.from("partnership_leads").update({ status: data.status }).eq("id", data.id);
@@ -462,7 +462,7 @@ export const listSocial = createServerFn({ method: "POST" }).middleware([require
 
 export const draftSocial = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ idea: z.string().trim().min(3).max(300) }).parse(d))
+  .validator((d: unknown) => z.object({ idea: z.string().trim().min(3).max(300) }).parse(d))
   .handler(async ({ data, context }) => {
     const db = await guard(context);
     const b = await business(db);
@@ -492,7 +492,7 @@ export const scanEvents = createServerFn({ method: "POST" }).middleware([require
 
 export const setEventStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ id: z.string().uuid(), status: z.enum(["reviewed", "attending", "skipped"]) }).parse(d))
+  .validator((d: unknown) => z.object({ id: z.string().uuid(), status: z.enum(["reviewed", "attending", "skipped"]) }).parse(d))
   .handler(async ({ data, context }) => {
     const db = await guard(context);
     await db.from("local_events").update({ status: data.status }).eq("id", data.id);
