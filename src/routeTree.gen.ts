@@ -65,6 +65,7 @@ import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authentic
 import { Route as AuthenticatedAdminAiRouteImport } from './routes/_authenticated/admin.ai'
 import { Route as AuthenticatedAdminAnalyticsRouteImport } from './routes/_authenticated/admin.analytics'
 import { Route as AuthenticatedAdminBackupsRouteImport } from './routes/_authenticated/admin.backups'
+import { Route as AuthenticatedAdminCityRouteImport } from './routes/_authenticated/admin.city'
 import { Route as AuthenticatedAdminClientsRouteImport } from './routes/_authenticated/admin.clients'
 import { Route as AuthenticatedAdminCommandRouteImport } from './routes/_authenticated/admin.command'
 import { Route as AuthenticatedAdminDomainsRouteImport } from './routes/_authenticated/admin.domains'
@@ -411,6 +412,11 @@ const AuthenticatedAdminBackupsRoute =
     path: '/backups',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminCityRoute = AuthenticatedAdminCityRouteImport.update({
+  id: '/city',
+  path: '/city',
+  getParentRoute: () => AuthenticatedAdminRoute,
+} as any)
 const AuthenticatedAdminClientsRoute =
   AuthenticatedAdminClientsRouteImport.update({
     id: '/clients',
@@ -814,6 +820,7 @@ export interface FileRoutesByFullPath {
   '/admin/ai': typeof AuthenticatedAdminAiRoute
   '/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
   '/admin/backups': typeof AuthenticatedAdminBackupsRoute
+  '/admin/city': typeof AuthenticatedAdminCityRoute
   '/admin/clients': typeof AuthenticatedAdminClientsRouteWithChildren
   '/admin/command': typeof AuthenticatedAdminCommandRoute
   '/admin/domains': typeof AuthenticatedAdminDomainsRoute
@@ -929,6 +936,7 @@ export interface FileRoutesByTo {
   '/admin/ai': typeof AuthenticatedAdminAiRoute
   '/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
   '/admin/backups': typeof AuthenticatedAdminBackupsRoute
+  '/admin/city': typeof AuthenticatedAdminCityRoute
   '/admin/clients': typeof AuthenticatedAdminClientsRouteWithChildren
   '/admin/command': typeof AuthenticatedAdminCommandRoute
   '/admin/domains': typeof AuthenticatedAdminDomainsRoute
@@ -1051,6 +1059,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/ai': typeof AuthenticatedAdminAiRoute
   '/_authenticated/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
   '/_authenticated/admin/backups': typeof AuthenticatedAdminBackupsRoute
+  '/_authenticated/admin/city': typeof AuthenticatedAdminCityRoute
   '/_authenticated/admin/clients': typeof AuthenticatedAdminClientsRouteWithChildren
   '/_authenticated/admin/command': typeof AuthenticatedAdminCommandRoute
   '/_authenticated/admin/domains': typeof AuthenticatedAdminDomainsRoute
@@ -1173,6 +1182,7 @@ export interface FileRouteTypes {
     | '/admin/ai'
     | '/admin/analytics'
     | '/admin/backups'
+    | '/admin/city'
     | '/admin/clients'
     | '/admin/command'
     | '/admin/domains'
@@ -1288,6 +1298,7 @@ export interface FileRouteTypes {
     | '/admin/ai'
     | '/admin/analytics'
     | '/admin/backups'
+    | '/admin/city'
     | '/admin/clients'
     | '/admin/command'
     | '/admin/domains'
@@ -1409,6 +1420,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/ai'
     | '/_authenticated/admin/analytics'
     | '/_authenticated/admin/backups'
+    | '/_authenticated/admin/city'
     | '/_authenticated/admin/clients'
     | '/_authenticated/admin/command'
     | '/_authenticated/admin/domains'
@@ -1942,6 +1954,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminBackupsRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/city': {
+      id: '/_authenticated/admin/city'
+      path: '/city'
+      fullPath: '/admin/city'
+      preLoaderRoute: typeof AuthenticatedAdminCityRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/clients': {
       id: '/_authenticated/admin/clients'
       path: '/clients'
@@ -2404,6 +2423,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminAiRoute: typeof AuthenticatedAdminAiRoute
   AuthenticatedAdminAnalyticsRoute: typeof AuthenticatedAdminAnalyticsRoute
   AuthenticatedAdminBackupsRoute: typeof AuthenticatedAdminBackupsRoute
+  AuthenticatedAdminCityRoute: typeof AuthenticatedAdminCityRoute
   AuthenticatedAdminClientsRoute: typeof AuthenticatedAdminClientsRouteWithChildren
   AuthenticatedAdminCommandRoute: typeof AuthenticatedAdminCommandRoute
   AuthenticatedAdminDomainsRoute: typeof AuthenticatedAdminDomainsRoute
@@ -2423,6 +2443,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminAiRoute: AuthenticatedAdminAiRoute,
   AuthenticatedAdminAnalyticsRoute: AuthenticatedAdminAnalyticsRoute,
   AuthenticatedAdminBackupsRoute: AuthenticatedAdminBackupsRoute,
+  AuthenticatedAdminCityRoute: AuthenticatedAdminCityRoute,
   AuthenticatedAdminClientsRoute: AuthenticatedAdminClientsRouteWithChildren,
   AuthenticatedAdminCommandRoute: AuthenticatedAdminCommandRoute,
   AuthenticatedAdminDomainsRoute: AuthenticatedAdminDomainsRoute,
