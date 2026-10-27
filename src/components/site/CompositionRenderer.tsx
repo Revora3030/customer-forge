@@ -5,6 +5,9 @@ import { resolveImageSource } from "@/lib/brand-logos";
 import { contrastRatio, readableOn, toRgb } from "@/lib/readable-color";
 import { premiumSurface } from "@/lib/site-theme";
 import { clampSplit, splitForKey, splitForPointer } from "@/lib/builder/compare-slider";
+import { DEFAULT_OFFER_ANCHOR, DEFAULT_SCENE_ANCHOR, sceneScrim, type SceneAnchor } from "@/lib/builder/cinematic-primitives";
+import { CollectionRow, SceneVideo, ScrollChapters, SpinViewer, type SpinFrame } from "@/components/site/CinematicBlocks";
+import { CINEMATIC_CSS } from "@/components/site/cinematic-css";
 
 /**
  * Draws any validated AI-authored composition tree. It only translates the
@@ -107,7 +110,10 @@ const FORM_WIDGETS = ["booking_form", "quote_calculator", "enquiry_form"] as con
 /** Scopes that draw the shared site header/footer: the page itself owns its headings and its single h1. */
 const CHROME_SCOPES = new Set(["site-header", "site-footer"]);
 
-type Ctx = { chrome?: boolean; editable?: boolean; label?: (text: string) => string; depth?: number | undefined; bg?: string | undefined; bg2?: string | undefined; fg?: string | undefined; rules: string[]; counter: { n: number; sawMedia?: boolean }; eagerFirstMedia?: boolean; scope: string; href: (h: string) => string; media: (ref: string) => ResolvedMedia | null; widget: (name: string, presentation?: WidgetPresentation) => ReactNode };
+/** Facts for an offer card, read from the owner's real Services tool. Never authored by the AI. */
+export type OfferFacts = { name: string; price: string | null; duration: string | null };
+
+type Ctx = { offer?: (service: string) => OfferFacts | null; sceneScrim?: string | undefined; chrome?: boolean; editable?: boolean; label?: (text: string) => string; depth?: number | undefined; bg?: string | undefined; bg2?: string | undefined; fg?: string | undefined; rules: string[]; counter: { n: number; sawMedia?: boolean }; eagerFirstMedia?: boolean; scope: string; href: (h: string) => string; media: (ref: string) => ResolvedMedia | null; widget: (name: string, presentation?: WidgetPresentation) => ReactNode };
 
 const mediaUrl = (media: ResolvedMedia | null): string | null =>
   typeof media === "string" ? media : media?.url ?? null;
@@ -173,11 +179,11 @@ function baseLayout(type: CompositionNode["type"]): CSSProperties {
 }
 
 function renderNode(node: CompositionNode, ctx: Ctx, key: string): ReactNode {
-  const saved = { bg: ctx.bg, bg2: ctx.bg2, fg: ctx.fg, depth: ctx.depth };
+  const saved = { bg: ctx.bg, bg2: ctx.bg2, fg: ctx.fg, depth: ctx.depth, sceneScrim: ctx.sceneScrim };
   try {
     return renderNodeInner(node, ctx, key);
   } finally {
-    ctx.bg = saved.bg; ctx.bg2 = saved.bg2; ctx.fg = saved.fg; ctx.depth = saved.depth;
+    ctx.bg = saved.bg; ctx.bg2 = saved.bg2; ctx.fg = saved.fg; ctx.depth = saved.depth; ctx.sceneScrim = saved.sceneScrim;
   }
 }
 
@@ -292,6 +298,11 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
     className: classNames,
     style: motion ? { ...style, ...motionStyle(motion) } : style,
   };
+  // Cinematic blocks paint their own surfaces (a computed scrim, a frosted
+  // offer card), so their children are measured against those surfaces.
+  if (node.type === "scene") return renderScene(node, ctx, key, props);
+  if (node.type === "spin_viewer") return renderSpin(node, ctx, key, props);
+  if (node.type === "offer_card") offerSurface(node, ctx, props);
   const children = node.children ?? [];
   const prunedChildren = children.filter((child, index) => {
     if (child.type !== "icon" || index === children.length - 1) return true;
@@ -463,9 +474,157 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
           </div>
         </div>
       );
+    case "offer_card": {
+      // The price and duration are only ever the named real service's own
+      // values from the Services tool. No service, or no price: none shown.
+      const facts = node.service && ctx.offer ? ctx.offer(node.service) : null;
+      const title = node.text?.trim() || facts?.name || "";
+      const actionIndex = children.findIndex((child) => child.type === "button");
+      const action = actionIndex >= 0 ? kids[actionIndex] : null;
+      if (!title || !action) return null;
+      const picture = children.find((child) => child.type === "media");
+      const pictureResolved = picture?.mediaRef ? ctx.media(picture.mediaRef) : null;
+      const pictureSource = picture?.src ? resolveImageSource(picture.src) : mediaUrl(pictureResolved);
+      const specs = (node.items ?? []).map((item) => item.trim()).filter(Boolean).slice(0, 3);
+      const Title = ctx.chrome ? "p" : (`h${node.level ?? 3}` as "h2" | "h3" | "h4");
+      return (
+        <article key={key} {...props} className={`${props.className ?? ""} rv-offer`.trim()} data-rv-card="" data-rv-overlay="offer">
+          {picture && pictureSource ? <img className="rv-offer-media" src={pictureSource} alt={picture.alt ?? mediaVisual(pictureResolved)?.alt ?? ""} loading="lazy" decoding="async" style={mediaCss(mediaVisual(pictureResolved))} /> : null}
+          <Title className="rv-offer-title">{title}</Title>
+          {facts?.price ? <p className="rv-offer-price">{facts.price}{facts.duration ? <span> · {facts.duration}</span> : null}</p> : null}
+          {specs.length ? <ul className="rv-offer-specs">{specs.map((spec, i) => <li key={i}>{spec}</li>)}</ul> : null}
+          {action}
+        </article>
+      );
+    }
+    case "scroll_chapters": {
+      const pairs = children.map((child, i) => ({ chapter: kids[i], label: sceneLabel(child) || `Chapter ${i + 1}` })).filter((pair) => pair.chapter != null);
+      return pairs.length ? <ScrollChapters key={key} props={props} chapters={pairs.map((pair) => pair.chapter)} labels={pairs.map((pair) => pair.label)} /> : null;
+    }
+    case "collection_row": {
+      const items = kids.filter((kid) => kid != null);
+      return items.length ? <CollectionRow key={key} props={props} label={node.text?.trim() || "Collection"} items={items} /> : null;
+    }
     default:
       return <div key={key} {...props}>{node.text ? <span>{node.text}</span> : null}{kids}</div>;
   }
+}
+
+const VIDEO_SOURCE = /\.(?:mp4|webm|m4v|mov)(?:[?#]|$)/i;
+const ANCHOR_ROW = { top: "start", center: "center", bottom: "end" } as const;
+const ANCHOR_COLUMN = { left: "start", center: "center", right: "end" } as const;
+const anchorParts = (anchor: SceneAnchor): [keyof typeof ANCHOR_ROW, keyof typeof ANCHOR_COLUMN] =>
+  anchor === "center" ? ["center", "center"] : (anchor.split("-") as [keyof typeof ANCHOR_ROW, keyof typeof ANCHOR_COLUMN]);
+const rgba = (hex: string, alpha: number) => {
+  const rgb = toRgb(hex) ?? { r: 0, g: 0, b: 0 };
+  return `rgb(${rgb.r} ${rgb.g} ${rgb.b} / ${Math.max(0, Math.min(1, alpha)).toFixed(3)})`;
+};
+const GRADIENT_TOWARD: Record<SceneAnchor, string | null> = {
+  "top-left": "to bottom", "top-center": "to bottom", "top-right": "to bottom",
+  "center-left": "to right", center: null, "center-right": "to left",
+  "bottom-left": "to top", "bottom-center": "to top", "bottom-right": "to top",
+};
+
+/** The first heading of a scene, used to name its chapter. */
+function sceneLabel(node: CompositionNode): string {
+  const heading = (node.children ?? []).find((child) => child.type === "heading" && child.text?.trim());
+  return heading?.text?.trim().slice(0, 80) ?? "";
+}
+
+/**
+ * A frosted offer card over a scene paints a scrim-tinted surface whose
+ * opacity is computed (like the scene's) so its text passes AA whatever the
+ * photo behind it shows. An AI-authored background always wins.
+ */
+function offerSurface(node: CompositionNode, ctx: Ctx, props: NodeProps) {
+  if (node.style?.background || !ctx.sceneScrim) return;
+  const scrim = sceneScrim({ ink: node.style?.color ?? ctx.fg, scrim: ctx.sceneScrim, opacity: 72 });
+  props.style = { ...props.style, backgroundColor: rgba(scrim.scrim, scrim.opacity), color: scrim.ink };
+  ctx.bg = scrim.surfaces[0]; ctx.bg2 = scrim.surfaces[1]; ctx.fg = scrim.ink;
+}
+
+/**
+ * A full-viewport photographic chapter. The backdrop is the first media
+ * child; the scrim is computed so the copy slot passes WCAG AA over any photo
+ * (the AI's colour and opacity are kept as a floor); the remaining children
+ * render in the AI-anchored slot, with offer cards floating on wide screens.
+ */
+function renderScene(node: CompositionNode, ctx: Ctx, key: string, props: NodeProps): ReactNode {
+  const [backdrop, ...rest] = node.children ?? [];
+  const resolved = backdrop?.mediaRef ? ctx.media(backdrop.mediaRef) : null;
+  const source = backdrop?.type === "media" ? (backdrop.src ? resolveImageSource(backdrop.src) : mediaUrl(resolved)) : null;
+  const visual = mediaVisual(resolved);
+  const anchor = node.anchor ?? DEFAULT_SCENE_ANCHOR;
+  const [row, column] = anchorParts(anchor);
+  const id = props["data-cn"];
+  let ink: string | undefined;
+  let scrimLayer: ReactNode = null;
+  if (source) {
+    const scrim = sceneScrim({ ink: node.style?.color ?? null, scrim: node.scrim?.color ?? null, opacity: node.scrim?.opacity ?? null });
+    ink = scrim.ink;
+    ctx.bg = scrim.surfaces[0]; ctx.bg2 = scrim.surfaces[1]; ctx.fg = scrim.ink; ctx.sceneScrim = scrim.scrim;
+    const solid = rgba(scrim.scrim, scrim.opacity);
+    const toward = GRADIENT_TOWARD[anchor];
+    const background = toward
+      ? `linear-gradient(${toward}, ${solid} 0%, ${solid} 72%, ${rgba(scrim.scrim, scrim.opacity * 0.3)} 100%)`
+      : solid;
+    // Phones always get the even scrim: the copy may cover most of the frame.
+    ctx.rules.push(`@media (max-width:767px){[data-cn="${id}"] > .rv-scene-scrim{background:${solid}!important}}`);
+    scrimLayer = <div className="rv-scene-scrim" aria-hidden="true" data-scrim-opacity={scrim.opacity.toFixed(2)} style={{ background }} />;
+  }
+  const first = !ctx.counter.sawMedia;
+  if (source) ctx.counter.sawMedia = true;
+  const eager = first && Boolean(ctx.eagerFirstMedia);
+  const alt = backdrop?.alt ?? visual?.alt ?? "";
+  const objectPosition = node.focal ?? visual?.object_position ?? visual?.focal_point;
+  const media = !source ? null : VIDEO_SOURCE.test(source) ? (
+    <SceneVideo src={source} alt={alt} eager={eager} />
+  ) : (
+    <img className="rv-scene-media" src={source} alt={alt} loading={eager ? "eager" : "lazy"} decoding="async" {...(eager ? { fetchPriority: "high" as const } : {})} style={objectPosition ? { objectPosition } : undefined} />
+  );
+  const copy: ReactNode[] = [];
+  const offers = new Map<SceneAnchor, ReactNode[]>();
+  rest.forEach((child, i) => {
+    const rendered = renderNode(child, ctx, `${key}.${i + 1}`);
+    if (rendered == null) return;
+    if (child.type === "offer_card") {
+      const at = child.anchor ?? DEFAULT_OFFER_ANCHOR;
+      offers.set(at, [...(offers.get(at) ?? []), rendered]);
+    } else copy.push(rendered);
+  });
+  if (!media && !copy.length) return null;
+  return (
+    <div key={key} {...props} className={`${props.className ?? ""} rv-scene`.trim()} data-anchor={anchor} data-rv-scene="" style={{ ...props.style, ...(ink ? { color: ink } : {}) }}>
+      {media}
+      {scrimLayer}
+      <div className="rv-scene-inner" style={{ alignContent: ANCHOR_ROW[row], justifyItems: ANCHOR_COLUMN[column], textAlign: column === "center" ? "center" : column === "right" ? "right" : "left" }}>
+        <div className="rv-scene-slot" style={{ alignItems: column === "center" ? "center" : column === "right" ? "flex-end" : "flex-start" }}>{copy}</div>
+        {[...offers].map(([at, cards]) => (
+          <div key={at} className="rv-scene-offers" data-anchor={at} style={{ textAlign: "left" }}>{cards}</div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The turntable. Angle pictures marked generated or stock are never spun:
+ * they are not photographs of one real object, so a single still is shown.
+ */
+function renderSpin(node: CompositionNode, ctx: Ctx, key: string, props: NodeProps): ReactNode {
+  let illustrative = false;
+  const frames: SpinFrame[] = (node.children ?? []).flatMap((child) => {
+    if (child.type !== "media") return [];
+    const resolved = child.mediaRef ? ctx.media(child.mediaRef) : null;
+    if (isGeneratedMedia(resolved)) illustrative = true;
+    const src = child.src ? resolveImageSource(child.src) : mediaUrl(resolved);
+    return src ? [{ src, alt: child.alt ?? mediaVisual(resolved)?.alt ?? "" }] : [];
+  });
+  if (!frames.length) return null;
+  ctx.counter.sawMedia = true;
+  return (
+    <SpinViewer key={key} props={props} frames={illustrative ? frames.slice(0, 1) : frames} label={node.text?.trim() ?? ""} initialFrame={illustrative ? 0 : node.initialFrame ?? 0} podium={node.style?.borderColor} />
+  );
 }
 
 const EASING_CSS: Record<MotionEasing, string> = {
@@ -652,7 +811,7 @@ function MobileStickyBar({ props, primary, secondary }: {
   secondary?: { label: string; href: string; ariaLabel: string };
 }) {
   return (
-    <div {...props} className={`${props.className ?? ""} rv-cn-mobile-sticky-bar`.trim()} style={{
+    <div {...props} data-rv-overlay="sticky" className={`${props.className ?? ""} rv-cn-mobile-sticky-bar`.trim()} style={{
       ...props.style,
       position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 50, display: "flex", gap: 8, alignItems: "stretch",
       padding: "10px 12px", paddingBottom: "max(10px, env(safe-area-inset-bottom, 0px))",
@@ -731,9 +890,9 @@ export const PHONE_SAFETY_CSS = `[data-composition]{box-sizing:border-box;max-wi
 
 const MOTION_CSS = `@media (prefers-reduced-motion: no-preference){.rv-cn-motion{animation:rv-cn-in .7s ease both}.rv-cn-motion[data-motion=rise]{animation-name:rv-cn-rise}.rv-cn-motion[data-motion=scale]{animation-name:rv-cn-scale}.rv-cn-motion[data-motion=float]{animation:rv-cn-float 6s ease-in-out infinite}.rv-cn-motion[data-motion=slide-left]{animation-name:rv-cn-sl}.rv-cn-motion[data-motion=slide-right]{animation-name:rv-cn-sr}.rv-cn-motion[data-motion=blur]{animation-name:rv-cn-blur}.rv-cn-motion[data-motion=reveal]{animation-name:rv-cn-reveal}.rv-cn-motion[data-motion=custom]{animation-name:rv-cn-custom}}@keyframes rv-cn-custom{from{opacity:var(--rv-o,1);transform:translate(var(--rv-x,0),var(--rv-y,0)) scale(var(--rv-s,1)) rotate(var(--rv-r,0));filter:blur(var(--rv-b,0))}}@keyframes rv-cn-sl{from{opacity:0;transform:translateX(32px)}to{opacity:1;transform:none}}@keyframes rv-cn-sr{from{opacity:0;transform:translateX(-32px)}to{opacity:1;transform:none}}@keyframes rv-cn-blur{from{opacity:0;filter:blur(12px)}to{opacity:1;filter:none}}@keyframes rv-cn-reveal{from{clip-path:inset(0 0 100% 0)}to{clip-path:inset(0 0 0 0)}}@keyframes rv-cn-in{from{opacity:0}to{opacity:1}}@keyframes rv-cn-rise{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:none}}@keyframes rv-cn-scale{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:none}}@keyframes rv-cn-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}`;
 
-export function CompositionRenderer({ tree, scope, as = "section", resolveHref, resolveMedia, resolveWidget, eagerFirstMedia = false, surface = null, linkLabel, editable = false }: { tree: CompositionTree; scope: string; editable?: boolean; surface?: string | null; linkLabel?: (text: string) => string; as?: "section" | "div"; resolveHref?: (href: string) => string; resolveMedia?: (ref: string) => ResolvedMedia | null; resolveWidget?: (name: string, presentation?: WidgetPresentation) => ReactNode; eagerFirstMedia?: boolean }) {
+export function CompositionRenderer({ tree, scope, as = "section", resolveHref, resolveMedia, resolveWidget, resolveOffer, eagerFirstMedia = false, surface = null, linkLabel, editable = false }: { tree: CompositionTree; scope: string; editable?: boolean; surface?: string | null; linkLabel?: (text: string) => string; as?: "section" | "div"; resolveHref?: (href: string) => string; resolveMedia?: (ref: string) => ResolvedMedia | null; resolveWidget?: (name: string, presentation?: WidgetPresentation) => ReactNode; /** Real service facts for offer cards (Services tool); without it no price is shown. */ resolveOffer?: (service: string) => OfferFacts | null; eagerFirstMedia?: boolean }) {
   const page = surface && /^#[0-9a-f]{6}$/i.test(surface) ? surface : undefined;
-  const ctx: Ctx = { ...(CHROME_SCOPES.has(scope) ? { chrome: true } : {}), ...(editable ? { editable: true } : {}), ...(linkLabel ? { label: linkLabel } : {}), ...(page ? { bg: page, fg: bestInk(page) } : {}), rules: [], counter: { n: 0 }, eagerFirstMedia, scope: scope.replace(/[^\w-]/g, "") || "cn", href: resolveHref ?? ((h) => h), media: resolveMedia ?? (() => null), widget: resolveWidget ?? (() => null) };
+  const ctx: Ctx = { ...(resolveOffer ? { offer: resolveOffer } : {}), ...(CHROME_SCOPES.has(scope) ? { chrome: true } : {}), ...(editable ? { editable: true } : {}), ...(linkLabel ? { label: linkLabel } : {}), ...(page ? { bg: page, fg: bestInk(page) } : {}), rules: [], counter: { n: 0 }, eagerFirstMedia, scope: scope.replace(/[^\w-]/g, "") || "cn", href: resolveHref ?? ((h) => h), media: resolveMedia ?? (() => null), widget: resolveWidget ?? (() => null) };
   const body = renderNode(tree.root, ctx, "root");
   // The shared rules are identical for every section. They used to be
   // repeated inline in each one (several KB per section, re-parsed by the
@@ -741,7 +900,7 @@ export function CompositionRenderer({ tree, scope, as = "section", resolveHref, 
   // section's own responsive/hover rules stay inline, after the shared ones.
   const shared = (
     <style href="rv-cn-shared" precedence="rv-cn">
-      {MOTION_CSS + MARQUEE_CSS + INTERACTIVE_CSS + PHONE_SAFETY_CSS}
+      {MOTION_CSS + MARQUEE_CSS + INTERACTIVE_CSS + PHONE_SAFETY_CSS + CINEMATIC_CSS}
     </style>
   );
   const own = ctx.rules.length ? <style>{ctx.rules.join("")}</style> : null;
