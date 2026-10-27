@@ -862,6 +862,74 @@ async function repairColor(input: {
   };
 }
 
+/** Fewest AI-authored pictures a first build may plan (hero plus supporting pages). */
+export const MIN_FIRST_BUILD_PICTURES = 5;
+
+/**
+ * The picture campaign and layout direction a first build cannot ship without.
+ * Blank seeded picture slots (no subject) do not count as a campaign.
+ */
+export function missingVisualCampaign(brief: CreativeBrief): string[] {
+  const missing: string[] = [];
+  const authored = (brief.imageInventory ?? []).filter((item) => item.subject?.trim() && item.altText?.trim());
+  if (authored.length < MIN_FIRST_BUILD_PICTURES) missing.push("imageInventory");
+  if (!brief.heroComposition?.trim()) missing.push("heroComposition");
+  if (!brief.sectionRhythm?.trim()) missing.push("sectionRhythm");
+  if (!brief.backgroundTreatment?.trim()) missing.push("backgroundTreatment");
+  if (!brief.photography?.language?.trim()) missing.push("photography");
+  return missing;
+}
+
+/** One AI pass that authors only the missing picture campaign and layout direction, through the same gate. */
+async function repairVisualCampaign(input: {
+  organizationId: string;
+  facts: DnaFacts;
+  brief: SiteBrief;
+  creative: FirstBuildCreativeDirection;
+  missing: string[];
+  signal?: AbortSignal;
+}): Promise<{ creative: FirstBuildCreativeDirection | null; pass: CollectivePassRecord }> {
+  const serviceCount = (input.facts.services ?? []).length;
+  const call = await callBestThinker({
+    json: true,
+    purpose: "creative_direction",
+    complexity: "high",
+    organizationId: input.organizationId,
+    maxOutputTokens: 5000,
+    ...(input.signal ? { signal: input.signal } : {}),
+    system: `${CREATIVE_RULES} You are Sol, the master creative director, completing this site's cinematic picture campaign and layout direction. ${craftBarPrompt("creative_direction")}`,
+    user: [
+      "FACTS (truth source, not copy to invent from):",
+      factSheet(input.facts, input.brief, input.creative),
+      "",
+      "CURRENT CREATIVE DIRECTION:",
+      creativeSheet(input.creative),
+      "",
+      `Your brief is missing: ${input.missing.join(", ")}.`,
+      'Return JSON: {"brief": {"heroComposition": "...", "sectionRhythm": "...", "backgroundTreatment": "...", "photography": {"language": "...", "lighting": "...", "environment": "...", "treatment": "..."}, "imageInventory": [ ... ], "shotList": {"continuity": "...", "sections": [ ... ]}}}',
+      "heroComposition: an image-led, full-bleed opening (never a text-only hero). sectionRhythm: how full-width photographic scenes alternate with tighter content bands across pages. backgroundTreatment: how surfaces, photography and colour bands sit edge to edge.",
+      `imageInventory: at least ${MIN_FIRST_BUILD_PICTURES} and at most 16 pictures — one hero for home, one per real service (${serviceCount || "each"}), one for the about/story page, plus process/booking/contact scenes. Each item: slot (short lowercase-hyphenated), label, purpose, subject, environment, action, lighting, camera, framing, focalPoint, negativeSpace, aspectRatio (like 16:9), palette, mood, section (array of section roles such as ["hero"], ["services"], ["story"], ["process"], ["booking"]), mobileCrop, altText, and serviceName only when it shows exactly one supplied service.`,
+      "Generated pictures are marketing visuals of places, vehicles, tools and light — never staff, customers, completed-work proof, before/after, reviews, awards or results.",
+      "shotList.sections: one entry per picture-carrying section role: section, setting, light, cameraAngle, mood, paletteTieIn, copySpace.",
+    ].join("\n"),
+  });
+  if (!call.ok)
+    return { creative: null, pass: record(call.wanted, "creative_direction", { skipped: call.detail ?? call.reason }) };
+  const proposal = parseCreativeProposal(call.text);
+  const gated = reviewCreativeProposal({ proposal, facts: input.facts, baseline: input.creative });
+  const accepted = gated.accepted.brief ?? {};
+  const fields = Object.keys(accepted).map((key) => `brief.${key}`);
+  const pass = record(call.tier ?? "hall_of_fame", "creative_direction", {
+    model: call.model,
+    used: fields.length > 0,
+    costMicrocents: call.costMicrocents,
+    skipped: fields.length ? null : "the picture campaign repair was not in the agreed shape",
+    acceptedFields: fields,
+    rejected: gated.rejected,
+  });
+  return { creative: fields.length ? mergeCreativeRefinement(input.creative, { brief: accepted }) : null, pass };
+}
+
 /** The identity fields a first build cannot ship without (the design contract requires a concept). */
 export function missingConcept(brief: CreativeBrief): string[] {
   return brief.concept?.trim() ? [] : ["concept"];
@@ -1020,6 +1088,30 @@ export async function refineFirstBuildWithCollective(input: {
     if (stillMissing.length)
       throw new Error(
         `The AI design team did not choose this site's colours (missing ${stillMissing.join(", ")}). The build stopped so it can be retried; Revora never fills in a default palette.`,
+      );
+  }
+
+  // The picture campaign and layout direction are the AI's decision too. When
+  // the big creative pass timed out, the earlier repairs restored type, concept
+  // and colour only, so builds finished with zero pictures and plain bands.
+  const missingVisual = missingVisualCampaign(creative.brief);
+  if (missingVisual.length) {
+    const repaired = await repairVisualCampaign({
+      organizationId: input.organizationId,
+      facts: input.facts,
+      brief: input.brief,
+      creative,
+      missing: missingVisual,
+      ...(input.signal ? { signal: input.signal } : {}),
+    });
+    passes.push(repaired.pass);
+    if (repaired.creative) {
+      creative = repaired.creative;
+      creativeChanged = true;
+    }
+    if (missingVisualCampaign(creative.brief).includes("imageInventory"))
+      throw new Error(
+        "The AI design team did not plan this site's pictures (the AI providers may be busy). The build stopped so it can be retried; Revora never ships a site without its picture campaign.",
       );
   }
 
