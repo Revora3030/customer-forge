@@ -1,5 +1,12 @@
 # Roadmap — Five-phase blocker elimination
 
+## Interactive tools and conversion completion (2026-10-27)
+- [ ] Complete existing comparison slider pointer and image behavior; preserve real-work provenance.
+- [ ] Complete FAQ structured-data parity for customer compositions.
+- [ ] Harden existing mobile sticky actions for contrast, long labels, and variable-height clearance.
+- [ ] Complete existing quote selection controls and prevent duplicate/preview tracking.
+- [ ] Run focused regressions and browser interaction checks without production writes, AI spending, outreach, or publishing.
+
 ## All-model wiring (2026-10-22)
 - [x] Jarvis voice choice: Auto / ElevenLabs / Lovable AI speech (Gemini TTS, budgeted, router telemetry). No live speech call made.
 - [x] Maps review form: per-fact source labels, editable address and hours, website suggestions needing approval, existing build handoff kept.
