@@ -35,14 +35,14 @@ const distinctOrgs = (r: Read) => (r.error || !Array.isArray(r.data) ? null : ne
 
 // Each stage reads existing records; a failed read stays null ("Unavailable").
 export async function collectSalesPipeline(db: SupabaseClient<Database>): Promise<PipelineCounts> {
-  const safe = async (q: PromiseLike<Read>): Promise<Read> => { try { return await q; } catch { return { data: null, error: true }; } };
-  const demos = await safe(db.from("website_settings").select("organization_id").not("generation->prospectDemo", "is", null).limit(5000));
+  const safe = async (q: () => PromiseLike<Read>): Promise<Read> => { try { return await q(); } catch { return { data: null, error: true }; } };
+  const demos = await safe(() => db.from("website_settings").select("organization_id").not("generation->prospectDemo", "is", null).limit(5000));
   const ids = demos.error || !Array.isArray(demos.data) ? null : (demos.data as Array<{ organization_id: string }>).map(d => d.organization_id);
   const [ready, approvals, sent, replied] = await Promise.all([
-    ids === null ? Promise.resolve<Read>({ data: null, error: true }) : ids.length ? safe(db.from("generation_jobs").select("organization_id").in("organization_id", ids.slice(0, 1000)).eq("status", "completed").limit(5000)) : Promise.resolve<Read>({ data: [], error: null }),
-    safe(db.from("approval_queue").select("id", { count: "exact", head: true }).eq("status", "pending")),
-    safe(db.from("prospect_outreach").select("organization_id").eq("status", "sent").limit(10000)),
-    safe(db.from("prospect_inbound").select("organization_id").limit(10000)),
+    ids === null ? Promise.resolve<Read>({ data: null, error: true }) : ids.length ? safe(() => db.from("generation_jobs").select("organization_id").in("organization_id", ids.slice(0, 1000)).eq("status", "completed").limit(5000)) : Promise.resolve<Read>({ data: [], error: null }),
+    safe(() => db.from("approval_queue").select("id", { count: "exact", head: true }).eq("status", "pending")),
+    safe(() => db.from("prospect_outreach").select("organization_id").eq("status", "sent").limit(10000)),
+    safe(() => db.from("prospect_inbound").select("organization_id").limit(10000)),
   ]);
   return {
     found: ids === null ? null : new Set(ids).size,
