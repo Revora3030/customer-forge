@@ -7,7 +7,10 @@
  * links, images without alt, small phone tap targets and broken internal
  * links. Nothing here is a visual opinion; every finding is a measurement.
  *
- * usage: node scripts/page-sweep.mjs [baseUrl] [--max=120] [--per-family=4] [--out=page-sweep.json]
+ * usage: node scripts/page-sweep.mjs [baseUrl] [--max=120] [--per-family=4] [--out=page-sweep.json] [--target=24]
+ * --top=N sets how many offenders are listed (default 40).
+ * --target=44 holds phone tap targets to the 44px comfort size instead of the 24px WCAG 2.5.8
+ * minimum, and lists the controls that miss it, most widespread first, so shared chrome shows up.
  * Without Playwright the run is NOT_VERIFIED (exit 2), never a pass.
  */
 import { writeFileSync } from "node:fs";
@@ -16,6 +19,7 @@ const args = process.argv.slice(2);
 const base = (args.find((a) => /^https?:/.test(a)) ?? "http://127.0.0.1:5199").replace(/\/$/, "");
 const max = Number((args.find((a) => a.startsWith("--max=")) ?? "--max=120").split("=")[1]);
 const out = (args.find((a) => a.startsWith("--out=")) ?? "--out=page-sweep.json").split("=")[1];
+const MIN_TARGET = Number((args.find((a) => a.startsWith("--target=")) ?? "--target=24").split("=")[1]);
 const VIEWPORTS = [
   { name: "phone", width: 390, height: 800 },
   { name: "desktop", width: 1280, height: 800 },
@@ -39,6 +43,8 @@ const FAMILY_CAP = Number((args.find((a) => a.startsWith("--per-family=")) ?? "-
 const familyCount = new Map();
 const familyOf = (path) => path.split("/")[1] ?? "";
 const findings = [];
+// Small phone targets by control, across every page: signature -> { region, size, pages }.
+const targetOffenders = new Map();
 const add = (page, viewport, severity, check, detail) => findings.push({ page, viewport, severity, check, detail });
 
 try {
@@ -82,7 +88,7 @@ while (queue.length && pages.length < max) {
     if (status >= 400) add(path, viewport.name, "P0", "status", `HTTP ${status}`);
     for (const message of errors) add(path, viewport.name, "P0", "script-error", message);
 
-    const m = await page.evaluate((isPhone) => {
+    const m = await page.evaluate(({ isPhone, minTarget }) => {
       const root = document.documentElement;
       const name = (el) => (el.labels?.length ? [...el.labels].map((l) => l.textContent).join(" ") : "") || (el.getAttribute("aria-label") || el.getAttribute("title") || el.textContent || el.querySelector("img[alt]")?.getAttribute("alt") || "").trim();
       const visible = (el) => { const r = el.getBoundingClientRect(); const s = getComputedStyle(el); return r.width > 0 && r.height > 0 && s.visibility !== "hidden" && s.display !== "none"; };
@@ -94,17 +100,31 @@ while (queue.length && pages.length < max) {
         h1: document.querySelectorAll("h1").length,
         unnamed: interactive.filter((el) => !name(el)).length,
         noAlt: [...document.querySelectorAll("img")].filter((img) => !img.hasAttribute("alt")).length,
-        // WCAG 2.5.8 exempts links that sit inside a sentence.
+        // WCAG 2.5.8 exempts links that sit inside a sentence. A text control only has to be tall enough;
+        // an icon-only control has to be big in both directions.
         smallTargets: isPhone ? interactive.filter((el) => {
-          const r = el.getBoundingClientRect();
-          if (r.width >= 24 && r.height >= 24) return false;
+          // A checkbox or switch inside a <label> is tapped through the label, so the label is the target.
+          const labelled = el.tagName !== "A" ? el.closest("label") : null;
+          const r = (labelled ?? el).getBoundingClientRect();
+          if (r.width <= 1 || r.height <= 1) return false; // visually hidden skip links
+          const iconOnly = !labelled && (el.textContent ?? "").trim().length === 0;
+          if (r.height >= minTarget && (!iconOnly || r.width >= minTarget)) return false;
+          if (minTarget <= 24 && r.width >= 24 && r.height >= 24) return false;
           const block = el.tagName === "A" ? el.closest("p, li, dd, td") : null;
           const inline = block && (block.textContent ?? "").trim().length > (el.textContent ?? "").trim().length + 12;
           return !inline;
-        }).length : 0,
+        }).map((el) => {
+          const r = el.getBoundingClientRect();
+          const label = name(el).replace(/\s+/g, " ").slice(0, 30);
+          return {
+            signature: `${el.tagName.toLowerCase()} "${label}"`,
+            region: el.closest("header, footer, nav, aside, [role=dialog], main")?.tagName.toLowerCase() ?? "page",
+            size: `${Math.round(r.width)}x${Math.round(r.height)}`,
+          };
+        }) : [],
         links: [...document.querySelectorAll("a[href]")].map((a) => a.getAttribute("href")).filter(Boolean),
       };
-    }, viewport.name === "phone");
+    }, { isPhone: viewport.name === "phone", minTarget: MIN_TARGET });
 
     if (m.overflow > 1) add(path, viewport.name, "P0", "overflow", `${m.overflow}px sideways scroll`);
     if (viewport.name === "phone") {
@@ -115,7 +135,13 @@ while (queue.length && pages.length < max) {
     }
     if (m.unnamed) add(path, viewport.name, "P1", "unnamed-control", `${m.unnamed} buttons or links have no accessible name`);
     if (m.noAlt) add(path, viewport.name, "P2", "image-alt", `${m.noAlt} images have no alt attribute`);
-    if (m.smallTargets) add(path, viewport.name, "P2", "tap-target", `${m.smallTargets} controls smaller than 24px`);
+    if (m.smallTargets.length) add(path, viewport.name, "P2", "tap-target", `${m.smallTargets.length} controls smaller than ${MIN_TARGET}px`);
+    for (const target of m.smallTargets) {
+      const key = `${target.region}|${target.signature}`;
+      const entry = targetOffenders.get(key) ?? { region: target.region, control: target.signature, size: target.size, pages: new Set() };
+      entry.pages.add(path);
+      targetOffenders.set(key, entry);
+    }
     await page.close();
   }
   pages.push(path);
@@ -135,7 +161,11 @@ await browser.close();
 
 const counts = { P0: 0, P1: 0, P2: 0 };
 for (const f of findings) counts[f.severity] += 1;
-const report = { status: counts.P0 ? "FAILED" : "PASSED", base, pagesChecked: pages.length, families: Object.fromEntries(familyCount), counts, findings };
+const offenders = [...targetOffenders.values()]
+  .map((o) => ({ region: o.region, control: o.control, size: o.size, pages: o.pages.size }))
+  .sort((a, b) => b.pages - a.pages)
+  .slice(0, Number((args.find((a) => a.startsWith("--top=")) ?? "--top=40").split("=")[1]));
+const report = { status: counts.P0 ? "FAILED" : "PASSED", base, minTarget: MIN_TARGET, pagesChecked: pages.length, families: Object.fromEntries(familyCount), counts, targetOffenders: offenders, findings };
 writeFileSync(out, JSON.stringify(report, null, 2));
 console.log(JSON.stringify({ status: report.status, pagesChecked: pages.length, families: report.families, counts }));
 process.exit(counts.P0 ? 1 : 0);

@@ -186,14 +186,14 @@ function CrmSolutionPage() {
                 key={other.slug}
                 to="/crm/$trade"
                 params={{ trade: other.slug }}
-                className="rounded-full border border-border/60 px-3 py-1.5 text-muted-foreground hover:border-primary/50 hover:text-primary"
+                className="tap-target rounded-full border border-border/60 px-3 py-1.5 text-muted-foreground hover:border-primary/50 hover:text-primary"
               >
                 {other.heading}
               </Link>
             ))}
             <Link
               to="/crm"
-              className="rounded-full border border-border/60 px-3 py-1.5 text-muted-foreground hover:border-primary/50 hover:text-primary"
+              className="tap-target rounded-full border border-border/60 px-3 py-1.5 text-muted-foreground hover:border-primary/50 hover:text-primary"
             >
               All trades
             </Link>

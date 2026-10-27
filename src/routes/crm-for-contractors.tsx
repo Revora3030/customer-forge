@@ -184,7 +184,7 @@ function ContractorCrmPage() {
                 key={solution.slug}
                 to="/crm/$trade"
                 params={{ trade: solution.slug }}
-                className="rounded-full border border-border px-3 py-1.5 text-muted-foreground hover:border-primary/50 hover:text-primary"
+                className="tap-target rounded-full border border-border px-3 py-1.5 text-muted-foreground hover:border-primary/50 hover:text-primary"
               >
                 {solution.heading}
               </Link>

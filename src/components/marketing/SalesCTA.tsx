@@ -37,7 +37,7 @@ export function SupportCard() {
       </p>
       <ul className="mt-4 space-y-1.5 text-[13px]">
         <li>
-          <a className="inline-block py-1 text-primary underline underline-offset-2" href={revoraMailto(MAIL_SUBJECTS.support)}>
+          <a className="tap-target py-1 text-primary underline underline-offset-2" href={revoraMailto(MAIL_SUBJECTS.support)}>
             {REVORA.email}
           </a>
         </li>

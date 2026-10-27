@@ -242,7 +242,7 @@ function AuthPage() {
     <div className="flex min-h-screen flex-col bg-background">
       <header className="border-b border-border">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
-          <Link to="/">
+          <Link to="/" className="flex min-h-11 items-center">
             <Logo />
           </Link>
           <Link
@@ -370,7 +370,7 @@ function AuthPage() {
                 type="button"
                 onClick={() => void handleGoogle("switch")}
                 disabled={busy !== null}
-                className="mt-2 w-full cursor-pointer rounded-md py-2 text-[13px] text-primary underline-offset-4 transition-colors hover:underline disabled:opacity-60"
+                className="mt-2 min-h-11 w-full cursor-pointer rounded-md py-2 text-[13px] text-primary underline-offset-4 transition-colors hover:underline disabled:opacity-60"
               >
                 Use a different Google account
               </button>

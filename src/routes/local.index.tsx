@@ -86,7 +86,7 @@ function LocalHub() {
               <Link
                 to="/states/$state"
                 params={{ state: state.slug }}
-                className="inline-block py-1 text-[14px] text-muted-foreground hover:text-primary"
+                className="tap-target py-1 text-[14px] text-muted-foreground hover:text-primary"
               >
                 {state.name}
               </Link>

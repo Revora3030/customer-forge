@@ -130,7 +130,7 @@ function GuidePage() {
           <section className="mt-10 border-t border-border pt-6">
             <h2 className="text-base font-semibold">Sources and policy guidance</h2>
             <ul className="mt-3 space-y-2">
-              {guide.sources.map((source) => <li key={source.url}><a href={source.url} className="inline-block py-1 text-sm text-primary underline underline-offset-4">{source.label}</a></li>)}
+              {guide.sources.map((source) => <li key={source.url}><a href={source.url} className="tap-target py-1 text-sm text-primary underline underline-offset-4">{source.label}</a></li>)}
             </ul>
           </section>
         )}

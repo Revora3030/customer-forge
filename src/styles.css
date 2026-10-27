@@ -290,6 +290,17 @@
 }
 
 /* Tabular numerals for every metric readout. */
+/* A standalone link or chip: a 44px-tall hit area on phones without changing how it looks. Links inside a
+   sentence do not need it. */
+@utility tap-target {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  @media (min-width: 640px) {
+    min-height: 0;
+  }
+}
+
 @utility tnum {
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum";
@@ -2766,4 +2777,18 @@ html.reveal-ready [data-reveal] {
   }
   body:has([data-print-estimate]) [data-print-estimate] * { color: #111 !important; }
   .print-hide { display: none !important; }
+}
+
+/* Owner documents (estimate, work order): the dialog is for editing, so only the copy rendered straight
+   under <body> prints. It is hidden on screen, and everything else on the page is dropped from the printout. */
+[data-print-document] { display: none; }
+@media print {
+  html:has([data-print-document]),
+  html body:has([data-print-document]) {
+    background: #fff !important; overflow: visible !important; height: auto !important;
+    position: static !important; margin: 0 !important; padding: 0 !important;
+  }
+  html body:has([data-print-document]) > :not([data-print-document]) { display: none !important; }
+  html body:has([data-print-document]) > [data-print-document] { display: block !important; background: #fff; color: #111; }
+  [data-print-document] .estimate-paper { border: 0; border-radius: 0; padding: 0; }
 }
