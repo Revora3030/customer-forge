@@ -276,3 +276,6 @@ Owner approved porting two ideas (audit of the uploaded Next.js project; auto pa
 - [x] Prospect/outreach admin drafts: decide router vs free-only
 - [ ] Maps → fact review/edit → first build handoff, official-site enrichment, provenance
 - [x] Durable build worker/cancellation audit
+
+- [x] AI City sales pipeline strip (Found → Demo ready → Awaiting approval → Sent → Replied) with approval-gated Scout/Demo/Pitch missions
+- [x] AI City district inspector panel (bottom sheet on phone, side panel on desktop)
