@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { readAll } from "@/lib/db/read-all";
-import { firstBuildCoverageProblems, missingPictureProblems, savedPictureRefs, type ExpectedBuildCoverage, type SavedBuildPage, type SavedBuildSection } from "./first-build-saved-coverage";
+import { dropMissingPictures, firstBuildCoverageProblems, missingPictureProblems, savedPictureRefs, type ExpectedBuildCoverage, type SavedBuildPage, type SavedBuildSection } from "./first-build-saved-coverage";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -23,6 +23,18 @@ export async function assertFirstBuildSavedCoverage(
     const { data, error } = await db.from("media").select("id").eq("organization_id", organizationId).in("id", refs.slice(i, i + 100));
     if (error) throw new Error("Couldn't verify saved website pictures");
     for (const row of data ?? []) savedIds.add((row as { id: string }).id);
+  }
+  const missing = new Set([...savedPictureRefs(savedSections).keys()].filter(ref => !savedIds.has(ref)));
+  if (missing.size) {
+    // Repair instead of failing the whole site: the section keeps its copy
+    // without the unsaved picture; the readback below proves the result.
+    const { readComposition } = await import("./composition-tree");
+    for (const section of savedSections) {
+      const repaired = dropMissingPictures(section.settings, missing);
+      if (!repaired || !readComposition(repaired)) continue;
+      const { data, error } = await db.from("website_sections").update({ settings: repaired } as never).eq("organization_id", organizationId).eq("id", section.id).select("id");
+      if (!error && Array.isArray(data) && data.length === 1) section.settings = repaired;
+    }
   }
   problems.push(...missingPictureProblems(savedSections, savedIds));
   if (problems.length) {
