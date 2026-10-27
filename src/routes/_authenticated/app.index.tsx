@@ -18,6 +18,7 @@ import { BuildLive } from "@/components/app/BuildLive";
 import { ActivityFeed } from "@/components/app/ActivityFeed";
 import { RevoraCommandBar } from "@/components/app/RevoraCommandBar";
 import { ClientWebsiteSummary } from "@/components/app/ClientWebsiteSummary";
+import { SpeedToLeadCard } from "@/components/app/SpeedToLeadCard";
 
 import { useProductionStatus } from "@/lib/production.hooks";
 
@@ -462,6 +463,13 @@ function Dashboard() {
         leads={leads.length}
         bookings={appts.filter((a) => a.status !== "cancelled").length}
         visits={events.filter((e) => e.event_type === "page_view").length}
+      />
+
+      <SpeedToLeadCard
+        organizationId={orgId}
+        leads={leads}
+        leadsFailed={leadsQuery.isError}
+        retryLeads={leadsQuery.refetch}
       />
 
       <ProductionSummaryCard status={production} />
