@@ -14,10 +14,10 @@ import type { CitySceneProps } from "./CityScene";
 
 const CityScene = lazy(() => import("./CityScene"));
 class SceneBoundary extends Component<{ children: ReactNode; onFailure: () => void }, { failed: boolean }> {
-  state = { failed: false };
+  override state = { failed: false };
   static getDerivedStateFromError() { return { failed: true }; }
-  componentDidCatch() { this.props.onFailure(); }
-  render() { return this.state.failed ? <p className="p-6 text-muted-foreground">3D unavailable. Operations remain available.</p> : this.props.children; }
+  override componentDidCatch() { this.props.onFailure(); }
+  override render() { return this.state.failed ? <p className="p-6 text-muted-foreground">3D unavailable. Operations remain available.</p> : this.props.children; }
 }
 
 const STATUS_TONE: Record<string, string> = { working: "text-success", attention: "text-gold", idle: "text-muted-foreground", unavailable: "text-destructive" };
@@ -70,7 +70,7 @@ export function AiCity() {
     <div className="grid grid-cols-2 gap-x-4 gap-y-3 border-y border-border py-4 sm:grid-cols-4">
       <Metric label="Working now" value={snapshot ? String(active) : "Unavailable"} />
       <Metric label="Lovable routing models" value={models.data ? String(models.data.models.length) : models.isError ? "Unavailable" : "Loading"} />
-      <Metric label="Growth approvals" value={snapshot?.sources.approvals?.total === null || !snapshot?.sources.approvals?.available ? "Unavailable" : String(snapshot.sources.approvals.total)} />
+      <Metric label="Growth approvals" value={snapshot?.sources["approvals"]?.total === null || !snapshot?.sources["approvals"]?.available ? "Unavailable" : String(snapshot.sources["approvals"].total)} />
       <Metric label="Monthly AI remaining" value={budget.data && !budget.isError ? `$${budget.data.remainingUsd.toFixed(2)}` : budget.isError ? "Unavailable" : "Loading"} />
     </div>
     {query.isError ? <div role="alert" className="flex flex-wrap items-center gap-3 text-sm text-destructive">City records could not be read. Activity is unavailable.<Button variant="outline" onClick={() => query.refetch()}>Retry</Button></div> : null}
@@ -96,7 +96,7 @@ export function AiCity() {
     <section className="border-t border-border pt-5">
       <div className="flex flex-wrap gap-2" role="tablist" aria-label="Workforce records">{(["work", "models", "routines"] as const).map(key => <Button key={key} role="tab" aria-selected={tab === key} variant={tab === key ? "secondary" : "ghost"} onClick={() => setTab(key)}>{key === "work" ? "Work & evidence" : key === "models" ? "Lovable workforce" : "Saved routines"}</Button>)}</div>
       <div className="mt-4" role="tabpanel">
-        {tab === "models" ? models.isError ? <p role="alert">Model records unavailable.</p> : <><p className="mb-3 text-xs text-muted-foreground">{models.data?.catalogueState === "live" ? "Live catalogue eligibility" : "Catalogue eligibility not freshly verified"} · 7-day recorded calls · media keeps dedicated selectors</p><div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">{models.data?.models.map(model => <div key={model.model} className="min-w-0 rounded-md border border-border p-3"><p className="break-all font-mono text-xs">{model.model}</p><p className="mt-2 text-xs text-muted-foreground">{model.roles.join(" · ")}</p><p className="mt-2 text-xs text-gold">{model.calls ? `${model.successes} succeeded / ${model.calls} calls` : "Configured · not used yet"}</p></div>)}</div></> : <WorkList rows={tab === "routines" ? snapshot?.sources.routines?.rows ?? [] : work} loading={query.isLoading} onSelect={setEvidence} />}
+        {tab === "models" ? models.isError ? <p role="alert">Model records unavailable.</p> : <><p className="mb-3 text-xs text-muted-foreground">{models.data?.catalogueState === "live" ? "Live catalogue eligibility" : "Catalogue eligibility not freshly verified"} · 7-day recorded calls · media keeps dedicated selectors</p><div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">{models.data?.models.map(model => <div key={model.model} className="min-w-0 rounded-md border border-border p-3"><p className="break-all font-mono text-xs">{model.model}</p><p className="mt-2 text-xs text-muted-foreground">{model.roles.join(" · ")}</p><p className="mt-2 text-xs text-gold">{model.calls ? `${model.successes} succeeded / ${model.calls} calls` : "Configured · not used yet"}</p></div>)}</div></> : <WorkList rows={tab === "routines" ? snapshot?.sources["routines"]?.rows ?? [] : work} loading={query.isLoading} onSelect={setEvidence} />}
       </div>
     </section>
     <footer className="flex items-start gap-2 border-t border-border pt-3 text-xs text-muted-foreground"><CheckCircle2 className="size-4 shrink-0" /><p>Recorded operations, not simulated work. Recent feeds show up to 100 rows per source; pending queue totals are exact where available. No roadmap completion percentage inferred.</p></footer>

@@ -53,13 +53,13 @@ describe("AI City data boundary", () => {
   it("preserves workspace identity and exact totals while declaring sample truncation", async () => {
     const fake = fakeDb();
     const result = await collectCitySnapshot(fake.db, "owner-a");
-    expect(result.sources.jobs?.rows[0]?.organizationId).toBe("tenant-a");
-    expect(result.sources.jobs?.total).toBe(200);
-    expect(result.sources.jobs?.truncated).toBe(true);
+    expect(result.sources["jobs"]?.rows[0]?.organizationId).toBe("tenant-a");
+    expect(result.sources["jobs"]?.total).toBe(200);
+    expect(result.sources["jobs"]?.truncated).toBe(true);
   });
   it("keeps source errors unknown instead of silently zeroing counts", async () => {
     const result = await collectCitySnapshot(fakeDb("generation_jobs").db, "owner-a");
-    expect(result.sources.jobs).toEqual({ available: false, rows: [], total: null, truncated: false });
-    expect(result.sources.memories?.available).toBe(true);
+    expect(result.sources["jobs"]).toEqual({ available: false, rows: [], total: null, truncated: false });
+    expect(result.sources["memories"]?.available).toBe(true);
   });
 });

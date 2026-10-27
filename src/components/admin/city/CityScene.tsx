@@ -14,7 +14,7 @@ import library from "@/assets/city/building-m.asset.json";
 
 type Palette = { ground: string; road: string; structure: string; gold: string; cyan: string; magenta: string; light: string; muted: string };
 const MODEL_URLS = [towerA.url, factory.url, towerC.url, towerD.url, towerB.url, towerE.url, library.url];
-export type CitySceneProps = { snapshot?: CitySnapshot; selected: DistrictId; onSelect: (id: DistrictId) => void; palette: Palette; motion: boolean; reset: number; onFailure: () => void };
+export type CitySceneProps = { snapshot?: CitySnapshot | undefined; selected: DistrictId; onSelect: (id: DistrictId) => void; palette: Palette; motion: boolean; reset: number; onFailure: () => void };
 
 function Ground({ palette }: { palette: Palette }) {
   const texture = useMemo(() => {
