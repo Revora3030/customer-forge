@@ -1,5 +1,11 @@
 # Roadmap — Five-phase blocker elimination
 
+## Roadmap continuation (2026-10-27)
+- [ ] Priority 1: reject zero-row first-build composition saves; test tenant-scoped persistence success and failure offline.
+- [ ] Priority 2: compare saved page/section identities and multiplicity with the materialized build inventory, not only aggregate counts; test substituted and duplicate inventories.
+- [ ] Review remaining job controls and durable approvals after reliability batches; do not describe client-side approval memory as server authorization.
+- [ ] Live generation, real lead delivery, paid provider calls, publishing and production mutations require separate owner authorization; none authorized by this continuation.
+
 ## Interactive tools and conversion completion (2026-10-27)
 - [x] Complete existing comparison slider pointer and image behavior; preserve real-work provenance.
 - [x] Complete FAQ structured-data parity for dedicated visible customer FAQ compositions; inactive tabs deliberately omitted.
