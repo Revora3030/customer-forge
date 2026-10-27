@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { readAll } from "@/lib/db/read-all";
-import { firstBuildCoverageProblems, missingPictureProblems, savedPictureRefs, type SavedBuildPage, type SavedBuildSection } from "./first-build-saved-coverage";
+import { firstBuildCoverageProblems, missingPictureProblems, savedPictureRefs, type ExpectedBuildCoverage, type SavedBuildPage, type SavedBuildSection } from "./first-build-saved-coverage";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -8,7 +8,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export async function assertFirstBuildSavedCoverage(
   db: SupabaseClient,
   organizationId: string,
-  expected: { pages: number; sections: number },
+  expected: ExpectedBuildCoverage,
 ): Promise<void> {
   const [pages, sections] = await Promise.all([
     readAll<SavedBuildPage>(() => db.from("website_pages").select("id,slug").eq("organization_id", organizationId).order("id")),
