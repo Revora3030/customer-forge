@@ -67,7 +67,11 @@ function fakeDb(data: Record<string, unknown[]>, updates: unknown[] = []) {
       chain["range"] = (from: number, to: number) => Promise.resolve({ data: (data[table] ?? []).slice(from, to + 1), error: null });
       chain["update"] = (value: unknown) => {
         updates.push(value);
-        const done = { eq: () => done, then: (resolve: (v: unknown) => void) => resolve({ error: null }) };
+        let sectionId = "";
+        const done = {
+          eq: (key: string, value: string) => { if (key === "id") sectionId = value; return done; },
+          select: async () => ({ data: [{ id: sectionId }], error: null }),
+        };
         return done;
       };
       return chain;
