@@ -5,7 +5,9 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { ArrowUpRight, Box, Building2, CheckCircle2, List, Pause, Play, RefreshCw, RotateCcw, ShieldCheck, Terminal, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { CITY_DISTRICTS, cityCommandDraft, districtState, workIsActive, type CityWork, type DistrictId } from "@/lib/ai-city";
+import { CITY_DISTRICTS, cityCommandDraft, districtState, salesMissionDraft, workIsActive, type CityWork, type DistrictId, type SalesMission } from "@/lib/ai-city";
+import { GROWTH_SYSTEM } from "@/lib/offer";
+import { DistrictInspector } from "./DistrictInspector";
 import { getAiCity } from "@/lib/ai-city.functions";
 import { getCommandCenter } from "@/lib/ai/command-center.functions";
 import { getAiHealth } from "@/lib/ai/health.functions";
@@ -43,6 +45,8 @@ export function AiCity() {
   const [evidence, setEvidence] = useState<CityWork | null>(null);
   const [diagnosticOpen, setDiagnosticOpen] = useState(false);
   const [now, setNow] = useState(0);
+  const [inspectorOpen, setInspectorOpen] = useState(false);
+  const openDistrict = (id: DistrictId) => { setSelected(id); setInspectorOpen(true); };
   useEffect(() => {
     const style = getComputedStyle(document.documentElement);
     const token = (key: string) => style.getPropertyValue(`--city-${key}`).trim();
@@ -61,10 +65,12 @@ export function AiCity() {
   const active = rows.filter(row => workIsActive(row, now)).length;
   const unavailable = Object.entries(snapshot?.sources ?? {}).filter(([, source]) => !source.available).map(([key]) => key);
   const inspect = useMutation({ mutationFn: () => diagnostic({ data: { toolId: district.tool } }), onSettled: () => setDiagnosticOpen(true) });
-  const prepareMission = () => {
-    sessionStorage.setItem("revora:city-mission", cityCommandDraft(selected));
+  const sendDraft = (draft: string) => {
+    sessionStorage.setItem("revora:city-mission", draft);
     void navigate({ to: "/admin/jarvis" });
   };
+  const prepareMission = () => sendDraft(cityCommandDraft(selected));
+  const prepareSalesMission = (kind: SalesMission) => sendDraft(salesMissionDraft(kind, GROWTH_SYSTEM));
   return <div className="mx-auto max-w-[1800px] space-y-5">
     <header className="flex flex-wrap items-start justify-between gap-4">
       <div><p className="mb-1 text-xs font-medium uppercase text-gold">Revora Growth Systems / Operations</p><h1 className="font-display text-3xl font-semibold sm:text-4xl">AI City<span className="text-gold">.</span></h1><p className="mt-2 text-sm text-muted-foreground">Workforce command · founder control</p></div>
@@ -84,9 +90,9 @@ export function AiCity() {
     </div>
     <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
       <section className="min-w-0" aria-label="AI workforce districts">
-        {view === "city" ? <div className="relative h-[330px] touch-none overflow-hidden sm:h-[520px] xl:h-[580px]" aria-label="Interactive 3D workforce city"><SceneBoundary onFailure={() => setView("operations")}><Suspense fallback={<p className="p-6 text-muted-foreground">Loading city architecture…</p>}>{palette ? <CityScene snapshot={snapshot} selected={selected} onSelect={setSelected} palette={palette} motion={motion} reset={reset} onFailure={() => setView("operations")} /> : null}</Suspense></SceneBoundary><div className="pointer-events-none absolute bottom-3 left-3 bg-background/90 px-3 py-2 text-xs text-muted-foreground">{snapshot ? `Records checked ${new Date(snapshot.checkedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : "Awaiting records"} · 7 districts</div></div> : null}
+        {view === "city" ? <div className="relative h-[330px] touch-none overflow-hidden sm:h-[520px] xl:h-[580px]" aria-label="Interactive 3D workforce city"><SceneBoundary onFailure={() => setView("operations")}><Suspense fallback={<p className="p-6 text-muted-foreground">Loading city architecture…</p>}>{palette ? <CityScene snapshot={snapshot} selected={selected} onSelect={openDistrict} palette={palette} motion={motion} reset={reset} onFailure={() => setView("operations")} /> : null}</Suspense></SceneBoundary><div className="pointer-events-none absolute bottom-3 left-3 bg-background/90 px-3 py-2 text-xs text-muted-foreground">{snapshot ? `Records checked ${new Date(snapshot.checkedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : "Awaiting records"} · 7 districts</div></div> : null}
         <div className={view === "operations" ? "grid gap-2 sm:grid-cols-2" : "mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3"}>
-          {CITY_DISTRICTS.map(d => { const state = districtState(d.id, snapshot, now); return <Button key={d.id} variant="outline" aria-pressed={selected === d.id} className={`h-auto min-h-16 min-w-0 justify-start whitespace-normal px-3 py-3 text-left ${selected === d.id ? "border-gold bg-gold/10" : ""}`} onClick={() => setSelected(d.id)}><Building2 className="size-4 shrink-0 text-gold" /><span className="min-w-0"><span className="block text-xs font-semibold">{d.name}</span><span className={`block text-[11px] capitalize ${STATUS_TONE[state]}`}>{state}</span></span></Button>; })}
+          {CITY_DISTRICTS.map(d => { const state = districtState(d.id, snapshot, now); return <Button key={d.id} variant="outline" aria-pressed={selected === d.id} className={`h-auto min-h-16 min-w-0 justify-start whitespace-normal px-3 py-3 text-left ${selected === d.id ? "border-gold bg-gold/10" : ""}`} onClick={() => openDistrict(d.id)}><Building2 className="size-4 shrink-0 text-gold" /><span className="min-w-0"><span className="block text-xs font-semibold">{d.name}</span><span className={`block text-[11px] capitalize ${STATUS_TONE[state]}`}>{state}</span></span></Button>; })}
         </div>
       </section>
       <section className="min-w-0 border-t border-border pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0" aria-label="Selected department">
@@ -103,6 +109,7 @@ export function AiCity() {
       </div>
     </section>
     <footer className="flex items-start gap-2 border-t border-border pt-3 text-xs text-muted-foreground"><CheckCircle2 className="size-4 shrink-0" /><p>Recorded operations, not simulated work. Recent feeds show up to 100 rows per source; pending queue totals are exact where available. No roadmap completion percentage inferred.</p></footer>
+    <DistrictInspector open={inspectorOpen} onOpenChange={setInspectorOpen} district={selected} snapshot={snapshot} now={now} onRecord={row => { setInspectorOpen(false); setEvidence(row); }} onMission={prepareMission} onSalesMission={prepareSalesMission} />
     <Dialog open={!!evidence} onOpenChange={open => { if (!open) setEvidence(null); }}><DialogContent><DialogHeader><DialogTitle>{evidence?.title}</DialogTitle><DialogDescription>Saved operational evidence</DialogDescription></DialogHeader>{evidence ? <><dl className="space-y-3 text-sm"><div><dt className="text-muted-foreground">Source</dt><dd className="break-all font-mono">{evidence.source}</dd></div><div><dt className="text-muted-foreground">Record</dt><dd className="break-all font-mono text-xs">{evidence.id}</dd></div><div><dt className="text-muted-foreground">Status</dt><dd>{evidence.status}</dd></div><div><dt className="text-muted-foreground">Recorded</dt><dd>{evidence.at}</dd></div>{evidence.organizationId ? <div><dt className="text-muted-foreground">Workspace</dt><dd className="break-all font-mono text-xs">{evidence.organizationId}</dd></div> : null}{evidence.model ? <div><dt className="text-muted-foreground">Lovable model</dt><dd>{evidence.model}</dd></div> : null}</dl>{evidence.detail ? <p className="break-words text-sm">{evidence.detail}</p> : null}{evidence.runId ? <RunEvidence runId={evidence.runId} /> : null}</> : null}</DialogContent></Dialog>
     <Dialog open={diagnosticOpen} onOpenChange={setDiagnosticOpen}><DialogContent><DialogHeader><DialogTitle>Department check</DialogTitle><DialogDescription>Read-only evidence; no paid model request</DialogDescription></DialogHeader>{inspect.error ? <p role="alert" className="text-destructive">{inspect.error.message}</p> : inspect.data ? <><p className="text-sm">{inspect.data.title} · {inspect.data.status}</p><p className="text-xs text-muted-foreground">{inspect.data.evidence}</p><pre className="max-h-72 overflow-auto whitespace-pre-wrap break-all rounded-md bg-muted p-3 text-xs">{JSON.stringify(inspect.data.data, null, 2)}</pre>{inspect.data.limitations.map((item, index) => <p key={index} className="text-xs text-muted-foreground">{item}</p>)}</> : null}</DialogContent></Dialog>
   </div>;
