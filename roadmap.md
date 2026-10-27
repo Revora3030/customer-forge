@@ -20,7 +20,7 @@
 - [x] Phase 2a: live Jarvis step events shown while working (tested).
 - [ ] Phase 2: Stop/Resume, expiring single-use approvals, unified approvals list.
 - [x] Phase 3 (partial): security scan clean; linter shows 28 server-only tables locked by design (no browser policies) and 1 extension-in-public warning.
-- [ ] Phase 3: cross-workspace isolation test suite.
+- [x] Phase 3 (static part): `tenant-rls-coverage.test.ts` checks every migration-created table with an organization_id has RLS on, never switched off, and no anon update/delete grant. A live two-workspace test against a non-production database is still open.
 - [ ] Phase 4: honest status page (Instagram blocked on Meta credentials).
 - [ ] Phase 5: 320/390/768/1280 sweep.
 
