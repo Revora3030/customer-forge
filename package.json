@@ -27,6 +27,7 @@
     "repo:audit": "node scripts/whole-repo-upgrade-audit.mjs",
     "repo:audit:test": "node scripts/whole-repo-upgrade-audit.contract.mjs",
     "browser:smoke": "node scripts/browser-smoke.mjs",
+    "site:sweep": "node scripts/page-sweep.mjs",
     "production:readiness:max": "node scripts/production-readiness-max-audit.mjs",
     "production:readiness:max:test": "node scripts/production-readiness-max-audit.contract.mjs",
     "repo:visual-output": "node scripts/whole-repo-visual-output-audit.mjs",

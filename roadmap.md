@@ -1,5 +1,10 @@
 # Roadmap — Five-phase blocker elimination
 
+## Public page sweep (2026-10-27)
+- [x] `scripts/page-sweep.mjs` (`npm run site:sweep`) crawls a running site at phone and desktop width and measures status, script errors, overflow, title/description/h1, unnamed controls, image alt, tap targets and broken internal links.
+- [x] First run: 43 pages across 21 families, 0 failures; fixed 15 small phone tap targets on location, state and guide link lists. Authenticated pages and the one-time-token pages are not covered (no sign-in available to the crawler).
+- [ ] Run the sweep in CI against the built app (needs a start step and Playwright in the workflow).
+
 ## Free upgrades from the model scan (2026-10-27)
 - [x] Printable / save-as-PDF estimate after a quote request (browser print, no server cost, labelled as an estimate not a quote).
 - [x] Customer-site "page not found" now links back to the business's home page.
