@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { ArrowUpRight, Radar, Send, Sparkles, Terminal } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,10 @@ const SALES_ACTIONS: Array<{ kind: SalesMission; label: string; icon: typeof Rad
 
 export function DistrictInspector({ open, onOpenChange, district, snapshot, now, onRecord, onMission, onSalesMission }: Props) {
   const [wide, setWide] = useState(false);
+  // On phones the sheet starts at about half height so the city stays visible above it.
+  const [tall, setTall] = useState(false);
+  const dragFrom = useRef<number | null>(null);
+  const dragged = useRef(false);
   useEffect(() => {
     const media = window.matchMedia("(min-width: 1024px)");
     const sync = () => setWide(media.matches);
@@ -41,7 +45,22 @@ export function DistrictInspector({ open, onOpenChange, district, snapshot, now,
   for (const r of rows) if (r.model) { const m = models.get(r.model) ?? { ok: 0, total: 0 }; m.total += 1; if (r.status !== "failed" && r.status !== "error") m.ok += 1; models.set(r.model, m); }
   const state = districtState(district, snapshot, now);
   return <Sheet open={open} onOpenChange={onOpenChange}>
-    <SheetContent side={wide ? "right" : "bottom"} className={wide ? "w-[440px] overflow-y-auto sm:max-w-[440px]" : "max-h-[85vh] overflow-y-auto rounded-t-xl"}>
+    <SheetContent side={wide ? "right" : "bottom"} className={wide ? "w-[440px] overflow-y-auto sm:max-w-[440px]" : `${tall ? "h-[85dvh]" : "h-[52dvh]"} overflow-y-auto rounded-t-xl pb-[max(1rem,env(safe-area-inset-bottom))] transition-[height] duration-200`}>
+      {wide ? null : <button
+        type="button"
+        aria-label={tall ? "Make the panel smaller" : "Make the panel taller"}
+        className="mx-auto mb-2 block h-6 w-24 touch-none"
+        onClick={() => { if (dragged.current) { dragged.current = false; return; } setTall((v) => !v); }}
+        onPointerDown={(event) => { dragFrom.current = event.clientY; event.currentTarget.setPointerCapture?.(event.pointerId); }}
+        onPointerUp={(event) => {
+          const start = dragFrom.current; dragFrom.current = null;
+          if (start === null) return;
+          const dy = event.clientY - start;
+          dragged.current = Math.abs(dy) >= 40;
+          if (dy < -40) setTall(true);
+          else if (dy > 40) { if (tall) setTall(false); else onOpenChange(false); }
+        }}
+      ><span aria-hidden="true" className="mx-auto block h-1.5 w-12 rounded-full bg-border" /></button>}
       <SheetHeader className="text-left">
         <p className="text-xs uppercase text-gold">{info.role}</p>
         <SheetTitle className="font-display text-2xl">{info.name}</SheetTitle>

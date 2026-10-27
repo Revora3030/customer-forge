@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { CITY_DISTRICTS, attentionItems, cityCommandDraft, districtForKey, districtFromParam, districtState, salesMissionDraft, workIsActive, type CityWork, type DistrictId, type SalesMission } from "@/lib/ai-city";
 import { CityActivity } from "./CityActivity";
 import { CityAttention } from "./CityAttention";
+import { DistrictCarousel } from "./DistrictCarousel";
 import { GROWTH_SYSTEM } from "@/lib/offer";
 import { DistrictInspector } from "./DistrictInspector";
 import { getAiCity } from "@/lib/ai-city.functions";
@@ -108,9 +109,10 @@ export function AiCity() {
     <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
       <section className="min-w-0" aria-label="AI workforce districts">
         {view === "city" ? <div className="relative h-[330px] touch-none overflow-hidden sm:h-[520px] xl:h-[580px]" aria-label="Interactive 3D workforce city"><SceneBoundary onFailure={() => setView("operations")}><Suspense fallback={<p className="p-6 text-muted-foreground">Loading city architecture…</p>}>{palette ? <CityScene snapshot={snapshot} selected={selected} onSelect={openDistrict} palette={palette} motion={motion} reset={reset} onFailure={() => setView("operations")} /> : null}</Suspense></SceneBoundary><div className="pointer-events-none absolute bottom-3 left-3 bg-background/90 px-3 py-2 text-xs text-muted-foreground">{snapshot ? `Records checked ${new Date(snapshot.checkedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : "Awaiting records"} · 7 districts · keys 1–7 or arrows switch district</div><ul aria-label="Colour key" className="pointer-events-none absolute right-3 top-3 space-y-1 rounded bg-background/90 px-3 py-2 text-[11px] text-muted-foreground"><li><span className="mr-1.5 inline-block size-2 rounded-full bg-success" />Working</li><li><span className="mr-1.5 inline-block size-2 rounded-full bg-destructive" />Failed</li><li><span className="mr-1.5 inline-block size-2 rounded-full bg-gold" />Waiting</li><li><span className="mr-1.5 inline-block size-2 rounded-full bg-muted-foreground" />Unreadable</li></ul></div> : null}
-        <div className={view === "operations" ? "grid gap-2 sm:grid-cols-2" : "mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3"}>
+        <div className={view === "operations" ? "grid gap-2 sm:grid-cols-2" : "mt-3 hidden grid-cols-2 gap-2 sm:grid sm:grid-cols-3"}>
           {CITY_DISTRICTS.map(d => { const state = districtState(d.id, snapshot, now); return <Button key={d.id} variant="outline" aria-pressed={selected === d.id} className={`h-auto min-h-16 min-w-0 justify-start whitespace-normal px-3 py-3 text-left ${selected === d.id ? "border-gold bg-gold/10" : ""}`} onClick={() => openDistrict(d.id)}><Building2 className="size-4 shrink-0 text-gold" /><span className="min-w-0"><span className="block text-xs font-semibold">{d.name}</span><span className={`block text-[11px] capitalize ${STATUS_TONE[state]}`}>{state}</span></span></Button>; })}
         </div>
+        {view === "city" ? <DistrictCarousel selected={selected} snapshot={snapshot} now={now} onSelect={setSelected} onOpen={openDistrict} /> : null}
       </section>
       <section className="min-w-0 border-t border-border pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0" aria-label="Selected department">
         <p className="text-xs uppercase text-gold">Department {CITY_DISTRICTS.indexOf(district) + 1} / 07</p><h2 className="mt-2 font-display text-2xl font-semibold">{district.name}</h2><p className="mt-1 text-sm text-muted-foreground">{district.subtitle}</p><p className="mt-4 flex items-center gap-2 text-xs"><Users className="size-4 text-gold" />{district.role}</p>

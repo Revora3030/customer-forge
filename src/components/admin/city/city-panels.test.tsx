@@ -64,3 +64,28 @@ describe("Sparkline", () => {
     expect(html).not.toContain("<svg");
   });
 });
+
+import { DistrictCarousel } from "./DistrictCarousel";
+
+describe("DistrictCarousel", () => {
+  const html = renderToStaticMarkup(<DistrictCarousel selected="growth" snapshot={SNAP} now={NOW} onSelect={() => undefined} onOpen={() => undefined} />);
+
+  it("offers every district as a thumb-sized button inside a safe-area-padded phone-only bar", () => {
+    expect((html.match(/<button/g) ?? []).length).toBe(7);
+    expect(html).toContain("env(safe-area-inset-bottom)");
+    expect(html).toContain("sm:hidden");
+    expect(html).toContain("min-h-14");
+  });
+
+  it("marks the chosen district, says how many records are open, and names the state for screen readers", () => {
+    expect(html).toContain('aria-pressed="true"');
+    expect(html).toContain("Tap to open");
+    expect(html).toContain("Website Factory, attention, 1 need attention");
+  });
+
+  it("never reports an unreadable district as healthy", () => {
+    const unreadable = renderToStaticMarkup(<DistrictCarousel selected="factory" snapshot={undefined} now={NOW} onSelect={() => undefined} onOpen={() => undefined} />);
+    expect(unreadable).toContain("Website Factory, unavailable");
+    expect(unreadable).not.toContain("idle");
+  });
+});

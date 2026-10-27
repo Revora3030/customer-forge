@@ -6,6 +6,9 @@
 - [x] "All activity" tab: newest-first feed across every district with text search and district filters; per-district records-per-hour chart in the inspector.
 - [x] District shareable in the address (?district=growth); keys 1-7 and arrows switch district (ignored inside fields and dialogs).
 - [x] 23 City tests (triage ranking, counts, hourly buckets, search, feed, deep-link parsing, key mapping, panel rendering). Rendered with a stand-in model and sample records at 1280 and 390: no errors, no overflow.
+- [x] Scene: warm key and cool rim lighting with a gold glow over the tower, depth fog, district pads that glow with recorded state, status-coloured conduit lines from the Jarvis hub to each district (a status indicator only; nothing travels along them).
+- [x] Phone: thumb-zone district carousel pinned above the safe area, compact count badges with a full label only on the chosen district, bottom sheet that opens at about half height, resizes by tap or swipe on its handle and swipes down to close.
+- [ ] Not built: autonomous cold outreach sending (needs explicit owner approval per AGENTS.md).
 - [ ] Not built: model "sprites" travelling between districts. Records do not say which district hands work to which, so any movement would be invented.
 - [ ] Not verified against live records or your real building models (needs your signed-in /admin/city).
 
