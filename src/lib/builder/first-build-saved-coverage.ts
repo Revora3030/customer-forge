@@ -88,3 +88,36 @@ export function missingPictureProblems(sections: readonly SavedBuildSection[], s
   }
   return problems;
 }
+type Node = { type?: string; mediaRef?: string; src?: string; children?: Node[]; [key: string]: unknown };
+const PICTURE_ONLY = new Set(["gallery", "spin_viewer", "before_after_slider", "compare"]);
+
+/**
+ * One unsaved picture must not block a whole site: drop media nodes whose
+ * reference was never saved, turn a scene that lost its backdrop into a plain
+ * stack (same copy, no picture) and remove picture-only containers left empty.
+ * Returns null when nothing referenced a missing picture.
+ */
+export function dropMissingPictures(settings: unknown, missing: ReadonlySet<string>): Record<string, unknown> | null {
+  const base = settings && typeof settings === "object" && !Array.isArray(settings) ? (settings as Record<string, unknown>) : null;
+  const root = base?.["composition"] as { root?: Node } | undefined;
+  if (!root?.root) return null;
+  let changed = false;
+  const fix = (node: Node): Node | null => {
+    if (node.type === "media" && typeof node.mediaRef === "string" && missing.has(node.mediaRef)) {
+      changed = true;
+      return null;
+    }
+    if (!Array.isArray(node.children)) return node;
+    const before = node.children.length;
+    const children = node.children.map(fix).filter((child): child is Node => child !== null);
+    const next: Node = { ...node, children };
+    if (children.length !== before) {
+      if (node.type === "scene" && children[0]?.type !== "media") next.type = "stack";
+      if (PICTURE_ONLY.has(String(node.type)) && !children.some(c => c.type === "media")) return null;
+    }
+    return next;
+  };
+  const fixedRoot = fix(root.root);
+  if (!changed) return null;
+  return { ...base, composition: { ...root, root: fixedRoot ?? { type: "stack", children: [] } } };
+}
