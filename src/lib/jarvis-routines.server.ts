@@ -128,38 +128,56 @@ export function routineIsDue(routine: Pick<JarvisRoutine, "frequency" | "hour" |
  * Jarvis chat and runs the normal Jarvis loop, so approvals and safety rules
  * are unchanged. AI spend goes through the same router and caps as chat.
  */
-export async function runDueJarvisRoutines(db: SupabaseClient, now = new Date()) {
+async function executeRoutine(db: SupabaseClient, routine: JarvisRoutine): Promise<string> {
+  const inserted = await db.from("jarvis_messages").insert({ user_id: routine.user_id, role: "user", content: `[Routine: ${routine.name}] ${routine.prompt}` });
+  if (inserted.error) throw new Error(inserted.error.message);
+  const { runJarvis } = await import("./jarvis.functions");
+  const { reply } = await runJarvis(db, routine.user_id, "balanced");
+  const { splitReplyMeta } = await import("./jarvis-actions");
+  return splitReplyMeta(reply).body.slice(0, 400);
+}
+
+export async function runDueJarvisRoutines(db: SupabaseClient, now = new Date(), execute = executeRoutine) {
   const { data, error } = await db
     .from("jarvis_routines")
-    .select("id,user_id,name,prompt,frequency,hour,minute,enabled,last_run_at")
+    .select("id,user_id,name,prompt,frequency,hour,minute,enabled,last_run_at,last_status")
     .eq("enabled", true)
     .limit(200);
   if (error) throw new Error(error.message);
-  const due = ((data ?? []) as JarvisRoutine[]).filter((routine) => routineIsDue(routine, now)).slice(0, MAX_RUNS_PER_PASS);
+  // A stranded running attempt is uncertain, not permission to spend again.
+  const due = ((data ?? []) as JarvisRoutine[]).filter((routine) => routine.last_status !== "running" && routineIsDue(routine, now)).slice(0, MAX_RUNS_PER_PASS);
   const results: { id: string; name: string; ok: boolean; detail: string }[] = [];
   for (const routine of due) {
-    const userId = String(routine.user_id);
+    const attempt = `Routine attempt ${crypto.randomUUID()}; completion not yet confirmed.`;
+    let claim = db.from("jarvis_routines")
+      .update({ last_run_at: now.toISOString(), last_status: "running", last_summary: attempt, updated_at: now.toISOString() })
+      .eq("id", routine.id).eq("user_id", routine.user_id).eq("enabled", true)
+      .eq("name", routine.name).eq("prompt", routine.prompt).eq("frequency", routine.frequency)
+      .eq("hour", routine.hour).eq("minute", routine.minute);
+    claim = routine.last_run_at === null ? claim.is("last_run_at", null) : claim.eq("last_run_at", routine.last_run_at);
+    claim = routine.last_status === null ? claim.is("last_status", null) : claim.eq("last_status", routine.last_status);
+    const claimed = await claim.select("id");
+    if (claimed.error) throw new Error("Couldn't confirm routine claim; no work dispatched.");
+    if (!claimed.data?.length) continue;
+    if (claimed.data.length !== 1 || claimed.data[0]?.id !== routine.id) throw new Error("Couldn't verify routine claim identity; no work dispatched.");
+    let ok = true;
+    let summary: string;
     try {
-      const marker = `[Routine: ${routine.name}] ${routine.prompt}`;
-      const inserted = await db.from("jarvis_messages").insert({ user_id: userId, role: "user", content: marker });
-      if (inserted.error) throw new Error(inserted.error.message);
-      const { runJarvis } = await import("./jarvis.functions");
-      const { reply } = await runJarvis(db, userId, "balanced");
-      const { splitReplyMeta } = await import("./jarvis-actions");
-      const summary = splitReplyMeta(reply).body.slice(0, 400);
-      await db
-        .from("jarvis_routines")
-        .update({ last_run_at: now.toISOString(), last_status: "ok", last_summary: summary, updated_at: now.toISOString() })
-        .eq("id", routine.id);
-      results.push({ id: String(routine.id), name: routine.name, ok: true, detail: summary.slice(0, 120) });
+      summary = (await execute(db, routine)).slice(0, 400);
     } catch (routineError) {
-      const detail = routineError instanceof Error ? routineError.message.slice(0, 300) : "failed";
-      await db
-        .from("jarvis_routines")
-        .update({ last_run_at: now.toISOString(), last_status: "error", last_summary: detail, updated_at: now.toISOString() })
-        .eq("id", routine.id);
-      results.push({ id: String(routine.id), name: routine.name, ok: false, detail });
+      ok = false;
+      summary = routineError instanceof Error ? routineError.message.slice(0, 300) : "failed";
     }
+    // Never turn a failed settlement into a second execution or an unfenced error write.
+    const settled = await db.from("jarvis_routines")
+      .update({ last_status: ok ? "ok" : "error", last_summary: summary, updated_at: new Date().toISOString() })
+      .eq("id", routine.id).eq("user_id", routine.user_id)
+      .eq("last_run_at", now.toISOString()).eq("last_status", "running").eq("last_summary", attempt).select("id");
+    if (settled.error || settled.data?.length !== 1 || settled.data[0]?.id !== routine.id) {
+      results.push({ id: routine.id, name: routine.name, ok: false, detail: "Completion unconfirmed; review the recorded attempt before resuming this routine." });
+      continue;
+    }
+    results.push({ id: routine.id, name: routine.name, ok, detail: summary.slice(0, 120) });
   }
   return { ran: results.length, results };
 }
