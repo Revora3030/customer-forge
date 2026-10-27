@@ -86,8 +86,8 @@ function AdminAi() {
         />
         <MetricCard
           label="Typical response"
-          value={data ? `${(data.last24h.medianLatencyMs / 1000).toFixed(1)}s` : "—"}
-          hint="Middle of the last 24 hours"
+          value={data && data.last24h.medianLatencyMs > 0 ? `${(data.last24h.medianLatencyMs / 1000).toFixed(1)}s` : "—"}
+          hint={data && data.last24h.medianLatencyMs > 0 ? "Middle of the last 24 hours" : "No positive response time recorded"}
         />
         <MetricCard
           label="Estimated spend (7d)"
