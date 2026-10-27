@@ -1,5 +1,9 @@
 # Roadmap — Five-phase blocker elimination
 
+## Jarvis event nudges (2026-10-27)
+- [x] The routines job now also posts a plain, no-AI notice into each super admin's Jarvis chat when a site build failed in the last day (cooldown per workspace, at most 5 per pass), with a suggested question to ask. 4 tests.
+- [ ] `ci.failed` and `lead.unanswered` have rules but no emitter yet.
+
 ## Weekly content audit of published sites (2026-10-27)
 - [x] `site-content-audit` job (Mondays 13:05 UTC) checks each published customer site's home page and up to 6 internal links for title, h1, structured-data validity, alt text and broken links; up to 40 sites per run, rotated weekly; one digest per week to the Revora inbox only (customers are not emailed). 8 tests.
 - [ ] Not run against live sites; first scheduled run happens after publish. No results table (needs a migration); findings live in the digest and job log counts.
