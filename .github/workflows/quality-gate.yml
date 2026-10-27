@@ -106,7 +106,7 @@ jobs:
         with:
           name: coverage-report-${{ github.run_id }}
           path: coverage/
-          retention-days: 30
+          retention-days: 7
 
       - name: Upload coverage artifact for code coverage API
         id: coverage_api

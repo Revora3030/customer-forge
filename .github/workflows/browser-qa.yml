@@ -85,14 +85,16 @@ jobs:
           agent-browser screenshot --full browser-qa-artifacts/agent-browser-home.png
           agent-browser close
       - name: Upload browser evidence
-        if: always()
+        # Screenshots are ~45 MB a run; keep them only when the check failed,
+        # and briefly, so they cannot fill the repository's artifact quota again.
+        if: failure()
         continue-on-error: true  # a full Actions artifact quota must not fail a job whose checks passed
         uses: actions/upload-artifact@v4
         with:
           name: revora-browser-qa-${{ github.run_id }}
           path: browser-qa-artifacts
           if-no-files-found: warn
-          retention-days: 14
+          retention-days: 3
 
       - name: Stop application
         if: always()

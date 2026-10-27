@@ -47,7 +47,7 @@ jobs:
         with:
           name: zap-baseline-${{ github.run_id }}
           path: zap-baseline-report.html
-          retention-days: 14
+          retention-days: 7
       - name: Stop app
         if: always()
         run: |
