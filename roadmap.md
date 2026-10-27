@@ -1,5 +1,11 @@
 # Roadmap — Five-phase blocker elimination
 
+## AI City and workforce-first continuation (2026-10-27)
+- [ ] Build authenticated AI City with all seven operational districts, real queues/evidence, Lovable roster visibility and accessible phone/desktop navigation.
+- [ ] Connect department work controls to existing gated execution paths; do not create simulated jobs or duplicate workers.
+- [ ] Verify signed-in city, district selection, tactical fallback and safe operation entry points; run affected tests.
+- [ ] Continue unfinished pillars after city; live paid work, outbound sends and publishing wait for specific approval; external credentials and measured live evidence remain blockers, not completed milestones.
+
 ## Admin account Lovable-only repair (2026-10-27)
 - [x] Inspect all 16 admin index/list screens signed in as the requesting owner; no page script errors or document overflow. Client-detail permutations and every mutation are not covered by this route-load audit.
 - [x] Replace usage-derived routing controls with eligible configured Lovable model IDs; reject obsolete pins/pauses server-side and retain immutable usage history. Special media selectors and existing roster order preserved.
