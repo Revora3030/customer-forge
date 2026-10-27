@@ -24,12 +24,12 @@ export const Route = createFileRoute("/_authenticated/admin/ai")({
     meta: [
       { title: "AI health — Revora admin" },
       { property: "og:title", content: "AI health — Revora admin" },
-      { property: "og:description", content: "Which AI providers Revora owns, how they are performing, and what they cost." },
+      { property: "og:description", content: "Lovable AI model routing, recorded usage and spending limits for Revora." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       {
         name: "description",
-        content: "Which AI providers Revora owns, how they are performing, and what they cost.",
+        content: "Lovable AI model routing, recorded usage and spending limits for Revora.",
       },
       { name: "robots", content: "noindex" },
     ],
@@ -60,15 +60,15 @@ function AdminAi() {
     <div className="product-page">
       <SectionHeading
         title="Revora AI"
-        description="Revora runs on its own AI provider accounts. Everything below is measured from the last 7 days of real calls — no prompts or generated content are ever stored."
+        description="Lovable AI is the only generation provider. Current routing and recorded usage are shown separately; credentials are never displayed."
       />
 
       {data && !data.configured ? (
         <Panel>
           <EmptyState
             icon={<ShieldAlert className="size-5" />}
-            title="No AI provider is configured"
-            description={`Every AI feature currently answers with: “${data.unconfiguredMessage}” Add a Revora provider key to restore AI-authored website generation and editing.`}
+            title="Lovable AI is not configured"
+            description={data.unconfiguredMessage}
           />
         </Panel>
       ) : null}
@@ -76,12 +76,12 @@ function AdminAi() {
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <MetricCard
           label="Calls (24h)"
-          value={count(data?.last24h.calls ?? 0)}
+          value={data ? count(data.last24h.calls) : "—"}
           hint={`${count(data?.last24h.failures ?? 0)} failed`}
         />
         <MetricCard
           label="Calls (7d)"
-          value={count(data?.window.calls ?? 0)}
+          value={data ? count(data.window.calls) : "—"}
           hint={`${failureRate}% failed`}
         />
         <MetricCard
@@ -122,14 +122,14 @@ function AdminAi() {
             {data.lovable.last.ok
               ? "answered"
               : `failed (${data.lovable.last.category?.replace(/_/g, " ") ?? "unknown"})`}
-            {data.lovable.last.fallbackUsed ? " · a backup model covered it" : ""}
+            {data.lovable.last.fallbackUsed ? " · recorded model failover" : ""}
           </p>
         ) : null}
         {data ? (
           <p className="mt-3 text-[13px] text-muted-foreground">
             {data.builderAiAvailable
-              ? "AI is reachable, so the builder can use the configured model team. "
-              : "No AI is reachable right now; the builder does not substitute a stock or deterministic design. "}
+              ? "Lovable AI is configured for the builder; configuration does not prove a new request will succeed. "
+              : "AI is not configured for new builder work; no stock or deterministic design is substituted. "}
           </p>
         ) : null}
 
@@ -137,8 +137,8 @@ function AdminAi() {
 
       <Panel>
         <SectionHeading
-          title="Paid providers"
-          description="Configured paid providers are available as an additional model lane when credentials are present; the AI team remains the creative authority."
+          title="Generation provider"
+          description="Lovable AI only. Model vendors shown in the catalogue are reached through Lovable, not separate free-provider accounts."
         />
         {health.isLoading ? <LoadingRows /> : null}
         {health.error ? <ErrorNote message={(health.error as Error).message} /> : null}
@@ -150,7 +150,7 @@ function AdminAi() {
             >
               <div className="flex flex-wrap items-center gap-2">
                 <Pill tone={provider.configured ? "signal" : "attention"}>
-                  {provider.configured ? `Ready · #${provider.order}` : "No key"}
+                  {provider.configured ? "Configured · not a live call test" : "Not configured"}
                 </Pill>
                 <span className="font-medium capitalize">{provider.name}</span>
               </div>
@@ -200,8 +200,8 @@ function AdminAi() {
       <div className="grid gap-4 lg:grid-cols-2">
         <Panel>
           <SectionHeading
-            title="Models actually serving"
-            description="Includes calls a backup provider had to cover."
+            title="Recorded model usage (7 days)"
+            description="Historical calls are retained for accounting, not offered as routing choices. Retired providers cannot serve new work."
           />
           {!health.isLoading && !data?.byModel.length ? (
             <EmptyState
@@ -229,7 +229,7 @@ function AdminAi() {
           {data?.window.fallbacks ? (
             <p className="mt-2 text-[12px] text-muted-foreground">
               {count(data.window.fallbacks)} call
-              {data.window.fallbacks === 1 ? " was" : "s were"} covered by the backup provider.
+              {data.window.fallbacks === 1 ? " has" : "s have"} recorded failover; this is not proof of successful delivery.
             </p>
           ) : null}
         </Panel>
@@ -313,7 +313,7 @@ function LunaPanel() {
                   ? "Switched off"
                   : data.blocked
                     ? "Paused — cap reached"
-                    : "Active"}
+                    : "Enabled · subject to credits"}
             </Pill>
             <span className="text-[13px] text-muted-foreground">{data.model}</span>
           </div>
@@ -326,7 +326,7 @@ function LunaPanel() {
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-medium capitalize">{tier.tier}</span>
                   <Pill tone={tier.enabled ? "signal" : "attention"}>
-                    {tier.enabled ? "Available" : "Off"}
+                    {tier.enabled ? "Enabled" : "Off"}
                   </Pill>
                 </div>
                 <p className="mt-1 text-muted-foreground">{tier.model}</p>
@@ -362,9 +362,9 @@ function LunaPanel() {
                   <Pill tone={event.outcome === "succeeded" ? "signal" : "attention"}>
                     {event.outcome}
                   </Pill>
-                  <span className="font-medium">{event.purpose.replace(/_/g, " ")}</span>
+                  <span className="min-w-0 break-words font-medium">{event.purpose.replace(/_/g, " ")}</span>
                   <span className="text-muted-foreground">{money(event.costUsd)}</span>
-                  <span className="text-muted-foreground">
+                  <span className="min-w-0 break-words text-muted-foreground">
                     {count(event.inputTokens)} in · {count(event.cachedInputTokens)} reused ·{" "}
                     {count(event.outputTokens)} out
                   </span>
