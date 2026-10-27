@@ -6,7 +6,11 @@ export type RenderedEvidence = {
   missingWidths: number[];
   missingAccessibilityWidths: number[];
   missingPerformanceWidths: number[];
+  /** Phone widths whose overlay-covers-control check did not run. */
+  missingOverlayWidths: number[];
 };
+
+export declare const OVERLAY_EVIDENCE_WIDTHS: readonly number[];
 
 export declare function inspectRenderedEvidence(
   raw: unknown,

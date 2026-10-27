@@ -82,6 +82,31 @@ export type ImageBriefSpec = {
   evidenceTag: VisualEvidenceTag;
 };
 
+/**
+ * One section's art direction in the site's shot list, authored by Sol in the
+ * creative-direction pass and screened like the rest of the brief. Every
+ * picture made for that section is shot to it, so the site's photography reads
+ * as one campaign. Presentation only — never a claim about the business.
+ */
+export type SectionArtDirection = {
+  /** The exact section role this direction belongs to (e.g. "hero", "services"). */
+  section: string;
+  setting: string;
+  light: string;
+  cameraAngle: string;
+  mood: string;
+  /** How the picture's colours tie into the site palette (and its one accent). */
+  paletteTieIn: string;
+  /** Where the photo leaves calm space for overlaid copy, in the AI's own words. */
+  copySpace: string;
+};
+
+export type ShotList = {
+  /** The thread that keeps every picture coherent (time of day, grade, lens family). */
+  continuity: string;
+  sections: SectionArtDirection[];
+};
+
 export type CreativeBrief = {
   version: 1;
   /** The AI's own one-line design concept. Empty until it writes one. */
@@ -108,6 +133,11 @@ export type CreativeBrief = {
   conversionStrategy: string[];
   industryConventions: string[];
   imageInventory: ImageBriefSpec[];
+  /**
+   * The AI's per-section art direction. Optional so briefs saved before the
+   * shot list existed (and stage checkpoints holding them) still read.
+   */
+  shotList?: ShotList;
   qualityMatrix: CreativeQualityMatrix;
   prohibitedEvidence: string[];
 };
@@ -237,6 +267,8 @@ export function blankCreativeBrief(shots: PlannedShot[]): CreativeBrief {
     conversionStrategy: [],
     industryConventions: [],
     imageInventory: shots.map(blankImageBrief),
+    // Empty until Sol authors it; no scene, light or angle is ever seeded.
+    shotList: { continuity: "", sections: [] },
     qualityMatrix: SITE_WIDE_CREATIVE_QUALITY_MATRIX,
     prohibitedEvidence: [...PROHIBITED_EVIDENCE],
   };

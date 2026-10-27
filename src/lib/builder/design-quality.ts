@@ -13,8 +13,10 @@
  * director acts on, and the build sends those notes back to Sol for a revision
  * before anything is saved.
  */
-import type { CompositionNode, CompositionTree } from "@/lib/builder/composition-tree";
+import { INTERACTIVE_PRIMITIVES, type CompositionNode, type CompositionTree } from "@/lib/builder/composition-tree";
 import { detectGenericPhrases } from "@/lib/builder/genericity";
+import { sceneScrim } from "@/lib/builder/cinematic-primitives";
+import { contrastRatio } from "@/lib/readable-color";
 
 export type DesignFinding = {
   /** Stable code, for logs and tests. */
@@ -34,7 +36,10 @@ export type DesignFinding = {
     | "stock_phrasing"
     | "missing_action"
     | "duplicate_h1"
-    | "flat_page";
+    | "flat_page"
+    | "lead_not_scene"
+    | "scene_text_contrast"
+    | "page_missing_interactive";
   severity: "critical" | "major";
   path: string;
   /** Plain repair instruction for the art director. */
@@ -63,6 +68,63 @@ function walk(root: CompositionNode): Visit[] {
   return out;
 }
 
+const TUCKED = new Set(["card", "offer_card", "collection_row", "gallery", "marquee", "compare", "spin_viewer", "tabs", "tab_group", "accordion", "toggle"]);
+
+/** A scene/chapters block, or a media node shown as a hero (not tucked inside a card, gallery or control). */
+function hasHeroVisual(root: CompositionNode): boolean {
+  const go = (node: CompositionNode, depth: number, tucked: boolean): boolean => {
+    if ((node.type === "scene" || node.type === "scroll_chapters") && depth <= 3) return Boolean(node.children?.[0]?.src || node.children?.[0]?.mediaRef || node.type === "scroll_chapters");
+    if (node.type === "media" && (node.src || node.mediaRef) && !tucked && depth <= 4) {
+      const width = node.style?.maxWidth;
+      return typeof width !== "number" || width >= 480;
+    }
+    const nextTucked = tucked || TUCKED.has(node.type);
+    return (node.children ?? []).some((child) => go(child, depth + 1, nextTucked));
+  };
+  return go(root, 0, false);
+}
+
+const TEXT_SLOT = new Set(["heading", "text", "list", "quote"]);
+
+/**
+ * Scenes: the renderer computes a scrim that makes its ink pass AA over any
+ * photo. These findings report what the AI authored that the renderer would
+ * otherwise have to override: an ink/scrim pair that can never be readable,
+ * or a slot colour that fails over the computed scrim surfaces.
+ */
+function sceneContrastFindings(nodes: Visit[]): DesignFinding[] {
+  const out: DesignFinding[] = [];
+  for (const { node, path } of nodes) {
+    if (node.type !== "scene" || !(node.children?.[0]?.src || node.children?.[0]?.mediaRef)) continue;
+    const authoredInk = node.style?.color;
+    const scrim = sceneScrim({ ink: authoredInk ?? null, scrim: node.scrim?.color ?? null, opacity: node.scrim?.opacity ?? null });
+    if (authoredInk && scrim.required === null) {
+      out.push({
+        code: "scene_text_contrast",
+        severity: "critical",
+        path,
+        fix: `This scene's text colour ${authoredInk} can never be read over its ${scrim.scrim} scrim on a photograph. Use a scrim colour opposite the text (a deep scrim under light text, or a pale one under dark text) so the headline passes 4.5:1.`,
+      });
+      continue;
+    }
+    const [light, dark] = scrim.surfaces;
+    (node.children ?? []).slice(1).forEach((child, index) => {
+      if (!TEXT_SLOT.has(child.type) || !child.style?.color || child.style.background) return;
+      const large = child.type === "heading" || (child.style.size ?? 0) >= 24;
+      const need = large ? 3 : 4.5;
+      const worst = Math.min(contrastRatio(child.style.color, light) ?? 21, contrastRatio(child.style.color, dark) ?? 21);
+      if (worst < need)
+        out.push({
+          code: "scene_text_contrast",
+          severity: "major",
+          path: `${path}.children[${index + 1}]`,
+          fix: `Over this scene's photo the ${child.type} colour ${child.style.color} reaches only ${worst.toFixed(2)}:1 against the computed ${scrim.scrim} scrim (needs ${need}:1). Choose a colour that passes over the scrim, or a stronger scrim opacity.`,
+        });
+    });
+  }
+  return out;
+}
+
 const textLength = (node: CompositionNode) =>
   (node.text ?? "").length + (node.items ?? []).join(" ").length;
 
@@ -72,7 +134,16 @@ const textLength = (node: CompositionNode) =>
  */
 export function auditSectionDesign(
   tree: CompositionTree,
-  options: { lead: boolean; role?: string | null },
+  options: {
+    lead: boolean;
+    role?: string | null;
+    /**
+     * How many of the section's own pictures were supplied. Only when this is
+     * known and above zero can a text-only opening be repaired by the AI;
+     * unknown availability is left to the rendered opening-visual check.
+     */
+    mediaAvailable?: number;
+  },
 ): DesignFinding[] {
   const findings: DesignFinding[] = [];
   const nodes = walk(tree.root);
@@ -113,6 +184,18 @@ export function auditSectionDesign(
         fix: "The opening section has no button. Add one clear primary action button (using a supplied href) visible without scrolling, styled as the strongest element after the headline.",
       });
   }
+
+  // 1b. The opening is a real photographic scene or media hero, not text-only.
+  if (options.lead && (options.mediaAvailable ?? 0) > 0 && !functional && !hasHeroVisual(tree.root))
+    findings.push({
+      code: "lead_not_scene",
+      severity: "critical",
+      path: "root",
+      fix: "This page's opening section is text-only although its own pictures were supplied. Open with a full-viewport scene (children[0] is the supplied picture as its media backdrop, the headline and primary button in its anchored copy slot) or a full-bleed media hero — not a picture tucked into a card.",
+    });
+
+  // 1c. Text over a scene's photo passes AA against the computed scrim.
+  for (const finding of sceneContrastFindings(nodes)) findings.push(finding);
 
   // 2. Readable body copy.
   for (const v of texts) {
@@ -306,14 +389,37 @@ function hasDepthNode(tree: CompositionTree): boolean {
 
 /** Findings for every section of one page, keyed by section id. */
 export function auditPageDesign(
-  sections: { id: string; role: string; tree: CompositionTree }[],
-  options: { direction?: DepthDirection | null } = {},
+  sections: { id: string; role: string; tree: CompositionTree; mediaAvailable?: number }[],
+  options: {
+    direction?: DepthDirection | null;
+    /**
+     * The site's home page carries the site's interactive centrepiece: with
+     * none on it, a first build could ship with no interactive primitive.
+     */
+    home?: boolean;
+  } = {},
 ): Record<string, DesignFinding[]> {
   const out: Record<string, DesignFinding[]> = {};
   sections.forEach((section, index) => {
-    const findings = auditSectionDesign(section.tree, { lead: index === 0, role: section.role });
+    const findings = auditSectionDesign(section.tree, {
+      lead: index === 0,
+      role: section.role,
+      ...(section.mediaAvailable !== undefined ? { mediaAvailable: section.mediaAvailable } : {}),
+    });
     if (findings.length) out[section.id] = findings;
   });
+
+  if (options.home && sections.length && !sections.some((section) => hasInteractive(section.tree))) {
+    // Attached to the first content section after the opening (the opening
+    // keeps its own bar); the AI chooses where the centrepiece really fits.
+    const target = sections[1] ?? sections[0]!;
+    (out[target.id] ??= []).push({
+      code: "page_missing_interactive",
+      severity: "major",
+      path: "root",
+      fix: "The home page has no interactive centrepiece, so the whole site has none. Where it serves real supplied material, add one: a spin_viewer (8+ owner-photographed angles), a collection_row of offer cards, scroll_chapters of scenes, a tab_group, a faq_accordion of supplied FAQs, or a before_after_slider of the owner's own before/after photos.",
+    });
+  }
 
   // Page rhythm: the same section structure repeated back to back reads as a template.
   const signature = (tree: CompositionTree) =>
@@ -364,11 +470,21 @@ export function auditPageDesign(
   return out;
 }
 
+/** True when a tree contains a primitive the visitor operates. */
+export function hasInteractive(tree: CompositionTree): boolean {
+  return walk(tree.root).some(({ node }) => INTERACTIVE_PRIMITIVES.has(node.type));
+}
+
+/** Gates that always go back to the AI, whatever their severity. */
+const ALWAYS_REPAIR = new Set<DesignFinding["code"]>(["flat_page", "lead_not_scene", "scene_text_contrast", "page_missing_interactive"]);
+
 /** True when any finding must be fixed before the section ships. */
 export function needsDesignRepair(findings: DesignFinding[]): boolean {
-  // A flat page is a miss against the AI's own brief, so it always goes back.
+  // A flat page is a miss against the AI's own brief, so it always goes back;
+  // so do the cinematic gates (scene opening, readable scene text, one
+  // interactive centrepiece).
   return (
-    findings.some((finding) => finding.severity === "critical" || finding.code === "flat_page") ||
+    findings.some((finding) => finding.severity === "critical" || ALWAYS_REPAIR.has(finding.code)) ||
     findings.length >= 3
   );
 }

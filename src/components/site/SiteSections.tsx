@@ -19,6 +19,7 @@ import { Mail, MapPin, Phone } from "lucide-react";
 import { BookingForm, EnquiryForm, QuoteCalculator } from "@/components/site/SiteForms";
 import { DirectContact } from "@/components/site/ContactDetails";
 import { ReviewWall, ServiceMenu } from "@/components/site/LiveBlocks";
+import { offerFactsFor } from "@/components/site/live-blocks-utils";
 import type { PublicSite } from "@/lib/public-site.functions";
 import { readCustomBlock } from "@/lib/builder/custom-block";
 import { CustomBlock } from "@/components/site/CustomBlock";
@@ -147,6 +148,7 @@ function SiteSectionBody({ site, section, lead = false, first = false, surface =
           eagerFirstMedia={first}
           resolveMedia={(ref) => media.get(ref) ?? null}
           resolveHref={(href) => resolveSiteHref(href, org.slug, ownAddress, null, null, previewBase)}
+          resolveOffer={(service) => offerFactsFor(site.services ?? [], service)}
           resolveWidget={(name, presentation?: WidgetPresentation) => {
             if (name === "booking_form") return <BookingForm site={site} {...(presentation ? { presentation } : {})} />;
             if (name === "quote_calculator") return site.quote ? <QuoteCalculator site={site} {...(presentation ? { presentation } : {})} /> : null;

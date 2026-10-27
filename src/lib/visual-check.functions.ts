@@ -83,6 +83,7 @@ const measurementSchema = z.object({
   openingVisualMissing: z.boolean().optional(),
   stickyFooterHeight: z.number().finite().min(0).max(4000).optional(),
   runtimeErrors: z.array(z.string().max(300)).max(20).optional(),
+  overlayConflicts: z.array(z.string().max(200)).max(20).optional(),
   accessibility: accessibilitySchema,
   performance: performanceSchema,
 });
