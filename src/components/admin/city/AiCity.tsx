@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { CITY_DISTRICTS, cityCommandDraft, districtState, workIsActive, type CityWork, type DistrictId } from "@/lib/ai-city";
 import { getAiCity } from "@/lib/ai-city.functions";
 import { getCommandCenter } from "@/lib/ai/command-center.functions";
+import { getAiHealth } from "@/lib/ai/health.functions";
 import { getLunaStatus } from "@/lib/ai/luna.functions";
 import { getJarvisRunEvents, runJarvisDiagnosticTool } from "@/lib/jarvis.functions";
 import type { CitySceneProps } from "./CityScene";
@@ -26,6 +27,7 @@ export function AiCity() {
   const load = useServerFn(getAiCity);
   const loadModels = useServerFn(getCommandCenter);
   const loadBudget = useServerFn(getLunaStatus);
+  const loadHealth = useServerFn(getAiHealth);
   const diagnostic = useServerFn(runJarvisDiagnosticTool);
   const navigate = useNavigate();
   const query = useQuery({ queryKey: ["admin-ai-city"], queryFn: () => load(), refetchInterval: 60_000 });
@@ -37,6 +39,7 @@ export function AiCity() {
   const [reset, setReset] = useState(0);
   const [palette, setPalette] = useState<CitySceneProps["palette"]>();
   const [tab, setTab] = useState<"work" | "models" | "routines">("work");
+  const health = useQuery({ queryKey: ["admin-city-catalogue"], queryFn: () => loadHealth(), enabled: tab === "models" });
   const [evidence, setEvidence] = useState<CityWork | null>(null);
   const [diagnosticOpen, setDiagnosticOpen] = useState(false);
   const [now, setNow] = useState(0);
@@ -96,7 +99,7 @@ export function AiCity() {
     <section className="border-t border-border pt-5">
       <div className="flex flex-wrap gap-2" role="tablist" aria-label="Workforce records">{(["work", "models", "routines"] as const).map(key => <Button key={key} role="tab" aria-selected={tab === key} variant={tab === key ? "secondary" : "ghost"} onClick={() => setTab(key)}>{key === "work" ? "Work & evidence" : key === "models" ? "Lovable workforce" : "Saved routines"}</Button>)}</div>
       <div className="mt-4" role="tabpanel">
-        {tab === "models" ? models.isError ? <p role="alert">Model records unavailable.</p> : <><p className="mb-3 text-xs text-muted-foreground">{models.data?.catalogueState === "live" ? "Live catalogue eligibility" : "Catalogue eligibility not freshly verified"} · 7-day recorded calls · media keeps dedicated selectors</p><div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">{models.data?.models.map(model => <div key={model.model} className="min-w-0 rounded-md border border-border p-3"><p className="break-all font-mono text-xs">{model.model}</p><p className="mt-2 text-xs text-muted-foreground">{model.roles.join(" · ")}</p><p className="mt-2 text-xs text-gold">{model.calls ? `${model.successes} succeeded / ${model.calls} calls` : "Configured · not used yet"}</p></div>)}</div></> : <WorkList rows={tab === "routines" ? snapshot?.sources["routines"]?.rows ?? [] : work} loading={query.isLoading} onSelect={setEvidence} />}
+        {tab === "models" ? health.isError ? <p role="alert">Model records unavailable.</p> : health.isLoading ? <p role="status">Loading Lovable capability evidence…</p> : <><p className="mb-3 text-xs text-muted-foreground">{health.data?.catalogue.state === "live" ? "Live Lovable catalogue" : "Catalogue not freshly verified"} · all returned models · 24-hour recorded calls</p><div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">{health.data?.catalogue.models.map(model => <div key={model.id} className="min-w-0 rounded-md border border-border p-3"><p className="break-all font-mono text-xs">{model.id}</p><p className="mt-2 text-xs text-muted-foreground">{model.roles.join(" · ") || model.outputs.join(" · ") || "No active role"}</p><p className="mt-2 text-xs text-gold">{model.last24h.attempts ? `${model.last24h.successes} succeeded / ${model.last24h.attempts} calls` : model.eligible ? "Configured · not used yet" : "Not routed"}</p>{model.reason ? <p className="mt-2 text-xs text-muted-foreground">{model.reason}</p> : null}</div>)}</div></> : <WorkList rows={tab === "routines" ? snapshot?.sources["routines"]?.rows ?? [] : work} loading={query.isLoading} onSelect={setEvidence} />}
       </div>
     </section>
     <footer className="flex items-start gap-2 border-t border-border pt-3 text-xs text-muted-foreground"><CheckCircle2 className="size-4 shrink-0" /><p>Recorded operations, not simulated work. Recent feeds show up to 100 rows per source; pending queue totals are exact where available. No roadmap completion percentage inferred.</p></footer>
