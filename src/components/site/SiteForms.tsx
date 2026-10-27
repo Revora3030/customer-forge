@@ -16,6 +16,7 @@ import { estimateQuote, isUsableQuote } from "@/lib/quote-estimate";
 import { cn } from "@/lib/utils";
 import { useStepScroll } from "@/lib/use-step-scroll";
 import { DirectContact } from "@/components/site/ContactDetails";
+import { PrintableEstimate } from "@/components/site/PrintableEstimate";
 import { widgetPresentationStyle } from "@/components/site/contact-details-utils";
 import type { WidgetPresentation } from "@/lib/builder/composition-tree";
 import { usePreviewMode } from "@/components/site/preview-mode-context";
@@ -130,22 +131,6 @@ export function QuoteCalculator({ site, presentation }: { site: Site; presentati
 
   // A form with no choosable options can never produce an estimate: show nothing rather than a dead widget.
   if (!quote || !isUsableQuote(quote.questions)) return null;
-  if (done) {
-    return (
-      <div ref={stepRef}>
-        <Success
-          title={presentation?.successTitle ?? "Request received"}
-          body={
-            presentation?.successBody ??
-            (confirmationEmail
-              ? "Thank you! Your request has been received. Check your email for confirmation."
-              : "Thank you! Your request has been received. We'll get back to you shortly.")
-          }
-        />
-      </div>
-    );
-  }
-
   // Only questions with options can be answered (the server ignores the rest too).
   const questions = quote.questions.filter((question) => question.options.length > 0);
   const selected = questions.map((question) => {
@@ -168,6 +153,32 @@ export function QuoteCalculator({ site, presentation }: { site: Site; presentati
   // A floor the owner set is a fact; a partial total is not (later answers can multiply it).
   const floor = Number(quote.form.min_price ?? 0);
   const fromPrice = Number.isFinite(floor) && floor > 0 ? floor : null;
+
+  if (done) {
+    return (
+      <div ref={stepRef}>
+        <Success
+          title={presentation?.successTitle ?? "Request received"}
+          body={
+            presentation?.successBody ??
+            (confirmationEmail
+              ? "Thank you! Your request has been received. Check your email for confirmation."
+              : "Thank you! Your request has been received. We'll get back to you shortly.")
+          }
+        />
+        {complete ? (
+          <PrintableEstimate
+            businessName={site.org.name}
+            title={presentation?.title ?? quote.form.name}
+            min={min}
+            max={max}
+            lines={selected.flatMap(({ question, option }) => (option ? [{ question: question.label, answer: option.label }] : []))}
+            extras={chosenAddons.map((addon) => ({ label: addon.label, price: Number(addon.price) }))}
+          />
+        ) : null}
+      </div>
+    );
+  }
 
   return (
     <div ref={stepRef} className="panel overflow-hidden" style={widgetPresentationStyle(presentation)}>

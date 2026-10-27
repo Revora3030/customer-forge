@@ -10,6 +10,7 @@ import { DashboardPreview } from "@/components/marketing/DashboardPreview";
 import { FAQ } from "@/components/marketing/FAQ";
 import { HOME_HEADLINE, HOME_TRIAL_CHARGE_NOTE, marketingHomeHead } from "@/components/marketing/home-head";
 import { ProductTour } from "@/components/marketing/ProductTour";
+import { OfferIncludes } from "@/components/marketing/OfferIncludes";
 import { SavingsCalculator } from "@/components/marketing/SavingsCalculator";
 import { Pill, SectionHeading } from "@/components/app/Bits";
 import { RouteError } from "@/components/app/RouteStates";
@@ -229,6 +230,7 @@ function Landing() {
                   {GROWTH_SYSTEM.explainer}
                 </p>
               </div>
+              <OfferIncludes />
             </div>
           </div>
         </section>

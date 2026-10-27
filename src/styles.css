@@ -2752,3 +2752,16 @@ html.reveal-ready [data-reveal] {
 @media (prefers-reduced-motion: reduce) {
   .gold-sheen { animation: none; }
 }
+
+/* Printing an estimate: when one is on the page, print only that estimate. */
+@media print {
+  body:has([data-print-estimate]) * { visibility: hidden !important; }
+  body:has([data-print-estimate]) [data-print-estimate],
+  body:has([data-print-estimate]) [data-print-estimate] * { visibility: visible !important; }
+  body:has([data-print-estimate]) [data-print-estimate] {
+    position: absolute; left: 0; top: 0; width: 100%;
+    background: #fff !important; color: #111 !important; border-color: #ccc !important;
+  }
+  body:has([data-print-estimate]) [data-print-estimate] * { color: #111 !important; }
+  .print-hide { display: none !important; }
+}

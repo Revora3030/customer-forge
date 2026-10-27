@@ -11,7 +11,12 @@ describe("leftover first-build helpers carry no creative authority", () => {
   });
 
   it("Sol is not handed pre-picked hero, rhythm, card, CTA or background choices", () => {
-    const src = read("src/lib/builder/collective-first-build.server.ts");
+    // missingVisualCampaign only reads these fields to report which ones the AI
+    // has not authored yet; it never supplies a value, so it is the one exemption.
+    const src = read("src/lib/builder/collective-first-build.server.ts").replace(
+      /export function missingVisualCampaign[\s\S]*?\n}\n/,
+      "",
+    );
     expect(src).not.toMatch(/brief\.(archetype|personality|heroComposition|sectionRhythm|cardLanguage|ctaLanguage|backgroundTreatment)/);
   });
 

@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { recallMemories } from "@/lib/cognition/memory-recall";
 
 export type JarvisMemory = {
   id: string;
@@ -39,10 +40,16 @@ export async function listJarvisMemories(db: SupabaseClient, userId: string, lim
   return (data ?? []) as JarvisMemory[];
 }
 
-/** Newest-first list rendered for the system prompt. */
-export async function memoryPromptBlock(db: SupabaseClient, userId: string): Promise<string | null> {
+/**
+ * Memories rendered for the system prompt. With the owner's latest message, the
+ * most relevant of all saved memories are chosen (older ones included); without
+ * it, the newest are used.
+ */
+export async function memoryPromptBlock(db: SupabaseClient, userId: string, query?: string): Promise<string | null> {
   try {
-    const memories = await listJarvisMemories(db, userId, PROMPT_MEMORIES);
+    const trimmed = query?.trim();
+    const all = await listJarvisMemories(db, userId, trimmed ? MAX_MEMORIES : PROMPT_MEMORIES);
+    const memories = trimmed ? recallMemories(all, { query: trimmed, limit: PROMPT_MEMORIES }) : all;
     if (!memories.length) return null;
     const lines = memories.map((memory) => `- [${memory.kind}] ${memory.content}`).join("\n");
     return [

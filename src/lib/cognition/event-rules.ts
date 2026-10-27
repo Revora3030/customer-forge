@@ -1,0 +1,53 @@
+/**
+ * Pillar 5 (Autopilot): event-driven reactions. Events are matched to rules
+ * that only ever PROPOSE routine work (the existing approval-gated pipeline
+ * decides whether it runs); every rule has a cooldown and a per-pass cap so a
+ * burst of events cannot flood the owner or spend.
+ */
+export type PlatformEvent = { id: string; type: string; occurredAt: number; subject: string };
+
+export type EventRule = {
+  id: string;
+  /** Event type this rule reacts to. */
+  on: string;
+  /** Prompt the proposed routine would run; never executed here. */
+  prompt: (event: PlatformEvent) => string;
+  /** Same rule + subject is proposed at most once per cooldown. */
+  cooldownMs: number;
+};
+
+export type Proposal = { ruleId: string; eventId: string; subject: string; prompt: string };
+
+export const MAX_PROPOSALS_PER_PASS = 5;
+
+export function planEventResponses(input: {
+  events: readonly PlatformEvent[];
+  rules: readonly EventRule[];
+  /** ruleId|subject -> last proposed at (ms). */
+  lastProposed: Readonly<Record<string, number>>;
+  now: number;
+  maxProposals?: number;
+}): { proposals: Proposal[]; dropped: number } {
+  const cap = Math.min(input.maxProposals ?? MAX_PROPOSALS_PER_PASS, MAX_PROPOSALS_PER_PASS);
+  const seen = { ...input.lastProposed };
+  const proposals: Proposal[] = [];
+  let dropped = 0;
+  for (const event of [...input.events].sort((a, b) => a.occurredAt - b.occurredAt)) {
+    for (const rule of input.rules) {
+      if (rule.on !== event.type) continue;
+      const key = `${rule.id}|${event.subject}`;
+      const last = seen[key];
+      if (last !== undefined && input.now - last < rule.cooldownMs) { dropped += 1; continue; }
+      if (proposals.length >= cap) { dropped += 1; continue; }
+      seen[key] = input.now;
+      proposals.push({ ruleId: rule.id, eventId: event.id, subject: event.subject, prompt: rule.prompt(event) });
+    }
+  }
+  return { proposals, dropped };
+}
+
+export const DEFAULT_EVENT_RULES: readonly EventRule[] = [
+  { id: "build-failed-review", on: "build.failed", cooldownMs: 6 * 3_600_000, prompt: (e) => `A site build for ${e.subject} failed. Read its job record, explain the cause plainly and propose the smallest safe next step.` },
+  { id: "ci-failed-triage", on: "ci.failed", cooldownMs: 3_600_000, prompt: (e) => `CI failed on ${e.subject}. Read the failing check and propose a fix; do not change anything.` },
+  { id: "lead-unanswered", on: "lead.unanswered", cooldownMs: 24 * 3_600_000, prompt: (e) => `Lead ${e.subject} has had no reply past the speed-to-lead goal. Draft a short follow-up for the owner to approve.` },
+];

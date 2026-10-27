@@ -189,7 +189,7 @@ export async function runJarvis(db: SupabaseClient, userId: string, mode: Mode, 
     collectJarvisDiagnostics(db), count(db, "platform_accounts"), count(db, "platform_trials"),
     count(db, "subscriptions", undefined, "active"), count(db, "leads", since), siteCheck(),
     page ? collectPageBrief(db, page).catch(() => null) : Promise.resolve(null),
-    memoryPromptBlock(db, userId),
+    memoryPromptBlock(db, userId, [...turns].reverse().find((turn) => turn.role === "user")?.content),
   ]);
   // A folder map of the live codebase, so Jarvis searches and reads real paths
   // instead of guessing. Best effort: chat still works if GitHub is down.
