@@ -69,7 +69,7 @@ export function BusinessDetails() {
                 {row.href ? (
                   <a
                     href={row.href}
-                    className="min-h-[44px] break-words underline-offset-4 hover:underline"
+                    className="inline-flex min-h-[44px] items-center break-words underline-offset-4 hover:underline"
                     onClick={() =>
                       trackConversion("cta_click", {
                         metadata: { placement: "business_details", channel: row.event ?? "" },

@@ -59,7 +59,7 @@ function LocalIndustryHub() {
       <SiteHeader />
       <main className="mx-auto max-w-5xl px-4 pt-14 pb-20 sm:px-6 sm:pt-20">
         <nav aria-label="Breadcrumb" className="text-xs text-muted-foreground">
-          <Link to="/local" className="hover:text-primary">
+          <Link to="/local" className="inline-block py-1.5 hover:text-primary">
             Local growth systems
           </Link>
           <span aria-hidden> / </span>
@@ -92,7 +92,7 @@ function LocalIndustryHub() {
               <Link
                 to="/local/$industry/$state"
                 params={{ industry: industry.slug, state: state.slug }}
-                className="text-[14px] text-muted-foreground hover:text-primary"
+                className="inline-block py-1 text-[14px] text-muted-foreground hover:text-primary"
               >
                 {industry.name} in {state.name}
               </Link>

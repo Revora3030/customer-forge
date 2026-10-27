@@ -132,7 +132,7 @@ function About() {
               <p className="text-sm leading-relaxed text-muted-foreground">Start with the services, audience, service areas and brand details that are true for your business. Review the AI-designed pages and request changes before publishing. Quotes depend on the prices you supply, and booking depends on the availability you configure. There is no fixed launch-time promise.</p>
               <p className="text-sm leading-relaxed text-muted-foreground">Search visibility takes more than creating pages. Useful content, accurate business information and a clear enquiry path matter alongside ongoing measurement. Revora does not guarantee a Google position, traffic volume or number of paying customers. Explore the product and compare the offer against the workflow you actually need.</p>
             </div>
-            <Link to="/demo" className="mt-5 inline-block text-sm text-primary underline underline-offset-4">Explore the example product dashboard</Link>
+            <Link to="/demo" className="mt-5 inline-block py-1 text-sm text-primary underline underline-offset-4">Explore the example product dashboard</Link>
           </div>
         </section>
         <RelatedLinks path="/about" heading="Explore Revora before you decide" />

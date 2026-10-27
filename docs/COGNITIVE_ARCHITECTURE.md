@@ -8,7 +8,7 @@ Foundations for turning the sequential Sol/Terra/Luna pipeline into a workforce 
 | 2 Memory | `memory-recall.ts` (relevance + recency ranking, optional embeddings, bounded scratchpad) | **Live**: `memoryPromptBlock` now picks relevant memories from all 200 for the owner's latest message. Vector storage still needs an owner-approved pgvector migration and a verified embeddings call |
 | 3 Hands | `approval-token.ts` (single-use, 24h, payload-bound approvals with an atomic consume) | Built and tested with an in-memory store. A database-backed store (table + RLS migration) and the mutation tools themselves are a separate approval. Existing `authorizeJarvisAction` policy stays the gate |
 | 4 Senses | `vision-review.ts` (strict critique parser; measured P0s and unmeasured viewports always beat a vision opinion) | Built and tested; no vision model call is wired |
-| 5 Autopilot | `event-rules.ts` (events to proposal-only routine work, cooldowns, per-pass cap) | Built and tested; no event source emits into it yet |
+| 5 Autopilot | `event-rules.ts` (events to proposal-only routine work, cooldowns, per-pass cap) | **Live for one event**: `jarvis-event-watch.server.ts` runs with the existing routines job and posts a plain notice (no model call, nothing changed) into each super admin's Jarvis chat when a site build failed in the last day, with a per-workspace cooldown read back from earlier notices. `ci.failed` and `lead.unanswered` rules exist but have no emitter yet |
 | 6 Multi-agent | `deliberation.ts` (proposer, critics, quorum, round cap, always `needsOwner`) | Built and tested with fake agents; no live agents |
 
 ## What is deliberately not done
@@ -19,5 +19,5 @@ Foundations for turning the sequential Sol/Terra/Luna pipeline into a workforce 
 ## Wiring order when approved
 1. Apply the approvals table migration, back `ApprovalStore` with it, and require `consumeApproval` in each mutation executor.
 2. Verify the Lovable embeddings request shape and price, add the pgvector migration, and pass `embeddings` to `recallMemories`.
-3. Emit `build.failed`, `ci.failed` and `lead.unanswered` events and feed `planEventResponses` into the existing routines pass.
+3. Add emitters for `ci.failed` (GitHub) and `lead.unanswered` (speed-to-lead) to the event watch; `build.failed` is already live.
 4. Run `deliberate` for high-stakes proposals with real critics under the shared Luna budget.
