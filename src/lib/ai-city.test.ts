@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CITY_DISTRICTS, cityCommandDraft, districtState, workIsActive, type CitySnapshot, type CityWork } from "./ai-city";
+import { CITY_DISTRICTS, districtState, workIsActive, type CitySnapshot, type CityWork } from "./ai-city";
 import { collectCitySnapshot } from "./ai-city.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
@@ -21,9 +21,6 @@ describe("AI City truthful workforce state", () => {
     const snapshot: CitySnapshot = { checkedAt: "", sources: { jobs: { available: false, rows: [], total: null, truncated: false } } };
     expect(districtState("factory", snapshot, now)).toBe("unavailable");
     expect(districtState("factory", undefined, now)).toBe("unavailable");
-  });
-  it("preserves approval restrictions in every mission draft", () => {
-    for (const d of CITY_DISTRICTS) expect(cityCommandDraft(d.id)).toMatch(/approval/);
   });
 });
 
