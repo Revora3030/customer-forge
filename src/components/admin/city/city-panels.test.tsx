@@ -89,3 +89,32 @@ describe("DistrictCarousel", () => {
     expect(unreadable).not.toContain("idle");
   });
 });
+
+import { ApprovalCard, type ApprovalItem } from "./ApprovalCard";
+
+describe("ApprovalCard", () => {
+  const item: ApprovalItem = { id: "q1", item_type: "outreach_email", summary: "Pitch to Acme Roofing", preview: "Hi Acme,\n$350 one-time setup, first month free, then $100/month.", risk_level: "high", status: "pending", created_at: new Date(NOW - 3 * 3_600_000).toISOString() };
+  const render = (over: Partial<ApprovalItem> = {}, extra: { busy?: boolean; note?: string | null } = {}) => renderToStaticMarkup(<ApprovalCard item={{ ...item, ...over }} now={NOW} busy={extra.busy ?? false} note={extra.note ?? null} onApprove={() => undefined} onReject={() => undefined} />);
+
+  it("shows the whole content to be approved, its type, risk and age", () => {
+    const html = render();
+    expect(html).toContain("Pitch to Acme Roofing");
+    expect(html).toContain("$350 one-time setup, first month free, then $100/month.");
+    expect(html).toContain("outreach email");
+    expect(html).toContain("high risk");
+    expect(html).toContain("3h ago");
+    expect(html).toContain("Approve this");
+  });
+
+  it("will not let an item with no saved preview be approved blind", () => {
+    const html = render({ preview: null });
+    expect(html).toContain("nothing to review");
+    expect(html).toMatch(/<button[^>]*disabled[^>]*>[^<]*(?:<svg[\s\S]*?<\/svg>)?\s*Approve this/);
+  });
+
+  it("disables both actions while a decision is in flight and shows the server's note", () => {
+    const html = render({}, { busy: true, note: "This item changed after you opened it." });
+    expect((html.match(/disabled/g) ?? []).length).toBeGreaterThanOrEqual(2);
+    expect(html).toContain("This item changed after you opened it.");
+  });
+});

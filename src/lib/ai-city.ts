@@ -9,7 +9,7 @@ export const CITY_DISTRICTS = [
 ] as const;
 
 export type DistrictId = typeof CITY_DISTRICTS[number]["id"];
-export type CityWork = { id: string; district: DistrictId; title: string; status: string; at: string; source: string; organizationId?: string; model?: string | null; progress?: number; detail?: string | null; runId?: string };
+export type CityWork = { id: string; district: DistrictId; title: string; status: string; at: string; source: string; organizationId?: string; model?: string | null; progress?: number; detail?: string | null; runId?: string; /** When the work began, only for sources that record it. */ startedAt?: string };
 export type CitySource = { available: boolean; rows: CityWork[]; total: number | null; truncated: boolean };
 export type CitySnapshot = { checkedAt: string; sources: Record<string, CitySource>; pipeline?: PipelineCounts };
 
@@ -150,4 +150,73 @@ export function districtForKey(key: string, current: DistrictId): DistrictId | n
   if (key === "ArrowRight" || key === "ArrowDown") return CITY_DISTRICTS[(index + 1) % CITY_DISTRICTS.length]?.id ?? null;
   if (key === "ArrowLeft" || key === "ArrowUp") return CITY_DISTRICTS[(index - 1 + CITY_DISTRICTS.length) % CITY_DISTRICTS.length]?.id ?? null;
   return null;
+}
+
+
+/* ------------------------------ mission presets ------------------------------ */
+
+const GATE = "Read-only: change nothing, and do not spend, send or publish without my explicit approval.";
+
+export type CityMission = { id: string; label: string; hint: string; draft: string };
+
+/**
+ * One-tap drafts for each district. They open in Jarvis; nothing runs until the
+ * owner sends them, and each names the real read-only Jarvis tools it should use.
+ */
+export const CITY_MISSIONS: Record<DistrictId, readonly CityMission[]> = {
+  executive: [
+    { id: "platform-brief", label: "Platform brief", hint: "Errors, builds and CI in one read", draft: `[AI City · Platform brief] Read platform.errors.summary, builder.health.summary and release.ci.evidence. Tell me the three things that most need my attention today, each with its evidence. ${GATE}` },
+    { id: "release-check", label: "Release check", hint: "Did the current commit's CI pass?", draft: `[AI City · Release check] Read release.ci.evidence for lovable-sync. Say whether the current commit's checks passed, failed or are missing; missing evidence is not a pass. ${GATE}` },
+  ],
+  factory: [
+    { id: "failed-builds", label: "Failed and parked builds", hint: "Stage, reason and next step", draft: `[AI City · Failed builds] Read builder.health.summary. List failed or parked site builds with their stage and wait reason, and propose the smallest safe next step for each. ${GATE}` },
+    { id: "homepage-browser", label: "Homepage browser check", hint: "Phone and desktop errors", draft: `[AI City · Browser check] Run website.browser.check on the Revora homepage. Report script errors, failed requests, broken same-site links and sideways overflow at phone and desktop width. ${GATE}` },
+  ],
+  institute: [
+    { id: "model-evidence", label: "Model evidence review", hint: "Configured vs actually used", draft: `[AI City · Model evidence] Read ai.providers.snapshot. Separate models that are merely configured from ones with recorded successful calls, and flag any with repeated failures. ${GATE}` },
+  ],
+  creative: [
+    { id: "pending-images", label: "Pending image review", hint: "What is waiting on you", draft: `[AI City · Images] Read builder.health.summary and list image records awaiting my review, with their slot and workspace. Do not generate any images. ${GATE}` },
+  ],
+  growth: [
+    { id: "funnel", label: "Funnel summary", hint: "Visitors to paid, 7 and 30 days", draft: `[AI City · Funnel] Read growth.funnel.summary and explain where visitors drop off between accounts, trials and paid customers, using only the recorded numbers. ${GATE}` },
+  ],
+  security: [
+    { id: "accessibility", label: "Homepage accessibility check", hint: "Labels, alt text, headings", draft: `[AI City · Accessibility] Run website.accessibility.static on the Revora homepage and list every finding with the element it concerns. Do not claim full WCAG compliance from a static check. ${GATE}` },
+    { id: "headers", label: "Security headers and grade", hint: "Headers plus Observatory", draft: `[AI City · Security headers] Run website.security.headers and website.security.observatory on the Revora homepage and summarise what is present, missing and graded. ${GATE}` },
+    { id: "dependencies", label: "Dependency vulnerabilities", hint: "Free OSV check", draft: `[AI City · Dependencies] Run security.dependencies.osv and list advisories by severity with the affected package. Propose upgrades but do not apply them. ${GATE}` },
+  ],
+  knowledge: [
+    { id: "memory-review", label: "Memory review", hint: "Stale or conflicting memories", draft: `[AI City · Memory review] Go through my saved Jarvis memories and flag duplicates, contradictions and anything that looks out of date. Propose which to forget; delete nothing without my approval. ${GATE}` },
+  ],
+};
+
+export function missionsFor(id: DistrictId): readonly CityMission[] {
+  return CITY_MISSIONS[id] ?? [];
+}
+
+/** How long a running record has been going, when its source recorded a start. */
+export function runningFor(row: CityWork, now: number): string | null {
+  const started = row.startedAt ? Date.parse(row.startedAt) : NaN;
+  return Number.isFinite(started) && started <= now ? ageLabel(now - started) : null;
+}
+
+/**
+ * How fast a district's beacon pulses: a calm 2 Hz unless it needs attention, and
+ * then faster the more records are failed (counted double) or waiting. The speed
+ * is the queue depth, capped, not a mood.
+ */
+export function pulseRate(state: ReturnType<typeof districtState>, counts: DistrictCounts | null): number {
+  if (state !== "attention") return 2;
+  const open = counts ? counts.errors * 2 + counts.queued : 0;
+  return 3.5 + Math.min(open, 10) * 0.25;
+}
+
+/**
+ * The approve button's tap rule: low-risk items approve on one tap; medium and
+ * high risk need a second tap while armed (the card disarms itself after a few seconds).
+ */
+export function approveTap(risk: string, armed: boolean): { armed: boolean; fire: boolean } {
+  if (risk === "low") return { armed: false, fire: true };
+  return armed ? { armed: false, fire: true } : { armed: true, fire: false };
 }

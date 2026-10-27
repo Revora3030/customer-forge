@@ -107,7 +107,13 @@ export const listApprovals = createServerFn({ method: "POST" })
 
 export const decideApproval = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ id: z.string().uuid(), decision: z.enum(["approve", "reject"]), reason: z.string().max(300).optional() }).parse(d))
+  .inputValidator((d: unknown) => z.object({
+    id: z.string().uuid(),
+    decision: z.enum(["approve", "reject"]),
+    reason: z.string().max(300).optional(),
+    /** Fingerprint of the content the reviewer saw; when sent, an item that changed since is refused. */
+    seenHash: z.string().regex(/^[0-9a-f]{64}$/).optional(),
+  }).parse(d))
   .handler(async ({ data, context }) => {
     const db = await guard(context);
     const now = new Date().toISOString();
@@ -116,10 +122,21 @@ export const decideApproval = createServerFn({ method: "POST" })
       if (error) throw new Error(error.message);
       return { status: "rejected", note: "Rejected." };
     }
+    // Approve exactly what was shown: compare against the stored item, then pin the claim to that content.
+    let seen: { summary: string; preview: string | null } | null = null;
+    if (data.seenHash) {
+      const { data: current } = await db.from("approval_queue").select("id, item_type, summary, preview").eq("id", data.id).maybeSingle();
+      if (!current) throw new Error("Item not found.");
+      const { approvalMatchesSeen } = await import("@/lib/cognition/approval-token");
+      if (!(await approvalMatchesSeen(current, data.seenHash))) throw new Error("This item changed after you opened it. Review the new version, then approve again.");
+      seen = { summary: current.summary, preview: current.preview };
+    }
     // Claim exactly once: only a pending row can move forward.
-    const { data: claimed, error } = await db.from("approval_queue").update({ status: "approved", approved_by: context.userId, approved_at: now }).eq("id", data.id).eq("status", "pending").select("*").maybeSingle();
+    let claim = db.from("approval_queue").update({ status: "approved", approved_by: context.userId, approved_at: now }).eq("id", data.id).eq("status", "pending");
+    if (seen) claim = (seen.preview === null ? claim.is("preview", null) : claim.eq("preview", seen.preview)).eq("summary", seen.summary);
+    const { data: claimed, error } = await claim.select("*").maybeSingle();
     if (error) throw new Error(error.message);
-    if (!claimed) throw new Error("This item was already handled.");
+    if (!claimed) throw new Error(seen ? "This item was already handled or changed after you opened it." : "This item was already handled.");
     const outcome = await (await svc()).executeApproved(db, claimed);
     await db.from("approval_queue").update({ status: outcome.status, execution_note: outcome.note, executed_at: outcome.status === "executed" ? new Date().toISOString() : null }).eq("id", data.id);
     return outcome;

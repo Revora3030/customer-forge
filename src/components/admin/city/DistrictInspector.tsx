@@ -4,7 +4,8 @@ import { ArrowUpRight, Radar, Send, Sparkles, Terminal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Sparkline } from "./Sparkline";
-import { CITY_DISTRICTS, districtState, hourlyBuckets, pipelineStages, workIsActive, type CitySnapshot, type CityWork, type DistrictId, type SalesMission } from "@/lib/ai-city";
+import { ApprovalReview } from "./ApprovalReview";
+import { CITY_DISTRICTS, ageLabel, districtState, hourlyBuckets, missionsFor, pipelineStages, runningFor, workIsActive, type CitySnapshot, type CityWork, type DistrictId, type SalesMission } from "@/lib/ai-city";
 
 type Props = {
   open: boolean;
@@ -15,6 +16,8 @@ type Props = {
   onRecord: (row: CityWork) => void;
   onMission: () => void;
   onSalesMission: (kind: SalesMission) => void;
+  /** Opens a drafted mission in Jarvis; nothing runs until the owner sends it. */
+  onDraft: (draft: string) => void;
 };
 
 const SALES_ACTIONS: Array<{ kind: SalesMission; label: string; icon: typeof Radar }> = [
@@ -23,7 +26,7 @@ const SALES_ACTIONS: Array<{ kind: SalesMission; label: string; icon: typeof Rad
   { kind: "pitch", label: "Draft pitch for approval", icon: Send },
 ];
 
-export function DistrictInspector({ open, onOpenChange, district, snapshot, now, onRecord, onMission, onSalesMission }: Props) {
+export function DistrictInspector({ open, onOpenChange, district, snapshot, now, onRecord, onMission, onSalesMission, onDraft }: Props) {
   const [wide, setWide] = useState(false);
   // On phones the sheet starts at about half height so the city stays visible above it.
   const [tall, setTall] = useState(false);
@@ -72,6 +75,31 @@ export function DistrictInspector({ open, onOpenChange, district, snapshot, now,
         <Stat label="Errors" value={snapshot ? errors.length : null} />
       </div>
       <section className="mt-5" aria-label="Throughput"><h3 className="text-xs font-semibold uppercase">Records per hour · last 24 hours</h3><div className="mt-2">{snapshot ? <Sparkline values={hourlyBuckets(rows, now, 24)} label="Records per hour, last 24 hours" /> : <p className="text-[11px] text-muted-foreground">Unavailable.</p>}</div></section>
+      <section className="mt-5" aria-label="Live workers">
+        <h3 className="text-xs font-semibold uppercase">Live workers</h3>
+        {!snapshot ? <p className="mt-2 text-xs text-muted-foreground">Unavailable.</p> : running.length ? (
+          <ul className="mt-2 space-y-2">
+            {running.slice(0, 6).map((row) => {
+              const elapsed = runningFor(row, now);
+              return (
+                <li key={row.id}>
+                  <button type="button" onClick={() => onRecord(row)} className="min-h-11 w-full rounded-md border border-border p-2 text-left">
+                    <span className="block break-words text-xs font-medium">{row.title}</span>
+                    <span className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
+                      <span>{row.model ? <span className="break-all font-mono">{row.model}</span> : "model not recorded"}</span>
+                      <span>{elapsed ? `running ${elapsed}` : `last heartbeat ${ageLabel(Math.max(0, now - Date.parse(row.at)))} ago`}</span>
+                      {typeof row.progress === "number" && row.progress > 0 ? <span>{Math.round(row.progress)}% done</span> : null}
+                    </span>
+                    {row.detail ? <span className="mt-1 block break-words text-[11px] text-muted-foreground">{row.detail}</span> : null}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        ) : <p className="mt-2 text-xs text-muted-foreground">Nothing is running in this district right now.</p>}
+        <p className="mt-2 text-[11px] text-muted-foreground">Shows what each record says; per-task spend is not recorded.</p>
+      </section>
+      {district === "growth" ? <section className="mt-5" aria-label="Approvals"><h3 className="text-xs font-semibold uppercase">Waiting for your approval</h3><ApprovalReview now={now} /></section> : null}
       {district === "growth" ? <section className="mt-5" aria-label="Sales pipeline">
         <h3 className="text-xs font-semibold uppercase">Sales pipeline</h3>
         <ol className="mt-2 grid grid-cols-5 gap-1">{pipelineStages(snapshot?.pipeline).map(s => <li key={s.key} className="min-w-0 rounded-md border border-border p-2 text-center"><p className="break-words font-display text-sm font-semibold">{s.display === "Unavailable" ? "—" : s.display}</p><p className="mt-1 text-[10px] leading-tight text-muted-foreground">{s.label}</p>{s.display === "Unavailable" ? <span className="sr-only">Unavailable</span> : null}</li>)}</ol>
@@ -84,6 +112,13 @@ export function DistrictInspector({ open, onOpenChange, district, snapshot, now,
       </section>
       {routines.length ? <section className="mt-5"><h3 className="text-xs font-semibold uppercase">Routines</h3><Rows rows={routines} onRecord={onRecord} /></section> : null}
       <section className="mt-5"><h3 className="text-xs font-semibold uppercase">Recent records</h3>{snapshot ? rows.length ? <Rows rows={rows.slice(0, 12)} onRecord={onRecord} /> : <p className="mt-2 text-xs text-muted-foreground">No records in this district's feeds.</p> : <p role="alert" className="mt-2 text-xs text-destructive">Records unavailable.</p>}</section>
+      <section className="mt-5" aria-label="Quick missions">
+        <h3 className="text-xs font-semibold uppercase">Quick missions</h3>
+        <ul className="mt-2 grid gap-2">
+          {missionsFor(district).map((mission) => <li key={mission.id}><Button variant="outline" className="h-auto min-h-11 w-full flex-col items-start gap-0.5 whitespace-normal py-2 text-left" onClick={() => onDraft(mission.draft)}><span className="text-sm">{mission.label}</span><span className="text-[11px] font-normal text-muted-foreground">{mission.hint}</span></Button></li>)}
+        </ul>
+        <p className="mt-2 text-[11px] text-muted-foreground">Each opens a draft in Jarvis. Nothing runs until you send it.</p>
+      </section>
       <div className="mt-6 grid gap-2 pb-4">
         <Button variant="signal" className="min-h-11" onClick={onMission}><Terminal className="size-4" /> Prepare mission in Jarvis</Button>
         <Button asChild variant="ghost" className="min-h-11"><Link to={info.route}>Open department <ArrowUpRight className="size-4" /></Link></Button>

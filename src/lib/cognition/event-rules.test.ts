@@ -23,6 +23,14 @@ describe("planEventResponses", () => {
     expect(later.proposals).toHaveLength(1);
   });
 
+  it("gives each proposal a factual summary from its event, including the trial rule", () => {
+    const { proposals } = planEventResponses({ events: [{ ...ev("1", "client.trial_expiring", "Blue Door"), detail: "Trial ends soon." }, ev("2", "build.failed", "Acme")], rules: DEFAULT_EVENT_RULES, lastProposed: {}, now: NOW });
+    const trial = proposals.find((p) => p.ruleId === "trial-expiring")!;
+    expect(trial.summary).toBe("Blue Door's free trial ends within a day and they haven't converted. Trial ends soon. Nothing was sent to them.");
+    expect(trial.prompt).toContain("Do not send anything.");
+    expect(proposals.find((p) => p.ruleId === "build-failed-review")!.summary).toContain("Acme");
+  });
+
   it("caps proposals per pass even if asked for more", () => {
     const events = Array.from({ length: 20 }, (_, i) => ev(`e${i}`, "build.failed", `site-${i}`, NOW - i));
     const { proposals, dropped } = planEventResponses({ events, rules: DEFAULT_EVENT_RULES, lastProposed: {}, now: NOW, maxProposals: 100 });

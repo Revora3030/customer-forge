@@ -1,5 +1,12 @@
 # Roadmap — Five-phase blocker elimination
 
+## Blueprint batches A and B (2026-10-27)
+- [x] Event bus: `cognition/event-emitter.ts` collects independent sources and reports an unreadable one by name; new sources for failed builds (names the stopped step), failed CI on the release branch's current commit, Revora's own unanswered leads and trials ending within a day. Owner notices only: nothing is retried, and no client is contacted.
+- [x] Approve exactly what you saw: the approval call can carry a fingerprint of the content shown; the server refuses if the item changed since and pins the claim to that content. Used by the existing Growth queue and the new City cards.
+- [x] `cognition/build-plan.ts` derives the build's task graph from the real generation steps (tested against them) to say where a failed build stopped.
+- [x] AI City: one-finger rotate, two-finger zoom and pan; pixel ratio up to 2x with fall-back to 1x if the frame rate drops, 2048 shadows on desktop; beacon pulse speed follows queue depth; live worker cards from recorded fields; quick missions per district tied to real read-only tools (drift-tested); approval review cards in the Growth district (two taps for medium and high risk).
+- [ ] Not built: cryptographic HMAC tokens (the queue row is the server-side authority, so a keyed token adds nothing), per-task token-budget reservations (not recorded), travelling data pulses between districts (not recorded), automatic build retries or client notifications (spend / outbound sends need owner approval), simulated vision review.
+
 ## AI City upgrade (2026-10-27)
 - [x] "Needs you" triage panel: every failed or waiting record, failures first then longest-standing, opening the record's evidence; says "records unavailable" rather than looking calm when sources cannot be read.
 - [x] 3D scene: rings and beacons coloured by recorded state (green working with pulse waves, red failures, gold waiting, grey unreadable), floating labels with live running/waiting/failed counts, smooth camera flight between districts, colour key.

@@ -77,3 +77,19 @@ export function memoryApprovalStore(): ApprovalStore {
     },
   };
 }
+
+/**
+ * "Approve exactly what you saw": a fingerprint of the content a reviewer was
+ * shown. The approval call sends it back, and the server refuses when the stored
+ * item has changed since, so an edit made after the owner opened it can never be
+ * approved unseen.
+ */
+export type ApprovalContent = { id: string; item_type: string; summary: string; preview: string | null };
+
+export function approvalContentHash(item: ApprovalContent): Promise<string> {
+  return hashPayload({ id: item.id, type: item.item_type, summary: item.summary, preview: item.preview ?? null });
+}
+
+export async function approvalMatchesSeen(current: ApprovalContent, seenHash: string): Promise<boolean> {
+  return (await approvalContentHash(current)) === seenHash;
+}

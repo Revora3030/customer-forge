@@ -146,3 +146,66 @@ describe("AI City triage and activity", () => {
     expect(districtForKey("x", "executive")).toBeNull();
   });
 });
+
+import { CITY_MISSIONS, approveTap, missionsFor, pulseRate, runningFor } from "./ai-city";
+import { JARVIS_DIAGNOSTIC_TOOLS } from "./jarvis-tool-registry";
+
+describe("AI City mission presets", () => {
+  const all = Object.values(CITY_MISSIONS).flat();
+  const toolIds = new Set(JARVIS_DIAGNOSTIC_TOOLS.map((tool) => tool.id as string));
+
+  it("gives every district at least one mission, and every id is unique", () => {
+    for (const district of CITY_DISTRICTS) expect(missionsFor(district.id).length).toBeGreaterThan(0);
+    expect(new Set(all.map((m) => m.id)).size).toBe(all.length);
+  });
+
+  it("only names read-only Jarvis tools that exist, so a renamed tool fails here instead of silently", () => {
+    const named = all.flatMap((m) => m.draft.match(/\b(?:[a-z]+\.){1,2}[a-z-]+\b/g) ?? []).filter((word) => /^(website|platform|builder|release|ai|growth|security|domain|database|connectors|images|docs|jarvis|observability)\./.test(word));
+    expect(named.length).toBeGreaterThan(8);
+    for (const id of named) expect(toolIds.has(id), id).toBe(true);
+  });
+
+  it("states the approval gate in every draft and never asks for paid work, sends or publishing", () => {
+    for (const mission of all) {
+      expect(mission.draft, mission.id).toContain("do not spend, send or publish without my explicit approval");
+      expect(mission.draft, mission.id).toMatch(/^\[AI City · /);
+    }
+  });
+});
+
+describe("AI City running time", () => {
+  const T = Date.parse("2026-10-27T18:00:00Z");
+  const base: CityWork = { id: "1", district: "factory", title: "Build", status: "running", source: "generation_jobs", at: "2026-10-27T17:59:00Z" };
+  it("shows how long work has run only when its source recorded a start", () => {
+    expect(runningFor({ ...base, startedAt: "2026-10-27T17:15:00Z" }, T)).toBe("45m");
+    expect(runningFor(base, T)).toBeNull();
+    expect(runningFor({ ...base, startedAt: "garbage" }, T)).toBeNull();
+    expect(runningFor({ ...base, startedAt: "2026-10-27T19:00:00Z" }, T)).toBeNull();
+  });
+});
+
+describe("AI City beacon pulse", () => {
+  it("is calm unless a district needs attention, then follows the queue depth up to a cap", () => {
+    const counts = (running: number, queued: number, errors: number) => ({ running, queued, errors, total: running + queued + errors });
+    expect(pulseRate("working", counts(3, 0, 0))).toBe(2);
+    expect(pulseRate("idle", null)).toBe(2);
+    expect(pulseRate("attention", counts(0, 1, 0))).toBe(3.75);
+    expect(pulseRate("attention", counts(0, 1, 0))).toBeLessThan(pulseRate("attention", counts(0, 2, 1)));
+    expect(pulseRate("attention", counts(0, 50, 50))).toBe(6);
+    expect(pulseRate("attention", null)).toBe(3.5);
+  });
+});
+
+describe("AI City approve tap rule", () => {
+  it("approves low-risk items on one tap and asks medium and high risk items for a second", () => {
+    expect(approveTap("low", false)).toEqual({ armed: false, fire: true });
+    expect(approveTap("medium", false)).toEqual({ armed: true, fire: false });
+    expect(approveTap("medium", true)).toEqual({ armed: false, fire: true });
+    expect(approveTap("high", false)).toEqual({ armed: true, fire: false });
+    expect(approveTap("high", true)).toEqual({ armed: false, fire: true });
+  });
+
+  it("treats an unknown risk level as needing the second tap", () => {
+    expect(approveTap("???", false)).toEqual({ armed: true, fire: false });
+  });
+});

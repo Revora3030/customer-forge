@@ -1,9 +1,9 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { Environment, Html, Lightformer, OrbitControls, useGLTF } from "@react-three/drei";
+import { Environment, Html, Lightformer, OrbitControls, PerformanceMonitor, useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import type { OrbitControls as OrbitControlsType } from "three-stdlib";
-import { CITY_DISTRICTS, districtCounts, districtState, type CitySnapshot, type DistrictId } from "@/lib/ai-city";
+import { CITY_DISTRICTS, districtCounts, districtState, pulseRate, type CitySnapshot, type DistrictId } from "@/lib/ai-city";
 import towerA from "@/assets/city/building-skyscraper-a.asset.json";
 import towerB from "@/assets/city/building-skyscraper-b.asset.json";
 import towerC from "@/assets/city/building-skyscraper-c.asset.json";
@@ -85,7 +85,7 @@ function Building({ index, palette, selected, active, state, counts, compact, on
     <primitive object={building} />
     <mesh rotation-x={-Math.PI / 2} position-y={0.07}><ringGeometry args={[2.8, selected ? 2.95 : 2.84, 4]} /><meshBasicMaterial color={selected ? palette.gold : color} transparent opacity={selected ? 1 : state === "idle" ? 0.45 : 0.9} /></mesh>
     <PulseRings color={color} active={active} />
-    <Beacon color={color} height={district.height + 0.7} active={active || state === "attention"} urgent={state === "attention"} />
+    <Beacon color={color} height={district.height + 0.7} active={active || state === "attention"} rate={pulseRate(state, counts)} />
     <Html position={[0, district.height + 1.2, 0]} center zIndexRange={[20, 0]} style={{ pointerEvents: "none" }}>
       {compact && !selected ? (counts && counts.running + counts.queued + counts.errors ? <div aria-hidden="true" className="rounded-full border border-border bg-background/90 px-1.5 text-[10px] leading-4 text-foreground">{counts.running + counts.queued + counts.errors}</div> : null) : <div aria-hidden="true" className={`whitespace-nowrap rounded border bg-background/85 px-2 py-0.5 text-center text-[11px] leading-tight text-foreground backdrop-blur-sm ${selected ? "border-gold" : "border-border"}`}>
         <div className="font-medium">{district.name}</div>
@@ -128,7 +128,7 @@ function PulseRings({ color, active }: { color: string; active: boolean }) {
   return <>{refs.map((ref, i) => <mesh key={i} ref={ref} rotation-x={-Math.PI / 2} position-y={0.09}><ringGeometry args={[2.9, 3.0, 4]} /><meshBasicMaterial color={color} transparent opacity={0.4} depthWrite={false} /></mesh>)}</>;
 }
 
-function Beacon({ color, height, active, urgent = false }: { color: string; height: number; active: boolean; urgent?: boolean }) {
+function Beacon({ color, height, active, rate }: { color: string; height: number; active: boolean; rate: number }) {
   const ref = useRef<THREE.Mesh>(null);
   const time = useRef(0);
   useFrame((_, rawDelta) => {
@@ -136,7 +136,7 @@ function Beacon({ color, height, active, urgent = false }: { color: string; heig
     time.current += Math.min(rawDelta, 0.05);
     ref.current.rotation.y += Math.min(rawDelta, 0.05);
     // A waiting or failed district blinks faster than a working one pulses.
-    ref.current.scale.setScalar(0.8 + Math.sin(time.current * (urgent ? 5 : 2)) * 0.2);
+    ref.current.scale.setScalar(0.8 + Math.sin(time.current * rate) * 0.2);
   });
   return <mesh ref={ref} position-y={height}><octahedronGeometry args={[0.22]} /><meshStandardMaterial color={color} emissive={color} emissiveIntensity={active ? 3 : 0.2} /></mesh>;
 }
@@ -187,15 +187,19 @@ export default function CityScene({ snapshot, selected, onSelect, palette, motio
     sync(); media.addEventListener("change", sync);
     return () => media.removeEventListener("change", sync);
   }, []);
+  // Pixel ratio follows the screen up to 2x; if the frame rate drops while animating it falls back to 1x.
+  const ceiling = useMemo(() => Math.min(typeof window === "undefined" ? 1 : window.devicePixelRatio || 1, compact ? 1.5 : 2), [compact]);
+  const [dpr, setDpr] = useState(ceiling);
+  useEffect(() => setDpr(ceiling), [ceiling]);
   const controls = useRef<OrbitControlsType>(null);
   const anyActive = CITY_DISTRICTS.some(d => districtState(d.id, snapshot, Date.now()) === "working");
-  return <Canvas orthographic shadows dpr={[1, 1.5]} frameloop={motion && anyActive ? "always" : "demand"} camera={{ position: [25, 26, 30], zoom: 20, near: 0.1, far: 150 }} gl={{ antialias: true, powerPreference: "low-power" }} onCreated={({ gl }) => { gl.domElement.addEventListener("webglcontextlost", onFailure, { once: true }); }} fallback={<div role="alert">3D unavailable. Switch to Operations.</div>}>
+  return <Canvas orthographic shadows dpr={dpr} frameloop={motion && anyActive ? "always" : "demand"} camera={{ position: [25, 26, 30], zoom: 20, near: 0.1, far: 150 }} gl={{ antialias: true, powerPreference: "low-power" }} onCreated={({ gl }) => { gl.domElement.addEventListener("webglcontextlost", onFailure, { once: true }); }} fallback={<div role="alert">3D unavailable. Switch to Operations.</div>}>
     <color attach="background" args={[palette.ground]} />
     <fogExp2 attach="fog" args={[palette.ground, 0.011]} />
     <ambientLight intensity={0.95} color="#9fb4c4" />
     <directionalLight position={[-12, 9, -14]} intensity={0.9} color={palette.cyan} />
     <pointLight position={[0, 9, 0]} intensity={22} distance={22} decay={2} color={palette.gold} />
-    <directionalLight position={[10, 20, 8]} intensity={2.2} color="#ffe2b0" castShadow shadow-mapSize-width={1024} shadow-mapSize-height={1024} shadow-camera-left={-20} shadow-camera-right={20} shadow-camera-top={20} shadow-camera-bottom={-20} />
+    <directionalLight position={[10, 20, 8]} intensity={2.2} color="#ffe2b0" castShadow shadow-mapSize-width={compact ? 1024 : 2048} shadow-mapSize-height={compact ? 1024 : 2048} shadow-camera-left={-20} shadow-camera-right={20} shadow-camera-top={20} shadow-camera-bottom={-20} />
     <Environment resolution={64}><Lightformer intensity={2} position={[0, 12, 0]} rotation-x={Math.PI / 2} scale={[25, 25, 1]} /><Lightformer intensity={1.5} color={palette.cyan} position={[-15, 3, 0]} rotation-y={Math.PI / 2} scale={[20, 10, 1]} /></Environment>
     <Ground palette={palette} />
     {CITY_DISTRICTS.filter(d => d.id !== "executive").map(d => {
@@ -205,7 +209,8 @@ export default function CityScene({ snapshot, selected, onSelect, palette, motio
       return <Conduit key={`c-${d.id}`} to={d.position} color={color} strength={state === "working" || state === "attention" ? 0.85 : state === "unavailable" ? 0.12 : 0.28} />;
     })}
     {CITY_DISTRICTS.map((d, index) => <Suspense key={d.id} fallback={null}><Building index={index} palette={palette} selected={selected === d.id} active={motion && districtState(d.id, snapshot, now) === "working"} state={districtState(d.id, snapshot, now)} counts={districtCounts(snapshot, d.id, now)} compact={compact} onSelect={() => onSelect(d.id)} /></Suspense>)}
-    <OrbitControls ref={controls} makeDefault enableDamping enableRotate minZoom={8} maxZoom={65} minPolarAngle={0.35} maxPolarAngle={1.25} target={[0, 1.5, 0]} touches={{ ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_ROTATE }} />
+    <OrbitControls ref={controls} makeDefault enableDamping enableRotate minZoom={8} maxZoom={65} minPolarAngle={0.35} maxPolarAngle={1.25} target={[0, 1.5, 0]} touches={{ ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN }} />
+    {motion && anyActive ? <PerformanceMonitor onDecline={() => setDpr(1)} onIncline={() => setDpr(ceiling)} /> : null}
     <CityControls selected={selected} reset={reset} controls={controls} />
   </Canvas>;
 }
