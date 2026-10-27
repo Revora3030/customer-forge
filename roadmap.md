@@ -1,6 +1,7 @@
 # Roadmap — Five-phase blocker elimination
 
 ## AI City and workforce-first continuation (2026-10-27)
+- [ ] Harden existing routine runner with atomic pre-execution claims, owner/attempt-fenced settlement and explicit uncertain outcomes; test concurrent wake-ups without paid calls or production writes.
 - [x] Build authenticated AI City with all seven operational districts, real queues/evidence, full returned Lovable capability catalogue and phone/desktop navigation. Super-admin reads preserve owner-filtered Jarvis records and per-source failures.
 - [x] Connect read-only department checks to the existing executor and prepare review-only missions in Jarvis; no simulated jobs, second worker or automatic spend/send/publish path. Existing department review pages remain execution entry points.
 - [x] Signed-in real records, 3D scene, district selection, Operations fallback, full catalogue, mission composer handoff and real read-only error diagnostic checked; 320/390/768/1280/2560 no overflow, reduced-motion fallback, no page errors after repair; 78 focused regressions pass, lint clean, automatic build OK. Evidence: docs/ai-city-verification.md.
