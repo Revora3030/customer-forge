@@ -1,12 +1,15 @@
 /**
- * Event-driven nudges for Jarvis. Each pass looks for platform events (today:
- * site builds that failed in the last day) and, per the cooldown rules in
- * cognition/event-rules, posts a plain notice into every super admin's Jarvis
- * chat with a suggested question. No model runs and nothing is changed: the
- * owner decides whether to ask Jarvis to look into it.
+ * Event-driven nudges for Jarvis. Each pass collects platform events (failed
+ * builds, failed release CI, unanswered Revora leads, trials about to end) and,
+ * per the cooldown rules in cognition/event-rules, posts a plain notice into
+ * every super admin's Jarvis chat with a suggested question. No model runs and
+ * nothing is changed, retried or sent to anyone: the owner decides whether to
+ * ask Jarvis to look into it. A source that cannot be read is reported by name.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { DEFAULT_EVENT_RULES, planEventResponses, type PlatformEvent } from "@/lib/cognition/event-rules";
+import { collectEvents, type EventSource } from "@/lib/cognition/event-emitter";
+import { DEFAULT_EVENT_RULES, planEventResponses } from "@/lib/cognition/event-rules";
+import { buildFailedSource, ciFailedSource, leadUnansweredSource, trialExpiringSource } from "@/lib/event-sources.server";
 
 type Db = Pick<SupabaseClient, "from">;
 
@@ -30,30 +33,14 @@ export function lastProposedFrom(rows: readonly { content: string; created_at: s
   return last;
 }
 
-export type EventWatchRun = { events: number; users: number; posted: number; failed: number };
+export type EventWatchRun = { events: number; users: number; posted: number; failed: number; failedSources: string[] };
 
-export async function runJarvisEventWatch(db: Db, now = Date.now()): Promise<EventWatchRun> {
-  const run: EventWatchRun = { events: 0, users: 0, posted: 0, failed: 0 };
-  const { data: jobs, error } = await db
-    .from("generation_jobs")
-    .select("id, organization_id, updated_at, failed_stage")
-    .eq("status", "failed")
-    .gte("updated_at", new Date(now - DAY).toISOString())
-    .order("updated_at", { ascending: false })
-    .limit(50);
-  if (error) throw new Error(`generation_jobs: ${error.message}`);
-  if (!jobs?.length) return run;
-
-  const orgIds = [...new Set(jobs.map((job) => job.organization_id as string))];
-  const { data: orgs } = await db.from("organizations").select("id, name").in("id", orgIds);
-  const names = new Map((orgs ?? []).map((org) => [org.id as string, String(org.name ?? "a workspace")]));
-  const events: PlatformEvent[] = jobs.map((job) => ({
-    id: String(job.id),
-    type: "build.failed",
-    occurredAt: Date.parse(String(job.updated_at)),
-    subject: names.get(job.organization_id as string) ?? "a workspace",
-  }));
-  run.events = events.length;
+export async function runJarvisEventWatch(db: Db, now = Date.now(), sources: readonly EventSource[] = defaultSources(db)): Promise<EventWatchRun> {
+  const run: EventWatchRun = { events: 0, users: 0, posted: 0, failed: 0, failedSources: [] };
+  const collected = await collectEvents(sources, now);
+  run.events = collected.events.length;
+  run.failedSources = collected.failedSources;
+  if (!collected.events.length) return run;
 
   const { data: admins } = await db.from("user_roles").select("user_id").eq("role", "super_admin");
   const userIds = [...new Set((admins ?? []).map((row) => String(row.user_id)))];
@@ -68,13 +55,17 @@ export async function runJarvisEventWatch(db: Db, now = Date.now()): Promise<Eve
       .ilike("content", "%[event:%")
       .gte("created_at", new Date(now - 7 * DAY).toISOString())
       .limit(500);
-    const { proposals } = planEventResponses({ events, rules: DEFAULT_EVENT_RULES, lastProposed: lastProposedFrom((earlier ?? []) as never[]), now });
+    const { proposals } = planEventResponses({ events: collected.events, rules: DEFAULT_EVENT_RULES, lastProposed: lastProposedFrom((earlier ?? []) as never[]), now });
     for (const proposal of proposals) {
-      const content = `Heads up ${eventMarker(proposal.ruleId, proposal.subject)}\n\nA site build for ${proposal.subject} failed in the last day. I haven't looked into it yet and nothing was changed. If you want me to, ask: “${proposal.prompt}”`;
+      const content = `Heads up ${eventMarker(proposal.ruleId, proposal.subject)}\n\n${proposal.summary} If you want me to look into it, ask: “${proposal.prompt}”`;
       const { error: postError } = await db.from("jarvis_messages").insert({ user_id: userId, role: "assistant", content });
       if (postError) run.failed += 1;
       else run.posted += 1;
     }
   }
   return run;
+}
+
+function defaultSources(db: Db): EventSource[] {
+  return [buildFailedSource(db), ciFailedSource(), leadUnansweredSource(db), trialExpiringSource(db)];
 }

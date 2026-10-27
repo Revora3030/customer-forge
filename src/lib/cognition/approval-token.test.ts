@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { APPROVAL_TTL_MS, consumeApproval, hashPayload, issueApproval, memoryApprovalStore } from "./approval-token";
+import { APPROVAL_TTL_MS, approvalContentHash, approvalMatchesSeen, consumeApproval, hashPayload, issueApproval, memoryApprovalStore } from "./approval-token";
 
 const NOW = 1_800_000_000_000;
 const payload = { leadId: "l1", stage: "Quoted" };
@@ -39,5 +39,25 @@ describe("approval tokens", () => {
   it("hashes payloads independent of key order", async () => {
     expect(await hashPayload({ a: 1, b: { c: 2, d: 3 } })).toBe(await hashPayload({ b: { d: 3, c: 2 }, a: 1 }));
     expect(await hashPayload({ a: 1 })).not.toBe(await hashPayload({ a: 2 }));
+  });
+});
+
+describe("approve exactly what you saw", () => {
+  const item = { id: "q1", item_type: "outreach_email", summary: "Pitch to Acme", preview: "Hi Acme, $350 setup, first month free." };
+
+  it("fingerprints the shown content and notices any change to it", async () => {
+    const seen = await approvalContentHash(item);
+    expect(seen).toMatch(/^[0-9a-f]{64}$/);
+    expect(await approvalMatchesSeen({ ...item }, seen)).toBe(true);
+    expect(await approvalMatchesSeen({ ...item, preview: "Hi Acme, $750 setup." }, seen)).toBe(false);
+    expect(await approvalMatchesSeen({ ...item, summary: "Pitch to Someone Else" }, seen)).toBe(false);
+    expect(await approvalMatchesSeen({ ...item, item_type: "social_post" }, seen)).toBe(false);
+    expect(await approvalMatchesSeen({ ...item, id: "q2" }, seen)).toBe(false);
+  });
+
+  it("treats a missing preview consistently", async () => {
+    const empty = { ...item, preview: null };
+    expect(await approvalMatchesSeen(empty, await approvalContentHash(empty))).toBe(true);
+    expect(await approvalMatchesSeen({ ...empty, preview: "" }, await approvalContentHash(empty))).toBe(false);
   });
 });

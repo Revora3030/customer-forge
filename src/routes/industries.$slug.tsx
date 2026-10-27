@@ -191,7 +191,7 @@ function IndustryPage() {
                 <Link
                   to="/industries/$slug"
                   params={{ slug: industrySlug(i.name) }}
-                  className="panel inline-block px-3.5 py-2 text-[13px] text-muted-foreground transition-colors hover:text-foreground"
+                  className="panel tap-target px-3.5 py-2 text-[13px] text-muted-foreground transition-colors hover:text-foreground"
                 >
                   {i.name}
                 </Link>

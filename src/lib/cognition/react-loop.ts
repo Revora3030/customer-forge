@@ -69,3 +69,25 @@ export async function runReActLoop(input: {
   }
   return { status: "stopped", reason: "max_steps", trace };
 }
+
+/**
+ * The same reflexion rule for a round that ran several tools at once (Jarvis batches its read actions).
+ * Failures go back with an instruction to change approach; a second all-failed round in a row ends the
+ * loop so a broken tool cannot burn model calls.
+ */
+export function reflectOnRound(
+  results: readonly { label: string; ok: boolean; result: string }[],
+  consecutiveFailedRounds: number,
+  maxConsecutiveFailedRounds: number = DEFAULT_LOOP_LIMITS.maxConsecutiveErrors,
+): { note: string | null; failedRounds: number; giveUp: boolean } {
+  const failed = results.filter((item) => !item.ok);
+  const allFailed = results.length > 0 && failed.length === results.length;
+  const failedRounds = allFailed ? consecutiveFailedRounds + 1 : 0;
+  if (failed.length === 0) return { note: null, failedRounds, giveUp: false };
+  const giveUp = failedRounds >= maxConsecutiveFailedRounds;
+  const names = failed.map((item) => item.label).join(", ");
+  const note = giveUp
+    ? `Every check failed again (${names}). Stop calling tools: answer with what you already know and say plainly what could not be checked.`
+    : `Failed: ${names}. Do not repeat the same call. Try a different tool or arguments, or answer and say what could not be checked.`;
+  return { note, failedRounds, giveUp };
+}

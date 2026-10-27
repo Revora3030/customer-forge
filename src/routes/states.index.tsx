@@ -94,17 +94,17 @@ function StatesIndex() {
               <article className="border-t border-border pt-4">
                 <h3 className="font-semibold">Show your real services and coverage</h3>
                 <p className="mt-2 text-sm leading-relaxed text-muted-foreground">A useful business website answers what you offer, where you work and what the customer should do next. Provide your actual service area, original photos and approved business details; a city name alone is not a local SEO strategy.</p>
-                <Link to="/guides/$slug" params={{ slug: "show-up-in-google-map-pack" }} className="mt-3 inline-block py-1 text-sm text-primary underline underline-offset-4">Read the local search checklist</Link>
+                <Link to="/guides/$slug" params={{ slug: "show-up-in-google-map-pack" }} className="mt-3 tap-target py-1 text-sm text-primary underline underline-offset-4">Read the local search checklist</Link>
               </article>
               <article className="border-t border-border pt-4">
                 <h3 className="font-semibold">Choose a quote or booking workflow</h3>
                 <p className="mt-2 text-sm leading-relaxed text-muted-foreground">Contracting work may need a quote request before a visit; appointment-based businesses may start with a booking. Explore the industry pages and CRM workflows to choose a path that fits your services, rather than sending every visitor through the same form.</p>
-                <Link to="/crm" className="mt-3 inline-block py-1 text-sm text-primary underline underline-offset-4">Explore service business CRM workflows</Link>
+                <Link to="/crm" className="mt-3 tap-target py-1 text-sm text-primary underline underline-offset-4">Explore service business CRM workflows</Link>
               </article>
               <article className="border-t border-border pt-4">
                 <h3 className="font-semibold">Review the offer before committing</h3>
                 <p className="mt-2 text-sm leading-relaxed text-muted-foreground">Try full access for {GROWTH_SYSTEM.fullAccessWindow}. When you choose to launch, setup is {usd(GROWTH_SYSTEM.setupPrice)} once. The first monthly platform charge is due 30 days after setup, then {usd(GROWTH_SYSTEM.monthlyPrice)} each month unless canceled. SEO is ongoing work, not a guarantee of rankings or customers.</p>
-                <Link to="/pricing" className="mt-3 inline-block py-1 text-sm text-primary underline underline-offset-4">See setup, subscription and included services</Link>
+                <Link to="/pricing" className="mt-3 tap-target py-1 text-sm text-primary underline underline-offset-4">See setup, subscription and included services</Link>
               </article>
             </div>
           </div>

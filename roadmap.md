@@ -1,5 +1,30 @@
 # Roadmap — Five-phase blocker elimination
 
+## Blueprint batches C, D and E (2026-10-27)
+- [x] Batch C was checked against the code before anything was built: the instant quote estimator is the existing `quote_calculator`, the floating mobile bar is `mobile_sticky_bar`, the before/after slider has keyboard steps (`SLIDER_STEP = 5`), scroll chapters, the five-picture first-build gate and the duplicate-text / empty-column / contrast repair gates all exist. Nothing was rebuilt.
+- [x] Estimates and work orders for a lead (Leads → open a lead → "Estimate or work order"): `lib/estimates/printable-estimate.ts` builds the document in exact cents from what the owner types (lines, quantity, price, a tax rate that applies only to lines marked Taxed, discount lines, validity, terms); a work order is a crew checklist without prices unless the owner turns them on. It prefills only from records the workspace already holds (service, assigned teammate, next appointment, business profile) and shows the visitor's calculator range and choices for reference without copying them into prices. It prints or saves as PDF from the browser, names the PDF after the document number, remembers tax rate, validity and terms on that device, and logs one activity line on the lead when the owner ticks the box. Nothing is sent to the customer. The leads page already had the stage board, status filter and CSV export, so none of that was rebuilt.
+- [x] 44px phone targets: `scripts/page-sweep.mjs --target=44` lists the controls that miss it, most widespread first. The shared header, footer and buttons already passed; the misses were standalone links and chips (state, trade and related-page lists), the small button size, the auth logo link and one auth button. They now use the `tap-target` utility, and the sweep reports zero small targets across the 36 sampled public pages. Buttons also give a subtle press (scale 0.98, off under reduced motion).
+- [ ] Not built: a universal MCP gateway, SVG social cards and a tenant service worker (no recorded need, and each adds an outbound or caching surface that needs an owner decision).
+
+## Blueprint batches A and B (2026-10-27)
+- [x] Event bus: `cognition/event-emitter.ts` collects independent sources and reports an unreadable one by name; new sources for failed builds (names the stopped step), failed CI on the release branch's current commit, Revora's own unanswered leads and trials ending within a day. Owner notices only: nothing is retried, and no client is contacted.
+- [x] Approve exactly what you saw: the approval call can carry a fingerprint of the content shown; the server refuses if the item changed since and pins the claim to that content. Used by the existing Growth queue and the new City cards.
+- [x] `cognition/build-plan.ts` derives the build's task graph from the real generation steps (tested against them) to say where a failed build stopped.
+- [x] AI City: one-finger rotate, two-finger zoom and pan; pixel ratio up to 2x with fall-back to 1x if the frame rate drops, 2048 shadows on desktop; beacon pulse speed follows queue depth; live worker cards from recorded fields; quick missions per district tied to real read-only tools (drift-tested); approval review cards in the Growth district (two taps for medium and high risk).
+- [ ] Not built: cryptographic HMAC tokens (the queue row is the server-side authority, so a keyed token adds nothing), per-task token-budget reservations (not recorded), travelling data pulses between districts (not recorded), automatic build retries or client notifications (spend / outbound sends need owner approval), simulated vision review.
+
+## AI City upgrade (2026-10-27)
+- [x] "Needs you" triage panel: every failed or waiting record, failures first then longest-standing, opening the record's evidence; says "records unavailable" rather than looking calm when sources cannot be read.
+- [x] 3D scene: rings and beacons coloured by recorded state (green working with pulse waves, red failures, gold waiting, grey unreadable), floating labels with live running/waiting/failed counts, smooth camera flight between districts, colour key.
+- [x] "All activity" tab: newest-first feed across every district with text search and district filters; per-district records-per-hour chart in the inspector.
+- [x] District shareable in the address (?district=growth); keys 1-7 and arrows switch district (ignored inside fields and dialogs).
+- [x] 23 City tests (triage ranking, counts, hourly buckets, search, feed, deep-link parsing, key mapping, panel rendering). Rendered with a stand-in model and sample records at 1280 and 390: no errors, no overflow.
+- [x] Scene: warm key and cool rim lighting with a gold glow over the tower, depth fog, district pads that glow with recorded state, status-coloured conduit lines from the Jarvis hub to each district (a status indicator only; nothing travels along them).
+- [x] Phone: thumb-zone district carousel pinned above the safe area, compact count badges with a full label only on the chosen district, bottom sheet that opens at about half height, resizes by tap or swipe on its handle and swipes down to close.
+- [ ] Not built: autonomous cold outreach sending (needs explicit owner approval per AGENTS.md).
+- [ ] Not built: model "sprites" travelling between districts. Records do not say which district hands work to which, so any movement would be invented.
+- [ ] Not verified against live records or your real building models (needs your signed-in /admin/city).
+
 ## Jarvis event nudges (2026-10-27)
 - [x] The routines job now also posts a plain, no-AI notice into each super admin's Jarvis chat when a site build failed in the last day (cooldown per workspace, at most 5 per pass), with a suggested question to ask. 4 tests.
 - [ ] `ci.failed` and `lead.unanswered` have rules but no emitter yet.
