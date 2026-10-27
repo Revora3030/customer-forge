@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { runReActLoop, type LoopAction } from "./react-loop";
+import { reflectOnRound, runReActLoop, type LoopAction } from "./react-loop";
 
 const script = (actions: LoopAction[]) => {
   let i = 0;
@@ -54,5 +54,25 @@ describe("runReActLoop", () => {
   it("does not let a model reach inherited object keys as tools", async () => {
     const result = await runReActLoop({ think: script([{ type: "tool", tool: "constructor", input: null }]), tools: {} });
     expect(result).toMatchObject({ status: "stopped", reason: "unknown_tool_limit" });
+  });
+});
+
+describe("reflectOnRound", () => {
+  const ok = { label: "a", ok: true, result: "x" };
+  const bad = { label: "b", ok: false, result: "boom" };
+  it("says nothing when every tool worked and resets the streak", () => {
+    expect(reflectOnRound([ok], 1)).toEqual({ note: null, failedRounds: 0, giveUp: false });
+  });
+  it("sends a partial failure back with an instruction to change approach", () => {
+    const r = reflectOnRound([ok, bad], 0);
+    expect(r.note).toContain("Failed: b");
+    expect(r).toMatchObject({ failedRounds: 0, giveUp: false });
+  });
+  it("gives up after a second all-failed round in a row", () => {
+    const first = reflectOnRound([bad], 0);
+    expect(first).toMatchObject({ failedRounds: 1, giveUp: false });
+    const second = reflectOnRound([bad], first.failedRounds);
+    expect(second.giveUp).toBe(true);
+    expect(second.note).toContain("Stop calling tools");
   });
 });
