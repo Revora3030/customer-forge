@@ -45,7 +45,7 @@ describe("AI City data boundary", () => {
     await collectCitySnapshot(fake.db, "owner-a");
     for (const table of ["jarvis_run_events", "jarvis_routines", "jarvis_memories"]) expect(fake.filters).toContainEqual({ table, column: "user_id", value: "owner-a" });
     expect(fake.filters).toContainEqual({ table: "ai_team_trace", column: "provider", value: "lovable" });
-    expect(fake.tables).toHaveLength(9);
+    expect(fake.tables).toHaveLength(13);
   });
   it("preserves workspace identity and exact totals while declaring sample truncation", async () => {
     const fake = fakeDb();
