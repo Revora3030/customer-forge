@@ -19,7 +19,7 @@ import {
   parsePageArchitecture,
   type ArchitectureRejection,
 } from "@/lib/builder/ai-page-architecture";
-import { parseReview } from "@/lib/builder/collective-copy";
+import { parseReview, substantiveRejections } from "@/lib/builder/collective-copy";
 import { creativeQualityPrompt } from "@/lib/builder/creative-quality-matrix";
 import { craftBarPrompt } from "@/lib/builder/world-class-craft";
 import { businessNameHeadlines, stripBusinessNameHeadlines } from "@/lib/builder/headline-names";
@@ -243,7 +243,9 @@ export async function proposePageArchitecture(input: {
     };
 
   const review = parseReview(terra.text);
-  const approved = review?.approvedFields.some((field) => /structure|pages?/i.test(field)) ?? false;
+  // Terra must name a real broken rule; a review whose every note clears the
+  // field itself ("Not a violation") or names nothing is a pass with advice.
+  const approved = review !== null && (review.approvedFields.some((field) => /structure|pages?/i.test(field)) || substantiveRejections(review.notes).length === 0);
   const namedHeadings = businessNameHeadlines(normalized.architecture, input.businessName);
   if (!approved && review !== null && (input.revisionRound ?? 0) < 3) {
     const nameNote = namedHeadings.length

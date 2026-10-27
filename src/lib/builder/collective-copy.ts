@@ -274,3 +274,9 @@ export function parseReview(text: string): {
     : [];
   return { approvedFields, notes };
 }
+
+const NON_VIOLATION = /^\s*(not a violation|no violation|not an issue|no issue|acceptable|fine as is|ok\b|approved)/i;
+/** A rejection must name a real problem; notes that clear the field themselves are advice. */
+export function substantiveRejections(notes: readonly RefinementRejection[]): RefinementRejection[] {
+  return notes.filter((note) => note.reason !== "rejected by review" ? !NON_VIOLATION.test(note.reason) : note.field !== "*");
+}
