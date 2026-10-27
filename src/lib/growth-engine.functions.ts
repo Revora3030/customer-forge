@@ -6,10 +6,11 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 async function guard(context: { supabase: unknown; userId: string }) {
   const { assertSuperAdmin } = await import("@/lib/admin.server");
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await assertSuperAdmin(context.supabase as any, context.userId);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return context.supabase as any;
+  // The auth middleware always supplies the user-scoped client; `unknown` is
+  // only how the middleware context types it.
+  const supabase = context.supabase as Parameters<typeof assertSuperAdmin>[0];
+  await assertSuperAdmin(supabase, context.userId);
+  return supabase;
 }
 
 const svc = () => import("@/lib/growth-engine/service.server");
