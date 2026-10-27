@@ -104,15 +104,16 @@ const AI_ROUTER = path.join(ROOT, "src", "lib", "ai", "router.server.ts");
 checks.push({ name: "AI router exists", pass: fs.existsSync(AI_ROUTER) });
 if (!fs.existsSync(AI_ROUTER)) errors.push("AI router not found");
 
-// 9. Free model collective (admin panel) must exist
-const COLLECTIVE = path.join(ROOT, "src", "components", "app", "FreeModelCollective.tsx");
-checks.push({ name: "FreeModelCollective admin panel exists", pass: fs.existsSync(COLLECTIVE) });
-if (!fs.existsSync(COLLECTIVE)) errors.push("FreeModelCollective admin panel not found");
+// 9. Lovable AI Gateway adapter (the router's model provider since the
+// Lovable-only migration replaced the free collective)
+const LOVABLE_PROVIDER = path.join(ROOT, "src", "lib", "ai", "providers", "lovable.ts");
+checks.push({ name: "Lovable AI Gateway provider exists", pass: fs.existsSync(LOVABLE_PROVIDER) });
+if (!fs.existsSync(LOVABLE_PROVIDER)) errors.push("Lovable AI Gateway provider not found");
 
-// 10. Ensemble server (multi-model builds) must exist
-const ENSEMBLE = path.join(ROOT, "src", "lib", "ai", "ensemble.server.ts");
-checks.push({ name: "Ensemble server (multi-model builds) exists", pass: fs.existsSync(ENSEMBLE) });
-if (!fs.existsSync(ENSEMBLE)) errors.push("Ensemble server not found");
+// 10. Lovable model roster (per-job model lists the router fails over across)
+const LOVABLE_ROSTER = path.join(ROOT, "src", "lib", "ai", "lovable-models.ts");
+checks.push({ name: "Lovable model roster exists", pass: fs.existsSync(LOVABLE_ROSTER) });
+if (!fs.existsSync(LOVABLE_ROSTER)) errors.push("Lovable model roster not found");
 
 // 11. Site agent (AI authoring) must exist
 const SITE_AGENT = path.join(ROOT, "src", "lib", "site-agent.ts");

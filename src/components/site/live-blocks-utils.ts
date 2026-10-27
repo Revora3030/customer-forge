@@ -1,6 +1,7 @@
 import { currency } from "@/lib/format";
 import { safeParagraph, safeText } from "@/lib/builder/presentation";
 import { resolveImageSource } from "@/lib/brand-logos";
+import { matchService } from "@/lib/builder/cinematic-primitives";
 
 type ServiceRow = {
   id: string;
@@ -52,6 +53,16 @@ export function serviceMenuItems(rows: ServiceRow[], limit = 12) {
         bookable: Boolean(row.bookable),
       };
     });
+}
+
+/**
+ * An offer card's facts: the named service's own name, price and duration,
+ * straight from the owner's Services tool. An unknown service, or one with
+ * no price, yields no price — a card never shows an invented amount.
+ */
+export function offerFactsFor(rows: ServiceRow[], service: string): { name: string; price: string | null; duration: string | null } | null {
+  const match = matchService(service, serviceMenuItems(rows, 500));
+  return match ? { name: match.name, price: match.price, duration: match.duration } : null;
 }
 
 /** Published reviews with real words, best and newest first. */

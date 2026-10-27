@@ -67,6 +67,7 @@ beforeEach(() => {
   process.env["PAID_IMAGE_ENABLED"] = "true";
   process.env["LUNA_ENABLED"] = "true";
   process.env["OPENAI_API_KEY"] = "test-key";
+  process.env["LOVABLE_API_KEY"] = "test-lovable";
   // Model availability is probed, never assumed.
   vi.stubGlobal(
     "fetch",

@@ -110,8 +110,9 @@ const RULES = [
   "You are Sol, the lead art director of a world-class web studio.",
   `Design each section from scratch as a composition tree built only from these primitives: ${COMPOSITION_PRIMITIVES.join(", ")}.`,
   PRIMITIVE_GUIDE,
-  "Node shape: {type, text?, href?, src?, mediaRef?, alt?, level?, items?, beforeImage?, afterImage?, initialSplit?, faqItems?, tabs?, primaryCta?, secondaryCta?, style?, responsive?: {mobile?, tablet?, desktop?}, motion?: {kind: none|fade|rise|scale|float|slide-left|slide-right|blur|reveal, delayMs?, durationMs?}, children?}.",
-  "Pictures marked aiGenerated are AI-made illustrations, not the business's real work: never place them in a compare or before_after_slider, a gallery captioned as completed jobs, or any caption that calls them a real project, customer, result or team member.",
+  "Node shape: {type, text?, href?, src?, mediaRef?, alt?, level?, items?, beforeImage?, afterImage?, initialSplit?, faqItems?, tabs?, primaryCta?, secondaryCta?, anchor?, scrim?: {color?, opacity?}, focal?, service?, initialFrame?, style?, responsive?: {mobile?, tablet?, desktop?}, motion?: {kind: none|fade|rise|scale|float|slide-left|slide-right|blur|reveal, delayMs?, durationMs?}, children?}.",
+  "Cinematic primitives (scene, scroll_chapters, offer_card, spin_viewer, collection_row) are available when the authored brief and the supplied pictures call for photographic storytelling; whether to use them, and how, is your decision. A scene's backdrop must be one of the section's own supplied pictures; when the look summary carries a shotList, the picture was shot to that section's art direction, so anchor the copy where that direction left negative space and draw the scrim colour from its palette tie-in. Measured gates (sent back to you): an opening section that has its own pictures must lead with a scene or full-bleed media hero rather than text only; scene text must pass AA over the computed scrim; the home page must contain at least one interactive primitive (tabs, toggle, accordion, compare, before_after_slider, faq_accordion, tab_group, scroll_chapters, spin_viewer or collection_row) that serves real supplied material.",
+  "Pictures marked aiGenerated are AI-made illustrations, not the business's real work: never place them in a compare or before_after_slider, a spin_viewer, a gallery captioned as completed jobs, or any caption that calls them a real project, customer, result or team member.",
   "Pictures marked notProof (AI-made or stockPhoto licensed pictures) are illustrative only and follow the same rule. Only parts marked proofEligible (the owner's own labelled before/after photos, pairRole before or after) may form a before/after comparison.",
   "Studio interactive primitives: before_after_slider uses beforeImage:{src,alt,label}, afterImage:{src,alt,label}, and initialSplit 0-100 (default 50); use it when supplied material genuinely shows a transformation. faq_accordion uses faqItems:[{question,answer,defaultOpen?}] and only supplied FAQ copy. tab_group uses tabs:[{label,children:[...]}] and renders one active panel at a time. mobile_sticky_bar uses primaryCta:{label,href,ariaLabel?} and optional secondaryCta with safe conversion destinations; it is mobile-only and must never duplicate a desktop CTA unnecessarily.",
   "Interactive quality: use these primitives when they clarify real content, not as decoration. Keep every control at least 44px, make labels concise, preserve 4.5:1 text contrast, and design for touch and keyboard. Do not invent phone numbers, URLs, prices, FAQs, service tiers, before/after claims or other business facts.",
@@ -324,7 +325,15 @@ export async function composeFirstBuildSections(input: {
     ...parts.map((c) => [c.label, c.body, c.link_label].join(" ")),
   ].join(" ");
   const screenFacts = /[$€£]\s?\d/.test(materialText) ? { ...facts, hasPrices: true } : facts;
-  const screen = (text: string) => {
+  // Offer cards may only name a real supplied service; its price is read
+  // from the Services tool at render time, never typed by the AI.
+  const serviceNames: readonly string[] = (facts.services ?? []).filter((name) => typeof name === "string" && name.trim());
+  // The look plus the exact real service names (the only names an offer_card
+  // may use). Prompt-only: the checkpoint digest keeps the look itself.
+  const promptLook = serviceNames.length
+    ? `${input.lookSummary}\nREAL SERVICES (the only names an offer_card service may use, exactly as written): ${JSON.stringify(serviceNames.slice(0, 40))}`
+    : input.lookSummary;
+  const screen =(text: string) => {
     const problem = screenText(text, screenFacts, 4000);
     return problem && problem !== "empty" ? problem : null;
   };
@@ -364,6 +373,7 @@ export async function composeFirstBuildSections(input: {
       screenText: screen,
       allowedMediaRefs: mediaRefs,
       requiredMediaRefs: mediaRefs,
+      serviceNames,
     });
     if (!checked.ok) return { ok: false, issues: checked.issues.slice(0, 12) };
     const widgetName = requiredWidgetForRole(section.kind);
@@ -456,7 +466,7 @@ export async function composeFirstBuildSections(input: {
       system: RULES,
       user: [
         "SITE LOOK (follow it):",
-        input.lookSummary,
+        promptLook,
         "",
         "SECTION MATERIAL (material only):",
         JSON.stringify(eligible.map((s) => materialFor(s, parts.filter((p) => p.section_id === s.id))), null, 2),
@@ -545,6 +555,8 @@ export async function composeFirstBuildSections(input: {
     // A section that already carries a valid saved AI layout (an earlier pass
     // of this build got that far) is kept instead of being designed again.
     const pageSections = allPageSections;
+    const pageSlug = allPageSections[0] ? slugByPage.get(allPageSections[0].page_id) : undefined;
+    const isHome = pageSlug === "home" || pageSlug === "";
     for (const section of allPageSections) {
       const saved = readComposition(section.settings);
       if (saved) {
@@ -589,7 +601,7 @@ export async function composeFirstBuildSections(input: {
         system: RULES,
         user: [
           "SITE LOOK (follow it):",
-          input.lookSummary,
+          promptLook,
           "",
           "SECTIONS TO DESIGN (material only):",
           JSON.stringify(batch.map((s) => materialFor(s, parts.filter((p) => p.section_id === s.id))), null, 2),
@@ -657,7 +669,7 @@ export async function composeFirstBuildSections(input: {
           system: RULES,
           user: [
             "SITE LOOK (follow it):",
-            input.lookSummary,
+            promptLook,
             "",
             "SECTION TO DESIGN (material only):",
             JSON.stringify([materialFor(section, parts.filter((p) => p.section_id === section.id))], null, 2),
@@ -732,7 +744,7 @@ export async function composeFirstBuildSections(input: {
     // Optional craft rounds run only while the time budget allows; the
     // validated AI design above is always kept either way.
     if (withinBudget()) {
-      await repairDesignQuality({ organizationId, lookSummary: input.lookSummary, sections: pageSections, parts, designed, screen, result, direction });
+      await repairDesignQuality({ organizationId, lookSummary: promptLook, sections: pageSections, parts, designed, screen, result, direction, home: isHome, serviceNames });
     } else {
       result.optionalSkipped = (result.optionalSkipped ?? 0) + 1;
     }
@@ -745,12 +757,12 @@ export async function composeFirstBuildSections(input: {
       if (tree) await saveTree(db, organizationId, section, tree);
     }
     const best = withinBudget()
-      ? await improveWithTeam({ organizationId, lookSummary: input.lookSummary, evidence, memory, sections: pageSections, parts, designed, screen, result })
+      ? await improveWithTeam({ organizationId, lookSummary: promptLook, evidence, memory, sections: pageSections, parts, designed, screen, result, serviceNames })
       : new Map(designed);
     // The team round can only replace a tree with a validated one; if it made
     // the craft worse, the pre-team design is kept for that section.
-    const before = auditPageDesign(pageSections.filter((s) => designed.has(s.id)).map((s) => ({ id: s.id, role: s.kind, tree: designed.get(s.id)! })), { direction });
-    const after = auditPageDesign(pageSections.filter((s) => best.has(s.id)).map((s) => ({ id: s.id, role: s.kind, tree: best.get(s.id)! })), { direction });
+    const before = auditPageDesign(pageSections.filter((s) => designed.has(s.id)).map((s) => ({ id: s.id, role: s.kind, tree: designed.get(s.id)!, mediaAvailable: mediaRefsFor(s, parts).size })), { direction, home: isHome });
+    const after = auditPageDesign(pageSections.filter((s) => best.has(s.id)).map((s) => ({ id: s.id, role: s.kind, tree: best.get(s.id)!, mediaAvailable: mediaRefsFor(s, parts).size })), { direction, home: isHome });
     for (const section of pageSections) {
       const worse = (after[section.id]?.length ?? 0) > (before[section.id]?.length ?? 0);
       if (worse && designed.has(section.id)) best.set(section.id, designed.get(section.id)!);
@@ -793,11 +805,15 @@ async function repairDesignQuality(input: {
   screen: (text: string) => string | null;
   result: CompositionPassResult;
   direction?: DepthDirection | null;
+  /** The home page must carry the site's interactive centrepiece. */
+  home?: boolean;
+  serviceNames: readonly string[];
 }) {
-  const options = { direction: input.direction ?? null };
+  const options = { direction: input.direction ?? null, home: input.home ?? false };
+  const available = (s: SectionRow) => mediaRefsFor(s, input.parts).size;
   for (let round = 0; round < 1; round += 1) {
     const ordered = input.sections.filter((s) => input.designed.has(s.id));
-    const audit = auditPageDesign(ordered.map((s) => ({ id: s.id, role: s.kind, tree: input.designed.get(s.id)! })), options);
+    const audit = auditPageDesign(ordered.map((s) => ({ id: s.id, role: s.kind, tree: input.designed.get(s.id)!, mediaAvailable: available(s) })), options);
     const failing = ordered.filter((s) => audit[s.id] && needsDesignRepair(audit[s.id]!));
     if (!failing.length) return;
     const notes: Record<string, { path: string; fix: string }[]> = {};
@@ -831,6 +847,7 @@ async function repairDesignQuality(input: {
         screenText: input.screen,
         allowedMediaRefs: mediaRefs,
         requiredMediaRefs: mediaRefs,
+        serviceNames: input.serviceNames,
       });
       if (!checked.ok) continue;
       const widgetName = requiredWidgetForRole(section.kind);
@@ -839,7 +856,7 @@ async function repairDesignQuality(input: {
         if (!widget || widgetPresentationProblem(section.kind, widget)) continue;
       }
       const index = ordered.findIndex((s) => s.id === section.id);
-      const trial = ordered.map((s) => ({ id: s.id, role: s.kind, tree: s.id === section.id ? checked.tree : input.designed.get(s.id)! }));
+      const trial = ordered.map((s) => ({ id: s.id, role: s.kind, tree: s.id === section.id ? checked.tree : input.designed.get(s.id)!, mediaAvailable: available(s) }));
       const nextFindings = auditPageDesign(trial, options)[section.id] ?? [];
       if (index >= 0 && nextFindings.length < (audit[section.id]?.length ?? 0)) {
         input.designed.set(section.id, checked.tree);
@@ -878,6 +895,7 @@ async function improveWithTeam(input: {
   designed: Map<string, CompositionTree>;
   screen: (text: string) => string | null;
   result: CompositionPassResult;
+  serviceNames: readonly string[];
 }): Promise<Map<string, CompositionTree>> {
   let best = input.designed;
   const material = JSON.stringify(
@@ -939,6 +957,7 @@ async function improveWithTeam(input: {
           screenText: input.screen,
           allowedMediaRefs: mediaRefs,
           requiredMediaRefs: mediaRefs,
+          serviceNames: input.serviceNames,
         });
         // A revision must keep the section's working form/contact widget; a
         // reviewer note must never be able to remove the booking form.
@@ -976,6 +995,7 @@ async function improveWithTeam(input: {
           screenText: input.screen,
           allowedMediaRefs: mediaRefs,
           requiredMediaRefs: mediaRefs,
+          serviceNames: input.serviceNames,
         });
         if (!finalCheck.ok) {
           commitSafe = false;

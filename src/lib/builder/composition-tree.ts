@@ -8,13 +8,25 @@
  */
 import { contrastRatio } from "@/lib/readable-color";
 import { widgetPresentationProblems } from "@/lib/builder/presentation";
+import {
+  MAX_CHAPTERS, MAX_COLLECTION_ITEMS, MAX_OFFER_SPECS, MAX_SCRIM_OPACITY, MAX_SPIN_FRAMES, MIN_CHAPTERS,
+  DEFAULT_OFFER_ANCHOR, DEFAULT_SCENE_ANCHOR, SCENE_ANCHORS, TYPED_PRICE,
+  anchorsCollide, matchService, offerActionProblem, type SceneAnchor,
+} from "@/lib/builder/cinematic-primitives";
 
 export const COMPOSITION_PRIMITIVES = [
   "stack", "grid", "row", "text", "heading", "media", "button", "link",
   "card", "list", "divider", "spacer", "icon",
   "tabs", "toggle", "accordion", "compare", "marquee", "gallery", "quote", "widget",
   "before_after_slider", "faq_accordion", "tab_group", "mobile_sticky_bar",
+  "scene", "scroll_chapters", "offer_card", "spin_viewer", "collection_row",
 ] as const;
+
+/** Primitives a visitor operates (a site's interactive centrepiece). Working form widgets are counted separately. */
+export const INTERACTIVE_PRIMITIVES: ReadonlySet<string> = new Set([
+  "tabs", "toggle", "accordion", "compare", "before_after_slider", "faq_accordion", "tab_group",
+  "scroll_chapters", "spin_viewer", "collection_row",
+]);
 
 /** Working features an AI layout may place anywhere. Their data (prices, phone, email, hours) always comes from verified business facts. */
 export const COMPOSITION_WIDGETS = ["booking_form", "quote_calculator", "enquiry_form", "contact_details", "direct_contact", "service_menu", "review_wall"] as const;
@@ -65,6 +77,11 @@ export const PRIMITIVE_GUIDE =
   "faq_accordion (items are question/answer pairs; defaultOpen is optional and at most the supplied FAQ content may be used). " +
   "tab_group (tabs are labelled panels; each tab owns child nodes and only the active panel is rendered). " +
   "mobile_sticky_bar (primaryCta and optional secondaryCta; conversion actions only, hidden above the mobile breakpoint). " +
+  "Cinematic blocks — scene (a full-viewport photographic chapter: children[0] MUST be its media backdrop, a supplied picture or video by mediaRef with alt; the other children form the overlay copy slot, e.g. a short editorial heading — an italic accent line can be a second heading or text with style.italic — one line of body and one button; anchor places that slot: top-left|top-center|top-right|center-left|center|center-right|bottom-left|bottom-center|bottom-right; optional scrim {color #RRGGBB, opacity 0-95} and focal \"x% y%\" for the photo crop; the renderer raises the scrim until the text passes WCAG AA over any photo, so pick a scrim colour from the palette; an offer_card child floats over the photo at its own anchor on wide screens and flows below the copy on phones). " +
+  "scroll_chapters (2-8 scene children shown as consecutive full-screen chapters with scroll-driven transitions and a chapter rail; without JavaScript or for reduced motion they are simply stacked scenes). " +
+  "offer_card (a compact card over media: text is its title; service names one real service EXACTLY as supplied and its price and duration are filled in from the owner's Services tool — never type a price anywhere; items holds up to 3 short specs; children are an optional media picture plus exactly one button whose href is the business's own booking/quote page, a form anchor such as #booking, tel: or mailto: — never an external or checkout address; anchor positions it inside a scene). " +
+  "spin_viewer (an interactive 360° turntable on a lit podium: text is its label such as \"Spin the …\"; children are the ordered angle pictures — media with mediaRef and alt — of one real object photographed by the owner, never AI-made or stock; with fewer than 8 angles it shows one still; style.background is the stage and style.borderColor the podium light). " +
+  "collection_row (a horizontally scrolling, snap-aligned row of offer_card children, each with its picture, name, optional real-service price and an accent button; keyboard and swipe friendly). " +
   "widget (text is one of booking_form|quote_calculator|enquiry_form|contact_details|direct_contact|service_menu|review_wall — enquiry_form is the site's working message form (name, phone/email, message; saved to the owner's leads); booking_form/quote_calculator drop the site's real working form, verified phone/email/hours/area, the live service menu (names, prices, durations straight from the owner's Services tool) or the live published reviews into your layout; style its wrapper freely, never retype those facts yourself; service_menu and review_wall stay in sync when the owner edits services or publishes reviews). For working widgets, widgetPresentation may author visible labels, helper/success copy and a bounded local theme (surface, text, muted, border, action, actionText, selected, selectedText); never put business data or pricing into widgetPresentation — the application supplies those facts. " +
   "Real company logos: a media src of https://img.logo.dev/<domain> (e.g. img.logo.dev/stripe.com) renders that company's real logo — use ONLY for companies the customer actually named as partners, clients or platforms they use; never invent an affiliation. " +
   "Layering: style.position (relative|sticky|absolute), style.top/left/right/bottom (px), style.zIndex (0-50), style.overlap (px a block pulls up over the one before it), style.blur (frosted-glass backdrop px), style.rotate (deg), style.gridAreas + style.area for named grid regions. " +
@@ -161,6 +178,9 @@ export type CompositionCta = {
   ariaLabel?: string;
 };
 
+/** A scene's AI-authored scrim. The opacity is a floor the renderer raises until text passes AA. */
+export type SceneScrimSpec = { color?: string; opacity?: number };
+
 export type CompositionNode = {
   type: CompositionPrimitive;
   text?: string;
@@ -177,6 +197,16 @@ export type CompositionNode = {
   tabs?: CompositionTab[];
   primaryCta?: CompositionCta;
   secondaryCta?: CompositionCta;
+  /** scene: where its copy slot sits; offer_card: where it floats over its scene. */
+  anchor?: SceneAnchor;
+  /** scene only. */
+  scrim?: SceneScrimSpec;
+  /** scene only: object-position of the backdrop, "x% y%". */
+  focal?: string;
+  /** offer_card only: one real service, exactly as supplied; price and duration come from the Services tool. */
+  service?: string;
+  /** spin_viewer only: the angle shown first. */
+  initialFrame?: number;
   style?: NodeStyle;
   responsive?: Partial<Record<Breakpoint, NodeStyle>>;
   motion?: NodeMotion;
@@ -504,9 +534,76 @@ export type ValidateOptions = {
    * img.logo.dev in a media node. Default false keeps the general behaviour.
    */
   firstBuild?: boolean;
+  /**
+   * The business's real service names. When given, an offer_card may only
+   * name one of them (its price is read from that service at render time).
+   */
+  serviceNames?: readonly string[];
 };
 
-const SOFT_PROBLEM = /submitLabel must be 40|quote gives an estimate range|contrast|unknown style property|button text below 14px|text is too long|label must be 120|must be one of|must be a number between|must be true or false|font name contains|aspect must look like|area must be a simple name|gridAreas must look like|must be 0-3000|must be 150-4000|unknown motion|unknown hover property|must be none, subtle|from is only used|custom motion needs|ariaLabel must be text/;
+const SOFT_PROBLEM = /submitLabel must be 40|quote gives an estimate range|contrast|unknown style property|button text below 14px|text is too long|label must be 120|must be one of|must be a number between|must be true or false|font name contains|aspect must look like|area must be a simple name|gridAreas must look like|must be 0-3000|must be 150-4000|unknown motion|unknown hover property|must be none, subtle|from is only used|custom motion needs|ariaLabel must be text|shows at most 3 specs|focal must look like|scrim opacity must be|initialFrame must be/;
+
+const hasPictureSource = (node: CompositionNode) => node.type === "media" && Boolean(node.src || node.mediaRef);
+
+/**
+ * Structural rules for the cinematic primitives. Renderer safety and truth
+ * only: which primitive to use, its copy, anchor and palette stay the AI's.
+ */
+function checkCinematic(node: CompositionNode, path: string, issues: CompositionIssue[]) {
+  const kids = node.children ?? [];
+  const at = `${path}.children`;
+  switch (node.type) {
+    case "scene": {
+      if (!kids[0] || !hasPictureSource(kids[0]))
+        issues.push({ path: `${at}[0]`, problem: "scene needs its media backdrop (a picture or video with alt text) as the first child" });
+      const copyAnchor = node.anchor ?? DEFAULT_SCENE_ANCHOR;
+      kids.slice(1).forEach((child, i) => {
+        if (child.type === "scene" || child.type === "scroll_chapters" || child.type === "mobile_sticky_bar")
+          issues.push({ path: `${at}[${i + 1}]`, problem: `a scene cannot contain a ${child.type}` });
+        if (child.type === "offer_card" && anchorsCollide(copyAnchor, child.anchor ?? DEFAULT_OFFER_ANCHOR))
+          issues.push({ path: `${at}[${i + 1}].anchor`, problem: `the offer_card at ${child.anchor ?? DEFAULT_OFFER_ANCHOR} would cover the scene's copy at ${copyAnchor}; place it on the other side or the opposite row` });
+      });
+      break;
+    }
+    case "scroll_chapters":
+      if (kids.length < MIN_CHAPTERS || kids.length > MAX_CHAPTERS || kids.some((child) => child.type !== "scene"))
+        issues.push({ path: at, problem: `scroll_chapters needs ${MIN_CHAPTERS}-${MAX_CHAPTERS} scene children` });
+      break;
+    case "offer_card": {
+      const buttons = kids.filter((child) => child.type === "button");
+      const pictures = kids.filter((child) => child.type === "media");
+      if (kids.some((child) => child.type !== "button" && child.type !== "media"))
+        issues.push({ path: at, problem: "offer_card children are an optional media picture and exactly one button" });
+      if (buttons.length !== 1)
+        issues.push({ path: at, problem: "offer_card needs exactly one button that links to the business's booking or quote page, a form anchor, phone or email" });
+      if (pictures.length > 1) issues.push({ path: at, problem: "offer_card holds at most one picture" });
+      const action = buttons[0];
+      if (action) {
+        const problem = offerActionProblem(action.href);
+        if (problem) issues.push({ path: `${at}.href`, problem });
+      }
+      if (!node.text?.trim() && !node.service) issues.push({ path, problem: "offer_card needs a title in text or a real service name" });
+      if ((node.items?.length ?? 0) > MAX_OFFER_SPECS) {
+        issues.push({ path: `${path}.items`, problem: `offer_card shows at most 3 specs` });
+        node.items = node.items!.slice(0, MAX_OFFER_SPECS);
+      }
+      const typed = [node.text, ...(node.items ?? []), action?.text].find((text) => text && TYPED_PRICE.test(text));
+      if (typed) issues.push({ path, problem: `offer_card prices come only from the named real service; remove the typed amount from "${typed.slice(0, 60)}"` });
+      break;
+    }
+    case "spin_viewer":
+      if (!kids.length || kids.length > MAX_SPIN_FRAMES || kids.some((child) => !hasPictureSource(child)))
+        issues.push({ path: at, problem: `spin_viewer children must be 1-${MAX_SPIN_FRAMES} ordered angle pictures (media with a source and alt)` });
+      break;
+    case "collection_row":
+      if (!kids.length || kids.length > MAX_COLLECTION_ITEMS || kids.some((child) => child.type !== "offer_card"))
+        issues.push({ path: at, problem: `collection_row needs 1-${MAX_COLLECTION_ITEMS} offer_card children` });
+      break;
+    default:
+      if (kids.some((child) => child.type === "offer_card") && node.type !== "stack" && node.type !== "grid" && node.type !== "row" && node.type !== "card")
+        issues.push({ path: at, problem: "offer_card sits inside a scene, collection_row or a layout container" });
+  }
+}
 
 export function validateComposition(input: unknown, options: ValidateOptions = {}): CompositionResult {
   const issues: CompositionIssue[] = [];
@@ -708,6 +805,62 @@ export function validateComposition(input: unknown, options: ValidateOptions = {
     if (node.type === "mobile_sticky_bar" && !node.primaryCta)
       issues.push({ path: `${path}.primaryCta`, problem: "mobile_sticky_bar needs a primary CTA" });
 
+    // Cinematic primitive fields. Each is only meaningful on its own block;
+    // values are AI-authored and only checked for renderer safety.
+    if (row["anchor"] != null) {
+      if (node.type !== "scene" && node.type !== "offer_card") issues.push({ path: `${path}.anchor`, problem: "anchor is only used on scene and offer_card" });
+      else if (!SCENE_ANCHORS.includes(row["anchor"] as SceneAnchor)) issues.push({ path: `${path}.anchor`, problem: `anchor must be one of ${SCENE_ANCHORS.join(", ")}` });
+      else node.anchor = row["anchor"] as SceneAnchor;
+    }
+    if (row["scrim"] != null) {
+      const scrim = row["scrim"];
+      if (node.type !== "scene") issues.push({ path: `${path}.scrim`, problem: "scrim is only used on scene" });
+      else if (!scrim || typeof scrim !== "object" || Array.isArray(scrim)) issues.push({ path: `${path}.scrim`, problem: "scrim must be an object with color and opacity" });
+      else {
+        const raw = scrim as Record<string, unknown>;
+        const out: SceneScrimSpec = {};
+        if (raw["color"] != null) {
+          if (typeof raw["color"] !== "string" || !HEX.test(raw["color"])) issues.push({ path: `${path}.scrim.color`, problem: "must be a #RRGGBB colour" });
+          else out.color = raw["color"];
+        }
+        if (raw["opacity"] != null) {
+          const opacity = raw["opacity"];
+          if (typeof opacity !== "number" || !Number.isFinite(opacity) || opacity < 0 || opacity > 100) issues.push({ path: `${path}.scrim.opacity`, problem: `scrim opacity must be 0-${MAX_SCRIM_OPACITY}` });
+          else out.opacity = Math.min(MAX_SCRIM_OPACITY, opacity);
+        }
+        if (Object.keys(out).length) node.scrim = out;
+      }
+    }
+    if (row["focal"] != null) {
+      const focal = row["focal"];
+      if (node.type !== "scene") issues.push({ path: `${path}.focal`, problem: "focal is only used on scene" });
+      else if (typeof focal !== "string" || !/^\d{1,3}% \d{1,3}%$/.test(focal.trim())) issues.push({ path: `${path}.focal`, problem: 'focal must look like "50% 40%"' });
+      else node.focal = focal.trim();
+    }
+    if (row["service"] != null) {
+      const service = checkText(row["service"], `${path}.service`, issues, options.screenText);
+      if (node.type !== "offer_card") issues.push({ path: `${path}.service`, problem: "service is only used on offer_card" });
+      else if (service !== undefined) {
+        const trimmed = service.trim().slice(0, 160);
+        if (!trimmed) issues.push({ path: `${path}.service`, problem: "service must name one of the business's real services" });
+        else if (options.serviceNames && !matchService(trimmed, options.serviceNames.map((name) => ({ name }))))
+          issues.push({ path: `${path}.service`, problem: `service must be one of the business's real services exactly as supplied (${options.serviceNames.slice(0, 12).join(", ") || "none supplied"})` });
+        else node.service = trimmed;
+      }
+    }
+    if (row["initialFrame"] != null) {
+      const frame = row["initialFrame"];
+      if (node.type !== "spin_viewer") issues.push({ path: `${path}.initialFrame`, problem: "initialFrame is only used on spin_viewer" });
+      else if (typeof frame !== "number" || !Number.isInteger(frame) || frame < 0 || frame >= MAX_SPIN_FRAMES) issues.push({ path: `${path}.initialFrame`, problem: `initialFrame must be a whole number 0-${MAX_SPIN_FRAMES - 1}` });
+      else node.initialFrame = frame;
+    }
+    if (node.type === "offer_card") {
+      // Prices on an offer card only ever come from the named real service.
+      for (const key of ["price", "priceLabel", "amount", "cost"]) {
+        if (row[key] != null) issues.push({ path: `${path}.${key}`, problem: "offer_card prices come only from the named real service; remove the typed price and set service instead" });
+      }
+    }
+
     if (row["level"] != null) {
       if (![1, 2, 3, 4].includes(row["level"] as number)) issues.push({ path: `${path}.level`, problem: "level must be 1-4" });
       else node.level = row["level"] as 1 | 2 | 3 | 4;
@@ -811,6 +964,7 @@ export function validateComposition(input: unknown, options: ValidateOptions = {
     }
     if (node.type === "toggle" && (kids.length !== 2 || kids.some((c) => !c.text))) issues.push({ path: `${path}.children`, problem: "toggle needs exactly two children, each with a text label" });
     if (node.type === "marquee" && kids.length < 1) issues.push({ path: `${path}.children`, problem: "marquee needs children" });
+    checkCinematic(node, path, issues);
     return node;
   };
 

@@ -38,6 +38,9 @@ function performanceComplete(value) {
   );
 }
 
+/** Widths at which the overlay-covers-control check must have run (phone). */
+export const OVERLAY_EVIDENCE_WIDTHS = [390];
+
 export function inspectRenderedEvidence(
   raw,
   requiredWidths,
@@ -53,6 +56,12 @@ export function inspectRenderedEvidence(
     ),
     missingPerformanceWidths: requiredWidths.filter((width) =>
       !measurements.some((row) => row.width === width && performanceComplete(row.performance)),
+    ),
+    // A measurement without the overlay array never ran that check: it is
+    // reported as not measured, never counted as "no overlay covers a control".
+    missingOverlayWidths: requiredWidths.filter((width) =>
+      OVERLAY_EVIDENCE_WIDTHS.includes(width) &&
+      !measurements.some((row) => row.width === width && Array.isArray(row.overlayConflicts)),
     ),
   };
 }

@@ -6,7 +6,7 @@ import { VIEWPORTS, type ViewportMeasurement } from "./visual";
 function clean(width: number): ViewportMeasurement {
   return {
     width, scrollWidth: width, overflowing: [], brokenImages: [], clipped: [],
-    smallTargets: [], tinyText: [], unreachable: [], navigable: true, ctas: 1,
+    smallTargets: [], tinyText: [], unreachable: [], navigable: true, ctas: 1, overlayConflicts: [],
     accessibility: {
       imagesMissingAlt: [], unlabeledControls: [], unlabeledInputs: [],
       headingOrderProblems: [], h1Count: 1, hasMain: true, hasNav: true,
@@ -70,6 +70,26 @@ describe("per-page rendered evidence", () => {
     const report = freshVisualReport(row(measurements), []);
     expect(report?.passed).toBe(false);
     expect(report?.coverage?.accessibility).toBe(false);
+  });
+
+  it("reports a missing overlay-covers-control check at 390px as not measured, never as passed", () => {
+    const measurements = VIEWPORTS.map(clean);
+    const phone = measurements.find((m) => m.width === 390)!;
+    delete phone.overlayConflicts;
+    expect(inspectRenderedEvidence(measurements, VIEWPORTS).missingOverlayWidths).toEqual([390]);
+    const report = freshVisualReport(row(measurements), []);
+    expect(report?.passed).toBe(false);
+    expect(report?.findings.some((finding) => finding.key === "overlay_overlap_not_measured" && finding.severity === "p0")).toBe(true);
+  });
+
+  it("grades an offer card or sticky bar covering a control at 390px as P0", () => {
+    const measurements = VIEWPORTS.map(clean);
+    measurements.find((m) => m.width === 390)!.overlayConflicts = ["offer: article.rv-offer covers input#name"];
+    const report = freshVisualReport(row(measurements), []);
+    expect(report?.passed).toBe(false);
+    const finding = report?.findings.find((f) => f.key === "overlay_covers_control");
+    expect(finding?.severity).toBe("p0");
+    expect(finding?.width).toBe(390);
   });
 
   it("requires performance evidence at every width", () => {
