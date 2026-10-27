@@ -11,7 +11,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { QueryErrorNotice } from "@/components/app/QueryErrorNotice";
 import { supabase } from "@/integrations/supabase/client";
-import { useCustomers } from "@/lib/queries";
+import { useBusinessProfile, useCustomers } from "@/lib/queries";
+import { businessAddress } from "@/lib/estimates/printable-estimate";
 import { friendlyError } from "@/lib/user-error";
 import { toast } from "@/lib/ui/notify";
 import {
@@ -29,12 +30,14 @@ import {
 export function WinbackView({
   customers,
   businessName,
+  postalAddress = "",
   now = new Date(),
   onMark,
   marking = false,
 }: {
   customers: readonly WinbackCustomer[];
   businessName: string;
+  postalAddress?: string;
   now?: Date;
   onMark?: (customer: WinbackCustomer) => void;
   marking?: boolean;
@@ -75,7 +78,7 @@ export function WinbackView({
         <>
           <ul className="divide-y divide-border">
             {shown.map((customer) => {
-              const draft = winbackDraft(customer.name, businessName, offer);
+              const draft = winbackDraft(customer.name, businessName, offer, postalAddress);
               const text = customer.phone ? smsHref(customer.phone, draft.text) : null;
               const mail = customer.email ? mailHref(customer.email, draft.emailSubject, draft.emailBody) : null;
               return (
@@ -113,6 +116,8 @@ export function WinbackView({
             {total > shown.length ? `Showing ${shown.length} of ${total}. ` : ""}
             Text and Email open your own app with the message filled in, and you press send. Message only people who
             have bought from you or asked to hear from you, and tag anyone who opts out "do not contact" so they stay off this list.
+            Send these one at a time yourself; bulk or automated promotional texts need each person's written consent.
+            {postalAddress ? "" : " Add your business address in Settings so it can go at the bottom of emails."}
           </p>
         </>
       )}
@@ -122,6 +127,7 @@ export function WinbackView({
 
 export function WinbackCard({ organizationId, businessName }: { organizationId: string | undefined; businessName: string | null }) {
   const customers = useCustomers(organizationId);
+  const profile = useBusinessProfile(organizationId);
   const queryClient = useQueryClient();
   const mark = useMutation({
     mutationFn: async (customer: WinbackCustomer) => {
@@ -152,6 +158,7 @@ export function WinbackCard({ organizationId, businessName }: { organizationId: 
         <WinbackView
           customers={customers.data}
           businessName={businessName ?? ""}
+          postalAddress={businessAddress(profile.data)}
           onMark={(customer) => mark.mutate(customer)}
           marking={mark.isPending}
         />

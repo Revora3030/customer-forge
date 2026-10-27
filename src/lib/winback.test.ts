@@ -66,3 +66,10 @@ describe("drafts and links", () => {
     expect(quietLabel(800)).toBe("2 years");
   });
 });
+
+describe("postal address", () => {
+  it("puts the sender's address at the foot of the email only when one is on file", () => {
+    expect(winbackDraft("Maria", "N", "", "12 Pipe St, Austin, TX 78701").emailBody.endsWith("12 Pipe St, Austin, TX 78701")).toBe(true);
+    expect(winbackDraft("Maria", "N", "").emailBody).not.toContain("Pipe St");
+  });
+});

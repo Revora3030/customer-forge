@@ -71,7 +71,7 @@ const firstName = (name: string) => {
 export type WinbackDraft = { text: string; emailSubject: string; emailBody: string };
 
 /** A short, honest check-in. The offer line is the owner's own words or it is left out. */
-export function winbackDraft(customerName: string, businessName: string, offer: string): WinbackDraft {
+export function winbackDraft(customerName: string, businessName: string, offer: string, postalAddress = ""): WinbackDraft {
   const hi = firstName(customerName) ? `Hi ${firstName(customerName)}` : "Hi there";
   const extra = offer.trim().slice(0, 200);
   const business = businessName.trim() || "us";
@@ -87,6 +87,8 @@ export function winbackDraft(customerName: string, businessName: string, offer: 
     "If you'd rather not hear from me, reply and I'll stop.",
     "",
     business === "us" ? "Thanks" : `Thanks, ${business}`,
+    // Commercial email should carry the sender's postal address.
+    ...(postalAddress.trim() ? [postalAddress.trim().slice(0, 200)] : []),
   ].join("\n");
   return { text, emailSubject: `Checking in from ${business}`, emailBody };
 }
