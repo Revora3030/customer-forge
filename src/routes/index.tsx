@@ -10,6 +10,7 @@ import { DashboardPreview } from "@/components/marketing/DashboardPreview";
 import { FAQ } from "@/components/marketing/FAQ";
 import { HOME_HEADLINE, HOME_TRIAL_CHARGE_NOTE, marketingHomeHead } from "@/components/marketing/home-head";
 import { ProductTour } from "@/components/marketing/ProductTour";
+import { SavingsCalculator } from "@/components/marketing/SavingsCalculator";
 import { Pill, SectionHeading } from "@/components/app/Bits";
 import { RouteError } from "@/components/app/RouteStates";
 import { Button } from "@/components/ui/button";
@@ -228,6 +229,16 @@ function Landing() {
                   {GROWTH_SYSTEM.explainer}
                 </p>
               </div>
+            </div>
+          </div>
+        </section>
+
+        {/* SOFTWARE SAVINGS */}
+        <section id="savings" className="scroll-mt-20 border-b border-border">
+          <div className="mx-auto max-w-6xl px-4 py-10">
+            <SectionHeading eyebrow="Compare" title="What you pay for software today" />
+            <div className="mt-6">
+              <SavingsCalculator />
             </div>
           </div>
         </section>
