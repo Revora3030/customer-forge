@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
-import type { CitySnapshot, CitySource, CityWork } from "./ai-city";
+import type { CitySnapshot, CitySource, CityWork, PipelineCounts } from "./ai-city";
 import { summarize } from "./jarvis-events";
 
 export async function collectCitySnapshot(db: SupabaseClient<Database>, userId: string): Promise<CitySnapshot> {

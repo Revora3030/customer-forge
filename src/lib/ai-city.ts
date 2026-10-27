@@ -11,7 +11,7 @@ export const CITY_DISTRICTS = [
 export type DistrictId = typeof CITY_DISTRICTS[number]["id"];
 export type CityWork = { id: string; district: DistrictId; title: string; status: string; at: string; source: string; organizationId?: string; model?: string | null; progress?: number; detail?: string | null; runId?: string };
 export type CitySource = { available: boolean; rows: CityWork[]; total: number | null; truncated: boolean };
-export type CitySnapshot = { checkedAt: string; sources: Record<string, CitySource> };
+export type CitySnapshot = { checkedAt: string; sources: Record<string, CitySource>; pipeline?: PipelineCounts };
 
 // Only an explicit running record with a recent heartbeat may animate a district.
 export function workIsActive(work: CityWork, now: number): boolean {
@@ -33,4 +33,32 @@ export function districtState(id: DistrictId, snapshot: CitySnapshot | undefined
 export function cityCommandDraft(id: DistrictId) {
   const district = CITY_DISTRICTS.find(d => d.id === id);
   return district ? `[AI City · ${district.name}] ${district.mission}` : "";
+}
+export type PipelineCounts = { found: number | null; demoReady: number | null; awaitingApproval: number | null; sent: number | null; replied: number | null };
+export const PIPELINE_STAGES = [
+  { key: "found", label: "Found" },
+  { key: "demoReady", label: "Demo ready" },
+  { key: "awaitingApproval", label: "Awaiting approval" },
+  { key: "sent", label: "Sent" },
+  { key: "replied", label: "Replied" },
+] as const;
+
+// A failed read is "Unavailable", never a zero that looks like an empty funnel.
+export function pipelineStages(counts: PipelineCounts | null | undefined) {
+  return PIPELINE_STAGES.map(stage => {
+    const value = counts ? counts[stage.key] : null;
+    return { ...stage, value, display: typeof value === "number" ? String(value) : "Unavailable" };
+  });
+}
+
+export function offerPriceSentence(rates: { setupPrice: number; monthlyPrice: number }) {
+  return `$${rates.setupPrice} one-time setup, first month free, then $${rates.monthlyPrice}/month.`;
+}
+
+export type SalesMission = "scout" | "demo" | "pitch";
+export function salesMissionDraft(kind: SalesMission, rates: { setupPrice: number; monthlyPrice: number }) {
+  const gate = "Do not send, publish or spend without my explicit approval.";
+  if (kind === "scout") return `[AI City · Scout] Find prospects with the OpenStreetMap search only: businesses with no website or a weak website that list a public email. Show evidence for each. ${gate}`;
+  if (kind === "demo") return `[AI City · Demo Forge] For the prospect I choose, prepare a private demo site through the existing demo builder and its daily limit, spend cap and launch checks. ${gate}`;
+  return `[AI City · Pitch] Draft an outreach email for the prospect I choose and add it to the approval queue. Include exactly this price sentence: "${offerPriceSentence(rates)}" Use only verified facts. ${gate}`;
 }
