@@ -353,7 +353,11 @@ function Jarvis() {
   useEffect(() => {
     try {
       const draft = localStorage.getItem(DRAFT_KEY);
-      if (draft) setText(draft.slice(0, MAX_LENGTH));
+      const cityMission = sessionStorage.getItem("revora:city-mission");
+      if (cityMission) {
+        setText(cityMission.slice(0, MAX_LENGTH));
+        sessionStorage.removeItem("revora:city-mission");
+      } else if (draft) setText(draft.slice(0, MAX_LENGTH));
       const saved = localStorage.getItem(MODE_KEY);
       if (saved === "brief" || saved === "balanced" || saved === "deep") setMode(saved);
       const rawDnc = localStorage.getItem(DNC_KEY);

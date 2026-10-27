@@ -72,6 +72,15 @@
 }
 
 :root {
+  /* AI City material roles; read by the 3D renderer after hydration. */
+  --city-ground: #14191e;
+  --city-road: #242c32;
+  --city-structure: #536069;
+  --city-gold: #dfbd67;
+  --city-cyan: #64c9dc;
+  --city-magenta: #dc84ad;
+  --city-light: #f5f1e7;
+  --city-muted: #89949d;
   --radius: 0.625rem;
 
   --font-heading: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
