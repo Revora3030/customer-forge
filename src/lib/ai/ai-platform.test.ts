@@ -97,6 +97,7 @@ describe("no third-party AI gateway remains", () => {
       "ai/luna.server.ts",
       "ai/collective.test.ts",
       "ai/luna.test.ts",
+      "ai/paid-image.server.test.ts",
       "ai/router.server.ts",
       "ai/provider-test-environment",
       "ai/lovable-provider.test.ts",

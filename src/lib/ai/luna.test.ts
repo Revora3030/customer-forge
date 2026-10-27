@@ -30,6 +30,7 @@ afterEach(() => {
 describe("luna configuration", () => {
   it("is available with a key and turns off only on an explicit switch", () => {
     process.env["OPENAI_API_KEY"] = "configured";
+    process.env["LOVABLE_API_KEY"] = "configured";
     delete process.env["BUILDER_EXTERNAL_AI_ALLOWED"];
     delete process.env["LUNA_ENABLED"];
     expect(lunaEnabled()).toBe(true);
