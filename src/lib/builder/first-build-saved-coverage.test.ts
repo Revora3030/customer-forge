@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { firstBuildCoverageProblems, missingPictureProblems } from "./first-build-saved-coverage";
 
-const pages = [{ id: "home", slug: "home" }, { id: "services", slug: "services" }];
+const pages = [{ id: "home", slug: "home" }, { id: "services", slug: "services" }] as const;
 const settings = { composition: { version: 1, root: { type: "stack", children: [{ type: "heading", text: "Real business", level: 1 }] } } };
 const sections = [
   { id: "home-opening", page_id: "home", kind: "composition", settings },
@@ -16,7 +16,10 @@ describe("first customer website saved coverage", () => {
     pages: [...pages],
     sections: sections.map(section => ({ id: section.id, page_id: section.page_id, role: "hero" })),
   };
-  const authored = sections.map(section => ({ ...section, settings: { ...settings, role: "hero" } }));
+  const authored = [
+    { ...sections[0], settings: { ...settings, role: "hero" } },
+    { ...sections[1], settings: { ...settings, role: "hero" } },
+  ] as const;
   const exact = { ...expected, inventory };
   it("accepts the exact saved inventory in any readback order", () => {
     expect(firstBuildCoverageProblems([...pages].reverse(), [...authored].reverse(), exact)).toEqual([]);
