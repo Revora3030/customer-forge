@@ -483,3 +483,43 @@ export async function runSiteHealth(db: Db, fetcher: typeof fetch = fetch, now =
   });
   return run;
 }
+
+/* ------------------------- weekly site content audit ------------------------ */
+
+export const PLATFORM_APP_ORIGIN = "https://revoragrowthsystems.com";
+
+/**
+ * One digest per ISO week to the platform inbox (never to customers) listing
+ * published sites with real content problems.
+ */
+export async function sendSiteAuditDigest(
+  db: Db,
+  run: ReportRun,
+  problems: readonly { label: string; findings: readonly { severity: string; check: string; detail: string }[] }[],
+  now: number,
+): Promise<void> {
+  const { data: platform } = await db.from("organizations").select("id").eq("id", PLATFORM_OWNER_ORG_ID).maybeSingle();
+  if (!platform?.id) {
+    run.details.push({ status: "skipped", reason: "platform_workspace_missing" });
+    return;
+  }
+  const lines = problems.slice(0, 20).map((site) => {
+    const items = site.findings.filter((f) => f.severity === "P1").map((f) => `${f.check}: ${f.detail}`);
+    return `• ${site.label}\n  ${items.join("\n  ")}`;
+  });
+  const week = Math.floor(now / (7 * 86_400_000));
+  await sendOnce(db, run, {
+    organizationId: platform.id as string,
+    kind: "site_content_audit",
+    windowKey: `week-${week}`,
+    recipient: REVORA.email,
+    businessName: "Revora",
+    heading: `${problems.length} published site${problems.length === 1 ? "" : "s"} need attention`,
+    message: [
+      "The weekly content check found problems on these published sites:",
+      lines.join("\n"),
+      problems.length > 20 ? `…and ${problems.length - 20} more.` : "",
+      "Checked from each site's served HTML. Customers were not emailed.",
+    ].filter(Boolean).join("\n\n"),
+  });
+}
