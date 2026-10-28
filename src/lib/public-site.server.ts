@@ -328,7 +328,7 @@ export async function loadSite(
   }
 
   // Photos live in a private bucket, so pages get short-lived signed URLs.
-  const { MEDIA_BUCKET, SIGNED_URL_TTL_SECONDS, isStoragePath } = await import("@/lib/media");
+  const { MEDIA_BUCKET, SIGNED_URL_TTL_SECONDS, isStoragePath, isOrgStoragePath } = await import("@/lib/media");
   const gallery = galleryRows.data ?? [];
   const profileRow = profile.data;
 
