@@ -481,7 +481,10 @@ export async function loadSite(
     profileRow?.hero_image_url ?? null,
     currentPage?.og_image_url ?? null,
     ...componentRows.map((row) => row.media_url),
-  ].filter((value): value is string => typeof value === "string" && isStoragePath(value));
+  ].filter(
+    (value): value is string =>
+      typeof value === "string" && isStoragePath(value) && isOrgStoragePath(value, orgId),
+  );
 
   const signed = new Map<string, string>();
   if (toSign.length) {
