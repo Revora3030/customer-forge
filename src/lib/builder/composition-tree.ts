@@ -78,7 +78,7 @@ export const PRIMITIVE_GUIDE =
   "faq_accordion (items are question/answer pairs; defaultOpen is optional and at most the supplied FAQ content may be used). " +
   "tab_group (tabs are labelled panels; each tab owns child nodes and only the active panel is rendered). " +
   "mobile_sticky_bar (primaryCta and optional secondaryCta; conversion actions only, hidden above the mobile breakpoint). " +
-  "Cinematic blocks — scene (a full-viewport photographic chapter: children[0] MUST be its media backdrop, a supplied picture or video by mediaRef with alt; the other children form the overlay copy slot, e.g. a short editorial heading — an italic accent line can be a second heading or text with style.italic — one line of body and one button; anchor places that slot: top-left|top-center|top-right|center-left|center|center-right|bottom-left|bottom-center|bottom-right; optional scrim {color #RRGGBB, opacity 0-95} and focal \"x% y%\" for the photo crop; the renderer raises the scrim until the text passes WCAG AA over any photo, so pick a scrim colour from the palette; an offer_card child floats over the photo at its own anchor on wide screens and flows below the copy on phones). " +
+  "Cinematic blocks — scene (a full-viewport photographic chapter: children[0] MUST be its media backdrop, a supplied picture or video by mediaRef with alt; the other children form the overlay copy slot, e.g. a short editorial heading — an italic accent line can be a second heading or text with style.italic — one line of body and one button; anchor places that slot: top-left|top-center|top-right|center-left|center|center-right|bottom-left|bottom-center|bottom-right; scrub:true makes a VIDEO backdrop play forward and back with the scroll while the scene stays pinned for about three screens (use for one short product, process or transformation film the owner supplied; ignored for a picture; never with sound; use at most once per page and not inside scroll_chapters); optional scrim {color #RRGGBB, opacity 0-95} and focal \"x% y%\" for the photo crop; the renderer raises the scrim until the text passes WCAG AA over any photo, so pick a scrim colour from the palette; an offer_card child floats over the photo at its own anchor on wide screens and flows below the copy on phones). " +
   "scroll_chapters (2-8 scene children shown as consecutive full-screen chapters with scroll-driven transitions and a chapter rail; without JavaScript or for reduced motion they are simply stacked scenes). " +
   "offer_card (a compact card over media: text is its title; service names one real service EXACTLY as supplied and its price and duration are filled in from the owner's Services tool — never type a price anywhere; items holds up to 3 short specs; children are an optional media picture plus exactly one button whose href is the business's own booking/quote page, a form anchor such as #booking, tel: or mailto: — never an external or checkout address; anchor positions it inside a scene). " +
   "spin_viewer (an interactive 360° turntable on a lit podium: text is its label such as \"Spin the …\"; children are the ordered angle pictures — media with mediaRef and alt — of one real object photographed by the owner, never AI-made or stock; with fewer than 8 angles it shows one still; style.background is the stage and style.borderColor the podium light). " +
@@ -207,6 +207,8 @@ export type CompositionNode = {
   anchor?: SceneAnchor;
   /** scene only. */
   scrim?: SceneScrimSpec;
+  /** scene only: a video backdrop's playhead follows the scroll while the scene stays pinned. */
+  scrub?: boolean;
   /** scene only: object-position of the backdrop, "x% y%". */
   focal?: string;
   /** offer_card only: one real service, exactly as supplied; price and duration come from the Services tool. */
@@ -574,6 +576,8 @@ function checkCinematic(node: CompositionNode, path: string, issues: Composition
     case "scroll_chapters":
       if (kids.length < MIN_CHAPTERS || kids.length > MAX_CHAPTERS || kids.some((child) => child.type !== "scene"))
         issues.push({ path: at, problem: `scroll_chapters needs ${MIN_CHAPTERS}-${MAX_CHAPTERS} scene children` });
+      if (kids.some((child) => child.scrub))
+        issues.push({ path: at, problem: "a scrub scene already pins itself; use it on its own, not inside scroll_chapters" });
       break;
     case "offer_card": {
       const buttons = kids.filter((child) => child.type === "button");
@@ -836,6 +840,11 @@ export function validateComposition(input: unknown, options: ValidateOptions = {
       if (node.type !== "scene" && node.type !== "offer_card") issues.push({ path: `${path}.anchor`, problem: "anchor is only used on scene and offer_card" });
       else if (!SCENE_ANCHORS.includes(row["anchor"] as SceneAnchor)) issues.push({ path: `${path}.anchor`, problem: `anchor must be one of ${SCENE_ANCHORS.join(", ")}` });
       else node.anchor = row["anchor"] as SceneAnchor;
+    }
+    if (row["scrub"] != null) {
+      if (node.type !== "scene") issues.push({ path: `${path}.scrub`, problem: "scrub is only used on scene" });
+      else if (typeof row["scrub"] !== "boolean") issues.push({ path: `${path}.scrub`, problem: "scrub must be true or false" });
+      else if (row["scrub"]) node.scrub = true;
     }
     if (row["scrim"] != null) {
       const scrim = row["scrim"];

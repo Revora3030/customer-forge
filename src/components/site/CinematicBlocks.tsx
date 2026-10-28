@@ -7,6 +7,7 @@
  * IntersectionObserver for the chapter rail.
  */
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
+import { scrubProgress, scrubTime, shouldSeek } from "@/lib/builder/scrub";
 import { MIN_SPIN_FRAMES, frameForDrag, frameForKey } from "@/lib/builder/cinematic-primitives";
 
 type NodeProps = { "data-cn": string; "data-motion": string | undefined; className: string | undefined; style: CSSProperties };
@@ -233,4 +234,53 @@ export function CollectionRow({ props, label, items }: { props: NodeProps; label
       ) : null}
     </div>
   );
+}
+
+/**
+ * A video whose playhead follows the scroll. It never plays, so it has no
+ * sound and no autoplay. Without JavaScript or for reduced motion it is the
+ * first frame, exactly like a still scene.
+ */
+export function ScrubVideo({ src, alt, trackRef }: { src: string; alt: string; trackRef: React.RefObject<HTMLElement | null> }) {
+  const video = useRef<HTMLVideoElement>(null);
+  useEffect(() => {
+    const el = video.current;
+    const track = trackRef.current;
+    if (!el || !track || prefersReducedMotion()) return;
+    el.muted = true;
+    el.pause();
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      const box = track.getBoundingClientRect();
+      const target = scrubTime(scrubProgress(box.top, box.height, window.innerHeight), el.duration);
+      if (!shouldSeek(el.currentTime, target)) return;
+      if (typeof el.fastSeek === "function") el.fastSeek(target);
+      else el.currentTime = target;
+    };
+    const onScroll = () => { if (!frame) frame = window.requestAnimationFrame(update); };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    el.addEventListener("loadedmetadata", onScroll);
+    onScroll();
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+      el.removeEventListener("loadedmetadata", onScroll);
+      if (frame) window.cancelAnimationFrame(frame);
+    };
+  }, [trackRef]);
+  return <video ref={video} className="rv-scene-media" src={src} aria-label={alt || undefined} muted playsInline preload="auto" disablePictureInPicture />;
+}
+
+/**
+ * The tall scrolling track that pins one scene while its video scrubs. It is
+ * only tall once hydrated and when motion is allowed; before that, and for
+ * reduced motion, the scene is a normal one-screen scene showing the first frame.
+ */
+export function ScrubStage({ src, alt, render }: { src: string; alt: string; render: (video: ReactNode) => ReactNode }) {
+  const track = useRef<HTMLDivElement>(null);
+  const [live, setLive] = useState(false);
+  useEffect(() => { setLive(!prefersReducedMotion()); }, []);
+  return <div ref={track} className="rv-scrub" data-live={live ? "" : undefined}>{render(<ScrubVideo src={src} alt={alt} trackRef={track} />)}</div>;
 }

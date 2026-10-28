@@ -104,4 +104,6 @@ ${S} .rv-tier-card[data-hidden]{display:none}
 ${S} .rv-tier[data-live] .rv-tier-card[data-on]{animation:rv-tier-in .28s ease both}
 @keyframes rv-tier-in{from{opacity:0}to{opacity:1}}
 @media (prefers-reduced-motion:reduce){${S} .rv-tier[data-live] .rv-tier-card[data-on]{animation:none}}
+${S} .rv-scrub[data-live]{height:300vh;height:300svh}
+${S} .rv-scrub[data-live] > .rv-scene{position:sticky;top:0}
 `;

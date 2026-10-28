@@ -9,7 +9,7 @@ import { clampSplit, splitForKey, splitForPointer } from "@/lib/builder/compare-
 import { brushRadius, coverRect, coveragePercent, isRevealDone, newGrid, paintAt, strokePoints, type RevealGrid } from "@/lib/builder/reveal-brush";
 import { DEFAULT_OFFER_ANCHOR, DEFAULT_SCENE_ANCHOR, sceneScrim, type SceneAnchor } from "@/lib/builder/cinematic-primitives";
 import { LensMagnifier, StickySplitStory, TierFader } from "@/components/site/MasterBlocks";
-import { CollectionRow, SceneVideo, ScrollChapters, SpinViewer, type SpinFrame } from "@/components/site/CinematicBlocks";
+import { CollectionRow, SceneVideo, ScrubStage, ScrollChapters, SpinViewer, type SpinFrame } from "@/components/site/CinematicBlocks";
 import { CINEMATIC_CSS } from "@/components/site/cinematic-css";
 
 /**
@@ -603,7 +603,8 @@ function renderScene(node: CompositionNode, ctx: Ctx, key: string, props: NodePr
   const eager = first && Boolean(ctx.eagerFirstMedia);
   const alt = backdrop?.alt ?? visual?.alt ?? "";
   const objectPosition = node.focal ?? visual?.object_position ?? visual?.focal_point;
-  const media = !source ? null : VIDEO_SOURCE.test(source) ? (
+  const scrubbed = Boolean(node.scrub && source && VIDEO_SOURCE.test(source));
+  const media = !source ? null : scrubbed ? null : VIDEO_SOURCE.test(source) ? (
     <SceneVideo src={source} alt={alt} eager={eager} />
   ) : (
     <img className="rv-scene-media" src={source} alt={alt} loading={eager ? "eager" : "lazy"} decoding="async" {...(eager ? { fetchPriority: "high" as const } : {})} style={objectPosition ? { objectPosition } : undefined} />
@@ -618,10 +619,10 @@ function renderScene(node: CompositionNode, ctx: Ctx, key: string, props: NodePr
       offers.set(at, [...(offers.get(at) ?? []), rendered]);
     } else copy.push(rendered);
   });
-  if (!media && !copy.length) return null;
-  return (
+  if (!media && !scrubbed && !copy.length) return null;
+  const build = (video: ReactNode) => (
     <div key={key} {...props} className={`${props.className ?? ""} rv-scene`.trim()} data-anchor={anchor} data-rv-scene="" style={{ ...props.style, ...(ink ? { color: ink } : {}) }}>
-      {media}
+      {video ?? media}
       {scrimLayer}
       <div className="rv-scene-inner" style={{ alignContent: ANCHOR_ROW[row], justifyItems: ANCHOR_COLUMN[column], textAlign: column === "center" ? "center" : column === "right" ? "right" : "left" }}>
         <div className="rv-scene-slot" style={{ alignItems: column === "center" ? "center" : column === "right" ? "flex-end" : "flex-start" }}>{copy}</div>
@@ -631,6 +632,7 @@ function renderScene(node: CompositionNode, ctx: Ctx, key: string, props: NodePr
       </div>
     </div>
   );
+  return scrubbed && source ? <ScrubStage key={key} src={source} alt={alt} render={build} /> : build(null);
 }
 
 /**
