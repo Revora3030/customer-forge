@@ -307,6 +307,12 @@ function WebsitePage() {
   const pendingBuild = (settings?.generation as { pendingBuild?: { mode?: unknown; jobId?: unknown } } | null | undefined)?.pendingBuild;
   const freshRebuildActive =
     jobIsActive(latestJob.data as never) && pendingBuild?.mode === "fresh_replace";
+  // A fresh rebuild keeps the previous draft on screen until the new pages land;
+  // say so on the preview, with the step the build is on, instead of looking stuck.
+  const rebuildProgress = useBuildProgress(orgId, freshRebuildActive);
+  const rebuildStatus = freshRebuildActive
+    ? `Rebuilding — this is your previous draft${rebuildProgress.latest?.stage ? `. Now: ${rebuildProgress.latest.stage}` : ""}`.slice(0, 90)
+    : null;
   const lastNonEmptyPages = useRef<NonNullable<typeof pages>>([]);
   if (pages && pages.length > 0) lastNonEmptyPages.current = pages;
   const shownPages = freshRebuildActive && !(pages ?? []).length ? lastNonEmptyPages.current : (pages ?? []);
@@ -779,7 +785,7 @@ function WebsitePage() {
               selectedPath={selected?.path ?? null}
               onPageChange={setViewingPage}
               reveal={reveal}
-              liveStatus={liveStatus}
+              liveStatus={liveStatus ?? rebuildStatus}
               onInlineSaved={() => {
                 // The frame already shows the new words; refresh caches so
                 // the canvas, history and chat context read the saved text.

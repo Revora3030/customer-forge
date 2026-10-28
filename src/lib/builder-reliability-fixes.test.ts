@@ -155,7 +155,7 @@ describe("review fixes for the chat request engine", () => {
   it("a tracked first build never blocks the chat queue or counts as busy", () => {
     expect(hooks).toContain("const next = nextRunnable(tasks.filter((task) => !task.tracking));");
     expect(hooks).toContain('const busy = tasks.some((task) => !task.tracking && (task.state === "planning" || task.state === "building"));');
-    expect(hooks).toContain('{ ...task, state: "building" as const, tracking: true }');
+    expect(hooks).toContain('{ ...task, state: "building" as const, tracking: true, isBuild: true }');
     // A job no worker claims is not tracked forever.
     expect(route).toContain('(status === "queued" && queuedFor > FIRST_BUILD_QUEUED_TIMEOUT_MS)');
   });

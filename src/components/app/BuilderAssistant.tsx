@@ -80,6 +80,8 @@ import type { AgentAttachment } from "@/lib/site-agent";
 import { cn } from "@/lib/utils";
 import { WebsiteBriefDialog } from "@/components/app/WebsiteBriefDialog";
 import type { StepTarget } from "@/lib/builder/step-target";
+import { WorkFeed } from "@/components/app/WorkFeed";
+import { formatDuration, modelsAsked, timedSteps } from "@/lib/builder/work-feed";
 
 /** How many suggestion chips sit above the composer before "More". */
 const CHIP_LIMIT = 3;
@@ -889,6 +891,8 @@ function LiveActivity({
   const MODEL_STAGE = "model at work";
   const workingModel = allSteps.find((step) => step.stage === MODEL_STAGE)?.detail ?? null;
   const steps = allSteps.filter((step) => step.stage !== MODEL_STAGE);
+  const askedModels = modelsAsked(allSteps);
+  const timed = new Map(timedSteps(steps).map((step) => [step.stage, step.durationMs]));
   const latest = rawLatest?.stage === MODEL_STAGE ? (steps[0] ?? null) : rawLatest;
   const [startedAt] = useState(() => Date.now());
   const [now, setNow] = useState(() => Date.now());
@@ -945,12 +949,17 @@ function LiveActivity({
               {done.map((step) => (
                 <li key={`${step.stage}-${step.at}`} className="chat-rise flex items-start gap-2 text-[13px] leading-5 text-muted-foreground">
                   <Check className="mt-0.5 size-3.5 shrink-0 text-emerald-400" aria-hidden />
-                  <span className="min-w-0 break-words">
+                  <span className="min-w-0 flex-1 break-words">
                     {step.stage}
                     {step.stage === "plan ready" && step.detail ? (
                       <span className="mt-0.5 block text-foreground/80">{step.detail}</span>
+                    ) : step.detail ? (
+                      <span className="mt-0.5 block text-xs text-muted-foreground/80">{step.detail}</span>
                     ) : null}
                   </span>
+                  {timed.get(step.stage) != null ? (
+                    <span className="tnum shrink-0 text-xs text-muted-foreground/70">{formatDuration(timed.get(step.stage))}</span>
+                  ) : null}
                 </li>
               ))}
             </ol>
@@ -962,6 +971,9 @@ function LiveActivity({
                 {workingModel}
               </span>
             </p>
+          ) : null}
+          {askedModels.length > 1 ? (
+            <p className="text-xs text-muted-foreground">Asked so far: {askedModels.join(" → ")}</p>
           ) : null}
           {latest?.detail ? (
             <p className="text-xs break-words text-muted-foreground">{latest.detail}</p>
@@ -1006,7 +1018,12 @@ function TaskBody({
   const retrySkippedPrompt = `Try again the ${skipped} change${skipped === 1 ? "" : "s"} from my request “${task.instruction}” that didn't go through last time. Plan ${skipped === 1 ? "it" : "them"} against my site as it is now.`;
   return (
     <div className="space-y-2">
-      {working && isActive ? (
+      {task.waitingOnBuild && working ? (
+        // Held behind the first build: show that build's own log, not empty dots.
+        <WorkFeed organizationId={organizationId} />
+      ) : task.isBuild && working ? (
+        <WorkFeed organizationId={organizationId} runId={requests.progressRunId(task.id)} />
+      ) : working && isActive ? (
         <LiveActivity
           organizationId={organizationId}
           requestId={requests.progressRunId(task.id)}
@@ -1050,8 +1067,10 @@ function TaskBody({
 
       {task.reply ? <ReplyText text={task.reply} className="text-[15px] leading-7" /> : null}
       {task.error ? <p className="text-sm leading-6">{task.error}</p> : null}
+      {/* A build started here keeps its work log under its message once it has ended. */}
+      {task.isBuild && !working ? <WorkFeed organizationId={organizationId} runId={requests.progressRunId(task.id)} live={false} /> : null}
 
-      {working && isActive ? (
+      {working && isActive && !task.isBuild && !task.waitingOnBuild ? (
         <p className="text-xs text-muted-foreground">
           {timeline.stages[timeline.current]}
         </p>

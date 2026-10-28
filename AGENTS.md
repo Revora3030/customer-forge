@@ -13,6 +13,8 @@
 
 ## Whole-repository upgrade contract
 
+- Prospect outreach verifies the exact selected public-listing email through the existing enrichment verifier and retains its listing source; failed directory requests throw rather than log successful zero-result searches, so authorization never substitutes for contact evidence.
+
 - AI City is an authenticated super-admin projection of existing queues, owner-scoped Jarvis evidence and Lovable traces; polling never dispatches work, recent running heartbeats alone animate activity, and missions enter existing reviewed executors rather than a second worker or approval system.
 - Scheduled Jarvis routines claim the unchanged owner-scoped row before dispatch and fence settlement to a unique attempt marker; unresolved running claims never auto-retry, preventing duplicate spend without a second scheduler or schema.
 
