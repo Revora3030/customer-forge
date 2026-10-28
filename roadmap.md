@@ -343,3 +343,13 @@ Owner approved porting two ideas (audit of the uploaded Next.js project; auto pa
 - [ ] Signup brief carry-through audit (homepage → builder)
 - [ ] Completeness + craft score gate (≥8) with one improvement round
 - [ ] Approved paid test builds for 2–3 business types (needs owner approval)
+
+## Primitive inventory (2026-10-28)
+Counted from the code, not from audits.
+- **Composition primitives (30):** stack, grid, row, text, heading, media, button, link, card, list, divider, spacer, icon, tabs, toggle, accordion, compare, marquee, gallery, quote, widget, before_after_slider (slider or `revealMode: "brush"`), faq_accordion, tab_group, mobile_sticky_bar, scene, scroll_chapters, offer_card, spin_viewer, collection_row.
+- **Working widgets (7):** booking_form, quote_calculator, enquiry_form, contact_details, direct_contact, service_menu, review_wall.
+- **Custom blocks (15):** calculator, quiz, comparison, checklist, steps, tabs, metrics, accordion, timeline, filter, eligibility, booking, gauge (static progress strip), selector (chips + readout, owner figures only), freeform (validated free-form tree).
+- **Home-page gate:** `design-quality.ts` flags `page_missing_interactive` when the home page has none of the INTERACTIVE_PRIMITIVES. Custom blocks do not count towards it.
+- **Claimed gaps that already exist:** `interactive_reveal` = brush mode; `gauge_selector` = `selector`; `treatment_timeline` = custom `timeline`; reservation picker = custom `booking` (services × times, no invented availability); menu drawer = `service_menu` + custom `filter`; provider cards = `card` composition; video backdrop = `scene` media.
+- **Real gaps, none buildable without owner data or third parties:** service-area map (needs a map provider, privacy review), verified-badge strip (needs owner-supplied credentials, never invented), live availability (needs a calendar connection).
+- **Unproven:** which primitives Sol actually chooses per trade. Needs one live build.
