@@ -13,6 +13,7 @@
 import { summarizeCapacityPressure, type ProviderRuntime, type WaitProviders } from "@/lib/builder/capacity-wait";
 import type { PageArchitectureOutcome } from "@/lib/builder/ai-page-architecture.server";
 import { nextPublishState } from "@/lib/publish-state";
+import { menuNeedsHelp } from "@/lib/service-suggestions";
 import {
   INTERRUPTED_BUILD_MESSAGE,
   RECOVERING_BUILD_MESSAGE,
@@ -2407,6 +2408,9 @@ async function runJob(
         ? []
         : ["Turn on the quote calculator or make a service bookable so visitors can enquire."]),
       ...((media.data ?? []).length >= 5 ? [] : ["Add at least five photos of your own work."]),
+      ...(menuNeedsHelp(serviceRows)
+        ? ["Your services are thin: give each a one-line description in your own words (the Services page can suggest wording), so the site can say more about what you really offer."]
+        : []),
       // Picture problems feed the same attention list the repair loop reads, so a
       // blocked or rejected starter picture is fixed rather than quietly ignored.
       ...(starterImages.evidence.status === "owner_photos" || starterImages.assets.length > 0

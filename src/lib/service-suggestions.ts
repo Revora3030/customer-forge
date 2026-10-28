@@ -78,7 +78,7 @@ export function parseSuggestedPackages(text: string, existingNames: readonly str
 export type ServiceBrief = { name: string; description: string | null; price: number | string | null };
 
 /** True when the menu is thin enough that suggestions would help: few services, or any with no description. */
-export function menuNeedsHelp(services: readonly Pick<ServiceBrief, "name" | "description">[]): boolean {
+export function menuNeedsHelp(services: readonly { name: string; description?: string | null }[]): boolean {
   if (services.length < 3) return true;
   return services.some((service) => !(service.description ?? "").trim());
 }
