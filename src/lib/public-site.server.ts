@@ -328,7 +328,7 @@ export async function loadSite(
   }
 
   // Photos live in a private bucket, so pages get short-lived signed URLs.
-  const { MEDIA_BUCKET, SIGNED_URL_TTL_SECONDS, isStoragePath } = await import("@/lib/media");
+  const { MEDIA_BUCKET, SIGNED_URL_TTL_SECONDS, isStoragePath, isOrgStoragePath } = await import("@/lib/media");
   const gallery = galleryRows.data ?? [];
   const profileRow = profile.data;
 
@@ -481,7 +481,10 @@ export async function loadSite(
     profileRow?.hero_image_url ?? null,
     currentPage?.og_image_url ?? null,
     ...componentRows.map((row) => row.media_url),
-  ].filter((value): value is string => typeof value === "string" && isStoragePath(value));
+  ].filter(
+    (value): value is string =>
+      typeof value === "string" && isStoragePath(value) && isOrgStoragePath(value, orgId),
+  );
 
   const signed = new Map<string, string>();
   if (toSign.length) {
