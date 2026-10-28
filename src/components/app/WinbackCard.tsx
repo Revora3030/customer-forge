@@ -9,6 +9,7 @@ import { Mail, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ImportCustomersDialog } from "@/components/app/ImportCustomersDialog";
 import { QueryErrorNotice } from "@/components/app/QueryErrorNotice";
 import { supabase } from "@/integrations/supabase/client";
 import { useBusinessProfile, useCustomers } from "@/lib/queries";
@@ -145,9 +146,12 @@ export function WinbackCard({ organizationId, businessName }: { organizationId: 
   return (
     <section className="panel p-4 sm:p-5" aria-labelledby="winback-title">
       <p className="eyebrow">Win back</p>
-      <h2 id="winback-title" className="mt-1 text-base font-semibold">
-        Past customers who have gone quiet
-      </h2>
+      <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
+        <h2 id="winback-title" className="text-base font-semibold">
+          Past customers who have gone quiet
+        </h2>
+        <ImportCustomersDialog organizationId={organizationId} />
+      </div>
       {customers.isError ? (
         <div className="mt-3">
           <QueryErrorNotice title="Couldn't load your customers." retry={() => customers.refetch()} retrying={customers.isFetching} />
