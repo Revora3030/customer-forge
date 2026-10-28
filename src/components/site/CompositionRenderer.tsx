@@ -27,6 +27,11 @@ const SHADOWS: Record<string, string> = {
 const JUSTIFY = { start: "flex-start", center: "center", end: "flex-end", between: "space-between" } as const;
 const ITEMS = { start: "flex-start", center: "center", end: "flex-end", stretch: "stretch" } as const;
 
+const FILL_WHEN_CAPPED = new Set<CompositionNode["type"]>([
+  "stack", "grid", "row", "card", "list", "tabs", "toggle", "accordion", "compare", "gallery", "widget",
+  "before_after_slider", "faq_accordion", "tab_group", "offer_card", "spin_viewer", "collection_row",
+  "lens_magnifier", "sticky_split_story", "service_tier_fader", "parallax_layers", "divider", "marquee",
+]);
 // eslint-disable-next-line react-refresh/only-export-components -- renderer helpers are intentionally co-located with their composition types.
 export function styleToCss(style: NodeStyle | undefined, type: CompositionNode["type"]): CSSProperties {
   if (!style) return {};
@@ -37,7 +42,14 @@ export function styleToCss(style: NodeStyle | undefined, type: CompositionNode["
   if (style.padding != null) css.padding = style.padding;
   if (style.paddingX != null) { css.paddingLeft = style.paddingX; css.paddingRight = style.paddingX; }
   if (style.paddingY != null) { css.paddingTop = style.paddingY; css.paddingBottom = style.paddingY; }
-  if (style.maxWidth != null) { css.maxWidth = style.maxWidth; css.marginLeft = "auto"; css.marginRight = "auto"; }
+  if (style.maxWidth != null) {
+    css.maxWidth = style.maxWidth; css.marginLeft = "auto"; css.marginRight = "auto";
+    // Auto margins stop a flex child from stretching, so a capped panel shrank
+    // to its shortest label (an accordion of "Full" / "Auto detailing" became a
+    // narrow box on phones). Panels fill the row up to their cap; text and
+    // buttons keep their natural width.
+    if (FILL_WHEN_CAPPED.has(type)) css.width = "100%";
+  }
   if (style.align) css.textAlign = style.align;
   if (style.justify) css.justifyContent = JUSTIFY[style.justify];
   if (style.items) css.alignItems = ITEMS[style.items];
