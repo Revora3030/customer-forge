@@ -1,3 +1,8 @@
+## Reveal brush and trade playbooks (2026-10-28)
+- [x] `before_after_slider` takes `revealMode: "brush"`: the visitor drags across the before picture and the after appears where they have been, with a live percentage ("Clean this driveway: 44%"), a button that shows the finished result for keyboard and screen-reader users, a touch switch so the page still scrolls past it, and the finished picture for no-JavaScript visitors. It keeps the existing rule: the owner's own real before and after photos only, never generated pictures.
+- [x] Trade playbooks (`builder/industry-playbook.ts`): for 19 kinds of local business, the signature moment, a scene order for a scroll story, and exactly what the owner must supply. Added to the first-build design prompt as ideas, not orders.
+- [ ] Not built: AI-made before and after pairs (they would present invented results; the builder refuses them on purpose), and any proof that a first build with real generated pictures looks like the reference video, which needs a live build.
+
 # Roadmap — Five-phase blocker elimination
 
 ## Blueprint batches C, D and E (2026-10-27)

@@ -6,6 +6,7 @@ import { resolveImageSource } from "@/lib/brand-logos";
 import { contrastRatio, readableOn, toRgb } from "@/lib/readable-color";
 import { premiumSurface } from "@/lib/site-theme";
 import { clampSplit, splitForKey, splitForPointer } from "@/lib/builder/compare-slider";
+import { brushRadius, coverRect, coveragePercent, isRevealDone, newGrid, paintAt, strokePoints, type RevealGrid } from "@/lib/builder/reveal-brush";
 import { DEFAULT_OFFER_ANCHOR, DEFAULT_SCENE_ANCHOR, sceneScrim, type SceneAnchor } from "@/lib/builder/cinematic-primitives";
 import { CollectionRow, SceneVideo, ScrollChapters, SpinViewer, type SpinFrame } from "@/components/site/CinematicBlocks";
 import { CINEMATIC_CSS } from "@/components/site/cinematic-css";
@@ -416,6 +417,12 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
       if (isGeneratedMedia(beforeMedia) || isGeneratedMedia(afterMedia)) return null;
       const beforeSource = beforeImage.mediaRef ? mediaUrl(beforeMedia) : beforeImage.src ? resolveImageSource(beforeImage.src) : null;
       const afterSource = afterImage.mediaRef ? mediaUrl(afterMedia) : afterImage.src ? resolveImageSource(afterImage.src) : null;
+      if (beforeSource && afterSource && node.revealMode === "brush")
+        return (
+          <BrushReveal key={key} props={props} prompt={node.text?.trim().slice(0, 60) || "Reveal the result"}
+            before={{ alt: beforeImage.alt, label: beforeImage.label, src: beforeSource }}
+            after={{ alt: afterImage.alt, label: afterImage.label, src: afterSource }} />
+        );
       return beforeSource && afterSource ? (
         <BeforeAfterSlider key={key} props={props}
           before={{ alt: beforeImage.alt, label: beforeImage.label, src: beforeSource }}
@@ -702,6 +709,140 @@ function Compare({ props, before, after, beforeSource, afterSource }: { props: N
   );
 }
 
+/**
+ * The hands-on reveal: drag across the before picture and the after appears where you have been, with a live
+ * percentage. A mouse paints straight away; on a touch screen the brush is switched on with a button so the
+ * page can still be scrolled past it. Keyboard and screen-reader users get a button that shows the finished
+ * result, and without JavaScript the finished picture is simply shown.
+ */
+function BrushReveal({ props, prompt, before, after }: {
+  props: NodeProps;
+  prompt: string;
+  before: { src: string; alt: string; label: string };
+  after: { src: string; alt: string; label: string };
+}) {
+  const figureRef = useRef<HTMLElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const afterImage = useRef<HTMLImageElement | null>(null);
+  const grid = useRef<RevealGrid>(newGrid());
+  const last = useRef<{ x: number; y: number } | null>(null);
+  const [percent, setPercent] = useState(0);
+  const [done, setDone] = useState(false);
+  const [armed, setArmed] = useState(false);
+
+  const size = () => {
+    const box = figureRef.current?.getBoundingClientRect();
+    return { w: box?.width ?? 0, h: box?.height ?? 0 };
+  };
+  const reset = () => {
+    grid.current = newGrid();
+    last.current = null;
+    setPercent(0);
+    setDone(false);
+    const canvas = canvasRef.current;
+    canvas?.getContext("2d")?.clearRect(0, 0, canvas.width, canvas.height);
+  };
+
+  useEffect(() => {
+    const image = new Image();
+    image.src = after.src;
+    afterImage.current = image;
+    const fit = () => {
+      const canvas = canvasRef.current;
+      const { w, h } = size();
+      if (!canvas || !w || !h) return;
+      const ratio = Math.min(2, window.devicePixelRatio || 1);
+      canvas.width = Math.round(w * ratio);
+      canvas.height = Math.round(h * ratio);
+      grid.current = newGrid();
+      setPercent(0);
+      setDone(false);
+    };
+    fit();
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(fit);
+    if (figureRef.current) observer?.observe(figureRef.current);
+    return () => observer?.disconnect();
+  }, [after.src]);
+
+  const stamp = (x: number, y: number) => {
+    const canvas = canvasRef.current;
+    const image = afterImage.current;
+    const { w, h } = size();
+    if (!canvas || !image || !image.complete || !w || !h) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const ratio = canvas.width / w;
+    const radius = brushRadius(w);
+    const rect = coverRect(image.naturalWidth, image.naturalHeight, w, h);
+    ctx.save();
+    ctx.scale(ratio, ratio);
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.drawImage(image, rect.x, rect.y, rect.w, rect.h);
+    ctx.restore();
+    paintAt(grid.current, x, y, radius, w, h);
+  };
+  const point = (event: { clientX: number; clientY: number }) => {
+    const box = figureRef.current?.getBoundingClientRect();
+    return { x: event.clientX - (box?.left ?? 0), y: event.clientY - (box?.top ?? 0) };
+  };
+  const sweep = (event: { clientX: number; clientY: number }) => {
+    const to = point(event);
+    const { w } = size();
+    for (const p of strokePoints(last.current ?? to, to, brushRadius(w))) stamp(p.x, p.y);
+    last.current = to;
+    const next = coveragePercent(grid.current);
+    setPercent(next);
+    if (isRevealDone(next)) setDone(true);
+  };
+  const live = (pointerType: string) => pointerType === "mouse" || armed;
+
+  return (
+    <figure {...props} className={`${props.className ?? ""} rv-cn-compare rv-cn-brush`.trim()} style={{ width: "100%", margin: 0, ...props.style, aspectRatio: undefined }}>
+    <div
+      ref={figureRef as React.RefObject<HTMLDivElement>}
+      style={{ position: "relative", overflow: "hidden", aspectRatio: props.style.aspectRatio ?? "16 / 10", width: "100%", userSelect: "none", touchAction: armed ? "none" : "pan-y", cursor: done ? "default" : "crosshair" }}
+      onPointerDown={(event) => {
+        if (done || event.button !== 0 || !event.isPrimary || !live(event.pointerType)) return;
+        last.current = null;
+        event.currentTarget.setPointerCapture?.(event.pointerId);
+        sweep(event);
+      }}
+      onPointerMove={(event) => {
+        if (!done && last.current && live(event.pointerType)) sweep(event);
+      }}
+      onPointerUp={() => (last.current = null)}
+      onPointerCancel={() => (last.current = null)}
+      onLostPointerCapture={() => (last.current = null)}
+    >
+      <img src={before.src} alt={before.alt} loading="lazy" draggable={false} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+      <canvas ref={canvasRef} aria-hidden="true" data-testid="brush-canvas" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: done ? 0 : 1, transition: "opacity 400ms ease" }} />
+      <img src={after.src} alt={done ? after.alt : ""} aria-hidden={done ? undefined : true} draggable={false} data-testid="brush-after" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: done ? 1 : 0, transition: "opacity 400ms ease", pointerEvents: "none" }} />
+      <noscript>
+        <img src={after.src} alt={after.alt} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+      </noscript>
+      <div className="rv-cn-compare-label rv-cn-compare-label-before">{done ? after.label : before.label}</div>
+    </div>
+    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, justifyContent: "space-between", paddingTop: 10 }}>
+      <span aria-live="polite" style={{ fontSize: 14, fontWeight: 600 }}>
+        {done ? `${after.label}: all revealed` : percent > 0 ? `${prompt}: ${percent}%` : `${prompt}. Drag across the picture`}
+      </span>
+      <span style={{ display: "flex", gap: 8 }}>
+        {!done ? (
+          <button type="button" aria-pressed={armed} onClick={() => setArmed((value) => !value)} className="rv-cn-brush-touch" style={{ minHeight: 44, padding: "0 14px", borderRadius: 999, border: "1px solid currentColor", background: "transparent", color: "inherit", fontWeight: 600, opacity: armed ? 1 : 0.85 }}>
+            {armed ? "Stop" : "Start on touch"}
+          </button>
+        ) : null}
+        <button type="button" onClick={() => (done ? reset() : setDone(true))} style={{ minHeight: 44, padding: "0 14px", borderRadius: 999, border: "1px solid currentColor", background: "transparent", color: "inherit", fontWeight: 600 }}>
+          {done ? "Start over" : "Show finished result"}
+        </button>
+      </span>
+    </div>
+    </figure>
+  );
+}
+
 function BeforeAfterSlider({ props, before, after, initialSplit }: {
   props: NodeProps;
   before: { src: string; alt: string; label: string };
@@ -759,6 +900,7 @@ function BeforeAfterSlider({ props, before, after, initialSplit }: {
     </figure>
   );
 }
+
 
 function FaqAccordion({ props, items }: { props: NodeProps; items: CompositionFaqItem[] }) {
   return (

@@ -73,7 +73,7 @@ export const PRIMITIVE_GUIDE =
   "marquee (children scroll sideways in a loop; stops for reduced motion), " +
   "gallery (media children in a grid; tap opens full size), " +
   "quote (text is the quoted words; items[0] optional attribution — only real, supplied quotes). " +
-  "before_after_slider (beforeImage + afterImage, each {src or mediaRef, alt, label}, with a 0-100 split; use for genuine transformation work such as renovation, roofing or detailing). " +
+  "before_after_slider (beforeImage + afterImage, each {src or mediaRef, alt, label}, with a 0-100 split; use for genuine transformation work such as renovation, roofing or detailing; add revealMode:\"brush\" for a hands-on reveal where the visitor drags across the before picture to uncover the after, with text as its short prompt such as \"Clean this driveway\"; only ever with the owner's own real before and after photos). " +
   "faq_accordion (items are question/answer pairs; defaultOpen is optional and at most the supplied FAQ content may be used). " +
   "tab_group (tabs are labelled panels; each tab owns child nodes and only the active panel is rendered). " +
   "mobile_sticky_bar (primaryCta and optional secondaryCta; conversion actions only, hidden above the mobile breakpoint). " +
@@ -193,6 +193,8 @@ export type CompositionNode = {
   beforeImage?: CompositionImage;
   afterImage?: CompositionImage;
   initialSplit?: number;
+  /** before_after_slider only: "slider" (drag a divider, the default) or "brush" (drag across the picture to reveal the after). */
+  revealMode?: "slider" | "brush";
   faqItems?: CompositionFaqItem[];
   tabs?: CompositionTab[];
   primaryCta?: CompositionCta;
@@ -723,6 +725,11 @@ export function validateComposition(input: unknown, options: ValidateOptions = {
       if (typeof split !== "number" || !Number.isFinite(split) || split < 0 || split > 100)
         issues.push({ path: `${path}.initialSplit`, problem: "initialSplit must be a number from 0 to 100" });
       else node.initialSplit = split;
+    }
+    if (row["revealMode"] != null) {
+      if (node.type !== "before_after_slider") issues.push({ path: `${path}.revealMode`, problem: "revealMode only applies to before_after_slider" });
+      else if (row["revealMode"] !== "slider" && row["revealMode"] !== "brush") issues.push({ path: `${path}.revealMode`, problem: 'revealMode must be "slider" or "brush"' });
+      else node.revealMode = row["revealMode"];
     }
 
     if (row["faqItems"] != null) {
