@@ -23,7 +23,9 @@ import {
   canonicalLink,
   faqPageSchema,
   jsonLdScript,
-  ogUrl,, OG_IMAGE_META } from "@/lib/seo";
+  ogUrl,
+  OG_IMAGE_META,
+} from "@/lib/seo";
 import { useExperiment } from "@/lib/experiments.hooks";
 import { trackConversion } from "@/lib/conversion";
 import { LocalPriceEstimate } from "@/components/marketing/LocalPriceEstimate";
