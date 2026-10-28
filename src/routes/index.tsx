@@ -12,6 +12,8 @@ import { HOME_HEADLINE, HOME_TRIAL_CHARGE_NOTE, marketingHomeHead } from "@/comp
 import { ProductTour } from "@/components/marketing/ProductTour";
 import { OfferIncludes } from "@/components/marketing/OfferIncludes";
 import { SavingsCalculator } from "@/components/marketing/SavingsCalculator";
+import { SoftwareComparison } from "@/components/marketing/SoftwareComparison";
+import { AiTeam } from "@/components/marketing/AiTeam";
 import { Pill, SectionHeading } from "@/components/app/Bits";
 import { RouteError } from "@/components/app/RouteStates";
 import { Button } from "@/components/ui/button";
@@ -181,6 +183,16 @@ function Landing() {
           </div>
         </section>
 
+        {/* THE AI TEAM */}
+        <section id="ai-team" className="scroll-mt-20 border-b border-border">
+          <div className="mx-auto max-w-6xl px-4 py-10">
+            <SectionHeading eyebrow="Your AI team" title="Who designs, writes and checks your website" />
+            <div className="mt-6">
+              <AiTeam />
+            </div>
+          </div>
+        </section>
+
         {/* VALUE + PRICING */}
         <section id="pricing" className="scroll-mt-20 border-b border-border">
           <div className="mx-auto max-w-6xl px-4 py-10">
@@ -239,7 +251,8 @@ function Landing() {
         <section id="savings" className="scroll-mt-20 border-b border-border">
           <div className="mx-auto max-w-6xl px-4 py-10">
             <SectionHeading eyebrow="Compare" title="What you pay for software today" />
-            <div className="mt-6">
+            <div className="mt-6 grid gap-4">
+              <SoftwareComparison />
               <SavingsCalculator />
             </div>
           </div>

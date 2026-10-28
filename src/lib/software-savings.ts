@@ -77,3 +77,40 @@ export function computeSavings(input: SavingsInput): SavingsResult {
     revoraCostsMore: toolCount > 0 && currentMonthly < revoraMonthly,
   };
 }
+
+export type TypicalComparison = {
+  tools: { id: SavingsToolId; label: string; example: string; typical: number }[];
+  /** Monthly total of the software tools (everything except an agency retainer). */
+  toolsMonthly: number;
+  toolsFirstYear: number;
+  /** The same plus a monthly agency or freelancer retainer. */
+  withAgencyMonthly: number;
+  withAgencyFirstYear: number;
+  revoraFirstYear: number;
+  /** First-year difference against the tools alone and with the retainer. Positive: Revora costs less. */
+  toolsDifference: number;
+  withAgencyDifference: number;
+};
+
+/**
+ * A static, side-by-side of the typical entry-level list prices above against
+ * the canonical offer, so the page shows the comparison before a visitor types
+ * anything. Same arithmetic as `computeSavings`; every figure derives from the
+ * constants in this file and the offer, never from a typed-in number.
+ */
+export function typicalComparison(): TypicalComparison {
+  const tools = SAVINGS_TOOLS.filter((tool) => tool.id !== "agency").map((tool) => ({ ...tool }));
+  const agency = SAVINGS_TOOLS.find((tool) => tool.id === "agency")?.typical ?? 0;
+  const toolsMonthly = tools.reduce((sum, tool) => sum + tool.typical, 0);
+  const revoraFirstYear = GROWTH_SYSTEM.setupPrice + GROWTH_SYSTEM.monthlyPrice * 11;
+  return {
+    tools,
+    toolsMonthly,
+    toolsFirstYear: toolsMonthly * 12,
+    withAgencyMonthly: toolsMonthly + agency,
+    withAgencyFirstYear: (toolsMonthly + agency) * 12,
+    revoraFirstYear,
+    toolsDifference: toolsMonthly * 12 - revoraFirstYear,
+    withAgencyDifference: (toolsMonthly + agency) * 12 - revoraFirstYear,
+  };
+}

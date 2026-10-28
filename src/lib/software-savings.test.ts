@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { GROWTH_SYSTEM } from "@/lib/offer";
-import { MAX_TOOL_PRICE, SAVINGS_TOOLS, cleanPrice, computeSavings } from "./software-savings";
+import { MAX_TOOL_PRICE, SAVINGS_TOOLS, cleanPrice, computeSavings, typicalComparison } from "./software-savings";
 
 describe("computeSavings", () => {
   it("shows nothing when no tool is entered", () => {
@@ -38,5 +38,28 @@ describe("computeSavings", () => {
 
   it("keeps tool ids unique", () => {
     expect(new Set(SAVINGS_TOOLS.map((t) => t.id)).size).toBe(SAVINGS_TOOLS.length);
+  });
+});
+
+describe("typicalComparison", () => {
+  it("adds up the typical prices and compares them with the canonical first year", () => {
+    const c = typicalComparison();
+    expect(c.tools.map((tool) => tool.id)).not.toContain("agency");
+    expect(c.toolsMonthly).toBe(377);
+    expect(c.toolsFirstYear).toBe(4524);
+    expect(c.withAgencyMonthly).toBe(877);
+    expect(c.withAgencyFirstYear).toBe(10524);
+    expect(c.revoraFirstYear).toBe(GROWTH_SYSTEM.setupPrice + GROWTH_SYSTEM.monthlyPrice * 11);
+    expect(c.revoraFirstYear).toBe(1450);
+    expect(c.toolsDifference).toBe(4524 - 1450);
+    expect(c.withAgencyDifference).toBe(10524 - 1450);
+  });
+
+  it("agrees with the calculator when every typical price is entered", () => {
+    const all = Object.fromEntries(SAVINGS_TOOLS.map((tool) => [tool.id, tool.typical]));
+    const r = computeSavings(all);
+    const c = typicalComparison();
+    expect(r.currentMonthly).toBe(c.withAgencyMonthly);
+    expect(r.firstYearDifference).toBe(c.withAgencyDifference);
   });
 });
