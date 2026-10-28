@@ -670,6 +670,33 @@ describe("legacy demo re-verification", () => {
 describe("pitch-first mode", () => {
   const shellMarker = (extra: Row = {}) => ({ prospectDemo: { kind: "prospect_demo", createdAt: "2026-10-18T00:00:00Z", source: "autopilot", pitchFirst: true, ...extra } });
 
+  it("verifies a public OSM email and preserves its exact listing before creating a pitch shell", async () => {
+    const { db } = seed({ prospect_autopilot_settings: [settings({ pitch_first: true })] });
+    mocks.findProspects.mockResolvedValue({ prospects: [{ ...prospect({ placeId: "osm:node/42" }), email: "Owner@shine.com" }] });
+    await runProspectAutopilot(db, { now: () => NOW });
+    expect(mocks.provisionProspectDemo).toHaveBeenCalledWith(db, expect.objectContaining({ email: "owner@shine.com" }), OWNER,
+      expect.objectContaining({ pitchFirst: true, enrichment: expect.objectContaining({ email: "owner@shine.com", status: "verified", source: "public_listing", sourceUrl: "https://www.openstreetmap.org/node/42" }) }));
+    expect(mocks.fetch).toHaveBeenCalled();
+  });
+
+  it("rejects a suppressed public-listing email before creating or emailing a pitch shell", async () => {
+    const { db } = seed({ prospect_autopilot_settings: [settings({ pitch_first: true })] });
+    mocks.findProspects.mockResolvedValue({ prospects: [{ ...prospect({ placeId: "osm:node/42" }), email: "owner@shine.com" }] });
+    mocks.isDoNotContact.mockImplementation(async (_db: unknown, value: string) => value === "owner@shine.com");
+    const result = await runProspectAutopilot(db, { now: () => NOW });
+    expect(mocks.provisionProspectDemo).not.toHaveBeenCalled();
+    expect(result.skipped).toContainEqual(expect.objectContaining({ reason: "email_rejected: do_not_contact" }));
+    expect(mocks.sendDemoOutreach).not.toHaveBeenCalled();
+  });
+
+  it("records a failed directory search explicitly instead of reporting successful empty discovery", async () => {
+    const { db } = seed();
+    mocks.findProspects.mockRejectedValue(new Error("OpenStreetMap discovery is unavailable"));
+    const result = await runProspectAutopilot(db, { now: () => NOW });
+    expect(result.skipped).toContainEqual(expect.objectContaining({ reason: "search_failed: OpenStreetMap discovery is unavailable" }));
+    expect(mocks.provisionProspectDemo).not.toHaveBeenCalled();
+  });
+
   it("is off by default and validates, describes and saves like any other switch", async () => {
     expect(readAutopilotSettings(null).pitchFirst).toBe(false);
     expect(readAutopilotSettings({ pitch_first: true }).pitchFirst).toBe(true);
