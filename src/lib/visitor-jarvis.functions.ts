@@ -116,7 +116,6 @@ export const askVisitorJarvis = createServerFn({ method: "POST" })
         { task: "public.visitor_jarvis" },
         {
           role: "conversation",
-          freeOnly: true,
           maxOutputTokens: 400,
           temperature: 0.4,
           messages: [{ role: "system", content: visitorSystemPrompt(data.page) }, ...data.turns],

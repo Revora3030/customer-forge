@@ -29,8 +29,6 @@ export type AiRequest = {
   messages: AiMessage[];
   /** Which model class the task needs; the router resolves the model name. */
   role?: ModelRole;
-  /** Keep this call on verified free models only, even when paid AI is enabled. */
-  freeOnly?: boolean;
   /**
    * Walk only the paid team (Lovable's gateway first, then Revora's own paid
    * keys); the free pool is not tried. Used by callers that run their own

@@ -536,8 +536,6 @@ async function composeEmail(demo: DemoContext, previewUrl: string, actorId: stri
     const { generateText } = await import("@/lib/ai/router.server");
     const result = await generateText({ userId: actorId, task: "admin.jarvis" }, {
       role: "conversation",
-      // Owner-triggered drafts (actorId set) use the budgeted router; unattended runs stay no-spend.
-      freeOnly: actorId === null,
       maxOutputTokens: 500,
       messages: [
         { role: "system", content: DEMO_EMAIL_SYSTEM },
