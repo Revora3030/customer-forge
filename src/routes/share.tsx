@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Check, Copy, ExternalLink, Share2 } from "lucide-react";
 import { toast } from "@/lib/ui/notify";
 
@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { GROWTH_SYSTEM, usdExact } from "@/lib/offer";
 import { breadcrumbSchema, canonicalLink, ogUrl, metaDescription } from "@/lib/seo";
 import { trackConversion } from "@/lib/conversion";
-import { buildChannelAssets, qrImageUrl, trackedLink } from "@/lib/distribution";
+import { buildChannelAssets, qrDataUrl, trackedLink } from "@/lib/distribution";
 
 const TITLE = "Share Revora — free tools to spread the word";
 const DESCRIPTION = `Grab ready-to-send messages, social posts, a QR code and tracked links for Revora. ${usdExact(GROWTH_SYSTEM.setupPrice)} setup, first month free, then ${usdExact(GROWTH_SYSTEM.monthlyPrice)}/month.`;
@@ -56,6 +56,15 @@ function SharePage() {
     () => trackedLink("/", { source: "referral", medium: "share", campaign }),
     [campaign],
   );
+
+  const [qr, setQr] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    void qrDataUrl(mainLink, 320).then((url) => live && setQr(url)).catch(() => live && setQr(null));
+    return () => {
+      live = false;
+    };
+  }, [mainLink]);
 
   async function copy(id: string, text: string) {
     try {
@@ -143,7 +152,7 @@ function SharePage() {
 
           <div className="mt-6 flex flex-col items-start gap-4 sm:flex-row sm:items-center">
             <img
-              src={qrImageUrl(mainLink, 320)}
+              src={qr ?? undefined}
               alt="QR code that opens the tracked Revora link"
               width={160}
               height={160}

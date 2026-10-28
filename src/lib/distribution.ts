@@ -61,11 +61,18 @@ function slug(value: string) {
     .slice(0, 40);
 }
 
-/** Free QR image for print, vehicle decals, flyers and job-site signs. */
-export function qrImageUrl(target: string, size = 512): string {
+/**
+ * QR code made in the browser. The target link never leaves the device, so a private or token-bearing
+ * link is not handed to an outside image service.
+ */
+export async function qrDataUrl(target: string, size = 512): Promise<string> {
   const px = Math.min(1000, Math.max(128, Math.round(size)));
-  return `https://api.qrserver.com/v1/create-qr-code/?size=${px}x${px}&margin=8&data=${encodeURIComponent(target)}`;
+  const { default: QRCode } = await import("qrcode");
+  return QRCode.toDataURL(target, { width: px, margin: 2 });
 }
+
+/** Shown in the email template until the sender types their real address. */
+export const POSTAL_PLACEHOLDER = "[Your business mailing address]";
 
 export type ChannelAsset = {
   id: ChannelId;
@@ -91,6 +98,8 @@ export function buildChannelAssets(input: {
   campaign: string;
   audience?: string;
   path?: string;
+  /** The sender's real mailing address. Commercial email must carry one; it is never invented. */
+  postalAddress?: string;
 }): ChannelAsset[] {
   const campaign = input.campaign || "growth";
   const audience = (input.audience || "business owners in every industry").trim();
@@ -98,10 +107,11 @@ export function buildChannelAssets(input: {
   const link = (source: string, medium: string, content?: string) =>
     trackedLink(path, { source, medium, campaign, ...(content ? { content } : {}) });
 
-  const pitch = `A complete customer acquisition system for ${audience}: a website that ranks, instant quotes, online booking, CRM and automatic follow-up. ${SETUP} setup, first month free, then ${MONTHLY}/month.`;
+  const pitch = `A complete customer acquisition system for ${audience}: a search-ready website, instant quotes, online booking, CRM and automatic follow-up. ${SETUP} setup, first month free, then ${MONTHLY}/month.`;
 
+  const whatsappBody = `Hey — I build complete customer-getting systems for ${audience}. Website, instant quotes, online booking, follow-up, all in one. First month free. Take a look: ${link("whatsapp", "chat")}`;
   const smsBody = `Hey — I build complete customer-getting systems for ${audience}. Website, instant quotes, online booking, follow-up, all in one. First month free. Take a look: ${link("sms", "text")}`;
-  const emailBody = `Hi,\n\n${pitch}\n\nYou can see exactly what it looks like here: ${link("email", "email")}\n\nIf it's not a fit, no hard feelings — reply "no" and I won't follow up.\n\n${REVORA.founder.name}\nRevora Growth Systems\n${REVORA.phoneDisplay}`;
+  const emailBody = `Hi,\n\n${pitch}\n\nYou can see exactly what it looks like here: ${link("email", "email")}\n\nIf it's not a fit, no hard feelings — reply "no" and I won't follow up.\n\n${REVORA.founder.name}\nRevora Growth Systems\n${input.postalAddress?.trim() || POSTAL_PLACEHOLDER}`;
 
   const assets: ChannelAsset[] = [
     {
@@ -118,8 +128,8 @@ export function buildChannelAssets(input: {
       kind: "message",
       label: "WhatsApp",
       why: "Free international reach — good for referrals and group shares.",
-      message: smsBody,
-      intentUrl: `https://wa.me/?text=${encodeURIComponent(smsBody)}`,
+      message: whatsappBody,
+      intentUrl: `https://wa.me/?text=${encodeURIComponent(whatsappBody)}`,
       note: "Share into chats and groups you belong to.",
     },
     {
@@ -144,7 +154,7 @@ export function buildChannelAssets(input: {
       id: "tiktok",
       kind: "social",
       label: "TikTok caption",
-      why: "Free, un-capped organic reach. Screen-record one build per day.",
+      why: "Free organic reach, no ad spend. Screen-record one build per day.",
       message: `I built this business a complete customer system in one sitting. Website, instant quotes, booking, follow-up, reviews. First month free. ${link("tiktok", "social")}\n\n#smallbusinesstips #contractorlife #localseo`,
       intentUrl: null,
       note: "Show the build on screen. Faces and real screens outperform slideshows.",
@@ -192,14 +202,14 @@ export function buildChannelAssets(input: {
       why: "Business email is legal to cold-send in the US with a real opt-out.",
       message: emailBody,
       intentUrl: `mailto:?subject=${encodeURIComponent("A customer system for your business")}&body=${encodeURIComponent(emailBody)}`,
-      note: 'CAN-SPAM requires a truthful subject, a real identity and a working opt-out. Keep the reply-"no" line in.',
+      note: 'CAN-SPAM requires a truthful subject, a real identity, a working opt-out and a valid postal address. Replace the bracketed address line with your real mailing address before sending, and keep the reply-"no" line in.',
     },
     {
       id: "youtube",
       kind: "social",
       label: "YouTube description",
       why: "Build walkthroughs keep earning views for years — the best free compounding channel.",
-      message: `Revora builds businesses in every industry a complete customer acquisition system: a website that ranks, instant quotes, online booking, CRM and automatic follow-up.\n\n${SETUP} setup. First month free. Then ${MONTHLY}/month.\n\nStart here: ${link("youtube", "video")}\nCall or text: ${REVORA.phoneDisplay}`,
+      message: `Revora builds businesses in every industry a complete customer acquisition system: a search-ready website, instant quotes, online booking, CRM and automatic follow-up.\n\n${SETUP} setup. First month free. Then ${MONTHLY}/month.\n\nStart here: ${link("youtube", "video")}`,
       intentUrl: null,
       note: "Title each video for a trade + city so it also gets found in search.",
     },
@@ -209,7 +219,7 @@ export function buildChannelAssets(input: {
       label: "Print + QR (trucks, flyers, counters)",
       why: "Free once printed, and every scan is tracked like a click.",
       message: `Scan to see a complete customer system for your business — ${SETUP} setup, first month free, then ${MONTHLY}/month. ${link("print", "qr")}`,
-      intentUrl: qrImageUrl(link("print", "qr")),
+      intentUrl: null,
       note: "Put the QR where owners wait: supply houses, counters, trade desks, job-site signs.",
     },
     {
@@ -217,7 +227,7 @@ export function buildChannelAssets(input: {
       kind: "broadcast",
       label: "Radio / local TV read (30s)",
       why: "Local stations trade or discount unsold inventory; the script is ready either way.",
-      message: `[30 seconds] Running a service business and your phone still isn't ringing? Revora builds you the whole customer system — a website that gets found, instant quotes, online booking, and follow-up that never forgets a lead. ${SETUP} to set it up, your first month is free, then ${MONTHLY} a month. That's Revora Growth Systems — revoragrowthsystems dot com. Call ${REVORA.phoneDisplay}.`,
+      message: `[30 seconds] Running a service business and your phone still isn't ringing? Revora builds you the whole customer system — a website that gets found, instant quotes, online booking, and follow-up that never forgets a lead. ${SETUP} to set it up, your first month is free, then ${MONTHLY} a month. That's Revora Growth Systems — revoragrowthsystems dot com. Find us at the link in the description.`,
       intentUrl: null,
       note: "Paid placement is bought directly from the station; Revora only supplies the script and a tracked vanity link.",
     },

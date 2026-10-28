@@ -4,7 +4,8 @@ import {
   DAILY_ROUTINE,
   FREE_LISTINGS,
   buildChannelAssets,
-  qrImageUrl,
+  POSTAL_PLACEHOLDER,
+  qrDataUrl,
   routineMinutes,
   trackedLink,
 } from "@/lib/distribution";
@@ -29,11 +30,14 @@ describe("trackedLink", () => {
   });
 });
 
-describe("qrImageUrl", () => {
-  it("encodes the target and clamps the size", () => {
-    const url = qrImageUrl("https://revoragrowthsystems.com/?utm_source=print", 5000);
-    expect(url).toContain("1000x1000");
-    expect(url).toContain(encodeURIComponent("https://revoragrowthsystems.com/?utm_source=print"));
+describe("qrDataUrl", () => {
+  it("makes the QR code locally, as an image, without calling an outside service", async () => {
+    const url = await qrDataUrl("https://revoragrowthsystems.com/?utm_source=print", 5000);
+    expect(url.startsWith("data:image/png;base64,")).toBe(true);
+  });
+  it("no longer references a third-party QR service", async () => {
+    const { readFileSync } = await import("node:fs");
+    expect(readFileSync("src/lib/distribution.ts", "utf8")).not.toContain("qrserver");
   });
 });
 
@@ -85,5 +89,27 @@ describe("free channel catalogue", () => {
     expect(DAILY_ROUTINE.length).toBeGreaterThan(4);
     expect(routineMinutes()).toBe(DAILY_ROUTINE.reduce((t, i) => t + i.minutes, 0));
     expect(routineMinutes()).toBeGreaterThan(60);
+  });
+});
+
+describe("share templates", () => {
+  const assets = buildChannelAssets({ campaign: "launch" });
+  const byId = (id: string) => assets.find((a) => a.id === id)!;
+
+  it("tags WhatsApp as WhatsApp, not SMS", () => {
+    expect(byId("whatsapp").message).toContain("utm_source=whatsapp");
+    expect(byId("whatsapp").message).not.toContain("utm_source=sms");
+    expect(byId("sms").message).toContain("utm_source=sms");
+  });
+  it("ends the email with a postal address line that is a placeholder until the sender supplies one", () => {
+    expect(byId("email").message.endsWith(POSTAL_PLACEHOLDER)).toBe(true);
+    expect(buildChannelAssets({ campaign: "x", postalAddress: "12 Pipe St, Austin, TX 78701" }).find((a) => a.id === "email")!.message).toContain("12 Pipe St, Austin, TX 78701");
+    expect(byId("email").note).toContain("postal address");
+  });
+  it("keeps the phone number off the public share copy and avoids ranking promises", () => {
+    for (const asset of assets) {
+      expect(asset.message).not.toMatch(/\(\d{3}\) \d{3}-\d{4}/);
+      expect(asset.message).not.toMatch(/website that ranks/i);
+    }
   });
 });
