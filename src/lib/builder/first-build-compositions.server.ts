@@ -331,7 +331,8 @@ export async function composeFirstBuildSections(input: {
   // The look plus the exact real service names (the only names an offer_card
   // may use). Prompt-only: the checkpoint digest keeps the look itself.
   const { playbookNote } = await import("@/lib/builder/industry-playbook");
-  const tradeNote = playbookNote(facts.industry ?? null);
+  // A business no specific trade matches is classified by its description and service names.
+  const tradeNote = playbookNote(facts.industry ?? null, [facts.description ?? "", ...serviceNames].join(" "));
   const promptLook = [
     serviceNames.length
       ? `${input.lookSummary}\nREAL SERVICES (the only names an offer_card service may use, exactly as written): ${JSON.stringify(serviceNames.slice(0, 40))}`

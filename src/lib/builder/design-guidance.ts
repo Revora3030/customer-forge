@@ -130,11 +130,11 @@ export function patternForIndustry(industry: string | null): IndustryPattern {
  * and business facts. This is appended to the AI plan prompt to help the
  * models produce top-tier, industry-appropriate designs.
  */
-export function designGuidancePrompt(industry: string | null, businessName: string): string {
+export function designGuidancePrompt(industry: string | null, businessName: string, hints: string | null = null): string {
   const pattern = patternForIndustry(industry);
   // The same trade playbook the first build uses, so a chat request such as
   // "make it cinematic" reaches for this trade's signature primitives.
-  const playbook = playbookNote(industry);
+  const playbook = playbookNote(industry, hints);
   return [
     `TOP-TIER DESIGN GUIDANCE for ${businessName}:`,
     ``,
