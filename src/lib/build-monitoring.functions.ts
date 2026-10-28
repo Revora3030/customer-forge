@@ -42,3 +42,45 @@ export const getBuildHealth = createServerFn({ method: "GET" })
       alerts: buildAlerts(builds, publish),
     };
   });
+
+/**
+ * The newest builds with what each produced: primitives used, picture counts
+ * and stage timings. Super-admin only; counts and timings, never tenant words.
+ * Primitives and pictures describe the organization's site as it is now.
+ */
+export const getRecentBuildReports = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { assertSuperAdmin } = await import("@/lib/admin.server");
+    await assertSuperAdmin(context.supabase, context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const db = supabaseAdmin as unknown as import("@supabase/supabase-js").SupabaseClient;
+    const { data: jobs, error } = await db
+      .from("generation_jobs")
+      .select("id, organization_id, status, failed_stage, failure_kind, stage_timings, created_at, completed_at")
+      .order("created_at", { ascending: false })
+      .limit(6);
+    if (error) throw new Error("Couldn't load recent builds.");
+    const { buildReport } = await import("@/lib/build-report");
+    return Promise.all(
+      (jobs ?? []).map(async (job) => {
+        const [sections, pictures] = await Promise.all([
+          db.from("website_sections").select("settings").eq("organization_id", job.organization_id).eq("is_visible", true),
+          db.from("image_records").select("status").eq("organization_id", job.organization_id),
+        ]);
+        return {
+          id: String(job.id),
+          organization: String(job.organization_id).slice(0, 8),
+          status: String(job.status),
+          failedStage: (job.failed_stage as string | null) ?? null,
+          failureKind: (job.failure_kind as string | null) ?? null,
+          createdAt: String(job.created_at),
+          report: buildReport(
+            (sections.data ?? []) as { settings: unknown }[],
+            (pictures.data ?? []) as { status: string }[],
+            job.stage_timings as Record<string, number> | null,
+          ),
+        };
+      }),
+    );
+  });
