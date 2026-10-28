@@ -102,6 +102,25 @@ function unsupported(what: string): never {
   });
 }
 
+/**
+ * The gateway refuses `response_format: json_object` unless the prompt itself
+ * contains the word "json" (HTTP 400, seen on plan_review). When it does not,
+ * say so once, in the first system message, rather than failing the step.
+ */
+export function withJsonWord(messages: AiMessage[]): AiMessage[] {
+  const says = (message: AiMessage) =>
+    typeof message.content === "string"
+      ? /json/i.test(message.content)
+      : message.content.some((part) => part.type === "text" && /json/i.test(part.text));
+  if (messages.some(says)) return messages;
+  const note = "Respond with a single JSON object.";
+  const at = messages.findIndex((message) => message.role === "system" && typeof message.content === "string");
+  if (at < 0) return [{ role: "system", content: note }, ...messages];
+  return messages.map((message, index) =>
+    index === at ? { ...message, content: `${message.content as string}\n\n${note}` } : message,
+  );
+}
+
 function requestBody(input: {
   model: string;
   messages: AiMessage[];
@@ -114,7 +133,7 @@ function requestBody(input: {
   return {
     model: input.model,
     ...(input.stream ? { stream: true } : {}),
-    messages: input.messages.map((message) => ({
+    messages: (input.json ? withJsonWord(input.messages) : input.messages).map((message) => ({
       role: message.role,
       content: partsOf(message.content),
     })),

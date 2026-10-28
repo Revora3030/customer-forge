@@ -26,16 +26,25 @@ import {
 import { AI_TEAM, chooseFallback } from "@/lib/ai/team-roles";
 
 describe("build failure classification", () => {
-  it("covers exactly the nine spec failure kinds, plus the spending-limit stop", () => {
+  it("covers exactly the nine spec failure kinds, plus the spending-limit and out-of-credits stops", () => {
     expect([...BUILD_FAILURE_KINDS].sort()).toEqual(
-      ["budget", "content", "image", "infrastructure", "intake_validation", "preview", "provider", "publish", "rendering", "validation"].sort(),
+      ["budget", "content", "credits", "image", "infrastructure", "intake_validation", "preview", "provider", "publish", "rendering", "validation"].sort(),
     );
   });
 
   it("classifies provider statuses before message text", () => {
     expect(classifyBuildFailure(new Error("copy failed"), 429).kind).toBe("provider");
     expect(classifyBuildFailure(new Error("x"), 503).kind).toBe("provider");
-    expect(classifyBuildFailure(new Error("x"), 402)).toMatchObject({ kind: "provider", retryable: false });
+    expect(classifyBuildFailure(new Error("x"), 403)).toMatchObject({ kind: "provider", retryable: false });
+  });
+
+  it("tells the owner plainly when the AI credits ran out, and never retries", () => {
+    for (const failure of [classifyBuildFailure(new Error("x"), 402), classifyBuildFailure(new Error('{"title":"Not enough credits","requires":"top_up"}'))]) {
+      expect(failure).toMatchObject({ kind: "credits", retryable: false });
+      expect(failure.ownerMessage).toMatch(/AI credits ran out/);
+      expect(failure.ownerMessage).toMatch(/Nothing was published/);
+      expect(failure.ownerMessage).not.toMatch(/retries automatically/);
+    }
   });
 
   it("classifies by message", () => {

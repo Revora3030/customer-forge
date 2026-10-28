@@ -264,6 +264,25 @@ describe("lovable adapter wire format", () => {
     expect(calls[0]!.body["temperature"]).toBeUndefined();
   });
 
+  it("says \"json\" in the prompt when JSON mode is on, because the gateway refuses it otherwise", async () => {
+    const calls = stubGateway();
+    const base = { apiKey: "test-lovable", model: "openai/gpt-6.1-sol", json: true, maxOutputTokens: 256, signal: new AbortController().signal };
+    const sent = () => (calls.at(-1)!.body["messages"] as { role: string; content: string }[]);
+    // No mention anywhere: it is added once, to the first system message.
+    await lovableAdapter.chat({ ...base, messages: [{ role: "system", content: "Review the plan." }, { role: "user", content: "Is it fine?" }] });
+    expect(calls.at(-1)!.body["response_format"]).toEqual({ type: "json_object" });
+    expect(sent().map((m) => m.content)).toEqual(["Review the plan.\n\nRespond with a single JSON object.", "Is it fine?"]);
+    // No system message: one is put in front.
+    await lovableAdapter.chat({ ...base, messages: [{ role: "user", content: "Is it fine?" }] });
+    expect(sent()[0]).toEqual({ role: "system", content: "Respond with a single JSON object." });
+    // Already mentioned (any case, any message): left exactly as written.
+    await lovableAdapter.chat({ ...base, messages: [{ role: "user", content: "Answer in Json please" }] });
+    expect(sent()).toEqual([{ role: "user", content: "Answer in Json please" }]);
+    // JSON mode off: untouched.
+    await lovableAdapter.chat({ ...base, json: false, messages: [{ role: "user", content: "hi" }] });
+    expect(sent()).toEqual([{ role: "user", content: "hi" }]);
+  });
+
   it("treats an empty answer as a failure so the router fails over", async () => {
     stubGateway(200, { choices: [{ message: { content: "" } }] });
     await expect(
