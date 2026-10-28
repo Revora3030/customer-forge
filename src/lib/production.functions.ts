@@ -479,6 +479,12 @@ export async function publishSiteNow(
 
     await audit("PRODUCTION_ACTIVATED", { version: nextVersion, published_at: publishedAt });
 
+    // Tell Bing and the other IndexNow engines about the published pages. It
+    // never throws and is throttled per site, so it cannot fail this launch.
+    await import("@/lib/indexnow-site.server")
+      .then(({ submitPublishedSiteToIndexNow }) => submitPublishedSiteToIndexNow(orgId))
+      .catch(() => undefined);
+
     return {
       activated: true,
       reason: options.liveEdit
