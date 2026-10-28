@@ -39,6 +39,20 @@ describe("builder queue", () => {
     const b = { ...newTask("two"), state: "failed" as const };
     expect(queueSummary([a, b, newTask("three")])).toBe("1 done · 1 waiting · 1 didn't work");
   });
+  it("counts only what didn't work now: not an earlier visit, not a build a newer build replaced", () => {
+    const failedBuild = { ...newTask("Fresh rebuild"), state: "failed" as const, isBuild: true };
+    const newerBuild = { ...newTask("Fresh rebuild"), state: "building" as const, isBuild: true };
+    // The latest build failing is the current problem.
+    expect(queueSummary([failedBuild])).toBe("0 done · 1 didn't work");
+    // A newer build replaces it, so a rebuild in progress is not shown under the old failure.
+    expect(queueSummary([failedBuild, newerBuild])).toBe("");
+    // The newer build failing too is one problem, not two.
+    expect(queueSummary([failedBuild, { ...newerBuild, state: "failed" as const }])).toBe("0 done · 1 didn't work");
+    // History restored from an earlier visit is in the thread but not in the count.
+    expect(queueSummary([{ ...newTask("old request"), state: "failed" as const, restored: true }])).toBe("");
+    // A failed edit request in this visit still counts, even next to a build.
+    expect(queueSummary([{ ...newTask("set my title"), state: "failed" as const }, newerBuild])).toBe("0 done · 1 didn't work");
+  });
   it("never leaves an empty plan in a silent hold", () => {
     expect(terminalStateForEmptyPlan({ steps: [], questions: [], unavailable: null })).toBe("failed");
     expect(terminalStateForEmptyPlan({ steps: [], questions: [], unavailable: { retryable: false } })).toBe("failed");
