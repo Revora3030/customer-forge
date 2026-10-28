@@ -1,12 +1,12 @@
 import { GROWTH_SYSTEM, usd } from "@/lib/offer";
-import { canonicalLink, ogUrl } from "@/lib/seo";
+import { canonicalLink, ogUrl, OG_IMAGE_META } from "@/lib/seo";
 
 /** Shared copy for public marketing heads and the search inventory, never tenant pages. */
 export const MARKETING_SEARCH = {
   home: {
     path: "/",
-    title: "AI Websites That Win You Customers | Revora Growth Systems",
-    description: `Get an AI-built website with lead capture, booking, CRM and automated follow-up — one system that turns visitors into customers. ${usd(GROWTH_SYSTEM.setupPrice)} setup, first month free, then ${usd(GROWTH_SYSTEM.monthlyPrice)}/month.`,
+    title: "AI Website, Booking & CRM That Wins Customers | Revora",
+    description: `AI-built website with lead capture, online booking, CRM and automated follow-up — one system that turns visitors into paying customers. ${usd(GROWTH_SYSTEM.setupPrice)} setup, first month free, then ${usd(GROWTH_SYSTEM.monthlyPrice)}/month.`,
   },
   states: {
     path: "/states",
@@ -32,6 +32,7 @@ export function marketingSearchHead(page: (typeof MARKETING_SEARCH)[keyof typeof
       { name: "twitter:title", content: page.title },
       { name: "twitter:description", content: page.description },
       ogUrl(page.path),
+      ...OG_IMAGE_META,
     ],
     links: [canonicalLink(page.path)],
   };
