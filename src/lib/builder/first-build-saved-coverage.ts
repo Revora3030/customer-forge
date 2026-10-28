@@ -1,3 +1,4 @@
+import { MIN_CHAPTERS } from "./cinematic-primitives";
 import { readComposition } from "./composition-tree";
 
 export type SavedBuildPage = { id: string; slug: string };
@@ -89,9 +90,10 @@ export function missingPictureProblems(sections: readonly SavedBuildSection[], s
   return problems;
 }
 type Node = { type?: string; mediaRef?: string; src?: string; children?: Node[]; [key: string]: unknown };
-const PICTURE_ONLY = new Set(["gallery", "spin_viewer", "before_after_slider", "compare"]);
 /** Containers that cannot show anything with one of their pictures gone. */
 const NEEDS_EVERY_PICTURE = new Set(["before_after_slider", "compare"]);
+/** Settings the renderer accepts only on a scene; a scene that becomes a stack has to give them up. */
+const SCENE_ONLY_SETTINGS = ["anchor", "scrub", "scrim", "focal"] as const;
 
 const isRecord = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === "object" && !Array.isArray(value);
 
@@ -118,45 +120,83 @@ function withoutMissingRefs(value: unknown, missing: ReadonlySet<string>): unkno
   return out;
 }
 
+/** A block that lost its backdrop or pinned picture keeps all of its copy as a plain stack. */
+function asStack(node: Node): Node {
+  const stack: Node = { ...node, type: "stack" };
+  for (const key of SCENE_ONLY_SETTINGS) delete stack[key];
+  return stack;
+}
+
 /**
- * One unsaved picture must not block a whole site: drop media nodes whose
- * reference was never saved, turn a scene that lost its backdrop into a plain
- * stack (same copy, no picture), remove picture-only containers left empty, and
- * drop a before/after pair that lost either side. A picture reference on any
- * other node or nested object (a card image, a list item) is removed from it,
- * so no reference to a missing picture survives however it was written.
+ * What a block becomes once some of its children are gone, so it is still a
+ * block the renderer accepts (the build refuses a repair the renderer would not
+ * show). `survived` says which of its original children are still there, in
+ * order; `next` is the block rebuilt from them. Null removes the block.
+ */
+function reshape(original: Node, next: Node, survived: readonly boolean[]): Node | null {
+  const kids = next.children ?? [];
+  switch (original.type) {
+    case "scene":
+    case "sticky_split_story":
+      // Both start with their picture; without it they are plain copy.
+      return survived[0] ? next : asStack(next);
+    case "scroll_chapters":
+      // Every chapter is a scene. One that became a stack takes the chapters with it.
+      return kids.length >= MIN_CHAPTERS && kids.every(kid => kid.type === "scene") ? next : asStack(next);
+    case "parallax_layers":
+      // The back layer carries the scene, and two layers are the least that drift.
+      return survived[0] && kids.length >= 2 ? next : null;
+    case "lens_magnifier":
+      return kids.length === 1 ? next : null;
+    case "toggle":
+      return kids.length === 2 ? next : null;
+    case "gallery":
+    case "spin_viewer":
+    case "marquee":
+    case "tabs":
+    case "accordion":
+      return kids.length ? next : null;
+    default:
+      return next;
+  }
+}
+
+type Repaired = { node: Node | null; touched: boolean };
+
+function repairNode(node: Node, missing: ReadonlySet<string>): Repaired {
+  if (node.type === "media" && typeof node.mediaRef === "string" && missing.has(node.mediaRef)) return { node: null, touched: true };
+  if (NEEDS_EVERY_PICTURE.has(String(node.type)) && refsWithin(node).some(ref => missing.has(ref))) return { node: null, touched: true };
+  // A picture reference outside the children (a before/after side, a list item,
+  // a card image) is taken off its owner; the owner keeps its words.
+  const { children: kids, ...rest } = node;
+  const ownTouched = refsWithin(rest).some(ref => missing.has(ref));
+  const cleaned = withoutMissingRefs(rest, missing) as Node;
+  if (!Array.isArray(kids)) return { node: kids === undefined ? cleaned : { ...cleaned, children: kids }, touched: ownTouched };
+  const results = kids.map(kid => repairNode(kid, missing));
+  const next: Node = { ...cleaned, children: results.flatMap(result => (result.node ? [result.node] : [])) };
+  const childTouched = results.some(result => result.touched);
+  const touched = ownTouched || childTouched;
+  // Only a block that lost something inside is reshaped; the rest stay as authored.
+  return { node: childTouched ? reshape(node, next, results.map(result => result.node !== null)) : next, touched };
+}
+
+/**
+ * One unsaved picture must not block a whole site. Media nodes whose reference
+ * was never saved are dropped, and so is a before/after pair that lost either
+ * side. A picture reference on any other node or nested object (a card image, a
+ * list item) is removed from it, so no reference to a missing picture survives
+ * however it was written. A block that depended on the lost picture is reshaped
+ * so the section still renders: a scene or sticky story without its picture is a
+ * plain stack with the same copy, scroll chapters with a pictureless chapter
+ * become a stack of chapters, and a loupe, parallax, gallery, spin viewer, row of
+ * logos, tab group or toggle left without what it needs is removed.
  * Returns null when nothing referenced a missing picture.
  */
 export function dropMissingPictures(settings: unknown, missing: ReadonlySet<string>): Record<string, unknown> | null {
   const base = settings && typeof settings === "object" && !Array.isArray(settings) ? (settings as Record<string, unknown>) : null;
   const root = base?.["composition"] as { root?: Node } | undefined;
   if (!root?.root) return null;
-  let changed = false;
-  const fix = (node: Node): Node | null => {
-    if (node.type === "media" && typeof node.mediaRef === "string" && missing.has(node.mediaRef)) {
-      changed = true;
-      return null;
-    }
-    if (NEEDS_EVERY_PICTURE.has(String(node.type)) && refsWithin(node).some(ref => missing.has(ref))) {
-      changed = true;
-      return null;
-    }
-    // A picture reference outside the children (a before/after side, a list item,
-    // a card image) is taken off its owner; the owner keeps its words.
-    const { children: kids, ...rest } = node;
-    if (refsWithin(rest).some(ref => missing.has(ref))) changed = true;
-    const cleaned = withoutMissingRefs(rest, missing) as Node;
-    if (!Array.isArray(kids)) return kids === undefined ? cleaned : { ...cleaned, children: kids };
-    const before = kids.length;
-    const children = kids.map(fix).filter((child): child is Node => child !== null);
-    const next: Node = { ...cleaned, children };
-    if (children.length !== before) {
-      if (node.type === "scene" && children[0]?.type !== "media") next.type = "stack";
-      if (PICTURE_ONLY.has(String(node.type)) && !children.some(c => c.type === "media")) return null;
-    }
-    return next;
-  };
-  const fixedRoot = fix(root.root);
-  if (!changed) return null;
-  return { ...base, composition: { ...root, root: fixedRoot ?? { type: "stack", children: [] } } };
+  const repaired = repairNode(root.root, missing);
+  if (!repaired.touched) return null;
+  return { ...base, composition: { ...root, root: repaired.node ?? { type: "stack", children: [] } } };
 }
