@@ -343,3 +343,25 @@ Owner approved porting two ideas (audit of the uploaded Next.js project; auto pa
 - [ ] Signup brief carry-through audit (homepage → builder)
 - [ ] Completeness + craft score gate (≥8) with one improvement round
 - [ ] Approved paid test builds for 2–3 business types (needs owner approval)
+
+## Primitive inventory (2026-10-28)
+Counted from the code, not from audits.
+- **Composition primitives (30):** stack, grid, row, text, heading, media, button, link, card, list, divider, spacer, icon, tabs, toggle, accordion, compare, marquee, gallery, quote, widget, before_after_slider (slider or `revealMode: "brush"`), faq_accordion, tab_group, mobile_sticky_bar, scene, scroll_chapters, offer_card, spin_viewer, collection_row.
+- **Working widgets (7):** booking_form, quote_calculator, enquiry_form, contact_details, direct_contact, service_menu, review_wall.
+- **Custom blocks (15):** calculator, quiz, comparison, checklist, steps, tabs, metrics, accordion, timeline, filter, eligibility, booking, gauge (static progress strip), selector (chips + readout, owner figures only), freeform (validated free-form tree).
+- **Home-page gate:** `design-quality.ts` flags `page_missing_interactive` when the home page has none of the INTERACTIVE_PRIMITIVES. Custom blocks do not count towards it.
+- **Claimed gaps that already exist:** `interactive_reveal` = brush mode; `gauge_selector` = `selector`; `treatment_timeline` = custom `timeline`; reservation picker = custom `booking` (services × times, no invented availability); menu drawer = `service_menu` + custom `filter`; provider cards = `card` composition; video backdrop = `scene` media.
+- **Real gaps, none buildable without owner data or third parties:** service-area map (needs a map provider, privacy review), verified-badge strip (needs owner-supplied credentials, never invented), live availability (needs a calendar connection).
+- **Unproven:** which primitives Sol actually chooses per trade. Needs one live build.
+
+## Lens, pinned story, review filter (2026-10-28)
+- [x] `lens_magnifier`: loupe over one real photo (mediaRef only; generated/stock shows nothing); hover, arrow keys, "Magnify on touch" switch
+- [x] `sticky_split_story`: pinned picture beside 2-6 scrolling phases; sticky on wide screens only
+- [x] Review wall rating filter (All / 5 stars / 4 stars & up), only when it changes what is shown
+- [ ] `model_3d_viewer`: not built. Owners have no way to upload a .glb (media is pictures only) and no business has supplied one; build the upload path first. three/R3F are already dependencies (admin AI City only).
+- Not built on purpose: live booking ticker (invented social proof), soundboard, thermal overlay (invented findings), gravity badges.
+- [x] `service_tier_fader`: slider cross-fading 2-4 offer cards (prices only from the Services tool); every package listed without JavaScript
+- [x] `selector` gains `display: "dial"` (round gauge instead of a bar)
+- [x] `scene` `scrub: true`: a video backdrop's playhead follows the scroll while the scene stays pinned (~3 screens); never plays, no sound; first frame without JS or for reduced motion; not allowed inside scroll_chapters. Replaces the frame-sequence idea: owners upload one short video, no frames needed.
+- [x] `parallax_layers`: 2-4 stacked pictures drifting at different speeds on scroll (CSS scroll timeline on the container; still for reduced motion or unsupported browsers). Browser check caught that `overflow:hidden` made the layer its own scroller; the container now uses `overflow:clip`.
+- Seen in reference videos and not built: abstract WebGL particle scenes (galaxy, helix, mesh blob). Pure atmosphere with no business content, a poor fit for local trades; revisit for tech/agency customers via the existing three/R3F dependency.

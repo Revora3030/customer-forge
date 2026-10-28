@@ -8,7 +8,8 @@ import { premiumSurface } from "@/lib/site-theme";
 import { clampSplit, splitForKey, splitForPointer } from "@/lib/builder/compare-slider";
 import { brushRadius, coverRect, coveragePercent, isRevealDone, newGrid, paintAt, strokePoints, type RevealGrid } from "@/lib/builder/reveal-brush";
 import { DEFAULT_OFFER_ANCHOR, DEFAULT_SCENE_ANCHOR, sceneScrim, type SceneAnchor } from "@/lib/builder/cinematic-primitives";
-import { CollectionRow, SceneVideo, ScrollChapters, SpinViewer, type SpinFrame } from "@/components/site/CinematicBlocks";
+import { LensMagnifier, StickySplitStory, TierFader } from "@/components/site/MasterBlocks";
+import { CollectionRow, SceneVideo, ScrubStage, ScrollChapters, SpinViewer, type SpinFrame } from "@/components/site/CinematicBlocks";
 import { CINEMATIC_CSS } from "@/components/site/cinematic-css";
 
 /**
@@ -509,6 +510,40 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
       const pairs = children.map((child, i) => ({ chapter: kids[i], label: sceneLabel(child) || `Chapter ${i + 1}` })).filter((pair) => pair.chapter != null);
       return pairs.length ? <ScrollChapters key={key} props={props} chapters={pairs.map((pair) => pair.chapter)} labels={pairs.map((pair) => pair.label)} /> : null;
     }
+    case "lens_magnifier": {
+      const photo = children[0];
+      const resolved = photo?.mediaRef ? ctx.media(photo.mediaRef) : null;
+      // A magnifier implies real, fine detail: generated or stock pictures show nothing.
+      if (!photo || isGeneratedMedia(resolved)) return null;
+      const source = mediaUrl(resolved);
+      if (!source) return null;
+      return <LensMagnifier key={key} props={props} src={source} alt={photo.alt ?? mediaVisual(resolved)?.alt ?? ""} prompt={node.text?.trim().slice(0, 60) || "Inspect the detail"} />;
+    }
+    case "sticky_split_story": {
+      const phases = kids.slice(1).filter((kid) => kid != null);
+      return kids[0] && phases.length ? <StickySplitStory key={key} props={props} picture={kids[0]} phases={phases} /> : null;
+    }
+    case "parallax_layers": {
+      // Atmosphere, like a scene backdrop: layers are never presented as proof of work.
+      const layers = children.flatMap((child, i) => {
+        const resolved = child.mediaRef ? ctx.media(child.mediaRef) : null;
+        const src = child.src ? resolveImageSource(child.src) : mediaUrl(resolved);
+        return src ? [{ src, alt: child.alt ?? mediaVisual(resolved)?.alt ?? "", depth: i }] : [];
+      });
+      if (layers.length < 2) return null;
+      ctx.counter.sawMedia = true;
+      return (
+        <div key={key} {...props} className={`${props.className ?? ""} rv-px`.trim()}>
+          {layers.map((layer) => (
+            <img key={layer.depth} className="rv-px-layer" data-depth={layer.depth} src={layer.src} alt={layer.depth === 0 ? layer.alt : ""} {...(layer.depth === 0 ? {} : { "aria-hidden": true })} loading="lazy" decoding="async" />
+          ))}
+        </div>
+      );
+    }
+    case "service_tier_fader": {
+      const pairs = children.map((child, i) => ({ card: kids[i], label: child.text?.trim() || (child.service && ctx.offer ? ctx.offer(child.service)?.name : "") || `Option ${i + 1}` })).filter((pair) => pair.card != null);
+      return pairs.length > 1 ? <TierFader key={key} props={props} label={node.text?.trim() || "Choose your package"} labels={pairs.map((pair) => pair.label)} cards={pairs.map((pair) => pair.card)} /> : null;
+    }
     case "collection_row": {
       const items = kids.filter((kid) => kid != null);
       return items.length ? <CollectionRow key={key} props={props} label={node.text?.trim() || "Collection"} items={items} /> : null;
@@ -585,7 +620,8 @@ function renderScene(node: CompositionNode, ctx: Ctx, key: string, props: NodePr
   const eager = first && Boolean(ctx.eagerFirstMedia);
   const alt = backdrop?.alt ?? visual?.alt ?? "";
   const objectPosition = node.focal ?? visual?.object_position ?? visual?.focal_point;
-  const media = !source ? null : VIDEO_SOURCE.test(source) ? (
+  const scrubbed = Boolean(node.scrub && source && VIDEO_SOURCE.test(source));
+  const media = !source ? null : scrubbed ? null : VIDEO_SOURCE.test(source) ? (
     <SceneVideo src={source} alt={alt} eager={eager} />
   ) : (
     <img className="rv-scene-media" src={source} alt={alt} loading={eager ? "eager" : "lazy"} decoding="async" {...(eager ? { fetchPriority: "high" as const } : {})} style={objectPosition ? { objectPosition } : undefined} />
@@ -600,10 +636,10 @@ function renderScene(node: CompositionNode, ctx: Ctx, key: string, props: NodePr
       offers.set(at, [...(offers.get(at) ?? []), rendered]);
     } else copy.push(rendered);
   });
-  if (!media && !copy.length) return null;
-  return (
+  if (!media && !scrubbed && !copy.length) return null;
+  const build = (video: ReactNode) => (
     <div key={key} {...props} className={`${props.className ?? ""} rv-scene`.trim()} data-anchor={anchor} data-rv-scene="" style={{ ...props.style, ...(ink ? { color: ink } : {}) }}>
-      {media}
+      {video ?? media}
       {scrimLayer}
       <div className="rv-scene-inner" style={{ alignContent: ANCHOR_ROW[row], justifyItems: ANCHOR_COLUMN[column], textAlign: column === "center" ? "center" : column === "right" ? "right" : "left" }}>
         <div className="rv-scene-slot" style={{ alignItems: column === "center" ? "center" : column === "right" ? "flex-end" : "flex-start" }}>{copy}</div>
@@ -613,6 +649,7 @@ function renderScene(node: CompositionNode, ctx: Ctx, key: string, props: NodePr
       </div>
     </div>
   );
+  return scrubbed && source ? <ScrubStage key={key} src={source} alt={alt} render={build} /> : build(null);
 }
 
 /**
