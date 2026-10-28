@@ -380,7 +380,7 @@ async function buildPhase(
   const { findProspects, provisionProspectDemo } = await import("@/lib/jarvis-demo-site.server");
   const { isDoNotContact } = await import("@/lib/prospect-outreach.server");
   const { prospectDemoInput } = await import("@/lib/prospect-finder");
-  const { enrichProspectEmail } = await import("@/lib/prospect-enrichment.server");
+  const { enrichProspectEmail, verifyProspectEmail } = await import("@/lib/prospect-enrichment.server");
   const seen = await demoFingerprints(db);
   let publicEmailLookups = 0;
   let budgetSpent = false;
@@ -441,7 +441,27 @@ async function buildPhase(
       }
       // A rejected address (role mailbox, no MX, do-not-contact) is not kept on the profile.
       const listedEmail = (prospect as { email?: string | null }).email ?? null; // OpenStreetMap listings can publish one
-      const publicEmail = enrichment?.email && enrichment.status !== "rejected" ? enrichment.email : listedEmail;
+      let publicEmail = enrichment?.email && enrichment.status !== "rejected" ? enrichment.email : listedEmail;
+      // A directory tag is evidence of publication, not proof of deliverability.
+      // Verify the exact selected address, never reuse another address's result.
+      if (publicEmail && enrichment?.email !== publicEmail.trim().toLowerCase()) {
+        const email = publicEmail.trim().toLowerCase();
+        const check = await verifyProspectEmail(db, email, { now });
+        enrichment = {
+          ...check,
+          email,
+          source: "public_listing",
+          sourceUrl: prospect.placeId.startsWith("osm:")
+            ? `https://www.openstreetmap.org/${prospect.placeId.slice(4).replace(":", "/")}`
+            : prospect.mapsUri,
+          checkedAt: now().toISOString(),
+        };
+        publicEmail = check.status === "rejected" ? null : email;
+        if (check.status === "rejected") {
+          skip({ reason: `email_rejected: ${check.reason}`, name: prospect.name, target: query });
+          continue;
+        }
+      }
       // Contact first: outreach is email-only, so a demo with no public email
       // could never be shared. Skip it before spending a build on it.
       // A pitch goes by email only, so pitch-first needs a published address.
