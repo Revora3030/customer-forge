@@ -35,6 +35,8 @@ import { serviceUsage } from "@/lib/service-catalog";
 import { useWorkspace } from "@/lib/use-tenant";
 import { currency, relative } from "@/lib/format";
 import { QueryErrorNotice } from "@/components/app/QueryErrorNotice";
+import { PackageSuggestions } from "@/components/app/PackageSuggestions";
+import { menuNeedsHelp } from "@/lib/service-suggestions";
 
 export const Route = createFileRoute("/_authenticated/app/services")({
   head: () => ({
@@ -227,6 +229,22 @@ function ServicesPage() {
           ))}
         </ul>
       )}
+
+      {orgId && !servicesError && menuNeedsHelp(services ?? []) ? (
+        <PackageSuggestions
+          organizationId={orgId}
+          onUse={(suggestion) =>
+            setEditing({
+              ...blank,
+              name: suggestion.name,
+              description: suggestion.description,
+              category: suggestion.category,
+              // The owner sets their own time; a suggestion never carries one.
+              duration_minutes: "",
+            })
+          }
+        />
+      ) : null}
 
       <Panel className="p-5">
         <SectionHeading eyebrow="Instant estimates" title="Quote requests" />
