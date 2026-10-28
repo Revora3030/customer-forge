@@ -12,7 +12,7 @@ import {
   DAILY_ROUTINE,
   FREE_LISTINGS,
   buildChannelAssets,
-  qrImageUrl,
+  qrDataUrl,
   routineMinutes,
   trackedLink,
 } from "@/lib/distribution";
@@ -115,10 +115,19 @@ function AdminOutreach() {
             )}
             Copy
           </Button>
-          <Button size="sm" variant="outline" asChild>
-            <a href={qrImageUrl(homeLink, 800)} target="_blank" rel="noopener noreferrer">
-              QR image <ExternalLink className="ml-2 size-4" aria-hidden="true" />
-            </a>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() =>
+              void qrDataUrl(homeLink, 800).then((url) => {
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = "revora-qr.png";
+                a.click();
+              })
+            }
+          >
+            QR image <ExternalLink className="ml-2 size-4" aria-hidden="true" />
           </Button>
         </div>
         <p className="mt-3 text-[12px] text-muted-foreground">

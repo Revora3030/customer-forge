@@ -130,6 +130,8 @@ export const submitAssessment = createServerFn({ method: "POST" })
       amount_cents: Math.min(result.missedRevenueMonthly, 2_000_000) * 100,
       metadata: {
         source: data.source,
+        // A modelled scenario from the visitor's own answers, not booked or collected revenue.
+        amount_kind: "scenario_value",
         business: data.answers.businessName,
         website: data.websiteUrl ?? "",
         score: result.score,
