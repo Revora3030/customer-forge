@@ -211,7 +211,12 @@ async function readAnthropicStream(stream: ReadableStream<Uint8Array>) {
  * that still think (owner wants Lovable-like speed, 2026-10-22).
  */
 function anthropicEffort(model: string) {
-  return /claude-(opus|sonnet|fable)/.test(model) ? { output_config: { effort: "low" } } : {};
+  if (!/claude-(opus|sonnet|fable)/.test(model)) return {};
+  // Fable is the whole-site reviewer, where depth matters more than speed. It
+  // stays at low until the owner measures the latency and sets AI_FABLE_EFFORT.
+  const requested = /claude-fable/.test(model) ? process.env["AI_FABLE_EFFORT"]?.trim().toLowerCase() : undefined;
+  const effort = requested === "medium" || requested === "high" ? requested : "low";
+  return { output_config: { effort } };
 }
 
 /** The Messages API takes system prompts as a top-level field, not a message. */

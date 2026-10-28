@@ -105,6 +105,27 @@ describe("lovable provider registration", () => {
 });
 
 describe("lovable anthropic messages wire format", () => {
+  const ask = async (model: string) => {
+    const calls = stubGateway(200, { content: [{ type: "text", text: "ok" }], stop_reason: "end_turn", usage: { input_tokens: 1, output_tokens: 1 } });
+    await lovableAdapter.chat({ apiKey: "test-lovable", model, messages: [{ role: "user", content: "hi" }], json: false, maxOutputTokens: 64, signal: new AbortController().signal });
+    return (calls[0]!.body["output_config"] as { effort: string }).effort;
+  };
+
+  it("asks every Claude model for low effort by default", async () => {
+    expect(await ask("anthropic/claude-fable-5-1")).toBe("low");
+    expect(await ask("anthropic/claude-sonnet-5")).toBe("low");
+  });
+
+  it("lets AI_FABLE_EFFORT raise Fable only, and ignores unknown values", async () => {
+    vi.stubEnv("AI_FABLE_EFFORT", "high");
+    expect(await ask("anthropic/claude-fable-5-1")).toBe("high");
+    expect(await ask("anthropic/claude-sonnet-5")).toBe("low");
+    expect(await ask("anthropic/claude-opus-5-5")).toBe("low");
+    vi.stubEnv("AI_FABLE_EFFORT", "ultra");
+    expect(await ask("anthropic/claude-fable-5-1")).toBe("low");
+    vi.unstubAllEnvs();
+  });
+
   it("calls /v1/messages with a top-level system prompt and Anthropic usage", async () => {
     const calls = stubGateway(200, {
       content: [{ type: "text", text: "claude answered" }],
