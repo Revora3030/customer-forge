@@ -684,6 +684,24 @@ describe("reply polling and follow-up", () => {
     expect(approved).toMatchObject({ ok: false, reason: "do_not_contact" });
   });
 
+  it("cancels a waiting automatic follow-up when the prospect answers, and leaves other sends alone", async () => {
+    setGmail();
+    threadMessages = [inbound("in1", "Yes, I like it! What next?")];
+    const { db, tables } = fakeDb(
+      demoSeed({
+        prospect_outreach: [sentOutreach()],
+        prospect_send_queue: [
+          { id: "q1", organization_id: ORG, channel: "email", kind: "follow_up", recipient: "owner@triangle.com", status: "queued", not_before: "2026-10-30T19:00:00Z", attempts: 0 },
+          { id: "q2", organization_id: ORG, channel: "sms", kind: "first_touch", recipient: "+19195550100", status: "queued", not_before: "2026-10-30T19:00:00Z", attempts: 0 },
+        ],
+      }),
+    );
+    await runProspectReplies(db);
+    const queue = tables["prospect_send_queue"]!;
+    expect(queue.find((r) => r["id"] === "q1")).toMatchObject({ status: "cancelled", last_error: "prospect_replied" });
+    expect(queue.find((r) => r["id"] === "q2")).toMatchObject({ status: "queued" });
+  });
+
   it("stops a reply typed below the quoted history even with the AI down", async () => {
     isolateProviderEnvironment();
     onTestFinished(() => {

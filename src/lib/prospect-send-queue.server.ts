@@ -195,13 +195,23 @@ export async function drainSendQueue(
   return summary;
 }
 
-/** Cancels every waiting send to an organization (a STOP reply, a claim). */
-export async function cancelQueuedOutreach(db: SupabaseClient, organizationId: string, reason: string): Promise<void> {
-  await db
+/**
+ * Cancels the waiting sends to an organization (a STOP reply, a claim). With `kind`, only that kind is cancelled:
+ * a prospect who answered still has an automatic follow-up waiting that must not go out as "just checking in".
+ */
+export async function cancelQueuedOutreach(
+  db: SupabaseClient,
+  organizationId: string,
+  reason: string,
+  options: { kind?: "first_touch" | "follow_up" } = {},
+): Promise<void> {
+  let query = db
     .from("prospect_send_queue")
     .update({ status: "cancelled", last_error: reason.slice(0, 200), updated_at: new Date().toISOString() })
     .eq("organization_id", organizationId)
     .eq("status", "queued");
+  if (options.kind) query = query.eq("kind", options.kind);
+  await query;
 }
 
 export type AutopilotSwitches = { enabled: boolean; sendEmail: boolean; sendSms: boolean };

@@ -310,6 +310,12 @@ async function storeNewReplies(
     }
     summary.stored += 1;
     if (stop) summary.stopped += 1;
+    else if (!message.autoSubmitted) {
+      // A real person answered: any automatic follow-up still waiting must not go out after the reply.
+      // (A STOP already cancelled everything; an out-of-office or bounce is not an answer.)
+      const { cancelQueuedOutreach } = await import("@/lib/prospect-send-queue.server");
+      await cancelQueuedOutreach(db, info.organizationId, "prospect_replied", { kind: "follow_up" }).catch(() => undefined);
+    }
   }
   return complete;
 }
