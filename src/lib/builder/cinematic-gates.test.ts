@@ -125,3 +125,29 @@ describe("gate: offer cards and sticky bars never cover a control at 390px (brow
     expect(brief).toContain("sticky: div.rv-cn-mobile-sticky-bar covers button.submit");
   });
 });
+
+describe("gate: a home page is not mostly plain stacks and cards", () => {
+  const sections = (trees: CompositionTree[]) =>
+    trees.map((tree, i) => ({ id: `s${i}`, role: i === 0 ? "hero" : "body", tree, mediaAvailable: i === 0 ? 1 : 0 }));
+  const row = t({ type: "collection_row", text: "Collection", children: [{ type: "offer_card", text: "Detail", children: [{ type: "button", text: "Book", href: "/book" }] }] });
+
+  it("sends back a four-section home page whose later sections are all plain", () => {
+    const audit = auditPageDesign(sections([sceneHero(), plain("A"), plain("B"), plain("C")]), { home: true });
+    const finding = audit["s1"]?.find((f) => f.code === "page_mostly_plain");
+    expect(finding).toBeDefined();
+    expect(needsDesignRepair(audit["s1"]!)).toBe(true);
+  });
+
+  it("passes when most later sections carry a picture, scene or interaction", () => {
+    const audit = auditPageDesign(sections([sceneHero(), row, sceneHero(), plain("C")]), { home: true });
+    expect(Object.values(audit).flat().some((f) => f.code === "page_mostly_plain")).toBe(false);
+  });
+
+  it("asks nothing on other pages, short pages, or when no pictures exist", () => {
+    const trees = [sceneHero(), plain("A"), plain("B"), plain("C")];
+    expect(Object.values(auditPageDesign(sections(trees))).flat().some((f) => f.code === "page_mostly_plain")).toBe(false);
+    expect(Object.values(auditPageDesign(sections(trees.slice(0, 3)), { home: true })).flat().some((f) => f.code === "page_mostly_plain")).toBe(false);
+    const noPictures = trees.map((tree, i) => ({ id: `s${i}`, role: "body", tree, mediaAvailable: 0 }));
+    expect(Object.values(auditPageDesign(noPictures, { home: true })).flat().some((f) => f.code === "page_mostly_plain")).toBe(false);
+  });
+});
