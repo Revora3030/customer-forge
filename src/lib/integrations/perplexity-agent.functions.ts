@@ -18,7 +18,6 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 const askInput = z.object({
   question: z.string().min(1).max(4_000),
   preset: z.enum(["fast", "low", "medium", "high", "xhigh"]).optional(),
-  instructions: z.string().max(2_000).optional(),
 });
 
 export const askPerplexityAgent = createServerFn({ method: "POST" })
@@ -38,7 +37,6 @@ export const askPerplexityAgent = createServerFn({ method: "POST" })
     return runPerplexityAgent({
       input: data.question,
       ...(data.preset ? { preset: data.preset } : {}),
-      ...(data.instructions ? { instructions: data.instructions } : {}),
     });
   });
 

@@ -12,7 +12,7 @@ import {
   MAX_UPLOAD_BYTES,
   MEDIA_BUCKET,
   MEDIA_CATEGORIES,
-  SIGNED_URL_TTL_SECONDS,
+  WORKSPACE_SIGNED_URL_TTL_SECONDS,
   buildObjectPath,
   compressImage,
   humanFileSize,
@@ -77,7 +77,7 @@ export function MediaLibrary({
       if (paths.length) {
         const { data: urls } = await supabase.storage
           .from(MEDIA_BUCKET)
-          .createSignedUrls(paths, SIGNED_URL_TTL_SECONDS);
+          .createSignedUrls(paths, WORKSPACE_SIGNED_URL_TTL_SECONDS);
         for (const entry of urls ?? []) {
           if (entry.path && entry.signedUrl) signed.set(entry.path, entry.signedUrl);
         }
