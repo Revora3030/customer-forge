@@ -92,6 +92,12 @@ export type BuilderToPreviewMessage =
       type: "status";
       text: string | null;
       id?: string | null;
+    }
+  | {
+      /** Scroll a block into view and outline it for a moment ("show me what changed"). */
+      source: typeof PREVIEW_BRIDGE_SOURCE;
+      type: "reveal";
+      id: string;
     };
 
 const ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
@@ -170,6 +176,10 @@ export function readBuilderMessage(data: unknown): BuilderToPreviewMessage | nul
   const record = data as Record<string, unknown>;
   if (record["source"] !== PREVIEW_BRIDGE_SOURCE) return null;
   if (record["type"] === "run-a11y-check") return { source: PREVIEW_BRIDGE_SOURCE, type: "run-a11y-check" };
+  if (record["type"] === "reveal") {
+    const id = typeof record["id"] === "string" ? record["id"] : "";
+    return ID_PATTERN.test(id) ? { source: PREVIEW_BRIDGE_SOURCE, type: "reveal", id } : null;
+  }
   if (record["type"] === "status") {
     const id = typeof record["id"] === "string" && ID_PATTERN.test(record["id"]) ? record["id"] : null;
     return { source: PREVIEW_BRIDGE_SOURCE, type: "status", text: text(record["text"], 90), id };

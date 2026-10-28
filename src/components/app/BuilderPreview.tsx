@@ -56,6 +56,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { createPortal } from "react-dom";
 import { toast } from "@/lib/ui/notify";
 import { pageNavLabel, type ContentPage } from "@/lib/website-content";
+import { pageOfSection } from "@/lib/builder/step-target";
 import { cn } from "@/lib/utils";
 import { LiveCanvasSkeleton } from "@/components/app/LiveCanvasSkeleton";
 
@@ -97,6 +98,8 @@ type BuilderPreviewProps = {
   livePublished?: boolean;
   /** The page open in the frame, so the chat can answer about what the owner is looking at. */
   onPageChange?: (page: { id: string; title: string; slug: string } | null) => void;
+  /** Scroll a section into view and outline it ("Show in preview" from the chat). A new nonce asks again. */
+  reveal?: { id: string; nonce: number } | null;
 };
 
 /**
@@ -125,9 +128,12 @@ function BuilderPreviewFrame({
   organizationId = null,
   livePublished = true,
   onPageChange,
+  reveal = null,
 }: Omit<BuilderPreviewProps, "firstRun">) {
   const ordered = useMemo(() => [...pages].sort((a, b) => a.sort_order - b.sort_order), [pages]);
   const [pageId, setPageId] = useState<string | null>(null);
+  /** A reveal waiting for its page to load (the frame says "ready" when it can answer). */
+  const pendingReveal = useRef<string | null>(null);
   const [viewport, setViewport] = useState<BuilderViewportKey>("laptop");
   // On a phone, open the preview in phone size: it's what the owner is
   // holding, and a full desktop render inside a phone is heavy.
@@ -289,6 +295,19 @@ function BuilderPreviewFrame({
     tell({ type: "status", text: liveStatus ?? null, id: selectedId });
   }, [liveStatus, selectedId, tell]);
 
+  // "Show in preview": open the page the section is on (waiting for it to load), then scroll to it.
+  useEffect(() => {
+    if (!reveal) return;
+    const ownerId = pageOfSection(ordered, reveal.id);
+    if (ownerId && ownerId !== page?.id) {
+      pendingReveal.current = reveal.id;
+      setPageId(ownerId);
+      return;
+    }
+    tell({ type: "reveal", id: reveal.id });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- a new request is a new nonce, not a new page or tree
+  }, [reveal?.nonce]);
+
   // Another tab (or the canvas editor) changed this draft: reload this preview.
   // Pings this preview sent itself (inline saves) are skipped: it already shows
   // the new words, and a reload would discard an edit in progress.
@@ -340,6 +359,12 @@ function BuilderPreviewFrame({
         window.setTimeout(runA11y, 900);
         syncSelectMode(selectMode);
         tell({ type: "status", text: liveStatus ?? null, id: selectedId });
+        if (pendingReveal.current) {
+          const id = pendingReveal.current;
+          pendingReveal.current = null;
+          // The page has just rendered; give its first paint a moment before scrolling.
+          window.setTimeout(() => tell({ type: "reveal", id }), 400);
+        }
         return;
       }
       if (message.type === "inline-edit") {

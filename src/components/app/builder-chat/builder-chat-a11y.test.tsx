@@ -227,3 +227,29 @@ describe("fresh rebuild from the chat", () => {
     expect(source).toMatch(/onFreshRebuild && attachments\.length === 0 && wantsFreshRebuild\(text\)[\s\S]*setRebuildAsk[\s\S]*requests\.queue\(scoped\(text\), attachments\)/);
   });
 });
+
+describe("show in preview", () => {
+  it("offers a Show button only for the changes that have a place in the preview", () => {
+    const html = renderToStaticMarkup(
+      <ApplyResultCard applied={2} titles={["Warmer headline", "Set SEO title"]} reveals={[() => undefined, null]} />,
+    );
+    expect(html).toContain('aria-label="Show in preview: Warmer headline"');
+    expect(html).not.toContain('aria-label="Show in preview: Set SEO title"');
+    expect(renderToStaticMarkup(<ApplyResultCard applied={1} titles={["Warmer headline"]} />)).not.toContain("Show in preview");
+  });
+
+  it("offers it on each planned change that points at a section", () => {
+    const S = "11111111-1111-4111-8111-111111111111";
+    const planned: ChatTask = {
+      id: "t9", instruction: "Warm the hero", state: "waiting_for_approval", questions: [],
+      steps: [
+        { key: "a", title: "Warmer headline", where: "Home → Hero", destructive: false, included: true, target: { sectionId: S } },
+        { key: "b", title: "Set SEO title", where: "Home", destructive: false, included: true },
+      ],
+    };
+    const html = render([planned], { onReveal: () => undefined });
+    expect(html).toContain('aria-label="Show in preview: Warmer headline"');
+    expect(html).not.toContain('aria-label="Show in preview: Set SEO title"');
+    expect(render([planned])).not.toContain("Show in preview");
+  });
+});
