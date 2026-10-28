@@ -6,7 +6,7 @@ export const MARKETING_SEARCH = {
   home: {
     path: "/",
     title: "AI Website, Booking & CRM That Wins Customers | Revora",
-    description: `AI-built website with lead capture, online booking, CRM and automated follow-up — one system that turns visitors into paying customers. ${usd(GROWTH_SYSTEM.setupPrice)} setup, first month free, then ${usd(GROWTH_SYSTEM.monthlyPrice)}/month.`,
+    description: `AI-built website with lead capture, booking, CRM and follow-up — one system that turns visitors into customers. ${usd(GROWTH_SYSTEM.setupPrice)} setup, first month free, then ${usd(GROWTH_SYSTEM.monthlyPrice)}/month.`,
   },
   states: {
     path: "/states",
