@@ -178,4 +178,17 @@ describe("first-build picture pipeline", () => {
     expect(result.assets).toHaveLength(0);
     expect(result.evidence.skipped[0]?.reason).toMatch(/failed quality review \(garbled badge on the grille\)/);
   });
+
+  it("starts no pictures for a build that was stopped", async () => {
+    const { withAiSpendScope } = await import("@/lib/ai/spend-scope.server");
+    const stopped = new AbortController();
+    stopped.abort();
+    const result = await withAiSpendScope({ freeOnly: false, reason: null, signal: stopped.signal }, () =>
+      generateFirstBuildImages(fakeDb(), input(4)),
+    );
+    expect(state.generated).toBe(0);
+    expect(state.reviews).toBe(0);
+    expect(result.assets).toHaveLength(0);
+    expect(result.evidence.skipped.every((entry) => entry.reason === "the build was stopped")).toBe(true);
+  });
 });

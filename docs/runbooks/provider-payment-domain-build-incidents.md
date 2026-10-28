@@ -58,7 +58,11 @@ than 60s ago; repeated `[infrastructure]` tags.
 3. Read the failure kind from the `[kind]` prefix on `error_message`
    (`src/lib/builder/build-failure.ts`): `intake_validation` needs the owner to add details;
    `provider` follows section 1; `image` keeps pages and allows image-only retry; `infrastructure`
-   self-recovers.
+   self-recovers; `budget` means one build used its spending ceiling (`BUILD_SPEND_CAP_USD`,
+   default $6, about three healthy builds) and was stopped rather than retried: read
+   `luna_usage_events` for the workspace since the job's `created_at` before raising the ceiling.
+   A running build can be stopped from the builder chat (Stop build); that also aborts its
+   in-flight AI calls within about 30 seconds.
 4. If `LOVABLE_CRON_SECRET` is missing, builds only progress while the owner's browser is open. Set
    it in the hosting environment.
 

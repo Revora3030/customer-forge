@@ -21,6 +21,7 @@ export const BUILD_FAILURE_KINDS = [
   "publish",
   "validation",
   "infrastructure",
+  "budget",
 ] as const;
 
 export type BuildFailureKind = (typeof BUILD_FAILURE_KINDS)[number];
@@ -43,10 +44,13 @@ const OWNER_MESSAGES: Record<BuildFailureKind, string> = {
   publish: "Publishing didn't complete. Your live site is unchanged.",
   validation: "The draft didn't pass Revora's quality checks (links, forms, mobile or SEO). It isn't marked ready.",
   infrastructure: "The build worker was interrupted. Revora resumes it automatically.",
+  budget: "This build used its spending limit before it finished, so Revora stopped it to protect your credits. Nothing was published. You can start it again when you are ready.",
 };
 
 /** Ordered rules: the first match wins. Matched against the error text only. */
 const RULES: { kind: BuildFailureKind; test: RegExp }[] = [
+  // The worker refused to spend more on this build (see build-spend.ts). Never retried.
+  { kind: "budget", test: /reached its spending limit/i },
   // A design step that came back empty because the AI providers were slow or
   // busy is a provider problem, even when its message names pictures or fonts.
   // Without this rule it read "pictures" and told the owner their pictures
@@ -75,7 +79,7 @@ export function classifyBuildFailure(error: unknown, status = 0): BuildFailure {
   let kind: BuildFailureKind;
   if (status === 429 || status === 402 || status === 403 || (status >= 500 && status < 600)) kind = "provider";
   else kind = RULES.find((rule) => rule.test.test(message))?.kind ?? "infrastructure";
-  const retryable = kind !== "intake_validation" && !(kind === "provider" && (status === 402 || status === 403));
+  const retryable = kind !== "intake_validation" && kind !== "budget" && !(kind === "provider" && (status === 402 || status === 403));
   return { kind, retryable, ownerMessage: OWNER_MESSAGES[kind] };
 }
 
@@ -105,6 +109,7 @@ export const FAILURE_KIND_LABELS: Record<BuildFailureKind | "cancelled", string>
   publish: "Publish didn't complete",
   validation: "Quality checks failed",
   infrastructure: "Build worker interrupted",
+  budget: "Spending limit reached",
   cancelled: "Cancelled by you",
 };
 

@@ -135,3 +135,29 @@ export function stopWaitingMessage(reason: StopWaiting): string {
       return "Your build stopped responding, so I've stopped waiting on it here. Nothing was published — check the preview in a minute, or start the build again.";
   }
 }
+
+/** A failed build blocks an automatic restart for this long. */
+export const AUTO_BUILD_COOLDOWN_AFTER_FAILURE_MS = 24 * 60 * 60_000;
+
+/**
+ * Whether the builder must NOT start a build on its own. A build that is queued
+ * or running is already in hand; one the owner stopped stays stopped; and one
+ * that failed in the last day is not silently re-queued each time the page is
+ * opened, which is how an empty workspace with a failing build would keep
+ * spending (a full build is a dollar or more) without anyone asking. The
+ * server has already tried the build up to three times, and the owner can
+ * start it again by hand with one message. An old failure (a new day, a
+ * recovered provider) allows one fresh automatic start.
+ */
+export function blocksAutoBuild(
+  job: (JobRetryRow & { completed_at?: string | null }) | null | undefined,
+  now = Date.now(),
+): boolean {
+  const status = job?.status ?? "";
+  if (status === "queued" || status === "processing" || status === "cancelled") return true;
+  if (status !== "failed") return false;
+  const ended = Date.parse(job?.completed_at ?? job?.updated_at ?? job?.created_at ?? "");
+  // A failure with no usable time is treated as recent: never guess toward spending.
+  if (!Number.isFinite(ended)) return true;
+  return now - ended < AUTO_BUILD_COOLDOWN_AFTER_FAILURE_MS;
+}

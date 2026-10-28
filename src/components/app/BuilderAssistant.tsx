@@ -105,6 +105,8 @@ export function BuilderAssistant({
   onFreshRebuild,
   canFreshRebuild = false,
   rebuildBusy = false,
+  onStopBuild,
+  stoppingBuild = false,
   onClearSelection,
   onOpenHistory,
   onShowPreview,
@@ -140,6 +142,9 @@ export function BuilderAssistant({
   canFreshRebuild?: boolean;
   /** A build is already running, so a rebuild can't start. */
   rebuildBusy?: boolean;
+  /** Stops the running build (managers and above; the server re-checks). Shown on the build's live card. */
+  onStopBuild?: (jobId: string) => void;
+  stoppingBuild?: boolean;
   onClearSelection?: () => void;
   /** Opens History, where the before-and-after comparison lives. */
   onOpenHistory?: () => void;
@@ -539,6 +544,8 @@ export function BuilderAssistant({
                     organizationId={organizationId}
                     onAnswer={setAnswering}
                     {...(onReveal ? { onReveal } : {})}
+                    {...(onStopBuild ? { onStopBuild } : {})}
+                    stoppingBuild={stoppingBuild}
                     {...(onOpenHistory ? { onOpenHistory } : {})}
                     {...(onShowPreview ? { onShowPreview } : {})}
                     onFollowUp={(prompt) => {
@@ -995,6 +1002,8 @@ function TaskBody({
   onOpenHistory,
   onShowPreview,
   onReveal,
+  onStopBuild,
+  stoppingBuild = false,
   onFollowUp,
 }: {
   task: ChatTask;
@@ -1007,6 +1016,8 @@ function TaskBody({
   onOpenHistory?: () => void;
   onShowPreview?: () => void;
   onReveal?: (target: StepTarget) => void;
+  onStopBuild?: (jobId: string) => void;
+  stoppingBuild?: boolean;
   onFollowUp: (prompt: string) => void;
 }) {
   const working = task.state === "queued" || task.state === "planning" || task.state === "building";
@@ -1020,9 +1031,9 @@ function TaskBody({
     <div className="space-y-2">
       {task.waitingOnBuild && working ? (
         // Held behind the first build: show that build's own log, not empty dots.
-        <WorkFeed organizationId={organizationId} />
+        <WorkFeed organizationId={organizationId} {...(onStopBuild ? { onStop: onStopBuild } : {})} stopping={stoppingBuild} />
       ) : task.isBuild && working ? (
-        <WorkFeed organizationId={organizationId} runId={requests.progressRunId(task.id)} />
+        <WorkFeed organizationId={organizationId} runId={requests.progressRunId(task.id)} {...(onStopBuild ? { onStop: onStopBuild } : {})} stopping={stoppingBuild} />
       ) : working && isActive ? (
         <LiveActivity
           organizationId={organizationId}

@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  AUTO_BUILD_COOLDOWN_AFTER_FAILURE_MS,
   QUEUED_PICKUP_TIMEOUT_MS,
   STALLED_LEASE_GRACE_MS,
+  blocksAutoBuild,
   isRetryWait,
   jobIsActive,
   jobLiveness,
@@ -103,5 +105,26 @@ describe("when the chat stops waiting on a build", () => {
     expect(stopWaitingMessage("retry_overdue")).not.toMatch(/hasn't started/);
     expect(stopWaitingMessage("retry_overdue")).toMatch(/try again/);
     for (const reason of ["never_started", "retry_overdue", "stalled"] as const) expect(stopWaitingMessage(reason)).toMatch(/Nothing was published/);
+  });
+});
+
+describe("when the builder may start a build on its own", () => {
+  it("never restarts one that is in hand or that the owner stopped", () => {
+    for (const status of ["queued", "processing", "cancelled"]) expect(blocksAutoBuild({ status }, NOW), status).toBe(true);
+  });
+
+  it("does not silently re-queue a build that failed recently, however often the page is opened", () => {
+    expect(blocksAutoBuild({ status: "failed", completed_at: iso(-40 * 60_000) }, NOW)).toBe(true);
+    expect(blocksAutoBuild({ status: "failed", completed_at: iso(-AUTO_BUILD_COOLDOWN_AFTER_FAILURE_MS + 60_000) }, NOW)).toBe(true);
+  });
+
+  it("allows one fresh automatic start once the failure is a day old", () => {
+    expect(blocksAutoBuild({ status: "failed", completed_at: iso(-AUTO_BUILD_COOLDOWN_AFTER_FAILURE_MS - 60_000) }, NOW)).toBe(false);
+  });
+
+  it("treats a failure it cannot date as recent, and allows the first-ever build", () => {
+    expect(blocksAutoBuild({ status: "failed" }, NOW)).toBe(true);
+    expect(blocksAutoBuild(null, NOW)).toBe(false);
+    expect(blocksAutoBuild({ status: "completed" }, NOW)).toBe(false);
   });
 });

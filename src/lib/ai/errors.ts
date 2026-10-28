@@ -19,7 +19,9 @@ export type AiErrorCategory =
   | "workspace_cooldown"
   | "provider_unavailable"
   | "bad_response"
-  | "free_unavailable";
+  | "free_unavailable"
+  /** The build that asked was stopped (cancelled or superseded); no more AI work is started for it. */
+  | "cancelled";
 
 /** Categories where sending the same request again can succeed. */
 const RETRYABLE: AiErrorCategory[] = ["rate_limited", "timeout", "provider_unavailable", "workspace_cooldown"];
@@ -107,4 +109,9 @@ export function freeAiUnavailable(detail?: string) {
     category: "free_unavailable",
     detail: detail ?? null,
   });
+}
+
+/** Raised instead of starting AI work for a build that has been stopped. Never retried, never billed. */
+export function buildStopped() {
+  return new RevoraAiError(499, "This build was stopped, so no more AI work was started for it.", { category: "cancelled" });
 }

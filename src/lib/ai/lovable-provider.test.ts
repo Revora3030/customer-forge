@@ -606,3 +606,76 @@ describe("the chain budget leaves the fallback a real attempt", () => {
     expect(thinkerChainBudgetMs(500)).toBeLessThan(300_000);
   });
 });
+
+describe("a stopped build stops spending", () => {
+  const configure = () => {
+    process.env["LOVABLE_API_KEY"] = "test-lovable";
+    process.env["AI_LOVABLE_MODEL_FAST"] = "openai/gpt-6.1-sol,anthropic/claude-sonnet-5";
+    process.env["BUILDER_EXTERNAL_AI_ALLOWED"] = "true";
+    process.env["FREE_AI_ENABLED"] = "false";
+    process.env["FREE_AI_ONLY"] = "false";
+  };
+  const ask = async (scope: { signal: AbortSignal }) => {
+    const { generateText } = await import("@/lib/ai/router.server");
+    const { withAiSpendScope } = await import("@/lib/ai/spend-scope.server");
+    return withAiSpendScope({ freeOnly: false, reason: null, signal: scope.signal }, () =>
+      generateText({ task: "test.stopped", organizationId: null, userId: null }, { role: "fast", messages: [{ role: "user", content: "hello" }] }),
+    );
+  };
+
+  it("never starts a call for a build that was already stopped", async () => {
+    configure();
+    const calls = stubStreamFetch(() => new Response("should not be called", { status: 500 }));
+    const stopped = new AbortController();
+    stopped.abort();
+    await expect(ask(stopped)).rejects.toMatchObject({ category: "cancelled", status: 499 });
+    expect(calls).toHaveLength(0);
+  }, 30_000);
+
+  it("aborts a call in flight and does not move on to the next model", async () => {
+    configure();
+    const aborted: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((_input: unknown, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          aborted.push("started");
+          init?.signal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")), { once: true });
+        }),
+      ),
+    );
+    const owner = new AbortController();
+    const pending = ask(owner);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(aborted).toEqual(["started"]);
+    owner.abort();
+    await expect(pending).rejects.toMatchObject({ category: "cancelled" });
+    // One request was in flight; stopping did not start the fallback model's.
+    expect(aborted).toEqual(["started"]);
+  }, 30_000);
+
+  it("does not bench the provider or count the stop as a failure", async () => {
+    configure();
+    const { degradedProviders } = await import("@/lib/ai/provider-backoff");
+    stubStreamFetch(() => new Response("unused", { status: 500 }));
+    const stopped = new AbortController();
+    stopped.abort();
+    await expect(ask(stopped)).rejects.toMatchObject({ category: "cancelled" });
+    expect(degradedProviders()).toEqual([]);
+  }, 30_000);
+
+  it("keeps the stop signal through a nested spending scope", async () => {
+    const { withAiSpendScope, scopedBuildStopped } = await import("@/lib/ai/spend-scope.server");
+    const owner = new AbortController();
+    const seen = withAiSpendScope({ freeOnly: false, reason: null, signal: owner.signal }, () =>
+      withAiSpendScope({ freeOnly: false, reason: null }, () => {
+        const before = scopedBuildStopped();
+        owner.abort();
+        return [before, scopedBuildStopped()];
+      }),
+    );
+    expect(seen).toEqual([false, true]);
+    // Outside any build there is nothing to stop.
+    expect(scopedBuildStopped()).toBe(false);
+  });
+});

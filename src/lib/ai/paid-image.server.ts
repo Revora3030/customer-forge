@@ -25,7 +25,7 @@
 
 import { providerConfig } from "@/lib/ai/config";
 import { RevoraAiError } from "@/lib/ai/errors";
-import { scopedFreeOnly } from "@/lib/ai/spend-scope.server";
+import { scopedBuildStopped, scopedFreeOnly } from "@/lib/ai/spend-scope.server";
 import { callPinnedPaidImage, paidImageModelReachable } from "@/lib/ai/router.server";
 import {
   DEFAULT_IMAGE_TIER_MODELS,
@@ -57,7 +57,9 @@ export type PaidImageBlockReason =
   | "budget_exhausted"
   | "ledger_unavailable"
   | "invalid_image"
-  | "provider_error";
+  | "provider_error"
+  /** The build that asked was stopped; nothing was reserved or sent. */
+  | "build_stopped";
 
 export type PaidImageResult =
   | {
@@ -255,6 +257,11 @@ export async function generatePaidImage(
   job: PaidImageJob,
   caller: { organizationId: string | null; userId?: string | null },
 ): Promise<PaidImageResult> {
+  // A stopped build reserves nothing and sends nothing: each picture is about
+  // a quarter of a dollar, and the reservation below would otherwise be charged
+  // for a call that never left.
+  if (scopedBuildStopped())
+    return { ok: false, reason: "build_stopped", message: "This build was stopped, so no picture was made." };
   if (!paidImageAllowed())
     return { ok: false, reason: "disabled", message: paidImageStatus().message };
 

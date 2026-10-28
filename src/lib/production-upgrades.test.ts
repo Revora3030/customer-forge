@@ -26,9 +26,9 @@ import {
 import { AI_TEAM, chooseFallback } from "@/lib/ai/team-roles";
 
 describe("build failure classification", () => {
-  it("covers exactly the nine spec failure kinds", () => {
+  it("covers exactly the nine spec failure kinds, plus the spending-limit stop", () => {
     expect([...BUILD_FAILURE_KINDS].sort()).toEqual(
-      ["content", "image", "infrastructure", "intake_validation", "preview", "provider", "publish", "rendering", "validation"].sort(),
+      ["budget", "content", "image", "infrastructure", "intake_validation", "preview", "provider", "publish", "rendering", "validation"].sort(),
     );
   });
 

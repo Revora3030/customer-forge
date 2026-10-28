@@ -30,7 +30,7 @@ import { BuilderWizard } from "@/components/app/BuilderWizard";
 import { BuilderShell } from "@/components/app/BuilderShell";
 import { MissingMenuBanner } from "@/components/app/MissingMenuBanner";
 import { readSiteChrome } from "@/lib/builder/site-chrome";
-import { jobIsActive, stopWaiting, stopWaitingMessage } from "@/lib/builder/job-liveness";
+import { blocksAutoBuild, jobIsActive, stopWaiting, stopWaitingMessage } from "@/lib/builder/job-liveness";
 import { Disclosure, OverlayPanel } from "@/components/app/BuilderTools";
 import { BuilderHistoryProvider } from "@/lib/builder-history.hooks";
 import { GroupTabs } from "@/components/app/BuilderGroups";
@@ -117,6 +117,7 @@ import {
   revoraScore,
 } from "@/lib/site-engine";
 import { useBuildReadiness, useSaveMissingFacts, useScoreFacts } from "@/lib/site-engine.hooks";
+import { useCancelSiteEngine } from "@/lib/site-engine-cancel.hooks";
 import {
   useEnsureFirstBuild,
   useGenerateSectionsFromText,
@@ -277,12 +278,15 @@ function WebsitePage() {
     ? liveStatusLine(progress.latest?.stage ?? (activeTask.state === "building" ? "designing your change" : "planning the change"), selected?.label ?? null)
     : null;
   const firstBuild = useGenerateSectionsFromText(orgId);
+  /** Stops a running build from the chat (managers and above): a build spends credits for as long as it runs. */
+  const cancelBuild = useCancelSiteEngine(orgId);
   const latestJob = useLatestGenerationJob(orgId);
   useEnsureFirstBuild(orgId, {
     jobsLoaded: latestJob.isSuccess,
     // A build the owner cancelled counts too: an open builder must never
-    // restart a build the owner stopped.
-    hasAnyJob: !!latestJob.data && ["queued", "processing", "cancelled"].includes((latestJob.data as { status?: string })?.status ?? ""),
+    // restart a build the owner stopped. So does one that failed in the last
+    // day: it is not silently re-queued (and re-paid) each time the page opens.
+    hasAnyJob: blocksAutoBuild((latestJob.data ?? null) as never),
     pageCount: pages ? (pages as unknown[]).length : undefined,
     canManage: manage,
     ready: !!readiness && readiness.requiredGaps.length === 0,
@@ -698,6 +702,8 @@ function WebsitePage() {
               canFreshRebuild,
               rebuildBusy: freshRebuildActive || jobIsActive(latestJob.data as never) || firstBuild.isPending,
             } : {})}
+            {...(manage ? { onStopBuild: (jobId: string) => cancelBuild.mutate(jobId) } : {})}
+            stoppingBuild={cancelBuild.isPending}
             starterIdeas={starterIdeasFor((org?.industry as string | undefined) ?? null)}
             onClearSelection={() => setSelected(null)}
             onOpenHistory={() => setHistoryOpen(true)}

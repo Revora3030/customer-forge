@@ -13,7 +13,7 @@ import {
   type LunaSkipReason,
 } from "@/lib/ai/luna.server";
 import { paidCollectiveAllowed } from "@/lib/ai/free-only-policy.server";
-import { scopedFreeOnly } from "@/lib/ai/spend-scope.server";
+import { scopedBuildStopped, scopedFreeOnly } from "@/lib/ai/spend-scope.server";
 
 export type HallOfFameAttempt = {
   provider: string;
@@ -106,8 +106,8 @@ async function callPaidThinker(request: {
   if (selection.tier === null)
     return { ok: false, tier: null, wanted, reason: "no_tier_available", detail: "no paid tier configured" };
   const tier = selection.tier;
-  // A cancelled build never reaches a paid provider.
-  if (request.signal?.aborted)
+  // A cancelled build never reaches a paid provider (nothing is reserved either).
+  if (request.signal?.aborted || scopedBuildStopped())
     return { ok: false, tier, wanted, reason: "provider_unavailable", detail: "request cancelled" };
   // Loaded before any reservation, so a router that cannot load fails closed
   // with no spend held.

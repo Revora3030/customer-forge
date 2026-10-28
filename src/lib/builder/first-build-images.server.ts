@@ -16,6 +16,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Json } from "@/integrations/supabase/types";
 import { generateImageBase64, decodeBase64 } from "@/lib/image-studio.server";
 import { generatePaidImageBase64, paidImageStatus } from "@/lib/ai/paid-image.server";
+import { scopedBuildStopped } from "@/lib/ai/spend-scope.server";
 import {
   acceptedForUse,
   inspectPhoto,
@@ -231,7 +232,7 @@ export async function generateFirstBuildImages(
   // retried per shot, which slowed every build and left the free lane to pick
   // up the pieces one failure at a time.
   let paidUsable = paid.allowed;
-  const PAID_STOP = new Set(["disabled", "no_key", "model_unavailable", "budget_exhausted", "ledger_unavailable"]);
+  const PAID_STOP = new Set(["disabled", "no_key", "model_unavailable", "budget_exhausted", "ledger_unavailable", "build_stopped"]);
   // Quality first. Sunburst owns hero/editorial frames and Flare owns supporting
   // imagery when enabled and inside the durable budget gate. The standard lane
   // is capability-aware failover, not the default merely because it is free.
@@ -270,6 +271,11 @@ export async function generateFirstBuildImages(
   const placementOf = (shot: PlannedShot) => `${shot.slot} ${shot.placement.join(" ")}`.trim();
 
   async function makeShot(shot: PlannedShot, index: number): Promise<FirstBuildImageAsset | null> {
+    // A stopped build starts no further pictures (each is a paid call).
+    if (scopedBuildStopped()) {
+      skipped.push({ slot: shot.slot, label: shot.label, reason: "the build was stopped" });
+      return null;
+    }
     // Out of time: keep the build moving. The hero (index 0) is always tried.
     if (index > 0 && Date.now() >= deadline) {
       skipped.push({ slot: shot.slot, label: shot.label, reason: "picture time budget reached; left for the picture repair" });
