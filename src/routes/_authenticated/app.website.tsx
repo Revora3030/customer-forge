@@ -40,6 +40,7 @@ import { useBuilderRequests } from "@/lib/builder-requests.hooks";
 import { actionPrompt, selectionPrefix, type PageContext } from "@/lib/builder/preview-bridge";
 import { starterIdeasFor } from "@/lib/builder/industry-playbook";
 import { isBareRebuildCommand } from "@/lib/builder/rebuild-intent";
+import { sectionOfTarget } from "@/lib/builder/step-target";
 import { liveStatusLine } from "@/lib/builder/live-status";
 import { useBuildProgress } from "@/lib/builder/progress.hooks";
 import { ConversionOptimizer } from "@/components/app/ConversionOptimizer";
@@ -255,6 +256,8 @@ function WebsitePage() {
   const [selected, setSelected] = useState<PreviewSelection | null>(null);
   /** The page open in the preview, so chat requests know what the owner is looking at. */
   const [viewingPage, setViewingPage] = useState<PageContext | null>(null);
+  /** "Show in preview" from the chat: the section to scroll to and outline. */
+  const [reveal, setReveal] = useState<{ id: string; nonce: number } | null>(null);
 
   /** One request engine for the whole workspace. */
   const superAdmin = useQuery({
@@ -691,6 +694,13 @@ function WebsitePage() {
             }
             selection={selected}
             pageContext={viewingPage}
+            onReveal={(target) => {
+              const id = sectionOfTarget(target, shownPages as never);
+              if (!id) return;
+              setReveal({ id, nonce: Date.now() });
+              // On a phone the preview is its own tab.
+              setPreviewOpen(true);
+            }}
             {...(!firstRun && manage ? {
               onFreshRebuild: (instruction: string) => startTrackedBuild(instruction, true),
               canFreshRebuild,
@@ -774,6 +784,7 @@ function WebsitePage() {
               selectedId={selected?.id ?? null}
               selectedPath={selected?.path ?? null}
               onPageChange={setViewingPage}
+              reveal={reveal}
               liveStatus={liveStatus ?? rebuildStatus}
               onInlineSaved={() => {
                 // The frame already shows the new words; refresh caches so

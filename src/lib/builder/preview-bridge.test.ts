@@ -121,3 +121,12 @@ describe("pageContextPrefix", () => {
     expect(pageContextPrefix(null)).toBe("");
   });
 });
+
+describe("reveal message", () => {
+  it("reads a reveal for a block id and nothing else", () => {
+    expect(readBuilderMessage({ source: PREVIEW_BRIDGE_SOURCE, type: "reveal", id: "3f8a-bc" })).toEqual({ source: PREVIEW_BRIDGE_SOURCE, type: "reveal", id: "3f8a-bc" });
+    expect(readBuilderMessage({ source: PREVIEW_BRIDGE_SOURCE, type: "reveal", id: "bad id!" })).toBeNull();
+    expect(readBuilderMessage({ source: PREVIEW_BRIDGE_SOURCE, type: "reveal" })).toBeNull();
+    expect(readBuilderMessage({ source: "someone-else", type: "reveal", id: "abc" })).toBeNull();
+  });
+});

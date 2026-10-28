@@ -79,6 +79,7 @@ import { INSTRUCTION_LIMIT, type BuilderRequests } from "@/lib/builder-requests.
 import type { AgentAttachment } from "@/lib/site-agent";
 import { cn } from "@/lib/utils";
 import { WebsiteBriefDialog } from "@/components/app/WebsiteBriefDialog";
+import type { StepTarget } from "@/lib/builder/step-target";
 import { WorkFeed } from "@/components/app/WorkFeed";
 import { formatDuration, modelsAsked, timedSteps } from "@/lib/builder/work-feed";
 
@@ -99,6 +100,7 @@ export function BuilderAssistant({
   compact = false,
   selection = null,
   pageContext = null,
+  onReveal,
   starterIdeas = [],
   onFreshRebuild,
   canFreshRebuild = false,
@@ -128,6 +130,8 @@ export function BuilderAssistant({
   selection?: { id: string; label: string | null; kind: string | null; text: string | null } | null;
   /** The page open in the preview: shown as a chip and sent as soft context with each request. */
   pageContext?: PageContext | null;
+  /** Shows a planned or applied change in the preview: opens its page, scrolls to it and outlines it. */
+  onReveal?: (target: StepTarget) => void;
   /** Trade-specific first requests, shown at once in an empty chat while the AI's own ideas load. */
   starterIdeas?: { label: string; reason: string; instruction: string }[];
   /** Replaces the whole draft with a new build. Offered only behind the confirm card. */
@@ -534,6 +538,7 @@ export function BuilderAssistant({
                     isActive={task.id === activeTaskId || Boolean(task.tracking)}
                     organizationId={organizationId}
                     onAnswer={setAnswering}
+                    {...(onReveal ? { onReveal } : {})}
                     {...(onOpenHistory ? { onOpenHistory } : {})}
                     {...(onShowPreview ? { onShowPreview } : {})}
                     onFollowUp={(prompt) => {
@@ -989,6 +994,7 @@ function TaskBody({
   onAnswer,
   onOpenHistory,
   onShowPreview,
+  onReveal,
   onFollowUp,
 }: {
   task: ChatTask;
@@ -1000,6 +1006,7 @@ function TaskBody({
   onAnswer: (question: string) => void;
   onOpenHistory?: () => void;
   onShowPreview?: () => void;
+  onReveal?: (target: StepTarget) => void;
   onFollowUp: (prompt: string) => void;
 }) {
   const working = task.state === "queued" || task.state === "planning" || task.state === "building";
@@ -1076,6 +1083,9 @@ function TaskBody({
           staleCount={task.staleCount}
           reasons={task.reasons}
           titles={task.titles ?? task.steps.filter((step) => step.included).map((step) => step.title)}
+          {...(!task.titles && onReveal
+            ? { reveals: task.steps.filter((step) => step.included).map((step) => (step.target ? () => onReveal(step.target!) : null)) }
+            : {})}
           details={task.details}
           onRetrySkipped={skipped > 0 ? () => onFollowUp(retrySkippedPrompt) : undefined}
           onUndo={onOpenHistory}
@@ -1165,6 +1175,16 @@ function TaskBody({
                     </span>
                   ) : null}
                   {step.destructive ? <span className="ml-1 opacity-80">— removes content</span> : null}
+                  {step.target && onReveal ? (
+                    <button
+                      type="button"
+                      onClick={() => onReveal(step.target!)}
+                      aria-label={`Show in preview: ${step.title}`}
+                      className="relative mt-1 inline-flex cursor-pointer items-center gap-1 text-xs text-muted-foreground underline-offset-2 after:absolute after:-inset-2 hover:text-foreground hover:underline"
+                    >
+                      <Eye className="size-3" aria-hidden /> Show in preview
+                    </button>
+                  ) : null}
                 </span>
                 {task.state === "waiting_for_approval" ? (
                   <span className="flex shrink-0 items-center gap-1.5">

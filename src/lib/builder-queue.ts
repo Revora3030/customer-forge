@@ -2,6 +2,7 @@
 import { builderAccessBlock } from "@/lib/builder-access-error";
 import type { CompositionPreview } from "@/lib/builder/composition-preview";
 import type { AgentAttachment } from "@/lib/site-agent";
+import { stepTargetOf, type StepTarget } from "@/lib/builder/step-target";
 
 export type QueueState = "queued" | "planning" | "waiting_for_approval" | "building" | "complete" | "failed" | "skipped";
 export type PlanStep = {
@@ -12,6 +13,8 @@ export type PlanStep = {
   included: boolean;
   before?: string;
   after?: string;
+  /** The section or component this change touches, for "Show in preview". */
+  target?: StepTarget;
 };
 export type QueueTask = {
   id: string;
@@ -64,9 +67,13 @@ export function updateTask(tasks: QueueTask[], id: string, patch: Partial<QueueT
     return next;
   });
 }
-export function toPlanSteps(steps: { key: string; title: string; where: string; destructive?: boolean; before?: string; after?: string }[]): PlanStep[] {
-  return steps.map((step) => ({ key: step.key, title: step.title, where: step.where, destructive: Boolean(step.destructive), included: true,
-    ...(step.before !== undefined ? { before: step.before } : {}), ...(step.after !== undefined ? { after: step.after } : {}) }));
+export function toPlanSteps(steps: { key: string; title: string; where: string; destructive?: boolean; before?: string; after?: string; action?: unknown }[]): PlanStep[] {
+  return steps.map((step) => {
+    const target = stepTargetOf(step.action);
+    return { key: step.key, title: step.title, where: step.where, destructive: Boolean(step.destructive), included: true,
+      ...(step.before !== undefined ? { before: step.before } : {}), ...(step.after !== undefined ? { after: step.after } : {}),
+      ...(target ? { target } : {}) };
+  });
 }
 export function approvedSteps(task: QueueTask): PlanStep[] {
   return task.steps.filter((step) => step.included);

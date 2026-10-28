@@ -60,3 +60,17 @@ describe("builder queue", () => {
     expect(JSON.stringify(task)).toBe(before);
   });
 });
+
+describe("plan steps know where they point", () => {
+  const S = "11111111-1111-4111-8111-111111111111";
+  it("carries the section a planned change touches, and nothing for a section still being created", () => {
+    const steps = toPlanSteps([
+      { key: "a", title: "Warmer headline", where: "Home → Hero", action: { type: "set_section_text", sectionId: S } },
+      { key: "b", title: "New FAQ", where: "Home → FAQ", action: { type: "set_composition", sectionId: "temp_section_1" } },
+      { key: "c", title: "Set SEO title", where: "Home" },
+    ]);
+    expect(steps[0]!.target).toEqual({ sectionId: S });
+    expect(steps[1]).not.toHaveProperty("target");
+    expect(steps[2]).not.toHaveProperty("target");
+  });
+});
