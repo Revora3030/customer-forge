@@ -17,20 +17,42 @@
  */
 import { AsyncLocalStorage } from "node:async_hooks";
 
-export type AiSpendScope = { freeOnly: boolean; reason: string | null };
+export type AiSpendScope = {
+  freeOnly: boolean;
+  reason: string | null;
+  /**
+   * Aborted when the build that owns this scope is cancelled or loses its
+   * lease. Every AI call awaited inside the scope stops with it: a stopped
+   * build must stop spending now, not at the next stage boundary a few minutes
+   * (and a few dozen paid calls) later.
+   */
+  signal?: AbortSignal | undefined;
+};
 
 const scopes = new AsyncLocalStorage<AiSpendScope>();
 
 /** Runs `work` inside a spending scope. A free-only outer scope always wins. */
 export function withAiSpendScope<T>(scope: AiSpendScope, work: () => T): T {
   const outer = scopes.getStore();
-  const next: AiSpendScope = outer?.freeOnly ? outer : scope;
+  // A nested scope can narrow spending but never drops the build's stop signal.
+  const signal = scope.signal ?? outer?.signal;
+  const next: AiSpendScope = outer?.freeOnly ? outer : { ...scope, signal };
   return scopes.run(next, work);
 }
 
 /** True when the current call is inside a free-only scope. */
 export function scopedFreeOnly(): boolean {
   return scopes.getStore()?.freeOnly === true;
+}
+
+/** The cancel signal of the build this call belongs to, or null outside a build. */
+export function scopedAbortSignal(): AbortSignal | null {
+  return scopes.getStore()?.signal ?? null;
+}
+
+/** True when the build this call belongs to has been stopped. */
+export function scopedBuildStopped(): boolean {
+  return scopedAbortSignal()?.aborted === true;
 }
 
 /** Why the current scope is free-only (for logs and telemetry), or null. */

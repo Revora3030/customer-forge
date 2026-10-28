@@ -5,7 +5,7 @@ const state = vi.hoisted(() => ({
   peak: 0,
   generated: 0,
   reviews: 0,
-  reviewMode: "pass" as "pass" | "outage" | "reject-first",
+  reviewMode: "pass" as "pass" | "outage" | "reject-first" | "reject-two",
 }));
 
 vi.mock("@/lib/ai/paid-image.server", () => ({
@@ -35,6 +35,8 @@ vi.mock("@/lib/ai/photo-direction.server", async () => {
       state.reviews += 1;
       if (state.reviewMode === "outage")
         return { publishable: false, defects: ["unavailable"], revisedPrompt: null, reviewed: false, contentRejected: false, reviewFailed: true };
+      if (state.reviewMode === "reject-two" && state.reviews <= 2)
+        return { publishable: false, defects: ["garbled badge on the grille"], revisedPrompt: "y".repeat(80), reviewed: true, contentRejected: true, reviewFailed: false };
       if (state.reviewMode === "reject-first" && state.reviews === 1)
         return { publishable: false, defects: ["warped wheel"], revisedPrompt: "x".repeat(80), reviewed: true, contentRejected: true, reviewFailed: false };
       return { publishable: true, defects: [], revisedPrompt: null, reviewed: true, contentRejected: false, reviewFailed: false };
@@ -150,5 +152,43 @@ describe("first-build picture pipeline", () => {
     expect(state.generated).toBe(2);
     expect(state.reviews).toBe(2);
     expect(result.assets).toHaveLength(1);
+  });
+
+  it("gives the opening picture one more corrective round than the rest, so a rejected hero is not left empty", async () => {
+    process.env["FIRST_BUILD_IMAGE_CONCURRENCY"] = "1";
+    state.reviewMode = "reject-two";
+    const result = await generateFirstBuildImages(fakeDb(), input(1));
+    // The shot, then two corrected reshoots; the second one passes.
+    expect(state.generated).toBe(3);
+    expect(state.reviews).toBe(3);
+    expect(result.assets).toHaveLength(1);
+    expect(result.assets[0]?.slot).toBe("hero");
+  });
+
+  it("gives a supporting picture a single reshoot, and says why it was left out", async () => {
+    process.env["FIRST_BUILD_IMAGE_CONCURRENCY"] = "1";
+    state.reviewMode = "reject-two";
+    const supporting = input(1);
+    const shot = supporting.creative.brief.imageInventory[0]!;
+    shot.slot = "service-detail";
+    shot.section = ["services"];
+    const result = await generateFirstBuildImages(fakeDb(), supporting);
+    expect(state.generated).toBe(2);
+    expect(state.reviews).toBe(2);
+    expect(result.assets).toHaveLength(0);
+    expect(result.evidence.skipped[0]?.reason).toMatch(/failed quality review \(garbled badge on the grille\)/);
+  });
+
+  it("starts no pictures for a build that was stopped", async () => {
+    const { withAiSpendScope } = await import("@/lib/ai/spend-scope.server");
+    const stopped = new AbortController();
+    stopped.abort();
+    const result = await withAiSpendScope({ freeOnly: false, reason: null, signal: stopped.signal }, () =>
+      generateFirstBuildImages(fakeDb(), input(4)),
+    );
+    expect(state.generated).toBe(0);
+    expect(state.reviews).toBe(0);
+    expect(result.assets).toHaveLength(0);
+    expect(result.evidence.skipped.every((entry) => entry.reason === "the build was stopped")).toBe(true);
   });
 });

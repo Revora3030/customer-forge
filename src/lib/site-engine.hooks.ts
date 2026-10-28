@@ -516,8 +516,9 @@ export function useEnsureFirstBuild(
     const key = `revora.firstbuild.${organizationId}`;
     // The marker only stops a double start in the same few minutes. A first
     // build that failed for good (an AI step unavailable after its retries)
-    // leaves no pages and no job, so after a pause the build is tried again
-    // instead of leaving the owner looking at an empty builder for the session.
+    // leaves no pages; the caller's `hasAnyJob` (blocksAutoBuild) keeps it from
+    // being re-queued here for a day, because each automatic start spends real
+    // credits. The owner starts it again by hand with one message in the chat.
     const startedAt = Number(sessionStorage.getItem(key) ?? 0);
     if (startedAt && Date.now() - startedAt < 10 * 60 * 1000) return;
     sessionStorage.setItem(key, String(Date.now()));

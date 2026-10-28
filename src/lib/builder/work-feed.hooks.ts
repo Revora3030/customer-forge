@@ -9,9 +9,6 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const AI_KINDS = ["collective_first_build", "ai_page_architecture", "first_build_images", "collective_section_wording", "first_build_compositions", "first_build_chrome"];
 
 export type WorkFeedJobRow = FeedJob & {
-  failure_kind?: string | null;
-  lease_expires_at?: string | null;
-  updated_at?: string | null;
   resumes_at?: string | null;
   wait_reason?: string | null;
   wait_providers?: unknown;
@@ -35,7 +32,7 @@ export function useWorkFeed(organizationId: string | null | undefined, options: 
     queryFn: async (): Promise<WorkFeedJobRow | null> => {
       let query = supabase
         .from("generation_jobs")
-        .select("id, status, current_step, progress, steps, stage_timings, created_at, started_at, completed_at, error_message, failure_kind, section_checkpoints, lease_expires_at, updated_at, resumes_at, wait_reason, wait_providers, capacity_deferrals")
+        .select("id, status, current_step, progress, steps, stage_timings, created_at, started_at, completed_at, error_message, failure_kind, section_checkpoints, lease_expires_at, updated_at, resumes_at, wait_reason, wait_providers, capacity_deferrals, attempts")
         .eq("organization_id", organizationId as string)
         .order("created_at", { ascending: false })
         .limit(1);

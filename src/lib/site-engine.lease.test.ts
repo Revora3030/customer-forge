@@ -62,6 +62,27 @@ describe("lease heartbeat", () => {
     warn.mockRestore();
   });
 
+  it("tells the attempt when it no longer holds the job, so a cancelled build stops its AI calls", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const { db } = fakeDb([{ data: [], error: null }]);
+    const onLost = vi.fn();
+    const beat = startLeaseHeartbeat(db, { id: "job", attempts: 1 }, 1_000, onLost);
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(beat.lost()).toBe(true);
+    // Once, however long the build keeps running afterwards.
+    expect(onLost).toHaveBeenCalledTimes(1);
+    warn.mockRestore();
+  });
+
+  it("does not let a failing stop callback break the heartbeat", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const { db } = fakeDb([{ data: [], error: null }]);
+    const beat = startLeaseHeartbeat(db, { id: "job", attempts: 1 }, 1_000, () => { throw new Error("abort failed"); });
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(beat.lost()).toBe(true);
+    warn.mockRestore();
+  });
+
   it("stops and reports a lost lease when the attempt fence no longer matches", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const { db, calls } = fakeDb([{ data: [], error: null }]);

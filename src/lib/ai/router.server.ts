@@ -28,7 +28,7 @@ import { reportModelAnswered } from "./model-activity-scope.server";
  */
 
 import { reservePaidSpend, routerActual, routerEstimate, settlePaidSpend, type PaidReservation } from "@/lib/ai/paid-budget.server";
-import { scopedFreeOnly } from "@/lib/ai/spend-scope.server";
+import { scopedAbortSignal, scopedFreeOnly } from "@/lib/ai/spend-scope.server";
 import {
   aiLimits,
   providerChain,
@@ -37,7 +37,7 @@ import {
   type ProviderConfig,
   type ProviderName,
 } from "@/lib/ai/config";
-import { RevoraAiError, notConfigured, providerUnavailable } from "@/lib/ai/errors";
+import { RevoraAiError, buildStopped, notConfigured, providerUnavailable } from "@/lib/ai/errors";
 import { durableRuntimeFor } from "@/lib/ai/durable-health.server";
 import { preserveGroupOrder, qualityFirstOrder } from "@/lib/ai/orchestration/order";
 import { lovableAdapter, lovableVideo, postLovableSpeech, type VideoOutcome } from "@/lib/ai/providers/lovable";
@@ -368,9 +368,14 @@ async function run<T>(
     // one receive a shorter version of the conversation (context-compaction).
     let compaction = 0;
 
+    // The build this call belongs to may be stopped at any moment (cancelled, or
+    // its lease taken over). Nothing new is started for it, and anything in
+    // flight is aborted below, so a stopped build stops spending.
+    const stopSignal = scopedAbortSignal();
     for (let index = 0; index < ordered.length; index += 1) {
       const candidate = ordered[index]!;
       const config = candidate.config;
+      if (stopSignal?.aborted || options?.signal?.aborted) throw buildStopped();
       if (deadProviders.has(config.name)) continue;
       if (index > 0 && Date.now() >= chainDeadline) break;
       const adapter = ADAPTERS[config.name];
@@ -410,8 +415,9 @@ async function run<T>(
         // paid call too, so the walk does not burn budget after the caller left.
         const external = options?.signal ?? null;
         const onExternalAbort = () => controller.abort();
-        if (external?.aborted) controller.abort();
+        if (external?.aborted || stopSignal?.aborted) controller.abort();
         external?.addEventListener("abort", onExternalAbort);
+        stopSignal?.addEventListener("abort", onExternalAbort);
         try {
           const result = await execute({ adapter, config, model, signal: controller.signal, compaction });
           noteSuccess(breakerScope);
@@ -454,9 +460,12 @@ noteProviderSuccess(config.name);
             outputTokens: result.outputTokens ?? null,
           };
         } catch (rawError) {
+          const stopped = stopSignal?.aborted === true || external?.aborted === true;
           const error =
             rawError instanceof RevoraAiError
               ? rawError
+              : stopped
+                ? buildStopped()
               : controller.signal.aborted
                 ? new RevoraAiError(408, "Revora AI took too long to answer. Try again.", {
                     category: "timeout",
@@ -504,6 +513,8 @@ noteProviderSuccess(config.name);
           // calls. The exception is a request carrying an attachment: providers
           // differ in what they accept, so one refusing a picture says nothing
           // about the next free provider. Move on instead of giving up.
+          // A stopped build ends the whole walk: no next model, no retry.
+          if (error.category === "cancelled") throw error;
           if (error.category === "unauthorized" || error.category === "quota") deadProviders.add(config.name);
           if (error.category === "invalid_request" && options?.nextProviderOnInvalidRequest) break;
           // Free models have very different context windows (Groq's free tier
@@ -521,6 +532,11 @@ noteProviderSuccess(config.name);
             break;
           }
           if (!error.retryable) break;
+          // A model that used its whole time budget (or hit the gateway's own
+          // edge limit, a 524) will do exactly the same with the same request.
+          // Repeating it only burns the chain's wall-clock and leaves the next
+          // model with minutes it no longer has, so hand over now.
+          if (error.category === "timeout") break;
           // In the free pool the next model is usually faster than waiting out
           // a rate limit or a slow model: only a transient 5xx is worth a retry
           // of the same model.
@@ -533,6 +549,7 @@ noteProviderSuccess(config.name);
         } finally {
           clearTimeout(timer);
           external?.removeEventListener("abort", onExternalAbort);
+          stopSignal?.removeEventListener("abort", onExternalAbort);
         }
       }
       } finally {

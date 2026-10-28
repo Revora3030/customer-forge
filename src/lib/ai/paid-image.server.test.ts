@@ -110,6 +110,24 @@ describe("premium picture lane", () => {
     expect(calls[0]).toEqual({ model: "gpt-image-2.5-sunburst", hasSource: true });
   });
 
+  it("makes no picture, reserves nothing and sends nothing for a build that was stopped", async () => {
+    // Each premium picture is about a quarter of a dollar. A stopped build must
+    // not reserve against the cap or reach the provider for another one.
+    const { generatePaidImageBase64 } = await paidImage();
+    const { withAiSpendScope } = await import("./spend-scope.server");
+    const { reserveBudget } = await import("@/lib/ai/luna.server");
+    const reservedBefore = vi.mocked(reserveBudget).mock.calls.length;
+    const owner = new AbortController();
+    owner.abort();
+    const result = await withAiSpendScope({ freeOnly: false, reason: null, signal: owner.signal }, () =>
+      generatePaidImageBase64("cinematic vehicle hero", { organizationId: "org" }, "hero_master"),
+    );
+    expect(result).toMatchObject({ ok: false, reason: "build_stopped" });
+    expect(calls).toHaveLength(0);
+    expect(vi.mocked(reserveBudget).mock.calls.length).toBe(reservedBefore);
+    expect(usage).toHaveLength(0);
+  });
+
   it("refuses a change with no original instead of inventing one", async () => {
     const { generatePaidImage } = await paidImage();
     const result = await generatePaidImage({ prompt: "warmer", purpose: "precision_edit" }, { organizationId: "org" });

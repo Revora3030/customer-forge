@@ -18,11 +18,27 @@ export async function assertFirstBuildSavedCoverage(
   const savedSections = (sections.data ?? []) as SavedBuildSection[];
   const problems = firstBuildCoverageProblems((pages.data ?? []) as SavedBuildPage[], savedSections, expected);
   const refs = [...savedPictureRefs(savedSections).keys()].filter(ref => UUID.test(ref));
+  // A composition's picture reference is the id of the COMPONENT that carries the
+  // picture (the renderer resolves it against the section's components), not a
+  // row of the media library. Checking only `media` called every picture of
+  // every build "never saved": the 10-27 repair then stripped them all from the
+  // finished site (a build that attached its pictures shipped none), and a
+  // reference the repair could not strip failed the whole build at the end.
+  // A reference is saved when a component with that id holds a picture, or the
+  // media library holds that id.
   const savedIds = new Set<string>();
   for (let i = 0; i < refs.length; i += 100) {
-    const { data, error } = await db.from("media").select("id").eq("organization_id", organizationId).in("id", refs.slice(i, i + 100));
-    if (error) throw new Error("Couldn't verify saved website pictures");
-    for (const row of data ?? []) savedIds.add((row as { id: string }).id);
+    const chunk = refs.slice(i, i + 100);
+    const [components, library] = await Promise.all([
+      db.from("website_components").select("id, media_url").eq("organization_id", organizationId).in("id", chunk),
+      db.from("media").select("id").eq("organization_id", organizationId).in("id", chunk),
+    ]);
+    if (components.error || library.error) throw new Error("Couldn't verify saved website pictures");
+    for (const row of components.data ?? []) {
+      const component = row as { id: string; media_url: string | null };
+      if (typeof component.media_url === "string" && component.media_url.trim()) savedIds.add(component.id);
+    }
+    for (const row of library.data ?? []) savedIds.add((row as { id: string }).id);
   }
   const missing = new Set([...savedPictureRefs(savedSections).keys()].filter(ref => !savedIds.has(ref)));
   if (missing.size) {

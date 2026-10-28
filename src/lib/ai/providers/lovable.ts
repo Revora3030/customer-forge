@@ -140,6 +140,183 @@ function truncated() {
   });
 }
 
+/* ------------------------- chat-completions streaming ------------------------- */
+
+/**
+ * A streamed answer that has produced nothing at all for this long is stuck,
+ * not slow: the first token of a reasoning model can take a while, so the
+ * first wait is longer than the gaps between later chunks.
+ */
+export const STREAM_FIRST_CHUNK_MS = 100_000;
+export const STREAM_IDLE_MS = 45_000;
+
+/** Set once the gateway rejects `stream_options`, so later calls skip it. */
+let streamUsageOptionRejected = false;
+/** Models the gateway refused to stream; they use the plain request from then on. */
+const streamRefusedFor = new Set<string>();
+
+/** `AI_LOVABLE_STREAM=off` sends every call the old, non-streamed way (an operator switch, no deploy of code needed). */
+function streamingSwitchedOff() {
+  return /^(off|false|0|no)$/i.test(process.env["AI_LOVABLE_STREAM"]?.trim() ?? "");
+}
+
+/** One read that gives up when the model goes quiet, instead of waiting out the whole attempt. */
+async function readStreamChunk(reader: ReadableStreamDefaultReader<Uint8Array>, idleMs: number) {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const stalled = new Promise<never>((_, reject) => {
+    timer = setTimeout( // DevSkim: ignore DS172411 -- Fixed callback and a numeric delay; no untrusted data.
+      () =>
+        reject(
+          new RevoraAiError(408, "Revora AI stopped answering partway through. Try again.", {
+            category: "timeout",
+            provider: "lovable",
+          }),
+        ),
+      idleMs,
+    );
+  });
+  try {
+    return await Promise.race([reader.read(), stalled]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Reads a chat-completions SSE stream to the end: answer text, finish reason
+ * and usage. Long answers are streamed so they never sit on one silent
+ * connection: the gateway's edge answers 524 to a request that takes about two
+ * minutes to produce its first byte, which a long creative answer on a slow
+ * model easily does. The answer is accumulated here and returned whole.
+ */
+export async function readChatStream(
+  stream: ReadableStream<Uint8Array>,
+  limits: { firstChunkMs?: number; idleMs?: number } = {},
+): Promise<{ text: string; finishReason: string | null; usage: AiUsage }> {
+  const reader = stream.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let text = "";
+  let finishReason: string | null = null;
+  let usage: AiUsage = { inputTokens: null, outputTokens: null };
+  const handle = (frame: string) => {
+    const data = frame
+      .split("\n")
+      .filter((line) => line.startsWith("data:"))
+      .map((line) => line.slice(5).trim())
+      .join("");
+    if (!data || data === "[DONE]") return;
+    let event: Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+    try {
+      event = JSON.parse(data);
+    } catch {
+      return;
+    }
+    if (event["error"])
+      throw new RevoraAiError(502, "Revora's AI model stopped with an error.", {
+        category: "bad_response",
+        provider: "lovable",
+        detail: String(event["error"]?.message ?? event["error"]).slice(0, 200),
+      });
+    const choice = event["choices"]?.[0];
+    const delta = choice?.delta?.content;
+    if (typeof delta === "string") text += delta;
+    else if (typeof choice?.message?.content === "string" && !text) text = choice.message.content;
+    if (typeof choice?.finish_reason === "string") finishReason = choice.finish_reason;
+    if (event["usage"]) usage = usageOf(event);
+  };
+  let first = true;
+  try {
+    for (;;) {
+      const { done, value } = await readStreamChunk(
+        reader,
+        first ? (limits.firstChunkMs ?? STREAM_FIRST_CHUNK_MS) : (limits.idleMs ?? STREAM_IDLE_MS),
+      );
+      first = false;
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let cut: number;
+      while ((cut = buffer.search(/\r?\n\r?\n/)) !== -1) {
+        const separator = buffer.slice(cut).match(/^\r?\n\r?\n/)![0];
+        handle(buffer.slice(0, cut));
+        buffer = buffer.slice(cut + separator.length);
+      }
+    }
+    if (buffer.trim()) handle(buffer);
+  } catch (error) {
+    // A stalled or failed read leaves the connection open; release it.
+    await reader.cancel().catch(() => undefined);
+    throw error;
+  }
+  return { text, finishReason, usage };
+}
+
+type ChatMode = "stream_with_usage" | "stream" | "plain";
+
+/**
+ * Sends one chat-completions request. Streamed by default (see readChatStream);
+ * if the gateway refuses `stream_options` the same request is sent without it,
+ * and if it refuses to stream this model at all the request is sent the old,
+ * plain way and remembered for that model. A request that is simply malformed
+ * fails the same way in every mode and is reported as it always was.
+ */
+async function openChat(input: {
+  apiKey: string;
+  model: string;
+  messages: AiMessage[];
+  json: boolean;
+  maxOutputTokens: number;
+  temperature?: number;
+  signal: AbortSignal;
+}): Promise<Response> {
+  const send = (mode: ChatMode) =>
+    fetch(`${BASE}/chat/completions`, {
+      method: "POST",
+      headers: mode === "plain" ? headers(input.apiKey) : { ...headers(input.apiKey), accept: "text/event-stream" },
+      body: JSON.stringify({
+        ...requestBody({
+          model: input.model,
+          messages: input.messages,
+          json: input.json,
+          maxOutputTokens: input.maxOutputTokens,
+          ...(input.temperature !== undefined ? { temperature: input.temperature } : {}),
+          ...(mode === "plain" ? {} : { stream: true }),
+        }),
+        ...(mode === "stream_with_usage" ? { stream_options: { include_usage: true } } : {}),
+      }),
+      signal: input.signal,
+    });
+  const rejected = (response: Response) => response.status === 400 || response.status === 422;
+
+  let mode: ChatMode =
+    streamingSwitchedOff() || streamRefusedFor.has(input.model)
+      ? "plain"
+      : streamUsageOptionRejected
+        ? "stream"
+        : "stream_with_usage";
+  let response = await send(mode);
+  if (mode === "stream_with_usage" && rejected(response)) {
+    const body = await response.clone().text().catch(() => "");
+    if (/stream_options|include_usage/i.test(body)) {
+      streamUsageOptionRejected = true;
+      mode = "stream";
+      response = await send(mode);
+    }
+  }
+  if (mode !== "plain" && rejected(response)) {
+    const plain = await send("plain");
+    // Only a plain request that works where the streamed one did not proves the
+    // gateway refused streaming; otherwise the request itself was at fault.
+    if (plain.ok) {
+      streamRefusedFor.add(input.model);
+      return plain;
+    }
+    await plain.body?.cancel().catch(() => undefined);
+    return response;
+  }
+  return response;
+}
+
 /* ------------------------------ Anthropic /v1/messages ------------------------------ */
 
 type AnthropicPart =
@@ -325,19 +502,28 @@ export const lovableAdapter: ProviderAdapter = {
         ...(temperature !== undefined ? { temperature } : {}),
         signal,
       });
-    const response = await fetch(`${BASE}/chat/completions`, {
-      method: "POST",
-      headers: headers(apiKey),
-      body: JSON.stringify(
-        requestBody({ model, messages, json, maxOutputTokens, ...(temperature !== undefined ? { temperature } : {}) }),
-      ),
+    // Streamed, like the Claude path above, so a long answer never sits on one
+    // silent connection until the gateway's edge gives up on it (524).
+    const response = await openChat({
+      apiKey,
+      model,
+      messages,
+      json,
+      maxOutputTokens,
+      ...(temperature !== undefined ? { temperature } : {}),
       signal,
     });
     if (!response.ok) throw await providerHttpError("lovable", response);
+    if (response.body && /text\/event-stream/i.test(response.headers.get("content-type") ?? "")) {
+      const streamed = await readChatStream(response.body);
+      // A cut-off answer is a failure that hands over to the next model, never a partial plan.
+      if (streamed.finishReason === "length") throw truncated();
+      return { text: answerOrThrow(streamed.text), usage: streamed.usage };
+    }
+    // The gateway answered with one plain completion (it ignored `stream`).
     const payload = (await response.json()) as {
       choices?: { message?: { content?: string }; finish_reason?: string }[];
     };
-    // A cut-off answer is a failure that hands over to the next model, never a partial plan.
     if (payload.choices?.[0]?.finish_reason === "length") throw truncated();
     return { text: answerOrThrow(payload.choices?.[0]?.message?.content ?? ""), usage: usageOf(payload) };
   },

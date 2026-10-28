@@ -769,6 +769,8 @@ export function startLeaseHeartbeat(
   db: Db,
   job: { id: string; attempts: number },
   intervalMs = heartbeatIntervalMs(),
+  /** Called once when this attempt no longer holds the job (cancelled by the owner, or taken over). */
+  onLost?: () => void,
 ): LeaseHeartbeat {
   let stopped = false;
   let lost = false;
@@ -803,6 +805,11 @@ export function startLeaseHeartbeat(
         console.warn(
           `[site-engine] lease for job ${job.id} is no longer held by attempt ${job.attempts}; heartbeat stopped.`,
         );
+        try {
+          onLost?.();
+        } catch {
+          /* stopping is best-effort; the next stage fence stops the attempt anyway */
+        }
       }
     } catch (error) {
       failures += 1;
@@ -1134,6 +1141,20 @@ export async function claimJob(db: Db, organizationId?: string, invoker: WorkerI
   return null;
 }
 
+/** Stage boundaries where a build's spending ceiling is checked: before the costly middle, never at the finish line. */
+const SPEND_CHECKED_STEPS = new Set(["conversion", "pictures", "pages", "wording"]);
+
+/** Where the progress bar stands while each named step of the creative stage runs (between 46% and 58%). */
+const REFINE_STEP_PROGRESS: Record<string, number> = {
+  "planning your design direction": 48,
+  "choosing your typography": 49,
+  "naming your visual concept": 49,
+  "choosing your colours": 50,
+  "planning your picture campaign": 51,
+  "planning your picture campaign (second pass)": 52,
+  "writing your wording": 53,
+};
+
 /** Runs the generation stages (GENERATION_STEPS) for one claimed job using the privileged client. */
 async function runJob(
   db: Db,
@@ -1217,6 +1238,7 @@ async function runJob(
       .eq("attempts", job.attempts)
       .select("id");
     if (!fenced || fenced.length === 0) throw new StaleAttemptError(job.id);
+    if (SPEND_CHECKED_STEPS.has(key)) await assertWithinBuildSpend();
     // Progress names the stage that is STARTING now ("generating your
     // pictures" while they are made), never the one that just finished.
     const nextKey = GENERATION_STEPS[GENERATION_STEPS.findIndex((s) => s.key === key) + 1]?.key;
@@ -1224,6 +1246,40 @@ async function runJob(
     if (starting) noteStage(orgId, runId, starting);
     if (HAND_BACK_STEPS.has(key)) await slice.handBackIfDue(key);
   };
+  // The long middle of a build (brand direction, design direction, picture
+  // campaign, wording, page plan, pictures) all happens between two steps, so
+  // the bar sat at 46% for most of the build. This moves it inside that stretch
+  // as real work finishes. Never backwards (a resumed attempt may already be
+  // further on) and never allowed to fail the build.
+  const advanceTo = async (percent: number) => {
+    try {
+      await db
+        .from("generation_jobs")
+        .update({ progress: percent, updated_at: new Date().toISOString() } as never)
+        .eq("id", job.id)
+        .eq("attempts", job.attempts)
+        .eq("status", "processing")
+        .lt("progress", percent);
+    } catch {
+      /* cosmetic only */
+    }
+  };
+  // One build's spending ceiling (build-spend.ts), counted across all of its
+  // attempts. Checked before an attempt starts, at the mid-build stage boundaries
+  // and after each picture, so a build that keeps failing and keeps paying is
+  // stopped with a plain message instead of being tried again. Not checked in
+  // the last stages: failing a finished build over pennies would waste it.
+  const spendLimit = await import("@/lib/builder/build-spend");
+  const spendCap = spendLimit.buildSpendCapMicrocents();
+  const askedAt = spendCap > 0
+    ? (((await db.from("generation_jobs").select("created_at").eq("id", job.id).maybeSingle()).data as { created_at?: string } | null)?.created_at ?? null)
+    : null;
+  const assertWithinBuildSpend = async () => {
+    if (!askedAt) return;
+    const spent = await spendLimit.readBuildSpendMicrocents(db as never, orgId, askedAt);
+    if (spent !== null && spendLimit.overBuildSpendCap(spent, spendCap)) throw new spendLimit.BuildSpendLimitError(spent, spendCap);
+  };
+  await assertWithinBuildSpend();
   noteStage(orgId, runId, WORKER_STAGE_LABELS["business"] ?? "reading your business");
 
   const [org, profile, services, media, socials, forms, bookable] = await Promise.all([
@@ -1476,9 +1532,11 @@ async function runJob(
   };
   type BrandIdentity = Awaited<ReturnType<typeof authorBrandIdentity>>;
   const resumedIdentity = await stageStore.get<BrandIdentity>("identity", identityInputs);
+  if (!resumedIdentity) noteStage(orgId, runId, "choosing your brand direction", job.attempts > 1 ? `attempt ${job.attempts}` : undefined);
   const identity = resumedIdentity ?? await authorBrandIdentity(identityInputs);
   if (!resumedIdentity && identity.direction) saved(await stageStore.put("identity", identityInputs, identity));
   await touchLease(db, job);
+  await advanceTo(48);
   // Resumable only when the identity is stored (or came from the store).
   if (resumedIdentity || identity.direction) await slice.handBackIfDue("identity");
   const direction = identity.direction;
@@ -1582,7 +1640,20 @@ async function runJob(
   const refineInputs = { organizationId: orgId, facts: buildFacts, brief, copy, creative, hardGenericityGate: true as const };
   type Refined = Awaited<ReturnType<typeof refineFirstBuildWithCollective>>;
   const resumedRefined = await stageStore.get<Refined>("refined", refineInputs);
-  const refined = resumedRefined ?? await refineFirstBuildWithCollective(refineInputs);
+  // The step names are shown to the owner as they happen. A retry's rows carry
+  // its attempt number: progress rows of the same wording are otherwise
+  // collapsed, which made a second attempt look frozen.
+  const attemptNote = job.attempts > 1 ? `attempt ${job.attempts}` : undefined;
+  const refined = resumedRefined ?? await refineFirstBuildWithCollective({
+    ...refineInputs,
+    checkpoints: stageStore,
+    onStep: (label) => {
+      noteStage(orgId, runId, label, attemptNote);
+      const to = REFINE_STEP_PROGRESS[label];
+      if (to) void advanceTo(to);
+    },
+  });
+  await advanceTo(54);
   const refinedUsable = refined.creativeChanged && refined.changed && missingAiCopy(refined.copy).length === 0;
   if (!resumedRefined && refinedUsable) saved(await stageStore.put("refined", refineInputs, refined));
   await touchLease(db, job);
@@ -1762,6 +1833,8 @@ async function runJob(
     }
   }
   await touchLease(db, job);
+  await advanceTo(55);
+  let picturesDone = 0;
   const starterImages = await generateFirstBuildImages(db, {
     organizationId: orgId,
     userId: job.created_by,
@@ -1782,7 +1855,12 @@ async function runJob(
     // The picture stage has a fixed time budget so a slow or rate-limited
     // picture service can never stop the build before pages, menus and buttons
     // are written. Unfilled slots go to the picture repair afterwards.
-    onShotDone: () => touchLease(db, job),
+    onShotDone: async () => {
+      await touchLease(db, job);
+      await assertWithinBuildSpend();
+      picturesDone += 1;
+      await advanceTo(Math.min(57, 55 + Math.floor(picturesDone / 3)));
+    },
     reusable: reusablePictures,
   });
   await touchLease(db, job);
@@ -2889,7 +2967,11 @@ export async function drainSiteEngineQueue(
     } catch (error) {
       console.warn(`[site-engine] attempt-start record for job ${job.id} skipped`, error);
     }
-    const heartbeat = startLeaseHeartbeat(db, job);
+    // Aborted when the owner stops the build (or another worker takes it over),
+    // and again when this attempt ends: every AI call in the attempt stops with
+    // it, including work still running in the background after a failure.
+    const attemptAbort = new AbortController();
+    const heartbeat = startLeaseHeartbeat(db, job, undefined, () => attemptAbort.abort());
     try {
       // Demo (is_demo) workspaces build on the free pool only. The scope is
       // per job (AsyncLocalStorage), so a concurrent customer build in this
@@ -2897,13 +2979,23 @@ export async function drainSiteEngineQueue(
       const { buildSpendScope, withAiSpendScope } = await import("@/lib/ai/spend-scope.server");
       const spendScope = await buildSpendScope(db as never, job.organization_id);
       const deadline = Date.parse(attemptStartedAt) + sliceBudgetMs;
-      await withAiSpendScope(spendScope, () =>
-        executeJob(db, job, { deadline, short: sliceBudgetMs < NEXT_STAGE_RESERVE_MS }),
+      // Each model that answers is shown to the owner as it happens ("model at
+      // work"), under the same run id the build's stages use.
+      const { withModelActivity } = await import("@/lib/ai/model-activity-scope.server");
+      const { noteStage: noteModel } = await import("@/lib/builder/progress.server");
+      const modelRunId = (await readJobRequestId(db, job.id)) ?? job.id;
+      await withAiSpendScope({ ...spendScope, signal: attemptAbort.signal }, () =>
+        withModelActivity(
+          (provider, model) => noteModel(job.organization_id, modelRunId, "model at work", `${provider} · ${model}`),
+          () => executeJob(db, job, { deadline, short: sliceBudgetMs < NEXT_STAGE_RESERVE_MS }),
+        ),
       );
       heartbeat.stop();
+      attemptAbort.abort();
       processed += 1;
     } catch (error) {
       heartbeat.stop();
+      attemptAbort.abort();
       // A superseded attempt must not requeue, fail or restore anything —
       // the newer attempt owns the job and the site now.
       if (error instanceof StaleAttemptError) continue;

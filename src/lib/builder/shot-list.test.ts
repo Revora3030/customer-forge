@@ -102,6 +102,7 @@ describe("shot list feeds the existing picture prompt path", () => {
     expect(source).toMatch(/shotDirectionFor\(input\.creative, shot\),\n\s+artDirectionNote\(input\.creative, shot\)/);
     const collective = readFileSync(resolve(__dirname, "collective-first-build.server.ts"), "utf8");
     expect(collective).toContain("brief.shotList is your art-direction shot list");
-    expect(collective).toContain('"shotList",');
+    // Sol authors the shot list in the picture-campaign call, beside the picture list.
+    expect(collective).toContain('CAMPAIGN_BRIEF_FIELDS = ["imageInventory", "shotList"]');
   });
 });

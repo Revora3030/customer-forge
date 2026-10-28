@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildWorkFeed, formatDuration, modelsAsked, parseModels, timedSteps, type FeedJob } from "./work-feed";
+import { buildWorkFeed, formatDuration, modelsAsked, parseModels, retryHeadline, timedSteps, type FeedJob } from "./work-feed";
 
 const START = "2026-10-28T03:00:00.000Z";
 const T = (sec: number) => new Date(Date.parse(START) + sec * 1000).toISOString();
@@ -105,7 +105,7 @@ describe("buildWorkFeed", () => {
 
   it("is empty with no job, and says a queued job is queued", () => {
     expect(buildWorkFeed({ job: null, progress: [], generations: [], images: [], now: 0 }).state).toBe("none");
-    const queued = buildWorkFeed({ job: job({ status: "queued", steps: [], stage_timings: {}, progress: 0 }), progress: [], generations: [], images: [], now: Date.parse(T(3)) });
+    const queued = buildWorkFeed({ job: job({ status: "queued", steps: [], stage_timings: {}, progress: 0, current_step: null, started_at: null }), progress: [], generations: [], images: [], now: Date.parse(T(3)) });
     expect(queued.state).toBe("queued");
     expect(queued.headline).toMatch(/^Queued/);
   });
@@ -128,5 +128,55 @@ describe("timedSteps and modelsAsked", () => {
   it("names each model the planner asked once", () => {
     expect(modelsAsked([{ stage: "model at work", detail: "lovable · anthropic/claude-sonnet-5", at: T(40) }, ...rows])).toEqual(["GPT 6.1 Sol", "Claude Sonnet 5"]);
     expect(modelsAsked([{ stage: "model at work", detail: "free pool", at: T(1) }])).toEqual(["free pool"]);
+  });
+});
+
+describe("a build that is retrying", () => {
+  // The real job: asked for at 0:00, attempt 1 failed at 10:58 and went back to
+  // "queued", attempt 2 claimed it at 11:20 (started_at is reset by the claim).
+  const retried = (over: Partial<FeedJob> = {}) =>
+    job({
+      status: "queued", attempts: 1, failure_kind: "provider", progress: 46, current_step: "conversion",
+      steps: ["business", "services", "brand", "analysis", "structure", "copy", "conversion"],
+      started_at: T(0), error_message: "[provider] The AI design team did not plan this site's pictures", ...over,
+    });
+
+  it("counts elapsed time from when the build was asked for, not from the latest attempt", () => {
+    const attempt2 = buildWorkFeed({ job: job({ status: "processing", attempts: 2, started_at: T(680) }), progress: [], generations: [], images: [], now: Date.parse(T(700)) });
+    expect(attempt2.elapsedMs).toBe(700_000);
+    expect(formatDuration(attempt2.elapsedMs)).toBe("11m 40s");
+  });
+
+  it("says it is retrying, with the attempt and why, never 'the builder picks up new jobs'", () => {
+    const feed = buildWorkFeed({ job: retried(), progress: [], generations: [], images: [], now: Date.parse(T(660)) });
+    expect(feed.state).toBe("queued");
+    expect(feed.headline).toBe("Retrying (attempt 2 of 3) — an AI model was slow to answer. Your saved design work is kept.");
+    expect(feed.headline).not.toMatch(/picks up new jobs/);
+  });
+
+  it("still says a build nobody has touched is queued", () => {
+    const fresh = buildWorkFeed({ job: job({ status: "queued", steps: [], stage_timings: {}, progress: 0, current_step: null, started_at: null, attempts: 0 }), progress: [], generations: [], images: [], now: Date.parse(T(3)) });
+    expect(fresh.headline).toMatch(/^Queued/);
+  });
+
+  it("never offers more attempts than the worker gives, and handles a hand-back between slices", () => {
+    expect(retryHeadline({ attempts: 5, failure_kind: "provider" })).toContain("attempt 3 of 3");
+    expect(retryHeadline({ attempts: 0, failure_kind: null })).toMatch(/^Continuing/);
+    expect(retryHeadline({ attempts: 1, failure_kind: "content" })).toContain("the last attempt hit a problem");
+  });
+});
+
+describe("the live headline", () => {
+  it("names the step in progress, not the model that last answered", () => {
+    const feed = buildWorkFeed({
+      job: job(),
+      progress: [
+        { stage: "model at work", detail: "lovable · openai/gpt-6.1-sol", at: T(80) },
+        { stage: "planning your picture campaign", detail: "attempt 2", at: T(70) },
+        { stage: "planning your design direction", detail: null, at: T(40) },
+      ],
+      generations: [], images: [], now: Date.parse(T(90)),
+    });
+    expect(feed.headline).toBe("planning your picture campaign — attempt 2");
   });
 });

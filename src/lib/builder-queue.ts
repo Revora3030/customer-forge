@@ -101,11 +101,19 @@ export function moveStep(task: QueueTask, key: string, direction: -1 | 1): Queue
 export function terminalStateForEmptyPlan(input: { steps: PlanStep[]; questions: string[]; unavailable?: { retryable?: boolean } | null }): QueueState {
   return input.steps.length > 0 || input.questions.length > 0 ? "waiting_for_approval" : "failed";
 }
-export function queueSummary(tasks: QueueTask[]): string {
+export function queueSummary(tasks: ReadonlyArray<QueueTask & { isBuild?: boolean }>): string {
   if (!tasks.length) return "";
   const done = tasks.filter((task) => task.state === "complete" && !task.answered).length;
-  const failed = tasks.filter((task) => task.state === "failed").length;
+  // "Didn't work" is about the work in front of the owner now. A request from an
+  // earlier visit (restored) and a build that a newer build replaced stay in the
+  // thread, but no longer count: a rebuild in progress must not sit under last
+  // week's failed one.
+  const lastBuild = tasks.map((task) => task.isBuild === true).lastIndexOf(true);
+  const failed = tasks.filter(
+    (task, index) => task.state === "failed" && !task.restored && !(task.isBuild && index < lastBuild),
+  ).length;
   const waiting = tasks.filter((task) => task.state === "queued" || task.state === "waiting_for_approval").length;
+  if (!done && !waiting && !failed) return "";
   const parts = [`${done} done`];
   if (waiting) parts.push(`${waiting} waiting`);
   if (failed) parts.push(`${failed} didn't work`);

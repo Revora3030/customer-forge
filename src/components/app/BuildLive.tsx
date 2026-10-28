@@ -14,7 +14,7 @@ import { Panel, SectionHeading } from "@/components/app/Bits";
 import { Button } from "@/components/ui/button";
 import { Shimmer } from "@/components/ai-elements/shimmer";
 import { useLatestGenerationJob, useRunSiteEngine } from "@/lib/site-engine.hooks";
-import { RECOVERING_BUILD_MESSAGE, jobLiveness } from "@/lib/builder/job-liveness";
+import { MAX_BUILD_ATTEMPTS, RECOVERING_BUILD_MESSAGE, isRetryWait, jobLiveness } from "@/lib/builder/job-liveness";
 import { useBuildProgress } from "@/lib/builder/progress.hooks";
 import { describeBuildFailure } from "@/lib/builder/build-failure";
 import { CapacityWaitNotice } from "@/components/app/CapacityWaitNotice";
@@ -24,6 +24,9 @@ const ACTIVE = new Set(["queued", "processing"]);
 
 type JobRow = {
   status?: string;
+  attempts?: number | null;
+  created_at?: string | null;
+  started_at?: string | null;
   current_step?: string | null;
   progress?: number | null;
   error_message?: string | null;
@@ -53,7 +56,7 @@ export function BuildLive({ organizationId }: { organizationId: string | null | 
   const retry = useRunSiteEngine(organizationId ?? undefined);
 
   const [open, setOpen] = useState(true);
-  const [startedAt] = useState(() => Date.now());
+  const [mountedAt] = useState(() => Date.now());
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     if (!active) return;
@@ -63,7 +66,10 @@ export function BuildLive({ organizationId }: { organizationId: string | null | 
 
   if (!active && !failed) return null;
 
-  const elapsed = Math.max(0, Math.round((now - startedAt) / 1000));
+  // From when the build was asked for (not from when this card mounted, and not
+  // from the latest attempt): the owner's wait is one continuous wait.
+  const askedAt = row?.created_at ? Date.parse(row.created_at) : Number.NaN;
+  const elapsed = Math.max(0, Math.round((now - (Number.isFinite(askedAt) ? askedAt : mountedAt)) / 1000));
   const elapsedLabel = elapsed < 60 ? `${elapsed}s` : `${Math.floor(elapsed / 60)}m ${elapsed % 60}s`;
   const percent =
     typeof row?.progress === "number" ? Math.max(0, Math.min(100, Math.round(row.progress))) : null;
@@ -160,7 +166,9 @@ export function BuildLive({ organizationId }: { organizationId: string | null | 
             </ol>
           ) : active ? (
             <p className="text-[13px] text-muted-foreground">
-              Queued — the builder picks up new jobs within a few seconds.
+              {isRetryWait(row)
+                ? `Retrying shortly (attempt ${Math.min(MAX_BUILD_ATTEMPTS, Number(row?.attempts ?? 0) + 1)} of ${MAX_BUILD_ATTEMPTS}). Your saved design work is kept.`
+                : "Queued — the builder picks up new jobs within a few seconds."}
             </p>
           ) : null}
           {stalled ? (

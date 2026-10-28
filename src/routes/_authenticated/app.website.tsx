@@ -30,7 +30,7 @@ import { BuilderWizard } from "@/components/app/BuilderWizard";
 import { BuilderShell } from "@/components/app/BuilderShell";
 import { MissingMenuBanner } from "@/components/app/MissingMenuBanner";
 import { readSiteChrome } from "@/lib/builder/site-chrome";
-import { jobIsActive, jobLiveness } from "@/lib/builder/job-liveness";
+import { blocksAutoBuild, jobIsActive, stopWaiting, stopWaitingMessage } from "@/lib/builder/job-liveness";
 import { Disclosure, OverlayPanel } from "@/components/app/BuilderTools";
 import { BuilderHistoryProvider } from "@/lib/builder-history.hooks";
 import { GroupTabs } from "@/components/app/BuilderGroups";
@@ -117,6 +117,7 @@ import {
   revoraScore,
 } from "@/lib/site-engine";
 import { useBuildReadiness, useSaveMissingFacts, useScoreFacts } from "@/lib/site-engine.hooks";
+import { useCancelSiteEngine } from "@/lib/site-engine-cancel.hooks";
 import {
   useEnsureFirstBuild,
   useGenerateSectionsFromText,
@@ -160,9 +161,6 @@ const GROUP_ALIAS: Record<string, string> = {
   seo: "seo",
   enquiries: "enquiries",
 };
-
-/** A first build still waiting for a worker after this long is no longer tracked in the chat. */
-const FIRST_BUILD_QUEUED_TIMEOUT_MS = 10 * 60 * 1000;
 
 const resolveGroup = (key: string | null | undefined) =>
   (key ? GROUP_ALIAS[key] : undefined) ?? "build";
@@ -280,12 +278,15 @@ function WebsitePage() {
     ? liveStatusLine(progress.latest?.stage ?? (activeTask.state === "building" ? "designing your change" : "planning the change"), selected?.label ?? null)
     : null;
   const firstBuild = useGenerateSectionsFromText(orgId);
+  /** Stops a running build from the chat (managers and above): a build spends credits for as long as it runs. */
+  const cancelBuild = useCancelSiteEngine(orgId);
   const latestJob = useLatestGenerationJob(orgId);
   useEnsureFirstBuild(orgId, {
     jobsLoaded: latestJob.isSuccess,
     // A build the owner cancelled counts too: an open builder must never
-    // restart a build the owner stopped.
-    hasAnyJob: !!latestJob.data && ["queued", "processing", "cancelled"].includes((latestJob.data as { status?: string })?.status ?? ""),
+    // restart a build the owner stopped. So does one that failed in the last
+    // day: it is not silently re-queued (and re-paid) each time the page opens.
+    hasAnyJob: blocksAutoBuild((latestJob.data ?? null) as never),
     pageCount: pages ? (pages as unknown[]).length : undefined,
     canManage: manage,
     ready: !!readiness && readiness.requiredGaps.length === 0,
@@ -334,19 +335,14 @@ function WebsitePage() {
     const status = latestRow.status;
     // A worker cut off mid-build leaves the row "processing" with a dead
     // lease, and a job no worker ever claims stays "queued" (jobLiveness never
-    // calls that stalled). Stop tracking either here; nothing is claimed about
-    // how it ended.
-    const queuedFor = status === "queued" && latestRow.created_at ? Date.now() - Date.parse(latestRow.created_at) : 0;
-    if (
-      (status === "processing" && jobLiveness(latestRow as never) === "stalled") ||
-      (status === "queued" && queuedFor > FIRST_BUILD_QUEUED_TIMEOUT_MS)
-    ) {
-      settleBuild(trackedBuild.taskId, {
-        ok: false,
-        message: status === "queued"
-          ? "Your build hasn't started yet, so I've stopped waiting on it here. Nothing was published — check the preview in a few minutes, or start the build again."
-          : "Your build stopped responding, so I've stopped waiting on it here. Nothing was published — check the preview in a minute, or start the build again.",
-      });
+    // calls that stalled). A build that failed an attempt goes back to "queued"
+    // for its retry with its ORIGINAL created_at, so waiting time is counted
+    // from when the retry was due, never from creation (that said "hasn't
+    // started yet" about a build that had run for eleven minutes). Stop
+    // tracking here; nothing is claimed about how it ended.
+    const stop = stopWaiting(latestRow as never);
+    if (stop) {
+      settleBuild(trackedBuild.taskId, { ok: false, message: stopWaitingMessage(stop) });
       setTrackedBuild(null);
       return undefined;
     }
@@ -706,6 +702,8 @@ function WebsitePage() {
               canFreshRebuild,
               rebuildBusy: freshRebuildActive || jobIsActive(latestJob.data as never) || firstBuild.isPending,
             } : {})}
+            {...(manage ? { onStopBuild: (jobId: string) => cancelBuild.mutate(jobId) } : {})}
+            stoppingBuild={cancelBuild.isPending}
             starterIdeas={starterIdeasFor((org?.industry as string | undefined) ?? null)}
             onClearSelection={() => setSelected(null)}
             onOpenHistory={() => setHistoryOpen(true)}

@@ -9,6 +9,7 @@
 import { useState } from "react";
 import { Check, ChevronDown, Circle, Loader2, TriangleAlert } from "lucide-react";
 import { Shimmer } from "@/components/ai-elements/shimmer";
+import { Button } from "@/components/ui/button";
 import { CapacityWaitNotice } from "@/components/app/CapacityWaitNotice";
 import { jobLiveness } from "@/lib/builder/job-liveness";
 import { describeBuildFailure } from "@/lib/builder/build-failure";
@@ -17,13 +18,80 @@ import { useWorkFeed, type WorkFeedJobRow } from "@/lib/builder/work-feed.hooks"
 import { cn } from "@/lib/utils";
 
 /** The log for one build. `runId` is the chat request (or job) id; none follows the latest build. */
-export function WorkFeed({ organizationId, runId = null, live = true }: { organizationId: string | null | undefined; runId?: string | null; live?: boolean }) {
+export function WorkFeed({
+  organizationId,
+  runId = null,
+  live = true,
+  onStop,
+  stopping = false,
+}: {
+  organizationId: string | null | undefined;
+  runId?: string | null;
+  live?: boolean;
+  /** Stops the build (managers and above). Offered only while it is running. */
+  onStop?: (jobId: string) => void;
+  stopping?: boolean;
+}) {
   const { feed, job, loading } = useWorkFeed(organizationId, { runId, live });
   if (loading || feed.state === "none") return null;
-  return <WorkFeedView feed={feed} job={job} />;
+  return <WorkFeedView feed={feed} job={job} {...(onStop ? { onStop } : {})} stopping={stopping} />;
 }
 
-export function WorkFeedView({ feed, job = null }: { feed: Feed; job?: WorkFeedJobRow | null }) {
+/**
+ * Stops a running build. Always in view while a build runs (not tucked inside
+ * the collapsed log): a build spends credits for as long as it runs, so
+ * stopping it must be one tap away. A second tap confirms, so a stray tap on a
+ * phone cannot throw away minutes of work.
+ */
+export function StopBuildBar({
+  confirming,
+  stopping,
+  onAsk,
+  onKeep,
+  onConfirm,
+}: {
+  confirming: boolean;
+  stopping: boolean;
+  onAsk: () => void;
+  onKeep: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border/50 px-3.5 py-2" data-testid="stop-build">
+      {confirming || stopping ? (
+        <>
+          <p className="mr-auto min-w-0 flex-1 text-xs leading-5 text-muted-foreground" role="status">
+            {stopping ? "Stopping — no new AI work is being started." : "Stop this build? Nothing is published and spending stops."}
+          </p>
+          {stopping ? null : (
+            <Button type="button" size="sm" variant="ghost" onClick={onKeep}>
+              Keep building
+            </Button>
+          )}
+          <Button type="button" size="sm" variant="destructive" disabled={stopping} onClick={onConfirm}>
+            {stopping ? "Stopping…" : "Stop build"}
+          </Button>
+        </>
+      ) : (
+        <Button type="button" size="sm" variant="outline" onClick={onAsk}>
+          Stop build
+        </Button>
+      )}
+    </div>
+  );
+}
+
+export function WorkFeedView({
+  feed,
+  job = null,
+  onStop,
+  stopping = false,
+}: {
+  feed: Feed;
+  job?: WorkFeedJobRow | null;
+  onStop?: (jobId: string) => void;
+  stopping?: boolean;
+}) {
   const ended = feed.state === "done" || feed.state === "failed" || feed.state === "cancelled";
   const [open, setOpen] = useState(!ended);
   const [showPending, setShowPending] = useState(false);
@@ -32,6 +100,9 @@ export function WorkFeedView({ feed, job = null }: { feed: Feed; job?: WorkFeedJ
   const pending = feed.stages.filter((s) => s.state === "pending");
   const shown = feed.stages.filter((s) => s.state !== "pending" || showPending);
   const running = feed.state === "running" || feed.state === "queued";
+  const [confirmStop, setConfirmStop] = useState(false);
+  const jobId = job?.id ?? null;
+  const canStop = running && Boolean(onStop) && Boolean(jobId);
 
   return (
     <div className="overflow-hidden rounded-xl border border-border/70 bg-card/40" data-testid="work-feed">
@@ -73,6 +144,15 @@ export function WorkFeedView({ feed, job = null }: { feed: Feed; job?: WorkFeedJ
         </div>
       ) : null}
       <CapacityWaitNotice job={job as never} compact announce={false} className="mx-3.5 my-2" />
+      {canStop ? (
+        <StopBuildBar
+          confirming={confirmStop}
+          stopping={stopping}
+          onAsk={() => setConfirmStop(true)}
+          onKeep={() => setConfirmStop(false)}
+          onConfirm={() => onStop?.(jobId as string)}
+        />
+      ) : null}
 
       {open ? (
         <div className="space-y-3 border-t border-border/60 px-3.5 py-3">

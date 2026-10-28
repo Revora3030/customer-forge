@@ -26,9 +26,9 @@ import {
 import { AI_TEAM, chooseFallback } from "@/lib/ai/team-roles";
 
 describe("build failure classification", () => {
-  it("covers exactly the nine spec failure kinds", () => {
+  it("covers exactly the nine spec failure kinds, plus the spending-limit stop", () => {
     expect([...BUILD_FAILURE_KINDS].sort()).toEqual(
-      ["content", "image", "infrastructure", "intake_validation", "preview", "provider", "publish", "rendering", "validation"].sort(),
+      ["budget", "content", "image", "infrastructure", "intake_validation", "preview", "provider", "publish", "rendering", "validation"].sort(),
     );
   });
 
@@ -46,6 +46,26 @@ describe("build failure classification", () => {
     expect(classifyBuildFailure(new Error("Copy contained an unsupported claim")).kind).toBe("content");
     expect(classifyBuildFailure(new Error("fetch failed")).kind).toBe("infrastructure");
     expect(classifyBuildFailure("something odd").kind).toBe("infrastructure");
+  });
+
+  it("calls a design step the AI providers never answered a provider problem, not a picture problem", () => {
+    // The message of a real failed first build: the planning call timed out, and
+    // because the text names pictures it was tagged [image] ("Pictures couldn't
+    // be generated"), which sent the owner looking at the wrong thing.
+    const timedOut = classifyBuildFailure(
+      new Error(
+        "The AI design team did not plan this site's pictures (the AI providers did not answer in time). The build stopped so it can be retried from its saved design direction; Revora never ships a site without its picture campaign.",
+      ),
+    );
+    expect(timedOut).toMatchObject({ kind: "provider", retryable: true });
+    for (const message of [
+      "The AI design team did not choose this site's typography (missing typography.display). The build stopped so it can be retried; Revora never fills in a default font.",
+      "The AI design team did not name this site's visual concept (the AI providers did not answer in time).",
+      "The AI design team did not choose this site's colours (missing color.system).",
+    ])
+      expect(classifyBuildFailure(new Error(message)).kind, message).toBe("provider");
+    // A genuine picture failure still reads as one.
+    expect(classifyBuildFailure(new Error("Section 307b shows a picture that was never saved")).kind).toBe("image");
   });
 
   it("does not retry intake validation, and gives owners plain messages", () => {
