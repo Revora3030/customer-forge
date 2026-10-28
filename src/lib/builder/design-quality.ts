@@ -40,6 +40,7 @@ export type DesignFinding = {
     | "lead_not_scene"
     | "scene_text_contrast"
     | "page_missing_interactive"
+    | "page_mostly_plain"
     | "duplicate_text"
     | "empty_column";
   severity: "critical" | "major";
@@ -423,6 +424,20 @@ export function auditPageDesign(
     });
   }
 
+  // A home page that is mostly plain stacks and cards reads as a template, even with one interactive block.
+  if (options.home && sections.length >= 4 && sections.some((section) => (section.mediaAvailable ?? 0) > 0)) {
+    const plainSections = sections.slice(1).filter((section) => isPlainSection(section.tree));
+    if (plainSections.length * 2 > sections.length - 1) {
+      const target = plainSections[0]!;
+      (out[target.id] ??= []).push({
+        code: "page_mostly_plain",
+        severity: "major",
+        path: "root",
+        fix: "Most sections on this home page are plain stacks and cards with no picture, scene or interaction. Rebuild this one with the supplied pictures or real material: a scene over a picture, a split story, a media-led bento, or a gallery or collection_row. Keep every word and fact the owner supplied.",
+      });
+    }
+  }
+
   // Page rhythm: the same section structure repeated back to back reads as a template.
   const signature = (tree: CompositionTree) =>
     walk(tree.root)
@@ -512,12 +527,20 @@ export function auditPageDesign(
 }
 
 /** True when a tree contains a primitive the visitor operates. */
+const RICH_PRIMITIVES: ReadonlySet<string> = new Set(["scene", "parallax_layers", "gallery", "marquee", "widget", "media"]);
+
+/** A section with no picture, scene, interactive block, working widget or layered depth: only text on stacks and cards. */
+export function isPlainSection(tree: CompositionTree): boolean {
+  if (hasInteractive(tree) || hasDepthNode(tree)) return false;
+  return !walk(tree.root).some(({ node }) => RICH_PRIMITIVES.has(node.type));
+}
+
 export function hasInteractive(tree: CompositionTree): boolean {
   return walk(tree.root).some(({ node }) => INTERACTIVE_PRIMITIVES.has(node.type));
 }
 
 /** Gates that always go back to the AI, whatever their severity. */
-const ALWAYS_REPAIR = new Set<DesignFinding["code"]>(["flat_page", "lead_not_scene", "scene_text_contrast", "page_missing_interactive", "duplicate_text", "empty_column"]);
+const ALWAYS_REPAIR = new Set<DesignFinding["code"]>(["flat_page", "lead_not_scene", "scene_text_contrast", "page_missing_interactive", "page_mostly_plain", "duplicate_text", "empty_column"]);
 
 /** True when any finding must be fixed before the section ships. */
 export function needsDesignRepair(findings: DesignFinding[]): boolean {
