@@ -25,7 +25,7 @@ export async function provisionProspectDemo(
   input: ProspectDemoInput,
   actorId: string,
   /** Autopilot demos record where they came from, so they are never built twice. */
-  origin: { source: "autopilot"; placeId: string | null; enrichment?: ProspectEnrichment } | null = null,
+  origin: { source: "autopilot"; placeId: string | null; enrichment?: ProspectEnrichment; pitchFirst?: boolean } | null = null,
 ): Promise<{ organizationId: string; jobId: string; previewToken: string; expiresAt: string }> {
   const base = slugify(`${input.businessName} ${input.city}`) || "prospect";
   let slug = base;
@@ -68,6 +68,8 @@ export async function provisionProspectDemo(
     createdAt,
     previewToken,
     ...(origin ? { source: origin.source } : {}),
+    // Pitch-first: only the workspace shell exists; the site is built when the owner replies.
+    ...(origin?.pitchFirst ? { pitchFirst: true } : {}),
     ...(origin?.placeId ?? input.placeId ? { placeId: origin?.placeId ?? input.placeId ?? null } : {}),
     // Where the email came from and whether it was verified; autopilot's send gate reads it.
     ...(origin?.enrichment ? { enrichment: origin.enrichment } : {}),
@@ -131,6 +133,17 @@ export async function provisionProspectDemo(
 
   // The listing's own Google Maps photos go on the site first; AI fills the rest.
   const placeId = origin?.placeId ?? input.placeId ?? null;
+  if (origin?.pitchFirst) {
+    await admin.from("audit_logs").insert({
+      organization_id: organizationId,
+      actor_id: actorId,
+      action: "jarvis.prospect_pitch.created",
+      entity: "organization",
+      entity_id: organizationId,
+      metadata: { business_name: input.businessName, industry: input.industry, city: input.city, source: origin.source, place_id: origin.placeId },
+    });
+    return { organizationId, jobId: "", previewToken, expiresAt };
+  }
   if (placeId && !placeId.startsWith("osm:")) {
     const { attachMapsPhotos } = await import("@/lib/maps-photos.server");
     await attachMapsPhotos(admin, organizationId, input.businessName, placeId);
@@ -168,6 +181,47 @@ export async function provisionProspectDemo(
   });
 
   return { organizationId, jobId: (job as { id: string }).id, previewToken, expiresAt };
+}
+
+/**
+ * Starts the build for a pitch-first prospect who answered. Safe to call twice:
+ * it does nothing unless the workspace is still an unbuilt pitch shell. Returns
+ * the queued job id, or null when there was nothing to start.
+ */
+export async function startDeferredDemoBuild(admin: SupabaseClient, organizationId: string): Promise<string | null> {
+  const { data: settings } = await admin.from("website_settings").select("generation").eq("organization_id", organizationId).maybeSingle();
+  const generation = (settings?.generation ?? null) as Record<string, unknown> | null;
+  const raw = generation?.["prospectDemo"] as Record<string, unknown> | undefined;
+  if (!raw || raw["pitchFirst"] !== true || raw["claimedAt"]) return null;
+  const { data: existing } = await admin.from("generation_jobs").select("id").eq("organization_id", organizationId).limit(1);
+  if ((existing ?? []).length) return null;
+
+  const actorId = typeof raw["createdBy"] === "string" ? raw["createdBy"] : null;
+  const placeId = typeof raw["placeId"] === "string" ? raw["placeId"] : null;
+  const { data: org } = await admin.from("organizations").select("name").eq("id", organizationId).maybeSingle();
+  if (placeId && !placeId.startsWith("osm:") && org?.name) {
+    const { attachMapsPhotos } = await import("@/lib/maps-photos.server");
+    await attachMapsPhotos(admin, organizationId, String(org.name), placeId);
+  }
+  const { data: job, error } = await admin
+    .from("generation_jobs")
+    .insert({ organization_id: organizationId, status: "queued", progress: 0, current_step: null, created_by: actorId, steps: [] })
+    .select("id")
+    .single();
+  if (error || !job) return null;
+  await admin
+    .from("website_settings")
+    .update({ generation: { ...generation, prospectDemo: { ...raw, pitchFirst: false, pitchAnsweredAt: new Date().toISOString() } } } as never)
+    .eq("organization_id", organizationId);
+  await admin.from("audit_logs").insert({
+    organization_id: organizationId,
+    actor_id: actorId,
+    action: "jarvis.prospect_pitch.build_started",
+    entity: "organization",
+    entity_id: organizationId,
+    metadata: { reason: "prospect_replied" },
+  });
+  return (job as { id: string }).id;
 }
 
 export type ProspectDemoSummary = {

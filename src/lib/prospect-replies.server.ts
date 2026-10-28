@@ -11,6 +11,7 @@ import {
 } from "@/lib/prospect-outreach.server";
 import {
   autoReplyDecision,
+  AUTO_REPLY_INTENTS,
   buildFactsSheet,
   factCheckReply,
   fallbackDraft,
@@ -315,6 +316,11 @@ async function storeNewReplies(
       // (A STOP already cancelled everything; an out-of-office or bounce is not an answer.)
       const { cancelQueuedOutreach } = await import("@/lib/prospect-send-queue.server");
       await cancelQueuedOutreach(db, info.organizationId, "prospect_replied", { kind: "follow_up" }).catch(() => undefined);
+      // A pitch-first prospect who is interested (or asks a question) gets their demo built now.
+      if (AUTO_REPLY_INTENTS.has(classification.intent)) {
+        const { startDeferredDemoBuild } = await import("@/lib/jarvis-demo-site.server");
+        await startDeferredDemoBuild(db, info.organizationId).catch(() => undefined);
+      }
     }
   }
   return complete;
@@ -494,7 +500,8 @@ async function factsFor(db: SupabaseClient, inbound: InboundItem, config: GmailC
     senderEmail: config.sender,
     businessWebsite: website,
   });
-  return { facts, available: !demo.claimed };
+  // A pitch-first prospect has no finished preview yet: replies go to the operator, never an automatic answer.
+  return { facts, available: !demo.claimed && !demo.pitchPending };
 }
 
 /** Handles one claimed inbound reply: an automatic in-thread reply when every rule allows it, else a draft. */

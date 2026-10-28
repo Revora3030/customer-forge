@@ -23,13 +23,18 @@ export type AutopilotSettings = {
   dailyBuildCap: number;
   sendEmail: boolean;
   sendSms: boolean;
+  /**
+   * Pitch first: email a short text pitch and build the demo site only after the
+   * owner replies. Off by default; demo-first stays the behaviour until switched on.
+   */
+  pitchFirst: boolean;
   /** Walks built-in trades x metros after the explicit targets. Off by default. */
   rotation: RotationSettings;
   updatedBy: string | null;
   updatedAt: string | null;
 };
 
-export type AutopilotSettingsPatch = Partial<Pick<AutopilotSettings, "enabled" | "targets" | "dailyBuildCap" | "sendEmail" | "sendSms" | "rotation">>;
+export type AutopilotSettingsPatch = Partial<Pick<AutopilotSettings, "enabled" | "targets" | "dailyBuildCap" | "sendEmail" | "sendSms" | "pitchFirst" | "rotation">>;
 
 export const DEFAULT_AUTOPILOT_SETTINGS: AutopilotSettings = {
   enabled: false,
@@ -37,6 +42,7 @@ export const DEFAULT_AUTOPILOT_SETTINGS: AutopilotSettings = {
   dailyBuildCap: DEFAULT_DAILY_BUILD_CAP,
   sendEmail: true,
   sendSms: false,
+  pitchFirst: false,
   rotation: DEFAULT_ROTATION,
   updatedBy: null,
   updatedAt: null,
@@ -60,7 +66,7 @@ const targetKey = (target: AutopilotTarget) => `${target.niche}|${target.city}|$
 export function parseAutopilotPatch(value: unknown): AutopilotSettingsPatch {
   const raw = (value && typeof value === "object" ? value : {}) as Record<string, unknown>;
   const patch: AutopilotSettingsPatch = {};
-  const bool = (key: "enabled" | "sendEmail" | "sendSms") => {
+  const bool = (key: "enabled" | "sendEmail" | "sendSms" | "pitchFirst") => {
     if (raw[key] === undefined) return;
     if (typeof raw[key] !== "boolean") throw new Error(`${key} must be true or false.`);
     patch[key] = raw[key] as boolean;
@@ -68,6 +74,7 @@ export function parseAutopilotPatch(value: unknown): AutopilotSettingsPatch {
   bool("enabled");
   bool("sendEmail");
   bool("sendSms");
+  bool("pitchFirst");
   if (raw["dailyBuildCap"] !== undefined) {
     const cap = Number(raw["dailyBuildCap"]);
     if (!Number.isInteger(cap) || cap < 0 || cap > MAX_DAILY_BUILD_CAP)
@@ -108,6 +115,7 @@ export function readAutopilotSettings(row: Record<string, unknown> | null | unde
     dailyBuildCap: Number.isInteger(cap) && cap >= 0 ? Math.min(cap, MAX_DAILY_BUILD_CAP) : DEFAULT_DAILY_BUILD_CAP,
     sendEmail: row["send_email"] !== false,
     sendSms: row["send_sms"] === true,
+    pitchFirst: row["pitch_first"] === true,
     rotation: readRotation(row["rotation"]),
     updatedBy: typeof row["updated_by"] === "string" ? row["updated_by"] : null,
     updatedAt: typeof row["updated_at"] === "string" ? row["updated_at"] : null,
@@ -118,12 +126,13 @@ export type AutopilotDraft = Required<AutopilotSettingsPatch>;
 /** The Operations card's form: what it shows, what it was seeded from, and whether it has local edits. */
 export type AutopilotDraftState = { draft: AutopilotDraft; base: AutopilotDraft; dirty: boolean } | null;
 
-const draftOf = ({ enabled, targets, dailyBuildCap, sendEmail, sendSms, rotation }: AutopilotSettings): AutopilotDraft => ({
+const draftOf = ({ enabled, targets, dailyBuildCap, sendEmail, sendSms, pitchFirst, rotation }: AutopilotSettings): AutopilotDraft => ({
   enabled,
   targets,
   dailyBuildCap,
   sendEmail,
   sendSms,
+  pitchFirst,
   rotation,
 });
 
@@ -145,6 +154,7 @@ export function changedAutopilotFields(base: AutopilotDraft, draft: AutopilotDra
   if (draft.dailyBuildCap !== base.dailyBuildCap) patch.dailyBuildCap = draft.dailyBuildCap;
   if (draft.sendEmail !== base.sendEmail) patch.sendEmail = draft.sendEmail;
   if (draft.sendSms !== base.sendSms) patch.sendSms = draft.sendSms;
+  if (draft.pitchFirst !== base.pitchFirst) patch.pitchFirst = draft.pitchFirst;
   if (JSON.stringify(draft.rotation) !== JSON.stringify(base.rotation)) patch.rotation = draft.rotation;
   return patch;
 }
@@ -159,6 +169,8 @@ export function describeAutopilotPatch(patch: AutopilotSettingsPatch): string {
   if (patch.dailyBuildCap !== undefined) parts.push(`build up to ${patch.dailyBuildCap} demo${patch.dailyBuildCap === 1 ? "" : "s"} a day`);
   if (patch.sendEmail !== undefined) parts.push(patch.sendEmail ? "email the preview link when an email is known" : "don't send emails");
   if (patch.sendSms !== undefined) parts.push(patch.sendSms ? "text the link only to numbers that opted in" : "don't send texts");
+  if (patch.pitchFirst !== undefined)
+    parts.push(patch.pitchFirst ? "email a short text pitch first and build the demo only after the owner replies" : "build the demo first and email its preview link");
   if (patch.rotation) parts.push(describeRotation(patch.rotation));
   const text = parts.join(", ");
   return text ? text[0]!.toUpperCase() + text.slice(1) + "." : "No change.";
