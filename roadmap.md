@@ -365,3 +365,17 @@ Counted from the code, not from audits.
 - [x] `scene` `scrub: true`: a video backdrop's playhead follows the scroll while the scene stays pinned (~3 screens); never plays, no sound; first frame without JS or for reduced motion; not allowed inside scroll_chapters. Replaces the frame-sequence idea: owners upload one short video, no frames needed.
 - [x] `parallax_layers`: 2-4 stacked pictures drifting at different speeds on scroll (CSS scroll timeline on the container; still for reduced motion or unsupported browsers). Browser check caught that `overflow:hidden` made the layer its own scroller; the container now uses `overflow:clip`.
 - Seen in reference videos and not built: abstract WebGL particle scenes (galaxy, helix, mesh blob). Pure atmosphere with no business content, a poor fit for local trades; revisit for tech/agency customers via the existing three/R3F dependency.
+
+## Live-test fixes and builder guards (2026-10-28)
+- [x] Picture truth filter ignores negated claims ("without…", "never…"); vehicles prompted fully debadged (#334)
+- [x] Capped-width containers fill their column (narrow accordion fix); Builder return pill clears bottom-pinned bars with iPhone tolerance (#334, #335)
+- [x] Services page "Suggest packages": wording only, no digits, prices, claims or timings; owner edits each before adding; 6 asks/hour/org (#336)
+- [x] Homepage: honest AI-team section and typical-tools-vs-Revora comparison, figures from `software-savings.ts` (#337)
+- [x] `page_mostly_plain` gate: a home page of 4+ sections that is mostly text on stacks and cards goes back for repair; not asked when no pictures exist (#338)
+- [x] Admin monitoring "Latest builds": primitives, interactive count, pictures by status, stage timings per recent build (#339)
+- [x] Playbooks added for locksmith, towing, solar, pool, garage door, appliance repair (#340)
+- [x] First-build attention list tells the owner when the service menu is thin (#341)
+- Already existed, nothing to build: every supplied picture must appear in its section's composition (`requiredMediaRefs`); stale-deploy reload on `vite:preloadError`.
+- [ ] Prospect replies cancel a waiting automatic follow-up (#329, open)
+- [ ] Unproven until one fresh build: which primitives Sol picks per trade, and whether the plain-layout gate triggers in practice. The new Latest builds panel shows both.
+- Needs the owner: screenshot QA after each build (Cloudflare account ID and token, and signed preview link vs page HTML), reply engine mailbox secrets, pgvector memory migration approval, Meta credentials, a .glb upload path.
