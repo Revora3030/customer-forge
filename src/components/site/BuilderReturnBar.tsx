@@ -40,14 +40,28 @@ export function BuilderReturnBar() {
 
   useEffect(() => {
     if (!signedIn || framed || hidden) return;
-    const measure = () => setLift(bottomBarHeight(self.current));
+    let frame = 0;
+    const measure = () => {
+      frame = 0;
+      setLift(bottomBarHeight(self.current));
+    };
+    const schedule = () => {
+      if (!frame) frame = window.requestAnimationFrame(measure);
+    };
     measure();
-    // The site's sticky bar can appear after hydration or on a breakpoint change.
+    // The site's sticky bar can appear after hydration or on a breakpoint
+    // change, and iOS Safari resizes the viewport as its toolbar collapses
+    // while the visitor scrolls, so re-measure on all of those.
     const late = window.setTimeout(measure, 1200);
-    window.addEventListener("resize", measure);
+    window.addEventListener("resize", schedule);
+    window.addEventListener("scroll", schedule, { passive: true });
+    window.visualViewport?.addEventListener("resize", schedule);
     return () => {
       window.clearTimeout(late);
-      window.removeEventListener("resize", measure);
+      if (frame) window.cancelAnimationFrame(frame);
+      window.removeEventListener("resize", schedule);
+      window.removeEventListener("scroll", schedule);
+      window.visualViewport?.removeEventListener("resize", schedule);
     };
   }, [signedIn, framed, hidden]);
 
@@ -89,9 +103,31 @@ export function BuilderReturnBar() {
 }
 
 /**
+ * How far a bar sits from the bottom of the screen is not exact on iPhones:
+ * the address bar and home-indicator padding move the visual and layout
+ * viewports a few pixels apart, so "touching the bottom" allows this much slack.
+ */
+export const BOTTOM_PINNED_SLACK = 32;
+
+/**
+ * Height a bottom-pinned bar takes up from the bottom of the screen, or 0 when
+ * the box is not such a bar: it must be visible, no taller than half the
+ * screen, and end within `slack` pixels of the bottom edge.
+ */
+// eslint-disable-next-line react-refresh/only-export-components -- small pure helper kept beside its only caller so it can be tested.
+export function pinnedBarHeight(
+  box: { top: number; bottom: number; width: number; height: number },
+  viewportHeight: number,
+  slack: number = BOTTOM_PINNED_SLACK,
+): number {
+  if (!box.height || !box.width || box.height > viewportHeight / 2) return 0;
+  if (Math.abs(box.bottom - viewportHeight) > slack) return 0;
+  return Math.max(viewportHeight - box.top, 0);
+}
+
+/**
  * Tallest visible element pinned to the bottom edge of the viewport (fixed or
- * sticky, reaching within a few pixels of the bottom), excluding `skip`. Zero
- * when the page has none.
+ * sticky), excluding `skip`. Zero when the page has none.
  */
 // eslint-disable-next-line react-refresh/only-export-components -- tiny helper kept beside its only caller.
 export function bottomBarHeight(skip: Element | null, doc: Document = document, viewportHeight = window.innerHeight): number {
@@ -100,10 +136,7 @@ export function bottomBarHeight(skip: Element | null, doc: Document = document, 
     if (el === skip || skip?.contains(el)) continue;
     const position = getComputedStyle(el).position;
     if (position !== "fixed" && position !== "sticky") continue;
-    const box = el.getBoundingClientRect();
-    if (!box.height || !box.width || box.height > viewportHeight / 2) continue;
-    if (Math.abs(box.bottom - viewportHeight) > 4) continue;
-    tallest = Math.max(tallest, viewportHeight - box.top);
+    tallest = Math.max(tallest, pinnedBarHeight(el.getBoundingClientRect(), viewportHeight));
   }
   return Math.round(tallest);
 }
