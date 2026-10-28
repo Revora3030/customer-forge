@@ -95,6 +95,8 @@ type BuilderPreviewProps = {
   firstRun?: boolean;
   /** False until the site has been published: compare shows a note instead of the 404 live page. */
   livePublished?: boolean;
+  /** The page open in the frame, so the chat can answer about what the owner is looking at. */
+  onPageChange?: (page: { id: string; title: string; slug: string } | null) => void;
 };
 
 /**
@@ -122,6 +124,7 @@ function BuilderPreviewFrame({
   onInlineSaved,
   organizationId = null,
   livePublished = true,
+  onPageChange,
 }: Omit<BuilderPreviewProps, "firstRun">) {
   const ordered = useMemo(() => [...pages].sort((a, b) => a.sort_order - b.sort_order), [pages]);
   const [pageId, setPageId] = useState<string | null>(null);
@@ -176,6 +179,14 @@ function BuilderPreviewFrame({
     return () => ro.disconnect();
   }, [fullscreen]);
   const page = ordered.find((item) => item.id === pageId) ?? ordered[0];
+  const pageChangeRef = useRef(onPageChange);
+  pageChangeRef.current = onPageChange;
+  const openPageId = page?.id ?? null;
+  const openPageTitle = page ? (page.kind === "home" || page.slug === "home" ? "Home" : pageNavLabel(page.title, businessName, page.slug)) : "";
+  const openPageSlug = page?.slug ?? "";
+  useEffect(() => {
+    pageChangeRef.current?.(openPageId ? { id: openPageId, title: openPageTitle, slug: openPageSlug } : null);
+  }, [openPageId, openPageTitle, openPageSlug]);
   const currentViewport = BUILDER_VIEWPORTS.find((item) => item.key === viewport);
   const viewportWidth = currentViewport?.width ?? 1280;
   const CurrentViewportIcon = VIEWPORT_ICONS[viewport];
@@ -669,7 +680,7 @@ const PreviewFrame = forwardRef<
             data-preview-src={src}
             title={title}
             src={src}
-            loading="lazy"
+            loading="eager"
             onLoad={() => setLoadState((s) => nextPreviewLoadState(s, "load"))}
             onError={() => setLoadState((s) => nextPreviewLoadState(s, "error"))}
             sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"
@@ -677,6 +688,12 @@ const PreviewFrame = forwardRef<
             style={{ width: viewportWidth, minWidth: viewportWidth, maxWidth: viewportWidth, height: frameHeight, backgroundColor: "#fff" }}
           />
         </div>
+        {loadState === "loading" ? (
+          // A frame that has not painted yet is blank; say so instead of leaving an empty box.
+          <div aria-hidden className="pointer-events-none absolute inset-0 grid place-items-center bg-background text-[13px] text-muted-foreground">
+            <span className="animate-pulse">Loading your preview…</span>
+          </div>
+        ) : null}
         {loadState === "failed" ? (
           <div role="alert" className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-background p-4 text-center">
             <p className="text-[14px] font-semibold">Preview couldn't load</p>
@@ -773,7 +790,7 @@ function OverlayCompare({
         data-preview-src={src}
         title={testId ? title : "Published site"}
         src={src}
-        loading="lazy"
+        loading="eager"
         sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"
         className="block border-0"
         style={{ width: viewportWidth, height: frameHeight, backgroundColor: "#fff" }}

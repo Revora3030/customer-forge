@@ -261,3 +261,18 @@ export function announceDraftChange(organizationId: string, origin?: string): vo
     /* not supported: other tabs refresh on their own schedule */
   }
 }
+
+/** The page the owner is looking at in the preview. */
+export type PageContext = { id: string; title: string; slug: string };
+
+/**
+ * Soft context for a request: which page the owner has open. Informational
+ * only: a request about the whole site, a new page or the colours still applies
+ * wherever it belongs. Empty when no page is known.
+ */
+export function pageContextPrefix(page: PageContext | null | undefined): string {
+  if (!page) return "";
+  const title = page.title.replace(/["\r\n]+/g, " ").trim().slice(0, 60) || "this";
+  const path = page.slug === "home" || page.slug === "" ? "/" : `/${page.slug}`;
+  return `(The owner has the "${title}" page, ${path}, open in the preview. Treat that as context, not a limit.)`;
+}

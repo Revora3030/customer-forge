@@ -16,7 +16,7 @@ vi.mock("@/components/app/AssistantMedia", () => ({ AssistantMedia: () => null }
 vi.mock("@/components/app/CompositionPreviewCard", () => ({ CompositionPreviewCard: () => null }));
 vi.mock("@/components/app/SectionHistoryButton", () => ({ SectionHistoryButton: () => null }));
 
-import { BuilderAssistant } from "@/components/app/BuilderAssistant";
+import { BuilderAssistant, RebuildConfirm } from "@/components/app/BuilderAssistant";
 import { ApplyResultCard } from "./ApplyResultCard";
 import { MessageMenu } from "./MessageMenu";
 
@@ -62,7 +62,7 @@ function fakeRequests(tasks: ChatTask[]): BuilderRequests {
   } as unknown as BuilderRequests;
 }
 
-function render(tasks: ChatTask[], props: { accessBlocked?: boolean } = {}) {
+function render(tasks: ChatTask[], props: Partial<React.ComponentProps<typeof BuilderAssistant>> = {}) {
   const client = new QueryClient();
   return renderToStaticMarkup(
     <QueryClientProvider client={client}>
@@ -175,5 +175,55 @@ describe("apply result card", () => {
     expect(html).toContain("Updated your draft · 3 changes");
     expect(html).toContain("Try those 2 again");
     expect(html).not.toContain("reached your website");
+  });
+});
+
+describe("chat knows the page and the trade", () => {
+  it("shows the open page as a chip and nothing when no page is known", () => {
+    const withPage = render([appliedTask], { pageContext: { id: "p1", title: "Services", slug: "services" } });
+    expect(withPage).toContain("Viewing: Services");
+    expect(render([appliedTask])).not.toContain("Viewing:");
+    // A first build has no page yet, so the chip stays out of it.
+    expect(render([], { pageContext: { id: "p1", title: "Home", slug: "home" }, onFirstBuild: async () => undefined })).not.toContain("Viewing:");
+  });
+
+  it("offers the trade's starter requests in an empty chat straight away", () => {
+    const html = render([], {
+      starterIdeas: [
+        { label: "Add my trade's signature moment", reason: "Auto detailing and car care", instruction: "x" },
+        { label: "Make every page richer", reason: "Replace plain text stacks", instruction: "y" },
+      ],
+    });
+    expect(html).toContain("Add my trade&#x27;s signature moment");
+    expect(html).toContain("Make every page richer");
+    expect(html).not.toContain("animate-pulse rounded-xl");
+  });
+});
+
+describe("fresh rebuild from the chat", () => {
+  const card = (props: { allowed: boolean; busy: boolean }) =>
+    renderToStaticMarkup(<RebuildConfirm {...props} onConfirm={() => undefined} onCancel={() => undefined} />);
+
+  it("says what happens first, and only offers the rebuild behind an explicit button", () => {
+    const html = card({ allowed: true, busy: false });
+    expect(html).toContain("Replace your whole draft with a fresh build?");
+    expect(html).toContain("I save a backup first");
+    expect(html).toContain("Your live site isn&#x27;t touched until you publish");
+    expect(html).toContain("Start fresh rebuild");
+    expect(html).toContain("Keep my site");
+    expect(html).not.toMatch(/<button[^>]*disabled=""[^>]*>Start fresh rebuild/);
+  });
+
+  it("disables the button while a build runs, and offers no rebuild to a role that cannot", () => {
+    expect(card({ allowed: true, busy: true })).toMatch(/<button[^>]*disabled=""[^>]*>Start fresh rebuild/);
+    const denied = card({ allowed: false, busy: false });
+    expect(denied).not.toContain("Start fresh rebuild");
+    expect(denied).toContain("Only an owner or admin can replace the whole draft");
+  });
+
+  it("routes the rebuild words to the confirm card instead of the edit planner", async () => {
+    const { readFileSync } = await import("node:fs");
+    const source = readFileSync("src/components/app/BuilderAssistant.tsx", "utf8");
+    expect(source).toMatch(/onFreshRebuild && attachments\.length === 0 && wantsFreshRebuild\(text\)[\s\S]*setRebuildAsk[\s\S]*requests\.queue\(scoped\(text\), attachments\)/);
   });
 });
