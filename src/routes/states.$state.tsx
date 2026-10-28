@@ -224,7 +224,7 @@ function StatePage() {
             </ul>
             <p className="mt-4 text-[13px] text-muted-foreground">
               Every trade Revora builds for is on the{" "}
-              <Link to="/states" className="text-primary underline-offset-4 hover:underline">
+              <Link to="/states" className="text-primary underline underline-offset-4 hover:no-underline">
                 full list
               </Link>
               .

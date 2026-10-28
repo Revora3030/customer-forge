@@ -157,15 +157,15 @@ function ContractorCrmPage() {
           </ul>
           <p className="mt-6 text-[13px] text-muted-foreground">
             Working in a related trade? Read how this works for{" "}
-            <Link to="/crm" className="text-primary underline-offset-4 hover:underline">
+            <Link to="/crm" className="text-primary underline underline-offset-4 hover:no-underline">
               your specific trade
             </Link>
             , browse the{" "}
-            <Link to="/industries" className="text-primary underline-offset-4 hover:underline">
+            <Link to="/industries" className="text-primary underline underline-offset-4 hover:no-underline">
               full list of trades we build for
             </Link>{" "}
             or see{" "}
-            <Link to="/pricing" className="text-primary underline-offset-4 hover:underline">
+            <Link to="/pricing" className="text-primary underline underline-offset-4 hover:no-underline">
               pricing
             </Link>
             .

@@ -200,7 +200,7 @@ function SharePage() {
                   ) : null}
                 </div>
               </div>
-              <pre className="mt-4 max-w-full overflow-x-auto rounded-lg border border-border bg-muted/30 p-3 text-[13px] leading-relaxed whitespace-pre-wrap text-foreground">
+              <pre tabIndex={0} aria-label={`${asset.label} message`} className="mt-4 max-w-full overflow-x-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-lg border border-border bg-muted/30 p-3 text-[13px] leading-relaxed whitespace-pre-wrap text-foreground">
                 {asset.message}
               </pre>
               <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">{asset.note}</p>
