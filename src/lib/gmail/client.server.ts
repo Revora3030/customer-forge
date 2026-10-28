@@ -22,14 +22,30 @@ export type GmailConfig = {
   clientSecret: string;
   refreshToken: string;
   sender: string;
+  /** Set when sending through the workspace's connected Gmail (connector gateway). */
+  gateway?: { lovableKey: string; connectionKey: string };
 };
+
+const GATEWAY_API = "https://connector-gateway.lovable.dev/google_mail/gmail/v1/users/me";
+const EMAIL_RE = /^[^\s@<>]+@[^\s@<>]+\.[a-z]{2,}$/i;
 
 export function missingGmailSecrets(): string[] {
   return GMAIL_SECRETS.filter((key) => !process.env[key]?.trim());
 }
 
+/**
+ * Direct OAuth secrets win when all four exist; otherwise the connected Gmail
+ * (GOOGLE_MAIL_API_KEY via the Lovable connector gateway) is used, with
+ * GMAIL_SENDER_EMAIL naming the connected mailbox for From/Message-ID.
+ */
 export function gmailConfig(): GmailConfig | null {
-  if (missingGmailSecrets().length) return null;
+  if (missingGmailSecrets().length) {
+    const lovableKey = process.env["LOVABLE_API_KEY"]?.trim();
+    const connectionKey = process.env["GOOGLE_MAIL_API_KEY"]?.trim();
+    const sender = process.env["GMAIL_SENDER_EMAIL"]?.trim().toLowerCase();
+    if (!lovableKey || !connectionKey || !sender || !EMAIL_RE.test(sender)) return null;
+    return { clientId: "gateway", clientSecret: "", refreshToken: "", sender, gateway: { lovableKey, connectionKey } };
+  }
   const sender = process.env["GMAIL_SENDER_EMAIL"]!.trim().toLowerCase();
   if (!/^[^\s@<>]+@[^\s@<>]+\.[a-z]{2,}$/i.test(sender)) return null;
   return {
@@ -65,6 +81,7 @@ export function resetGmailTokenCache(): void {
 export type GmailError = { ok: false; reason: string; status: number | null; transient: boolean };
 
 async function accessToken(config: GmailConfig): Promise<{ ok: true; token: string } | GmailError> {
+  if (config.gateway) return { ok: true, token: config.gateway.lovableKey };
   const key = `${config.clientId}:${config.refreshToken.slice(-12)}`;
   if (cachedToken && cachedToken.key === key && cachedToken.expiresAt > Date.now() + 60_000) return { ok: true, token: cachedToken.token };
   for (let attempt = 1; attempt <= GMAIL_MAX_ATTEMPTS; attempt += 1) {
@@ -130,10 +147,11 @@ async function gmailRequest<T>(
   for (let attempt = 1; attempt <= GMAIL_MAX_ATTEMPTS; attempt += 1) {
     let response: Response;
     try {
-      response = await fetch(`${API}${path}`, {
+      response = await fetch(`${config.gateway ? GATEWAY_API : API}${path}`, {
         method: init.method ?? "GET",
         headers: {
           authorization: `Bearer ${token.token}`,
+          ...(config.gateway ? { "x-connection-api-key": config.gateway.connectionKey } : {}),
           ...(init.body ? { "content-type": "application/json" } : {}),
         },
         ...(init.body ? { body: JSON.stringify(init.body) } : {}),
@@ -148,7 +166,7 @@ async function gmailRequest<T>(
     }
     if (response.ok) return { ok: true, data: (await response.json().catch(() => ({}))) as T };
     await response.body?.cancel().catch(() => undefined);
-    if (response.status === 401) resetGmailTokenCache();
+    if (response.status === 401 && !config.gateway) resetGmailTokenCache();
     if (!init.idempotent && response.status >= 500) return { ok: false, reason: "gmail_transport_error", status: response.status, transient: false };
     if (transientStatus(response.status) && attempt < GMAIL_MAX_ATTEMPTS) {
       await sleep(backoffMs(attempt));
