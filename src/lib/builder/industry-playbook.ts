@@ -31,7 +31,7 @@ export const TRADE_PLAYBOOKS: readonly TradePlaybook[] = [
     match: /detail|car wash|auto spa|ceramic|paint correction|tint/i,
     signature: "A before_after_slider of the owner's real paint correction or interior work, and a spin_viewer only when the owner photographs a vehicle from 8 or more angles.",
     storyArc: ["the vehicle as it arrived", "the process", "the finished panel in light", "packages", "booking"],
-    needsFromOwner: "Real before and after photos; 8 or more angles of one finished vehicle for a spin.",
+    needsFromOwner: "Real before and after photos; 8 or more angles of one finished vehicle for a spin. Until then build the home page as scroll_chapters scenes over the supplied or generated vehicle pictures (atmosphere only, no result claims), with the real services as offer cards; a dark, high-contrast studio look often suits the trade, but the palette stays the designer's call.",
   },
   {
     key: "roofing",

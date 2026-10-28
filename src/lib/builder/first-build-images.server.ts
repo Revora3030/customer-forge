@@ -79,10 +79,20 @@ export function firstBuildImageConcurrency() {
   return Number.isFinite(raw) && raw > 0 ? Math.min(Math.floor(raw), 6) : 3;
 }
 
+/**
+ * The AI's picture descriptions routinely carry their own disclaimers
+ * ("without suggesting completed work", "never a before-and-after result").
+ * A disclaimer is not a claim, so negated clauses are removed before the
+ * claim check; otherwise the safest-worded shots were the ones dropped.
+ */
+export function claimWords(text: string): string {
+  return text.replace(/\b(?:without|never|not|no|nor|avoid(?:ing|s)?)\b[^.;:()]*/gi, " ");
+}
+
 function safeSlot(shot: PlannedShot) {
   if (!/^[a-z0-9][a-z0-9-]{0,59}$/.test(shot.slot)) return false;
   if (shot.placement.some((place) => /gallery|proof|testimonial|review|award|team|result|before|after/i.test(place))) return false;
-  return !/testimonial|review|award|team|result|completed work|proof|before|after/i.test(`${shot.slot} ${shot.label} ${shot.purpose}`);
+  return !/testimonial|review|award|team|result|completed work|proof|before|after/i.test(`${shot.slot} ${claimWords(shot.label)} ${claimWords(shot.purpose)}`);
 }
 
 /**
@@ -302,7 +312,7 @@ export async function generateFirstBuildImages(
     // the cap is cut — so the subject and the safety rules lead, and the long
     // art-direction notes follow.
     const prompt = [
-      `Photorealistic professional website photograph of ${spec.subject}. Single photograph, not a collage or split-screen. No text, letters, numbers, logos, car badges, emblems, licence plates, watermarks, signage or recognisable real people.`,
+      `Photorealistic professional website photograph of ${spec.subject}. Single photograph, not a collage or split-screen. No text, letters, numbers, logos, car badges, emblems, licence plates, watermarks, signage or recognisable real people; any vehicle is fully debadged, with a plain grille and plain wheel centres.`,
       `Purpose: ${spec.purpose}.`,
       spec.action ? `Action: ${spec.action}.` : "",
       spec.environment ? `Environment: ${spec.environment}.` : "",
