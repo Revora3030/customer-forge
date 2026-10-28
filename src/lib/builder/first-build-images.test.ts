@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { blankFirstBuildDirection } from "./first-build-contract";
-import { firstBuildImageShots } from "./first-build-images.server";
+import { claimWords, firstBuildImageShots } from "./first-build-images.server";
 
 const creative = blankFirstBuildDirection({
   organizationId: "11111111-1111-4111-8111-111111111111",
@@ -75,5 +75,28 @@ describe("first-build image coverage", () => {
     const shots = firstBuildImageShots(duplicated, 0);
     expect(shots.filter((shot) => shot.slot === "hero")).toHaveLength(1);
     expect(shots.filter((shot) => shot.slot === "service")).toHaveLength(2);
+  });
+
+  it("keeps shots whose descriptions only disclaim results (live build 2026-10-28 dropped the hero this way)", () => {
+    const base = creative.brief.imageInventory[0]!;
+    const disclaimed = {
+      ...creative,
+      brief: {
+        ...creative.brief,
+        imageInventory: [
+          { ...base, slot: "home-drive", label: "Residential scene", purpose: "Establish the at-home setting in the full-bleed home opening without suggesting completed work." },
+          { ...base, slot: "detail-surface", label: "Vehicle material study", purpose: "Create a closer visual scale without implying a treatment, finish or result." },
+          { ...base, slot: "proof-shot", label: "Finished result", purpose: "Show the result of a finished detail." },
+        ],
+      },
+    };
+    const slots = firstBuildImageShots(disclaimed, 0).map((shot) => shot.slot);
+    expect(slots).toEqual(["home-drive", "detail-surface"]);
+  });
+
+  it("removes only negated clauses before the claim check", () => {
+    expect(claimWords("Show the result")).toMatch(/result/);
+    expect(claimWords("Calm scene without implying a result. Shows the car.")).not.toMatch(/result/);
+    expect(claimWords("Never a before-and-after, just the drive")).not.toMatch(/before/);
   });
 });
