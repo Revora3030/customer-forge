@@ -111,6 +111,8 @@ export type CustomBlockSpec =
       note?: string;
       /** What the big figure measures, e.g. "Pressure". Shown above the figure. */
       figureLabel?: string;
+      /** "dial" draws the level as a round gauge instead of a bar. */
+      display?: "bar" | "dial";
       items: { label: string; figure: string; level?: number; body?: string }[];
     };
 
@@ -540,12 +542,14 @@ export function parseCustomBlock(raw: unknown): ParseResult {
       }
       const note = clean(row["note"], MAX_BODY);
       const figureLabel = clean(row["figureLabel"], MAX_LABEL);
+      const display = row["display"] === "dial" ? "dial" : "bar";
       return {
         ok: true,
         spec: {
           type: "selector",
           ...(title ? { title } : {}),
           ...(figureLabel ? { figureLabel } : {}),
+          ...(display === "dial" ? { display } : {}),
           ...(note ? { note } : {}),
           items,
         },

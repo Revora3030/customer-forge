@@ -539,7 +539,25 @@ function OptionSelector({ spec }: { spec: Extract<CustomBlockSpec, { type: "sele
         <div aria-live="polite" className="mt-5 rounded-2xl border border-border bg-card/40 p-5">
           {spec.figureLabel ? <p className="text-[14px] text-muted-foreground">{spec.figureLabel}</p> : null}
           <p className="font-display text-[34px] leading-tight font-semibold">{current.figure}</p>
-          {current.level !== undefined ? (
+          {current.level !== undefined && spec.display === "dial" ? (
+            <svg
+              role="img"
+              aria-label={`${current.label}: ${current.level} on a scale of 100`}
+              viewBox="0 0 120 70"
+              className="mt-3 w-44 max-w-full"
+            >
+              <path d="M10 62 A50 50 0 0 1 110 62" pathLength={100} fill="none" strokeWidth="10" strokeLinecap="round" className="stroke-border" />
+              <path
+                d="M10 62 A50 50 0 0 1 110 62"
+                pathLength={100}
+                fill="none"
+                strokeWidth="10"
+                strokeLinecap="round"
+                strokeDasharray={`${current.level} 100`}
+                className="stroke-primary transition-[stroke-dasharray] motion-reduce:transition-none"
+              />
+            </svg>
+          ) : current.level !== undefined ? (
             <div
               role="img"
               aria-label={`${current.label}: ${current.level} on a scale of 100`}

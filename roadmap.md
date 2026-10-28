@@ -360,3 +360,5 @@ Counted from the code, not from audits.
 - [x] Review wall rating filter (All / 5 stars / 4 stars & up), only when it changes what is shown
 - [ ] `model_3d_viewer`: not built. Owners have no way to upload a .glb (media is pictures only) and no business has supplied one; build the upload path first. three/R3F are already dependencies (admin AI City only).
 - Not built on purpose: live booking ticker (invented social proof), soundboard, thermal overlay (invented findings), gravity badges.
+- [x] `service_tier_fader`: slider cross-fading 2-4 offer cards (prices only from the Services tool); every package listed without JavaScript
+- [x] `selector` gains `display: "dial"` (round gauge instead of a bar)

@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { validateComposition } from "@/lib/builder/composition-tree";
 import { INTERACTIVE_PRIMITIVES, COMPOSITION_PRIMITIVES } from "@/lib/builder/composition-tree";
-import { LensMagnifier, StickySplitStory } from "@/components/site/MasterBlocks";
+import { LensMagnifier, StickySplitStory, TierFader } from "@/components/site/MasterBlocks";
 import { CINEMATIC_CSS } from "@/components/site/cinematic-css";
 
 const REFS = { allowedMediaRefs: new Set(["temp_one"]) };
@@ -46,5 +46,24 @@ describe("lens_magnifier and sticky_split_story", () => {
     expect(tree([pic, phase("Prep"), phase("Rinse"), phase("Seal")]).ok).toBe(true);
     expect(tree([pic, phase("Prep")]).ok).toBe(false);
     expect(tree([phase("Prep"), phase("Rinse"), phase("Seal")]).ok).toBe(false);
+  });
+
+  it("tier fader: lists every package without JavaScript, with a 44px labelled slider", () => {
+    const html = renderToStaticMarkup(<TierFader props={props} label="Choose your package" labels={["Good", "Better", "Best"]} cards={[<p key="a">Wash</p>, <p key="b">Wash + wax</p>, <p key="c">Full detail</p>]} />);
+    expect(html.match(/rv-tier-card"/g)).toHaveLength(3);
+    expect(html).not.toContain("data-hidden");
+    expect(html).toContain('aria-valuetext="Good"');
+    expect(html).toContain("Choose your package");
+    expect(CINEMATIC_CSS).toMatch(/\.rv-tier-range\{width:100%;min-height:44px/);
+    expect(CINEMATIC_CSS).toMatch(/\.rv-tier-range\{[^}]*touch-action:pan-y/);
+  });
+
+  it("validator: tier fader needs 2-4 offer cards, and never a typed price", () => {
+    const card = (t: string) => ({ type: "offer_card", text: t, service: t, children: [{ type: "button", text: "Book", href: "#booking" }] });
+    const tree = (kids: unknown[]) => validateComposition({ version: 1, root: { type: "stack", children: [{ type: "service_tier_fader", text: "Choose", children: kids }] } });
+    expect(tree([card("Basic wash"), card("Full detail")]).ok).toBe(true);
+    expect(tree([card("Basic wash")]).ok).toBe(false);
+    expect(tree([card("A"), { type: "text", text: "x" }]).ok).toBe(false);
+    expect(tree([card("A"), { ...card("B"), text: "Full detail $199" }]).ok).toBe(false);
   });
 });

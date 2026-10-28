@@ -102,3 +102,42 @@ export function StickySplitStory({ props, picture, phases }: { props: NodeProps;
     </section>
   );
 }
+
+/**
+ * Good / Better / Best: a slider picks one package and the cards cross-fade.
+ * Server-rendered (and without JavaScript) every package is simply listed, so
+ * no price is ever hidden from a visitor who cannot use the slider.
+ */
+export function TierFader({ props, label, labels, cards }: { props: NodeProps; label: string; labels: string[]; cards: ReactNode[] }) {
+  const [active, setActive] = useState<number | null>(null);
+  const picked = active ?? 0;
+  const live = active !== null;
+  return (
+    <section {...props} className={merge(props, "rv-tier")} data-live={live ? "" : undefined}>
+      <div className="rv-tier-control">
+        <label htmlFor={`${props["data-cn"]}-tier`} className="rv-tier-label">{label}</label>
+        <input
+          id={`${props["data-cn"]}-tier`}
+          type="range"
+          min={0}
+          max={cards.length - 1}
+          step={1}
+          value={picked}
+          aria-valuetext={labels[picked]}
+          onChange={(event) => setActive(Number(event.target.value))}
+          className="rv-tier-range"
+        />
+        <ol className="rv-tier-ticks" aria-hidden="true">
+          {labels.map((text, index) => (
+            <li key={index} data-on={index === picked ? "" : undefined}>{text}</li>
+          ))}
+        </ol>
+      </div>
+      <div className="rv-tier-cards" aria-live="polite">
+        {cards.map((card, index) => (
+          <div key={index} className="rv-tier-card" data-on={!live || index === picked ? "" : undefined} data-hidden={live && index !== picked ? "" : undefined}>{card}</div>
+        ))}
+      </div>
+    </section>
+  );
+}

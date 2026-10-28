@@ -157,4 +157,13 @@ describe("extended custom blocks", () => {
       parseCustomBlock({ type: "selector", items: [ok, { label: "B", figure: "2", level: 150 }] }).ok,
     ).toBe(false);
   });
+
+  it("keeps the dial display only when asked for", () => {
+    const items = [{ label: "A", figure: "1", level: 40 }, { label: "B", figure: "2" }];
+    const dial = spec({ type: "selector", display: "dial", items });
+    const bar = spec({ type: "selector", items });
+    if (dial.type !== "selector" || bar.type !== "selector") throw new Error("wrong type");
+    expect(dial.display).toBe("dial");
+    expect(bar.display).toBeUndefined();
+  });
 });

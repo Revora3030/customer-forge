@@ -91,4 +91,17 @@ ${S} .rv-split-pin{position:sticky;top:96px;align-self:start}
 ${S} .rv-split-phases{gap:0}
 ${S} .rv-split-phase{min-height:70vh;display:flex;flex-direction:column;justify-content:center}
 }
+${S} .rv-tier{display:grid;gap:20px;width:100%}
+${S} .rv-tier-control{display:grid;gap:10px}
+${S} .rv-tier-label{font-weight:650}
+${S} .rv-tier-range{width:100%;min-height:44px;accent-color:currentColor;touch-action:pan-y;cursor:pointer}
+${S} .rv-tier-range:focus-visible{outline:3px solid currentColor;outline-offset:3px}
+${S} .rv-tier-ticks{display:flex;justify-content:space-between;gap:8px;margin:0;padding:0;list-style:none;font-size:14px;opacity:.7}
+${S} .rv-tier-ticks li[data-on]{opacity:1;font-weight:650}
+${S} .rv-tier-cards{display:grid;gap:16px}
+${S} .rv-tier-card[data-hidden]{display:none}
+@media (min-width:768px){${S} .rv-tier-cards{grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}}
+${S} .rv-tier[data-live] .rv-tier-card[data-on]{animation:rv-tier-in .28s ease both}
+@keyframes rv-tier-in{from{opacity:0}to{opacity:1}}
+@media (prefers-reduced-motion:reduce){${S} .rv-tier[data-live] .rv-tier-card[data-on]{animation:none}}
 `;

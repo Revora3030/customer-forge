@@ -8,7 +8,7 @@ import { premiumSurface } from "@/lib/site-theme";
 import { clampSplit, splitForKey, splitForPointer } from "@/lib/builder/compare-slider";
 import { brushRadius, coverRect, coveragePercent, isRevealDone, newGrid, paintAt, strokePoints, type RevealGrid } from "@/lib/builder/reveal-brush";
 import { DEFAULT_OFFER_ANCHOR, DEFAULT_SCENE_ANCHOR, sceneScrim, type SceneAnchor } from "@/lib/builder/cinematic-primitives";
-import { LensMagnifier, StickySplitStory } from "@/components/site/MasterBlocks";
+import { LensMagnifier, StickySplitStory, TierFader } from "@/components/site/MasterBlocks";
 import { CollectionRow, SceneVideo, ScrollChapters, SpinViewer, type SpinFrame } from "@/components/site/CinematicBlocks";
 import { CINEMATIC_CSS } from "@/components/site/cinematic-css";
 
@@ -522,6 +522,10 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
     case "sticky_split_story": {
       const phases = kids.slice(1).filter((kid) => kid != null);
       return kids[0] && phases.length ? <StickySplitStory key={key} props={props} picture={kids[0]} phases={phases} /> : null;
+    }
+    case "service_tier_fader": {
+      const pairs = children.map((child, i) => ({ card: kids[i], label: child.text?.trim() || (child.service && ctx.offer ? ctx.offer(child.service)?.name : "") || `Option ${i + 1}` })).filter((pair) => pair.card != null);
+      return pairs.length > 1 ? <TierFader key={key} props={props} label={node.text?.trim() || "Choose your package"} labels={pairs.map((pair) => pair.label)} cards={pairs.map((pair) => pair.card)} /> : null;
     }
     case "collection_row": {
       const items = kids.filter((kid) => kid != null);
