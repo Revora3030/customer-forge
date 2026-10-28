@@ -16,7 +16,9 @@ const tree = (root: unknown) => {
   return result.tree;
 };
 const render = (root: unknown, url: string) =>
-  renderToStaticMarkup(<CompositionRenderer tree={tree(root)} scope="t" resolveMedia={() => url} />).replace(/<style[^>]*>[\s\S]*?<\/style>/g, "");
+  sectionMarkup(renderToStaticMarkup(<CompositionRenderer tree={tree(root)} scope="t" resolveMedia={() => url} />));
+// The shared stylesheet is emitted before the section and names every class; assert on the markup only.
+const sectionMarkup = (rendered: string) => rendered.slice(rendered.indexOf("<section data-composition"));
 
 describe("scene scrub", () => {
   it("wraps a video scene in a scrolling track whose video never plays or loops", () => {

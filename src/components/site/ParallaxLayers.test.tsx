@@ -12,7 +12,9 @@ describe("parallax_layers", () => {
   it("renders every layer back to front with its depth, only the back layer is announced", () => {
     const result = validateComposition({ version: 1, root: root([layer("temp_a", "Skyline"), layer("temp_b", "Cut-out")]) }, REFS);
     if (!result.ok) throw new Error(JSON.stringify(result.issues));
-    const html = renderToStaticMarkup(<CompositionRenderer tree={result.tree} scope="t" resolveMedia={(ref) => `/${ref}.png`} />).replace(/<style[^>]*>[\s\S]*?<\/style>/g, "");
+    // The shared stylesheet is emitted before the section and names every class; assert on the markup only.
+    const rendered = renderToStaticMarkup(<CompositionRenderer tree={result.tree} scope="t" resolveMedia={(ref) => `/${ref}.png`} />);
+    const html = rendered.slice(rendered.indexOf("<section data-composition"));
     expect(html.match(/rv-px-layer/g)).toHaveLength(2);
     expect(html.indexOf("/temp_a.png")).toBeLessThan(html.indexOf("/temp_b.png"));
     expect(html).toContain('data-depth="1"');
