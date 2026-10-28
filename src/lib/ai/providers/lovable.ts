@@ -164,7 +164,7 @@ function streamingSwitchedOff() {
 async function readStreamChunk(reader: ReadableStreamDefaultReader<Uint8Array>, idleMs: number) {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const stalled = new Promise<never>((_, reject) => {
-    timer = setTimeout(
+    timer = setTimeout( // DevSkim: ignore DS172411 -- Fixed callback and a numeric delay; no untrusted data.
       () =>
         reject(
           new RevoraAiError(408, "Revora AI stopped answering partway through. Try again.", {
