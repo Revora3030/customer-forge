@@ -5,7 +5,8 @@
  */
 
 const BY_STAGE: [RegExp, string, string][] = [
-  [/picture|photo|image/i, "Luna", "making photos for"],
+  // Photography belongs to the image team (Sunburst and Flare), not Luna, who validates truth and SEO.
+  [/picture|photo|image/i, "The image team", "making photos for"],
   [/review|safety|checking|contrast|quality|result/i, "Terra", "checking"],
   [/polish|design|layout|restyl|brand/i, "Sol", "designing"],
   [/writ|copy|wording/i, "Sol", "writing"],
