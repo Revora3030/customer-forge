@@ -17,7 +17,7 @@ import { trackTrialStarted } from "@/lib/google-ads";
 import { provisionWorkspace, recordAccountCreated } from "@/lib/platform-funnel.functions";
 import { useStepScroll } from "@/lib/use-step-scroll";
 import { smartIntakeValue } from "@/lib/intake-smart";
-import { canonicalLink, ogUrl } from "@/lib/seo";
+import { canonicalLink, ogUrl, OG_IMAGE_META } from "@/lib/seo";
 import { useServerFn } from "@tanstack/react-start";
 import { claimProspectDemo, getProspectClaim } from "@/lib/prospect-claim.functions";
 import { CLAIM_STORAGE_KEY, claimAwareRedirect, isClaimToken } from "@/lib/prospect-claim";
@@ -44,6 +44,7 @@ export const Route = createFileRoute("/get-started")({
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
       ogUrl("/get-started"),
+      ...OG_IMAGE_META,
     ],
     links: [canonicalLink("/get-started")],
   }),

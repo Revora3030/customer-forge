@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { GROWTH_SYSTEM, usdExact } from "@/lib/offer";
-import { breadcrumbSchema, canonicalLink, ogUrl, metaDescription } from "@/lib/seo";
+import { breadcrumbSchema, canonicalLink, ogUrl, metaDescription, OG_IMAGE_META } from "@/lib/seo";
 import { formatPercent, formatUsd, leadValue, missedCallImpact } from "@/lib/tools-calc";
 
 const TITLE = "Free Calculators for Local Businesses | Revora";
@@ -23,6 +23,7 @@ export const Route = createFileRoute("/tools")({
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
       ogUrl("/tools"),
+      ...OG_IMAGE_META,
     ],
     links: [canonicalLink("/tools")],
     scripts: [

@@ -9,7 +9,7 @@ import { BusinessDetails } from "@/components/marketing/BusinessDetails";
 import { BUSINESS, findLocation, type NcLocation } from "@/lib/business-identity";
 import { INDUSTRIES, industrySlug } from "@/lib/domain";
 import { GROWTH_SYSTEM, usdExact } from "@/lib/offer";
-import { breadcrumbSchema, canonicalLink, ogUrl, metaDescription } from "@/lib/seo";
+import { breadcrumbSchema, canonicalLink, ogUrl, metaDescription, OG_IMAGE_META } from "@/lib/seo";
 import { trackConversion } from "@/lib/conversion";
 
 const PILLARS = [
@@ -71,6 +71,7 @@ export const Route = createFileRoute("/locations/$city")({
         { property: "og:type", content: "website" },
         { name: "twitter:card", content: "summary_large_image" },
         ogUrl(path),
+        ...OG_IMAGE_META,
       ],
       links: [canonicalLink(path)],
       scripts: [

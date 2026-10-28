@@ -8,7 +8,7 @@ import { SectionHeading } from "@/components/app/Bits";
 import { Button } from "@/components/ui/button";
 import { INDUSTRIES, industrySlug } from "@/lib/domain";
 import { GROWTH_SYSTEM, usdExact } from "@/lib/offer";
-import { breadcrumbSchema, canonicalLink, ogUrl, metaDescription } from "@/lib/seo";
+import { breadcrumbSchema, canonicalLink, ogUrl, metaDescription, OG_IMAGE_META } from "@/lib/seo";
 
 const BENEFITS = [
   {
@@ -70,6 +70,7 @@ export const Route = createFileRoute("/industries/$slug")({
         { property: "og:type", content: "website" },
         { name: "twitter:card", content: "summary_large_image" },
         ogUrl(`/industries/${match.params.slug}`),
+        ...OG_IMAGE_META,
       ],
       links: [canonicalLink(`/industries/${match.params.slug}`)],
       scripts: [

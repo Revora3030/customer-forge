@@ -7,7 +7,7 @@ import { RelatedLinks } from "@/components/marketing/SeoLinks";
 import { Button } from "@/components/ui/button";
 import { BUSINESS } from "@/lib/business-identity";
 import { GROWTH_SYSTEM, usd } from "@/lib/offer";
-import { breadcrumbSchema, canonicalLink, ogUrl, SITE_URL, metaDescription } from "@/lib/seo";
+import { breadcrumbSchema, canonicalLink, ogUrl, SITE_URL, metaDescription, OG_IMAGE_META } from "@/lib/seo";
 import { localPageContent, localPath, type LocalPageContent } from "@/lib/local-pages";
 import { trackConversion } from "@/lib/conversion";
 
@@ -35,6 +35,7 @@ export const Route = createFileRoute("/local/$industry/$state")({
         { property: "og:type", content: "website" },
         { name: "twitter:card", content: "summary_large_image" },
         ogUrl(content.path),
+        ...OG_IMAGE_META,
       ],
       links: [canonicalLink(content.path)],
 
