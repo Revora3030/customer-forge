@@ -413,6 +413,10 @@ type DemoContext = {
   industry: string | null;
   previewToken: string;
   claimed: boolean;
+  /** Pitch-first shell: no site is built, so only the text pitch may be sent. */
+  pitchFirst: boolean;
+  /** True from the pitch until its demo build has finished: there is no preview to point to yet. */
+  pitchPending: boolean;
   /** Plain-language gaps verified on their current website; empty when they have none. */
   siteGaps: string[];
   build: { status: string; progress: number; step: string | null; error: string | null; doneSteps: string[] } | null;
@@ -450,6 +454,10 @@ export async function loadDemoForOutreach(db: SupabaseClient, organizationId: st
     industry: text(org.data.industry),
     previewToken: marker.previewToken,
     claimed: typeof claimedAt === "string" && claimedAt.length > 0,
+    pitchFirst: (raw as Record<string, unknown>)["pitchFirst"] === true,
+    pitchPending:
+      (raw as Record<string, unknown>)["pitchFirst"] === true ||
+      (typeof (raw as Record<string, unknown>)["pitchAnsweredAt"] === "string" && String(j?.["status"] ?? "") !== "completed"),
     build: j
       ? {
           status: String(j["status"] ?? ""),
@@ -723,6 +731,9 @@ export async function sendDemoOutreach(db: SupabaseClient, input: SendDemoOutrea
   const now = new Date();
   const followUp = input.kind === "follow_up";
   if (followUp && channel !== "email") return fail("invalid_request");
+  // A pitch-first shell has nothing to preview: it may only get the text pitch, by email, once.
+  const pitch = demo.pitchFirst;
+  if (pitch && (followUp || channel !== "email")) return fail("invalid_request");
   const record = async (row: { status: "sent" | "failed" | "skipped"; reason: string | null; subject?: string | null; body?: string | null; id?: string }) =>
     db.from("prospect_outreach").insert({
       ...(row.id ? { id: row.id } : {}),
@@ -743,7 +754,7 @@ export async function sendDemoOutreach(db: SupabaseClient, input: SendDemoOutrea
   };
 
   if (demo.claimed) return skip("demo_claimed");
-  if (demo.build?.status !== "completed") return skip("build_not_finished");
+  if (!pitch && demo.build?.status !== "completed") return skip("build_not_finished");
   if (await isDoNotContact(db, recipient)) return skip("do_not_contact");
   // Automatic emails (first touch and follow-up) wait for business hours in the
   // business's zone. Not recorded: the queue reschedules it, and an hourly
@@ -752,13 +763,15 @@ export async function sendDemoOutreach(db: SupabaseClient, input: SendDemoOutrea
     return { ok: false, reason: "outside_business_hours", message: outreachMessage("outside_business_hours"), retryAt: nextEmailBusinessHour(now, demo.state, demo.phone).toISOString() };
   }
 
-  let gate: OutreachGate;
-  try {
-    gate = await assessDemoForOutreach(db, organizationId);
-  } catch {
-    // Fail closed: an unreadable gate is a blocker, never a pass.
-    gate = { ok: false, blockers: [{ code: "gate_unavailable", message: "The launch quality check couldn't run.", severity: "safety" }] };
-  }
+  // A pitch has no site to grade; its text is fixed and every recipient check below still applies.
+  let gate: OutreachGate = { ok: true, blockers: [] };
+  if (!pitch)
+    try {
+      gate = await assessDemoForOutreach(db, organizationId);
+    } catch {
+      // Fail closed: an unreadable gate is a blocker, never a pass.
+      gate = { ok: false, blockers: [{ code: "gate_unavailable", message: "The launch quality check couldn't run.", severity: "safety" }] };
+    }
   if (!gate.ok && !(mode === "manual" && input.force && gate.blockers.length > 0 && gateOverridable(gate.blockers))) {
     const detail = gate.blockers.map((blocker) => blocker.message).filter(Boolean).join("; ").slice(0, 600);
     await record({ status: "skipped", reason: "quality_gate", body: detail || null });
@@ -835,7 +848,11 @@ export async function sendDemoOutreach(db: SupabaseClient, input: SendDemoOutrea
 
   let subject = input.subject?.trim() ? honestSubject(input.subject) : "";
   let message = input.body?.trim() ? stripOutreachFooter(input.body).slice(0, 4000) : "";
-  if (!subject || !message) {
+  if (pitch) {
+    // Fixed template: never operator- or AI-edited text, and never a preview link.
+    const { composePitchEmail } = await import("@/lib/prospect-pitch");
+    ({ subject, body: message } = composePitchEmail(demo.name));
+  } else if (!subject || !message) {
     const draft = await composeEmail(demo, previewUrl, input.actorId);
     subject ||= draft.subject;
     message ||= draft.body;

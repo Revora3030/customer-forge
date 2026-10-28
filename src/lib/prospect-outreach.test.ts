@@ -515,3 +515,48 @@ describe("fallbackDemoEmail", () => {
     expect(fallbackDemoEmail({ name: "Acme", siteGaps: [] }, "u").body).toContain("didn't see a website listed");
   });
 });
+
+describe("pitch-first outreach", () => {
+  const shell = () =>
+    demoSeed({
+      website_settings: [
+        {
+          organization_id: ORG,
+          generation: { prospectDemo: { kind: "prospect_demo", createdBy: "admin", createdAt: "2026-10-18T00:00:00Z", previewToken: "tok_abcdefghijklmnopqrst", pitchFirst: true } },
+        },
+      ],
+      generation_jobs: [],
+    });
+  const auto = { ...email, mode: "autopilot" as const, actorId: null };
+
+  it("sends the fixed text pitch with no preview link, without needing a finished build or the site quality gate", async () => {
+    const { db, tables } = fakeDb(shell());
+    const result = await sendDemoOutreach(db, { ...auto, subject: "Operator subject", body: "Operator body /p/tok_abcdefghijklmnopqrst" });
+    expect(result.ok).toBe(true);
+    const data = vi.mocked(sendTemplateEmail).mock.calls[0]![2]!.templateData as { subject: string; message: string; unsubscribeUrl: string };
+    expect(data.subject).toBe("A quick question for Triangle Comfort");
+    expect(data.message).toContain("setup is $350 one time");
+    expect(data.message).not.toContain("/p/");
+    expect(data.message).not.toContain("Operator body");
+    expect(data.unsubscribeUrl).toMatch(/\/unsubscribe\/outreach\//);
+    expect(tables["prospect_outreach"]![0]).toMatchObject({ status: "sent", channel: "email", kind: "first_touch", mode: "autopilot" });
+  });
+
+  it("keeps every recipient check: do-not-contact, one pitch per address, email only, no follow-up", async () => {
+    const { db } = fakeDb(shell());
+    expect(await sendDemoOutreach(db, { ...auto, channel: "sms", to: "(919) 555-0100" })).toMatchObject({ ok: false, reason: "invalid_request" });
+    expect(await sendDemoOutreach(db, { ...auto, kind: "follow_up" })).toMatchObject({ ok: false, reason: "invalid_request" });
+    expect(await sendDemoOutreach(db, auto)).toMatchObject({ ok: true });
+    expect(await sendDemoOutreach(db, auto)).toMatchObject({ ok: false, reason: "already_sent" });
+
+    const blocked = fakeDb(shell());
+    await addDoNotContact(blocked.db, "owner@triangle.com", "test");
+    expect(await sendDemoOutreach(blocked.db, auto)).toMatchObject({ ok: false, reason: "do_not_contact" });
+    expect(sendTemplateEmail).toHaveBeenCalledTimes(1);
+  });
+
+  it("still refuses an ordinary demo whose build has not finished", async () => {
+    const { db } = fakeDb(demoSeed({ generation_jobs: [{ organization_id: ORG, status: "processing", progress: 40, current_step: null, error_message: null, created_at: "2026-10-18T01:00:00Z" }] }));
+    expect(await sendDemoOutreach(db, auto)).toMatchObject({ ok: false, reason: "build_not_finished" });
+  });
+});

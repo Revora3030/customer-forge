@@ -108,6 +108,8 @@ export async function saveAutopilotSettings(db: SupabaseClient, patch: unknown, 
     send_sms: next.sendSms,
     // Written only when changed, so saves keep working before the rotation column exists.
     ...(change.rotation ? { rotation: next.rotation } : {}),
+    // Same rule for the pitch-first flag, so saves work before its migration is applied.
+    ...(change.pitchFirst !== undefined ? { pitch_first: next.pitchFirst } : {}),
     updated_by: actorId,
     updated_at: new Date().toISOString(),
   });
@@ -219,6 +221,8 @@ type SendableDemo = {
   phone: string | null;
   state: string | null;
   enrichment: ProspectEnrichment | null;
+  /** Pitch-first shell: no site is built yet, so only the text pitch may go out. */
+  pitchOnly?: boolean;
 };
 
 /** Finished, unclaimed autopilot demos young enough to share. */
@@ -246,13 +250,15 @@ async function sendableDemos(db: SupabaseClient, now: Date): Promise<SendableDem
   const out: SendableDemo[] = [];
   for (const org of orgs.data ?? []) {
     const id = String(org.id);
-    if (latest.get(id) !== "completed") continue;
+    // A pitch-first shell has no build job at all; once it has one it follows the normal demo path.
+    const pitchOnly = !latest.has(id) && markerByOrg.get(id)?.["pitchFirst"] === true;
+    if (latest.get(id) !== "completed" && !pitchOnly) continue;
     const profile = profileByOrg.get(id);
     const email = typeof profile?.["email"] === "string" && profile["email"].includes("@") ? profile["email"] : null;
     const phone = typeof profile?.["phone"] === "string" && profile["phone"] ? profile["phone"] : null;
     const state = typeof profile?.["state"] === "string" && profile["state"] ? profile["state"] : null;
     const enrichment = readProspectEnrichment(markerByOrg.get(id)?.["enrichment"]);
-    out.push({ organizationId: id, name: String(org.name ?? ""), email, phone, state, enrichment });
+    out.push({ organizationId: id, name: String(org.name ?? ""), email, phone, state, enrichment, ...(pitchOnly ? { pitchOnly: true } : {}) });
   }
   return out;
 }
@@ -438,7 +444,8 @@ async function buildPhase(
       const publicEmail = enrichment?.email && enrichment.status !== "rejected" ? enrichment.email : listedEmail;
       // Contact first: outreach is email-only, so a demo with no public email
       // could never be shared. Skip it before spending a build on it.
-      if (!publicEmail && !(settings.sendSms && e164)) {
+      // A pitch goes by email only, so pitch-first needs a published address.
+      if (!publicEmail && (settings.pitchFirst || !(settings.sendSms && e164))) {
         skip({ reason: "no_public_email", name: prospect.name, target: query });
         continue;
       }
@@ -454,6 +461,8 @@ async function buildPhase(
           source: "autopilot",
           placeId: prospect.placeId,
           ...(enrichment ? { enrichment } : {}),
+          // Pitch-first creates only the workspace shell; the site is built when the owner replies.
+          ...(settings.pitchFirst ? { pitchFirst: true } : {}),
         });
         seen.placeIds.add(prospect.placeId);
         const phone = phoneKey(prospect.phone);
@@ -464,7 +473,7 @@ async function buildPhase(
         remaining -= 1;
         // Recorded per build so a run that dies part-way still counts toward today's cap.
         await db.from("prospect_autopilot_runs").update({ built: summary.built, found: summary.found }).eq("id", summary.runId);
-        onQueued?.(demo.organizationId);
+        if (!settings.pitchFirst) onQueued?.(demo.organizationId);
       } catch (error) {
         skip({ reason: `build_failed: ${(error instanceof Error ? error.message : "failed").slice(0, 160)}`, name: prospect.name, target: query });
       }
@@ -615,16 +624,19 @@ async function sendPhase(
 
   for (const demo of demos) {
     const emailTo = settings.sendEmail && demo.email && !blocked(demo.organizationId, "email") ? demo.email : null;
+    // A pitch is email-only: texting needs a link to a finished site, and no site exists yet.
     // Texts only reach numbers with recorded consent; the outreach backend
     // refuses the rest, so autopilot never cold-texts anyone.
     const e164 = usPhoneE164(demo.phone);
     // Outside the texting window, wait quietly instead of logging an hourly skip.
-    const smsTo = settings.sendSms && e164 && !blocked(demo.organizationId, "sms") && smsAllowedNow(now(), demo.state, e164) ? e164 : null;
+    const smsTo = !demo.pitchOnly && settings.sendSms && e164 && !blocked(demo.organizationId, "sms") && smsAllowedNow(now(), demo.state, e164) ? e164 : null;
     const sendEmail = emailTo ? await emailCleared(demo, emailTo) : false;
     if (!sendEmail && !smsTo) continue;
 
     // Production gate: a demo that isn't good and truthful enough is never sent.
-    const gate = await assessDemoForOutreach(db, demo.organizationId);
+    // A pitch has no site to grade; its text is the fixed template and the
+    // recipient checks (verified address, do-not-contact, footer) still apply.
+    const gate = demo.pitchOnly ? { ok: true as const, blockers: [] } : await assessDemoForOutreach(db, demo.organizationId);
     if (!gate.ok) {
       skip({ reason: `quality_gate: ${gate.blockers.map((blocker) => blocker.message).join("; ").slice(0, 200)}`, name: demo.name });
       continue;
@@ -648,7 +660,7 @@ async function sendPhase(
   const { data: inbound } = await db.from("prospect_inbound").select("organization_id").in("organization_id", ids);
   for (const row of inbound ?? []) replied.add(String(row.organization_id));
   for (const demo of demos) {
-    if (!demo.email || queued.has(`${demo.organizationId}|email`)) continue;
+    if (demo.pitchOnly || !demo.email || queued.has(`${demo.organizationId}|email`)) continue;
     const sent = (history ?? []).filter((row) => row.organization_id === demo.organizationId && row.channel === "email" && row.status === "sent");
     const firstSentAt = sent.filter((row) => (row.kind ?? "first_touch") === "first_touch").map((row) => String(row.created_at)).sort()[0] ?? null;
     if (!followUpDue({ firstSentAt, followUpSent: sent.some((row) => row.kind === "follow_up"), replied: replied.has(demo.organizationId), claimed: false, now: now() })) continue;
