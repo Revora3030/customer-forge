@@ -25,8 +25,19 @@ describe("trade playbooks", () => {
       ["Family dentist", "health"],
       ["Wedding photographer", "photo-creative"],
       ["Tax preparation", "real-estate-pro"],
+      ["Mobile locksmith", "locksmith"],
+      ["24/7 towing and roadside", "towing"],
+      ["Solar panel installation", "solar"],
+      ["Solar panel cleaning", "solar"],
+      ["Pool cleaning", "pool"],
+      ["Garage door repair", "garage-door"],
+      ["Appliance repair", "appliance-repair"],
     ];
     for (const [industry, key] of cases) expect(playbookFor(industry)?.key, industry).toBe(key);
+  });
+  it("does not let the new trades steal older ones", () => {
+    for (const [industry, key] of [["Pressure washing", "exterior-cleaning"], ["House cleaning", "cleaning"], ["Day spa", "beauty"], ["Plumbing", "plumbing"], ["Tree service", "landscaping"]] as const)
+      expect(playbookFor(industry)?.key, industry).toBe(key);
   });
   it("returns nothing for an unknown or empty industry rather than guessing", () => {
     expect(playbookFor("Interstellar cheese")).toBeNull();
