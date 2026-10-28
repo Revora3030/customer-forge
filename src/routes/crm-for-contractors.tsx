@@ -29,6 +29,7 @@ export const Route = createFileRoute("/crm-for-contractors")({
       { property: "og:type", content: "product" },
       { property: "og:url", content: URL },
       { name: "twitter:card", content: "summary_large_image" },
+      ...OG_IMAGE_META,
     ],
     links: [{ rel: "canonical", href: URL }],
     scripts: [
