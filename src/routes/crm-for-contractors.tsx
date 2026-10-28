@@ -12,7 +12,7 @@ import { SiteFooter, SiteHeader } from "@/components/marketing/Chrome";
 import { Button } from "@/components/ui/button";
 import { CRM_SOLUTIONS } from "@/lib/crm-solutions";
 import { GROWTH_SYSTEM } from "@/lib/offer";
-import { metaDescription } from "@/lib/seo";
+import { metaDescription, OG_IMAGE_META } from "@/lib/seo";
 
 const TITLE = "CRM for Contractors — Leads, Quotes & Follow-Up | Revora";
 const DESCRIPTION =
@@ -29,6 +29,7 @@ export const Route = createFileRoute("/crm-for-contractors")({
       { property: "og:type", content: "product" },
       { property: "og:url", content: URL },
       { name: "twitter:card", content: "summary_large_image" },
+      ...OG_IMAGE_META,
     ],
     links: [{ rel: "canonical", href: URL }],
     scripts: [

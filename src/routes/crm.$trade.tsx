@@ -5,7 +5,7 @@ import { AnswerFirst, RelatedLinks } from "@/components/marketing/SeoLinks";
 import { Button } from "@/components/ui/button";
 import { CRM_SOLUTIONS, findCrmSolution, type CrmSolution } from "@/lib/crm-solutions";
 import { GROWTH_SYSTEM } from "@/lib/offer";
-import { breadcrumbSchema, canonicalLink, ogUrl, SITE_URL, metaDescription } from "@/lib/seo";
+import { breadcrumbSchema, canonicalLink, ogUrl, SITE_URL, metaDescription, OG_IMAGE_META } from "@/lib/seo";
 
 export const Route = createFileRoute("/crm/$trade")({
   beforeLoad: ({ params }) => {
@@ -30,6 +30,7 @@ export const Route = createFileRoute("/crm/$trade")({
         { property: "og:type", content: "website" },
         { name: "twitter:card", content: "summary_large_image" },
         ogUrl(path),
+        ...OG_IMAGE_META,
       ],
       links: [canonicalLink(path)],
       scripts: [

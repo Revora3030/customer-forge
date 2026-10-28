@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { GROWTH_SYSTEM, usdExact } from "@/lib/offer";
-import { breadcrumbSchema, canonicalLink, ogUrl, metaDescription } from "@/lib/seo";
+import { breadcrumbSchema, canonicalLink, ogUrl, metaDescription, OG_IMAGE_META } from "@/lib/seo";
 import { trackConversion } from "@/lib/conversion";
 import { buildChannelAssets, qrDataUrl, trackedLink } from "@/lib/distribution";
 
@@ -26,6 +26,7 @@ export const Route = createFileRoute("/share")({
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
       ogUrl("/share"),
+      ...OG_IMAGE_META,
       // Kept out of search (see seoInventory); links on it still pass value.
       { name: "robots", content: "noindex, follow" },
     ],

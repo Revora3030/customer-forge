@@ -24,6 +24,7 @@ import {
   faqPageSchema,
   jsonLdScript,
   ogUrl,
+  OG_IMAGE_META,
 } from "@/lib/seo";
 import { useExperiment } from "@/lib/experiments.hooks";
 import { trackConversion } from "@/lib/conversion";
@@ -50,6 +51,7 @@ export const Route = createFileRoute("/pricing")({
         { property: "og:type", content: "website" },
         { name: "twitter:card", content: "summary_large_image" },
         ogUrl("/pricing"),
+        ...OG_IMAGE_META,
       ],
       links: [canonicalLink("/pricing")],
       scripts: [

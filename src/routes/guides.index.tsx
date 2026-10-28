@@ -3,7 +3,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { SiteFooter, SiteHeader } from "@/components/marketing/Chrome";
 import { Button } from "@/components/ui/button";
 import { GUIDES } from "@/lib/guides";
-import { breadcrumbSchema, canonicalLink, ogUrl, metaDescription } from "@/lib/seo";
+import { breadcrumbSchema, canonicalLink, ogUrl, metaDescription, OG_IMAGE_META } from "@/lib/seo";
 
 const TITLE = "Free local business growth guides — Revora";
 const DESCRIPTION =
@@ -19,6 +19,7 @@ export const Route = createFileRoute("/guides/")({
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
       ogUrl("/guides"),
+      ...OG_IMAGE_META,
     ],
     links: [canonicalLink("/guides")],
     scripts: [

@@ -31,6 +31,19 @@ export const OG_IMAGE = {
   alt: "Revora — AI growth software that books local jobs 24/7",
 } as const;
 
+/**
+ * Ready-to-spread meta entries that attach the brand social card to a public
+ * marketing page's head. Leaf pages only — never the root head, so a client
+ * website on a custom domain keeps its own share image.
+ */
+export const OG_IMAGE_META = [
+  { property: "og:image", content: OG_IMAGE.url },
+  { property: "og:image:width", content: String(OG_IMAGE.width) },
+  { property: "og:image:height", content: String(OG_IMAGE.height) },
+  { property: "og:image:alt", content: OG_IMAGE.alt },
+  { name: "twitter:image", content: OG_IMAGE.url },
+] as const;
+
 /** canonical link entry for a page path. */
 export function canonicalLink(path: string) {
   return { rel: "canonical", href: absoluteUrl(path) } as const;

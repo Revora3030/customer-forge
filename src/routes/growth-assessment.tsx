@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { SiteFooter, SiteHeader } from "@/components/marketing/Chrome";
 import { GrowthAssessment } from "@/components/marketing/GrowthAssessment";
 import { Pill } from "@/components/app/Bits";
-import { canonicalLink, ogUrl } from "@/lib/seo";
+import { canonicalLink, ogUrl, OG_IMAGE_META } from "@/lib/seo";
 
 export const Route = createFileRoute("/growth-assessment")({
   head: () => ({
@@ -22,6 +22,7 @@ export const Route = createFileRoute("/growth-assessment")({
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
       ogUrl("/growth-assessment"),
+      ...OG_IMAGE_META,
     ],
     links: [canonicalLink("/growth-assessment")],
   }),
