@@ -254,6 +254,7 @@ export async function planWebsiteChangesWithAi(input: {
   const designGuidance = designGuidancePrompt(
     context.business.industry,
     context.business.name,
+    context.business.description ?? null,
   );
   const system = [
     DESIGN_RULES,

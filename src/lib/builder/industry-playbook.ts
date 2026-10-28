@@ -3,6 +3,10 @@
  * can build around and the order its story can run in. This is prompt guidance only. It names primitives the
  * builder already has, says what each needs from the owner, and never asks for proof the business has not
  * supplied: a before and after, a spin, or a result only ever comes from the owner's own photographs.
+ *
+ * Specific trades come first. Every other business falls back to one of six universal archetypes (or a general
+ * one), so no kind of business is left without guidance. Archetypes also carry a look suggestion, which stays a
+ * suggestion: the designer chooses the palette and type.
  */
 export type TradePlaybook = {
   key: string;
@@ -226,15 +230,204 @@ export function playbookFor(industry: string | null | undefined): TradePlaybook 
   return TRADE_PLAYBOOKS.find((p) => p.match.test(text)) ?? null;
 }
 
-/** One block of prompt text for Sol, or null. Ideas, not orders: the supplied material decides. */
-export function playbookNote(industry: string | null | undefined): string | null {
+export type ArchetypeKey =
+  | "precision-craft"
+  | "emergency-dispatch"
+  | "clinical-trust"
+  | "hospitality-lifestyle"
+  | "tech-growth"
+  | "home-services"
+  | "general";
+
+export type Archetype = {
+  key: ArchetypeKey;
+  label: string;
+  /** Kinds of business it covers, shown to the designer. */
+  covers: string;
+  /** Keywords for businesses with no specific trade playbook. Null for the general fallback. */
+  match: RegExp | null;
+  signature: string;
+  storyArc: readonly string[];
+  needsFromOwner: string;
+  /** A suggestion for the look. The designer's call: never a palette or a font to copy. */
+  look: string;
+};
+
+/**
+ * The six universal archetypes plus a general fallback. Order matters: the first match wins, so the urgent and
+ * technical vocabularies are tested before the broad hospitality and home-service ones.
+ */
+export const ARCHETYPES: readonly Archetype[] = [
+  {
+    key: "emergency-dispatch",
+    label: "Urgent and on-call services",
+    covers: "locksmiths, towing, 24-hour repair, water and fire restoration, rescue and recovery",
+    match: /emergenc|24\s?\/\s?7|24[- ]?hour|round[- ]the[- ]clock|on[- ]call|urgent|rescue|ambulance|breakdown|disaster|biohazard|\bmold\b|(?:water|fire|flood|storm|smoke)\s+(?:damage|restoration|cleanup|remediation)/i,
+    signature:
+      "A call action that is always in reach: a mobile_sticky_bar with the real phone, a direct_contact widget near the top, a tab_group of the services the owner really offers, and a faq_accordion answering how a call works.",
+    storyArc: ["the problem", "what happens when you call", "what is handled", "where you work", "call now"],
+    needsFromOwner:
+      "The real phone, hours, service area and any round-the-clock availability. Never state arrival times, a guaranteed response, insurance, licensing or accepted payment methods unless the owner supplied them.",
+    look: "Plain, very clear and high contrast: little decoration, large tap targets, the phone number and one action on the first screen.",
+  },
+  {
+    key: "tech-growth",
+    label: "Software, agencies, energy and B2B",
+    covers: "software and apps, marketing and IT firms, installers, logistics, engineering, industrial suppliers",
+    match: /software|saas|\bapps?\b|platform|\bai\b|artificial intelligence|machine learning|automation|\bit\s+(?:support|services|consult)|managed service|cyber|cloud|hosting|analytics|fintech|biotech|start-?up|\bb2b\b|(?:marketing|advertising|digital|creative|web|seo|pr)\s+agency|\bseo\b|web\s?(?:design|dev)|development studio|digital|solar|energy|battery|logistic|freight|trucking|shipping|supply chain|wholesale|manufactur|industrial|equipment|machinery|\bcrane|leasing|engineering|laborator|telecom|network/i,
+    signature:
+      "Show how it works: scroll_chapters or a sticky_split_story of the real process or product, a tab_group of capabilities, a grid comparing plans or approaches built only from supplied facts (a toggle for two real price views), and a quote_calculator or enquiry_form with one clear demo or consult action.",
+    storyArc: ["the problem the customer has", "how it works", "what is included", "how it compares", "book a demo or consult"],
+    needsFromOwner:
+      "A real feature list, the plans and prices exactly as the owner states them, and the integrations they actually have. No customer counts, uptime, savings, security certifications, logos or case studies unless supplied (a company logo only for a company the owner named).",
+    look: "Crisp and technical: a clean neo-grotesque or geometric sans, fine lines, clear figure blocks (only supplied figures) and ample space.",
+  },
+  {
+    key: "clinical-trust",
+    label: "Care and professional advice",
+    covers: "dental and medical practices, therapy, legal, accounting, architecture and other professional practices",
+    match: /clinic|medic|health|dental|dentist|doctor|physician|surgeon|therap|counsel|psych|chiro|physio|optom|pharmac|nurs|hospice|senior care|elder care|home health|attorney|\blaw\b|lawyer|legal|notary|accountan|\bcpa\b|bookkeep|\btax|advis|wealth|mortgage|insurance|architect|surveyor/i,
+    signature:
+      "Calm clarity: a tab_group of services, a faq_accordion of the real questions clients ask, credentials shown only if the owner holds them, and one clear consult or appointment action (a booking_form or enquiry_form).",
+    storyArc: ["the concern", "what a first visit or consultation is like", "the people", "the services", "book a consultation"],
+    needsFromOwner:
+      "Credentials and licences the owner actually holds, real team details and hours. Never imply a cure, an outcome, a ranking or a guaranteed result, and show no reviews unless they are published.",
+    look: "Quiet, spacious and editorial: generous whitespace, a refined display face paired with a clean text face, soft neutral surfaces and one warm accent.",
+  },
+  {
+    key: "hospitality-lifestyle",
+    label: "Experiences and hospitality",
+    covers: "restaurants, cafes, bakeries, chocolatiers, salons, spas, gyms, venues, hotels, shops",
+    match: /restaurant|caf[eé]|coffee|\btea\b|bakery|bakeri|patisserie|chocolat|confection|ice cream|gelato|dessert|catering|\bbar\b|\bpub\b|brew|distill|winery|\bwine\b|cocktail|\bfood\b|hotel|motel|\binn\b|resort|lodg|bed and breakfast|\bvenue\b|event space|banquet|\bspa\b|salon|barber|\bgym\b|fitness|pilates|yoga|crossfit|florist|flower|gift shop|book(?:shop|store)|retail|\bshop\b|\bstore\b|\bmarket\b|travel|\btour|charter|yacht|escape room|bowling|arcade/i,
+    signature:
+      "Appetite and atmosphere: a scene over the owner's real photographs of the space or the product, a collection_row of the real offerings with prices from the Services tool, a tab_group for menu or class sections, and a reservation or booking action (a booking_form).",
+    storyArc: ["the space or the product", "what is on offer", "the people", "hours and where", "reserve or order"],
+    needsFromOwner:
+      "The real menu, classes or services with their prices, the hours, and photographs of the real space and products. No awards, press mentions or reviews unless supplied or published.",
+    look: "Warm and sensory: rich tones, full-bleed pictures with calm copy space and a computed scrim, expressive display type.",
+  },
+  {
+    key: "precision-craft",
+    label: "Craft and transformation work",
+    covers: "detailing, remodelling, painting, landscaping, joinery, jewellery, restoration and design studios",
+    match: /custom|bespoke|craft|artisan|handmade|jewel|goldsmith|silversmith|furniture|cabinet|joinery|woodwork|metalwork|\bweld|glass|\bstone\b|mason|\bbrick|fabricat|restor|tailor|seamstress|leather|printing|signmaking|sign shop|engrav|ceramic|pottery|gallery|interior (?:design|styling)|design studio/i,
+    signature:
+      "A hands-on proof moment built only from the owner's real photographs: a before_after_slider (revealMode \"brush\" for a hands-on reveal) or a lens_magnifier over one real photo, a sticky_split_story for the process, and the packages as a service_tier_fader of real services.",
+    storyArc: ["the starting state", "the method, step by step", "the finished detail", "the packages", "a clear next step"],
+    needsFromOwner:
+      "Real project photos, with before and after pairs of the same subject for any reveal, and the real process in the owner's own words. Until then use scenes and a sticky_split_story over mood pictures, with no result claims.",
+    look: "A restrained, high-contrast studio feel often suits craft work: deep or raw surfaces, fine borders, one restrained accent, generous vertical rhythm and full-bleed pictures with a computed scrim. A light palette is as valid as a dark one when it suits the brand.",
+  },
+  {
+    key: "home-services",
+    label: "Everyday home and property services",
+    covers: "cleaning, moving, pest control, repairs, handyman work, inspections, pet care",
+    match: /clean|maid|janitor|laundry|dry[- ]clean|repair|handyman|maintenance|inspect|moving|movers|junk|pest|exterminat|sweep|pressure|gutter|window|\bpet\b|\bdog|groom|walker|sitter|boarding|kennel|lawn|\byard\b|snow|plow|trash|waste|recycl|storage|carpet|chimney|septic|appliance|property management|errand|concierge|declutter/i,
+    signature:
+      "Make the price and the next step easy: a quote_calculator on the owner's real pricing (or a service_menu), what is included as a faq_accordion or tab_group, a process told in order, and a short enquiry_form.",
+    storyArc: ["the busy week or the problem", "what is included", "how a visit works", "what it costs", "book or get a price"],
+    needsFromOwner:
+      "The owner's real pricing rules, what each service includes, the service area and the hours. No invented guarantees, insurance, background checks or reviews.",
+    look: "Fresh, clean and reassuring: light surfaces, clear icons and checklists, one confident accent and large friendly buttons.",
+  },
+  {
+    key: "general",
+    label: "General local business",
+    covers: "anything else",
+    match: null,
+    signature:
+      "Whatever the owner's real material supports best: a collection_row of the real services, a faq_accordion of real questions, scroll_chapters of how it works over the supplied pictures, and one clear booking or enquiry action. Find the single most distinctive real thing about this business and build the page around it.",
+    storyArc: ["who it is for", "what you do", "how it works", "the proof the owner can supply", "the next step"],
+    needsFromOwner: "Real services, the service area, contact details and photographs. Ask for what is missing instead of inventing it.",
+    look: "Choose a look that suits this business's own tone and avoid generic template styling.",
+  },
+];
+
+/** The archetype of each specific trade, so its note can carry the same look suggestion. */
+const PLAYBOOK_ARCHETYPE: Record<string, ArchetypeKey> = {
+  locksmith: "emergency-dispatch",
+  towing: "emergency-dispatch",
+  hvac: "emergency-dispatch",
+  plumbing: "emergency-dispatch",
+  solar: "tech-growth",
+  health: "clinical-trust",
+  "real-estate-pro": "clinical-trust",
+  education: "clinical-trust",
+  beauty: "hospitality-lifestyle",
+  food: "hospitality-lifestyle",
+  "exterior-cleaning": "precision-craft",
+  "auto-detailing": "precision-craft",
+  roofing: "precision-craft",
+  landscaping: "precision-craft",
+  painting: "precision-craft",
+  contracting: "precision-craft",
+  "photo-creative": "precision-craft",
+  cleaning: "home-services",
+  moving: "home-services",
+  pest: "home-services",
+  pool: "home-services",
+  "garage-door": "home-services",
+  "appliance-repair": "home-services",
+  electrical: "home-services",
+  "auto-repair": "home-services",
+};
+
+/** [playbook key, words in the industry, archetype to use instead]. */
+const SPECIFIC_LOOK_OVERRIDES: readonly (readonly [string, RegExp, ArchetypeKey])[] = [
+  ["health", /gym|fitness|yoga|pilates|crossfit|trainer|wellness/i, "hospitality-lifestyle"],
+  ["education", /dance|music|martial|coach/i, "hospitality-lifestyle"],
+];
+
+const GENERAL = ARCHETYPES.find((a) => a.key === "general")!;
+
+function classify(text: string): Archetype | null {
+  const t = text.trim();
+  if (!t) return null;
+  return ARCHETYPES.find((a) => a.match?.test(t)) ?? null;
+}
+
+/**
+ * The archetype for a business: its specific trade's, else by its industry words, then by `hints` (its description
+ * and service names) when the industry says nothing, else the general one. Null only with nothing to go on at all.
+ */
+export function archetypeFor(industry: string | null | undefined, hints: string | null | undefined = null): Archetype | null {
+  const text = (industry ?? "").trim();
+  const extra = (hints ?? "").trim();
+  if (!text && !extra) return null;
+  const specific = playbookFor(text);
+  if (specific) {
+    // A few trades share a playbook but not a look: a gym is not a dental practice.
+    const override = SPECIFIC_LOOK_OVERRIDES.find(([key, words]) => key === specific.key && words.test(text));
+    const key = override ? override[2] : PLAYBOOK_ARCHETYPE[specific.key];
+    return ARCHETYPES.find((a) => a.key === key) ?? GENERAL;
+  }
+  return classify(text) ?? classify(extra) ?? GENERAL;
+}
+
+type Guidance = { label: string; signature: string; storyArc: readonly string[]; needsFromOwner: string; archetype: Archetype; specific: boolean };
+
+/** What to build around: the specific trade's playbook when there is one, else the business's archetype. */
+export function guidanceFor(industry: string | null | undefined, hints: string | null | undefined = null): Guidance | null {
+  const archetype = archetypeFor(industry, hints);
+  if (!archetype) return null;
   const playbook = playbookFor(industry);
-  if (!playbook) return null;
+  return playbook
+    ? { label: playbook.label, signature: playbook.signature, storyArc: playbook.storyArc, needsFromOwner: playbook.needsFromOwner, archetype, specific: true }
+    : { label: archetype.label, signature: archetype.signature, storyArc: archetype.storyArc, needsFromOwner: archetype.needsFromOwner, archetype, specific: false };
+}
+
+/** One block of prompt text for Sol, or null. Ideas, not orders: the supplied material decides. */
+export function playbookNote(industry: string | null | undefined, hints: string | null | undefined = null): string | null {
+  const guide = guidanceFor(industry, hints);
+  if (!guide) return null;
   return [
-    `TRADE PLAYBOOK for ${playbook.label} (ideas for this trade; use only what the supplied material supports, and never invent proof):`,
-    `Signature moment: ${playbook.signature}`,
-    `Story arc for a scroll story: ${playbook.storyArc.join(" → ")}.`,
-    `What the owner must supply: ${playbook.needsFromOwner}`,
+    guide.specific
+      ? `TRADE PLAYBOOK for ${guide.label} (ideas for this trade; use only what the supplied material supports, and never invent proof):`
+      : `DESIGN GUIDE for this kind of business, ${guide.label} (${guide.archetype.covers}). Ideas, not orders: use only what the supplied material supports, and never invent proof.`,
+    `Signature moment: ${guide.signature}`,
+    `Story arc for a scroll story: ${guide.storyArc.join(" → ")}.`,
+    `What the owner must supply: ${guide.needsFromOwner}`,
+    `Look (a suggestion; you choose the palette and type for this business): ${guide.archetype.look}`,
   ].join("\n");
 }
 
@@ -246,19 +439,19 @@ export type StarterIdea = { label: string; reason: string; instruction: string }
  * already allow, ask for missing material instead of inventing it, and never
  * promise a result.
  */
-export function starterIdeasFor(industry: string | null | undefined): StarterIdea[] {
-  const playbook = playbookFor(industry);
+export function starterIdeasFor(industry: string | null | undefined, hints: string | null | undefined = null): StarterIdea[] {
+  const guide = guidanceFor(industry, hints);
   const ideas: StarterIdea[] = [];
-  if (playbook) {
+  if (guide) {
     ideas.push({
-      label: "Add my trade's signature moment",
-      reason: playbook.label,
-      instruction: `Add the signature moment for my trade to my home page, where my real material supports it: ${playbook.signature} ${playbook.needsFromOwner} If something is missing, ask me for it instead of inventing it.`,
+      label: guide.specific ? "Add my trade's signature moment" : "Add the signature moment for my business",
+      reason: guide.label,
+      instruction: `Add the signature moment for my business to my home page, where my real material supports it: ${guide.signature} ${guide.needsFromOwner} If something is missing, ask me for it instead of inventing it.`,
     });
     ideas.push({
       label: "Tell my story as I scroll",
       reason: "A scroll story over my pictures",
-      instruction: `Turn my home page into a scroll story in this order where my real material supports it: ${playbook.storyArc.join(", then ")}. Use scenes over my real or mood pictures, with no result claims and no invented facts.`,
+      instruction: `Turn my home page into a scroll story in this order where my real material supports it: ${guide.storyArc.join(", then ")}. Use scenes over my real or mood pictures, with no result claims and no invented facts.`,
     });
   }
   ideas.push({
