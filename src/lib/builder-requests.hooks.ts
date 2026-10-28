@@ -612,7 +612,7 @@ export function useBuilderRequests({
         // re-entered runPlan recursively, so one deferred request could keep
         // polling for hours. One bounded loop, one re-plan.
         if (attempts === 1) {
-          patch(task.id, { state: "planning", reply: result.reply });
+          patch(task.id, { state: "planning", reply: result.reply, waitingOnBuild: true });
           const deadline = Date.now() + 15 * 60 * 1000;
           let pagesReady = false;
           while (!pagesReady && Date.now() < deadline) {
@@ -623,11 +623,15 @@ export function useBuilderRequests({
             }
             if (!pagesReady) await new Promise((resolve) => setTimeout(resolve, 10000));
           }
-          if (pagesReady) return runPlan(task);
+          if (pagesReady) {
+            patch(task.id, { waitingOnBuild: false });
+            return runPlan(task);
+          }
         }
         // Exhausted: tell the owner the first build is taking longer than expected.
         patch(task.id, {
           state: "failed",
+          waitingOnBuild: false,
           error: "Revora's first website build is taking longer than expected. Your request is saved — try again in a moment, or check the build status.",
           retryable: true,
         });
@@ -823,7 +827,7 @@ export function useBuilderRequests({
     // nor counts it as busy, so follow-up questions still get answered.
     setTasks((current) => [
       ...current.filter((item) => item.id !== task.id),
-      { ...task, state: "building" as const, tracking: true },
+      { ...task, state: "building" as const, tracking: true, isBuild: true },
     ]);
   };
 
