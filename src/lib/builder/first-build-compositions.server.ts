@@ -330,9 +330,16 @@ export async function composeFirstBuildSections(input: {
   const serviceNames: readonly string[] = (facts.services ?? []).filter((name) => typeof name === "string" && name.trim());
   // The look plus the exact real service names (the only names an offer_card
   // may use). Prompt-only: the checkpoint digest keeps the look itself.
-  const promptLook = serviceNames.length
-    ? `${input.lookSummary}\nREAL SERVICES (the only names an offer_card service may use, exactly as written): ${JSON.stringify(serviceNames.slice(0, 40))}`
-    : input.lookSummary;
+  const { playbookNote } = await import("@/lib/builder/industry-playbook");
+  const tradeNote = playbookNote(facts.industry ?? null);
+  const promptLook = [
+    serviceNames.length
+      ? `${input.lookSummary}\nREAL SERVICES (the only names an offer_card service may use, exactly as written): ${JSON.stringify(serviceNames.slice(0, 40))}`
+      : input.lookSummary,
+    tradeNote,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
   const screen =(text: string) => {
     const problem = screenText(text, screenFacts, 4000);
     return problem && problem !== "empty" ? problem : null;
