@@ -234,6 +234,7 @@ describe("a section repaired after a picture was lost is still one the renderer 
     ["a spin viewer", { type: "spin_viewer", text: "Spin", children: [picture("temp_p_s1"), picture("temp_p_s2"), picture("temp_p_s3")] }],
     ["a compare", { type: "compare", children: [picture("temp_p_c1"), picture("temp_p_c2")] }],
     ["a before/after slider", slider("Clean it", "temp_p_after")],
+    ["a scrub sequence", { type: "scrub_sequence", text: "Scroll", children: [picture("temp_p_q1"), picture("temp_p_q2"), heading("Bring it dirty")] }],
     ["a row of logos", { type: "marquee", children: [picture("temp_p_m1"), picture("temp_p_m2")] }],
     ["tabs of sliders", { type: "tabs", children: [slider("Sedan", "temp_p_t1"), slider("Truck", "temp_p_t2")] }],
     ["a toggle of sliders", { type: "toggle", children: [slider("Sedan", "temp_p_x1"), slider("Truck", "temp_p_x2")] }],

@@ -9,7 +9,7 @@ import { clampSplit, splitForKey, splitForPointer } from "@/lib/builder/compare-
 import { brushRadius, coverRect, coveragePercent, isRevealDone, newGrid, paintAt, strokePoints, type RevealGrid } from "@/lib/builder/reveal-brush";
 import { DEFAULT_OFFER_ANCHOR, DEFAULT_SCENE_ANCHOR, sceneScrim, type SceneAnchor } from "@/lib/builder/cinematic-primitives";
 import { LensMagnifier, StickySplitStory, TierFader } from "@/components/site/MasterBlocks";
-import { CollectionRow, SceneVideo, ScrubStage, ScrollChapters, SpinViewer, type SpinFrame } from "@/components/site/CinematicBlocks";
+import { CollectionRow, SceneVideo, ScrubSequence, ScrubStage, ScrollChapters, SpinViewer, type SpinFrame } from "@/components/site/CinematicBlocks";
 import { CINEMATIC_CSS } from "@/components/site/cinematic-css";
 
 /**
@@ -30,7 +30,7 @@ const ITEMS = { start: "flex-start", center: "center", end: "flex-end", stretch:
 const FILL_WHEN_CAPPED = new Set<CompositionNode["type"]>([
   "stack", "grid", "row", "card", "list", "tabs", "toggle", "accordion", "compare", "gallery", "widget",
   "before_after_slider", "faq_accordion", "tab_group", "offer_card", "spin_viewer", "collection_row",
-  "lens_magnifier", "sticky_split_story", "service_tier_fader", "parallax_layers", "divider", "marquee",
+  "lens_magnifier", "sticky_split_story", "service_tier_fader", "parallax_layers", "scrub_sequence", "divider", "marquee",
 ]);
 // eslint-disable-next-line react-refresh/only-export-components -- renderer helpers are intentionally co-located with their composition types.
 export function styleToCss(style: NodeStyle | undefined, type: CompositionNode["type"]): CSSProperties {
@@ -182,15 +182,29 @@ function mediaCss(visual: PersistedComponentVisual | undefined): CSSProperties {
   return css;
 }
 
+/** Panels that must fill the row. A centred parent otherwise shrinks them to their shortest label. */
+const STRETCH_PANEL = new Set<CompositionNode["type"]>([
+  "accordion", "faq_accordion", "tab_group", "tabs", "toggle", "compare", "gallery", "widget",
+  "before_after_slider", "scroll_chapters", "scrub_sequence", "sticky_split_story", "service_tier_fader",
+  "collection_row", "parallax_layers", "lens_magnifier", "spin_viewer", "offer_card",
+]);
+
 function baseLayout(type: CompositionNode["type"]): CSSProperties {
+  const stretch = STRETCH_PANEL.has(type) ? { width: "100%", alignSelf: "stretch" as const, minWidth: 0 } : {};
   switch (type) {
-    case "stack": return { display: "flex", flexDirection: "column" };
-    case "row": return { display: "flex", flexWrap: "wrap" };
-    case "grid": return { display: "grid" };
+    case "stack": return { display: "flex", flexDirection: "column", ...stretch };
+    case "row": return { display: "flex", flexWrap: "wrap", ...stretch };
+    case "grid": return { display: "grid", ...stretch };
     case "button": return { display: "inline-flex", alignItems: "center", justifyContent: "center", minHeight: 44, minWidth: 44, textDecoration: "none" };
     case "spacer": return { minHeight: 24 };
-    default: return {};
+    default: return stretch;
   }
+}
+
+/** A text-only frame with an aspect ratio paints as a tall empty box. Pictures keep theirs. */
+function containsVisual(node: CompositionNode): boolean {
+  if (node.type === "media" || node.type === "scene" || node.type === "scroll_chapters" || node.type === "scrub_sequence" || node.type === "gallery" || node.type === "widget" || node.type === "parallax_layers" || node.type === "spin_viewer" || node.src || node.mediaRef) return true;
+  return (node.children ?? []).some(containsVisual);
 }
 
 function renderNode(node: CompositionNode, ctx: Ctx, key: string): ReactNode {
@@ -286,6 +300,11 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
     ...baseLayout(node.type),
     ...styleToCss(actionable && node.style?.hidden ? { ...node.style, hidden: false } : node.style, node.type),
   };
+  // An aspect ratio on a text-only grid or card becomes a hollow frame (two
+  // short labels stacked in a tall bordered box). Pictures keep their crop.
+  if (style.aspectRatio && (node.type === "grid" || node.type === "stack" || node.type === "card" || node.type === "row") && !containsVisual(node)) {
+    delete style.aspectRatio;
+  }
   // Readability guard: saved layouts render even when a quality check failed,
   // so a heading could be painted white on a pale grey panel (unreadable).
   // Text is re-paired with the surface it actually sits on, keeping its hue.
@@ -398,9 +417,9 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
       );
     case "accordion":
       return (
-        <div key={key} {...props}>
+        <div key={key} {...props} className={`${props.className ?? ""} rv-cn-acc`.trim()}>
           {node.children?.map((child, i) => (
-            <details key={i} style={styleToCss(child.style, "card")}>
+            <details key={i} className="rv-cn-acc-item" style={styleToCss(child.style, child.type)}>
               <summary style={{ cursor: "pointer", minHeight: 44, display: "flex", alignItems: "center" }}>{child.text}</summary>
               {child.children?.map((c, j) => renderNode(c, ctx, `${key}.${i}.${j}`))}
             </details>
@@ -559,6 +578,34 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
     case "collection_row": {
       const items = kids.filter((kid) => kid != null);
       return items.length ? <CollectionRow key={key} props={props} label={node.text?.trim() || "Collection"} items={items} /> : null;
+    }
+    case "scrub_sequence": {
+      const frames: { src: string; alt: string }[] = [];
+      const copy: ReactNode[] = [];
+      children.forEach((child, i) => {
+        if (child.type !== "media") {
+          if (kids[i] != null) copy.push(kids[i]);
+          return;
+        }
+        const resolved = child.mediaRef ? ctx.media(child.mediaRef) : null;
+        const source = child.src ? resolveImageSource(child.src) : mediaUrl(resolved);
+        if (!source) return;
+        frames.push({ src: source, alt: child.alt ?? mediaVisual(resolved)?.alt ?? "" });
+      });
+      if (frames.length < 2 && copy.length === 0) return null;
+      if (frames.length) ctx.counter.sawMedia = true;
+      const scrim = sceneScrim({ ink: node.style?.color ?? "#ffffff", scrim: node.scrim?.color ?? "#0c0e12", opacity: node.scrim?.opacity ?? 46 });
+      return (
+        <ScrubSequence
+          key={key}
+          props={props}
+          frames={frames}
+          copy={copy}
+          prompt={node.text?.trim().slice(0, 40) || ""}
+          scrim={rgba(scrim.scrim, scrim.opacity)}
+          ink={scrim.ink}
+        />
+      );
     }
     default:
       return <div key={key} {...props}>{node.text ? <span>{node.text}</span> : null}{kids}</div>;
@@ -1089,6 +1136,10 @@ const INTERACTIVE_CSS = `
 .rv-cn-tab::after{content:"";position:absolute;left:12px;right:12px;bottom:-1px;height:3px;background:currentColor;transform:scaleX(0);transform-origin:center;transition:transform .22s ease}
 .rv-cn-tab.is-active{opacity:1}.rv-cn-tab.is-active::after{transform:scaleX(1)}
 .rv-cn-tab:focus-visible,.rv-cn-faq summary:focus-visible,.rv-cn-mobile-sticky-bar a:focus-visible{outline:3px solid currentColor;outline-offset:3px}
+.rv-cn-acc{display:flex;flex-direction:column;width:100%;align-self:stretch;min-width:0}
+.rv-cn-acc-item{border-bottom:1px solid color-mix(in srgb,currentColor 16%,transparent)}
+.rv-cn-acc-item summary{list-style:none}
+.rv-cn-acc-item summary::-webkit-details-marker{display:none}
 .rv-cn-mobile-sticky-bar{display:none}
 @media (max-width:767px){.rv-cn-mobile-sticky-bar{display:flex!important;position:fixed!important;left:0!important;right:0!important;bottom:0!important;z-index:50!important;padding-bottom:max(10px,env(safe-area-inset-bottom,0px))!important}.rv-cn-mobile-sticky-bar a{min-height:44px;min-width:44px}}
 @media (min-width:768px){.rv-cn-mobile-sticky-bar{display:none!important}}
@@ -1106,7 +1157,7 @@ const INTERACTIVE_CSS = `
  * clipping). These never choose colours, fonts, order or layout — they only
  * stop AI-authored layers from becoming unusable on narrow screens.
  */
-export const PHONE_SAFETY_CSS = `[data-composition]{box-sizing:border-box;max-width:100%;min-width:0;overflow-x:clip;padding-inline-start:max(0px,env(safe-area-inset-left,0px));padding-inline-end:max(0px,env(safe-area-inset-right,0px))}[data-composition][data-composition] *{box-sizing:border-box;min-width:0;max-width:100%;overflow-wrap:break-word}[data-composition][data-composition] :is(h1,h2,h3,h4){text-wrap:balance;overflow-wrap:break-word;word-break:normal;hyphens:manual}[data-composition][data-composition] :is(p,span,li,label){overflow-wrap:break-word;word-break:normal}[data-composition][data-composition] :is(p,li){text-wrap:pretty}[data-composition][data-composition] img{image-rendering:auto}[data-composition][data-composition] img,[data-composition][data-composition] video,[data-composition][data-composition] iframe{max-width:100%;height:auto}@media (max-width:639px){[data-composition][data-composition] [style*="grid-template-columns"]:not([data-mobile-cols]),[data-composition][data-composition] .grid:not([data-mobile-cols]){width:100%!important;max-width:100%!important;grid-template-columns:minmax(0,1fr)!important}[data-composition][data-composition] [data-widget],[data-composition][data-composition] form{width:100%!important;max-width:100%!important}[data-composition][data-composition] h1{font-size:min(var(--rv-mfs,2.75rem),2.75rem,11vw)!important;line-height:max(1.05,var(--rv-mlh,1.05))!important}[data-composition][data-composition] h2{font-size:min(var(--rv-mfs,2.25rem),2.25rem,9.5vw)!important;line-height:max(1.1,var(--rv-mlh,1.1))!important}[data-composition][data-composition] h3{font-size:min(var(--rv-mfs,1.6rem),1.6rem,7vw)!important;line-height:max(1.12,var(--rv-mlh,1.12))!important}[data-composition][data-composition] p,[data-composition][data-composition] li,[data-composition][data-composition] span,[data-composition][data-composition] a,[data-composition][data-composition] small,[data-composition][data-composition] label{font-size:max(14px,1em)!important;line-height:1.45}[data-composition][data-composition] a,[data-composition][data-composition] button{min-height:44px!important}[data-composition][data-composition] a{align-items:center}[data-composition][data-composition] [style*="grid-template-areas"]{grid-template-areas:none!important}[data-composition][data-composition] [style*="grid-area"]{grid-area:auto!important}}`;
+export const PHONE_SAFETY_CSS = `[data-composition]{box-sizing:border-box;max-width:100%;min-width:0;overflow-x:clip;padding-inline-start:max(0px,env(safe-area-inset-left,0px));padding-inline-end:max(0px,env(safe-area-inset-right,0px))}[data-composition][data-composition] *{box-sizing:border-box;min-width:0;max-width:100%;overflow-wrap:break-word}[data-composition][data-composition] :is(h1,h2,h3,h4){text-wrap:balance;overflow-wrap:break-word;word-break:normal;hyphens:manual}[data-composition][data-composition] :is(p,span,li,label){overflow-wrap:break-word;word-break:normal}[data-composition][data-composition] :is(p,li){text-wrap:pretty}[data-composition][data-composition] img{image-rendering:auto}[data-composition][data-composition] img,[data-composition][data-composition] video,[data-composition][data-composition] iframe{max-width:100%;height:auto}@media (max-width:639px){[data-composition][data-composition] [style*="grid-template-columns"]:not([data-mobile-cols]),[data-composition][data-composition] .grid:not([data-mobile-cols]){width:100%!important;max-width:100%!important;grid-template-columns:minmax(0,1fr)!important}[data-composition][data-composition] [data-widget],[data-composition][data-composition] form{width:100%!important;max-width:100%!important}[data-composition][data-composition] h1{font-size:min(var(--rv-mfs,2.75rem),2.75rem,11vw)!important;line-height:max(1.05,var(--rv-mlh,1.05))!important}[data-composition][data-composition] h2{font-size:min(var(--rv-mfs,2.25rem),2.25rem,9.5vw)!important;line-height:max(1.1,var(--rv-mlh,1.1))!important}[data-composition][data-composition] h3{font-size:min(var(--rv-mfs,1.6rem),1.6rem,7vw)!important;line-height:max(1.12,var(--rv-mlh,1.12))!important}[data-composition][data-composition] p,[data-composition][data-composition] li,[data-composition][data-composition] span,[data-composition][data-composition] a,[data-composition][data-composition] small,[data-composition][data-composition] label{font-size:max(14px,1em)!important;line-height:1.45}[data-composition][data-composition] a,[data-composition][data-composition] button{min-height:44px!important}[data-composition][data-composition] a{align-items:center}[data-composition][data-composition] [style*="grid-template-areas"]{grid-template-areas:none!important}[data-composition][data-composition] [style*="grid-area"]{grid-area:auto!important}[data-composition][data-composition] [style*="aspect-ratio"]:not(:has(img)):not(:has(video)){aspect-ratio:auto!important}}`;
 
 const MOTION_CSS = `@media (prefers-reduced-motion: no-preference){.rv-cn-motion{animation:rv-cn-in .7s ease both}.rv-cn-motion[data-motion=rise]{animation-name:rv-cn-rise}.rv-cn-motion[data-motion=scale]{animation-name:rv-cn-scale}.rv-cn-motion[data-motion=float]{animation:rv-cn-float 6s ease-in-out infinite}.rv-cn-motion[data-motion=slide-left]{animation-name:rv-cn-sl}.rv-cn-motion[data-motion=slide-right]{animation-name:rv-cn-sr}.rv-cn-motion[data-motion=blur]{animation-name:rv-cn-blur}.rv-cn-motion[data-motion=reveal]{animation-name:rv-cn-reveal}.rv-cn-motion[data-motion=custom]{animation-name:rv-cn-custom}}@keyframes rv-cn-custom{from{opacity:var(--rv-o,1);transform:translate(var(--rv-x,0),var(--rv-y,0)) scale(var(--rv-s,1)) rotate(var(--rv-r,0));filter:blur(var(--rv-b,0))}}@keyframes rv-cn-sl{from{opacity:0;transform:translateX(32px)}to{opacity:1;transform:none}}@keyframes rv-cn-sr{from{opacity:0;transform:translateX(-32px)}to{opacity:1;transform:none}}@keyframes rv-cn-blur{from{opacity:0;filter:blur(12px)}to{opacity:1;filter:none}}@keyframes rv-cn-reveal{from{clip-path:inset(0 0 100% 0)}to{clip-path:inset(0 0 0 0)}}@keyframes rv-cn-in{from{opacity:0}to{opacity:1}}@keyframes rv-cn-rise{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:none}}@keyframes rv-cn-scale{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:none}}@keyframes rv-cn-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}`;
 

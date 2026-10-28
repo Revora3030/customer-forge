@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { customerBusinessEmail, isPlatformEmail, isPlatformLabel, sanitizeServices } from "./intake-sanitize";
+import { customerBusinessEmail, isPlatformEmail, isPlatformLabel, mergeSplitServices, sanitizeServices } from "./intake-sanitize";
 import { PLATFORM_OWNER_ORG_ID } from "@/lib/platform-owner";
 
 describe("sanitizeServices", () => {
@@ -28,6 +28,21 @@ describe("sanitizeServices", () => {
     expect(isPlatformLabel(null)).toBe(true);
     expect(isPlatformLabel("   ")).toBe(true);
     expect(isPlatformLabel("House Soft Washing")).toBe(false);
+  });
+});
+
+describe("mergeSplitServices", () => {
+  it("joins a lone qualifier with the following service name", () => {
+    const merged = mergeSplitServices([
+      { name: "Full", price: 350 },
+      { name: "Auto detailing" },
+      { name: "Ceramic coating", price: 200, description: "Paint protection" },
+    ]);
+    expect(merged.map((row) => row.name)).toEqual(["Full Auto detailing", "Ceramic coating"]);
+    expect(merged[0]?.price).toBe(350);
+  });
+  it("leaves two priced packages separate", () => {
+    expect(mergeSplitServices([{ name: "Full", price: 100 }, { name: "Interior", price: 80 }]).map((row) => row.name)).toEqual(["Full", "Interior"]);
   });
 });
 

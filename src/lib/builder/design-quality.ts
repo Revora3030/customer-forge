@@ -42,7 +42,9 @@ export type DesignFinding = {
     | "page_missing_interactive"
     | "page_mostly_plain"
     | "duplicate_text"
-    | "empty_column";
+    | "empty_column"
+    | "hollow_control"
+    | "lead_not_cinematic";
   severity: "critical" | "major";
   path: string;
   /** Plain repair instruction for the art director. */
@@ -76,6 +78,7 @@ const TUCKED = new Set(["card", "offer_card", "collection_row", "gallery", "marq
 /** A scene/chapters block, or a media node shown as a hero (not tucked inside a card, gallery or control). */
 function hasHeroVisual(root: CompositionNode): boolean {
   const go = (node: CompositionNode, depth: number, tucked: boolean): boolean => {
+    if (node.type === "scrub_sequence" && depth <= 3) return (node.children ?? []).filter((child) => child.type === "media").length >= 2;
     if ((node.type === "scene" || node.type === "scroll_chapters") && depth <= 3) return Boolean(node.children?.[0]?.src || node.children?.[0]?.mediaRef || node.type === "scroll_chapters");
     if (node.type === "media" && (node.src || node.mediaRef) && !tucked && depth <= 4) {
       const width = node.style?.maxWidth;
@@ -194,7 +197,18 @@ export function auditSectionDesign(
       code: "lead_not_scene",
       severity: "critical",
       path: "root",
-      fix: "This page's opening section is text-only although its own pictures were supplied. Open with a full-viewport scene (children[0] is the supplied picture as its media backdrop, the headline and primary button in its anchored copy slot) or a full-bleed media hero — not a picture tucked into a card.",
+      fix: "This page's opening section is text-only although its own pictures were supplied. Open with a full-viewport scene (children[0] is the supplied picture as its media backdrop, the headline and primary button in its anchored copy slot), a scrub_sequence of those pictures, or a full-bleed media hero — not a picture tucked into a card.",
+    });
+
+  // 1b2. Several pictures of one subject can be a scroll-scrubbed sequence.
+  // A single full-bleed photo still passes. This only fires when the section
+  // was given two or more pictures and still opens as plain stacked copy.
+  if (options.lead && (options.mediaAvailable ?? 0) >= 2 && !functional && !hasCinematicOpening(tree.root))
+    findings.push({
+      code: "lead_not_cinematic",
+      severity: "major",
+      path: "root",
+      fix: "This opening was given more than one picture and still reads as a stacked template. When the pictures are one subject, open with a scrub_sequence (2-6 media frames in order, display heading in the overlay). Otherwise open with a full-viewport scene or scroll_chapters. Generated frames stay atmosphere — never a before/after of work the owner did not photograph.",
     });
 
   // 1c. Text over a scene's photo passes AA against the computed scrim.
@@ -328,6 +342,21 @@ export function auditSectionDesign(
       fix: `Section padding of ${vertical}px feels cramped. Use generous vertical space (64–128px desktop, 48–72px mobile) so sections breathe.`,
     });
 
+  // 10. An interactive control that is only a label paints as an empty bordered
+  // cell (a heading split into "Full" / "Auto detailing" with nothing inside).
+  for (const visit of nodes) {
+    if (visit.node.type !== "accordion" && visit.node.type !== "tabs" && visit.node.type !== "toggle") continue;
+    (visit.node.children ?? []).forEach((child, index) => {
+      if (controlHasBody(child)) return;
+      findings.push({
+        code: "hollow_control",
+        severity: "major",
+        path: `${visit.path}.children[${index}]`,
+        fix: "This control item is only a label, so it renders as an empty box. Put the real supplied answer in its children, or remove the item. Do not split a heading across empty panels.",
+      });
+    });
+  }
+
   return findings;
 }
 
@@ -371,9 +400,28 @@ export function depthDirectionFromLook(lookSummary: string | null | undefined): 
   }
 }
 
-/** A node that moves, responds to the pointer, or sits on its own layer. */
+/** A scene, chapter sequence or scroll-scrubbed still sequence near the top of the tree. */
+function hasCinematicOpening(root: CompositionNode): boolean {
+  const go = (node: CompositionNode, depth: number): boolean => {
+    if (depth > 3) return false;
+    if (node.type === "scene" || node.type === "scroll_chapters" || node.type === "scrub_sequence") return true;
+    return (node.children ?? []).some((child) => go(child, depth + 1));
+  };
+  return go(root, 0);
+}
+
+/** An accordion, tab or toggle item that is only a label, so it paints as an empty box. */
+function controlHasBody(node: CompositionNode): boolean {
+  return (node.children ?? []).some((child) => {
+    if (child.type === "media" || child.type === "widget" || child.type === "button" || child.type === "link") return true;
+    if ((child.text ?? "").trim().length > 0) return true;
+    return (child.children ?? []).length > 0 && controlHasBody(child);
+  });
+}
+
 function hasDepthNode(tree: CompositionTree): boolean {
   return walk(tree.root).some(({ node }) => {
+    if (node.type === "scrub_sequence" || node.type === "scroll_chapters" || node.type === "parallax_layers") return true;
     if (node.motion && node.motion.kind !== "none") return true;
     if (node.hover && Object.keys(node.hover).length > 0) return true;
     const style = node.style;
@@ -420,7 +468,7 @@ export function auditPageDesign(
       code: "page_missing_interactive",
       severity: "major",
       path: "root",
-      fix: "The home page has no interactive centrepiece, so the whole site has none. Where it serves real supplied material, add one: a spin_viewer (8+ owner-photographed angles), a collection_row of offer cards, scroll_chapters of scenes, a tab_group, a faq_accordion of supplied FAQs, or a before_after_slider of the owner's own before/after photos.",
+      fix: "The home page has no interactive centrepiece, so the whole site has none. Where it serves real supplied material, add one: a scrub_sequence of the supplied pictures, scroll_chapters of scenes, a collection_row of offer cards, a spin_viewer (8+ owner-photographed angles), a tab_group, a faq_accordion of supplied FAQs, or a before_after_slider of the owner's own before/after photos. Do not satisfy this with an accordion whose items have no answers.",
     });
   }
 
@@ -527,7 +575,7 @@ export function auditPageDesign(
 }
 
 /** True when a tree contains a primitive the visitor operates. */
-const RICH_PRIMITIVES: ReadonlySet<string> = new Set(["scene", "parallax_layers", "gallery", "marquee", "widget", "media"]);
+const RICH_PRIMITIVES: ReadonlySet<string> = new Set(["scene", "scrub_sequence", "parallax_layers", "gallery", "marquee", "widget", "media"]);
 
 /** A section with no picture, scene, interactive block, working widget or layered depth: only text on stacks and cards. */
 export function isPlainSection(tree: CompositionTree): boolean {
@@ -540,7 +588,7 @@ export function hasInteractive(tree: CompositionTree): boolean {
 }
 
 /** Gates that always go back to the AI, whatever their severity. */
-const ALWAYS_REPAIR = new Set<DesignFinding["code"]>(["flat_page", "lead_not_scene", "scene_text_contrast", "page_missing_interactive", "page_mostly_plain", "duplicate_text", "empty_column"]);
+const ALWAYS_REPAIR = new Set<DesignFinding["code"]>(["flat_page", "lead_not_scene", "lead_not_cinematic", "scene_text_contrast", "page_missing_interactive", "page_mostly_plain", "duplicate_text", "empty_column", "hollow_control"]);
 
 /** True when any finding must be fixed before the section ships. */
 export function needsDesignRepair(findings: DesignFinding[]): boolean {

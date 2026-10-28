@@ -332,7 +332,24 @@ async function run<T>(
     // A no-spend scope keeps every AI call out.
     scopedFreeOnly(),
   );
-  const chain = applyModelPreference(rawChain, scopedPreferredModels(options?.preferModels), options?.avoidModels);
+  let candidates = rawChain;
+  const prefer = options?.preferModels;
+  if (prefer?.length) {
+    const config = rawChain[0]?.config ?? providerChain()[0];
+    if (config) {
+      const { catalogueFilterFor } = await import("@/lib/ai/catalogue.server");
+      const allow = await catalogueFilterFor(role);
+      const have = new Set(candidates.map((entry) => entry.model));
+      for (const model of chatRosterExtras(config.models, role, prefer)) {
+        if (have.has(model)) continue;
+        if (options?.capable && !options.capable(model)) continue;
+        if (allow && !allow(model)) continue;
+        candidates = [...candidates, { config, model }];
+        have.add(model);
+      }
+    }
+  }
+  const chain = applyModelPreference(candidates, scopedPreferredModels(prefer), options?.avoidModels);
   const attemptTimeoutMs = attemptTimeoutFor(clampPositive(options?.timeoutMs, limits.requestTimeoutMs), options?.longAttemptMs);
   const chainBudgetMs = clampPositive(options?.chainDeadlineMs, chainDeadlineMs());
   if (chain.length === 0)
@@ -643,6 +660,42 @@ function carriesAttachment(messages: AiRequest["messages"]): boolean {
  * order; avoided ones (e.g. the model that wrote what is being reviewed) move
  * to the very back so they answer only if nobody else can. Nothing is removed.
  */
+/** Chat rosters a review preference may recruit from. Image and transcription stay out. */
+const CHAT_ROSTER_ROLES = new Set(["primary", "design", "fast", "coding", "vision", "conversation"]);
+
+const splitRoster = (list: string | undefined) =>
+  (list ?? "").split(",").map((id) => id.trim()).filter(Boolean);
+
+/**
+ * Preferred ids that are on a chat roster other than this call's role.
+ * `applyModelPreference` only reorders models already in the chain, so a
+ * review area whose model lives on `design` or `fast` was silently ignored
+ * when the purpose ran on `primary`. These ids are appended, then the
+ * preference sort moves them to the front. The catalogue filter still has
+ * to accept them for this role's surface.
+ */
+export function chatRosterExtras(
+  models: Record<string, string>,
+  role: string,
+  prefer: readonly string[] | undefined,
+): string[] {
+  if (!prefer?.length) return [];
+  const own = new Set(splitRoster(models[role]));
+  const elsewhere = new Set<string>();
+  for (const [name, list] of Object.entries(models)) {
+    if (name === role || !CHAT_ROSTER_ROLES.has(name)) continue;
+    for (const id of splitRoster(list)) elsewhere.add(id);
+  }
+  const seen = new Set<string>();
+  const extras: string[] = [];
+  for (const id of prefer) {
+    if (!elsewhere.has(id) || own.has(id) || seen.has(id)) continue;
+    seen.add(id);
+    extras.push(id);
+  }
+  return extras;
+}
+
 export function applyModelPreference<T extends { model: string }>(
   chain: T[],
   prefer?: string[],

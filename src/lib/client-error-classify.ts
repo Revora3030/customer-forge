@@ -112,6 +112,10 @@ export function classifyClientError(error: unknown, described = describeClientEr
   // Browser-extension / ResizeObserver noise that is not caused by the app.
   if (/^ResizeObserver loop (limit exceeded|completed with undelivered notifications)/i.test(message)) return "ignore";
   if (RECOVERABLE_REACT.some((pattern) => pattern.test(message))) return "warn";
+  // Three.js HTML labels and a tab close: the node is already gone. Not an outage.
+  if (/removeChild/.test(message) && /not a child of this node/i.test(message)) return "warn";
+  if (/the object can not be found here/i.test(message)) return "warn";
+  if (/WebAssembly\.instantiate|wasm-unsafe-eval/i.test(message)) return "warn";
   // Old code after a deploy: recovered by a reload, not an application fault.
   if (isStaleDeployError(message)) return "warn";
   // Visitor's connection dropped mid-request (Safari/Chrome/Firefox wording).
@@ -126,6 +130,7 @@ const STALE_DEPLOY = [
   /unable to preload css/i,
   /unexpected token ['"]?<['"]?/i,
   /chunkloaderror|loading chunk \S+ failed/i,
+  /invalid server function id/i,
 ];
 
 /**

@@ -26,6 +26,7 @@ describe("old code after a deploy", () => {
     expect(isStaleDeployError("Failed to fetch dynamically imported module: https://x/assets/a.js")).toBe(true);
     expect(isStaleDeployError("Cannot read properties of undefined (reading 'page')")).toBe(false);
     expect(classifyClientError(new Error("Importing a module script failed."))).toBe("warn");
+    expect(classifyClientError(new Error("Invalid server function ID"))).toBe("warn");
   });
   it("reloads only once per minute, never in a loop", () => {
     const store = new Map<string, string>();

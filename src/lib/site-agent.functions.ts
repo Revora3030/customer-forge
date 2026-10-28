@@ -1223,7 +1223,11 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
     // multi-picture edit run for minutes; if the platform cut the request off
     // mid-way, earlier steps were already written and never rolled back.
     type Shot = { image: { base64: string; mimeType: string } | null; message: string | null };
-    const IMAGE_BUDGET_MS = 100_000;
+    // Stay under the hosting proxy's ~100s idle cutoff so the reply, including
+    // a partial set of pictures, gets back to the chat and is saved. A budget
+    // of 100s died at the proxy and the owner only saw "didn't save how this
+    // request ended."
+    const IMAGE_BUDGET_MS = 70_000;
     const IMAGE_CONCURRENCY = 3;
     const makePicture = async (action: Extract<AgentAction, { type: "generate_component_image" }>): Promise<Shot> => {
           const current = site.components.find((component) => component.id === action.componentId);

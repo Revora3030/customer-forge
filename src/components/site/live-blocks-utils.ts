@@ -1,3 +1,4 @@
+import { mergeSplitServices } from "@/lib/builder/intake-sanitize";
 import { currency } from "@/lib/format";
 import { safeParagraph, safeText } from "@/lib/builder/presentation";
 import { resolveImageSource } from "@/lib/brand-logos";
@@ -35,7 +36,7 @@ export function durationLabel(minutes: number | null | undefined): string | null
 
 /** The owner's active services, featured first, ready to display. */
 export function serviceMenuItems(rows: ServiceRow[], limit = 12) {
-  return [...rows]
+  return mergeSplitServices([...rows])
     .filter((row) => safeText(row.name))
     .sort((a, b) => Number(Boolean(b.featured)) - Number(Boolean(a.featured)) || (a.sort_order ?? 0) - (b.sort_order ?? 0))
     .slice(0, Math.max(1, limit))

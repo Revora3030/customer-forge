@@ -185,6 +185,22 @@ const PRICE_PER_MTOK: Record<string, { input: number; output: number }> = {
   "gpt-5.4-mini": { input: 0.4, output: 1.6 },
   "gpt-5.6-terra": { input: 0.5, output: 4 },
   "gpt-5.6-sol": { input: 1.25, output: 10 },
+  // Rough admin estimates for the current Lovable roster, aligned with the
+  // existing sol / terra / flash bands. Not an invoice.
+  "gpt-6.1-sol": { input: 1.25, output: 10 },
+  "gpt-6-sol": { input: 1.25, output: 10 },
+  "gpt-5.5": { input: 1.25, output: 10 },
+  "gemini-4-argon": { input: 1.25, output: 10 },
+  "gemini-3.1-pro-preview": { input: 1.25, output: 10 },
+  "claude-sonnet-5": { input: 3, output: 15 },
+  "claude-opus-5": { input: 5, output: 25 },
+  "claude-opus-5-5": { input: 5, output: 25 },
+  "claude-fable-5-1": { input: 5, output: 25 },
+  "claude-haiku-4-5": { input: 0.25, output: 1.25 },
+  "gpt-6-astra": { input: 0.5, output: 4 },
+  "gpt-6-luna": { input: 0.5, output: 4 },
+  "gpt-5.6-luna": { input: 0.5, output: 4 },
+  "gemini-3-flash-preview": { input: 0.3, output: 2.5 },
   "gpt-image-2": { input: 5, output: 40 },
   "gpt-image-2.5-sunburst": { input: 5, output: 40 },
   "gpt-image-2.5-flare": { input: 2, output: 16 },
@@ -195,9 +211,34 @@ const PRICE_PER_MTOK: Record<string, { input: number; output: number }> = {
   "o3-mini": { input: 0, output: 0 },
 };
 
+/**
+ * Telemetry records catalogue ids (`google/gemini-3.8-flash`). The price table
+ * is keyed by the bare id. Either form resolves; an unknown model stays null.
+ */
+export function priceForModel(model: string): { input: number; output: number } | null {
+  const bare = model.includes("/") ? model.slice(model.lastIndexOf("/") + 1) : model;
+  return PRICE_PER_MTOK[model] ?? PRICE_PER_MTOK[bare] ?? null;
+}
+
+/**
+ * Stored telemetry often has a null cost because older writes looked up the
+ * bare id. Recompute from the model and token counts when the stored figure
+ * is missing. A stored number, including zero, is kept.
+ */
+export function eventCostUsd(event: {
+  model?: string | null;
+  input_tokens?: number | null;
+  output_tokens?: number | null;
+  estimated_cost_usd?: number | null;
+}): number | null {
+  if (typeof event.estimated_cost_usd === "number") return event.estimated_cost_usd;
+  if (!event.model) return null;
+  return estimateCostUsd(event.model, event.input_tokens ?? 0, event.output_tokens ?? 0);
+}
+
 /** Returns null rather than a guess when the model's price isn't known. */
 export function estimateCostUsd(model: string, inputTokens: number, outputTokens: number) {
-  const price = PRICE_PER_MTOK[model];
+  const price = priceForModel(model);
   if (!price) return null;
   const cost = (inputTokens / 1_000_000) * price.input + (outputTokens / 1_000_000) * price.output;
   return Math.round(cost * 1_000_000) / 1_000_000;

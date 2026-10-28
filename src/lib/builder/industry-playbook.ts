@@ -81,9 +81,9 @@ export const TRADE_PLAYBOOKS: readonly TradePlaybook[] = [
     key: "auto-detailing",
     label: "Auto detailing and car care",
     match: /detail|car wash|auto spa|ceramic|paint correction|tint/i,
-    signature: "A before_after_slider of the owner's real paint correction or interior work, and a spin_viewer only when the owner photographs a vehicle from 8 or more angles.",
+    signature: "When the home page has two or more pictures of the vehicle, open with a scrub_sequence (a pinned scroll that wipes from the first frame to the last) and a short display heading in the overlay. Otherwise use scroll_chapters. A before_after_slider only of the owner's real before and after of the same vehicle, and a spin_viewer only when the owner photographs one vehicle from 8 or more angles. Real services are offer cards.",
     storyArc: ["the vehicle as it arrived", "the process", "the finished panel in light", "packages", "booking"],
-    needsFromOwner: "Real before and after photos; 8 or more angles of one finished vehicle for a spin. Until then build the home page as scroll_chapters scenes over the supplied or generated vehicle pictures (atmosphere only, no result claims), with the real services as offer cards; a dark, high-contrast studio look often suits the trade, but the palette stays the designer's call.",
+    needsFromOwner: "Real before and after photos; 8 or more angles of one finished vehicle for a spin. Until then the picture campaign should include 2-4 atmospheric frames of one vehicle (same light, moving closer — not a claimed result) so the home page can open as a scrub_sequence, with the real services as offer cards; a dark, high-contrast studio look often suits the trade, but the palette stays the designer's call.",
   },
   {
     key: "roofing",

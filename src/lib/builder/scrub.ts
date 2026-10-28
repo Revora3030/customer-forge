@@ -25,3 +25,17 @@ export function scrubTime(progress: number, duration: number): number {
 export function shouldSeek(current: number, target: number, threshold = 0.03): boolean {
   return Math.abs(current - target) >= threshold;
 }
+
+/**
+ * Which frame a scroll-scrubbed still sequence is on, and how far (0–1) the
+ * wipe toward the next frame has travelled. The last frame is fully shown at
+ * progress 1. One frame never wipes.
+ */
+export function scrubFrame(progress: number, count: number): { index: number; mix: number } {
+  if (!Number.isFinite(count) || count <= 1) return { index: 0, mix: 0 };
+  const t = clamp(progress, 0, 1);
+  if (t >= 1) return { index: count - 1, mix: 0 };
+  const scaled = t * (count - 1);
+  const index = Math.min(count - 2, Math.floor(scaled));
+  return { index, mix: scaled - index };
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { scrubProgress, scrubTime, shouldSeek } from "./scrub";
+import { scrubFrame, scrubProgress, scrubTime, shouldSeek } from "./scrub";
 
 describe("scroll-scrubbed video maths", () => {
   it("runs 0 → 1 across the pinned travel and clamps outside it", () => {
@@ -20,6 +20,14 @@ describe("scroll-scrubbed video maths", () => {
     expect(scrubTime(0.5, 10)).toBeCloseTo(4.975);
     expect(scrubTime(0.5, Number.NaN)).toBe(0);
     expect(scrubTime(0.5, 0)).toBe(0);
+  });
+
+  it("wipes a still sequence from the first frame to the last", () => {
+    expect(scrubFrame(0, 3)).toEqual({ index: 0, mix: 0 });
+    expect(scrubFrame(0.25, 3).index).toBe(0);
+    expect(scrubFrame(0.25, 3).mix).toBeCloseTo(0.5);
+    expect(scrubFrame(1, 3)).toEqual({ index: 2, mix: 0 });
+    expect(scrubFrame(0.4, 1)).toEqual({ index: 0, mix: 0 });
   });
 
   it("skips seeks that would not change the picture", () => {

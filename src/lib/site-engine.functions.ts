@@ -723,11 +723,10 @@ export const saveMissingFacts = createServerFn({ method: "POST" })
       if (!value) continue; // an untouched box is not an answer, and never overwrites saved data
       const field = fieldByKey.get(key);
       if (field === "services_list") {
-        for (const line of value
-          .split(/[\n,]/)
-          .map((l) => l.trim())
-          .filter(Boolean))
-          serviceNames.push(line);
+        const { mergeSplitServices } = await import("@/lib/builder/intake-sanitize");
+        const lines = value.split(/[\n,]/).map((l) => l.trim()).filter(Boolean);
+        for (const name of mergeSplitServices(lines.map((name) => ({ name }))).map((row) => row.name ?? "").filter(Boolean))
+          serviceNames.push(name);
       } else if (field) profilePatch[field] = value;
       else context_answers[key] = value;
     }

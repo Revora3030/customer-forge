@@ -49,6 +49,34 @@ describe("gate: the opening is a real scene or media hero", () => {
     expect(auditSectionDesign(tucked, { lead: true, mediaAvailable: 1 }).some((f) => f.code === "lead_not_scene")).toBe(true);
   });
 
+  it("asks for a sequence or a scene when the opening was given several pictures", () => {
+    const mediaHero = t({ type: "stack", children: [{ type: "media", mediaRef: ref, alt: "Coupe" }, ...(textHero.root.children ?? [])] });
+    expect(auditSectionDesign(mediaHero, { lead: true, mediaAvailable: 1 }).some((f) => f.code === "lead_not_cinematic")).toBe(false);
+    const findings = auditSectionDesign(mediaHero, { lead: true, mediaAvailable: 2 });
+    expect(findings.some((f) => f.code === "lead_not_cinematic")).toBe(true);
+    expect(needsDesignRepair(findings)).toBe(true);
+    expect(auditSectionDesign(sceneHero(), { lead: true, mediaAvailable: 3 }).some((f) => f.code === "lead_not_cinematic")).toBe(false);
+  });
+
+  it("sends an accordion of empty labels back", () => {
+    const hollow = t({
+      type: "stack",
+      children: [
+        { type: "heading", level: 2, text: "Packages", style: { size: 40 } },
+        { type: "text", text: "Interior and exterior detailing at your driveway, with room to read." },
+        { type: "accordion", children: [{ type: "stack", text: "Full" }, { type: "stack", text: "Auto detailing" }] },
+      ],
+    });
+    const findings = auditSectionDesign(hollow, { lead: false, role: "story" });
+    expect(findings.filter((f) => f.code === "hollow_control")).toHaveLength(2);
+    expect(needsDesignRepair(findings)).toBe(true);
+    const filled = t({
+      type: "accordion",
+      children: [{ type: "stack", text: "Full", children: [{ type: "text", text: "Inside and out." }] }, { type: "stack", text: "Express", children: [{ type: "text", text: "A rinse and dry." }] }],
+    });
+    expect(auditSectionDesign(filled, { lead: false }).some((f) => f.code === "hollow_control")).toBe(false);
+  });
+
   it("asks nothing the AI cannot do: no supplied picture, or unknown availability", () => {
     expect(auditSectionDesign(textHero, { lead: true, mediaAvailable: 0 }).some((f) => f.code === "lead_not_scene")).toBe(false);
     expect(auditSectionDesign(textHero, { lead: true }).some((f) => f.code === "lead_not_scene")).toBe(false);

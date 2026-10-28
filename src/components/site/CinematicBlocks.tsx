@@ -7,7 +7,7 @@
  * IntersectionObserver for the chapter rail.
  */
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
-import { scrubProgress, scrubTime, shouldSeek } from "@/lib/builder/scrub";
+import { scrubFrame, scrubProgress, scrubTime, shouldSeek } from "@/lib/builder/scrub";
 import { MIN_SPIN_FRAMES, frameForDrag, frameForKey } from "@/lib/builder/cinematic-primitives";
 
 type NodeProps = { "data-cn": string; "data-motion": string | undefined; className: string | undefined; style: CSSProperties };
@@ -283,4 +283,77 @@ export function ScrubStage({ src, alt, render }: { src: string; alt: string; ren
   const [live, setLive] = useState(false);
   useEffect(() => { setLive(!prefersReducedMotion()); }, []);
   return <div ref={track} className="rv-scrub" data-live={live ? "" : undefined}>{render(<ScrubVideo src={src} alt={alt} trackRef={track} />)}</div>;
+}
+
+/**
+ * A pinned still sequence. Server HTML and reduced motion show the last frame
+ * with the copy, so the page is complete with JavaScript off. After hydration,
+ * scrolling the track wipes from frame to frame. No canvas and no model file.
+ */
+export function ScrubSequence({
+  props, frames, copy, prompt, scrim, ink,
+}: {
+  props: NodeProps;
+  frames: { src: string; alt: string }[];
+  copy: ReactNode;
+  prompt: string;
+  scrim: string;
+  ink: string;
+}) {
+  const track = useRef<HTMLDivElement>(null);
+  const [live, setLive] = useState(false);
+  const [progress, setProgress] = useState(0);
+  useEffect(() => {
+    if (prefersReducedMotion() || frames.length < 2) return;
+    setLive(true);
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      const box = track.current?.getBoundingClientRect();
+      if (!box) return;
+      setProgress(scrubProgress(box.top, box.height, window.innerHeight));
+    };
+    const onScroll = () => { if (!frame) frame = window.requestAnimationFrame(update); };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    update();
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+      if (frame) window.cancelAnimationFrame(frame);
+    };
+  }, [frames.length]);
+  const shown = live ? scrubFrame(progress, frames.length) : { index: Math.max(0, frames.length - 1), mix: 0 };
+  const last = Math.max(0, frames.length - 1);
+  return (
+    <div ref={track} {...props} className={merge(props, "rv-seq")} data-live={live ? "" : undefined}>
+      <div className="rv-seq-pin">
+        <div className="rv-seq-stage" style={{ color: ink }}>
+          {frames.map((frame, index) => {
+            const incoming = live && index === shown.index + 1;
+            const current = live ? index === shown.index : index === last;
+            const visible = current || incoming;
+            const clip = incoming ? `inset(0 ${(1 - shown.mix) * 100}% 0 0)` : undefined;
+            return (
+              <img
+                key={frame.src}
+                className="rv-seq-frame"
+                src={frame.src}
+                alt={index === last ? frame.alt : ""}
+                aria-hidden={index === last ? undefined : true}
+                loading={index === 0 || index === last ? "eager" : "lazy"}
+                decoding="async"
+                style={{ opacity: visible ? 1 : 0, clipPath: clip, zIndex: incoming ? 2 : 1 }}
+              />
+            );
+          })}
+          <div className="rv-seq-scrim" aria-hidden="true" style={{ background: `linear-gradient(to top, ${scrim} 0%, ${scrim} 42%, transparent 100%)` }} />
+          <div className="rv-seq-copy">
+            {copy}
+            {prompt ? <p className="rv-seq-prompt">{prompt}</p> : null}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
