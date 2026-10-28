@@ -20,12 +20,13 @@ export const COMPOSITION_PRIMITIVES = [
   "tabs", "toggle", "accordion", "compare", "marquee", "gallery", "quote", "widget",
   "before_after_slider", "faq_accordion", "tab_group", "mobile_sticky_bar",
   "scene", "scroll_chapters", "offer_card", "spin_viewer", "collection_row",
+  "lens_magnifier", "sticky_split_story",
 ] as const;
 
 /** Primitives a visitor operates (a site's interactive centrepiece). Working form widgets are counted separately. */
 export const INTERACTIVE_PRIMITIVES: ReadonlySet<string> = new Set([
   "tabs", "toggle", "accordion", "compare", "before_after_slider", "faq_accordion", "tab_group",
-  "scroll_chapters", "spin_viewer", "collection_row",
+  "scroll_chapters", "spin_viewer", "collection_row", "lens_magnifier", "sticky_split_story",
 ]);
 
 /** Working features an AI layout may place anywhere. Their data (prices, phone, email, hours) always comes from verified business facts. */
@@ -81,6 +82,8 @@ export const PRIMITIVE_GUIDE =
   "scroll_chapters (2-8 scene children shown as consecutive full-screen chapters with scroll-driven transitions and a chapter rail; without JavaScript or for reduced motion they are simply stacked scenes). " +
   "offer_card (a compact card over media: text is its title; service names one real service EXACTLY as supplied and its price and duration are filled in from the owner's Services tool — never type a price anywhere; items holds up to 3 short specs; children are an optional media picture plus exactly one button whose href is the business's own booking/quote page, a form anchor such as #booking, tel: or mailto: — never an external or checkout address; anchor positions it inside a scene). " +
   "spin_viewer (an interactive 360° turntable on a lit podium: text is its label such as \"Spin the …\"; children are the ordered angle pictures — media with mediaRef and alt — of one real object photographed by the owner, never AI-made or stock; with fewer than 8 angles it shows one still; style.background is the stage and style.borderColor the podium light). " +
+  "lens_magnifier (a round loupe that follows the pointer over ONE real photograph so visitors can inspect fine detail such as paint clarity, grout lines or stitching: text is its short prompt such as \"Inspect the finish\"; exactly one media child with mediaRef and alt, the owner's own real photo — never AI-made or stock, or nothing is shown; on touch it needs a switch, from the keyboard the arrow keys move it). " +
+  "sticky_split_story (the first child is a media picture that stays pinned on one side while 2-6 following children — each a stack or card of heading and text — scroll past as phases; use for a real process told in order, such as prep, wash, seal; on phones the picture sits above the phases; the picture is one the owner supplied and the phase copy must be facts the owner gave). " +
   "collection_row (a horizontally scrolling, snap-aligned row of offer_card children, each with its picture, name, optional real-service price and an accent button; keyboard and swipe friendly). " +
   "widget (text is one of booking_form|quote_calculator|enquiry_form|contact_details|direct_contact|service_menu|review_wall — enquiry_form is the site's working message form (name, phone/email, message; saved to the owner's leads); booking_form/quote_calculator drop the site's real working form, verified phone/email/hours/area, the live service menu (names, prices, durations straight from the owner's Services tool) or the live published reviews into your layout; style its wrapper freely, never retype those facts yourself; service_menu and review_wall stay in sync when the owner edits services or publishes reviews). For working widgets, widgetPresentation may author visible labels, helper/success copy and a bounded local theme (surface, text, muted, border, action, actionText, selected, selectedText); never put business data or pricing into widgetPresentation — the application supplies those facts. " +
   "Real company logos: a media src of https://img.logo.dev/<domain> (e.g. img.logo.dev/stripe.com) renders that company's real logo — use ONLY for companies the customer actually named as partners, clients or platforms they use; never invent an affiliation. " +
@@ -596,6 +599,16 @@ function checkCinematic(node: CompositionNode, path: string, issues: Composition
     case "spin_viewer":
       if (!kids.length || kids.length > MAX_SPIN_FRAMES || kids.some((child) => !hasPictureSource(child)))
         issues.push({ path: at, problem: `spin_viewer children must be 1-${MAX_SPIN_FRAMES} ordered angle pictures (media with a source and alt)` });
+      break;
+    case "lens_magnifier":
+      if (kids.length !== 1 || !hasPictureSource(kids[0]!) || kids[0]!.mediaRef == null)
+        issues.push({ path: at, problem: "lens_magnifier needs exactly one media child that is the owner's real photo (a mediaRef with alt text)" });
+      break;
+    case "sticky_split_story":
+      if (!kids[0] || !hasPictureSource(kids[0]))
+        issues.push({ path: `${at}[0]`, problem: "sticky_split_story needs its pinned picture (media with a source and alt text) as the first child" });
+      if (kids.length < 3 || kids.length > 7 || kids.slice(1).some((child) => child.type === "media" || child.type === "scene" || child.type === "scroll_chapters" || child.type === "mobile_sticky_bar"))
+        issues.push({ path: at, problem: "sticky_split_story needs the picture plus 2-6 phase children (stack, card, heading or text), not pictures or scenes" });
       break;
     case "collection_row":
       if (!kids.length || kids.length > MAX_COLLECTION_ITEMS || kids.some((child) => child.type !== "offer_card"))

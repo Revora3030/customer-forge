@@ -8,6 +8,7 @@ import { premiumSurface } from "@/lib/site-theme";
 import { clampSplit, splitForKey, splitForPointer } from "@/lib/builder/compare-slider";
 import { brushRadius, coverRect, coveragePercent, isRevealDone, newGrid, paintAt, strokePoints, type RevealGrid } from "@/lib/builder/reveal-brush";
 import { DEFAULT_OFFER_ANCHOR, DEFAULT_SCENE_ANCHOR, sceneScrim, type SceneAnchor } from "@/lib/builder/cinematic-primitives";
+import { LensMagnifier, StickySplitStory } from "@/components/site/MasterBlocks";
 import { CollectionRow, SceneVideo, ScrollChapters, SpinViewer, type SpinFrame } from "@/components/site/CinematicBlocks";
 import { CINEMATIC_CSS } from "@/components/site/cinematic-css";
 
@@ -508,6 +509,19 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
     case "scroll_chapters": {
       const pairs = children.map((child, i) => ({ chapter: kids[i], label: sceneLabel(child) || `Chapter ${i + 1}` })).filter((pair) => pair.chapter != null);
       return pairs.length ? <ScrollChapters key={key} props={props} chapters={pairs.map((pair) => pair.chapter)} labels={pairs.map((pair) => pair.label)} /> : null;
+    }
+    case "lens_magnifier": {
+      const photo = children[0];
+      const resolved = photo?.mediaRef ? ctx.media(photo.mediaRef) : null;
+      // A magnifier implies real, fine detail: generated or stock pictures show nothing.
+      if (!photo || isGeneratedMedia(resolved)) return null;
+      const source = mediaUrl(resolved);
+      if (!source) return null;
+      return <LensMagnifier key={key} props={props} src={source} alt={photo.alt ?? mediaVisual(resolved)?.alt ?? ""} prompt={node.text?.trim().slice(0, 60) || "Inspect the detail"} />;
+    }
+    case "sticky_split_story": {
+      const phases = kids.slice(1).filter((kid) => kid != null);
+      return kids[0] && phases.length ? <StickySplitStory key={key} props={props} picture={kids[0]} phases={phases} /> : null;
     }
     case "collection_row": {
       const items = kids.filter((kid) => kid != null);

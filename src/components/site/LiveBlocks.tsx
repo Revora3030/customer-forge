@@ -11,6 +11,7 @@
  * Both render nothing when there is nothing real to show, and both inherit the
  * site's own theme colours (or the AI's widget theme), never a fixed palette.
  */
+import { useState } from "react";
 import { Star } from "lucide-react";
 import type { WidgetPresentation } from "@/lib/builder/composition-tree";
 import type { PublicSite } from "@/lib/public-site.functions";
@@ -62,10 +63,22 @@ export function ServiceMenu({ site, presentation, limit = 12 }: { site: Site; pr
   );
 }
 
+const REVIEW_FILTERS = [
+  { id: "all", label: "All", test: () => true },
+  { id: "5", label: "5 stars", test: (rating: number) => rating === 5 },
+  { id: "4", label: "4 stars & up", test: (rating: number) => rating >= 4 },
+] as const;
+
 export function ReviewWall({ site, presentation, limit = 6 }: { site: Site; presentation?: WidgetPresentation; limit?: number }) {
   const items = reviewWallItems(site.reviews ?? [], limit);
+  const [filter, setFilter] = useState<(typeof REVIEW_FILTERS)[number]["id"]>("all");
   if (!items.length) return null;
   const average = items.reduce((sum, r) => sum + r.rating, 0) / items.length;
+  // Filter chips only appear when they would change what is shown: they
+  // sort real published reviews and never hide the average above them.
+  const filters = REVIEW_FILTERS.filter((option) => option.id === "all" || (items.length >= 4 && items.some((r) => option.test(r.rating)) && items.some((r) => !option.test(r.rating))));
+  const active = REVIEW_FILTERS.find((option) => option.id === filter) ?? REVIEW_FILTERS[0];
+  const shown = items.filter((r) => active.test(r.rating));
   return (
     <div data-live-block="review_wall" style={widgetPresentationStyle(presentation)} className="w-full">
       <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
@@ -78,8 +91,23 @@ export function ReviewWall({ site, presentation, limit = 6 }: { site: Site; pres
           <span className="tnum font-semibold text-foreground">{average.toFixed(1)}</span> · {items.length} review{items.length === 1 ? "" : "s"}
         </p>
       </div>
+      {filters.length > 1 ? (
+        <div role="group" aria-label="Filter reviews" className="mb-4 flex flex-wrap gap-2">
+          {filters.map((option) => (
+            <button
+              key={option.id}
+              type="button"
+              aria-pressed={option.id === active.id}
+              onClick={() => setFilter(option.id)}
+              className={`min-h-11 rounded-full border px-4 text-[14px] transition ${option.id === active.id ? "border-primary bg-primary/10 text-foreground" : "border-border text-muted-foreground hover:text-foreground"}`}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
       <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {items.map((review) => (
+        {shown.map((review) => (
           <li key={review.id} className="flex min-w-0 flex-col rounded-xl border border-border bg-card p-5 text-card-foreground">
             <div className="flex gap-0.5 text-primary" aria-label={`${review.rating} out of 5 stars`}>
               {Array.from({ length: 5 }, (_, i) => (

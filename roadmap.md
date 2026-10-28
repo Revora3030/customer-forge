@@ -353,3 +353,10 @@ Counted from the code, not from audits.
 - **Claimed gaps that already exist:** `interactive_reveal` = brush mode; `gauge_selector` = `selector`; `treatment_timeline` = custom `timeline`; reservation picker = custom `booking` (services × times, no invented availability); menu drawer = `service_menu` + custom `filter`; provider cards = `card` composition; video backdrop = `scene` media.
 - **Real gaps, none buildable without owner data or third parties:** service-area map (needs a map provider, privacy review), verified-badge strip (needs owner-supplied credentials, never invented), live availability (needs a calendar connection).
 - **Unproven:** which primitives Sol actually chooses per trade. Needs one live build.
+
+## Lens, pinned story, review filter (2026-10-28)
+- [x] `lens_magnifier`: loupe over one real photo (mediaRef only; generated/stock shows nothing); hover, arrow keys, "Magnify on touch" switch
+- [x] `sticky_split_story`: pinned picture beside 2-6 scrolling phases; sticky on wide screens only
+- [x] Review wall rating filter (All / 5 stars / 4 stars & up), only when it changes what is shown
+- [ ] `model_3d_viewer`: not built. Owners have no way to upload a .glb (media is pictures only) and no business has supplied one; build the upload path first. three/R3F are already dependencies (admin AI City only).
+- Not built on purpose: live booking ticker (invented social proof), soundboard, thermal overlay (invented findings), gravity badges.
