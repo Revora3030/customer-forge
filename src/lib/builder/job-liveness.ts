@@ -65,3 +65,73 @@ export const INTERRUPTED_BUILD_MESSAGE =
 /** Plain message shown while an interrupted build is being retried. */
 export const RECOVERING_BUILD_MESSAGE =
   "The build worker was interrupted, so Revora is picking your build back up automatically.";
+
+/** How many attempts the worker gives one build (mirrors MAX_ATTEMPTS in the site-engine worker). */
+export const MAX_BUILD_ATTEMPTS = 3;
+
+/** How long a build may sit queued, with nothing picking it up, before the chat stops waiting on it. */
+export const QUEUED_PICKUP_TIMEOUT_MS = 10 * 60_000;
+
+export type JobRetryRow = JobLivenessRow & {
+  attempts?: number | null;
+  created_at?: string | null;
+  started_at?: string | null;
+  current_step?: string | null;
+  error_message?: string | null;
+  failure_kind?: string | null;
+};
+
+/**
+ * A queued job that a worker has already run is waiting for its RETRY (or for
+ * the next slice of one long build), not waiting to start. After a failed
+ * attempt the row goes back to "queued" with its original `created_at`, so
+ * "queued for N minutes" measured from creation said "your build hasn't
+ * started yet" about a build that had been running for eleven of those
+ * minutes.
+ */
+export function isRetryWait(job: JobRetryRow | null | undefined): boolean {
+  if (job?.status !== "queued") return false;
+  return (
+    Number(job.attempts ?? 0) > 0 ||
+    Boolean(job.started_at) ||
+    Boolean(job.current_step) ||
+    Boolean(job.error_message) ||
+    Boolean(job.failure_kind)
+  );
+}
+
+/** Why the chat should stop waiting on a build, or null while it should keep watching. */
+export type StopWaiting = "never_started" | "retry_overdue" | "stalled";
+
+/**
+ * The one rule for "stop watching this build". A running job stops when its
+ * lease has lapsed. A job that never started stops after the pickup timeout,
+ * counted from its creation. A job waiting to retry is counted from the moment
+ * the retry became due (its lease is the retry-not-before time, so a build
+ * parked for AI capacity is not abandoned early), never from creation.
+ */
+export function stopWaiting(job: JobRetryRow | null | undefined, now = Date.now()): StopWaiting | null {
+  if (!job?.status) return null;
+  if (job.status === "processing") return jobLiveness(job, now) === "stalled" ? "stalled" : null;
+  if (job.status !== "queued") return null;
+  const created = job.created_at ? Date.parse(job.created_at) : Number.NaN;
+  if (!isRetryWait(job)) {
+    return Number.isFinite(created) && now - created > QUEUED_PICKUP_TIMEOUT_MS ? "never_started" : null;
+  }
+  const dueAt = job.lease_expires_at ? Date.parse(job.lease_expires_at) : Number.NaN;
+  const touched = job.updated_at ? Date.parse(job.updated_at) : Number.NaN;
+  const since = Math.max(Number.isFinite(dueAt) ? dueAt : Number.NEGATIVE_INFINITY, Number.isFinite(touched) ? touched : Number.NEGATIVE_INFINITY);
+  return Number.isFinite(since) && now - since > QUEUED_PICKUP_TIMEOUT_MS ? "retry_overdue" : null;
+}
+
+/** What the chat says when it stops waiting. Nothing is claimed about how the build ended. */
+export function stopWaitingMessage(reason: StopWaiting): string {
+  switch (reason) {
+    case "never_started":
+      return "Your build hasn't started yet, so I've stopped waiting on it here. Nothing was published — check the preview in a few minutes, or start the build again.";
+    case "retry_overdue":
+      return "Your build ran into a problem and was waiting to try again, but it hasn't resumed, so I've stopped waiting on it here. Nothing was published — check the preview in a few minutes, or start the build again.";
+    case "stalled":
+      return "Your build stopped responding, so I've stopped waiting on it here. Nothing was published — check the preview in a minute, or start the build again.";
+  }
+}

@@ -56,6 +56,15 @@ export class RevoraAiError extends Error {
   }
 }
 
+/**
+ * Statuses a proxy in front of the model answers with when the model did not
+ * finish inside the proxy's own limit (504 gateway timeout, Cloudflare's 522
+ * connection timed out and 524 "origin took too long", about two minutes). The
+ * model was alive but too slow for this request, so they are timeouts, not
+ * outages: sending the identical request to the same model hits the same wall.
+ */
+export const GATEWAY_TIMEOUT_STATUSES: readonly number[] = [504, 522, 524];
+
 export function categoryForStatus(status: number): AiErrorCategory {
   if (status === 400 || status === 422) return "invalid_request";
   if (status === 401) return "unauthorized";
@@ -64,6 +73,7 @@ export function categoryForStatus(status: number): AiErrorCategory {
   if (status === 408) return "timeout";
   if (status === 413) return "too_large";
   if (status === 429) return "rate_limited";
+  if (GATEWAY_TIMEOUT_STATUSES.includes(status)) return "timeout";
   if (status >= 500) return "provider_unavailable";
   return "provider_unavailable";
 }

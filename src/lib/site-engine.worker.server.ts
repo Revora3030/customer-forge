@@ -1134,6 +1134,17 @@ export async function claimJob(db: Db, organizationId?: string, invoker: WorkerI
   return null;
 }
 
+/** Where the progress bar stands while each named step of the creative stage runs (between 46% and 58%). */
+const REFINE_STEP_PROGRESS: Record<string, number> = {
+  "planning your design direction": 48,
+  "choosing your typography": 49,
+  "naming your visual concept": 49,
+  "choosing your colours": 50,
+  "planning your picture campaign": 51,
+  "planning your picture campaign (second pass)": 52,
+  "writing your wording": 53,
+};
+
 /** Runs the generation stages (GENERATION_STEPS) for one claimed job using the privileged client. */
 async function runJob(
   db: Db,
@@ -1223,6 +1234,24 @@ async function runJob(
     const starting = nextKey ? WORKER_STAGE_LABELS[nextKey] : undefined;
     if (starting) noteStage(orgId, runId, starting);
     if (HAND_BACK_STEPS.has(key)) await slice.handBackIfDue(key);
+  };
+  // The long middle of a build (brand direction, design direction, picture
+  // campaign, wording, page plan, pictures) all happens between two steps, so
+  // the bar sat at 46% for most of the build. This moves it inside that stretch
+  // as real work finishes. Never backwards (a resumed attempt may already be
+  // further on) and never allowed to fail the build.
+  const advanceTo = async (percent: number) => {
+    try {
+      await db
+        .from("generation_jobs")
+        .update({ progress: percent, updated_at: new Date().toISOString() } as never)
+        .eq("id", job.id)
+        .eq("attempts", job.attempts)
+        .eq("status", "processing")
+        .lt("progress", percent);
+    } catch {
+      /* cosmetic only */
+    }
   };
   noteStage(orgId, runId, WORKER_STAGE_LABELS["business"] ?? "reading your business");
 
@@ -1476,9 +1505,11 @@ async function runJob(
   };
   type BrandIdentity = Awaited<ReturnType<typeof authorBrandIdentity>>;
   const resumedIdentity = await stageStore.get<BrandIdentity>("identity", identityInputs);
+  if (!resumedIdentity) noteStage(orgId, runId, "choosing your brand direction", job.attempts > 1 ? `attempt ${job.attempts}` : undefined);
   const identity = resumedIdentity ?? await authorBrandIdentity(identityInputs);
   if (!resumedIdentity && identity.direction) saved(await stageStore.put("identity", identityInputs, identity));
   await touchLease(db, job);
+  await advanceTo(48);
   // Resumable only when the identity is stored (or came from the store).
   if (resumedIdentity || identity.direction) await slice.handBackIfDue("identity");
   const direction = identity.direction;
@@ -1582,7 +1613,20 @@ async function runJob(
   const refineInputs = { organizationId: orgId, facts: buildFacts, brief, copy, creative, hardGenericityGate: true as const };
   type Refined = Awaited<ReturnType<typeof refineFirstBuildWithCollective>>;
   const resumedRefined = await stageStore.get<Refined>("refined", refineInputs);
-  const refined = resumedRefined ?? await refineFirstBuildWithCollective(refineInputs);
+  // The step names are shown to the owner as they happen. A retry's rows carry
+  // its attempt number: progress rows of the same wording are otherwise
+  // collapsed, which made a second attempt look frozen.
+  const attemptNote = job.attempts > 1 ? `attempt ${job.attempts}` : undefined;
+  const refined = resumedRefined ?? await refineFirstBuildWithCollective({
+    ...refineInputs,
+    checkpoints: stageStore,
+    onStep: (label) => {
+      noteStage(orgId, runId, label, attemptNote);
+      const to = REFINE_STEP_PROGRESS[label];
+      if (to) void advanceTo(to);
+    },
+  });
+  await advanceTo(54);
   const refinedUsable = refined.creativeChanged && refined.changed && missingAiCopy(refined.copy).length === 0;
   if (!resumedRefined && refinedUsable) saved(await stageStore.put("refined", refineInputs, refined));
   await touchLease(db, job);
@@ -1762,6 +1806,8 @@ async function runJob(
     }
   }
   await touchLease(db, job);
+  await advanceTo(55);
+  let picturesDone = 0;
   const starterImages = await generateFirstBuildImages(db, {
     organizationId: orgId,
     userId: job.created_by,
@@ -1782,7 +1828,11 @@ async function runJob(
     // The picture stage has a fixed time budget so a slow or rate-limited
     // picture service can never stop the build before pages, menus and buttons
     // are written. Unfilled slots go to the picture repair afterwards.
-    onShotDone: () => touchLease(db, job),
+    onShotDone: async () => {
+      await touchLease(db, job);
+      picturesDone += 1;
+      await advanceTo(Math.min(57, 55 + Math.floor(picturesDone / 3)));
+    },
     reusable: reusablePictures,
   });
   await touchLease(db, job);
@@ -2897,8 +2947,16 @@ export async function drainSiteEngineQueue(
       const { buildSpendScope, withAiSpendScope } = await import("@/lib/ai/spend-scope.server");
       const spendScope = await buildSpendScope(db as never, job.organization_id);
       const deadline = Date.parse(attemptStartedAt) + sliceBudgetMs;
+      // Each model that answers is shown to the owner as it happens ("model at
+      // work"), under the same run id the build's stages use.
+      const { withModelActivity } = await import("@/lib/ai/model-activity-scope.server");
+      const { noteStage: noteModel } = await import("@/lib/builder/progress.server");
+      const modelRunId = (await readJobRequestId(db, job.id)) ?? job.id;
       await withAiSpendScope(spendScope, () =>
-        executeJob(db, job, { deadline, short: sliceBudgetMs < NEXT_STAGE_RESERVE_MS }),
+        withModelActivity(
+          (provider, model) => noteModel(job.organization_id, modelRunId, "model at work", `${provider} · ${model}`),
+          () => executeJob(db, job, { deadline, short: sliceBudgetMs < NEXT_STAGE_RESERVE_MS }),
+        ),
       );
       heartbeat.stop();
       processed += 1;

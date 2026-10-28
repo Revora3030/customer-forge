@@ -122,7 +122,7 @@ describe("the build no longer dies before the menu", () => {
   it("the picture stage has a time budget and renews the lease per picture", () => {
     expect(images).toContain("export function firstBuildImageBudgetMs()");
     expect(images).toContain("picture time budget reached");
-    expect(worker).toContain("onShotDone: () => touchLease(db, job)");
+    expect(worker).toMatch(/onShotDone: async \(\) => \{\s*await touchLease\(db, job\);/);
   });
   it("a retry reuses pictures the interrupted attempt already stored", () => {
     expect(worker).toContain("reusable: reusablePictures");

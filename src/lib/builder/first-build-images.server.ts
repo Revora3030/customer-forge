@@ -381,17 +381,24 @@ export async function generateFirstBuildImages(
     );
     if (!acceptedForUse(verdict, policy)) {
       let replaced = false;
-      if (shouldReshoot(verdict)) {
-        const brief = verdict.revisedPrompt ?? `${prompt} Fix these problems: ${verdict.defects.join("; ")}.`;
-        // One corrected reshoot on the best lane available. A second free
-        // reshoot used to double the cost of every rejected frame.
+      // The opening picture decides how the whole site reads, and a build whose
+      // hero was rejected (seen: the vehicle's grille badge and wheel hub) shipped
+      // a text-only opening. It gets one more corrective round than the rest.
+      const isHero = /hero|masthead|opening|lead/i.test(placementOf(shot));
+      const rounds = isHero ? 2 : 1;
+      let current = verdict;
+      let currentPrompt = prompt;
+      for (let round = 0; round < rounds && !replaced && shouldReshoot(current); round += 1) {
+        const brief = current.revisedPrompt ?? `${currentPrompt} Fix these problems: ${current.defects.join("; ")}.`;
+        // One corrected reshoot per round on the best lane available. A second
+        // free reshoot used to double the cost of every rejected frame.
         let reshoot: Made | null = null;
         let reshootPremium = false;
         if (paidUsable) {
           const premium = await generatePaidImageBase64(
             brief,
             caller,
-            /hero|masthead|opening|lead/i.test(placementOf(shot)) ? "hero_master" : "editorial_feature",
+            isHero ? "hero_master" : "editorial_feature",
           );
           if (premium.ok) {
             paidCostMicrocents += premium.costMicrocents;
@@ -400,29 +407,31 @@ export async function generateFirstBuildImages(
           }
         }
         if (!reshoot) reshoot = await standardShot(brief);
-        if (reshoot) {
-          const recheck = await inspectPhoto(
-            { base64: reshoot.base64, mimeType: reshoot.mimeType },
-            { prompt: brief, placement: placementOf(shot) },
-            caller,
-          );
-          // The reshoot was made from Terra's own correction; a review outage on
-          // the recheck follows the same safe-fallback policy as the first look.
-          if (acceptedForUse(recheck, policy)) {
-            if (recheck.reviewFailed) reviewFallbacks += 1;
-            made = reshoot;
-            madePremium = reshootPremium;
-            replaced = true;
-          }
+        if (!reshoot) break;
+        const recheck = await inspectPhoto(
+          { base64: reshoot.base64, mimeType: reshoot.mimeType },
+          { prompt: brief, placement: placementOf(shot) },
+          caller,
+        );
+        // The reshoot was made from Terra's own correction; a review outage on
+        // the recheck follows the same safe-fallback policy as the first look.
+        if (acceptedForUse(recheck, policy)) {
+          if (recheck.reviewFailed) reviewFallbacks += 1;
+          made = reshoot;
+          madePremium = reshootPremium;
+          replaced = true;
+        } else {
+          current = recheck;
+          currentPrompt = brief;
         }
       }
       if (!replaced) {
         skipped.push({
           slot: shot.slot,
           label: shot.label,
-          reason: verdict.reviewFailed
+          reason: current.reviewFailed
             ? "the picture could not be quality-checked, so it was not used"
-            : `picture failed quality review (${verdict.defects.join("; ") || "off-brief"})`,
+            : `picture failed quality review (${current.defects.join("; ") || "off-brief"})`,
         });
         return null;
       }

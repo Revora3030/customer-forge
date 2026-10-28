@@ -521,6 +521,11 @@ noteProviderSuccess(config.name);
             break;
           }
           if (!error.retryable) break;
+          // A model that used its whole time budget (or hit the gateway's own
+          // edge limit, a 524) will do exactly the same with the same request.
+          // Repeating it only burns the chain's wall-clock and leaves the next
+          // model with minutes it no longer has, so hand over now.
+          if (error.category === "timeout") break;
           // In the free pool the next model is usually faster than waiting out
           // a rate limit or a slow model: only a transient 5xx is worth a retry
           // of the same model.

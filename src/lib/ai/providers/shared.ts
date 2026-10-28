@@ -70,7 +70,9 @@ export async function providerHttpError(
       : categoryForStatus(response.status);
 
   const message =
-    category === "rate_limited"
+    category === "timeout"
+      ? "Revora AI took too long to answer. Try again."
+      : category === "rate_limited"
       ? "Revora AI is busy right now. Try again in a moment."
       : category === "quota" || category === "policy"
         ? `Revora's AI provider (${provider}) refused this request. Check the provider account for this workspace.`

@@ -47,6 +47,11 @@ const OWNER_MESSAGES: Record<BuildFailureKind, string> = {
 
 /** Ordered rules: the first match wins. Matched against the error text only. */
 const RULES: { kind: BuildFailureKind; test: RegExp }[] = [
+  // A design step that came back empty because the AI providers were slow or
+  // busy is a provider problem, even when its message names pictures or fonts.
+  // Without this rule it read "pictures" and told the owner their pictures
+  // couldn't be generated, when the planning call had simply timed out.
+  { kind: "provider", test: /AI design team did not (?:choose|name|plan) this site'?s|providers? did not answer in time/i },
   { kind: "intake_validation", test: /still needs|missing (required )?(fact|detail)|invalid workspace|brief (isn'?t|is not) approved|fill in/i },
   { kind: "publish", test: /publish/i },
   { kind: "preview", test: /preview/i },

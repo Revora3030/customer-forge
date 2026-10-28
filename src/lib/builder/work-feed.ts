@@ -8,6 +8,7 @@
  */
 import { GENERATION_STEPS } from "@/lib/site-engine";
 import { teamModelName } from "@/lib/ai-team-public";
+import { MAX_BUILD_ATTEMPTS, isRetryWait } from "@/lib/builder/job-liveness";
 
 export type FeedJob = {
   id?: string | null;
@@ -21,6 +22,11 @@ export type FeedJob = {
   completed_at?: string | null;
   error_message?: string | null;
   section_checkpoints?: unknown;
+  /** Attempts the worker has made so far; a retry's row keeps the build's original created_at. */
+  attempts?: number | null;
+  failure_kind?: string | null;
+  lease_expires_at?: string | null;
+  updated_at?: string | null;
 };
 export type FeedProgressRow = { stage: string; detail: string | null; at: string };
 export type FeedGeneration = { kind: string; model: string | null; created_at: string; message?: string | null; status?: string | null };
@@ -118,6 +124,23 @@ const oneLine = (text: string | null | undefined, max: number) => {
   return t.length > max ? `${t.slice(0, max - 1)}…` : t;
 };
 
+/**
+ * What a build says while it waits to try again. The saved design work is kept
+ * between attempts, so the owner is told that, and why the last attempt
+ * stopped in plain words (never the raw error).
+ */
+export function retryHeadline(job: Pick<FeedJob, "attempts" | "failure_kind" | "error_message">): string {
+  const attempts = Math.max(0, Number(job.attempts ?? 0));
+  const next = Math.min(MAX_BUILD_ATTEMPTS, attempts + 1);
+  const why =
+    job.failure_kind === "provider" ? "an AI model was slow to answer" :
+    job.failure_kind ? "the last attempt hit a problem" :
+    "the build is continuing in its next run";
+  return attempts > 0
+    ? `Retrying (attempt ${next} of ${MAX_BUILD_ATTEMPTS}) — ${why}. Your saved design work is kept.`
+    : `Continuing — ${why}. Your saved design work is kept.`;
+}
+
 export function buildWorkFeed(input: {
   job: FeedJob | null | undefined;
   progress: readonly FeedProgressRow[];
@@ -144,7 +167,9 @@ export function buildWorkFeed(input: {
     return { key: step.key, label: step.label, state: "pending", durationMs: null };
   });
 
-  const start = ms(job.started_at) ?? ms(job.created_at);
+  // Counted from when the build was asked for: a retry resets started_at, which
+  // made the clock fall back to "<1s" halfway through a long build.
+  const start = ms(job.created_at) ?? ms(job.started_at);
   const end = ms(job.completed_at);
   const elapsedMs = start == null ? null : Math.max(0, (active ? input.now : (end ?? input.now)) - start);
 
@@ -162,12 +187,13 @@ export function buildWorkFeed(input: {
   ai.sort((a, b) => (a.offsetMs ?? 0) - (b.offsetMs ?? 0));
   const aiCalls = ai.reduce((sum, item) => sum + item.calls, 0);
 
-  const latest = input.progress[0];
+  // The newest step; "model at work" rows only say which model just answered.
+  const latest = input.progress.find((row) => row.stage !== "model at work");
   const runningStage = stages.find((s) => s.state === "running");
   const live = latest ? oneLine(latest.detail ? `${latest.stage} — ${latest.detail}` : latest.stage, 120) : "";
   const headline =
     state === "running" ? live || (runningStage?.label ?? "Working on your website") :
-    state === "queued" ? "Queued — the builder picks up new jobs within a few seconds" :
+    state === "queued" ? (isRetryWait(job) ? retryHeadline(job) : "Queued — the builder picks up new jobs within a few seconds") :
     state === "done" ? "Your draft is ready" :
     state === "failed" ? `Stopped at: ${stages.find((s) => s.state === "failed")?.label.toLowerCase() ?? "the build"}` :
     state === "cancelled" ? "The build was stopped before it finished" : "";

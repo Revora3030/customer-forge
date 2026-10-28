@@ -90,11 +90,41 @@ export function missingPictureProblems(sections: readonly SavedBuildSection[], s
 }
 type Node = { type?: string; mediaRef?: string; src?: string; children?: Node[]; [key: string]: unknown };
 const PICTURE_ONLY = new Set(["gallery", "spin_viewer", "before_after_slider", "compare"]);
+/** Containers that cannot show anything with one of their pictures gone. */
+const NEEDS_EVERY_PICTURE = new Set(["before_after_slider", "compare"]);
+
+const isRecord = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === "object" && !Array.isArray(value);
+
+/** Every picture reference inside a value, wherever it sits (a node, a before/after side, a list item). */
+function refsWithin(value: unknown, out: string[] = []): string[] {
+  if (Array.isArray(value)) value.forEach(item => refsWithin(item, out));
+  else if (isRecord(value))
+    for (const [key, child] of Object.entries(value)) {
+      if (key === "mediaRef" && typeof child === "string") out.push(child);
+      else refsWithin(child, out);
+    }
+  return out;
+}
+
+/** The same value without any `mediaRef` that points at a missing picture. */
+function withoutMissingRefs(value: unknown, missing: ReadonlySet<string>): unknown {
+  if (Array.isArray(value)) return value.map(item => withoutMissingRefs(item, missing));
+  if (!isRecord(value)) return value;
+  const out: Record<string, unknown> = {};
+  for (const [key, child] of Object.entries(value)) {
+    if (key === "mediaRef" && typeof child === "string" && missing.has(child)) continue;
+    out[key] = withoutMissingRefs(child, missing);
+  }
+  return out;
+}
 
 /**
  * One unsaved picture must not block a whole site: drop media nodes whose
  * reference was never saved, turn a scene that lost its backdrop into a plain
- * stack (same copy, no picture) and remove picture-only containers left empty.
+ * stack (same copy, no picture), remove picture-only containers left empty, and
+ * drop a before/after pair that lost either side. A picture reference on any
+ * other node or nested object (a card image, a list item) is removed from it,
+ * so no reference to a missing picture survives however it was written.
  * Returns null when nothing referenced a missing picture.
  */
 export function dropMissingPictures(settings: unknown, missing: ReadonlySet<string>): Record<string, unknown> | null {
@@ -107,10 +137,19 @@ export function dropMissingPictures(settings: unknown, missing: ReadonlySet<stri
       changed = true;
       return null;
     }
-    if (!Array.isArray(node.children)) return node;
-    const before = node.children.length;
-    const children = node.children.map(fix).filter((child): child is Node => child !== null);
-    const next: Node = { ...node, children };
+    if (NEEDS_EVERY_PICTURE.has(String(node.type)) && refsWithin(node).some(ref => missing.has(ref))) {
+      changed = true;
+      return null;
+    }
+    // A picture reference outside the children (a before/after side, a list item,
+    // a card image) is taken off its owner; the owner keeps its words.
+    const { children: kids, ...rest } = node;
+    if (refsWithin(rest).some(ref => missing.has(ref))) changed = true;
+    const cleaned = withoutMissingRefs(rest, missing) as Node;
+    if (!Array.isArray(kids)) return kids === undefined ? cleaned : { ...cleaned, children: kids };
+    const before = kids.length;
+    const children = kids.map(fix).filter((child): child is Node => child !== null);
+    const next: Node = { ...cleaned, children };
     if (children.length !== before) {
       if (node.type === "scene" && children[0]?.type !== "media") next.type = "stack";
       if (PICTURE_ONLY.has(String(node.type)) && !children.some(c => c.type === "media")) return null;
