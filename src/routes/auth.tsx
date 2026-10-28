@@ -4,7 +4,7 @@ import { toast } from "@/lib/ui/notify";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
-import { Logo } from "@/components/brand/Logo";
+import { BrandEmblem, Logo } from "@/components/brand/Logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -254,8 +254,9 @@ function AuthPage() {
         </div>
       </header>
 
-      <main className="flex flex-1 items-center justify-center px-4 py-12">
-        <div className="w-full max-w-sm">
+      <main className="relative flex flex-1 items-center justify-center overflow-hidden px-4 py-12">
+        <BrandEmblem className="top-8 right-[-2rem] sm:right-10" />
+        <div className="relative w-full max-w-sm">
           {isSignup ? (
             <Pill tone="signal">{`${GROWTH_SYSTEM.fullAccessWindowUpper} FREE — FULL ACCESS`}</Pill>
           ) : null}

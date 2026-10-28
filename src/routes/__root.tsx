@@ -288,11 +288,16 @@ function RootComponent() {
   const builderOpen = useRouterState({
     select: (s) => s.location.pathname.startsWith("/app/website"),
   });
+  // Customer websites keep their own canvas. Revora's shells get the obsidian
+  // atmosphere and glass panels; a published or preview site must not.
+  const clientSite = useRouterState({
+    select: (s) => s.matches.some((match) => isClientSiteMatch(match)),
+  });
 
   return (
     <QueryClientProvider client={queryClient}>
       <PlatformAnalytics />
-      <div className="flex min-h-dvh flex-col">
+      <div className={clientSite ? "flex min-h-dvh flex-col" : "platform-shell flex min-h-dvh flex-col"}>
         <CookieConsent />
         {/* The phone notice occupies its own row, never the signup form. */}
         <div className="min-w-0 flex-1"><Outlet /></div>

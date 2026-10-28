@@ -207,6 +207,13 @@ function containsVisual(node: CompositionNode): boolean {
   return (node.children ?? []).some(containsVisual);
 }
 
+/** Tags that may only contain phrasing content. A block child makes the browser
+ * rewrite the tree before hydration (React #418). */
+const PHRASING_TYPES = new Set(["media", "icon", "button", "link", "divider"]);
+function childrenArePhrasing(node: CompositionNode): boolean {
+  return (node.children ?? []).every((child) => PHRASING_TYPES.has(child.type) && childrenArePhrasing(child));
+}
+
 function renderNode(node: CompositionNode, ctx: Ctx, key: string): ReactNode {
   const saved = { bg: ctx.bg, bg2: ctx.bg2, fg: ctx.fg, depth: ctx.depth, sceneScrim: ctx.sceneScrim };
   try {
@@ -369,11 +376,13 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
       } as CSSProperties;
       // Site header/footer: same look, but not a document heading, so the
       // page keeps its one h1 and a clean outline.
+      if (!childrenArePhrasing(node)) return <div key={key} {...props} style={headingStyle}>{node.text}{kids}</div>;
       if (ctx.chrome) return <p key={key} {...props} style={headingStyle}>{node.text}{kids}</p>;
       const Tag = (`h${node.level ?? 2}`) as "h1" | "h2" | "h3" | "h4";
       return <Tag key={key} {...props} style={headingStyle}>{node.text}{kids}</Tag>;
     }
     case "text":
+      if (!childrenArePhrasing(node)) return <div key={key} {...props}>{node.text}{kids}</div>;
       return <p key={key} {...props}>{node.text}{kids}</p>;
     case "media":
       { const resolved = node.mediaRef ? ctx.media(node.mediaRef) : null;

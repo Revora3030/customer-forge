@@ -8,6 +8,7 @@
  */
 import { Link, useRouter } from "@tanstack/react-router";
 import { useEffect } from "react";
+import { Logo } from "@/components/brand/Logo";
 import { Button } from "@/components/ui/button";
 
 import { reportLovableError } from "@/lib/lovable-error-reporting";
@@ -25,6 +26,7 @@ export function RouteNotFound() {
       <title>Page not found — Revora</title>
       <meta name="robots" content="noindex" />
       <div className="max-w-md text-center">
+        <div className="mb-6 flex justify-center"><Logo /></div>
         <p className="eyebrow">Error 404</p>
         <h1 className="mt-3 font-editorial text-[30px] leading-tight text-foreground">This page doesn't exist</h1>
         <p className="mt-2 text-sm text-muted-foreground">
@@ -52,6 +54,7 @@ export function RouteError({ error, reset }: { error: unknown; reset?: () => voi
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
+        <div className="mb-6 flex justify-center"><Logo /></div>
         <p className="eyebrow">Temporarily unavailable</p>
         <h1 className="mt-3 font-editorial text-[30px] leading-tight text-foreground">This page didn't load</h1>
         <p className="mt-2 text-sm text-muted-foreground">

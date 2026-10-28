@@ -414,7 +414,7 @@ function AppShell() {
             >
               {navOpen ? <X className="size-4" /> : <Menu className="size-4" />}
             </Button>
-            <LogoMark className="size-8 lg:hidden" />
+            <LogoMark className="size-8" />
             <div className="min-w-0">
               <p className="truncate text-[13px] font-medium">
                 {currentPage?.label ?? "Workspace"}

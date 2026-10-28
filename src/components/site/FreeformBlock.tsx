@@ -45,7 +45,7 @@ const TEXT_SIZE: Record<string, string> = {
 function format(value: number, kind: "number" | "currency" | "percent" | "duration"): string {
   const rounded = Math.round(value * 100) / 100;
   if (kind === "currency") {
-    return `$${rounded.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+    return `$${rounded.toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
   }
   if (kind === "percent") return `${Math.round(rounded)}%`;
   if (kind === "duration") {
@@ -56,7 +56,7 @@ function format(value: number, kind: "number" | "currency" | "percent" | "durati
     if (hours > 0) return `${hours} hr`;
     return `${minutes} min`;
   }
-  return rounded.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  return rounded.toLocaleString("en-US", { maximumFractionDigits: 2 });
 }
 
 type Ctx = {

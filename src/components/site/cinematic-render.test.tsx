@@ -221,6 +221,19 @@ describe("accordion labels are not a hollow box", () => {
   });
 });
 
+describe("phrasing hosts stay valid HTML", () => {
+  it("renders a text node that contains a card as a div, so the browser cannot split the paragraph", () => {
+    const html = markup(render({
+      type: "text",
+      text: "Intro",
+      children: [{ type: "card", children: [{ type: "text", text: "Inside" }] }],
+    }));
+    expect(html).not.toMatch(/<p[^>]*>Intro/);
+    expect(html).toContain(">Intro");
+    expect(html).toContain(">Inside<");
+  });
+});
+
 describe("mobile sticky bar is marked as an overlay for the browser QA gate", () => {
   it("carries data-rv-overlay", () => {
     expect(render({ type: "mobile_sticky_bar", primaryCta: { label: "Call", href: "tel:+15551234567" } })).toContain('data-rv-overlay="sticky"');
