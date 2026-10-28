@@ -83,3 +83,13 @@ describe("buildSuggestionMessages", () => {
     expect(user).not.toContain("150");
   });
 });
+
+describe("first build attention list", () => {
+  it("tells the owner when the service menu is too thin to say much", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { resolve } = await import("node:path");
+    const source = readFileSync(resolve(__dirname, "site-engine.worker.server.ts"), "utf8");
+    expect(source).toMatch(/menuNeedsHelp\(serviceRows\)/);
+    expect(source).toMatch(/Your services are thin/);
+  });
+});
