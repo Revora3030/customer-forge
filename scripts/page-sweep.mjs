@@ -9,6 +9,8 @@
  *
  * usage: node scripts/page-sweep.mjs [baseUrl] [--max=120] [--per-family=4] [--out=page-sweep.json] [--target=24]
  * --top=N sets how many offenders are listed (default 40).
+ * --a11y runs axe-core (WCAG 2.0/2.1/2.2 A and AA rules) on every page at phone width and lists the rules
+ * that fail, most widespread first. Automated rules cannot prove a page is accessible; they only find what they can.
  * --target=44 holds phone tap targets to the 44px comfort size instead of the 24px WCAG 2.5.8
  * minimum, and lists the controls that miss it, most widespread first, so shared chrome shows up.
  * Without Playwright the run is NOT_VERIFIED (exit 2), never a pass.
@@ -21,6 +23,7 @@ const args = process.argv.slice(2);
 const base = (args.find((a) => /^https?:/.test(a)) ?? "http://127.0.0.1:5199").replace(/\/$/, "");
 const max = Number((args.find((a) => a.startsWith("--max=")) ?? "--max=120").split("=")[1]);
 const out = (args.find((a) => a.startsWith("--out=")) ?? "--out=page-sweep.json").split("=")[1];
+const RUN_A11Y = args.includes("--a11y");
 const MIN_TARGET = Number((args.find((a) => a.startsWith("--target=")) ?? "--target=24").split("=")[1]);
 const VIEWPORTS = [
   { name: "phone", width: 390, height: 800 },
@@ -58,6 +61,18 @@ const familyOf = (path) => path.split("/")[1] ?? "";
 const findings = [];
 // Small phone targets by control, across every page: signature -> { region, size, pages }.
 const targetOffenders = new Map();
+// axe rule id -> { impact, help, pages, nodes }
+const a11yRules = new Map();
+let axeSource = null;
+if (RUN_A11Y) {
+  try {
+    const { readFileSync } = await import("node:fs");
+    axeSource = readFileSync(createRequire(import.meta.url).resolve("axe-core/axe.min.js"), "utf8");
+  } catch {
+    console.log(JSON.stringify({ status: "NOT_VERIFIED", reason: "axe-core is not installed (run bun install)" }));
+    process.exit(2);
+  }
+}
 const add = (page, viewport, severity, check, detail) => findings.push({ page, viewport, severity, check, detail });
 
 try {
@@ -155,6 +170,24 @@ while (queue.length && pages.length < max) {
       entry.pages.add(path);
       targetOffenders.set(key, entry);
     }
+    if (RUN_A11Y && viewport.name === "phone" && status < 400) {
+      try {
+        await page.evaluate(axeSource);
+        const result = await page.evaluate(async () => {
+          const r = await axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"] } });
+          return r.violations.map((v) => ({ id: v.id, impact: v.impact, help: v.help, nodes: v.nodes.length }));
+        });
+        for (const v of result) {
+          const entry = a11yRules.get(v.id) ?? { impact: v.impact, help: v.help, pages: new Set(), nodes: 0 };
+          entry.pages.add(path);
+          entry.nodes += v.nodes;
+          a11yRules.set(v.id, entry);
+          add(path, "phone", v.impact === "critical" || v.impact === "serious" ? "P1" : "P2", "a11y", `${v.id}: ${v.help} (${v.nodes} elements)`);
+        }
+      } catch (error) {
+        add(path, "phone", "P2", "a11y-error", String(error.message).slice(0, 120));
+      }
+    }
     await page.close();
   }
   pages.push(path);
@@ -178,7 +211,8 @@ const offenders = [...targetOffenders.values()]
   .map((o) => ({ region: o.region, control: o.control, size: o.size, pages: o.pages.size }))
   .sort((a, b) => b.pages - a.pages)
   .slice(0, Number((args.find((a) => a.startsWith("--top=")) ?? "--top=40").split("=")[1]));
-const report = { status: counts.P0 ? "FAILED" : "PASSED", base, minTarget: MIN_TARGET, pagesChecked: pages.length, families: Object.fromEntries(familyCount), counts, targetOffenders: offenders, findings };
+const a11y = [...a11yRules.entries()].map(([id, r]) => ({ id, impact: r.impact, help: r.help, pages: r.pages.size, elements: r.nodes })).sort((a, b) => b.pages - a.pages);
+const report = { status: counts.P0 ? "FAILED" : "PASSED", base, minTarget: MIN_TARGET, pagesChecked: pages.length, families: Object.fromEntries(familyCount), counts, targetOffenders: offenders, ...(RUN_A11Y ? { a11y } : {}), findings };
 writeFileSync(out, JSON.stringify(report, null, 2));
 console.log(JSON.stringify({ status: report.status, pagesChecked: pages.length, families: report.families, counts }));
 process.exit(counts.P0 ? 1 : 0);

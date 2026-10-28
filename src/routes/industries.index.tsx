@@ -66,7 +66,7 @@ function Industries() {
           Contractors, HVAC, plumbing and roofing crews: see how the{" "}
           <Link
             to="/crm-for-contractors"
-            className="text-primary underline-offset-4 hover:underline"
+            className="text-primary underline underline-offset-4 hover:no-underline"
           >
             CRM for contractors
           </Link>{" "}

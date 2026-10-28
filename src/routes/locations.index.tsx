@@ -72,7 +72,7 @@ function LocationsIndex() {
             Revora is run from {BUSINESS.region.name} and serves owners across the state — and
             anywhere in the {BUSINESS.areasServed[1]} or beyond. Pick your city to see how the
             system captures the customers already searching for your service. Outside NC?{" "}
-            <Link to="/states" className="text-primary underline-offset-4 hover:underline">
+            <Link to="/states" className="text-primary underline underline-offset-4 hover:no-underline">
               See all 50 states
             </Link>
             .

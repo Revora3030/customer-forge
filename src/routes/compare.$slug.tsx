@@ -80,7 +80,7 @@ function ComparePage() {
         </h1>
         <p className="mt-4 text-[15px] leading-relaxed text-muted-foreground">{comparison.intro}</p>
 
-        <div className="mt-8 overflow-x-auto rounded-2xl border border-border/60">
+        <div tabIndex={0} role="region" aria-label="Comparison table" className="mt-8 overflow-x-auto rounded-2xl border border-border/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
           <table className="w-full min-w-[560px] text-left text-[14px]">
             <caption className="sr-only">Revora compared with {comparison.otherName}</caption>
             <thead className="bg-card/60 text-[13px]">
