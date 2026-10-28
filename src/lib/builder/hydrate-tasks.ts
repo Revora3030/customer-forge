@@ -23,6 +23,10 @@ export type ChatTask = QueueTask & {
    * another tab or device. Never counted as busy, never offered a retry.
    */
   tracking?: boolean;
+  /** A build started from this chat (kept after it ends, so its work log stays under the message). */
+  isBuild?: boolean;
+  /** A change held back until the first build finishes: the build's own log is shown meanwhile. */
+  waitingOnBuild?: boolean;
 };
 
 /**

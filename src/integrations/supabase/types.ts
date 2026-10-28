@@ -4068,6 +4068,7 @@ export type Database = {
           daily_build_cap: number
           enabled: boolean
           id: number
+          pitch_first: boolean
           rotation: Json
           send_email: boolean
           send_sms: boolean
@@ -4079,6 +4080,7 @@ export type Database = {
           daily_build_cap?: number
           enabled?: boolean
           id?: number
+          pitch_first?: boolean
           rotation?: Json
           send_email?: boolean
           send_sms?: boolean
@@ -4090,6 +4092,7 @@ export type Database = {
           daily_build_cap?: number
           enabled?: boolean
           id?: number
+          pitch_first?: boolean
           rotation?: Json
           send_email?: boolean
           send_sms?: boolean

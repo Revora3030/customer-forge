@@ -1,3 +1,8 @@
+## Daily pitch-first outreach verification (2026-10-28)
+- [x] Verify selected public-listing emails through the existing verifier and retain their source evidence before outreach; regression tests pass.
+- [x] Report failed OpenStreetMap discovery as unavailable, not as a successful empty search; regression tests pass.
+- [ ] Verify daily discovery and delivery on the published schedules; blocked by publishing these fixes and configuring an authorized outreach sender. Current Lovable app-email fallback cannot send cold promotions; email sending paused, discovery enabled.
+
 ## Reveal brush and trade playbooks (2026-10-28)
 - [x] `before_after_slider` takes `revealMode: "brush"`: the visitor drags across the before picture and the after appears where they have been, with a live percentage ("Clean this driveway: 44%"), a button that shows the finished result for keyboard and screen-reader users, a touch switch so the page still scrolls past it, and the finished picture for no-JavaScript visitors. It keeps the existing rule: the owner's own real before and after photos only, never generated pictures.
 - [x] Trade playbooks (`builder/industry-playbook.ts`): for 19 kinds of local business, the signature moment, a scene order for a scroll story, and exactly what the owner must supply. Added to the first-build design prompt as ideas, not orders.

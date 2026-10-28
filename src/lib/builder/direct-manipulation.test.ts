@@ -117,7 +117,7 @@ describe("preview bridge: elements, actions, patches", () => {
 
 describe("live status line", () => {
   it("names the team member for the real stage", () => {
-    expect(liveStatusLine("generating your pictures", "Headline banner")).toBe("Luna is making photos for Headline banner…");
+    expect(liveStatusLine("generating your pictures", "Headline banner")).toBe("The image team is making photos for Headline banner…");
     expect(liveStatusLine("reviewing for safety", null)).toBe("Terra is checking your site…");
     expect(liveStatusLine("polishing the design", "Services")).toBe("Sol is designing Services…");
     expect(liveStatusLine("", "x")).toBeNull();
