@@ -106,4 +106,15 @@ ${S} .rv-tier[data-live] .rv-tier-card[data-on]{animation:rv-tier-in .28s ease b
 @media (prefers-reduced-motion:reduce){${S} .rv-tier[data-live] .rv-tier-card[data-on]{animation:none}}
 ${S} .rv-scrub[data-live]{height:300vh;height:300svh}
 ${S} .rv-scrub[data-live] > .rv-scene{position:sticky;top:0}
+${S} .rv-px{position:relative;overflow:hidden;overflow:clip;isolation:isolate;width:100%;aspect-ratio:4/5}
+@media (min-width:768px){${S} .rv-px{aspect-ratio:16/9}}
+${S} .rv-px-layer{position:absolute;left:0;top:-8%;width:100%!important;height:116%!important;max-width:none!important;object-fit:cover;display:block;will-change:transform}
+@supports (animation-timeline:view()){@media (prefers-reduced-motion:no-preference){
+${S} .rv-px{view-timeline:--rv-px block}
+${S} .rv-px-layer{animation:rv-px-drift linear both;animation-timeline:--rv-px;animation-range:cover}
+${S} .rv-px-layer[data-depth="1"]{--px:2%}
+${S} .rv-px-layer[data-depth="2"]{--px:4%}
+${S} .rv-px-layer[data-depth="3"]{--px:6%}
+@keyframes rv-px-drift{from{transform:translateY(var(--px,0%))}to{transform:translateY(calc(var(--px,0%) * -1))}}
+}}
 `;

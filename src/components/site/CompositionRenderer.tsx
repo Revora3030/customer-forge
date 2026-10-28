@@ -523,6 +523,23 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
       const phases = kids.slice(1).filter((kid) => kid != null);
       return kids[0] && phases.length ? <StickySplitStory key={key} props={props} picture={kids[0]} phases={phases} /> : null;
     }
+    case "parallax_layers": {
+      // Atmosphere, like a scene backdrop: layers are never presented as proof of work.
+      const layers = children.flatMap((child, i) => {
+        const resolved = child.mediaRef ? ctx.media(child.mediaRef) : null;
+        const src = child.src ? resolveImageSource(child.src) : mediaUrl(resolved);
+        return src ? [{ src, alt: child.alt ?? mediaVisual(resolved)?.alt ?? "", depth: i }] : [];
+      });
+      if (layers.length < 2) return null;
+      ctx.counter.sawMedia = true;
+      return (
+        <div key={key} {...props} className={`${props.className ?? ""} rv-px`.trim()}>
+          {layers.map((layer) => (
+            <img key={layer.depth} className="rv-px-layer" data-depth={layer.depth} src={layer.src} alt={layer.depth === 0 ? layer.alt : ""} {...(layer.depth === 0 ? {} : { "aria-hidden": true })} loading="lazy" decoding="async" />
+          ))}
+        </div>
+      );
+    }
     case "service_tier_fader": {
       const pairs = children.map((child, i) => ({ card: kids[i], label: child.text?.trim() || (child.service && ctx.offer ? ctx.offer(child.service)?.name : "") || `Option ${i + 1}` })).filter((pair) => pair.card != null);
       return pairs.length > 1 ? <TierFader key={key} props={props} label={node.text?.trim() || "Choose your package"} labels={pairs.map((pair) => pair.label)} cards={pairs.map((pair) => pair.card)} /> : null;

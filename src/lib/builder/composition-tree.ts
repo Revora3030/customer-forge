@@ -20,7 +20,7 @@ export const COMPOSITION_PRIMITIVES = [
   "tabs", "toggle", "accordion", "compare", "marquee", "gallery", "quote", "widget",
   "before_after_slider", "faq_accordion", "tab_group", "mobile_sticky_bar",
   "scene", "scroll_chapters", "offer_card", "spin_viewer", "collection_row",
-  "lens_magnifier", "sticky_split_story", "service_tier_fader",
+  "lens_magnifier", "sticky_split_story", "service_tier_fader", "parallax_layers",
 ] as const;
 
 /** Primitives a visitor operates (a site's interactive centrepiece). Working form widgets are counted separately. */
@@ -85,6 +85,7 @@ export const PRIMITIVE_GUIDE =
   "lens_magnifier (a round loupe that follows the pointer over ONE real photograph so visitors can inspect fine detail such as paint clarity, grout lines or stitching: text is its short prompt such as \"Inspect the finish\"; exactly one media child with mediaRef and alt, the owner's own real photo — never AI-made or stock, or nothing is shown; on touch it needs a switch, from the keyboard the arrow keys move it). " +
   "sticky_split_story (the first child is a media picture that stays pinned on one side while 2-6 following children — each a stack or card of heading and text — scroll past as phases; use for a real process told in order, such as prep, wash, seal; on phones the picture sits above the phases; the picture is one the owner supplied and the phase copy must be facts the owner gave). " +
   "service_tier_fader (a slider that picks one package and cross-fades between 2-4 offer_card children, e.g. Good / Better / Best; text is the slider label such as \"Choose your package\"; every child is an offer_card naming a real service EXACTLY as supplied, so prices and durations come from the owner's Services tool — never type a price; without JavaScript every package is listed). " +
+  "parallax_layers (2-4 media children ordered back to front — e.g. a backdrop, a mid layer and a transparent cut-out in front — that drift at different speeds as the page scrolls for a layered depth effect; each with mediaRef and alt — the back layer's alt describes the scene, the layers in front are treated as decoration; pure CSS, still when motion is reduced or unsupported; use one per page for a hero or showcase, not for before/after or proof pictures). " +
   "collection_row (a horizontally scrolling, snap-aligned row of offer_card children, each with its picture, name, optional real-service price and an accent button; keyboard and swipe friendly). " +
   "widget (text is one of booking_form|quote_calculator|enquiry_form|contact_details|direct_contact|service_menu|review_wall — enquiry_form is the site's working message form (name, phone/email, message; saved to the owner's leads); booking_form/quote_calculator drop the site's real working form, verified phone/email/hours/area, the live service menu (names, prices, durations straight from the owner's Services tool) or the live published reviews into your layout; style its wrapper freely, never retype those facts yourself; service_menu and review_wall stay in sync when the owner edits services or publishes reviews). For working widgets, widgetPresentation may author visible labels, helper/success copy and a bounded local theme (surface, text, muted, border, action, actionText, selected, selectedText); never put business data or pricing into widgetPresentation — the application supplies those facts. " +
   "Real company logos: a media src of https://img.logo.dev/<domain> (e.g. img.logo.dev/stripe.com) renders that company's real logo — use ONLY for companies the customer actually named as partners, clients or platforms they use; never invent an affiliation. " +
@@ -618,6 +619,10 @@ function checkCinematic(node: CompositionNode, path: string, issues: Composition
     case "service_tier_fader":
       if (kids.length < 2 || kids.length > 4 || kids.some((child) => child.type !== "offer_card"))
         issues.push({ path: at, problem: "service_tier_fader needs 2-4 offer_card children, one per package" });
+      break;
+    case "parallax_layers":
+      if (kids.length < 2 || kids.length > 4 || kids.some((child) => !hasPictureSource(child)))
+        issues.push({ path: at, problem: "parallax_layers needs 2-4 media children (back to front), each with a picture source" });
       break;
     case "collection_row":
       if (!kids.length || kids.length > MAX_COLLECTION_ITEMS || kids.some((child) => child.type !== "offer_card"))

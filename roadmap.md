@@ -363,3 +363,5 @@ Counted from the code, not from audits.
 - [x] `service_tier_fader`: slider cross-fading 2-4 offer cards (prices only from the Services tool); every package listed without JavaScript
 - [x] `selector` gains `display: "dial"` (round gauge instead of a bar)
 - [x] `scene` `scrub: true`: a video backdrop's playhead follows the scroll while the scene stays pinned (~3 screens); never plays, no sound; first frame without JS or for reduced motion; not allowed inside scroll_chapters. Replaces the frame-sequence idea: owners upload one short video, no frames needed.
+- [x] `parallax_layers`: 2-4 stacked pictures drifting at different speeds on scroll (CSS scroll timeline on the container; still for reduced motion or unsupported browsers). Browser check caught that `overflow:hidden` made the layer its own scroller; the container now uses `overflow:clip`.
+- Seen in reference videos and not built: abstract WebGL particle scenes (galaxy, helix, mesh blob). Pure atmosphere with no business content, a poor fit for local trades; revisit for tech/agency customers via the existing three/R3F dependency.
