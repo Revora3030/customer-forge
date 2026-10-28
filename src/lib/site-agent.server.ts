@@ -181,6 +181,9 @@ ACTION SHAPES (use exactly these)
     {"type":"booking","note":"We confirm every request by phone ...","services":["Service A"],"times":["Weekday mornings"],
      "ctaLabel":"AI-authored label","ctaHref":"#contact"}
    {"type":"gauge","note":"...","items":[{"label":"Jobs completed on time","value":96,"caption":"..."}]}
+   {"type":"selector","title":"The right setting for every surface","figureLabel":"Pressure","note":"...",
+    "items":[{"label":"Concrete","figure":"3,000 PSI","level":80,"body":"..."}]}
+    USE THIS only with figures the owner supplied (settings, rates, lead times). Never invent specs, PSI, prices or timings; if the owner gave none, skip the block.
    {"type":"freeform","title":"...","note":"Guide only ...","root":[ ...parts... ]}
     USE THIS when the request does not fit any shape above — build the panel part by part.
     Parts: {"node":"stack","direction":"row|column","gap":0-8,"align":"start|center|end","children":[...]}

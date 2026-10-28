@@ -45,6 +45,7 @@ export type CustomBlockKind =
   | "eligibility"
   | "booking"
   | "gauge"
+  | "selector"
   | "freeform";
 
 export type CalculatorField = {
@@ -103,7 +104,15 @@ export type CustomBlockSpec =
       ctaLabel: string;
       ctaHref: string;
     }
-  | { type: "gauge"; title?: string; note?: string; items: { label: string; value: number; caption?: string }[] };
+  | { type: "gauge"; title?: string; note?: string; items: { label: string; value: number; caption?: string }[] }
+  | {
+      type: "selector";
+      title?: string;
+      note?: string;
+      /** What the big figure measures, e.g. "Pressure". Shown above the figure. */
+      figureLabel?: string;
+      items: { label: string; figure: string; level?: number; body?: string }[];
+    };
 
 export type ParseResult =
   | { ok: true; spec: CustomBlockSpec }
@@ -504,6 +513,45 @@ export function parseCustomBlock(raw: unknown): ParseResult {
       return { ok: true, spec: { type: "gauge", ...(title ? { title } : {}), ...(note ? { note } : {}), items } };
     }
 
+    case "selector": {
+      const rows = list(row["items"]);
+      if (!rows || rows.length < 2 || rows.length > 8) {
+        return { ok: false, reason: "a selector needs between 2 and 8 choices" };
+      }
+      const items: { label: string; figure: string; level?: number; body?: string }[] = [];
+      for (const entry of rows) {
+        const label = clean(entry["label"], MAX_LABEL);
+        const figure = clean(entry["figure"], MAX_LABEL);
+        if (!label || !figure) {
+          return { ok: false, reason: "every selector choice needs a label and the figure it shows" };
+        }
+        const rawLevel = entry["level"];
+        const level = rawLevel === undefined || rawLevel === null ? null : num(rawLevel, null);
+        if (rawLevel !== undefined && rawLevel !== null && (level === null || level < 0 || level > 100)) {
+          return { ok: false, reason: "a selector level must be between 0 and 100" };
+        }
+        const body = clean(entry["body"], MAX_BODY);
+        items.push({
+          label,
+          figure,
+          ...(level !== null ? { level: Math.round(level) } : {}),
+          ...(body ? { body } : {}),
+        });
+      }
+      const note = clean(row["note"], MAX_BODY);
+      const figureLabel = clean(row["figureLabel"], MAX_LABEL);
+      return {
+        ok: true,
+        spec: {
+          type: "selector",
+          ...(title ? { title } : {}),
+          ...(figureLabel ? { figureLabel } : {}),
+          ...(note ? { note } : {}),
+          items,
+        },
+      };
+    }
+
     /* Anything with no ready-made shape: a validated free-form tree. */
     case "freeform":
       return parseFreeformBlock(row);
@@ -512,7 +560,7 @@ export function parseCustomBlock(raw: unknown): ParseResult {
       return {
         ok: false,
         reason:
-          "unknown block type — use calculator, quiz, comparison, checklist, steps, tabs, metrics, accordion, timeline, filter, eligibility, booking, gauge or freeform",
+          "unknown block type — use calculator, quiz, comparison, checklist, steps, tabs, metrics, accordion, timeline, filter, eligibility, booking, gauge, selector or freeform",
       };
   }
 }
@@ -564,6 +612,8 @@ export function describeCustomBlock(spec: CustomBlockSpec): string {
       return `${spec.title ?? "Booking selector"} — ${spec.services.length} services, ${spec.times.length} time choices`;
     case "gauge":
       return `${spec.title ?? "Progress strip"} — ${spec.items.length} values`;
+    case "selector":
+      return `${spec.title ?? "Option selector"} — ${spec.items.length} choices`;
     case "freeform":
       return describeFreeformBlock(spec);
   }
