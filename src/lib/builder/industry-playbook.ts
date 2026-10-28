@@ -237,3 +237,40 @@ export function playbookNote(industry: string | null | undefined): string | null
     `What the owner must supply: ${playbook.needsFromOwner}`,
   ].join("\n");
 }
+
+export type StarterIdea = { label: string; reason: string; instruction: string };
+
+/**
+ * Starter requests for an empty chat, shown at once while the AI's own
+ * suggestions load. They only restate what the playbook and the builder
+ * already allow, ask for missing material instead of inventing it, and never
+ * promise a result.
+ */
+export function starterIdeasFor(industry: string | null | undefined): StarterIdea[] {
+  const playbook = playbookFor(industry);
+  const ideas: StarterIdea[] = [];
+  if (playbook) {
+    ideas.push({
+      label: "Add my trade's signature moment",
+      reason: playbook.label,
+      instruction: `Add the signature moment for my trade to my home page, where my real material supports it: ${playbook.signature} ${playbook.needsFromOwner} If something is missing, ask me for it instead of inventing it.`,
+    });
+    ideas.push({
+      label: "Tell my story as I scroll",
+      reason: "A scroll story over my pictures",
+      instruction: `Turn my home page into a scroll story in this order where my real material supports it: ${playbook.storyArc.join(", then ")}. Use scenes over my real or mood pictures, with no result claims and no invented facts.`,
+    });
+  }
+  ideas.push({
+    label: "Make every page richer",
+    reason: "Replace plain text stacks",
+    instruction:
+      "Look at every page. Where a section is only plain text on stacks and cards, rebuild it with scenes, offer cards, galleries or interactive blocks that fit my real services and photos. Keep every word and fact I supplied.",
+  });
+  ideas.push({
+    label: "Add a mobile action bar",
+    reason: "Call and book on phones",
+    instruction: "Add a sticky mobile action bar with call and book buttons that use my real phone number and booking page.",
+  });
+  return ideas;
+}

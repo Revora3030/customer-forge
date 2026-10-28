@@ -13,6 +13,8 @@
  * Every recommendation here is a prompt, not a rule.
  */
 
+import { playbookNote } from "@/lib/builder/industry-playbook";
+
 export type IndustryPattern = {
   industry: string;
   heroStyle: string;
@@ -130,6 +132,9 @@ export function patternForIndustry(industry: string | null): IndustryPattern {
  */
 export function designGuidancePrompt(industry: string | null, businessName: string): string {
   const pattern = patternForIndustry(industry);
+  // The same trade playbook the first build uses, so a chat request such as
+  // "make it cinematic" reaches for this trade's signature primitives.
+  const playbook = playbookNote(industry);
   return [
     `TOP-TIER DESIGN GUIDANCE for ${businessName}:`,
     ``,
@@ -139,6 +144,7 @@ export function designGuidancePrompt(industry: string | null, businessName: stri
     `Trust signals to include (only if verified): ${pattern.trustSignals.join(", ")}`,
     `Imagery direction: ${pattern.imagery}`,
     `Colour mood: ${pattern.colorMood}`,
+    ...(playbook ? [``, playbook] : []),
     ``,
     `PREMIUM DESIGN PRINCIPLES:`,
     `- Mobile-first: every section must look perfect at 375px before desktop.`,

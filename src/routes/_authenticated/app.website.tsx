@@ -37,7 +37,9 @@ import { GroupTabs } from "@/components/app/BuilderGroups";
 import { orderGroups } from "@/components/app/builder-groups-utils";
 import { BuilderAssistant } from "@/components/app/BuilderAssistant";
 import { useBuilderRequests } from "@/lib/builder-requests.hooks";
-import { actionPrompt, selectionPrefix } from "@/lib/builder/preview-bridge";
+import { actionPrompt, selectionPrefix, type PageContext } from "@/lib/builder/preview-bridge";
+import { starterIdeasFor } from "@/lib/builder/industry-playbook";
+import { isBareRebuildCommand } from "@/lib/builder/rebuild-intent";
 import { liveStatusLine } from "@/lib/builder/live-status";
 import { useBuildProgress } from "@/lib/builder/progress.hooks";
 import { ConversionOptimizer } from "@/components/app/ConversionOptimizer";
@@ -251,6 +253,8 @@ function WebsitePage() {
   }, []);
   /** The block the owner clicked in the preview, scoping their next message. */
   const [selected, setSelected] = useState<PreviewSelection | null>(null);
+  /** The page open in the preview, so chat requests know what the owner is looking at. */
+  const [viewingPage, setViewingPage] = useState<PageContext | null>(null);
 
   /** One request engine for the whole workspace. */
   const superAdmin = useQuery({
@@ -357,6 +361,41 @@ function WebsitePage() {
     setTrackedBuild(null);
     return undefined;
   }, [trackedBuild, latestRow, linkBuild, buildTick]);
+
+  /**
+   * Starts a build as one request in the chat, from the owner's words to its
+   * result, under one request id. The job records that id and the worker writes
+   * its stages under it; jobs without one fall back to the job id.
+   * `fresh` replaces the draft (backup first); the server re-checks the role.
+   */
+  const startTrackedBuild = async (text: string, fresh: boolean) => {
+    const task = newTask(text);
+    requests.remember([
+      { role: "user", content: text },
+      {
+        role: "assistant",
+        content: fresh
+          ? "On it — replacing your draft with a fresh build. A backup is saved first and your live site isn't touched. I'll show you each step as it finishes."
+          : "On it — I'm building your website now. I'll show you each step as it finishes.",
+      },
+    ], task.id);
+    requests.trackBuild(task);
+    try {
+      // A bare "Fresh rebuild" has no design direction, so nothing is added to the brief.
+      const started = await firstBuild.mutateAsync({
+        requestId: task.id,
+        ...(fresh && isBareRebuildCommand(text) ? {} : { instruction: text }),
+        ...(fresh ? { fresh: true } : {}),
+      });
+      setTrackedBuild({ taskId: task.id, jobId: started?.jobId ?? null });
+      if (!started?.jobId) requests.settleBuild(task.id, { ok: true, message: "Your build is queued. I'll keep working on it in the background." });
+    } catch (error) {
+      requests.settleBuild(task.id, {
+        ok: false,
+        message: friendlyError(error, "Revora couldn't start from that description. Your text is saved."),
+      });
+    }
+  };
 
   /** Older deep links (and panels that ask to jump) resolve to the new doors. */
   const goTo = (key: string) => {
@@ -645,6 +684,13 @@ function WebsitePage() {
             />
             }
             selection={selected}
+            pageContext={viewingPage}
+            {...(!firstRun && manage ? {
+              onFreshRebuild: (instruction: string) => startTrackedBuild(instruction, true),
+              canFreshRebuild,
+              rebuildBusy: freshRebuildActive || jobIsActive(latestJob.data as never) || firstBuild.isPending,
+            } : {})}
+            starterIdeas={starterIdeasFor((org?.industry as string | undefined) ?? null)}
             onClearSelection={() => setSelected(null)}
             onOpenHistory={() => setHistoryOpen(true)}
             onShowPreview={() => setPreviewOpen(true)}
@@ -698,26 +744,7 @@ function WebsitePage() {
                   await firstBuild.mutateAsync(undefined).catch(() => undefined);
                   return;
                 }
-                // The build is one request in the chat, from the owner's words
-                // to its result, under one request id.
-                const task = newTask(text);
-                requests.remember([
-                  { role: "user", content: text },
-                  { role: "assistant", content: "On it — I'm building your website now. I'll show you each step as it finishes." },
-                ], task.id);
-                requests.trackBuild(task);
-                try {
-                  // The job records this chat request id and the worker writes
-                  // its stages under it; jobs without one fall back to the job id.
-                  const started = await firstBuild.mutateAsync({ requestId: task.id, instruction: text });
-                  setTrackedBuild({ taskId: task.id, jobId: started?.jobId ?? null });
-                  if (!started?.jobId) requests.settleBuild(task.id, { ok: true, message: "Your build is queued. I'll keep working on it in the background." });
-                } catch (error) {
-                  requests.settleBuild(task.id, {
-                    ok: false,
-                    message: friendlyError(error, "Revora couldn't start from that description. Your text is saved."),
-                  });
-                }
+                await startTrackedBuild(text, false);
               },
               firstBuildBusy: firstBuild.isPending,
             } : {})}
@@ -740,6 +767,7 @@ function WebsitePage() {
               refreshRevision={requests.refreshRevision}
               selectedId={selected?.id ?? null}
               selectedPath={selected?.path ?? null}
+              onPageChange={setViewingPage}
               liveStatus={liveStatus}
               onInlineSaved={() => {
                 // The frame already shows the new words; refresh caches so

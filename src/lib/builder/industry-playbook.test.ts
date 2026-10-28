@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { TRADE_PLAYBOOKS, playbookFor, playbookNote } from "./industry-playbook";
+import { TRADE_PLAYBOOKS, playbookFor, playbookNote, starterIdeasFor } from "./industry-playbook";
+import { designGuidancePrompt } from "./design-guidance";
 
 describe("trade playbooks", () => {
   it("gives every playbook a signature, a story arc of at least four scenes and what the owner must supply", () => {
@@ -56,5 +57,28 @@ describe("trade playbooks", () => {
     expect(note).toContain("revealMode");
     expect(note).toContain("never invent proof");
     expect(note).toContain("What the owner must supply");
+  });
+});
+
+describe("starter ideas and chat guidance", () => {
+  it("gives a known trade its signature and story first, and every trade the generic two", () => {
+    const labels = starterIdeasFor("Mobile auto detailing").map((idea) => idea.label);
+    expect(labels).toEqual(["Add my trade's signature moment", "Tell my story as I scroll", "Make every page richer", "Add a mobile action bar"]);
+    expect(starterIdeasFor("Interstellar cheese").map((idea) => idea.label)).toEqual(["Make every page richer", "Add a mobile action bar"]);
+    expect(starterIdeasFor(null)).toHaveLength(2);
+  });
+
+  it("never asks for invented proof: missing material is asked for, and no result is promised", () => {
+    for (const trade of ["Pressure washing", "Mobile auto detailing", "Roofing contractor", "Locksmith", "Family dentist"]) {
+      const signature = starterIdeasFor(trade).find((idea) => idea.label.includes("signature"));
+      expect(signature, trade).toBeDefined();
+      expect(signature!.instruction, trade).toContain("ask me for it instead of inventing it");
+    }
+    expect(JSON.stringify(starterIdeasFor("Pressure washing"))).not.toMatch(/guarantee|best in|award|#1/i);
+  });
+
+  it("puts the trade playbook into the chat planner's design guidance", () => {
+    expect(designGuidancePrompt("Mobile auto detailing", "Elite Mobile Detail")).toContain("TRADE PLAYBOOK for Auto detailing and car care");
+    expect(designGuidancePrompt("Interstellar cheese", "Brie Co")).not.toContain("TRADE PLAYBOOK");
   });
 });
