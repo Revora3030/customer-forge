@@ -1,3 +1,12 @@
+## Ordered platform error fixes — Part 1 (2026-10-29)
+- [ ] 1–2: Verify HTTP and permanent www redirects; identify upstream controls separately from application behavior.
+- [ ] 3–4: Trace signup and checkout, distinguish owner testing from customer failures; preserve auth and Stripe settings.
+- [ ] 5–7: Canonical preview slugs, client-detail routing, duplicate prevention and owner-reviewed cleanup.
+- [ ] 8–10: Verify existing retries, section checkpoints and demo stall handling; repair proven defects without paid calls.
+- [ ] 11–15: Hydration, font CSP, auth first paint, heading hierarchy and third-party script behavior.
+- [ ] Publish and live acceptance evidence (owner approval required); report each item's verification limits.
+- [ ] Continue uploaded builder upgrade: repository map, grounded causes and phased plan for owner approval before Phase 1.
+
 ## Reference standard, CI sweep and AI City touch (2026-10-29)
 - [x] Reference standard (Kestrel video) for every trade and archetype: labelled `scrub_sequence` progress ring, brush reveal tool chips + stopwatch, new `dial_selector`; Jarvis demo.build and AI City missions point at it.
 - [x] AI City phone gestures: one-finger pan with damped glide, pinch zooms toward the fingers, two-finger twist rotates; panning cannot slide the city off screen.
