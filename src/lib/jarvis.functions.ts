@@ -197,7 +197,7 @@ export async function runJarvis(db: SupabaseClient, userId: string, mode: Mode, 
   const repository = await repoSnapshot()
     .then((snap) => ({ branch: "lovable-sync", sha: snap.sha.slice(0, 12), files: snap.paths.length, folders: repoMap(snap.paths) }))
     .catch((error: unknown) => ({ unavailable: error instanceof Error ? error.message : "GitHub unreachable" }));
-  const { actionCatalogPrompt, extractActionBlock, parseActions, appendReplyMeta, MAX_ACTION_STEPS } = await import("./jarvis-actions");
+  const { actionCatalogPrompt, extractActionBlock, parseActions, appendReplyMeta, readsUntrustedText, MAX_ACTION_STEPS } = await import("./jarvis-actions");
   const { getJarvisDiagnosticToolCatalog } = await import("./jarvis-tool-registry");
   const toolIds = getJarvisDiagnosticToolCatalog().map((tool) => tool.id);
   const now = new Date().toLocaleString("en-US", { timeZone: "America/New_York", dateStyle: "full", timeStyle: "short" });
@@ -254,6 +254,8 @@ export async function runJarvis(db: SupabaseClient, userId: string, mode: Mode, 
   try {
     let correctionUsed = false;
     let failedRounds = 0;
+    // Set once any round reads text the owner didn't write; blocks memory.save for the rest of the turn.
+    let outsideTextSeen = false;
     const { reflectOnRound, nextRoundIsFinal, FINAL_ROUND_NOTE } = await import("./cognition/react-loop");
     // Act, observe, answer: up to MAX_ACTION_STEPS rounds of read actions.
     for (let step = 0; step <= MAX_ACTION_STEPS; step += 1) {
@@ -289,7 +291,8 @@ export async function runJarvis(db: SupabaseClient, userId: string, mode: Mode, 
         break;
       }
       const toolStart = Date.now();
-      const results = await runReadActions(db, parsed.reads, userId);
+      const results = await runReadActions(db, parsed.reads, userId, outsideTextSeen);
+      outsideTextSeen = outsideTextSeen || readsUntrustedText(parsed.reads);
       const toolEnd = Date.now();
       results.forEach((item, i) => {
         const action = parsed.reads[i] as { id?: string; args?: unknown } | undefined;

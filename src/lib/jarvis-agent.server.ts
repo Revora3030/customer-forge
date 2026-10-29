@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { describeRead, type ReadAction } from "./jarvis-actions";
+import { describeRead, readsUntrustedText, type ReadAction } from "./jarvis-actions";
 
 const MAX_RESULT_CHARS = 8_000;
 // Source reads carry up to 3 x 300 numbered lines; cutting them at 8,000
@@ -50,10 +50,23 @@ async function collectArtifacts(db: SupabaseClient, actorId: string) {
  * Runs Jarvis's read actions. Every action maps to existing, code-owned,
  * read-only server logic; the caller has already been verified as super-admin.
  */
-export async function runReadActions(db: SupabaseClient, reads: ReadAction[], actorId: string) {
+export async function runReadActions(db: SupabaseClient, reads: ReadAction[], actorId: string, outsideTextSeen = false) {
+  // memory.save runs without approval and what it stores is shown to every later
+  // chat as owner context. Once this turn has read text from the web, a listing,
+  // an inbox message or a prospect's site (this round or an earlier one), planted
+  // instructions could ask for a memory, so it is skipped and the owner repeats
+  // the request in a plain message.
+  const memoryBlocked = outsideTextSeen || readsUntrustedText(reads);
   return Promise.all(
     reads.map(async (action) => {
       const label = describeRead(action);
+      if (action.id === "memory.save" && memoryBlocked) {
+        return {
+          label,
+          ok: false,
+          result: "Not saved: this turn already read outside text (web, prospects, inbox, site checks or demo names), which can contain planted instructions. Tell the owner to say what to remember in a plain message and it will be saved then.",
+        };
+      }
       try {
         let result: unknown;
         if (action.id === "instagram.status") {
