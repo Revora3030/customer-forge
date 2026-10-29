@@ -1,4 +1,7 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
+
 /**
+
  * Revora's own staff (super admins) test the signup and checkout flow. Every
  * row from a browser session in which a staff email appears is staff activity,
  * so funnel reports drop the whole session instead of counting it as a
