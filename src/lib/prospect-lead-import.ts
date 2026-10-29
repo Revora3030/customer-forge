@@ -155,7 +155,7 @@ export function normalizeWebsite(value: string): string | null {
     const url = new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`);
     if ((url.protocol !== "https:" && url.protocol !== "http:") || url.username || url.password || url.port) return null;
     const host = url.hostname.toLowerCase();
-    if (!/^[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}$/.test(host) || host === "localhost") return null;
+    if (!/^[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}$/.test(host)) return null; // a host needs a dot and a letters-only ending, which also refuses single-label and IP hosts
     return `${url.protocol}//${host}${url.pathname === "/" ? "" : url.pathname.replace(/\/+$/, "")}`.slice(0, 200);
   } catch {
     return null;

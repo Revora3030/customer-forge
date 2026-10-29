@@ -62,8 +62,8 @@ describe("parseLocation", () => {
 describe("normalizeWebsite", () => {
   it("adds https, trims to the origin and path, and refuses anything that is not a public http(s) address", () => {
     expect(normalizeWebsite("acmeplumbing.com")).toBe("https://acmeplumbing.com");
-    expect(normalizeWebsite("HTTP://www.Acme.com/services/?utm=1#top")).toBe("http://www.acme.com/services");
-    for (const bad of ["", "not a url", "ftp://acme.com", "https://user:pw@acme.com", "http://localhost", "http://10.0.0.1", "https://acme.com:8443", "javascript:alert(1)"]) {
+    expect(normalizeWebsite("HTTP://www.Acme.com/services/?utm=1#top")).toBe("http://www.acme.com/services"); // DevSkim: ignore DS137138 -- Fixture: a plain-http address a business lists is kept as written.
+    for (const bad of ["", "not a url", "ftp://acme.com", "https://user:pw@acme.com", "http://localhost", "http://10.0.0.1", "https://acme.com:8443", "javascript:alert(1)"]) { // DevSkim: ignore DS137138,DS162092 -- Negative fixtures: local and private addresses must be refused.
       expect(normalizeWebsite(bad)).toBeNull();
     }
   });
