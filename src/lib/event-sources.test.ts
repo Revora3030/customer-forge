@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildFailedSource, ciFailedSource, leadUnansweredSource, trialExpiringSource } from "@/lib/event-sources.server";
+import { buildFailedSource, ciFailedSource, leadUnansweredSource, routineFailedSource, trialExpiringSource } from "@/lib/event-sources.server";
 import { PLATFORM_OWNER_ORG_ID } from "@/lib/platform-owner";
 
 const NOW = Date.parse("2026-10-27T18:00:00Z");
@@ -52,6 +52,27 @@ describe("buildFailedSource", () => {
     const events = await buildFailedSource(fakeDb(tables())).read(NOW);
     expect(events.find((e) => e.id === "j4")!.detail).toBe("");
     await expect(buildFailedSource(fakeDb(tables(), "generation_jobs")).read(NOW)).rejects.toThrow("generation_jobs");
+  });
+});
+
+describe("routineFailedSource", () => {
+  const tables = () => ({
+    jarvis_routines: [
+      { id: "r1", name: "Daily Executive Brief", enabled: true, last_status: "error", last_summary: "Interrupted: the server stopped before this finished.", updated_at: iso(HOUR) },
+      { id: "r2", name: "Site Health & Uptime Sentinel", enabled: true, last_status: "ok", last_summary: "Fine.", updated_at: iso(HOUR) },
+      { id: "r3", name: "Old failure", enabled: true, last_status: "error", last_summary: "x", updated_at: iso(3 * 24 * HOUR) },
+      { id: "r4", name: "Switched off", enabled: false, last_status: "error", last_summary: "x", updated_at: iso(HOUR) },
+    ],
+  });
+
+  it("reports only enabled routines that failed in the last day, with what the routine said", async () => {
+    const events = await routineFailedSource(fakeDb(tables())).read(NOW);
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ type: "routine.failed", subject: "Daily Executive Brief", detail: "Interrupted: the server stopped before this finished." });
+  });
+
+  it("throws when the read fails, so the bus reports the source as unreadable", async () => {
+    await expect(routineFailedSource(fakeDb(tables(), "jarvis_routines")).read(NOW)).rejects.toThrow("jarvis_routines");
   });
 });
 

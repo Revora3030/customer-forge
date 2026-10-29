@@ -62,6 +62,11 @@ export const DEFAULT_EVENT_RULES: readonly EventRule[] = [
     prompt: (e) => `CI failed on ${e.subject}. Read the failing check and propose a fix; do not change anything.`,
   },
   {
+    id: "routine-failed", on: "routine.failed", cooldownMs: 24 * 3_600_000,
+    summary: (e) => `Your scheduled routine "${e.subject}" didn't finish.${line(e)} Nothing was changed.`,
+    prompt: (e) => `The scheduled routine "${e.subject}" ended in an error. Read its last result, explain what went wrong in plain words, and tell me whether to run it again now.`,
+  },
+  {
     id: "lead-unanswered", on: "lead.unanswered", cooldownMs: 24 * 3_600_000,
     summary: (e) => `A Revora lead (${e.subject}) has waited past the speed-to-lead goal with no logged reply.${line(e)}`,
     prompt: (e) => `Lead ${e.subject} has had no reply past the speed-to-lead goal. Draft a short follow-up for the owner to approve.`,

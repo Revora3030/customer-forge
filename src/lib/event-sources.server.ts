@@ -47,6 +47,30 @@ export function buildFailedSource(db: Db): EventSource {
   };
 }
 
+/** Scheduled routines that ended in an error (or were stopped before finishing) within the last day. */
+export function routineFailedSource(db: Db): EventSource {
+  return {
+    name: "routine.failed",
+    async read(now) {
+      const { data, error } = await db
+        .from("jarvis_routines")
+        .select("id, name, last_summary, updated_at")
+        .eq("enabled", true)
+        .eq("last_status", "error")
+        .gte("updated_at", new Date(now - DAY).toISOString())
+        .limit(50);
+      if (error) throw new Error(`jarvis_routines: ${error.message}`);
+      return (data ?? []).map((routine): PlatformEvent => ({
+        id: `${routine.id}|${routine.updated_at}`,
+        type: "routine.failed",
+        occurredAt: Date.parse(String(routine.updated_at)),
+        subject: String(routine.name ?? "A routine").slice(0, 80),
+        detail: String(routine.last_summary ?? "").replace(/\s+/g, " ").trim().slice(0, 160),
+      }));
+    },
+  };
+}
+
 type Run = { id?: number; name?: string | null; conclusion?: string | null; head_sha?: string | null; updated_at?: string | null; html_url?: string | null };
 
 /** Completed CI runs that failed on the release branch's current commit, within the last day. */

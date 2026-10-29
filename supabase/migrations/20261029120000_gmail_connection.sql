@@ -1,13 +1,6 @@
--- Founder-saved Gmail OAuth for text-only autopilot. Service role only.
--- Environment variables still win when they are set. The column stores the
--- OAuth client, refresh token, sender and mailing address; authenticated
--- roles have no grant on this table.
-
-ALTER TABLE public.prospect_autopilot_settings
-  ADD COLUMN IF NOT EXISTS gmail jsonb;
-
-COMMENT ON COLUMN public.prospect_autopilot_settings.gmail IS
-  'Server-only Gmail OAuth and mailing address for text-only prospect autopilot. Never returned to the browser.';
+-- Lets the reply loop mark a prospect reply as answered by the deferred demo
+-- preview ('auto_replied'). Gmail credentials are Lovable secrets only; nothing
+-- here stores them.
 
 DO $$
 DECLARE

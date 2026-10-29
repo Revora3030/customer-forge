@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { runDueJarvisRoutines, type JarvisRoutine } from "./jarvis-routines.server";
+import { claimIsStranded, INTERRUPTED_SUMMARY, runDueJarvisRoutines, type JarvisRoutine } from "./jarvis-routines.server";
 
 const now = new Date("2026-10-27T17:00:00Z");
 function routine(id = "routine-1"): JarvisRoutine {
@@ -98,6 +98,41 @@ describe("scheduled routine atomic claims", () => {
     const execute = vi.fn(async () => "Observed evidence");
     expect((await runDueJarvisRoutines(db, now, execute)).ran).toBe(3);
     expect(execute).toHaveBeenCalledTimes(3);
+  });
+
+  describe("a claim whose run was stopped by the server", () => {
+    const running = (claimedAt: string) => ({ ...routine(), last_status: "running", last_run_at: claimedAt, last_summary: "Routine attempt a8af6344; completion not yet confirmed." });
+
+    it("is settled as interrupted and not run again the same day", async () => {
+      const { db, rows } = database([running("2026-10-27T16:00:00Z")]);
+      const execute = vi.fn(async () => "Observed evidence");
+      expect((await runDueJarvisRoutines(db, now, execute)).ran).toBe(0);
+      expect(execute).not.toHaveBeenCalled();
+      expect(rows[0]).toMatchObject({ last_status: "error", last_summary: INTERRUPTED_SUMMARY });
+    });
+
+    it("runs again on its next day instead of staying stuck", async () => {
+      const { db, rows } = database([running("2026-10-26T17:00:00Z")]);
+      const execute = vi.fn(async () => "Observed evidence");
+      expect((await runDueJarvisRoutines(db, now, execute)).ran).toBe(1);
+      expect(execute).toHaveBeenCalledTimes(1);
+      expect(rows[0]?.last_status).toBe("ok");
+    });
+
+    it("leaves a run that started minutes ago alone", async () => {
+      const { db, rows } = database([running("2026-10-27T16:55:00Z")]);
+      const execute = vi.fn(async () => "Observed evidence");
+      expect((await runDueJarvisRoutines(db, now, execute)).ran).toBe(0);
+      expect(execute).not.toHaveBeenCalled();
+      expect(rows[0]?.last_status).toBe("running");
+    });
+
+    it("is told apart from a finished or unclaimed routine", () => {
+      expect(claimIsStranded({ last_status: "running", last_run_at: "2026-10-27T16:00:00Z" }, now)).toBe(true);
+      expect(claimIsStranded({ last_status: "running", last_run_at: "2026-10-27T16:55:00Z" }, now)).toBe(false);
+      expect(claimIsStranded({ last_status: "ok", last_run_at: "2026-10-27T16:00:00Z" }, now)).toBe(false);
+      expect(claimIsStranded({ last_status: "running", last_run_at: null }, now)).toBe(false);
+    });
   });
 
   it("allows a settled daily routine on its next eligible day", async () => {

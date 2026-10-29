@@ -85,9 +85,14 @@ describe("the last lookup round always ends in an answer", () => {
     expect(nextRoundIsFinal(0, 3, true)).toBe(true);
   });
 
-  it("tells the model plainly to answer now and not to ask for more", () => {
+  it("tells the model plainly to answer now and not to ask for more lookups", () => {
     expect(FINAL_ROUND_NOTE).toMatch(/last turn/);
-    expect(FINAL_ROUND_NOTE).toMatch(/Do not request actions/);
+    expect(FINAL_ROUND_NOTE).toMatch(/do not ask for any/);
+  });
+
+  it("still lets it propose a change for approval, which the last round collects", () => {
+    expect(FINAL_ROUND_NOTE).toMatch(/change to propose for the owner's approval/);
+    expect(FINAL_ROUND_NOTE).not.toMatch(/Do not request actions/);
   });
 
   it("is sent to Jarvis with the results before its last round", () => {
