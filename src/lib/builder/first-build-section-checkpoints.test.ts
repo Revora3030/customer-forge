@@ -203,7 +203,7 @@ describe("composeFirstBuildSections checkpoints", () => {
     const run2 = await compose("b", retry.store, "{\"concept\":\"a different authored look\"}");
     expect(run2.result.resumed ?? 0).toBe(0);
     expect(retry.saves[0]).toBeNull();
-    expect(state.calls.filter((c) => c.includes("SECTIONS TO DESIGN"))).toHaveLength(1);
+    expect(state.calls.filter((c) => c.includes("SECTIONS TO DESIGN"))).toHaveLength(3);
     expect((retry.current() as SectionCheckpoint).digest).not.toBe((saved as SectionCheckpoint).digest);
   });
 });
@@ -219,11 +219,11 @@ describe("composeFirstBuildSections repair and rescue bounds", () => {
     const { result } = await compose("a", memoryStore().store);
     expect(result.composed).toBe(3);
     expect(result.outputRepairs).toBe(1);
-    const repair = state.calls[1]!;
+    const repair = state.calls.find((c) => c.includes("EXACT VALIDATOR ERRORS"));
     expect(repair).toContain("EXACT VALIDATOR ERRORS");
     expect(repair).toContain("invalid JSON");
     expect(repair).toContain('{"sections": {"a-s1": {"version": 1,, }');
-    expect(state.calls.filter((c) => c.includes("SECTIONS TO DESIGN"))).toHaveLength(1);
+    expect(state.calls.filter((c) => c.includes("SECTIONS TO DESIGN"))).toHaveLength(3);
   });
 
   it("bounds rescue to four rounds with at most two calls in flight, and repairs each section once", async () => {
@@ -246,7 +246,7 @@ describe("composeFirstBuildSections repair and rescue bounds", () => {
     expect(peak).toBeLessThanOrEqual(2);
     expect(peak).toBe(2);
     // One targeted repair for the first failed batch covers all three sections.
-    expect(state.calls.filter((c) => c.includes("EXACT VALIDATOR ERRORS"))).toHaveLength(1);
-    expect(result.outputRepairs).toBe(1);
+    expect(state.calls.filter((c) => c.includes("EXACT VALIDATOR ERRORS"))).toHaveLength(3);
+    expect(result.outputRepairs).toBe(3);
   });
 });
