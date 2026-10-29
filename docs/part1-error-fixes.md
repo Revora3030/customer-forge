@@ -7,7 +7,7 @@ Changes are in the preview, not published. No pricing, Stripe settings, auth pro
 | 1 | Partly fixed (already working on apex) | Live HTTP apex `/` and `/pricing` return 301, preserving query strings. Reported 500 not reproduced. | HTTP www still returns 302 upstream. |
 | 2 | Needs hosting action | Live HTTPS www returns 302 to apex, preserving path/query. Domain setup is connected and www redirects to the primary. No application patch can replace a response issued before the application. | Lovable documents no status-code selector. Keep apex primary; hosting must change the managed www redirect to 301/308. Feedback submitted; resolution not verified. Do not unset primary or change DNS merely to hide this. |
 | 3 | Partly fixed | Protected login retains its return URL; confirmation links return to `/auth`; signup uses the returned session instead of mislabelling every login failure as email confirmation; account/profile errors are visible; failed membership reads no longer masquerade as new accounts. | Actual new-account email confirmation and provisioning unrun. Historical 7/0 counts included owner-confirmed tests, not proven customer losses. Providers/settings unchanged. |
-| 4 | Partly fixed | Checkout return no longer claims payment from a query parameter. Welcome refreshes verified billing state every 3 seconds for at most 2 minutes, with retry/error guidance; waits for workspace identity before consuming return parameters. | No real checkout/payment or webhook replay performed. Existing events include verified/processed subscription and invoice events; zero completions is not evidence the webhook is broken. Event settlement/release fault handling still needs lifecycle tests. |
+| 4 | Partly fixed | Checkout returns no longer prove payment. Webhooks require event IDs, acknowledge only matching completed duplicates, check settlement and payment lookups, scope association by provider/environment, and retain unfinished claims instead of risking replay. | Real checkout/webhook replay unrun. Unfinished claims need operator review; partial-effect ordering in some handlers remains. |
 | 5 | Needs owner action | Verified these are DIFFERENT organizations: `elite-mobile-detailing` is a published demo; `elite-mobile-detail` is the completed customer draft (`preview`, `published=false`). Current draft/public lookup uses the same organization slug. | Redirecting one to the other would route visitors to the wrong workspace. Owner must choose whether to publish the actual draft through existing gates or explicitly map a truly historical, unoccupied alias. No publishing/alias mutation performed. |
 | 6 | Fixed in preview | Client list route renders the nested detail outlet. Signed-in direct client-detail load now shows the actual business, launch checklist, publishing and subscription panels—not the list. | Production requires publishing. Every detail mutation unrun. |
 | 7 | Needs owner action | Confirmed three Shined Up demo organizations; existing import/job/send deduplication does not deduplicate separate demo organizations. | Atomic owner+listing reservation requires an additive schema change; manual entries lack stable listing identity. No unsafe name-only merge, deletion or RLS change. Survivor/reference cleanup requires explicit review. |
@@ -28,6 +28,14 @@ Changes are in the preview, not published. No pricing, Stripe settings, auth pro
 - Focused initial combined regression run: 13 files, 78 tests passed. Follow-up results are recorded in the final chat.
 - Changed-code ESLint passed; automatic preview checks reported build OK.
 - Screenshot evidence under `/tmp/browser/part1/`; not a published-deployment acceptance report.
+
+## Approved continuation results
+
+- Section prompts receive a stable semantic page outline and neighbors, never neighbor material/media; checkpoints change when the outline changes.
+- Composition receives saved owner direction plus authored density, mobile and conversion strategy. Fixed dark house-style and fixed form-wrapper rules were removed.
+- Served-page verification scores only measured checks; missing evidence can no longer raise the score.
+- All four saved Elite draft pages loaded at 1280 and 390 without page errors or horizontal overflow. Desktop home had one incomplete image during capture and a large empty area below the hero; its cause remains unverified. Phone shows a business-name-only headline.
+- No new build ran, so these creative changes have no rendered-quality result yet.
 
 ## Builder-upgrade continuation: repository map and grounded boundaries
 

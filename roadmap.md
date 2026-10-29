@@ -7,9 +7,13 @@
 - [x] 8–10: Single-section bounded parallelism, section-owned retries, retained checkpoints and deferred-demo read/recovery fixes; offline tests pass.
 - [ ] 10: Eight historical demos have no job; recovery/build dispatch not run without live spending authorization.
 - [x] 11–15: Signed-in Jarvis errors not reproduced; CSP already allows fonts; auth SSR/logo preload, heading order and regional-consent Google tag gate repaired and browser checked.
-- [ ] 1–2, 4, 8–9, 11–15: Hosting www 301, webhook fault lifecycle, live failure/latency metrics, reported React stacks and production Lighthouse remain unverified.
+- [x] Webhook fail-closed acknowledgement, checked settlement and environment-scoped association; mocked lifecycle tests pass.
+- [x] Stable section architecture, owner direction and authored strategy in single-section composition; no fixed house style.
+- [x] Verification score excludes missing evidence.
+- [ ] Diagnose saved Elite desktop blank area and incomplete image; inspected draft only.
+- [ ] Hosting www 301, live failure/latency metrics, reported React stacks, real checkout and production Lighthouse remain unverified.
 - [ ] Publish and live acceptance evidence (owner approval required); report each item's verification limits.
-- [ ] Continue uploaded builder upgrade: repository map, grounded causes and phased plan for owner approval before Phase 1.
+- [ ] Approved proof build after Phase A/B fixes; requires explicit spending approval.
 
 ## Reference standard, CI sweep and AI City touch (2026-10-29)
 - [x] Reference standard (Kestrel video) for every trade and archetype: labelled `scrub_sequence` progress ring, brush reveal tool chips + stopwatch, new `dial_selector`; Jarvis demo.build and AI City missions point at it.
