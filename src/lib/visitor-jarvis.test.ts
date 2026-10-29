@@ -24,7 +24,7 @@ describe("Jarvis for visitors", () => {
   it("runs on the paid team under the shared caps, rate-limited, and is mounted on every marketing page", () => {
     const fns = readFileSync("src/lib/visitor-jarvis.functions.ts", "utf8");
     expect(fns).not.toContain("freeOnly");
-    expect(fns).toContain("if (!allow(visitorKey()))");
+    expect(fns).toContain("if (!allow(key) || !(await durableAllow(key)))");
     expect(readFileSync("src/components/marketing/Chrome.tsx", "utf8")).toContain("<VisitorJarvis />");
   });
 });

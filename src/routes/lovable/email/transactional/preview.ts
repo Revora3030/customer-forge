@@ -18,7 +18,12 @@ export const Route = createFileRoute("/lovable/email/transactional/preview")({
         // Verify the caller is authorized with LOVABLE_API_KEY
         const authHeader = request.headers.get("Authorization");
         const token = authHeader?.replace(/^Bearer\s+/i, "");
-        if (token !== apiKey) {
+        // Constant-time byte comparison, so response timing reveals nothing about the key
+        // (only its length, which is fixed). Nothing is hashed or stored here.
+        const { timingSafeEqual } = await import("node:crypto");
+        const given = new TextEncoder().encode(token ?? "");
+        const expected = new TextEncoder().encode(apiKey);
+        if (!token || given.length !== expected.length || !timingSafeEqual(given, expected)) {
           return Response.json({ error: "Unauthorized" }, { status: 401 });
         }
 
