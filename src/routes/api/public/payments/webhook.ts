@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { DEFAULT_OFFER_RATES } from "@/lib/offer";
 import { type StripeEnv, verifyWebhook } from "@/lib/stripe.server";
 import { isPlatformOwnerAccount, PLATFORM_OWNER_ORG_ID } from "@/lib/platform-owner";
+import { completedWebhookDuplicate, finishClaimedWebhook } from "@/lib/webhook-lifecycle";
 
 /** Minimal Stripe webhook event envelope — narrowed per-handler. */
 type StripeWebhookEvent = {
@@ -483,7 +484,7 @@ async function claimEvent(
   const admin = await adminClient();
   const eventId = String(event.id ?? "");
   const organizationId = organizationIdFromStripeObject(event.data?.object);
-  if (!eventId) return { outcome: "claimed" as const, admin, eventId, organizationId };
+  if (!eventId) throw new Error("Verified webhook has no event ID.");
   const { error } = await admin.from("payment_events").insert({
     provider: "stripe",
     provider_event_id: eventId,
@@ -496,6 +497,15 @@ async function claimEvent(
   });
   if (error) {
     const outcome = classifyClaimError(error);
+    if (outcome === "duplicate") {
+      const { data: previous, error: readError } = await admin
+        .from("payment_events")
+        .select("processed")
+        .eq("provider", "stripe")
+        .eq("provider_event_id", eventId)
+        .maybeSingle();
+      return { outcome: completedWebhookDuplicate(previous, readError) ? "duplicate" as const : "transient" as const, admin, eventId, organizationId };
+    }
     if (outcome === "transient") {
       console.error("[payments:webhook] claim failed (retryable)", error.message);
     }
@@ -539,7 +549,7 @@ async function associateEvent(
       paymentId = (data?.id as string | undefined) ?? null;
     }
   }
-  await admin
+  const { data: settled, error: settlementError } = await admin
     .from("payment_events")
     .update({
       processed: true,
@@ -547,7 +557,12 @@ async function associateEvent(
       ...(paymentId ? { payment_id: paymentId } : {}),
     })
     .eq("provider", "stripe")
-    .eq("provider_event_id", eventId);
+    .eq("provider_event_id", eventId)
+    .eq("processed", false)
+    .select("id");
+  if (settlementError || settled?.length !== 1) {
+    throw new Error(`webhook_settlement_failed:${settlementError?.code ?? "missing claim"}`);
+  }
 }
 
 export const Route = createFileRoute("/api/public/payments/webhook")({
@@ -574,31 +589,19 @@ export const Route = createFileRoute("/api/public/payments/webhook")({
             return Response.json({ received: true, duplicate: true });
           if (claim.outcome === "transient")
             return new Response("Temporarily unable to record webhook", { status: 503 });
-          try {
-            await handleEvent(event, rawEnv);
-          } catch (failure) {
-            // The claim exists but processing failed. Release it so Stripe's
-            // retry is not silently deduplicated into a lost payment event,
-            // and answer 500 so Stripe actually retries.
-            console.error("[payments:webhook] processing failed", (failure as Error).message);
-            if (claim.eventId) {
-              await claim.admin
+          await finishClaimedWebhook({
+            process: () => handleEvent(event, rawEnv),
+            settle: () => associateEvent(claim.admin, claim.eventId, claim.organizationId, String(event.data?.object?.id ?? "")),
+            release: async () => {
+              const { error: releaseError } = await claim.admin
                 .from("payment_events")
                 .delete()
                 .eq("provider", "stripe")
                 .eq("provider_event_id", claim.eventId)
                 .eq("processed", false);
-            }
-            return new Response("Webhook processing failed", { status: 500 });
-          }
-          if (claim.eventId) {
-            await associateEvent(
-              claim.admin,
-              claim.eventId,
-              claim.organizationId,
-              String(event.data?.object?.id ?? ""),
-            );
-          }
+              if (releaseError) throw new Error(`webhook_release_failed:${releaseError.code ?? "database error"}`);
+            },
+          });
           return Response.json({ received: true });
         } catch (error) {
           // An internal failure after a valid signature (database client,
