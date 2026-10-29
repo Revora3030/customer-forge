@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/gmail/outreach.server", () => ({
   sendGmailOutreach: vi.fn(async () => ({ ok: true, id: "g-1", threadId: "thread0001", rfcMessageId: "<reply@revora.test>" })),
@@ -9,7 +9,6 @@ vi.mock("@/lib/demo-launch-gate.server", () => ({
 
 import { sendGmailOutreach } from "@/lib/gmail/outreach.server";
 import { gmailConfig } from "@/lib/gmail/client.server";
-import { mergedMailingAddress, withStoredGmail } from "@/lib/gmail/stored-config.server";
 import { deliverDeferredPitchPreviews } from "@/lib/prospect-replies.server";
 
 type Row = Record<string, unknown>;
@@ -78,11 +77,18 @@ function seed(jobStatus: string) {
     organizations: [{ id: ORG, name: "Shine Mobile" }],
     business_profiles: [{ organization_id: ORG, email: "owner@shop.test", phone: null, city: "Raleigh", state: "NC" }],
     generation_jobs: [{ organization_id: ORG, status: jobStatus, progress: jobStatus === "completed" ? 100 : 10, current_step: null, error_message: null, steps: [], created_at: "2026-10-28T12:00:02.000Z" }],
-    prospect_autopilot_settings: [{ id: 1, gmail: { clientId: "client-id-value", clientSecret: "client-secret-value", refreshToken: "refresh-token-value", senderEmail: "sam@revora.test", mailingAddress: "1 Main Street, Raleigh NC 27601" } }],
   });
 }
 
 const ENV = ["GMAIL_CLIENT_ID", "GMAIL_CLIENT_SECRET", "GMAIL_REFRESH_TOKEN", "GMAIL_SENDER_EMAIL", "REVORA_MAILING_ADDRESS"] as const;
+
+beforeEach(() => {
+  process.env["GMAIL_CLIENT_ID"] = "client-id-value";
+  process.env["GMAIL_CLIENT_SECRET"] = "client-secret-value";
+  process.env["GMAIL_REFRESH_TOKEN"] = "refresh-token-value";
+  process.env["GMAIL_SENDER_EMAIL"] = "sam@revora.test";
+  process.env["REVORA_MAILING_ADDRESS"] = "1 Main Street, Raleigh NC 27601";
+});
 
 afterEach(() => {
   for (const key of ENV) delete process.env[key];
@@ -112,26 +118,17 @@ describe("deferred pitch preview delivery", () => {
   });
 });
 
-describe("saved Gmail settings", () => {
-  it("fills gmailConfig from the database only while that read is active", async () => {
-    const { db } = seed("completed");
-    expect(gmailConfig()).toBeNull();
-    await withStoredGmail(db, () => {
-      expect(gmailConfig()).toMatchObject({ sender: "sam@revora.test", clientId: "client-id-value" });
-      expect(mergedMailingAddress()).toBe("1 Main Street, Raleigh NC 27601");
-    });
-    expect(gmailConfig()).toBeNull();
+describe("Gmail secrets", () => {
+  it("builds the mailbox config from the secrets", () => {
+    expect(gmailConfig()).toMatchObject({ sender: "sam@revora.test", clientId: "client-id-value" });
   });
 
-  it("keeps an environment variable ahead of the saved value", async () => {
-    process.env["GMAIL_CLIENT_ID"] = "env-client-id";
-    process.env["GMAIL_CLIENT_SECRET"] = "env-client-secret";
-    process.env["GMAIL_REFRESH_TOKEN"] = "env-refresh-token";
-    process.env["GMAIL_SENDER_EMAIL"] = "env@revora.test";
-    const { db } = seed("completed");
-    await withStoredGmail(db, () => {
-      expect(gmailConfig()?.sender).toBe("env@revora.test");
-      expect(gmailConfig()?.clientId).toBe("env-client-id");
-    });
+  it("is not connected while any secret is missing, and sends nothing", async () => {
+    delete process.env["GMAIL_REFRESH_TOKEN"];
+    expect(gmailConfig()).toBeNull();
+    const { db, tables } = seed("completed");
+    expect(await deliverDeferredPitchPreviews(db)).toBe(0);
+    expect(sendGmailOutreach).not.toHaveBeenCalled();
+    expect(tables["prospect_inbound"]?.[0]?.["status"]).toBe("awaiting_operator");
   });
 });

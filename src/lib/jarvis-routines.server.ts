@@ -30,6 +30,9 @@ const MAX_PROMPT = 2000;
 const MAX_RUNS_PER_PASS = 3;
 /** Times are stored in the owner's timezone (America/New_York). */
 const OWNER_TZ = "America/New_York";
+/** A routine is a few model calls; a claim this old belongs to a run the server stopped. */
+const STALE_CLAIM_MS = 30 * 60_000;
+export const INTERRUPTED_SUMMARY = "Interrupted: the server stopped before this finished. It runs again at its next scheduled time.";
 
 export function parseRoutineInput(value: unknown): RoutineInput {
   const raw = (value && typeof value === "object" ? value : {}) as Record<string, unknown>;
@@ -151,6 +154,26 @@ function lastRunLocalDate(lastRunAt: string | null): string | null {
   return ownerLocalParts(parsed).date;
 }
 
+/** A "running" routine whose claim is old enough that the run can no longer be going. */
+export function claimIsStranded(routine: Pick<JarvisRoutine, "last_status" | "last_run_at">, now = new Date()): boolean {
+  if (routine.last_status !== "running" || !routine.last_run_at) return false;
+  const claimedAt = Date.parse(routine.last_run_at);
+  return Number.isFinite(claimedAt) && now.getTime() - claimedAt > STALE_CLAIM_MS;
+}
+
+/**
+ * A stranded claim never settled, so the routine would read "running" forever
+ * and could not even be run by hand. It is settled as an error (the claim keeps
+ * its day, so nothing is spent twice on the same day) and runs again when next due.
+ */
+async function settleStrandedClaim(db: SupabaseClient, routine: Pick<JarvisRoutine, "id" | "user_id" | "last_run_at">, now: Date): Promise<boolean> {
+  const settled = await db.from("jarvis_routines")
+    .update({ last_status: "error", last_summary: INTERRUPTED_SUMMARY, updated_at: now.toISOString() })
+    .eq("id", routine.id).eq("user_id", routine.user_id)
+    .eq("last_status", "running").eq("last_run_at", routine.last_run_at as string).select("id");
+  return !settled.error && settled.data?.length === 1;
+}
+
 /** A routine is due once per scheduled day (weekly: Mondays) after its local time. */
 export function routineIsDue(routine: Pick<JarvisRoutine, "frequency" | "hour" | "minute" | "last_run_at">, now = new Date()): boolean {
   const local = ownerLocalParts(now);
@@ -178,7 +201,7 @@ export async function runJarvisRoutineNow(db: SupabaseClient, userId: string, ro
   const routines = await listJarvisRoutines(db, userId);
   const routine = routines.find((item) => item.id === routineId);
   if (!routine) throw new Error("That routine was not found.");
-  if (routine.last_status === "running") throw new Error("That routine is already running.");
+  if (routine.last_status === "running" && !claimIsStranded(routine)) throw new Error("That routine is already running.");
   const summary = await executeRoutine(db, routine);
   const now = new Date().toISOString();
   await db.from("jarvis_routines").update({ last_run_at: now, last_status: "ok", last_summary: summary, updated_at: now }).eq("id", routine.id).eq("user_id", userId);
@@ -192,8 +215,13 @@ export async function runDueJarvisRoutines(db: SupabaseClient, now = new Date(),
     .eq("enabled", true)
     .limit(200);
   if (error) throw new Error(error.message);
-  // A stranded running attempt is uncertain, not permission to spend again.
-  const due = ((data ?? []) as JarvisRoutine[]).filter((routine) => routine.last_status !== "running" && routineIsDue(routine, now)).slice(0, MAX_RUNS_PER_PASS);
+  const rows = (data ?? []) as JarvisRoutine[];
+  // A stranded running attempt is uncertain, not permission to spend again: it is
+  // settled as interrupted, and the routine only runs again on a later day.
+  for (const routine of rows) {
+    if (claimIsStranded(routine, now) && (await settleStrandedClaim(db, routine, now))) routine.last_status = "error";
+  }
+  const due = rows.filter((routine) => routine.last_status !== "running" && routineIsDue(routine, now)).slice(0, MAX_RUNS_PER_PASS);
   const results: { id: string; name: string; ok: boolean; detail: string }[] = [];
   for (const routine of due) {
     const attempt = `Routine attempt ${crypto.randomUUID()}; completion not yet confirmed.`;

@@ -77,12 +77,13 @@ export async function runReActLoop(input: {
  */
 /**
  * Said to the model with the results before its last round. The last round runs
- * no actions, so a model that asks for more there leaves no answer at all: the
+ * no lookups, so a model that asks for more there leaves no answer at all: the
  * owner then got "the model roster returned an empty answer" after four rounds of
- * lookups (seen in Jarvis on 10-29).
+ * lookups (seen in Jarvis on 10-29). Changes for the owner's approval (a pull
+ * request, a routine) are still collected on that round, so the note keeps them.
  */
 export const FINAL_ROUND_NOTE =
-  "This is your last turn: no more actions will run. Answer the owner now in plain text from the results above, and say plainly what you could not check. Do not request actions.";
+  "This is your last turn: no more lookups will run, so do not ask for any. Answer the owner now in plain text from the results above, and say plainly what you could not check. If you have a change to propose for the owner's approval, include it.";
 
 /** True when the round after `step` is the last one the loop runs (or the loop gave up). */
 export function nextRoundIsFinal(step: number, maxSteps: number, giveUp: boolean): boolean {

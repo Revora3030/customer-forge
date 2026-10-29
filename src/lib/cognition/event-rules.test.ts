@@ -31,6 +31,16 @@ describe("planEventResponses", () => {
     expect(proposals.find((p) => p.ruleId === "build-failed-review")!.summary).toContain("Acme");
   });
 
+  it("tells the owner a routine did not finish, once a day, without claiming anything changed", () => {
+    const event = { ...ev("1", "routine.failed", "Daily Executive Brief"), detail: "Interrupted: the server stopped before this finished." };
+    const { proposals } = planEventResponses({ events: [event], rules: DEFAULT_EVENT_RULES, lastProposed: {}, now: NOW });
+    expect(proposals).toHaveLength(1);
+    expect(proposals[0]).toMatchObject({ ruleId: "routine-failed", subject: "Daily Executive Brief" });
+    expect(proposals[0]!.summary).toBe('Your scheduled routine "Daily Executive Brief" didn\'t finish. Interrupted: the server stopped before this finished. Nothing was changed.');
+    const again = planEventResponses({ events: [event], rules: DEFAULT_EVENT_RULES, lastProposed: { "routine-failed|Daily Executive Brief": NOW - 3_600_000 }, now: NOW });
+    expect(again.proposals).toEqual([]);
+  });
+
   it("caps proposals per pass even if asked for more", () => {
     const events = Array.from({ length: 20 }, (_, i) => ev(`e${i}`, "build.failed", `site-${i}`, NOW - i));
     const { proposals, dropped } = planEventResponses({ events, rules: DEFAULT_EVENT_RULES, lastProposed: {}, now: NOW, maxProposals: 100 });

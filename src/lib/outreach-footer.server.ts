@@ -1,4 +1,3 @@
-import { mergedMailingAddress } from "./gmail/stored-config.server";
 import { OUTREACH_PROMOTIONAL_NOTICE } from "./outreach-notice";
 
 /**
@@ -13,7 +12,7 @@ export function outreachFooter(options: { unsubscribeUrl?: string } = {}): {
   /** Notice, sender, company and address lines, without the separator or opt-out line. */
   senderLines: string[];
 } {
-  const address = mergedMailingAddress();
+  const address = process.env["REVORA_MAILING_ADDRESS"]?.trim() ?? "";
   const sender = process.env["REVORA_SENDER_NAME"]?.trim() || "Revora Growth Systems";
   const senderLines = [
     OUTREACH_PROMOTIONAL_NOTICE,

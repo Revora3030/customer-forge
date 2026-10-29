@@ -1,6 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { gmailConfig, gmailNotConfiguredMessage, getGmailThread, mailingAddress, missingGmailSecrets, type GmailConfig } from "@/lib/gmail/client.server";
-import { withStoredGmail } from "@/lib/gmail/stored-config.server";
 import { parseGmailMessage, type GmailApiMessage, type ParsedGmailMessage } from "@/lib/gmail/mime.server";
 import {
   addDoNotContact,
@@ -621,10 +620,6 @@ async function markDeferredDelivered(db: SupabaseClient, inboundId: string, outr
  * "sent", so this is a thread reply, not a second first touch.
  */
 export async function deliverDeferredPitchPreviews(db: SupabaseClient, now = new Date()): Promise<number> {
-  return withStoredGmail(db, () => deliverDeferredPitchPreviewsBound(db, now));
-}
-
-async function deliverDeferredPitchPreviewsBound(db: SupabaseClient, now: Date): Promise<number> {
   const config = gmailConfig();
   if (!config) return 0;
   const { data, error } = await db
@@ -789,7 +784,7 @@ export async function runProspectReplies(db: SupabaseClient, options: { now?: ()
     return { ...emptySummary(), status: "failed", message: "Couldn't claim the prospect-replies run lock.", errors: ["lease: claim failed"] };
   }
   try {
-    return await withStoredGmail(db, () => runLeased(db, owner, options.now ?? (() => new Date())));
+    return await runLeased(db, owner, options.now ?? (() => new Date()));
   } finally {
     if (lease === "claimed") await releaseReplyPollLease(db, owner);
   }
@@ -840,14 +835,9 @@ export type ProspectInbox = {
   lastPolledAt: string | null;
   lastError: string | null;
   items: InboundItem[];
-  gmail: import("./gmail/stored-config.server").GmailConnectionView;
 };
 
 export async function listProspectInbox(db: SupabaseClient, limit = 30): Promise<ProspectInbox> {
-  return withStoredGmail(db, () => listProspectInboxBound(db, limit));
-}
-
-async function listProspectInboxBound(db: SupabaseClient, limit = 30): Promise<ProspectInbox> {
   const configured = Boolean(gmailConfig());
   const [{ data, error }, state] = await Promise.all([
     db
@@ -873,7 +863,6 @@ async function listProspectInboxBound(db: SupabaseClient, limit = 30): Promise<P
     lastPolledAt: text(s?.["last_polled_at"]),
     lastError: text(s?.["last_error"]),
     items: rows.map((row) => readInbound(row, names)),
-    gmail: (await import("./gmail/stored-config.server")).gmailConnectionView(),
   };
 }
 
@@ -885,13 +874,6 @@ async function loadInbound(db: SupabaseClient, inboundId: string): Promise<FullI
 
 /** Sends the operator's (edited) draft in-thread. Never answers a stop. */
 export async function approveReplyDraft(
-  db: SupabaseClient,
-  input: { inboundId: string; body: string; actorId: string },
-): Promise<{ ok: true; outreachId: string } | { ok: false; reason: string; message: string }> {
-  return withStoredGmail(db, () => approveReplyDraftBound(db, input));
-}
-
-async function approveReplyDraftBound(
   db: SupabaseClient,
   input: { inboundId: string; body: string; actorId: string },
 ): Promise<{ ok: true; outreachId: string } | { ok: false; reason: string; message: string }> {

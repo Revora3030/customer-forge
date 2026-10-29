@@ -6,7 +6,6 @@ import { GROWTH_SYSTEM } from "@/lib/offer";
 import type { PreviewEngagement } from "@/lib/preview-telemetry";
 import { missingTwilioSecrets, sendTwilioSms, twilioConfig } from "@/lib/sms/twilio.server";
 import { gmailConfig } from "@/lib/gmail/client.server";
-import { withStoredGmail } from "@/lib/gmail/stored-config.server";
 import { parseSiteGaps, SITE_GAP_LABELS } from "@/lib/prospect-finder";
 
 /**
@@ -721,10 +720,6 @@ function randomToken(): string {
 const startOfUtcDay = (now: Date) => new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())).toISOString();
 
 export async function sendDemoOutreach(db: SupabaseClient, input: SendDemoOutreachInput): Promise<OutreachResult> {
-  return withStoredGmail(db, () => sendDemoOutreachBound(db, input));
-}
-
-async function sendDemoOutreachBound(db: SupabaseClient, input: SendDemoOutreachInput): Promise<OutreachResult> {
   const fail = (reason: string): OutreachResult => ({ ok: false, reason, message: outreachMessage(reason) });
   const { organizationId, channel, mode } = input;
   if ((channel !== "email" && channel !== "sms") || (mode !== "manual" && mode !== "autopilot")) return fail("invalid_request");
