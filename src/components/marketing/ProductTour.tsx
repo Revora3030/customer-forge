@@ -270,9 +270,9 @@ export function ProductTour() {
     <div className="grid gap-6 lg:grid-cols-[0.82fr_1.18fr] lg:gap-8">
       <div>
         <Pill tone="signal">Product tour</Pill>
-        <h3 className="mt-4 font-display text-[clamp(1.3rem,2.5vw,1.8rem)] leading-tight font-semibold">
+        <h2 className="mt-4 font-display text-[clamp(1.3rem,2.5vw,1.8rem)] leading-tight font-semibold">
           Website to customer, in one workspace.
-        </h3>
+        </h2>
         <p className="mt-3 text-[13.5px] leading-relaxed text-muted-foreground">
           Website, leads, quotes, booking and follow-up, brought together. The examples below use sample data.
         </p>

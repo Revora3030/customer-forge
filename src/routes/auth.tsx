@@ -24,7 +24,6 @@ import { isSafeRedirect } from "@/lib/prospect-claim";
 type Search = { mode?: "signup" | "signin"; redirect?: string };
 
 export const Route = createFileRoute("/auth")({
-  ssr: false,
   validateSearch: (search: Record<string, unknown>): Search => {
     const rawMode = search["mode"];
     const rawRedirect = search["redirect"];
@@ -45,6 +44,7 @@ export const Route = createFileRoute("/auth")({
   head: ({ match }) => {
     const label = match.search.mode === "signup" ? "Create your account — Revora" : "Sign in — Revora";
     return {
+    links: [{ rel: "preload", as: "image", href: "/revora-mark-144.png" }],
     meta: [
       { title: label },
       {
@@ -111,6 +111,7 @@ function AuthPage() {
       })
       .catch((error: unknown) => {
         reportRouteError(error, { boundary: "auth_session_check" });
+        if (active) setError(error instanceof Error ? error.message : "We couldn't load your account. Please try signing in again.");
       });
     return () => {
       active = false;
@@ -124,19 +125,18 @@ function AuthPage() {
     try {
       setRememberPreference(remember);
       if (isSignup) {
-        const { error: signUpError } = await supabase.auth.signUp({
+        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
           email,
           password,
           options: {
             data: { full_name: fullName },
-            emailRedirectTo: `${window.location.origin}${redirect ?? "/app"}`,
+            emailRedirectTo: `${window.location.origin}/auth${redirect ? `?redirect=${encodeURIComponent(redirect)}` : ""}`,
           },
         });
         if (signUpError) throw signUpError;
-        const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-        if (signInError) {
-          const message = `Account created for ${email}. Confirm your email address using the link we just sent, then sign in here — your progress is saved.`;
-          toast.success("Account created. Check your email to confirm, then sign in.");
+        if (!signUpData.session) {
+          const message = "Check your email for a confirmation link before signing in. If you already have an account, sign in or reset your password.";
+          toast.message("Check your email to continue.");
           setNotice(message);
           setPassword("");
           setIsSignup(false);
@@ -144,7 +144,7 @@ function AuthPage() {
         }
         // Save the account details, then send the new client to the exact next
         // step for their workspace (onboarding first, dashboard once ready).
-        await ensureProfile();
+        await ensureProfile(signUpData.session.user);
         toast.success("Welcome to Revora. Let's set up your workspace.");
         await goToWorkspace();
       } else {

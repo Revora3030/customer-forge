@@ -13,6 +13,7 @@
  * substitute design.
  */
 import { MODEL_COMPONENT_KIND } from "@/lib/site-models";
+import { mapConcurrent } from "@/lib/concurrency";
 import { callBestThinker } from "@/lib/ai/thinker.server";
 import { readAll } from "@/lib/db/read-all";
 import { saveFirstBuildComposition as saveTree } from "./save-first-build-composition.server";
@@ -53,7 +54,7 @@ const IMPROVEMENT_ROUNDS = 1;
 type Db = { from: (table: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any
 
 /** How many pages are designed at the same time on a first build. */
-const PAGE_CONCURRENCY = 4;
+const PAGE_CONCURRENCY = 2;
 
 /** Sections whose job is a working feature, not a layout. */
 export const FUNCTIONAL_SECTION_KINDS = new Set([
@@ -601,26 +602,31 @@ export async function composeFirstBuildSections(input: {
     // Smaller batches: a page with many sections asked for one huge JSON
     // answer that was regularly cut off at the output limit, so every section
     // on that page failed together. Sections are designed a few at a time.
-    const BATCH = 4;
+    const BATCH = 1;
     let feedback: Record<string, CompositionIssue[]> = {};
     let pageFailed = false;
-    // A single failed call is often a transient rate limit or timeout. The
-    // page is only abandoned after two failed calls, so one hiccup no longer
-    // leaves every section on that page with a plain default layout.
-    let failedCalls = 0;
-    for (let attempt = 0; attempt < 3 && pending.length && !pageFailed; attempt += 1) {
+    // Each section owns its retry allowance. Unrelated failures must not
+    // abandon a page or consume another section's retries.
+    const failedCalls = new Map<string, number>();
+    for (let attempt = 0; attempt < 3 && pending.length; attempt += 1) {
      const batches: SectionRow[][] = [];
      for (let i = 0; i < pending.length; i += BATCH) batches.push(pending.slice(i, i + BATCH));
      const next: SectionRow[] = [];
      const nextFeedback: Record<string, CompositionIssue[]> = {};
-     for (const batch of batches) {
+     await mapConcurrent(batches, 2, async (batch) => {
+      const firstSection = batch[0];
+      if (!firstSection) return;
+      if ((failedCalls.get(firstSection.id) ?? 0) >= 2) {
+        next.push(...batch);
+        return;
+      }
       const batchFeedback = Object.fromEntries(Object.entries(feedback).filter(([id]) => batch.some((s) => s.id === id)));
       const call = await callBestThinker({
         json: true,
         purpose: "creative_direction",
         complexity: "high",
         organizationId,
-        maxOutputTokens: 24000,
+        maxOutputTokens: 12000,
         system: RULES,
         user: [
           "SITE LOOK (follow it):",
@@ -641,12 +647,14 @@ export async function composeFirstBuildSections(input: {
         // This page's design call failed. It is retried once; sections still
         // without a layout are counted in `fallback` and stop a first build.
         console.warn(`[first-build-compositions] AI layout failed: ${call.detail ?? call.reason}`);
-        failedCalls += 1;
-        if (failedCalls >= 2) pageFailed = true;
+        const failures = (failedCalls.get(firstSection.id) ?? 0) + 1;
+        failedCalls.set(firstSection.id, failures);
+        if (failures >= 2) pageFailed = true;
         else await new Promise((resolve) => setTimeout(resolve, 1500));
         next.push(...batch);
-        continue;
+        return;
       }
+      failedCalls.delete(firstSection.id);
       if (call.model) result.models.push(call.model);
       result.costMicrocents += call.costMicrocents ?? 0;
       const settled = await settleAnswer(batch, call.text, false);
@@ -656,7 +664,7 @@ export async function composeFirstBuildSections(input: {
         next.push(section);
       }
       await checkpointAccepted(settled.accepted);
-     }
+     });
       feedback = nextFeedback;
       pending = next;
     }
@@ -805,7 +813,8 @@ export async function composeFirstBuildSections(input: {
   await Promise.all(
     Array.from({ length: Math.min(PAGE_CONCURRENCY, pages.length) }, async () => {
       while (nextPage < pages.length) {
-        const page = pages[nextPage++]!;
+        const page = pages[nextPage++];
+        if (!page) return;
         await composePage(page);
       }
     }),
