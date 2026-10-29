@@ -1,3 +1,8 @@
+## Reference standard, CI sweep and AI City touch (2026-10-29)
+- [x] Reference standard (Kestrel video) for every trade and archetype: labelled `scrub_sequence` progress ring, brush reveal tool chips + stopwatch, new `dial_selector`; Jarvis demo.build and AI City missions point at it.
+- [x] AI City phone gestures: one-finger pan with damped glide, pinch zooms toward the fingers, two-finger twist rotates; panning cannot slide the city off screen.
+- [ ] Proof on a live build that the standard renders as in the video (needs owner-approved build spend).
+
 ## Daily pitch-first outreach verification (2026-10-28)
 - [x] Verify selected public-listing emails through the existing verifier and retain their source evidence before outreach; regression tests pass.
 - [x] Report failed OpenStreetMap discovery as unavailable, not as a successful empty search; regression tests pass.
@@ -37,7 +42,7 @@
 
 ## Jarvis event nudges (2026-10-27)
 - [x] The routines job now also posts a plain, no-AI notice into each super admin's Jarvis chat when a site build failed in the last day (cooldown per workspace, at most 5 per pass), with a suggested question to ask. 4 tests.
-- [ ] `ci.failed` and `lead.unanswered` have rules but no emitter yet.
+- [x] `ci.failed` and `lead.unanswered` emitters wired (`ciFailedSource`, `leadUnansweredSource` in `event-sources.server.ts`, read by `jarvis-event-watch.server.ts`).
 
 ## Weekly content audit of published sites (2026-10-27)
 - [x] `site-content-audit` job (Mondays 13:05 UTC) checks each published customer site's home page and up to 6 internal links for title, h1, structured-data validity, alt text and broken links; up to 40 sites per run, rotated weekly; one digest per week to the Revora inbox only (customers are not emailed). 8 tests.
@@ -46,7 +51,7 @@
 ## Public page sweep (2026-10-27)
 - [x] `scripts/page-sweep.mjs` (`npm run site:sweep`) crawls a running site at phone and desktop width and measures status, script errors, overflow, title/description/h1, unnamed controls, image alt, tap targets and broken internal links.
 - [x] First run: 43 pages across 21 families, 0 failures; fixed 15 small phone tap targets on location, state and guide link lists. Authenticated pages and the one-time-token pages are not covered (no sign-in available to the crawler).
-- [ ] Run the sweep in CI against the built app (needs a start step and Playwright in the workflow).
+- [x] Sweep runs in CI: Browser QA workflow runs `site:sweep` (phone + desktop, 80 pages) against the started app; fails on any P0 or when no browser runs (2026-10-29).
 
 ## Free upgrades from the model scan (2026-10-27)
 - [x] Printable / save-as-PDF estimate after a quote request (browser print, no server cost, labelled as an estimate not a quote).
@@ -213,7 +218,7 @@
 - [x] AI repair pass when a page plan is unusable; home-page address aliases accepted.
 - [x] Full suite green after fixing a test that read live provider state.
 - [ ] One build end to end (BLOCKED: workspace daily AI limit and $5/day paid cap reached today; free pool heavily rate-limited). Daily site limit stays 5 until it passes.
-- [ ] Migration drift: needs the remote migration version list (not readable from here) to reconcile.
+- [ ] Migration drift: the Supabase Preview check is linked to the unused "Revora Growth Systems" project (xmkckvtdzieiubbqvmto: 1 workspace, no jobs, 31 dashboard-only migrations, last 2026-10-11), not the live Lovable Cloud project (smqngrtayopyirrqcbhq). Fix: owner disconnects the GitHub integration on that project (2026-10-29).
 - [x] Retired stale offer conflict: current owner rule is $350 setup, first month free, then $100/month and 3-day full access; billing unchanged.
 - [x] Jarvis tool/permission inventory documented (docs/operations/jarvis-tool-inventory.md).
 - [x] Queued autopilot sends respect the off switch; launch review requires workspace membership.
@@ -381,6 +386,6 @@ Counted from the code, not from audits.
 - [x] Playbooks added for locksmith, towing, solar, pool, garage door, appliance repair (#340)
 - [x] First-build attention list tells the owner when the service menu is thin (#341)
 - Already existed, nothing to build: every supplied picture must appear in its section's composition (`requiredMediaRefs`); stale-deploy reload on `vite:preloadError`.
-- [ ] Prospect replies cancel a waiting automatic follow-up (#329, open)
+- [x] Prospect replies cancel a waiting automatic follow-up (#329, merged)
 - [ ] Unproven until one fresh build: which primitives Sol picks per trade, and whether the plain-layout gate triggers in practice. The new Latest builds panel shows both.
 - Needs the owner: screenshot QA after each build (Cloudflare account ID and token, and signed preview link vs page HTML), reply engine mailbox secrets, pgvector memory migration approval, Meta credentials, a .glb upload path.

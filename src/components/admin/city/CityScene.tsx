@@ -131,6 +131,28 @@ function Beacon({ color, height, active, rate }: { color: string; height: number
   return <mesh ref={ref} position-y={height}><octahedronGeometry args={[0.22]} /><meshStandardMaterial color={color} emissive={color} emissiveIntensity={active ? 3 : 0.2} /></mesh>;
 }
 
+/**
+ * Phone gestures for an isometric map: one finger pans (with damping, so a
+ * flick glides to a stop), two fingers pinch-zoom toward the fingers and twist
+ * to rotate. Desktop mouse keeps rotate / zoom / right-drag pan.
+ */
+const CITY_TOUCHES = { ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_ROTATE };
+/** How far the look-at point may wander from the city centre before panning stops. */
+const CITY_PAN_LIMIT = 14;
+
+/** Keeps a pan or flick from sliding the city off screen; the camera moves with the target. */
+function keepCityInView(event?: { target?: unknown }) {
+  const control = event?.target as OrbitControlsType | undefined;
+  if (!control?.target) return;
+  const t = control.target;
+  const x = Math.max(-CITY_PAN_LIMIT, Math.min(CITY_PAN_LIMIT, t.x));
+  const z = Math.max(-CITY_PAN_LIMIT, Math.min(CITY_PAN_LIMIT, t.z));
+  if (x === t.x && z === t.z && t.y === 1.5) return;
+  const dx = x - t.x, dy = 1.5 - t.y, dz = z - t.z;
+  t.set(x, 1.5, z);
+  control.object.position.x += dx; control.object.position.y += dy; control.object.position.z += dz;
+}
+
 function CityControls({ selected, reset, controls }: { selected: DistrictId; reset: number; controls: React.RefObject<OrbitControlsType | null> }) {
   const { size, camera, invalidate } = useThree();
   const goal = useRef(new THREE.Vector3(0, 1.5, 0));
@@ -199,7 +221,7 @@ export default function CityScene({ snapshot, selected, onSelect, palette, motio
       return <Conduit key={`c-${d.id}`} to={d.position} color={color} strength={state === "working" || state === "attention" ? 0.85 : state === "unavailable" ? 0.12 : 0.28} />;
     })}
     {CITY_DISTRICTS.map((d, index) => <Suspense key={d.id} fallback={null}><Building index={index} palette={palette} selected={selected === d.id} active={motion && districtState(d.id, snapshot, now) === "working"} state={districtState(d.id, snapshot, now)} counts={districtCounts(snapshot, d.id, now)} compact={compact} onSelect={() => onSelect(d.id)} /></Suspense>)}
-    <OrbitControls ref={controls} makeDefault enableDamping enableRotate minZoom={8} maxZoom={65} minPolarAngle={0.35} maxPolarAngle={1.25} target={[0, 1.5, 0]} touches={{ ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN }} />
+    <OrbitControls ref={controls} makeDefault enableDamping dampingFactor={0.09} enableRotate zoomToCursor screenSpacePanning={false} panSpeed={1.1} minZoom={8} maxZoom={65} minPolarAngle={0.35} maxPolarAngle={1.25} target={[0, 1.5, 0]} onChange={keepCityInView} touches={CITY_TOUCHES} />
     {motion && anyActive ? <PerformanceMonitor onDecline={() => setDpr(1)} onIncline={() => setDpr(ceiling)} /> : null}
     <CityControls selected={selected} reset={reset} controls={controls} />
   </Canvas>;
