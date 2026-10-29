@@ -118,7 +118,7 @@ describe("offer_card", () => {
 
   it("gets a computed readable surface when it floats over a scene", () => {
     const html = render(scene({}, [offer()]));
-    expect(html).toMatch(/class="rv-offer" style="background-color:rgb\(0 0 0 \/ 0\.\d+\);color:#ffffff" data-rv-card="" data-rv-overlay="offer"/);
+    expect(html).toMatch(/class="rv-offer" style="[^"]*background-color:rgb\(0 0 0 \/ 0\.\d+\);color:#ffffff" data-rv-card="" data-rv-overlay="offer"/);
   });
 });
 
@@ -163,6 +163,74 @@ describe("collection_row", () => {
     // Prev/next buttons only appear once they can work.
     expect(markup(html)).not.toContain("Previous in");
     expect(CINEMATIC_CSS).toContain("scroll-snap-type:x mandatory");
+  });
+});
+
+describe("scrub_sequence", () => {
+  it("renders the last frame and the display copy before JavaScript runs", () => {
+    const html = render({
+      type: "scrub_sequence",
+      text: "Scroll",
+      scrim: { color: "#0c0e12", opacity: 50 },
+      children: [
+        pic(1, "Vehicle in shade"),
+        pic(2, "Panel in the light"),
+        { type: "heading", level: 1, text: "Bring it dirty", style: { uppercase: true, letterSpacing: 0.12, size: 64 } },
+        { type: "button", text: "Book", href: "/book" },
+      ],
+    });
+    expect(html).toContain('class="rv-seq"');
+    expect(markup(html)).not.toContain("data-live");
+    expect(html).toContain('alt="Panel in the light"');
+    expect(html).toContain("Bring it dirty");
+    expect(html).toContain(">Scroll<");
+    expect(CINEMATIC_CSS).toContain("prefers-reduced-motion:reduce");
+    expect(CINEMATIC_CSS).toContain(".rv-seq[data-live]");
+  });
+});
+
+describe("accordion labels are not a hollow box", () => {
+  it("stretches to the row and does not paint each label as a bordered card", () => {
+    const html = markup(render({
+      type: "accordion",
+      style: { align: "center" },
+      children: [
+        { type: "stack", text: "Full" },
+        { type: "stack", text: "Auto detailing" },
+      ],
+    }));
+    expect(html).toContain("rv-cn-acc");
+    expect(html).toContain("width:100%");
+    expect(html).toContain(">Full<");
+    expect(html).toContain(">Auto detailing<");
+    expect(html).not.toContain("border:1px solid");
+  });
+
+  it("drops an aspect ratio that would turn two short labels into a tall empty frame", () => {
+    const html = markup(render({
+      type: "grid",
+      style: { columns: 1, aspect: "3:4", borderWidth: 1, align: "center", items: "center" },
+      children: [
+        { type: "heading", level: 2, text: "Full" },
+        { type: "text", text: "Auto detailing" },
+      ],
+    }));
+    expect(html).not.toContain("aspect-ratio");
+    expect(html).toContain(">Full<");
+    expect(html).toContain(">Auto detailing<");
+  });
+});
+
+describe("phrasing hosts stay valid HTML", () => {
+  it("renders a text node that contains a card as a div, so the browser cannot split the paragraph", () => {
+    const html = markup(render({
+      type: "text",
+      text: "Intro",
+      children: [{ type: "card", children: [{ type: "text", text: "Inside" }] }],
+    }));
+    expect(html).not.toMatch(/<p[^>]*>Intro/);
+    expect(html).toContain(">Intro");
+    expect(html).toContain(">Inside<");
   });
 });
 

@@ -33,7 +33,7 @@ describe("AI City data boundary", () => {
       const builder = {
         select() { return builder; },
         eq(column: string, value: unknown) { filters.push({ table, column, value }); return builder; },
-        in() { return builder; }, gte() { return builder; }, order() { return builder; }, limit() { return builder; },
+        in() { return builder; }, gte() { return builder; }, or() { return builder; }, neq() { return builder; }, order() { return builder; }, limit() { return builder; },
         then(resolve: (value: unknown) => unknown) { return Promise.resolve(resolve({ data: table === "generation_jobs" ? [{ id: "1", organization_id: "tenant-a", status: "running", current_step: "Design", progress: 50, updated_at: "2026-10-27T17:29:00Z" }] : [], error: table === failTable ? { message: "denied" } : null, count: table === "generation_jobs" ? 200 : 0 })); },
       };
       return builder;
@@ -45,6 +45,7 @@ describe("AI City data boundary", () => {
     await collectCitySnapshot(fake.db, "owner-a");
     for (const table of ["jarvis_run_events", "jarvis_routines", "jarvis_memories"]) expect(fake.filters).toContainEqual({ table, column: "user_id", value: "owner-a" });
     expect(fake.filters).toContainEqual({ table: "ai_team_trace", column: "provider", value: "lovable" });
+    expect(fake.filters).toContainEqual({ table: "error_events", column: "level", value: "error" });
     expect(fake.tables).toHaveLength(13);
   });
   it("preserves workspace identity and exact totals while declaring sample truncation", async () => {

@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { readAll } from "@/lib/db/read-all";
-import { dropMissingPictures, firstBuildCoverageProblems, missingPictureProblems, savedPictureRefs, type ExpectedBuildCoverage, type SavedBuildPage, type SavedBuildSection } from "./first-build-saved-coverage";
+import { firstBuildCoverageProblems, missingPictureProblems, readablePictureRepair, savedPictureRefs, type ExpectedBuildCoverage, type SavedBuildPage, type SavedBuildSection } from "./first-build-saved-coverage";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -44,10 +44,9 @@ export async function assertFirstBuildSavedCoverage(
   if (missing.size) {
     // Repair instead of failing the whole site: the section keeps its copy
     // without the unsaved picture; the readback below proves the result.
-    const { readComposition } = await import("./composition-tree");
     for (const section of savedSections) {
-      const repaired = dropMissingPictures(section.settings, missing);
-      if (!repaired || !readComposition(repaired)) continue;
+      const repaired = readablePictureRepair(section.settings, missing);
+      if (!repaired) continue;
       const { data, error } = await db.from("website_sections").update({ settings: repaired } as never).eq("organization_id", organizationId).eq("id", section.id).select("id");
       if (!error && Array.isArray(data) && data.length === 1) section.settings = repaired;
     }

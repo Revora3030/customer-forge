@@ -1,21 +1,40 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { Environment, Html, Lightformer, OrbitControls, PerformanceMonitor, useGLTF } from "@react-three/drei";
+import { Environment, Lightformer, OrbitControls, PerformanceMonitor } from "@react-three/drei";
 import * as THREE from "three";
 import type { OrbitControls as OrbitControlsType } from "three-stdlib";
 import { CITY_DISTRICTS, districtCounts, districtState, pulseRate, type CitySnapshot, type DistrictId } from "@/lib/ai-city";
-import towerA from "@/assets/city/building-skyscraper-a.asset.json";
-import towerB from "@/assets/city/building-skyscraper-b.asset.json";
-import towerC from "@/assets/city/building-skyscraper-c.asset.json";
-import towerD from "@/assets/city/building-skyscraper-d.asset.json";
-import towerE from "@/assets/city/building-skyscraper-e.asset.json";
-import factory from "@/assets/city/building-f.asset.json";
-import library from "@/assets/city/building-m.asset.json";
 
 type Palette = { ground: string; road: string; structure: string; gold: string; cyan: string; magenta: string; light: string; muted: string; ok: string; danger: string };
 type DState = ReturnType<typeof districtState>;
-const MODEL_URLS = [towerA.url, factory.url, towerC.url, towerD.url, towerB.url, towerE.url, library.url];
 export type CitySceneProps = { snapshot?: CitySnapshot | undefined; selected: DistrictId; onSelect: (id: DistrictId) => void; palette: Palette; motion: boolean; reset: number; onFailure: () => void };
+
+/**
+ * Window pattern painted in memory. The old glTF files asked the browser for
+ * `/__l5e/assets-v1/…/Textures/colormap.png`, which 404s, so every tower
+ * rendered as an untextured black block and the loader pulled a WASM decoder
+ * the content-security policy blocks. Nothing here is fetched.
+ */
+function windowTexture(seed: number, lit: string): THREE.CanvasTexture | null {
+  if (typeof document === "undefined") return null;
+  const canvas = document.createElement("canvas");
+  canvas.width = 64;
+  canvas.height = 128;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+  ctx.fillStyle = "#121a28";
+  ctx.fillRect(0, 0, 64, 128);
+  for (let y = 6; y < 124; y += 14) {
+    for (let x = 5; x < 60; x += 12) {
+      const on = ((seed * 17 + x * 3 + y) % 7) > 1;
+      ctx.fillStyle = on ? lit : "#1c2838";
+      ctx.fillRect(x, y, 7, 9);
+    }
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
 
 function Ground({ palette }: { palette: Palette }) {
   const texture = useMemo(() => {
@@ -40,58 +59,29 @@ function Ground({ palette }: { palette: Palette }) {
   return <mesh rotation-x={-Math.PI / 2} position-y={-0.12} receiveShadow><planeGeometry args={[30, 30]} /><meshStandardMaterial map={texture} color={palette.light} roughness={0.75} metalness={0.35} /></mesh>;
 }
 
-function Building({ index, palette, selected, active, state, counts, compact, onSelect }: { index: number; palette: Palette; selected: boolean; active: boolean; state: DState; counts: ReturnType<typeof districtCounts>; compact: boolean; onSelect: () => void }) {
+function Building({ index, palette, selected, active, state, counts, onSelect }: { index: number; palette: Palette; selected: boolean; active: boolean; state: DState; counts: ReturnType<typeof districtCounts>; compact: boolean; onSelect: () => void }) {
   const district = CITY_DISTRICTS[index];
-  const url = MODEL_URLS[index];
-  // These CC0 assets are uncompressed: never initialize WASM decoders or fetch CDN decoder code.
-  const { scene } = useGLTF(url ?? towerA.url, false, false);
-  const building = useMemo(() => {
-    const clone = scene.clone(true);
-    const box = new THREE.Box3().setFromObject(clone);
-    const size = box.getSize(new THREE.Vector3());
-    clone.scale.setScalar((district?.height ?? 4) / Math.max(size.y, 0.1));
-    const scaled = new THREE.Box3().setFromObject(clone);
-    const center = scaled.getCenter(new THREE.Vector3());
-    clone.position.set(-center.x, -scaled.min.y, -center.z);
-    clone.traverse(object => {
-      if (!(object instanceof THREE.Mesh)) return;
-      object.castShadow = true;
-      object.receiveShadow = true;
-      const tint = (material: THREE.Material) => {
-        const copy = material.clone();
-        if (copy instanceof THREE.MeshStandardMaterial) {
-          copy.color.set(palette.structure);
-          copy.metalness = 0.45;
-          copy.roughness = 0.55;
-        }
-        return copy;
-      };
-      object.material = Array.isArray(object.material) ? object.material.map(tint) : tint(object.material);
-    });
-    return clone;
-  }, [scene, district, palette.structure]);
-  useEffect(() => () => building.traverse(object => {
-    if (object instanceof THREE.Mesh) {
-      const materials = Array.isArray(object.material) ? object.material : [object.material];
-      materials.forEach(material => material.dispose());
-    }
-  }), [building]);
+  const windows = useMemo(() => (district ? windowTexture(index + 1, palette.gold) : null), [district, index, palette.gold]);
+  useEffect(() => () => windows?.dispose(), [windows]);
   if (!district) return null;
   // Colour tells the recorded state: green working, red with failures, gold waiting, muted unreadable.
   const tone = palette[district.tone];
   const color = state === "working" ? palette.ok : state === "attention" ? ((counts?.errors ?? 0) > 0 ? palette.danger : palette.gold) : state === "unavailable" ? palette.muted : tone;
+  const height = district.height;
+  const width = 1.15 + (index % 3) * 0.22;
   return <group position={[district.position[0], 0, district.position[1]]} onClick={event => { event.stopPropagation(); if (event.delta < 5) onSelect(); }}>
-    <mesh position-y={-0.02} receiveShadow><boxGeometry args={[5, 0.15, 5]} /><meshStandardMaterial color={palette.structure} metalness={0.6} roughness={0.5} emissive={color} emissiveIntensity={state === "working" ? 0.2 : state === "attention" ? 0.14 : 0} /></mesh>
-    <primitive object={building} />
+    <mesh position-y={-0.02} receiveShadow><boxGeometry args={[5, 0.15, 5]} /><meshStandardMaterial color={palette.structure} metalness={0.6} roughness={0.5} emissive={color} emissiveIntensity={state === "working" ? 0.35 : state === "attention" ? 0.22 : 0.05} /></mesh>
+    <mesh position-y={height / 2} castShadow receiveShadow>
+      <boxGeometry args={[width, height, width * 0.82]} />
+      <meshStandardMaterial map={windows} color={palette.light} emissive={color} emissiveIntensity={state === "working" ? 0.55 : 0.28} metalness={0.35} roughness={0.42} />
+    </mesh>
+    <mesh position-y={height + 0.18} castShadow>
+      <boxGeometry args={[width * 0.55, 0.36, width * 0.45]} />
+      <meshStandardMaterial color={tone} emissive={tone} emissiveIntensity={0.45} metalness={0.5} roughness={0.35} />
+    </mesh>
     <mesh rotation-x={-Math.PI / 2} position-y={0.07}><ringGeometry args={[2.8, selected ? 2.95 : 2.84, 4]} /><meshBasicMaterial color={selected ? palette.gold : color} transparent opacity={selected ? 1 : state === "idle" ? 0.45 : 0.9} /></mesh>
     <PulseRings color={color} active={active} />
-    <Beacon color={color} height={district.height + 0.7} active={active || state === "attention"} rate={pulseRate(state, counts)} />
-    <Html position={[0, district.height + 1.2, 0]} center zIndexRange={[20, 0]} style={{ pointerEvents: "none" }}>
-      {compact && !selected ? (counts && counts.running + counts.queued + counts.errors ? <div aria-hidden="true" className="rounded-full border border-border bg-background/90 px-1.5 text-[10px] leading-4 text-foreground">{counts.running + counts.queued + counts.errors}</div> : null) : <div aria-hidden="true" className={`whitespace-nowrap rounded border bg-background/85 px-2 py-0.5 text-center text-[11px] leading-tight text-foreground backdrop-blur-sm ${selected ? "border-gold" : "border-border"}`}>
-        <div className="font-medium">{district.name}</div>
-        {counts === null ? <div className="text-[10px] text-destructive">records unavailable</div> : counts.running + counts.queued + counts.errors ? <div className="text-[10px] text-muted-foreground">{[counts.running ? `${counts.running} running` : "", counts.queued ? `${counts.queued} waiting` : "", counts.errors ? `${counts.errors} failed` : ""].filter(Boolean).join(" · ")}</div> : null}
-      </div>}
-    </Html>
+    <Beacon color={color} height={height + 0.7} active={active || state === "attention"} rate={pulseRate(state, counts)} />
   </group>;
 }
 

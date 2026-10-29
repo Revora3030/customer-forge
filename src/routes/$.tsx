@@ -10,7 +10,6 @@ import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { SiteAddressProvider } from "@/components/site/site-links-context";
 import { getHostSite } from "@/lib/host-site.functions";
-import { isPossibleTenantHost } from "@/lib/revora-address";
 import { SitePageView } from "@/routes/s.$slug.$page";
 import { tenantSiteHead } from "@/lib/site-head";
 
@@ -19,9 +18,6 @@ export const Route = createFileRoute("/$")({
     const splat = String(params._splat ?? "").replace(/^\/+|\/+$/g, "");
     const pageSlug = splat.split("/")[0] ?? "";
     if (!pageSlug || !/^[a-z0-9-]+$/.test(pageSlug)) throw notFound();
-    if (typeof window !== "undefined" && !isPossibleTenantHost(window.location.hostname)) {
-      throw notFound();
-    }
     const response = await getHostSite({ data: { pageSlug } });
     // A page with no visible sections renders blank for a real visitor — treat
     // it as not published yet instead of serving an empty page.

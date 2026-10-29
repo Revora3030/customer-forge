@@ -42,6 +42,18 @@ export function LogoMark({ className }: { className?: string }) {
   );
 }
 
+/**
+ * The same mark, placed as a quiet watermark. It does not redraw or recolor
+ * the logo — callers only choose where the existing mark sits.
+ */
+export function BrandEmblem({ className }: { className?: string }) {
+  return (
+    <div aria-hidden="true" className={cn("pointer-events-none absolute select-none opacity-[0.14]", className)}>
+      <LogoMark className="size-36 sm:size-52" />
+    </div>
+  );
+}
+
 export function Logo({
   className,
   wordmark = true,

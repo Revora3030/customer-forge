@@ -272,7 +272,8 @@ export async function captureError(
 
 /** True for request/stream aborts ("aborted", "This operation was aborted", AbortError). */
 export function isAbortLike(input: unknown, message?: unknown): boolean {
-  if (input instanceof Error && input.name === "AbortError") return true;
+  if (input instanceof Error && (input.name === "AbortError" || input.name === "TimeoutError" && /abort/i.test(input.message))) return true;
   const text = String(message ?? (input instanceof Error ? input.message : "")).trim().toLowerCase();
-  return text === "aborted" || /^(this|the) operation was aborted\.?$/.test(text) || text === "the user aborted a request.";
+  if (!text) return false;
+  return text === "aborted" || /^(this|the) operation was aborted\.?$/.test(text) || text === "the user aborted a request." || text === "the operation was aborted." || /\bhttp 499\b/.test(text) || text === "client closed request";
 }

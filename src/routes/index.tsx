@@ -3,6 +3,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { SiteFooter, SiteHeader } from "@/components/marketing/Chrome";
+import { BrandEmblem } from "@/components/brand/Logo";
 import { AuthHint } from "@/components/marketing/AuthButtons";
 import { HeroStarter } from "@/components/marketing/HeroStarter";
 import { ParticleField } from "@/components/marketing/ParticleField";
@@ -23,7 +24,6 @@ import { VisualComposition } from "@/components/site/VisualComposition";
 import { HOMEPAGE_COMPOSITION } from "@/lib/homepage-concept";
 import { SiteAddressProvider } from "@/components/site/site-links-context";
 import { getHostSite } from "@/lib/host-site.functions";
-import { isPossibleTenantHost } from "@/lib/revora-address";
 import { PublicSiteView } from "@/routes/s.$slug";
 import { tenantSiteHead } from "@/lib/site-head";
 
@@ -34,9 +34,6 @@ export const Route = createFileRoute("/")({
    * published website.
    */
   loader: async () => {
-    if (typeof window !== "undefined" && !isPossibleTenantHost(window.location.hostname)) {
-      return null;
-    }
     try {
       const response = await getHostSite({ data: {} });
       if (response?.result) return response.result;
@@ -131,6 +128,7 @@ function Landing() {
       <main>
         {/* HERO */}
         <section className="hero-aura relative overflow-hidden border-b border-border">
+          <BrandEmblem className="top-6 right-[-1.5rem] sm:top-10 sm:right-6" />
           <ParticleField className="pointer-events-none absolute inset-0 h-full w-full opacity-70" />
           {/* grid-cols-1 pins the mobile column to minmax(0,1fr); without it the
               implicit auto column grows to the widest child's min-content width

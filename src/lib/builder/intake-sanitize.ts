@@ -78,6 +78,46 @@ export function isPlatformLabel(name: unknown): boolean {
  * Keeps only real services. Drops empty names, platform UI wording and exact
  * duplicates (case-insensitive). Order is preserved; nothing is invented.
  */
+/**
+ * Words that are not a service on their own. "Full" + "Auto detailing" is one
+ * phrase that intake split on a comma or a line break. A qualifier is joined
+ * to the next name when neither side is a priced, described package of its own.
+ */
+const SERVICE_QUALIFIERS = new Set([
+  "full", "complete", "basic", "premium", "standard", "deluxe", "express", "custom", "professional", "partial", "total",
+]);
+
+function hasPrice(row: { price?: unknown; starting_price?: unknown }): boolean {
+  const n = Number(row.price ?? row.starting_price);
+  return Number.isFinite(n) && n > 0;
+}
+
+export function mergeSplitServices<T extends { name?: string | null; description?: string | null; price?: unknown; starting_price?: unknown }>(services: readonly T[]): T[] {
+  const out: T[] = [];
+  for (let i = 0; i < services.length; i += 1) {
+    const current = services[i]!;
+    const next = services[i + 1];
+    const name = typeof current.name === "string" ? current.name.trim() : "";
+    const nextName = typeof next?.name === "string" ? next.name.trim() : "";
+    const qualifier = name.split(/\s+/).length === 1 && SERVICE_QUALIFIERS.has(name.toLowerCase());
+    const undescribed = !String(current.description ?? "").trim() && !String(next?.description ?? "").trim();
+    if (qualifier && next && nextName && undescribed && !(hasPrice(current) && hasPrice(next))) {
+      out.push({
+        ...next,
+        ...current,
+        name: `${name} ${nextName}`.replace(/\s+/g, " "),
+        description: current.description || next.description || null,
+        price: hasPrice(current) ? current.price : next.price,
+        starting_price: current.starting_price ?? next.starting_price,
+      });
+      i += 1;
+      continue;
+    }
+    out.push(current);
+  }
+  return out;
+}
+
 export function sanitizeServices<T extends { name?: unknown }>(services: readonly T[]): T[] {
   const seen = new Set<string>();
   const kept: T[] = [];

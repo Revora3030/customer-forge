@@ -13,6 +13,13 @@ describe("video tiers", () => {
     expect(tier).toBe("standard");
     expect(paidVideoPriceMicrocents(tier)).toBe(paidVideoPriceMicrocents("standard"));
   });
+  it("leaves premium on Gemini Omni while Veo's request body is unverified", () => {
+    vi.stubEnv("PAID_VIDEO_MODEL", "");
+    vi.stubEnv("PAID_VIDEO_MODEL_PREMIUM", "");
+    expect(paidVideoModel("premium")).toBe("google/gemini-omni-1.1-flash");
+    expect(paidVideoModel("premium")).not.toMatch(/veo/i);
+  });
+
   it("keeps premium only when a distinct model is configured", () => {
     vi.stubEnv("PAID_VIDEO_MODEL_PREMIUM", "google/veo-3.1");
     expect(effectiveVideoTier("premium")).toBe("premium");

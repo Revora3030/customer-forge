@@ -39,6 +39,11 @@ export type VideoTier = (typeof VIDEO_TIERS)[number];
 
 const TIER_MODEL: Record<VideoTier, string> = {
   standard: "google/gemini-omni-1.1-flash",
+  // FLAG: google/veo-3.1, veo-3.1-fast and veo-3.1-lite are in the Lovable
+  // catalogue on the videos surface, but this lane's request body is Gemini
+  // Omni-specific (VEO_REASON in catalogue.ts) and Veo's price is unverified.
+  // Premium stays on the same Omni model until that body is proven; a premium
+  // request is then priced as standard rather than charging more for it.
   premium: "google/gemini-omni-1.1-flash",
 };
 

@@ -21,12 +21,14 @@ export const COMPOSITION_PRIMITIVES = [
   "before_after_slider", "faq_accordion", "tab_group", "mobile_sticky_bar",
   "scene", "scroll_chapters", "offer_card", "spin_viewer", "collection_row",
   "lens_magnifier", "sticky_split_story", "service_tier_fader", "parallax_layers",
+  "scrub_sequence",
 ] as const;
 
 /** Primitives a visitor operates (a site's interactive centrepiece). Working form widgets are counted separately. */
 export const INTERACTIVE_PRIMITIVES: ReadonlySet<string> = new Set([
   "tabs", "toggle", "accordion", "compare", "before_after_slider", "faq_accordion", "tab_group",
   "scroll_chapters", "spin_viewer", "collection_row", "lens_magnifier", "sticky_split_story", "service_tier_fader",
+  "scrub_sequence",
 ]);
 
 /** Working features an AI layout may place anywhere. Their data (prices, phone, email, hours) always comes from verified business facts. */
@@ -80,6 +82,7 @@ export const PRIMITIVE_GUIDE =
   "mobile_sticky_bar (primaryCta and optional secondaryCta; conversion actions only, hidden above the mobile breakpoint). " +
   "Cinematic blocks — scene (a full-viewport photographic chapter: children[0] MUST be its media backdrop, a supplied picture or video by mediaRef with alt; the other children form the overlay copy slot, e.g. a short editorial heading — an italic accent line can be a second heading or text with style.italic — one line of body and one button; anchor places that slot: top-left|top-center|top-right|center-left|center|center-right|bottom-left|bottom-center|bottom-right; scrub:true makes a VIDEO backdrop play forward and back with the scroll while the scene stays pinned for about three screens (use for one short product, process or transformation film the owner supplied; ignored for a picture; never with sound; use at most once per page and not inside scroll_chapters); optional scrim {color #RRGGBB, opacity 0-95} and focal \"x% y%\" for the photo crop; the renderer raises the scrim until the text passes WCAG AA over any photo, so pick a scrim colour from the palette; an offer_card child floats over the photo at its own anchor on wide screens and flows below the copy on phones). " +
   "scroll_chapters (2-8 scene children shown as consecutive full-screen chapters with scroll-driven transitions and a chapter rail; without JavaScript or for reduced motion they are simply stacked scenes). " +
+  "scrub_sequence (a pinned full-viewport sequence of 2-6 media frames of ONE subject, in scroll order, that wipes from frame to frame as the visitor scrolls — a camera move, a change of light, or frames the owner actually photographed; generated frames are atmosphere only and must never be shown as proof of a result; the other children are the overlay copy: one short display heading using style.uppercase, style.letterSpacing around 0.08-0.18 and a large style.size, one line of body and one button; text is an optional scroll prompt such as \"Scroll\"; optional scrim works like a scene; without JavaScript or for reduced motion the last frame and the copy are one still; use at most once per page, never inside scroll_chapters, and never as a before/after of work the owner did not photograph). " +
   "offer_card (a compact card over media: text is its title; service names one real service EXACTLY as supplied and its price and duration are filled in from the owner's Services tool — never type a price anywhere; items holds up to 3 short specs; children are an optional media picture plus exactly one button whose href is the business's own booking/quote page, a form anchor such as #booking, tel: or mailto: — never an external or checkout address; anchor positions it inside a scene). " +
   "spin_viewer (an interactive 360° turntable on a lit podium: text is its label such as \"Spin the …\"; children are the ordered angle pictures — media with mediaRef and alt — of one real object photographed by the owner, never AI-made or stock; with fewer than 8 angles it shows one still; style.background is the stage and style.borderColor the podium light). " +
   "lens_magnifier (a round loupe that follows the pointer over ONE real photograph so visitors can inspect fine detail such as paint clarity, grout lines or stitching: text is its short prompt such as \"Inspect the finish\"; exactly one media child with mediaRef and alt, the owner's own real photo — never AI-made or stock, or nothing is shown; on touch it needs a switch, from the keyboard the arrow keys move it). " +
@@ -624,6 +627,16 @@ function checkCinematic(node: CompositionNode, path: string, issues: Composition
       if (kids.length < 2 || kids.length > 4 || kids.some((child) => !hasPictureSource(child)))
         issues.push({ path: at, problem: "parallax_layers needs 2-4 media children (back to front), each with a picture source" });
       break;
+    case "scrub_sequence": {
+      const frames = kids.filter((child) => hasPictureSource(child));
+      if (frames.length < 2 || frames.length > 6)
+        issues.push({ path: at, problem: "scrub_sequence needs 2-6 media frames of one subject, in order" });
+      if (frames.some((frame) => !frame.alt?.trim()))
+        issues.push({ path: at, problem: "every scrub_sequence frame needs alt text" });
+      if (kids.some((child) => child.type === "scene" || child.type === "scroll_chapters" || child.type === "scrub_sequence" || child.type === "mobile_sticky_bar" || child.type === "offer_card"))
+        issues.push({ path: at, problem: "scrub_sequence copy is headings, text and one button over its frames, not another scene" });
+      break;
+    }
     case "collection_row":
       if (!kids.length || kids.length > MAX_COLLECTION_ITEMS || kids.some((child) => child.type !== "offer_card"))
         issues.push({ path: at, problem: `collection_row needs 1-${MAX_COLLECTION_ITEMS} offer_card children` });

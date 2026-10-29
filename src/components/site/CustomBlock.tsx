@@ -18,7 +18,7 @@ function Title({ title }: { title?: string | undefined }) {
 
 function money(value: number, currency: boolean): string {
   const rounded = Math.round(value * 100) / 100;
-  const text = rounded.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  const text = rounded.toLocaleString("en-US", { maximumFractionDigits: 2 });
   return currency ? `$${text}` : text;
 }
 

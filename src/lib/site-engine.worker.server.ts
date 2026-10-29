@@ -1065,7 +1065,43 @@ export type WorkerInvoker = "pg_net" | "kick" | "pump" | "runner" | "unknown";
 /** current_step is where the previous run left the job (null for a new job). */
 export type ClaimedJob = { id: string; organization_id: string; created_by: string | null; attempts: number; current_step?: string | null };
 
+/**
+ * A workspace left on "generating" after its build failed, or after nothing
+ * picked the job up, stays stuck in the admin queue. Release it once no job
+ * is actually running. A draft that already exists goes back to review; a
+ * workspace with no draft goes back to onboarding so the owner can start again.
+ */
+export async function releaseAbandonedGenerating(db: Db, now = Date.now()) {
+  try {
+    const { data, error } = await db
+      .from("website_settings")
+      .select("organization_id, generated_at, updated_at")
+      .eq("review_state", "generating")
+      .limit(40);
+    if (error || !data?.length) return;
+    for (const row of data) {
+      const updated = Date.parse(String((row as { updated_at?: string }).updated_at ?? ""));
+      if (Number.isFinite(updated) && now - updated < 15 * 60_000) continue;
+      const orgId = String((row as { organization_id: string }).organization_id);
+      const { data: job } = await db
+        .from("generation_jobs")
+        .select("status")
+        .eq("organization_id", orgId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const status = (job as { status?: string } | null)?.status;
+      if (status === "queued" || status === "processing") continue;
+      const next = (row as { generated_at?: string | null }).generated_at ? "ready_for_review" : "onboarding";
+      await db.from("website_settings").update({ review_state: next } as never).eq("organization_id", orgId).eq("review_state", "generating");
+    }
+  } catch (error) {
+    console.warn("[site-engine] could not release abandoned generating states", error);
+  }
+}
+
 export async function claimJob(db: Db, organizationId?: string, invoker: WorkerInvoker = "unknown") {
+  await releaseAbandonedGenerating(db);
   const now = new Date();
   let query = db
     .from("generation_jobs")
@@ -1314,15 +1350,15 @@ async function runJob(
   // Platform UI wording ("Build my site", "All") saved as a service by an
   // earlier intake bug is never a real business service, so it is dropped
   // before anything is written about it. Nothing is invented in its place.
-  const { sanitizeServices, customerBusinessEmail } = await import("@/lib/builder/intake-sanitize");
-  const serviceRows = sanitizeServices(
+  const { mergeSplitServices, sanitizeServices, customerBusinessEmail } = await import("@/lib/builder/intake-sanitize");
+  const serviceRows = mergeSplitServices(sanitizeServices(
     (services.data ?? []) as {
       name: string;
       description?: string | null;
       price?: number | null;
       starting_price?: number | null;
     }[],
-  );
+  ));
   // Revora's own inbox is never a customer's business email (except on
   // Revora's internal workspace). Treated as "not supplied", never replaced.
   const businessEmail = customerBusinessEmail(p["email"], orgId);
@@ -1887,8 +1923,9 @@ async function runJob(
     // Never hand back with the page plan still being written: that answer would be lost.
     if (architectureReady) await slice.handBackIfDue("pictures");
   }
-  // Picture records (spec D): one per generated slot with its art direction,
-  // pending owner approval. Cosmetic bookkeeping — never blocks the build.
+  // Picture records (spec D): one per generated slot. The visual check already
+  // passed, so the record is approved. The owner can still reject it later.
+  // Bookkeeping only — it never blocks the build.
   if (starterImages.assets.length) {
     const { normaliseSlot } = await import("@/lib/builder/image-records");
     const rows = starterImages.assets
@@ -1898,7 +1935,9 @@ async function runJob(
         direction: String(asset.prompt ?? "").slice(0, 4000),
         alt_text: asset.altText ? String(asset.altText).slice(0, 200) : null,
         source: "generated",
-        status: "pending",
+        // The visual check already ran before this row was stored. Pending made
+        // every finished build look like zero pictures were approved.
+        status: "approved",
         media_id: asset.mediaId,
         rendered_url: asset.path,
         provider: asset.provider || null,

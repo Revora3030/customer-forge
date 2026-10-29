@@ -108,6 +108,23 @@ export function BuilderReturnBar() {
  * viewports a few pixels apart, so "touching the bottom" allows this much slack.
  */
 export const BOTTOM_PINNED_SLACK = 32;
+/**
+ * Known phone action bars (the composition sticky bar and the site's own
+ * "Book now" bar). iOS Safari's layout viewport can sit well past the visible
+ * bottom, so these are measured against the visual viewport with wider slack.
+ */
+export const KNOWN_BOTTOM_BARS = ".rv-cn-mobile-sticky-bar, [data-testid='site-sticky-actions']";
+export const KNOWN_BAR_SLACK = 160;
+
+/** The bottom edge getBoundingClientRect shares coordinates with. */
+// eslint-disable-next-line react-refresh/only-export-components -- small pure helper kept beside its only caller so it can be tested.
+export function visibleViewportBottom(
+  innerHeight: number,
+  visual: { offsetTop: number; height: number } | null,
+): number {
+  if (visual && visual.height > 0) return visual.offsetTop + visual.height;
+  return innerHeight;
+}
 
 /**
  * Height a bottom-pinned bar takes up from the bottom of the screen, or 0 when
@@ -130,13 +147,21 @@ export function pinnedBarHeight(
  * sticky), excluding `skip`. Zero when the page has none.
  */
 // eslint-disable-next-line react-refresh/only-export-components -- tiny helper kept beside its only caller.
-export function bottomBarHeight(skip: Element | null, doc: Document = document, viewportHeight = window.innerHeight): number {
+export function bottomBarHeight(skip: Element | null, doc: Document = document, viewportHeight?: number): number {
+  const visual = typeof window !== "undefined" ? window.visualViewport : null;
+  const visible = viewportHeight ?? visibleViewportBottom(
+    window.innerHeight,
+    visual ? { offsetTop: visual.offsetTop, height: visual.height } : null,
+  );
   let tallest = 0;
   for (const el of Array.from(doc.body.querySelectorAll<HTMLElement>("*"))) {
     if (el === skip || skip?.contains(el)) continue;
     const position = getComputedStyle(el).position;
-    if (position !== "fixed" && position !== "sticky") continue;
-    tallest = Math.max(tallest, pinnedBarHeight(el.getBoundingClientRect(), viewportHeight));
+    const known = el.matches(KNOWN_BOTTOM_BARS);
+    if (position !== "fixed" && position !== "sticky" && !known) continue;
+    const style = getComputedStyle(el);
+    if (style.display === "none" || style.visibility === "hidden") continue;
+    tallest = Math.max(tallest, pinnedBarHeight(el.getBoundingClientRect(), visible, known ? KNOWN_BAR_SLACK : BOTTOM_PINNED_SLACK));
   }
   return Math.round(tallest);
 }

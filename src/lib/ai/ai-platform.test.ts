@@ -90,6 +90,7 @@ describe("no third-party AI gateway remains", () => {
       // Catalogue and roster tests stub the key with fake values.
       "ai/catalogue.test.ts",
       "ai/roster-catalogue.test.ts",
+      "ai/reviewer-roster.test.ts",
       // The router's keyed Lovable paid provider and its unit tests.
       "ai/config.ts",
       "ai/providers/lovable.ts",

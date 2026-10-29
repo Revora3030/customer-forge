@@ -26,7 +26,7 @@ const problems = (result: ReturnType<typeof validateComposition>) => (result.ok 
 
 describe("cinematic primitives are declared and documented for the AI", () => {
   it("lists every new primitive and describes it in the shared guide", () => {
-    for (const name of ["scene", "scroll_chapters", "offer_card", "spin_viewer", "collection_row"]) {
+    for (const name of ["scene", "scroll_chapters", "scrub_sequence", "offer_card", "spin_viewer", "collection_row"]) {
       expect(COMPOSITION_PRIMITIVES).toContain(name);
       expect(PRIMITIVE_GUIDE).toContain(name);
     }
@@ -168,6 +168,25 @@ describe("spin_viewer", () => {
     expect(frameForDrag(0, 200, 400, 24)).toBe(12);
     expect(frameForDrag(0, -50, 400, 24)).toBe(21);
     expect(frameForDrag(2, 10, 0, 24)).toBe(2);
+  });
+});
+
+describe("scrub_sequence", () => {
+  const sequence = (frames: number, extra: unknown[] = []) => ({
+    type: "scrub_sequence",
+    text: "Scroll",
+    children: [...Array.from({ length: frames }, (_, i) => pic(i + 1, `Frame ${i + 1}`)), ...extra],
+  });
+
+  it("accepts 2-6 frames plus overlay copy", () => {
+    expect(validateComposition(tree(sequence(3, [{ type: "heading", level: 1, text: "Bring it dirty" }, button()]))).ok).toBe(true);
+    expect(problems(validateComposition(tree(sequence(1))))).toContain("scrub_sequence needs 2-6 media frames of one subject, in order");
+    expect(problems(validateComposition(tree(sequence(7))))).toContain("scrub_sequence needs 2-6 media frames of one subject, in order");
+  });
+
+  it("refuses a frame without alt text and a nested scene", () => {
+    expect(problems(validateComposition(tree({ type: "scrub_sequence", children: [pic(1, ""), pic(2, "Clean panel")] }))).join(" ")).toMatch(/alt text/);
+    expect(problems(validateComposition(tree(sequence(2, [scene()])))).join(" ")).toMatch(/not another scene/);
   });
 });
 

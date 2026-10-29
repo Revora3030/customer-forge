@@ -3,14 +3,16 @@ import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { ArrowUpRight, Box, Building2, CheckCircle2, List, Pause, Play, RefreshCw, RotateCcw, ShieldCheck, Terminal, Users } from "lucide-react";
+import { BrandEmblem } from "@/components/brand/Logo";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { CITY_DISTRICTS, attentionItems, cityCommandDraft, districtForKey, districtFromParam, districtState, salesMissionDraft, workIsActive, type CityWork, type DistrictId, type SalesMission } from "@/lib/ai-city";
+import { CITY_DISTRICTS, attentionItems, cityCommandDraft, districtCounts, districtForKey, districtFromParam, districtState, hourlyBuckets, salesMissionDraft, workIsActive, type CityWork, type DistrictId, type SalesMission } from "@/lib/ai-city";
 import { CityActivity } from "./CityActivity";
 import { CityAttention } from "./CityAttention";
 import { DistrictCarousel } from "./DistrictCarousel";
 import { GROWTH_SYSTEM } from "@/lib/offer";
 import { DistrictInspector } from "./DistrictInspector";
+import { Sparkline } from "./Sparkline";
 import { getAiCity } from "@/lib/ai-city.functions";
 import { getCommandCenter } from "@/lib/ai/command-center.functions";
 import { getAiHealth } from "@/lib/ai/health.functions";
@@ -89,8 +91,9 @@ export function AiCity() {
     if (next) { event.preventDefault(); setSelected(next); }
   };
   return <div className="mx-auto max-w-[1800px] space-y-5" onKeyDown={onKeys}>
-    <header className="flex flex-wrap items-start justify-between gap-4">
-      <div><p className="mb-1 text-xs font-medium uppercase text-gold">Revora Growth Systems / Operations</p><h1 className="font-display text-3xl font-semibold sm:text-4xl">AI City<span className="text-gold">.</span></h1><p className="mt-2 text-sm text-muted-foreground">Workforce command · founder control</p></div>
+    <header className="relative flex flex-wrap items-start justify-between gap-4 overflow-hidden">
+      <BrandEmblem className="top-0 right-0" />
+      <div className="relative"><p className="mb-1 text-xs font-medium uppercase text-gold">Revora Growth Systems / Operations</p><h1 className="font-display text-3xl font-semibold sm:text-4xl">AI City<span className="text-gold">.</span></h1><p className="mt-2 text-sm text-muted-foreground">Workforce command · founder control</p></div>
       <div className="flex items-center gap-2"><Button variant="outline" size="icon" className="min-h-11 min-w-11" aria-label="Refresh city records" title="Refresh records" disabled={query.isFetching} onClick={() => { void query.refetch(); void models.refetch(); void budget.refetch(); }}><RefreshCw className={query.isFetching ? "size-4 animate-spin" : "size-4"} /></Button><Button asChild variant="signal"><Link to="/admin/jarvis"><Terminal className="size-4" /> Jarvis</Link></Button></div>
     </header>
     <div className="grid grid-cols-2 gap-x-4 gap-y-3 border-y border-border py-4 sm:grid-cols-4">
@@ -99,6 +102,15 @@ export function AiCity() {
       <Metric label="Growth approvals" value={snapshot?.sources["approvals"]?.total === null || !snapshot?.sources["approvals"]?.available ? "Unavailable" : String(snapshot.sources["approvals"].total)} />
       <Metric label="Monthly AI remaining" value={budget.data && !budget.isError ? `$${budget.data.remainingUsd.toFixed(2)}` : budget.isError ? "Unavailable" : "Loading"} />
     </div>
+    <section aria-label="Specialist roster" className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-7">
+      {CITY_DISTRICTS.map((d) => {
+        const state = districtState(d.id, snapshot, now);
+        const counts = districtCounts(snapshot, d.id, now);
+        const dot = state === "working" ? "bg-success" : state === "attention" ? "bg-gold" : state === "unavailable" ? "bg-destructive" : "bg-muted-foreground";
+        return <button key={d.id} type="button" onClick={() => openDistrict(d.id)} className={`min-h-16 rounded-md border px-3 py-2 text-left ${selected === d.id ? "border-gold bg-gold/10" : "border-border"}`}><span className={`mb-1 block size-2 rounded-full ${dot} ${state === "working" && motion ? "animate-pulse motion-reduce:animate-none" : ""}`} /><span className="block text-xs font-semibold">{d.role}</span><span className="block truncate text-[11px] text-muted-foreground">{d.name}</span><span className="block text-[11px] capitalize text-muted-foreground">{counts ? `${counts.running} running · ${counts.errors} failed` : state}</span></button>;
+      })}
+    </section>
+    {snapshot ? <Sparkline values={hourlyBuckets(Object.values(snapshot.sources).flatMap((source) => source.rows), now)} label="Recorded work per hour, last 24 hours" /> : null}
     {query.isError ? <div role="alert" className="flex flex-wrap items-center gap-3 text-sm text-destructive">City records could not be read. Activity is unavailable.<Button variant="outline" onClick={() => query.refetch()}>Retry</Button></div> : null}
     {unavailable.length ? <p role="status" className="text-xs text-destructive">Unavailable sources: {unavailable.join(", ")}. No healthy verdict inferred.</p> : null}
     <CityAttention items={attention} available={!!snapshot} onOpen={row => { setSelected(row.district); setEvidence(row); }} />

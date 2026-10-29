@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Download, MoreHorizontal, Radio, RefreshCw, Square, Trash2, Volume2, VolumeX, Wrench, MessagesSquare } from "lucide-react";
+import { LogoMark } from "@/components/brand/Logo";
 import { Button } from "@/components/ui/button";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -44,6 +45,7 @@ export function JarvisHeader(props: Props) {
       <Button type="button" variant="ghost" size="icon-sm" data-jarvis-tap="" aria-label="Conversations" onClick={onOpenConversations} className="size-9 shrink-0 rounded-full sm:size-9">
         <MessagesSquare className="size-4" aria-hidden />
       </Button>
+      <LogoMark className="size-8 shrink-0" />
       <span className="hidden shrink-0 sm:inline-flex [&>span]:size-8"><VoiceWave state={voiceState} level={level} /></span>
       <div className="min-w-0 flex-1">
         <h1 className="truncate text-base font-semibold leading-tight">Jarvis</h1>

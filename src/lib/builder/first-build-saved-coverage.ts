@@ -146,6 +146,14 @@ function reshape(original: Node, next: Node, survived: readonly boolean[]): Node
     case "parallax_layers":
       // The back layer carries the scene, and two layers are the least that drift.
       return survived[0] && kids.length >= 2 ? next : null;
+    case "scrub_sequence": {
+      // Two frames still wipe. One frame becomes a still scene. None becomes the copy.
+      const frames = kids.filter((kid) => kid.type === "media");
+      const copy = kids.filter((kid) => kid.type !== "media");
+      if (frames.length >= 2) return next;
+      if (frames.length === 1) return { ...next, type: "scene", children: [...frames, ...copy] };
+      return copy.length ? asStack({ ...next, children: copy }) : null;
+    }
     case "lens_magnifier":
       return kids.length === 1 ? next : null;
     case "toggle":
@@ -199,4 +207,38 @@ export function dropMissingPictures(settings: unknown, missing: ReadonlySet<stri
   const repaired = repairNode(root.root, missing);
   if (!repaired.touched) return null;
   return { ...base, composition: { ...root, root: repaired.node ?? { type: "stack", children: [] } } };
+}
+
+function textLines(node: unknown, out: { type: "heading" | "text"; text: string; level?: 2 }[] = []): { type: "heading" | "text"; text: string; level?: 2 }[] {
+  if (!node || typeof node !== "object") return out;
+  const record = node as { type?: string; text?: string; children?: unknown[] };
+  const text = typeof record.text === "string" ? record.text.trim() : "";
+  if (text && (record.type === "heading" || record.type === "text" || record.type === "button"))
+    out.push(record.type === "heading" ? { type: "heading", text: text.slice(0, 200), level: 2 } : { type: "text", text: text.slice(0, 500) });
+  for (const child of record.children ?? []) textLines(child, out);
+  return out;
+}
+
+/**
+ * Same repair as dropMissingPictures, then a plain stack of the surviving
+ * words when the stripped tree is one the renderer would refuse. A missing
+ * picture must not fail page assembly and roll the draft back.
+ */
+export function readablePictureRepair(settings: unknown, missing: ReadonlySet<string>): Record<string, unknown> | null {
+  const repaired = dropMissingPictures(settings, missing);
+  if (!repaired) return null;
+  if (readComposition(repaired)) return repaired;
+  const root = (repaired["composition"] as { root?: unknown } | undefined)?.root;
+  const lines = textLines(root);
+  const fallback = {
+    ...repaired,
+    composition: {
+      version: 1,
+      root: {
+        type: "stack",
+        children: lines.length ? lines : [{ type: "text", text: "This section is shown without a picture that could not be saved." }],
+      },
+    },
+  };
+  return readComposition(fallback) ? fallback : null;
 }
