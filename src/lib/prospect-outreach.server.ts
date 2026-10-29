@@ -810,7 +810,7 @@ async function sendDemoOutreachBound(db: SupabaseClient, input: SendDemoOutreach
     return mode === "autopilot" ? fail("already_sent") : skip("already_sent");
   }
 
-  const { outreachFooter } = await import("@/lib/jarvis-prospecting.functions");
+  const { outreachFooter } = await import("@/lib/outreach-footer.server");
   if (channel === "sms") {
     if (mode === "autopilot" && !(await hasSmsConsent(db, recipient))) return skip("no_consent");
     if (!twilioConfig()) return skip("sms_not_configured");

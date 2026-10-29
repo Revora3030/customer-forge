@@ -169,7 +169,7 @@ describe("prospect outreach safeguards", () => {
   });
 
   it("keeps one footer when the reviewed body already has it, and always adds the unsubscribe link", async () => {
-    const { outreachFooter } = await import("@/lib/jarvis-prospecting.functions");
+    const { outreachFooter } = await import("@/lib/outreach-footer.server");
     const { db, tables } = fakeDb(demoSeed());
     const body = `Hi team,\n\nYour draft: https://revoragrowthsystems.com/p/tok_abcdefghijklmnopqrst\n${outreachFooter().footer}`;
     expect((await sendDemoOutreach(db, { ...email, subject: "Re: A free website draft", body })).ok).toBe(true);
