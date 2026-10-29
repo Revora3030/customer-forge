@@ -75,6 +75,28 @@ function fakeDb(rows: Row[] = []) {
   return db;
 }
 
+/**
+ * The shape the live backend returns when the table isn't there yet: a head
+ * count comes back with no number and no error, a full read with PGRST205.
+ */
+function missingTableDb() {
+  let head = false;
+  const chain: Record<string, unknown> = {
+    select: (_cols?: string, opts?: { head?: boolean }) => ((head = Boolean(opts?.head)), chain),
+    eq: () => chain,
+    gt: () => chain,
+    gte: () => chain,
+    in: () => chain,
+    order: () => chain,
+    limit: () => chain,
+    maybeSingle: async () => ({ data: null, error: { code: "PGRST205" } }),
+    single: async () => ({ data: null, error: { code: "PGRST205" } }),
+    then: (resolve: (value: unknown) => void) =>
+      resolve(head ? { count: null, error: null } : { data: null, error: { code: "PGRST205" }, count: null }),
+  };
+  return { from: () => chain };
+}
+
 const base = {
   kind: "merge_pull_request" as const,
   title: "Merge #400: fix booking form",
