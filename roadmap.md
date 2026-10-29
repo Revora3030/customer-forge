@@ -1,9 +1,13 @@
 ## Ordered platform error fixes — Part 1 (2026-10-29)
-- [ ] 1–2: Verify HTTP and permanent www redirects; identify upstream controls separately from application behavior.
-- [ ] 3–4: Trace signup and checkout, distinguish owner testing from customer failures; preserve auth and Stripe settings.
-- [ ] 5–7: Canonical preview slugs, client-detail routing, duplicate prevention and owner-reviewed cleanup.
-- [ ] 8–10: Verify existing retries, section checkpoints and demo stall handling; repair proven defects without paid calls.
-- [ ] 11–15: Hydration, font CSP, auth first paint, heading hierarchy and third-party script behavior.
+- [x] 1–2: Verify redirects: apex HTTP is 301; www is upstream 302. Hosting permanent-status control unavailable; no DNS changes.
+- [x] 3–4: Repair visible account errors/return navigation and bounded verified-payment reconciliation; isolated tests pass. Real signup/payment not run.
+- [x] 6: Fix nested client detail outlet; signed-in real client screen verified.
+- [ ] 5: Publish actual Elite draft or approve a verified historical alias; two reported slugs belong to different organizations.
+- [ ] 7: Atomic demo identity reservation and duplicate survivor cleanup require reviewed migration/identity approval; no deletion or policy changes made.
+- [x] 8–10: Single-section bounded parallelism, section-owned retries, retained checkpoints and deferred-demo read/recovery fixes; offline tests pass.
+- [ ] 10: Eight historical demos have no job; recovery/build dispatch not run without live spending authorization.
+- [x] 11–15: Signed-in Jarvis errors not reproduced; CSP already allows fonts; auth SSR/logo preload, heading order and regional-consent Google tag gate repaired and browser checked.
+- [ ] 1–2, 4, 8–9, 11–15: Hosting www 301, webhook fault lifecycle, live failure/latency metrics, reported React stacks and production Lighthouse remain unverified.
 - [ ] Publish and live acceptance evidence (owner approval required); report each item's verification limits.
 - [ ] Continue uploaded builder upgrade: repository map, grounded causes and phased plan for owner approval before Phase 1.
 
