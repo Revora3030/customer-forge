@@ -93,6 +93,16 @@ export const DEFAULT_EVENT_RULES: readonly EventRule[] = [
     prompt: (e) => `The scheduled routine "${e.subject}" ended in an error. Read its last result, explain what went wrong in plain words, and tell me whether to run it again now.`,
   },
   {
+    id: "payment-failed", on: "payment.failed", cooldownMs: 24 * 3_600_000,
+    summary: (e) => `Stripe reported a failed payment from ${e.subject}.${line(e)} Nothing was changed or sent from here.`,
+    prompt: (e) => `A payment from ${e.subject} failed. Check their billing status and what they have already been told, then draft a short, honest note for me to approve. Do not send anything.`,
+  },
+  {
+    id: "site-down", on: "site.down", cooldownMs: 3 * 3_600_000,
+    summary: (e) => `The hourly check found a site that isn't loading.${line(e)} Nothing was changed.`,
+    prompt: () => "The hourly site check says a site isn't loading. Run the site health diagnostics, name which site and the likely cause from the evidence, and propose the smallest safe next step.",
+  },
+  {
     id: "lead-unanswered", on: "lead.unanswered", cooldownMs: 24 * 3_600_000,
     summary: (e) => `A Revora lead (${e.subject}) has waited past the speed-to-lead goal with no logged reply.${line(e)}`,
     prompt: (e) => `Lead ${e.subject} has had no reply past the speed-to-lead goal. Draft a short follow-up for the owner to approve.`,

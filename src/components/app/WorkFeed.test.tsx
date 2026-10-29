@@ -88,3 +88,26 @@ describe("stopping a build from the chat", () => {
     expect(stopping).not.toContain("Keep building");
   });
 });
+
+describe("WorkFeedView: the draft taking shape", () => {
+  it("shows the chosen look and each finished section while the build runs, as plain text", () => {
+    const sections = {
+      a: { tree: { root: { type: "stack", children: [{ type: "heading", text: "Mobile detailing <b>in</b> Raleigh" }, { type: "text", text: "We come to you." }] } }, media: {}, at: T(100) },
+    };
+    const look = { direction: { name: "Obsidian Garage", mood: "Dark and glossy", primary: "#0b0d12", secondary: "#1c2230", accent: "#f5b942", font: "Space Grotesk" } };
+    const feed = buildWorkFeed({ job: job({ section_checkpoints: { sections }, look }), progress: [], generations: [], images: [], now: START + 400_000 });
+    const html = renderToStaticMarkup(<WorkFeedView feed={feed} />);
+    expect(html).toContain('data-testid="taking-shape"');
+    expect(html).toContain("Obsidian Garage · Space Grotesk");
+    expect(html).toContain("Dark and glossy");
+    expect(html).toContain("background-color:#0b0d12");
+    expect(html).toContain("Mobile detailing &lt;b&gt;in&lt;/b&gt; Raleigh");
+    expect(html).not.toContain("<b>in</b>");
+    expect(html).toContain("We come to you.");
+  });
+
+  it("shows no such block when nothing has been saved yet", () => {
+    const feed = buildWorkFeed({ job: job({ section_checkpoints: null }), progress: [], generations: [], images: [], now: START + 400_000 });
+    expect(renderToStaticMarkup(<WorkFeedView feed={feed} />)).not.toContain("taking-shape");
+  });
+});
