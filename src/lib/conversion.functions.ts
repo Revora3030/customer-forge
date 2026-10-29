@@ -379,11 +379,17 @@ export const getTrafficReport = createServerFn({ method: "GET" })
     let internalExcluded = 0;
 
     for (const row of rows) {
-      // Revora's own staff screens and tenant previews are not marketing traffic.
+      // Revora's own staff screens, tenant previews and confirmed test accounts
+      // are not marketing traffic.
+      if (isStaffRow(row, staffSessions, staffEmails)) {
+        internalExcluded += 1;
+        continue;
+      }
       if (!isPublicMarketingPath(eventPath(row))) {
         internalExcluded += 1;
         continue;
       }
+
       const session = row.session_id ?? "";
       if (session) allSessions.add(session);
 
