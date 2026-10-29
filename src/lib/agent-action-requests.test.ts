@@ -225,4 +225,23 @@ describe("gateway read shapes", () => {
   });
 });
 
+describe("when the queue isn't live yet", () => {
+  it("says the count is unknown instead of reporting zero approvals waiting", async () => {
+    expect(await pendingActionRequestCount(missingTableDb() as never, NOW)).toBeNull();
+  });
+
+  it("refuses to show an empty inbox for a queue it can't read", async () => {
+    await expect(listActionRequests(missingTableDb() as never, NOW)).rejects.toMatchObject({ status: 503 });
+  });
+
+  it("won't pretend a request was saved when the table is missing", async () => {
+    await expect(createActionRequest(missingTableDb() as never, actionRequestSchema.parse(base), NOW)).rejects.toMatchObject({ status: 503 });
+  });
+
+  it("reports every health number as unknown rather than zero", async () => {
+    const health = await agentHealth(missingTableDb() as never, new Date(NOW));
+    expect(health).toMatchObject({ activeBuilds: null, failedBuilds24h: null, leadsAwaitingReview: null, errors24h: null, approvalsWaiting: null });
+  });
+});
+
 export type _Row = ActionRequestRow;
