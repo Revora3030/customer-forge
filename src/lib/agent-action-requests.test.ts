@@ -97,7 +97,7 @@ describe("action request schema", () => {
   });
 
   it("refuses non-https links and unknown fields", () => {
-    expect(actionRequestSchema.safeParse({ ...base, target_url: "http://github.com/x" }).success).toBe(false);
+    expect(actionRequestSchema.safeParse({ ...base, target_url: "http://github.com/x" }).success).toBe(false); // DevSkim: ignore DS137138 - intentional plain-http input, must be rejected
     expect(actionRequestSchema.safeParse({ ...base, execute_now: true }).success).toBe(false);
   });
 
