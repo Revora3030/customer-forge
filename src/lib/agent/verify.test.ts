@@ -118,6 +118,12 @@ describe("summarise", () => {
     expect(report.notChecked).toBe(1);
     expect(report.passed).toBe(0);
     expect(report.critical).toBe(0);
+    expect(report.score).toBe(0);
+  });
+  it("does not improve a measured score by adding missing evidence", () => {
+    const measured = [{ label: "failed", ok: false, severity: "warning" as const, where: "Home" }];
+    expect(summarise(measured).score).toBe(0);
+    expect(summarise([...measured, { label: "unrun", ok: false, severity: "critical", where: "Home", notChecked: true }]).score).toBe(0);
   });
   it("distinguishes HTML evidence from browser interaction evidence", () => {
     const report = summarise(inspectHtml(good, "Home").checks);

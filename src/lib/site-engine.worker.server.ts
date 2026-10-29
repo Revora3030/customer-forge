@@ -2352,6 +2352,10 @@ async function runJob(
         }),
       },
       lookSummary: JSON.stringify({
+        ownerWebsiteRequest: brief.factAnswers["build_request"] ?? null,
+        density: creative.brief.density,
+        mobileStrategy: creative.brief.mobileStrategy,
+        conversionStrategy: creative.brief.conversionStrategy,
         concept: creative.brief.concept,
         personality: creative.brief.personality,
         typography: creative.brief.typography,
