@@ -616,9 +616,9 @@ describe("reply polling and follow-up", () => {
   it("returns gmail_not_configured cleanly and names the four secrets", async () => {
     vi.stubEnv("GOOGLE_OAUTH_CLIENT_ID", "");
     vi.stubEnv("GOOGLE_OAUTH_CLIENT_SECRET", "");
+    onTestFinished(() => vi.unstubAllEnvs());
     const { db } = fakeDb(demoSeed({ prospect_outreach: [sentOutreach()] }));
     const result = await runProspectReplies(db);
-    vi.unstubAllEnvs();
     expect(result.status).toBe("gmail_not_configured");
     expect(result.missingSecrets).toEqual(["GMAIL_CLIENT_ID", "GMAIL_CLIENT_SECRET", "GMAIL_REFRESH_TOKEN", "GMAIL_SENDER_EMAIL"]);
     expect(result.message).toContain("GMAIL_REFRESH_TOKEN");
