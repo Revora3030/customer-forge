@@ -30,10 +30,10 @@ export const MAX_PROPOSALS_PER_PASS = 5;
  * to every prompt below and Jarvis's own approval gates do the rest.
  */
 export function safeEventText(value: unknown, max = 60, keepStraightQuotes = false): string {
-  const text = String(value ?? "")
+  const plain = String(value ?? "")
     .replace(/[\p{Cc}\p{Zl}\p{Zp}]/gu, " ")
-    .replace(/[\p{Pi}\p{Pf}`<>{}[\]\\|]/gu, "")
-    .replace(keepStraightQuotes ? /(?!)/g : /"/g, "")
+    .replace(/[\p{Pi}\p{Pf}`<>{}[\]\\|]/gu, "");
+  const text = (keepStraightQuotes ? plain : plain.replace(/"/g, ""))
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, max)
