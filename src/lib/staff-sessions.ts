@@ -41,3 +41,24 @@ export function isStaffRow(
   if (email && staffEmails.has(email)) return true;
   return !!row.session_id && staffSessions.has(row.session_id);
 }
+
+/**
+ * Emails whose activity is Revora's own: every super admin plus the owner's
+ * confirmed test accounts. A report that loads this set drops the whole browser
+ * session of any row carrying one, so staff and test runs never look like
+ * prospects in the owner's funnel numbers.
+ */
+export async function staffEmailAddresses(db: SupabaseClient): Promise<Set<string>> {
+  const emails = new Set<string>(TEST_ACCOUNT_EMAILS);
+  const { data: staffRoles, error } = await db
+    .from("user_roles")
+    .select("user_id")
+    .eq("role", "super_admin");
+  if (error) throw new Error("Analytics unavailable");
+  for (const role of staffRoles ?? []) {
+    const { data: user } = await db.auth.admin.getUserById(role.user_id);
+    if (user?.user?.email) emails.add(user.user.email.toLowerCase());
+  }
+  return emails;
+}
+
