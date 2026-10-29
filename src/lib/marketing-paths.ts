@@ -20,8 +20,10 @@ export const PRIVATE_PREFIXES = [
   "/reset-password",
   "/s/",
   "/p/",
+  "/draft",
   "/invite/",
 ] as const;
+
 
 export function isPublicMarketingPath(path: string | null | undefined): boolean {
   if (!path) return true; // No path recorded — keep the row rather than lose a real visit.
