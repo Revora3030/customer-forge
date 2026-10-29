@@ -130,6 +130,39 @@ describe("tenantSiteHead (one head for every client route)", () => {
     expect(meta(fromCaller, "robots")?.content).toBe("noindex");
   });
 
+  it("keeps an empty home page out of search and hands it no ratings or reviews", () => {
+    const head = tenantSiteHead({
+      site: site(
+        { kind: "home", slug: "home", title: "Home" },
+        { reviews: [{ rating: 5, author_name: "A", comment: "x" }, { rating: 5, author_name: "B", comment: "y" }] as never },
+      ),
+      pageSlug: null,
+      canonical: "https://acme.test",
+      businessUrl: "https://acme.test",
+    });
+    expect(meta(head, "robots")?.content).toBe("noindex");
+    const ld = head.scripts.map((s) => s.children).join("");
+    expect(ld).not.toContain("aggregateRating");
+    expect(ld).not.toContain("\"review\"");
+  });
+
+  it("indexes a home page that has sections and still shows its real reviews", () => {
+    const head = tenantSiteHead({
+      site: site(
+        { kind: "home", slug: "home", title: "Home" },
+        {
+          reviews: [{ rating: 5, author_name: "A", comment: "x" }] as never,
+          content: { page: { kind: "home", slug: "home", title: "Home" }, sections: [{ settings: {} }] },
+        },
+      ),
+      pageSlug: null,
+      canonical: "https://acme.test",
+      businessUrl: "https://acme.test",
+    });
+    expect(meta(head, "robots")).toBeUndefined();
+    expect(head.scripts.map((s) => s.children).join("")).toContain("aggregateRating");
+  });
+
   it("never emits a non-https share image", () => {
     const head = tenantSiteHead({
       site: site({ kind: "page", slug: "faq", title: "FAQ", og_image_url: "org/a.jpg" }, { profile: { hero_image_url: "http://x/y.jpg" } }), // DevSkim: ignore DS137138 -- Negative fixture: plaintext share images must be rejected.

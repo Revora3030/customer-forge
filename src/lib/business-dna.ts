@@ -96,9 +96,30 @@ const CLAIM_PATTERNS: { pattern: RegExp; reason: string }[] = [
     reason: "customer count",
   },
   { pattern: /\b(cheapest|lowest price|best in|leading|award)\b/i, reason: "superlative claim" },
+  // Claims the owner never supplied that read like facts. Each needs a real source.
+  { pattern: /\b(fully\s+)?(insured|bonded)\b/i, reason: "credential" },
+  { pattern: /\b\d{1,3}\+?\s*(years?|yrs?)\b(?=[^.]{0,30}\b(experience|in business|serving|of service|strong)\b)/i, reason: "years in business" },
+  { pattern: /\b(since|established|est\.?|founded(?:\s+in)?)\s+(19|20)\d{2}\b/i, reason: "years in business" },
+  {
+    pattern: /\b\d{1,3}(?:,\d{3})+\+?\s+\w+(?:\s+\w+)?\s+(cleaned|washed|served|completed|installed|repaired|detailed|built|painted)\b|\b\d{2,}\+?\s+(driveways|homes|houses|cars|vehicles|roofs|jobs|projects|customers|clients|families|neighbou?rs)\b/i,
+    reason: "customer count",
+  },
+  { pattern: /\b(trusted|loved|chosen)\s+by\s+(over\s+)?\d/i, reason: "customer count" },
+  { pattern: /\b(same|next)[- ]day\b|\b24\s?\/\s?7\b|\bwithin\s+(the\s+)?(hour|\d+\s+hours?)\b/i, reason: "service promise" },
+  { pattern: /\b(eco[- ]friendly|pet[- ]safe|child[- ]safe|non[- ]toxic|biodegradable|environmentally[- ]friendly)\b/i, reason: "product claim" },
+  { pattern: /\b\d[\d,]*\s*(?:[-–]|to)?\s*(?:\d[\d,]*\s*)?psi\b/i, reason: "technical figure" },
 ];
 
 export type ClaimIssue = { text: string; reason: string };
+
+/** A years claim is fine only when it states the number the owner supplied (a founding year may be one off). */
+function yearsClaimMatches(claim: string, supplied: number | null | undefined): boolean {
+  if (!supplied || supplied <= 0) return false;
+  const digits = Number(/\d{1,4}/.exec(claim)?.[0]);
+  if (!Number.isFinite(digits)) return false;
+  if (digits >= 1900) return Math.abs(new Date().getFullYear() - digits - supplied) <= 1;
+  return digits <= supplied;
+}
 
 /**
  * Screens generated copy for claims the client never supplied. Facts the client
@@ -113,6 +134,7 @@ export function screenClaims(text: string, facts: DnaFacts): ClaimIssue[] {
     const match = pattern.exec(text);
     if (!match) continue;
     if (reason === "credential" && allowCredentials) continue;
+    if (reason === "years in business" && yearsClaimMatches(match[0], facts.yearsInBusiness)) continue;
     if (reason === "award" && allowAwards) continue;
     if ((reason === "star rating" || reason === "customer count") && allowRatings) continue;
     out.push({ text: match[0], reason });

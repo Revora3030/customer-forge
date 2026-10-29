@@ -379,14 +379,17 @@ export function tenantSiteHead(input: {
     heroImage: site.profile?.hero_image_url ?? null,
     sections: Array.isArray(sections) ? sections : [],
   });
+  // A home page with nothing on it ("still being built") must not be indexed, and
+  // must not hand search engines ratings or reviews, whatever rows exist behind it.
+  const emptyHome = isHome && Array.isArray(site.content?.sections) && site.content.sections.length === 0;
   const extras = clientHeadExtrasSync(
-    site as HeadSite,
+    (emptyHome ? { ...site, reviews: [] } : site) as HeadSite,
     input.businessUrl,
     compositionFonts,
     siteFontsHref,
     readSiteChrome,
   );
-  const noindex = input.noindex === true || page?.noindex === true;
+  const noindex = input.noindex === true || page?.noindex === true || emptyHome;
   const faqs = compositionFaqItems(sections ?? []);
 
   return {

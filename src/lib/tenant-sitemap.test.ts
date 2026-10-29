@@ -114,7 +114,12 @@ beforeEach(() => {
       },
     ],
     website_pages: [],
-    website_sections: [],
+    // Sites with real content; a published shell without sections is left out of the index.
+    website_sections: [
+      { id: "sec-acme", organization_id: ORG },
+      { id: "sec-lapsed", organization_id: TRIAL },
+      { id: "sec-owned", organization_id: DOMAIN },
+    ],
   };
 });
 
@@ -164,10 +169,16 @@ describe("/sitemaps/sites.xml", () => {
       const id = `org-${i}`;
       db.tables["organizations"]?.push(org(id, `site-${i}`));
       db.tables["public_website_settings"]?.push({ organization_id: id, published: true, publish_state: "published" });
+      db.tables["website_sections"]?.push({ id: `sec-${id}`, organization_id: id });
     }
     const slugs = await platformSitemapSlugs();
     expect(slugs.length).toBe(1101);
     expect(slugs).toContain("site-1099");
+  });
+
+  it("leaves a published workspace with no sections out of the index", async () => {
+    db.tables["website_sections"] = [];
+    expect(await platformSitemapSlugs()).toEqual([]);
   });
 
   it("does not silently omit sites on an eligibility lookup failure", async () => {
