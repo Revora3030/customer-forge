@@ -13,7 +13,7 @@ async function guardedAdmin(context: { supabase: unknown; userId: unknown }): Pr
 
 async function pendingLeadCount(db: SupabaseClient): Promise<number | null> {
   const { count, error } = await db.from("prospect_import_queue").select("id", { count: "exact", head: true }).eq("status", "pending");
-  return error ? null : (count ?? 0);
+  return error || count === null ? null : count;
 }
 
 /** Everything waiting for the founder: bot requests, plus counts for Jarvis proposals and leads. */

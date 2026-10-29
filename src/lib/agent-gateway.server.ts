@@ -19,7 +19,8 @@ export async function ownerActorId(db: SupabaseClient): Promise<string | null> {
 
 const count = async (q: PromiseLike<{ count: number | null; error: unknown }>): Promise<number | null> => {
   const { count: n, error } = await q;
-  return error ? null : (n ?? 0);
+  // A read that returns no number and no error still couldn't be read.
+  return error || n === null ? null : n;
 };
 
 /** Counts only; no names, emails or customer data. A failed read reports null, never 0. */
