@@ -35,14 +35,15 @@ async function handleEvent(event: StripeWebhookEvent, env: StripeEnv) {
         event.type === "customer.subscription.deleted" ? { ...object, status: "canceled" } : object;
 
       // Snapshot the previous row so plan changes and new cancellations are detectable.
-      const { data: previous } = object?.id
+      const { data: previous, error: previousError } = object?.id
         ? await admin
             .from("subscriptions")
             .select("plan_id, cancel_at_period_end, status")
             .eq("provider_subscription_id", String(object.id))
             .eq("environment", env)
             .maybeSingle()
-        : { data: null };
+        : { data: null, error: null };
+      if (previousError) throw new Error(`subscription_snapshot_failed:${previousError.code ?? "database error"}`);
 
       const result = await syncStripeSubscription(admin, payload, env);
       if (!result.ok || !result.organizationId) {
@@ -377,13 +378,14 @@ async function handleEvent(event: StripeWebhookEvent, env: StripeEnv) {
           throw new Error(`async_payment_notification_failed:${notifyError.code ?? notifyError.message}`);
       }
       if (md["kind"] !== "service" || !md["paymentId"]) break;
-      const { data: payment } = await admin
+      const { data: payment, error: paymentLookupError } = await admin
         .from("payments")
         .select("*")
         .eq("id", md["paymentId"])
         .eq("payment_provider", "stripe")
         .eq("environment", env)
         .maybeSingle();
+      if (paymentLookupError) throw new Error(`payment_lookup_failed:${paymentLookupError.code ?? "database error"}`);
       if (!payment || payment.status === "completed") break;
       const { error: failError } = await admin
         .from("payments")
@@ -500,11 +502,11 @@ async function claimEvent(
     if (outcome === "duplicate") {
       const { data: previous, error: readError } = await admin
         .from("payment_events")
-        .select("processed")
+        .select("processed,verification_status,organization_id,event_type,resource_id,payload")
         .eq("provider", "stripe")
         .eq("provider_event_id", eventId)
         .maybeSingle();
-      return { outcome: completedWebhookDuplicate(previous, readError) ? "duplicate" as const : "transient" as const, admin, eventId, organizationId };
+      return { outcome: completedWebhookDuplicate(previous, readError, { organizationId, eventType: event.type, resourceId: String(event.data?.object?.id ?? ""), environment: env }) ? "duplicate" as const : "transient" as const, admin, eventId, organizationId };
     }
     if (outcome === "transient") {
       console.error("[payments:webhook] claim failed (retryable)", error.message);
@@ -524,28 +526,35 @@ async function associateEvent(
   eventId: string,
   organizationId: string | null,
   resourceId: string,
+  env: StripeEnv,
 ) {
   let paymentId: string | null = null;
   if (organizationId && resourceId) {
     for (const stripeId of [resourceId, `setup:${resourceId}`]) {
-      const { data } = await admin
+      const { data, error } = await admin
         .from("payments")
         .select("id")
         .eq("organization_id", organizationId)
+        .eq("payment_provider", "stripe")
+        .eq("environment", env)
         .contains("metadata", { stripe_id: stripeId })
         .maybeSingle();
+      if (error) throw new Error(`event_payment_lookup_failed:${error.code ?? "database error"}`);
       if (data?.id) {
         paymentId = data.id as string;
         break;
       }
     }
     if (!paymentId) {
-      const { data } = await admin
+      const { data, error } = await admin
         .from("payments")
         .select("id")
         .eq("organization_id", organizationId)
+        .eq("payment_provider", "stripe")
+        .eq("environment", env)
         .contains("metadata", { stripe_session_id: resourceId })
         .maybeSingle();
+      if (error) throw new Error(`event_payment_lookup_failed:${error.code ?? "database error"}`);
       paymentId = (data?.id as string | undefined) ?? null;
     }
   }
@@ -559,6 +568,7 @@ async function associateEvent(
     .eq("provider", "stripe")
     .eq("provider_event_id", eventId)
     .eq("processed", false)
+    .contains("payload", { environment: env })
     .select("id");
   if (settlementError || settled?.length !== 1) {
     throw new Error(`webhook_settlement_failed:${settlementError?.code ?? "missing claim"}`);
@@ -591,16 +601,7 @@ export const Route = createFileRoute("/api/public/payments/webhook")({
             return new Response("Temporarily unable to record webhook", { status: 503 });
           await finishClaimedWebhook({
             process: () => handleEvent(event, rawEnv),
-            settle: () => associateEvent(claim.admin, claim.eventId, claim.organizationId, String(event.data?.object?.id ?? "")),
-            release: async () => {
-              const { error: releaseError } = await claim.admin
-                .from("payment_events")
-                .delete()
-                .eq("provider", "stripe")
-                .eq("provider_event_id", claim.eventId)
-                .eq("processed", false);
-              if (releaseError) throw new Error(`webhook_release_failed:${releaseError.code ?? "database error"}`);
-            },
+            settle: () => associateEvent(claim.admin, claim.eventId, claim.organizationId, String(event.data?.object?.id ?? ""), rawEnv),
           });
           return Response.json({ received: true });
         } catch (error) {

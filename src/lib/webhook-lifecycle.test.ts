@@ -1,37 +1,30 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { completedWebhookDuplicate, finishClaimedWebhook } from "./webhook-lifecycle";
 
 describe("webhook acknowledgement lifecycle", () => {
+  const expected = { organizationId: "org", eventType: "invoice.paid", resourceId: "inv", environment: "sandbox" };
+  const completed = { processed: true, verification_status: "verified", organization_id: "org", event_type: "invoice.paid", resource_id: "inv", payload: { environment: "sandbox" } };
   it("acknowledges only completed duplicates, never active or uncertain claims", () => {
-    expect(completedWebhookDuplicate({ processed: true }, null)).toBe(true);
-    expect(completedWebhookDuplicate({ processed: false }, null)).toBe(false);
-    expect(completedWebhookDuplicate(null, null)).toBe(false);
-    expect(completedWebhookDuplicate({ processed: true }, new Error("read failed"))).toBe(false);
+    expect(completedWebhookDuplicate(completed, null, expected)).toBe(true);
+    expect(completedWebhookDuplicate({ ...completed, processed: false }, null, expected)).toBe(false);
+    expect(completedWebhookDuplicate(null, null, expected)).toBe(false);
+    expect(completedWebhookDuplicate(completed, new Error("read failed"), expected)).toBe(false);
+    expect(completedWebhookDuplicate(completed, null, { ...expected, environment: "live" })).toBe(false);
+    expect(completedWebhookDuplicate(completed, null, { ...expected, organizationId: "other" })).toBe(false);
   });
   it("settles successful work without releasing its claim", async () => {
     const order: string[] = [];
     await finishClaimedWebhook({
       process: async () => { order.push("process"); },
       settle: async () => { order.push("settle"); },
-      release: async () => { order.push("release"); },
     });
     expect(order).toEqual(["process", "settle"]);
   });
-  it.each(["process", "settle"])("releases its own unfinished claim and fails on %s failure", async (step) => {
-    const release = vi.fn(async () => undefined);
+  it.each(["process", "settle"])("retains the unfinished claim and fails on %s failure", async (step) => {
     const failure = new Error(`${step} failed`);
     await expect(finishClaimedWebhook({
       process: async () => { if (step === "process") throw failure; },
       settle: async () => { if (step === "settle") throw failure; },
-      release,
     })).rejects.toThrow(`${step} failed`);
-    expect(release).toHaveBeenCalledTimes(1);
-  });
-  it("reports operator review instead of claiming success when release also fails", async () => {
-    await expect(finishClaimedWebhook({
-      process: async () => { throw new Error("processing failed"); },
-      settle: async () => undefined,
-      release: async () => { throw new Error("database unavailable"); },
-    })).rejects.toThrow("operator review is required");
   });
 });
