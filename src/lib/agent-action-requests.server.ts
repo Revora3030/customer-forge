@@ -58,8 +58,8 @@ export async function createActionRequest(db: Db, input: ActionRequestInput, now
     .select("id", { count: "exact", head: true })
     .eq("status", "pending")
     .gt("expires_at", new Date(now).toISOString());
-  if (pending.error) throw new ActionRequestError("Couldn't read the approval queue.", 503);
-  if ((pending.count ?? 0) >= MAX_PENDING_ACTION_REQUESTS)
+  if (pending.error || pending.count === null) throw new ActionRequestError("Couldn't read the approval queue.", 503);
+  if (pending.count >= MAX_PENDING_ACTION_REQUESTS)
     throw new ActionRequestError(`The founder already has ${MAX_PENDING_ACTION_REQUESTS} requests waiting. Wait for decisions first.`, 429);
 
   const inserted = await table(db)
@@ -98,8 +98,11 @@ export async function readActionRequest(db: Db, id: string, now = Date.now()): P
 export async function listActionRequests(db: Db, now = Date.now(), limit = 60): Promise<ActionRequestView[]> {
   const { data, error } = await table(db).select(COLUMNS).order("created_at", { ascending: false }).limit(limit);
   if (error) {
+    // A missing or unreadable queue is reported as unavailable, never as an empty inbox:
+    // "nothing waiting" is a claim about the founder's work, not about the database.
     const code = (error as { code?: string }).code;
-    if (code === "42P01" || code === "PGRST205") return [];
+    if (code === "42P01" || code === "PGRST205")
+      throw new ActionRequestError("The approval queue isn't available yet — it goes live with the next publish.", 503);
     throw new ActionRequestError("Couldn't load the approval queue.", 503);
   }
   const rows = ((data ?? []) as ActionRequestRow[]).map((row) => viewOf(row, now));
@@ -164,7 +167,8 @@ export async function pendingActionRequestCount(db: Db, now = Date.now()): Promi
     .select("id", { count: "exact", head: true })
     .eq("status", "pending")
     .gt("expires_at", new Date(now).toISOString());
-  return error ? null : (count ?? 0);
+  // No number and no error still means the queue could not be read.
+  return error || count === null ? null : count;
 }
 
 /** The bot-facing shape: no evidence echo, just the decision and links. */
