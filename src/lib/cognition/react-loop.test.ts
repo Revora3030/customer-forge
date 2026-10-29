@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { reflectOnRound, runReActLoop, type LoopAction } from "./react-loop";
+import { readFileSync } from "node:fs";
+import { FINAL_ROUND_NOTE, nextRoundIsFinal, reflectOnRound, runReActLoop, type LoopAction } from "./react-loop";
 
 const script = (actions: LoopAction[]) => {
   let i = 0;
@@ -74,5 +75,23 @@ describe("reflectOnRound", () => {
     const second = reflectOnRound([bad], first.failedRounds);
     expect(second.giveUp).toBe(true);
     expect(second.note).toContain("Stop calling tools");
+  });
+});
+
+describe("the last lookup round always ends in an answer", () => {
+  it("marks the round after the second-to-last step, or after giving up, as the final one", () => {
+    // Jarvis runs steps 0..3; step 3 runs no actions.
+    expect([0, 1, 2].map((step) => nextRoundIsFinal(step, 3, false))).toEqual([false, false, true]);
+    expect(nextRoundIsFinal(0, 3, true)).toBe(true);
+  });
+
+  it("tells the model plainly to answer now and not to ask for more", () => {
+    expect(FINAL_ROUND_NOTE).toMatch(/last turn/);
+    expect(FINAL_ROUND_NOTE).toMatch(/Do not request actions/);
+  });
+
+  it("is sent to Jarvis with the results before its last round", () => {
+    const source = readFileSync("src/lib/jarvis.functions.ts", "utf8");
+    expect(source).toContain("...(nextRoundIsFinal(step, MAX_ACTION_STEPS, reflection.giveUp) ? [FINAL_ROUND_NOTE] : []),");
   });
 });

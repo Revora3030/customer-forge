@@ -40,6 +40,15 @@ export default defineConfig({
     server: { entry: "server" },
   },
   vite: {
+    // iPhones that stop below iOS 16.4 cannot parse class `static { }` blocks,
+    // which Radix UI ships and Vite 8's default target (Safari 16.4) keeps as is;
+    // the homepage then failed with "Unexpected token '{'" (Sentry
+    // JAVASCRIPT-REACT-9). JavaScript is lowered for Safari/iOS 15; CSS keeps
+    // Vite's default target, so the styles are exactly what they were.
+    build: {
+      target: ["chrome111", "edge111", "firefox114", "safari15", "ios15"],
+      cssTarget: ["chrome111", "edge111", "firefox114", "safari16.4", "ios16.4"],
+    },
     // Agent integrations (MCP): emits src/routes/mcp.ts and the OAuth
     // protected-resource metadata route from src/lib/mcp/index.ts.
     plugins: [mcpPlugin()],

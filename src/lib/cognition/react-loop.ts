@@ -75,6 +75,20 @@ export async function runReActLoop(input: {
  * Failures go back with an instruction to change approach; a second all-failed round in a row ends the
  * loop so a broken tool cannot burn model calls.
  */
+/**
+ * Said to the model with the results before its last round. The last round runs
+ * no actions, so a model that asks for more there leaves no answer at all: the
+ * owner then got "the model roster returned an empty answer" after four rounds of
+ * lookups (seen in Jarvis on 10-29).
+ */
+export const FINAL_ROUND_NOTE =
+  "This is your last turn: no more actions will run. Answer the owner now in plain text from the results above, and say plainly what you could not check. Do not request actions.";
+
+/** True when the round after `step` is the last one the loop runs (or the loop gave up). */
+export function nextRoundIsFinal(step: number, maxSteps: number, giveUp: boolean): boolean {
+  return giveUp || step + 1 >= maxSteps;
+}
+
 export function reflectOnRound(
   results: readonly { label: string; ok: boolean; result: string }[],
   consecutiveFailedRounds: number,
