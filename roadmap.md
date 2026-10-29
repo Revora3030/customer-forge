@@ -391,3 +391,13 @@ Counted from the code, not from audits.
 - [x] Prospect replies cancel a waiting automatic follow-up (#329, merged)
 - [ ] Unproven until one fresh build: which primitives Sol picks per trade, and whether the plain-layout gate triggers in practice. The new Latest builds panel shows both.
 - Needs the owner: screenshot QA after each build (Cloudflare account ID and token, and signed preview link vs page HTML), reply engine mailbox secrets, pgvector memory migration approval, Meta credentials, a .glb upload path.
+
+## REVORA × GROK operations (2026-10-30)
+- [x] 4-level authority matrix in code (`src/lib/agent-authority.ts`); Level 4 kinds are the only things a bot can ask for
+- [x] Gateway: `/builds`, `/builds/:id`, `/analytics` (same MRR and funnel math as the admin dashboard), `/briefing` (speakable 8 AM text), `/action-requests` (+ `/:id`, `/:id/complete`); `/health` now counts approvals waiting
+- [x] Founder approval queue: table `agent_action_requests` (super-admin read only, server writes, 48 h expiry, idempotent, 50-waiting cap) and the phone-first `/admin/approvals` screen with evidence cards and a second tap for irreversible kinds
+- [x] Evidence card: `npm run agent:evidence` (vitest counts, tsc, build, changed files) and `.github/pull_request_template.md`
+- [x] Phase 5: TruffleHog workflow (`secret-scan.yml`), Dependabot (`dependabot.yml`), page sweep `--all-viewports` (320/390/768/1280)
+- [x] Runbook for Grok and the bot team: `docs/agents/GROK_OPERATOR.md`
+- [ ] Needs the owner: publish in Lovable (routes and the new table go live), set `REVORA_AGENT_API_KEY` in Grok's sandbox, add `/admin/approvals` to the iPhone home screen
+- [ ] Not built here: push notifications (Grok sends the approval link), `.ics` booking invites, crew work-order view

@@ -64,6 +64,7 @@ import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
 import { Route as AuthenticatedAdminAiRouteImport } from './routes/_authenticated/admin.ai'
 import { Route as AuthenticatedAdminAnalyticsRouteImport } from './routes/_authenticated/admin.analytics'
+import { Route as AuthenticatedAdminApprovalsRouteImport } from './routes/_authenticated/admin.approvals'
 import { Route as AuthenticatedAdminBackupsRouteImport } from './routes/_authenticated/admin.backups'
 import { Route as AuthenticatedAdminCityRouteImport } from './routes/_authenticated/admin.city'
 import { Route as AuthenticatedAdminClientsRouteImport } from './routes/_authenticated/admin.clients'
@@ -111,6 +112,10 @@ import { Route as SSlugSitemapDotxmlRouteImport } from './routes/s.$slug.sitemap
 import { Route as UnsubscribeOutreachTokenRouteImport } from './routes/unsubscribe.outreach.$token'
 import { Route as AuthenticatedAdminClientsOrgIdRouteImport } from './routes/_authenticated/admin.clients.$orgId'
 import { Route as AuthenticatedDraftSlugPageRouteImport } from './routes/_authenticated/draft.$slug.$page'
+import { Route as ApiPublicAgentActionRequestsRouteImport } from './routes/api/public/agent/action-requests'
+import { Route as ApiPublicAgentAnalyticsRouteImport } from './routes/api/public/agent/analytics'
+import { Route as ApiPublicAgentBriefingRouteImport } from './routes/api/public/agent/briefing'
+import { Route as ApiPublicAgentBuildsRouteImport } from './routes/api/public/agent/builds'
 import { Route as ApiPublicAgentHealthRouteImport } from './routes/api/public/agent/health'
 import { Route as ApiPublicAgentProspectsRouteImport } from './routes/api/public/agent/prospects'
 import { Route as ApiPublicInstagramCallbackRouteImport } from './routes/api/public/instagram/callback'
@@ -132,7 +137,10 @@ import { Route as ApiPublicTwilioInboundRouteImport } from './routes/api/public/
 import { Route as LovableEmailAuthPreviewRouteImport } from './routes/lovable/email/auth/preview'
 import { Route as LovableEmailAuthWebhookRouteImport } from './routes/lovable/email/auth/webhook'
 import { Route as LovableEmailTransactionalPreviewRouteImport } from './routes/lovable/email/transactional/preview'
+import { Route as ApiPublicAgentActionRequestsIdRouteImport } from './routes/api/public/agent/action-requests.$id'
+import { Route as ApiPublicAgentBuildsIdRouteImport } from './routes/api/public/agent/builds.$id'
 import { Route as ApiPublicMapsPhotoOrgIndexRouteImport } from './routes/api/public/maps-photo.$org.$index'
+import { Route as ApiPublicAgentActionRequestsIdCompleteRouteImport } from './routes/api/public/agent/action-requests.$id.complete'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -410,6 +418,12 @@ const AuthenticatedAdminAnalyticsRoute =
     path: '/analytics',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminApprovalsRoute =
+  AuthenticatedAdminApprovalsRouteImport.update({
+    id: '/approvals',
+    path: '/approvals',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminBackupsRoute =
   AuthenticatedAdminBackupsRouteImport.update({
     id: '/backups',
@@ -665,6 +679,27 @@ const AuthenticatedDraftSlugPageRoute =
     path: '/$page',
     getParentRoute: () => AuthenticatedDraftSlugRoute,
   } as any)
+const ApiPublicAgentActionRequestsRoute =
+  ApiPublicAgentActionRequestsRouteImport.update({
+    id: '/api/public/agent/action-requests',
+    path: '/api/public/agent/action-requests',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicAgentAnalyticsRoute = ApiPublicAgentAnalyticsRouteImport.update({
+  id: '/api/public/agent/analytics',
+  path: '/api/public/agent/analytics',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicAgentBriefingRoute = ApiPublicAgentBriefingRouteImport.update({
+  id: '/api/public/agent/briefing',
+  path: '/api/public/agent/briefing',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicAgentBuildsRoute = ApiPublicAgentBuildsRouteImport.update({
+  id: '/api/public/agent/builds',
+  path: '/api/public/agent/builds',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicAgentHealthRoute = ApiPublicAgentHealthRouteImport.update({
   id: '/api/public/agent/health',
   path: '/api/public/agent/health',
@@ -783,11 +818,28 @@ const LovableEmailTransactionalPreviewRoute =
     path: '/lovable/email/transactional/preview',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicAgentActionRequestsIdRoute =
+  ApiPublicAgentActionRequestsIdRouteImport.update({
+    id: '/$id',
+    path: '/$id',
+    getParentRoute: () => ApiPublicAgentActionRequestsRoute,
+  } as any)
+const ApiPublicAgentBuildsIdRoute = ApiPublicAgentBuildsIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => ApiPublicAgentBuildsRoute,
+} as any)
 const ApiPublicMapsPhotoOrgIndexRoute =
   ApiPublicMapsPhotoOrgIndexRouteImport.update({
     id: '/api/public/maps-photo/$org/$index',
     path: '/api/public/maps-photo/$org/$index',
     getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicAgentActionRequestsIdCompleteRoute =
+  ApiPublicAgentActionRequestsIdCompleteRouteImport.update({
+    id: '/complete',
+    path: '/complete',
+    getParentRoute: () => ApiPublicAgentActionRequestsIdRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
@@ -844,6 +896,7 @@ export interface FileRoutesByFullPath {
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
   '/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
+  '/admin/approvals': typeof AuthenticatedAdminApprovalsRoute
   '/admin/backups': typeof AuthenticatedAdminBackupsRoute
   '/admin/city': typeof AuthenticatedAdminCityRoute
   '/admin/clients': typeof AuthenticatedAdminClientsRouteWithChildren
@@ -892,6 +945,10 @@ export interface FileRoutesByFullPath {
   '/local/$industry/': typeof LocalIndustryIndexRoute
   '/admin/clients/$orgId': typeof AuthenticatedAdminClientsOrgIdRoute
   '/draft/$slug/$page': typeof AuthenticatedDraftSlugPageRoute
+  '/api/public/agent/action-requests': typeof ApiPublicAgentActionRequestsRouteWithChildren
+  '/api/public/agent/analytics': typeof ApiPublicAgentAnalyticsRoute
+  '/api/public/agent/briefing': typeof ApiPublicAgentBriefingRoute
+  '/api/public/agent/builds': typeof ApiPublicAgentBuildsRouteWithChildren
   '/api/public/agent/health': typeof ApiPublicAgentHealthRoute
   '/api/public/agent/prospects': typeof ApiPublicAgentProspectsRoute
   '/api/public/instagram/callback': typeof ApiPublicInstagramCallbackRoute
@@ -913,7 +970,10 @@ export interface FileRoutesByFullPath {
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
   '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
+  '/api/public/agent/action-requests/$id': typeof ApiPublicAgentActionRequestsIdRouteWithChildren
+  '/api/public/agent/builds/$id': typeof ApiPublicAgentBuildsIdRoute
   '/api/public/maps-photo/$org/$index': typeof ApiPublicMapsPhotoOrgIndexRoute
+  '/api/public/agent/action-requests/$id/complete': typeof ApiPublicAgentActionRequestsIdCompleteRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -964,6 +1024,7 @@ export interface FileRoutesByTo {
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
   '/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
+  '/admin/approvals': typeof AuthenticatedAdminApprovalsRoute
   '/admin/backups': typeof AuthenticatedAdminBackupsRoute
   '/admin/city': typeof AuthenticatedAdminCityRoute
   '/admin/clients': typeof AuthenticatedAdminClientsRouteWithChildren
@@ -1012,6 +1073,10 @@ export interface FileRoutesByTo {
   '/local/$industry': typeof LocalIndustryIndexRoute
   '/admin/clients/$orgId': typeof AuthenticatedAdminClientsOrgIdRoute
   '/draft/$slug/$page': typeof AuthenticatedDraftSlugPageRoute
+  '/api/public/agent/action-requests': typeof ApiPublicAgentActionRequestsRouteWithChildren
+  '/api/public/agent/analytics': typeof ApiPublicAgentAnalyticsRoute
+  '/api/public/agent/briefing': typeof ApiPublicAgentBriefingRoute
+  '/api/public/agent/builds': typeof ApiPublicAgentBuildsRouteWithChildren
   '/api/public/agent/health': typeof ApiPublicAgentHealthRoute
   '/api/public/agent/prospects': typeof ApiPublicAgentProspectsRoute
   '/api/public/instagram/callback': typeof ApiPublicInstagramCallbackRoute
@@ -1033,7 +1098,10 @@ export interface FileRoutesByTo {
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
   '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
+  '/api/public/agent/action-requests/$id': typeof ApiPublicAgentActionRequestsIdRouteWithChildren
+  '/api/public/agent/builds/$id': typeof ApiPublicAgentBuildsIdRoute
   '/api/public/maps-photo/$org/$index': typeof ApiPublicMapsPhotoOrgIndexRoute
+  '/api/public/agent/action-requests/$id/complete': typeof ApiPublicAgentActionRequestsIdCompleteRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -1091,6 +1159,7 @@ export interface FileRoutesById {
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/_authenticated/admin/ai': typeof AuthenticatedAdminAiRoute
   '/_authenticated/admin/analytics': typeof AuthenticatedAdminAnalyticsRoute
+  '/_authenticated/admin/approvals': typeof AuthenticatedAdminApprovalsRoute
   '/_authenticated/admin/backups': typeof AuthenticatedAdminBackupsRoute
   '/_authenticated/admin/city': typeof AuthenticatedAdminCityRoute
   '/_authenticated/admin/clients': typeof AuthenticatedAdminClientsRouteWithChildren
@@ -1139,6 +1208,10 @@ export interface FileRoutesById {
   '/local/$industry/': typeof LocalIndustryIndexRoute
   '/_authenticated/admin/clients/$orgId': typeof AuthenticatedAdminClientsOrgIdRoute
   '/_authenticated/draft/$slug/$page': typeof AuthenticatedDraftSlugPageRoute
+  '/api/public/agent/action-requests': typeof ApiPublicAgentActionRequestsRouteWithChildren
+  '/api/public/agent/analytics': typeof ApiPublicAgentAnalyticsRoute
+  '/api/public/agent/briefing': typeof ApiPublicAgentBriefingRoute
+  '/api/public/agent/builds': typeof ApiPublicAgentBuildsRouteWithChildren
   '/api/public/agent/health': typeof ApiPublicAgentHealthRoute
   '/api/public/agent/prospects': typeof ApiPublicAgentProspectsRoute
   '/api/public/instagram/callback': typeof ApiPublicInstagramCallbackRoute
@@ -1160,7 +1233,10 @@ export interface FileRoutesById {
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
   '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
+  '/api/public/agent/action-requests/$id': typeof ApiPublicAgentActionRequestsIdRouteWithChildren
+  '/api/public/agent/builds/$id': typeof ApiPublicAgentBuildsIdRoute
   '/api/public/maps-photo/$org/$index': typeof ApiPublicMapsPhotoOrgIndexRoute
+  '/api/public/agent/action-requests/$id/complete': typeof ApiPublicAgentActionRequestsIdCompleteRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -1218,6 +1294,7 @@ export interface FileRouteTypes {
     | '/.lovable/oauth/consent'
     | '/admin/ai'
     | '/admin/analytics'
+    | '/admin/approvals'
     | '/admin/backups'
     | '/admin/city'
     | '/admin/clients'
@@ -1266,6 +1343,10 @@ export interface FileRouteTypes {
     | '/local/$industry/'
     | '/admin/clients/$orgId'
     | '/draft/$slug/$page'
+    | '/api/public/agent/action-requests'
+    | '/api/public/agent/analytics'
+    | '/api/public/agent/briefing'
+    | '/api/public/agent/builds'
     | '/api/public/agent/health'
     | '/api/public/agent/prospects'
     | '/api/public/instagram/callback'
@@ -1287,7 +1368,10 @@ export interface FileRouteTypes {
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
     | '/lovable/email/transactional/preview'
+    | '/api/public/agent/action-requests/$id'
+    | '/api/public/agent/builds/$id'
     | '/api/public/maps-photo/$org/$index'
+    | '/api/public/agent/action-requests/$id/complete'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -1338,6 +1422,7 @@ export interface FileRouteTypes {
     | '/.lovable/oauth/consent'
     | '/admin/ai'
     | '/admin/analytics'
+    | '/admin/approvals'
     | '/admin/backups'
     | '/admin/city'
     | '/admin/clients'
@@ -1386,6 +1471,10 @@ export interface FileRouteTypes {
     | '/local/$industry'
     | '/admin/clients/$orgId'
     | '/draft/$slug/$page'
+    | '/api/public/agent/action-requests'
+    | '/api/public/agent/analytics'
+    | '/api/public/agent/briefing'
+    | '/api/public/agent/builds'
     | '/api/public/agent/health'
     | '/api/public/agent/prospects'
     | '/api/public/instagram/callback'
@@ -1407,7 +1496,10 @@ export interface FileRouteTypes {
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
     | '/lovable/email/transactional/preview'
+    | '/api/public/agent/action-requests/$id'
+    | '/api/public/agent/builds/$id'
     | '/api/public/maps-photo/$org/$index'
+    | '/api/public/agent/action-requests/$id/complete'
   id:
     | '__root__'
     | '/'
@@ -1464,6 +1556,7 @@ export interface FileRouteTypes {
     | '/.lovable/oauth/consent'
     | '/_authenticated/admin/ai'
     | '/_authenticated/admin/analytics'
+    | '/_authenticated/admin/approvals'
     | '/_authenticated/admin/backups'
     | '/_authenticated/admin/city'
     | '/_authenticated/admin/clients'
@@ -1512,6 +1605,10 @@ export interface FileRouteTypes {
     | '/local/$industry/'
     | '/_authenticated/admin/clients/$orgId'
     | '/_authenticated/draft/$slug/$page'
+    | '/api/public/agent/action-requests'
+    | '/api/public/agent/analytics'
+    | '/api/public/agent/briefing'
+    | '/api/public/agent/builds'
     | '/api/public/agent/health'
     | '/api/public/agent/prospects'
     | '/api/public/instagram/callback'
@@ -1533,7 +1630,10 @@ export interface FileRouteTypes {
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
     | '/lovable/email/transactional/preview'
+    | '/api/public/agent/action-requests/$id'
+    | '/api/public/agent/builds/$id'
     | '/api/public/maps-photo/$org/$index'
+    | '/api/public/agent/action-requests/$id/complete'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -1588,6 +1688,10 @@ export interface RootRouteChildren {
   PTokenPageRoute: typeof PTokenPageRoute
   UnsubscribeOutreachTokenRoute: typeof UnsubscribeOutreachTokenRoute
   LocalIndustryIndexRoute: typeof LocalIndustryIndexRoute
+  ApiPublicAgentActionRequestsRoute: typeof ApiPublicAgentActionRequestsRouteWithChildren
+  ApiPublicAgentAnalyticsRoute: typeof ApiPublicAgentAnalyticsRoute
+  ApiPublicAgentBriefingRoute: typeof ApiPublicAgentBriefingRoute
+  ApiPublicAgentBuildsRoute: typeof ApiPublicAgentBuildsRouteWithChildren
   ApiPublicAgentHealthRoute: typeof ApiPublicAgentHealthRoute
   ApiPublicAgentProspectsRoute: typeof ApiPublicAgentProspectsRoute
   ApiPublicInstagramCallbackRoute: typeof ApiPublicInstagramCallbackRoute
@@ -1999,6 +2103,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminAnalyticsRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/approvals': {
+      id: '/_authenticated/admin/approvals'
+      path: '/approvals'
+      fullPath: '/admin/approvals'
+      preLoaderRoute: typeof AuthenticatedAdminApprovalsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/backups': {
       id: '/_authenticated/admin/backups'
       path: '/backups'
@@ -2328,6 +2439,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDraftSlugPageRouteImport
       parentRoute: typeof AuthenticatedDraftSlugRoute
     }
+    '/api/public/agent/action-requests': {
+      id: '/api/public/agent/action-requests'
+      path: '/api/public/agent/action-requests'
+      fullPath: '/api/public/agent/action-requests'
+      preLoaderRoute: typeof ApiPublicAgentActionRequestsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/agent/analytics': {
+      id: '/api/public/agent/analytics'
+      path: '/api/public/agent/analytics'
+      fullPath: '/api/public/agent/analytics'
+      preLoaderRoute: typeof ApiPublicAgentAnalyticsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/agent/briefing': {
+      id: '/api/public/agent/briefing'
+      path: '/api/public/agent/briefing'
+      fullPath: '/api/public/agent/briefing'
+      preLoaderRoute: typeof ApiPublicAgentBriefingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/agent/builds': {
+      id: '/api/public/agent/builds'
+      path: '/api/public/agent/builds'
+      fullPath: '/api/public/agent/builds'
+      preLoaderRoute: typeof ApiPublicAgentBuildsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/agent/health': {
       id: '/api/public/agent/health'
       path: '/api/public/agent/health'
@@ -2475,12 +2614,33 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LovableEmailTransactionalPreviewRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/agent/action-requests/$id': {
+      id: '/api/public/agent/action-requests/$id'
+      path: '/$id'
+      fullPath: '/api/public/agent/action-requests/$id'
+      preLoaderRoute: typeof ApiPublicAgentActionRequestsIdRouteImport
+      parentRoute: typeof ApiPublicAgentActionRequestsRoute
+    }
+    '/api/public/agent/builds/$id': {
+      id: '/api/public/agent/builds/$id'
+      path: '/$id'
+      fullPath: '/api/public/agent/builds/$id'
+      preLoaderRoute: typeof ApiPublicAgentBuildsIdRouteImport
+      parentRoute: typeof ApiPublicAgentBuildsRoute
+    }
     '/api/public/maps-photo/$org/$index': {
       id: '/api/public/maps-photo/$org/$index'
       path: '/api/public/maps-photo/$org/$index'
       fullPath: '/api/public/maps-photo/$org/$index'
       preLoaderRoute: typeof ApiPublicMapsPhotoOrgIndexRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/api/public/agent/action-requests/$id/complete': {
+      id: '/api/public/agent/action-requests/$id/complete'
+      path: '/complete'
+      fullPath: '/api/public/agent/action-requests/$id/complete'
+      preLoaderRoute: typeof ApiPublicAgentActionRequestsIdCompleteRouteImport
+      parentRoute: typeof ApiPublicAgentActionRequestsIdRoute
     }
   }
 }
@@ -2502,6 +2662,7 @@ const AuthenticatedAdminClientsRouteWithChildren =
 interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminAiRoute: typeof AuthenticatedAdminAiRoute
   AuthenticatedAdminAnalyticsRoute: typeof AuthenticatedAdminAnalyticsRoute
+  AuthenticatedAdminApprovalsRoute: typeof AuthenticatedAdminApprovalsRoute
   AuthenticatedAdminBackupsRoute: typeof AuthenticatedAdminBackupsRoute
   AuthenticatedAdminCityRoute: typeof AuthenticatedAdminCityRoute
   AuthenticatedAdminClientsRoute: typeof AuthenticatedAdminClientsRouteWithChildren
@@ -2522,6 +2683,7 @@ interface AuthenticatedAdminRouteChildren {
 const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminAiRoute: AuthenticatedAdminAiRoute,
   AuthenticatedAdminAnalyticsRoute: AuthenticatedAdminAnalyticsRoute,
+  AuthenticatedAdminApprovalsRoute: AuthenticatedAdminApprovalsRoute,
   AuthenticatedAdminBackupsRoute: AuthenticatedAdminBackupsRoute,
   AuthenticatedAdminCityRoute: AuthenticatedAdminCityRoute,
   AuthenticatedAdminClientsRoute: AuthenticatedAdminClientsRouteWithChildren,
@@ -2674,6 +2836,47 @@ const SSlugRouteChildren: SSlugRouteChildren = {
 
 const SSlugRouteWithChildren = SSlugRoute._addFileChildren(SSlugRouteChildren)
 
+interface ApiPublicAgentActionRequestsIdRouteChildren {
+  ApiPublicAgentActionRequestsIdCompleteRoute: typeof ApiPublicAgentActionRequestsIdCompleteRoute
+}
+
+const ApiPublicAgentActionRequestsIdRouteChildren: ApiPublicAgentActionRequestsIdRouteChildren =
+  {
+    ApiPublicAgentActionRequestsIdCompleteRoute:
+      ApiPublicAgentActionRequestsIdCompleteRoute,
+  }
+
+const ApiPublicAgentActionRequestsIdRouteWithChildren =
+  ApiPublicAgentActionRequestsIdRoute._addFileChildren(
+    ApiPublicAgentActionRequestsIdRouteChildren,
+  )
+
+interface ApiPublicAgentActionRequestsRouteChildren {
+  ApiPublicAgentActionRequestsIdRoute: typeof ApiPublicAgentActionRequestsIdRouteWithChildren
+}
+
+const ApiPublicAgentActionRequestsRouteChildren: ApiPublicAgentActionRequestsRouteChildren =
+  {
+    ApiPublicAgentActionRequestsIdRoute:
+      ApiPublicAgentActionRequestsIdRouteWithChildren,
+  }
+
+const ApiPublicAgentActionRequestsRouteWithChildren =
+  ApiPublicAgentActionRequestsRoute._addFileChildren(
+    ApiPublicAgentActionRequestsRouteChildren,
+  )
+
+interface ApiPublicAgentBuildsRouteChildren {
+  ApiPublicAgentBuildsIdRoute: typeof ApiPublicAgentBuildsIdRoute
+}
+
+const ApiPublicAgentBuildsRouteChildren: ApiPublicAgentBuildsRouteChildren = {
+  ApiPublicAgentBuildsIdRoute: ApiPublicAgentBuildsIdRoute,
+}
+
+const ApiPublicAgentBuildsRouteWithChildren =
+  ApiPublicAgentBuildsRoute._addFileChildren(ApiPublicAgentBuildsRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
@@ -2727,6 +2930,11 @@ const rootRouteChildren: RootRouteChildren = {
   PTokenPageRoute: PTokenPageRoute,
   UnsubscribeOutreachTokenRoute: UnsubscribeOutreachTokenRoute,
   LocalIndustryIndexRoute: LocalIndustryIndexRoute,
+  ApiPublicAgentActionRequestsRoute:
+    ApiPublicAgentActionRequestsRouteWithChildren,
+  ApiPublicAgentAnalyticsRoute: ApiPublicAgentAnalyticsRoute,
+  ApiPublicAgentBriefingRoute: ApiPublicAgentBriefingRoute,
+  ApiPublicAgentBuildsRoute: ApiPublicAgentBuildsRouteWithChildren,
   ApiPublicAgentHealthRoute: ApiPublicAgentHealthRoute,
   ApiPublicAgentProspectsRoute: ApiPublicAgentProspectsRoute,
   ApiPublicInstagramCallbackRoute: ApiPublicInstagramCallbackRoute,

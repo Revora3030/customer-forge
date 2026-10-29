@@ -1,0 +1,23 @@
+# Dependency updates (roadmap Phase 5). Pull requests only; nothing merges on its own.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    target-branch: lovable-sync
+    schedule:
+      interval: weekly
+      day: sunday
+      time: "01:00"
+      timezone: Etc/UTC
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+    labels: [dependencies]
+  - package-ecosystem: github-actions
+    directory: /
+    target-branch: lovable-sync
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
+    labels: [dependencies]
