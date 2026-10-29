@@ -111,6 +111,8 @@ import { Route as SSlugSitemapDotxmlRouteImport } from './routes/s.$slug.sitemap
 import { Route as UnsubscribeOutreachTokenRouteImport } from './routes/unsubscribe.outreach.$token'
 import { Route as AuthenticatedAdminClientsOrgIdRouteImport } from './routes/_authenticated/admin.clients.$orgId'
 import { Route as AuthenticatedDraftSlugPageRouteImport } from './routes/_authenticated/draft.$slug.$page'
+import { Route as ApiPublicAgentHealthRouteImport } from './routes/api/public/agent/health'
+import { Route as ApiPublicAgentProspectsRouteImport } from './routes/api/public/agent/prospects'
 import { Route as ApiPublicInstagramCallbackRouteImport } from './routes/api/public/instagram/callback'
 import { Route as ApiPublicJobsBackupRouteImport } from './routes/api/public/jobs/backup'
 import { Route as ApiPublicJobsGrowthDigestRouteImport } from './routes/api/public/jobs/growth-digest'
@@ -663,6 +665,16 @@ const AuthenticatedDraftSlugPageRoute =
     path: '/$page',
     getParentRoute: () => AuthenticatedDraftSlugRoute,
   } as any)
+const ApiPublicAgentHealthRoute = ApiPublicAgentHealthRouteImport.update({
+  id: '/api/public/agent/health',
+  path: '/api/public/agent/health',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicAgentProspectsRoute = ApiPublicAgentProspectsRouteImport.update({
+  id: '/api/public/agent/prospects',
+  path: '/api/public/agent/prospects',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicInstagramCallbackRoute =
   ApiPublicInstagramCallbackRouteImport.update({
     id: '/api/public/instagram/callback',
@@ -880,6 +892,8 @@ export interface FileRoutesByFullPath {
   '/local/$industry/': typeof LocalIndustryIndexRoute
   '/admin/clients/$orgId': typeof AuthenticatedAdminClientsOrgIdRoute
   '/draft/$slug/$page': typeof AuthenticatedDraftSlugPageRoute
+  '/api/public/agent/health': typeof ApiPublicAgentHealthRoute
+  '/api/public/agent/prospects': typeof ApiPublicAgentProspectsRoute
   '/api/public/instagram/callback': typeof ApiPublicInstagramCallbackRoute
   '/api/public/jobs/backup': typeof ApiPublicJobsBackupRoute
   '/api/public/jobs/growth-digest': typeof ApiPublicJobsGrowthDigestRoute
@@ -998,6 +1012,8 @@ export interface FileRoutesByTo {
   '/local/$industry': typeof LocalIndustryIndexRoute
   '/admin/clients/$orgId': typeof AuthenticatedAdminClientsOrgIdRoute
   '/draft/$slug/$page': typeof AuthenticatedDraftSlugPageRoute
+  '/api/public/agent/health': typeof ApiPublicAgentHealthRoute
+  '/api/public/agent/prospects': typeof ApiPublicAgentProspectsRoute
   '/api/public/instagram/callback': typeof ApiPublicInstagramCallbackRoute
   '/api/public/jobs/backup': typeof ApiPublicJobsBackupRoute
   '/api/public/jobs/growth-digest': typeof ApiPublicJobsGrowthDigestRoute
@@ -1123,6 +1139,8 @@ export interface FileRoutesById {
   '/local/$industry/': typeof LocalIndustryIndexRoute
   '/_authenticated/admin/clients/$orgId': typeof AuthenticatedAdminClientsOrgIdRoute
   '/_authenticated/draft/$slug/$page': typeof AuthenticatedDraftSlugPageRoute
+  '/api/public/agent/health': typeof ApiPublicAgentHealthRoute
+  '/api/public/agent/prospects': typeof ApiPublicAgentProspectsRoute
   '/api/public/instagram/callback': typeof ApiPublicInstagramCallbackRoute
   '/api/public/jobs/backup': typeof ApiPublicJobsBackupRoute
   '/api/public/jobs/growth-digest': typeof ApiPublicJobsGrowthDigestRoute
@@ -1248,6 +1266,8 @@ export interface FileRouteTypes {
     | '/local/$industry/'
     | '/admin/clients/$orgId'
     | '/draft/$slug/$page'
+    | '/api/public/agent/health'
+    | '/api/public/agent/prospects'
     | '/api/public/instagram/callback'
     | '/api/public/jobs/backup'
     | '/api/public/jobs/growth-digest'
@@ -1366,6 +1386,8 @@ export interface FileRouteTypes {
     | '/local/$industry'
     | '/admin/clients/$orgId'
     | '/draft/$slug/$page'
+    | '/api/public/agent/health'
+    | '/api/public/agent/prospects'
     | '/api/public/instagram/callback'
     | '/api/public/jobs/backup'
     | '/api/public/jobs/growth-digest'
@@ -1490,6 +1512,8 @@ export interface FileRouteTypes {
     | '/local/$industry/'
     | '/_authenticated/admin/clients/$orgId'
     | '/_authenticated/draft/$slug/$page'
+    | '/api/public/agent/health'
+    | '/api/public/agent/prospects'
     | '/api/public/instagram/callback'
     | '/api/public/jobs/backup'
     | '/api/public/jobs/growth-digest'
@@ -1564,6 +1588,8 @@ export interface RootRouteChildren {
   PTokenPageRoute: typeof PTokenPageRoute
   UnsubscribeOutreachTokenRoute: typeof UnsubscribeOutreachTokenRoute
   LocalIndustryIndexRoute: typeof LocalIndustryIndexRoute
+  ApiPublicAgentHealthRoute: typeof ApiPublicAgentHealthRoute
+  ApiPublicAgentProspectsRoute: typeof ApiPublicAgentProspectsRoute
   ApiPublicInstagramCallbackRoute: typeof ApiPublicInstagramCallbackRoute
   ApiPublicJobsBackupRoute: typeof ApiPublicJobsBackupRoute
   ApiPublicJobsGrowthDigestRoute: typeof ApiPublicJobsGrowthDigestRoute
@@ -2302,6 +2328,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDraftSlugPageRouteImport
       parentRoute: typeof AuthenticatedDraftSlugRoute
     }
+    '/api/public/agent/health': {
+      id: '/api/public/agent/health'
+      path: '/api/public/agent/health'
+      fullPath: '/api/public/agent/health'
+      preLoaderRoute: typeof ApiPublicAgentHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/agent/prospects': {
+      id: '/api/public/agent/prospects'
+      path: '/api/public/agent/prospects'
+      fullPath: '/api/public/agent/prospects'
+      preLoaderRoute: typeof ApiPublicAgentProspectsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/instagram/callback': {
       id: '/api/public/instagram/callback'
       path: '/api/public/instagram/callback'
@@ -2687,6 +2727,8 @@ const rootRouteChildren: RootRouteChildren = {
   PTokenPageRoute: PTokenPageRoute,
   UnsubscribeOutreachTokenRoute: UnsubscribeOutreachTokenRoute,
   LocalIndustryIndexRoute: LocalIndustryIndexRoute,
+  ApiPublicAgentHealthRoute: ApiPublicAgentHealthRoute,
+  ApiPublicAgentProspectsRoute: ApiPublicAgentProspectsRoute,
   ApiPublicInstagramCallbackRoute: ApiPublicInstagramCallbackRoute,
   ApiPublicJobsBackupRoute: ApiPublicJobsBackupRoute,
   ApiPublicJobsGrowthDigestRoute: ApiPublicJobsGrowthDigestRoute,
