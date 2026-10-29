@@ -4,6 +4,17 @@
  * so funnel reports drop the whole session instead of counting it as a
  * prospect who started signing up or paying.
  */
+
+/**
+ * Browser addresses the owner confirmed as Revora test accounts on 2026-10-29.
+ * The auth accounts behind them are gone, but their recorded funnel events
+ * would otherwise keep showing up as signups and checkouts that never happened.
+ */
+export const TEST_ACCOUNT_EMAILS = [
+  "bigdawg09091@gmail.com",
+  "danaysiaingram42@gmail.com",
+] as const;
+
 export function staffSessionIds(
   rows: { session_id?: string | null; email?: string | null }[],
   staffEmails: Iterable<string>,
