@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import { siteThemeStyle } from "@/lib/site-theme";
 import { classifyClientError, isStaleDeployError, reloadOnceForNewBuild } from "@/lib/client-error-classify";
@@ -35,5 +36,18 @@ describe("old code after a deploy", () => {
     expect(reloadOnceForNewBuild(storage, reload, 1_000_000)).toBe(true);
     expect(reloadOnceForNewBuild(storage, reload, 1_010_000)).toBe(false);
     expect(reload).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("a code chunk that fails to load", () => {
+  const root = readFileSync("src/routes/__root.tsx", "utf8");
+  const handler = /const onPreloadError = \(event: Event\) => \{([\s\S]*?)\n {4}\};/.exec(root)?.[1] ?? "";
+
+  it("is swallowed only while the page reloads for the new build", () => {
+    // Swallowed without a reload, the route got an empty module and crashed with
+    // "undefined is not an object (evaluating 'e[t ?? \"default\"]')" (Sentry K and G).
+    expect(handler).toContain("if (reloadOnceForNewBuild(storage, () => window.location.reload())) {\n        event.preventDefault();\n        return;\n      }");
+    expect(handler.match(/preventDefault/g)?.length).toBe(1);
+    expect(handler).toContain("reportRouteError(");
   });
 });

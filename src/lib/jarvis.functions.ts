@@ -254,7 +254,7 @@ export async function runJarvis(db: SupabaseClient, userId: string, mode: Mode, 
   try {
     let correctionUsed = false;
     let failedRounds = 0;
-    const { reflectOnRound } = await import("./cognition/react-loop");
+    const { reflectOnRound, nextRoundIsFinal, FINAL_ROUND_NOTE } = await import("./cognition/react-loop");
     // Act, observe, answer: up to MAX_ACTION_STEPS rounds of read actions.
     for (let step = 0; step <= MAX_ACTION_STEPS; step += 1) {
       const modelStart = Date.now();
@@ -307,6 +307,7 @@ export async function runJarvis(db: SupabaseClient, userId: string, mode: Mode, 
             ...results.map((item) => `## ${item.label}${item.ok ? "" : " — FAILED"}\n${item.result}`),
             ...(parsed.rejected.length ? [`Rejected: ${parsed.rejected.join("; ")}`] : []),
             ...(reflection.note ? [reflection.note] : []),
+            ...(nextRoundIsFinal(step, MAX_ACTION_STEPS, reflection.giveUp) ? [FINAL_ROUND_NOTE] : []),
           ].join("\n\n"),
         },
       );
