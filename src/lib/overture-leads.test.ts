@@ -7,7 +7,7 @@ import { normalizeLeadRow, readImport } from "./prospect-lead-import";
 
 /** Rows shaped like the real Overture release 2026-10-21.0 (taxonomy, not the older categories). */
 const place = (over: Record<string, unknown> = {}) => ({
-  id: "08f444a7e7b1a2cd0300b1c6a5ee5f0a",
+  id: "place-1",
   confidence: 0.92,
   names: { primary: "The Art of Plumbing" },
   websites: ["https://www.theartofplumbing.net/"],
@@ -116,14 +116,14 @@ describe("CSV output", () => {
   });
 
   it("imports cleanly into the Jarvis lead queue: every column is read, and nothing needs fixing", () => {
-    const places = [place(), place({ id: "b", names: { primary: "Modern Plumbing, Inc." }, websites: ["http://modernplumbing.test/"], phones: ["+19193411911"], addresses: [{ freeform: "313 Sherwee Dr", locality: "Raleigh", postcode: "27603-3521", region: "NC" }] })];
+    const places = [place(), place({ id: "b", names: { primary: "Modern Plumbing, Inc." }, websites: ["https://modernplumbing.test/"], phones: ["+19193411911"], addresses: [{ freeform: "313 Sherwee Dr", locality: "Raleigh", postcode: "27603-3521", region: "NC" }] })];
     const csv = toCsv(places.map((p) => leadRow(p, { ...context, anyCity: true })!.cells));
     const parsed = readImport(csv);
     if (!parsed.ok) throw new Error(parsed.message);
     const results = parsed.rows.map((cells) => normalizeLeadRow(cells, parsed.fields, { category: null }));
     expect(results).toMatchObject([
       { lead: { businessName: "The Art of Plumbing", city: "Cary", state: "NC", category: "Plumbing", website: "https://www.theartofplumbing.net", phone: "9197991854", score: 9, address: "205 Brookridge Dr" } },
-      { lead: { businessName: "Modern Plumbing, Inc.", city: "Raleigh", state: "NC", category: "Plumbing", website: "http://modernplumbing.test", phone: "+19193411911", address: "313 Sherwee Dr" } },
+      { lead: { businessName: "Modern Plumbing, Inc.", city: "Raleigh", state: "NC", category: "Plumbing", website: "https://modernplumbing.test", phone: "+19193411911", address: "313 Sherwee Dr" } },
     ]);
   });
 });
