@@ -62,6 +62,7 @@ export function ga4IsActive() {
 
 export function ga4PageView(path: string, title?: string) {
   if (!loadedId || typeof window === "undefined" || !window.gtag) return;
+  if (window.localStorage.getItem("cookie_consent") === "denied") return;
   window.gtag("event", "page_view", {
     page_path: path,
     page_location: window.location.href,
@@ -71,5 +72,6 @@ export function ga4PageView(path: string, title?: string) {
 
 export function ga4Event(name: string, params?: Record<string, unknown>) {
   if (!loadedId || typeof window === "undefined" || !window.gtag) return;
+  if (window.localStorage.getItem("cookie_consent") === "denied") return;
   window.gtag("event", name.slice(0, 40), params ?? {});
 }
