@@ -21,7 +21,7 @@ describe("agent gateway", () => {
   });
 
   it("keeps the city and trade that were sent", () => {
-    const parsed = readImport(prospectsToCsv([{ ...lead, city: "Tampa", trade: "roofing" }]));
+    const parsed = readImport(prospectsToCsv([{ ...lead, city: "Tampa", trade: "roofing", website: "https://apexroof.com" }]));
     if (!parsed.ok) throw new Error(parsed.message);
     const row = normalizeLeadRow(parsed.rows[0], parsed.fields, { category: null });
     if ("reason" in row) throw new Error(row.reason);
