@@ -614,6 +614,11 @@ describe("reply polling and follow-up", () => {
   });
 
   it("returns gmail_not_configured cleanly and names the four secrets", async () => {
+    vi.stubEnv("GOOGLE_OAUTH_CLIENT_ID", "");
+    vi.stubEnv("GOOGLE_OAUTH_CLIENT_SECRET", "");
+    onTestFinished(() => {
+      vi.unstubAllEnvs();
+    });
     const { db } = fakeDb(demoSeed({ prospect_outreach: [sentOutreach()] }));
     const result = await runProspectReplies(db);
     expect(result.status).toBe("gmail_not_configured");

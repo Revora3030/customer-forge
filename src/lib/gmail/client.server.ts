@@ -24,8 +24,21 @@ export type GmailConfig = {
   sender: string;
 };
 
+/** GMAIL_CLIENT_* may instead be saved under the GOOGLE_OAUTH_CLIENT_* names. */
+const ALIASES: Partial<Record<(typeof GMAIL_SECRETS)[number], string>> = {
+  GMAIL_CLIENT_ID: "GOOGLE_OAUTH_CLIENT_ID",
+  GMAIL_CLIENT_SECRET: "GOOGLE_OAUTH_CLIENT_SECRET",
+};
+
+function readSecret(key: (typeof GMAIL_SECRETS)[number]): string {
+  const direct = process.env[key]?.trim();
+  if (direct) return direct;
+  const alias = ALIASES[key];
+  return (alias && process.env[alias]?.trim()) || "";
+}
+
 export function missingGmailSecrets(): string[] {
-  return GMAIL_SECRETS.filter((key) => !process.env[key]?.trim());
+  return GMAIL_SECRETS.filter((key) => !readSecret(key));
 }
 
 export function mailingAddress(): string {
@@ -34,12 +47,12 @@ export function mailingAddress(): string {
 
 export function gmailConfig(): GmailConfig | null {
   if (missingGmailSecrets().length) return null;
-  const sender = process.env["GMAIL_SENDER_EMAIL"]!.trim().toLowerCase();
+  const sender = readSecret("GMAIL_SENDER_EMAIL").toLowerCase();
   if (!/^[^\s@<>]+@[^\s@<>]+\.[a-z]{2,}$/i.test(sender)) return null;
   return {
-    clientId: process.env["GMAIL_CLIENT_ID"]!.trim(),
-    clientSecret: process.env["GMAIL_CLIENT_SECRET"]!.trim(),
-    refreshToken: process.env["GMAIL_REFRESH_TOKEN"]!.trim(),
+    clientId: readSecret("GMAIL_CLIENT_ID"),
+    clientSecret: readSecret("GMAIL_CLIENT_SECRET"),
+    refreshToken: readSecret("GMAIL_REFRESH_TOKEN"),
     sender,
   };
 }
