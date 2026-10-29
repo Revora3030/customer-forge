@@ -57,7 +57,7 @@ export async function runJarvisEventWatch(db: Db, now = Date.now(), sources: rea
       .limit(500);
     const { proposals } = planEventResponses({ events: collected.events, rules: DEFAULT_EVENT_RULES, lastProposed: lastProposedFrom((earlier ?? []) as never[]), now });
     for (const proposal of proposals) {
-      const content = `Heads up ${eventMarker(proposal.ruleId, proposal.subject)}\n\n${proposal.summary} If you want me to look into it, ask: “${proposal.prompt}”`;
+      const content = `Heads up ${eventMarker(proposal.ruleId, proposal.subject)}\n\n${proposal.summary}\n\nNothing was changed or sent. Send this to Jarvis to open the recovery: “${proposal.prompt}”`;
       const { error: postError } = await db.from("jarvis_messages").insert({ user_id: userId, role: "assistant", content });
       if (postError) run.failed += 1;
       else run.posted += 1;

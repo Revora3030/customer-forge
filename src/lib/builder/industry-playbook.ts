@@ -83,7 +83,7 @@ export const TRADE_PLAYBOOKS: readonly TradePlaybook[] = [
     match: /detail|car wash|auto spa|ceramic|paint correction|tint/i,
     signature: "When the home page has two or more pictures of the vehicle, open with a scrub_sequence (a pinned scroll that wipes from the first frame to the last) and a short display heading in the overlay. Otherwise use scroll_chapters. A before_after_slider only of the owner's real before and after of the same vehicle, and a spin_viewer only when the owner photographs one vehicle from 8 or more angles. Real services are offer cards.",
     storyArc: ["the vehicle as it arrived", "the process", "the finished panel in light", "packages", "booking"],
-    needsFromOwner: "Real before and after photos; 8 or more angles of one finished vehicle for a spin. Until then the picture campaign should include 2-4 atmospheric frames of one vehicle (same light, moving closer — not a claimed result) so the home page can open as a scrub_sequence, with the real services as offer cards; a dark, high-contrast studio look often suits the trade, but the palette stays the designer's call.",
+    needsFromOwner: "Real before and after photos; 8 or more angles of one finished vehicle for a spin. Until then the picture campaign should include 3-4 atmospheric frames of one vehicle (same light, moving closer — not a claimed result) so the home page can open as a scrub_sequence, with each real service as an offer card. The signature canvas is obsidian studio light unless the owner asked for a light editorial palette.",
   },
   {
     key: "roofing",
@@ -427,7 +427,8 @@ export function playbookNote(industry: string | null | undefined, hints: string 
     `Signature moment: ${guide.signature}`,
     `Story arc for a scroll story: ${guide.storyArc.join(" → ")}.`,
     `What the owner must supply: ${guide.needsFromOwner}`,
-    `Look (a suggestion; you choose the palette and type for this business): ${guide.archetype.look}`,
+    `Look (a suggestion for type and accent; the canvas is obsidian studio on every page — home, services, about, book and contact — unless the owner asked for a light editorial palette): ${guide.archetype.look}`,
+    "A photographic page opens as a scene, scroll_chapters or scrub_sequence. Chapter labels follow the story arc above. Forms are dark glass. The same call to action is not repeated under every section. Prices appear only when the owner supplied them.",
   ].join("\n");
 }
 

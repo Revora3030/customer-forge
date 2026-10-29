@@ -65,6 +65,7 @@ export function DistrictInspector({ open, onOpenChange, district, snapshot, now,
         }}
       ><span aria-hidden="true" className="mx-auto block h-1.5 w-12 rounded-full bg-border" /></button>}
       <SheetHeader className="text-left">
+        <button type="button" className="relative z-30 mb-2 inline-flex min-h-11 items-center pointer-events-auto rounded-md border border-border px-3 text-sm" onClick={() => onOpenChange(false)}>Close</button>
         <p className="text-xs uppercase text-gold">{info.role}</p>
         <SheetTitle className="font-display text-2xl">{info.name}</SheetTitle>
         <SheetDescription>{info.subtitle} · <span className="capitalize">{state}</span></SheetDescription>

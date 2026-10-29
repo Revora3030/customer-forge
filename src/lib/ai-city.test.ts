@@ -105,6 +105,14 @@ describe("AI City triage and activity", () => {
     expect(attentionItems(undefined, T)).toEqual([]);
   });
 
+  it("drops failures older than 48 hours from Needs you", () => {
+    const stale = row("old", "security", "failed", 5 * 24 * 60);
+    const recent = row("new", "security", "failed", 60);
+    const aged: CitySnapshot = { checkedAt: "", sources: { errors: { available: true, total: 2, truncated: false, rows: [stale, recent] } } };
+    expect(attentionItems(aged, T).map((item) => item.row.id)).toEqual(["new"]);
+    expect(districtCounts(aged, "security", T)?.errors).toBe(1);
+  });
+
   it("counts running, queued and failed per district, and is null when nothing could be read", () => {
     expect(districtCounts(snap, "factory", T)).toEqual({ running: 1, queued: 1, errors: 1, total: 3 });
     expect(districtCounts(snap, "security", T)).toEqual({ running: 0, queued: 0, errors: 0, total: 0 });

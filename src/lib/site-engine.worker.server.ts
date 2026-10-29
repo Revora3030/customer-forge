@@ -1105,7 +1105,7 @@ export async function claimJob(db: Db, organizationId?: string, invoker: WorkerI
   const now = new Date();
   let query = db
     .from("generation_jobs")
-    .select("id, organization_id, attempts, created_by, status, lease_expires_at, current_step")
+    .select("id, organization_id, attempts, created_by, status, lease_expires_at, current_step, started_at")
     .in("status", ["queued", "processing"])
     .lt("attempts", MAX_ATTEMPTS)
     // Filter BEFORE limit, otherwise five live/backing-off jobs starve every
@@ -1135,7 +1135,9 @@ export async function claimJob(db: Db, organizationId?: string, invoker: WorkerI
       .update({
         status: "processing",
         attempts: (job.attempts as number) + 1,
-        started_at: job.status === "queued" ? now.toISOString() : undefined,
+        // A later stage re-queues the same job. Keep the first start so elapsed
+        // time is not reset when that stage is claimed.
+        ...((job as { started_at?: string | null }).started_at ? {} : { started_at: now.toISOString() }),
         lease_expires_at: new Date(now.getTime() + LEASE_SECONDS * 1000).toISOString(),
         updated_at: now.toISOString(),
         ...(recovering ? { error_message: RECOVERING_BUILD_MESSAGE } : {}),
@@ -1327,7 +1329,7 @@ async function runJob(
     db.from("business_profiles").select("*").eq("organization_id", orgId).maybeSingle(),
     db
       .from("services")
-      .select("name, description, price, starting_price")
+      .select("id, name, description, price, starting_price")
       .eq("organization_id", orgId)
       .eq("is_active", true)
       .order("sort_order"),
@@ -1351,14 +1353,34 @@ async function runJob(
   // earlier intake bug is never a real business service, so it is dropped
   // before anything is written about it. Nothing is invented in its place.
   const { mergeSplitServices, sanitizeServices, customerBusinessEmail } = await import("@/lib/builder/intake-sanitize");
-  const serviceRows = mergeSplitServices(sanitizeServices(
+  const rawServices = sanitizeServices(
     (services.data ?? []) as {
+      id?: string;
       name: string;
       description?: string | null;
       price?: number | null;
       starting_price?: number | null;
     }[],
-  ));
+  );
+  const serviceRows = mergeSplitServices(rawServices);
+  // A fresh rebuild heals the workspace rows too, so the booking menu and the
+  // next layout see "Full Auto detailing" instead of two stub names.
+  try {
+    const kept = new Set(serviceRows.map((row) => row.id).filter(Boolean));
+    for (const row of serviceRows) {
+      const original = rawServices.find((item) => item.id && item.id === row.id);
+      if (row.id && original && original.name !== row.name) {
+        await db.from("services").update({ name: row.name } as never).eq("id", row.id).eq("organization_id", orgId);
+      }
+    }
+    for (const row of rawServices) {
+      if (row.id && !kept.has(row.id)) {
+        await db.from("services").update({ is_active: false } as never).eq("id", row.id).eq("organization_id", orgId);
+      }
+    }
+  } catch (error) {
+    console.warn("[site-engine] split service names were not rewritten", error);
+  }
   // Revora's own inbox is never a customer's business email (except on
   // Revora's internal workspace). Treated as "not supplied", never replaced.
   const businessEmail = customerBusinessEmail(p["email"], orgId);
@@ -1947,6 +1969,24 @@ async function runJob(
     if (rows.length) {
       const { error: recordError } = await db.from("image_records").upsert(rows as never, { onConflict: "organization_id,slot" });
       if (recordError) console.warn("[site-engine] picture records skipped", recordError.message);
+      else {
+        // Earlier failed runs left pending rows. This build's slots are approved;
+        // the leftovers are not still waiting, so monitoring can stop counting them.
+        try {
+          const { stalePendingSlots } = await import("@/lib/builder/studio-canvas");
+          const { data: prior } = await db.from("image_records").select("slot, status").eq("organization_id", orgId);
+          const stale = stalePendingSlots(
+            (prior ?? []) as { slot: string; status: string }[],
+            rows.map((row) => row.slot).filter((slot): slot is string => Boolean(slot)),
+          );
+          if (stale.length) {
+            const { error: staleError } = await db.from("image_records").update({ status: "rejected" } as never).eq("organization_id", orgId).eq("status", "pending").in("slot", stale);
+            if (staleError) console.warn("[site-engine] stale pending pictures were not closed", staleError.message);
+          }
+        } catch (error) {
+          console.warn("[site-engine] stale pending pictures were not closed", error);
+        }
+      }
     }
   }
   // The customer's own photos always go on the site first, in the places

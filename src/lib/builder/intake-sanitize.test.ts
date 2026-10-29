@@ -41,6 +41,14 @@ describe("mergeSplitServices", () => {
     expect(merged.map((row) => row.name)).toEqual(["Full Auto detailing", "Ceramic coating"]);
     expect(merged[0]?.price).toBe(350);
   });
+  it("joins a priced qualifier to a longer following name", () => {
+    const merged = mergeSplitServices([
+      { name: "Full", price: 250 },
+      { name: "Auto detailing", price: 250 },
+    ]);
+    expect(merged.map((row) => row.name)).toEqual(["Full Auto detailing"]);
+    expect(merged[0]?.price).toBe(250);
+  });
   it("leaves two priced packages separate", () => {
     expect(mergeSplitServices([{ name: "Full", price: 100 }, { name: "Interior", price: 80 }]).map((row) => row.name)).toEqual(["Full", "Interior"]);
   });

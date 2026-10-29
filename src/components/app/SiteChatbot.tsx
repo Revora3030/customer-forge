@@ -49,6 +49,23 @@ type Message =
   | { role: "user"; content: string; attached?: string[] }
   | { role: "assistant"; content: string; plan?: Plan };
 
+const BUILD_STATUS = "Got it — your AI team is finishing the first website now";
+
+function collapseBuildStatus(messages: Message[]): Array<Message & { repeats?: number }> {
+  const out: Array<Message & { repeats?: number }> = [];
+  for (const message of messages) {
+    const previous = out.at(-1);
+    const status = message.role === "assistant" && message.content.startsWith(BUILD_STATUS);
+    const previousStatus = previous?.role === "assistant" && previous.content.startsWith(BUILD_STATUS);
+    if (status && previous && previousStatus) {
+      out[out.length - 1] = { ...message, repeats: (previous.repeats ?? 1) + 1 };
+      continue;
+    }
+    out.push(message);
+  }
+  return out;
+}
+
 type Plan = {
   summary: string;
   steps: AgentStep[];
@@ -291,7 +308,7 @@ export function SiteChatbot({
 
       {messages.length ? (
         <div className="mt-5 space-y-3">
-          {messages.map((message, index) => (
+          {collapseBuildStatus(messages).map((message, index) => (
             <div
               key={index}
               className={`flex gap-3 rounded-md border p-3.5 ${
@@ -305,6 +322,7 @@ export function SiteChatbot({
               )}
               <div className="min-w-0">
                 <p className="whitespace-pre-wrap text-[13px] leading-relaxed">{message.content}</p>
+                {"repeats" in message && message.repeats && message.repeats > 1 ? <p className="mt-1 text-[11px] text-muted-foreground">Shown once · repeated {message.repeats} times</p> : null}
                 {message.role === "user" && message.attached?.length ? (
                   <p className="mt-1.5 text-[11px] text-muted-foreground">
                     {message.attached.join(" · ")}

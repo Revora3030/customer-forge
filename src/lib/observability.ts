@@ -125,7 +125,16 @@ export function buildTimeline(input: {
 }): ActivityEvent[] {
   const events: ActivityEvent[] = [];
 
+  const newestCompletedAt = input.jobs
+    .filter((job) => job.status === "completed")
+    .map((job) => job.completed_at ?? job.created_at)
+    .sort()
+    .at(-1);
   for (const job of input.jobs) {
+    if (newestCompletedAt && job.status === "failed") {
+      const at = job.completed_at ?? job.created_at;
+      if (at < newestCompletedAt) continue;
+    }
     events.push({
       id: `job:${job.id}`,
       kind: "build",

@@ -322,6 +322,8 @@ export async function runProspectAutopilot(
     await buildPhase(db, settings, summary, skip, now, options.onQueued);
     await reverifyLegacyPhase(db, summary, skip, now);
     await sendPhase(db, settings, summary, skip, now, options.random ?? Math.random);
+    const { deliverDeferredPitchPreviews } = await import("./prospect-replies.server");
+    await deliverDeferredPitchPreviews(db, now()).catch(() => 0);
   } catch (error) {
     summary.status = "failed";
     summary.error = (error instanceof Error ? error.message : "Autopilot run failed.").slice(0, 500);
@@ -512,7 +514,7 @@ async function buildPhase(
   if (!cursor) return skip({ reason: "rotation_unavailable: apply the prospect rotation migration" });
   const lastSearched = new Map([...cursor].map(([key, row]) => [key, row.lastSearchedAt]));
   // A few extra candidates, in case some were searched by hand recently.
-  const due: RotationPair[] = nextRotationPairs(rotationPairs(settings.rotation), lastSearched, now(), searchesLeft * 3);
+  const due: RotationPair[] = nextRotationPairs(rotationPairs(settings.rotation), lastSearched, now(), 4);
   if (!due.length) return skip({ reason: "rotation_exhausted: every pair was searched within the cooldown" });
   for (const pair of due) {
     if (remaining <= 0 || searchesLeft <= 0 || budgetSpent) break;
@@ -530,6 +532,7 @@ async function buildPhase(
       last_built: result.built,
       last_error: result.error,
     });
+    if (result.found > 0) break;
   }
 }
 

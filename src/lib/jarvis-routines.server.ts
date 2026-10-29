@@ -43,6 +43,42 @@ export function parseRoutineInput(value: unknown): RoutineInput {
   return { name, prompt, frequency, hour, minute };
 }
 
+export const DEFAULT_ROUTINES: readonly RoutineInput[] = [
+  {
+    name: "Morning briefing",
+    prompt: "Give the morning briefing from live diagnostics: stuck builds, unanswered leads, and pending approvals. Separate what was observed from what you infer. Do not invent counts.",
+    frequency: "daily",
+    hour: 8,
+    minute: 0,
+  },
+  {
+    name: "Build health",
+    prompt: "Check website build health. Name any job stuck in generating or failed, and the next owner action. Do not restart a build.",
+    frequency: "daily",
+    hour: 9,
+    minute: 0,
+  },
+  {
+    name: "Prospect follow-up",
+    prompt: "Summarize prospect replies and drafts waiting for approval. Do not send anything. List what I should approve or reject.",
+    frequency: "weekly",
+    hour: 10,
+    minute: 0,
+  },
+];
+
+/** Creates the three default routines when the owner has none. Does not run them. */
+export async function seedDefaultRoutines(db: SupabaseClient, userId: string) {
+  const existing = await listJarvisRoutines(db, userId);
+  if (existing.length) return { created: 0, ids: existing.map((routine) => routine.id) };
+  const ids: string[] = [];
+  for (const routine of DEFAULT_ROUTINES) {
+    const saved = await createJarvisRoutine(db, userId, routine);
+    ids.push(saved.id);
+  }
+  return { created: ids.length, ids };
+}
+
 export async function listJarvisRoutines(db: SupabaseClient, userId: string): Promise<JarvisRoutine[]> {
   const { data, error } = await db
     .from("jarvis_routines")
@@ -135,6 +171,18 @@ async function executeRoutine(db: SupabaseClient, routine: JarvisRoutine): Promi
   const { reply } = await runJarvis(db, routine.user_id, "balanced");
   const { splitReplyMeta } = await import("./jarvis-actions");
   return splitReplyMeta(reply).body.slice(0, 400);
+}
+
+/** Runs one of the owner's routines immediately. The same chat loop and spend caps apply. */
+export async function runJarvisRoutineNow(db: SupabaseClient, userId: string, routineId: string) {
+  const routines = await listJarvisRoutines(db, userId);
+  const routine = routines.find((item) => item.id === routineId);
+  if (!routine) throw new Error("That routine was not found.");
+  if (routine.last_status === "running") throw new Error("That routine is already running.");
+  const summary = await executeRoutine(db, routine);
+  const now = new Date().toISOString();
+  await db.from("jarvis_routines").update({ last_run_at: now, last_status: "ok", last_summary: summary, updated_at: now }).eq("id", routine.id).eq("user_id", userId);
+  return { summary };
 }
 
 export async function runDueJarvisRoutines(db: SupabaseClient, now = new Date(), execute = executeRoutine) {
