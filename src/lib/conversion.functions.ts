@@ -204,24 +204,41 @@ export const getConversionReport = createServerFn({ method: "GET" })
     const since = new Date(Date.now() - data.days * 86_400_000).toISOString();
 
     // Aggregate every row in the window: analytics must never be truncated.
-    const rows: {
+    const allRows: {
       event_name: string;
       industry_slug: string | null;
       landing_path: string | null;
       metadata: unknown;
       created_at: string;
+      session_id: string | null;
+      email: string | null;
     }[] = [];
     for (let page = 0; page < 200; page += 1) {
       const { data: batch, error } = await supabaseAdmin
         .from("marketing_conversions")
-        .select("event_name, industry_slug, landing_path, metadata, created_at")
+        .select("event_name, industry_slug, landing_path, metadata, created_at, session_id, email")
         .gte("created_at", since)
         .order("created_at", { ascending: false })
         .range(page * 1000, page * 1000 + 999);
       if (error) throw new Error("Analytics unavailable");
-      rows.push(...(batch ?? []));
+      allRows.push(...(batch ?? []));
       if ((batch?.length ?? 0) < 1000) break;
     }
+
+    // Revora's own staff test signup/checkout; their sessions are not prospects.
+    const { staffSessionIds, isStaffRow } = await import("@/lib/staff-sessions");
+    const staffEmails = new Set<string>();
+    const { data: staffRoles, error: rolesError } = await supabaseAdmin
+      .from("user_roles")
+      .select("user_id")
+      .eq("role", "super_admin");
+    if (rolesError) throw new Error("Analytics unavailable");
+    for (const r of staffRoles ?? []) {
+      const { data: u } = await supabaseAdmin.auth.admin.getUserById(r.user_id);
+      if (u?.user?.email) staffEmails.add(u.user.email.toLowerCase());
+    }
+    const staffSessions = staffSessionIds(allRows, staffEmails);
+    const rows = allRows.filter((r) => !isStaffRow(r, staffSessions, staffEmails));
 
     const grouped = new Map<string, FunnelRow>();
     const variants = new Map<string, VariantRow>();
