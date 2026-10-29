@@ -55,7 +55,7 @@ export function PlatformAnalytics() {
       cancelled = true;
       window.removeEventListener("revora:consent-changed", load);
     };
-  }, [path]);
+  }, []);
 
   // One page_view per navigation, including client-side route changes.
   useEffect(() => {

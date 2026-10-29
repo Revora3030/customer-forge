@@ -209,6 +209,27 @@ describe("composeFirstBuildSections checkpoints", () => {
 });
 
 describe("composeFirstBuildSections repair and rescue bounds", () => {
+  it("retries unrelated transient section failures independently while retaining successful work", async () => {
+    const attempts = new Map<string, number>();
+    const good = designAll("11111111-1111-4111-8111-111111111111");
+    state.handler = (req) => {
+      if (req.user.includes("SECTIONS TO DESIGN")) {
+        const id = /"sectionId": "([^\"]+)"/.exec(req.user)?.[1];
+        if (id) {
+          const attempt = (attempts.get(id) ?? 0) + 1;
+          attempts.set(id, attempt);
+          if (attempt === 1 && id !== "a-s3") return { ok: false, reason: "unavailable", detail: "transient" };
+        }
+      }
+      return good(req);
+    };
+    const { result } = await compose("a", memoryStore().store);
+    expect(result.composed).toBe(3);
+    expect(attempts.get("a-s1")).toBe(2);
+    expect(attempts.get("a-s2")).toBe(2);
+    expect(attempts.get("a-s3")).toBe(1);
+    expect(state.calls.filter((c) => c.includes("SECTION TO DESIGN (material only)"))).toHaveLength(0);
+  });
   it("designs one section per primary call with at most two in flight on a page", async () => {
     let inFlight = 0;
     let peak = 0;
