@@ -55,6 +55,8 @@ export type DnaFacts = {
   yearsInBusiness?: number | null;
   certifications?: string | null;
   awards?: string | null;
+  /** Other words the owner wrote themselves (service descriptions, how they work); copy may restate them. */
+  ownerStatements?: string | null;
   testimonialCount?: number | null;
   reviewLink?: string | null;
   photoCount?: number | null;
@@ -96,21 +98,70 @@ const CLAIM_PATTERNS: { pattern: RegExp; reason: string }[] = [
     reason: "customer count",
   },
   { pattern: /\b(cheapest|lowest price|best in|leading|award)\b/i, reason: "superlative claim" },
-  // Claims the owner never supplied that read like facts. Each needs a real source.
-  { pattern: /\b(fully\s+)?(insured|bonded)\b/i, reason: "credential" },
+  // Claims that read like facts. Each passes only when the owner's own words
+  // (description, services, credentials) already state it; see OWNER_STATABLE.
+  { pattern: /\b(fully\s+)?(insured|bonded)\b/i, reason: "insurance" },
   { pattern: /\b\d{1,3}\+?\s*(years?|yrs?)\b(?=[^.]{0,30}\b(experience|in business|serving|of service|strong)\b)/i, reason: "years in business" },
   { pattern: /\b(since|established|est\.?|founded(?:\s+in)?)\s+(19|20)\d{2}\b/i, reason: "years in business" },
   {
     pattern: /\b\d{1,3}(?:,\d{3})+\+?\s+\w+(?:\s+\w+)?\s+(cleaned|washed|served|completed|installed|repaired|detailed|built|painted)\b|\b\d{2,}\+?\s+(driveways|homes|houses|cars|vehicles|roofs|jobs|projects|customers|clients|families|neighbou?rs)\b/i,
-    reason: "customer count",
+    reason: "track record",
   },
-  { pattern: /\b(trusted|loved|chosen)\s+by\s+(over\s+)?\d/i, reason: "customer count" },
+  { pattern: /\b(trusted|loved|chosen)\s+by\s+(over\s+)?\d[\d,]*\+?/i, reason: "track record" },
   { pattern: /\b(same|next)[- ]day\b|\b24\s?\/\s?7\b|\bwithin\s+(the\s+)?(hour|\d+\s+hours?)\b/i, reason: "service promise" },
   { pattern: /\b(eco[- ]friendly|pet[- ]safe|child[- ]safe|non[- ]toxic|biodegradable|environmentally[- ]friendly)\b/i, reason: "product claim" },
   { pattern: /\b\d[\d,]*\s*(?:[-–]|to)?\s*(?:\d[\d,]*\s*)?psi\b/i, reason: "technical figure" },
 ];
 
 export type ClaimIssue = { text: string; reason: string };
+
+/**
+ * Claim kinds a business owner can make about themselves. The site may repeat
+ * one only when the owner's own words already state it, never on its own.
+ */
+const OWNER_STATABLE = new Set(["insurance", "years in business", "track record", "service promise", "product claim", "technical figure"]);
+
+/** Lowercase words and numbers only; "1,200" becomes "1200" and "24/7" becomes "24 7". */
+function claimTokens(text: string): string[] {
+  return text
+    .toLowerCase()
+    .replace(/(\d),(?=\d{3}\b)/g, "$1")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim()
+    .split(" ")
+    .filter(Boolean);
+}
+
+const LINKING_WORDS = new Set(["by", "of", "the", "and", "with", "over", "for", "our", "fully", "est"]);
+
+/** Everything the owner wrote themselves, which generated copy may restate. */
+function ownerWords(facts: DnaFacts): string[] {
+  return claimTokens(
+    [facts.description, ...(facts.services ?? []), facts.certifications, facts.awards, facts.ownerStatements]
+      .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+      .join(" . "),
+  );
+}
+
+/** True when the owner's own words state this claim: every number in it, and every word that carries meaning. */
+function ownerStated(reason: string, claim: string, owner: readonly string[]): boolean {
+  if (!owner.length) return false;
+  const tokens = claimTokens(claim);
+  const have = new Set(owner);
+  const said = (word: string) => have.has(word) || have.has(`${word}s`) || (word.endsWith("s") && have.has(word.slice(0, -1)));
+  const numbers = tokens.filter((token) => /^\d+$/.test(token));
+  if (reason === "years in business") {
+    const year = numbers.find((n) => /^(19|20)\d{2}$/.test(n));
+    if (year) return have.has(year);
+    // "20 years": the owner must have written that number of years.
+    const count = numbers[0];
+    const joined = ` ${owner.join(" ")} `;
+    return Boolean(count) && new RegExp(` ${count} (years?|yrs?) `).test(joined);
+  }
+  const words = tokens.filter((token) => !/\d/.test(token) && token.length > 2 && !LINKING_WORDS.has(token));
+  if (!numbers.length && !words.length) return false;
+  return numbers.every((n) => have.has(n)) && words.every(said);
+}
 
 /** A years claim is fine only when it states the number the owner supplied (a founding year may be one off). */
 function yearsClaimMatches(claim: string, supplied: number | null | undefined): boolean {
@@ -129,10 +180,12 @@ export function screenClaims(text: string, facts: DnaFacts): ClaimIssue[] {
   const allowCredentials = Boolean(facts.certifications?.trim());
   const allowAwards = Boolean(facts.awards?.trim());
   const allowRatings = (facts.testimonialCount ?? 0) > 0;
+  const owner = ownerWords(facts);
   const out: ClaimIssue[] = [];
   for (const { pattern, reason } of CLAIM_PATTERNS) {
     const match = pattern.exec(text);
     if (!match) continue;
+    if (OWNER_STATABLE.has(reason) && ownerStated(reason, match[0], owner)) continue;
     if (reason === "credential" && allowCredentials) continue;
     if (reason === "years in business" && yearsClaimMatches(match[0], facts.yearsInBusiness)) continue;
     if (reason === "award" && allowAwards) continue;
