@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { isStaffRow, staffSessionIds } from "./staff-sessions";
+import { isStaffRow, staffSessionIds, TEST_ACCOUNT_EMAILS } from "./staff-sessions";
+
 
 const rows = [
   { session_id: "s1", email: null, event_name: "signup_started" },
