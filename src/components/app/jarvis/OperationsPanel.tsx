@@ -12,6 +12,7 @@ import { ClaudeCodePanel } from "@/components/app/ClaudeCodePanel";
 import { EngineTodayCard } from "./EngineTodayCard";
 import { ProspectAutopilotCard } from "./ProspectAutopilotCard";
 import { ProspectInboxCard } from "./ProspectInboxCard";
+import { ProspectLeadImportCard } from "./ProspectLeadImportCard";
 import type { getJarvisAcquisitionReadiness, getJarvisDiagnostics, runJarvisDiagnosticTool } from "@/lib/jarvis.functions";
 import type { ProspectDraft } from "@/lib/jarvis-prospecting.functions";
 
@@ -112,6 +113,7 @@ export function OperationsPanel({ diagnostics, acquisition, scorecard, prospecto
       <EngineTodayCard />
       <ProspectAutopilotCard />
       <ProspectInboxCard />
+      <ProspectLeadImportCard />
       <ApprovalLogCard />
       <InstagramPanel />
       <FreeToolsPanel />
