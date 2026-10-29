@@ -41,6 +41,18 @@ describe("planEventResponses", () => {
     expect(again.proposals).toEqual([]);
   });
 
+  it("tells the owner about a failed payment and a site that did not load, without claiming anything was sent", () => {
+    const pay = { ...ev("1", "payment.failed", "Acme Plumbing"), detail: "Revora growth (monthly). USD 100.00." };
+    const down = { ...ev("2", "site.down", "Site health"), detail: "Flagged in the hour starting 2026-10-27 17:00 UTC." };
+    const { proposals } = planEventResponses({ events: [pay, down], rules: DEFAULT_EVENT_RULES, lastProposed: {}, now: NOW });
+    const payment = proposals.find((p) => p.ruleId === "payment-failed")!;
+    expect(payment.summary).toBe("Stripe reported a failed payment from Acme Plumbing. Revora growth (monthly). USD 100.00. Nothing was changed or sent from here.");
+    expect(payment.prompt).toContain("Do not send anything.");
+    expect(proposals.find((p) => p.ruleId === "site-down")!.summary).toContain("isn't loading");
+    const again = planEventResponses({ events: [down], rules: DEFAULT_EVENT_RULES, lastProposed: { "site-down|Site health": NOW - 3_600_000 }, now: NOW });
+    expect(again.proposals).toEqual([]);
+  });
+
   it("caps proposals per pass even if asked for more", () => {
     const events = Array.from({ length: 20 }, (_, i) => ev(`e${i}`, "build.failed", `site-${i}`, NOW - i));
     const { proposals, dropped } = planEventResponses({ events, rules: DEFAULT_EVENT_RULES, lastProposed: {}, now: NOW, maxProposals: 100 });

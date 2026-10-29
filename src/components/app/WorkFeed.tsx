@@ -186,6 +186,35 @@ export function WorkFeedView({
             </button>
           ) : null}
 
+          {feed.look || feed.sections.length ? (
+            <div className="space-y-2 border-t border-border/50 pt-3" data-testid="taking-shape">
+              <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Taking shape</p>
+              {feed.look ? (
+                <div className="flex items-start gap-2 text-[13px] leading-5">
+                  <span className="mt-1 flex shrink-0 -space-x-1" aria-hidden>
+                    {feed.look.colors.map((color) => (
+                      <span key={color} className="size-4 rounded-full border border-border/70" style={{ backgroundColor: color }} />
+                    ))}
+                  </span>
+                  <span className="min-w-0 flex-1 break-words">
+                    {[feed.look.name, feed.look.font].filter(Boolean).join(" · ")}
+                    {feed.look.mood ? <span className="block text-xs text-muted-foreground">{feed.look.mood}</span> : null}
+                  </span>
+                </div>
+              ) : null}
+              {feed.sections.length ? (
+                <ol className="space-y-1.5" aria-label="Sections finished so far">
+                  {feed.sections.map((section, index) => (
+                    <li key={index} className="text-[13px] leading-5">
+                      <span className="font-medium break-words">{section.headline}</span>
+                      {section.blurb ? <span className="line-clamp-2 block text-xs text-muted-foreground">{section.blurb}</span> : null}
+                    </li>
+                  ))}
+                </ol>
+              ) : null}
+            </div>
+          ) : null}
+
           {feed.ai.length ? (
             <div className="space-y-1.5 border-t border-border/50 pt-3">
               <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">AI team</p>

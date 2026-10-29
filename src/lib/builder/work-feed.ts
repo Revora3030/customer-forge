@@ -22,6 +22,8 @@ export type FeedJob = {
   completed_at?: string | null;
   error_message?: string | null;
   section_checkpoints?: unknown;
+  /** The brand identity the AI team authored, once that stage has finished (stage_checkpoints.stages.identity.value). */
+  look?: unknown;
   /** Attempts the worker has made so far; a retry's row keeps the build's original created_at. */
   attempts?: number | null;
   failure_kind?: string | null;
@@ -50,6 +52,10 @@ export type WorkFeed = {
   pictures: FeedImage[];
   /** Sections laid out so far while layouts run; null when not recorded. */
   sectionsDone: number | null;
+  /** The look the AI team chose, as soon as it exists; null before then. */
+  look: FeedLook | null;
+  /** Finished section designs so far, in the order they were accepted, with the words they open with. */
+  sections: FeedSection[];
   /** Past tense: "Worked for 7m 21s · 14 steps · 9 AI calls". Empty until it has ended. */
   summary: string;
 };
@@ -114,6 +120,73 @@ const ms = (iso: string | null | undefined) => {
   return Number.isFinite(t) ? t : null;
 };
 
+/** The brand identity as the owner can see it: three colours, a typeface and the mood in one line. */
+export type FeedLook = { name: string | null; mood: string | null; font: string | null; colors: string[] };
+/** One finished section: the heading it opens with and the first line of its copy. */
+export type FeedSection = { headline: string; blurb: string | null };
+
+const HEX = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
+const isRecord = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === "object" && !Array.isArray(value);
+const plain = (value: unknown, max: number): string | null => {
+  // eslint-disable-next-line no-control-regex -- strips control characters from stored text
+  const text = typeof value === "string" ? value.replace(/[\u0000-\u001f\u007f]+/g, " ").replace(/\s+/g, " ").trim() : "";
+  return text ? (text.length > max ? `${text.slice(0, max - 1)}…` : text) : null;
+};
+
+/**
+ * The authored look from the saved brand identity stage. Only colours that are
+ * plain hex are kept, so a stored value can never put anything else in a style.
+ */
+export function readLook(value: unknown): FeedLook | null {
+  const raw = isRecord(value) && isRecord(value["direction"]) ? value["direction"] : value;
+  if (!isRecord(raw)) return null;
+  const colors = [raw["primary"], raw["secondary"], raw["accent"]].filter((c): c is string => typeof c === "string" && HEX.test(c.trim())).map((c) => c.trim());
+  const name = plain(raw["name"], 60);
+  // A pair is stored as "Heading face|Body face".
+  const font = plain(typeof raw["font"] === "string" ? raw["font"].replace(/\s*\|\s*/g, " + ") : null, 80);
+  if (!colors.length && !name && !font) return null;
+  return { name, mood: plain(raw["mood"], 200), font, colors };
+}
+
+/**
+ * The first heading in a composition tree (depth-first, bounded) and the first
+ * line of body text after it. A small line above the heading (an eyebrow) is
+ * only used when the section has no heading.
+ */
+function firstWords(tree: unknown): { heading: string | null; text: string | null } {
+  let heading: string | null = null;
+  let after: string | null = null;
+  let first: string | null = null;
+  let visited = 0;
+  const visit = (node: unknown, depth: number) => {
+    if (!isRecord(node) || depth > 8 || visited > 300 || (heading && after)) return;
+    visited += 1;
+    if (!heading && node["type"] === "heading") heading = plain(node["text"], 90);
+    else if (node["type"] === "text") {
+      const line = plain(node["text"], 140);
+      first ??= line;
+      if (heading) after ??= line;
+    }
+    if (Array.isArray(node["children"])) for (const child of node["children"]) visit(child, depth + 1);
+  };
+  visit(isRecord(tree) ? tree["root"] : null, 0);
+  return { heading, text: heading ? after : first };
+}
+
+/** Finished section designs from the job's checkpoint, oldest first. A section with no words of its own is left out. */
+export function sectionOutline(checkpoint: unknown): FeedSection[] {
+  const sections = isRecord(checkpoint) && isRecord(checkpoint["sections"]) ? Object.values(checkpoint["sections"]) : [];
+  return sections
+    .filter(isRecord)
+    .sort((a, b) => (ms(typeof a["at"] === "string" ? a["at"] : null) ?? 0) - (ms(typeof b["at"] === "string" ? b["at"] : null) ?? 0))
+    .flatMap((entry) => {
+      const { heading, text } = firstWords(entry["tree"]);
+      const headline = heading ?? text;
+      return headline ? [{ headline, blurb: heading && text ? text : null }] : [];
+    })
+    .slice(0, 24);
+}
+
 function sectionCount(value: unknown): number | null {
   const sections = (value as { sections?: unknown } | null)?.sections;
   return sections && typeof sections === "object" ? Object.keys(sections as object).length : null;
@@ -150,7 +223,7 @@ export function buildWorkFeed(input: {
 }): WorkFeed {
   const { job } = input;
   if (!job) {
-    return { state: "none", headline: "", percent: null, elapsedMs: null, stages: [], ai: [], aiCalls: 0, pictures: [], sectionsDone: null, summary: "" };
+    return { state: "none", headline: "", percent: null, elapsedMs: null, stages: [], ai: [], aiCalls: 0, pictures: [], sectionsDone: null, look: null, sections: [], summary: "" };
   }
   const status = job.status ?? "";
   const active = status === "queued" || status === "processing";
@@ -215,6 +288,9 @@ export function buildWorkFeed(input: {
     aiCalls,
     pictures,
     sectionsDone: runningStage?.key === "layout" ? sectionCount(job.section_checkpoints) : null,
+    // Both are cleared by the worker when the build completes, so they only show while there is work in flight.
+    look: active || state === "failed" ? readLook(job.look) : null,
+    sections: active || state === "failed" ? sectionOutline(job.section_checkpoints) : [],
     summary,
   };
 }

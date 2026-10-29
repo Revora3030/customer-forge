@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildFailedSource, ciFailedSource, leadUnansweredSource, routineFailedSource, trialExpiringSource } from "@/lib/event-sources.server";
+import { buildFailedSource, ciFailedSource, leadUnansweredSource, paymentFailedSource, routineFailedSource, siteDownSource, trialExpiringSource } from "@/lib/event-sources.server";
 import { PLATFORM_OWNER_ORG_ID } from "@/lib/platform-owner";
 
 const NOW = Date.parse("2026-10-27T18:00:00Z");
@@ -15,6 +15,7 @@ function fakeDb(tables: Record<string, Record<string, unknown>[]>, failTable?: s
       select: () => q,
       eq: (c: string, v: unknown) => { rows = rows.filter((r) => r[c] === v); return q; },
       is: (c: string, v: unknown) => { rows = rows.filter((r) => (r[c] ?? null) === v); return q; },
+      not: (c: string, op: string, v: unknown) => { rows = rows.filter((r) => (op === "is" ? (r[c] ?? null) !== v : r[c] !== v)); return q; },
       in: (c: string, v: unknown[]) => { rows = rows.filter((r) => v.includes(r[c])); return q; },
       gt: (c: string, v: string) => { rows = rows.filter((r) => String(r[c]) > v); return q; },
       gte: (c: string, v: string) => { rows = rows.filter((r) => String(r[c]) >= v); return q; },
@@ -73,6 +74,47 @@ describe("routineFailedSource", () => {
 
   it("throws when the read fails, so the bus reports the source as unreadable", async () => {
     await expect(routineFailedSource(fakeDb(tables(), "jarvis_routines")).read(NOW)).rejects.toThrow("jarvis_routines");
+  });
+});
+
+describe("paymentFailedSource", () => {
+  const tables = () => ({
+    payments: [
+      { id: "p1", organization_id: "o1", status: "failed", environment: "live", plan_id: "growth", amount: 100, currency: "usd", description: "Revora growth (monthly)", failure_reason: null, created_at: iso(HOUR) },
+      { id: "p2", organization_id: "o1", status: "completed", environment: "live", plan_id: "growth", amount: 100, currency: "usd", description: "Revora growth (monthly)", failure_reason: null, created_at: iso(HOUR) },
+      { id: "p3", organization_id: "o1", status: "failed", environment: "sandbox", plan_id: "growth", amount: 100, currency: "usd", description: "test", failure_reason: null, created_at: iso(HOUR) },
+      { id: "p4", organization_id: "o1", status: "failed", environment: "live", plan_id: null, amount: 20, currency: "usd", description: "one-off", failure_reason: "Checkout session expired", created_at: iso(HOUR) },
+      { id: "p5", organization_id: "o1", status: "failed", environment: "live", plan_id: "growth", amount: 100, currency: "usd", description: "old", failure_reason: null, created_at: iso(3 * 24 * HOUR) },
+      { id: "p6", organization_id: "o2", status: "failed", environment: "live", plan_id: "growth", amount: 350, currency: "usd", description: "Revora setup", failure_reason: "Card declined\nby bank", created_at: iso(2 * HOUR) },
+    ],
+    organizations: [{ id: "o1", name: "Acme Plumbing" }, { id: "o2", name: "Blue Door" }],
+  });
+
+  it("reports only live subscription payments that failed in the last day, naming the customer and the amount", async () => {
+    const events = await paymentFailedSource(fakeDb(tables())).read(NOW);
+    expect(events.map((e) => e.id).sort()).toEqual(["p1", "p6"]);
+    expect(events.find((e) => e.id === "p1")).toMatchObject({ type: "payment.failed", subject: "Acme Plumbing", detail: "Revora growth (monthly). USD 100.00." });
+    expect(events.find((e) => e.id === "p6")!.detail).toBe("Revora setup. USD 350.00. Reason: Card declined by bank.");
+  });
+
+  it("throws when the read fails, so the bus reports the source as unreadable", async () => {
+    await expect(paymentFailedSource(fakeDb(tables(), "payments")).read(NOW)).rejects.toThrow("payments");
+  });
+});
+
+describe("siteDownSource", () => {
+  it("turns the last few hourly site-health alerts into events, and ignores older ones and other kinds", async () => {
+    const db = fakeDb({
+      lifecycle_email_log: [
+        { kind: "site_health_alert", window_key: "2026-10-27T17", status: "sent", created_at: iso(MIN * 30) },
+        { kind: "site_health_alert", window_key: "2026-10-27T10", status: "sent", created_at: iso(8 * HOUR) },
+        { kind: "trial_ending", window_key: "2026-10-27T17", status: "sent", created_at: iso(MIN * 30) },
+      ],
+    });
+    const events = await siteDownSource(db).read(NOW);
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ id: "2026-10-27T17", type: "site.down", subject: "Site health", detail: "Flagged in the hour starting 2026-10-27 17:00 UTC." });
+    await expect(siteDownSource(fakeDb({}, "lifecycle_email_log")).read(NOW)).rejects.toThrow("lifecycle_email_log");
   });
 });
 

@@ -32,7 +32,7 @@ export function useWorkFeed(organizationId: string | null | undefined, options: 
     queryFn: async (): Promise<WorkFeedJobRow | null> => {
       let query = supabase
         .from("generation_jobs")
-        .select("id, status, current_step, progress, steps, stage_timings, created_at, started_at, completed_at, error_message, failure_kind, section_checkpoints, lease_expires_at, updated_at, resumes_at, wait_reason, wait_providers, capacity_deferrals, attempts")
+        .select("id, status, current_step, progress, steps, stage_timings, created_at, started_at, completed_at, error_message, failure_kind, section_checkpoints, look:stage_checkpoints->stages->identity->value, lease_expires_at, updated_at, resumes_at, wait_reason, wait_providers, capacity_deferrals, attempts")
         .eq("organization_id", organizationId as string)
         .order("created_at", { ascending: false })
         .limit(1);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildWorkFeed, formatDuration, modelsAsked, parseModels, retryHeadline, timedSteps, type FeedJob } from "./work-feed";
+import { buildWorkFeed, formatDuration, modelsAsked, parseModels, readLook, retryHeadline, sectionOutline, timedSteps, type FeedJob } from "./work-feed";
 
 const START = "2026-10-28T03:00:00.000Z";
 const T = (sec: number) => new Date(Date.parse(START) + sec * 1000).toISOString();
@@ -178,5 +178,65 @@ describe("the live headline", () => {
       generations: [], images: [], now: Date.parse(T(90)),
     });
     expect(feed.headline).toBe("planning your picture campaign — attempt 2");
+  });
+});
+
+describe("the draft taking shape", () => {
+  const tree = (heading: string, text: string) => ({ version: 1, root: { type: "stack", children: [{ type: "media", mediaRef: "temp_hero" }, { type: "stack", children: [{ type: "heading", text: heading }, { type: "text", text }] }] } });
+  const checkpoint = {
+    version: 1, jobId: "j1", digest: "d", updatedAt: T(300),
+    sections: {
+      later: { tree: tree("Our services", "Every job, done right."), media: {}, at: T(200) },
+      first: { tree: tree("Mobile detailing in Raleigh", "We come to you.\n\tFull washes and ceramic coatings."), media: {}, at: T(100) },
+      bare: { tree: { version: 1, root: { type: "stack", children: [{ type: "media", mediaRef: "temp_x" }] } }, media: {}, at: T(150) },
+    },
+  };
+  const identity = { direction: { id: "d1", name: "Obsidian Garage", mood: "Dark, glossy and exact", primary: "#0b0d12", secondary: "#1c2230", accent: "#f5b942", font: "Space Grotesk" } };
+
+  it("lists finished sections oldest first by the words they open with, and leaves out one with no words", () => {
+    const feed = buildWorkFeed({ job: job({ section_checkpoints: checkpoint }), progress: [], generations: [], images: [], now: Date.parse(T(400)) });
+    expect(feed.sections).toEqual([
+      { headline: "Mobile detailing in Raleigh", blurb: "We come to you. Full washes and ceramic coatings." },
+      { headline: "Our services", blurb: "Every job, done right." },
+    ]);
+  });
+
+  it("opens a section with its heading and the line after it, not the small line above it", () => {
+    const eyebrow = { root: { type: "stack", children: [{ type: "stack", children: [{ type: "text", text: "Mobile service, anywhere in Raleigh" }, { type: "heading", text: "Book your full detail" }, { type: "text", text: "We bring the equipment, water and power." }] }] } };
+    expect(sectionOutline({ sections: { a: { tree: eyebrow, at: T(1) } } })).toEqual([{ headline: "Book your full detail", blurb: "We bring the equipment, water and power." }]);
+    const noHeading = { root: { type: "stack", children: [{ type: "text", text: "Only words" }] } };
+    expect(sectionOutline({ sections: { a: { tree: noHeading, at: T(1) } } })).toEqual([{ headline: "Only words", blurb: null }]);
+  });
+
+  it("shows the look the AI team chose, keeping only plain hex colours", () => {
+    const feed = buildWorkFeed({ job: job({ look: identity }), progress: [], generations: [], images: [], now: Date.parse(T(400)) });
+    expect(feed.look).toEqual({ name: "Obsidian Garage", mood: "Dark, glossy and exact", font: "Space Grotesk", colors: ["#0b0d12", "#1c2230", "#f5b942"] });
+    expect(readLook({ direction: { name: "Driveway Precision", font: "Barlow Condensed|Source Sans 3", primary: "#e8f154" } })?.font).toBe("Barlow Condensed + Source Sans 3");
+    const hostile = readLook({ primary: "red; background:url(x)", secondary: "#fff", accent: "javascript:1", name: "A\u0007B" });
+    expect(hostile).toEqual({ name: "A B", mood: null, font: null, colors: ["#fff"] });
+    expect(readLook({ direction: "nope" })).toBeNull();
+    expect(readLook(null)).toBeNull();
+  });
+
+  it("shows nothing once the build is done, and nothing when no checkpoint has been saved yet", () => {
+    const done = buildWorkFeed({ job: job({ status: "completed", progress: 100, completed_at: T(500), look: identity, section_checkpoints: checkpoint }), progress: [], generations: [], images: [], now: Date.parse(T(600)) });
+    expect(done.sections).toEqual([]);
+    expect(done.look).toBeNull();
+    const early = buildWorkFeed({ job: job({ section_checkpoints: null }), progress: [], generations: [], images: [], now: Date.parse(T(60)) });
+    expect(early.sections).toEqual([]);
+    expect(early.look).toBeNull();
+  });
+
+  it("keeps what was saved when a build stops, so the owner can see the work that is kept", () => {
+    const failed = buildWorkFeed({ job: job({ status: "failed", error_message: "x", section_checkpoints: checkpoint }), progress: [], generations: [], images: [], now: Date.parse(T(600)) });
+    expect(failed.sections).toHaveLength(2);
+  });
+
+  it("reads at most 24 sections and only looks a few levels deep", () => {
+    const many = Object.fromEntries(Array.from({ length: 40 }, (_, i) => [`s${i}`, { tree: tree(`Section ${i}`, "x"), media: {}, at: T(i) }]));
+    expect(sectionOutline({ sections: many })).toHaveLength(24);
+    let deep: Record<string, unknown> = { type: "heading", text: "Too deep" };
+    for (let i = 0; i < 12; i += 1) deep = { type: "stack", children: [deep] };
+    expect(sectionOutline({ sections: { a: { tree: { root: deep }, at: T(1) } } })).toEqual([]);
   });
 });
