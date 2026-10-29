@@ -24,7 +24,6 @@ import { isSafeRedirect } from "@/lib/prospect-claim";
 type Search = { mode?: "signup" | "signin"; redirect?: string };
 
 export const Route = createFileRoute("/auth")({
-  ssr: false,
   validateSearch: (search: Record<string, unknown>): Search => {
     const rawMode = search["mode"];
     const rawRedirect = search["redirect"];
@@ -45,6 +44,7 @@ export const Route = createFileRoute("/auth")({
   head: ({ match }) => {
     const label = match.search.mode === "signup" ? "Create your account — Revora" : "Sign in — Revora";
     return {
+    links: [{ rel: "preload", as: "image", href: "/revora-mark-144.png" }],
     meta: [
       { title: label },
       {
