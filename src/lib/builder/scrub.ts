@@ -39,3 +39,16 @@ export function scrubFrame(progress: number, count: number): { index: number; mi
   const index = Math.min(count - 2, Math.floor(scaled));
   return { index, mix: scaled - index };
 }
+
+/**
+ * The progress readout over a scroll-scrubbed sequence (the ring with "49%" and
+ * "2/3 · Roof soft wash" in the reference look): a whole-number percent of the
+ * scroll travelled and which labelled frame the visitor is nearest. Labels are
+ * the AI's own frame captions; a frame without one shows only its number.
+ */
+export function scrubReadout(progress: number, labels: readonly (string | null | undefined)[]): { percent: number; step: number; total: number; label: string } {
+  const total = Math.max(1, labels.length);
+  const t = clamp(Number.isFinite(progress) ? progress : 0, 0, 1);
+  const step = Math.min(total, Math.floor(t * total) + 1);
+  return { percent: Math.round(t * 100), step, total, label: (labels[step - 1] ?? "").trim() };
+}

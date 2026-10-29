@@ -468,7 +468,7 @@ export function auditPageDesign(
       code: "page_missing_interactive",
       severity: "major",
       path: "root",
-      fix: "The home page has no interactive centrepiece, so the whole site has none. Where it serves real supplied material, add one: a scrub_sequence of the supplied pictures, scroll_chapters of scenes, a collection_row of offer cards, a spin_viewer (8+ owner-photographed angles), a tab_group, a faq_accordion of supplied FAQs, or a before_after_slider of the owner's own before/after photos. Do not satisfy this with an accordion whose items have no answers.",
+      fix: "The home page has no interactive centrepiece, so the whole site has none. Where it serves real supplied material, add one: a scrub_sequence of the supplied pictures, scroll_chapters of scenes, a collection_row of offer cards, a spin_viewer (8+ owner-photographed angles), a tab_group, a dial_selector of the real method choices, a faq_accordion of supplied FAQs, or a before_after_slider of the owner's own before/after photos. Do not satisfy this with an accordion whose items have no answers.",
     });
   }
 

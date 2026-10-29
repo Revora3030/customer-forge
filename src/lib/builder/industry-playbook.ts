@@ -8,6 +8,8 @@
  * one), so no kind of business is left without guidance. Archetypes also carry a look suggestion, which stays a
  * suggestion: the designer chooses the palette and type.
  */
+import { referenceStandardNote } from "@/lib/builder/reference-standard";
+
 export type TradePlaybook = {
   key: string;
   label: string;
@@ -404,7 +406,7 @@ export function archetypeFor(industry: string | null | undefined, hints: string 
   return classify(text) ?? classify(extra) ?? GENERAL;
 }
 
-type Guidance = { label: string; signature: string; storyArc: readonly string[]; needsFromOwner: string; archetype: Archetype; specific: boolean };
+type Guidance = { key: string; label: string; signature: string; storyArc: readonly string[]; needsFromOwner: string; archetype: Archetype; specific: boolean };
 
 /** What to build around: the specific trade's playbook when there is one, else the business's archetype. */
 export function guidanceFor(industry: string | null | undefined, hints: string | null | undefined = null): Guidance | null {
@@ -412,8 +414,8 @@ export function guidanceFor(industry: string | null | undefined, hints: string |
   if (!archetype) return null;
   const playbook = playbookFor(industry);
   return playbook
-    ? { label: playbook.label, signature: playbook.signature, storyArc: playbook.storyArc, needsFromOwner: playbook.needsFromOwner, archetype, specific: true }
-    : { label: archetype.label, signature: archetype.signature, storyArc: archetype.storyArc, needsFromOwner: archetype.needsFromOwner, archetype, specific: false };
+    ? { key: playbook.key, label: playbook.label, signature: playbook.signature, storyArc: playbook.storyArc, needsFromOwner: playbook.needsFromOwner, archetype, specific: true }
+    : { key: archetype.key, label: archetype.label, signature: archetype.signature, storyArc: archetype.storyArc, needsFromOwner: archetype.needsFromOwner, archetype, specific: false };
 }
 
 /** One block of prompt text for Sol, or null. Ideas, not orders: the supplied material decides. */
@@ -429,6 +431,7 @@ export function playbookNote(industry: string | null | undefined, hints: string 
     `What the owner must supply: ${guide.needsFromOwner}`,
     `Look (a suggestion for type and accent; the canvas is obsidian studio on every page — home, services, about, book and contact — unless the owner asked for a light editorial palette): ${guide.archetype.look}`,
     "A photographic page opens as a scene, scroll_chapters or scrub_sequence. Chapter labels follow the story arc above. Forms are dark glass. The same call to action is not repeated under every section. Prices appear only when the owner supplied them.",
+    referenceStandardNote(guide.key),
   ].join("\n");
 }
 

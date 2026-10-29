@@ -183,3 +183,43 @@ export function matchService<T extends { name: string }>(name: string | null | u
   if (!key) return null;
   return services.find((service) => service.name.trim().replace(/\s+/g, " ").toLowerCase() === key) ?? null;
 }
+
+/** dial_selector: 2-6 options, each a label, a short reading and a 0-100 needle position. */
+export const MIN_DIAL_OPTIONS = 2;
+export const MAX_DIAL_OPTIONS = 6;
+export const DIAL_LIMITS = { label: 28, value: 24, note: 140, unit: 16 } as const;
+/** The gauge sweeps 240°, from lower-left (level 0) over the top to lower-right (level 100). */
+export const DIAL_SWEEP = 240;
+
+/** Needle angle in degrees, measured clockwise from straight up, for a 0-100 level. */
+export function dialAngle(level: number): number {
+  const t = Math.min(100, Math.max(0, Number.isFinite(level) ? level : 0)) / 100;
+  return -DIAL_SWEEP / 2 + t * DIAL_SWEEP;
+}
+
+/** A point on the dial's circle for an angle measured clockwise from straight up. */
+export function dialPoint(cx: number, cy: number, r: number, angle: number): { x: number; y: number } {
+  const rad = (angle * Math.PI) / 180;
+  return { x: +(cx + r * Math.sin(rad)).toFixed(2), y: +(cy - r * Math.cos(rad)).toFixed(2) };
+}
+
+/** SVG arc path from level 0 to `level` on the dial. Empty at level 0. */
+export function dialArcPath(cx: number, cy: number, r: number, level: number): string {
+  const start = dialPoint(cx, cy, r, -DIAL_SWEEP / 2);
+  const angle = dialAngle(level);
+  if (angle <= -DIAL_SWEEP / 2) return "";
+  const end = dialPoint(cx, cy, r, angle);
+  const large = angle + DIAL_SWEEP / 2 > 180 ? 1 : 0;
+  return `M ${start.x} ${start.y} A ${r} ${r} 0 ${large} 1 ${end.x} ${end.y}`;
+}
+
+/** Next option for a key press inside the dial's option group (wraps), or null. */
+export function dialOptionForKey(key: string, current: number, count: number): number | null {
+  if (count <= 0) return null;
+  const wrap = (n: number) => ((n % count) + count) % count;
+  if (key === "ArrowRight" || key === "ArrowDown") return wrap(current + 1);
+  if (key === "ArrowLeft" || key === "ArrowUp") return wrap(current - 1);
+  if (key === "Home") return 0;
+  if (key === "End") return count - 1;
+  return null;
+}

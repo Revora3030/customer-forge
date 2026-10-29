@@ -71,3 +71,25 @@ export function coverRect(imageW: number, imageH: number, frameW: number, frameH
   const h = imageH * scale;
   return { x: (frameW - w) / 2, y: (frameH - h) / 2, w, h };
 }
+
+/** A hands-on reveal offers at most this many tools (e.g. a wide surface cleaner, a 25° tip, a 40° tip). */
+export const MAX_BRUSH_TOOLS = 3;
+
+/**
+ * Brush radius for the chosen tool. Tools are authored widest first, so the
+ * first one paints at the normal radius and each later one is narrower — a
+ * detail tip, never a bigger brush than the picture allows.
+ */
+export function toolRadius(width: number, tool: number, count: number): number {
+  const base = brushRadius(width);
+  if (!(count > 1) || !Number.isFinite(tool) || tool <= 0) return base;
+  const index = Math.min(count - 1, Math.floor(tool));
+  const scale = 1 - (index / (count - 1)) * 0.55;
+  return Math.max(Math.round(MIN_BRUSH_PX * 0.6), Math.round(base * scale));
+}
+
+/** Elapsed time as m:ss for the reveal's stopwatch. */
+export function formatElapsed(ms: number): string {
+  const seconds = Math.max(0, Math.floor((Number.isFinite(ms) ? ms : 0) / 1000));
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+}

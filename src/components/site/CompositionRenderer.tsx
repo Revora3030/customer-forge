@@ -6,10 +6,10 @@ import { resolveImageSource } from "@/lib/brand-logos";
 import { contrastRatio, readableOn, toRgb } from "@/lib/readable-color";
 import { premiumSurface } from "@/lib/site-theme";
 import { clampSplit, splitForKey, splitForPointer } from "@/lib/builder/compare-slider";
-import { brushRadius, coverRect, coveragePercent, isRevealDone, newGrid, paintAt, strokePoints, type RevealGrid } from "@/lib/builder/reveal-brush";
+import { brushRadius, coverRect, formatElapsed, toolRadius, MAX_BRUSH_TOOLS, coveragePercent, isRevealDone, newGrid, paintAt, strokePoints, type RevealGrid } from "@/lib/builder/reveal-brush";
 import { DEFAULT_OFFER_ANCHOR, DEFAULT_SCENE_ANCHOR, sceneScrim, type SceneAnchor } from "@/lib/builder/cinematic-primitives";
 import { LensMagnifier, StickySplitStory, TierFader } from "@/components/site/MasterBlocks";
-import { CollectionRow, SceneVideo, ScrubSequence, ScrubStage, ScrollChapters, SpinViewer, type SpinFrame } from "@/components/site/CinematicBlocks";
+import { CollectionRow, DialSelector, SceneVideo, ScrubSequence, ScrubStage, ScrollChapters, SpinViewer, type SpinFrame } from "@/components/site/CinematicBlocks";
 import { CINEMATIC_CSS } from "@/components/site/cinematic-css";
 
 /**
@@ -30,7 +30,7 @@ const ITEMS = { start: "flex-start", center: "center", end: "flex-end", stretch:
 const FILL_WHEN_CAPPED = new Set<CompositionNode["type"]>([
   "stack", "grid", "row", "card", "list", "tabs", "toggle", "accordion", "compare", "gallery", "widget",
   "before_after_slider", "faq_accordion", "tab_group", "offer_card", "spin_viewer", "collection_row",
-  "lens_magnifier", "sticky_split_story", "service_tier_fader", "parallax_layers", "scrub_sequence", "divider", "marquee",
+  "lens_magnifier", "sticky_split_story", "service_tier_fader", "parallax_layers", "scrub_sequence", "dial_selector", "divider", "marquee",
 ]);
 // eslint-disable-next-line react-refresh/only-export-components -- renderer helpers are intentionally co-located with their composition types.
 export function styleToCss(style: NodeStyle | undefined, type: CompositionNode["type"]): CSSProperties {
@@ -186,7 +186,7 @@ function mediaCss(visual: PersistedComponentVisual | undefined): CSSProperties {
 const STRETCH_PANEL = new Set<CompositionNode["type"]>([
   "accordion", "faq_accordion", "tab_group", "tabs", "toggle", "compare", "gallery", "widget",
   "before_after_slider", "scroll_chapters", "scrub_sequence", "sticky_split_story", "service_tier_fader",
-  "collection_row", "parallax_layers", "lens_magnifier", "spin_viewer", "offer_card",
+  "collection_row", "parallax_layers", "lens_magnifier", "spin_viewer", "offer_card", "dial_selector",
 ]);
 
 function baseLayout(type: CompositionNode["type"]): CSSProperties {
@@ -465,6 +465,7 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
       if (beforeSource && afterSource && node.revealMode === "brush")
         return (
           <BrushReveal key={key} props={props} prompt={node.text?.trim().slice(0, 60) || "Reveal the result"}
+            tools={(node.items ?? []).map((item) => item.trim().slice(0, 28)).filter(Boolean).slice(0, MAX_BRUSH_TOOLS)}
             before={{ alt: beforeImage.alt, label: beforeImage.label, src: beforeSource }}
             after={{ alt: afterImage.alt, label: afterImage.label, src: afterSource }} />
         );
@@ -475,6 +476,10 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
           initialSplit={node.initialSplit ?? 50} />
       ) : null;
     }
+    case "dial_selector":
+      return (node.dialOptions?.length ?? 0) >= 2 ? (
+        <DialSelector key={key} props={props} label={node.text?.trim().slice(0, 60) || "Choose an option"} options={node.dialOptions!.slice(0, 6)} unit={node.dialUnit} />
+      ) : null;
     case "faq_accordion":
       return node.faqItems?.length ? <FaqAccordion key={key} props={props} items={node.faqItems} /> : null;
     case "tab_group":
@@ -593,7 +598,7 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
       return items.length ? <CollectionRow key={key} props={props} label={node.text?.trim() || "Collection"} items={items} /> : null;
     }
     case "scrub_sequence": {
-      const frames: { src: string; alt: string }[] = [];
+      const frames: { src: string; alt: string; label?: string }[] = [];
       const copy: ReactNode[] = [];
       children.forEach((child, i) => {
         if (child.type !== "media") {
@@ -603,7 +608,8 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
         const resolved = child.mediaRef ? ctx.media(child.mediaRef) : null;
         const source = child.src ? resolveImageSource(child.src) : mediaUrl(resolved);
         if (!source) return;
-        frames.push({ src: source, alt: child.alt ?? mediaVisual(resolved)?.alt ?? "" });
+        const label = child.text?.trim().slice(0, 30);
+        frames.push({ src: source, alt: child.alt ?? mediaVisual(resolved)?.alt ?? "", ...(label ? { label } : {}) });
       });
       if (frames.length < 2 && copy.length === 0) return null;
       if (frames.length) ctx.counter.sawMedia = true;
@@ -824,9 +830,11 @@ function Compare({ props, before, after, beforeSource, afterSource }: { props: N
  * page can still be scrolled past it. Keyboard and screen-reader users get a button that shows the finished
  * result, and without JavaScript the finished picture is simply shown.
  */
-function BrushReveal({ props, prompt, before, after }: {
+function BrushReveal({ props, prompt, tools = [], before, after }: {
   props: NodeProps;
   prompt: string;
+  /** Optional tool chips, widest first; each later tool paints a narrower path. */
+  tools?: string[];
   before: { src: string; alt: string; label: string };
   after: { src: string; alt: string; label: string };
 }) {
@@ -838,6 +846,18 @@ function BrushReveal({ props, prompt, before, after }: {
   const [percent, setPercent] = useState(0);
   const [done, setDone] = useState(false);
   const [armed, setArmed] = useState(false);
+  const [tool, setTool] = useState(0);
+  const [startedAt, setStartedAt] = useState<number | null>(null);
+  const [elapsed, setElapsed] = useState(0);
+  const radiusFor = (w: number) => (tools.length > 1 ? toolRadius(w, tool, tools.length) : brushRadius(w));
+
+  useEffect(() => {
+    if (startedAt == null || done) return;
+    const tick = () => setElapsed(Date.now() - startedAt);
+    tick();
+    const timer = window.setInterval(tick, 250);
+    return () => window.clearInterval(timer);
+  }, [startedAt, done]);
 
   const size = () => {
     const box = figureRef.current?.getBoundingClientRect();
@@ -848,6 +868,8 @@ function BrushReveal({ props, prompt, before, after }: {
     last.current = null;
     setPercent(0);
     setDone(false);
+    setStartedAt(null);
+    setElapsed(0);
     const canvas = canvasRef.current;
     canvas?.getContext("2d")?.clearRect(0, 0, canvas.width, canvas.height);
   };
@@ -881,7 +903,7 @@ function BrushReveal({ props, prompt, before, after }: {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     const ratio = canvas.width / w;
-    const radius = brushRadius(w);
+    const radius = radiusFor(w);
     const rect = coverRect(image.naturalWidth, image.naturalHeight, w, h);
     ctx.save();
     ctx.scale(ratio, ratio);
@@ -899,7 +921,8 @@ function BrushReveal({ props, prompt, before, after }: {
   const sweep = (event: { clientX: number; clientY: number }) => {
     const to = point(event);
     const { w } = size();
-    for (const p of strokePoints(last.current ?? to, to, brushRadius(w))) stamp(p.x, p.y);
+    if (startedAt == null) setStartedAt(Date.now());
+    for (const p of strokePoints(last.current ?? to, to, radiusFor(w))) stamp(p.x, p.y);
     last.current = to;
     const next = coveragePercent(grid.current);
     setPercent(next);
@@ -932,7 +955,20 @@ function BrushReveal({ props, prompt, before, after }: {
         <img src={after.src} alt={after.alt} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
       </noscript>
       <div className="rv-cn-compare-label rv-cn-compare-label-before">{done ? after.label : before.label}</div>
+      {startedAt != null ? (
+        <div className="rv-cn-brush-hud" aria-hidden="true">
+          <span><small>Progress</small><strong>{done ? 100 : percent}%</strong></span>
+          <span><small>Time</small><strong>{formatElapsed(elapsed)}</strong></span>
+        </div>
+      ) : null}
     </div>
+    {tools.length ? (
+      <div role="group" aria-label="Tool" className="rv-cn-brush-tools">
+        {tools.map((label, index) => (
+          <button key={label} type="button" aria-pressed={tool === index} onClick={() => setTool(index)}>{label}</button>
+        ))}
+      </div>
+    ) : null}
     <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, justifyContent: "space-between", paddingTop: 10 }}>
       <span aria-live="polite" style={{ fontSize: 14, fontWeight: 600 }}>
         {done ? `${after.label}: all revealed` : percent > 0 ? `${prompt}: ${percent}%` : `${prompt}. Drag across the picture`}
