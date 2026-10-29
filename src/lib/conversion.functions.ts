@@ -331,6 +331,9 @@ export const getTrafficReport = createServerFn({ method: "GET" })
     const since = new Date(Date.now() - data.days * 86_400_000).toISOString();
 
     const { eventPath, isPublicMarketingPath } = await import("@/lib/marketing-paths");
+    const { staffSessionIds, isStaffRow, staffEmailAddresses } = await import(
+      "@/lib/staff-sessions"
+    );
 
     const rows: {
       event_name: string;
@@ -340,11 +343,14 @@ export const getTrafficReport = createServerFn({ method: "GET" })
       utm_source: string | null;
       metadata: unknown;
       created_at: string;
+      email: string | null;
     }[] = [];
     for (let page = 0; page < 200; page += 1) {
       const { data: batch, error } = await supabaseAdmin
         .from("marketing_conversions")
-        .select("event_name, landing_path, session_id, referrer, utm_source, metadata, created_at")
+        .select(
+          "event_name, landing_path, session_id, referrer, utm_source, metadata, created_at, email",
+        )
         .gte("created_at", since)
         .order("created_at", { ascending: false })
         .range(page * 1000, page * 1000 + 999);
@@ -352,6 +358,11 @@ export const getTrafficReport = createServerFn({ method: "GET" })
       rows.push(...(batch ?? []));
       if ((batch?.length ?? 0) < 1000) break;
     }
+
+    // Revora's own staff and the owner's confirmed test accounts are not traffic.
+    const staffEmails = await staffEmailAddresses(supabaseAdmin);
+    const staffSessions = staffSessionIds(rows, staffEmails);
+
 
     const pages = new Map<string, { views: number; sessions: Set<string> }>();
     const sources = new Map<
