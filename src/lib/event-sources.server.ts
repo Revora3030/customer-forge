@@ -71,6 +71,60 @@ export function routineFailedSource(db: Db): EventSource {
   };
 }
 
+/** Failed subscription payments (live mode) from the last day. Stripe records them; nothing is retried or sent from here. */
+export function paymentFailedSource(db: Db): EventSource {
+  return {
+    name: "payment.failed",
+    async read(now) {
+      const { data, error } = await db
+        .from("payments")
+        .select("id, organization_id, amount, currency, description, failure_reason, created_at")
+        .eq("status", "failed")
+        .eq("environment", "live")
+        .not("plan_id", "is", null)
+        .gte("created_at", new Date(now - DAY).toISOString())
+        .order("created_at", { ascending: false })
+        .limit(50);
+      if (error) throw new Error(`payments: ${error.message}`);
+      const names = await orgNames(db, (data ?? []).map((payment) => String(payment.organization_id)));
+      return (data ?? []).map((payment): PlatformEvent => {
+        const money = Number.isFinite(Number(payment.amount)) ? ` ${String(payment.currency ?? "usd").toUpperCase()} ${Number(payment.amount).toFixed(2)}.` : "";
+        const why = payment.failure_reason ? ` Reason: ${String(payment.failure_reason).replace(/\s+/g, " ").slice(0, 100)}.` : "";
+        return {
+          id: String(payment.id),
+          type: "payment.failed",
+          occurredAt: Date.parse(String(payment.created_at)),
+          subject: names.get(String(payment.organization_id)) ?? "a workspace",
+          detail: `${String(payment.description ?? "Subscription payment").slice(0, 80)}.${money}${why}`.trim(),
+        };
+      });
+    },
+  };
+}
+
+/** The hourly site check logs one row per hour in which a site did not load; this turns the last few into one event each. */
+export function siteDownSource(db: Db): EventSource {
+  return {
+    name: "site.down",
+    async read(now) {
+      const { data, error } = await db
+        .from("lifecycle_email_log")
+        .select("window_key, status, created_at")
+        .eq("kind", "site_health_alert")
+        .gte("created_at", new Date(now - 3 * 3_600_000).toISOString())
+        .limit(10);
+      if (error) throw new Error(`lifecycle_email_log: ${error.message}`);
+      return (data ?? []).map((row): PlatformEvent => ({
+        id: String(row.window_key),
+        type: "site.down",
+        occurredAt: Date.parse(String(row.created_at)),
+        subject: "Site health",
+        detail: `Flagged in the hour starting ${String(row.window_key).replace("T", " ").slice(0, 13)}:00 UTC.`,
+      }));
+    },
+  };
+}
+
 type Run = { id?: number; name?: string | null; conclusion?: string | null; head_sha?: string | null; updated_at?: string | null; html_url?: string | null };
 
 /** Completed CI runs that failed on the release branch's current commit, within the last day. */

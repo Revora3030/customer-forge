@@ -1,6 +1,7 @@
 /**
  * Event-driven nudges for Jarvis. Each pass collects platform events (failed
- * builds, failed release CI, routines that did not finish, unanswered Revora leads, trials about to end) and,
+ * builds, failed release CI, routines that did not finish, failed payments, sites that did not load, unanswered
+ * Revora leads, trials about to end) and,
  * per the cooldown rules in cognition/event-rules, posts a plain notice into
  * every super admin's Jarvis chat with a suggested question. No model runs and
  * nothing is changed, retried or sent to anyone: the owner decides whether to
@@ -9,7 +10,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { collectEvents, type EventSource } from "@/lib/cognition/event-emitter";
 import { DEFAULT_EVENT_RULES, planEventResponses } from "@/lib/cognition/event-rules";
-import { buildFailedSource, ciFailedSource, leadUnansweredSource, routineFailedSource, trialExpiringSource } from "@/lib/event-sources.server";
+import { buildFailedSource, ciFailedSource, leadUnansweredSource, paymentFailedSource, routineFailedSource, siteDownSource, trialExpiringSource } from "@/lib/event-sources.server";
 
 type Db = Pick<SupabaseClient, "from">;
 
@@ -67,5 +68,5 @@ export async function runJarvisEventWatch(db: Db, now = Date.now(), sources: rea
 }
 
 function defaultSources(db: Db): EventSource[] {
-  return [buildFailedSource(db), ciFailedSource(), routineFailedSource(db), leadUnansweredSource(db), trialExpiringSource(db)];
+  return [buildFailedSource(db), ciFailedSource(), routineFailedSource(db), paymentFailedSource(db), siteDownSource(db), leadUnansweredSource(db), trialExpiringSource(db)];
 }
