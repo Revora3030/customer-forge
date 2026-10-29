@@ -11,8 +11,8 @@
 import { isPlatformEmailDomain } from "./prospect-email";
 
 export type EnrichmentStatus = "verified" | "unverified" | "rejected" | "none";
-/** Where the address came from. "legacy_profile": the business_profiles email of a demo built before enrichment existed (backfilled by reverifyLegacyDemos). */
-export type EnrichmentSource = "public_page" | "social_meta" | "legacy_profile" | "public_listing";
+/** Where the address came from. "legacy_profile": the business_profiles email of a demo built before enrichment existed (backfilled by reverifyLegacyDemos). "imported_lead": an address on a lead the owner approved from an imported CSV. */
+export type EnrichmentSource = "public_page" | "social_meta" | "legacy_profile" | "public_listing" | "imported_lead";
 
 export type ProspectEnrichment = {
   status: EnrichmentStatus;
@@ -73,7 +73,7 @@ export function parseMxAnswer(json: unknown): "yes" | "no" | "unknown" {
 }
 
 const STATUSES = new Set<EnrichmentStatus>(["verified", "unverified", "rejected", "none"]);
-const SOURCES = new Set<EnrichmentSource>(["public_page", "social_meta", "legacy_profile", "public_listing"]);
+const SOURCES = new Set<EnrichmentSource>(["public_page", "social_meta", "legacy_profile", "public_listing", "imported_lead"]);
 
 /** Reads the enrichment stored on a demo marker; anything unreadable is null. */
 export function readProspectEnrichment(value: unknown): ProspectEnrichment | null {

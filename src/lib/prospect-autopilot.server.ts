@@ -185,7 +185,7 @@ async function prospectDemoRows(db: SupabaseClient, autopilotOnly: boolean): Pro
 }
 
 /** Place ids, phones and name+city of every business already demoed or texted. */
-async function demoFingerprints(db: SupabaseClient): Promise<DemoFingerprints> {
+export async function demoFingerprints(db: SupabaseClient): Promise<DemoFingerprints> {
   const seen: DemoFingerprints = { placeIds: new Set(), phones: new Set(), nameCity: new Set() };
   const demos = await prospectDemoRows(db, false);
   for (const demo of demos) if (typeof demo.marker["placeId"] === "string") seen.placeIds.add(demo.marker["placeId"]);
