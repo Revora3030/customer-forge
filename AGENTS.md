@@ -13,6 +13,8 @@
 
 ## Whole-repository upgrade contract
 
+- Checkout return parameters never prove payment; welcome confirmation performs bounded read-only polling of verified workspace billing state, with explicit retry when confirmation is delayed.
+
 - Prospect outreach verifies the exact selected public-listing email through the existing enrichment verifier and retains its listing source; failed directory requests throw rather than log successful zero-result searches, so authorization never substitutes for contact evidence.
 - External bots reach the platform only through key-checked `/api/public/agent/*` routes (`REVORA_AGENT_API_KEY`); their leads go through `importLeadCsv` into the owner review queue, so a bot never gets database keys, never contacts anyone and never starts a build. Level 4 actions (merge, deploy, publish, send, paid build, billing, delete) are asked for through `POST /api/public/agent/action-requests` and done by the bot only after the founder approves that one request on `/admin/approvals`; the gateway records decisions and never performs them. Runbook: `docs/agents/GROK_OPERATOR.md`.
 
