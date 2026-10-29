@@ -227,19 +227,14 @@ export const getConversionReport = createServerFn({ method: "GET" })
       if ((batch?.length ?? 0) < 1000) break;
     }
 
-    // Revora's own staff test signup/checkout; their sessions are not prospects.
-    const { staffSessionIds, isStaffRow } = await import("@/lib/staff-sessions");
-    const staffEmails = new Set<string>();
-    const { data: staffRoles, error: rolesError } = await supabaseAdmin
-      .from("user_roles")
-      .select("user_id")
-      .eq("role", "super_admin");
-    if (rolesError) throw new Error("Analytics unavailable");
-    for (const r of staffRoles ?? []) {
-      const { data: u } = await supabaseAdmin.auth.admin.getUserById(r.user_id);
-      if (u?.user?.email) staffEmails.add(u.user.email.toLowerCase());
-    }
+    // Revora's own staff test signup/checkout, plus the owner's confirmed test
+    // accounts: their sessions are never prospects.
+    const { staffSessionIds, isStaffRow, staffEmailAddresses } = await import(
+      "@/lib/staff-sessions"
+    );
+    const staffEmails = await staffEmailAddresses(supabaseAdmin);
     const staffSessions = staffSessionIds(allRows, staffEmails);
+
     const rows = allRows.filter((r) => !isStaffRow(r, staffSessions, staffEmails));
 
     const grouped = new Map<string, FunnelRow>();
