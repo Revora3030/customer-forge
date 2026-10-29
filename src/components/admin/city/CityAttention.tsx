@@ -7,14 +7,15 @@ import { CITY_DISTRICTS, ageLabel, type AttentionItem, type CityWork } from "@/l
  * first and the longest-standing next. It only restates saved records; when the
  * records could not be read it says so instead of showing an empty, calm list.
  */
-export function CityAttention({ items, available, onOpen, limit = 6 }: { items: readonly AttentionItem[]; available: boolean; onOpen: (row: CityWork) => void; limit?: number }) {
+export function CityAttention({ items, available, onOpen, onClear, limit = 6 }: { items: readonly AttentionItem[]; available: boolean; onOpen: (row: CityWork) => void; onClear?: () => void; limit?: number }) {
   if (!available) return <section aria-label="Needs you" className="rounded-md border border-border p-4"><h2 className="text-xs font-semibold uppercase">Needs you</h2><p role="status" className="mt-2 text-sm text-destructive">Records unavailable, so nothing can be ruled out.</p></section>;
   const failed = items.filter((item) => item.kind === "failed").length;
   return (
     <section aria-label="Needs you" className="rounded-md border border-border p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-xs font-semibold uppercase">Needs you</h2>
-        <p className="text-xs text-muted-foreground">{items.length ? `${failed} failed · ${items.length - failed} waiting` : "Nothing failed or waiting in the records read"}</p>
+        <p className="text-xs text-muted-foreground">{items.length ? `${failed} failed · ${items.length - failed} waiting · last 48 hours` : "Nothing failed or waiting in the records read"}</p>
+        {onClear && items.length ? <Button type="button" variant="outline" size="sm" className="min-h-11" onClick={onClear}>Clear resolved alerts</Button> : null}
       </div>
       {items.length ? (
         <ul className="mt-2 divide-y divide-border">

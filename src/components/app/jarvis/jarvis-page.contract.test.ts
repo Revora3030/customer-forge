@@ -27,7 +27,7 @@ describe("Jarvis page keeps every behaviour the rebuild must preserve", () => {
       "Approve and send to Claude Code",
       "Approve and recover",
       "Approve and build",
-      "Spend authorized: No · Sending enabled: No",
+      "Spend authorized: {acquisition.data.spendAuthorized ? \"Yes\" : \"No\"} · Sending enabled: {acquisition.data.sendsEnabled ? \"Yes\" : \"No\"}",
       "missing proof never counts as a pass",
       "No guaranteed revenue claims",
       "“Checked” means the query ran—not that the subsystem is healthy.",

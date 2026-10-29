@@ -41,6 +41,19 @@ describe("observability timeline", () => {
     expect(systemHealth(events).summary).toMatch(/in progress/i);
   });
 
+  it("hides an older failed build once a later build completed", () => {
+    const events = buildTimeline({
+      jobs: [
+        job({ id: "old-fail", status: "failed", error_message: "picture was never saved", created_at: "2026-01-01T08:00:00.000Z", completed_at: "2026-01-01T08:44:00.000Z" }),
+        job({ id: "done", status: "completed", created_at: "2026-01-01T20:00:00.000Z", completed_at: "2026-01-01T20:22:00.000Z" }),
+      ],
+      runs: [],
+      audits: [],
+    });
+    expect(events.map((event) => event.id)).toEqual(["job:done"]);
+    expect(events.some((event) => event.level === "problem")).toBe(false);
+  });
+
   it("does not claim an automation was delivered when it is only scheduled", () => {
     const events = buildTimeline({
       jobs: [],

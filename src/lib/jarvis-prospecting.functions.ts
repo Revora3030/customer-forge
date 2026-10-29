@@ -3,6 +3,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { formatRevoraOffer } from "./jarvis-acquisition-policy";
 import { OUTREACH_PROMOTIONAL_NOTICE } from "./outreach-notice";
 import { htmlToText } from "./html-text";
+import { mergedMailingAddress } from "./gmail/stored-config.server";
 
 const AUDIT_LINK = "https://revoragrowthsystems.com/website-audit";
 const MAX_PROSPECTS = 5;
@@ -181,7 +182,7 @@ export function outreachFooter(options: { unsubscribeUrl?: string } = {}): {
   /** Notice, sender, company and address lines, without the separator or opt-out line. */
   senderLines: string[];
 } {
-  const address = process.env["REVORA_MAILING_ADDRESS"]?.trim() ?? "";
+  const address = mergedMailingAddress();
   const sender = process.env["REVORA_SENDER_NAME"]?.trim() || "Revora Growth Systems";
   const senderLines = [
     OUTREACH_PROMOTIONAL_NOTICE,

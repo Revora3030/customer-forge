@@ -322,6 +322,8 @@ export async function runProspectAutopilot(
     await buildPhase(db, settings, summary, skip, now, options.onQueued);
     await reverifyLegacyPhase(db, summary, skip, now);
     await sendPhase(db, settings, summary, skip, now, options.random ?? Math.random);
+    const { deliverDeferredPitchPreviews } = await import("./prospect-replies.server");
+    await deliverDeferredPitchPreviews(db, now()).catch(() => 0);
   } catch (error) {
     summary.status = "failed";
     summary.error = (error instanceof Error ? error.message : "Autopilot run failed.").slice(0, 500);

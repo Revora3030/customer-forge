@@ -26,7 +26,7 @@ export function districtState(id: DistrictId, snapshot: CitySnapshot | undefined
   if (dependencies[id].some(key => !snapshot.sources[key]?.available)) return "unavailable";
   const rows = sources.flatMap(s => s.rows).filter(r => r.district === id);
   if (rows.some(r => workIsActive(r, now))) return "working";
-  if (rows.some(r => ["failed", "error", "pending", "waiting"].includes(r.status))) return "attention";
+  if (rows.some(r => ["failed", "error", "pending", "waiting"].includes(r.status) && recentEnough(r.at, now))) return "attention";
   return "idle";
 }
 
@@ -69,6 +69,15 @@ export const FAILED_STATUSES = ["failed", "error"] as const;
 export const WAITING_STATUSES = ["pending", "waiting", "queued", "retrying"] as const;
 const isFailed = (status: string) => (FAILED_STATUSES as readonly string[]).includes(status);
 const isWaiting = (status: string) => (WAITING_STATUSES as readonly string[]).includes(status);
+/** Needs-you only surfaces failures and waits from the last two days. */
+export const ATTENTION_WINDOW_MS = 48 * 60 * 60 * 1000;
+
+function recentEnough(at: string, now: number): boolean {
+  const parsed = Date.parse(at);
+  if (!Number.isFinite(parsed)) return false;
+  const age = now - parsed;
+  return age >= 0 && age <= ATTENTION_WINDOW_MS;
+}
 
 const allRows = (snapshot: CitySnapshot | undefined): CityWork[] => Object.values(snapshot?.sources ?? {}).flatMap((source) => source.rows);
 
@@ -80,7 +89,7 @@ export function attentionItems(snapshot: CitySnapshot | undefined, now: number, 
   for (const row of allRows(snapshot)) {
     const kind = isFailed(row.status) ? "failed" : isWaiting(row.status) ? "waiting" : null;
     const at = Date.parse(row.at);
-    if (!kind || !Number.isFinite(at)) continue;
+    if (!kind || !Number.isFinite(at) || !recentEnough(row.at, now)) continue;
     items.push({ row, district: row.district, kind, ageMs: Math.max(0, now - at) });
   }
   // Failures before waiting; within each, the longest-standing first so nothing rots.
@@ -95,8 +104,8 @@ export function districtCounts(snapshot: CitySnapshot | undefined, id: DistrictI
   const rows = allRows(snapshot).filter((row) => row.district === id);
   return {
     running: rows.filter((row) => workIsActive(row, now)).length,
-    queued: rows.filter((row) => isWaiting(row.status)).length,
-    errors: rows.filter((row) => isFailed(row.status)).length,
+    queued: rows.filter((row) => isWaiting(row.status) && recentEnough(row.at, now)).length,
+    errors: rows.filter((row) => isFailed(row.status) && recentEnough(row.at, now)).length,
     total: rows.length,
   };
 }

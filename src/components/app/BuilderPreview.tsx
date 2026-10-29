@@ -395,7 +395,7 @@ function BuilderPreviewFrame({
       aria-label="Live website preview"
       data-testid="builder-preview"
     >
-      <header className="flex flex-wrap items-center gap-2 border-b border-border bg-card/80 p-2.5 backdrop-blur">
+      <header className="relative z-30 flex flex-wrap items-center gap-2 border-b border-border bg-card/95 p-2.5 pointer-events-auto backdrop-blur">
         <div className="min-w-0 flex-1 overflow-x-auto">
           <nav aria-label="Preview pages" className="flex min-w-max items-center gap-1">
             {ordered.map((item) => (
@@ -407,7 +407,7 @@ function BuilderPreviewFrame({
                 data-testid="builder-preview-page"
                 aria-current={item.id === page?.id ? "page" : undefined}
                 onClick={() => setPageId(item.id)}
-                className="shrink-0"
+                className="pointer-events-auto relative z-30 min-h-11 shrink-0"
               >
                 {item.kind === "home" || item.slug === "home" ? "Home" : pageNavLabel(item.title, businessName, item.slug)}
               </Button>
@@ -459,13 +459,13 @@ function BuilderPreviewFrame({
                 type="button"
                 size="icon-sm"
                 variant={viewport === option.key ? "secondary" : "ghost"}
-                className="hidden sm:inline-flex"
+                className="pointer-events-auto relative z-30 inline-flex min-h-11 min-w-11 px-2"
                 aria-label={`${option.label} preview, ${option.width} pixels`}
                 aria-pressed={viewport === option.key}
                 title={`${option.label} · ${option.width}px`}
                 onClick={() => setViewport(option.key)}
               >
-                <Icon className="size-4" aria-hidden />
+                <span className="text-xs tabular-nums">{option.width}</span>
               </Button>
             );
           })}

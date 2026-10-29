@@ -966,7 +966,7 @@ function Jarvis() {
                 <select
                   value={pickedModel ?? ""}
                   onChange={(event) => setPickedModel(event.target.value || null)}
-                  className="h-9 min-w-0 flex-1 rounded-md border border-border bg-card px-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:max-w-xs"
+                  className="h-9 min-w-0 flex-1 rounded-full border border-white/10 bg-white/[0.03] px-3 text-sm text-foreground backdrop-blur-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:max-w-xs"
                 >
                   <option value="">Auto (best per job)</option>
                   {(["openai", "anthropic", "google"] as const).map((family) => (

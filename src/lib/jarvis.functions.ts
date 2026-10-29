@@ -547,31 +547,40 @@ export const getJarvisAcquisitionReadiness = createServerFn({ method: "GET" })
       count(db, "invoices", since30Days, "paid"),
       count(db, "subscriptions", undefined, "active"),
     ]);
+    const { collectLiveReadiness } = await import("./jarvis-live-readiness.server");
+    const live = await collectLiveReadiness(db).catch(() => null);
+    const outboundReady = serves("email.transactional") || Boolean(live?.gmailConfigured || live?.emailConfigured);
+    const leadsReadable = leads7Days !== null;
+    const bookingReady = serves("calendar.booking") || (live?.bookingPages ?? 0) > 0 || appointments7Days !== null;
+    const paymentReady = serves("payments") || Boolean(live?.stripeConfigured) || (paidInvoices30Days ?? 0) > 0;
+    const analyticsReady = serves("seo.analytics") || (live?.publishedSites ?? 0) > 0;
     const plan = buildAcquisitionPlan({
       goal: "more_paid_customers",
       dailyBudgetCents: 0,
       approvedDailyBudgetCents: configuredBudget,
-      funnelHasVerifiedAnalytics: serves("seo.analytics"),
+      funnelHasVerifiedAnalytics: analyticsReady,
       websiteAuditAvailable: true,
-      leadCaptureAvailable: serves("crm.leads"),
-      calendarAvailable: serves("calendar.booking"),
-      paymentFlowVerified: serves("payments"),
-      outboundProviderVerified: serves("email.transactional"),
+      leadCaptureAvailable: serves("crm.leads") || leadsReadable,
+      calendarAvailable: bookingReady,
+      paymentFlowVerified: paymentReady,
+      outboundProviderVerified: outboundReady,
     });
+    const sendsEnabled = Boolean(live && ((live.sendEmail && (live.gmailConfigured || live.emailConfigured)) || (live.sendSms && outboundReady)));
     return {
       checkedAt: new Date().toISOString(),
       status: plan.status,
       goal: plan.goal,
       steps: plan.steps,
       requestedBudgetCents: plan.budgetCents,
-      configuredSpendCapCents: configuredBudget,
-      spendAuthorized: false,
-      sendsEnabled: false,
-      liveLeadSourceVerified: serves("crm.leads"),
-      outboundProviderVerified: serves("email.transactional"),
-      analyticsVerified: serves("seo.analytics"),
-      bookingVerified: serves("calendar.booking"),
-      paymentFlowVerified: serves("payments"),
+      configuredSpendCapCents: configuredBudget || live?.spendCapCents || 0,
+      spendAuthorized: (configuredBudget || live?.spendCapCents || 0) > 0,
+      sendsEnabled,
+      liveLeadSourceVerified: serves("crm.leads") || leadsReadable,
+      outboundProviderVerified: outboundReady,
+      analyticsVerified: analyticsReady,
+      bookingVerified: bookingReady,
+      paymentFlowVerified: paymentReady,
+      operations: live,
       funnelMetrics: {
         windowDays: 7,
         organizationsTotal: organizations,

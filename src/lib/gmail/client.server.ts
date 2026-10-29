@@ -1,4 +1,5 @@
 import type { GmailApiMessage } from "./mime.server";
+import { mergedGmailSecrets, mergedMailingAddress, missingMergedGmailSecrets } from "./stored-config.server";
 
 /**
  * Gmail API access for prospect outreach, from the four GMAIL_* secrets
@@ -25,24 +26,28 @@ export type GmailConfig = {
 };
 
 export function missingGmailSecrets(): string[] {
-  return GMAIL_SECRETS.filter((key) => !process.env[key]?.trim());
+  return missingMergedGmailSecrets();
+}
+
+export function mailingAddress(): string {
+  return mergedMailingAddress();
 }
 
 export function gmailConfig(): GmailConfig | null {
   if (missingGmailSecrets().length) return null;
-  const sender = process.env["GMAIL_SENDER_EMAIL"]!.trim().toLowerCase();
-  if (!/^[^\s@<>]+@[^\s@<>]+\.[a-z]{2,}$/i.test(sender)) return null;
+  const secrets = mergedGmailSecrets();
+  if (!/^[^\s@<>]+@[^\s@<>]+\.[a-z]{2,}$/i.test(secrets.sender)) return null;
   return {
-    clientId: process.env["GMAIL_CLIENT_ID"]!.trim(),
-    clientSecret: process.env["GMAIL_CLIENT_SECRET"]!.trim(),
-    refreshToken: process.env["GMAIL_REFRESH_TOKEN"]!.trim(),
-    sender,
+    clientId: secrets.clientId,
+    clientSecret: secrets.clientSecret,
+    refreshToken: secrets.refreshToken,
+    sender: secrets.sender,
   };
 }
 
 export function gmailNotConfiguredMessage(): string {
   const missing = missingGmailSecrets();
-  return `Gmail isn't connected. Add these secrets in Lovable: ${(missing.length ? missing : [...GMAIL_SECRETS]).join(", ")}.`;
+  return `Gmail isn't connected. Paste the credentials under Prospect replies on Jarvis, or add these secrets in Lovable: ${(missing.length ? missing : [...GMAIL_SECRETS]).join(", ")}.`;
 }
 
 type Sleep = (ms: number) => Promise<void>;
@@ -162,6 +167,14 @@ async function gmailRequest<T>(
 export type GmailSendResult = { ok: true; id: string; threadId: string } | GmailError;
 
 /** users.messages.send with a prebuilt base64url message; threadId keeps a reply in its thread. */
+/** Confirms the saved mailbox can mint a token and read its own address. Sends nothing. */
+export async function testGmailConnection(config: GmailConfig): Promise<{ ok: true; email: string } | GmailError> {
+  const result = await gmailRequest<{ emailAddress?: string }>(config, "/profile", { idempotent: true });
+  if (!result.ok) return result;
+  const email = typeof result.data.emailAddress === "string" ? result.data.emailAddress : config.sender;
+  return { ok: true, email };
+}
+
 export async function sendGmailRaw(config: GmailConfig, raw: string, threadId?: string | null): Promise<GmailSendResult> {
   const result = await gmailRequest<{ id?: string; threadId?: string }>(config, "/messages/send", {
     method: "POST",
