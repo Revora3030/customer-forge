@@ -10,6 +10,9 @@
  * ad blocker may strip.
  */
 
+import { canTrackAds } from "./consent";
+import { isPublicMarketingPath } from "./marketing-paths";
+
 type GtagArgs = [string, ...unknown[]];
 
 declare global {
@@ -28,15 +31,16 @@ export function isValidMeasurementId(value: unknown): value is string {
 }
 
 /** Injects gtag.js exactly once for a validated measurement ID. */
-export function loadGa4(measurementId: string) {
+export async function loadGa4(measurementId: string) {
   if (typeof window === "undefined" || typeof document === "undefined") return;
+  if (!isPublicMarketingPath(window.location.pathname) || !(await canTrackAds())) return;
   const id = measurementId.trim().toUpperCase();
   if (!isValidMeasurementId(id) || loadedId === id) return;
   loadedId = id;
 
   window.dataLayer = window.dataLayer ?? [];
   window.gtag = function gtag(...args: GtagArgs) {
-    window.dataLayer!.push(args);
+    window.dataLayer?.push(args);
   };
   window.gtag("js", new Date());
   // Manual page_view so client-side route changes are counted exactly once.
