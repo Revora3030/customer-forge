@@ -313,11 +313,18 @@ export async function runJarvis(db: SupabaseClient, userId: string, mode: Mode, 
       // Two all-failed rounds in a row: force the final answer instead of a third doomed round.
       if (reflection.giveUp) step = MAX_ACTION_STEPS - 1;
     }
-    if (!reply) reply = proposals.length ? "Here's what I'd do. Approve below and I'll start." : "The available AI team returned no answer. Please retry later.";
-  } catch {
-    reply = ran.length
-      ? `I ran ${ran.join(", ")}, but the available AI team could not finish the answer. Check model access, quotas and spending limits before retrying.`
-      : "Diagnostics were collected, but no eligible AI model could finish the answer. Check model access, quotas and spending limits.";
+    if (!reply) {
+      const { executiveFallback } = await import("./jarvis-executive-fallback");
+      reply = proposals.length
+        ? "Here's what I'd do. Approve below and I'll start."
+        : executiveFallback({ ran, reason: "The model roster returned an empty answer." });
+    }
+  } catch (error) {
+    const { executiveFallback } = await import("./jarvis-executive-fallback");
+    reply = executiveFallback({
+      ran,
+      reason: error instanceof Error ? error.message : "The model roster did not finish.",
+    });
   }
   reply = appendReplyMeta(reply.slice(0, 40000), { ran, proposals });
   const saved = await db.from("jarvis_messages").insert({ user_id: userId, role: "assistant", content: reply, run_id: recorder.count ? recorder.runId : null, conversation_id: conversationId }).select("id").maybeSingle();
@@ -733,6 +740,29 @@ export const forgetJarvisMemoryFn = createServerFn({ method: "POST" })
       metadata: {},
     });
     return result;
+  });
+
+/** Creates the default routines when the owner has none. */
+export const seedDefaultRoutinesFn = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const db = await guardedAdmin(context);
+    const { seedDefaultRoutines } = await import("./jarvis-routines.server");
+    return seedDefaultRoutines(db, String(context.userId));
+  });
+
+/** Runs one saved routine now, through the same Jarvis loop as the schedule. */
+export const runJarvisRoutineNowFn = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: { routineId?: unknown }) => {
+    const routineId = typeof input?.routineId === "string" ? input.routineId : "";
+    if (!/^[0-9a-f-]{36}$/i.test(routineId)) throw new Error("That routine id is not valid.");
+    return { routineId };
+  })
+  .handler(async ({ context, data }) => {
+    const db = await guardedAdmin(context);
+    const { runJarvisRoutineNow } = await import("./jarvis-routines.server");
+    return runJarvisRoutineNow(db, String(context.userId), data.routineId);
   });
 
 /** Lists the owner's scheduled routines. */
