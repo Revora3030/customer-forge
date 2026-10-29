@@ -1,0 +1,128 @@
+name: Overture leads
+
+# A free lead source. Finds local businesses in Overture Maps' open places data
+# (no account, no API key) and gives you a CSV for Jarvis's "Import leads" card.
+#
+# How to run it (works from the GitHub mobile app too):
+#   Actions -> "Overture leads" -> Run workflow -> fill in the city, state and the
+#   trade words (for example plumbing,roofing) -> when it finishes, open the run
+#   and download the "overture-leads" file -> Jarvis -> Import leads.
+#
+# Only public listing facts go in the file, and each row has a website or email.
+# Importing parks them for your review; nothing is contacted and nothing is
+# built until you approve a batch. The file is kept for 7 days.
+#
+# It reads a few MB of a public Parquet dataset with two pinned packages
+# (hyparquet, hyparquet-compressors), installed in a temporary folder with install
+# scripts off, so the app's own dependencies are untouched.
+
+on:
+  workflow_dispatch:
+    inputs:
+      city:
+        description: "City (for example Raleigh)"
+        required: true
+        type: string
+      state:
+        description: "Two-letter state (for example NC)"
+        required: true
+        type: string
+      trade:
+        description: "Trade words, comma separated (for example plumbing,roofing,hvac)"
+        required: true
+        type: string
+      limit:
+        description: "Most leads to write (up to 300)"
+        required: false
+        default: "100"
+        type: string
+      min_confidence:
+        description: "Lowest Overture confidence to keep, 0 to 1"
+        required: false
+        default: "0.6"
+        type: string
+      whole_metro:
+        description: "Include nearby towns in the city's area, not only the city itself"
+        required: false
+        default: false
+        type: boolean
+      bbox:
+        description: "Optional: west,south,east,north in degrees, instead of looking the city up"
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: overture-leads
+  cancel-in-progress: false
+
+jobs:
+  leads:
+    name: Find leads in Overture Maps
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout the script only
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts/overture-leads.mjs
+          sparse-checkout-cone-mode: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install the two Parquet readers (pinned, no install scripts)
+        run: |
+          mkdir "$RUNNER_TEMP/overture"
+          cp scripts/overture-leads.mjs "$RUNNER_TEMP/overture/"
+          cd "$RUNNER_TEMP/overture"
+          npm init -y > /dev/null
+          npm install --no-audit --no-fund --ignore-scripts --save-exact hyparquet@1.31.5 hyparquet-compressors@1.1.2
+
+      - name: Find leads
+        env:
+          CITY: ${{ inputs.city }}
+          STATE: ${{ inputs.state }}
+          TRADE: ${{ inputs.trade }}
+          LIMIT: ${{ inputs.limit }}
+          MIN_CONFIDENCE: ${{ inputs.min_confidence }}
+          WHOLE_METRO: ${{ inputs.whole_metro }}
+          BBOX: ${{ inputs.bbox }}
+        run: |
+          cd "$RUNNER_TEMP/overture"
+          args=(--trade "$TRADE" --limit "$LIMIT" --min-confidence "$MIN_CONFIDENCE" --out "$GITHUB_WORKSPACE/overture-leads.csv")
+          if [ -n "$BBOX" ]; then
+            args+=(--bbox "$BBOX")
+          else
+            args+=(--city "$CITY" --state "$STATE")
+          fi
+          if [ "$WHOLE_METRO" = "true" ]; then args+=(--any-city); fi
+          node overture-leads.mjs "${args[@]}" 2>&1 | tee "$GITHUB_WORKSPACE/run.log"
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### Overture leads"
+            echo
+            echo '```'
+            cat run.log 2>/dev/null || echo "The run did not start."
+            echo '```'
+            if [ -f overture-leads.csv ]; then
+              echo
+              echo "Download **overture-leads** below, then add it under Import leads on the Jarvis page."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the CSV
+        uses: actions/upload-artifact@v4
+        with:
+          name: overture-leads
+          path: overture-leads.csv
+          retention-days: 7
+          if-no-files-found: error
