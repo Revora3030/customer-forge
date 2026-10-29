@@ -214,7 +214,7 @@ describe("composeFirstBuildSections repair and rescue bounds", () => {
     const good = designAll("11111111-1111-4111-8111-111111111111");
     state.handler = (req) => {
       if (req.user.includes("SECTIONS TO DESIGN")) {
-        const id = /"sectionId": "([^\"]+)"/.exec(req.user)?.[1];
+        const id = /"sectionId": "([^"]+)"/.exec(req.user)?.[1];
         if (id) {
           const attempt = (attempts.get(id) ?? 0) + 1;
           attempts.set(id, attempt);
