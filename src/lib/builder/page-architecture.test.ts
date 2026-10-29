@@ -8,6 +8,6 @@ describe("stable section architecture", () => {
   it("is stable under regenerated row IDs but changes when neighboring direction changes", () => {
     const first = pageArchitecture(sections, "services", "home");
     expect(pageArchitecture(sections.map((section) => ({ ...section, id: `new-${section.id}` })), "new-services", "home")).toEqual(first);
-    expect(pageArchitecture([{ ...sections[0], heading: "Changed story" }, sections[1]], "services", "home")).not.toEqual(first);
+    expect(pageArchitecture(sections.map((section, index) => index === 0 ? { ...section, heading: "Changed story" } : section), "services", "home")).not.toEqual(first);
   });
 });

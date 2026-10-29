@@ -3,20 +3,16 @@ export async function finishClaimedWebhook(operations: {
   process: () => Promise<void>;
   settle: () => Promise<void>;
 }): Promise<void> {
-  try {
-    await operations.process();
-    await operations.settle();
-  } catch (failure) {
-    // A failure may follow partial side effects. Retain the claim rather than
-    // authorizing automatic replay; unfinished duplicates require review.
-    throw failure;
-  }
+  // A failure may follow partial side effects. Retain the claim rather than
+  // authorizing automatic replay; unfinished duplicates require review.
+  await operations.process();
+  await operations.settle();
 }
 
 /** An existing claim alone is NOT evidence that its work completed. */
 export function completedWebhookDuplicate(row: {
-  processed?: boolean; verification_status?: string; organization_id?: string | null;
-  event_type?: string; resource_id?: string; payload?: unknown;
+  processed?: boolean; verification_status?: string | null; organization_id?: string | null;
+  event_type?: string; resource_id?: string | null; payload?: unknown;
 } | null, readError: unknown, expected: {
   organizationId: string | null; eventType: string; resourceId: string; environment: string;
 }): boolean {
