@@ -8,9 +8,11 @@ import {
   completeActionRequest,
   createActionRequest,
   decideActionRequest,
+  listActionRequests,
+  pendingActionRequestCount,
   readActionRequest,
 } from "./agent-action-requests.server";
-import { briefingText } from "./agent-gateway.server";
+import { agentHealth, briefingText } from "./agent-gateway.server";
 
 /* A tiny in-memory stand-in for the one table these functions touch. */
 type Row = Record<string, unknown>;
