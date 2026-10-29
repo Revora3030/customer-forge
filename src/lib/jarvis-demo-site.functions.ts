@@ -73,7 +73,7 @@ export const draftDemoOutreach = createServerFn({ method: "POST" })
       actorId: String(context.userId),
       origin: new URL(getRequest().url).origin,
     });
-    const { outreachFooter } = await import("./jarvis-prospecting.functions");
+    const { outreachFooter } = await import("./outreach-footer.server");
     const { address, footer } = outreachFooter();
     return {
       email: draft.email,

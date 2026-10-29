@@ -3,7 +3,6 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { formatRevoraOffer } from "./jarvis-acquisition-policy";
 import { OUTREACH_PROMOTIONAL_NOTICE } from "./outreach-notice";
 import { htmlToText } from "./html-text";
-import { mergedMailingAddress } from "./gmail/stored-config.server";
 
 const AUDIT_LINK = "https://revoragrowthsystems.com/website-audit";
 const MAX_PROSPECTS = 5;
@@ -170,37 +169,6 @@ function fallbackDraft(name: string): { subject: string; body: string } {
   };
 }
 
-/**
- * Sender block every outreach draft ends with: the promotional notice, name,
- * physical address and an opt-out line. Emails Revora actually sends pass
- * `unsubscribeUrl`, so the opt-out is a one-click link rather than a reply
- * (they come from noreply@).
- */
-export function outreachFooter(options: { unsubscribeUrl?: string } = {}): {
-  address: string;
-  footer: string;
-  /** Notice, sender, company and address lines, without the separator or opt-out line. */
-  senderLines: string[];
-} {
-  const address = mergedMailingAddress();
-  const sender = process.env["REVORA_SENDER_NAME"]?.trim() || "Revora Growth Systems";
-  const senderLines = [
-    OUTREACH_PROMOTIONAL_NOTICE,
-    sender,
-    "Revora Growth Systems",
-    address || "[ADD YOUR PHYSICAL MAILING ADDRESS BEFORE SENDING]",
-  ];
-  const footer = [
-    "",
-    "--",
-    ...senderLines,
-    options.unsubscribeUrl
-      ? `Not interested? Unsubscribe and we won't contact you again: ${options.unsubscribeUrl}`
-      : "Not interested? Reply \"no thanks\" and I won't contact you again.",
-  ].join("\n");
-  return { address, footer, senderLines };
-}
-
 export const draftProspectOutreach = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: { prospects: ProspectInput[]; suppress?: string[] }) => {
@@ -221,6 +189,7 @@ export const draftProspectOutreach = createServerFn({ method: "POST" })
     const { assertSuperAdmin } = await import("./admin.server");
     await assertSuperAdmin(context.supabase as Parameters<typeof assertSuperAdmin>[0], String(context.userId));
     const userId = String(context.userId);
+    const { outreachFooter } = await import("./outreach-footer.server");
     const { address, footer } = outreachFooter();
     const { generateText } = await import("@/lib/ai/router.server");
     const seen = new Set<string>();
