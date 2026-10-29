@@ -23,14 +23,14 @@ export const COMPOSITION_PRIMITIVES = [
   "before_after_slider", "faq_accordion", "tab_group", "mobile_sticky_bar",
   "scene", "scroll_chapters", "offer_card", "spin_viewer", "collection_row",
   "lens_magnifier", "sticky_split_story", "service_tier_fader", "parallax_layers",
-  "scrub_sequence", "dial_selector",
+  "scrub_sequence", "dial_selector", "model_3d_viewer",
 ] as const;
 
 /** Primitives a visitor operates (a site's interactive centrepiece). Working form widgets are counted separately. */
 export const INTERACTIVE_PRIMITIVES: ReadonlySet<string> = new Set([
   "tabs", "toggle", "accordion", "compare", "before_after_slider", "faq_accordion", "tab_group",
   "scroll_chapters", "spin_viewer", "collection_row", "lens_magnifier", "sticky_split_story", "service_tier_fader",
-  "scrub_sequence", "dial_selector",
+  "scrub_sequence", "dial_selector", "model_3d_viewer",
 ]);
 
 /** Working features an AI layout may place anywhere. Their data (prices, phone, email, hours) always comes from verified business facts. */
@@ -92,6 +92,7 @@ export const PRIMITIVE_GUIDE =
   "service_tier_fader (a slider that picks one package and cross-fades between 2-4 offer_card children, e.g. Good / Better / Best; text is the slider label such as \"Choose your package\"; every child is an offer_card naming a real service EXACTLY as supplied, so prices and durations come from the owner's Services tool — never type a price; without JavaScript every package is listed). " +
   "parallax_layers (2-4 media children ordered back to front — e.g. a backdrop, a mid layer and a transparent cut-out in front — that drift at different speeds as the page scrolls for a layered depth effect; each with mediaRef and alt — the back layer's alt describes the scene, the layers in front are treated as decoration; pure CSS, still when motion is reduced or unsupported; use one per page for a hero or showcase, not for before/after or proof pictures). " +
   "dial_selector (a \"right setting for every surface\" gauge: text is its short control label such as \"Pick a surface\"; dialOptions holds 2-6 options {label (max 28), value (the reading shown in the dial, max 24, e.g. \"100-500\", \"Soft wash\", \"Level 2\"), note (one line, max 140), level 0-100 for the needle} and dialUnit is an optional unit under the reading such as \"PSI\"; the visitor taps an option chip and the needle sweeps to it; use it to explain a real method choice the business makes per material, room, vehicle, coat or plan — pressure per surface, grit per floor, film per window, intensity per treatment; readings and notes must be method facts the owner gave or that their services state, never prices, guarantees or results; when no figures were supplied use plain words for value such as \"Low\" or \"Soft wash\"; without JavaScript every option is listed). " +
+  "model_3d_viewer (an interactive 3D model the visitor drags to orbit and pinches or scrolls to zoom: mediaRef is a supplied part marked model3d — the owner's own uploaded .glb of a real product, vehicle, fixture or space — and never a picture; text is its short label such as \"Turn the …\"; alt describes the object for screen readers; at most one optional media child is the poster picture shown until the visitor taps to load the model and when 3D isn't available; only use it when a model3d part is supplied). " +
   "collection_row (a horizontally scrolling, snap-aligned row of offer_card children, each with its picture, name, optional real-service price and an accent button; keyboard and swipe friendly). " +
   "widget (text is one of booking_form|quote_calculator|enquiry_form|contact_details|direct_contact|service_menu|review_wall — enquiry_form is the site's working message form (name, phone/email, message; saved to the owner's leads); booking_form/quote_calculator drop the site's real working form, verified phone/email/hours/area, the live service menu (names, prices, durations straight from the owner's Services tool) or the live published reviews into your layout; style its wrapper freely, never retype those facts yourself; service_menu and review_wall stay in sync when the owner edits services or publishes reviews). For working widgets, widgetPresentation may author visible labels, helper/success copy and a bounded local theme (surface, text, muted, border, action, actionText, selected, selectedText); never put business data or pricing into widgetPresentation — the application supplies those facts. " +
   "Real company logos: a media src of https://img.logo.dev/<domain> (e.g. img.logo.dev/stripe.com) renders that company's real logo — use ONLY for companies the customer actually named as partners, clients or platforms they use; never invent an affiliation. " +
@@ -566,6 +567,11 @@ export type ValidateOptions = {
    * name one of them (its price is read from that service at render time).
    */
   serviceNames?: readonly string[];
+  /**
+   * The section's owner-uploaded 3D models (.glb). Only a model_3d_viewer may
+   * reference them, and a model_3d_viewer may reference nothing else.
+   */
+  modelRefs?: ReadonlySet<string>;
 };
 
 const SOFT_PROBLEM = /submitLabel must be 40|quote gives an estimate range|contrast|unknown style property|button text below 14px|text is too long|label must be 120|must be one of|must be a number between|must be true or false|font name contains|aspect must look like|area must be a simple name|gridAreas must look like|must be 0-3000|must be 150-4000|unknown motion|unknown hover property|must be none, subtle|from is only used|custom motion needs|ariaLabel must be text|shows at most 3 specs|focal must look like|scrim opacity must be|initialFrame must be/;
@@ -623,6 +629,12 @@ function checkCinematic(node: CompositionNode, path: string, issues: Composition
     case "spin_viewer":
       if (!kids.length || kids.length > MAX_SPIN_FRAMES || kids.some((child) => !hasPictureSource(child)))
         issues.push({ path: at, problem: `spin_viewer children must be 1-${MAX_SPIN_FRAMES} ordered angle pictures (media with a source and alt)` });
+      break;
+    case "model_3d_viewer":
+      if (!node.mediaRef) issues.push({ path, problem: "model_3d_viewer needs mediaRef: a supplied 3D model (a part marked model3d)" });
+      if (!node.alt?.trim()) issues.push({ path: `${path}.alt`, problem: "model_3d_viewer needs alt text describing the object" });
+      if (kids.length > 1 || kids.some((child) => !hasPictureSource(child)))
+        issues.push({ path: at, problem: "model_3d_viewer holds at most one media child: its poster picture" });
       break;
     case "lens_magnifier":
       if (kids.length !== 1 || !hasPictureSource(kids[0]!) || kids[0]!.mediaRef == null)
@@ -705,6 +717,10 @@ export function validateComposition(input: unknown, options: ValidateOptions = {
       if (typeof mediaRef !== "string" || !SAFE_MEDIA_REF.test(mediaRef)) issues.push({ path: `${path}.mediaRef`, problem: "invalid website picture reference" });
       else if (options.allowedMediaRefs && !options.allowedMediaRefs.has(mediaRef))
         issues.push({ path: `${path}.mediaRef`, problem: "website picture reference does not belong to this section" });
+      else if (options.modelRefs && node.type === "model_3d_viewer" && !options.modelRefs.has(mediaRef))
+        issues.push({ path: `${path}.mediaRef`, problem: "model_3d_viewer mediaRef must be a supplied 3D model (a part marked model3d), not a picture" });
+      else if (options.modelRefs?.has(mediaRef) && node.type !== "model_3d_viewer")
+        issues.push({ path: `${path}.mediaRef`, problem: `${mediaRef} is a 3D model; show it only in a model_3d_viewer` });
       else {
         node.mediaRef = mediaRef;
         usedMediaRefs.add(mediaRef);

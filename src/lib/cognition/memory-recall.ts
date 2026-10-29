@@ -33,6 +33,8 @@ export type RecallOptions = {
   now?: number;
   /** Optional embeddings: query vector plus one per memory id. Without them ranking is lexical. */
   embeddings?: { query: readonly number[]; byId: Readonly<Record<string, readonly number[]>> };
+  /** Optional precomputed cosine similarity per memory id (pgvector match). Takes precedence over `embeddings`. */
+  similarity?: Readonly<Record<string, number>>;
 };
 
 export function recallMemories(memories: readonly RecallMemory[], options: RecallOptions): RecallMemory[] {
@@ -43,7 +45,10 @@ export function recallMemories(memories: readonly RecallMemory[], options: Recal
     let overlap = 0;
     for (const term of queryTerms) if (terms.has(term)) overlap += 1;
     const lexical = queryTerms.size ? overlap / Math.sqrt(queryTerms.size * Math.max(1, terms.size)) : 0;
-    const vector = options.embeddings?.byId[memory.id] ? Math.max(0, cosineSimilarity(options.embeddings.query, options.embeddings.byId[memory.id]!)) : 0;
+    const precomputed = options.similarity?.[memory.id];
+    const vector = typeof precomputed === "number" && Number.isFinite(precomputed)
+      ? Math.max(0, precomputed)
+      : options.embeddings?.byId[memory.id] ? Math.max(0, cosineSimilarity(options.embeddings.query, options.embeddings.byId[memory.id]!)) : 0;
     const ageDays = Math.max(0, (now - Date.parse(memory.created_at)) / 86_400_000);
     const recency = Number.isFinite(ageDays) ? 1 / (1 + ageDays / 30) : 0;
     return { memory, score: lexical * 2 + vector * 2 + recency * 0.5 };

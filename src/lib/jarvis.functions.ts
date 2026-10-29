@@ -334,6 +334,10 @@ export async function runJarvis(db: SupabaseClient, userId: string, mode: Mode, 
   const saved = await db.from("jarvis_messages").insert({ user_id: userId, role: "assistant", content: reply, run_id: recorder.count ? recorder.runId : null, conversation_id: conversationId }).select("id").maybeSingle();
   if (saved.error) throw new Error("Jarvis answered, but the reply could not be saved. Refresh before retrying.");
   await recorder.flush(db, (saved.data?.id as string | undefined) ?? null);
+  if (proposals.length) {
+    const { recordProposals } = await import("./jarvis-approvals.server");
+    await recordProposals(db, userId, (saved.data?.id as string | undefined) ?? null, conversationId, reply);
+  }
   return { reply, diagnostics, followups, runId: recorder.count ? recorder.runId : null, conversationId };
 }
 
@@ -379,6 +383,56 @@ export const regenerateJarvisReply = createServerFn({ method: "POST" })
     return runJarvis(db, userId, data.mode, null, last.conversation_id ?? data.conversationId);
   });
 
+
+function parseApprovalKey(value: unknown): string {
+  if (typeof value !== "string" || !/^[0-9a-f-]{36}:[0-4]$/i.test(value)) throw new Error("That approval isn't valid.");
+  return value;
+}
+
+/**
+ * Claims one Jarvis proposal before its action runs: single use, 24-hour expiry,
+ * and the arguments must match what Jarvis proposed in the saved reply.
+ */
+export const claimJarvisApprovalFn = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: { key: string; proposal: unknown }) => {
+    const key = parseApprovalKey(input?.key);
+    if (!input.proposal || typeof input.proposal !== "object" || JSON.stringify(input.proposal).length > 60_000) throw new Error("That approval isn't valid.");
+    return { key, proposal: input.proposal };
+  })
+  .handler(async ({ context, data }) => {
+    const db = await guardedAdmin(context);
+    const { claimApproval } = await import("./jarvis-approvals.server");
+    return claimApproval(db, String(context.userId), data.key, data.proposal);
+  });
+
+export const finishJarvisApprovalFn = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: { key: string; ok: boolean; url?: string | null }) => ({ key: parseApprovalKey(input?.key), ok: input.ok === true, url: typeof input.url === "string" ? input.url : null }))
+  .handler(async ({ context, data }) => {
+    const db = await guardedAdmin(context);
+    const { finishApproval } = await import("./jarvis-approvals.server");
+    await finishApproval(db, String(context.userId), data.key, data.ok, data.url);
+    return { ok: true };
+  });
+
+export const rejectJarvisApprovalFn = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: { key: string }) => ({ key: parseApprovalKey(input?.key) }))
+  .handler(async ({ context, data }) => {
+    const db = await guardedAdmin(context);
+    const { rejectApproval } = await import("./jarvis-approvals.server");
+    return { rejected: await rejectApproval(db, String(context.userId), data.key) };
+  });
+
+/** The unified approvals list: every proposal Jarvis made, waiting ones first. */
+export const listJarvisApprovalsFn = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const db = await guardedAdmin(context);
+    const { listApprovals } = await import("./jarvis-approvals.server");
+    return { items: await listApprovals(db, String(context.userId)) };
+  });
 
 /** Configuration-only connector status. Credential names and values are never returned. */
 export const getJarvisAccessSnapshot = createServerFn({ method: "GET" })

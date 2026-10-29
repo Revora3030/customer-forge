@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { MODEL_BUCKET, MODEL_COMPONENT_KIND, MODEL_MIME, buildModelPath, glbProblem } from "@/lib/site-models";
 import { toast } from "@/lib/ui/notify";
 import { friendlyError } from "@/lib/user-error";
 import { supabase } from "@/integrations/supabase/client";
@@ -711,6 +712,48 @@ export function useAddComponent(organizationId: string | undefined) {
     },
     onSuccess: () => void invalidate(),
     onError: (error: Error) => toast.error(friendlyError(error, "Couldn't add that element.")),
+  });
+}
+
+/**
+ * Uploads the owner's own 3D model (.glb) into the private site-models bucket
+ * and places it in a section as a model_3d element. The header is checked
+ * here and the bucket enforces the type and size limit again.
+ */
+export function useUploadModel(organizationId: string | undefined) {
+  const invalidate = useInvalidateContent(organizationId);
+  return useMutation({
+    mutationFn: async ({ sectionId, sortOrder, file }: { sectionId: string; sortOrder: number; file: File }) => {
+      const orgId = organizationId!;
+      if (!/\.glb$/i.test(file.name)) throw new Error("Choose a .glb 3D model file.");
+      const problem = glbProblem(new Uint8Array(await file.slice(0, 20).arrayBuffer()), file.size);
+      if (problem) throw new Error(problem);
+      const path = buildModelPath(orgId);
+      const uploaded = await supabase.storage.from(MODEL_BUCKET).upload(path, file, { contentType: MODEL_MIME, upsert: false });
+      if (uploaded.error) throw uploaded.error;
+      const inserted = await supabase
+        .from("website_components")
+        .insert({
+          organization_id: orgId,
+          section_id: sectionId,
+          kind: MODEL_COMPONENT_KIND,
+          label: file.name.replace(/\.glb$/i, "").slice(0, 80),
+          media_url: path,
+          sort_order: sortOrder,
+        } as never)
+        .select("id")
+        .single();
+      if (inserted.error) {
+        await supabase.storage.from(MODEL_BUCKET).remove([path]);
+        throw inserted.error;
+      }
+      return (inserted.data as { id: string }).id;
+    },
+    onSuccess: () => {
+      toast.success("3D model added. Rebuild or edit the section so the AI can place it.");
+      void invalidate();
+    },
+    onError: (error: Error) => toast.error(friendlyError(error, "Couldn't add that 3D model.")),
   });
 }
 

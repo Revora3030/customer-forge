@@ -12,6 +12,7 @@
  * section still without a valid AI layout stops the build — there is no
  * substitute design.
  */
+import { MODEL_COMPONENT_KIND } from "@/lib/site-models";
 import { callBestThinker } from "@/lib/ai/thinker.server";
 import { readAll } from "@/lib/db/read-all";
 import { saveFirstBuildComposition as saveTree } from "./save-first-build-composition.server";
@@ -111,14 +112,14 @@ const RULES = [
   `Design each section from scratch as a composition tree built only from these primitives: ${COMPOSITION_PRIMITIVES.join(", ")}.`,
   PRIMITIVE_GUIDE,
   "Node shape: {type, text?, href?, src?, mediaRef?, alt?, level?, items?, beforeImage?, afterImage?, initialSplit?, revealMode?: slider|brush, dialOptions?: [{label, value, note?, level}], dialUnit?, faqItems?, tabs?, primaryCta?, secondaryCta?, anchor?, scrim?: {color?, opacity?}, focal?, service?, initialFrame?, style?, responsive?: {mobile?, tablet?, desktop?}, motion?: {kind: none|fade|rise|scale|float|slide-left|slide-right|blur|reveal, delayMs?, durationMs?}, children?}.",
-  "Cinematic primitives (scene, scroll_chapters, scrub_sequence, offer_card, spin_viewer, collection_row) are available when the authored brief and the supplied pictures call for photographic storytelling; whether to use them, and how, is your decision. A scrub_sequence is the scroll-scrubbed still sequence: 2-6 media frames of one subject wipe as the visitor scrolls, with a short display heading (uppercase, tracked, large) in the overlay — use it when this section has several pictures of one subject, including a detailing or product hero. Generated frames are atmosphere, never proof of a result. A scene's backdrop must be one of the section's own supplied pictures; when the look summary carries a shotList, the picture was shot to that section's art direction, so anchor the copy where that direction left negative space and draw the scrim colour from its palette tie-in. Measured gates (sent back to you): an opening section that has its own pictures must lead with a scene, a scrub_sequence or a full-bleed media hero rather than text only; two or more pictures on the opening must be a scene, scroll_chapters or scrub_sequence; scene text must pass AA over the computed scrim; an accordion, tab or toggle item that is only a label is sent back; the home page must contain at least one interactive primitive (tabs, toggle, accordion, compare, before_after_slider, faq_accordion, tab_group, scroll_chapters, scrub_sequence, dial_selector, spin_viewer or collection_row) that serves real supplied material. When the look summary carries a REFERENCE STANDARD, the home page is that cinematic, hands-on story: its opening, its TRY IT moment, its proof, its DIAL and its instant price — each only where this section's supplied material makes it true.",
+  "Cinematic primitives (scene, scroll_chapters, scrub_sequence, offer_card, spin_viewer, collection_row) are available when the authored brief and the supplied pictures call for photographic storytelling; whether to use them, and how, is your decision. A scrub_sequence is the scroll-scrubbed still sequence: 2-6 media frames of one subject wipe as the visitor scrolls, with a short display heading (uppercase, tracked, large) in the overlay — use it when this section has several pictures of one subject, including a detailing or product hero. Generated frames are atmosphere, never proof of a result. A scene's backdrop must be one of the section's own supplied pictures; when the look summary carries a shotList, the picture was shot to that section's art direction, so anchor the copy where that direction left negative space and draw the scrim colour from its palette tie-in. Measured gates (sent back to you): an opening section that has its own pictures must lead with a scene, a scrub_sequence or a full-bleed media hero rather than text only; two or more pictures on the opening must be a scene, scroll_chapters or scrub_sequence; scene text must pass AA over the computed scrim; an accordion, tab or toggle item that is only a label is sent back; the home page must contain at least one interactive primitive (tabs, toggle, accordion, compare, before_after_slider, faq_accordion, tab_group, scroll_chapters, scrub_sequence, dial_selector, spin_viewer, model_3d_viewer or collection_row) that serves real supplied material. When the look summary carries a REFERENCE STANDARD, the home page is that cinematic, hands-on story: its opening, its TRY IT moment, its proof, its DIAL and its instant price — each only where this section's supplied material makes it true.",
   "Pictures marked aiGenerated are AI-made illustrations, not the business's real work: never place them in a compare or before_after_slider, a spin_viewer, a gallery captioned as completed jobs, or any caption that calls them a real project, customer, result or team member.",
   "Pictures marked notProof (AI-made or stockPhoto licensed pictures) are illustrative only and follow the same rule. Only parts marked proofEligible (the owner's own labelled before/after photos, pairRole before or after) may form a before/after comparison.",
   "Studio interactive primitives: before_after_slider uses beforeImage:{src,alt,label}, afterImage:{src,alt,label}, and initialSplit 0-100 (default 50); use it when supplied material genuinely shows a transformation. faq_accordion uses faqItems:[{question,answer,defaultOpen?}] and only supplied FAQ copy. tab_group uses tabs:[{label,children:[...]}] and renders one active panel at a time. mobile_sticky_bar uses primaryCta:{label,href,ariaLabel?} and optional secondaryCta with safe conversion destinations; it is mobile-only and must never duplicate a desktop CTA unnecessarily.",
   "Interactive quality: use these primitives when they clarify real content, not as decoration. Keep every control at least 44px, make labels concise, preserve 4.5:1 text contrast, and design for touch and keyboard. Do not invent phone numbers, URLs, prices, FAQs, service tiers, before/after claims or other business facts.",
   "style keys: columns, gap, padding, paddingX, paddingY, maxWidth, align, justify, items, span, size, weight, lineHeight, letterSpacing, italic, uppercase, font, color, background, gradientTo, gradientAngle, radius, borderWidth, borderColor, shadow, opacity, aspect, objectFit, minHeight, hidden, position, top, left, right, bottom, zIndex, overlap, blur, rotate, gridAreas, area. Colours are #RRGGBB.",
   "Use ONLY the words, pictures and links supplied for the section — you may restructure, never invent facts, prices, reviews, awards or results.",
-  "Every supplied picture must appear visibly as a media node using its exact mediaRef. Never copy its private storage path into src.",
+  "Every supplied picture must appear visibly as a media node using its exact mediaRef. Never copy its private storage path into src. A part marked model3d is the owner's own 3D model: show it only as a model_3d_viewer with that mediaRef (one of the section's pictures may be its poster), never as a media node.",
   "Text on a background needs contrast of at least 4.5. Buttons need an href. Images need alt text. Collapse to one column on mobile.",
   "Buttons and links only use supplied hrefs: the section's own part hrefs, \"/\" and \"/<page-slug>\" for this site's pages, the business's tel:/mailto:, or an anchor of a real section role such as \"#contact\". Never \"#\", empty or invented URLs. Every services, offer, process and closing section ends in one clear action button.",
   "Every page of every business — home, services, about, book, contact, and any other page — uses the obsidian studio canvas (#0a0d10): radial studio light, translucent 1px borders, dark glass forms, and display type over full-bleed scenes. This is the same bar for plumbing, roofing, clinics, restaurants, firms, shops and every other trade, not one industry. Use a light editorial palette only when the brief explicitly asks for one. Never paint a cream, mint or white band, never repeat the same call-to-action bar under every section, and never split one service name into two boxes. A page with two or more pictures of one subject opens as a scrub_sequence or scroll_chapters; chapter labels follow that trade's story, and a price is shown only when it was supplied.",
@@ -154,6 +155,8 @@ function materialFor(section: SectionRow, parts: ComponentRow[]) {
       label: part.label,
       body: part.body,
       mediaRef: part.media_url ? part.id : null,
+      // The owner's own uploaded .glb: only a model_3d_viewer may show it.
+      ...(part.media_url && part.kind === MODEL_COMPONENT_KIND ? { model3d: true } : {}),
       // AI_GENERATED_DRAFT / NOT_VERIFIED_WORK_PROOF: illustrative only.
       ...(part.media_url && isNotProofPart(part) ? { notProof: true } : {}),
       ...(part.media_url && partSource(part) === "generated" ? { aiGenerated: true } : {}),
@@ -226,6 +229,14 @@ function mediaRefsFor(section: SectionRow, parts: ComponentRow[]) {
   return new Set(
     parts
       .filter((part) => part.section_id === section.id && Boolean(part.media_url))
+      .map((part) => part.id),
+  );
+}
+
+function modelRefsFor(section: SectionRow, parts: ComponentRow[]) {
+  return new Set(
+    parts
+      .filter((part) => part.section_id === section.id && Boolean(part.media_url) && part.kind === MODEL_COMPONENT_KIND)
       .map((part) => part.id),
   );
 }
@@ -384,6 +395,7 @@ export async function composeFirstBuildSections(input: {
       screenText: screen,
       allowedMediaRefs: mediaRefs,
       requiredMediaRefs: mediaRefs,
+      modelRefs: modelRefsFor(section, parts),
       serviceNames,
     });
     if (!checked.ok) return { ok: false, issues: checked.issues.slice(0, 12) };
@@ -858,6 +870,7 @@ async function repairDesignQuality(input: {
         screenText: input.screen,
         allowedMediaRefs: mediaRefs,
         requiredMediaRefs: mediaRefs,
+        modelRefs: modelRefsFor(section, input.parts),
         serviceNames: input.serviceNames,
       });
       if (!checked.ok) continue;
@@ -955,6 +968,7 @@ async function improveWithTeam(input: {
           screenText: input.screen,
           allowedMediaRefs: mediaRefs,
           requiredMediaRefs: mediaRefs,
+          modelRefs: section ? modelRefsFor(section, input.parts) : new Set<string>(),
           serviceNames: input.serviceNames,
         });
         // A revision must keep the section's working form/contact widget; a
@@ -993,6 +1007,7 @@ async function improveWithTeam(input: {
           screenText: input.screen,
           allowedMediaRefs: mediaRefs,
           requiredMediaRefs: mediaRefs,
+          modelRefs: section ? modelRefsFor(section, input.parts) : new Set<string>(),
           serviceNames: input.serviceNames,
         });
         if (!finalCheck.ok) {

@@ -13,8 +13,41 @@ type Db = Pick<SupabaseClient, "from">;
 export const MAX_SITES_PER_RUN = 40;
 export const MAX_LINKS_PER_SITE = 6;
 
-export type SiteAudit = { label: string; url: string; reachable: boolean; findings: AuditFinding[] };
-export type SiteAuditRun = { job: "site-content-audit"; scanned: number; withProblems: number; sent: number; skipped: number; failed: number; audits: SiteAudit[]; details: { organizationId?: string; status: string; reason?: string }[] };
+export type SiteAudit = { label: string; url: string; reachable: boolean; findings: AuditFinding[]; organizationId?: string };
+export type SiteAuditRun = { job: "site-content-audit"; runId?: string; scanned: number; withProblems: number; sent: number; skipped: number; failed: number; saved?: number; audits: SiteAudit[]; details: { organizationId?: string; status: string; reason?: string }[] };
+
+/** Keep a year of history; older rows are pruned on each run. */
+export const AUDIT_RETENTION_DAYS = 365;
+
+/** One site_content_audits row per audited site. Best-effort: a failed save never stops the digest. */
+export async function saveAuditRun(db: Db, runId: string, audits: readonly SiteAudit[], now = Date.now()): Promise<number> {
+  const rows = audits
+    .filter((audit) => audit.organizationId && /^https:\/\//.test(audit.url))
+    .map((audit) => ({
+      run_id: runId,
+      organization_id: audit.organizationId!,
+      label: audit.label.slice(0, 255),
+      url: audit.url.slice(0, 500),
+      reachable: audit.reachable,
+      p1_count: audit.findings.filter((f) => f.severity === "P1").length,
+      p2_count: audit.findings.filter((f) => f.severity === "P2").length,
+      findings: audit.findings.slice(0, 50).map((f) => ({ check: f.check, severity: f.severity, detail: f.detail.slice(0, 300) })),
+      audited_at: new Date(now).toISOString(),
+    }));
+  if (!rows.length) return 0;
+  try {
+    const { error } = await db.from("site_content_audits").insert(rows);
+    if (error) return 0;
+  } catch {
+    return 0;
+  }
+  try {
+    await db.from("site_content_audits").delete().lt("audited_at", new Date(now - AUDIT_RETENTION_DAYS * 86_400_000).toISOString());
+  } catch {
+    // pruning is housekeeping; the run's rows are already saved
+  }
+  return rows.length;
+}
 
 /** Same sites every call in the same week, a different slice each week. */
 export function pickSitesForWeek<T>(all: readonly T[], now: number, size = MAX_SITES_PER_RUN): T[] {
@@ -57,16 +90,19 @@ export async function runSiteContentAudit(db: Db, fetcher: typeof fetch = fetch,
   const { data: orgs } = ids.length ? await db.from("organizations").select("id, slug, is_suspended").in("id", ids) : { data: [] };
   const slugs = new Map((orgs ?? []).filter((o) => o.is_suspended !== true).map((o) => [o.id as string, String(o.slug)]));
 
-  const sites: { label: string; url: string }[] = [];
+  const sites: { label: string; url: string; organizationId: string }[] = [];
   for (const row of settings ?? []) {
     const slug = slugs.get(row.organization_id as string);
     if (!slug) continue;
     const host = row.domain_verified ? cleanDomain(row.custom_domain) : null;
-    sites.push(host ? { label: host, url: `https://${host}` } : { label: slug, url: `${PLATFORM_APP_ORIGIN}/s/${slug}` });
+    const organizationId = row.organization_id as string;
+    sites.push(host ? { label: host, url: `https://${host}`, organizationId } : { label: slug, url: `${PLATFORM_APP_ORIGIN}/s/${slug}`, organizationId });
   }
 
-  for (const site of pickSitesForWeek(sites, now)) run.audits.push(await auditSite(site.label, site.url, fetcher));
+  for (const site of pickSitesForWeek(sites, now)) run.audits.push({ ...(await auditSite(site.label, site.url, fetcher)), organizationId: site.organizationId });
   run.scanned = run.audits.length;
+  run.runId = crypto.randomUUID();
+  run.saved = await saveAuditRun(db, run.runId, run.audits, now);
   const problems = run.audits.filter((audit) => audit.findings.some((f) => f.severity === "P1"));
   run.withProblems = problems.length;
   if (problems.length) await sendSiteAuditDigest(db, run, problems, now);

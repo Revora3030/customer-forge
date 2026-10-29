@@ -40,7 +40,7 @@ import {
 import { RevoraAiError, buildStopped, notConfigured, providerUnavailable } from "@/lib/ai/errors";
 import { durableRuntimeFor } from "@/lib/ai/durable-health.server";
 import { preserveGroupOrder, qualityFirstOrder } from "@/lib/ai/orchestration/order";
-import { lovableAdapter, lovableVideo, postLovableSpeech, type VideoOutcome } from "@/lib/ai/providers/lovable";
+import { lovableAdapter, lovableEmbeddings, lovableVideo, postLovableSpeech, type VideoOutcome } from "@/lib/ai/providers/lovable";
 
 import { base64ByteLength } from "@/lib/ai/providers/shared";
 import { compactMessages } from "@/lib/ai/context-compaction";
@@ -907,6 +907,27 @@ export async function analyzeImage(caller: AiCaller, request: AiRequest) {
 /** Video understanding; routes to the vision model. */
 export async function analyzeVideo(caller: AiCaller, request: AiRequest) {
   return generateText(caller, { ...request, role: request.role ?? "vision" });
+}
+
+/**
+ * Text embeddings for Jarvis memory recall. Fails open: null without a key,
+ * on any provider error, or when `apiKey` is explicitly null (tests).
+ */
+export async function embedWithProvider(
+  model: string,
+  input: string[],
+  options: { apiKey?: string | null; signal?: AbortSignal; fetcher?: typeof fetch } = {},
+): Promise<unknown[] | null> {
+  const apiKey = options.apiKey === undefined ? (providerConfig()?.apiKey ?? null) : options.apiKey;
+  if (!apiKey || !input.length) return null;
+  try {
+    return await lovableEmbeddings(apiKey, model, input, {
+      ...(options.signal ? { signal: options.signal } : {}),
+      ...(options.fetcher ? { fetcher: options.fetcher } : {}),
+    });
+  } catch {
+    return null;
+  }
 }
 
 /** Voice to text. */

@@ -1,5 +1,6 @@
 import { LovableModelsPanel, ModelsPanel, ToolsPanel } from "./ModelsToolsPanels";
 import { ApprovalLogCard } from "./ApprovalLogCard";
+import { ApprovalsCard } from "./ApprovalsCard";
 import { InstagramPanel } from "./InstagramPanel";
 import { FreeToolsPanel } from "./FreeToolsPanel";
 import { useEffect, useRef } from "react";
@@ -114,6 +115,7 @@ export function OperationsPanel({ diagnostics, acquisition, scorecard, prospecto
       <ProspectAutopilotCard />
       <ProspectInboxCard />
       <ProspectLeadImportCard />
+      <ApprovalsCard />
       <ApprovalLogCard />
       <InstagramPanel />
       <FreeToolsPanel />

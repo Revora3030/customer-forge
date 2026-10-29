@@ -170,4 +170,13 @@ ${S} .rv-dial-list caption{text-align:left;font-weight:700;padding-bottom:6px}
 ${S} .rv-dial-list th,${S} .rv-dial-list td{text-align:left;padding:8px 0;border-top:1px solid rgba(127,127,127,.22);vertical-align:top}
 ${S} .rv-dial-list th{padding-right:16px;white-space:nowrap}
 @media (prefers-reduced-motion: reduce){${S} .rv-dial-fill,${S} .rv-dial-needle{transition:none}}
+${S} .rv-model{margin:0;display:flex;flex-direction:column;gap:10px}
+${S} .rv-model-stage{position:relative;aspect-ratio:4/3;width:100%;border-radius:18px;overflow:hidden;background:radial-gradient(120% 90% at 50% 20%,rgba(127,127,127,.18),rgba(127,127,127,.04));touch-action:none}
+${S} .rv-model-poster,${S} .rv-model-canvas,${S} .rv-model-placeholder{position:absolute;inset:0;width:100%;height:100%}
+${S} .rv-model-poster{object-fit:cover}
+${S} .rv-model-placeholder{display:grid;place-items:center;font-size:clamp(28px,6vw,56px);font-weight:800;letter-spacing:.08em;opacity:.35}
+${S} .rv-model-open{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);min-height:44px;padding:0 20px;border-radius:999px;border:0;background:var(--primary,#111);color:var(--primary-foreground,#fff);font-weight:700;font-size:14px;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.25)}
+${S} .rv-model-status{position:absolute;inset:auto 0 16px;text-align:center;font-size:14px;margin:0}
+${S} .rv-model-caption{display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px;font-size:14px;font-weight:600}
+${S} .rv-model-hint{font-weight:400;opacity:.7}
 `;

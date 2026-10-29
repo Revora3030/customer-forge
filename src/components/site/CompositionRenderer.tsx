@@ -11,6 +11,8 @@ import { DEFAULT_OFFER_ANCHOR, DEFAULT_SCENE_ANCHOR, sceneScrim, type SceneAncho
 import { LensMagnifier, StickySplitStory, TierFader } from "@/components/site/MasterBlocks";
 import { CollectionRow, DialSelector, SceneVideo, ScrubSequence, ScrubStage, ScrollChapters, SpinViewer, type SpinFrame } from "@/components/site/CinematicBlocks";
 import { CINEMATIC_CSS } from "@/components/site/cinematic-css";
+import { ModelViewer } from "@/components/site/ModelViewer";
+import { isModelUrl } from "@/lib/site-models";
 
 /**
  * Draws any validated AI-authored composition tree. It only translates the
@@ -30,7 +32,7 @@ const ITEMS = { start: "flex-start", center: "center", end: "flex-end", stretch:
 const FILL_WHEN_CAPPED = new Set<CompositionNode["type"]>([
   "stack", "grid", "row", "card", "list", "tabs", "toggle", "accordion", "compare", "gallery", "widget",
   "before_after_slider", "faq_accordion", "tab_group", "offer_card", "spin_viewer", "collection_row",
-  "lens_magnifier", "sticky_split_story", "service_tier_fader", "parallax_layers", "scrub_sequence", "dial_selector", "divider", "marquee",
+  "lens_magnifier", "sticky_split_story", "service_tier_fader", "parallax_layers", "scrub_sequence", "dial_selector", "model_3d_viewer", "divider", "marquee",
 ]);
 // eslint-disable-next-line react-refresh/only-export-components -- renderer helpers are intentionally co-located with their composition types.
 export function styleToCss(style: NodeStyle | undefined, type: CompositionNode["type"]): CSSProperties {
@@ -186,7 +188,7 @@ function mediaCss(visual: PersistedComponentVisual | undefined): CSSProperties {
 const STRETCH_PANEL = new Set<CompositionNode["type"]>([
   "accordion", "faq_accordion", "tab_group", "tabs", "toggle", "compare", "gallery", "widget",
   "before_after_slider", "scroll_chapters", "scrub_sequence", "sticky_split_story", "service_tier_fader",
-  "collection_row", "parallax_layers", "lens_magnifier", "spin_viewer", "offer_card", "dial_selector",
+  "collection_row", "parallax_layers", "lens_magnifier", "spin_viewer", "offer_card", "dial_selector", "model_3d_viewer",
 ]);
 
 function baseLayout(type: CompositionNode["type"]): CSSProperties {
@@ -388,6 +390,8 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
       { const resolved = node.mediaRef ? ctx.media(node.mediaRef) : null;
         const visual = mediaVisual(resolved);
         const source = node.src ? resolveImageSource(node.src) : mediaUrl(resolved);
+        // A 3D model is never drawn as an <img>; only model_3d_viewer shows it.
+        if (source && isModelUrl(source)) return null;
         // The first picture of a section is usually the hero: load it eagerly
         // so the largest paint is not delayed by lazy loading.
         const first = !ctx.counter.sawMedia;
@@ -475,6 +479,19 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
           after={{ alt: afterImage.alt, label: afterImage.label, src: afterSource }}
           initialSplit={node.initialSplit ?? 50} />
       ) : null;
+    }
+    case "model_3d_viewer": {
+      const model = node.mediaRef ? mediaUrl(ctx.media(node.mediaRef)) : null;
+      if (!model || !isModelUrl(model)) return null;
+      const posterNode = node.children?.find((child) => child.type === "media");
+      const posterResolved = posterNode?.mediaRef ? ctx.media(posterNode.mediaRef) : null;
+      const posterSrc = posterNode?.src ? resolveImageSource(posterNode.src) : mediaUrl(posterResolved);
+      const alt = node.alt?.trim() || "3D model";
+      return (
+        <ModelViewer key={key} props={props} src={model} alt={alt}
+          label={node.text?.trim().slice(0, 60) || "Turn it around"}
+          poster={posterSrc && !isModelUrl(posterSrc) ? { src: posterSrc, alt: posterNode?.alt ?? mediaVisual(posterResolved)?.alt ?? alt } : null} />
+      );
     }
     case "dial_selector":
       return (node.dialOptions?.length ?? 0) >= 2 ? (

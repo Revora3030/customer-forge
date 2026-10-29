@@ -615,6 +615,23 @@ export const lovableAdapter: ProviderAdapter = {
   },
 };
 
+/**
+ * Text embeddings (POST /v1/embeddings). Returns the raw vectors in input
+ * order, or null on any HTTP or shape problem; callers fail open.
+ */
+export async function lovableEmbeddings(apiKey: string, model: string, input: string[], options: { signal?: AbortSignal; fetcher?: typeof fetch } = {}): Promise<unknown[] | null> {
+  const response = await (options.fetcher ?? fetch)(`${BASE}/embeddings`, {
+    method: "POST",
+    headers: headers(apiKey),
+    body: JSON.stringify({ model, input }),
+    ...(options.signal ? { signal: options.signal } : {}),
+  });
+  if (!response.ok) return null;
+  const payload = (await response.json()) as { data?: { embedding?: unknown; index?: number }[] };
+  if (!Array.isArray(payload.data)) return null;
+  return [...payload.data].sort((a, b) => (a.index ?? 0) - (b.index ?? 0)).map((row) => row.embedding);
+}
+
 export type VideoOutcome =
   | { ok: true; bytes: Uint8Array }
   | { ok: false; kind: "model_unavailable" | "provider_error" | "timed_out" | "invalid_video"; detail: string; charged: boolean };

@@ -46,7 +46,8 @@
 
 ## Weekly content audit of published sites (2026-10-27)
 - [x] `site-content-audit` job (Mondays 13:05 UTC) checks each published customer site's home page and up to 6 internal links for title, h1, structured-data validity, alt text and broken links; up to 40 sites per run, rotated weekly; one digest per week to the Revora inbox only (customers are not emailed). 8 tests.
-- [ ] Not run against live sites; first scheduled run happens after publish. No results table (needs a migration); findings live in the digest and job log counts.
+- [x] Results table `site_content_audits` (owner-approved 2026-10-29): one row per audited site per run (P1/P2 counts, trimmed findings), a year of history, server-only writes, workspace members read their own site's rows; adversarial RLS test.
+- [ ] Not run against live sites; first scheduled run happens after the migration is published.
 
 ## Public page sweep (2026-10-27)
 - [x] `scripts/page-sweep.mjs` (`npm run site:sweep`) crawls a running site at phone and desktop width and measures status, script errors, overflow, title/description/h1, unnamed controls, image alt, tap targets and broken internal links.
@@ -62,8 +63,8 @@
 ## Cognitive architecture foundations (2026-10-27)
 - [x] Six-pillar foundations in `src/lib/cognition/` with 33 tests (plan graph, ReAct loop, memory recall, approval tokens, vision review, event rules, deliberation); see docs/COGNITIVE_ARCHITECTURE.md.
 - [x] Jarvis memory now recalls relevant memories from all 200 for the owner's latest message instead of only the newest 40.
-- [ ] Database-backed approval store and mutation tools (needs table migration approval).
-- [ ] pgvector memory (needs migration approval and a verified, priced embeddings call).
+- [x] Database-backed approval store `jarvis_approvals` (owner-approved 2026-10-29): one row per proposal when a reply is saved, atomic single-use claim, 24-hour expiry, arguments must hash to what Jarvis proposed, stale claims freed after 30 min; owner-only RLS and cross-owner adversarial tests.
+- [x] pgvector memory (owner-approved 2026-10-29): `jarvis_memory_embeddings` + `match_jarvis_memories`, openai/text-embedding-3-small through the provider layer; recall blends cosine with lexical + recency and falls back to lexical without a key or on error. Live embedding call not yet observed.
 - [ ] Vision-model critique, event emitters, live multi-agent runs (each spends budget; none wired).
 
 ## AI City and workforce-first continuation (2026-10-27)
@@ -84,7 +85,7 @@
 ## Roadmap continuation (2026-10-27)
 - [x] Priority 1: reject zero-row first-build composition saves; eight initial tests passed, including exact tenant filters and missing/duplicate/wrong-row failures.
 - [x] Priority 2: compare saved page/section identities, original roles and multiplicity with the materialized build inventory, not only aggregate counts; substituted pages, moved/duplicate sections and lost roles rejected. Completion readback tested with a fake database; no hosted writes.
-- [x] Existing controls reviewed: queued/running generation cancellation and recovery already exist; client-side request dismissal is not remote cancellation, and local approval memory is not server authorization. Durable approval consumption and unified inbox remain later work, not claimed complete.
+- [x] Existing controls reviewed: queued/running generation cancellation and recovery already exist; client-side request dismissal is not remote cancellation, and local approval memory is not server authorization. Durable approval consumption and the unified approvals list shipped 2026-10-29 (see Cognition).
 - [x] Batch verification: 144 affected files / 1,079 tests passed; full offline suite: 436 files / 3,365 passed / 6 live tests skipped; changed-code lint clean; automatic build OK. Evidence: docs/roadmap-reliability-verification-2026-10-27.md.
 - [ ] Live generation, real lead delivery, paid provider calls, publishing and production mutations require separate owner authorization; none authorized by this continuation.
 
@@ -101,7 +102,7 @@
 - [x] Maps review form: per-fact source labels, editable address and hours, website suggestions needing approval, existing build handoff kept.
 - [x] Veo, music, live voice and embeddings labelled with exact blockers in the model panel.
 - [ ] Veo routes: request shape and pricing unverified.
-- [ ] Search memory: needs a vector-storage migration the owner approves.
+- [x] Search memory: pgvector migration approved and added 2026-10-29 (applies on publish).
 - [ ] Music and two-way live voice: not built.
 - [ ] Live end-to-end check of Lovable voice and a Maps-to-build run (needs a paid call / live build approval).
 
@@ -114,7 +115,8 @@
 ## Raise rating gaps (2026-10-22 plan)
 - [ ] Phase 1: one free-model test-workspace build + every-page report — waiting on owner approval to run.
 - [x] Phase 2a: live Jarvis step events shown while working (tested).
-- [ ] Phase 2: Stop/Resume, expiring single-use approvals, unified approvals list.
+- [x] Phase 2 (part): expiring single-use approvals and a unified approvals list (Jarvis operations panel, dismiss from there), 2026-10-29.
+- [ ] Phase 2: Stop/Resume.
 - [x] Phase 3 (partial): security scan clean; linter shows 28 server-only tables locked by design (no browser policies) and 1 extension-in-public warning.
 - [x] Phase 3 (static part): `tenant-rls-coverage.test.ts` checks every migration-created table with an organization_id has RLS on, never switched off, and no anon update/delete grant. A live two-workspace test against a non-production database is still open.
 - [ ] Phase 4: honest status page (Instagram blocked on Meta credentials).
@@ -223,7 +225,7 @@
 - [x] Jarvis tool/permission inventory documented (docs/operations/jarvis-tool-inventory.md).
 - [x] Queued autopilot sends respect the off switch; launch review requires workspace membership.
 - [x] Migration reconciliation runbook (docs/operations/migration-reconciliation.md).
-- [ ] Wire durable approval proof into Jarvis consequential endpoints (needs table + UI).
+- [x] Durable approval proof: every Jarvis proposal is claimed server-side before it runs and reported done/failed after (2026-10-29).
 - [ ] Live two-workspace RLS test (needs test accounts in a non-production database).
 
 ## Jarvis model access (2026-10-20)
@@ -368,7 +370,7 @@ Counted from the code, not from audits.
 - [x] `lens_magnifier`: loupe over one real photo (mediaRef only; generated/stock shows nothing); hover, arrow keys, "Magnify on touch" switch
 - [x] `sticky_split_story`: pinned picture beside 2-6 scrolling phases; sticky on wide screens only
 - [x] Review wall rating filter (All / 5 stars / 4 stars & up), only when it changes what is shown
-- [ ] `model_3d_viewer`: not built. Owners have no way to upload a .glb (media is pictures only) and no business has supplied one; build the upload path first. three/R3F are already dependencies (admin AI City only).
+- [x] `model_3d_viewer` (owner-approved 2026-10-29): owners upload their own .glb ("3D model" in the builder section toolbar; header-checked, 25 MB, private `site-models` bucket scoped to the workspace folder); the AI may place it only in a model_3d_viewer (validator enforces both directions); server-renders the poster, loads three.js only on "View in 3D" with WebGL; signed URLs on public sites. Not yet tried with a real customer model.
 - Not built on purpose: live booking ticker (invented social proof), soundboard, thermal overlay (invented findings), gravity badges.
 - [x] `service_tier_fader`: slider cross-fading 2-4 offer cards (prices only from the Services tool); every package listed without JavaScript
 - [x] `selector` gains `display: "dial"` (round gauge instead of a bar)

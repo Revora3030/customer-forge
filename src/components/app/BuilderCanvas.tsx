@@ -45,6 +45,7 @@ import {
 } from "@/lib/website-content";
 import {
   useAddComponent,
+  useUploadModel,
   useDeleteComponent,
   useDeleteSection,
   useDuplicateComponent,
@@ -575,6 +576,7 @@ export function BuilderCanvas({
   const duplicateSection = useDuplicateSection(organizationId);
   const restoreSection = useRestoreSection(organizationId);
   const addComponent = useAddComponent(organizationId);
+  const uploadModel = useUploadModel(organizationId);
   const duplicateComponent = useDuplicateComponent(organizationId);
   const deleteComponent = useDeleteComponent(organizationId);
   const restoreComponent = useRestoreComponent(organizationId);
@@ -1287,6 +1289,20 @@ export function BuilderCanvas({
                       <Button size="sm" variant="secondary" onClick={() => addElement(section)}>
                         <Plus className="mr-1.5 size-3.5" aria-hidden /> Add
                       </Button>
+                      <label className="inline-flex h-8 cursor-pointer items-center rounded-md border border-border px-2 text-[12px] hover:bg-muted" title="Add your own 3D model (.glb, up to 25 MB)">
+                        {uploadModel.isPending ? "Uploading…" : "3D model"}
+                        <input
+                          type="file"
+                          accept=".glb,model/gltf-binary"
+                          className="sr-only"
+                          disabled={uploadModel.isPending}
+                          onChange={(event) => {
+                            const file = event.target.files?.[0];
+                            event.target.value = "";
+                            if (file) uploadModel.mutate({ sectionId: section.id, sortOrder: section.components.length, file });
+                          }}
+                        />
+                      </label>
                     </div>
                   ) : null}
                 </div>
