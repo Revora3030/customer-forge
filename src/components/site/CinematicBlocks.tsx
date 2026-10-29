@@ -303,6 +303,7 @@ export function ScrubSequence({
   const track = useRef<HTMLDivElement>(null);
   const [live, setLive] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [pinned, setPinned] = useState<number | null>(null);
   useEffect(() => {
     if (prefersReducedMotion() || frames.length < 2) return;
     setLive(true);
@@ -313,7 +314,7 @@ export function ScrubSequence({
       if (!box) return;
       setProgress(scrubProgress(box.top, box.height, window.innerHeight));
     };
-    const onScroll = () => { if (!frame) frame = window.requestAnimationFrame(update); };
+    const onScroll = () => { setPinned(null); if (!frame) frame = window.requestAnimationFrame(update); };
     window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", onScroll);
     update();
@@ -323,7 +324,7 @@ export function ScrubSequence({
       if (frame) window.cancelAnimationFrame(frame);
     };
   }, [frames.length]);
-  const shown = live ? scrubFrame(progress, frames.length) : { index: Math.max(0, frames.length - 1), mix: 0 };
+  const shown = pinned != null ? { index: pinned, mix: 0 } : live ? scrubFrame(progress, frames.length) : { index: Math.max(0, frames.length - 1), mix: 0 };
   const last = Math.max(0, frames.length - 1);
   return (
     <div ref={track} {...props} className={merge(props, "rv-seq")} data-live={live ? "" : undefined}>
@@ -351,6 +352,21 @@ export function ScrubSequence({
           <div className="rv-seq-copy">
             {copy}
             {prompt ? <p className="rv-seq-prompt">{prompt}</p> : null}
+            {frames.length > 1 ? (
+              <div role="group" aria-label="Sequence frames" className="mt-2 flex flex-wrap gap-2">
+                {frames.map((frame, index) => (
+                  <button
+                    key={frame.src}
+                    type="button"
+                    aria-pressed={shown.index === index}
+                    onClick={() => { setLive(true); setPinned(index); }}
+                    className="min-h-11 min-w-11 rounded-full border border-current px-3 text-[13px] font-semibold"
+                  >
+                    {index + 1}
+                  </button>
+                ))}
+              </div>
+            ) : null}
           </div>
         </div>
       </div>

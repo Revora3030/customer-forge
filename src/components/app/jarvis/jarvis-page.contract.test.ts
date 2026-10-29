@@ -9,7 +9,7 @@ const all = [route, ...parts.map((file) => readFileSync(`${DIR}/${file}`, "utf8"
 const ui = [route, ...parts.filter((file) => file.endsWith(".tsx")).map((file) => readFileSync(`${DIR}/${file}`, "utf8"))];
 
 const COMMAND_LABELS = [
-  "Fix top error", "Propose an upgrade", "Fix stuck builds", "Daily briefing", "Autopilot plan", "Prospect ideas",
+  "Fix top error", "Propose an upgrade", "Fix stuck builds", "Seed daily routines", "Daily briefing", "Autopilot plan", "Prospect ideas",
   "Follow-up sequence", "Platform errors", "Builder health", "SEO readiness", "Site audit", "Growth strategy",
   "Offer review", "Outreach drafts", "Local SEO plan", "Reel scripts", "Lovable fix prompt",
 ];
@@ -52,7 +52,7 @@ describe("Jarvis page keeps every behaviour the rebuild must preserve", () => {
     }
   });
 
-  it("lists all 17 quick commands and 6 starters", () => {
+  it("lists all 18 quick commands and 6 starters", () => {
     const commands = route.slice(route.indexOf("const COMMANDS = ["), route.indexOf("] as const;", route.indexOf("const COMMANDS = [")));
     expect([...commands.matchAll(/^\s+\["([^"]+)",/gm)].map((match) => match[1])).toEqual(COMMAND_LABELS);
     const starters = route.slice(route.indexOf("const STARTERS = ["), route.indexOf("] as const;", route.indexOf("const STARTERS = [")));

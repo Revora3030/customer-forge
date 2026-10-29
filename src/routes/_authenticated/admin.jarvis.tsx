@@ -84,6 +84,7 @@ const COMMANDS = [
   ["Fix top error", FIX_TOP_ERROR],
   ["Propose an upgrade", UPGRADE],
   ["Fix stuck builds", "Run the builder health check. If any website builds are stuck or failing repeatedly, explain why from the evidence and propose builds.recover."],
+  ["Seed daily routines", "Draft the daily Jarvis routines for a morning briefing, build health, and prospect follow-up. Show each routine and wait for my approval before saving or running one."],
   ["Daily briefing", BRIEFING],
   ["Autopilot plan", AUTOPILOT],
   ["Prospect ideas", PROSPECT_IDEAS],

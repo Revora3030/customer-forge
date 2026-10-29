@@ -134,7 +134,7 @@ describe("universal archetypes", () => {
     expect(key("Dance academy")).toBe("hospitality-lifestyle");
     const note = playbookNote("Mobile auto detailing")!;
     expect(note).toContain("TRADE PLAYBOOK for Auto detailing and car care");
-    expect(note).toContain("Look (a suggestion; you choose the palette and type for this business)");
+    expect(note).toContain("the canvas is obsidian studio on every page");
   });
 
   it("falls back to the description or service names when the industry says nothing, and to the general archetype otherwise", () => {

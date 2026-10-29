@@ -3,6 +3,7 @@ import { currency } from "@/lib/format";
 import { safeParagraph, safeText } from "@/lib/builder/presentation";
 import { resolveImageSource } from "@/lib/brand-logos";
 import { matchService } from "@/lib/builder/cinematic-primitives";
+import { packageScope } from "@/lib/builder/service-packages";
 
 type ServiceRow = {
   id: string;
@@ -34,8 +35,14 @@ export function durationLabel(minutes: number | null | undefined): string | null
   return rest ? `${h} hr ${rest} min` : `${h} hr`;
 }
 
+/** Same-page link that opens the booking form with this service selected. */
+export function packageBookHref(base: string, serviceId: string): string {
+  const path = base.replace(/#.*$/, "");
+  return `${path}#book-${encodeURIComponent(serviceId)}`;
+}
+
 /** The owner's active services, featured first, ready to display. */
-export function serviceMenuItems(rows: ServiceRow[], limit = 12) {
+export function serviceMenuItems(rows: ServiceRow[], limit = 12, industry: string | null = null) {
   return mergeSplitServices([...rows])
     .filter((row) => safeText(row.name))
     .sort((a, b) => Number(Boolean(b.featured)) - Number(Boolean(a.featured)) || (a.sort_order ?? 0) - (b.sort_order ?? 0))
@@ -48,6 +55,7 @@ export function serviceMenuItems(rows: ServiceRow[], limit = 12) {
         id: row.id,
         name: safeText(row.name)!,
         description: safeParagraph(row.description) || null,
+        inclusions: safeParagraph(row.description) ? [] : packageScope(industry),
         price: exact ? currency(exact) : from ? `From ${currency(from)}` : null,
         duration: durationLabel(row.duration_minutes),
         image,

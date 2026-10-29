@@ -427,12 +427,16 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
     case "accordion":
       return (
         <div key={key} {...props} className={`${props.className ?? ""} rv-cn-acc`.trim()}>
-          {node.children?.map((child, i) => (
+          {node.children?.map((child, i) => {
+            const answered = (child.children ?? []).some((part) => part.text?.trim() || (part.children ?? []).length > 0 || (part.items ?? []).length > 0);
+            if (!answered) return <p key={i}>{child.text}</p>;
+            return (
             <details key={i} className="rv-cn-acc-item" style={styleToCss(child.style, child.type)}>
               <summary style={{ cursor: "pointer", minHeight: 44, display: "flex", alignItems: "center" }}>{child.text}</summary>
               {child.children?.map((c, j) => renderNode(c, ctx, `${key}.${i}.${j}`))}
             </details>
-          ))}
+            );
+          })}
         </div>
       );
     case "tabs":

@@ -21,6 +21,7 @@ import { widgetPresentationStyle } from "@/components/site/contact-details-utils
 import type { WidgetPresentation } from "@/lib/builder/composition-tree";
 import { usePreviewMode } from "@/components/site/preview-mode-context";
 import { shouldTrackFormEvent } from "@/lib/site-event-once";
+import { mergeSplitServices } from "@/lib/builder/intake-sanitize";
 
 type Site = NonNullable<PublicSite>;
 
@@ -399,7 +400,7 @@ export function BookingForm({ site, presentation }: { site: Site; presentation?:
   const fid = (key: string) => `b-${key}-${uid}`;
   const submit = useLeadSubmit();
   const track = useTracker(site.org.slug);
-  const bookable = site.services.filter((s) => s.bookable);
+  const bookable = mergeSplitServices(site.services).filter((s) => s.bookable);
   const [pending, setPending] = useState(false);
   const [done, setDone] = useState(false);
   const [confirmationEmail, setConfirmationEmail] = useState("");
@@ -416,6 +417,19 @@ export function BookingForm({ site, presentation }: { site: Site; presentation?:
     local.setMinutes(local.getMinutes() - local.getTimezoneOffset());
     setToday(local.toISOString().slice(0, 10));
   }, []);
+  useEffect(() => {
+    const apply = () => {
+      const hash = window.location.hash;
+      if (!hash.startsWith("#book")) return;
+      const id = decodeURIComponent(hash.slice("#book-".length));
+      if (id && bookable.some((service) => service.id === id)) setServiceId(id);
+      const motion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+      document.getElementById("book")?.scrollIntoView({ behavior: motion ? "auto" : "smooth", block: "start" });
+    };
+    apply();
+    window.addEventListener("hashchange", apply);
+    return () => window.removeEventListener("hashchange", apply);
+  }, [bookable]);
 
   if (done) {
     return (
@@ -459,7 +473,8 @@ export function BookingForm({ site, presentation }: { site: Site; presentation?:
 
   return (
     <form
-      className="panel space-y-4 p-5"
+      id="book"
+      className="panel space-y-4 p-5 scroll-mt-24"
       style={widgetPresentationStyle(presentation)}
       onFocus={() => track("booking_start")}
       onSubmit={(e) => {

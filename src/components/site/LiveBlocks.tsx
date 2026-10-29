@@ -16,17 +16,17 @@ import { Star } from "lucide-react";
 import type { WidgetPresentation } from "@/lib/builder/composition-tree";
 import type { PublicSite } from "@/lib/public-site.functions";
 import { widgetPresentationStyle } from "@/components/site/contact-details-utils";
-import { serviceMenuItems, reviewWallItems } from "@/components/site/live-blocks-utils";
+import { packageBookHref, serviceMenuItems, reviewWallItems } from "@/components/site/live-blocks-utils";
 import { useOwnAddress, useSiteBase } from "@/components/site/use-own-address";
 
 type Site = NonNullable<PublicSite>;
 
 export function ServiceMenu({ site, presentation, limit = 12 }: { site: Site; presentation?: WidgetPresentation; limit?: number }) {
-  const items = serviceMenuItems(site.services ?? [], limit);
+  const items = serviceMenuItems(site.services ?? [], limit, site.org.industry ?? null);
   const ownAddress = useOwnAddress();
   const previewBase = useSiteBase();
   if (!items.length) return null;
-  const bookHref = previewBase ? `${previewBase}#book` : ownAddress ? "/#book" : `/s/${encodeURIComponent(site.org.slug)}#book`;
+  const bookBase = previewBase ? previewBase : ownAddress ? "" : `/s/${encodeURIComponent(site.org.slug)}`;
   const hasBooking = items.some((item) => item.bookable);
   return (
     <div data-live-block="service_menu" style={widgetPresentationStyle(presentation)} className="w-full">
@@ -37,9 +37,9 @@ export function ServiceMenu({ site, presentation, limit = 12 }: { site: Site; pr
           {presentation?.description ? <p className="mt-2 text-[14px] text-muted-foreground">{presentation.description}</p> : null}
         </div>
       ) : null}
-      <ul className={items.every((item) => !item.description && !item.image) ? "divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card" : "grid gap-4 sm:grid-cols-2 lg:grid-cols-3"}>
+      <ul className={items.every((item) => !item.description && !item.image && item.inclusions.length === 0) ? "divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card" : "grid gap-4 sm:grid-cols-2 lg:grid-cols-3"}>
         {items.map((item) => (
-          <li key={item.id} className={item.description || item.image ? "flex min-w-0 flex-col rounded-xl border border-border bg-card p-5 text-card-foreground" : "flex min-w-0 flex-wrap items-center justify-between gap-3 px-4 py-3 text-card-foreground"}>
+          <li key={item.id} className={item.description || item.image || item.inclusions.length ? "flex min-w-0 flex-col rounded-xl border border-border bg-card p-5 text-card-foreground" : "flex min-w-0 flex-wrap items-center justify-between gap-3 px-4 py-3 text-card-foreground"}>
             {item.image ? (
               <img src={item.image} alt="" loading="lazy" decoding="async" className="mb-4 aspect-[4/3] w-full rounded-lg object-cover" />
             ) : null}
@@ -47,12 +47,16 @@ export function ServiceMenu({ site, presentation, limit = 12 }: { site: Site; pr
               <h4 className="font-display text-[17px] font-semibold leading-snug">{item.name}</h4>
               {item.price ? <span className="tnum shrink-0 text-[15px] font-semibold text-primary">{item.price}</span> : null}
             </div>
-            {item.description ? <p className="mt-2 text-[14px] leading-relaxed text-muted-foreground">{item.description}</p> : null}
+            {item.description ? <p className="mt-2 text-[14px] leading-relaxed text-muted-foreground">{item.description}</p> : item.inclusions.length ? (
+              <ul className="mt-3 space-y-1 text-[14px] leading-relaxed text-muted-foreground">
+                {item.inclusions.map((line) => <li key={line}>{line}</li>)}
+              </ul>
+            ) : null}
             {item.duration || (item.bookable && hasBooking) ? (
               <div className="mt-auto flex items-center justify-between gap-3 pt-4">
                 {item.duration ? <span className="text-[13px] text-muted-foreground">{item.duration}</span> : <span />}
                 {item.bookable && hasBooking ? (
-                  <a href={bookHref} className="inline-flex min-h-11 items-center rounded-full bg-primary px-4 text-[14px] font-semibold text-primary-foreground">
+                  <a href={packageBookHref(bookBase, item.id)} className="inline-flex min-h-11 items-center rounded-full bg-primary px-4 text-[14px] font-semibold text-primary-foreground">
                     {presentation?.actionLabel ?? "Book"}
                   </a>
                 ) : null}

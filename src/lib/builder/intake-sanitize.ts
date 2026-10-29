@@ -101,7 +101,10 @@ export function mergeSplitServices<T extends { name?: string | null; description
     const nextName = typeof next?.name === "string" ? next.name.trim() : "";
     const qualifier = name.split(/\s+/).length === 1 && SERVICE_QUALIFIERS.has(name.toLowerCase());
     const undescribed = !String(current.description ?? "").trim() && !String(next?.description ?? "").trim();
-    if (qualifier && next && nextName && undescribed && !(hasPrice(current) && hasPrice(next))) {
+    // "Full" + "Auto detailing" is one phrase even when the first half is priced.
+    // Two priced one-word names ("Full" $100 and "Interior" $80) stay separate packages.
+    const siblingPackage = Boolean(next) && nextName.split(/\s+/).filter(Boolean).length === 1 && hasPrice(current) && hasPrice(next!);
+    if (qualifier && next && nextName && undescribed && !siblingPackage) {
       out.push({
         ...next,
         ...current,
