@@ -24,6 +24,7 @@ import {
   type RunDelivery,
 } from "@/lib/automation-engine";
 import { requireOrgRole } from "@/lib/org-authz.server";
+import { effectiveReviewLink, placeIdFromGeneration } from "@/lib/google-review-link";
 
 type Db = SupabaseClient<Database>;
 
@@ -97,11 +98,22 @@ async function loadBusiness(userDb: Db, organizationId: string) {
   if (orgError) throw new Error(`Couldn't load the workspace: ${orgError.message}`);
   if (!org?.id) throw new Error("Workspace not found");
   if (profileError) throw new Error(`Couldn't load the business profile: ${profileError.message}`);
+  let reviewLink: string | null = profile?.review_link?.trim() || null;
+  if (!reviewLink) {
+    // No saved link: fall back to the free Google writereview link when the
+    // workspace came from a Google listing (place ID on the prospect demo).
+    const { data: settings } = await userDb
+      .from("website_settings")
+      .select("generation")
+      .eq("organization_id", organizationId)
+      .maybeSingle();
+    reviewLink = effectiveReviewLink(null, placeIdFromGeneration((settings as { generation?: unknown } | null)?.generation));
+  }
   return {
     businessName: org.name ?? null,
     replyTo: profile?.email ?? profile?.owner_email ?? null,
     businessState: profile?.state ?? null,
-    reviewLink: profile?.review_link ?? null,
+    reviewLink,
   };
 }
 

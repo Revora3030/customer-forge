@@ -204,6 +204,28 @@ describe("requestReviewFor", () => {
     });
   });
 
+  it("falls back to the Google writereview link from the place ID when no review link is saved", async () => {
+    const base = memberAs("staff");
+    const user = fakeDb({
+      ...base,
+      "business_profiles:select": {
+        data: { email: "owner@acme.test", owner_email: null, state: "TX", review_link: "" },
+        error: null,
+      },
+      "website_settings:select": {
+        data: { generation: { prospectDemo: { placeId: "ChIJN1t_tDeuEmsRUsoyG83frY4" } } },
+        error: null,
+      },
+      "appointments:select": { data: completedAppointment, error: null },
+    });
+    const admin = fakeDb({ "automation_runs:insert": { data: null, error: null } });
+    await requestReviewFor(user.db, USER, { organizationId: ORG, appointmentId: APPT, channel: "email" }, deps(admin.db));
+    const insert = admin.calls.find((c) => c.table === "automation_runs" && c.op === "insert");
+    expect((insert?.args[0] as { body: string }).body).toContain(
+      "https://search.google.com/local/writereview?placeid=ChIJN1t_tDeuEmsRUsoyG83frY4",
+    );
+  });
+
   it("refuses a second request for the same job, and jobs not completed", async () => {
     const asked = fakeDb({ ...memberAs("staff"), "appointments:select": { data: completedAppointment, error: null } });
     const admin = fakeDb({ "automation_runs:select": { data: [{ id: "run-1" }], error: null } });

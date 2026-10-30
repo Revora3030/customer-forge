@@ -234,6 +234,8 @@ export type LocalListing = {
   rating: number | null;
   reviewCount: number | null;
   mapsUri: string | null;
+  /** Google place ID (free "IDs only" field); powers the review link. */
+  placeId: string | null;
   fetchedAt: string;
 };
 
@@ -259,7 +261,7 @@ export async function localListings(query: string): Promise<LocalListing[]> {
     body: { textQuery: text, pageSize: 5 },
     headers: {
       "X-Goog-FieldMask":
-        "places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.websiteUri,places.rating,places.userRatingCount,places.googleMapsUri",
+        "places.id,places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.websiteUri,places.rating,places.userRatingCount,places.googleMapsUri",
     },
   })) as { places?: Record<string, unknown>[] } | null;
 
@@ -273,6 +275,7 @@ export async function localListings(query: string): Promise<LocalListing[]> {
       rating: typeof place["rating"] === "number" ? place["rating"] : null,
       reviewCount: typeof place["userRatingCount"] === "number" ? place["userRatingCount"] : null,
       mapsUri: (place["googleMapsUri"] as string | undefined) ?? null,
+      placeId: typeof place["id"] === "string" ? place["id"] : null,
       fetchedAt,
     }),
   );

@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   formatVital,
+  observeWebVitals,
   percentile75,
   rateVital,
   summariseVitals,
@@ -71,5 +72,80 @@ describe("formatVital", () => {
     expect(formatVital("cls", 0.0512)).toBe("0.051");
     expect(formatVital("lcp", 2480)).toBe("2.48s");
     expect(formatVital("inp", 120)).toBe("120ms");
+  });
+});
+
+describe("observeWebVitals (web-vitals library)", () => {
+  function fakeDom() {
+    const listeners = new Map<string, Array<() => void>>();
+    const add = (type: string, cb: () => void) =>
+      listeners.set(type, [...(listeners.get(type) ?? []), cb]);
+    const remove = (type: string, cb: () => void) =>
+      listeners.set(
+        type,
+        (listeners.get(type) ?? []).filter((x) => x !== cb),
+      );
+    const doc = { visibilityState: "visible", addEventListener: add, removeEventListener: remove };
+    const win = {
+      addEventListener: add,
+      removeEventListener: remove,
+      setTimeout: () => 1,
+      clearTimeout: () => undefined,
+    };
+    vi.stubGlobal("window", win);
+    vi.stubGlobal("document", doc);
+    vi.stubGlobal("PerformanceObserver", function PerformanceObserver() {});
+    return {
+      hide() {
+        doc.visibilityState = "hidden";
+        for (const cb of listeners.get("visibilitychange") ?? []) cb();
+      },
+    };
+  }
+
+  function fakeLib() {
+    const cbs: Record<string, (m: { value: number }) => void> = {};
+    const reg = (name: string) => (cb: (m: { value: number }) => void, opts?: { reportAllChanges?: boolean }) => {
+      expect(opts?.reportAllChanges).toBe(true);
+      cbs[name] = cb;
+    };
+    return {
+      lib: { onLCP: reg("lcp"), onCLS: reg("cls"), onINP: reg("inp"), onFCP: reg("fcp"), onTTFB: reg("ttfb") },
+      emit: (name: string, value: number) => cbs[name]?.({ value }),
+    };
+  }
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("reports the latest library values once, rated, when the page is hidden", () => {
+    const dom = fakeDom();
+    const { lib, emit } = fakeLib();
+    const report = vi.fn();
+    observeWebVitals(report, lib);
+    emit("lcp", 1800);
+    emit("lcp", 2600);
+    emit("cls", 0.05);
+    emit("inp", 120);
+    emit("ttfb", 300);
+    dom.hide();
+    dom.hide();
+    expect(report).toHaveBeenCalledTimes(1);
+    expect(report.mock.calls[0]![0]).toEqual([
+      { metric: "lcp", value: 2600, rating: "needs-improvement" },
+      { metric: "cls", value: 0.05, rating: "good" },
+      { metric: "inp", value: 120, rating: "good" },
+      { metric: "ttfb", value: 300, rating: "good" },
+    ]);
+  });
+
+  it("reports nothing when nothing was measured, and is a no-op on the server", () => {
+    const dom = fakeDom();
+    const report = vi.fn();
+    const stop = observeWebVitals(report, fakeLib().lib);
+    dom.hide();
+    stop();
+    expect(report).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
+    expect(observeWebVitals(report)()).toBeUndefined();
   });
 });

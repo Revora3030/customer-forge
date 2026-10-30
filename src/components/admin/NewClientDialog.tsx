@@ -6,6 +6,7 @@ import { friendlyError } from "@/lib/user-error";
 import { Copy, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ReviewLinkTools } from "@/components/app/ReviewLinkTools";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -441,6 +442,11 @@ export function NewClientDialog({
                 <Input
                   value={form.review_link}
                   onChange={(e) => set("review_link")(e.target.value)}
+                />
+                <ReviewLinkTools
+                  value={form.review_link}
+                  query={[form.business_name, form.city].filter(Boolean).join(" ")}
+                  onFill={set("review_link")}
                 />
               </Field>
             </Section>

@@ -4,8 +4,8 @@
  * Until now performance was only inferred from page structure. This module
  * measures what visitors actually experience — largest paint, layout movement,
  * interaction delay, first paint and server response — in the visitor's own
- * browser, using the standard browser performance APIs. No third-party script,
- * no cost, nothing personal: only a metric name, a number and an opaque
+ * browser, using Google's open-source `web-vitals` library (bundled, not a
+ * third-party script). No cost, nothing personal: only a metric name, a number and an opaque
  * per-visit token used to stop the same visit being counted twice.
  */
 
@@ -130,99 +130,71 @@ export function visitToken(): string {
   }
 }
 
-type PerfEntry = PerformanceEntry & {
-  value?: number;
-  hadRecentInput?: boolean;
-  startTime: number;
-  duration: number;
-  responseStart?: number;
-  requestStart?: number;
+type MetricLike = { value: number };
+type OnMetric = (cb: (metric: MetricLike) => void, opts?: { reportAllChanges?: boolean }) => void;
+
+/** The subset of Google's `web-vitals` library this module uses. */
+export type WebVitalsLib = {
+  onLCP: OnMetric;
+  onCLS: OnMetric;
+  onINP: OnMetric;
+  onFCP: OnMetric;
+  onTTFB: OnMetric;
 };
 
-function observe(type: string, buffered: boolean, cb: (entries: PerfEntry[]) => void) {
-  try {
-    const observer = new PerformanceObserver((list) => cb(list.getEntries() as PerfEntry[]));
-    observer.observe({ type, buffered } as PerformanceObserverInit);
-    return observer;
-  } catch {
-    return null;
-  }
-}
-
 /**
- * Collects the metrics for this page view and reports them exactly once, when
- * the visitor leaves or hides the page (the point the standard says the values
- * are final). Returns a cleanup function.
+ * Collects the metrics for this page view with Google's `web-vitals` library
+ * (spec-correct INP and session-windowed CLS, Apache-2.0, ~2 KB) and reports
+ * them exactly once, when the visitor leaves or hides the page (the point the
+ * standard says the values are final). Returns a cleanup function.
+ *
+ * `lib` is injectable for tests; by default the library is loaded lazily so it
+ * never lands in the server bundle or blocks first paint.
  */
-export function observeWebVitals(report: (samples: VitalSample[]) => void): () => void {
+export function observeWebVitals(
+  report: (samples: VitalSample[]) => void,
+  lib?: WebVitalsLib,
+): () => void {
   if (typeof window === "undefined" || typeof PerformanceObserver === "undefined") {
     return () => undefined;
   }
 
-  let lcp: number | null = null;
-  let cls = 0;
-  let inp = 0;
-  let fcp: number | null = null;
-  let ttfb: number | null = null;
+  const latest: Partial<Record<VitalMetric, number>> = {};
   let sent = false;
-  const observers: Array<PerformanceObserver | null> = [];
+  let stopped = false;
 
-  observers.push(
-    observe("largest-contentful-paint", true, (entries) => {
-      const last = entries[entries.length - 1];
-      if (last) lcp = last.startTime;
-    }),
-  );
-  observers.push(
-    observe("layout-shift", true, (entries) => {
-      for (const entry of entries) {
-        if (!entry.hadRecentInput && typeof entry.value === "number") cls += entry.value;
-      }
-    }),
-  );
-  observers.push(
-    observe("event", false, (entries) => {
-      for (const entry of entries) {
-        if (entry.duration > inp) inp = entry.duration;
-      }
-    }),
-  );
-  observers.push(
-    observe("paint", true, (entries) => {
-      for (const entry of entries) {
-        if (entry.name === "first-contentful-paint" && fcp === null) fcp = entry.startTime;
-      }
-    }),
-  );
-
-  try {
-    const nav = performance.getEntriesByType("navigation")[0] as PerfEntry | undefined;
-    if (nav && typeof nav.responseStart === "number" && nav.responseStart > 0) {
-      ttfb = nav.responseStart;
+  const subscribe = (vitals: WebVitalsLib) => {
+    if (stopped) return;
+    const opts = { reportAllChanges: true };
+    const keep = (metric: VitalMetric) => (m: MetricLike) => {
+      if (!sent && typeof m?.value === "number") latest[metric] = m.value;
+    };
+    try {
+      vitals.onLCP(keep("lcp"), opts);
+      vitals.onCLS(keep("cls"), opts);
+      vitals.onINP(keep("inp"), opts);
+      vitals.onFCP(keep("fcp"), opts);
+      vitals.onTTFB(keep("ttfb"), opts);
+    } catch {
+      /* measurement is best-effort and must never break the page */
     }
-  } catch {
-    /* measurement is best-effort and must never break the page */
-  }
+  };
+
+  if (lib) subscribe(lib);
+  else
+    void import("web-vitals")
+      .then((vitals) => subscribe(vitals as unknown as WebVitalsLib))
+      .catch(() => undefined);
 
   const finish = () => {
     if (sent) return;
     sent = true;
     const samples: VitalSample[] = [];
-    const push = (metric: VitalMetric, value: number | null) => {
-      if (value === null || !Number.isFinite(value) || value < 0) return;
+    for (const metric of ["lcp", "cls", "inp", "fcp", "ttfb"] as const) {
+      const value = latest[metric];
+      if (value === undefined || !Number.isFinite(value) || value < 0) continue;
+      if (metric === "inp" && value <= 0) continue;
       samples.push({ metric, value, rating: rateVital(metric, value) });
-    };
-    push("lcp", lcp);
-    push("cls", cls);
-    if (inp > 0) push("inp", inp);
-    push("fcp", fcp);
-    push("ttfb", ttfb);
-    for (const observer of observers) {
-      try {
-        observer?.disconnect();
-      } catch {
-        /* ignore */
-      }
     }
     if (samples.length > 0) report(samples);
   };
@@ -236,6 +208,7 @@ export function observeWebVitals(report: (samples: VitalSample[]) => void): () =
   const timer = window.setTimeout(finish, 20_000);
 
   return () => {
+    stopped = true;
     document.removeEventListener("visibilitychange", onHide);
     window.removeEventListener("pagehide", finish);
     window.clearTimeout(timer);
