@@ -176,6 +176,13 @@
       "when": 1793325288976,
       "tag": "0024_20260919010000_final_production_hardening",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1793325302069,
+      "tag": "0025_20260919210000_harden_private_security_definer_execute",
+      "breakpoints": true
     }
   ]
 }
