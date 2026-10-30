@@ -26,7 +26,7 @@ import {
 type Row = Record<string, unknown>;
 
 /** Tiny in-memory stand-in for the few query shapes the helper uses. */
-function fakeDb(seed: { audit?: Row[]; jobs?: Row[]; orgs?: Row[] } = {}) {
+function fakeDb(seed: { audit?: Row[]; jobs?: Row[]; orgs?: Row[]; insertError?: string } = {}) {
   const tables: Record<string, Row[]> = {
     audit_logs: seed.audit ?? [],
     generation_jobs: seed.jobs ?? [],
@@ -49,7 +49,18 @@ function fakeDb(seed: { audit?: Row[]; jobs?: Row[]; orgs?: Row[] } = {}) {
       order: () => q,
       limit: (n: number) => ((limit = n), q),
       maybeSingle: async () => ({ data: rows()[0] ?? null, error: null }),
+      delete: () => {
+        const del = {
+          eq: (c: string, v: unknown) => (filters.push((r) => r[c] === v), del),
+          then: (resolve: (v: unknown) => void) => {
+            tables[table] = (tables[table] ?? []).filter((r) => !filters.every((f) => f(r)));
+            resolve({ error: null });
+          },
+        };
+        return del;
+      },
       insert: async (row: Row) => {
+        if (seed.insertError) return { error: { message: seed.insertError } };
         (tables[table] ??= []).push({ created_at: new Date().toISOString(), ...row });
         return { error: null };
       },
@@ -131,5 +142,42 @@ describe("founder alerts", () => {
       '"new-signup-alert"',
     );
     expect(lifecycle).toContain('"billing-sale-alert"');
+  });
+
+  it("sends nothing when the de-duplication marker cannot be saved", async () => {
+    const { db } = fakeDb({ insertError: "permission denied" });
+    expect(await sendFounderAlert(db, alert("payment-failed:in_9:1"))).toBe("failed");
+    expect(sent).toHaveLength(0);
+  });
+
+  it("releases the marker when the email fails, so the next sweep retries", async () => {
+    const mod = await import("@/lib/email-templates/send-email");
+    const send = vi.mocked(mod.sendTemplateEmail);
+    send.mockImplementationOnce(async () => {
+      throw new Error("mail provider down");
+    });
+    const { db, tables } = fakeDb();
+    expect(await sendFounderAlert(db, alert("payment-failed:in_8:1"))).toBe("failed");
+    expect(tables["audit_logs"]!.filter((r) => r["entity_id"] === "payment-failed:in_8:1")).toHaveLength(0);
+    expect(await sendFounderAlert(db, alert("payment-failed:in_8:1"))).toBe("sent");
+  });
+
+  it("does not let already-alerted builds hide a newer outcome", async () => {
+    const recent = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
+    const jobs = Array.from({ length: 6 }, (_, i) => ({
+      id: `old-${i}`,
+      organization_id: "org-1",
+      status: "completed",
+      completed_at: recent(1),
+    }));
+    const audit = jobs.map((j) => ({
+      entity: FOUNDER_ALERT_ENTITY,
+      entity_id: `build:${j.id}:completed`,
+      created_at: new Date(Date.now() - 2 * 3_600_000).toISOString(),
+    }));
+    jobs.push({ id: "fresh", organization_id: "org-1", status: "failed", completed_at: recent(2) });
+    const { db } = fakeDb({ jobs, audit, orgs: [{ id: "org-1", name: "Harbor Line Plumbing" }] });
+    expect(await alertRecentBuildOutcomes(db)).toBe(1);
+    expect(sent.map((s) => s.key)).toEqual(["founder:build:fresh:failed"]);
   });
 });

@@ -68,23 +68,36 @@ export async function sendFounderAlert(db: Db, alert: FounderAlert): Promise<Fou
     const gate = await founderAlertGate(db, alert.marker);
     if (gate !== "ok") return gate;
     const { sendTemplateEmail } = await import("@/lib/email-templates/send-email");
-    // Claim the marker first so overlapping runs can't both send.
-    await db.from("audit_logs").insert({
+    // Claim the marker first so overlapping runs can't both send. If the
+    // claim itself fails we cannot dedupe, so nothing is sent this time.
+    const { error: claimError } = await db.from("audit_logs").insert({
       organization_id: alert.organizationId,
       action: `founder_alert.${alert.kind}`,
       entity: FOUNDER_ALERT_ENTITY,
       entity_id: alert.marker,
       metadata: { kind: alert.kind },
     });
-    await sendTemplateEmail("founder-alert", "", {
-      templateData: {
-        title: alert.title,
-        summary: alert.summary,
-        rows: alert.rows ?? [],
-        link: alert.link ?? ADMIN_URL,
-      },
-      idempotencyKey: `founder:${alert.marker}`,
-    });
+    if (claimError) throw new Error(`founder alert marker could not be saved: ${claimError.message}`);
+    try {
+      await sendTemplateEmail("founder-alert", "", {
+        templateData: {
+          title: alert.title,
+          summary: alert.summary,
+          rows: alert.rows ?? [],
+          link: alert.link ?? ADMIN_URL,
+        },
+        idempotencyKey: `founder:${alert.marker}`,
+      });
+    } catch (sendError) {
+      // Release the claim so the next sweep retries; the idempotency key keeps
+      // a send that actually went out from arriving twice.
+      try {
+        await db.from("audit_logs").delete().eq("entity", FOUNDER_ALERT_ENTITY).eq("entity_id", alert.marker);
+      } catch {
+        /* the alert stays marked; logged below */
+      }
+      throw sendError;
+    }
     return "sent";
   } catch (error) {
     console.error(
@@ -98,6 +111,7 @@ export async function sendFounderAlert(db: Db, alert: FounderAlert): Promise<Fou
 
 const BUILD_WINDOW_MS = 30 * 60_000;
 const BUILD_ALERTS_PER_SWEEP = 5;
+const BUILD_SWEEP_SCAN = 25;
 
 /**
  * Alert on website builds that finished or failed recently. Called after each
@@ -111,7 +125,9 @@ export async function alertRecentBuildOutcomes(db: Db, now: number = Date.now())
       .in("status", ["completed", "failed"])
       .gte("completed_at", new Date(now - BUILD_WINDOW_MS).toISOString())
       .order("completed_at", { ascending: false })
-      .limit(BUILD_ALERTS_PER_SWEEP);
+      // Read past already-alerted builds so a busy window can't hide a newer
+      // outcome behind five that were sent earlier; sends stay capped below.
+      .limit(BUILD_SWEEP_SCAN);
     if (error || !jobs?.length) return 0;
     let sent = 0;
     for (const job of jobs as {
@@ -146,7 +162,7 @@ export async function alertRecentBuildOutcomes(db: Db, now: number = Date.now())
         link: `${ADMIN_URL}/websites`,
       });
       if (outcome === "sent") sent += 1;
-      if (outcome === "throttled") break;
+      if (outcome === "throttled" || sent >= BUILD_ALERTS_PER_SWEEP) break;
     }
     return sent;
   } catch (error) {
