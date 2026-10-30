@@ -20,6 +20,9 @@ import { cn } from "@/lib/utils";
 import { useStepScroll } from "@/lib/use-step-scroll";
 import { DirectContact } from "@/components/site/ContactDetails";
 import { PrintableEstimate } from "@/components/site/PrintableEstimate";
+import { AltchaField, altchaPayload } from "@/components/site/AltchaField";
+import { AddToCalendar } from "@/components/site/AddToCalendar";
+import { useHolidayClosures } from "@/components/site/use-holiday-closures";
 import { widgetPresentationStyle } from "@/components/site/contact-details-utils";
 import type { WidgetPresentation } from "@/lib/builder/composition-tree";
 import { usePreviewMode } from "@/components/site/preview-mode-context";
@@ -354,6 +357,7 @@ function QuoteCalculatorLive({ site, presentation }: { site: Site; presentation?
                 phone: String(form.get("phone") ?? ""),
                 message: String(form.get("message") ?? ""),
                 companyWebsite: String(form.get("company_website") ?? ""),
+                altcha: altchaPayload(form),
                 sessionId: currentSessionId(),
                 serviceInterest: quote.form.name,
                 estimatedValue: Math.round((min + max) / 2),
@@ -386,6 +390,7 @@ function QuoteCalculatorLive({ site, presentation }: { site: Site; presentation?
           }}
         >
           <Honeypot />
+          <AltchaField />
           <p className="tnum text-[14px] text-muted-foreground">
             Your estimate:{" "}
             <span className="font-semibold text-primary">
@@ -446,6 +451,7 @@ function BookingFormLive({ site, presentation }: { site: Site; presentation?: Wi
   const [pending, setPending] = useState(false);
   const [done, setDone] = useState(false);
   const [confirmationEmail, setConfirmationEmail] = useState("");
+  const [booked, setBooked] = useState<{ localDate: string; localTime: string; durationMinutes: number; serviceName: string | null } | null>(null);
   const [serviceId, setServiceId] = useState(bookable[0]?.id ?? "");
   const doneRef = useStepScroll<HTMLDivElement>(done);
   // "Today" is the visitor's own date, so it is only known in the browser.
@@ -453,6 +459,7 @@ function BookingFormLive({ site, presentation }: { site: Site; presentation?: Wi
   // browser whenever the two were on different calendar days.
   const [today, setToday] = useState("");
   const [pickedDate, setPickedDate] = useState("");
+  const holidays = useHolidayClosures((site.profile as { hours?: unknown } | null)?.hours ?? null);
   const [pickedTime, setPickedTime] = useState("09:00");
   useEffect(() => {
     const local = new Date();
@@ -488,6 +495,13 @@ function BookingFormLive({ site, presentation }: { site: Site; presentation?: Wi
               : "Thank you! Your request has been received. We'll get back to you shortly.")
           }
         />
+        {booked ? (
+          <AddToCalendar
+            {...booked}
+            businessName={site.org.name}
+            phone={(site.profile as { phone?: string | null } | null)?.phone ?? null}
+          />
+        ) : null}
         <div className="mt-4">
           <DirectContact
             profile={site.profile}
@@ -511,6 +525,7 @@ function BookingFormLive({ site, presentation }: { site: Site; presentation?: Wi
             localDate: pickedDate,
             localTime: pickedTime,
             durationMinutes: service?.duration_minutes ?? 60,
+            holidays,
           });
           return verdict.ok ? null : verdict.reason;
         })()
@@ -545,6 +560,16 @@ function BookingFormLive({ site, presentation }: { site: Site; presentation?: Wi
           return;
         }
         setConfirmationEmail(email);
+        setBooked(
+          bookable.length && date && time
+            ? {
+                localDate: date,
+                localTime: time,
+                durationMinutes: service?.duration_minutes ?? 60,
+                serviceName: service?.name ?? null,
+              }
+            : null,
+        );
         setPending(true);
         submit({
           data: {
@@ -556,6 +581,7 @@ function BookingFormLive({ site, presentation }: { site: Site; presentation?: Wi
             message: String(form.get("message") ?? ""),
             city: String(form.get("city") ?? ""),
             companyWebsite: String(form.get("company_website") ?? ""),
+            altcha: altchaPayload(form),
             sessionId: currentSessionId(),
             serviceId: serviceId || null,
             serviceInterest: service?.name ?? null,
@@ -587,6 +613,7 @@ function BookingFormLive({ site, presentation }: { site: Site; presentation?: Wi
       </div>
 
       <Honeypot />
+      <AltchaField />
       <DirectContact profile={site.profile} businessName={site.org.name} {...(presentation ? { presentation } : {})} />
 
       {bookable.length ? (
@@ -629,6 +656,7 @@ function BookingFormLive({ site, presentation }: { site: Site; presentation?: Wi
                 value={pickedDate}
                 onChange={setPickedDate}
                 hours={(site.profile as { hours?: unknown } | null)?.hours ?? null}
+                holidays={holidays}
                 labelledBy={fid("date-label")}
                 describedBy={hoursProblem ? fid("hours-note") : undefined}
                 fallback={
@@ -779,6 +807,7 @@ function EnquiryFormLive({ site, presentation }: { site: Site; presentation?: Wi
             message,
             city: String(form.get("city") ?? ""),
             companyWebsite: String(form.get("company_website") ?? ""),
+            altcha: altchaPayload(form),
             sessionId: currentSessionId(),
             serviceId: service?.id ?? null,
             serviceInterest: service?.name ?? null,
@@ -804,6 +833,7 @@ function EnquiryFormLive({ site, presentation }: { site: Site; presentation?: Wi
       </div>
 
       <Honeypot />
+      <AltchaField />
 
       {services.length > 1 ? (
         <div className="space-y-1.5">

@@ -481,6 +481,26 @@ function bookingWhen(booking: { startsAt: string; localDate?: string; localTime?
   return new Date(booking.startsAt).toLocaleString("en-US", { timeZone: "UTC", timeZoneName: "short" });
 }
 
+/** "Add to Google Calendar" link + readable time for the visitor's booking confirmation email. */
+async function bookingCalendarFields(
+  booking: { startsAt: string; durationMinutes?: number; localDate?: string; localTime?: string } | null | undefined,
+  businessName: string,
+  serviceName: string | null | undefined,
+  phone: string | null | undefined,
+): Promise<{ requestedWhen?: string; calendarUrl?: string }> {
+  if (!booking?.localDate || !booking.localTime) return {};
+  const { bookingCalendarEvent, googleCalendarUrl } = await import("@/lib/booking-ics");
+  const event = bookingCalendarEvent({
+    localDate: booking.localDate,
+    localTime: booking.localTime,
+    durationMinutes: booking.durationMinutes ?? null,
+    businessName,
+    serviceName: serviceName ?? null,
+    phone: phone ?? null,
+  });
+  return event ? { requestedWhen: bookingWhen(booking), calendarUrl: googleCalendarUrl(event) } : {};
+}
+
 /** Anonymous lead / quote / booking submission from a public business site. */
 export const submitPublicLead = createServerFn({ method: "POST" })
   .validator(
@@ -524,6 +544,8 @@ export const submitPublicLead = createServerFn({ method: "POST" })
        * normal "success" response and have no signal to adapt around.
        */
       companyWebsite?: string;
+      /** ALTCHA proof-of-work payload (src/lib/altcha.server.ts). */
+      altcha?: string;
     }) => {
       const clean = (v: unknown, max: number) =>
         String(v ?? "")
@@ -564,6 +586,7 @@ export const submitPublicLead = createServerFn({ method: "POST" })
           ? String(input.sessionId)
           : null,
         isBot,
+        altcha: clean(input.altcha, 4000),
       };
     },
   )
@@ -573,6 +596,14 @@ export const submitPublicLead = createServerFn({ method: "POST" })
     // no notification, no CRM noise, and no error response for a script to
     // learn from and adjust to.
     if (data.isBot) return { ok: true as const, leadId: null, notified: false };
+    // ALTCHA: a forged, replayed-after-expiry or test-mode payload is dropped
+    // the same silent way. A missing payload or a verifier outage fails open
+    // (the rate limits below still apply), so a real lead is never lost.
+    {
+      const { verifyAltchaPayload } = await import("@/lib/altcha.server");
+      if ((await verifyAltchaPayload(data.altcha)) === "invalid")
+        return { ok: true as const, leadId: null, notified: false };
+    }
 
     // Inserts use the admin client: anonymous callers have INSERT but no SELECT
     // on leads, so a `.insert().select()` round-trip is blocked by RLS.
@@ -695,11 +726,18 @@ export const submitPublicLead = createServerFn({ method: "POST" })
           .eq("organization_id", orgId)
           .maybeSingle();
         const { checkBookingTime } = await import("@/lib/booking-hours");
+        const { closedOnHolidays } = await import("@/lib/holidays");
+        const ownerHours = (hoursRow as { hours?: unknown } | null)?.hours ?? null;
+        // Holiday closures (owner opt-in). publicHolidays() fails open to [].
+        const holidays = closedOnHolidays(ownerHours)
+          ? await (await import("@/lib/holidays.server")).publicHolidays(Number(data.booking.localDate.slice(0, 4)))
+          : null;
         const verdict = checkBookingTime({
-          hours: (hoursRow as { hours?: unknown } | null)?.hours ?? null,
+          hours: ownerHours,
           localDate: data.booking.localDate,
           localTime: data.booking.localTime,
           durationMinutes: data.booking.durationMinutes,
+          holidays,
         });
         if (!verdict.ok) throw new Error(verdict.reason);
       }
@@ -943,6 +981,7 @@ export const submitPublicLead = createServerFn({ method: "POST" })
               leadName: data.name,
               replyToEmail: ownerEmail || profile?.email || undefined,
               businessPhone: profile?.phone || undefined,
+              ...(await bookingCalendarFields(data.booking, org.name, data.serviceInterest, profile?.phone)),
             },
             `lead-confirmation-${lead.id}`,
             ownerEmail || profile?.email || null,

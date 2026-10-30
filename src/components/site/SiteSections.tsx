@@ -32,6 +32,7 @@ import { safeParagraph, safeText } from "@/lib/builder/presentation";
 import { addressAddsDetail, distinctServiceArea, sectionSurface, serviceAreaPhrase, siteSurface } from "@/components/site/site-sections-utils";
 import { TradeCalculator } from "@/components/site/TradeCalculator";
 import { readTradeCalculator } from "@/lib/trade-calculator";
+import { useNextHolidayClosure } from "@/components/site/use-holiday-closures";
 
 type Site = NonNullable<PublicSite>;
 type Section = NonNullable<Site["content"]>["sections"][number];
@@ -363,6 +364,7 @@ function SiteSectionBody({ site, section, lead = false, first = false, surface =
 /** Verified contact facts only: unusable phone/email/hours are hidden, never rendered. */
 function ContactFacts({ site, presentation }: { site: Site; presentation?: WidgetPresentation }) {
   const facts = businessFacts(site.profile as Record<string, unknown> | null, site.org.name);
+  const nextClosure = useNextHolidayClosure((site.profile as { hours?: unknown } | null)?.hours ?? null);
   const rawAddress = factsAddressLine(facts);
   const rawArea = distinctServiceArea(facts.serviceArea ?? facts.city, rawAddress);
   // A city-only "address" that the service area already names is dropped.
@@ -426,6 +428,11 @@ function ContactFacts({ site, presentation }: { site: Site; presentation?: Widge
                       {line}
                     </span>
                   ))}
+                  {nextClosure ? (
+                    <span className="mt-1 block text-muted-foreground" data-testid="holiday-closure">
+                      {nextClosure}
+                    </span>
+                  ) : null}
                 </dd>
               </div>
             ) : null}

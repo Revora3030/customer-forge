@@ -11,6 +11,8 @@
  * refused.
  */
 
+import { closedOnHolidays, holidayOn, type Holiday } from "@/lib/holidays";
+
 const DAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 type DayKey = (typeof DAY_KEYS)[number];
 
@@ -106,6 +108,11 @@ export function checkBookingTime(input: {
   localDate: string;
   localTime: string;
   durationMinutes: number;
+  /**
+   * National holidays near the date (from holidays.server.ts). Only used when
+   * the owner switched on `closed_on_holidays`; omitted or empty = fail open.
+   */
+  holidays?: readonly Holiday[] | null;
 }): BookingCheck {
   const dateMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(input.localDate);
   const timeMatch = /^(\d{2}):(\d{2})$/.exec(input.localTime);
@@ -115,6 +122,11 @@ export function checkBookingTime(input: {
     return { ok: false, reason: "Choose a valid date and time." };
   const start = Number(timeMatch[1]) * 60 + Number(timeMatch[2]);
   if (start >= 24 * 60) return { ok: false, reason: "Choose a valid date and time." };
+
+  if (closedOnHolidays(input.hours)) {
+    const holiday = holidayOn(input.holidays, input.localDate);
+    if (holiday) return { ok: false, reason: `The business is closed for ${holiday.name}. Please choose another day.` };
+  }
 
   const weekly = readWeeklyHours(input.hours);
   const day = DAY_KEYS[date.getUTCDay()]!;

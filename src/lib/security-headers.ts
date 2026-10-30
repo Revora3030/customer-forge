@@ -63,6 +63,8 @@ export const CONTENT_SECURITY_POLICY = [
     "https://m.stripe.network",
     "https://maps.googleapis.com",
     "https://maps.gstatic.com",
+    // Free OpenStreetMap address suggestions (src/lib/photon.ts). Never Nominatim.
+    "https://photon.komoot.io",
     "https://www.google-analytics.com",
     "https://region1.google-analytics.com",
     // GA4 sends its hits to analytics.google.com (regional *.analytics.google.com)

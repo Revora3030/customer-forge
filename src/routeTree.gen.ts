@@ -102,6 +102,7 @@ import { Route as AuthenticatedMyIndexRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedMyActivityRouteImport } from './routes/_authenticated/my.activity'
 import { Route as AuthenticatedMySiteRouteImport } from './routes/_authenticated/my.site'
 import { Route as AuthenticatedMyStartRouteImport } from './routes/_authenticated/my.start'
+import { Route as ApiPublicAltchaRouteImport } from './routes/api/public/altcha'
 import { Route as ApiPublicJarvisVoiceRouteImport } from './routes/api/public/jarvis-voice'
 import { Route as ApiPublicPreviewBeaconRouteImport } from './routes/api/public/preview-beacon'
 import { Route as ApiPublicSentryTestRouteImport } from './routes/api/public/sentry-test'
@@ -628,6 +629,11 @@ const AuthenticatedMyStartRoute = AuthenticatedMyStartRouteImport.update({
   path: '/start',
   getParentRoute: () => AuthenticatedMyRoute,
 } as any)
+const ApiPublicAltchaRoute = ApiPublicAltchaRouteImport.update({
+  id: '/api/public/altcha',
+  path: '/api/public/altcha',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicJarvisVoiceRoute = ApiPublicJarvisVoiceRouteImport.update({
   id: '/api/public/jarvis-voice',
   path: '/api/public/jarvis-voice',
@@ -945,6 +951,7 @@ export interface FileRoutesByFullPath {
   '/my/activity': typeof AuthenticatedMyActivityRoute
   '/my/site': typeof AuthenticatedMySiteRoute
   '/my/start': typeof AuthenticatedMyStartRoute
+  '/api/public/altcha': typeof ApiPublicAltchaRoute
   '/api/public/jarvis-voice': typeof ApiPublicJarvisVoiceRoute
   '/api/public/preview-beacon': typeof ApiPublicPreviewBeaconRoute
   '/api/public/sentry-test': typeof ApiPublicSentryTestRoute
@@ -1075,6 +1082,7 @@ export interface FileRoutesByTo {
   '/my/activity': typeof AuthenticatedMyActivityRoute
   '/my/site': typeof AuthenticatedMySiteRoute
   '/my/start': typeof AuthenticatedMyStartRoute
+  '/api/public/altcha': typeof ApiPublicAltchaRoute
   '/api/public/jarvis-voice': typeof ApiPublicJarvisVoiceRoute
   '/api/public/preview-beacon': typeof ApiPublicPreviewBeaconRoute
   '/api/public/sentry-test': typeof ApiPublicSentryTestRoute
@@ -1212,6 +1220,7 @@ export interface FileRoutesById {
   '/_authenticated/my/activity': typeof AuthenticatedMyActivityRoute
   '/_authenticated/my/site': typeof AuthenticatedMySiteRoute
   '/_authenticated/my/start': typeof AuthenticatedMyStartRoute
+  '/api/public/altcha': typeof ApiPublicAltchaRoute
   '/api/public/jarvis-voice': typeof ApiPublicJarvisVoiceRoute
   '/api/public/preview-beacon': typeof ApiPublicPreviewBeaconRoute
   '/api/public/sentry-test': typeof ApiPublicSentryTestRoute
@@ -1349,6 +1358,7 @@ export interface FileRouteTypes {
     | '/my/activity'
     | '/my/site'
     | '/my/start'
+    | '/api/public/altcha'
     | '/api/public/jarvis-voice'
     | '/api/public/preview-beacon'
     | '/api/public/sentry-test'
@@ -1479,6 +1489,7 @@ export interface FileRouteTypes {
     | '/my/activity'
     | '/my/site'
     | '/my/start'
+    | '/api/public/altcha'
     | '/api/public/jarvis-voice'
     | '/api/public/preview-beacon'
     | '/api/public/sentry-test'
@@ -1615,6 +1626,7 @@ export interface FileRouteTypes {
     | '/_authenticated/my/activity'
     | '/_authenticated/my/site'
     | '/_authenticated/my/start'
+    | '/api/public/altcha'
     | '/api/public/jarvis-voice'
     | '/api/public/preview-beacon'
     | '/api/public/sentry-test'
@@ -1707,6 +1719,7 @@ export interface RootRouteChildren {
   LocationsIndexRoute: typeof LocationsIndexRoute
   StatesIndexRoute: typeof StatesIndexRoute
   DotlovableOauthConsentRoute: typeof DotlovableOauthConsentRoute
+  ApiPublicAltchaRoute: typeof ApiPublicAltchaRoute
   ApiPublicJarvisVoiceRoute: typeof ApiPublicJarvisVoiceRoute
   ApiPublicPreviewBeaconRoute: typeof ApiPublicPreviewBeaconRoute
   ApiPublicSentryTestRoute: typeof ApiPublicSentryTestRoute
@@ -2396,6 +2409,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedMyStartRouteImport
       parentRoute: typeof AuthenticatedMyRoute
     }
+    '/api/public/altcha': {
+      id: '/api/public/altcha'
+      path: '/api/public/altcha'
+      fullPath: '/api/public/altcha'
+      preLoaderRoute: typeof ApiPublicAltchaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/jarvis-voice': {
       id: '/api/public/jarvis-voice'
       path: '/api/public/jarvis-voice'
@@ -2965,6 +2985,7 @@ const rootRouteChildren: RootRouteChildren = {
   LocationsIndexRoute: LocationsIndexRoute,
   StatesIndexRoute: StatesIndexRoute,
   DotlovableOauthConsentRoute: DotlovableOauthConsentRoute,
+  ApiPublicAltchaRoute: ApiPublicAltchaRoute,
   ApiPublicJarvisVoiceRoute: ApiPublicJarvisVoiceRoute,
   ApiPublicPreviewBeaconRoute: ApiPublicPreviewBeaconRoute,
   ApiPublicSentryTestRoute: ApiPublicSentryTestRoute,

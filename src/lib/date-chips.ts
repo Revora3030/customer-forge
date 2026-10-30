@@ -5,6 +5,7 @@
  * explicitly say so; unreadable hours never hide a day.
  */
 import { readWeeklyHours } from "@/lib/booking-hours";
+import { closedOnHolidays, holidayOn, type Holiday } from "@/lib/holidays";
 
 const DAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -30,7 +31,13 @@ export function localIsoToday(now: Date = new Date()): string {
 }
 
 /** `count` consecutive days from `todayIso`, with closed days flagged from the owner's hours. */
-export function dateChipDays(todayIso: string, count: number, hours: unknown): DateChip[] {
+export function dateChipDays(
+  todayIso: string,
+  count: number,
+  hours: unknown,
+  holidays?: readonly Holiday[] | null,
+): DateChip[] {
+  const holidayClosed = closedOnHolidays(hours);
   const start = parseIso(todayIso);
   if (!start || count <= 0) return [];
   const weekly = readWeeklyHours(hours);
@@ -46,7 +53,7 @@ export function dateChipDays(todayIso: string, count: number, hours: unknown): D
       day: d.getUTCDate(),
       month: MONTHS[d.getUTCMonth()]!,
       label: `${relative ? `${relative}, ` : ""}${LONG_WEEKDAYS[dow]} ${d.getUTCDate()} ${LONG_MONTHS[d.getUTCMonth()]}`,
-      closed: Boolean(entry && entry.closed),
+      closed: Boolean(entry && entry.closed) || (holidayClosed && !!holidayOn(holidays, isoDay(d))),
       relative,
     });
   }

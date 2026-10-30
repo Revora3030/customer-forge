@@ -58,6 +58,8 @@ export interface ContactSubmission {
   message: string;
   landingPath?: string | null;
   sessionId?: string | null;
+  /** ALTCHA proof-of-work payload (src/lib/altcha.server.ts). */
+  altcha?: string | null;
 }
 
 export const submitContactRequest = createServerFn({ method: "POST" })
@@ -78,9 +80,16 @@ export const submitContactRequest = createServerFn({ method: "POST" })
       interest: text(input?.interest, 120) || null,
       landingPath: text(input?.landingPath, 200) || null,
       sessionId: text(input?.sessionId, 60) || null,
+      altcha: text(input?.altcha, 4000),
     };
   })
   .handler(async ({ data }) => {
+    // ALTCHA: a forged or expired payload gets a quiet "ok" and is not stored
+    // or emailed. Missing payloads and verifier outages fail open.
+    const { verifyAltchaPayload } = await import("@/lib/altcha.server");
+    if ((await verifyAltchaPayload(data.altcha)) === "invalid") {
+      return { ok: true as const, stored: false, emailed: false, throttled: false as const };
+    }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     // Abuse guard: neither a single sender nor a single connection can flood
