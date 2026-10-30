@@ -10,6 +10,7 @@ import {
 import { withSecurityHeaders } from "@/lib/security-headers";
 import { createUnhandledErrorResponse } from "@/lib/api-error-response";
 import { httpsRedirect } from "@/lib/https-redirect";
+import { trailingSlashRedirect } from "@/lib/trailing-slash-redirect";
 
 /**
  * Production security headers on every response — platform pages, client
@@ -40,6 +41,17 @@ const securityHeadersMiddleware = createMiddleware().server(async ({ next, reque
 const httpsRedirectMiddleware = createMiddleware().server(async ({ next, request }) => {
   if (!request) return next();
   const redirect = httpsRedirect(request);
+  return (redirect ?? (await next())) as never;
+});
+
+/**
+ * `/pricing/` -> 308 `/pricing` (query kept) so every page has one canonical
+ * URL. GET/HEAD only; API, server-function and Lovable paths and the root `/`
+ * are never redirected (src/lib/trailing-slash-redirect.ts).
+ */
+const trailingSlashMiddleware = createMiddleware().server(async ({ next, request }) => {
+  if (!request) return next();
+  const redirect = trailingSlashRedirect(request);
   return (redirect ?? (await next())) as never;
 });
 
@@ -130,6 +142,7 @@ export const startInstance = createStart(() => ({
     securityHeadersMiddleware,
     httpsRedirectMiddleware,
     trafficDomainRedirect,
+    trailingSlashMiddleware,
     errorMiddleware,
     csrfMiddleware,
   ],
