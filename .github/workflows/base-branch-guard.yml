@@ -10,7 +10,7 @@ permissions:
   issues: write
 
 concurrency:
-  group: base-branch-guard
+  group: base-branch-guard-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -23,10 +23,22 @@ jobs:
         with:
           bun-version: latest
       - run: bun install --frozen-lockfile
+      # flows.e2e.test.ts needs a running app; offline skipping is refused in CI.
+      - name: Start E2E server
+        run: |
+          bun run dev -- --host 127.0.0.1 --port 8080 > /tmp/revora-e2e.log 2>&1 & # DevSkim: ignore DS162092 -- CI-local dev server for the e2e suite
+          for i in $(seq 1 90); do
+            if curl --silent --show-error --fail http://127.0.0.1:8080/ >/dev/null; then # DevSkim: ignore DS162092,DS137138 -- CI-local dev server readiness probe
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/revora-e2e.log
+          exit 1
       - name: Unit tests
         id: tests
         env:
-          E2E_ALLOW_OFFLINE: "1"
+          E2E_BASE_URL: http://127.0.0.1:8080 # DevSkim: ignore DS162092,DS137138 -- CI-local dev server for the e2e suite
         run: bunx vitest run --reporter=default --reporter=json --outputFile=vitest.json
       - name: Open or update "lovable-sync is red" issue
         if: failure() && steps.tests.outcome == 'failure'
