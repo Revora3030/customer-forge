@@ -9,6 +9,8 @@
  *   connection: the chat looks for the plan the server saved under the
  *   request id (bounded by recoverPlan), then fails with Retry.
  */
+import { withTimeout } from "@/lib/with-timeout";
+
 export const PLAN_SLOW_HINT_MS = 30_000;
 export const PLAN_HARD_TIMEOUT_MS = 5 * 60_000;
 
@@ -22,12 +24,5 @@ export const planIsSlow = (elapsedMs: number) => elapsedMs >= PLAN_SLOW_HINT_MS;
  * Resolves with `work`, or rejects with a "timed out" error after `ms`. The
  * message matches isDroppedConnection, so the caller's recovery path runs.
  */
-export function withDeadline<T>(work: Promise<T>, ms: number = PLAN_HARD_TIMEOUT_MS): Promise<T> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const deadline = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new Error("Planning timed out")), ms);
-  });
-  return Promise.race([work, deadline]).finally(() => {
-    if (timer !== undefined) clearTimeout(timer);
-  });
-}
+export const withDeadline = <T>(work: Promise<T>, ms: number = PLAN_HARD_TIMEOUT_MS): Promise<T> =>
+  withTimeout(work, ms, "Planning timed out");
