@@ -29,7 +29,7 @@ import { safeLinkUrl, sectionLabel } from "@/lib/website-content";
 import { readEmbed } from "@/lib/site-embed";
 import { businessFacts, factsAddressLine } from "@/lib/builder/facts";
 import { safeParagraph, safeText } from "@/lib/builder/presentation";
-import { distinctServiceArea, sectionSurface, siteSurface } from "@/components/site/site-sections-utils";
+import { addressAddsDetail, distinctServiceArea, sectionSurface, serviceAreaPhrase, siteSurface } from "@/components/site/site-sections-utils";
 import { TradeCalculator } from "@/components/site/TradeCalculator";
 import { readTradeCalculator } from "@/lib/trade-calculator";
 
@@ -363,16 +363,19 @@ function SiteSectionBody({ site, section, lead = false, first = false, surface =
 /** Verified contact facts only: unusable phone/email/hours are hidden, never rendered. */
 function ContactFacts({ site, presentation }: { site: Site; presentation?: WidgetPresentation }) {
   const facts = businessFacts(site.profile as Record<string, unknown> | null, site.org.name);
-  const addressLine = factsAddressLine(facts);
-  const area = distinctServiceArea(facts.serviceArea ?? facts.city, addressLine);
+  const rawAddress = factsAddressLine(facts);
+  const rawArea = distinctServiceArea(facts.serviceArea ?? facts.city, rawAddress);
+  // A city-only "address" that the service area already names is dropped.
+  const addressLine = addressAddsDetail(rawAddress, rawArea) ? rawAddress : null;
+  const area = serviceAreaPhrase(rawArea);
   // Nothing real to show → render nothing, never an empty styled box.
   if (!(facts.phone && facts.phoneHref) && !(facts.email && facts.emailHref) && !area && !addressLine && !facts.hours) return null;
   return (
-          <div className="space-y-3">
+          <div className="space-y-3 text-left">
             {presentation?.eyebrow ? <p className="eyebrow">{presentation.eyebrow}</p> : null}
             {presentation?.title ? <h3 className="font-display text-[19px] font-semibold">{presentation.title}</h3> : null}
             {presentation?.description ? <p className="text-[14px] text-muted-foreground">{presentation.description}</p> : null}
-            <dl className="grid gap-4 sm:grid-cols-3">
+            <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-[repeat(auto-fit,minmax(12rem,1fr))]">
             {facts.phone && facts.phoneHref ? (
               <div>
                 <dt className="eyebrow flex items-center gap-1.5">
@@ -414,9 +417,16 @@ function ContactFacts({ site, presentation }: { site: Site; presentation?: Widge
               </div>
             ) : null}
             {facts.hours ? (
-              <div>
+              <div className="sm:col-span-full">
                 <dt className="eyebrow">{presentation?.fieldLabels?.time ?? "Hours"}</dt>
-                <dd className="mt-1 whitespace-pre-line text-[14px]">{facts.hours}</dd>
+                <dd className="mt-1 text-[14px]">
+                  {/* One line per day; a time range never breaks mid-range ("9:00 AM – 5:00 / PM"). */}
+                  {facts.hours.split("\n").map((line, index) => (
+                    <span key={index} className="block whitespace-nowrap">
+                      {line}
+                    </span>
+                  ))}
+                </dd>
               </div>
             ) : null}
             </dl>
