@@ -44,7 +44,13 @@ export type DesignFinding = {
     | "duplicate_text"
     | "empty_column"
     | "hollow_control"
-    | "lead_not_cinematic";
+    | "lead_not_cinematic"
+    | "card_missing_body"
+    | "action_label_is_heading"
+    | "orphan_action"
+    | "duplicate_media"
+    | "near_duplicate_text"
+    | "flat_section_rhythm";
   severity: "critical" | "major";
   path: string;
   /** Plain repair instruction for the art director. */
@@ -460,7 +466,7 @@ export function auditPageDesign(
     if (findings.length) out[section.id] = findings;
   });
 
-  if (options.home && sections.length && !sections.some((section) => hasInteractive(section.tree))) {
+  if (options.home && sections.length && !sections.some((section) => hasCentrepiece(section.tree))) {
     // Attached to the first content section after the opening (the opening
     // keeps its own bar); the AI chooses where the centrepiece really fits.
     const target = sections[1] ?? sections[0]!;
@@ -468,7 +474,7 @@ export function auditPageDesign(
       code: "page_missing_interactive",
       severity: "major",
       path: "root",
-      fix: "The home page has no interactive centrepiece, so the whole site has none. Where it serves real supplied material, add one: a scrub_sequence of the supplied pictures, scroll_chapters of scenes, a collection_row of offer cards, a spin_viewer (8+ owner-photographed angles), a tab_group, a dial_selector of the real method choices, a faq_accordion of supplied FAQs, or a before_after_slider of the owner's own before/after photos. Do not satisfy this with an accordion whose items have no answers.",
+      fix: "The home page has no interactive centrepiece, so the whole site has none. Where it serves real supplied material, add one: a scrub_sequence of the supplied pictures, scroll_chapters of scenes, a collection_row of offer cards, a spin_viewer (8+ owner-photographed angles), a dial_selector of the real method choices, a sticky_split_story of the real process, a before_after_slider of the owner's own before/after photos, or a service_estimator / quote_calculator widget. A faq_accordion, accordion, tab_group, tabs or toggle only hides text, so it does not count as the centrepiece.",
     });
   }
 
@@ -571,6 +577,182 @@ export function auditPageDesign(
       path: "root",
       fix: `The approved brief calls for ${depthAsks(options.direction).join(" and ")}, but this page has no motion, hover response or layered element. Add the motion, hover or layering the brief describes where it helps the content (it is skipped for reduced-motion visitors).`,
     });
+
+  for (const finding of auditPageCraft(sections, options)) (out[finding.sectionId] ??= []).push(finding.finding);
+  return out;
+}
+
+/** Text-only reveals: useful, but not the page's interactive centrepiece (quality bar #14-17). */
+const TEXT_REVEALS: ReadonlySet<string> = new Set(["faq_accordion", "accordion", "tab_group", "tabs", "toggle"]);
+/** Working widgets that are a real interactive centrepiece. */
+const CENTREPIECE_WIDGETS: ReadonlySet<string> = new Set(["quote_calculator", "service_estimator"]);
+
+/** True when a tree holds an interactive centrepiece, not just an accordion or tabs of text. */
+export function hasCentrepiece(tree: CompositionTree): boolean {
+  return walk(tree.root).some(({ node }) =>
+    (INTERACTIVE_PRIMITIVES.has(node.type) && !TEXT_REVEALS.has(node.type)) ||
+    (node.type === "widget" && CENTREPIECE_WIDGETS.has((node.text ?? "").trim())),
+  );
+}
+
+function normText(value: string | undefined): string {
+  return (value ?? "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function words(value: string | undefined): string[] {
+  return normText(value).split(" ").filter((w) => w.length > 2);
+}
+
+/** Share of the smaller word set found in the larger: 1 means one sentence restates the other. */
+export function wordOverlap(a: string, b: string): number {
+  const left = new Set(words(a));
+  const right = new Set(words(b));
+  if (!left.size || !right.size) return 0;
+  const [small, big] = left.size <= right.size ? [left, right] : [right, left];
+  let shared = 0;
+  for (const w of small) if (big.has(w)) shared += 1;
+  return shared / small.size;
+}
+
+function nodeMediaKeys(node: CompositionNode): string[] {
+  const keys: string[] = [];
+  if (node.mediaRef) keys.push(`ref:${node.mediaRef}`);
+  if (node.src) keys.push(`src:${node.src}`);
+  return keys;
+}
+
+/**
+ * Page craft gates found on the Oak City Plumbing draft (2026-10-30 audit):
+ * service cards with a title and no words, a button whose label is just a
+ * section heading, a section that is only a button, one picture reused in
+ * several sections, the same sentence paraphrased in every section, and a
+ * page where every section sits on one background with no change of pace.
+ */
+export function auditPageCraft(
+  sections: { id: string; role: string; tree: CompositionTree }[],
+  options: { home?: boolean } = {},
+): { sectionId: string; finding: DesignFinding }[] {
+  const out: { sectionId: string; finding: DesignFinding }[] = [];
+  const push = (sectionId: string, finding: DesignFinding) => out.push({ sectionId, finding });
+
+  // Headings anywhere on the page, for the "button label is a heading" check.
+  const headings = new Set<string>();
+  for (const section of sections)
+    for (const { node } of walk(section.tree.root)) if (node.type === "heading" && normText(node.text)) headings.add(normText(node.text));
+
+  for (const section of sections) {
+    const visits = walk(section.tree.root);
+
+    // Repeated cards that carry a title but no supporting words.
+    for (const visit of visits) {
+      if (visit.node.type !== "grid" && visit.node.type !== "row") continue;
+      const cards = (visit.node.children ?? []).filter((child) => child.type === "card" || child.type === "stack");
+      if (cards.length < 2) continue;
+      const bare = cards.filter((card) => {
+        const inner = walk(card);
+        const hasTitle = inner.some(({ node }) => node.type === "heading" && normText(node.text));
+        const hasBody = inner.some(({ node }) => (TEXTUAL.has(node.type) && normText(node.text).length >= 12) || (node.items?.length ?? 0) > 0);
+        return hasTitle && !hasBody;
+      });
+      if (bare.length >= 2 && bare.length * 2 >= cards.length)
+        push(section.id, {
+          code: "card_missing_body",
+          severity: "major",
+          path: visit.path,
+          fix: "These cards show a title (and maybe a picture) with no words, so each row looks half empty. Give every card one short line from the supplied service description, or turn the set into a compact list of names.",
+        });
+    }
+
+    // A button whose label is a section heading ("What we handle") says nothing about what happens on click.
+    for (const visit of visits) {
+      const labels: string[] = [];
+      if (visit.node.type === "button" || visit.node.type === "link") labels.push(visit.node.text ?? "");
+      if (visit.node.primaryCta?.label) labels.push(visit.node.primaryCta.label);
+      if (visit.node.secondaryCta?.label) labels.push(visit.node.secondaryCta.label);
+      for (const label of labels) {
+        const key = normText(label);
+        if (key.split(" ").length >= 2 && headings.has(key))
+          push(section.id, {
+            code: "action_label_is_heading",
+            severity: "major",
+            path: visit.path,
+            fix: `The button label "${label.trim().slice(0, 60)}" is a section heading, not an action. Name what the visitor gets: "Book a visit", "Call now", "See all services".`,
+          });
+      }
+    }
+
+    // A section that is only a button (with or without a picture) and no heading or text.
+    const hasWords = visits.some(({ node }) => (node.type === "heading" || TEXTUAL.has(node.type)) && normText(node.text));
+    const hasRich = visits.some(({ node }) => node.type !== "media" && node.type !== "button" && !CONTAINERS.has(node.type) && node.type !== "link");
+    const buttons = visits.filter(({ node }) => node.type === "button");
+    if (!hasWords && !hasRich && buttons.length > 0)
+      push(section.id, {
+        code: "orphan_action",
+        severity: "critical",
+        path: "root",
+        fix: "This section is only a button (and maybe a picture) with no heading or words, so it reads as a leftover. Move the action into the section it belongs to, or give it a short heading and one line saying why to click.",
+      });
+  }
+
+  // One picture used in more than one section on the page.
+  const mediaOwner = new Map<string, string>();
+  for (const section of sections) {
+    const seenHere = new Set<string>();
+    for (const visit of walk(section.tree.root)) {
+      for (const key of nodeMediaKeys(visit.node)) {
+        if (seenHere.has(key)) continue;
+        seenHere.add(key);
+        const owner = mediaOwner.get(key);
+        if (owner && owner !== section.id)
+          push(section.id, {
+            code: "duplicate_media",
+            severity: "major",
+            path: visit.path,
+            fix: "This picture is already used in an earlier section of this page. Use a different supplied picture here, or drop the picture and let the words carry the section.",
+          });
+        else if (!owner) mediaOwner.set(key, section.id);
+      }
+    }
+  }
+
+  // The same message paraphrased section after section ("We focus on three core services in Raleigh…").
+  const sentences: { sectionId: string; text: string }[] = [];
+  for (const section of sections) {
+    for (const visit of walk(section.tree.root)) {
+      if (!TEXTUAL.has(visit.node.type) && visit.node.type !== "heading") continue;
+      const text = (visit.node.text ?? "").trim();
+      if (words(text).length < 6) continue;
+      const echo = sentences.find((prior) => prior.sectionId !== section.id && normText(prior.text) !== normText(text) && wordOverlap(prior.text, text) >= 0.75);
+      if (echo)
+        push(section.id, {
+          code: "near_duplicate_text",
+          severity: "major",
+          path: visit.path,
+          fix: "This line restates a sentence from an earlier section in slightly different words. Say something new here (a step, a reason, a detail of the service) or remove it.",
+        });
+      sentences.push({ sectionId: section.id, text });
+    }
+  }
+
+  // Every section on one background with no scene, image band or contrast surface: no change of pace.
+  if (options.home && sections.length >= 4) {
+    const backgrounds = new Set<string>();
+    let paced = false;
+    for (const section of sections.slice(1)) {
+      const root = section.tree.root;
+      backgrounds.add(String(root.style?.background ?? "").toLowerCase());
+      if (walk(root).some(({ node, depth }) => depth <= 1 && (node.type === "scene" || node.type === "scroll_chapters" || node.type === "parallax_layers" || node.type === "marquee"))) paced = true;
+    }
+    if (!paced && backgrounds.size <= 1) {
+      const target = sections[Math.min(2, sections.length - 1)]!;
+      push(target.id, {
+        code: "flat_section_rhythm",
+        severity: "major",
+        path: "root",
+        fix: "Every section after the opening sits on the same background, so the page scrolls as one flat sheet. Give this section a contrasting surface (the accent at low strength, a lighter or darker band) or a full-bleed picture scene so the page changes pace.",
+      });
+    }
+  }
   return out;
 }
 
@@ -588,7 +770,7 @@ export function hasInteractive(tree: CompositionTree): boolean {
 }
 
 /** Gates that always go back to the AI, whatever their severity. */
-const ALWAYS_REPAIR = new Set<DesignFinding["code"]>(["flat_page", "lead_not_scene", "lead_not_cinematic", "scene_text_contrast", "page_missing_interactive", "page_mostly_plain", "duplicate_text", "empty_column", "hollow_control"]);
+const ALWAYS_REPAIR = new Set<DesignFinding["code"]>(["flat_page", "lead_not_scene", "lead_not_cinematic", "scene_text_contrast", "page_missing_interactive", "page_mostly_plain", "duplicate_text", "empty_column", "hollow_control", "card_missing_body", "action_label_is_heading", "orphan_action", "duplicate_media"]);
 
 /** True when any finding must be fixed before the section ships. */
 export function needsDesignRepair(findings: DesignFinding[]): boolean {
