@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Menu, X } from "lucide-react";
 import { CompositionRenderer } from "@/components/site/CompositionRenderer";
 import type { CompositionTree } from "@/lib/builder/composition-tree";
 import { stripBusinessSuffix } from "@/lib/website-content";
-import { menuItems } from "@/lib/builder/site-chrome";
+import { foldHeaderSubmenus, menuItems } from "@/lib/builder/site-chrome";
 
 /**
  * Sol's menu bar, made usable on phones. Wide screens show Sol's design as is.
@@ -33,7 +33,9 @@ export function AiSiteHeader(props: {
   const logo = props.logoUrl && /^(https:\/\/|\/)/i.test(props.logoUrl) ? props.logoUrl : null;
   const linkLabel = (text: string) => stripBusinessSuffix(text, props.name);
   const [open, setOpen] = useState(false);
-  const items = menuItems(props.tree)
+  // Sub-links render as a dropdown under their parent link, never laid into the bar.
+  const tree = useMemo(() => foldHeaderSubmenus(props.tree), [props.tree]);
+  const items = menuItems(tree)
     .map((item) => ({ ...item, href: props.resolveHref(item.href), label: linkLabel(item.label) }))
     .filter((item) => item.href);
   const links = items.filter((item) => !item.action);
@@ -91,7 +93,7 @@ export function AiSiteHeader(props: {
               <img src={logo} alt={`${props.name} logo`} className="h-10 w-auto max-w-[180px] object-contain" />
             </a>
           ) : null}
-          <CompositionRenderer as="div" scope="site-header" tree={props.tree} resolveHref={props.resolveHref} surface={props.surface ?? null} linkLabel={linkLabel} />
+          <CompositionRenderer as="div" scope="site-header" tree={tree} resolveHref={props.resolveHref} surface={props.surface ?? null} linkLabel={linkLabel} />
           {extraLinks.length ? (
             <ul className="ml-auto flex shrink-0 flex-wrap items-center gap-x-4 gap-y-1">
               {extraLinks.map((link) => (
@@ -155,7 +157,14 @@ export function AiSiteHeader(props: {
                   </li>
                   {[...links, ...extraMobile].filter((item) => item.href !== props.homeHref).map((item) => (
                     <li key={`${item.href}|${item.label}`}>
-                      <a href={item.href} className="flex min-h-14 items-center text-[19px] font-medium">
+                      <a
+                        href={item.href}
+                        className={
+                          "depth" in item && item.depth === 1
+                            ? "flex min-h-12 items-center pl-5 text-[16px] text-muted-foreground"
+                            : "flex min-h-14 items-center text-[19px] font-medium"
+                        }
+                      >
                         {item.label}
                       </a>
                     </li>

@@ -7,6 +7,7 @@
  */
 import { SiteBaseContext } from "@/components/site/site-address-context";
 import { createFileRoute, Link, Outlet, useChildMatches, useRouter } from "@tanstack/react-router";
+import { DRAFT_PENDING_MS, isDraftChildPath } from "@/lib/builder/draft-route";
 import { useEffect, type ReactNode } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -19,7 +20,16 @@ import { PublicSiteView } from "@/routes/s.$slug";
 import { ErrorBoundary } from "@/components/app/ErrorBoundary";
 
 export const Route = createFileRoute("/_authenticated/draft/$slug")({
-  loader: async ({ params }) => getOwnerDraftSite({ data: { slug: params.slug } }),
+  // An inner page (/draft/<slug>/services) loads its own data; loading the
+  // home draft as well only delayed it.
+  loader: async ({ params, location }) =>
+    isDraftChildPath(location.pathname, params.slug) ? null : getOwnerDraftSite({ data: { slug: params.slug } }),
+  // This route renders only in the browser (the signed-in area has no server
+  // render), so without a pending screen a slow load was a blank black page.
+  pendingMs: DRAFT_PENDING_MS,
+  pendingComponent: () => (
+    <DraftMessage title="Loading your draft…" body="Getting the latest version of your site." />
+  ),
   head: () => ({
     meta: [
       { title: "Website draft — Revora" },
@@ -183,7 +193,15 @@ function DraftHomeRouteContent() {
     return () => window.clearInterval(timer);
   }, [result?.status, router]);
 
+  // Coming back from an inner page, this route has not loaded the home draft
+  // yet (it skips that while an inner page is open): load it now.
+  const needsHome = children.length === 0 && result === null;
+  useEffect(() => {
+    if (needsHome) void router.invalidate().catch(() => undefined);
+  }, [needsHome, router]);
+
   if (children.length > 0) return <Outlet />;
+  if (needsHome) return <DraftMessage title="Loading your draft…" body="Getting the latest version of your site." />;
 
   // A draft that already has sections stays visible during rebuilds and AI
   // updates; only a brand-new empty first build gets the full-page message.

@@ -2590,6 +2590,30 @@ body { padding-bottom: env(safe-area-inset-bottom); }
   .rv-ai-header .rv-site-header-nav a {
     white-space: nowrap;
   }
+  /* Nested link groups are bars too. A nested equal-column grid squeezed into
+     the bar made every track narrower than its label, so the no-wrap labels
+     ran over each other ("Drain CWateringHea…"). Links keep their own width
+     and the group wraps instead. The bar must not clip a submenu panel. */
+  .rv-ai-header .rv-site-header-nav [data-composition] {
+    overflow: visible !important;
+  }
+  .rv-ai-header .rv-site-header-nav [data-composition] :is(div, nav, ul)[style*="grid"]:not(.rv-nav-panel) {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    grid-template-columns: initial !important;
+  }
+  .rv-ai-header .rv-site-header-nav [data-composition] a,
+  .rv-ai-header .rv-site-header-nav [data-composition] .rv-nav-group {
+    flex-shrink: 0;
+    min-width: max-content !important;
+  }
+  .rv-ai-header .rv-site-header-nav [data-composition] .rv-nav-panel {
+    display: none;
+  }
+  .rv-ai-header .rv-site-header-nav [data-composition] .rv-nav-group:is(:hover, :focus-within, [data-open]) > .rv-nav-panel {
+    display: flex;
+  }
   /* Safety floor for a bare AI tree: nested link rows get a 44px target and,
      only where the AI authored no gap, WCAG target spacing. An authored gap is
      written inline as "gap: Npx", so it always wins over this fallback. */

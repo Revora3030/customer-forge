@@ -164,11 +164,15 @@ function darkHex(value: string | undefined): boolean {
   return luminance(value) < 0.25;
 }
 
-/** Drops light fills and dark ink so a chapter sits on the studio canvas. */
+/**
+ * Drops light fills and dark ink so a chapter sits on the studio canvas.
+ * Buttons keep their own fill and ink: stripping a light button fill left a
+ * bare text link where the call to action should be.
+ */
 export function healStudioNode(node: CompositionNode): CompositionNode {
   const healed = healSplitCards(node);
   const style = healed.style;
-  const nextStyle = style ? stripLightStyle(style) : style;
+  const nextStyle = style && healed.type !== "button" ? stripLightStyle(style) : style;
   const children = healed.children?.map(healStudioNode);
   if (nextStyle === style && children === healed.children) return healed;
   return { ...healed, ...(nextStyle ? { style: nextStyle } : {}), ...(children ? { children } : {}) };
@@ -266,7 +270,8 @@ export function healLightNode(node: CompositionNode, light: StudioLight): Compos
   const healed = healSplitCards(node);
   const style = healed.style;
   let nextStyle = style;
-  if (style) {
+  // A button's fill and ink are a matched pair; see healStudioNode.
+  if (style && healed.type !== "button") {
     const next = { ...style };
     const bg = style.background;
     if (bg && /^#[0-9a-f]{6}$/i.test(bg) && luminance(bg) < 0.4) {

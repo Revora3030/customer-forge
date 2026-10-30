@@ -7,7 +7,7 @@
  * AI-authored chrome show no replacement chrome; the build/review pipeline must
  * repair or reject them instead of installing fixed copy.
  */
-import { validateComposition, type CompositionTree } from "@/lib/builder/composition-tree";
+import { validateComposition, type CompositionNode, type CompositionTree, type NodeStyle } from "@/lib/builder/composition-tree";
 import { selfLinkTarget } from "@/lib/builder/link-integrity";
 
 export type SiteChrome = { header: CompositionTree | null; footer: CompositionTree | null };
@@ -206,31 +206,117 @@ export function missingChromeLinks(
  * the phone menu. The AI's design can hide groups of links on small screens,
  * so the phone menu lists them plainly instead of re-rendering that design.
  */
-export function menuItems(tree: CompositionTree | null): { href: string; label: string; action: boolean }[] {
+export type MenuItem = { href: string; label: string; action: boolean; depth: 0 | 1 };
+
+export function menuItems(tree: CompositionTree | null): MenuItem[] {
   if (!tree) return [];
-  const out: { href: string; label: string; action: boolean }[] = [];
+  const out: MenuItem[] = [];
   const seen = new Set<string>();
-  const walk = (node: CompositionTree["root"]) => {
+  const push = (href: string, label: string, action: boolean, depth: 0 | 1) => {
+    const key = `${href}|${label.toLowerCase()}`;
+    if (!label || seen.has(key)) return;
+    seen.add(key);
+    out.push({ href, label, action, depth });
+  };
+  const walk = (node: CompositionNode, depth: 0 | 1) => {
     if (node.type === "link" || node.type === "button") {
-      const label = (node.text ?? "").trim();
-      const href = (node.href ?? "").trim();
-      const key = `${href}|${label.toLowerCase()}`;
-      if (label && !seen.has(key)) {
-        seen.add(key);
-        out.push({ href, label, action: node.type === "button" });
-      }
+      push((node.href ?? "").trim(), (node.text ?? "").trim(), node.type === "button", depth);
+      // A folded submenu: the parent link carries its sub-links as children.
+      node.children?.forEach((child) => walk(child, 1));
+      return;
     }
     for (const cta of [node.primaryCta, node.secondaryCta]) {
       const label = cta?.label?.trim();
-      const key = `${cta?.href ?? ""}|${label?.toLowerCase()}`;
-      if (cta && label && !seen.has(key)) {
-        seen.add(key);
-        out.push({ href: cta.href ?? "", label, action: true });
-      }
+      if (cta && label) push(cta.href ?? "", label, true, depth);
     }
-    node.children?.forEach(walk);
-    node.tabs?.forEach((tab) => tab.children.forEach(walk));
+    node.children?.forEach((child) => walk(child, depth));
+    node.tabs?.forEach((tab) => tab.children.forEach((child) => walk(child, depth)));
   };
-  walk(tree.root);
+  walk(foldHeaderSubmenus(tree).root, 0);
   return out.slice(0, 30);
+}
+
+const isNavLink = (node: CompositionNode | undefined): node is CompositionNode =>
+  Boolean(node && node.type === "link" && (node.text ?? "").trim());
+
+const pathOf = (href: string | undefined): string => {
+  const raw = (href ?? "").trim().toLowerCase();
+  if (!raw) return "";
+  try {
+    const url = new URL(raw, "https://site.invalid");
+    return `${url.pathname.replace(/\/+$/, "")}${url.hash}`;
+  } catch {
+    return raw.replace(/\/+$/, "");
+  }
+};
+
+/** True when `child` points inside `parent` ("/services" → "/services/drains" or "/services#drains"). */
+function linksUnder(parent: CompositionNode, child: CompositionNode): boolean {
+  const base = pathOf(parent.href);
+  const target = pathOf(child.href);
+  if (!base || base === "/" || base.includes("#") || !target || target === base) return false;
+  return target.startsWith(`${base}/`) || target.startsWith(`${base}#`);
+}
+
+/** Layering an AI sometimes puts on submenu links; in a menu bar it stacks labels on top of each other. */
+function plainSubLink(node: CompositionNode): CompositionNode {
+  const strip = (style: NodeStyle | undefined): NodeStyle | undefined => {
+    if (!style) return style;
+    const { position, top, left, right, bottom, zIndex, overlap, rotate, depth, ...rest } = style;
+    void position; void top; void left; void right; void bottom; void zIndex; void overlap; void rotate; void depth;
+    return rest;
+  };
+  const responsive = node.responsive
+    ? (Object.fromEntries(Object.entries(node.responsive).map(([k, v]) => [k, strip(v)])) as CompositionNode["responsive"])
+    : undefined;
+  const { children, style, ...rest } = node;
+  void children;
+  const plainStyle = strip(style);
+  return { ...rest, ...(plainStyle ? { style: plainStyle } : {}), ...(responsive ? { responsive } : {}) };
+}
+
+const withSubmenu = (parent: CompositionNode, subs: CompositionNode[]): CompositionNode => ({
+  ...plainSubLink(parent),
+  children: [...(parent.children ?? []).filter(isNavLink), ...subs].map(plainSubLink),
+});
+
+const isLinkGroup = (node: CompositionNode | undefined): boolean =>
+  Boolean(node && node.type !== "link" && node.type !== "button" && node.children?.length && node.children.every(isNavLink));
+
+/**
+ * Folds submenu shapes in an AI menu bar into one form — a link whose children
+ * are its sub-links — so the header can render a real dropdown instead of
+ * laying every sub-link into the bar. Recognised shapes:
+ *  - a group whose first child is a link and the rest are links under it, or a
+ *    single group of links (e.g. [Services, [Drains, Heaters]]);
+ *  - a link followed by sibling links that point inside it (/services/...).
+ */
+export function foldHeaderSubmenus(tree: CompositionTree): CompositionTree {
+  const fold = (node: CompositionNode): CompositionNode => {
+    if (node.type === "link" && node.children?.some(isNavLink)) return withSubmenu(node, []);
+    const kids = node.children;
+    if (!kids?.length) return node;
+    const first = kids[0];
+    const rest = kids.slice(1);
+    const group = rest.length === 1 && isLinkGroup(rest[0]) ? rest[0] : undefined;
+    if (isNavLink(first) && rest.length > 0 && (group || rest.every((n) => isNavLink(n) && linksUnder(first, n)))) {
+      return withSubmenu(first, group?.children ?? rest);
+    }
+    const out: CompositionNode[] = [];
+    for (let i = 0; i < kids.length; i++) {
+      const kid = kids[i]!;
+      if (isNavLink(kid)) {
+        const subs: CompositionNode[] = [];
+        for (let next = kids[i + 1]; isNavLink(next) && linksUnder(kid, next); next = kids[i + 1]) {
+          subs.push(next);
+          i++;
+        }
+        out.push(subs.length ? withSubmenu(kid, subs) : kid);
+        continue;
+      }
+      out.push(fold(kid));
+    }
+    return { ...node, children: out };
+  };
+  return { ...tree, root: fold(tree.root) };
 }
