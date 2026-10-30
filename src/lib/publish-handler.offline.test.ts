@@ -110,7 +110,7 @@ describe("production publishing handler — offline fixtures, not live RLS proof
   it("never reports live when the publish update matched no website_settings row", async () => {
     const db = fixture();
     const original = db.client.from.bind(db.client);
-    db.client.from = (table: string) => {
+    (db.client as unknown as { from: (table: string) => unknown }).from = (table: string) => {
       const chain = original(table) as Record<string, unknown> & { update: (row: Row) => unknown };
       if (table !== "website_settings") return chain;
       const update = chain.update;

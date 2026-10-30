@@ -14,7 +14,8 @@ import { readFileSync } from "node:fs";
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
 
 describe("public submissions are written in one database transaction", () => {
-  const source = read("./public-site.functions.ts");
+  // Error-code -> visitor-message mapping lives in site-submission-gate.ts (shared with the RPC caller).
+  const source = read("./public-site.functions.ts") + read("./site-submission-gate.ts");
 
   it("saves lead, quote, booking, timeline and notification through the transactional function", () => {
     expect(source).toContain('supabase.rpc("submit_public_conversion"');
@@ -65,7 +66,8 @@ describe("website restore is written in one database transaction", () => {
 });
 
 describe("repeated public submissions cannot duplicate or flood a workspace", () => {
-  const source = read("./public-site.functions.ts");
+  // Error-code -> visitor-message mapping lives in site-submission-gate.ts (shared with the RPC caller).
+  const source = read("./public-site.functions.ts") + read("./site-submission-gate.ts");
 
   it("treats an immediate repeat submission as the request already saved", () => {
     expect(source).toContain("saved.duplicate");
