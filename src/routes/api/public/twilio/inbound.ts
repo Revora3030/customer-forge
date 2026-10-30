@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { methodNotAllowed } from "@/lib/method-not-allowed";
 
 const EMPTY_TWIML = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>';
 
@@ -43,6 +44,7 @@ async function handle(request: Request): Promise<Response> {
 export const Route = createFileRoute("/api/public/twilio/inbound")({
   server: {
     handlers: {
+      GET: () => methodNotAllowed(),
       POST: async ({ request }) => handle(request),
     },
   },

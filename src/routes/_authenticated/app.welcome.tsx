@@ -1,4 +1,5 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { startConfirmationPolling } from "@/lib/checkout-confirmation";
 import { trackConversion } from "@/lib/conversion";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
@@ -36,17 +37,24 @@ function WelcomePage() {
   const { data: ws } = useWorkspace();
   const org = ws?.workspace?.organization;
   const orgId = ws?.workspace?.organizationId;
-  const { data: billing } = useBillingState(orgId);
+  const { data: billing, error: billingError } = useBillingState(orgId);
+  const [confirmationTimedOut, setConfirmationTimedOut] = useState(false);
+  const [confirmationAttempt, setConfirmationAttempt] = useState(0);
+  // True once Stripe's embedded checkout has sent the owner back here. The
+  // browser return never grants anything; it only changes the wording to a
+  // calm "payment received, activating" state while the webhook settles.
+  const [returnedFromCheckout, setReturnedFromCheckout] = useState(false);
   const subscription = billing?.subscription ?? null;
   const queryClient = useQueryClient();
 
   // Stripe returns here after checkout; refresh the verified server state.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get("checkout") !== "complete") return;
+    if (params.get("checkout") !== "complete" || !orgId) return;
     // Marketing telemetry only. Paid status comes exclusively from the
     // signature-verified Stripe webhook, never from this browser return.
     trackConversion("checkout_return");
+    setReturnedFromCheckout(true);
     void queryClient.invalidateQueries({ queryKey: ["workspace"] });
     if (orgId) {
       void queryClient.invalidateQueries({ queryKey: ["billing_state", orgId] });
@@ -59,11 +67,21 @@ function WelcomePage() {
   const trialing = subscription?.status === "trialing";
   const trialEnd = subscription?.trial_ends_at ?? null;
   const subActive = Boolean(billing?.active);
+  const settled = setupPaid && subActive;
+  const activating = !settled && returnedFromCheckout && !billingError;
+  useEffect(() => {
+    if (!orgId || (setupPaid && subActive)) return;
+    setConfirmationTimedOut(false);
+    return startConfirmationPolling(() => {
+      void queryClient.invalidateQueries({ queryKey: ["billing_state", orgId] });
+      void queryClient.invalidateQueries({ queryKey: ["workspace"] });
+    }, () => setConfirmationTimedOut(true));
+  }, [orgId, setupPaid, subActive, queryClient, confirmationAttempt]);
   const steps = [
     { label: "Setup payment received", done: setupPaid },
     {
       label: trialing
-        ? `${GROWTH_SYSTEM.trialDays}-day platform trial active`
+        ? `Platform ${GROWTH_SYSTEM.firstMonthFree}`
         : "Monthly subscription active",
       done: subActive,
     },
@@ -76,16 +94,39 @@ function WelcomePage() {
       <div>
         <p className="eyebrow">Welcome</p>
         <h1 className="mt-1 font-editorial text-[30px] leading-tight">
-          {setupPaid && subActive
+          {settled
             ? "You're officially onboard with Revora."
-            : "We're confirming your payment"}
+            : activating
+              ? "Payment received — we're activating your account"
+              : "We're confirming your payment"}
         </h1>
         <p className="mt-2 max-w-2xl text-[14px] leading-relaxed text-muted-foreground">
-          {setupPaid && subActive
-            ? `Your ${usdExact(GROWTH_SYSTEM.setupPrice)} setup payment was received. Your ${GROWTH_SYSTEM.trialDays}-day ${usdExact(GROWTH_SYSTEM.monthlyPrice)}/month platform trial is active. ${usdExact(GROWTH_SYSTEM.monthlyPrice)}/month begins after the trial unless canceled.`
-            : "Payment confirmation comes directly from our payment provider. If you just paid, this page updates within a few seconds — nothing is activated until the payment is verified."}
+          {settled
+            ? `Your ${usdExact(GROWTH_SYSTEM.setupPrice)} setup payment was received. Your platform is free for the first month (${GROWTH_SYSTEM.trialDays} days after setup); ${usdExact(GROWTH_SYSTEM.monthlyPrice)}/month begins after that unless canceled.`
+            : activating
+              ? "Checkout is complete. Our payment provider is confirming it with Revora now — this page updates on its own, and you don't need to pay again."
+              : "Payment confirmation comes directly from our payment provider. If you just paid, this page updates within a few seconds — nothing is activated until the payment is verified."}
         </p>
       </div>
+
+      {activating ? (
+        <div role="status" className="flex items-center gap-2 rounded-md border border-border/60 bg-muted/30 px-4 py-3 text-sm">
+          <CheckCircle2 className="size-4 text-primary" aria-hidden="true" />
+          <span>Payment received. Finishing your account setup…</span>
+        </div>
+      ) : null}
+
+      {billingError || (confirmationTimedOut && !activating) ? (
+        <div role="status" className="space-y-2">
+          <p className="text-sm text-muted-foreground">
+            {billingError
+              ? "We couldn't read your payment status."
+              : "We haven't received a payment confirmation for this workspace yet."}
+            {" "}Please check again before starting another checkout.
+          </p>
+          <Button variant="outline" onClick={() => setConfirmationAttempt((attempt) => attempt + 1)}>Check payment status</Button>
+        </div>
+      ) : null}
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <MetricCard

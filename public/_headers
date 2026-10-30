@@ -1,0 +1,23 @@
+# Static asset cache rules (Cloudflare static-assets `_headers` format).
+# The Nitro cloudflare-module build merges this file into the deployed
+# public/_headers. File names are not content-hashed, so these are long but
+# not `immutable`; replace the file name when an image changes materially.
+
+/og.jpg
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+
+/favicon.ico
+  Cache-Control: public, max-age=604800, stale-while-revalidate=2592000
+
+/favicon.png
+  Cache-Control: public, max-age=604800, stale-while-revalidate=2592000
+
+/apple-touch-icon.png
+  Cache-Control: public, max-age=604800, stale-while-revalidate=2592000
+
+/revora-mark-144.png
+  Cache-Control: public, max-age=604800, stale-while-revalidate=2592000
+
+/.well-known/security.txt
+  Cache-Control: public, max-age=86400
+  Content-Type: text/plain; charset=utf-8

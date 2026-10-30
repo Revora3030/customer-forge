@@ -3,6 +3,7 @@
  * Summaries keep only small, non-sensitive fields.
  */
 import pkg from "../../package.json";
+import { replaceControlCharacters } from "@/lib/sanitize-control-characters";
 
 export const FREE_CHECK_TOOLS = [
   "website.html.validate",
@@ -192,8 +193,7 @@ export function summarizeCrtsh(raw: unknown, domain: string, now = Date.now()) {
 
 export const NOMINATIM_URL = (q: string) => `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&q=${encodeURIComponent(q)}`;
 export function cleanPlaceQuery(v: unknown) {
-  // eslint-disable-next-line no-control-regex -- strips control characters from untrusted input
-  const q = typeof v === "string" ? v.replace(/[\u0000-\u001f]/g, " ").trim().slice(0, 160) : "";
+  const q = typeof v === "string" ? replaceControlCharacters(v).trim().slice(0, 160) : "";
   return q.length >= 3 ? q : null;
 }
 export function summarizeNominatim(raw: unknown) {

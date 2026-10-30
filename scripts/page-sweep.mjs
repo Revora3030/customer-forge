@@ -11,6 +11,7 @@
  * --top=N sets how many offenders are listed (default 40).
  * --a11y runs axe-core (WCAG 2.0/2.1/2.2 A and AA rules) on every page at phone width and lists the rules
  * that fail, most widespread first. Automated rules cannot prove a page is accessible; they only find what they can.
+ * --all-viewports also measures 320px (small phone) and 768px (tablet) for sideways scrolling and layout.
  * --target=44 holds phone tap targets to the 44px comfort size instead of the 24px WCAG 2.5.8
  * minimum, and lists the controls that miss it, most widespread first, so shared chrome shows up.
  * Without Playwright the run is NOT_VERIFIED (exit 2), never a pass.
@@ -25,8 +26,15 @@ const max = Number((args.find((a) => a.startsWith("--max=")) ?? "--max=120").spl
 const out = (args.find((a) => a.startsWith("--out=")) ?? "--out=page-sweep.json").split("=")[1];
 const RUN_A11Y = args.includes("--a11y");
 const MIN_TARGET = Number((args.find((a) => a.startsWith("--target=")) ?? "--target=24").split("=")[1]);
+// --all-viewports adds the QA bot's small-phone (320px) and tablet (768px) widths.
 const VIEWPORTS = [
   { name: "phone", width: 390, height: 800 },
+  ...(args.includes("--all-viewports")
+    ? [
+        { name: "small-phone", width: 320, height: 640 },
+        { name: "tablet", width: 768, height: 1024 },
+      ]
+    : []),
   { name: "desktop", width: 1280, height: 800 },
 ];
 // Paths that are not pages, or that need a signed-in user or a one-time token.

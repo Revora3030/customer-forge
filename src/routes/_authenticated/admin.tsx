@@ -49,6 +49,7 @@ const PRIMARY_NAV = [
   { to: "/admin", label: "Overview", icon: LayoutGrid, exact: true },
   { to: "/admin/city", label: "AI City", icon: Building2, exact: false },
   { to: "/admin/jarvis", label: "Jarvis", icon: Bot, exact: false },
+  { to: "/admin/approvals", label: "Approvals", icon: ShieldCheck, exact: false },
   { to: "/admin/clients", label: "Clients", icon: Building2, exact: false },
   { to: "/admin/websites", label: "Websites", icon: ClipboardList, exact: false },
   { to: "/admin/monitoring", label: "Monitoring", icon: Activity, exact: false },

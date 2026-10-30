@@ -38,7 +38,15 @@ jobs:
       # Fails closed: without the key, or on any divergence between the live
       # Stripe catalog and the pinned $350 + $100/month (DEFAULT_OFFER_RATES) offer, the gate fails
       # and the deploy is blocked instead of charging customers wrong amounts.
+      # Dependabot PRs never receive repository secrets, so the live check can
+      # only fail there. Skip it for Dependabot only; every other PR and every
+      # push to lovable-sync (including the merge of a Dependabot PR) still
+      # runs it and still fails closed when the key is missing.
+      - name: Skip live Stripe check on Dependabot PRs (no secrets available)
+        if: github.actor == 'dependabot[bot]'
+        run: echo "::notice::Dependabot PR - live Stripe catalog contract runs on the push to lovable-sync after merge."
       - name: Verify live Stripe catalog against the canonical offer
+        if: github.actor != 'dependabot[bot]'
         env:
           STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
         run: bun scripts/stripe-catalog-contract.mjs --env=live

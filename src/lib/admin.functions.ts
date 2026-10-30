@@ -19,6 +19,14 @@ export const getPlatformMetrics = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const { assertSuperAdmin } = await import("@/lib/admin.server");
     await assertSuperAdmin(context.supabase, context.userId);
+    return computePlatformMetrics();
+  });
+
+/**
+ * Platform metrics (clients, paying, MRR, leads). Callers MUST have verified
+ * a super admin or the agent key first; this reads with elevated access.
+ */
+export async function computePlatformMetrics() {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const since = new Date(Date.now() - 30 * 86_400_000).toISOString();
 
@@ -97,7 +105,7 @@ export const getPlatformMetrics = createServerFn({ method: "GET" })
       bookings30d: appts.rows.filter((a) => a.organization_id && real.has(a.organization_id)).length,
       mrr: Math.round([...paying.values()].reduce((sum, value) => sum + value, 0) * 100) / 100,
     };
-  });
+}
 
 /** All client tenants with launch state. */
 export const listClients = createServerFn({ method: "GET" })

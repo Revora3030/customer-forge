@@ -1,6 +1,9 @@
 /**
  * The owner's reference standard for every customer site (decided 2026-10-29 from the "Kestrel Exterior Wash"
- * reference video): a dark, cinematic one-page story that the visitor plays with, not a brochure. Prompt guidance
+ * reference video): a cinematic one-page story that the visitor plays with, not a brochure. The STRUCTURE (the
+ * beats below) applies to every site; the LOOK now comes from the business's trade blueprint (trade-blueprints.ts),
+ * so a dentist, a med spa and a gym no longer all wear the pressure-washing reference's obsidian and yellow. The
+ * original obsidian look stays the fallback for a business with no category signal. Prompt guidance
  * only, in the same spirit as the trade playbooks: it names primitives the builder already has, the AI still
  * authors every word, colour, picture and order, and every truth rule stays in force — a reveal only uses the
  * owner's own before/after photos, a dial only shows method facts the owner gave, and prices only come from the
@@ -9,6 +12,8 @@
  * Every trade playbook and every archetype has its own interpretation of the standard's two hands-on moments, so
  * no business category is left with the pressure-washing wording.
  */
+
+import type { TradeBlueprint } from "@/lib/builder/trade-blueprints";
 
 export type ReferenceMoments = {
   /** The hands-on "try it yourself" moment for this kind of business. */
@@ -27,7 +32,7 @@ export const REFERENCE_BEATS: readonly string[] = [
   "Packages and close: real services as offer cards (collection_row or service_tier_fader), a faq_accordion of supplied questions, one closing scene with the main action; a mobile_sticky_bar carries the primary action on phones.",
 ];
 
-/** How the reference site looks and feels, for every business unless the owner asked otherwise. */
+/** How the reference site itself looks and feels: the fallback look when no trade blueprint applies. */
 export const REFERENCE_LOOK =
   "Obsidian canvas, white display type set tight and heavy (short imperative headlines ending in a full stop, e.g. \"Clean this driveway.\"), one saturated signal accent (the reference used a high-visibility yellow; pick the brand's own) used only on primary buttons, progress rings and selected chips, small uppercase tracked eyebrows above each heading, glass cards with 1px translucent borders, a slim header with anchor links to each beat and a pill \"Free quote\" style action.";
 
@@ -51,11 +56,17 @@ const MOMENTS: Record<string, ReferenceMoments> = {
   moving: { tryIt: "lead with the quote_calculator \"Price your move in 20 seconds\"", dial: "crew and truck size per home size, only sizes the owner runs" },
   pest: { tryIt: "a tab_group \"What did you see?\" (ants, rodents, termites, wasps) with the real treatment and booking", dial: "the treatment intensity per infestation level, only methods the owner uses — no guarantees unless supplied" },
   "auto-repair": { tryIt: "a tab_group \"What is your car doing?\" (noise, warning light, brakes, won't start) with the real next step", dial: "the service interval or package per mileage, only packages the owner offers" },
-  beauty: { tryIt: "a lens_magnifier \"Inspect the detail\" over a real finished look; otherwise a tab_group of the real treatments", dial: "the treatment intensity or length per hair or skin type, only services the salon offers" },
-  food: { tryIt: "a collection_row of the real menu or signature dishes as offer cards", dial: "spice, roast or portion per dish, only options the kitchen actually serves" },
-  health: { tryIt: "a tab_group \"What brings you in?\" listing only the real treatments with the booking action", dial: "the programme intensity per goal (recovery, maintenance, performance), only programmes the practice offers — never outcomes" },
+  "salons-barbers": { tryIt: "a stylist picker tab_group of the real team, each tab showing that stylist's real work and services with the booking action; a lens_magnifier \"Inspect the detail\" over one real finished look", dial: "the treatment intensity or length per hair or skin type, only services the salon offers" },
+  "med-spa": { tryIt: "an outcome before_after_slider with treatment-timeline labels (e.g. \"Week 0\", \"Week 6\") only from the practice's own consented photos; otherwise a tab_group of the real treatments with what a visit involves", dial: "the treatment depth per skin concern or goal, only treatments the practice offers — never promised results" },
+  restaurants: { tryIt: "a menu tab_group (starters, mains, desserts, drinks) of the real dishes and prices with dietary badges only where the owner marked them", dial: "spice, roast or portion per dish, only options the kitchen actually serves" },
+  dentist: { tryIt: "an insurance and membership checker tab_group \"Do you take my plan?\" listing only plans the practice accepts, each ending in the new-patient booking action", dial: "the visit type per need (check-up, cleaning, whitening, emergency), only services the practice offers — never outcomes" },
+  "gyms-fitness": { tryIt: "a class timetable tab_group by day or programme from the owner's real schedule, each class with its booking or trial-pass action", dial: "the programme intensity per goal (strength, conditioning, mobility), only classes the gym runs — never body results" },
+  "medical-wellness": { tryIt: "a tab_group \"What brings you in?\" listing only the real treatments with the booking action", dial: "the programme intensity per goal (recovery, maintenance, performance), only programmes the practice offers — never outcomes" },
+  "law-firms": { tryIt: "a practice-area triage tab_group \"What kind of case?\" whose every tab explains how a case review works and ends in the confidential enquiry_form", dial: "the engagement type per situation (consultation, representation, review), only services the firm offers — never guaranteed outcomes" },
+  "real-estate": { tryIt: "a neighbourhood tab_group of the areas the agent really serves, then a valuation quote_calculator that requests a real comparative analysis — never an automated price", dial: "the service per client situation (buying, selling, investing), only services the agent offers" },
+  "professional-services": { tryIt: "scroll_chapters of the real process from first call to completed engagement", dial: "the service level per client situation (individual, small business, growing firm), only services the owner offers" },
+  "pressure-washing": { tryIt: "a brush reveal \"Clean this driveway.\" with tool chips (e.g. Surface cleaner, 25° tip, 40° tip), live percent and stopwatch, from the owner's real dirty/clean photos of the same surface, then the 20-second quote_calculator", dial: "pressure per surface (concrete, siding, roof, deck, brick) with dialUnit PSI only when the owner gave figures, otherwise plain words such as Soft wash" },
   "photo-creative": { tryIt: "a gallery or spin_viewer of real work; a lens_magnifier over one real photo", dial: "the package per occasion (portrait, event, brand), only packages the owner offers" },
-  "real-estate-pro": { tryIt: "scroll_chapters of the real process from first call to closing", dial: "the service level per client situation (buying, selling, investing), only services the owner offers" },
   education: { tryIt: "a tab_group by level or age group with the real programme and enrolment action", dial: "the pace or intensity per learner level, only programmes the owner runs" },
   "emergency-dispatch": { tryIt: "a tab_group \"What happened?\" whose every tab ends in the one-tap call button", dial: "the response type per situation, only services the owner offers — never arrival times unless supplied" },
   "tech-growth": { tryIt: "a tab_group or service_tier_fader of the real plans the owner sells", dial: "the plan or tier per team size, only plans the owner offers" },
@@ -75,13 +86,15 @@ export function referenceMomentsFor(key: string | null | undefined): ReferenceMo
 export const REFERENCE_MOMENT_KEYS: readonly string[] = Object.keys(MOMENTS);
 
 /** One block of prompt text for Sol. Ideas, not orders: the supplied material and the truth rules decide. */
-export function referenceStandardNote(key: string | null | undefined): string {
+export function referenceStandardNote(key: string | null | undefined, blueprint: TradeBlueprint | null = null): string {
   const moments = referenceMomentsFor(key);
   return [
-    "REFERENCE STANDARD (the owner's chosen look for every customer site — a cinematic, hands-on one-page story; interpret it for this business, never copy wording, and drop any beat the supplied material cannot make true):",
+    "REFERENCE STANDARD (the owner's chosen structure for every customer site — a cinematic, hands-on one-page story; interpret it for this business, never copy wording, and drop any beat the supplied material cannot make true):",
     ...REFERENCE_BEATS.map((beat, i) => `${i + 1}. ${beat}`),
     `TRY IT for this business: ${moments.tryIt}.`,
     `DIAL for this business: ${moments.dial}.`,
-    `Look: ${REFERENCE_LOOK}`,
+    blueprint
+      ? `Look: the ${blueprint.label} blueprint above (canvas ${blueprint.palette.canvas}, accent ${blueprint.palette.accent}, ${blueprint.fonts.display} display) — keep the reference's craft: tight display headlines, small uppercase eyebrows, one accent used only on actions, progress rings and selected chips, fine borders.`
+      : `Look: ${REFERENCE_LOOK}`,
   ].join("\n");
 }

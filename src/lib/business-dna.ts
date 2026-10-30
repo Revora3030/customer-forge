@@ -14,6 +14,7 @@
  * The module is pure and browser-safe so the builder, the generator, Pre-Flight
  * and self-healing all reason from the same object.
  */
+import { playbookFor } from "@/lib/builder/industry-playbook";
 
 export type BusinessDna = {
   /* identity — supplied facts only */
@@ -92,12 +93,14 @@ const CLAIM_PATTERNS: { pattern: RegExp; reason: string }[] = [
   },
   { pattern: /\b(licen[cs]ed|certified|accredited|insured and bonded)\b/i, reason: "credential" },
   { pattern: /\b\d{1,3}\s?%/, reason: "statistic" },
-  { pattern: /\b(guarantee[d]?|warrant(y|ied)|money[- ]back)\b/i, reason: "guarantee" },
+  // A manufacturer's product warranty is the maker's promise, not the business's, so naming it is not a claim.
+  { pattern: /\b(?<!manufacturer'?s?\s)(guarantee[d]?|warrant(y|ied)|money[- ]back)\b/i, reason: "guarantee" },
   {
     pattern: /\b\d{2,3}\+?\s*(five[- ]star|happy customers|clients served|reviews)\b/i,
     reason: "customer count",
   },
-  { pattern: /\b(cheapest|lowest price|best in|leading|award)\b/i, reason: "superlative claim" },
+  // "leading" only as a market-position claim, not "leading you through the job".
+  { pattern: /\b(cheapest|lowest price|best in|(?:industry|market)[- ]leading|the leading|a leading|award)\b/i, reason: "superlative claim" },
   // Claims that read like facts. Each passes only when the owner's own words
   // (description, services, credentials) already state it; see OWNER_STATABLE.
   { pattern: /\b(fully\s+)?(insured|bonded)\b/i, reason: "insurance" },
@@ -267,6 +270,34 @@ export function businessDna(facts: DnaFacts): BusinessDna {
   };
 }
 
+const GENERIC_VALUE_PROPS = ["clear written quotes before work starts", "easy to reach", "tidy, respectful work", "straight answers"];
+const CATEGORY_VALUE_PROPS: Record<string, string[]> = {
+  plumbing: ["upfront quotes before any work", "clean, careful work in your home", "clear explanations of the fix"],
+  hvac: ["honest repair-or-replace advice", "comfort through every season", "clear options before work starts"],
+  roofing: ["a thorough inspection before any quote", "clear photos of what we find", "a tidy site at the end of the job"],
+  "auto-detailing": ["careful hand work", "products chosen for your finish", "attention to the details others miss"],
+  cleaning: ["a consistent checklist every visit", "flexible scheduling", "respect for your home"],
+  "pressure-washing": ["the right pressure for each surface", "a visible before and after", "careful around plants and paint"],
+  landscaping: ["designs suited to your yard", "reliable seasonal care", "a clean finish every visit"],
+  restaurants: ["food made with care", "a warm welcome", "easy reservations"],
+  "salons-barbers": ["a consultation before every cut", "unhurried appointments", "advice you can use at home"],
+  "med-spa": ["a consultation before any treatment", "treatment plans tailored to you", "a calm, private setting"],
+  dentist: ["gentle, unhurried care", "clear treatment options and costs explained", "a calm visit from start to finish"],
+  "gyms-fitness": ["coaching for every level", "a welcoming community", "a plan you can follow"],
+  "law-firms": ["a clear explanation of your options", "prompt replies to your questions", "plain-English advice"],
+  "real-estate": ["local market knowledge", "clear communication at every step", "honest pricing advice"],
+};
+
+/**
+ * Category-standard, non-specific value props a site in this trade may use without the owner stating them:
+ * ways of working every decent business in the trade can honestly describe. No numbers, credentials,
+ * guarantees, awards, reviews or response times.
+ */
+export function categoryValueProps(industry: string | null | undefined): string[] {
+  const key = industry ? playbookFor(industry)?.key : undefined;
+  return [...(key && CATEGORY_VALUE_PROPS[key] ? CATEGORY_VALUE_PROPS[key] : []), ...GENERIC_VALUE_PROPS];
+}
+
 /** Compact, prompt-safe rendering of the DNA for AI passes. */
 export function dnaBrief(dna: BusinessDna): string {
   const lines = [
@@ -278,6 +309,7 @@ export function dnaBrief(dna: BusinessDna): string {
     `SUPPLIED FACTS: ${dna.supplied.length ? dna.supplied.join(", ") : "none"}`,
     `UNKNOWN — never guess: ${dna.unknown.length ? dna.unknown.join(", ") : "none"}`,
     `NEVER CLAIM: ${dna.prohibited.join(", ")}`,
+    `CATEGORY-STANDARD (non-specific, may be used in your own words): ${categoryValueProps(dna.industry).join("; ")}`,
   ];
   return lines.join("\n");
 }

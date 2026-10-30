@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { authenticateCronRequest } from "@/integrations/supabase/cron-auth";
+import { methodNotAllowed } from "@/lib/method-not-allowed";
 
 /**
  * Scheduler endpoint for prospect replies (pg_cron, every 10 minutes).
@@ -42,6 +43,7 @@ async function handle(request: Request): Promise<Response> {
 export const Route = createFileRoute("/api/public/jobs/prospect-replies")({
   server: {
     handlers: {
+      GET: () => methodNotAllowed(),
       POST: ({ request }) => handle(request),
     },
   },

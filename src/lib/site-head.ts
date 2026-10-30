@@ -19,6 +19,7 @@ import { compositionFonts, siteFontsHref } from "@/lib/site-theme";
 import { faqPageSchema, metaDescription, metaTitle } from "@/lib/seo";
 import { compositionFaqItems } from "@/lib/builder/composition-faq";
 import { pageNavLabel } from "@/lib/website-content";
+import { playbookFor } from "@/lib/builder/industry-playbook";
 
 type Profile = {
   tagline?: string | null;
@@ -110,6 +111,86 @@ export function openingHoursSpec(hours: unknown): Record<string, unknown>[] {
   return out;
 }
 
+export type SchemaType = { type: string; serviceType?: string };
+
+const CUISINES = ["Italian", "Mexican", "Chinese", "Japanese", "Thai", "Indian", "French", "Greek", "Korean", "Vietnamese", "Mediterranean", "Spanish", "Caribbean", "Ethiopian", "Lebanese", "Turkish", "Peruvian", "Brazilian", "American", "Southern", "Cajun", "Sushi", "Pizza", "Barbecue", "BBQ", "Seafood", "Vegan", "Vegetarian", "Tex-Mex", "Middle Eastern"];
+
+/**
+ * The most specific schema.org type for the business's own industry text. A trade schema.org has no type for
+ * (cleaning, pressure washing, landscaping) is a HomeAndConstructionBusiness with a serviceType, never a
+ * neighbouring trade's type. Unknown industries stay LocalBusiness.
+ */
+export function resolveSchemaType(industry: string | null | undefined): SchemaType {
+  const text = (industry ?? "").trim();
+  if (!text) return { type: "LocalBusiness" };
+  const key = playbookFor(text)?.key;
+  const service = (serviceType: string, type = "HomeAndConstructionBusiness"): SchemaType => ({ type, serviceType });
+  switch (key) {
+    case "plumbing": return { type: "Plumber" };
+    case "hvac": return { type: "HVACBusiness" };
+    case "roofing": return { type: "RoofingContractor" };
+    case "electrical": return { type: "Electrician" };
+    case "locksmith": return { type: "Locksmith" };
+    case "painting": return { type: "HousePainter" };
+    case "contracting": return { type: "GeneralContractor" };
+    case "moving": return { type: "MovingCompany" };
+    case "auto-repair": return /body shop|collision|dent repair|auto body/i.test(text) ? { type: "AutoBodyShop" } : { type: "AutoRepair" };
+    case "auto-detailing": return service("Auto detailing", "AutoRepair");
+    case "towing": return service("Towing and roadside assistance", "AutomotiveBusiness");
+    case "cleaning": return service(/commercial|janitor|office/i.test(text) ? "Commercial cleaning" : "House cleaning");
+    case "pressure-washing": return service("Pressure washing");
+    case "exterior-cleaning": return service(/window/i.test(text) ? "Window cleaning" : /gutter/i.test(text) ? "Gutter cleaning" : "Exterior cleaning");
+    case "landscaping": return service(/tree/i.test(text) ? "Tree service" : /lawn|mow/i.test(text) ? "Lawn care" : "Landscaping");
+    case "pest": return service("Pest control");
+    case "pool": return service("Pool service");
+    case "garage-door": return service("Garage door service");
+    case "appliance-repair": return service("Appliance repair");
+    case "solar": return service("Solar installation");
+    case "restaurants":
+      if (/bakery|patisserie/i.test(text)) return { type: "Bakery" };
+      if (/caf[eé]|coffee/i.test(text)) return { type: "CafeOrCoffeeShop" };
+      if (/\bbar\b|pub|brewery/i.test(text)) return { type: /brewery/i.test(text) ? "Brewery" : "BarOrPub" };
+      return { type: "Restaurant" };
+    case "salons-barbers":
+      if (/nail/i.test(text)) return { type: "NailSalon" };
+      if (/tattoo/i.test(text)) return { type: "TattooParlor" };
+      if (/\bspa\b|massage/i.test(text)) return { type: "DaySpa" };
+      if (/hair|barber|salon/i.test(text)) return { type: "HairSalon" };
+      return { type: "BeautySalon" };
+    case "med-spa": return service("Medical spa", "DaySpa");
+    case "dentist": return { type: "Dentist" };
+    case "medical-wellness":
+      if (/\bvet/i.test(text)) return { type: "VeterinaryCare" };
+      if (/optom/i.test(text)) return { type: "Optician" };
+      if (/physio|chiropract|therap/i.test(text)) return service(text.slice(0, 80), "MedicalClinic");
+      return { type: "MedicalClinic" };
+    case "gyms-fitness": return { type: "HealthClub" };
+    case "law-firms": return { type: "LegalService" };
+    case "real-estate": return { type: "RealEstateAgent" };
+    case "professional-services":
+      if (/account|\btax|bookkeep|\bcpa\b/i.test(text)) return { type: "AccountingService" };
+      if (/insurance/i.test(text)) return { type: "InsuranceAgency" };
+      if (/financ|mortgage|wealth|advis/i.test(text)) return { type: "FinancialService" };
+      return { type: "ProfessionalService" };
+    case "photo-creative": return service(text.slice(0, 80), "ProfessionalService");
+    case "education": return /daycare|childcare/i.test(text) ? { type: "ChildCare" } : service(text.slice(0, 80), "LocalBusiness");
+    default: return { type: "LocalBusiness" };
+  }
+}
+
+type Social = { facebook?: string | null; instagram?: string | null; linkedin?: string | null; tiktok?: string | null; youtube?: string | null; google_business?: string | null } | null | undefined;
+
+/** A price range from the owner's own service prices only, e.g. "$80-$450". Null without real prices. */
+export function priceRangeFrom(services: readonly Service[] | null | undefined): string | null {
+  const prices = (services ?? [])
+    .map((s) => Number(s.price ?? s.starting_price ?? NaN))
+    .filter((n) => Number.isFinite(n) && n > 0);
+  if (!prices.length) return null;
+  const lo = Math.round(Math.min(...prices));
+  const hi = Math.round(Math.max(...prices));
+  return lo === hi ? `$${lo}` : `$${lo}-$${hi}`;
+}
+
 /** A LocalBusiness JSON-LD record built only from verified facts. */
 export function localBusinessSchema(input: {
   name: string;
@@ -118,15 +199,25 @@ export function localBusinessSchema(input: {
   reviews?: Review[];
   services?: Service[];
   image?: string | null;
+  /** The organisation's own industry text: picks the most specific schema.org type. */
+  industry?: string | null;
+  /** The owner's own social profile links, for sameAs. */
+  social?: Social;
 }): Record<string, unknown> {
   const p = input.profile ?? {};
+  const resolved = resolveSchemaType(input.industry);
   const schema: Record<string, unknown> = {
     "@context": "https://schema.org",
-    "@type": "LocalBusiness",
+    "@type": resolved.type,
     "@id": `${input.url}#business`,
     name: input.name,
     url: input.url,
   };
+  if (resolved.serviceType) schema["knowsAbout"] = resolved.serviceType;
+  if (resolved.type === "Restaurant") {
+    const cuisine = CUISINES.find((c) => new RegExp(`\\b${c}\\b`, "i").test(input.industry ?? ""));
+    if (cuisine) schema["servesCuisine"] = cuisine;
+  }
   const description = clean(p.description, 500) ?? clean(p.tagline, 300);
   if (description) schema["description"] = description;
   const phone = clean(p.phone, 40);
@@ -149,6 +240,10 @@ export function localBusinessSchema(input: {
       ...(region ? { addressRegion: region } : {}),
       ...(postal ? { postalCode: postal } : {}),
     };
+    // A map link only for a real street address the owner gave; never coordinates we do not have.
+    if (street && (city || postal)) {
+      schema["hasMap"] = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([street, city, region, postal].filter(Boolean).join(", "))}`;
+    }
   }
   const area = clean(p.service_area, 200);
   if (area) schema["areaServed"] = area;
@@ -158,8 +253,13 @@ export function localBusinessSchema(input: {
     const display = hoursDisplay(p.hours);
     if (display) schema["openingHours"] = display;
   }
-  const review = clean(p.review_link, 2000);
-  if (review?.startsWith("https://")) schema["sameAs"] = [review];
+  const sameAs = [
+    clean(p.review_link, 2000),
+    ...["google_business", "facebook", "instagram", "linkedin", "tiktok", "youtube"].map((k) => clean((input.social as Record<string, unknown> | null | undefined)?.[k], 2000)),
+  ].filter((u): u is string => !!u && u.startsWith("https://"));
+  if (sameAs.length) schema["sameAs"] = [...new Set(sameAs)];
+  const priceRange = priceRangeFrom(input.services);
+  if (priceRange) schema["priceRange"] = priceRange;
 
   // Only real, published reviews; aggregate only with at least one rating.
   const rated = (input.reviews ?? []).filter(
@@ -233,7 +333,8 @@ export function siteThemeColor(profile: Profile): string | null {
 }
 
 type HeadSite = {
-  org: { name: string };
+  org: { name: string; industry?: string | null };
+  social?: Social;
   profile?: Profile & { font_preference?: string | null };
   settings?: { generation?: unknown } | null;
   reviews?: Review[];
@@ -276,6 +377,8 @@ export function clientHeadExtrasSync(
             reviews: site.reviews ?? [],
             services: site.services ?? [],
             image: shareImage && shareImage.startsWith("https://") ? shareImage : null,
+            industry: site.org.industry ?? null,
+            social: site.social ?? null,
           }),
         ),
       },
@@ -327,7 +430,8 @@ type TenantHeadPage = {
 };
 
 export type TenantHeadSite = {
-  org: { name: string };
+  org: { name: string; industry?: string | null };
+  social?: Social;
   profile?: (Profile & { font_preference?: string | null }) | null;
   settings?: { generation?: unknown; seo?: unknown } | null;
   reviews?: Review[];

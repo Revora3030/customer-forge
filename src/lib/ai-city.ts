@@ -9,7 +9,7 @@ export const CITY_DISTRICTS = [
 ] as const;
 
 export type DistrictId = typeof CITY_DISTRICTS[number]["id"];
-export type CityWork = { id: string; district: DistrictId; title: string; status: string; at: string; source: string; organizationId?: string; model?: string | null; progress?: number; detail?: string | null; runId?: string; /** When the work began, only for sources that record it. */ startedAt?: string };
+export type CityWork = { id: string; district: DistrictId; title: string; status: string; at: string; source: string; organizationId?: string; model?: string | null; progress?: number; detail?: string | null; runId?: string; /** Step kind, only for Jarvis run events. */ kind?: string; /** When the work began, only for sources that record it. */ startedAt?: string };
 export type CitySource = { available: boolean; rows: CityWork[]; total: number | null; truncated: boolean };
 export type CitySnapshot = { checkedAt: string; sources: Record<string, CitySource>; pipeline?: PipelineCounts };
 
@@ -228,4 +228,44 @@ export function pulseRate(state: ReturnType<typeof districtState>, counts: Distr
 export function approveTap(risk: string, armed: boolean): { armed: boolean; fire: boolean } {
   if (risk === "low") return { armed: false, fire: true };
   return armed ? { armed: false, fire: true } : { armed: true, fire: false };
+}
+
+/* --------------------------- fixed failures are history --------------------------- */
+
+/**
+ * A failed build is "superseded" once a later build for the same workspace
+ * completed. It stays listed, but no longer counts as a failure that needs you.
+ */
+export function settleSupersededBuilds(rows: readonly CityWork[], completed: readonly { organization_id: string; updated_at: string | null }[]): CityWork[] {
+  const latest = new Map<string, number>();
+  for (const job of completed) {
+    const at = Date.parse(job.updated_at ?? "");
+    if (Number.isFinite(at) && at > (latest.get(job.organization_id) ?? -Infinity)) latest.set(job.organization_id, at);
+  }
+  return rows.map((row) => {
+    if (row.status !== "failed" || !row.organizationId) return row;
+    const done = latest.get(row.organizationId);
+    const failedAt = Date.parse(row.at);
+    return done !== undefined && Number.isFinite(failedAt) && done > failedAt ? { ...row, status: "superseded", detail: row.detail ? `${row.detail} · fixed by a later completed build` : "Fixed by a later completed build" } : row;
+  });
+}
+
+/**
+ * A Jarvis step that failed and then succeeded in the same run (for example a
+ * model call answered by the backup model) is "recovered", not failed.
+ */
+export function settleRecoveredFailures(rows: readonly CityWork[]): CityWork[] {
+  const okAt = new Map<string, number>();
+  for (const row of rows) {
+    if (row.status !== "ok" || !row.runId) continue;
+    const key = `${row.runId}|${row.kind ?? ""}`;
+    const at = Date.parse(row.at);
+    if (Number.isFinite(at) && at > (okAt.get(key) ?? -Infinity)) okAt.set(key, at);
+  }
+  return rows.map((row) => {
+    if (!(FAILED_STATUSES as readonly string[]).includes(row.status) || !row.runId) return row;
+    const ok = okAt.get(`${row.runId}|${row.kind ?? ""}`);
+    const failedAt = Date.parse(row.at);
+    return ok !== undefined && Number.isFinite(failedAt) && ok >= failedAt ? { ...row, status: "recovered" } : row;
+  });
 }

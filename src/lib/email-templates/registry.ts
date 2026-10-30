@@ -4,6 +4,7 @@ import { template as automationMessageTemplate } from "./automation-message";
 import { template as leadAlertTemplate } from "./lead-alert";
 import { template as leadConfirmationTemplate } from "./lead-confirmation";
 import { template as newSignupAlertTemplate } from "./new-signup-alert";
+import { template as founderAlertTemplate } from "./founder-alert";
 import { template as growthAssessmentTemplate } from "./growth-assessment";
 import { template as prospectDemoTemplate } from "./prospect-demo";
 import {
@@ -46,6 +47,7 @@ export const TEMPLATES: Record<string, TemplateEntry> = {
   "lead-alert": leadAlertTemplate,
   "lead-confirmation": leadConfirmationTemplate,
   "new-signup-alert": newSignupAlertTemplate,
+  "founder-alert": founderAlertTemplate,
   "growth-assessment": growthAssessmentTemplate,
   "prospect-demo": prospectDemoTemplate,
   "billing-welcome": welcomeTemplate,

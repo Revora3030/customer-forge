@@ -33,6 +33,7 @@ function database(seed: Record<string, Row[]>) {
         insert: (next: Row) => { mode = "insert"; value = next; return query; },
         update: (next: Row) => { mode = "update"; value = next; return query; },
         eq: (key: string, expected: unknown) => { predicates.push((row) => row[key] === expected); return query; },
+        in: (key: string, expected: unknown[]) => { predicates.push((row) => expected.includes(row[key])); return query; },
         limit: (count: number) => { limit = count; return query; },
         maybeSingle: async () => ({ ...run(), data: run().data[0] ?? null }),
         single: async () => { const r = run(); return { ...r, data: r.data[0] ?? null }; },
@@ -50,6 +51,16 @@ const shell = (marker: Row = {}) => ({
 });
 
 describe("startDeferredDemoBuild", () => {
+  it.each(["failed", "cancelled"])("does not let a historical %s attempt block a replied pitch shell", async (status) => {
+    const { db, tables } = database({ ...shell({ placeId: "osm:node:1" }), generation_jobs: [{ organization_id: "o1", status }] });
+    expect(await startDeferredDemoBuild(db, "o1")).toBeTruthy();
+    expect(tables["generation_jobs"]).toHaveLength(2);
+  });
+  it.each(["processing", "running", "completed"])("does not restart a %s demo", async (status) => {
+    const { db, tables } = database({ ...shell(), generation_jobs: [{ organization_id: "o1", status }] });
+    expect(await startDeferredDemoBuild(db, "o1")).toBeNull();
+    expect(tables["generation_jobs"]).toHaveLength(1);
+  });
   it("queues the build once for an unbuilt pitch shell and clears the flag", async () => {
     const { db, tables } = database(shell());
     const jobId = await startDeferredDemoBuild(db, "o1");

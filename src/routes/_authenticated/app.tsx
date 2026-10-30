@@ -29,7 +29,7 @@ import { Logo, LogoMark } from "@/components/brand/Logo";
 import { Button } from "@/components/ui/button";
 import { LiveDot, Pill } from "@/components/app/Bits";
 import { WorkspaceNav, type WorkspaceNavItem } from "@/components/app/WorkspaceNav";
-import { useNotifications, useWorkspaceRealtime } from "@/lib/queries";
+import { useNotifications, useWebsiteSettings, useWorkspaceRealtime } from "@/lib/queries";
 import { useSignOut, useWorkspace } from "@/lib/use-tenant";
 import { endSupportSession } from "@/lib/admin.functions";
 import { GROWTH_SYSTEM, usd } from "@/lib/offer";
@@ -188,6 +188,10 @@ function AppShell() {
     item.exact ? pathname === item.to : pathname.startsWith(item.to),
   );
   const { data: billing, isLoading: billingLoading } = useBillingState(org?.id);
+  // The public /s/<slug> address only serves a published site; before that it
+  // says "Business not found". Unpublished workspaces get their draft preview.
+  const { data: siteSettings } = useWebsiteSettings(org?.id);
+  const siteLive = siteSettings?.publish_state === "published";
   // Per-client countdown: derived from this workspace's own trial_ends_at, so
   // two clients signing up minutes apart each see their own real deadline.
   const trialEnd = trialEndsAtMs(org);
@@ -210,9 +214,18 @@ function AppShell() {
     !supporting,
   );
   const paymentLocked = paymentRequired && !pathname.startsWith("/app/billing");
+  // Only wait on the billing lookup when it can actually change access. Demo
+  // workspaces, paid workspaces, active trials, platform admins and support
+  // sessions are open regardless, and used to sit on "Checking workspace
+  // access…" (e.g. /app/launch) while billing loaded or retried.
+  const billingDecidesAccess = Boolean(
+    org && !org.is_demo && !paidAccess && !trialStillActive && !data?.isSuperAdmin && !supporting,
+  );
+  const waitingOnBilling = billingLoading && billingDecidesAccess;
 
   useEffect(() => {
-    if (!isLoading && data && !data.workspace) navigate({ to: "/onboarding", replace: true });
+    // One onboarding door: an account without a workspace goes to /get-started.
+    if (!isLoading && data && !data.workspace) navigate({ to: "/get-started", replace: true });
   }, [data, isLoading, navigate]);
 
   const queryClient = useQueryClient();
@@ -333,12 +346,12 @@ function AppShell() {
             <p className="eyebrow">Your site</p>
             <p className="mt-1 truncate text-[13px] font-medium">{org.name}</p>
             <Link
-              to="/s/$slug"
+              to={siteLive ? "/s/$slug" : "/draft/$slug"}
               params={{ slug: org.slug }}
               target="_blank"
               className="mt-2 inline-flex items-center gap-1.5 text-[12px] text-primary hover:underline"
             >
-              View live site <ExternalLink className="size-3" />
+              {siteLive ? "View live site" : "Preview draft site"} <ExternalLink className="size-3" />
             </Link>
           </div>
         ) : null}
@@ -494,7 +507,7 @@ function AppShell() {
         </header>
 
         <main className="product-canvas px-4 py-5 sm:px-6 sm:py-6">
-          {billingLoading && org ? (
+          {waitingOnBilling ? (
             <div className="py-12 text-center text-[13px] text-muted-foreground">
               Checking workspace access…
             </div>

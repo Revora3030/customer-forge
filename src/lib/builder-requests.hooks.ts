@@ -62,7 +62,8 @@ import {
   type MessageKind,
 } from "@/lib/builder/chat-thread";
 import { supabase } from "@/integrations/supabase/client";
-import { jobIsActive, type JobLivenessRow } from "@/lib/builder/job-liveness";
+import type { JobLivenessRow } from "@/lib/builder/job-liveness";
+import { buildJobRunning, settleDeferredReplies, settleDeferredTurns } from "@/lib/build-status-reply";
 import { addPending, clearAllPending, clearPending, readPending, unresolvedPending, type PendingRequest } from "@/lib/builder/pending-requests";
 
 export const INSTRUCTION_LIMIT = 1200;
@@ -93,14 +94,28 @@ async function firstBuildSettled(organizationId: string): Promise<boolean> {
       .eq("organization_id", organizationId),
     supabase
       .from("generation_jobs")
-      .select("id, status, lease_expires_at, updated_at")
+      .select("id, status, lease_expires_at, updated_at, created_at")
       .eq("organization_id", organizationId)
       .in("status", ["queued", "processing"])
       .limit(5),
   ]);
-  // A stalled job (worker cut off, lease long expired) is not a running build.
-  const running = ((active ?? []) as JobLivenessRow[]).some((row) => jobIsActive(row));
+  // A stalled job (worker cut off, lease long expired) or a queued leftover
+  // nobody picked up is not a running build.
+  const running = buildJobRunning((active ?? []) as JobLivenessRow[]);
   return (count ?? 0) > 0 && !running;
+}
+
+/** True when this workspace has a build job that is really being worked on. */
+async function buildRunningNow(organizationId: string): Promise<boolean> {
+  const { data, error } = await supabase
+    .from("generation_jobs")
+    .select("id, status, lease_expires_at, updated_at, created_at")
+    .eq("organization_id", organizationId)
+    .in("status", ["queued", "processing"])
+    .limit(5);
+  // An unreadable job table is not proof the build stopped: keep the saved text.
+  if (error) return true;
+  return buildJobRunning((data ?? []) as JobLivenessRow[]);
 }
 
 /**
@@ -284,6 +299,19 @@ export function useBuilderRequests({
           return mergeRestored(past, [...current, ...restoredQueue]);
         });
         setMemoryLoaded(true);
+        // A saved "your AI team is finishing the first website now" reply is
+        // only true while a build job is alive. Read the real job state and
+        // show the line in the past tense once no build is running.
+        if (mainTurns.some((turn) => turn.role === "assistant" && turn.content.includes("finishing the first website now"))) {
+          void buildRunningNow(organizationId).then(
+            (running) => {
+              if (!live || running) return;
+              setTasks((current) => settleDeferredReplies(current, false));
+              setConversation((current) => settleDeferredTurns(current, false));
+            },
+            () => undefined,
+          );
+        }
       },
       () => {
         if (!live) return;

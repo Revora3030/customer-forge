@@ -19,6 +19,8 @@ import {
 } from "@/lib/queries";
 import { useProductionStatus } from "@/lib/production.hooks";
 import { useTrialCountdown } from "@/lib/trial-clock";
+import { useBillingState } from "@/lib/stripe.hooks";
+import { deriveBillingStatus } from "@/lib/billing-status";
 import { GROWTH_SYSTEM, usd } from "@/lib/offer";
 import type { Tone } from "@/lib/domain";
 
@@ -47,6 +49,8 @@ export function StatusCenter({ organizationId }: { organizationId: string | unde
   const { data: appointments } = useAppointments(organizationId);
   const { data: automations } = useAutomations(organizationId);
   const { data: runs } = useAutomationRuns(organizationId);
+  // Same verified billing read /app/billing uses, so the two never disagree.
+  const { data: billingState } = useBillingState(organizationId);
 
   const trialEndsAt = production?.trialEndsAt ? Date.parse(production.trialEndsAt) : null;
   const countdown = useTrialCountdown(Number.isFinite(trialEndsAt) ? trialEndsAt : null);
@@ -89,23 +93,21 @@ export function StatusCenter({ organizationId }: { organizationId: string | unde
       to: "/app/billing",
     };
 
-    const accountStatus = production?.accountStatus;
+    const status = deriveBillingStatus({
+      setupPaid: paid || Boolean(billingState?.setupPaid),
+      subscription: billingState?.subscription ?? null,
+      freeAccessEndsAt: Number.isFinite(trialEndsAt) ? trialEndsAt : null,
+    });
     const billing: Tile = {
       key: "billing",
       label: "Billing",
-      value: paid
-        ? accountStatus === "active"
-          ? "Paid"
-          : "Setup paid"
-        : accountStatus === "expired"
-          ? "Past due"
-          : productionPending
-            ? "Checking…"
-            : "Trial",
-      tone: paid ? "signal" : accountStatus === "expired" ? "danger" : "info",
-      hint: paid
-        ? `${usd(GROWTH_SYSTEM.monthlyPrice)}/month after your first free month.`
-        : `${usd(GROWTH_SYSTEM.setupPrice)} setup, first month free, then ${usd(GROWTH_SYSTEM.monthlyPrice)}/month.`,
+      value: productionPending && !billingState ? "Checking…" : status.label,
+      tone: status.tone,
+      hint: status.date
+        ? `${status.dateLabel}: ${new Date(status.date).toLocaleDateString()}`
+        : paid
+          ? `${usd(GROWTH_SYSTEM.monthlyPrice)}/month after your first free month.`
+          : `${usd(GROWTH_SYSTEM.setupPrice)} setup, first month free, then ${usd(GROWTH_SYSTEM.monthlyPrice)}/month.`,
       to: "/app/billing",
     };
 
@@ -209,7 +211,18 @@ export function StatusCenter({ organizationId }: { organizationId: string | unde
       bookingTile,
       automationTile,
     ];
-  }, [production, productionPending, settings, leads, appointments, automations, runs, countdown]);
+  }, [
+    production,
+    productionPending,
+    settings,
+    leads,
+    appointments,
+    automations,
+    runs,
+    countdown,
+    billingState,
+    trialEndsAt,
+  ]);
 
   return (
     <Panel>

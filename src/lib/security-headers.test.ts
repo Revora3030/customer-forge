@@ -2,6 +2,11 @@ import { describe, expect, it } from "vitest";
 import { baseSecurityHeaders, documentSecurityHeaders } from "./security-headers";
 
 describe("security headers", () => {
+  it("allows only the required Google stylesheet and font hosts for platform fonts", () => {
+    const csp = documentSecurityHeaders({ https: true })["content-security-policy"];
+    expect(csp).toContain("style-src 'self' 'unsafe-inline' https://fonts.googleapis.com");
+    expect(csp).toContain("font-src 'self' data: https://fonts.gstatic.com");
+  });
   it("sets hardened baseline headers", () => {
     const headers = baseSecurityHeaders({ https: true });
     expect(headers["x-content-type-options"]).toBe("nosniff");

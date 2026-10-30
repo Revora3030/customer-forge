@@ -40,8 +40,10 @@ describe("brush reveal on a before/after pair", () => {
     expect(html).toContain("<noscript>");
     expect(html).toContain("temp_after.jpg");
   });
-  it("keeps the owner-photos-only rule: a generated picture on either side renders nothing", () => {
-    expect(draw(brush() as CompositionTree, "generated")).not.toContain("<img");
+  it("keeps the owner-photos-only rule: a generated pair is never a brush reveal, only a labeled example", () => {
+    const html = draw(brush() as CompositionTree, "generated");
+    expect(html).not.toContain("Show finished result");
+    expect(html).toContain("Example illustration — not a photo of our work");
   });
   it("leaves the normal slider alone when no mode is set", () => {
     const plain = brush();

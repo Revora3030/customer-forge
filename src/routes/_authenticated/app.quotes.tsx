@@ -16,7 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useQuoteBuilder, useQuoteBuilderMutations, useQuoteRequests } from "@/lib/queries";
+import { useQuoteBuilder, useQuoteBuilderMutations, useQuoteRequests, useWebsiteSettings } from "@/lib/queries";
 import { canManage, useWorkspace } from "@/lib/use-tenant";
 import { currency, relative } from "@/lib/format";
 
@@ -69,6 +69,8 @@ function QuotesPage() {
   const orgId = ws?.workspace?.organizationId;
   const slug = ws?.workspace?.organization?.slug;
   const { data: builder, isLoading } = useQuoteBuilder(orgId);
+  const { data: siteSettings } = useWebsiteSettings(orgId);
+  const siteLive = siteSettings?.publish_state === "published";
   const { data: requests } = useQuoteRequests(orgId);
   const m = useQuoteBuilderMutations(orgId);
   const businessName = ws?.workspace?.organization?.name ?? null;
@@ -122,8 +124,8 @@ function QuotesPage() {
       >
         {slug ? (
           <Button asChild variant="outline">
-            <Link to="/s/$slug" params={{ slug }} target="_blank">
-              View on my website
+            <Link to={siteLive ? "/s/$slug" : "/draft/$slug"} params={{ slug }} target="_blank">
+              {siteLive ? "View on my website" : "Preview on my draft site"}
             </Link>
           </Button>
         ) : null}

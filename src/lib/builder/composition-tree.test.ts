@@ -45,6 +45,63 @@ describe("AI-authored compositions", () => {
     expect(html).toContain('href="/book"');
   });
 
+  it("accepts and renders an AI-authored perspective scene with bounded depth and 3D hover", () => {
+    const immersive = {
+      version: 1,
+      label: "Original perspective scene",
+      root: {
+        type: "scene3d",
+        style: { perspective: 1100, transformStyle: "preserve-3d" },
+        children: [
+          {
+            type: "card",
+            text: "Precision detailing",
+            style: { depth: 96, rotate: 12, rotateAxis: "y", backfaceVisibility: "hidden" },
+            hover: { z: 18, rotateX: 4, rotateY: 7, durationMs: 360 },
+          },
+          { type: "media", src: "https://example.com/automotive-detail.jpg", alt: "Detailed luxury vehicle" },
+        ],
+      },
+    };
+    const result = validateComposition(immersive);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const html = renderToStaticMarkup(createElement(CompositionRenderer, { tree: result.tree, scope: "scene-3d" }));
+    expect(html).toContain("perspective:1100px");
+    expect(html).toContain("transform-style:preserve-3d");
+    expect(html).toContain("translate:0 0 96px");
+    expect(html).toContain("rotate:y 12deg");
+    expect(html).toContain("translate3d(0px,0px,18px)");
+    expect(html).toContain("rotateX(4deg)");
+    expect(html).toContain("rotateY(7deg)");
+    expect(html).toContain("prefers-reduced-motion: no-preference");
+  });
+
+  it("bounds all AI-authored 3D values and rejects an axis without a rotation", () => {
+    const result = validateComposition({
+      version: 1,
+      root: {
+        type: "scene3d",
+        style: { perspective: 9000 },
+        children: [
+          { type: "card", text: "Depth", style: { depth: 4000, rotateAxis: "x" } },
+        ],
+      },
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.issues.some((issue) => issue.problem.includes("rotateAxis requires rotate"))).toBe(true);
+    const lenient = validateComposition({
+      version: 1,
+      root: { type: "scene3d", style: { perspective: 9000 }, children: [{ type: "card", text: "Depth", style: { depth: 4000 } }] },
+    }, { lenient: true });
+    expect(lenient.ok).toBe(true);
+    if (lenient.ok) {
+      expect(lenient.tree.root.style?.perspective).toBe(3000);
+      expect(lenient.tree.root.children?.[0]?.style?.depth).toBe(800);
+    }
+  });
+
   it("rejects unsafe output with issues and never a substitute design", () => {
     const bad = {
       version: 1,

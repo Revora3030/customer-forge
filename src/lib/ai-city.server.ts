@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import type { CitySnapshot, CitySource, CityWork, PipelineCounts } from "./ai-city";
 import { summarize } from "./jarvis-events";
+import { settleRecoveredFailures, settleSupersededBuilds } from "./ai-city";
 
 export async function collectCitySnapshot(db: SupabaseClient<Database>, userId: string): Promise<CitySnapshot> {
   const since = new Date(Date.now() - 7 * 86_400_000).toISOString();
@@ -17,7 +18,7 @@ export async function collectCitySnapshot(db: SupabaseClient<Database>, userId: 
   const base = (r: Record<string, unknown>, district: CityWork["district"], table: string, title: string): CityWork => ({ id: `${table}:${text(r, "id")}`, district, source: table, title, status: text(r, "status") || "recorded", at: text(r, "updated_at") || text(r, "created_at"), ...(typeof r["organization_id"] === "string" ? { organizationId: r["organization_id"] } : {}) });
   const [jobs, events, routines, traces, images, approvals, automations, errors, memories] = await Promise.all([
     source(db.from("generation_jobs").select("id,organization_id,status,current_step,progress,updated_at,started_at,wait_reason,resumes_at", { count: "exact" }).in("status", ["queued", "running", "waiting", "retrying", "failed"]).order("updated_at", { ascending: false }).limit(limit), r => ({ ...base(r, "factory", "generation_jobs", text(r, "current_step") || "Website build"), progress: Number(r["progress"]) || 0, ...(typeof r["started_at"] === "string" ? { startedAt: r["started_at"] } : {}), detail: text(r, "wait_reason") || (r["resumes_at"] ? `Retry: ${text(r, "resumes_at")}` : null) })),
-    source(db.from("jarvis_run_events").select("id,run_id,status,label,model,provider,created_at,output_summary,tool_id").eq("user_id", userId).gte("created_at", since).order("created_at", { ascending: false }).limit(limit), r => ({ ...base(r, "executive", "jarvis_run_events", text(r, "label") || text(r, "tool_id") || "Jarvis work"), runId: text(r, "run_id"), model: r["provider"] === "lovable" ? text(r, "model") : null, detail: text(r, "output_summary") })),
+    source(db.from("jarvis_run_events").select("id,run_id,kind,status,label,model,provider,created_at,output_summary,tool_id").eq("user_id", userId).gte("created_at", since).order("created_at", { ascending: false }).limit(limit), r => ({ ...base(r, "executive", "jarvis_run_events", text(r, "label") || text(r, "tool_id") || "Jarvis work"), runId: text(r, "run_id"), kind: text(r, "kind"), model: r["provider"] === "lovable" ? text(r, "model") : null, detail: text(r, "output_summary") })),
     source(db.from("jarvis_routines").select("id,name,enabled,last_status,last_run_at,created_at,hour,minute,frequency").eq("user_id", userId).order("created_at").limit(limit), r => ({ ...base(r, "executive", "jarvis_routines", text(r, "name")), status: r["enabled"] ? text(r, "last_status") || "scheduled" : "paused", at: text(r, "last_run_at") || text(r, "created_at"), detail: `${text(r, "frequency")} · ${String(r["hour"]).padStart(2, "0")}:${String(r["minute"]).padStart(2, "0")} Eastern` })),
     source(db.from("ai_team_trace").select("id,stage,model,ok,created_at,organization_id").eq("provider", "lovable").gte("created_at", since).order("created_at", { ascending: false }).limit(limit), r => ({ ...base(r, "institute", "ai_team_trace", text(r, "stage")), status: r["ok"] === true ? "ok" : "failed", model: text(r, "model") })),
     source(db.from("image_records").select("id,organization_id,slot,status,updated_at,model,provider", { count: "exact" }).eq("status", "pending").order("updated_at", { ascending: false }).limit(limit), r => ({ ...base(r, "creative", "image_records", text(r, "slot") || "Image review"), model: r["provider"] === "lovable" ? text(r, "model") : null })),
@@ -25,9 +26,23 @@ export async function collectCitySnapshot(db: SupabaseClient<Database>, userId: 
     source(db.from("automation_runs").select("id,organization_id,action_type,status,created_at,scheduled_for", { count: "exact" }).in("status", ["pending", "running", "failed"]).order("created_at", { ascending: false }).limit(limit), r => ({ ...base(r, "growth", "automation_runs", text(r, "action_type")), detail: `Scheduled: ${text(r, "scheduled_for")}` })),
     // Warnings and client disconnects (HTTP 499 / "aborted") are not outages.
     // Counting them made Reliability Center show a hundred failures for tab closes.
-    source(db.from("error_events").select("id,message,created_at", { count: "exact" }).eq("level", "error").or("status_code.is.null,status_code.neq.499").gte("created_at", since).order("created_at", { ascending: false }).limit(limit), r => ({ ...base(r, "security", "error_events", summarize(r["message"], 120) || "Recorded error"), status: "error" })),
+    source(db.from("error_events").select("id,message,created_at", { count: "exact" }).eq("level", "error").or("status_code.is.null,status_code.neq.499").not("message", "in", '("aborted","This operation was aborted","The operation was aborted.")').gte("created_at", since).order("created_at", { ascending: false }).limit(limit), r => ({ ...base(r, "security", "error_events", summarize(r["message"], 120) || "Recorded error"), status: "error" })),
     source(db.from("jarvis_memories").select("id,kind,source,updated_at", { count: "exact" }).eq("user_id", userId).order("updated_at", { ascending: false }).limit(limit), r => ({ ...base(r, "knowledge", "jarvis_memories", text(r, "kind") || "Saved memory"), detail: text(r, "source") })),
   ]);
+  // A failed record that was already fixed is history, not a failure that
+  // needs the owner: a build failure followed by a completed build for the
+  // same workspace, or a Jarvis step that failed and then succeeded in the
+  // same run (fallback model). Records are relabelled, never deleted.
+  if (jobs.available) {
+    const failedOrgs = [...new Set(jobs.rows.filter(r => r.status === "failed" && r.organizationId).map(r => r.organizationId as string))];
+    if (failedOrgs.length) {
+      try {
+        const { data, error } = await db.from("generation_jobs").select("organization_id,updated_at").in("organization_id", failedOrgs.slice(0, 200)).eq("status", "completed").order("updated_at", { ascending: false }).limit(1000);
+        if (!error && Array.isArray(data)) jobs.rows = settleSupersededBuilds(jobs.rows, data as { organization_id: string; updated_at: string | null }[]);
+      } catch { /* keep the failures as recorded */ }
+    }
+  }
+  if (events.available) events.rows = settleRecoveredFailures(events.rows);
   const pipeline = await collectSalesPipeline(db);
   return { checkedAt: new Date().toISOString(), sources: { jobs, events, routines, traces, images, approvals, automations, errors, memories }, pipeline };
 }

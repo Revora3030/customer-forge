@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { methodNotAllowed } from "@/lib/method-not-allowed";
 
 /**
  * Anonymous engagement beacon for prospect demo previews (/p/<token>).
@@ -18,6 +19,7 @@ async function handle(request: Request): Promise<Response> {
 export const Route = createFileRoute("/api/public/preview-beacon")({
   server: {
     handlers: {
+      GET: () => methodNotAllowed(),
       POST: ({ request }) => handle(request),
     },
   },
