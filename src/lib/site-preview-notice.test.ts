@@ -5,7 +5,9 @@ import { isSafeRedirect, ownerPreviewPath, ownerPreviewSignInPath } from "./pros
 describe("unpublished /s/:slug shows a preview notice (Phase A item 8)", () => {
   it("links the owner to sign in and land on /draft/:slug", () => {
     expect(ownerPreviewPath("elite-mobile-detail")).toBe("/draft/elite-mobile-detail");
-    expect(ownerPreviewSignInPath("elite-mobile-detail")).toBe("/auth?redirect=%2Fdraft%2Felite-mobile-detail");
+    expect(ownerPreviewSignInPath("elite-mobile-detail")).toBe(
+      "/auth?redirect=%2Fdraft%2Felite-mobile-detail",
+    );
     expect(isSafeRedirect(ownerPreviewPath("elite-mobile-detail"))).toBe(true);
     expect(ownerPreviewPath("a/../b")).toBe("/draft/a%2F..%2Fb");
   });
