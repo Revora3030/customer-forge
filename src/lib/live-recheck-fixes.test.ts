@@ -56,7 +56,7 @@ describe("preview links", () => {
     expect(friendlyError(new Error(PREVIEW_LINK_SAVE_FAILED), "fallback")).toBe(PREVIEW_LINK_SAVE_FAILED);
   });
   it("migration lets support sessions manage preview links", () => {
-    const sql = read("supabase/migrations/20261030120000_preview_links_support_and_hero_video_bucket.sql");
+    const sql = read("supabase/migrations/20261030130000_preview_links_support_and_hero_video_bucket.sql");
     expect(sql).toContain("private.can_manage_org");
     expect(sql).toContain("video/mp4");
   });
