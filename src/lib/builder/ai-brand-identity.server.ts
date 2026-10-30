@@ -8,6 +8,7 @@
  * design team cannot author an identity, the build fails loudly instead of
  * falling back to a stock look.
  */
+import { blueprintFor } from "@/lib/builder/industry-playbook";
 import type { DesignDirection } from "@/lib/authored-direction";
 import { craftBarPrompt } from "@/lib/builder/world-class-craft";
 import { readSectionEffects } from "@/lib/authored-direction";
@@ -56,6 +57,17 @@ const SYSTEM = [
   "Reply with JSON only.",
 ].join(" ");
 
+/**
+ * The trade blueprint as a starting point (Phase B item 1): map it to the three colour roles and the font pair.
+ * The owner's own preferences and requested font always win, and the model may shift hues to fit the business.
+ */
+function tradeBlueprintLine(input: BrandIdentityInput): string | null {
+  const blueprint = blueprintFor(input.industry ?? null, [input.description ?? "", ...(input.services ?? []).map((s) => s.name)].join(" "));
+  if (!blueprint) return null;
+  const p = blueprint.palette;
+  return `Starting point for a ${blueprint.label} business (adapt it, the owner's preferences win): ${blueprint.look}. Suggested roles — primary ${p.accent}, secondary ${p.canvas}, accent ${p.grounding}; heading ${blueprint.fonts.display}, body ${blueprint.fonts.body}.`;
+}
+
 function schemaPrompt(input: BrandIdentityInput): string {
   const services = (input.services ?? [])
     .slice(0, 12)
@@ -71,6 +83,7 @@ function schemaPrompt(input: BrandIdentityInput): string {
     input.requestedFont
       ? `The owner already asked for this heading typeface, so use it: ${input.requestedFont}`
       : null,
+    tradeBlueprintLine(input),
     "",
     "Return exactly this JSON shape:",
     JSON.stringify(

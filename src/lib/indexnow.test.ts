@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { describeIndexNowStatus, indexNowKey, indexNowPayload } from "@/lib/indexnow";
+import { describeIndexNowStatus, indexNowKey, indexNowPayload, indexNowRootKeyPath, sitemapLocs } from "@/lib/indexnow";
 
 const KEY = "example-indexnow-value";
 
@@ -42,5 +42,27 @@ describe("IndexNow submissions for revoragrowthsystems.com", () => {
   it("serves the key file and keeps the submit action super-admin only", () => {
     expect(readFileSync("src/routes/indexnow-key[.]txt.ts", "utf8")).toContain('await indexNowKey(host, process.env["INDEXNOW_KEY"])');
     expect(readFileSync("src/lib/indexnow.functions.ts", "utf8")).toContain("await assertSuperAdmin(context.supabase, context.userId);");
+  });
+
+  it("also serves the key at IndexNow's default /<key>.txt root location, only for the host's own key", async () => {
+    const key = await indexNowKey("revoragrowthsystems.com");
+    expect(indexNowRootKeyPath(key)).toBe(`/${key}.txt`);
+    const route = readFileSync("src/routes/{$key}[.]txt.ts", "utf8");
+    expect(route).toContain('createFileRoute("/{$key}.txt")');
+    expect(route).toContain('await indexNowKey(host, process.env["INDEXNOW_KEY"])');
+    expect(route).toContain("params.key !== key");
+    expect(route).toContain("status: 404");
+  });
+
+  it("reads page and child-sitemap locations from live sitemap XML", () => {
+    expect(
+      sitemapLocs(
+        `<?xml version="1.0"?><urlset><url><loc>https://revoragrowthsystems.com</loc></url>
+        <url><loc> https://revoragrowthsystems.com/a?x=1&amp;y=2 </loc><lastmod>2026-10-29</lastmod></url></urlset>`,
+      ),
+    ).toEqual({ urls: ["https://revoragrowthsystems.com", "https://revoragrowthsystems.com/a?x=1&y=2"], sitemaps: [] });
+    expect(
+      sitemapLocs(`<sitemapindex><sitemap><loc>https://revoragrowthsystems.com/sitemaps/sites.xml</loc></sitemap></sitemapindex>`),
+    ).toEqual({ urls: [], sitemaps: ["https://revoragrowthsystems.com/sitemaps/sites.xml"] });
   });
 });

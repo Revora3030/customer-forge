@@ -106,6 +106,9 @@ const RECOVERABLE_REACT = [
 export function classifyClientError(error: unknown, described = describeClientError(error)): ClientErrorDisposition {
   if (isRouterControlFlow(error)) return "ignore";
   const message = described.message.trim();
+  // A fetch or stream the browser cancelled (navigation, tab close, an
+  // AbortController): expected control flow, not a crash.
+  if (described.kind === "AbortError" || isAbortMessage(message)) return "ignore";
   // Cross-origin script failures: the browser hides every detail, so there is
   // nothing to fix and nothing to group on.
   if (/^script error\.?$/i.test(message) && !described.stack) return "ignore";
@@ -140,6 +143,18 @@ const STALE_DEPLOY = [
  */
 export function isStaleDeployError(message: string): boolean {
   return STALE_DEPLOY.some((pattern) => pattern.test(message));
+}
+
+/** Abort wording from browsers, undici and h3 when a request is cancelled. */
+export function isAbortMessage(message: string): boolean {
+  const text = message.trim().toLowerCase();
+  return (
+    text === "aborted" ||
+    /^(this|the) operation was aborted\.?$/.test(text) ||
+    text === "the user aborted a request." ||
+    /^signal is aborted without reason\.?$/.test(text) ||
+    /^fetch is aborted\.?$/.test(text)
+  );
 }
 
 /** Bare browser network-failure messages: the request never reached us. */

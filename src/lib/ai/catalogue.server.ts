@@ -74,3 +74,28 @@ export async function catalogueFilterFor(role: string): Promise<((model: string)
   const byId = new Map(snapshot.models.map((model) => [model.id, model]));
   return (model) => ineligibleReason(byId.get(model), surfaceFor(role, model), role === "vision") === null;
 }
+
+/**
+ * Dynamic text-capable fallbacks discovered from the live catalogue.
+ *
+ * Configured rosters remain first choice. This returns only models that can
+ * answer on the router's exact text endpoint, accept text input, produce text
+ * output, pass deprecation/retention policy, and (for vision) accept images.
+ * If catalogue verification is unavailable or disabled, return no dynamic
+ * additions and leave the known static roster as the fallback.
+ */
+export async function eligibleCatalogueModelsForRole(role: string): Promise<string[]> {
+  if (!filterEnabled()) return [];
+  const snapshot = await liveCatalogue();
+  if (!snapshot.models) return [];
+  return snapshot.models
+    .filter((model) => {
+      const surface = surfaceFor(role, model.id);
+      if (surface !== "chat-completions" && surface !== "messages") return false;
+      if (!model.inputs.includes("text") || !model.outputs.includes("text")) return false;
+      if (ineligibleReason(model, surface, role === "vision") !== null) return false;
+      return true;
+    })
+    .map((model) => model.id)
+    .sort((a, b) => a.localeCompare(b));
+}

@@ -1324,7 +1324,10 @@ export function auditWebsite(
       ?.accessibility &&
     !!safeInput.visual
       ?.coverage
-      ?.performance;
+      ?.performance &&
+    // QA gate: overall >= 8/10 with no trait below 6/10. Reports saved before
+    // the gate existed fall back to the same 80/100 bar on their score.
+    (safeInput.visual?.ready ?? (safeInput.visual?.score ?? 0) >= 80);
 
   /* ------------------------------ RETURN --------------------------------- */
 

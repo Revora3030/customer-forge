@@ -1,7 +1,8 @@
 import { pageNavLabel, stripBusinessSuffix } from "@/lib/website-content";
 import { designTokenClasses, designTokenVars, readDesignTokens } from "@/lib/builder/design-tokens";
 import { readComposition as readSectionTree } from "@/lib/builder/composition-tree";
-import { prepareStudioPage, studioThemeVars } from "@/lib/builder/studio-canvas";
+import { prepareStudioPage, studioThemeVars, STUDIO_CANVAS } from "@/lib/builder/studio-canvas";
+import { blueprintFor } from "@/lib/builder/industry-playbook";
 import { premiumSurface } from "@/lib/site-theme";
 /**
  * A single structured page of a published business website
@@ -152,9 +153,13 @@ export function SitePageView({
   // Pages the AI menu left out are still offered, so no page is orphaned.
   const extraNav = missingChromeLinks(chrome.header, navRows as never);
   const sectionRoots = sections.map((section) => readSectionTree(section.settings)?.root ?? null);
-  // Every customer page, in every trade, stays on the obsidian studio canvas.
-  // A light cream or mint band is not a fallback for any category.
-  const studioPage = prepareStudioPage(sectionRoots, true);
+  // The canvas follows the trade blueprint: dark trades keep a studio canvas in
+  // their own colour (navy for a dentist, iron for a gym), light ones (cleaning,
+  // med spa) keep their authored light theme. A business with no category
+  // signal keeps the original obsidian studio.
+  const blueprint = blueprintFor(org.industry ?? null);
+  const studioPage = prepareStudioPage(sectionRoots, blueprint?.tone !== "light");
+  const studioCanvas = blueprint && blueprint.tone === "dark" ? blueprint.palette : null;
 
   useEffect(() => {
     if (preview) return;
@@ -194,7 +199,7 @@ export function SitePageView({
         }),
         ...siteFontStyle(profile?.font_preference ?? null),
         ...designTokenVars(readDesignTokens(site.settings?.generation ?? null)),
-        ...(studioPage.studio ? studioThemeVars() : {}),
+        ...(studioPage.studio ? studioThemeVars(studioCanvas) : {}),
       }}
       {...(studioPage.studio ? { "data-studio": "" } : {})}
     >
@@ -262,7 +267,7 @@ export function SitePageView({
               const section = sections[index];
               if (!section) return null;
               return (
-                <SiteSection key={section.id} site={site} section={section} lead={index === lead} first={index === 0} studio={studioPage.studio} preparedRoot={studioPage.roots[index] ?? null} />
+                <SiteSection key={section.id} site={site} section={section} lead={index === lead} first={index === 0} studio={studioPage.studio} studioCanvas={studioCanvas?.canvas ?? STUDIO_CANVAS} preparedRoot={studioPage.roots[index] ?? null} />
               );
             });
           })()}

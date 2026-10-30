@@ -36,6 +36,7 @@ import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as ToolsRouteImport } from './routes/tools'
 import { Route as WebsiteAuditRouteImport } from './routes/website-audit'
+import { Route as Char123keyChar125DottxtRouteImport } from './routes/{$key}[.]txt'
 import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/app'
@@ -274,6 +275,11 @@ const ToolsRoute = ToolsRouteImport.update({
 const WebsiteAuditRoute = WebsiteAuditRouteImport.update({
   id: '/website-audit',
   path: '/website-audit',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const Char123keyChar125DottxtRoute = Char123keyChar125DottxtRouteImport.update({
+  id: '/{$key}.txt',
+  path: '/{$key}.txt',
   getParentRoute: () => rootRouteImport,
 } as any)
 const Char91DotwellKnownChar93OauthProtectedResourceRoute =
@@ -869,6 +875,7 @@ export interface FileRoutesByFullPath {
   '/terms': typeof TermsRoute
   '/tools': typeof ToolsRoute
   '/website-audit': typeof WebsiteAuditRoute
+  '/{$key}.txt': typeof Char123keyChar125DottxtRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/admin': typeof AuthenticatedAdminRouteWithChildren
   '/app': typeof AuthenticatedAppRouteWithChildren
@@ -1000,6 +1007,7 @@ export interface FileRoutesByTo {
   '/terms': typeof TermsRoute
   '/tools': typeof ToolsRoute
   '/website-audit': typeof WebsiteAuditRoute
+  '/{$key}.txt': typeof Char123keyChar125DottxtRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
   '/compare/$slug': typeof CompareSlugRoute
@@ -1132,6 +1140,7 @@ export interface FileRoutesById {
   '/terms': typeof TermsRoute
   '/tools': typeof ToolsRoute
   '/website-audit': typeof WebsiteAuditRoute
+  '/{$key}.txt': typeof Char123keyChar125DottxtRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
   '/_authenticated/app': typeof AuthenticatedAppRouteWithChildren
@@ -1267,6 +1276,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/tools'
     | '/website-audit'
+    | '/{$key}.txt'
     | '/.well-known/oauth-protected-resource'
     | '/admin'
     | '/app'
@@ -1398,6 +1408,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/tools'
     | '/website-audit'
+    | '/{$key}.txt'
     | '/.well-known/oauth-protected-resource'
     | '/onboarding'
     | '/compare/$slug'
@@ -1529,6 +1540,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/tools'
     | '/website-audit'
+    | '/{$key}.txt'
     | '/.well-known/oauth-protected-resource'
     | '/_authenticated/admin'
     | '/_authenticated/app'
@@ -1664,6 +1676,7 @@ export interface RootRouteChildren {
   TermsRoute: typeof TermsRoute
   ToolsRoute: typeof ToolsRoute
   WebsiteAuditRoute: typeof WebsiteAuditRoute
+  Char123keyChar125DottxtRoute: typeof Char123keyChar125DottxtRoute
   Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   CompareSlugRoute: typeof CompareSlugRoute
   CrmTradeRoute: typeof CrmTradeRoute
@@ -1905,6 +1918,13 @@ declare module '@tanstack/react-router' {
       path: '/website-audit'
       fullPath: '/website-audit'
       preLoaderRoute: typeof WebsiteAuditRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/{$key}.txt': {
+      id: '/{$key}.txt'
+      path: '/{$key}.txt'
+      fullPath: '/{$key}.txt'
+      preLoaderRoute: typeof Char123keyChar125DottxtRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/.well-known/oauth-protected-resource': {
@@ -2905,6 +2925,7 @@ const rootRouteChildren: RootRouteChildren = {
   TermsRoute: TermsRoute,
   ToolsRoute: ToolsRoute,
   WebsiteAuditRoute: WebsiteAuditRoute,
+  Char123keyChar125DottxtRoute: Char123keyChar125DottxtRoute,
   Char91DotwellKnownChar93OauthProtectedResourceRoute:
     Char91DotwellKnownChar93OauthProtectedResourceRoute,
   CompareSlugRoute: CompareSlugRoute,

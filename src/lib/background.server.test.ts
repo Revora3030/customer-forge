@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { runInBackground, withExecutionContext } from "./background";
+import { runInBackground, withExecutionContext } from "./background.server";
 
 afterEach(() => vi.restoreAllMocks());
 

@@ -166,7 +166,18 @@ function truncated() {
  * not slow: the first token of a reasoning model can take a while, so the
  * first wait is longer than the gaps between later chunks.
  */
-export const STREAM_FIRST_CHUNK_MS = 100_000;
+export const STREAM_FIRST_CHUNK_MS = firstChunkMs();
+
+/**
+ * No first byte within 35s means the provider is stuck: abort so the router
+ * fails over to the next model instead of holding the build. Any streamed
+ * bytes (role delta, keep-alive, reasoning) count as the first chunk.
+ * `AI_FIRST_TOKEN_MS` tunes it without a code change.
+ */
+function firstChunkMs(): number {
+  const raw = Number(process.env["AI_FIRST_TOKEN_MS"]);
+  return Number.isFinite(raw) && raw >= 5_000 ? raw : 35_000;
+}
 export const STREAM_IDLE_MS = 45_000;
 
 /** Set once the gateway rejects `stream_options`, so later calls skip it. */

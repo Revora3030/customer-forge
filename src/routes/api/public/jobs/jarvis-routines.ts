@@ -8,10 +8,12 @@
  */
 import { createFileRoute } from "@tanstack/react-router";
 import { authenticateCronRequest } from "@/integrations/supabase/cron-auth";
+import { methodNotAllowed } from "@/lib/method-not-allowed";
 
 export const Route = createFileRoute("/api/public/jobs/jarvis-routines")({
   server: {
     handlers: {
+      GET: () => methodNotAllowed(),
       POST: async ({ request }) => {
         const denied = await authenticateCronRequest(request);
         if (denied) return denied as Response;

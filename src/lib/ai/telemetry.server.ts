@@ -11,7 +11,7 @@
  */
 
 import { aiLimits, estimateCostUsd, type ProviderName } from "@/lib/ai/config";
-import { runInBackground } from "@/lib/background";
+import { runInBackground } from "@/lib/background.server";
 import { exportAiTelemetry } from "./observability-export.server";
 import type { AiErrorCategory } from "@/lib/ai/errors";
 

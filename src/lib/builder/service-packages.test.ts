@@ -5,7 +5,8 @@ import { packageBookHref } from "@/components/site/live-blocks-utils";
 describe("package scope for every trade", () => {
   it("uses the trade's own steps, not a detailing script, for other businesses", () => {
     expect(packageScope("Raleigh plumbing")).toEqual(["Find what is wrong", "Repair it without a mess", "Confirm it holds"]);
-    expect(packageScope("Family dental studio")).toEqual(["Consultation first", "The agreed treatment", "Aftercare you can follow"]);
+    expect(packageScope("Family dental studio")).toEqual(["Welcome and examination", "The agreed treatment", "Your next visit planned"]);
+    expect(packageScope("Physiotherapy clinic")).toEqual(["Consultation first", "The agreed treatment", "Aftercare you can follow"]);
     expect(packageScope("Mobile auto detailing").join(" ")).not.toMatch(/dental|roof/i);
   });
 

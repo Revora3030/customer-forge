@@ -11,6 +11,15 @@
 
 export const INDEXNOW_KEY_PATH = "/indexnow-key.txt";
 
+/**
+ * IndexNow's default key location is `/<key>.txt` at the host root. The same
+ * key is served there too, so engines that check the root (or a submission
+ * that omits keyLocation) also verify ownership.
+ */
+export function indexNowRootKeyPath(key: string): string {
+  return `/${key}.txt`;
+}
+
 export const INDEXNOW_ENDPOINT = "https://api.indexnow.org/indexnow";
 
 /** IndexNow accepts at most 10,000 URLs per request. */
@@ -62,4 +71,23 @@ export function describeIndexNowStatus(status: number): { ok: boolean; message: 
   if (status === 429)
     return { ok: false, message: "IndexNow asked Revora to slow down. Try again in an hour." };
   return { ok: false, message: `IndexNow answered with status ${status}. Try again later.` };
+}
+
+/**
+ * Every <loc> in a sitemap or sitemap index, XML entities decoded. Used by the
+ * post-deploy ping script, which reads the live sitemap.xml.
+ */
+export function sitemapLocs(xml: string): { urls: string[]; sitemaps: string[] } {
+  const decode = (value: string) =>
+    value
+      .trim()
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"')
+      .replace(/&apos;/g, "'")
+      .replace(/&amp;/g, "&");
+  const locs = (block: string) => [...block.matchAll(/<loc>([\s\S]*?)<\/loc>/g)].map((match) => decode(match[1] ?? ""));
+  const sitemaps = [...xml.matchAll(/<sitemap>([\s\S]*?)<\/sitemap>/g)].flatMap((match) => locs(match[1] ?? ""));
+  const urls = [...xml.matchAll(/<url>([\s\S]*?)<\/url>/g)].flatMap((match) => locs(match[1] ?? ""));
+  return { urls, sitemaps };
 }

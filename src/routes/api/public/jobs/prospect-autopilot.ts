@@ -30,7 +30,7 @@ async function handle(request: Request): Promise<Response> {
 
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { runProspectAutopilot } = await import("@/lib/prospect-autopilot.server");
-  const { runInBackground } = await import("@/lib/background");
+  const { runInBackground } = await import("@/lib/background.server");
   const { kickWorker } = await import("@/lib/site-engine.functions");
   const origin = new URL(request.url).origin;
 

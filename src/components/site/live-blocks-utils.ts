@@ -86,3 +86,42 @@ export function reviewWallItems(rows: ReviewRow[], limit = 6) {
     .filter((row) => row.comment.length >= 8)
     .slice(0, Math.max(1, limit));
 }
+
+export type EstimatorOption = { id: string; name: string; amount: number | null; from: boolean; minutes: number | null };
+
+/**
+ * Zero-token price/time estimator options: only the owner's own services that
+ * carry a real price or duration. Nothing is estimated that the owner did not
+ * enter, so a business with no prices or durations gets no estimator.
+ */
+export function estimatorOptions(rows: ServiceRow[], limit = 12): EstimatorOption[] {
+  return mergeSplitServices([...rows])
+    .filter((row) => safeText(row.name))
+    .map((row) => {
+      const exact = money(row.price);
+      const from = money(row.starting_price);
+      const minutes = Number(row.duration_minutes);
+      return {
+        id: row.id,
+        name: safeText(row.name)!,
+        amount: exact ?? from,
+        from: !exact && Boolean(from),
+        minutes: Number.isFinite(minutes) && minutes > 0 ? Math.round(minutes) : null,
+      };
+    })
+    .filter((option) => option.amount !== null || option.minutes !== null)
+    .slice(0, Math.max(1, limit));
+}
+
+/** Running total for the visitor's picks: sum of real prices and durations, "from" when any pick is a starting price. */
+export function estimateTotal(options: EstimatorOption[], picked: ReadonlySet<string>) {
+  const chosen = options.filter((option) => picked.has(option.id));
+  const priced = chosen.filter((option) => option.amount !== null);
+  const timed = chosen.filter((option) => option.minutes !== null);
+  return {
+    count: chosen.length,
+    price: priced.length ? `${chosen.some((o) => o.from || o.amount === null) ? "From " : ""}${currency(priced.reduce((sum, o) => sum + (o.amount ?? 0), 0))}` : null,
+    duration: timed.length ? durationLabel(timed.reduce((sum, o) => sum + (o.minutes ?? 0), 0)) : null,
+    unpriced: chosen.length - priced.length,
+  };
+}
