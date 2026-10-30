@@ -232,6 +232,13 @@
       "when": 1793325559742,
       "tag": "0032_20261005120000_build_and_admin_invariants",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1793325591731,
+      "tag": "0033_20261005140000_builder_crm_image_publish_records",
+      "breakpoints": true
     }
   ]
 }
