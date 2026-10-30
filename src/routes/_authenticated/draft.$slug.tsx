@@ -7,7 +7,7 @@
  */
 import { SiteBaseContext } from "@/components/site/site-address-context";
 import { createFileRoute, Link, Outlet, useChildMatches, useRouter } from "@tanstack/react-router";
-import { DRAFT_PENDING_MS, isDraftChildPath } from "@/lib/builder/draft-route";
+import { DRAFT_PENDING_MS, isDraftChildPath, draftHeadTitle } from "@/lib/builder/draft-route";
 import { useEffect, type ReactNode } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -30,15 +30,15 @@ export const Route = createFileRoute("/_authenticated/draft/$slug")({
   pendingComponent: () => (
     <DraftMessage title="Loading your draft…" body="Getting the latest version of your site." />
   ),
-  head: () => ({
+  head: ({ loaderData }) => ({
     meta: [
-      { title: "Website draft — Revora" },
+      { title: draftHeadTitle(loaderData) },
       {
         name: "description",
         content: "A private preview of your website while you build it.",
       },
       { name: "robots", content: "noindex, nofollow" },
-      { property: "og:title", content: "Website draft — Revora" },
+      { property: "og:title", content: draftHeadTitle(loaderData) },
       { property: "og:description", content: "A private preview of a website in progress." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },

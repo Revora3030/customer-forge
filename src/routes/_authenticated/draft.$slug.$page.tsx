@@ -15,7 +15,7 @@ import { stepLabel } from "@/lib/site-engine";
 import { ErrorBoundary } from "@/components/app/ErrorBoundary";
 import { SitePageView } from "@/routes/s.$slug.$page";
 import { DraftMessage, DraftUpdatingBanner } from "@/routes/_authenticated/draft.$slug";
-import { DRAFT_PENDING_MS } from "@/lib/builder/draft-route";
+import { DRAFT_PENDING_MS, draftHeadTitle } from "@/lib/builder/draft-route";
 
 export const Route = createFileRoute("/_authenticated/draft/$slug/$page")({
   beforeLoad: ({ params, location }) => {
@@ -33,15 +33,15 @@ export const Route = createFileRoute("/_authenticated/draft/$slug/$page")({
   pendingComponent: () => (
     <DraftMessage title="Loading this page…" body="Getting the latest version of your site." />
   ),
-  head: () => ({
+  head: ({ loaderData, params }) => ({
     meta: [
-      { title: "Website page draft — Revora" },
+      { title: draftHeadTitle(loaderData, params.page) },
       {
         name: "description",
         content: "A private preview of one page of your website while you build it.",
       },
       { name: "robots", content: "noindex, nofollow" },
-      { property: "og:title", content: "Website page draft — Revora" },
+      { property: "og:title", content: draftHeadTitle(loaderData, params.page) },
       { property: "og:description", content: "A private preview of a website page in progress." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
