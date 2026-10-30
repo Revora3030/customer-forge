@@ -80,7 +80,10 @@ beforeEach(() => {
   // performing them. The dropdown scrolling its own highlighted option into
   // view is expected, so only the form panel counts here.
   Element.prototype.scrollIntoView = function scrollIntoView(this: Element) {
-    if (this.id === "book") scrolls += 1;
+    if (this.id === "book") {
+      scrolls += 1;
+      console.log(`SCROLL #${scrolls}\n${new Error("jump").stack}`);
+    }
   };
   window.matchMedia ??= () =>
     ({ matches: false, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} }) as unknown as MediaQueryList;
