@@ -19,6 +19,12 @@ describe("access-aware builder failure recovery", () => {
     expect(failed?.instruction).toBe(task.instruction);
     expect(task.state).toBe("queued");
   });
+  it("tells support staff how to get build access instead of a dead-end permission error", () => {
+    const block = builderAccessBlock("You don't have permission to do that in this workspace.");
+    expect(block).toMatchObject({ kind: "permission", retryable: false });
+    expect(block?.message).toMatch(/manager access/);
+    expect(block?.message).toMatch(/support session/);
+  });
   it("keeps an actionable expired-access explanation when a long server message is sanitized", () => {
     const error = new Error("Your free access has ended and everything you built is saved. " + "Billing details. ".repeat(30));
     expect(friendlyError(error, "Please try again.")).toBe("Your free access has ended. Your work is saved. Open Billing to restore access.");

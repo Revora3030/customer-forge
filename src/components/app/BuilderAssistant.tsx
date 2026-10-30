@@ -73,6 +73,7 @@ import { pageContextPrefix, selectionPrefix, type PageContext } from "@/lib/buil
 import { actionsForElement } from "@/lib/builder/element-actions";
 import { MAIN_BRANCH, normaliseRequestId } from "@/lib/builder/chat-thread";
 import { wantsFreshRebuild } from "@/lib/builder/rebuild-intent";
+import { submitFactAnswer } from "@/lib/builder/fact-answer";
 import type { ChatTask } from "@/lib/builder/hydrate-tasks";
 import { SectionHistoryButton } from "@/components/app/SectionHistoryButton";
 import { INSTRUCTION_LIMIT, type BuilderRequests } from "@/lib/builder-requests.hooks";
@@ -171,6 +172,8 @@ export function BuilderAssistant({
   const [attachments, setAttachments] = useState<AgentAttachment[]>([]);
   const [factLog, setFactLog] = useState<{ question: string; answer: string }[]>([]);
   const [factBusy, setFactBusy] = useState(false);
+  /** Why the last answer didn't save, shown in the chat until the next try. */
+  const [factError, setFactError] = useState<string | null>(null);
   const [naming, setNaming] = useState(false);
   const [branchName, setBranchName] = useState("");
   /** A question Revora asked, which the next message answers. */
@@ -257,11 +260,20 @@ export function BuilderAssistant({
       const q = factQuestion;
       const answer = text.trim();
       setValue("");
+      setFactError(null);
       afterSend();
       setFactBusy(true);
-      void onFactAnswer(q.key, answer)
-        .then(() => setFactLog((log) => [...log, { question: q.label, answer }]))
-        .catch(() => setValue(answer))
+      void submitFactAnswer(answer, (text) => onFactAnswer(q.key, text))
+        .then((outcome) => {
+          if (outcome.ok) {
+            setFactLog((log) => [...log, { question: q.label, answer: outcome.answer }]);
+            return;
+          }
+          // Never a silent revert: the answer goes back in the box AND the
+          // chat says why it didn't save.
+          setValue((current) => current || outcome.answer);
+          setFactError(outcome.message);
+        })
         .finally(() => setFactBusy(false));
       return;
     }
@@ -296,6 +308,12 @@ export function BuilderAssistant({
   useEffect(() => {
     if (!isTouch()) inputRef.current?.focus();
   }, [activityKey]);
+
+  // A new question starts clean; an old error never sticks to it.
+  const factKey = factQuestion?.key ?? null;
+  useEffect(() => {
+    setFactError(null);
+  }, [factKey]);
 
   // Pointing at a block moves the cursor straight into the message box.
   useEffect(() => {
@@ -592,6 +610,15 @@ export function BuilderAssistant({
                   <p className="font-medium text-foreground">{factQuestion.label}</p>
                   <p className="text-[15px] leading-6 text-muted-foreground">{factQuestion.prompt}</p>
                   {factBusy ? <Shimmer>Saving and updating your site…</Shimmer> : null}
+                  {factError && !factBusy ? (
+                    <p
+                      role="alert"
+                      data-testid="builder-fact-error"
+                      className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-[13px] leading-5 text-destructive"
+                    >
+                      Your answer wasn't saved. {factError}
+                    </p>
+                  ) : null}
                   {!factQuestion.required && onFactSkip && !factBusy ? (
                     <button
                       type="button"

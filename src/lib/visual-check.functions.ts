@@ -109,13 +109,9 @@ export const recordVisualCheck = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
 
     // Only someone who can manage the workspace may record its quality gate.
-    const { data: membership } = await supabase
-      .from("memberships")
-      .select("role")
-      .eq("organization_id", data.organizationId)
-      .eq("user_id", userId)
-      .maybeSingle();
-    if (!membership?.role || !["owner", "admin", "manager"].includes(membership.role)) {
+    const { orgRole } = await import("@/lib/org-authz.server");
+    const role = await orgRole(supabase as never, data.organizationId, userId);
+    if (!role || !["owner", "admin", "manager"].includes(role)) {
       throw new Error("Only an owner, admin or manager can run the visual check.");
     }
 

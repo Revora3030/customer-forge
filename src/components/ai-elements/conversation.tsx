@@ -7,19 +7,26 @@ import { ArrowDownIcon, DownloadIcon } from "lucide-react";
 import type { ComponentProps } from "react";
 import { useCallback } from "react";
 import { StickToBottom, useStickToBottomContext } from "use-stick-to-bottom";
+import { useReducedMotion } from "motion/react";
 import { defaultFormatMessage, messagesToMarkdown } from "@/components/ai-elements/conversation-utils";
 
 export type ConversationProps = ComponentProps<typeof StickToBottom>;
 
-export const Conversation = ({ className, ...props }: ConversationProps) => (
-  <StickToBottom
-    className={cn("relative flex-1 overflow-y-hidden scroll-smooth", className)}
-    initial="smooth"
-    resize="smooth"
-    role="log"
-    {...props}
-  />
-);
+export const Conversation = ({ className, ...props }: ConversationProps) => {
+  // Spring-scrolling the log on every size change keeps its content moving;
+  // owners (and tools) that ask for less motion get instant jumps instead.
+  const reduced = useReducedMotion();
+  const scroll = reduced ? "instant" : "smooth";
+  return (
+    <StickToBottom
+      className={cn("relative flex-1 overflow-y-hidden", !reduced && "scroll-smooth", className)}
+      initial={scroll}
+      resize={scroll}
+      role="log"
+      {...props}
+    />
+  );
+};
 
 export type ConversationContentProps = ComponentProps<
   typeof StickToBottom.Content

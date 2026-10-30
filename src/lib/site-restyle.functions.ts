@@ -23,13 +23,10 @@ const MANAGERS = ["owner", "admin", "manager"];
 const FUNCTIONAL = new Set(["quote", "booking", "contact", "sticky_cta", "embed", "post_list", "composition"]);
 
 async function requireManager(db: Client, organizationId: string, userId: string) {
-  const { data } = await db
-    .from("memberships")
-    .select("role")
-    .eq("organization_id", organizationId)
-    .eq("user_id", userId)
-    .maybeSingle();
-  const role = (data as { role?: string } | null)?.role;
+  // Same resolver as every other builder action, so an audited support
+  // session counts here exactly as the database's RLS says it does.
+  const { orgRole } = await import("@/lib/org-authz.server");
+  const role = await orgRole(db as never, organizationId, userId);
   if (!role || !MANAGERS.includes(role)) throw new Error("Only an owner, admin or manager can restyle the website.");
 }
 
