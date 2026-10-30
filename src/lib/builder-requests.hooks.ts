@@ -38,6 +38,7 @@ import { applyWebsiteChanges, planWebsiteChanges } from "@/lib/site-agent.functi
 import type { AgentStep } from "@/lib/site-agent";
 import type { AgentAttachment } from "@/lib/site-agent";
 import { trackConversion } from "@/lib/conversion";
+import { PLAN_STOPPED_MESSAGE, withDeadline } from "@/lib/builder/plan-deadline";
 import { friendlyError } from "@/lib/user-error";
 import {
   clearTurns,
@@ -371,6 +372,10 @@ export function useBuilderRequests({
   const actionsRef = useRef(new Map<string, AgentStep>());
   const actionKey = (taskId: string, stepKey: string) => `${taskId}:${stepKey}`;
   const runningRef = useRef(false);
+  /** The request the queue is running now; "Stop waiting" releases the queue from it. */
+  const runningIdRef = useRef<string | null>(null);
+  /** Requests the owner stopped waiting on: a late plan for them is dropped, never applied. */
+  const abandonedRef = useRef(new Set<string>());
   // Another writer (the screen check's AI repair) can hold the queue so its
   // plan+apply never runs alongside an owner's request on the same draft.
   const [held, setHeld] = useState(false);
@@ -601,7 +606,7 @@ export function useBuilderRequests({
       // can have an older one under the same id). A little slack for clocks.
       const planStartedAt = new Date(Date.now() - 60_000).toISOString();
       if (!result) try {
-        result = await planFn({
+        result = await withDeadline(planFn({
           data: {
             organizationId: organizationId!,
             instruction: task.instruction,
@@ -611,12 +616,13 @@ export function useBuilderRequests({
             ...(pickedModelRef.current ? { model: pickedModelRef.current } : {}),
             ...(brand && hasBrandChoices(brand) ? { brand } : {}),
           },
-        });
+        }));
       } catch (error) {
         // Phones drop long requests ("Load failed") while the AI team keeps
         // working on the server. The finished plan is saved under this
         // request's id, so wait for it instead of failing the request.
         if (!isDroppedConnection(error)) throw error;
+        if (abandonedRef.current.has(task.id)) return;
         const recovered = await recoverPlan(organizationId!, task.id, {
           skipDeferred: (deferRef.current.get(task.id) ?? 0) > 0,
           since: planStartedAt,
@@ -624,6 +630,8 @@ export function useBuilderRequests({
         if (!recovered) throw error;
         result = recovered as Awaited<ReturnType<typeof planFn>>;
       }
+      // The owner stopped waiting: drop the late plan, never apply it.
+      if (abandonedRef.current.has(task.id)) return;
       if ("deferred" in result && result.deferred) {
         // First build still running: wait for pages to appear WITHOUT calling
         // planWebsiteChanges again. Each call to planWebsiteChanges writes
@@ -749,6 +757,7 @@ export function useBuilderRequests({
       if (!result.unavailable && canAutoApply(planned))
         await runBuild(planned);
     } catch (error) {
+      if (abandonedRef.current.has(task.id)) return;
       const message = friendlyError(error as Error, "Revora couldn't read that request yet.");
       // A dropped connection or a busy AI team is temporary: offer Retry so the
       // owner doesn't have to retype the whole request.
@@ -772,8 +781,12 @@ export function useBuilderRequests({
     const next = nextRunnable(tasks.filter((task) => !task.tracking));
     if (!next) return;
     runningRef.current = true;
+    runningIdRef.current = next.id;
     void runPlan(next).finally(() => {
+      // "Stop waiting" may already have released the queue for another request.
+      if (runningIdRef.current !== next.id) return;
       runningRef.current = false;
+      runningIdRef.current = null;
       setTasks((current) => [...current]);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -959,6 +972,22 @@ export function useBuilderRequests({
         remember([{ role: "assistant", content: "Cancelled.", taskResult: { state: "skipped" } }], id);
       }
       setTasks((current) => current.filter((item) => item.id !== id));
+    },
+    /**
+     * "Stop waiting" on a request that is still planning. Planning never
+     * touches the site, so this is a real cancel: a late plan is dropped,
+     * nothing is applied, and Retry asks again afresh. The queue moves on.
+     */
+    stopWaiting: (id: string) => {
+      const task = tasks.find((item) => item.id === id);
+      if (!task || task.tracking || task.state !== "planning" || task.waitingOnBuild) return;
+      abandonedRef.current.add(id);
+      if (runningIdRef.current === id) {
+        runningIdRef.current = null;
+        runningRef.current = false;
+      }
+      patch(id, { state: "failed", error: PLAN_STOPPED_MESSAGE, retryable: true });
+      remember([...userTurn(task), { role: "assistant", content: PLAN_STOPPED_MESSAGE, taskResult: { state: "failed" } }], id);
     },
     trackBuild,
     linkBuild,

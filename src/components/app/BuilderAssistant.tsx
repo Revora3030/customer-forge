@@ -62,6 +62,8 @@ import { ChatSearch, VoiceDictationButton } from "@/components/app/ChatThreadToo
 import { ApplyResultCard } from "@/components/app/builder-chat/ApplyResultCard";
 import { MessageMenu } from "@/components/app/builder-chat/MessageMenu";
 import { useChatTop } from "@/components/app/builder-chat/use-chat-top";
+import { useKeyboardInset } from "@/components/app/builder-chat/use-keyboard-inset";
+import { planIsSlow } from "@/lib/builder/plan-deadline";
 import { attachmentNotice } from "@/lib/builder/capabilities";
 import { useBuildProgress } from "@/lib/builder/progress.hooks";
 import { useQuery } from "@tanstack/react-query";
@@ -183,6 +185,7 @@ export function BuilderAssistant({
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const sectionRef = useRef<HTMLElement>(null);
   useChatTop(sectionRef);
+  useKeyboardInset(sectionRef);
   const queueRef = useRef(requests.queue);
   queueRef.current = requests.queue;
   const activityKey = useMemo(
@@ -362,7 +365,7 @@ export function BuilderAssistant({
         "builder-conversation relative flex w-full max-w-full min-w-0 flex-col overflow-hidden rounded-none border-0 bg-transparent p-0 shadow-none lg:rounded-2xl lg:border lg:border-border/70 lg:bg-card/40",
         // Below 1024px the height comes from builder-workspace.css (visible
         // height minus the measured chat top); these are the desktop sizes.
-        compact ? "lg:h-[calc(100vh-7.5rem)] lg:min-h-[420px]" : "h-[calc(100dvh-8rem)] min-h-[420px]",
+        compact ? "lg:h-[calc(100dvh-7.5rem)] lg:min-h-[420px]" : "h-[calc(100dvh-8rem)] min-h-[420px]",
       )}
     >
       {/* ------------------------------ Chat header ----------------------------- */}
@@ -648,7 +651,7 @@ export function BuilderAssistant({
       </Conversation>
 
       {/* -------------------------------- Composer ------------------------------- */}
-      <div className="relative shrink-0 px-3 pt-1 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-4">
+      <div data-chat-composer="" className="relative shrink-0 px-3 pt-1 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-4">
         <div aria-hidden className="pointer-events-none absolute inset-x-0 -top-6 h-6 bg-gradient-to-t from-background to-transparent lg:hidden" />
         <div className="mx-auto w-full max-w-[var(--chat-measure)]">
           {showChips ? (
@@ -914,10 +917,13 @@ function LiveActivity({
   organizationId,
   requestId,
   fallback,
+  onStopWaiting,
 }: {
   organizationId: string | null | undefined;
   requestId?: string;
   fallback: string;
+  /** Planning only: after ~30s the card offers "Stop waiting" (nothing is applied). */
+  onStopWaiting?: () => void;
 }) {
   const { latest: rawLatest, steps: allSteps } = useBuildProgress(organizationId, true, requestId);
   // "model at work" rows name the model that actually answered; they show as a
@@ -976,6 +982,20 @@ function LiveActivity({
         />
       </button>
       {lastDone ? <span className="sr-only" role="status">{`Done: ${lastDone}`}</span> : null}
+      {onStopWaiting && planIsSlow(seconds * 1000) ? (
+        <div className="flex items-center gap-2 border-t border-border/60 px-3.5 py-2" data-testid="plan-slow-hint">
+          <p className="min-w-0 flex-1 text-[13px] leading-5 text-muted-foreground" role="status">
+            Still working — bigger changes can take a minute or two. Nothing changes on your site until the plan is ready.
+          </p>
+          <button
+            type="button"
+            onClick={onStopWaiting}
+            className="relative min-h-9 shrink-0 cursor-pointer rounded-full border border-border px-3 text-[13px] font-medium text-foreground transition-colors after:absolute after:-inset-1 hover:border-primary/50"
+          >
+            Stop waiting
+          </button>
+        </div>
+      ) : null}
       {open ? (
         <div className="space-y-1.5 border-t border-border/60 px-3.5 py-2.5">
           {done.length ? (
@@ -1072,6 +1092,7 @@ function TaskBody({
                 ? "Working out the change…"
                 : "Applying…"
           }
+          {...(task.state === "planning" && !task.waitingOnBuild ? { onStopWaiting: () => requests.stopWaiting(task.id) } : {})}
         />
       ) : working ? (
         <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
