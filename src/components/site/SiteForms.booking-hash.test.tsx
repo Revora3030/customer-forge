@@ -66,6 +66,13 @@ const shownService = () => document.querySelector('[role="combobox"]')?.textCont
 const option = (label: string) =>
   Array.from(document.querySelectorAll('[role="option"]')).find((el) => el.textContent?.includes(label));
 
+/**
+ * Put the deep link in the address bar the way a real arrival does: the browser
+ * has already settled on that hash before the page's own code runs, so nothing
+ * fires a change event while the visitor is filling the form in.
+ */
+const arriveAt = (hash: string) => window.history.replaceState(null, "", hash);
+
 function mount() {
   act(() => {
     root = createRoot(document.body);
@@ -80,33 +87,30 @@ beforeEach(() => {
   // performing them. The dropdown scrolling its own highlighted option into
   // view is expected, so only the form panel counts here.
   Element.prototype.scrollIntoView = function scrollIntoView(this: Element) {
-    if (this.id === "book") {
-      scrolls += 1;
-      console.log(`SCROLL #${scrolls}\n${new Error("jump").stack}`);
-    }
+    if (this.id === "book") scrolls += 1;
   };
   window.matchMedia ??= () =>
     ({ matches: false, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} }) as unknown as MediaQueryList;
-  window.location.hash = "";
+  arriveAt("/");
 });
 
 afterEach(() => {
   act(() => root?.unmount());
   root = null;
-  window.location.hash = "";
+  arriveAt("/");
   document.body.innerHTML = "";
 });
 
 describe("booking form reached through a service deep link", () => {
   it("starts on the service named in the address bar", () => {
-    window.location.hash = `#book-${HEATER}`;
+    arriveAt(`#book-${HEATER}`);
     mount();
     expect(shownService()).toContain("Water heater repair");
     expect(scrolls).toBe(1);
   });
 
   it("lets the visitor switch service, and keeps that choice without jumping the page", () => {
-    window.location.hash = `#book-${DRAIN}`;
+    arriveAt(`#book-${DRAIN}`);
     mount();
     expect(shownService()).toContain("Drain cleaning");
     const scrollsBeforePicking = scrolls;
