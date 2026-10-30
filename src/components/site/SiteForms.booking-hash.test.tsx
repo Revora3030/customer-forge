@@ -76,9 +76,11 @@ function mount() {
 beforeEach(() => {
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   scrolls = 0;
-  // jsdom has no layout: count the scroll requests instead of performing them.
-  Element.prototype.scrollIntoView = function scrollIntoView() {
-    scrolls += 1;
+  // jsdom has no layout: count the page jumps the form makes instead of
+  // performing them. The dropdown scrolling its own highlighted option into
+  // view is expected, so only the form panel counts here.
+  Element.prototype.scrollIntoView = function scrollIntoView(this: Element) {
+    if (this.id === "book") scrolls += 1;
   };
   window.matchMedia ??= () =>
     ({ matches: false, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} }) as unknown as MediaQueryList;
