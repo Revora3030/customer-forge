@@ -8,6 +8,7 @@
  */
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { SiteSelect } from "@/components/site/SiteSelect";
 import { FreeformBlock } from "@/components/site/FreeformBlock";
 import type { CustomBlockSpec } from "@/lib/builder/custom-block";
 
@@ -51,19 +52,12 @@ function Estimator({ spec }: { spec: Extract<CustomBlockSpec, { type: "calculato
               {field.unit ? <span className="text-muted-foreground"> ({field.unit})</span> : null}
             </span>
             {field.kind === "select" ? (
-              <select
-                className="min-h-11 rounded-xl border border-border bg-background px-3 text-[15px]"
-                value={values[field.id] ?? 0}
-                onChange={(event) =>
-                  setValues((current) => ({ ...current, [field.id]: Number(event.target.value) }))
-                }
-              >
-                {(field.options ?? []).map((option) => (
-                  <option key={option.label} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
+              <SiteSelect
+                ariaLabel={field.label}
+                value={String(values[field.id] ?? 0)}
+                onChange={(next) => setValues((current) => ({ ...current, [field.id]: Number(next) }))}
+                options={(field.options ?? []).map((option) => ({ value: String(option.value), label: option.label }))}
+              />
             ) : (
               <input
                 type="number"
@@ -440,34 +434,14 @@ function BookingSelector({ spec }: { spec: Extract<CustomBlockSpec, { type: "boo
     <div>
       <Title title={spec.title} />
       <div className="mt-6 grid gap-4 sm:grid-cols-2">
-        <label className="grid gap-2 text-[14px]">
+        <div className="grid gap-2 text-[14px]">
           <span className="font-medium">What do you need?</span>
-          <select
-            className="min-h-11 rounded-xl border border-border bg-background px-3 text-[15px]"
-            value={service}
-            onChange={(event) => setService(event.target.value)}
-          >
-            {spec.services.map((item) => (
-              <option key={item} value={item}>
-                {item}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="grid gap-2 text-[14px]">
+          <SiteSelect ariaLabel="What do you need?" value={service} onChange={setService} options={spec.services.map((item) => ({ value: item, label: item }))} />
+        </div>
+        <div className="grid gap-2 text-[14px]">
           <span className="font-medium">When suits you?</span>
-          <select
-            className="min-h-11 rounded-xl border border-border bg-background px-3 text-[15px]"
-            value={time}
-            onChange={(event) => setTime(event.target.value)}
-          >
-            {spec.times.map((item) => (
-              <option key={item} value={item}>
-                {item}
-              </option>
-            ))}
-          </select>
-        </label>
+          <SiteSelect ariaLabel="When suits you?" value={time} onChange={setTime} options={spec.times.map((item) => ({ value: item, label: item }))} />
+        </div>
       </div>
       <div className="mt-5 rounded-2xl border border-border bg-card/60 p-5">
         <p aria-live="polite" className="text-[15px] font-medium">

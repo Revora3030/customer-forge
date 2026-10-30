@@ -8,6 +8,11 @@
  * cinematic obsidian studio look.
  */
 
+export type StudioTransition = "dark-to-light" | "dark-only";
+
+/** Blueprints whose dark cinematic hero flows into light content. Every other blueprint stays dark-only. */
+export const DARK_TO_LIGHT_BLUEPRINTS: readonly TradeBlueprintKey[] = ["real-estate", "law-firms", "dentist", "landscaping"];
+
 export type TradeBlueprintKey =
   | "plumbing"
   | "hvac"
@@ -48,6 +53,14 @@ export type TradeBlueprint = {
   label: string;
   /** Dark blueprints paint the cinematic studio canvas; light ones keep the authored light theme. */
   tone: "dark" | "light";
+  /**
+   * How a dark studio page hands off (quality bar #22). "dark-to-light" keeps the
+   * cinematic opening chapter on the dark canvas and lets every section after it
+   * sit on one light canvas (the Veyra pattern), with a single gradient seam.
+   * "dark-only" keeps every section dark (WASH / Car Vault style). Light-tone
+   * blueprints never enter studio mode, so theirs is always "dark-only".
+   */
+  studioTransition: StudioTransition;
   hero: string;
   /** The interactive primitive the home page is built around. */
   signatureWidget: string;
@@ -63,6 +76,7 @@ export const TRADE_BLUEPRINTS: readonly TradeBlueprint[] = [
     key: "plumbing",
     label: "Plumbing",
     tone: "dark",
+    studioTransition: "dark-only",
     hero: "an emergency split hero: one half a calm full-bleed photograph, the other the call action, the hours the owner gave and licence chips only if supplied",
     signatureWidget: "a tab_group \"Where is the problem?\" (kitchen, bathroom, main drain, water heater) with the real next step and call action",
     palette: { canvas: "#0B132B", surface: "#13203F", ink: "#F1F5FB", muted: "#A9B6CC", accent: "#00E5FF", grounding: "#1C2A4D" },
@@ -74,6 +88,7 @@ export const TRADE_BLUEPRINTS: readonly TradeBlueprint[] = [
     key: "hvac",
     label: "HVAC, heating and cooling",
     tone: "dark",
+    studioTransition: "dark-only",
     hero: "a seasonal climate hero (cooling in summer, heating in winter) with the 24/7 availability only if the owner offers it",
     signatureWidget: "a dial_selector for system type or capacity per home size, only ranges the owner states",
     palette: { canvas: "#12161A", surface: "#1B2127", ink: "#F2F5F7", muted: "#AAB4BD", accent: "#F97316", grounding: "#38BDF8" },
@@ -85,6 +100,7 @@ export const TRADE_BLUEPRINTS: readonly TradeBlueprint[] = [
     key: "roofing",
     label: "Roofing",
     tone: "dark",
+    studioTransition: "dark-only",
     hero: "a full-bleed aerial roofline hero with a scrim and one display line",
     signatureWidget: "a before_after_slider of the owner's own real before and after of the same roof",
     palette: { canvas: "#1C1814", surface: "#26211C", ink: "#F5F1EA", muted: "#B9B2A6", accent: "#D97706", grounding: "#3A2E22" },
@@ -96,6 +112,7 @@ export const TRADE_BLUEPRINTS: readonly TradeBlueprint[] = [
     key: "auto-detailing",
     label: "Auto detailing",
     tone: "dark",
+    studioTransition: "dark-only",
     hero: "a studio-lit vehicle hero (one car, moving closer frame by frame) with the packages one tap away",
     signatureWidget: "a brush reveal \"Polish this panel.\" (before_after_slider revealMode brush) from the owner's real before/after",
     palette: { canvas: "#0A090F", surface: "#15141A", ink: "#FAFAF7", muted: "#B4B4B8", accent: "#EAB308", grounding: "#27272A" },
@@ -107,6 +124,7 @@ export const TRADE_BLUEPRINTS: readonly TradeBlueprint[] = [
     key: "pressure-washing",
     label: "Pressure washing",
     tone: "dark",
+    studioTransition: "dark-only",
     hero: "a kinetic water-jet hero over the owner's own surface photographs, with surface chips (driveway, siding, roof, deck)",
     signatureWidget: "a scrub_sequence with stopwatch over real frames, then a 20-second quote_calculator by surface size",
     palette: { canvas: "#0A192F", surface: "#112640", ink: "#F0F7FA", muted: "#A3B8C8", accent: "#06B6D4", grounding: "#173352" },
@@ -118,6 +136,7 @@ export const TRADE_BLUEPRINTS: readonly TradeBlueprint[] = [
     key: "landscaping",
     label: "Landscaping",
     tone: "dark",
+    studioTransition: "dark-to-light",
     hero: "a panoramic editorial natural-light hero of the owner's own yard work",
     signatureWidget: "a seasonal dial_selector (spring, summer, fall, winter) listing only services the owner offers",
     palette: { canvas: "#064E3B", surface: "#0B5E48", ink: "#F3F1EA", muted: "#C6CFC4", accent: "#D9A441", grounding: "#78716C" },
@@ -129,6 +148,7 @@ export const TRADE_BLUEPRINTS: readonly TradeBlueprint[] = [
     key: "cleaning",
     label: "House and commercial cleaning",
     tone: "light",
+    studioTransition: "dark-only",
     hero: "a minimal bright hero with one clear price action and the real checklist promise",
     signatureWidget: "a quote_calculator with bedroom and bathroom steppers from the owner's own pricing",
     palette: { canvas: "#D7F0E4", surface: "#F4FBF7", ink: "#0F2A22", muted: "#3F5A51", accent: "#10B981", grounding: "#334155" },
@@ -140,6 +160,7 @@ export const TRADE_BLUEPRINTS: readonly TradeBlueprint[] = [
     key: "restaurants",
     label: "Restaurants and cafes",
     tone: "dark",
+    studioTransition: "dark-only",
     hero: "a full-screen ambient food hero with today's real opening hours from the owner's hours",
     signatureWidget: "a menu tab_group (starters, mains, drinks) of the real menu with dietary badges only where the owner marked them",
     palette: { canvas: "#1E1915", surface: "#2A231D", ink: "#FDFBF7", muted: "#CFC6B8", accent: "#D97706", grounding: "#3B2F25" },
@@ -151,6 +172,7 @@ export const TRADE_BLUEPRINTS: readonly TradeBlueprint[] = [
     key: "salons-barbers",
     label: "Salons and barbers",
     tone: "dark",
+    studioTransition: "dark-only",
     hero: "an editorial portrait hero of the owner's real work with one-tap booking",
     signatureWidget: "a stylist picker tab_group of the real team and their services",
     palette: { canvas: "#1A1820", surface: "#24222A", ink: "#F4F4F5", muted: "#B6B6BC", accent: "#F59E0B", grounding: "#E4E4E7" },
@@ -162,6 +184,7 @@ export const TRADE_BLUEPRINTS: readonly TradeBlueprint[] = [
     key: "med-spa",
     label: "Med spa and aesthetics",
     tone: "light",
+    studioTransition: "dark-only",
     hero: "a clinical luxury hero with provider credentials only if the owner holds them",
     signatureWidget: "an outcome before_after_slider with treatment-timeline labels, only from the practice's own consented photos",
     palette: { canvas: "#EFE4D2", surface: "#FAF6EF", ink: "#2A2420", muted: "#6B5F55", accent: "#A8834F", grounding: "#C5A880" },
@@ -173,6 +196,7 @@ export const TRADE_BLUEPRINTS: readonly TradeBlueprint[] = [
     key: "dentist",
     label: "Dental practice",
     tone: "dark",
+    studioTransition: "dark-to-light",
     hero: "a welcoming patient hero with gentle-care wording and the emergency line only if the practice offers it",
     signatureWidget: "an insurance and membership checker tab_group listing only plans the practice accepts",
     palette: { canvas: "#0F172A", surface: "#18233A", ink: "#F1F6FB", muted: "#A7B4C6", accent: "#0EA5E9", grounding: "#14B8A6" },
@@ -184,6 +208,7 @@ export const TRADE_BLUEPRINTS: readonly TradeBlueprint[] = [
     key: "law-firms",
     label: "Law firms",
     tone: "dark",
+    studioTransition: "dark-to-light",
     hero: "a stately authority hero with the attorneys' real bar admissions only if supplied",
     signatureWidget: "a practice-area triage tab_group \"What kind of case?\" that ends in the confidential case-review form",
     palette: { canvas: "#020617", surface: "#0C1326", ink: "#F7F3E8", muted: "#BDB6A5", accent: "#B45309", grounding: "#1E293B" },
@@ -195,6 +220,7 @@ export const TRADE_BLUEPRINTS: readonly TradeBlueprint[] = [
     key: "real-estate",
     label: "Real estate",
     tone: "dark",
+    studioTransition: "dark-to-light",
     hero: "an architectural cinematic hero of a real listing or the agent's market",
     signatureWidget: "a neighbourhood tab_group plus a valuation quote_calculator that leads to a real comparative analysis request",
     palette: { canvas: "#15120D", surface: "#1F1C16", ink: "#F5F5F4", muted: "#B8B8B5", accent: "#C9A227", grounding: "#E5E5E5" },
@@ -206,6 +232,7 @@ export const TRADE_BLUEPRINTS: readonly TradeBlueprint[] = [
     key: "gyms-fitness",
     label: "Gyms and fitness studios",
     tone: "dark",
+    studioTransition: "dark-only",
     hero: "a high-energy kinetic hero with the trial-pass offer only if the owner runs one",
     signatureWidget: "a class timetable tab_group (by programme) from the owner's real schedule",
     palette: { canvas: "#1A1512", surface: "#25201C", ink: "#FAFAFA", muted: "#B5B5B5", accent: "#EA580C", grounding: "#DC2626" },
@@ -265,7 +292,12 @@ export function blueprintLookNote(blueprint: TradeBlueprint | null): string | nu
     `Type: ${blueprint.fonts.display} display with ${blueprint.fonts.body} body.`,
     `Hero: ${blueprint.hero}. Signature widget: ${blueprint.signatureWidget}.`,
     `Primary action wording: "${blueprint.cta.primary}" (secondary "${blueprint.cta.secondary}"), adapted only to services the owner really offers.`,
-  ].join(" ");
+    blueprint.tone === "dark"
+      ? blueprint.studioTransition === "dark-to-light"
+        ? `Section flow: open with ONE dark cinematic scene on the ${p.canvas} canvas, then every following section sits on a light ${p.ink} canvas with ${p.canvas} ink — a single intentional dark-to-light hand-off, never back to dark.`
+        : `Section flow: every section stays on the dark ${p.canvas} canvas — no light bands.`
+      : null,
+  ].filter(Boolean).join(" ");
 }
 
 /** The stored `Heading|Body` font preference for a blueprint, used only when the site has none. */

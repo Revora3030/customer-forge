@@ -1,7 +1,7 @@
 import { pageNavLabel, stripBusinessSuffix } from "@/lib/website-content";
 import { designTokenClasses, designTokenVars, readDesignTokens } from "@/lib/builder/design-tokens";
 import { readComposition as readSectionTree } from "@/lib/builder/composition-tree";
-import { prepareStudioPage, studioThemeVars, STUDIO_CANVAS } from "@/lib/builder/studio-canvas";
+import { prepareStudioPage, studioLightPalette, studioThemeVars, STUDIO_CANVAS } from "@/lib/builder/studio-canvas";
 import { blueprintFor } from "@/lib/builder/industry-playbook";
 import { premiumSurface } from "@/lib/site-theme";
 /**
@@ -159,8 +159,12 @@ export function SitePageView({
   // med spa) keep their authored light theme. A business with no category
   // signal keeps the original obsidian studio.
   const blueprint = blueprintFor(org.industry ?? null);
-  const studioPage = prepareStudioPage(sectionRoots, blueprint?.tone !== "light");
   const studioCanvas = blueprint && blueprint.tone === "dark" ? blueprint.palette : null;
+  // Quality bar #22: archetypes marked "dark-to-light" (real estate, law,
+  // dentist, landscaping) keep a dark cinematic opening and hand off once to a
+  // light canvas; WASH / Car Vault style trades stay dark-only.
+  const studioLight = blueprint?.studioTransition === "dark-to-light" ? studioLightPalette(studioCanvas) : null;
+  const studioPage = prepareStudioPage(sectionRoots, blueprint?.tone !== "light", blueprint?.studioTransition ?? "dark-only", studioLight);
 
   useEffect(() => {
     if (preview) return;
@@ -269,7 +273,7 @@ export function SitePageView({
               const section = sections[index];
               if (!section) return null;
               return (
-                <SiteSection key={section.id} site={site} section={section} lead={index === lead} first={index === 0} studio={studioPage.studio} studioCanvas={studioCanvas?.canvas ?? STUDIO_CANVAS} preparedRoot={studioPage.roots[index] ?? null} />
+                <SiteSection key={section.id} site={site} section={section} lead={index === lead} first={index === 0} studio={studioPage.studio} studioCanvas={studioCanvas?.canvas ?? STUDIO_CANVAS} preparedRoot={studioPage.roots[index] ?? null} light={studioPage.lightFrom !== null && index >= studioPage.lightFrom ? studioLight : null} seam={studioPage.lightFrom === index} />
               );
             });
           })()}

@@ -25,6 +25,7 @@ import {
 } from "@/lib/ai/photo-direction.server";
 import { createBackoffGate, mapConcurrent } from "@/lib/concurrency";
 import { gradeFirstBuildImages } from "@/lib/builder/first-build-image-qa";
+import { readImageDimensions } from "@/lib/builder/image-dimensions";
 import type {
   FirstBuildImageAsset,
   FirstBuildImageEvidence,
@@ -454,6 +455,9 @@ export async function generateFirstBuildImages(
     const mime = image.mimeType.split(";")[0]?.trim().toLowerCase() ?? "image/png";
     const extension = MIME_EXTENSION[mime] ?? "png";
     const bytes = decodeBase64(image.base64);
+    // Pixel size travels with the picture so an undersized one is never
+    // stretched across a full-bleed hero (quality bar #5).
+    const size = readImageDimensions(bytes);
     const path = buildObjectPath(input.organizationId, `${fileStem(shot, index)}.${extension}`);
 
     const { error: uploadError } = await db.storage
@@ -500,6 +504,7 @@ export async function generateFirstBuildImages(
       prompt,
       placement: shot.placement,
       aspectRatio: shot.aspect,
+      ...(size ? { width: size.width, height: size.height } : {}),
     };
   }
 
@@ -546,6 +551,7 @@ export async function generateFirstBuildImages(
       attached: 0,
       skipped,
       rejected: graded.rejected,
+      ...(graded.demoted.length ? { demoted: graded.demoted } : {}),
       provider,
       models: [...models],
       source: kept.length ? source : "none",

@@ -1,5 +1,7 @@
 import { checkBookingTime } from "@/lib/booking-hours";
 import { RollingNumber } from "@/components/site/CountUp";
+import { SiteSelect } from "@/components/site/SiteSelect";
+import { DateChips } from "@/components/site/DateChips";
 import { useEffect, useId, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "@/lib/ui/notify";
@@ -487,6 +489,13 @@ export function BookingForm({ site, presentation }: { site: Site; presentation?:
         const form = new FormData(e.currentTarget);
         const date = String(form.get("date") ?? "");
         const time = String(form.get("time") ?? "");
+        // The date chips submit through a hidden input, which the browser's
+        // own "required" check cannot see, so ask here.
+        if (bookable.length && !date) {
+          toast.error("Choose a preferred date.");
+          document.getElementById(fid("date"))?.querySelector<HTMLElement>('[tabindex="0"]')?.focus();
+          return;
+        }
         const email = String(form.get("email") ?? "").trim();
         const problem = contactProblem(email, String(form.get("phone") ?? "").trim());
         if (problem) {
@@ -540,20 +549,14 @@ export function BookingForm({ site, presentation }: { site: Site; presentation?:
 
       {bookable.length ? (
         <div className="space-y-1.5">
-          <Label htmlFor={fid("service")}>{presentation?.fieldLabels?.service ?? "Service"}</Label>
-          <select
+          <Label id={fid("service-label")} htmlFor={fid("service")}>{presentation?.fieldLabels?.service ?? "Service"}</Label>
+          <SiteSelect
             id={fid("service")}
+            labelledBy={fid("service-label")}
             value={serviceId}
-            onChange={(e) => setServiceId(e.target.value)}
-            className="h-11 w-full rounded-md border border-input bg-transparent px-3 text-[14px] "
-          >
-            {bookable.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-                {s.price ? ` — ${currency(Number(s.price))}` : ""}
-              </option>
-            ))}
-          </select>
+            onChange={setServiceId}
+            options={bookable.map((s) => ({ value: s.id, label: `${s.name}${s.price ? ` — ${currency(Number(s.price))}` : ""}` }))}
+          />
         </div>
       ) : null}
 
@@ -576,20 +579,31 @@ export function BookingForm({ site, presentation }: { site: Site; presentation?:
         </div>
         {bookable.length ? (
           <>
-            <div className="space-y-1.5">
-              <Label htmlFor={fid("date")}>{presentation?.fieldLabels?.date ?? "Preferred date"}</Label>
-              <Input
+            <div className="min-w-0 space-y-1.5 sm:col-span-2">
+              <Label id={fid("date-label")} htmlFor={fid("date")}>{presentation?.fieldLabels?.date ?? "Preferred date"}</Label>
+              <DateChips
                 id={fid("date")}
                 name="date"
-                type="date"
-                // iOS Safari gives native date/time inputs an intrinsic min-width
-                // that pushed them past the card edge on phones.
-                className="w-full min-w-0 max-w-full appearance-none"
-                min={today || undefined}
-                required
                 value={pickedDate}
-                onChange={(event) => setPickedDate(event.target.value)}
-                aria-describedby={hoursProblem ? fid("hours-note") : undefined}
+                onChange={setPickedDate}
+                hours={(site.profile as { hours?: unknown } | null)?.hours ?? null}
+                labelledBy={fid("date-label")}
+                describedBy={hoursProblem ? fid("hours-note") : undefined}
+                fallback={
+                  <Input
+                    id={fid("date")}
+                    name="date"
+                    type="date"
+                    // iOS Safari gives native date/time inputs an intrinsic min-width
+                    // that pushed them past the card edge on phones.
+                    className="w-full min-w-0 max-w-full appearance-none"
+                    min={today || undefined}
+                    required
+                    value={pickedDate}
+                    onChange={(event) => setPickedDate(event.target.value)}
+                    aria-describedby={hoursProblem ? fid("hours-note") : undefined}
+                  />
+                }
               />
             </div>
             <div className="space-y-1.5">
@@ -743,15 +757,14 @@ export function EnquiryForm({ site, presentation }: { site: Site; presentation?:
 
       {services.length > 1 ? (
         <div className="space-y-1.5">
-          <Label htmlFor={fid("service")}>{presentation?.fieldLabels?.service ?? "What can we help with? (optional)"}</Label>
-          <select id={fid("service")} name="service" className="h-11 w-full rounded-md border border-input bg-transparent px-3 text-[14px]">
-            <option value="">Not sure yet</option>
-            {services.map((s) => (
-              <option key={s.id} value={s.name}>
-                {s.name}
-              </option>
-            ))}
-          </select>
+          <Label id={fid("service-label")} htmlFor={fid("service")}>{presentation?.fieldLabels?.service ?? "What can we help with? (optional)"}</Label>
+          <SiteSelect
+            id={fid("service")}
+            name="service"
+            labelledBy={fid("service-label")}
+            defaultValue=""
+            options={[{ value: "", label: "Not sure yet" }, ...services.map((s) => ({ value: s.name, label: s.name }))]}
+          />
         </div>
       ) : services.length === 1 ? (
         <input type="hidden" name="service" value={services[0]!.name} />

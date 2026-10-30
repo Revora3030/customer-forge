@@ -8,6 +8,9 @@
 import type { CompositionNode } from "@/lib/builder/composition-tree";
 import { mergeSplitServices } from "@/lib/builder/intake-sanitize";
 import { luminance } from "@/lib/site-theme";
+import type { StudioTransition } from "@/lib/builder/trade-blueprints";
+
+export type { StudioTransition };
 
 export const STUDIO_CANVAS = "#0a0d10";
 export const STUDIO_INK = "#f4f1ea";
@@ -205,13 +208,103 @@ export function pageUsesStudio(surface: string | null, roots: readonly (Composit
   return Boolean(surface && /^#[0-9a-f]{6}$/i.test(surface) && luminance(surface) <= 0.35);
 }
 
-export function prepareStudioPage(roots: readonly (CompositionNode | null)[], studio = roots.some((root) => compositionHasChapter(root))): { studio: boolean; roots: (CompositionNode | null)[] } {
-  if (!studio) return { studio, roots: [...roots] };
+/** The light half of a dark-to-light page: the blueprint's ink becomes the canvas and its canvas the ink. */
+export type StudioLight = { canvas: string; ink: string; muted: string; dark: string };
+
+function contrast(a: string, b: string): number {
+  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x) as [number, number];
+  return (hi + 0.05) / (lo + 0.05);
+}
+
+/**
+ * The light canvas for a dark-to-light hand-off, or null when the inverted
+ * palette would not pass WCAG AA (4.5:1) for body and secondary ink, in which
+ * case the page stays dark-only.
+ */
+export function studioLightPalette(dark: StudioCanvas | null): StudioLight | null {
+  const source = dark ?? { canvas: STUDIO_CANVAS, surface: "#12161a", ink: STUDIO_INK, muted: "#c4beb4" };
+  const hex = /^#[0-9a-f]{6}$/i;
+  if (![source.canvas, source.surface, source.ink].every((value) => hex.test(value))) return null;
+  const light: StudioLight = { canvas: source.ink, ink: source.canvas, muted: source.surface, dark: source.canvas };
+  if (luminance(light.canvas) < 0.6) return null;
+  if (contrast(light.canvas, light.ink) < 4.5 || contrast(light.canvas, light.muted) < 4.5) return null;
+  return light;
+}
+
+/** CSS variables that put forms, menus and cards on the light half of a dark-to-light page. */
+export function studioLightVars(light: StudioLight): Record<string, string> {
+  return {
+    "--background": light.canvas,
+    "--foreground": light.ink,
+    "--card": "rgba(0,0,0,0.03)",
+    "--card-foreground": light.ink,
+    "--popover": "#ffffff",
+    "--popover-foreground": light.ink,
+    "--secondary": "rgba(0,0,0,0.05)",
+    "--secondary-foreground": light.ink,
+    "--muted": "rgba(0,0,0,0.05)",
+    "--muted-foreground": light.muted,
+    "--border": "rgba(0,0,0,0.12)",
+    "--input": "rgba(255,255,255,0.9)",
+    "--elevated": "#ffffff",
+  };
+}
+
+/** On the light half, a dark section fill is pulled onto the light canvas (the mirror of studioSectionColor). */
+export function lightSectionColor(bg: string | null, light: StudioLight): string | null {
+  if (!bg || !/^#[0-9a-f]{6}$/i.test(bg)) return bg;
+  return luminance(bg) < 0.4 ? light.canvas : bg;
+}
+
+/**
+ * Mirror of healStudioNode for the light half: drops dark fills and light ink
+ * so a section reads on the light canvas. Photographic chapters keep their own
+ * backdrop, scrim and ink, so they are left untouched.
+ */
+export function healLightNode(node: CompositionNode, light: StudioLight): CompositionNode {
+  if (CHAPTER.has(node.type)) return node;
+  const healed = healSplitCards(node);
+  const style = healed.style;
+  let nextStyle = style;
+  if (style) {
+    const next = { ...style };
+    const bg = style.background;
+    if (bg && /^#[0-9a-f]{6}$/i.test(bg) && luminance(bg) < 0.4) {
+      delete next.background;
+      delete next.gradientTo;
+    }
+    const ink = style.color;
+    if (ink && /^#[0-9a-f]{6}$/i.test(ink) && contrast(ink, next.background && /^#[0-9a-f]{6}$/i.test(next.background) ? next.background : light.canvas) < 4.5) next.color = light.ink;
+    nextStyle = next.background === style.background && next.color === style.color && next.gradientTo === style.gradientTo ? style : next;
+  }
+  const children = healed.children?.map((child) => healLightNode(child, light));
+  if (nextStyle === style && children === healed.children) return healed;
+  return { ...healed, ...(nextStyle ? { style: nextStyle } : {}), ...(children ? { children } : {}) };
+}
+
+/**
+ * Prepares a studio page. With "dark-to-light" (an explicit blueprint
+ * setting), a page whose opening section is a photographic chapter keeps that
+ * chapter dark and paints every following section on one light canvas:
+ * exactly one intentional hand-off. `lightFrom` is the first light section's
+ * index, or null when the page stays dark-only.
+ */
+export function prepareStudioPage(
+  roots: readonly (CompositionNode | null)[],
+  studio = roots.some((root) => compositionHasChapter(root)),
+  transition: StudioTransition = "dark-only",
+  light: StudioLight | null = null,
+): { studio: boolean; roots: (CompositionNode | null)[]; lightFrom: number | null } {
+  if (!studio) return { studio, roots: [...roots], lightFrom: null };
   const present = roots.map((root) => root ?? ({ type: "stack" } as CompositionNode));
   const pruned = omitRepeatedCalls(present);
+  const dark = pruned.map((root, index) => (roots[index] ? asChapter(healStudioNode(root)) : null));
+  const handOff = transition === "dark-to-light" && light && roots.length > 1 && compositionHasChapter(dark[0]);
+  if (!handOff) return { studio, roots: dark, lightFrom: null };
   return {
     studio,
-    roots: pruned.map((root, index) => (roots[index] ? asChapter(healStudioNode(root)) : null)),
+    roots: pruned.map((root, index) => (index === 0 ? dark[0]! : roots[index] ? healLightNode(root, light) : null)),
+    lightFrom: 1,
   };
 }
 

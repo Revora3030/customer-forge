@@ -615,6 +615,11 @@ export type PersistedComponentVisual = {
   credit?: string;
   license?: string;
   source_url?: string;
+  /** Pixel size of the stored picture, when known. */
+  width?: number;
+  height?: number;
+  /** False when the picture is too small to stretch edge to edge (quality bar #5). */
+  full_bleed?: false;
 };
 
 
@@ -662,6 +667,11 @@ export function readComponentVisual(settings: unknown): PersistedComponentVisual
   if (typeof value["credit"] === "string") out.credit = value["credit"].slice(0, 120);
   if (typeof value["license"] === "string") out.license = value["license"].slice(0, 80);
   if (typeof value["source_url"] === "string") out.source_url = value["source_url"].slice(0, 500);
+  const width = boundedNumber(value["width"], 1, 65535);
+  if (width !== null) out.width = Math.round(width);
+  const height = boundedNumber(value["height"], 1, 65535);
+  if (height !== null) out.height = Math.round(height);
+  if (value["full_bleed"] === false) out.full_bleed = false;
   return out;
 }
 

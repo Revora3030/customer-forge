@@ -41,6 +41,7 @@ import {
   type SectionKind,
 } from "@/lib/website-content";
 import { PageManager } from "@/components/app/PageManager";
+import { SectionCalculatorFields } from "@/components/app/SectionCalculatorFields";
 import { cn } from "@/lib/utils";
 
 /**
@@ -337,6 +338,11 @@ function PageSections({
             canManage={canManage}
           />
           <SectionSeoFields
+            section={section}
+            organizationId={organizationId}
+            canManage={canManage}
+          />
+          <SectionCalculatorFields
             section={section}
             organizationId={organizationId}
             canManage={canManage}

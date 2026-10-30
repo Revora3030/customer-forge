@@ -18,6 +18,9 @@ export const CINEMATIC_CSS = `
 ${S} .rv-scene{position:relative;isolation:isolate;overflow:hidden;display:grid;width:100%;max-width:100%;min-height:clamp(560px,100vh,1200px);min-height:clamp(560px,100svh,1200px)}
 ${S} .rv-scene-media{position:absolute!important;inset:0;z-index:-2;width:100%!important;height:100%!important;max-width:none!important;object-fit:cover;display:block}
 ${S} .rv-scene-scrim{position:absolute;inset:0;z-index:-1;pointer-events:none}
+${S} .rv-scene[data-framed] .rv-scene-media[data-soft]{filter:blur(28px) saturate(1.05);transform:scale(1.15)}
+${S} .rv-scene-frame{display:block;justify-self:center;align-self:center;width:100%;max-width:min(var(--rv-native,720px),100%);height:auto!important;border-radius:18px;box-shadow:0 24px 60px rgb(0 0 0 / .35)}
+@media (min-width:1024px){${S} .rv-scene[data-framed] .rv-scene-inner{grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:center;column-gap:clamp(32px,5vw,80px)}${S} .rv-scene[data-framed] .rv-scene-slot{max-width:100%!important}${S} .rv-scene[data-framed][data-anchor$="-right"] .rv-scene-frame{order:-1}}
 ${S} .rv-scene-inner{position:relative;display:grid;grid-template-columns:minmax(0,1fr);gap:24px;width:100%;padding:clamp(88px,11vw,128px) clamp(20px,5vw,72px) clamp(32px,6vw,80px)}
 ${S} .rv-scene-slot{display:flex;flex-direction:column;gap:16px;max-width:min(640px,100%);min-width:0}
 ${S} .rv-scene-offers{display:grid;gap:16px;min-width:0}
