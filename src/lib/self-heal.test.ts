@@ -167,3 +167,16 @@ describe("self-heal planner", () => {
     expect(describeRepairs([])).toMatch(/nothing/i);
   });
 });
+
+describe("self-heal verify step", () => {
+  it("counts a repair as fixed only when a fresh read no longer plans it", async () => {
+    const { verifiedRepairs, repairKey } = await import("@/lib/self-heal");
+    const a = { kind: "page_seo", id: "p1", field: "seo_title", value: "Home — Acme", label: "home title" } as const;
+    const b = { kind: "component_link", id: "c1", value: "/contact", label: "quote button" } as const;
+    // The fresh read still plans b (its write did not land), with a different value.
+    const result = verifiedRepairs([a, b], [{ ...b, value: "/" }]);
+    expect(result.fixed.map((r) => r.label)).toEqual(["home title"]);
+    expect(result.unverified.map((r) => r.label)).toEqual(["quote button"]);
+    expect(repairKey({ kind: "site_seo", field: "title", value: "x", label: "x" })).toBe("site_seo:title");
+  });
+});

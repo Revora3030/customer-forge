@@ -18,6 +18,7 @@ import {
   type HealPage,
   type HealSection,
   type Repair,
+  verifiedRepairs,
 } from "@/lib/self-heal";
 import { readSeo } from "@/lib/site-seo";
 import { safeLinkUrl } from "@/lib/website-content";
@@ -33,6 +34,8 @@ export type SelfHealResult = {
   summary: string;
   /** Findings still needing the owner, expressed as remaining planned repairs. */
   remaining: number;
+  /** Repairs that were saved but a fresh read still plans — not counted as fixed. */
+  unverified?: string[];
 };
 
 type Db = Pick<SupabaseClient, "from">;
@@ -180,6 +183,7 @@ export const runSelfHeal = createServerFn({ method: "POST" })
     type Undo = () => PromiseLike<unknown>;
     const undo: Undo[] = [];
     const fixed: string[] = [];
+    const applied: Repair[] = [];
     const failed: string[] = [];
 
     const apply = async (repair: Repair) => {
@@ -256,7 +260,7 @@ export const runSelfHeal = createServerFn({ method: "POST" })
     for (const repair of repairs) {
       try {
         await apply(repair);
-        fixed.push(repair.label);
+        applied.push(repair);
       } catch (error) {
         console.error("[self-heal] repair failed", repair.kind, error);
         failed.push(repair.label);
@@ -298,12 +302,17 @@ export const runSelfHeal = createServerFn({ method: "POST" })
       services: after.services,
     });
 
+    // Only what the fresh read confirms counts as fixed.
+    const verified = verifiedRepairs(applied, remaining);
+    fixed.push(...verified.fixed.map((repair) => repair.label));
+    const unverified = verified.unverified.map((repair) => repair.label);
+
     await supabase.from("audit_logs").insert({
       organization_id: orgId,
       actor_id: userId,
       action: "website.self_heal",
       entity: "website",
-      metadata: { fixed: fixed.length, remaining: remaining.length },
+      metadata: { fixed: fixed.length, unverified: unverified.length, remaining: remaining.length },
     });
 
     return {
@@ -312,7 +321,10 @@ export const runSelfHeal = createServerFn({ method: "POST" })
       failed,
       rolledBack: false,
       restoreLabel,
-      summary: remaining.length
+      unverified,
+      summary: unverified.length && !fixed.length
+        ? `Revora saved ${unverified.length} repair${unverified.length === 1 ? "" : "s"}, but a fresh check still shows the same problem${unverified.length === 1 ? "" : "s"}, so ${unverified.length === 1 ? "it isn't" : "they aren't"} counted as fixed. ${remaining.length} item${remaining.length === 1 ? "" : "s"} still need${remaining.length === 1 ? "s" : ""} attention.`
+        : remaining.length
         ? `Revora fixed ${fixed.length} item${fixed.length === 1 ? "" : "s"}. ${remaining.length} still need${remaining.length === 1 ? "s" : ""} your input.`
         : `Revora fixed ${fixed.length} item${fixed.length === 1 ? "" : "s"}. Nothing safe is left to repair.`,
       remaining: remaining.length,

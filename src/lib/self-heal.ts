@@ -268,3 +268,26 @@ export function describeRepairs(repairs: Repair[]): string {
     .map(([kind, count]) => `${count} ${words[kind as Repair["kind"]]}${count === 1 ? "" : "s"}`)
     .join(", ");
 }
+
+/** Identity of a repair: the exact row and field it changes (not the value). */
+export function repairKey(repair: Repair): string {
+  if (repair.kind === "site_seo") return `site_seo:${repair.field}`;
+  if (repair.kind === "page_seo") return `page_seo:${repair.id}:${repair.field}`;
+  return `${repair.kind}:${repair.id}`;
+}
+
+/**
+ * Verify step: a repair only counts as fixed when a fresh read no longer plans
+ * it. A write the database accepted that did not change what the planner sees
+ * (e.g. RLS matched no row) is reported as still open, never as fixed.
+ */
+export function verifiedRepairs(
+  applied: readonly Repair[],
+  stillPlanned: readonly Repair[],
+): { fixed: Repair[]; unverified: Repair[] } {
+  const open = new Set(stillPlanned.map(repairKey));
+  const fixed: Repair[] = [];
+  const unverified: Repair[] = [];
+  for (const repair of applied) (open.has(repairKey(repair)) ? unverified : fixed).push(repair);
+  return { fixed, unverified };
+}

@@ -34,21 +34,34 @@ export function lastProposedFrom(rows: readonly { content: string; created_at: s
   return last;
 }
 
-export type EventWatchRun = { events: number; users: number; posted: number; failed: number; failedSources: string[] };
+export type EventWatchRun = {
+  events: number;
+  users: number;
+  posted: number;
+  failed: number;
+  failedSources: string[];
+  /** Owners skipped because their earlier notices (the cooldown record) could not be read. */
+  skippedUsers: number;
+};
 
 export async function runJarvisEventWatch(db: Db, now = Date.now(), sources: readonly EventSource[] = defaultSources(db)): Promise<EventWatchRun> {
-  const run: EventWatchRun = { events: 0, users: 0, posted: 0, failed: 0, failedSources: [] };
+  const run: EventWatchRun = { events: 0, users: 0, posted: 0, failed: 0, failedSources: [], skippedUsers: 0 };
   const collected = await collectEvents(sources, now);
   run.events = collected.events.length;
   run.failedSources = collected.failedSources;
   if (!collected.events.length) return run;
 
-  const { data: admins } = await db.from("user_roles").select("user_id").eq("role", "super_admin");
+  const { data: admins, error: adminError } = await db.from("user_roles").select("user_id").eq("role", "super_admin");
+  if (adminError) {
+    // Without the admin list nobody can be told; say so instead of reporting "0 users".
+    run.failedSources = [...run.failedSources, "jarvis.admins"];
+    return run;
+  }
   const userIds = [...new Set((admins ?? []).map((row) => String(row.user_id)))];
   run.users = userIds.length;
 
   for (const userId of userIds) {
-    const { data: earlier } = await db
+    const { data: earlier, error: historyError } = await db
       .from("jarvis_messages")
       .select("content, created_at")
       .eq("user_id", userId)
@@ -56,6 +69,12 @@ export async function runJarvisEventWatch(db: Db, now = Date.now(), sources: rea
       .ilike("content", "%[event:%")
       .gte("created_at", new Date(now - 7 * DAY).toISOString())
       .limit(500);
+    if (historyError) {
+      // The cooldown is read from these earlier notices. Without them every
+      // event would be re-posted on every pass, so skip this owner this time.
+      run.skippedUsers += 1;
+      continue;
+    }
     const { proposals } = planEventResponses({ events: collected.events, rules: DEFAULT_EVENT_RULES, lastProposed: lastProposedFrom((earlier ?? []) as never[]), now });
     for (const proposal of proposals) {
       const content = `Heads up ${eventMarker(proposal.ruleId, proposal.subject)}\n\n${proposal.summary}\n\nNothing was changed or sent. Send this to Jarvis to open the recovery: “${proposal.prompt}”`;

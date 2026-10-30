@@ -92,4 +92,40 @@ describe("jarvis event watch", () => {
       { content: `y ${eventMarker("ci-failed-triage", "main")}`, created_at: "garbage" },
     ])).toEqual({ "ci-failed-triage|main": NOW - 1000 });
   });
+
+  it("skips an owner whose earlier notices can't be read instead of re-posting everything", async () => {
+    const { db: inner, inserts } = fakeDb(base());
+    const db = {
+      from: (table: string) => {
+        const q = (inner as unknown as { from: (t: string) => Record<string, unknown> }).from(table);
+        if (table !== "jarvis_messages") return q;
+        return { ...q, select: () => broken };
+      },
+    };
+    const broken: Record<string, unknown> = {
+      eq: () => broken,
+      ilike: () => broken,
+      gte: () => broken,
+      limit: () => Promise.resolve({ data: null, error: { message: "timeout" } }),
+    };
+    const run = await runJarvisEventWatch(db as never, NOW, [buildFailedSource(inner)]);
+    expect(run).toMatchObject({ events: 1, users: 1, posted: 0, skippedUsers: 1 });
+    expect(inserts).toEqual([]);
+  });
+
+  it("reports the admin list as a failed source when it can't be read", async () => {
+    const { db: inner, inserts } = fakeDb(base());
+    const db = {
+      from: (table: string) => {
+        const q = (inner as unknown as { from: (t: string) => Record<string, unknown> }).from(table);
+        if (table !== "user_roles") return q;
+        const bad: Record<string, unknown> = { select: () => bad, eq: () => Promise.resolve({ data: null, error: { message: "denied" } }) };
+        return bad;
+      },
+    };
+    const run = await runJarvisEventWatch(db as never, NOW, [buildFailedSource(inner)]);
+    expect(run.failedSources).toContain("jarvis.admins");
+    expect(run.posted).toBe(0);
+    expect(inserts).toEqual([]);
+  });
 });
