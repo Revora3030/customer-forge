@@ -155,6 +155,13 @@
       "when": 1793325095523,
       "tag": "0021_20260913160343_security_consolidate_billing_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1793325216497,
+      "tag": "0022_20260913230000_revora_10_10_security_performance_hardening",
+      "breakpoints": true
     }
   ]
 }
