@@ -40,10 +40,10 @@ describe("localBusinessSchema", () => {
       social: { instagram: "https://instagram.com/acme", facebook: "not a url" },
     });
     expect(schema["@type"]).toBe("Restaurant");
-    expect(schema.servesCuisine).toBe("Italian");
-    expect(String(schema.hasMap)).toContain("1%20Main%20St");
-    expect(schema.sameAs).toEqual(["https://instagram.com/acme"]);
-    expect(schema.priceRange).toBe("$20-$45");
+    expect(schema["servesCuisine"]).toBe("Italian");
+    expect(String(schema["hasMap"])).toContain("1%20Main%20St");
+    expect(schema["sameAs"]).toEqual(["https://instagram.com/acme"]);
+    expect(schema["priceRange"]).toBe("$20-$45");
   });
 
   it("invents nothing without data", () => {
