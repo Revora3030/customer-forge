@@ -223,3 +223,37 @@ export function dialOptionForKey(key: string, current: number, count: number): n
   if (key === "End") return count - 1;
   return null;
 }
+
+/**
+ * The 0-100 dial level under a pointer at (dx, dy) from the dial's centre
+ * (screen axes: y grows downward), or null in the small dead zone at the hub
+ * where the direction is meaningless. Pointers in the gap below the sweep
+ * clamp to the nearer end.
+ */
+export function dialLevelForPoint(dx: number, dy: number, deadZone = 8): number | null {
+  if (!Number.isFinite(dx) || !Number.isFinite(dy) || Math.hypot(dx, dy) < deadZone) return null;
+  const angle = (Math.atan2(dx, -dy) * 180) / Math.PI;
+  const half = DIAL_SWEEP / 2;
+  const clamped = Math.min(half, Math.max(-half, angle));
+  return +(((clamped + half) / DIAL_SWEEP) * 100).toFixed(2);
+}
+
+/** Index of the option whose level is nearest `level` (first wins a tie), or null with no options. */
+export function dialOptionForLevel(level: number, levels: readonly number[]): number | null {
+  let best: number | null = null;
+  let gap = Infinity;
+  levels.forEach((value, index) => {
+    const d = Math.abs(value - level);
+    if (d < gap) {
+      gap = d;
+      best = index;
+    }
+  });
+  return best;
+}
+
+/** The option a drag or tap on the gauge picks, from a point relative to the dial centre. */
+export function dialOptionForPoint(dx: number, dy: number, levels: readonly number[]): number | null {
+  const level = dialLevelForPoint(dx, dy);
+  return level == null ? null : dialOptionForLevel(level, levels);
+}

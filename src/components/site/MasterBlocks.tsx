@@ -126,6 +126,7 @@ export function TierFader({ props, label, labels, cards }: { props: NodeProps; l
           aria-valuetext={labels[picked]}
           onChange={(event) => setActive(Number(event.target.value))}
           className="rv-tier-range"
+          style={{ "--rv-tier-fill": `${cards.length > 1 ? (picked / (cards.length - 1)) * 100 : 0}%` } as CSSProperties}
         />
         <ol className="rv-tier-ticks" aria-hidden="true">
           {labels.map((text, index) => (

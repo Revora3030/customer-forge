@@ -8,7 +8,7 @@
  */
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
 import { scrubFrame, scrubProgress, scrubReadout, scrubTime, shouldSeek } from "@/lib/builder/scrub";
-import { MIN_SPIN_FRAMES, dialAngle, dialArcPath, dialOptionForKey, frameForDrag, frameForKey } from "@/lib/builder/cinematic-primitives";
+import { MIN_SPIN_FRAMES, dialAngle, dialArcPath, dialOptionForKey, dialOptionForPoint, frameForDrag, frameForKey } from "@/lib/builder/cinematic-primitives";
 
 type NodeProps = { "data-cn": string; "data-motion": string | undefined; className: string | undefined; style: CSSProperties };
 
@@ -425,6 +425,32 @@ export function DialSelector({ props, label, options, unit }: {
     setSelected(index);
     chips.current[index]?.focus();
   };
+  // Drag (or tap) the gauge itself to turn the dial; the chips and arrow
+  // keys stay the accessible way to choose.
+  const dragging = useRef(false);
+  const pickFromPointer = (event: PointerEvent<SVGSVGElement>) => {
+    const box = event.currentTarget.getBoundingClientRect();
+    if (!box.width || !box.height) return;
+    const dx = ((event.clientX - box.left) / box.width) * 120 - cx;
+    const dy = ((event.clientY - box.top) / box.height) * 104 - cy;
+    const next = dialOptionForPoint(dx, dy, options.map((item) => item.level));
+    if (next != null && next !== selected) setSelected(next);
+  };
+  const gaugeDrag = live
+    ? {
+        onPointerDown: (event: PointerEvent<SVGSVGElement>) => {
+          dragging.current = true;
+          event.currentTarget.setPointerCapture?.(event.pointerId);
+          pickFromPointer(event);
+        },
+        onPointerMove: (event: PointerEvent<SVGSVGElement>) => {
+          if (dragging.current) pickFromPointer(event);
+        },
+        onPointerUp: () => { dragging.current = false; },
+        onPointerCancel: () => { dragging.current = false; },
+        "data-draggable": "",
+      }
+    : {};
   const onKey = (event: KeyboardEvent<HTMLButtonElement>) => {
     const next = dialOptionForKey(event.key, selected, options.length);
     if (next == null) return;
@@ -434,7 +460,7 @@ export function DialSelector({ props, label, options, unit }: {
   return (
     <div {...props} className={merge(props, "rv-dial")}>
       <div className="rv-dial-gauge">
-        <svg viewBox="0 0 120 104" role="img" aria-label={`${option.label}: ${option.value}${unit ? ` ${unit}` : ""}`}>
+        <svg viewBox="0 0 120 104" role="img" aria-label={`${option.label}: ${option.value}${unit ? ` ${unit}` : ""}`} {...gaugeDrag}>
           <path d={track} fill="none" stroke="currentColor" strokeOpacity=".16" strokeWidth="9" strokeLinecap="round" />
           {fill ? <path className="rv-dial-fill" d={fill} fill="none" stroke="var(--primary, currentColor)" strokeWidth="9" strokeLinecap="round" /> : null}
           <line className="rv-dial-needle" x1={cx} y1={cy} x2={cx} y2={cy - (r - 12)} stroke="currentColor" strokeWidth="3" strokeLinecap="round" style={{ transform: `rotate(${dialAngle(option.level)}deg)`, transformOrigin: `${cx}px ${cy}px` }} />
