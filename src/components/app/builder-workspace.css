@@ -30,10 +30,45 @@
      chrome above it (measured by useChatTop), so the composer is on screen
      on load and only the transcript scrolls. */
   [data-revora-builder-workspace] #website-assistant {
+    /* Fallbacks first: browsers without dvh get svh, then vh. */
+    height: max(18rem, calc(100vh - var(--builder-chat-top, 12rem)));
+    height: max(18rem, calc(100svh - var(--builder-chat-top, 12rem)));
     height: max(18rem, calc(var(--builder-visual-height, 100dvh) - var(--builder-chat-top, 12rem)));
     min-height: 18rem;
   }
+  /* Keyboard open while typing in the chat (useKeyboardInset): pin the chat
+     to exactly the visible area so the composer sits right above the
+     keyboard and only the transcript scrolls — no jump to the top, no black
+     band under it. */
+  [data-revora-builder-workspace][data-builder-keyboard="open"] #website-assistant {
+    position: fixed;
+    left: 0;
+    right: 0;
+    top: var(--builder-vv-top, 0px);
+    height: var(--builder-vv-height, 100svh);
+    min-height: 0;
+    max-height: none;
+    margin: 0;
+    border-radius: 0;
+    z-index: 60;
+    background: var(--background);
+  }
+  [data-revora-builder-workspace][data-builder-keyboard="open"] #website-assistant [data-chat-composer] { padding-bottom: .5rem; }
+  /* Fade the top edge of the transcript so a clipped row (a stray "…"
+     menu button) never shows as a loose glyph under the header. */
+  [data-revora-builder-workspace] #website-assistant [role="log"] > div {
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 1.25rem);
+    mask-image: linear-gradient(to bottom, transparent 0, #000 1.25rem);
+  }
 }
+/* Chat header at 375px: the title and status stay one line and truncate;
+   the canvas-wide overflow-wrap:anywhere must never break them per letter. */
+[data-revora-builder-workspace] #website-assistant > header,
+[data-revora-builder-workspace] #website-assistant > header * { overflow-wrap: normal; word-break: normal; }
+[data-revora-builder-workspace] #website-assistant > header :is(h1, h2, h3, p) { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+[data-revora-builder-workspace] #website-assistant > header > * { min-width: 0; }
+[data-revora-builder-workspace] #website-assistant > header :is(button, [role="button"]) { flex-shrink: 0; }
+[data-revora-builder-workspace] [data-testid="builder-topbar"] :is(p, span) { overflow-wrap: normal; word-break: normal; }
 @media (max-width: 767px) {
   [data-revora-builder-workspace] [data-testid="builder-preview"] > header { display: grid; grid-template-columns: minmax(0, 1fr); gap: .5rem; }
   [data-revora-builder-workspace] [data-testid="builder-preview"] > header > div { min-width: 0; max-width: 100%; }
