@@ -370,13 +370,20 @@ async function handleEvent(event: StripeWebhookEvent, env: StripeEnv) {
             if (orgError)
               throw new Error(`setup_activation_failed:${orgError.code ?? orgError.message}`);
           }
+          // Record what was actually paid: a promotion code (allowed on the
+          // growth checkout) can discount the setup line, down to $0 for a
+          // 100%-off test code. The list price was verified above.
+          const { checkoutSetupPaidCents } = await import("@/lib/webhook-invoice");
+          const paidSetup = checkoutSetupPaidCents(setupLine, setupCents);
           await recordStripeTransaction(admin, {
             organizationId,
             stripeId: `setup:${String(session.id)}`,
-            // Independently verified above: the setup line's own amount.
-            amount: setupCents / 100,
+            amount: paidSetup.cents / 100,
             currency,
-            description: "Revora Growth System setup fee",
+            description:
+              paidSetup.discountCents > 0
+                ? `Revora Growth System setup fee (promotion code, $${(paidSetup.discountCents / 100).toFixed(2)} off)`
+                : "Revora Growth System setup fee",
             status: "completed",
             planId: GROWTH_PLAN_ID,
             interval: "monthly",

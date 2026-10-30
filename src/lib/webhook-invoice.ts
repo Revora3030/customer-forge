@@ -98,3 +98,19 @@ export function invoiceRecurringLine(invoice: unknown, monthlyPriceId: string): 
   const lines = (invoice as { lines?: { data?: unknown[] } }).lines?.data ?? [];
   return lines.find((line) => invoiceLinePriceId(line) === monthlyPriceId) ?? lines[0] ?? null;
 }
+
+/**
+ * What the customer actually paid for the setup line of a checkout session, in
+ * cents, before tax: the list price minus any promotion-code discount, never
+ * below 0 or above the list price. A line without amounts falls back to the
+ * list price (the caller has already verified the unit amount).
+ */
+export function checkoutSetupPaidCents(
+  line: { amount_subtotal?: number | null; amount_discount?: number | null } | null | undefined,
+  listCents: number,
+): { cents: number; discountCents: number } {
+  const subtotal = typeof line?.amount_subtotal === "number" ? line.amount_subtotal : listCents;
+  const discount = typeof line?.amount_discount === "number" ? Math.max(0, line.amount_discount) : 0;
+  const cents = Math.min(listCents, Math.max(0, subtotal - discount));
+  return { cents, discountCents: listCents - cents };
+}
