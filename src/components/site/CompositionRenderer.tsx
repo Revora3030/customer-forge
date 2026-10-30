@@ -473,16 +473,30 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
       // as a before/after result of the business's real work.
       const beforeMedia = beforeImage.mediaRef ? ctx.media(beforeImage.mediaRef) : null;
       const afterMedia = afterImage.mediaRef ? ctx.media(afterImage.mediaRef) : null;
-      if (isGeneratedMedia(beforeMedia) || isGeneratedMedia(afterMedia)) return null;
+      // Example mode: without owner photos the interactive slider stays, but
+      // clearly labeled as an illustration, never presented as real work.
+      const example = isGeneratedMedia(beforeMedia) || isGeneratedMedia(afterMedia);
       const beforeSource = beforeImage.mediaRef ? mediaUrl(beforeMedia) : beforeImage.src ? resolveImageSource(beforeImage.src) : null;
       const afterSource = afterImage.mediaRef ? mediaUrl(afterMedia) : afterImage.src ? resolveImageSource(afterImage.src) : null;
-      if (beforeSource && afterSource && node.revealMode === "brush")
+      if (beforeSource && afterSource && node.revealMode === "brush" && !example)
         return (
           <BrushReveal key={key} props={props} prompt={node.text?.trim().slice(0, 60) || "Reveal the result"}
             tools={(node.items ?? []).map((item) => item.trim().slice(0, 28)).filter(Boolean).slice(0, MAX_BRUSH_TOOLS)}
             before={{ alt: beforeImage.alt, label: beforeImage.label, src: beforeSource }}
             after={{ alt: afterImage.alt, label: afterImage.label, src: afterSource }} />
         );
+      if (example)
+        return beforeSource && afterSource ? (
+          <div key={key} data-rv-example="before_after" className="relative">
+            <BeforeAfterSlider props={props}
+              before={{ alt: beforeImage.alt, label: beforeImage.label, src: beforeSource }}
+              after={{ alt: afterImage.alt, label: afterImage.label, src: afterSource }}
+              initialSplit={node.initialSplit ?? 50} />
+            <p className="pointer-events-none absolute left-3 top-3 z-10 rounded-full bg-black/75 px-3 py-1 text-[12px] font-semibold text-white">
+              Example illustration — not a photo of our work
+            </p>
+          </div>
+        ) : null;
       return beforeSource && afterSource ? (
         <BeforeAfterSlider key={key} props={props}
           before={{ alt: beforeImage.alt, label: beforeImage.label, src: beforeSource }}

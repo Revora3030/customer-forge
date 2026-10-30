@@ -84,9 +84,10 @@ describe("first-build picture sources", () => {
 
 describe("before/after slider provenance", () => {
   const slider: CompositionTree = { version: 1, root: { type: "before_after_slider", beforeImage: { mediaRef: "temp_before", alt: "Seat before", label: "Before" }, afterImage: { mediaRef: "temp_after", alt: "Seat after", label: "After" } } };
-  it("renders no picture when either side is generated", () => {
+  it("shows a generated pair only in labeled example mode, never as real work", () => {
     const html = draw(slider, "proof", (ref) => ({ url: `https://cdn.example/${ref}.jpg`, visual: { source: ref === "temp_after" ? "generated" : "owner" } }));
-    expect(html).not.toContain("<img");
+    expect(html).toContain('data-rv-example="before_after"');
+    expect(html).toContain("Example illustration — not a photo of our work");
   });
   it("renders the owner's real pair through the media map", () => {
     const html = draw(slider, "proof", (ref) => ({ url: `https://cdn.example/${ref}.jpg`, visual: { source: "owner" } }));

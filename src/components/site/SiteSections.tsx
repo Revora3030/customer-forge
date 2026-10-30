@@ -20,6 +20,7 @@ import { Mail, MapPin, Phone } from "lucide-react";
 import { BookingForm, EnquiryForm, QuoteCalculator } from "@/components/site/SiteForms";
 import { DirectContact } from "@/components/site/ContactDetails";
 import { ReviewWall, ServiceMenu } from "@/components/site/LiveBlocks";
+import { ServiceEstimator } from "@/components/site/ServiceEstimator";
 import { offerFactsFor } from "@/components/site/live-blocks-utils";
 import type { PublicSite } from "@/lib/public-site.functions";
 import { readCustomBlock } from "@/lib/builder/custom-block";
@@ -168,6 +169,7 @@ function SiteSectionBody({ site, section, lead = false, first = false, surface =
             if (name === "contact_details") return <ContactFacts site={site} {...(presentation ? { presentation } : {})} />;
             if (name === "enquiry_form") return <EnquiryForm site={site} {...(presentation ? { presentation } : {})} />;
             if (name === "service_menu") return <ServiceMenu site={site} {...(presentation ? { presentation } : {})} />;
+            if (name === "service_estimator") return <ServiceEstimator site={site} {...(presentation ? { presentation } : {})} />;
             if (name === "review_wall") return <ReviewWall site={site} {...(presentation ? { presentation } : {})} />;
             if (name === "direct_contact")
               return <DirectContact profile={profile} businessName={site.org.name} label={presentation?.contactLabel ?? presentation?.title ?? `Call or email ${site.org.name} directly`} {...(presentation ? { presentation } : {})} />;
