@@ -490,11 +490,9 @@ function GetStarted() {
         </h1>
         <p className="mt-3 text-[14px] leading-relaxed text-muted-foreground">
           <span className="gold-hl">{usdExact(GROWTH_SYSTEM.setupPrice)} setup charged today</span>.
-          Platform is{" "}
-          <span className="gold-hl">
-            {usdExact(0)} for your first {GROWTH_SYSTEM.trialDays} days
-          </span>
-          , then {usdExact(GROWTH_SYSTEM.monthlyPrice)}/month unless canceled. One complete growth
+          Platform{" "}
+          <span className="gold-hl">{GROWTH_SYSTEM.firstMonthFree}</span>, then{" "}
+          {usdExact(GROWTH_SYSTEM.monthlyPrice)}/month unless canceled. One complete growth
           system — no packages to compare.
         </p>
         <p className="mt-2 text-[12.5px] text-muted-foreground">
@@ -646,7 +644,10 @@ function GetStarted() {
                   </div>
                   <div className="text-right">
                     <p className="tnum text-[15px] font-semibold whitespace-nowrap text-primary">
-                      $0 for 30 days
+                      First month free
+                    </p>
+                    <p className="tnum text-[13px] whitespace-nowrap text-muted-foreground">
+                      {GROWTH_SYSTEM.trialDays} days after setup
                     </p>
                     <p className="tnum text-[13px] whitespace-nowrap text-muted-foreground">
                       then {usdExact(GROWTH_SYSTEM.monthlyPrice)}/month
@@ -718,8 +719,8 @@ function GetStarted() {
                     <h2 className="font-display text-[17px] font-semibold">Payment</h2>
                   </div>
                   <p className="mt-2 text-[13px] text-muted-foreground">
-                    {usdExact(GROWTH_SYSTEM.setupPrice)} one-time setup charged today. Your{" "}
-                    {GROWTH_SYSTEM.trialDays}-day platform trial is free, then{" "}
+                    {usdExact(GROWTH_SYSTEM.setupPrice)} one-time setup charged today. Platform{" "}
+                    {GROWTH_SYSTEM.firstMonthFree}, then{" "}
                     {usdExact(GROWTH_SYSTEM.monthlyPrice)}/month automatically unless canceled.
                     Payments are processed securely by our payment provider — Revora never sees your
                     card details.

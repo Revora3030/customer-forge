@@ -74,7 +74,7 @@ function WelcomePage() {
     { label: "Setup payment received", done: setupPaid },
     {
       label: trialing
-        ? `${GROWTH_SYSTEM.trialDays}-day platform trial active`
+        ? `Platform ${GROWTH_SYSTEM.firstMonthFree}`
         : "Monthly subscription active",
       done: subActive,
     },
@@ -93,7 +93,7 @@ function WelcomePage() {
         </h1>
         <p className="mt-2 max-w-2xl text-[14px] leading-relaxed text-muted-foreground">
           {setupPaid && subActive
-            ? `Your ${usdExact(GROWTH_SYSTEM.setupPrice)} setup payment was received. Your ${GROWTH_SYSTEM.trialDays}-day ${usdExact(GROWTH_SYSTEM.monthlyPrice)}/month platform trial is active. ${usdExact(GROWTH_SYSTEM.monthlyPrice)}/month begins after the trial unless canceled.`
+            ? `Your ${usdExact(GROWTH_SYSTEM.setupPrice)} setup payment was received. Your platform is free for the first month (${GROWTH_SYSTEM.trialDays} days after setup); ${usdExact(GROWTH_SYSTEM.monthlyPrice)}/month begins after that unless canceled.`
             : "Payment confirmation comes directly from our payment provider. If you just paid, this page updates within a few seconds — nothing is activated until the payment is verified."}
         </p>
       </div>
