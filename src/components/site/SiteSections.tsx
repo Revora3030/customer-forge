@@ -103,13 +103,21 @@ export function SiteSection({ site, section, lead = false, first = false, studio
   const role = typeof storedRole === "string" && /^[a-z][a-z0-9_-]{0,40}$/.test(storedRole) ? storedRole : section.kind;
   const anchor = role && role !== "composition" ? role.replace(/_/g, "-") : undefined;
   const fx = sectionFxClassName(readSectionEffect(section.settings));
+  // The opening hero fills most of the first screen (never more than 720px) with its content centred,
+  // so a short text hero no longer reads as a cramped strip above the fold.
+  const heroFrame = first && (role === "hero" || section.kind === "hero");
   return (
     <div
       id={anchor}
       data-rvb={section.id}
       data-rvb-kind={section.kind}
       data-rvb-label={sectionLabel(section.kind)}
-      className={fx ? `rv-site-section scroll-mt-20 ${fx}` : "rv-site-section scroll-mt-20"}
+      className={[
+        "rv-site-section scroll-mt-20",
+        heroFrame ? "flex min-h-[min(720px,85vh)] flex-col justify-center" : "",
+        fx ?? "",
+      ].filter(Boolean).join(" ")}
+      data-rv-hero={heroFrame ? "" : undefined}
       style={{ ...css, minWidth: 0, maxWidth: "100%" }}
     >
       <SiteSectionBody site={site} section={section} lead={lead} first={first} surface={studio ? (ownBg ?? studioCanvas) : ownBg} preparedRoot={preparedRoot} />
