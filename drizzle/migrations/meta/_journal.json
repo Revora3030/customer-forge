@@ -148,6 +148,132 @@
       "when": 1793314888837,
       "tag": "0020_remove_test_account_analytics",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1793326850186,
+      "tag": "0021_prospect_outreach",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1793326857767,
+      "tag": "0022_prospect_autopilot",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1793326901084,
+      "tag": "0023_prospect_gmail_replies",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1793326921210,
+      "tag": "0024_prospect_rotation",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1793326930099,
+      "tag": "0025_preview_engagement",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1793326936560,
+      "tag": "0026_generation_capacity_deferrals",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1793326953813,
+      "tag": "0027_generation_section_checkpoints",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1793326960174,
+      "tag": "0028_prospect_reply_poll_lock",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1793326976582,
+      "tag": "0029_prospect_demo_enrichment_write",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1793326983036,
+      "tag": "0030_generation_stage_checkpoints",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1793327028302,
+      "tag": "0031_gmail_connection",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1793327035434,
+      "tag": "0032_prospect_import_queue",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1793327087033,
+      "tag": "0033_jarvis_approvals",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1793327094307,
+      "tag": "0034_jarvis_memory_vectors",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1793327100788,
+      "tag": "0035_site_content_audits",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1793327106997,
+      "tag": "0036_agent_action_requests",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1793327113799,
+      "tag": "0037_site_models_policies",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1793327155074,
+      "tag": "0038_jarvis_routines_schedule",
+      "breakpoints": true
     }
   ]
 }
