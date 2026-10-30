@@ -15,6 +15,7 @@ import { safeLinkUrl } from "@/lib/website-content";
 import { isRenderableSectionKind } from "@/lib/builder/renderable-sections";
 import { siteBodyFont, siteHeadingFont } from "@/lib/site-theme";
 import { describeCustomBlock, parseCustomBlock, type CustomBlockSpec } from "@/lib/builder/custom-block";
+import { cleanMeterLabel } from "@/lib/builder/premium-effects";
 import {
   DEVICES,
   STYLE_KEYS,
@@ -450,6 +451,14 @@ export type AgentAction =
   | {
       type: "set_design_tokens";
       tokens: import("@/lib/builder/design-tokens").DesignTokens;
+    }
+
+  | {
+      /** Site-wide premium effects switch and the scroll meter's word ("41% clean"). */
+      type: "set_premium_fx";
+      enabled?: boolean;
+      /** null clears the label; omitted keeps it. */
+      meterLabel?: string | null;
     }
 
   | {
@@ -1836,6 +1845,15 @@ export function readActions(
         break;
       }
 
+      case "set_premium_fx": {
+        const enabled = typeof row["enabled"] === "boolean" ? row["enabled"] : undefined;
+        const rawLabel = row["meterLabel"];
+        const meterLabel = rawLabel === null || rawLabel === "" ? null : cleanMeterLabel(rawLabel) ?? undefined;
+        if (enabled === undefined && meterLabel === undefined) break;
+        out.push({ type, ...(enabled !== undefined ? { enabled } : {}), ...(meterLabel !== undefined ? { meterLabel } : {}) });
+        break;
+      }
+
       case "set_backdrop": {
         const backdrop =
           text(
@@ -2524,6 +2542,22 @@ export function describeActions(
           return {
             key,
             title: "Update the site-wide design tokens (corners, spacing, depth, buttons)",
+            where: "Whole website",
+            destructive: false,
+            action,
+          } as never;
+
+        case "set_premium_fx":
+          return {
+            key,
+            title:
+              action.enabled === false
+                ? "Turn off the premium effects (shader backgrounds, split headlines, 3D and 360° viewers)"
+                : action.meterLabel !== undefined
+                  ? action.meterLabel
+                    ? `Show the scroll meter as "41% ${action.meterLabel}"`
+                    : "Show the scroll meter without a word"
+                  : "Turn on the premium effects",
             where: "Whole website",
             destructive: false,
             action,

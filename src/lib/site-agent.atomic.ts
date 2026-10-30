@@ -129,6 +129,7 @@ export function targetOf(action: AgentAction): Target | null {
       return { kind: "org", table: "business_profiles" };
     case "set_backdrop":
     case "set_design_tokens":
+    case "set_premium_fx":
       return { kind: "org", table: "website_settings" };
     default:
       return null;

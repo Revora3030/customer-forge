@@ -29,6 +29,9 @@ import { EnquiryForm } from "@/components/site/SiteForms";
 import { PreviewSelectBridge } from "@/components/site/PreviewSelectBridge";
 import { SiteBackdrop } from "@/components/site/SiteBackdrop";
 import { SiteScrollProgress } from "@/components/site/SiteScrollProgress";
+import { PremiumFxContext, premiumFxValue } from "@/components/site/premium-fx";
+import { readPremiumSettings } from "@/lib/builder/premium-effects";
+import { nicheEffects, resolveMeterLabel } from "@/lib/builder/premium-niche";
 import { isPlaceholderPalette, siteFontStyle, siteThemeStyle } from "@/lib/site-theme";
 import { siteFontFor } from "@/lib/site-font-pairings";
 import { readComposition } from "@/lib/visual-composition";
@@ -201,7 +204,12 @@ export function SitePageView({
     );
   }
 
+  // Premium effects: the owner's switch, the trade's effect tier and the meter label.
+  const premium = readPremiumSettings(site.settings?.generation ?? null);
+  const niche = nicheEffects(org.industry ?? null);
+  const meterLabel = resolveMeterLabel(premium, niche);
   return (
+    <PremiumFxContext.Provider value={premiumFxValue(premium.enabled, niche.tier)}>
     <div
       className={`rv-site-root min-h-screen bg-background text-foreground ${designTokenClasses(readDesignTokens(site.settings?.generation ?? null))}`}
       style={{
@@ -221,7 +229,7 @@ export function SitePageView({
         composition={readComposition(site.settings?.generation ?? null)}
         spec={readBackdropSpec(site.settings?.generation ?? null)}
       />
-      <SiteScrollProgress />
+      <SiteScrollProgress label={meterLabel} />
       <div className="relative z-[1]">
         {/* Owner-only notice: a site still on the neutral placeholder palette
             has no AI-authored design yet. Visitors never see this. */}
@@ -358,6 +366,7 @@ export function SitePageView({
         {preview ? <PreviewLinkBridge slug={org.slug} /> : null}
       </div>
     </div>
+    </PremiumFxContext.Provider>
   );
 }
 
