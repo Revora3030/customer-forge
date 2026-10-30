@@ -239,3 +239,42 @@ describe("mobile sticky bar is marked as an overlay for the browser QA gate", ()
     expect(render({ type: "mobile_sticky_bar", primaryCta: { label: "Call", href: "tel:+15551234567" } })).toContain('data-rv-overlay="sticky"');
   });
 });
+
+describe("home page hero video loop", () => {
+  const hero = { src: "https://media.example.test/hero.mp4", mobileSrc: "https://media.example.test/hero-m.mp4", poster: "https://media.example.test/p.jpg", loopStart: 0, loopEnd: 8, source: "stock" as const };
+
+  it("layers a muted, inline, looping, lazy video over the hero photo without autoplay in the server HTML", () => {
+    const html = render(scene(), { heroVideo: hero, eagerFirstMedia: true });
+    const body = markup(html);
+    expect(body).toContain('data-hero-video=""');
+    expect(body).toContain('alt="A red coupe on a harbour road at sunset"');
+    expect(body).toMatch(/<video[^>]*class="rv-scene-media rv-hero-video"/);
+    expect(body).toMatch(/<video[^>]*muted/);
+    expect(body).toMatch(/<video[^>]*playsInline/);
+    expect(body).toMatch(/<video[^>]*loop/);
+    expect(body).toMatch(/<video[^>]*preload="none"/);
+    expect(body).toMatch(/<video[^>]*poster="https:\/\/img\.example\.test\//);
+    expect(body).toMatch(/<video[^>]*aria-hidden="true"/);
+    // No source until hydration: the photo paints first; reduced motion never loads the clip.
+    expect(body).not.toContain("hero.mp4");
+    expect(body).not.toMatch(/autoplay/i);
+    expect(body.indexOf("rv-hero-video")).toBeLessThan(body.indexOf("rv-scene-scrim"));
+  });
+
+  it("fades in only when playing, hides for reduced motion and drifts with scroll where supported", () => {
+    expect(CINEMATIC_CSS).toMatch(/\.rv-scene-media\.rv-hero-video\{opacity:0/);
+    expect(CINEMATIC_CSS).toMatch(/\.rv-hero-video\[data-playing\]\{opacity:1\}/);
+    expect(CINEMATIC_CSS).toMatch(/prefers-reduced-motion: reduce\)\{[^}]*\.rv-hero-video\{display:none/);
+    expect(CINEMATIC_CSS).toContain("animation-timeline:view()");
+  });
+
+  it("goes on the first scene only, never in the editor, and never over an owner's backdrop video", () => {
+    const two: CompositionNode = { type: "stack", children: [scene(), scene()] };
+    expect(markup(render(two, { heroVideo: hero })).match(/data-hero-video/g)?.length).toBe(1);
+    expect(markup(render(scene(), { heroVideo: hero, editable: true }))).not.toContain("data-hero-video");
+    const ownVideo = render(scene(), { heroVideo: hero, resolveMedia: (r) => ({ url: `https://img.example.test/${r}.mp4`, visual: { source: "customer" } as never }) });
+    expect(markup(ownVideo)).not.toContain("data-hero-video");
+    expect(markup(render(scene()))).not.toContain("data-hero-video");
+  });
+});
+
