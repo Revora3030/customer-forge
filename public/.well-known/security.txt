@@ -1,0 +1,6 @@
+# Revora Growth Systems security contact (RFC 9116).
+# Please report vulnerabilities privately to the address below; do not open public issues.
+Contact: mailto:hello@revoragrowthsystems.com
+Expires: 2027-10-28T23:59:59.000Z
+Preferred-Languages: en
+Canonical: https://revoragrowthsystems.com/.well-known/security.txt
