@@ -49,10 +49,22 @@ export type QaLoopPass = {
 };
 
 export type QaLoopResult = {
+  /**
+   * False when the checks could not run (a read failed). The owner is told
+   * "not checked" instead of being shown a clean score for a site we never saw.
+   */
+  checked: boolean;
+  /** How many repair → re-test rounds actually ran (0–MAX_ROUNDS). */
+  rounds: number;
   before: QaLoopPass;
   after: QaLoopPass;
-  /** What was actually written, one line per repair. */
+  /**
+   * Repairs that were written AND whose finding is gone on the re-read rows.
+   * A write the database accepted is not proof; only the re-test is.
+   */
   repaired: string[];
+  /** Repairs the database accepted but the re-test still finds. */
+  unresolved: string[];
   /** Repairs that were attempted but the database refused. */
   failed: string[];
   /** Findings that are real but not safe to fix automatically. */
@@ -66,6 +78,14 @@ export type QaLoopResult = {
 
 /** How many repairs one apply may trigger. Bounded on purpose. */
 const MAX_REPAIRS = 8;
+
+/**
+ * Repair → re-test rounds. A second round only runs when the first one
+ * verifiably fixed something and the re-read site has new safe repairs (for
+ * example a page whose description could only be derived once its title was
+ * set). Deterministic and free — no AI call happens in this loop.
+ */
+export const MAX_ROUNDS = 2;
 
 const line = (finding: BrowserQaFinding) => `${finding.kind}: ${finding.message}`;
 
@@ -93,7 +113,7 @@ export async function loadQaContext(db: Db, orgId: string): Promise<AgentContext
           order: (
             column: string,
             options: { ascending: boolean },
-          ) => Promise<{ data: Record<string, unknown>[] | null }>;
+          ) => Promise<{ data: Record<string, unknown>[] | null; error?: unknown }>;
         };
       };
     };
@@ -118,6 +138,18 @@ export async function loadQaContext(db: Db, orgId: string): Promise<AgentContext
       "id, section_id, kind, label, body, link_label, link_url, media_url, settings, sort_order",
     ),
   ]);
+
+  // A failed read must never look like an empty (and therefore "clean") site.
+  for (const [table, rows] of [
+    ["website_pages", pageRows],
+    ["website_sections", sectionRows],
+    ["website_components", componentRows],
+  ] as const) {
+    if (rows?.error) {
+      const detail = (rows.error as { message?: string }).message ?? "unknown error";
+      throw new Error(`could not read ${table}: ${detail}`);
+    }
+  }
 
   const componentsBySection = new Map<string, Record<string, unknown>[]>();
   for (const component of componentRows.data ?? []) {
@@ -311,10 +343,35 @@ function extractDesignData(context: AgentContext): {
   return { sections, tokens };
 }
 
+/** The result when the checks themselves could not run. */
+function notChecked(error: unknown): QaLoopResult {
+  const empty: QaLoopPass = { score: 0, findings: 0, notes: [] };
+  const detail = error instanceof Error ? error.message : String(error);
+  console.warn("[qa-loop] website check could not run", detail);
+  return {
+    checked: false,
+    rounds: 0,
+    before: empty,
+    after: empty,
+    repaired: [],
+    unresolved: [],
+    failed: [],
+    reported: [],
+    designConsistency: null,
+    priorityImprovements: [],
+    summary:
+      "Your changes are saved, but the automatic website check couldn't read the site just now, so nothing was checked or repaired. Run the check again from the builder in a minute.",
+  };
+}
+
 /**
  * Runs the whole loop. Never throws: a QA problem must not undo a good apply,
  * so a failure here is reported as "not checked" rather than surfaced as an
  * apply failure.
+ *
+ * Observe → repair → verify: each round compiles only the provably safe
+ * repairs, writes them, re-reads the rows and re-runs the same checks. A
+ * repair counts as fixed only when its finding is gone from the re-test.
  */
 export async function runQaRepairLoop(
   db: Db,
@@ -322,40 +379,76 @@ export async function runQaRepairLoop(
   instruction = "",
   limit = MAX_REPAIRS,
 ): Promise<QaLoopResult> {
-  const context = await loadQaContext(db, orgId);
+  try {
+    return await runLoop(db, orgId, instruction, limit);
+  } catch (error) {
+    return notChecked(error);
+  }
+}
+
+async function runLoop(
+  db: Db,
+  orgId: string,
+  instruction: string,
+  limit: number,
+): Promise<QaLoopResult> {
+  let context = await loadQaContext(db, orgId);
   const first = runBrowserStyleQa(context, instruction);
-  const repairs = compileQaAutoRepairs(context, instruction, Math.max(1, Math.min(limit, 12)));
+  let latest = first;
+  let budget = Math.max(1, Math.min(limit, 12));
 
   const repaired: string[] = [];
+  const unresolved: string[] = [];
   const failed: string[] = [];
+  let rounds = 0;
 
-  for (const repair of repairs) {
-    const result = await writeRepair(
-      db,
-      orgId,
-      repair.action as unknown as { type: string } & Record<string, unknown>,
-    );
-    if (result.ok) repaired.push(line(repair.finding));
-    else failed.push(line(repair.finding));
+  for (let round = 0; round < MAX_ROUNDS && budget > 0; round += 1) {
+    const repairs = compileQaAutoRepairs(context, instruction, budget);
+    if (!repairs.length) break;
+    rounds += 1;
+    budget -= repairs.length;
+    const written: string[] = [];
+    for (const repair of repairs) {
+      const result = await writeRepair(
+        db,
+        orgId,
+        repair.action as unknown as { type: string } & Record<string, unknown>,
+      );
+      if (result.ok) written.push(line(repair.finding));
+      else failed.push(line(repair.finding));
+    }
+    if (!written.length) break;
+    // RE-TEST. Re-read the rows so the verdict is measured, never assumed
+    // from the repairs that were attempted.
+    context = await loadQaContext(db, orgId);
+    latest = runBrowserStyleQa(context, instruction);
+    const stillThere = new Set(latest.findings.map(line));
+    let fixedThisRound = 0;
+    for (const entry of written) {
+      if (stillThere.has(entry)) unresolved.push(entry);
+      else {
+        repaired.push(entry);
+        fixedThisRound += 1;
+      }
+    }
+    // Nothing verifiably landed: another round would only repeat the same writes.
+    if (!fixedThisRound) break;
   }
 
-  // RE-TEST. The second pass reads the rows again, so the "after" score is
-  // measured, never assumed from the repairs that were attempted.
-  const second = repaired.length
-    ? runBrowserStyleQa(await loadQaContext(db, orgId), instruction)
-    : first;
-
-  const repairedKeys = new Set(repaired);
-  const reported = second.findings
-    .map(line)
-    .filter((entry) => !repairedKeys.has(entry))
-    .slice(0, 6);
+  const second = latest;
+  const unresolvedKeys = new Set(unresolved);
+  // Findings still present after the re-test are always reported — including
+  // ones a repair was written for but did not clear.
+  const reported = [
+    ...unresolved.map((entry) => `${entry} (automatic repair did not resolve this)`),
+    ...second.findings.map(line).filter((entry) => !unresolvedKeys.has(entry)),
+  ].slice(0, 6);
 
   // DESIGN CONSISTENCY AUDIT. Runs after the browser QA, on the same
-  // re-loaded context. Checks colour palette, typography hierarchy, font
+  // re-read context. Checks colour palette, typography hierarchy, font
   // consistency, spacing, CTA prominence, and visual balance across every
   // page — not just the homepage.
-  const designContext = await loadQaContext(db, orgId);
+  const designContext = context;
   const { sections: designSections, tokens } = extractDesignData(designContext);
   const designReport = runDesignConsistencyAudit(designSections, tokens);
   const hasContactPage = designContext.pages.some(
@@ -370,17 +463,27 @@ export async function runQaRepairLoop(
     .slice(0, 6);
   const allReported = [...reported, ...designFindings].slice(0, 12);
 
+  const plural = (n: number) => (n === 1 ? "" : "s");
+  const leftover = unresolved.length
+    ? ` ${unresolved.length} automatic repair${plural(unresolved.length)} did not clear the problem, so ${unresolved.length === 1 ? "it is" : "they are"} listed below for review.`
+    : "";
+  const refused = failed.length
+    ? ` ${failed.length} repair${plural(failed.length)} could not be saved.`
+    : "";
   const qaSummary = repaired.length
-    ? `Checked your website after saving, fixed ${repaired.length} thing${
-        repaired.length === 1 ? "" : "s"
-      } automatically, then checked again (${first.score} → ${second.score} out of 100).`
-    : `${browserQaSummary(second)} Nothing needed an automatic repair.`;
+    ? `Checked your website after saving, fixed ${repaired.length} thing${plural(repaired.length)} automatically, then checked again (${first.score} → ${second.score} out of 100).${leftover}${refused}`
+    : rounds
+      ? `${browserQaSummary(second)} Automatic repairs were tried but the re-check still found the same problems.${leftover}${refused}`
+      : `${browserQaSummary(second)} Nothing needed an automatic repair.`;
   const designSummary = designConsistencySummary(designReport);
 
   return {
+    checked: true,
+    rounds,
     before: toPass(first),
     after: toPass(second),
     repaired,
+    unresolved,
     failed,
     reported: allReported,
     designConsistency: designReport,
