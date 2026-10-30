@@ -20,6 +20,12 @@ import {
   setRememberPreference,
 } from "@/lib/auth-session";
 import { authEmailRedirectTo, isSafeRedirect } from "@/lib/prospect-claim";
+import { readStarter, STARTER_METADATA_KEY } from "@/components/marketing/hero-starter-utils";
+
+function starterMetadata(): Record<string, unknown> {
+  const starter = readStarter();
+  return starter ? { [STARTER_METADATA_KEY]: starter } : {};
+}
 
 type Search = { mode?: "signup" | "signin"; redirect?: string };
 
@@ -129,7 +135,9 @@ function AuthPage() {
           email,
           password,
           options: {
-            data: { full_name: fullName },
+            // The homepage starter rides on the account so /get-started can
+            // prefill it even when the email is confirmed on another device.
+            data: { full_name: fullName, ...starterMetadata() },
             emailRedirectTo: authEmailRedirectTo(window.location.origin, redirect),
           },
         });

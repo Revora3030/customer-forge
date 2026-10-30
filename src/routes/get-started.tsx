@@ -26,7 +26,7 @@ import {
   claimAwareRedirect,
   isClaimToken,
 } from "@/lib/prospect-claim";
-import { readStarter } from "@/components/marketing/hero-starter-utils";
+import { readStarter, starterFromMetadata } from "@/components/marketing/hero-starter-utils";
 import { applyImportedFacts, importExistingWebsite } from "@/lib/site-import.functions";
 
 export const Route = createFileRoute("/get-started")({
@@ -211,11 +211,14 @@ function GetStarted() {
   // signed up with fill empty fields, so nobody types the same thing twice.
   // The starter stays saved for onboarding, which clears it.
   useEffect(() => {
-    const starter = readStarter();
+    const localStarter = readStarter();
     let cancelled = false;
     void supabase.auth.getUser().then(({ data }) => {
       if (cancelled) return;
       const meta = (data.user?.user_metadata ?? {}) as Record<string, unknown>;
+      // Same device: localStorage. Another device (email confirmed elsewhere):
+      // the copy saved on the account at sign-up.
+      const starter = localStarter ?? starterFromMetadata(meta);
       const signupName = typeof meta["full_name"] === "string" ? meta["full_name"].slice(0, 120) : "";
       setIntake((prev) => ({
         ...prev,
