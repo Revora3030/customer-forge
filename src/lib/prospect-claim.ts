@@ -29,6 +29,33 @@ export function claimAwareRedirect(token: string | null | undefined): string {
   return isClaimToken(token) ? `/get-started?claim=${encodeURIComponent(token)}` : "/get-started";
 }
 
+/**
+ * The redirect for a visitor who clicked "Pay" before having an account:
+ * /get-started with `pay=now`, so checkout resumes automatically once they are
+ * signed in (after sign-up, email confirmation or a magic link). Any claim
+ * token rides along exactly as in claimAwareRedirect.
+ */
+export function checkoutResumeRedirect(token: string | null | undefined): string {
+  const base = claimAwareRedirect(token);
+  return `${base}${base.includes("?") ? "&" : "?"}pay=now`;
+}
+
+/**
+ * Where an email confirmation or magic link lands. A confirmed user always
+ * comes back through /auth first: there the session from the link is picked
+ * up, the profile is saved (ensureProfile), the redirect is checked again with
+ * isSafeRedirect, and the user continues signed in to /get-started (with any
+ * claim token or `pay=now` intact) or to their workspace at /app. Landing
+ * straight on a protected page would skip that profile step. Only a same-site
+ * redirect is carried; anything else is dropped so /auth picks the next step.
+ */
+export function authEmailRedirectTo(origin: string, redirect: string | null | undefined): string {
+  const base = `${origin.replace(/\/+$/, "")}/auth`;
+  return redirect && isSafeRedirect(redirect)
+    ? `${base}?redirect=${encodeURIComponent(redirect)}`
+    : base;
+}
+
 export type ProspectClaimInfo = {
   claimable: boolean;
   businessName: string | null;
@@ -80,4 +107,17 @@ export function claimOwnership(businessEmail: string | null | undefined, claiman
   if (me && !FREE_MAIL.has(domain) && me.split("@")[1] === domain) return { allowed: true, verified: true, method: "domain_match" };
   const [user] = biz.split("@");
   return { allowed: false, hint: `${user!.slice(0, 1)}***@${domain}` };
+}
+
+/**
+ * Owner preview: /draft/:slug is the one place an owner sees an unpublished
+ * site. A public /s/:slug visit to a site that isn't live offers this sign-in
+ * link instead of a dead "Business not found" page.
+ */
+export function ownerPreviewPath(slug: string): string {
+  return `/draft/${encodeURIComponent(slug)}`;
+}
+
+export function ownerPreviewSignInPath(slug: string): string {
+  return `/auth?redirect=${encodeURIComponent(ownerPreviewPath(slug))}`;
 }
