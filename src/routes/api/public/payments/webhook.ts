@@ -58,6 +58,16 @@ async function handleEvent(event: StripeWebhookEvent, env: StripeEnv) {
       const accessUntil =
         typeof periodEnd === "number" ? new Date(periodEnd * 1000).toISOString() : null;
 
+      // Resubscribing brings a website that went offline after a cancellation
+      // back immediately (src/lib/site-hosting.ts); the hourly sweep is the backstop.
+      if (env === "live" && event.type !== "customer.subscription.deleted") {
+        const { KEEPS_SITE_ONLINE } = await import("@/lib/site-hosting");
+        if (KEEPS_SITE_ONLINE.has(stripeStatus)) {
+          const { restoreSiteHosting } = await import("@/lib/site-hosting.server");
+          await restoreSiteHosting(admin as never, organizationId);
+        }
+      }
+
       if (
         event.type === "customer.subscription.created" &&
         ["active", "trialing"].includes(stripeStatus)

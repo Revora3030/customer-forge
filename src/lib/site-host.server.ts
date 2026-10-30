@@ -118,6 +118,14 @@ export async function resolveHostSite(
   const tenant = await resolveTenantHost(rawHost);
   if (!tenant) return null;
 
+  // An offline site (unpaid, suspended, or past its post-cancellation grace
+  // period) lists nothing and asks not to be indexed.
+  const { siteIsLive } = await import("@/lib/public-site.server");
+  const scheme0 = /^(localhost|127\.0\.0\.1)(:|$)/.test(tenant.host) ? protocol : "https"; // DevSkim: ignore DS162092 -- Detects local development only, so real hosts always get https.
+  if (!(await siteIsLive(tenant.organizationId))) {
+    return { slug: tenant.slug, origin: `${scheme0}://${tenant.host}`, noindex: true, publishedAt: null, pages: [] };
+  }
+
   const { pages, publishedAt } = await tenantSitemapPages(tenant.organizationId);
   // Live sites are always served over HTTPS; only local development is http, so
   // never publish an http:// canonical or sitemap URL for a real hostname.
@@ -334,6 +342,8 @@ export async function platformSitemapSlugs(): Promise<string[]> {
     if (built.error) throw new Error("Published site content unavailable");
     for (const row of built.rows as { organization_id: string }[]) withSections.add(row.organization_id);
   }
+  const { hostingOfflineOrgIds } = await import("@/lib/site-hosting.server");
+  const hostingEnded = await hostingOfflineOrgIds(supabaseAdmin as never, orgs.map((org) => org.id));
   const ownDomain = new Set(
     ((addresses ?? []) as AddressRow[])
       .filter((row) => row.organization_id && primaryAddress(row))
@@ -343,7 +353,7 @@ export async function platformSitemapSlugs(): Promise<string[]> {
     .filter((org) => org && typeof org.slug === "string" && /^[a-z0-9-]{1,80}$/.test(org.slug))
     .filter((org) => !ownDomain.has(org.id))
     .filter((org) => withSections.has(org.id))
-    .filter((org) => siteAccess(org).live)
+    .filter((org) => siteAccess({ ...org, hosting_offline_at: hostingEnded.has(org.id) ? "ended" : null }).live)
     .map((org) => org.slug as string)
     .sort();
 }
@@ -372,6 +382,8 @@ export function sitemapUrls(site: HostSite | null, origin: string) {
       lastmod: null as string | null,
     }));
   }
+  // An offline tenant site (see resolveHostSite) has no indexable URLs.
+  if (site.noindex) return [];
   const paths = [{ slug: "home", updatedAt: site.publishedAt ?? null }, ...site.pages].filter(
     (p, i, all) => all.findIndex((x) => x.slug === p.slug) === i,
   );

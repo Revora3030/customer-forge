@@ -6,6 +6,9 @@
  *   address, and the site is served while the trial lasts.
  * - When the trial ends without the setup payment, the site goes offline
  *   (nothing is deleted) and comes back as soon as the setup is paid.
+ * - A paid workspace whose subscription ended goes offline after a 14-day
+ *   grace period (src/lib/site-hosting.ts) and comes back on resubscribe.
+ *   Demo and Revora's own workspace are exempt.
  * Custom domains stay paid-only; see `domainUnlocked`.
  */
 import { isPlatformOwnerOrg } from "@/lib/platform-owner";
@@ -17,9 +20,11 @@ export type SiteAccessOrg = TrialOrgFields & {
   is_suspended?: boolean | null;
   setup_paid_at?: string | null;
   setup_payment_status?: string | null;
+  /** Set (from site_hosting_grace) when the post-cancellation grace period is over. */
+  hosting_offline_at?: string | null;
 };
 
-export type SiteAccessReason = "paid" | "demo" | "owner" | "trial" | "suspended" | "setup_required";
+export type SiteAccessReason = "paid" | "demo" | "owner" | "trial" | "suspended" | "setup_required" | "hosting_ended";
 
 export type SiteAccess = {
   /** The site may be published, and a published site is served to visitors. */
@@ -33,6 +38,9 @@ export type SiteAccess = {
 
 export function siteAccess(org: SiteAccessOrg | null | undefined): SiteAccess {
   if (!org || org.is_suspended) return { live: false, domainUnlocked: false, reason: "suspended", offlineAt: null };
+  if (org.hosting_offline_at && !org.is_demo && !isPlatformOwnerOrg(org.id)) {
+    return { live: false, domainUnlocked: false, reason: "hosting_ended", offlineAt: org.hosting_offline_at };
+  }
   const paid = Boolean(org.setup_paid_at) || org.setup_payment_status === "paid";
   if (paid) return { live: true, domainUnlocked: true, reason: "paid", offlineAt: null };
   if (org.is_demo) return { live: true, domainUnlocked: true, reason: "demo", offlineAt: null };

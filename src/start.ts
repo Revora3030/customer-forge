@@ -91,6 +91,18 @@ const trafficDomainRedirect = createMiddleware().server(async ({ next, request }
   }) as never;
 });
 
+/**
+ * A customer website past its post-cancellation grace period answers with a
+ * neutral "This site is currently unavailable" page (410 + noindex) on both
+ * /s/<slug> and its own domain (src/lib/site-unavailable.ts). Fails open.
+ */
+const siteUnavailableMiddleware = createMiddleware().server(async ({ next, request }) => {
+  if (!request) return next();
+  const { siteUnavailableGate } = await import("@/lib/site-unavailable.server");
+  const gated = await siteUnavailableGate(request).catch(() => null);
+  return (gated ?? (await next())) as never;
+});
+
 const errorMiddleware = createMiddleware().server(async ({ next, request }) => {
   // Lovable email/webhook routes authenticate themselves — pass them through untouched.
   if (request && new URL(request.url).pathname.startsWith("/lovable/")) {
@@ -143,6 +155,7 @@ export const startInstance = createStart(() => ({
     httpsRedirectMiddleware,
     trafficDomainRedirect,
     trailingSlashMiddleware,
+    siteUnavailableMiddleware,
     errorMiddleware,
     csrfMiddleware,
   ],
