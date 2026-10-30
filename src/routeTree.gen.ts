@@ -111,6 +111,7 @@ import { Route as LocalIndustryStateRouteImport } from './routes/local.$industry
 import { Route as PTokenPageRouteImport } from './routes/p.$token_.$page'
 import { Route as SSlugPageRouteImport } from './routes/s.$slug.$page'
 import { Route as SSlugSitemapDotxmlRouteImport } from './routes/s.$slug.sitemap[.]xml'
+import { Route as UnsubscribeLifecycleTokenRouteImport } from './routes/unsubscribe.lifecycle.$token'
 import { Route as UnsubscribeOutreachTokenRouteImport } from './routes/unsubscribe.outreach.$token'
 import { Route as AuthenticatedAdminClientsOrgIdRouteImport } from './routes/_authenticated/admin.clients.$orgId'
 import { Route as AuthenticatedDraftSlugPageRouteImport } from './routes/_authenticated/draft.$slug.$page'
@@ -675,6 +676,12 @@ const SSlugSitemapDotxmlRoute = SSlugSitemapDotxmlRouteImport.update({
   path: '/sitemap.xml',
   getParentRoute: () => SSlugRoute,
 } as any)
+const UnsubscribeLifecycleTokenRoute =
+  UnsubscribeLifecycleTokenRouteImport.update({
+    id: '/unsubscribe/lifecycle/$token',
+    path: '/unsubscribe/lifecycle/$token',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const UnsubscribeOutreachTokenRoute =
   UnsubscribeOutreachTokenRouteImport.update({
     id: '/unsubscribe/outreach/$token',
@@ -966,6 +973,7 @@ export interface FileRoutesByFullPath {
   '/p/$token/$page': typeof PTokenPageRoute
   '/s/$slug/$page': typeof SSlugPageRoute
   '/s/$slug/sitemap.xml': typeof SSlugSitemapDotxmlRoute
+  '/unsubscribe/lifecycle/$token': typeof UnsubscribeLifecycleTokenRoute
   '/unsubscribe/outreach/$token': typeof UnsubscribeOutreachTokenRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/app/': typeof AuthenticatedAppIndexRoute
@@ -1098,6 +1106,7 @@ export interface FileRoutesByTo {
   '/p/$token/$page': typeof PTokenPageRoute
   '/s/$slug/$page': typeof SSlugPageRoute
   '/s/$slug/sitemap.xml': typeof SSlugSitemapDotxmlRoute
+  '/unsubscribe/lifecycle/$token': typeof UnsubscribeLifecycleTokenRoute
   '/unsubscribe/outreach/$token': typeof UnsubscribeOutreachTokenRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/app': typeof AuthenticatedAppIndexRoute
@@ -1237,6 +1246,7 @@ export interface FileRoutesById {
   '/p/$token_/$page': typeof PTokenPageRoute
   '/s/$slug/$page': typeof SSlugPageRoute
   '/s/$slug/sitemap.xml': typeof SSlugSitemapDotxmlRoute
+  '/unsubscribe/lifecycle/$token': typeof UnsubscribeLifecycleTokenRoute
   '/unsubscribe/outreach/$token': typeof UnsubscribeOutreachTokenRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/_authenticated/app/': typeof AuthenticatedAppIndexRoute
@@ -1376,6 +1386,7 @@ export interface FileRouteTypes {
     | '/p/$token/$page'
     | '/s/$slug/$page'
     | '/s/$slug/sitemap.xml'
+    | '/unsubscribe/lifecycle/$token'
     | '/unsubscribe/outreach/$token'
     | '/admin/'
     | '/app/'
@@ -1508,6 +1519,7 @@ export interface FileRouteTypes {
     | '/p/$token/$page'
     | '/s/$slug/$page'
     | '/s/$slug/sitemap.xml'
+    | '/unsubscribe/lifecycle/$token'
     | '/unsubscribe/outreach/$token'
     | '/admin'
     | '/app'
@@ -1646,6 +1658,7 @@ export interface FileRouteTypes {
     | '/p/$token_/$page'
     | '/s/$slug/$page'
     | '/s/$slug/sitemap.xml'
+    | '/unsubscribe/lifecycle/$token'
     | '/unsubscribe/outreach/$token'
     | '/_authenticated/admin/'
     | '/_authenticated/app/'
@@ -1738,6 +1751,7 @@ export interface RootRouteChildren {
   ApiPublicSentryTestRoute: typeof ApiPublicSentryTestRoute
   LocalIndustryStateRoute: typeof LocalIndustryStateRoute
   PTokenPageRoute: typeof PTokenPageRoute
+  UnsubscribeLifecycleTokenRoute: typeof UnsubscribeLifecycleTokenRoute
   UnsubscribeOutreachTokenRoute: typeof UnsubscribeOutreachTokenRoute
   LocalIndustryIndexRoute: typeof LocalIndustryIndexRoute
   ApiPublicAgentActionRequestsRoute: typeof ApiPublicAgentActionRequestsRouteWithChildren
@@ -2486,6 +2500,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SSlugSitemapDotxmlRouteImport
       parentRoute: typeof SSlugRoute
     }
+    '/unsubscribe/lifecycle/$token': {
+      id: '/unsubscribe/lifecycle/$token'
+      path: '/unsubscribe/lifecycle/$token'
+      fullPath: '/unsubscribe/lifecycle/$token'
+      preLoaderRoute: typeof UnsubscribeLifecycleTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/unsubscribe/outreach/$token': {
       id: '/unsubscribe/outreach/$token'
       path: '/unsubscribe/outreach/$token'
@@ -3012,6 +3033,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicSentryTestRoute: ApiPublicSentryTestRoute,
   LocalIndustryStateRoute: LocalIndustryStateRoute,
   PTokenPageRoute: PTokenPageRoute,
+  UnsubscribeLifecycleTokenRoute: UnsubscribeLifecycleTokenRoute,
   UnsubscribeOutreachTokenRoute: UnsubscribeOutreachTokenRoute,
   LocalIndustryIndexRoute: LocalIndustryIndexRoute,
   ApiPublicAgentActionRequestsRoute:

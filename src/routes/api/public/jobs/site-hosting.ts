@@ -3,7 +3,7 @@ import { authenticateCronRequest } from "@/integrations/supabase/cron-auth";
 import { methodNotAllowed } from "@/lib/method-not-allowed";
 
 /**
- * Hourly (pg_cron `revora-site-hosting`, migration 20261030140000): canceled
+ * Hourly (pg_cron `revora-site-hosting`, migration 20261030141000): canceled
  * workspaces' websites go offline 14 days after the subscription ended, with a
  * warning email 3 days before; resubscribed workspaces come back online.
  * Bearer-authenticated with the cron secret; safe to repeat.
