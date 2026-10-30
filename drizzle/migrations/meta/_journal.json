@@ -162,6 +162,13 @@
       "when": 1793325216497,
       "tag": "0022_20260913230000_revora_10_10_security_performance_hardening",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1793325254785,
+      "tag": "0023_20260919000000_workspace_provisioning_and_outcome_rls_hardening",
+      "breakpoints": true
     }
   ]
 }
