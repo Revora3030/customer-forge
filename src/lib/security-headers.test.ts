@@ -25,7 +25,11 @@ describe("security headers", () => {
 
   it("lets GA4 reach its own collection hosts so analytics isn't blocked on every page", () => {
     const csp = documentSecurityHeaders({ https: true })["content-security-policy"] ?? "";
-    const connect = csp.split(";").map((d) => d.trim()).find((d) => d.startsWith("connect-src")) ?? "";
+    const connect =
+      csp
+        .split(";")
+        .map((d) => d.trim())
+        .find((d) => d.startsWith("connect-src")) ?? "";
     for (const host of [
       "https://www.google-analytics.com",
       "https://*.google-analytics.com",
