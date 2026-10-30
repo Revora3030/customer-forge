@@ -95,13 +95,19 @@ export const getErrorFeed = createServerFn({ method: "GET" })
     // an error storm never plateaus at 1,000.
     const dayAgoIso = new Date(Date.now() - 86_400_000).toISOString();
     const exact = (from: string, forwardedOnly = false) => {
-      let query = supabaseAdmin.from("error_events").select("id", { count: "exact", head: true }).gte("created_at", from).in("level", ["fatal", "error"]);
+      let query = supabaseAdmin.from("error_events").select("id", { count: "exact", head: true }).gte("created_at", from).in("level", ["fatal", "error"])
+        // Visitor disconnects are not failures (see captureError).
+        .or("status_code.is.null,status_code.neq.499")
+        .not("message", "in", '("aborted","This operation was aborted","The operation was aborted.")');
       if (forwardedOnly) query = query.eq("forwarded", true);
       return query;
     };
     const [day, week, forwarded] = await Promise.all([exact(dayAgoIso), exact(since), exact(since, true)]);
 
-    const rows = (data ?? []).map((row) => ({
+    const { isAbortLike } = await import("@/lib/monitoring.server");
+    // Rows written before aborts stopped being recorded (visitor disconnects,
+    // status 499) are hidden from the feed; they are not failures.
+    const rows = (data ?? []).filter((row) => row.status_code !== 499 && !isAbortLike(null, row.message)).map((row) => ({
       id: row.id as string,
       fingerprint: row.fingerprint as string,
       level: row.level as string,

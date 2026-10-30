@@ -230,10 +230,11 @@ export async function captureError(
           : { message: describeError(input) };
     const event: CapturedError = { ...described, ...extra };
     // A visitor closing the tab or navigating away aborts the request. That is
-    // not a crash, so it is kept as a warning instead of a fatal 500.
+    // not a crash and there is nothing to fix: it was ~287 rows a week at "/"
+    // and buried the real errors in the admin feed. It is never stored or
+    // forwarded to Sentry.
     if (isAbortLike(input, event.message)) {
-      event.level = "warning";
-      event.statusCode = 499;
+      return { recorded: false, forwarded: false, fingerprint: "", skipped: "abort" as const };
     }
     const message = (
       sanitizeErrorText(String(event.message ?? "Unknown error")) ?? "Unknown error"

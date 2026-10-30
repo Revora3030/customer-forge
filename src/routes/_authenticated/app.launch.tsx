@@ -139,8 +139,8 @@ function Launch() {
         purpose="What is left to check before your site goes live to visitors."
         action={
           <Button asChild size="sm" variant="outline">
-            <Link to="/s/$slug" params={{ slug: org?.slug ?? "" }} target="_blank">
-              Preview site <ExternalLink className="ml-1 size-3.5" />
+            <Link to={publishState === "published" ? "/s/$slug" : "/draft/$slug"} params={{ slug: org?.slug ?? "" }} target="_blank">
+              {publishState === "published" ? "View live site" : "Preview draft"} <ExternalLink className="ml-1 size-3.5" />
             </Link>
           </Button>
         }
