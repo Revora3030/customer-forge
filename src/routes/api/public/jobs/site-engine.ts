@@ -30,6 +30,12 @@ async function handle(request: Request): Promise<Response> {
     max: 1,
     invoker,
     ...(organizationId ? { organizationId } : {}),
+  }).then(async (result) => {
+    // Founder alert for builds that just finished or failed (throttled,
+    // once per job; never affects the build or this response).
+    const { alertRecentBuildOutcomes } = await import("@/lib/founder-alerts.server");
+    await alertRecentBuildOutcomes(supabaseAdmin as never);
+    return result;
   });
   const { keepAliveJsonResponse } = await import("@/lib/builder/keep-alive-response");
   return keepAliveJsonResponse(run, (error) => {

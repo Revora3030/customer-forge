@@ -113,10 +113,24 @@ async function handleEvent(event: StripeWebhookEvent, env: StripeEnv) {
     case "invoice.paid":
     case "invoice.payment_failed": {
       const line = object?.lines?.data?.[0];
-      const organizationId =
+      let organizationId =
         (object?.subscription_details?.metadata?.organizationId as string | undefined) ??
+        (object?.parent?.subscription_details?.metadata?.organizationId as string | undefined) ??
         (line?.metadata?.organizationId as string | undefined) ??
         (object?.metadata?.organizationId as string | undefined);
+      if (!organizationId) {
+        const { invoiceSubscriptionId, organizationForStripeSubscription } =
+          await import("@/lib/webhook-invoice");
+        // Renewal invoices can arrive without workspace metadata. The stored
+        // subscription (same Stripe environment) still knows its workspace, so
+        // look it up instead of silently dropping the payment.
+        organizationId =
+          (await organizationForStripeSubscription(
+            admin,
+            invoiceSubscriptionId(object),
+            env,
+          )) ?? undefined;
+      }
       if (!organizationId) {
         console.error("[payments:webhook] invoice without organization metadata", object?.id);
         break;
@@ -290,10 +304,13 @@ async function handleEvent(event: StripeWebhookEvent, env: StripeEnv) {
         // The fixed internal owner workspace is the single, verified waiver path.
         if (!setupWaived) {
           if (env === "live") {
+            // All four columns move together, so every reader (access state,
+            // publishing, integrations) agrees the setup is paid.
             const { error: orgError } = await admin
               .from("organizations")
               .update({
                 setup_paid_at: new Date().toISOString(),
+                setup_payment_status: "paid",
                 setup_checkout_session_id: String(session.id),
                 plan_id: GROWTH_PLAN_ID,
               })

@@ -18,7 +18,14 @@ export const Route = createFileRoute("/$")({
     const splat = String(params._splat ?? "").replace(/^\/+|\/+$/g, "");
     const pageSlug = splat.split("/")[0] ?? "";
     if (!pageSlug || !/^[a-z0-9-]+$/.test(pageSlug)) throw notFound();
-    const response = await getHostSite({ data: { pageSlug } });
+    // A failed host lookup must never become a 500: show "page not found".
+    let response: Awaited<ReturnType<typeof getHostSite>>;
+    try {
+      response = await getHostSite({ data: { pageSlug } });
+    } catch (error) {
+      console.warn("[host-site] lookup failed", error);
+      throw notFound();
+    }
     // A page with no visible sections renders blank for a real visitor — treat
     // it as not published yet instead of serving an empty page.
     if (!response?.result?.site?.content?.sections?.length) throw notFound();

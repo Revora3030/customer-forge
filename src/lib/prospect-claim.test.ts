@@ -1,6 +1,13 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { claimAwareRedirect, claimErrorMessage, isClaimToken, isSafeRedirect } from "./prospect-claim";
+import {
+  authEmailRedirectTo,
+  checkoutResumeRedirect,
+  claimAwareRedirect,
+  claimErrorMessage,
+  isClaimToken,
+  isSafeRedirect,
+} from "./prospect-claim";
 
 describe("claim token survives sign-up", () => {
   const token = "abcdefghij0123456789";
@@ -39,8 +46,37 @@ describe("claim token survives sign-up", () => {
     const auth = readFileSync("src/routes/auth.tsx", "utf8");
     expect(auth).toContain("navigate({ href: redirect, replace: true })");
     expect(auth).toContain("isSafeRedirect(redirect)");
-    expect(auth).toContain('emailRedirectTo: `${window.location.origin}${redirect ?? "/app"}`');
-    expect(auth).toContain("?redirect=${encodeURIComponent(redirect)}");
+    // Confirmation and magic links come back through /auth, which saves the
+    // profile and then continues signed in to the carried redirect or /app.
+    expect(auth).toContain("emailRedirectTo: authEmailRedirectTo(window.location.origin, redirect)");
+    expect(auth).not.toContain("emailRedirectTo: `${window.location.origin}/auth${redirect");
+  });
+
+  it("a logged-out Pay click resumes checkout after sign-up", () => {
+    expect(checkoutResumeRedirect(null)).toBe("/get-started?pay=now");
+    expect(checkoutResumeRedirect(token)).toBe(`/get-started?claim=${token}&pay=now`);
+    expect(isSafeRedirect(checkoutResumeRedirect(token))).toBe(true);
+    const getStarted = readFileSync("src/routes/get-started.tsx", "utf8");
+    const start = getStarted.indexOf("async function startPayment()");
+    const guard = getStarted.indexOf("if (!signedIn)", start);
+    expect(guard).toBeGreaterThan(start);
+    expect(guard).toBeLessThan(getStarted.indexOf("ensureWorkspace()", start));
+    expect(getStarted).toContain("redirect: checkoutResumeRedirect(claimToken)");
+    expect(getStarted).toContain('search["pay"] === "now"');
+  });
+
+  it("email confirmation returns through /auth with the redirect intact", () => {
+    const origin = "https://revora.example";
+    expect(authEmailRedirectTo(origin, "/get-started?claim=abcDEF1234567890_-")).toBe(
+      `${origin}/auth?redirect=${encodeURIComponent("/get-started?claim=abcDEF1234567890_-")}`,
+    );
+    expect(authEmailRedirectTo(origin, "/get-started?pay=now")).toBe(
+      `${origin}/auth?redirect=%2Fget-started%3Fpay%3Dnow`,
+    );
+    expect(authEmailRedirectTo(`${origin}/`, "/app")).toBe(`${origin}/auth?redirect=%2Fapp`);
+    expect(authEmailRedirectTo(origin, undefined)).toBe(`${origin}/auth`);
+    expect(authEmailRedirectTo(origin, "//evil.com")).toBe(`${origin}/auth`);
+    expect(authEmailRedirectTo(origin, "https://evil.com")).toBe(`${origin}/auth`);
   });
 
   it("the claim bar names the free trial and needs no card", () => {
