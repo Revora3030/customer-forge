@@ -13,7 +13,7 @@ import { readComposition, type CompositionNode, type WidgetPresentation } from "
 import { legacySectionToComposition } from "@/lib/builder/legacy-composition";
 import { blockCss, readBlockStyle, readComponentVisual } from "@/lib/site-style";
 import { premiumSurface } from "@/lib/site-theme";
-import { studioSectionColor, STUDIO_CANVAS } from "@/lib/builder/studio-canvas";
+import { lightSectionColor, studioLightVars, studioSectionColor, STUDIO_CANVAS, type StudioLight } from "@/lib/builder/studio-canvas";
 import { readSectionEffect, sectionFxClassName } from "@/lib/site-effects";
 import { SitePageLink } from "@/components/site/site-links";
 import { Mail, MapPin, Phone } from "lucide-react";
@@ -91,14 +91,14 @@ const Heading = ({ section, lead = false }: { section: Section; lead?: boolean }
  * The owner's own block edits still apply, and the AI-authored section effect
  * (settings.effect) is drawn as a bounded, reduced-motion-safe class.
  */
-export function SiteSection({ site, section, lead = false, first = false, studio = false, studioCanvas = STUDIO_CANVAS, preparedRoot = null }: { site: Site; section: Section; lead?: boolean; first?: boolean; studio?: boolean; studioCanvas?: string; preparedRoot?: CompositionNode | null }) {
+export function SiteSection({ site, section, lead = false, first = false, studio = false, studioCanvas = STUDIO_CANVAS, preparedRoot = null, light = null, seam = false }: { site: Site; section: Section; lead?: boolean; first?: boolean; studio?: boolean; studioCanvas?: string; preparedRoot?: CompositionNode | null; /** Light half of a dark-to-light studio page (quality bar #22). */ light?: StudioLight | null; /** First light section: draws the one dark-to-light seam above it. */ seam?: boolean }) {
   const block = readBlockStyle(section.settings);
   // A section's own background (set from the builder) wins over the page
   // surface. Mid-grey washes are corrected to a clean tint or deep shade, the
   // same way the page surface is, so no section ships as dull grey. A studio
   // page then pulls any remaining light band back onto the obsidian canvas.
   const corrected = block.bgColor && /^#[0-9a-f]{6}$/i.test(block.bgColor) && !block.bgImage ? premiumSurface(block.bgColor) : null;
-  const ownBg = studioSectionColor(corrected, studio, studioCanvas);
+  const ownBg = light ? lightSectionColor(corrected, light) : studioSectionColor(corrected, studio, studioCanvas);
   const css = blockCss(ownBg ? { ...block, bgColor: ownBg } : block, siteSurface(site));
   // In-page anchors for buttons like "#contact" or "#services": the section's
   // role (kept when it became an AI layout) or its kind.
@@ -109,7 +109,16 @@ export function SiteSection({ site, section, lead = false, first = false, studio
   // The opening hero fills most of the first screen (never more than 720px) with its content centred,
   // so a short text hero no longer reads as a cramped strip above the fold.
   const heroFrame = first && (role === "hero" || section.kind === "hero");
+  const lightStyle = light ? { ...studioLightVars(light), backgroundColor: ownBg ?? light.canvas, color: light.ink } : null;
   return (
+    <>
+    {seam && light ? (
+      <div
+        aria-hidden="true"
+        data-studio-seam=""
+        style={{ height: "clamp(56px, 9vw, 140px)", background: `linear-gradient(180deg, ${light.dark} 0%, ${light.canvas} 100%)` }}
+      />
+    ) : null}
     <div
       id={anchor}
       data-rvb={section.id}
@@ -121,10 +130,12 @@ export function SiteSection({ site, section, lead = false, first = false, studio
         fx ?? "",
       ].filter(Boolean).join(" ")}
       data-rv-hero={heroFrame ? "" : undefined}
-      style={{ ...css, minWidth: 0, maxWidth: "100%" }}
+      data-studio-light={light ? "" : undefined}
+      style={{ ...css, ...(lightStyle ?? {}), minWidth: 0, maxWidth: "100%" }}
     >
-      <SiteSectionBody site={site} section={section} lead={lead} first={first} surface={studio ? (ownBg ?? studioCanvas) : ownBg} preparedRoot={preparedRoot} />
+      <SiteSectionBody site={site} section={section} lead={lead} first={first} surface={light ? (ownBg ?? light.canvas) : studio ? (ownBg ?? studioCanvas) : ownBg} preparedRoot={preparedRoot} />
     </div>
+    </>
   );
 }
 
