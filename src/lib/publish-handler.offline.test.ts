@@ -34,6 +34,7 @@ function fixture(options: { role?: string | null; unpaid?: boolean; suspended?: 
   };
   const client = { from(table: string) {
     const filters: [string, unknown][] = [];
+    let pending: Row | null = null;
     reads.push({ table, filters });
     const rows = () => (tables[table] ?? []).filter((row) => filters.every(([key, value]) => row[key] === value));
     const chain = {
@@ -45,8 +46,13 @@ function fixture(options: { role?: string | null; unpaid?: boolean; suspended?: 
         writes.push({ table, kind: "insert", row, filters });
         return { error: options.snapshotError ? { message: "fixture snapshot failure" } : null };
       },
-      update: (row: Row) => { writes.push({ table, kind: "update", row, filters }); return chain; },
-      then: (resolve: (value: unknown) => unknown) => resolve({ data: rows(), error: options.publishError && table === "website_settings" ? { message: "PRODUCTION_LOCKED" } : null }),
+      update: (row: Row) => { pending = row; writes.push({ table, kind: "update", row, filters }); return chain; },
+      then: (resolve: (value: unknown) => unknown) => {
+        const failed = options.publishError && table === "website_settings";
+        // Like PostgREST: an update changes (and with .select() returns) only matching rows.
+        if (pending && !failed) for (const row of rows()) Object.assign(row, pending);
+        return resolve({ data: rows(), error: failed ? { message: "PRODUCTION_LOCKED" } : null });
+      },
     };
     return chain;
   } };
@@ -95,6 +101,26 @@ describe("production publishing handler — offline fixtures, not live RLS proof
     expect(db.writes[0]?.row).toMatchObject({ organization_id: ORG, version: 3, pages: { live_format: 1 } });
     expect(db.writes[1]?.filters).toEqual([["organization_id", ORG]]);
     expect(db.tables["website_versions"]?.find((row) => row["organization_id"] === OTHER)?.["version"]).toBe(99);
+  });
+  it("leaves website_settings in a state the public-form gate (ORG_NOT_PUBLIC) accepts", async () => {
+    const db = fixture();
+    await activate(db);
+    expect(db.tables["website_settings"]?.[0]).toMatchObject({ published: true, publish_state: "published" });
+  });
+  it("never reports live when the publish update matched no website_settings row", async () => {
+    const db = fixture();
+    const original = db.client.from.bind(db.client);
+    (db.client as unknown as { from: (table: string) => unknown }).from = (table: string) => {
+      const chain = original(table) as Record<string, unknown> & { update: (row: Row) => unknown };
+      if (table !== "website_settings") return chain;
+      const update = chain.update;
+      chain.update = (row: Row) => {
+        update(row);
+        return { eq: () => ({ select: async () => ({ data: [], error: null }) }) };
+      };
+      return chain as never;
+    };
+    await expect(activate(db)).rejects.toThrow("couldn't take the website live");
   });
   it("does not mark settings live if saving the production snapshot fails", async () => {
     const db = fixture({ snapshotError: true });

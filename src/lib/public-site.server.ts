@@ -6,6 +6,7 @@
  * unpublished draft may be served, which the caller states explicitly.
  */
 import { readHeroVideo, isHeroVideoCategory, type HeroVideoMedia, type HeroVideoPointer } from "@/lib/builder/hero-stock-video";
+import { siteAcceptsSubmissions } from "@/lib/site-submission-gate";
 import { customerBusinessEmail, sanitizeServices } from "@/lib/builder/intake-sanitize";
 import { MODEL_BUCKET, isModelPath, isOrgModelPath } from "@/lib/site-models";
 import { createClient } from "@supabase/supabase-js";
@@ -597,6 +598,14 @@ export async function loadSite(
     pageFound: options?.pageSlug ? !!currentPage : true,
 
     publishState: gate?.publish_state ?? "draft",
+    // Whether the database will accept this site's form submissions (the
+    // ORG_NOT_PUBLIC gate). False on a shareable preview of an unpublished
+    // draft, where the forms show a "not live yet" note instead.
+    acceptsSubmissions: siteAcceptsSubmissions({
+      isDemo: org.is_demo,
+      published: gate?.published ?? null,
+      publishState: gate?.publish_state ?? null,
+    }),
   };
 }
 

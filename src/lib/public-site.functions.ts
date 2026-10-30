@@ -4,19 +4,21 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { createClient } from "@supabase/supabase-js";
 import { isAutomatedUserAgent } from "@/lib/automated-traffic";
 import type { Database } from "@/integrations/supabase/types";
+import { publicSubmissionErrorMessage, SITE_NOT_LIVE_MESSAGE, siteAcceptsSubmissions } from "@/lib/site-submission-gate";
 // Type-only import: erased at build time, so nothing server-only ships to the client.
 import type { loadSite } from "@/lib/public-site.server";
 
 /**
  * Public-safe organization lookup. Organization rows carry billing and
  * onboarding data, so the table is unreadable to anonymous clients; this
- * resolves only id/name via the privileged server client.
+ * resolves only id/name (plus the demo flag the publish gate needs) via the
+ * privileged server client.
  */
 async function publicOrganization(slug: string) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data } = await supabaseAdmin
     .from("organizations")
-    .select("id, name")
+    .select("id, name, is_demo")
     .eq("slug", slug)
     .eq("is_suspended", false)
     .maybeSingle();
@@ -579,6 +581,26 @@ export const submitPublicLead = createServerFn({ method: "POST" })
     if (!org?.id) throw new Error("We couldn't find that business.");
     const orgId: string = org.id;
 
+    // Same publish gate as submit_public_conversion (ORG_NOT_PUBLIC), checked
+    // first so an unpublished site gets a clear answer and never counts as an
+    // abuse-gate attempt. The database still enforces it on its own.
+    if (!org.is_demo) {
+      const { data: gateRow } = await supabase
+        .from("website_settings")
+        .select("published, publish_state")
+        .eq("organization_id", orgId)
+        .maybeSingle();
+      if (
+        !siteAcceptsSubmissions({
+          isDemo: org.is_demo,
+          published: gateRow?.published ?? null,
+          publishState: (gateRow?.publish_state as string | null | undefined) ?? null,
+        })
+      ) {
+        throw new Error(SITE_NOT_LIVE_MESSAGE);
+      }
+    }
+
     const source = publicSubmissionSource();
     const contact = contactFingerprint(data);
     const contactHash = contact ? await sha256Hex(`contact|${orgId}|${contact}`) : null;
@@ -766,20 +788,7 @@ export const submitPublicLead = createServerFn({ method: "POST" })
     if (error) {
       const message = error.message ?? "";
       console.error("public submission failed", message);
-      if (message.includes("BOOKING_CONFLICT") || message.includes("appointments_no_overlap")) {
-        throw new Error("That time was just taken. Please pick another time.");
-      }
-      if (message.includes("TIME_IN_PAST")) throw new Error("Please pick a time in the future.");
-      if (message.includes("INVALID_TIME")) throw new Error("Pick a valid appointment time.");
-      if (message.includes("INVALID_SERVICE") || message.includes("INVALID_QUOTE_FORM")) {
-        throw new Error("That service is no longer available. Please refresh and try again.");
-      }
-      if (message.includes("RATE_LIMITED")) {
-        throw new Error(
-          "We've already received your details. Please wait a few minutes before sending again.",
-        );
-      }
-      throw new Error("We couldn't save your request. Please try again.");
+      throw new Error(publicSubmissionErrorMessage(message));
     }
 
     const saved = (result ?? {}) as {
