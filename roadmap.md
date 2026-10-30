@@ -1,3 +1,8 @@
+## Database migration and history reconciliation (2026-10-30)
+- [ ] Apply the requested tenant-service constraint repair, preserving src files and no publishing.
+- [ ] Compare live legacy migration versions against repository files and restore only missing files.
+- [ ] Verify database readback and report remaining local-only history accurately.
+
 ## Ordered platform error fixes — Part 1 (2026-10-29)
 - [x] 1–2: Verify redirects: apex HTTP is 301; www is upstream 302. Hosting permanent-status control unavailable; no DNS changes.
 - [x] 3–4: Repair visible account errors/return navigation and bounded verified-payment reconciliation; isolated tests pass. Real signup/payment not run.
