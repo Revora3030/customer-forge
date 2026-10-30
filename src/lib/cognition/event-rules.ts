@@ -112,4 +112,24 @@ export const DEFAULT_EVENT_RULES: readonly EventRule[] = [
     summary: (e) => `${e.subject}'s free trial ends within a day and they haven't converted.${line(e)} Nothing was sent to them.`,
     prompt: (e) => `${e.subject}'s free trial ends within 24 hours and they have not converted. Review what they have set up so far and draft a short, honest check-in for me to approve. Do not send anything.`,
   },
+  {
+    id: "retention-case", on: "client.health_low", cooldownMs: 3 * 24 * 3_600_000,
+    summary: (e) => `${e.subject} dropped below the retention line (60).${line(e)} I opened this as a retention case; nothing was changed or sent.`,
+    prompt: (e) => `${e.subject}'s customer health score is below 60. Read their health breakdown, leads, site status and billing, explain the biggest risk plainly, and propose the smallest fixes in order. Draft any message to them for me to approve. Do not send or change anything.`,
+  },
+  {
+    id: "retention-escalate", on: "client.health_critical", cooldownMs: 24 * 3_600_000,
+    summary: (e) => `${e.subject} is critical (below 35) and needs a person.${line(e)} Nothing was changed or sent.`,
+    prompt: (e) => `${e.subject}'s customer health score is below 35. Summarise what is wrong from their records, list what a person on our team should do today, and draft a short, honest check-in for me to approve. Do not send or change anything.`,
+  },
+  {
+    id: "client-no-leads", on: "client.no_leads", cooldownMs: 6 * 24 * 3_600_000,
+    summary: (e) => `${e.subject}'s site is live but has had no leads for 14 days.${line(e)} Nothing was changed.`,
+    prompt: (e) => `${e.subject} has had no leads for 14 days while live. Run a conversion diagnosis on their site: check forms submit, calls-to-action, phone links, page speed and traffic, and propose fixes for me to approve. Never promise results.`,
+  },
+  {
+    id: "client-leads-unanswered", on: "client.leads_unanswered", cooldownMs: 24 * 3_600_000,
+    summary: (e) => `${e.subject} has leads waiting with no reply.${line(e)} Nothing else was sent.`,
+    prompt: (e) => `${e.subject} has leads still marked new after 72 hours. Check their lead alerts were delivered, then draft a short nudge to the owner for me to approve. Do not contact their leads.`,
+  },
 ];
