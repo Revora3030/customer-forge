@@ -28,7 +28,7 @@ jobs:
       - name: Upload Semgrep findings
         if: always() && hashFiles('semgrep-results.json') != ''
         continue-on-error: true  # a full Actions artifact quota must not fail a job whose checks passed
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: semgrep-results-${{ github.run_id }}
           path: semgrep-results.json

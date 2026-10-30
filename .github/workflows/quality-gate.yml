@@ -102,7 +102,7 @@ jobs:
       - name: Upload coverage artifacts
         if: always()
         continue-on-error: true  # a full Actions artifact quota must not fail a job whose checks passed
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-report-${{ github.run_id }}
           path: coverage/
@@ -112,7 +112,7 @@ jobs:
         id: coverage_api
         if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
         continue-on-error: true  # a full Actions artifact quota must not fail a job whose checks passed
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-report-typescript
           path: coverage/cobertura-coverage.xml
