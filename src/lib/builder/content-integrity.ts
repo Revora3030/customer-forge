@@ -204,13 +204,27 @@ export function inspectContentIntegrity(fields: IntegrityField[]): IntegrityViol
   return violations;
 }
 
+/** Stable code on every ContentIntegrityError, read by the build failure classifier. */
+export const CONTENT_INTEGRITY_ERROR_CODE = "content_integrity" as const;
+
 export class ContentIntegrityError extends Error {
+  readonly code = CONTENT_INTEGRITY_ERROR_CODE;
   readonly violations: IntegrityViolation[];
   constructor(violations: IntegrityViolation[]) {
     super(contentIntegrityMessage(violations));
     this.name = "ContentIntegrityError";
     this.violations = violations;
   }
+}
+
+/** True for a content integrity refusal, even across module copies (checks the code, not only the class). */
+export function isContentIntegrityError(error: unknown): error is { message: string; code: string; violations?: IntegrityViolation[] } {
+  if (error instanceof ContentIntegrityError) return true;
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    (error as { code?: unknown }).code === CONTENT_INTEGRITY_ERROR_CODE
+  );
 }
 
 export function contentIntegrityMessage(violations: IntegrityViolation[]): string {
@@ -225,4 +239,109 @@ export function contentIntegrityMessage(violations: IntegrityViolation[]): strin
 export function assertContentIntegrity(fields: IntegrityField[]): void {
   const violations = inspectContentIntegrity(fields);
   if (violations.length > 0) throw new ContentIntegrityError(violations);
+}
+
+/**
+ * The business facts every build checks before any AI work starts. Shared by
+ * the build request (so the owner hears about a bad detail at once) and the
+ * worker (the hard gate), so both always check the same fields.
+ */
+export function businessFactIntegrityFields(facts: {
+  businessName: string | null | undefined;
+  description?: string | null;
+  city?: string | null;
+  serviceArea?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  services?: { name: string; description?: string | null }[];
+}): IntegrityField[] {
+  const services = facts.services ?? [];
+  return [
+    { field: "business name", value: facts.businessName ?? "", heading: true },
+    { field: "description", value: facts.description ?? null },
+    { field: "city", value: facts.city ?? null },
+    { field: "service area", value: facts.serviceArea ?? null },
+    { field: "phone", value: facts.phone ?? null },
+    { field: "email", value: facts.email ?? null },
+    ...services.map((service, index) => ({ field: `service ${index + 1} name`, value: service.name, heading: true })),
+    ...services.map((service, index) => ({ field: `service ${index + 1} description`, value: service.description ?? null })),
+  ];
+}
+
+/** What each problem means, in the owner's words. */
+const OWNER_PROBLEM: Record<IntegrityViolation["kind"], string> = {
+  fixture_data: "looks like test data",
+  placeholder_token: "is placeholder text",
+  lorem_ipsum: "is placeholder text",
+  fake_phone: "isn't a real, reachable phone number",
+  fake_address: "is a placeholder address",
+  gibberish: "doesn't read as real information",
+  empty_heading: "is empty",
+  duplicated_filler: "repeats the same text",
+};
+
+/** Maps the stored detail text back to its kind (the stored error keeps only field + detail). */
+function kindFromDetail(detail: string): IntegrityViolation["kind"] | null {
+  const text = detail.trim().toLowerCase();
+  if (text.startsWith("this looks like test or demo data")) return "fixture_data";
+  if (text.startsWith("this is placeholder text")) return "placeholder_token";
+  if (text.startsWith("placeholder latin filler")) return "lorem_ipsum";
+  if (text.startsWith("this is not a real, reachable phone")) return "fake_phone";
+  if (text.startsWith("this is a placeholder address")) return "fake_address";
+  if (text.startsWith("this does not read as real business information")) return "gibberish";
+  if (text.startsWith("a heading was left empty")) return "empty_heading";
+  if (text.startsWith("the same text is repeated")) return "duplicated_filler";
+  return null;
+}
+
+/**
+ * Reads the field/problem pairs back out of a stored integrity message
+ * ("... not real information yet (email: this looks like test or demo data; city: ...)").
+ * Returns [] when the message is not one.
+ */
+export function parseIntegrityViolations(message: string | null | undefined): { field: string; kind: IntegrityViolation["kind"] }[] {
+  const match = /not real information yet \((.*)\)\. Please correct/i.exec(message ?? "");
+  if (!match) return [];
+  const out: { field: string; kind: IntegrityViolation["kind"] }[] = [];
+  for (const part of (match[1] ?? "").split(/;\s*/)) {
+    const colon = part.indexOf(":");
+    if (colon <= 0) continue;
+    const kind = kindFromDetail(part.slice(colon + 1));
+    if (kind) out.push({ field: part.slice(0, colon).trim(), kind });
+  }
+  return out;
+}
+
+function ownerFieldName(field: string): string {
+  const name = field.trim().toLowerCase();
+  if (name === "email") return "business email";
+  if (name === "phone") return "business phone";
+  if (name === "city") return "business city";
+  if (name === "description") return "business description";
+  return name;
+}
+
+/**
+ * The owner-facing explanation for a content integrity refusal: which field,
+ * what is wrong with it, where to fix it, and that Build has to be pressed
+ * again (nothing resumes on its own).
+ * e.g. "Your business email looks like test data. Update it in Business details, then press Build again."
+ */
+export function integrityOwnerMessage(violations: { field: string; kind: IntegrityViolation["kind"] }[]): string {
+  if (violations.length === 0)
+    return "Some business details look like test or placeholder data. Update them in Business details, then press Build again.";
+  // Kept short enough for a chat line or toast (friendlyError drops anything
+  // over 180 characters): name up to three fields, fewer if they run long.
+  let text = "";
+  for (let count = Math.min(3, violations.length); count >= 1; count -= 1) {
+    const phrases = violations.slice(0, count).map((entry) => `${ownerFieldName(entry.field)} ${OWNER_PROBLEM[entry.kind]}`);
+    const rest = violations.length - count;
+    if (rest > 0) phrases.push(`${rest} more ${rest === 1 ? "detail needs" : "details need"} fixing`);
+    const sentence =
+      phrases.length === 1 ? phrases[0] : `${phrases.slice(0, -1).join(", ")} and ${phrases[phrases.length - 1]}`;
+    const pronoun = violations.length === 1 ? "it" : "them";
+    text = `Your ${sentence}. Update ${pronoun} in Business details, then press Build again.`;
+    if (text.length <= 175) break;
+  }
+  return text;
 }

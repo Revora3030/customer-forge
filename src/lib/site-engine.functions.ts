@@ -44,6 +44,50 @@ function isMissingColumn(error: { code?: string; message?: string } | null | und
   return typeof error.message === "string" && /column .* does not exist|could not find the '.*' column/i.test(error.message);
 }
 
+/**
+ * The owner message for business details the build would refuse, or null when
+ * they pass. Mirrors the worker's hard gate (same fields, same sanitising);
+ * the phone is left out because the worker withholds a placeholder phone
+ * instead of refusing the build. A read failure never blocks: the worker's
+ * gate still runs.
+ */
+export async function businessFactsRefusal(supabase: SupabaseClient<Database>, orgId: string): Promise<string | null> {
+  try {
+    const [org, profile, services] = await Promise.all([
+      supabase.from("organizations").select("name").eq("id", orgId).maybeSingle(),
+      supabase.from("business_profiles").select("*").eq("organization_id", orgId).maybeSingle(),
+      supabase
+        .from("services")
+        .select("id, name, description, price, starting_price")
+        .eq("organization_id", orgId)
+        .eq("is_active", true)
+        .order("sort_order"),
+    ]);
+    if (org.error || profile.error || services.error || !org.data) return null;
+    const { mergeSplitServices, sanitizeServices, customerBusinessEmail } = await import("@/lib/builder/intake-sanitize");
+    const { businessFactIntegrityFields, inspectContentIntegrity, integrityOwnerMessage } = await import(
+      "@/lib/builder/content-integrity"
+    );
+    const p = (profile.data ?? {}) as Record<string, unknown>;
+    const text = (key: string) => (typeof p[key] === "string" ? (p[key] as string) : null);
+    const serviceRows = mergeSplitServices(sanitizeServices((services.data ?? []) as { id?: string; name: string; description?: string | null }[]));
+    const violations = inspectContentIntegrity(
+      businessFactIntegrityFields({
+        businessName: (org.data as { name?: string | null }).name ?? "",
+        description: text("description"),
+        city: text("city"),
+        serviceArea: text("service_area"),
+        email: customerBusinessEmail(p["email"], orgId),
+        services: serviceRows,
+      }),
+    );
+    return violations.length ? integrityOwnerMessage(violations) : null;
+  } catch (error) {
+    console.warn("[site-engine] business facts pre-check skipped", error);
+    return null;
+  }
+}
+
 export const runSiteGeneration = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: { organizationId: string; mode?: RunMode; confirmation?: string; requestId?: string }) => {
@@ -84,6 +128,14 @@ export const runSiteGeneration = createServerFn({ method: "POST" })
         throw new Error(
           `Revora still needs: ${missing.map((g) => g.label.toLowerCase()).join(", ")}.`,
         );
+    }
+
+    // The worker's business-facts gate, run before anything is queued: test,
+    // demo or placeholder details are named in the chat at once, instead of a
+    // build that stalls at the brand step and fails three attempts later.
+    {
+      const refusal = await businessFactsRefusal(supabase, orgId);
+      if (refusal) throw new Error(refusal);
     }
 
     // RLS enforces that the caller belongs to this workspace.

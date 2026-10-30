@@ -10,7 +10,7 @@ export function canvasStatusLine(input: {
   latestDetail: string | null;
 }): string {
   if (input.stalled) return "Reconnecting to your build…";
-  if (input.status === "failed") return "The build hit a problem — it retries automatically.";
+  if (input.status === "failed") return "The build stopped before it finished — the chat says what to do next.";
   if (input.status === "queued") return "Your build is queued — the AI team starts in a few seconds…";
   if (input.status === "processing") {
     if (input.latestStage) {

@@ -11,6 +11,8 @@
  * `readFailureKind()`.
  */
 
+import { integrityOwnerMessage, isContentIntegrityError, parseIntegrityViolations } from "./content-integrity";
+
 export const BUILD_FAILURE_KINDS = [
   "intake_validation",
   "provider",
@@ -49,10 +51,18 @@ const OWNER_MESSAGES: Record<BuildFailureKind, string> = {
   budget: "This build used its spending limit before it finished, so Revora stopped it to protect your credits. Nothing was published. You can start it again when you are ready.",
 };
 
+/** The wording of a content integrity refusal (see contentIntegrityMessage and its details). */
+const INTEGRITY_MESSAGE = /not real information yet|test or demo data|fixture data|this is placeholder text|placeholder address/i;
+
 /** Ordered rules: the first match wins. Matched against the error text only. */
 const RULES: { kind: BuildFailureKind; test: RegExp }[] = [
   // The worker refused to spend more on this build (see build-spend.ts). Never retried.
   { kind: "budget", test: /reached its spending limit/i },
+  // The business facts gate (content-integrity.ts) refused test, demo or
+  // placeholder details. Only the owner can fix them, so it is never retried.
+  // Normally caught by its error code; this is the fallback for a stored or
+  // re-thrown message that lost the class.
+  { kind: "intake_validation", test: INTEGRITY_MESSAGE },
   // The gateway answered 402: the workspace has no AI credits left. Retrying cannot help.
   { kind: "credits", test: /not enough credits|payment[_ ]required|insufficient[_ ]credits/i },
   // A design step that came back empty because the AI providers were slow or
@@ -80,13 +90,39 @@ const RULES: { kind: BuildFailureKind; test: RegExp }[] = [
  */
 export function classifyBuildFailure(error: unknown, status = 0): BuildFailure {
   const message = error instanceof Error ? error.message : typeof error === "string" ? error : "";
+  // Owner details refused by the integrity gate: name the fields, never retry.
+  if (isContentIntegrityError(error)) {
+    const violations = Array.isArray(error.violations)
+      ? error.violations.map((entry) => ({ field: entry.field, kind: entry.kind }))
+      : parseIntegrityViolations(error.message);
+    return { kind: "intake_validation", retryable: false, ownerMessage: integrityOwnerMessage(violations) };
+  }
   let kind: BuildFailureKind;
   if (status === 402) kind = "credits";
   else if (status === 429 || status === 403 || (status >= 500 && status < 600)) kind = "provider";
   else kind = RULES.find((rule) => rule.test.test(message))?.kind ?? "infrastructure";
   const retryable = kind !== "intake_validation" && kind !== "budget" && kind !== "credits" && !(kind === "provider" && status === 403);
-  return { kind, retryable, ownerMessage: OWNER_MESSAGES[kind] };
+  const ownerMessage = kind === "intake_validation" ? intakeOwnerMessage(message) : OWNER_MESSAGES[kind];
+  return { kind, retryable, ownerMessage };
 }
+
+/** The intake message, naming the refused fields when the error text lists them. */
+function intakeOwnerMessage(message: string | null | undefined): string {
+  const violations = parseIntegrityViolations(message);
+  if (violations.length) return integrityOwnerMessage(violations);
+  if (INTEGRITY_MESSAGE.test(message ?? "")) return integrityOwnerMessage([]);
+  return OWNER_MESSAGES.intake_validation;
+}
+
+/**
+ * A failed row is final: nothing retries it. Kinds whose in-flight message
+ * promises an automatic retry get an honest final wording instead.
+ */
+const FINAL_OWNER_MESSAGES: Partial<Record<BuildFailureKind, string>> = {
+  infrastructure: "The build worker was interrupted and couldn't finish after several tries. Nothing was published. Press Build again to start it over.",
+  provider: "The AI providers were unavailable or rate limited, so this build stopped. Nothing was published. Press Build again in a few minutes.",
+  content: "The AI team couldn't produce copy that passed Revora's fact checks after several tries. Nothing was published. Press Build again for a fresh draft.",
+};
 
 const PREFIX = /^\[([a-z_]+)\]\s*/;
 
@@ -105,7 +141,7 @@ export function readFailureKind(message: string | null | undefined): BuildFailur
 
 /** Short owner-facing label for each kind, shown next to a failed build. */
 export const FAILURE_KIND_LABELS: Record<BuildFailureKind | "cancelled", string> = {
-  intake_validation: "Missing business details",
+  intake_validation: "Business details need fixing",
   provider: "AI provider unavailable",
   content: "Copy didn't pass fact checks",
   image: "Pictures couldn't be finished",
@@ -135,7 +171,9 @@ export function describeBuildFailure(row: {
   const stored = row.failure_kind as BuildFailureKind | null | undefined;
   const kind = stored && (BUILD_FAILURE_KINDS as readonly string[]).includes(stored) ? stored : readFailureKind(row.error_message);
   if (!kind) return { label: "Build didn't finish", message: untaggedMessage(row.error_message) || "The build didn't finish.", canRetry: true };
-  return { label: FAILURE_KIND_LABELS[kind], message: OWNER_MESSAGES[kind], canRetry: true };
+  const message =
+    kind === "intake_validation" ? intakeOwnerMessage(untaggedMessage(row.error_message)) : (FINAL_OWNER_MESSAGES[kind] ?? OWNER_MESSAGES[kind]);
+  return { label: FAILURE_KIND_LABELS[kind], message, canRetry: true };
 }
 
 /** The message without its kind tag, for display. */
