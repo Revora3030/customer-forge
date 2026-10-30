@@ -169,6 +169,55 @@
       "when": 1793326901084,
       "tag": "0023_prospect_gmail_replies",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1793326921210,
+      "tag": "0024_prospect_rotation",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1793326930099,
+      "tag": "0025_preview_engagement",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1793326936560,
+      "tag": "0026_generation_capacity_deferrals",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1793326953813,
+      "tag": "0027_generation_section_checkpoints",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1793326960174,
+      "tag": "0028_prospect_reply_poll_lock",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1793326976582,
+      "tag": "0029_prospect_demo_enrichment_write",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1793326983036,
+      "tag": "0030_generation_stage_checkpoints",
+      "breakpoints": true
     }
   ]
 }
