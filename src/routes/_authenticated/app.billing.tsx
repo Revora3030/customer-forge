@@ -1,4 +1,6 @@
 import { startConfirmationPolling } from "@/lib/checkout-confirmation";
+import { deriveBillingStatus } from "@/lib/billing-status";
+import { trialEndsAtMs } from "@/lib/trial";
 import { useEffect, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { CreditCard, ExternalLink, Receipt, Wallet } from "lucide-react";
@@ -119,6 +121,12 @@ function BillingPage() {
   }, [orgId, queryClient]);
 
   const billingSettled = setupPaid && Boolean(billing?.active);
+  // Shared with the dashboard Status Center so both screens say the same thing.
+  const status = deriveBillingStatus({
+    setupPaid,
+    subscription,
+    freeAccessEndsAt: trialEndsAtMs(org),
+  });
   // Keep re-reading the verified state (bounded) while the webhook settles.
   useEffect(() => {
     if (!returnedFromCheckout || !orgId || billingSettled) return;
@@ -159,9 +167,7 @@ function BillingPage() {
         purpose="See what you pay, when it's due, and the cards you have saved."
       >
         <div className="flex flex-wrap items-center gap-2">
-          <Pill tone={subscription?.status === "active" ? "signal" : "neutral"}>
-            {subscription ? subscription.status.replace("_", " ") : "No subscription"}
-          </Pill>
+          <Pill tone={status.tone}>{status.label}</Pill>
 
           {/* Never claim card payments are live when checkout cannot take one. */}
           <Pill tone="neutral">
@@ -220,7 +226,7 @@ function BillingPage() {
         <MetricCard
           label="Your system"
           value={GROWTH_SYSTEM.name}
-          hint={subscription?.status ?? org?.subscription_status ?? ""}
+          hint={status.label}
         />
         <MetricCard
           label="Setup fee"
@@ -234,28 +240,14 @@ function BillingPage() {
           hint={`${paid.length} payment${paid.length === 1 ? "" : "s"}`}
         />
         <MetricCard
-          label={
-            subscription?.cancel_at_period_end
-              ? "Access ends"
-              : subscription?.status === "trialing"
-                ? "Trial ends"
-                : "Renews"
-          }
-          value={
-            subscription?.status === "trialing" && subscription.trial_ends_at
-              ? new Date(subscription.trial_ends_at).toLocaleDateString()
-              : subscription?.current_period_end
-                ? new Date(subscription.current_period_end).toLocaleDateString()
-                : org?.trial_ends_at
-                  ? new Date(org.trial_ends_at).toLocaleDateString()
-                  : "—"
-          }
+          label={status.dateLabel}
+          value={status.date ? new Date(status.date).toLocaleDateString() : "—"}
           hint={
             subscription?.cancel_at_period_end
               ? "Cancellation scheduled"
               : ownerWorkspace
                 ? "No billing for Revora's own workspace"
-                : "Next billing date"
+                : status.label
           }
         />
       </div>
@@ -292,8 +284,8 @@ function BillingPage() {
               {usdExact(GROWTH_SYSTEM.monthlyPrice)}
             </p>
             <p className="mt-1 text-[12px] text-muted-foreground">{GROWTH_SYSTEM.monthlyLabel}</p>
-            <Pill tone={billing?.active ? "signal" : "neutral"}>
-              {subscription ? subscription.status.replace("_", " ") : "Not active"}
+            <Pill tone={subscription ? status.tone : "neutral"}>
+              {subscription ? status.label : "Not active"}
             </Pill>
           </div>
         </div>
