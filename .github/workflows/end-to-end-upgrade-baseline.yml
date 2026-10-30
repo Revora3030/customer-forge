@@ -47,7 +47,7 @@ jobs:
       - name: Preserve baseline evidence
         if: always()
         continue-on-error: true  # a full Actions artifact quota must not fail a job whose checks passed
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: end-to-end-upgrade-baseline-${{ github.run_id }}
           path: |
