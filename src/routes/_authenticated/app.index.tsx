@@ -20,6 +20,7 @@ import { RevoraCommandBar } from "@/components/app/RevoraCommandBar";
 import { ClientWebsiteSummary } from "@/components/app/ClientWebsiteSummary";
 import { SpeedToLeadCard } from "@/components/app/SpeedToLeadCard";
 import { WinbackCard } from "@/components/app/WinbackCard";
+import { WorkDoneCard } from "@/components/app/WorkDoneCard";
 
 import { useProductionStatus } from "@/lib/production.hooks";
 
@@ -465,6 +466,8 @@ function Dashboard() {
         bookings={appts.filter((a) => a.status !== "cancelled").length}
         visits={events.filter((e) => e.event_type === "page_view").length}
       />
+
+      <WorkDoneCard organizationId={orgId} />
 
       <SpeedToLeadCard
         organizationId={orgId}
