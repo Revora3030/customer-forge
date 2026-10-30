@@ -100,9 +100,13 @@ export const ConversationScrollButton = ({
         size="icon"
         type="button"
         variant="outline"
+        // Icon-only control: give it a name screen readers can announce.
+        // Callers may still pass their own aria-label / title.
+        aria-label="Scroll to latest messages"
+        title="Scroll to latest messages"
         {...props}
       >
-        <ArrowDownIcon className="size-4" />
+        <ArrowDownIcon aria-hidden="true" className="size-4" />
       </Button>
     )
   );
