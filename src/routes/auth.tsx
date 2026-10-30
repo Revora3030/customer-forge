@@ -19,7 +19,7 @@ import {
   resolvePostLoginPath,
   setRememberPreference,
 } from "@/lib/auth-session";
-import { isSafeRedirect } from "@/lib/prospect-claim";
+import { authEmailRedirectTo, isSafeRedirect } from "@/lib/prospect-claim";
 
 type Search = { mode?: "signup" | "signin"; redirect?: string };
 
@@ -130,7 +130,7 @@ function AuthPage() {
           password,
           options: {
             data: { full_name: fullName },
-            emailRedirectTo: `${window.location.origin}/auth${redirect ? `?redirect=${encodeURIComponent(redirect)}` : ""}`,
+            emailRedirectTo: authEmailRedirectTo(window.location.origin, redirect),
           },
         });
         if (signUpError) throw signUpError;
@@ -174,7 +174,7 @@ function AuthPage() {
         email,
         options: {
           shouldCreateUser: false,
-          emailRedirectTo: `${window.location.origin}/auth${redirect ? `?redirect=${encodeURIComponent(redirect)}` : ""}`,
+          emailRedirectTo: authEmailRedirectTo(window.location.origin, redirect),
         },
       });
       if (otpError) throw otpError;
