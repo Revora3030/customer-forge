@@ -459,7 +459,10 @@ export async function publishSiteNow(
     }
 
     // The database trigger independently re-checks the setup payment here.
-    const { error: publishError } = await supabase
+    // `.select()` returns the rows actually changed: an update that matched no
+    // website_settings row (or was filtered out) would otherwise report "live"
+    // while the public-form gate (ORG_NOT_PUBLIC) still refuses every lead.
+    const { data: publishedRows, error: publishError } = await supabase
       .from("website_settings")
       .update({
         publish_state: "published",
@@ -467,7 +470,13 @@ export async function publishSiteNow(
         last_published_at: publishedAt,
         review_state: "approved",
       })
-      .eq("organization_id", orgId);
+      .eq("organization_id", orgId)
+      .select("organization_id, published, publish_state");
+
+    if (!publishError && !publishMarkedLive(publishedRows)) {
+      await audit("DEPLOYMENT_FAILED", { message: "publish_update_matched_no_row", stage: "publish" });
+      throw new Error("We couldn't take the website live. Nothing was lost — try again in a moment.");
+    }
 
     if (publishError) {
       await audit("DEPLOYMENT_FAILED", { message: publishError.message });
@@ -496,4 +505,16 @@ export async function publishSiteNow(
       readiness,
     };
   }
+}
+
+/**
+ * True when the publish update really left this workspace in a state the
+ * public-submission gate accepts (website_settings.published or
+ * publish_state 'published'), so a "your website is live" answer is never
+ * given while visitor forms would still be refused.
+ */
+export function publishMarkedLive(
+  rows: ReadonlyArray<{ published?: boolean | null; publish_state?: string | null }> | null | undefined,
+): boolean {
+  return (rows ?? []).some((row) => row.published === true || row.publish_state === "published");
 }

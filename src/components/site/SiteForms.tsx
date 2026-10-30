@@ -2,7 +2,7 @@ import { checkBookingTime } from "@/lib/booking-hours";
 import { RollingNumber } from "@/components/site/CountUp";
 import { SiteSelect } from "@/components/site/SiteSelect";
 import { DateChips } from "@/components/site/DateChips";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "@/lib/ui/notify";
 import { friendlyError } from "@/lib/user-error";
@@ -25,6 +25,7 @@ import type { WidgetPresentation } from "@/lib/builder/composition-tree";
 import { usePreviewMode } from "@/components/site/preview-mode-context";
 import { shouldTrackFormEvent } from "@/lib/site-event-once";
 import { mergeSplitServices } from "@/lib/builder/intake-sanitize";
+import { SiteNotLiveNotice } from "@/components/site/SiteNotLiveNotice";
 
 type Site = NonNullable<PublicSite>;
 
@@ -107,6 +108,23 @@ function contactProblem(email: string, phone: string): string | null {
  * booking, CRM webhook or email is created. Owners can test every widget
  * without polluting their own pipeline.
  */
+/**
+ * The database refuses submissions for a site that isn't published yet (the
+ * ORG_NOT_PUBLIC gate), so on a shared preview of an unpublished draft the
+ * form is replaced by a plain "not live yet" note rather than letting a
+ * visitor type out a request that cannot be saved. The owner's own builder
+ * preview keeps the working, simulated form.
+ */
+export function formsBlockedForSite(site: Pick<Site, "acceptsSubmissions">, preview: boolean): boolean {
+  return !preview && site.acceptsSubmissions === false;
+}
+
+function NotLiveGate({ site, children }: { site: Site; children: ReactNode }) {
+  const preview = usePreviewMode();
+  if (formsBlockedForSite(site, preview)) return <SiteNotLiveNotice organizationId={site.org.id} />;
+  return <>{children}</>;
+}
+
 function useLeadSubmit(): typeof submitPublicLead {
   const send = useServerFn(submitPublicLead);
   const preview = usePreviewMode();
@@ -119,7 +137,15 @@ function useLeadSubmit(): typeof submitPublicLead {
   return simulated as unknown as typeof submitPublicLead;
 }
 
-export function QuoteCalculator({ site, presentation }: { site: Site; presentation?: WidgetPresentation }) {
+export function QuoteCalculator(props: { site: Site; presentation?: WidgetPresentation }) {
+  return (
+    <NotLiveGate site={props.site}>
+      <QuoteCalculatorLive {...props} />
+    </NotLiveGate>
+  );
+}
+
+function QuoteCalculatorLive({ site, presentation }: { site: Site; presentation?: WidgetPresentation }) {
   const uid = useId();
   const fid = (key: string) => `q-${key}-${uid}`;
   const quote = site.quote;
@@ -398,7 +424,15 @@ export function QuoteCalculator({ site, presentation }: { site: Site; presentati
   );
 }
 
-export function BookingForm({ site, presentation }: { site: Site; presentation?: WidgetPresentation }) {
+export function BookingForm(props: { site: Site; presentation?: WidgetPresentation }) {
+  return (
+    <NotLiveGate site={props.site}>
+      <BookingFormLive {...props} />
+    </NotLiveGate>
+  );
+}
+
+function BookingFormLive({ site, presentation }: { site: Site; presentation?: WidgetPresentation }) {
   const uid = useId();
   const fid = (key: string) => `b-${key}-${uid}`;
   const submit = useLeadSubmit();
@@ -675,7 +709,15 @@ export function BookingForm({ site, presentation }: { site: Site; presentation?:
  * the same protected submit as booking and quotes (server validation, rate
  * limit, honeypot, owner alert, CRM webhook) and is simulated in previews.
  */
-export function EnquiryForm({ site, presentation }: { site: Site; presentation?: WidgetPresentation }) {
+export function EnquiryForm(props: { site: Site; presentation?: WidgetPresentation }) {
+  return (
+    <NotLiveGate site={props.site}>
+      <EnquiryFormLive {...props} />
+    </NotLiveGate>
+  );
+}
+
+function EnquiryFormLive({ site, presentation }: { site: Site; presentation?: WidgetPresentation }) {
   const uid = useId();
   const fid = (key: string) => `e-${key}-${uid}`;
   const submit = useLeadSubmit();
