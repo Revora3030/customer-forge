@@ -1,12 +1,16 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Plus, Printer, Trash2 } from "lucide-react";
+import { useServerFn } from "@tanstack/react-start";
+import { Download, PenLine, Plus, Printer, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { EstimateDocument } from "@/components/app/EstimateDocument";
+import { SignaturePad } from "@/components/app/SignaturePad";
+import { canonicalDocumentJson, cleanSignerName, type EstimateSignature } from "@/lib/estimates/estimate-signature";
+import { saveEstimateSignature } from "@/lib/estimates/estimate-signature.functions";
 import { currency } from "@/lib/format";
 import { useAppointments, useBusinessProfile, useQuoteRequests } from "@/lib/queries";
 import { cn } from "@/lib/utils";
@@ -22,6 +26,7 @@ import {
   parseTaxRate,
   quoteChoicesText,
   saveDefaults,
+  formatCents,
   type DocumentBusiness,
   type DocumentFormState,
   type DocumentKind,
@@ -37,16 +42,20 @@ type Lead = { id: string; name: string; email: string | null; phone: string | nu
 const VALID_PRESETS = ["14", "30", "60"] as const;
 
 /** The copy that prints. It lives straight under <body>, outside the scrolling dialog, so a long document paginates. */
-function PrintCopy({ doc }: { doc: DocumentModel }) {
+function PrintCopy({ doc, signature }: { doc: DocumentModel; signature: EstimateSignature | null }) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
   if (!mounted) return null;
   return createPortal(
     <div data-print-document="" aria-hidden="true">
-      <EstimateDocument doc={doc} />
+      <EstimateDocument doc={doc} signature={signature} />
     </div>,
     document.body,
   );
+}
+
+function formatTotal(doc: DocumentModel): string {
+  return doc.showPrices ? formatCents(doc.totalCents) : "the work listed";
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -104,6 +113,93 @@ function EstimateBuilder({
   );
 
   const isEstimate = form.kind === "estimate";
+
+  // Customer e-sign: valid only for the exact document that was on screen when they signed.
+  const docJson = useMemo(() => canonicalDocumentJson(doc), [doc]);
+  const saveSignature = useServerFn(saveEstimateSignature);
+  const [signing, setSigning] = useState(false);
+  const [signerName, setSignerName] = useState(lead.name);
+  const [drawn, setDrawn] = useState<string | null>(null);
+  const [signed, setSigned] = useState<{ signature: EstimateSignature; docJson: string } | null>(null);
+  const [signStatus, setSignStatus] = useState<{ tone: "ok" | "warn"; text: string } | null>(null);
+  const [savingSignature, setSavingSignature] = useState(false);
+  const signature = isEstimate && signed && signed.docJson === docJson ? signed.signature : null;
+  const signatureVoided = Boolean(signed) && !signature;
+  const [pdfBusy, setPdfBusy] = useState(false);
+  const [pdfError, setPdfError] = useState<string | null>(null);
+
+  const approve = async () => {
+    if (doc.problems.length > 0) {
+      setAttempted(true);
+      return;
+    }
+    const name = cleanSignerName(signerName);
+    if (!name || !drawn) return;
+    const record: EstimateSignature = { dataUrl: drawn, signerName: name, signedAt: new Date().toISOString() };
+    setSavingSignature(true);
+    setSignStatus(null);
+    try {
+      if (!organizationId) throw new Error("no workspace");
+      const result = await saveSignature({
+        data: {
+          organizationId,
+          leadId: lead.id,
+          documentNumber: doc.number,
+          documentJson: docJson,
+          signerName: name,
+          signaturePng: drawn,
+        },
+      });
+      setSigned({ signature: record, docJson });
+      setSigning(false);
+      setDrawn(null);
+      setSignStatus(
+        result.ok
+          ? { tone: "ok", text: `Signed by ${name}. Saved to this workspace's records (fingerprint ${result.documentSha256.slice(0, 12)}).` }
+          : { tone: "warn", text: result.message },
+      );
+    } catch {
+      setSigned({ signature: record, docJson });
+      setSigning(false);
+      setDrawn(null);
+      setSignStatus({ tone: "warn", text: "Signed on this copy, but the audit record couldn't be saved right now." });
+    } finally {
+      setSavingSignature(false);
+    }
+  };
+
+  const downloadPdf = async () => {
+    if (doc.problems.length > 0) {
+      setAttempted(true);
+      return;
+    }
+    setPdfBusy(true);
+    setPdfError(null);
+    try {
+      const { renderEstimatePdf, estimatePdfFileName } = await import("@/lib/estimates/estimate-pdf");
+      const bytes = await renderEstimatePdf(doc, { signature });
+      const blob = new Blob([bytes as BlobPart], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = estimatePdfFileName(doc);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
+      saveDefaults(organizationId, { taxRate: form.taxRate, validDays: form.validDays, terms: form.terms });
+      const fingerprint = `${doc.kind}|${doc.number}|${doc.totalCents}|${doc.lines.length}`;
+      if (logIt && onPrepared && logged.current !== fingerprint) {
+        logged.current = fingerprint;
+        onPrepared(doc);
+      }
+    } catch {
+      setPdfError("The PDF couldn't be made here. Use Print or save as PDF instead.");
+    } finally {
+      setPdfBusy(false);
+    }
+  };
+
   const priced = doc.showPrices;
   const taxApplies = priced && (parseTaxRate(form.taxRate) ?? 0) > 0;
   const activeServices = services.filter((service) => service.is_active);
@@ -430,20 +526,91 @@ function EstimateBuilder({
           </div>
         ) : null}
 
+        {isEstimate ? (
+          <Section title="Customer approval">
+            {signature ? (
+              <p className="text-[13px] text-muted-foreground">
+                Signed by {signature.signerName}. The signature is on the preview, the PDF and the printed copy.{" "}
+                <button type="button" className="underline underline-offset-2" onClick={() => setSigned(null)}>
+                  Remove signature
+                </button>
+              </p>
+            ) : signing ? (
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor={`${uid}-signer`}>Customer's name</Label>
+                  <Input
+                    id={`${uid}-signer`}
+                    value={signerName}
+                    maxLength={120}
+                    autoComplete="off"
+                    onChange={(event) => setSignerName(event.target.value)}
+                  />
+                </div>
+                <SignaturePad label="Customer signature" onChange={setDrawn} disabled={savingSignature} />
+                <p className="text-[12px] text-muted-foreground">
+                  By signing, the customer approves this estimate as shown, for {formatTotal(doc)}. We record the name,
+                  time and a fingerprint of this exact estimate.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="signal"
+                    disabled={!drawn || !cleanSignerName(signerName) || savingSignature}
+                    onClick={() => void approve()}
+                  >
+                    <PenLine className="size-4" aria-hidden="true" /> {savingSignature ? "Saving…" : "Sign & approve"}
+                  </Button>
+                  <Button type="button" variant="outline" onClick={() => setSigning(false)} disabled={savingSignature}>
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {signatureVoided ? (
+                  <p className="text-[13px] text-destructive">
+                    The estimate changed after it was signed, so that signature no longer applies. Ask for a new one.
+                  </p>
+                ) : null}
+                <Button type="button" variant="outline" onClick={() => setSigning(true)}>
+                  <PenLine className="size-4" aria-hidden="true" /> Customer signs now
+                </Button>
+              </div>
+            )}
+            {signStatus && signature ? (
+              <p
+                role="status"
+                className={cn("text-[12px]", signStatus.tone === "ok" ? "text-muted-foreground" : "text-amber-700 dark:text-amber-400")}
+              >
+                {signStatus.text}
+              </p>
+            ) : null}
+          </Section>
+        ) : null}
+
         <Section title="Preview">
           <div className="overflow-x-auto">
-            <EstimateDocument doc={doc} />
+            <EstimateDocument doc={doc} signature={signature} />
           </div>
         </Section>
       </div>
 
-      <div className="sticky -bottom-5 -mx-5 -mb-5 flex justify-end border-t border-border bg-background px-5 py-3 sm:-bottom-6 sm:-mx-6 sm:-mb-6 sm:px-6">
-        <Button type="button" variant="signal" className="w-full sm:w-auto" onClick={print}>
-          <Printer className="size-4" aria-hidden="true" /> Print or save as PDF
+      <div className="sticky -bottom-5 -mx-5 -mb-5 flex flex-wrap items-center justify-end gap-2 border-t border-border bg-background px-5 py-3 sm:-bottom-6 sm:-mx-6 sm:-mb-6 sm:px-6">
+        {pdfError ? (
+          <p role="alert" className="w-full text-right text-[12px] text-destructive">
+            {pdfError}
+          </p>
+        ) : null}
+        <Button type="button" variant="outline" className="w-full sm:w-auto" onClick={print}>
+          <Printer className="size-4" aria-hidden="true" /> Print
+        </Button>
+        <Button type="button" variant="signal" className="w-full sm:w-auto" disabled={pdfBusy} onClick={() => void downloadPdf()}>
+          <Download className="size-4" aria-hidden="true" /> {pdfBusy ? "Making PDF…" : "Download PDF"}
         </Button>
       </div>
 
-      <PrintCopy doc={doc} />
+      <PrintCopy doc={doc} signature={signature} />
     </>
   );
 }
