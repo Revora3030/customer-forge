@@ -9,8 +9,8 @@ name: Scheduled maintenance jobs
 #
 # Owner automations that used to live in n8n now run here, inside the app:
 #   lead-reminder  daily 12:00 UTC (8am New York) — leads still "new" after 24h
-#   weekly-report  Mondays 12:00 UTC              — last 7 days per workspace
-#   site-health    hourly                          — main site + live custom domains
+#   weekly-report  Mondays 12:15 UTC              — last 7 days per workspace
+#   site-health    hourly at :20                   — main site + live custom domains
 #   lead-alert-retry hourly at :40                 — re-send transiently failed lead alerts
 #   site-content-audit Mondays 13:05 UTC           — title/h1/structured-data/alt/link check of published sites
 # Nothing here needs n8n.
