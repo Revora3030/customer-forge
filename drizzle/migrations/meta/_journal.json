@@ -232,6 +232,41 @@
       "when": 1793327035434,
       "tag": "0032_prospect_import_queue",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1793327087033,
+      "tag": "0033_jarvis_approvals",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1793327094307,
+      "tag": "0034_jarvis_memory_vectors",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1793327100788,
+      "tag": "0035_site_content_audits",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1793327106997,
+      "tag": "0036_agent_action_requests",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1793327113799,
+      "tag": "0037_site_models_policies",
+      "breakpoints": true
     }
   ]
 }
