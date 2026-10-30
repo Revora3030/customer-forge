@@ -4,12 +4,14 @@
  */
 import { createFileRoute } from "@tanstack/react-router";
 import { authenticateCronRequest } from "@/integrations/supabase/cron-auth";
+import { methodNotAllowed } from "@/lib/method-not-allowed";
 
 const OWNER_EMAIL = "revorabusiness0@gmail.com";
 
 export const Route = createFileRoute("/api/public/jobs/growth-digest")({
   server: {
     handlers: {
+      GET: () => methodNotAllowed(),
       POST: async ({ request }) => {
         const authFailure = await authenticateCronRequest(request);
         if (authFailure) return authFailure;
