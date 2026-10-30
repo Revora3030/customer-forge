@@ -1,4 +1,5 @@
 import { checkBookingTime } from "@/lib/booking-hours";
+import { RollingNumber } from "@/components/site/CountUp";
 import { useEffect, useId, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "@/lib/ui/notify";
@@ -274,7 +275,7 @@ export function QuoteCalculator({ site, presentation }: { site: Site; presentati
                   Say what is needed instead — never show an invented number. */}
               {complete ? (
                 <p role="status" aria-live="polite" className="tnum mt-1 font-display text-[24px] font-semibold text-primary">
-                  {currency(min)} – {currency(max)}
+                  <RollingNumber value={min} format={currency} /> – <RollingNumber value={max} format={currency} />
                 </p>
               ) : (
                 <>

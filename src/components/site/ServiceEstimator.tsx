@@ -10,6 +10,7 @@ import type { PublicSite } from "@/lib/public-site.functions";
 import { widgetPresentationStyle } from "@/components/site/contact-details-utils";
 import { estimateTotal, estimatorOptions } from "@/components/site/live-blocks-utils";
 import { durationLabel } from "@/components/site/live-blocks-utils";
+import { RollingNumber } from "@/components/site/CountUp";
 import { currency } from "@/lib/format";
 
 type Site = NonNullable<PublicSite>;
@@ -33,9 +34,14 @@ export function ServiceEstimator({ site, presentation }: { site: Site; presentat
       <fieldset className="mt-4 grid gap-2 sm:grid-cols-2">
         <legend className="sr-only">Services</legend>
         {options.map((option) => (
-          <label key={option.id} className="flex min-h-11 cursor-pointer items-center justify-between gap-3 rounded-xl border border-border px-3 py-2">
+          <label key={option.id} data-estimator-option="" className="flex min-h-11 cursor-pointer items-center justify-between gap-3 rounded-xl border border-border px-3 py-2 transition-[border-color,background-color,transform] duration-200 hover:-translate-y-px hover:border-primary/60 has-[:checked]:border-primary has-[:checked]:bg-primary/10 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-primary motion-reduce:transition-none motion-reduce:hover:translate-y-0">
             <span className="flex items-center gap-2">
-              <input type="checkbox" checked={picked.has(option.id)} onChange={() => toggle(option.id)} className="size-4 accent-[var(--primary)]" />
+              {/* The real checkbox stays in the page for keyboards and screen
+                  readers; the box beside it is the custom-drawn control. */}
+              <input type="checkbox" checked={picked.has(option.id)} onChange={() => toggle(option.id)} className="peer sr-only" />
+              <span aria-hidden="true" data-estimator-check="" className="grid size-5 shrink-0 place-content-center rounded-md border border-border text-primary-foreground transition-colors peer-checked:border-primary peer-checked:bg-primary [&>svg]:opacity-0 peer-checked:[&>svg]:opacity-100">
+                <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M3.5 8.5l3 3 6-7" /></svg>
+              </span>
               <span className="text-[15px]">{option.name}</span>
             </span>
             <span className="tnum shrink-0 text-[13px] text-muted-foreground">
@@ -47,7 +53,12 @@ export function ServiceEstimator({ site, presentation }: { site: Site; presentat
       <div aria-live="polite" className="mt-5 flex flex-wrap items-end justify-between gap-3 border-t border-border pt-4">
         <div>
           <p className="text-[13px] text-muted-foreground">{total.count} selected</p>
-          <p className="tnum font-display text-[28px] font-semibold text-primary">{total.price ?? (total.count ? "Priced on enquiry" : "—")}</p>
+          <p className="tnum font-display text-[28px] font-semibold text-primary">{total.amount !== null ? (
+              <>
+                {total.from ? "From " : ""}
+                <RollingNumber value={total.amount} format={currency} />
+              </>
+            ) : total.count ? "Priced on enquiry" : "—"}</p>
           {total.duration ? <p className="text-[13px] text-muted-foreground">About {total.duration}</p> : null}
         </div>
         <p className="max-w-[18rem] text-[12px] text-muted-foreground">

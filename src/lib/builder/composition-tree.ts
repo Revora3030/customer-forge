@@ -15,6 +15,7 @@ import {
   anchorsCollide, matchService, offerActionProblem, type SceneAnchor,
 } from "@/lib/builder/cinematic-primitives";
 import { MAX_BRUSH_TOOLS } from "@/lib/builder/reveal-brush";
+import { parseCountUp } from "@/lib/builder/count-up";
 
 export const COMPOSITION_PRIMITIVES = [
   "stack", "grid", "row", "scene3d", "text", "heading", "media", "button", "link",
@@ -77,6 +78,7 @@ export const PRIMITIVE_GUIDE =
   "compare (exactly two media children: before then after — renders a drag slider), " +
   "marquee (children scroll sideways in a loop; stops for reduced motion), " +
   "gallery (media children in a grid; tap opens full size), " +
+  "countUp:true on a heading or text whose text is one short real figure (\"500+\", \"4.9★\", \"$1,200\", \"98%\") makes it count up once as it scrolls into view — for a stats band; only figures the owner supplied, never a year or an invented number, " +
   "quote (text is the quoted words; items[0] optional attribution — only real, supplied quotes). " +
   "before_after_slider (beforeImage + afterImage, each {src or mediaRef, alt, label}, with a 0-100 split; use for genuine transformation work such as renovation, roofing or detailing; add revealMode:\"brush\" for a hands-on reveal where the visitor drags across the before picture to uncover the after, with text as its short prompt such as \"Clean this driveway\" and optional items as 1-3 tool chips the visitor switches between, widest first (e.g. \"Surface cleaner\", \"25° tip\", \"40° tip\" — each later tool paints a narrower path); a live percent and stopwatch sit over the picture; only ever with the owner's own real before and after photos). " +
   "faq_accordion (items are question/answer pairs; defaultOpen is optional and at most the supplied FAQ content may be used). " +
@@ -227,6 +229,8 @@ export type CompositionNode = {
   initialSplit?: number;
   /** before_after_slider only: "slider" (drag a divider, the default) or "brush" (drag across the picture to reveal the after). */
   revealMode?: "slider" | "brush";
+  /** heading/text only: a short real figure ("500+", "4.9★", "$1,200") counts up once when it scrolls into view. */
+  countUp?: boolean;
   faqItems?: CompositionFaqItem[];
   tabs?: CompositionTab[];
   primaryCta?: CompositionCta;
@@ -817,6 +821,12 @@ export function validateComposition(input: unknown, options: ValidateOptions = {
       if (typeof split !== "number" || !Number.isFinite(split) || split < 0 || split > 100)
         issues.push({ path: `${path}.initialSplit`, problem: "initialSplit must be a number from 0 to 100" });
       else node.initialSplit = split;
+    }
+    if (row["countUp"] != null) {
+      if (node.type !== "heading" && node.type !== "text") issues.push({ path: `${path}.countUp`, problem: "countUp only applies to heading or text" });
+      else if (typeof row["countUp"] !== "boolean") issues.push({ path: `${path}.countUp`, problem: "countUp must be true or false" });
+      else if (row["countUp"] && !parseCountUp(typeof row["text"] === "string" ? row["text"] : "")) issues.push({ path: `${path}.countUp`, problem: 'countUp needs text that is one short real figure such as "500+", "4.9★" or "$1,200" (not a year or a sentence)' });
+      else if (row["countUp"]) node.countUp = true;
     }
     if (row["revealMode"] != null) {
       if (node.type !== "before_after_slider") issues.push({ path: `${path}.revealMode`, problem: "revealMode only applies to before_after_slider" });
