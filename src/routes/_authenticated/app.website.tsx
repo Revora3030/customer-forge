@@ -110,6 +110,7 @@ import {
 } from "@/components/app/BriefReview";
 import { readBrief, readReport } from "@/lib/site-brief";
 import { AiTeamImages, AiTeamPages } from "@/components/app/AiTeamTabs";
+import { HeroVideoPanel } from "@/components/app/HeroVideoPanel";
 import {
   EDITABLE_COPY_FIELDS,
   growthRecommendations,
@@ -918,13 +919,19 @@ function WebsitePage() {
                   >
                     Ask my AI team to improve the design
                   </Button>
+                  <HeroVideoPanel organizationId={orgId} disabled={!manage} />
                 </div>
               ),
             },
             {
               key: "images",
               label: "Images",
-              node: <AiTeamImages canManage={manage} onSent={() => setAdvanced(null)} />,
+              node: (
+                <div className="space-y-3">
+                  <HeroVideoPanel organizationId={orgId} disabled={!manage} />
+                  <AiTeamImages canManage={manage} onSent={() => setAdvanced(null)} />
+                </div>
+              ),
             },
             {
               key: "enquiries",

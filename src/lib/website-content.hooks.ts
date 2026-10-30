@@ -1,4 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { createPreviewLink } from "@/lib/preview-links.functions";
 import { MODEL_BUCKET, MODEL_COMPONENT_KIND, MODEL_MIME, buildModelPath, glbProblem } from "@/lib/site-models";
 import { toast } from "@/lib/ui/notify";
 import { friendlyError } from "@/lib/user-error";
@@ -410,34 +412,22 @@ export function usePreviewLinks(organizationId: string | undefined) {
   });
 }
 
-function newToken() {
-  const bytes = new Uint8Array(24);
-  crypto.getRandomValues(bytes);
-  return Array.from(bytes, (b) => b.toString(36).padStart(2, "0"))
-    .join("")
-    .slice(0, 40);
-}
-
 export function useCreatePreviewLink(organizationId: string | undefined) {
   const queryClient = useQueryClient();
+  const create = useServerFn(createPreviewLink);
   return useMutation({
+    // Created on the server: the table's RLS only admits members, so Revora
+    // support (who is not one) was refused by a direct browser insert.
     mutationFn: async ({ label, hours }: { label: string; hours: number }) => {
-      const token = newToken();
-      const expires = new Date(Date.now() + Math.max(1, Math.min(720, hours)) * 3600_000);
-      const { error } = await supabase.from("website_preview_links").insert({
-        organization_id: organizationId!,
-        token,
-        label: label.trim() || null,
-        expires_at: expires.toISOString(),
-      });
-      if (error) throw error;
+      if (!organizationId) throw new Error("Couldn't create a preview link: no workspace is selected.");
+      const { token } = await create({ data: { organizationId, label, hours } });
       return token;
     },
     onSuccess: () => {
       toast.success("Preview link created.");
       void queryClient.invalidateQueries({ queryKey: [PREVIEW_KEY, organizationId] });
     },
-    onError: (error: Error) => toast.error(friendlyError(error, "Couldn't create a preview link.")),
+    onError: (error: Error) => toast.error(friendlyError(error, "Couldn't create a preview link. Please try again.")),
   });
 }
 

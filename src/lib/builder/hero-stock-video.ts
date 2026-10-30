@@ -283,3 +283,53 @@ export type HeroVideoMedia = {
   loopEnd: number | null;
   source: HeroVideoSource;
 };
+
+/**
+ * The last automatic (post-build) or owner attempt to attach a stock clip,
+ * kept at `generation.heroVideoStatus` so the builder can say why a site has
+ * no top-of-page video instead of failing silently.
+ */
+export type HeroVideoStatus = {
+  status: "added" | "exists" | "disabled" | "no_trade" | "no_clip" | "failed";
+  message: string;
+  at: string;
+  trigger: "build" | "owner";
+};
+
+const STATUS_VALUES = new Set(["added", "exists", "disabled", "no_trade", "no_clip", "failed"]);
+
+export function readHeroVideoStatus(generation: unknown): HeroVideoStatus | null {
+  if (!generation || typeof generation !== "object") return null;
+  const raw = (generation as Record<string, unknown>)["heroVideoStatus"];
+  if (!raw || typeof raw !== "object") return null;
+  const value = raw as Record<string, unknown>;
+  if (typeof value["status"] !== "string" || !STATUS_VALUES.has(value["status"])) return null;
+  return {
+    status: value["status"] as HeroVideoStatus["status"],
+    message: typeof value["message"] === "string" ? value["message"].slice(0, 300) : "",
+    at: typeof value["at"] === "string" ? value["at"] : "",
+    trigger: value["trigger"] === "owner" ? "owner" : "build",
+  };
+}
+
+/**
+ * Where the home page's top section can play the loop: over a full-screen
+ * scene's photo, in place of its first picture, or nowhere (no picture at
+ * all), checked in the order the renderer meets media.
+ */
+export function heroVideoSlot(tree: unknown): "scene" | "picture" | "none" {
+  const root = tree && typeof tree === "object" ? (tree as { root?: unknown }).root : null;
+  const walk = (node: unknown): "scene" | "picture" | null => {
+    if (!node || typeof node !== "object") return null;
+    const n = node as { type?: unknown; children?: unknown };
+    const children = Array.isArray(n.children) ? n.children : [];
+    if (n.type === "scene") return (children[0] as { type?: unknown } | undefined)?.type === "media" ? "scene" : null;
+    if (n.type === "media") return "picture";
+    for (const child of children) {
+      const found = walk(child);
+      if (found) return found;
+    }
+    return null;
+  };
+  return walk(root) ?? "none";
+}

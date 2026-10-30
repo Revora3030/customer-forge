@@ -27,6 +27,7 @@ import {
   readHeroVideo,
   type HeroStockClip,
   type HeroVideoPointer,
+  type HeroVideoStatus,
   type HeroVideoTrade,
 } from "@/lib/builder/hero-stock-video";
 
@@ -91,6 +92,35 @@ export async function writeHeroVideoPointer(db: Db, orgId: string, value: HeroVi
   else delete next["heroVideo"];
   const { error } = await db.from("website_settings").update({ generation: next } as never).eq("organization_id", orgId);
   if (error) throw new Error(error.message);
+}
+
+/**
+ * Plain words for a failed attach. A storage rejection (the media bucket's
+ * allowed types or size cap) is named as such, since only Revora can lift it.
+ */
+export function heroAttachFailure(raw: string): string {
+  const detail = raw.trim().slice(0, 160) || "unknown error";
+  if (/mime|content.?type|not supported|exceed|too large|payload|file size|413|415/i.test(detail))
+    return `The stock video could not be saved: the media library refused the video file (type or size limit: ${detail}). Revora support needs to allow videos in site media; the top picture stays.`;
+  return `The stock video could not be added (${detail}); the top picture stays.`;
+}
+
+/**
+ * Records the outcome of an attach attempt at `generation.heroVideoStatus`
+ * (re-reading first so no other build output is lost) and logs every outcome
+ * that did not add a clip. Never throws: a status write must not fail a build.
+ */
+export async function recordHeroVideoStatus(db: Db, orgId: string, result: { status: HeroVideoStatus["status"]; message: string }, trigger: HeroVideoStatus["trigger"]): Promise<void> {
+  if (result.status !== "added") console.warn(`[hero-video] ${trigger} attach for ${orgId}: ${result.status}: ${result.message}`);
+  try {
+    const generation = await latestGeneration(db, orgId);
+    if (!generation) return;
+    const status: HeroVideoStatus = { status: result.status, message: result.message.slice(0, 300), at: new Date().toISOString(), trigger };
+    const { error } = await db.from("website_settings").update({ generation: { ...generation, heroVideoStatus: status } } as never).eq("organization_id", orgId);
+    if (error) console.warn(`[hero-video] status not saved for ${orgId}: ${error.message}`);
+  } catch (error) {
+    console.warn(`[hero-video] status not saved for ${orgId}: ${(error as Error)?.message ?? "unknown error"}`);
+  }
 }
 
 /**
@@ -201,7 +231,7 @@ export async function ensureHeroStockVideo(
   } catch (error) {
     if (uploaded.length) await db.storage.from(MEDIA_BUCKET).remove(uploaded).catch(() => undefined);
     if (mediaIds.length) await Promise.resolve(db.from("media").delete().eq("organization_id", orgId).in("id", mediaIds)).catch(() => undefined);
-    return { status: "failed", message: `The stock video could not be added (${(error as Error)?.message ?? "unknown error"}); the top picture stays.` };
+    return { status: "failed", message: heroAttachFailure((error as Error)?.message ?? "") };
   }
 }
 

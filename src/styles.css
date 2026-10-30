@@ -2363,13 +2363,13 @@ a[href*="lovable.app"][target="_blank"][class*="fixed"],
    animation, and fully removed under reduced-motion. */
 @supports (animation-timeline: view()) {
   @media (prefers-reduced-motion: no-preference) {
+    /* Transform only: a section is readable at every point of the entrance,
+       even when its timeline never advances. */
     @keyframes rv-section-enter {
       from {
-        opacity: 0;
-        transform: translateY(18px);
+        transform: translateY(16px);
       }
       to {
-        opacity: 1;
         transform: none;
       }
     }

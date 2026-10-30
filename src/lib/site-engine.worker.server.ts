@@ -2693,12 +2693,20 @@ async function runJob(
   // folder. Idempotent (an existing, owner or switched-off clip is kept) and
   // never blocks the build; without a clip the hero photo stays.
   try {
-    const { ensureHeroStockVideo, heroTradeText } = await import("@/lib/builder/hero-stock-video.server");
+    // Every outcome is kept at generation.heroVideoStatus (and logged unless
+    // a clip was added), so the builder shows why a site has no video.
+    const { ensureHeroStockVideo, heroTradeText, recordHeroVideoStatus } = await import("@/lib/builder/hero-stock-video.server");
     const tradeText = await heroTradeText(db as never, orgId);
     const heroVideo = await ensureHeroStockVideo(db as never, orgId, { tradeText });
-    if (heroVideo.status === "failed") console.warn("[site-engine] hero video skipped", heroVideo.message);
+    await recordHeroVideoStatus(db as never, orgId, heroVideo, "build");
   } catch (error) {
     console.warn("[site-engine] hero video skipped", (error as Error)?.message);
+    try {
+      const { recordHeroVideoStatus } = await import("@/lib/builder/hero-stock-video.server");
+      await recordHeroVideoStatus(db as never, orgId, { status: "failed", message: `The stock video step stopped (${(error as Error)?.message ?? "unknown error"}); the top picture stays.` }, "build");
+    } catch {
+      // Logged above; the build continues.
+    }
   }
   await step("checks");
   await step("leads");
