@@ -40,7 +40,9 @@ describe("prospect autopilot migrations", () => {
 
   it("keeps the side-effecting cron route POST-only and non-cacheable", () => {
     expect(route).toMatch(/^\s*POST:/m);
-    expect(route).not.toMatch(/^\s*GET:/m);
+    // GET may only answer 405 Method Not Allowed; it must never run the job.
+    const getHandlers = route.match(/^\s*GET:.*$/gm) ?? [];
+    expect(getHandlers.map((line) => line.trim())).toEqual(["GET: () => methodNotAllowed(),"]);
     expect(route).toContain('headers.set("Cache-Control", "no-store")');
   });
 });

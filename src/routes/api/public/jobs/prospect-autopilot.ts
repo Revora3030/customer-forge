@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { methodNotAllowed } from "@/lib/method-not-allowed";
 import { authenticateCronRequest } from "@/integrations/supabase/cron-auth";
 
 /**
@@ -51,6 +52,7 @@ async function handle(request: Request): Promise<Response> {
 export const Route = createFileRoute("/api/public/jobs/prospect-autopilot")({
   server: {
     handlers: {
+      GET: () => methodNotAllowed(),
       POST: ({ request }) => handle(request),
     },
   },
