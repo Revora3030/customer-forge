@@ -295,6 +295,13 @@
       "when": 1793325812507,
       "tag": "0041_20261016170000_super_admin_owner_accounts",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1793325853070,
+      "tag": "0042_20261016180000_openai_free_token_meter",
+      "breakpoints": true
     }
   ]
 }
