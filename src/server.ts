@@ -59,7 +59,7 @@ function isH3SwallowedErrorBody(body: string): boolean {
 
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
-    const { withExecutionContext } = await import("./lib/background");
+    const { withExecutionContext } = await import("./lib/background.server");
     return withExecutionContext(ctx, async () => {
       try {
         const handler = await getServerEntry();

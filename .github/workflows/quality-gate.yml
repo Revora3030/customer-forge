@@ -97,6 +97,13 @@ jobs:
       - name: Test with coverage
         env:
           E2E_BASE_URL: http://127.0.0.1:8080
+          # Non-secret placeholders so env-dependent unit tests run without real credentials.
+          NODE_ENV: test
+          LOVABLE_API_KEY: mock-lovable-key
+          STRIPE_SANDBOX_API_KEY: sk_test_mock
+          PAYMENTS_SANDBOX_WEBHOOK_SECRET: whsec_mock
+          REVORA_AGENT_API_KEY: mock-agent-key
+          LOVABLE_CRON_SECRET: mock-cron-secret
         run: npm run test:coverage
 
       - name: Upload coverage artifacts
@@ -126,6 +133,9 @@ jobs:
 
       - name: Production build
         run: npm run build
+
+      - name: Client bundle server-only guard
+        run: node scripts/client-bundle-guard.mjs
 
   upload-coverage-typescript:
     name: Upload TypeScript coverage

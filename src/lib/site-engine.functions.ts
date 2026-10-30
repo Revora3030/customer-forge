@@ -294,7 +294,7 @@ export const runSiteGeneration = createServerFn({ method: "POST" })
     // run and the client's pump call are the fallbacks.
     {
       const origin = new URL(getRequest().url).origin;
-      const { runInBackground } = await import("@/lib/background");
+      const { runInBackground } = await import("@/lib/background.server");
       runInBackground(() => kickWorker(origin, orgId));
     }
 
