@@ -146,6 +146,21 @@ describe("tenantSiteHead (one head for every client route)", () => {
     expect(ld).not.toContain("\"review\"");
   });
 
+  it("treats a published site with no home page at all (content is null) as the same empty shell", () => {
+    // Live 2026-10-30: /s/elite-mobile-detailing rendered "This website is still
+    // being built" yet was indexable and carried AggregateRating + reviews.
+    const head = tenantSiteHead({
+      site: site(null, { reviews: [{ rating: 5, author_name: "A", comment: "x" }] as never }),
+      pageSlug: null,
+      canonical: "https://acme.test",
+      businessUrl: "https://acme.test",
+    });
+    expect(meta(head, "robots")?.content).toBe("noindex");
+    const ld = head.scripts.map((s) => s.children).join("");
+    expect(ld).not.toContain("aggregateRating");
+    expect(ld).not.toContain("\"review\"");
+  });
+
   it("indexes a home page that has sections and still shows its real reviews", () => {
     const head = tenantSiteHead({
       site: site(

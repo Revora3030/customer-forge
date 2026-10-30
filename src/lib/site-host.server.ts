@@ -139,11 +139,15 @@ export async function resolveHostSite(
  */
 export async function tenantSitemapPages(
   organizationId: string,
-): Promise<{ pages: HostSite["pages"]; publishedAt: string | null }> {
+): Promise<{ pages: HostSite["pages"]; publishedAt: string | null; homeReady: boolean }> {
   const { loadLiveSnapshot } = await import("@/lib/public-site.server");
   const live = await loadLiveSnapshot(organizationId);
   if (live) {
+    // The home page renders "still being built" when it has no visible
+    // section; such a site has nothing to advertise to search engines.
+    const home = live.pages.find((p) => p["kind"] === "home" && p["is_visible"] !== false);
     return {
+      homeReady: Boolean(home && (home.sections ?? []).some((section) => section["is_visible"] !== false)),
       publishedAt: live.publishedAt,
       pages: live.pages
         .filter(
@@ -187,8 +191,10 @@ export async function tenantSitemapPages(
     (sections ?? []).filter((s) => s.is_visible !== false).map((s) => s.page_id as string),
   );
   const publishedAt = (settings?.last_published_at as string | null | undefined) ?? null;
+  const home = (pages ?? []).find((p) => p.kind === "home" && p.is_visible !== false);
 
   return {
+    homeReady: Boolean(home && populated.has(home.id as string)),
     publishedAt,
     pages: (pages ?? [])
       // Hidden pages and the after-form thank-you page are never advertised.
@@ -258,7 +264,11 @@ export async function platformTenantSitemapResponse(rawSlug: string): Promise<Re
     });
   }
 
-  const { pages, publishedAt } = await tenantSitemapPages(org.id);
+  const { pages, publishedAt, homeReady } = await tenantSitemapPages(org.id);
+  // A published shell whose home is still empty serves a noindex placeholder,
+  // so its sitemap must not advertise it (the /sitemaps/sites.xml index leaves
+  // it out for the same reason).
+  if (!homeReady) return notFound();
   const site: HostSite = {
     slug: org.slug,
     origin: `${PLATFORM_ORIGIN}/s/${org.slug}`,

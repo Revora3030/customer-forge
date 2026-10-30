@@ -494,7 +494,9 @@ export function tenantSiteHead(input: {
   });
   // A home page with nothing on it ("still being built") must not be indexed, and
   // must not hand search engines ratings or reviews, whatever rows exist behind it.
-  const emptyHome = isHome && Array.isArray(site.content?.sections) && site.content.sections.length === 0;
+  // No content at all (no home page in the published copy, so `content` is
+  // null) is the same empty shell: the route renders the placeholder for it.
+  const emptyHome = isHome && !(Array.isArray(sections) && sections.length > 0);
   const extras = clientHeadExtrasSync(
     (emptyHome ? { ...site, reviews: [] } : site) as HeadSite,
     input.businessUrl,
