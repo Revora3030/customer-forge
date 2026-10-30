@@ -19,7 +19,13 @@ import {
   resolvePostLoginPath,
   setRememberPreference,
 } from "@/lib/auth-session";
-import { isSafeRedirect } from "@/lib/prospect-claim";
+import { authEmailRedirectTo, isSafeRedirect } from "@/lib/prospect-claim";
+import { readStarter, STARTER_METADATA_KEY } from "@/components/marketing/hero-starter-utils";
+
+function starterMetadata(): Record<string, unknown> {
+  const starter = readStarter();
+  return starter ? { [STARTER_METADATA_KEY]: starter } : {};
+}
 
 type Search = { mode?: "signup" | "signin"; redirect?: string };
 
@@ -129,8 +135,10 @@ function AuthPage() {
           email,
           password,
           options: {
-            data: { full_name: fullName },
-            emailRedirectTo: `${window.location.origin}/auth${redirect ? `?redirect=${encodeURIComponent(redirect)}` : ""}`,
+            // The homepage starter rides on the account so /get-started can
+            // prefill it even when the email is confirmed on another device.
+            data: { full_name: fullName, ...starterMetadata() },
+            emailRedirectTo: authEmailRedirectTo(window.location.origin, redirect),
           },
         });
         if (signUpError) throw signUpError;
@@ -174,7 +182,7 @@ function AuthPage() {
         email,
         options: {
           shouldCreateUser: false,
-          emailRedirectTo: `${window.location.origin}/auth${redirect ? `?redirect=${encodeURIComponent(redirect)}` : ""}`,
+          emailRedirectTo: authEmailRedirectTo(window.location.origin, redirect),
         },
       });
       if (otpError) throw otpError;

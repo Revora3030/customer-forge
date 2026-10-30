@@ -1,4 +1,5 @@
-import { createFileRoute, notFound, Outlet, useChildMatches } from "@tanstack/react-router";
+import { createFileRoute, notFound, Outlet, useChildMatches, useParams } from "@tanstack/react-router";
+import { ownerPreviewSignInPath } from "@/lib/prospect-claim";
 import { getPublicSite, trackPublicEvent, type PublicSite } from "@/lib/public-site.functions";
 import { canonicalSiteUrl } from "@/lib/revora-address";
 import { SitePageView } from "@/routes/s.$slug.$page";
@@ -13,7 +14,9 @@ export const Route = createFileRoute("/s/$slug")({
   head: ({ loaderData, params }) => {
     if (!loaderData) {
       return {
-        meta: [{ title: "Business not found" }, { name: "robots", content: "noindex" }],
+        // Unpublished drafts and unknown addresses look the same to the public
+        // (still a 404 status), and are never indexed.
+        meta: [{ title: "This site is in preview" }, { name: "robots", content: "noindex, nofollow" }],
       };
     }
     const page = loaderData.content?.page ?? null;
@@ -39,15 +42,35 @@ export const Route = createFileRoute("/s/$slug")({
       </p>
     </div>
   ),
-  notFoundComponent: () => (
-    <div className="flex min-h-screen items-center justify-center px-4 text-center">
-      <div>
-        <h1 className="font-display text-[22px] font-semibold">Business not found</h1>
-        <p className="mt-2 text-[13px] text-muted-foreground">This web address isn't in use yet.</p>
-      </div>
-    </div>
-  ),
+  notFoundComponent: SitePreviewNotice,
 });
+
+/**
+ * Shown when /s/:slug has no published site: usually a draft that hasn't gone
+ * live yet. The owner gets a sign-in link straight to their /draft preview.
+ * It never says whether a business exists, so it can't be used to probe.
+ */
+function SitePreviewNotice() {
+  const { slug } = useParams({ strict: false }) as { slug?: string };
+  return (
+    <main className="flex min-h-screen items-center justify-center px-4 text-center">
+      <div className="max-w-md">
+        <h1 className="font-display text-[22px] font-semibold">This site is in preview</h1>
+        <p className="mt-2 text-[13px] text-muted-foreground">
+          This website isn't live yet. If it's yours, sign in to see your preview and publish it.
+        </p>
+        {slug ? (
+          <a
+            href={ownerPreviewSignInPath(slug)}
+            className="mt-4 inline-block text-[13px] font-medium underline underline-offset-4"
+          >
+            Sign in to see your preview
+          </a>
+        ) : null}
+      </div>
+    </main>
+  );
+}
 
 function PublicSiteRoute() {
   // `/s/:slug/:page` nests under this route, so inner pages must render instead

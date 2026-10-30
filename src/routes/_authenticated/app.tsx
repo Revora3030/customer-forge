@@ -224,7 +224,8 @@ function AppShell() {
   const waitingOnBilling = billingLoading && billingDecidesAccess;
 
   useEffect(() => {
-    if (!isLoading && data && !data.workspace) navigate({ to: "/onboarding", replace: true });
+    // One onboarding door: an account without a workspace goes to /get-started.
+    if (!isLoading && data && !data.workspace) navigate({ to: "/get-started", replace: true });
   }, [data, isLoading, navigate]);
 
   const queryClient = useQueryClient();
