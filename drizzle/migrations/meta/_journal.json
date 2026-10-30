@@ -197,6 +197,13 @@
       "when": 1793325386861,
       "tag": "0027_20260928052000_lead_delivery_telemetry",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1793325404229,
+      "tag": "0028_20260928190000_builder_restore_point_fix",
+      "breakpoints": true
     }
   ]
 }
