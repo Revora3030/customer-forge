@@ -13,12 +13,19 @@ export const EMBED_PROVIDERS: { label: string; hosts: string[] }[] = [
   { label: "Google Maps", hosts: ["google.com", "www.google.com", "maps.google.com"] },
   { label: "Google Forms", hosts: ["docs.google.com"] },
   { label: "Google Calendar", hosts: ["calendar.google.com"] },
-  { label: "YouTube", hosts: ["youtube.com", "www.youtube.com", "youtube-nocookie.com", "www.youtube-nocookie.com"] },
+  { label: "OpenStreetMap", hosts: ["www.openstreetmap.org"] },
+  {
+    label: "YouTube",
+    hosts: ["youtube.com", "www.youtube.com", "youtube-nocookie.com", "www.youtube-nocookie.com"],
+  },
   { label: "Vimeo", hosts: ["player.vimeo.com"] },
   { label: "Calendly", hosts: ["calendly.com", "www.calendly.com"] },
   { label: "Cal.com", hosts: ["cal.com", "app.cal.com"] },
   { label: "Acuity Scheduling", hosts: ["app.acuityscheduling.com", "acuityscheduling.com"] },
-  { label: "Square Appointments", hosts: ["squareup.com", "app.squareup.com", "book.squareup.com"] },
+  {
+    label: "Square Appointments",
+    hosts: ["squareup.com", "app.squareup.com", "book.squareup.com"],
+  },
   { label: "TidyCal", hosts: ["tidycal.com"] },
   { label: "Setmore", hosts: ["booking.setmore.com"] },
   { label: "Housecall Pro", hosts: ["book.housecallpro.com"] },
@@ -61,6 +68,74 @@ export function safeEmbedUrl(value: unknown): string | null {
   return url.toString();
 }
 
+const GOOGLE_MAPS_HOSTS = new Set(["google.com", "www.google.com", "maps.google.com"]);
+
+/**
+ * The free, key-less Google Maps frame for a place or address. Google serves
+ * `/maps?q=…&output=embed` without an API key and allows it in a frame.
+ */
+export function keylessMapEmbedUrl(query: string): string | null {
+  const q = query.replace(/\s+/g, " ").trim();
+  if (!q || q.length > 300) return null;
+  return `https://www.google.com/maps?q=${encodeURIComponent(q)}&output=embed`;
+}
+
+/**
+ * Key-less OpenStreetMap fallback for a known point: a small box around it
+ * with a marker. Free and needs no account.
+ */
+export function openStreetMapEmbedUrl(lat: number, lng: number): string | null {
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180)
+    return null;
+  const d = 0.01;
+  const f = (n: number) => n.toFixed(5);
+  const bbox = [lng - d, lat - d, lng + d, lat + d].map(f).join(",");
+  return `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${f(lat)},${f(lng)}`;
+}
+
+function decodePart(part: string): string {
+  try {
+    return decodeURIComponent(part.replace(/\+/g, " "));
+  } catch {
+    return part.replace(/\+/g, " ");
+  }
+}
+
+/**
+ * Google refuses to show its normal Maps pages inside another site
+ * (`X-Frame-Options: SAMEORIGIN`), so a pasted share, place or search link
+ * framed as-is renders as a blank "refused to connect" box. Rewrite those
+ * links to the key-less embed form. Real embed links (`/maps/embed…`,
+ * `output=embed`) and non-Maps URLs pass through unchanged; a Maps page we
+ * can't read a place from returns null so nothing broken is shown.
+ */
+export function embeddableMapUrl(url: string): string | null {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return null;
+  }
+  if (!GOOGLE_MAPS_HOSTS.has(parsed.hostname.toLowerCase())) return url;
+  const path = parsed.pathname;
+  const isMapsPath =
+    path === "/maps" ||
+    path.startsWith("/maps/") ||
+    (parsed.hostname.toLowerCase() === "maps.google.com" && path === "/");
+  if (!isMapsPath) return null; // google.com itself (search etc.) never frames.
+  if (path.startsWith("/maps/embed") || parsed.searchParams.get("output") === "embed") return url;
+
+  const query =
+    parsed.searchParams.get("q") ??
+    parsed.searchParams.get("query") ??
+    parsed.searchParams.get("daddr") ??
+    path.match(/^\/maps\/(?:place|search)\/([^/@]+)/)?.[1] ??
+    path.match(/\/@(-?\d+(?:\.\d+)?,-?\d+(?:\.\d+)?)/)?.[1] ??
+    null;
+  if (!query) return null;
+  return keylessMapEmbedUrl(decodePart(query));
+}
+
 export type SiteEmbed = {
   url: string;
   title: string;
@@ -91,7 +166,13 @@ export function readEmbed(section: { settings?: unknown; body?: string | null })
       : settings;
 
   const bodyUrl = (section.body ?? "").trim().match(/https:\/\/\S+/)?.[0] ?? null;
-  const url = safeEmbedUrl(embed["url"]) ?? safeEmbedUrl(embed["src"]) ?? safeEmbedUrl(bodyUrl);
+  const address = typeof embed["address"] === "string" ? embed["address"] : "";
+  const candidate =
+    safeEmbedUrl(embed["url"]) ??
+    safeEmbedUrl(embed["src"]) ??
+    safeEmbedUrl(bodyUrl) ??
+    (address ? keylessMapEmbedUrl(address) : null);
+  const url = candidate ? embeddableMapUrl(candidate) : null;
   if (!url) return null;
 
   const rawTitle = typeof embed["title"] === "string" ? embed["title"].trim() : "";
