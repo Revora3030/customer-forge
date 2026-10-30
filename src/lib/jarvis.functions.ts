@@ -1,6 +1,6 @@
 import { parsePickedModel } from "@/lib/ai/lovable-models";
 import { conversationTitle, parseConversationId } from "./jarvis-conversations";
-import { createServerFn } from "@tanstack/react-start";
+import { createServerFn, createServerOnlyFn } from "@tanstack/react-start";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { JarvisDiagnostics } from "./jarvis-diagnostics.server";
@@ -170,7 +170,8 @@ function splitFollowups(raw: string): { body: string; followups: string[] } {
   return { body, followups };
 }
 
-export async function runJarvis(db: SupabaseClient, userId: string, mode: Mode, page: string | null = null, conversationId: string | null = null, liveRunId: string | null = null, pickedModel: string | null = null) {
+/** Server-only: its body (dynamic imports of jarvis *.server modules, Node built-ins) must never reach the browser bundle. */
+export const runJarvis = createServerOnlyFn(async (db: SupabaseClient, userId: string, mode: Mode, page: string | null = null, conversationId: string | null = null, liveRunId: string | null = null, pickedModel: string | null = null) => {
   // Without an explicit conversation, continue the one the latest message joined.
   if (!conversationId) {
     const latest = await db.from("jarvis_messages").select("conversation_id").eq("user_id", userId).order("created_at", { ascending: false }).limit(1).maybeSingle();
@@ -339,7 +340,7 @@ export async function runJarvis(db: SupabaseClient, userId: string, mode: Mode, 
     await recordProposals(db, userId, (saved.data?.id as string | undefined) ?? null, conversationId, reply);
   }
   return { reply, diagnostics, followups, runId: recorder.count ? recorder.runId : null, conversationId };
-}
+});
 
 export const sendJarvisMessage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -703,7 +704,7 @@ export const recoverStalledBuildsFn = createServerFn({ method: "POST" })
     if (orgIds.length) {
       const { getRequest } = await import("@tanstack/react-start/server");
       const origin = new URL(getRequest().url).origin;
-      const { runInBackground } = await import("@/lib/background");
+      const { runInBackground } = await import("@/lib/background.server");
       const { kickWorker } = await import("@/lib/site-engine.functions");
       for (const orgId of orgIds) runInBackground(() => kickWorker(origin, orgId));
     }

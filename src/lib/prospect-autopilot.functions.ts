@@ -40,7 +40,7 @@ export const runProspectAutopilotNowFn = createServerFn({ method: "POST" })
     const db = await guardedAdmin(context);
     const origin = new URL(getRequest().url).origin;
     const { runProspectAutopilot } = await import("./prospect-autopilot.server");
-    const { runInBackground } = await import("@/lib/background");
+    const { runInBackground } = await import("@/lib/background.server");
     const { kickWorker } = await import("@/lib/site-engine.functions");
     return runProspectAutopilot(db, {
       trigger: "manual",
