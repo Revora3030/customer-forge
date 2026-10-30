@@ -9,4 +9,4 @@
 export const BOOT_WATCHDOG =
   "(function(){var K='rv-boot-reload';function again(){try{var l=Number(sessionStorage.getItem(K)||0);if(l&&Date.now()-l<60000)return;sessionStorage.setItem(K,String(Date.now()))}catch(e){return}location.reload()}" +
   "window.addEventListener('error',function(e){var t=e&&e.target;if(t&&t.tagName==='SCRIPT'&&!window.__rvBooted&&String(t.src||'').indexOf(location.origin+'/assets/')===0)again()},true);" +
-  "window.addEventListener('load',function(){setTimeout(function(){if(!window.__rvBooted)again()},15000)})})();";
+  "window.addEventListener('load',function(){setTimeout(function(){if(!window.__rvBooted)again()},15000)})})();"; // DevSkim: ignore DS172411 -- Fixed inline callback and constant delay; no untrusted data.
