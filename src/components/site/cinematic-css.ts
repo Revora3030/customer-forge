@@ -55,7 +55,7 @@ ${S} .rv-chapter-rail a[aria-current="true"] span{background:currentColor;opacit
 @media (prefers-reduced-motion: no-preference){
 @supports (animation-timeline: view()){
 ${S} .rv-chapter .rv-scene-media{animation:rv-scene-settle linear both;animation-timeline:view();animation-range:entry 0% exit 100%}
-${S} .rv-chapter .rv-scene-slot,${S} .rv-chapter .rv-scene-offers{animation:rv-scene-rise linear both;animation-timeline:view();animation-range:entry 5% cover 40%}
+${S} .rv-chapter .rv-scene-slot,${S} .rv-chapter .rv-scene-offers{animation:rv-scene-rise linear both;animation-timeline:view();animation-range:entry 0px entry 220px}
 }
 ${S} .rv-collection-viewport{scroll-behavior:smooth}
 }

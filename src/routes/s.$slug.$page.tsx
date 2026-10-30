@@ -30,6 +30,7 @@ import { PreviewSelectBridge } from "@/components/site/PreviewSelectBridge";
 import { SiteBackdrop } from "@/components/site/SiteBackdrop";
 import { SiteScrollProgress } from "@/components/site/SiteScrollProgress";
 import { isPlaceholderPalette, siteFontStyle, siteThemeStyle } from "@/lib/site-theme";
+import { siteFontFor } from "@/lib/site-font-pairings";
 import { readComposition } from "@/lib/visual-composition";
 import { readBackdrop, readBackdropSpec } from "@/lib/site-effects";
 import { getPublicSite, trackPublicEvent, type PublicSite } from "@/lib/public-site.functions";
@@ -39,7 +40,7 @@ import { PreviewLinkBridge } from "@/components/site/PreviewLinkBridge";
 import { readBlockStyle, styleSheet } from "@/lib/site-style";
 import { canonicalSiteUrl } from "@/lib/revora-address";
 import { CompositionRenderer } from "@/components/site/CompositionRenderer";
-import { knownPageSlugs, missingChromeLinks, readSiteChrome, repairStoredLinks, resolveSiteHref } from "@/lib/builder/site-chrome";
+import { foldServicePages, knownPageSlugs, missingChromeLinks, readSiteChrome, repairStoredLinks, resolveSiteHref } from "@/lib/builder/site-chrome";
 import { AiSiteHeader } from "@/components/site/AiSiteHeader";
 import { useOwnAddress, useSiteBase } from "@/components/site/use-own-address";
 import { tenantSiteHead } from "@/lib/site-head";
@@ -152,7 +153,14 @@ export function SitePageView({
   const sections = repairStoredLinks(storedSections, knownPages, pageAnchors, (page as { slug?: string | null } | null)?.slug ?? null);
   const chromeHref = (href: string) => resolveSiteHref(href, org.slug, ownAddress, knownPages, pageAnchors, previewBase);
   // Pages the AI menu left out are still offered, so no page is orphaned.
-  const extraNav = missingChromeLinks(chrome.header, navRows as never);
+  const missingNav = missingChromeLinks(chrome.header, navRows as never);
+  // Single-service pages are flat ("/drain-cleaning"), so they are grouped
+  // under the menu's Services link here rather than spread across the bar.
+  const servicesFold = chrome.header
+    ? foldServicePages(chrome.header, navRows as never, missingNav.map((link) => ({ slug: link.slug, title: pageNavLabel(link.title, org.name, link.slug) })))
+    : null;
+  const headerTree = servicesFold?.tree ?? chrome.header;
+  const extraNav = missingNav.filter((link) => !servicesFold?.folded.has(link.slug.toLowerCase()));
   const sectionRoots = sections.map((section) => readSectionTree(section.settings)?.root ?? null);
   // The canvas follows the trade blueprint: dark trades keep a studio canvas in
   // their own colour (navy for a dentist, iron for a gym), light ones (cleaning,
@@ -202,7 +210,7 @@ export function SitePageView({
           secondaryColor: profile?.secondary_color ?? null,
           accentColor: profile?.accent_color ?? null,
         }),
-        ...siteFontStyle(profile?.font_preference ?? null),
+        ...siteFontStyle(siteFontFor(profile?.font_preference ?? null, org)),
         ...designTokenVars(readDesignTokens(site.settings?.generation ?? null)),
         ...(studioPage.studio ? studioThemeVars(studioCanvas) : {}),
       }}
@@ -232,7 +240,7 @@ export function SitePageView({
             than inheriting whatever colour the section below it chose. */}
         {chrome.header ? (
           <AiSiteHeader
-            tree={chrome.header}
+            tree={headerTree ?? chrome.header}
             name={org.name}
             homeHref={chromeHref("/")}
             resolveHref={chromeHref}

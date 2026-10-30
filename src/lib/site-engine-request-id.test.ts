@@ -90,7 +90,8 @@ describe("platform default font is not an owner request (1.2)", () => {
 
   it("is ignored for the identity request, the effective font and the owner-brand check", () => {
     expect(worker).toContain('requestedFont: isPlatformDefaultFont(p["font_preference"]) ? null');
-    expect(worker).toMatch(/const effectiveFont =[\s\S]{0,120}!isPlatformDefaultFont\(p\["font_preference"\]\)/);
+    expect(worker).toMatch(/const ownerFont =[\s\S]{0,120}!isPlatformDefaultFont\(p\["font_preference"\]\)/);
+    expect(worker).toContain("const effectiveFont = siteFontFor(ownerFont ?? direction?.font ?? null, fontSite);");
     expect(worker).toMatch(/const hasOwnerBrand = Boolean\(\s*\(\(p\["font_preference"\] as string\) && !isPlatformDefaultFont/);
   });
 });

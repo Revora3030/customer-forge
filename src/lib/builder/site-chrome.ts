@@ -320,3 +320,118 @@ export function foldHeaderSubmenus(tree: CompositionTree): CompositionTree {
   };
   return { ...tree, root: fold(tree.root) };
 }
+
+/** Page slugs that are never a single service, whatever kind the page was saved with. */
+const NON_SERVICE_SLUGS = new Set([
+  "home", "about", "about-us", "contact", "contact-us", "book", "booking", "book-now", "appointments",
+  "reviews", "testimonials", "faq", "faqs", "pricing", "prices", "gallery", "portfolio", "projects", "our-work",
+  "blog", "news", "privacy", "privacy-policy", "terms", "thanks", "thank-you", "offers", "specials", "coupons",
+  "quote", "get-a-quote", "estimate", "areas", "service-areas", "service-area", "locations", "careers", "team",
+  "financing", "warranty", "guarantee",
+]);
+const NON_SERVICE_KINDS = new Set(["home", "services", "area", "pricing", "book", "about", "reviews", "gallery", "faq", "offers", "contact", "thanks", "privacy", "blog", "post"]);
+const HUB_SLUGS = new Set(["services", "our-services", "what-we-do", "service"]);
+
+type NavPage = { slug?: string | null; title?: string | null; kind?: string | null };
+
+/**
+ * The site's services hub page and its single-service pages. Pages are stored
+ * flat ("/drain-cleaning", not "/services/drain-cleaning"), and AI-planned
+ * pages often carry kind "custom", so a page counts as a service when it is
+ * kind "service", or when it is a custom page that is none of the standard ones.
+ */
+export function servicePagesOf(nav: readonly NavPage[] | null | undefined, hubHint: string | null = null): { hub: string | null; services: { slug: string; title: string }[] } {
+  const rows = (nav ?? []).filter((row) => typeof row?.slug === "string" && row.slug.trim());
+  const slugOf = (row: NavPage) => (row.slug ?? "").trim().toLowerCase();
+  const hubRow = rows.find((row) => row.kind === "services") ?? rows.find((row) => HUB_SLUGS.has(slugOf(row)));
+  const hub = hubRow ? slugOf(hubRow) : hubHint;
+  if (!hub) return { hub: null, services: [] };
+  const services = rows
+    .filter((row) => {
+      const slug = slugOf(row);
+      if (slug === hub || NON_SERVICE_SLUGS.has(slug) || HUB_SLUGS.has(slug)) return false;
+      if (row.kind === "service") return true;
+      return !row.kind || !NON_SERVICE_KINDS.has(row.kind);
+    })
+    .map((row) => ({ slug: slugOf(row), title: (row.title ?? "").trim() || slugOf(row) }));
+  return { hub, services };
+}
+
+const pageSlugOf = (href: string | undefined): string | null => {
+  const raw = (href ?? "").trim();
+  if (!raw.startsWith("/") || raw.startsWith("//")) return null;
+  return (raw.slice(1).split(/[/?#]/)[0] ?? "").toLowerCase() || "home";
+};
+
+/**
+ * Groups the menu's links to single-service pages under its Services link, so
+ * the header renders one "Services" dropdown instead of laying every service
+ * across the bar. Service pages the menu forgot are added to the dropdown too
+ * (and returned, so the caller stops listing them as extra top-level links).
+ * Without a Services link in the menu, or with fewer than two service pages,
+ * the menu is returned unchanged.
+ */
+export function foldServicePages(
+  tree: CompositionTree,
+  nav: readonly NavPage[] | null | undefined,
+  missing: readonly { slug: string; title: string }[] = [],
+): { tree: CompositionTree; folded: Set<string> } {
+  const folded = new Set<string>();
+  // The menu's own "Services" link names the hub when no page is marked as one.
+  let hint: string | null = null;
+  const findHint = (node: CompositionNode) => {
+    if (hint) return;
+    if (node.type === "link" && /^(our\s+)?services$/i.test((node.text ?? "").trim())) hint = pageSlugOf(node.href);
+    node.children?.forEach(findHint);
+  };
+  findHint(tree.root);
+  const { hub, services } = servicePagesOf(nav, hint === "home" ? null : hint);
+  const isHubLink = (node: CompositionNode) =>
+    node.type === "link" && (pageSlugOf(node.href) === hub || /^(our\s+)?services$/i.test((node.text ?? "").trim()));
+  if (!hub || services.length < 2) return { tree, folded };
+  const serviceSlugs = new Set(services.map((s) => s.slug));
+  let hubFound = false;
+  const findHub = (node: CompositionNode) => {
+    if (hubFound) return;
+    if (isHubLink(node)) {
+      hubFound = true;
+      return;
+    }
+    node.children?.forEach(findHub);
+  };
+  findHub(tree.root);
+  if (!hubFound) return { tree, folded };
+  const collected: CompositionNode[] = [];
+  const strip = (node: CompositionNode): CompositionNode | null => {
+    if (node.type === "link" && !isHubLink(node)) {
+      const slug = pageSlugOf(node.href);
+      if (slug && serviceSlugs.has(slug)) {
+        if (!folded.has(slug)) collected.push(node);
+        folded.add(slug);
+        return null;
+      }
+    }
+    if (!node.children?.length || node.type === "link") return node;
+    const kids = node.children.map(strip).filter((kid): kid is CompositionNode => kid !== null);
+    // A group that only held service links is dropped rather than left as an empty box.
+    if (kids.length === 0 && node.type !== "button") return null;
+    return { ...node, children: kids };
+  };
+  const stripped = strip(tree.root) ?? { ...tree.root, children: [] };
+  for (const page of missing) {
+    const slug = page.slug.toLowerCase();
+    if (!serviceSlugs.has(slug) || folded.has(slug)) continue;
+    folded.add(slug);
+    collected.push({ type: "link", text: page.title, href: `/${page.slug}` });
+  }
+  if (collected.length === 0) return { tree, folded };
+  let attached = false;
+  const attach = (node: CompositionNode): CompositionNode => {
+    if (!attached && isHubLink(node)) {
+      attached = true;
+      return { ...node, children: [...(node.children ?? []).filter(isNavLink), ...collected] };
+    }
+    return node.children?.length && node.type !== "link" ? { ...node, children: node.children.map(attach) } : node;
+  };
+  return { tree: { ...tree, root: attach(stripped) }, folded };
+}

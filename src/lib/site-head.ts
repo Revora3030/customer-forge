@@ -16,6 +16,7 @@ import { readSiteChrome } from "@/lib/builder/site-chrome";
 import { readCopy } from "@/lib/site-engine";
 import { readSeo } from "@/lib/site-seo";
 import { compositionFonts, siteFontsHref } from "@/lib/site-theme";
+import { siteFontFor } from "@/lib/site-font-pairings";
 import { faqPageSchema, metaDescription, metaTitle } from "@/lib/seo";
 import { compositionFaqItems } from "@/lib/builder/composition-faq";
 import { pageNavLabel } from "@/lib/website-content";
@@ -333,7 +334,7 @@ export function siteThemeColor(profile: Profile): string | null {
 }
 
 type HeadSite = {
-  org: { name: string; industry?: string | null };
+  org: { id?: string | null; slug?: string | null; name: string; industry?: string | null };
   social?: Social;
   profile?: Profile & { font_preference?: string | null };
   settings?: { generation?: unknown } | null;
@@ -361,7 +362,9 @@ export function clientHeadExtrasSync(
     chrome.header,
     chrome.footer,
   ];
-  const fontsHref = siteFontsHref(site.profile?.font_preference, compositionFonts(trees));
+  // The same resolved type the page renders with (a curated pairing unless the
+  // site chose a distinctive face), so the faces are requested up front.
+  const fontsHref = siteFontsHref(siteFontFor(site.profile?.font_preference, site.org), compositionFonts(trees));
   const theme = siteThemeColor(site.profile);
   const shareImage = site.content?.page?.og_image_url || site.profile?.hero_image_url || null;
   return {
@@ -389,6 +392,10 @@ export function clientHeadExtrasSync(
         ? [
             { rel: "preconnect", href: "https://fonts.googleapis.com" },
             { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" as const },
+            // Preload starts the stylesheet fetch before render-blocking CSS
+            // resolves; the request itself carries display=swap, so text shows
+            // in the fallback face at once and swaps when the faces arrive.
+            { rel: "preload", as: "style", href: fontsHref },
             { rel: "stylesheet", href: fontsHref },
           ]
         : []),
@@ -430,7 +437,7 @@ type TenantHeadPage = {
 };
 
 export type TenantHeadSite = {
-  org: { name: string; industry?: string | null };
+  org: { id?: string | null; slug?: string | null; name: string; industry?: string | null };
   social?: Social;
   profile?: (Profile & { font_preference?: string | null }) | null;
   settings?: { generation?: unknown; seo?: unknown } | null;

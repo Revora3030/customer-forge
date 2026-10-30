@@ -142,7 +142,8 @@ export async function gatherBriefFacts(
     email: str(p["email"]),
     yearsInBusiness: (p["years_in_business"] as number) ?? null,
     hasHours,
-    style: str(p["font_preference"]),
+    // The seeded platform face ("Space Grotesk") is not an owner style request.
+    style: str(p["font_preference"]) === "Space Grotesk" ? null : str(p["font_preference"]),
     goals: goals as never,
     ctaLabel: str(seo["primary_cta_label"]) ?? "",
     services: serviceRows,

@@ -1414,7 +1414,9 @@ async function runJob(
     email: businessEmail,
     yearsInBusiness: (p["years_in_business"] as number) ?? null,
     hasHours: Boolean(p["hours"] && Object.keys(p["hours"] as object).length),
-    style: (p["font_preference"] as string) ?? null,
+    // The seeded platform face is not a style request (it was steering layouts
+    // back to Space Grotesk headings).
+    style: isPlatformDefaultFont(p["font_preference"]) ? null : ((p["font_preference"] as string) ?? null),
     goals,
     ctaLabel: "",
     services: serviceRows,
@@ -1615,12 +1617,18 @@ async function runJob(
       : direction
         ? { primary: direction.primary, secondary: direction.secondary, accent: direction.accent }
         : null;
-  const effectiveFont =
+  // The owner's distinctive face wins, then the AI's; a seeded, missing or
+  // stock choice (Space Grotesk, Inter…) becomes the site's curated pairing,
+  // fixed per site and trade, so sites stop sharing one generic grotesk.
+  const ownerFont =
     (typeof p["font_preference"] === "string" &&
       !isPlatformDefaultFont(p["font_preference"]) &&
       (p["font_preference"] as string).trim()) ||
-    direction?.font ||
     null;
+  const { siteFontFor } = await import("@/lib/site-font-pairings");
+  const { isGenericFace, siteHeadingFont } = await import("@/lib/site-theme");
+  const fontSite = { id: orgId, industry: org.data.industry ?? null };
+  const effectiveFont = siteFontFor(ownerFont ?? direction?.font ?? null, fontSite);
   const { isLight: isLightSurface } = await import("@/lib/site-theme");
   let creative = blankFirstBuildDirection({
     organizationId: orgId,
@@ -2488,6 +2496,16 @@ async function runJob(
           (p["accent_color"] as string) ||
           (p["primary_color"] as string))),
   );
+  // Type is stored on its own: owner colours used to block it, which left the
+  // seeded "Space Grotesk" on every branded site.
+  const ownerFontKept = ownerFont !== null && !isGenericFace(siteHeadingFont(ownerFont));
+  if (!built.skipped && hasOwnerBrand && !ownerFontKept && effectiveFont !== p["font_preference"]) {
+    const { error: fontError } = await db
+      .from("business_profiles")
+      .update({ font_preference: effectiveFont } as never)
+      .eq("organization_id", orgId);
+    if (fontError) console.warn(`[site-engine] Font update failed for ${orgId}: ${fontError.message}`);
+  }
   if (!built.skipped && direction && !hasOwnerBrand) {
     const { error: themeError } = await db
       .from("business_profiles")
@@ -2495,7 +2513,7 @@ async function runJob(
         primary_color: direction.primary,
         secondary_color: direction.secondary,
         accent_color: direction.accent,
-        font_preference: direction.font,
+        font_preference: effectiveFont,
       } as never)
       .eq("organization_id", orgId);
     if (themeError) {
