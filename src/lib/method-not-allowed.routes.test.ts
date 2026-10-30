@@ -21,8 +21,8 @@ describe("POST-only public API routes answer GET with 405", () => {
   for (const [name, route] of Object.entries(routes)) {
     it(`${name}: GET is 405 (Allow: POST, no-store) and POST is unchanged`, async () => {
       const handlers = handlersOf(route);
-      expect(typeof handlers.POST).toBe("function");
-      const get = handlers.GET as (() => Response) | undefined;
+      expect(typeof handlers["POST"]).toBe("function");
+      const get = handlers["GET"] as (() => Response) | undefined;
       expect(typeof get).toBe("function");
       const res = get!();
       expect(res.status).toBe(405);
