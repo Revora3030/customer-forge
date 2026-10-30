@@ -55,8 +55,10 @@ describe("shared preview handler offline", () => {
     mocks.load.mockResolvedValue({ org: {} });
     expect(await (await handler())({ data: { token: TOKEN } })).toMatchObject({ ok: false, site: null });
   });
-  it.each([{ token: "short" }, { token: TOKEN, pageSlug: "../private" }])("rejects malformed input before reading data", async (data) => {
-    await expect((await handler())({ data })).rejects.toThrow();
+  it.each([{ token: "short" }, { token: TOKEN, pageSlug: "../private" }])("answers malformed input with an invalid-link result before reading data", async (data) => {
+    // Malformed links used to throw (HTTP 500 on the live site); they now get the
+    // same not-found answer as an unknown token, still without touching data.
+    expect(await (await handler())({ data })).toMatchObject({ ok: false, site: null, reason: "unknown" });
     expect(mocks.resolve).not.toHaveBeenCalled();
     expect(mocks.load).not.toHaveBeenCalled();
   });
