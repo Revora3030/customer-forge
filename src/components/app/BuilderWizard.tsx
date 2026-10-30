@@ -3,6 +3,8 @@ import { Check, ChevronLeft, ChevronRight, ImageUp, Loader2, Sparkles } from "lu
 import { Panel, Pill, SectionHeading } from "@/components/app/Bits";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { AddressAutocomplete } from "@/components/ui/address-autocomplete";
+import type { AddressSuggestion } from "@/lib/photon";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { MediaLibrary } from "@/components/app/MediaLibrary";
@@ -353,6 +355,11 @@ export function BuilderWizard({
                   value={text(profile, "address")}
                   disabled={!canManage}
                   onCommit={(value) => field("address", value)}
+                  address
+                  onAddressPick={(place) => {
+                    if (place.city && !text(profile, "city")) field("city", place.city);
+                    if (place.state && !text(profile, "state")) field("state", place.state);
+                  }}
                 />
               </div>
             </>
@@ -592,6 +599,8 @@ function AutoField({
   actionLabel,
   actionPending = false,
   onAction,
+  address = false,
+  onAddressPick,
 }: {
   label: string;
   help?: string;
@@ -603,6 +612,9 @@ function AutoField({
   actionLabel?: string;
   actionPending?: boolean;
   onAction?: (value: string) => Promise<void> | void;
+  /** Street address with free OpenStreetMap suggestions. */
+  address?: boolean;
+  onAddressPick?: (place: AddressSuggestion) => void;
 }) {
   const [draft, setDraft] = useState(value);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -643,6 +655,16 @@ function AutoField({
           placeholder={placeholder}
           disabled={disabled}
           onChange={(event) => schedule(event.target.value)}
+          onBlur={commitNow}
+        />
+      ) : address ? (
+        <AddressAutocomplete
+          id={id}
+          value={draft}
+          placeholder={placeholder}
+          disabled={disabled}
+          onChange={schedule}
+          onSelect={(place) => onAddressPick?.(place)}
           onBlur={commitNow}
         />
       ) : (

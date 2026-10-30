@@ -44,4 +44,15 @@ describe("security headers", () => {
     expect(connect.split(/\s+/)).not.toContain("https:");
     expect(connect.split(/\s+/)).not.toContain("*");
   });
+
+  it("allows Photon address suggestions but not Nominatim", () => {
+    const csp = documentSecurityHeaders({ https: true })["content-security-policy"] ?? "";
+    const connect =
+      csp
+        .split(";")
+        .map((d) => d.trim())
+        .find((d) => d.startsWith("connect-src")) ?? "";
+    expect(connect.split(/\s+/)).toContain("https://photon.komoot.io");
+    expect(connect).not.toContain("nominatim");
+  });
 });

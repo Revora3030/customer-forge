@@ -29,6 +29,8 @@ import { RouteError } from "@/components/app/RouteStates";
 import { ErrorBoundary } from "@/components/app/ErrorBoundary";
 import { customerBusinessEmail, sanitizeServices } from "@/lib/builder/intake-sanitize";
 
+import { closedOnHolidays } from "@/lib/holidays";
+import { AddressAutocomplete } from "@/components/ui/address-autocomplete";
 import {
   WEBSITE_GOALS,
   revoraShareAddress,
@@ -92,6 +94,8 @@ type Draft = {
   email: string;
   address: string;
   hours: string;
+  /** Saved as `hours.closed_on_holidays`; booking refuses national holidays. */
+  closedOnHolidays: boolean;
   website: string;
   instagram: string;
   facebook: string;
@@ -154,6 +158,7 @@ function Onboarding() {
     email: "",
     address: "",
     hours: "",
+    closedOnHolidays: false,
     website: "",
     instagram: "",
     facebook: "",
@@ -287,6 +292,7 @@ function Onboarding() {
           email: keep(prev.email, text(profile?.["email"])),
           address: keep(prev.address, text(profile?.["address"])),
           hours: keep(prev.hours, hoursText),
+          closedOnHolidays: prev.closedOnHolidays || closedOnHolidays(profile?.["hours"]),
           website: keep(prev.website, text(profile?.["website"])),
           logoUrl: keep(prev.logoUrl, text(profile?.["logo_url"])),
           heroImageUrl: keep(prev.heroImageUrl, text(profile?.["hero_image_url"])),
@@ -488,7 +494,10 @@ function Onboarding() {
           description: draft.about || null,
           tagline: `${draft.industry}${draft.city ? ` in ${draft.city}` : ""}`,
           // hours is NOT NULL in the database — always send an object.
-          hours: (draft.hours ? { summary: draft.hours } : {}) as never,
+          hours: {
+            ...(draft.hours ? { summary: draft.hours } : {}),
+            ...(draft.closedOnHolidays ? { closed_on_holidays: true } : {}),
+          } as never,
           website: draft.website || null,
           logo_url: logoPath || draft.logoUrl.trim() || null,
           hero_image_url: draft.heroImageUrl || null,
@@ -949,10 +958,13 @@ function Onboarding() {
                 </div>
                 <div className="space-y-1.5 sm:col-span-2">
                   <Label htmlFor="o-address">Address (optional)</Label>
-                  <Input
+                  <AddressAutocomplete
                     id="o-address"
                     value={draft.address}
-                    onChange={(e) => set("address", e.target.value)}
+                    onChange={(value) => set("address", value)}
+                    onSelect={(place) => {
+                      if (place.city && !draft.city) set("city", place.city);
+                    }}
                   />
                 </div>
                 <div className="space-y-1.5 sm:col-span-2">
@@ -963,6 +975,14 @@ function Onboarding() {
                     onChange={(e) => set("hours", e.target.value)}
                     placeholder="Mon–Sat 8am–6pm"
                   />
+                  <label className="flex items-center gap-2 pt-1 text-[13px] text-muted-foreground">
+                    <input
+                      type="checkbox"
+                      checked={draft.closedOnHolidays}
+                      onChange={(e) => set("closedOnHolidays", e.target.checked)}
+                    />
+                    Closed on public holidays (online booking skips US national holidays)
+                  </label>
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="o-site">Existing website (optional)</Label>

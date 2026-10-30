@@ -3,6 +3,7 @@ import { loadTenantPage, tenantPageHead } from "@/lib/tenant-page-utils";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { submitContactRequest } from "@/lib/contact.functions";
+import { AltchaField, altchaPayload } from "@/components/site/AltchaField";
 
 import { useState } from "react";
 import { toast } from "@/lib/ui/notify";
@@ -156,6 +157,7 @@ function Contact() {
                         message: String(values.get("message") ?? ""),
                         landingPath:
                           typeof window === "undefined" ? null : window.location.pathname,
+                        altcha: altchaPayload(values),
                       },
                     });
                     setSent(true);
@@ -220,6 +222,7 @@ function Contact() {
                 <p className="text-[11px] leading-relaxed text-muted-foreground">
                   A real person on the Revora team reads every message.
                 </p>
+                <AltchaField />
               </form>
             )}
           </div>

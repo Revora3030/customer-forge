@@ -7,6 +7,7 @@ import { Copy, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ReviewLinkTools } from "@/components/app/ReviewLinkTools";
+import { AddressAutocomplete } from "@/components/ui/address-autocomplete";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -234,7 +235,15 @@ export function NewClientDialog({
 
             <Section title="Location & service area">
               <Field label="Address">
-                <Input value={form.address} onChange={(e) => set("address")(e.target.value)} />
+                <AddressAutocomplete
+                  value={form.address}
+                  onChange={set("address")}
+                  onSelect={(place) => {
+                    if (place.city) set("city")(place.city);
+                    if (place.state) set("state")(place.state);
+                    if (place.postcode) set("zip")(place.postcode);
+                  }}
+                />
               </Field>
               <Field label="City">
                 <Input value={form.city} onChange={(e) => set("city")(e.target.value)} />

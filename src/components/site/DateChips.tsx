@@ -11,6 +11,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { dateChipDays, localIsoToday, nextOpenChip } from "@/lib/date-chips";
 import { cn } from "@/lib/utils";
+import type { Holiday } from "@/lib/holidays";
 
 const STEP = 14;
 const MAX_DAYS = 90;
@@ -21,6 +22,7 @@ export function DateChips({
   value,
   onChange,
   hours,
+  holidays,
   labelledBy,
   describedBy,
   fallback,
@@ -30,6 +32,8 @@ export function DateChips({
   value: string;
   onChange: (iso: string) => void;
   hours: unknown;
+  /** Upcoming national holidays; closed when the owner opted in. */
+  holidays?: readonly Holiday[] | null;
   labelledBy: string;
   describedBy?: string | undefined;
   /** The native input shown before hydration / without JavaScript. */
@@ -41,7 +45,7 @@ export function DateChips({
   useEffect(() => setToday(localIsoToday()), []);
   if (!today) return <>{fallback}</>;
 
-  const chips = dateChipDays(today, count, hours);
+  const chips = dateChipDays(today, count, hours, holidays);
   const picked = chips.findIndex((c) => c.iso === value);
   const firstOpen = chips.findIndex((c) => !c.closed);
   const focusIndex = picked >= 0 ? picked : firstOpen;
