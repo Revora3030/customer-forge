@@ -147,6 +147,17 @@ export async function handleSubscriptionActivated(
     billingUrl: `${APP_URL}/app/billing`,
   };
 
+  // Test-mode (sandbox) traffic must never email a customer or the founder,
+  // or tell a real workspace that a plan is active.
+  if (input.environment !== "live") {
+    await markRan(admin, input.organizationId, marker, {
+      plan_id: input.planId ?? null,
+      environment: input.environment,
+      customer_messages: "skipped_non_live",
+    });
+    return { ran: true as const };
+  }
+
   const { email } = await ownerContact(admin, input.organizationId);
   if (email) {
     await sendTemplateEmail("billing-welcome", email, {
@@ -187,6 +198,8 @@ export async function handleSubscriptionCanceled(
 ) {
   const marker = `canceled:${input.phase}:${input.stripeSubscriptionId}`;
   if (await alreadyRan(admin, marker)) return { ran: false as const };
+  // Sandbox cancellations never email the owner or flag the workspace read-only.
+  if (input.environment !== "live") return { ran: false as const };
 
   const businessName = await orgName(admin, input.organizationId);
   const accessUntil = fmtDate(input.accessUntil);
@@ -231,6 +244,8 @@ export async function handlePlanChanged(
   if (!input.newPlanId || input.previousPlanId === input.newPlanId) return { ran: false as const };
   const marker = `plan-changed:${input.stripeSubscriptionId}:${input.previousPlanId}->${input.newPlanId}`;
   if (await alreadyRan(admin, marker)) return { ran: false as const };
+  // Sandbox plan changes never email the owner or notify the workspace.
+  if (input.environment !== "live") return { ran: false as const };
 
   const businessName = await orgName(admin, input.organizationId);
   const previousPlan = planLabel(input.previousPlanId);
