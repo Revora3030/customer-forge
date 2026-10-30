@@ -225,6 +225,13 @@
       "when": 1793325538419,
       "tag": "0031_20261005000000_harden_website_rpc_execute",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1793325559742,
+      "tag": "0032_20261005120000_build_and_admin_invariants",
+      "breakpoints": true
     }
   ]
 }
