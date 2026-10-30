@@ -12,10 +12,12 @@ import {
   Text,
 } from "@react-email/components";
 import type { TemplateEntry } from "./registry";
+import { FULL_ACCESS_TRIAL_DAYS } from "@/lib/offer";
 
 /**
  * Activity-based onboarding + retention emails.
- * Sent by the lifecycle job, once per workspace per stage.
+ * Sent only by the scheduled lifecycle job, each one at most once per person,
+ * always with a one-click unsubscribe link.
  */
 interface LifecycleProps {
   businessName?: string;
@@ -30,11 +32,20 @@ interface LifecycleProps {
   bookingWhen?: string;
   leadCount?: number;
   daysAway?: number;
+  /** Length of the free full-access trial; defaults to FULL_ACCESS_TRIAL_DAYS. */
+  trialDays?: number;
+  /** Personal unsubscribe link (lifecycle_email_optouts token). */
+  unsubscribeUrl?: string;
 }
 
 const APP = "https://revoragrowthsystems.com/app";
 
-const Shell = (props: { preview: string; heading: string; children: React.ReactNode }) => (
+const Shell = (props: {
+  preview: string;
+  heading: string;
+  unsubscribeUrl?: string | undefined;
+  children: React.ReactNode;
+}) => (
   <Html lang="en" dir="ltr">
     <Head />
     <Preview>{props.preview}</Preview>
@@ -47,6 +58,15 @@ const Shell = (props: { preview: string; heading: string; children: React.ReactN
         <Text style={footer}>
           Questions? Reply to this email or call (919) 622-6620 — we answer fast.
         </Text>
+        {props.unsubscribeUrl ? (
+          <Text style={unsubscribe}>
+            You're getting this because you set up a Revora workspace. Don't want these setup tips?{" "}
+            <Link href={props.unsubscribeUrl} style={unsubscribeLink}>
+              Unsubscribe
+            </Link>
+            .
+          </Text>
+        ) : null}
       </Container>
     </Body>
   </Html>
@@ -60,6 +80,7 @@ const cta = (url: string, label: string) => (
 
 const WelcomeEmail = (p: LifecycleProps) => (
   <Shell
+    unsubscribeUrl={p.unsubscribeUrl}
     preview="Your Revora workspace is open — here's your first step"
     heading={`Welcome${p.firstName ? `, ${p.firstName}` : ""} — your workspace is open`}
   >
@@ -73,8 +94,8 @@ const WelcomeEmail = (p: LifecycleProps) => (
     </Text>
     {p.trialEnds ? (
       <Text style={text}>
-        Your free full access runs until <strong>{p.trialEnds}</strong>. Nothing is charged before
-        you choose to activate.
+        {`Your ${p.trialDays || FULL_ACCESS_TRIAL_DAYS}-day free full access runs until `}
+        <strong>{p.trialEnds}</strong>. Nothing is charged before you choose to activate.
       </Text>
     ) : null}
     {cta(p.actionUrl || APP, "Open my next step")}
@@ -83,6 +104,7 @@ const WelcomeEmail = (p: LifecycleProps) => (
 
 const SetupReminderEmail = (p: LifecycleProps) => (
   <Shell
+    unsubscribeUrl={p.unsubscribeUrl}
     preview={`One step left: ${p.nextAction || "finish your setup"}`}
     heading={`${p.businessName || "Your site"} is one step from working for you`}
   >
@@ -99,7 +121,7 @@ const SetupReminderEmail = (p: LifecycleProps) => (
         <strong>
           {p.daysLeft} day{p.daysLeft === 1 ? "" : "s"}
         </strong>{" "}
-        of free full access left{p.trialEnds ? ` (ends ${p.trialEnds})` : ""}.
+        {` left of your ${p.trialDays || FULL_ACCESS_TRIAL_DAYS}-day free full access${p.trialEnds ? ` (ends ${p.trialEnds})` : ""}.`}
       </Text>
     ) : null}
     {cta(p.actionUrl || APP, "Finish this step")}
@@ -108,6 +130,7 @@ const SetupReminderEmail = (p: LifecycleProps) => (
 
 const BookingFollowUpEmail = (p: LifecycleProps) => (
   <Shell
+    unsubscribeUrl={p.unsubscribeUrl}
     preview="A booking came in — here's how to close it"
     heading={`${p.bookingName || "A customer"} booked with ${p.businessName || "you"}`}
   >
@@ -126,6 +149,7 @@ const BookingFollowUpEmail = (p: LifecycleProps) => (
 
 const WinbackEmail = (p: LifecycleProps) => (
   <Shell
+    unsubscribeUrl={p.unsubscribeUrl}
     preview="Your Revora system is still set up and waiting"
     heading="Everything you built is still here"
   >
@@ -159,6 +183,8 @@ const preview = {
   bookingWhen: "Thursday at 10:00 AM",
   leadCount: 3,
   daysAway: 7,
+  trialDays: FULL_ACCESS_TRIAL_DAYS,
+  unsubscribeUrl: "https://revoragrowthsystems.com/unsubscribe/lifecycle/preview-token-000000000000",
 };
 
 export const lifecycleWelcomeTemplate = {
@@ -215,3 +241,5 @@ const button = {
 };
 const hr = { borderColor: "#e7e5df", margin: "22px 0 14px" };
 const footer = { margin: 0, fontSize: "13px", color: "#6b6d78" };
+const unsubscribe = { margin: "12px 0 0", fontSize: "12px", color: "#8b8d96" };
+const unsubscribeLink = { color: "#8b8d96", textDecoration: "underline" };
