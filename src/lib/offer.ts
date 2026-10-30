@@ -18,8 +18,16 @@ export const GROWTH_SYSTEM = {
   setupLabel: "One-time implementation and customization.",
   monthlyLabel:
     "Ongoing platform, automation, support, hosting/system management, and growth services.",
-  /** Length of the free platform trial, in days. Mirrors the Stripe trial. */
+  /**
+   * Length of the free FIRST MONTH of the $100/month plan, in days. It only
+   * starts once the $350 setup is paid (Stripe `trial_period_days` on the
+   * monthly subscription). It is not a no-card trial — that is the separate
+   * `fullAccessTrialDays` window at signup. Customer copy should say
+   * `firstMonthFree`, never "30-day trial".
+   */
   trialDays: 30,
+  /** Truthful wording for the paid plan's free first month. */
+  firstMonthFree: "first month free (30 days after $350 setup)",
   /** Length of the full-system free access window at signup, in days. */
   fullAccessTrialDays: 3,
   /** Human-readable full-access window, e.g. "3 days". */

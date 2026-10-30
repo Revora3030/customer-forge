@@ -9,6 +9,7 @@ import {
 } from "@/lib/revora-address";
 import { withSecurityHeaders } from "@/lib/security-headers";
 import { createUnhandledErrorResponse } from "@/lib/api-error-response";
+import { httpsRedirect } from "@/lib/https-redirect";
 
 /**
  * Production security headers on every response — platform pages, client
@@ -30,6 +31,16 @@ const securityHeadersMiddleware = createMiddleware().server(async ({ next, reque
     }
   }
   return result as never;
+});
+
+/**
+ * Plain http:// visits are permanently redirected to https before any route
+ * loader runs (src/lib/https-redirect.ts). Local development is untouched.
+ */
+const httpsRedirectMiddleware = createMiddleware().server(async ({ next, request }) => {
+  if (!request) return next();
+  const redirect = httpsRedirect(request);
+  return (redirect ?? (await next())) as never;
 });
 
 /**
@@ -117,6 +128,7 @@ export const startInstance = createStart(() => ({
   functionMiddleware: [attachSupabaseAuth],
   requestMiddleware: [
     securityHeadersMiddleware,
+    httpsRedirectMiddleware,
     trafficDomainRedirect,
     errorMiddleware,
     csrfMiddleware,
