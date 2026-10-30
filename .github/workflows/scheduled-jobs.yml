@@ -15,6 +15,11 @@ name: Scheduled maintenance jobs
 #   site-content-audit Mondays 13:05 UTC           — title/h1/structured-data/alt/link check of published sites
 # Nothing here needs n8n.
 #
+# automation-runs, lead-alert-retry, site-health and backup are also scheduled
+# in the database (pg_cron, migration 20261030120000_customer_jobs_schedule.sql),
+# so they keep running even while the secrets above are unset. Every job route
+# is safe to call twice.
+#
 # Media clean-up runs as a DRY RUN (report only). Set the repository variable
 # MEDIA_CLEANUP_APPLY=1 to let the weekly run actually delete orphaned files.
 
@@ -40,7 +45,7 @@ on:
         description: "Which job to run now"
         required: true
         type: choice
-        options: [backup, media-cleanup, lifecycle-email, site-engine, lead-reminder, weekly-report, site-health, lead-alert-retry, site-content-audit]
+        options: [backup, media-cleanup, lifecycle-email, site-engine, lead-reminder, weekly-report, site-health, lead-alert-retry, site-content-audit, automation-runs]
       apply:
         description: "media-cleanup only: actually delete (otherwise dry run)"
         required: false

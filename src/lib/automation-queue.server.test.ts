@@ -280,7 +280,9 @@ describe("no browser code writes automation_runs", () => {
     for (const file of files) {
       const source = readFileSync(file, "utf8");
       if (/enqueueAutomations\(|processDueRuns\(/.test(source)) {
-        expect(file).toMatch(/automation-engine\.ts$|automation-queue\.server\.ts$|automations\.functions\.ts$|public-site\.functions\.ts$/);
+        // automation-sweep.server runs only from the cron-authenticated
+        // /api/public/jobs/automation-runs route with the service-role client.
+        expect(file).toMatch(/automation-engine\.ts$|automation-queue\.server\.ts$|automation-sweep\.server\.ts$|automations\.functions\.ts$|public-site\.functions\.ts$/);
       }
     }
   });
