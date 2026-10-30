@@ -137,7 +137,7 @@ describe("automation-runs job route", () => {
 describe("customer jobs schedule migration", () => {
   it("schedules the follow-up sweep and the retry, health and backup jobs through call_revora_job", async () => {
     const { readFileSync } = await import("node:fs");
-    const sql = readFileSync("supabase/migrations/20261030120000_customer_jobs_schedule.sql", "utf8");
+    const sql = readFileSync("supabase/migrations/20261030140000_customer_jobs_schedule.sql", "utf8");
     for (const job of ["automation-runs", "lead-alert-retry", "site-health", "backup"]) {
       expect(sql).toContain(`call_revora_job('${job}', 900000)`);
     }

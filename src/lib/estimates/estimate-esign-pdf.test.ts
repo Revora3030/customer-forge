@@ -103,7 +103,7 @@ describe("estimate PDF (pdf-lib)", () => {
 
 describe("e-sign wiring", () => {
   const dialog = readFileSync("src/components/app/EstimateBuilderDialog.tsx", "utf8");
-  const migration = readFileSync("supabase/migrations/20261030120000_estimate_signatures.sql", "utf8");
+  const migration = readFileSync("supabase/migrations/20261030140000_estimate_signatures.sql", "utf8");
 
   it("voids a signature when the estimate changes and keeps the print fallback", () => {
     expect(dialog).toContain("signed.docJson === docJson");

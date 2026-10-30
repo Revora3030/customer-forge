@@ -67,7 +67,7 @@ export function cleanSignerName(name: unknown): string {
     .slice(0, 120);
 }
 
-/** True when the table or bucket from migration 20261030120000 isn't live yet. */
+/** True when the table or bucket from migration 20261030140000 isn't live yet. */
 export function isMissingSchema(message: string | undefined | null, code?: string | null): boolean {
   if (code === "42P01" || code === "PGRST205") return true;
   return /estimate_signatures|bucket not found|does not exist|schema cache/i.test(String(message ?? ""));
