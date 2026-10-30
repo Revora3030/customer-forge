@@ -171,30 +171,42 @@ export async function runReviewPanel(
           [input.material, ...evidenceFor(reviewer.area, evidence)].join("\n\n"),
       }).then((call) => ({ reviewer, call }));
   const settled = await Promise.allSettled(reviewers.map((reviewer) => ask(reviewer)));
-  // One retry per dropped reviewer, steering away from its first-choice model;
-  // a reviewer still failing is reported in `failed`, never fails the panel.
-  await Promise.all(
-    settled.map(async (entry, index) => {
-      if (entry.status === "fulfilled" && entry.value.call.ok) return;
-      const reviewer = reviewers[index]!;
-      const retry = await Promise.allSettled([ask(reviewer, REVIEW_AREA_MODELS[reviewer.area] ?? [])]);
-      settled[index] = retry[0]!;
-    }),
-  );
   const notes: ReviewNote[] = [];
   const models: string[] = [];
   const failed: ReviewArea[] = [];
   let costMicrocents = 0;
+  // A usable verdict: the call answered AND the answer parses as a note. An
+  // answer that came back as prose is a dropped reviewer too, not silence.
+  const verdict = (entry: (typeof settled)[number], area: ReviewArea): ReviewNote | null => {
+    if (entry.status !== "fulfilled" || !entry.value.call.ok) return null;
+    const { call } = entry.value;
+    return parseNote(call.text, area, call.model ?? null);
+  };
+  const charge = (entry: (typeof settled)[number]) => {
+    if (entry.status !== "fulfilled" || !entry.value.call.ok) return;
+    costMicrocents += entry.value.call.costMicrocents ?? 0;
+    if (entry.value.call.model) models.push(entry.value.call.model);
+  };
+  // One retry per dropped reviewer, steering away from its first-choice model;
+  // a reviewer still failing is reported in `failed`, never fails the panel.
+  // No retry when the day's or month's paid budget is spent (or the ledger is
+  // down): the second ask would be refused the same way.
+  const noRetry = new Set(["budget_exhausted", "ledger_unavailable", "free_only", "no_tier_available"]);
+  await Promise.all(
+    settled.map(async (entry, index) => {
+      const reviewer = reviewers[index]!;
+      if (verdict(entry, reviewer.area)) return;
+      if (entry.status === "fulfilled" && !entry.value.call.ok && noRetry.has(String(entry.value.call.reason))) return;
+      // A first answer that could not be parsed was still paid for.
+      charge(entry);
+      const retry = await Promise.allSettled([ask(reviewer, REVIEW_AREA_MODELS[reviewer.area] ?? [])]);
+      settled[index] = retry[0]!;
+    }),
+  );
   settled.forEach((entry, index) => {
     const area = reviewers[index]!.area;
-    if (entry.status !== "fulfilled" || !entry.value.call.ok) {
-      failed.push(area);
-      return;
-    }
-    const { call } = entry.value;
-    costMicrocents += call.costMicrocents ?? 0;
-    if (call.model) models.push(call.model);
-    const note = parseNote(call.text, area, call.model ?? null);
+    charge(entry);
+    const note = verdict(entry, area);
     if (note) notes.push(note);
     else failed.push(area);
   });

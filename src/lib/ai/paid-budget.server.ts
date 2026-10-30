@@ -99,26 +99,94 @@ export function paidReservationStaleSeconds(): number {
  * row lock first, so concurrent reservations cannot overshoot the cap.
  */
 export async function reservePaidSpend(estimate: number): Promise<PaidReservation | null> {
+  return (await reservePaidSpendDetailed(estimate)).reservation;
+}
+
+/**
+ * Why a paid reservation was refused, so a caller can tell the owner the
+ * truth: the day's cap is used up (resets at midnight UTC), paid AI is off,
+ * the call runs in a free-only scope, or the ledger could not be read.
+ */
+export type PaidRefusal = "free_only" | "cap_zero" | "cap_reached" | "ledger_unavailable";
+
+export type PaidReservationResult =
+  | { reservation: PaidReservation; refusal: null }
+  | { reservation: null; refusal: PaidRefusal };
+
+/** `reservePaidSpend`, plus the reason a refused reservation was refused. Never throws. */
+export async function reservePaidSpendDetailed(estimate: number): Promise<PaidReservationResult> {
   // A free-only spending scope (demo workspace builds) never spends.
-  if (scopedFreeOnly()) return null;
+  if (scopedFreeOnly()) return { reservation: null, refusal: "free_only" };
   const cap = paidDailyCapMicrocents();
-  if (cap <= 0) return null;
+  if (cap <= 0) return { reservation: null, refusal: "cap_zero" };
   const amount = Math.max(0, Math.round(estimate));
   const handle = await ledger();
-  if (!handle) return { id: null, day: UNMETERED, estimate: amount };
+  if (!handle) return { reservation: { id: null, day: UNMETERED, estimate: amount }, refusal: null };
   try {
     const { data, error } = await handle.db.rpc("ai_paid_budget_reserve_tracked", {
       _estimate_microcents: amount,
       _cap_microcents: cap,
       _stale_after_seconds: paidReservationStaleSeconds(),
     });
-    if (error || !Array.isArray(data) || !data.length) return null;
+    if (error || !Array.isArray(data) || !data.length) return { reservation: null, refusal: "ledger_unavailable" };
     const row = data[0] as { allowed?: boolean; reservation_id?: string | null; day?: string | null };
-    if (row.allowed !== true || !row.reservation_id || !row.day) return null;
-    return { id: String(row.reservation_id), day: String(row.day), estimate: amount };
+    if (row.allowed !== true) {
+      noteDailyCapReached(cap);
+      return { reservation: null, refusal: "cap_reached" };
+    }
+    if (!row.reservation_id || !row.day) return { reservation: null, refusal: "ledger_unavailable" };
+    return { reservation: { id: String(row.reservation_id), day: String(row.day), estimate: amount }, refusal: null };
   } catch {
-    return null;
+    return { reservation: null, refusal: "ledger_unavailable" };
   }
+}
+
+/** Seconds until the daily cap resets (midnight UTC, 8 PM New York in summer). */
+export function secondsUntilPaidCapReset(now = Date.now()): number {
+  const next = new Date(now);
+  next.setUTCHours(24, 0, 0, 0);
+  return Math.max(60, Math.ceil((next.getTime() - now) / 1000));
+}
+
+/** The configured daily cap in dollars, for messages. */
+export function paidDailyCapUsd(): number {
+  return paidDailyCapMicrocents() / MICROCENTS_PER_DOLLAR;
+}
+
+let capAlertDay: string | null = null;
+
+/**
+ * The first refusal of a UTC day emails the founder once (the founder-alert
+ * marker makes it once per day across workers too). Fire-and-forget: an
+ * alert failure never touches the AI call that was refused.
+ */
+function noteDailyCapReached(cap: number, now = Date.now()) {
+  const day = new Date(now).toISOString().slice(0, 10);
+  if (capAlertDay === day) return;
+  capAlertDay = day;
+  void (async () => {
+    try {
+      const handle = await ledger();
+      if (!handle) return;
+      const { sendFounderAlert } = await import("@/lib/founder-alerts.server");
+      await sendFounderAlert(handle.db as never, {
+        kind: "ai_budget_reached",
+        marker: `ai-budget:${day}`,
+        organizationId: null,
+        title: "Today's paid AI budget is used up",
+        summary: `Paid AI calls reached today's $${(cap / MICROCENTS_PER_DOLLAR).toFixed(2)} cap (AI_PAID_DAILY_CAP_USD). New AI work waits until the cap resets at midnight UTC (8 PM New York time in summer).`,
+        rows: [["Day (UTC)", day], ["Daily cap", `$${(cap / MICROCENTS_PER_DOLLAR).toFixed(2)}`]],
+        link: "https://revoragrowthsystems.com/admin/ai",
+      });
+    } catch {
+      /* alerting is best-effort */
+    }
+  })();
+}
+
+/** Test hook: forget which day already alerted. */
+export function resetPaidCapAlertForTests() {
+  capAlertDay = null;
 }
 
 const SETTLE_ATTEMPTS = 3;

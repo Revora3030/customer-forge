@@ -98,6 +98,38 @@ export function providerUnavailable(provider: string, detail?: string) {
 }
 
 /**
+ * Every paid candidate was skipped before a request left because the daily
+ * paid ledger refused it. A used-up cap is "quota" (not retryable until the
+ * reset, so builds park instead of hammering); an unreadable ledger fails
+ * closed and is worth retrying shortly.
+ */
+export function paidBudgetRefused(
+  reason: "free_only" | "cap_zero" | "cap_reached" | "ledger_unavailable",
+  capUsd: number,
+  secondsUntilReset: number,
+) {
+  if (reason === "cap_reached")
+    return new RevoraAiError(
+      402,
+      `Today's AI budget ($${capUsd.toFixed(2)}) is used up, so nothing was generated. It resets at midnight UTC (8 PM New York time in summer), and waiting work resumes then.`,
+      { category: "quota", provider: "lovable", retryAfterSeconds: secondsUntilReset, detail: "paid_daily_cap_reached" },
+    );
+  if (reason === "ledger_unavailable")
+    return new RevoraAiError(
+      503,
+      "Revora couldn't check today's AI budget, so no paid AI call was made. Try again in a few minutes.",
+      { category: "provider_unavailable", provider: "lovable", retryAfterSeconds: 60, detail: "paid_ledger_unavailable" },
+    );
+  return new RevoraAiError(
+    503,
+    reason === "cap_zero"
+      ? "Paid AI is switched off (AI_PAID_DAILY_CAP_USD is 0), so nothing was generated."
+      : AI_FREE_UNAVAILABLE_MESSAGE,
+    { category: "free_unavailable", provider: "lovable", detail: reason },
+  );
+}
+
+/**
  * Shown when a request needed a generative model and no free provider could
  * serve it. Creative callers fail closed rather than substituting built-in work.
  */

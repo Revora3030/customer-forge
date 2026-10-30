@@ -112,7 +112,7 @@ export type TeamStep = {
 export async function recordTeamStep(step: TeamStep) {
   try {
     const client = await admin();
-    const [provider, model] = step.model?.includes(" · ") ? step.model.split(" · ") : [step.lane === "paid" ? "openai" : null, step.model];
+    const [provider, model] = step.model?.includes(" · ") ? step.model.split(" · ") : [step.lane === "paid" ? "lovable" : null, step.model];
     const { error } = await client.from("ai_team_trace").insert({
       organization_id: step.organizationId,
       stage: step.stage.slice(0, 60),
