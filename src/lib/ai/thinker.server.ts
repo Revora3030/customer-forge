@@ -120,7 +120,10 @@ async function callPaidThinker(request: {
 
   const organizationId = request.organizationId ?? null;
   const maxOutputTokens = Math.max(request.maxOutputTokens ?? 900, 64);
-  const promptChars = request.system.length + request.user.length;
+  // Bounded context: an oversized brief costs more and answers worse. The
+  // head and tail are kept (instructions and the latest facts), the middle cut.
+  const user = capPromptContext(request.user, THINKER_MAX_USER_CHARS);
+  const promptChars = request.system.length + user.length;
   const estimate = estimateMicrocents(promptChars, maxOutputTokens, tier);
   const reservation = await reserveBudget(estimate, organizationId);
   if (!reservation)
@@ -162,7 +165,7 @@ async function callPaidThinker(request: {
       role: roleForPurpose(request.purpose) as NonNullable<Parameters<typeof generateText>[1]["role"]>,
       messages: [
         { role: "system" as const, content: request.system },
-        { role: "user" as const, content: request.user },
+        { role: "user" as const, content: user },
       ],
       paidOnly: true,
       ...(request.preferModels?.length ? { preferModels: request.preferModels } : {}),
@@ -307,6 +310,18 @@ export async function callBestThinker(
  * plan (8k tokens) took ~90s and the flat 90s limit aborted it just before it
  * finished, so long answers get up to ~4 minutes; short ones keep 90s.
  */
+/** Largest user prompt one thinker step sends (about 15k tokens). */
+export const THINKER_MAX_USER_CHARS = 60_000;
+
+/** Keeps the first 70% and last 30% of an over-long prompt with a visible cut marker. */
+export function capPromptContext(text: string, maxChars: number): string {
+  if (text.length <= maxChars) return text;
+  const marker = `\n\n[… ${text.length - maxChars} characters of context trimmed …]\n\n`;
+  const room = Math.max(0, maxChars - marker.length);
+  const head = Math.ceil(room * 0.7);
+  return text.slice(0, head) + marker + text.slice(text.length - (room - head));
+}
+
 export function thinkerAttemptTimeoutMs(maxOutputTokens: number): number {
   return Math.min(240_000, Math.max(90_000, 30_000 + Math.ceil(maxOutputTokens) * 25));
 }
