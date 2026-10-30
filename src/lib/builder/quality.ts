@@ -213,6 +213,54 @@ export type QualityReport = {
   issues: QualityIssue[];
 
   blockers: QualityIssue[];
+
+  /**
+   * REVORA Quality Score band (RQS). Derived from the score AND the gates
+   * above, so a high average can never hide a blocker or missing browser
+   * evidence. See `qualityBand`.
+   */
+  band: QualityBand;
+
+  /** Per-specialist share of the score (Sol / Terra / Luna). */
+  team: TeamScorecard;
+};
+
+export type QualityBand =
+  | "blocked"
+  | "reject"
+  | "needs_correction"
+  | "good"
+  | "premium"
+  | "exceptional";
+
+export type TeamScore = {
+  /** 0–100 across the categories this specialist owns. */
+  score: number;
+  categories: QualityCategory[];
+  /** Blockers in this specialist's categories. */
+  blockers: number;
+};
+
+export type TeamScorecard = { sol: TeamScore; terra: TeamScore; luna: TeamScore };
+
+/**
+ * Which specialist owns which category. Sol designs the page and writes the
+ * conversion path, Terra checks it renders and works everywhere, Luna checks
+ * search and business facts.
+ */
+export const TEAM_CATEGORIES: Record<keyof TeamScorecard, QualityCategory[]> = {
+  sol: ["visual", "content", "conversion"],
+  terra: ["responsive", "accessibility", "performance", "navigation", "technical"],
+  luna: ["seo", "data"],
+};
+
+export const QUALITY_BAND_LABEL: Record<QualityBand, string> = {
+  blocked: "Blocked — fix the listed problems before publishing",
+  reject: "Not ready — needs rework",
+  needs_correction: "Needs correction",
+  good: "Good — improvements recommended",
+  premium: "Premium — launch-ready",
+  exceptional: "Exceptional",
 };
 
 /* -------------------------------------------------------------------------- */
@@ -1348,7 +1396,70 @@ export function auditWebsite(
     issues: uniqueIssues,
 
     blockers,
+
+    band: qualityBand({ score, blockers, productionReady }),
+
+    team: teamScorecard(categories, uniqueIssues),
   };
+}
+
+/**
+ * RQS band. Hard gates first: any blocker is "blocked" whatever the score.
+ * "premium"/"exceptional" also require the strict production gate (browser
+ * measured, accessibility and performance evidence) — a site we never saw
+ * rendered can score well but is capped at "good".
+ */
+export function qualityBand(
+  report: Pick<QualityReport, "score" | "blockers" | "productionReady">,
+): QualityBand {
+  if (report.blockers.length) return "blocked";
+  const score = Number.isFinite(report.score) ? report.score : 0;
+  if (score < 70) return "reject";
+  if (score < 80) return "needs_correction";
+  if (score < 90 || !report.productionReady) return "good";
+  return score >= 95 ? "exceptional" : "premium";
+}
+
+/** Splits the category scores by the specialist who owns them. */
+export function teamScorecard(
+  categories: readonly QualityCategoryScore[],
+  issues: readonly QualityIssue[],
+): TeamScorecard {
+  const blockerCategory = (key: string): QualityCategory => CATEGORY_OF[key] ?? "technical";
+  const one = (owned: QualityCategory[]): TeamScore => {
+    const mine = categories.filter((category) => owned.includes(category.name));
+    const weight = mine.reduce((total, category) => total + category.weight, 0);
+    const earned = mine.reduce((total, category) => total + category.earned, 0);
+    return {
+      score: weight > 0 ? Math.round((earned / weight) * 100) : 0,
+      categories: owned,
+      blockers: issues.filter((issue) => {
+        const category = blockerCategory(issue.key);
+        return issue.severity === "blocker" && owned.includes(category);
+      }).length,
+    };
+  };
+  return {
+    sol: one(TEAM_CATEGORIES.sol),
+    terra: one(TEAM_CATEGORIES.terra),
+    luna: one(TEAM_CATEGORIES.luna),
+  };
+}
+
+const TEAM_AREA_LABEL: Record<keyof TeamScorecard, string> = {
+  sol: "design, copy and the enquiry path",
+  terra: "phone layouts, accessibility, speed and links",
+  luna: "search titles and business details",
+};
+
+/** One plain sentence naming the specialist area that is furthest behind. */
+export function weakestTeamArea(team: TeamScorecard): string {
+  const ranked = (Object.keys(team) as (keyof TeamScorecard)[])
+    .map((key) => ({ key, ...team[key] }))
+    .sort((a, b) => b.blockers - a.blockers || a.score - b.score);
+  const weakest = ranked[0];
+  if (!weakest || (weakest.score >= 90 && !weakest.blockers)) return "";
+  return `Weakest area: ${TEAM_AREA_LABEL[weakest.key]} (${weakest.score}/100).`;
 }
 
 /* -------------------------------------------------------------------------- */
