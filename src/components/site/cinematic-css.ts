@@ -15,7 +15,7 @@
 const S = "[data-composition][data-composition]";
 
 export const CINEMATIC_CSS = `
-${S} .rv-scene{position:relative;isolation:isolate;overflow:hidden;display:grid;width:100%;max-width:100%;min-height:clamp(560px,100vh,1200px);min-height:clamp(560px,100svh,1200px)}
+${S} .rv-scene{position:relative;isolation:isolate;overflow:hidden;overflow:clip;display:grid;width:100%;max-width:100%;min-height:clamp(560px,100vh,1200px);min-height:clamp(560px,100svh,1200px)}
 ${S} .rv-scene-media{position:absolute!important;inset:0;z-index:-2;width:100%!important;height:100%!important;max-width:none!important;object-fit:cover;display:block}
 ${S} .rv-scene-scrim{position:absolute;inset:0;z-index:-1;pointer-events:none}
 ${S} .rv-scene-media.rv-hero-video{opacity:0;transition:opacity .9s ease;background:transparent}
@@ -65,7 +65,7 @@ ${S} .rv-collection-viewport{scroll-behavior:smooth}
 @keyframes rv-scene-settle{from{transform:scale(1.1)}to{transform:scale(1)}}
 @media (prefers-reduced-motion: no-preference){@supports (animation-timeline: view()){${S} .rv-hero-video[data-playing]{animation:rv-hero-drift linear both;animation-timeline:view();animation-range:exit 0% exit 100%}}}
 @keyframes rv-hero-drift{from{transform:scale(1)}to{transform:scale(1.12)}}
-@keyframes rv-scene-rise{from{opacity:.001;translate:0 48px}to{opacity:1;translate:0 0}}
+@keyframes rv-scene-rise{from{translate:0 16px}to{translate:0 0}}
 ${S} .rv-spin{display:grid;gap:16px;justify-items:center;margin:0;width:100%}
 ${S} .rv-spin-stage{position:relative;width:100%;max-width:960px;aspect-ratio:16 / 10;display:grid;place-items:center;border-radius:24px;overflow:hidden;cursor:grab;user-select:none;touch-action:pan-y}
 ${S} .rv-spin-stage:active{cursor:grabbing}
@@ -122,7 +122,7 @@ ${S} .rv-scrub[data-live]{height:300vh;height:300svh}
 ${S} .rv-scrub[data-live] > .rv-scene{position:sticky;top:0}
 ${S} .rv-seq{display:block;width:100%}
 ${S} .rv-seq-pin{position:relative}
-${S} .rv-seq-stage{position:relative;display:grid;align-items:end;min-height:clamp(520px,100svh,920px);overflow:hidden;isolation:isolate}
+${S} .rv-seq-stage{position:relative;display:grid;align-items:end;min-height:clamp(520px,100svh,920px);overflow:hidden;overflow:clip;isolation:isolate}
 ${S} .rv-seq-frame{position:absolute;inset:0;z-index:1;width:100%!important;height:100%!important;max-width:none!important;object-fit:cover;display:block}
 ${S} .rv-seq-scrim{position:absolute;inset:0;z-index:2;pointer-events:none}
 ${S} .rv-seq-copy{position:relative;z-index:3;display:flex;flex-direction:column;gap:12px;width:min(46rem,100%);padding:clamp(72px,12vw,120px) clamp(20px,5vw,64px) clamp(28px,6vw,72px)}

@@ -5,13 +5,13 @@ import type { PersistedComponentVisual } from "@/lib/site-style";
 import { resolveImageSource } from "@/lib/brand-logos";
 import { fitsFullBleed } from "@/lib/builder/first-build-image-qa";
 import { contrastRatio, readableOn, toRgb } from "@/lib/readable-color";
-import { isGenericFace, premiumSurface } from "@/lib/site-theme";
+import { pairingRoleFont, premiumSurface } from "@/lib/site-theme";
 import { clampSplit, splitForKey, splitForPointer } from "@/lib/builder/compare-slider";
 import { brushRadius, coverRect, formatElapsed, toolRadius, MAX_BRUSH_TOOLS, coveragePercent, isRevealDone, newGrid, paintAt, strokePoints, type RevealGrid } from "@/lib/builder/reveal-brush";
 import { DEFAULT_OFFER_ANCHOR, DEFAULT_SCENE_ANCHOR, sceneScrim, type SceneAnchor } from "@/lib/builder/cinematic-primitives";
 import { intrinsicSize } from "@/lib/builder/image-campaign";
 import { LensMagnifier, StickySplitStory, TierFader } from "@/components/site/MasterBlocks";
-import { CollectionRow, DialSelector, HeroVideo, SceneVideo, ScrubSequence, ScrubStage, ScrollChapters, SpinViewer, type SpinFrame } from "@/components/site/CinematicBlocks";
+import { CollectionRow, DialSelector, HeroVideo, InlineHeroVideo, SceneVideo, ScrubSequence, ScrubStage, ScrollChapters, SpinViewer, type SpinFrame } from "@/components/site/CinematicBlocks";
 import { CINEMATIC_CSS } from "@/components/site/cinematic-css";
 import { CountUpText } from "@/components/site/CountUp";
 import { ModelViewer } from "@/components/site/ModelViewer";
@@ -76,9 +76,10 @@ export function styleToCss(style: NodeStyle | undefined, type: CompositionNode["
   if (style.letterSpacing != null) css.letterSpacing = `${Math.max(-0.05, Math.min(0.5, style.letterSpacing))}em`;
   if (style.italic) css.fontStyle = "italic";
   if (style.uppercase) css.textTransform = "uppercase";
-  // A stock face (Space Grotesk, Inter…) copied into a layout from the old
-  // platform seed inherits the site's own pairing instead of overriding it.
-  if (style.font && !isGenericFace(style.font)) css.fontFamily = `"${style.font}", var(--font-body, system-ui), sans-serif`;
+  // Every text role uses only the site's pairing (display or body face); a
+  // family named on a node is read as a role, never applied literally.
+  const roleFont = pairingRoleFont(style.font, type === "heading");
+  if (roleFont) css.fontFamily = roleFont;
   if (style.color) css.color = style.color;
   if (style.background && style.gradientTo) {
     css.backgroundImage = `linear-gradient(${style.gradientAngle ?? 180}deg, ${style.background}, ${style.gradientTo})`;
@@ -563,7 +564,16 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
         // so the largest paint is not delayed by lazy loading.
         const first = !ctx.counter.sawMedia;
         ctx.counter.sawMedia = true;
-        const box = intrinsicSize(typeof style.aspectRatio === "string" ? style.aspectRatio : visual?.aspect_ratio ?? null); return source ? <img key={key} {...props} {...(box ? { width: box.width, height: box.height } : {})} src={source} onError={markBrokenImage} alt={node.alt ?? visual?.alt ?? ""} loading={first && ctx.eagerFirstMedia ? "eager" : "lazy"} decoding="async" {...(first && ctx.eagerFirstMedia ? { fetchPriority: "high" as const } : {})} style={{ width: "100%", height: style.aspectRatio || visual?.aspect_ratio ? "100%" : undefined, objectFit: style.objectFit ?? visual?.object_fit ?? (style.aspectRatio ? "cover" : undefined), ...mediaCss(visual), ...props.style }} /> : null; }
+        const box = intrinsicSize(typeof style.aspectRatio === "string" ? style.aspectRatio : visual?.aspect_ratio ?? null);
+        const pictureStyle: CSSProperties = { width: "100%", height: style.aspectRatio || visual?.aspect_ratio ? "100%" : undefined, objectFit: style.objectFit ?? visual?.object_fit ?? (style.aspectRatio ? "cover" : undefined), ...mediaCss(visual), ...props.style };
+        // The home page's hero loop also plays when the top section is not a
+        // full-screen scene (a split hero): it takes the place of the section's
+        // first large picture, which stays as its poster. Before, such a hero
+        // silently dropped the clip and the page had no video at all.
+        const hero = first && source && !VIDEO_SOURCE.test(source) && (!visual?.width || visual.width >= 480) ? ctx.heroVideo ?? null : null;
+        if (first) ctx.heroVideo = null;
+        if (hero && source) return <InlineHeroVideo key={key} {...props} {...(box ? { width: box.width, height: box.height } : {})} src={hero.src} mobileSrc={hero.mobileSrc} poster={source} alt={node.alt ?? visual?.alt ?? ""} loopStart={hero.loopStart} loopEnd={hero.loopEnd} eager={Boolean(ctx.eagerFirstMedia)} style={{ ...pictureStyle, objectFit: pictureStyle.objectFit ?? "cover" }} />;
+        return source ? <img key={key} {...props} {...(box ? { width: box.width, height: box.height } : {})} src={source} onError={markBrokenImage} alt={node.alt ?? visual?.alt ?? ""} loading={first && ctx.eagerFirstMedia ? "eager" : "lazy"} decoding="async" {...(first && ctx.eagerFirstMedia ? { fetchPriority: "high" as const } : {})} style={{ width: "100%", height: style.aspectRatio || visual?.aspect_ratio ? "100%" : undefined, objectFit: style.objectFit ?? visual?.object_fit ?? (style.aspectRatio ? "cover" : undefined), ...mediaCss(visual), ...props.style }} /> : null; }
     case "widget":
       { const w = node.text ? ctx.widget(node.text, node.widgetPresentation) : null;
         return w ? <div key={key} {...props} data-widget={node.text} style={{ ...props.style, ...widgetThemeStyle(node.widgetPresentation?.theme) }}>{w}{kids}</div> : null; }
@@ -743,7 +753,7 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
       );
     case "marquee":
       return (
-        <div key={key} {...props} style={{ overflow: "hidden", ...props.style }}>
+        <div key={key} {...props} style={{ overflow: "clip", ...props.style }}>
           <div className="rv-cn-marquee" style={{ display: "flex", width: "max-content", gap: props.style.gap }}>
             {kids}
             <div aria-hidden="true" inert style={{ display: "flex", gap: props.style.gap }}>{node.children?.map((c, i) => renderNode(c, ctx, `${key}.dup.${i}`))}</div>
@@ -924,7 +934,9 @@ function renderScene(node: CompositionNode, ctx: Ctx, key: string, props: NodePr
   // The home page's hero loop plays over the opening scene's photo; the photo
   // stays underneath as the poster, the no-JS view and the reduced-motion view.
   // An owner's own backdrop video, a scrubbed scene or a small framed photo keep theirs.
-  const hero = first && source && !scrubbed && !framed && !VIDEO_SOURCE.test(source) ? ctx.heroVideo ?? null : null;
+  // A small framed photo keeps its frame; the loop plays behind it instead of
+  // the blurred wash (it used to be dropped, so such a hero never moved).
+  const hero = first && source && !scrubbed && !VIDEO_SOURCE.test(source) ? ctx.heroVideo ?? null : null;
   if (first) ctx.heroVideo = null;
   const heroLayer = hero ? (
     <HeroVideo src={hero.src} mobileSrc={hero.mobileSrc} poster={source} loopStart={hero.loopStart} loopEnd={hero.loopEnd} eager={eager} />
@@ -1433,7 +1445,7 @@ const INTERACTIVE_CSS = `
 .rv-button-underline [data-rv-button]{background:transparent;color:inherit;border:0;border-bottom:2px solid var(--primary);border-radius:0}
 .rv-cn-faq-panel{display:grid;grid-template-rows:0fr;transition:grid-template-rows .24s ease}
 .rv-cn-faq details[open] .rv-cn-faq-panel{grid-template-rows:1fr}
-.rv-cn-faq-panel-inner{min-height:0;overflow:hidden;padding:0 0 14px;white-space:pre-wrap}
+.rv-cn-faq-panel-inner{min-height:0;overflow:hidden;overflow:clip;padding:0 0 14px;white-space:pre-wrap}
 @supports (interpolate-size:allow-keywords){.rv-cn-faq details{interpolate-size:allow-keywords}.rv-cn-faq details::details-content{block-size:0;overflow:clip;transition:block-size .24s ease,content-visibility .24s;transition-behavior:allow-discrete}.rv-cn-faq details[open]::details-content{block-size:auto}}
 .rv-cn-tab-list{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;border-bottom:1px solid currentColor}
 .rv-cn-tab{position:relative;min-height:44px;padding:0 16px;border:0;border-radius:0;background:transparent;color:inherit;font:inherit;font-weight:650;cursor:pointer;opacity:.65}
@@ -1467,7 +1479,11 @@ export const PHONE_SAFETY_CSS = `[data-composition]{box-sizing:border-box;max-wi
 // eslint-disable-next-line react-refresh/only-export-components -- renderer helper, exported for tests.
 export const BROKEN_MEDIA_CSS = `[data-rv-card]:has(img[data-rv-broken]):not(:has(.rv-cn-copy,a,li,blockquote,form,[data-widget],video,iframe,canvas,svg,img:not([data-rv-broken]))){display:none}img[data-rv-broken]{display:none}`;
 
-const MOTION_CSS = `@media (prefers-reduced-motion: no-preference){.rv-cn-motion{animation:rv-cn-in .7s ease both}.rv-cn-motion[data-motion=rise]{animation-name:rv-cn-rise}.rv-cn-motion[data-motion=scale]{animation-name:rv-cn-scale}.rv-cn-motion[data-motion=float]{animation:rv-cn-float 6s ease-in-out infinite}.rv-cn-motion[data-motion=slide-left]{animation-name:rv-cn-sl}.rv-cn-motion[data-motion=slide-right]{animation-name:rv-cn-sr}.rv-cn-motion[data-motion=blur]{animation-name:rv-cn-blur}.rv-cn-motion[data-motion=reveal]{animation-name:rv-cn-reveal}.rv-cn-motion[data-motion=custom]{animation-name:rv-cn-custom}}@keyframes rv-cn-custom{from{opacity:var(--rv-o,1);transform:translate(var(--rv-x,0),var(--rv-y,0)) scale(var(--rv-s,1)) rotate(var(--rv-r,0));filter:blur(var(--rv-b,0))}}@keyframes rv-cn-sl{from{opacity:0;transform:translateX(32px)}to{opacity:1;transform:none}}@keyframes rv-cn-sr{from{opacity:0;transform:translateX(-32px)}to{opacity:1;transform:none}}@keyframes rv-cn-blur{from{opacity:0;filter:blur(12px)}to{opacity:1;filter:none}}@keyframes rv-cn-reveal{from{clip-path:inset(0 0 100% 0)}to{clip-path:inset(0 0 0 0)}}@keyframes rv-cn-in{from{opacity:0}to{opacity:1}}@keyframes rv-cn-rise{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:none}}@keyframes rv-cn-scale{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:none}}@keyframes rv-cn-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}@media (prefers-reduced-motion:no-preference){img.rv-scene-media[data-kenburns]{animation:rv-kenburns 28s ease-in-out infinite alternate;transform-origin:60% 40%}}@keyframes rv-kenburns{from{transform:scale(1)}to{transform:scale(1.08) translate(-1%,-1%)}}@supports (animation-timeline:view()){@media (prefers-reduced-motion:no-preference){.rv-cn-auto{animation:rv-cn-rise linear both;animation-timeline:view();animation-range:entry calc(var(--rv-i,0)*16px) entry calc(180px + var(--rv-i,0)*16px)}}}`;
+// Entrance motion is transform-only: content is fully visible at every point
+// of the animation. A view() timeline binds to the nearest scroll container,
+// and an overflow:hidden card or panel is one that never scrolls, so faded
+// from-states froze sections blank ("How working with us goes", FAQs).
+const MOTION_CSS = `@media (prefers-reduced-motion: no-preference){.rv-cn-motion{animation:rv-cn-in .7s ease both}.rv-cn-motion[data-motion=rise]{animation-name:rv-cn-rise}.rv-cn-motion[data-motion=scale]{animation-name:rv-cn-scale}.rv-cn-motion[data-motion=float]{animation:rv-cn-float 6s ease-in-out infinite}.rv-cn-motion[data-motion=slide-left]{animation-name:rv-cn-sl}.rv-cn-motion[data-motion=slide-right]{animation-name:rv-cn-sr}.rv-cn-motion[data-motion=blur]{animation-name:rv-cn-blur}.rv-cn-motion[data-motion=reveal]{animation-name:rv-cn-reveal}.rv-cn-motion[data-motion=custom]{animation-name:rv-cn-custom}}@keyframes rv-cn-custom{from{transform:translate(var(--rv-x,0),var(--rv-y,0)) scale(var(--rv-s,1)) rotate(var(--rv-r,0))}}@keyframes rv-cn-sl{from{transform:translateX(16px)}to{transform:none}}@keyframes rv-cn-sr{from{transform:translateX(-16px)}to{transform:none}}@keyframes rv-cn-blur{from{transform:scale(.98)}to{transform:none}}@keyframes rv-cn-reveal{from{transform:translateY(16px)}to{transform:none}}@keyframes rv-cn-in{from{transform:translateY(8px)}to{transform:none}}@keyframes rv-cn-rise{from{transform:translateY(16px)}to{transform:none}}@keyframes rv-cn-scale{from{transform:scale(.97)}to{transform:none}}@keyframes rv-cn-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}@media (prefers-reduced-motion:no-preference){img.rv-scene-media[data-kenburns]{animation:rv-kenburns 28s ease-in-out infinite alternate;transform-origin:60% 40%}}@keyframes rv-kenburns{from{transform:scale(1)}to{transform:scale(1.08) translate(-1%,-1%)}}@supports (animation-timeline:view()){@media (prefers-reduced-motion:no-preference){.rv-cn-auto{animation:rv-cn-rise linear both;animation-timeline:view();animation-range:entry calc(var(--rv-i,0)*16px) entry calc(180px + var(--rv-i,0)*16px)}}}`;
 
 export function CompositionRenderer({ tree, scope, as = "section", resolveHref, resolveMedia, resolveWidget, resolveOffer, eagerFirstMedia = false, heroVideo = null, surface = null, linkLabel, editable = false }: { tree: CompositionTree; /** The home page's hero loop, for the first section only. */ heroVideo?: HeroVideoMedia | null; scope: string; editable?: boolean; surface?: string | null; linkLabel?: (text: string) => string; as?: "section" | "div"; resolveHref?: (href: string) => string; resolveMedia?: (ref: string) => ResolvedMedia | null; resolveWidget?: (name: string, presentation?: WidgetPresentation) => ReactNode; /** Real service facts for offer cards (Services tool); without it no price is shown. */ resolveOffer?: (service: string) => OfferFacts | null; eagerFirstMedia?: boolean }) {
   const page = surface && /^#[0-9a-f]{6}$/i.test(surface) ? surface : undefined;

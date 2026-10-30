@@ -28,6 +28,7 @@ import { ReviewWall } from "@/components/site/LiveBlocks";
 import { EnquiryForm } from "@/components/site/SiteForms";
 import { PreviewSelectBridge } from "@/components/site/PreviewSelectBridge";
 import { SiteBackdrop } from "@/components/site/SiteBackdrop";
+import { SiteFontLinks } from "@/components/site/SiteFontLinks";
 import { SiteScrollProgress } from "@/components/site/SiteScrollProgress";
 import { isPlaceholderPalette, siteFontStyle, siteThemeStyle } from "@/lib/site-theme";
 import { siteFontFor } from "@/lib/site-font-pairings";
@@ -211,11 +212,15 @@ export function SitePageView({
           accentColor: profile?.accent_color ?? null,
         }),
         ...siteFontStyle(siteFontFor(profile?.font_preference ?? null, org)),
+        // The vars alone do not change the face: body text inherited the app's
+        // DM Sans from <body>. The site root sets its own pairing's body face.
+        fontFamily: "var(--font-body)",
         ...designTokenVars(readDesignTokens(site.settings?.generation ?? null)),
         ...(studioPage.studio ? studioThemeVars(studioCanvas) : {}),
       }}
       {...(studioPage.studio ? { "data-studio": "" } : {})}
     >
+      <SiteFontLinks font={siteFontFor(profile?.font_preference ?? null, org)} />
       <SiteBackdrop
         backdrop={readBackdrop(site.settings?.generation ?? null)}
         composition={readComposition(site.settings?.generation ?? null)}

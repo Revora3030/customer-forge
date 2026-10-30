@@ -358,15 +358,9 @@ export function clientHeadExtrasSync(
   siteFontsHref: (preference: string | null | undefined, extra: string[]) => string | null,
   readSiteChrome: (generation: unknown) => { header: unknown; footer: unknown },
 ) {
-  const chrome = readSiteChrome(site.settings?.generation ?? null);
-  const trees = [
-    ...(site.content?.sections ?? []).map((section) => (section.settings as { composition?: unknown } | null)?.composition),
-    chrome.header,
-    chrome.footer,
-  ];
-  // The same resolved type the page renders with (a curated pairing unless the
-  // site chose a distinctive face), so the faces are requested up front.
-  const fontsHref = siteFontsHref(siteFontFor(site.profile?.font_preference, site.org), compositionFonts(trees));
+  // Only the site's own pairing is requested: layout nodes never use another
+  // family (pairingRoleFont), so AI-named faces are not downloaded either.
+  const fontsHref = siteFontsHref(siteFontFor(site.profile?.font_preference, site.org), []);
   const theme = siteThemeColor(site.profile);
   const shareImage = site.content?.page?.og_image_url || site.profile?.hero_image_url || null;
   return {

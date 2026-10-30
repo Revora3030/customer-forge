@@ -7,9 +7,11 @@
  * until the owner publishes again.
  */
 import { createServerFn } from "@tanstack/react-start";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/integrations/supabase/types";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { isOrgStoragePath, isStoragePath } from "@/lib/media";
-import { heroVideoDisabled, heroVideoTrade, readHeroVideo, type HeroVideoPointer } from "@/lib/builder/hero-stock-video";
+import { heroVideoDisabled, heroVideoSlot, heroVideoTrade, readHeroVideo, readHeroVideoStatus, type HeroVideoPointer, type HeroVideoStatus } from "@/lib/builder/hero-stock-video";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const VIDEO_PATH = /\.(mp4|webm|m4v|mov)$/i;
@@ -30,7 +32,27 @@ type Summary = {
   trade: string | null;
   /** Whether the optional PEXELS_API_KEY is configured (never the value). */
   searchEnabled: boolean;
+  /** The last attach attempt (after a build, or the owner's), if any. */
+  lastAttempt: HeroVideoStatus | null;
+  /** Where the home page's top section can show the loop ("none": nowhere). */
+  slot: "scene" | "picture" | "none" | "unknown";
 };
+
+/** Reads the draft home page's first section and asks where a loop can play. */
+async function homeHeroSlot(db: SupabaseClient<Database>, organizationId: string): Promise<Summary["slot"]> {
+  try {
+    const { data: pages } = await db.from("website_pages").select("id").eq("organization_id", organizationId).eq("kind", "home").limit(1);
+    const pageId = (pages?.[0] as { id?: string } | undefined)?.id;
+    if (!pageId) return "unknown";
+    const { data: sections } = await db.from("website_sections").select("settings, sort_order").eq("organization_id", organizationId).eq("page_id", pageId).order("sort_order").limit(1);
+    const settings = (sections?.[0] as { settings?: unknown } | undefined)?.settings;
+    const { readComposition } = await import("@/lib/builder/composition-tree");
+    const tree = readComposition(settings);
+    return tree ? heroVideoSlot(tree) : "unknown";
+  } catch {
+    return "unknown";
+  }
+}
 
 /** What the top-of-page video is right now. Safe to show the owner. */
 export const heroVideoState = createServerFn({ method: "GET" })
@@ -51,6 +73,8 @@ export const heroVideoState = createServerFn({ method: "GET" })
       licenseUrl: pointer?.licenseUrl ?? null,
       trade,
       searchEnabled: Boolean(process.env["PEXELS_API_KEY"]),
+      lastAttempt: readHeroVideoStatus(generation),
+      slot: await homeHeroSlot(context.supabase, data.organizationId),
     };
   });
 
@@ -64,6 +88,8 @@ export const addStockHeroVideo = createServerFn({ method: "POST" })
     const { ensureHeroStockVideo, heroTradeText } = await import("@/lib/builder/hero-stock-video.server");
     const tradeText = await heroTradeText(context.supabase as never, data.organizationId);
     const result = await ensureHeroStockVideo(context.supabase as never, data.organizationId, { tradeText, replace: data.replace });
+    const { recordHeroVideoStatus } = await import("@/lib/builder/hero-stock-video.server");
+    await recordHeroVideoStatus(context.supabase as never, data.organizationId, result, "owner");
     return { status: result.status, message: result.message };
   });
 

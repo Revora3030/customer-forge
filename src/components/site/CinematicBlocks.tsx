@@ -46,7 +46,10 @@ export function SceneVideo({ src, alt, eager }: { src: string; alt: string; eage
  * screen, and an optional loop window keeps a long stock clip to a short web
  * loop.
  */
-export function HeroVideo({ src, mobileSrc, poster, loopStart = 0, loopEnd = null, eager }: { src: string; mobileSrc?: string | null; poster?: string | null; loopStart?: number; loopEnd?: number | null; eager: boolean }) {
+type HeroLoop = { src: string; mobileSrc?: string | null; loopStart?: number; loopEnd?: number | null; eager: boolean };
+
+/** Attaches the loop when it nears the screen, pauses it off screen; never under reduced motion. */
+function useHeroLoop({ src, mobileSrc, loopStart = 0, loopEnd = null, eager }: HeroLoop) {
   const ref = useRef<HTMLVideoElement>(null);
   const [playing, setPlaying] = useState(false);
   useEffect(() => {
@@ -92,6 +95,11 @@ export function HeroVideo({ src, mobileSrc, poster, loopStart = 0, loopEnd = nul
       video.removeEventListener("timeupdate", onTime);
     };
   }, [src, mobileSrc, loopStart, loopEnd, eager]);
+  return { ref, playing };
+}
+
+export function HeroVideo({ poster, ...loop }: HeroLoop & { poster?: string | null }) {
+  const { ref, playing } = useHeroLoop(loop);
   return (
     <video
       ref={ref}
@@ -100,6 +108,36 @@ export function HeroVideo({ src, mobileSrc, poster, loopStart = 0, loopEnd = nul
       {...(playing ? { "data-playing": "" } : {})}
       poster={poster ?? undefined}
       aria-hidden="true"
+      tabIndex={-1}
+      muted
+      playsInline
+      loop
+      preload="none"
+      disablePictureInPicture
+      disableRemotePlayback
+    />
+  );
+}
+
+/**
+ * The hero loop in place of the top section's first picture when that section
+ * is not a full-screen scene (a split or framed hero). The picture is the
+ * poster, so it shows without JavaScript, under reduced motion and until the
+ * clip plays; the element keeps the picture's size, styling and description.
+ */
+export function InlineHeroVideo({ poster, alt, className, style, width, height, ...loop }: HeroLoop & { poster: string; alt: string; className?: string | undefined; style?: CSSProperties | undefined; width?: number | undefined; height?: number | undefined }) {
+  const { ref, playing } = useHeroLoop(loop);
+  return (
+    <video
+      ref={ref}
+      className={`${className ?? ""} rv-hero-inline`.trim()}
+      style={style}
+      width={width}
+      height={height}
+      data-hero-video=""
+      {...(playing ? { "data-playing": "" } : {})}
+      poster={poster}
+      {...(alt ? { role: "img", "aria-label": alt } : { "aria-hidden": true })}
       tabIndex={-1}
       muted
       playsInline

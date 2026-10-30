@@ -260,6 +260,25 @@ export const GENERIC_FACES: ReadonlySet<string> = new Set(
 export const isGenericFace = (name: string | null | undefined): boolean =>
   !name || GENERIC_FACES.has(name.trim().toLowerCase().replace(/\s+/g, " "));
 
+/**
+ * The ONE family a layout node may use: the site's own pairing, by role.
+ *
+ * AI layouts name families per node ("Barlow Condensed" on menu links, "Source
+ * Sans 3" on paragraphs). Applied literally they were never loaded and broke
+ * the pairing, so a page showed four faces. A heading, a display slot or a
+ * family known as a display face maps to the pairing's display face; every
+ * other text maps to its body face; "mono" keeps a code face.
+ */
+export function pairingRoleFont(font: string | null | undefined, heading: boolean): string | undefined {
+  if (typeof font !== "string" || !font.trim()) return undefined;
+  const name = font.trim().replace(/\s+/g, " ");
+  const slot = name.toLowerCase();
+  if (slot === "mono" || slot === "monospace") return "ui-monospace, SFMono-Regular, Menlo, monospace";
+  const display =
+    heading || slot === "display" || slot === "heading" || (name in SITE_HEADING_FONTS && !(name in SITE_TEXT_FONTS));
+  return display ? "var(--font-heading)" : "var(--font-body)";
+}
+
 const headingSpec = (name: string) =>
   SITE_ITALIC_FONTS[name] ?? SITE_HEADING_FONTS[name] ?? `${name.replace(/ /g, "+")}:wght@400;500;600;700`;
 const bodySpec = (name: string) => SITE_TEXT_FONTS[name] ?? `${name.replace(/ /g, "+")}:wght@400;500;600;700`;

@@ -700,7 +700,8 @@ export function blockCss(style: BlockStyle, surface?: string | null): React.CSSP
   const css: React.CSSProperties = {};
   if (style.font) {
     const slot = FONT_CSS[style.font as (typeof FONT_FAMILIES)[number]];
-    css.fontFamily = slot ?? `"${style.font}", system-ui, sans-serif`;
+    // Only the site's pairing is ever used: a named family reads as body text.
+    css.fontFamily = slot ?? "var(--font-body)";
   }
   if (style.size !== null) {
     css.fontSize = `${style.size}px`;
