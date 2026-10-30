@@ -204,6 +204,13 @@
       "when": 1793325404229,
       "tag": "0028_20260928190000_builder_restore_point_fix",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1793325430141,
+      "tag": "0029_20261003010000_membership_role_guard",
+      "breakpoints": true
     }
   ]
 }
