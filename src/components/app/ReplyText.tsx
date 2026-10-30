@@ -4,9 +4,21 @@ import { Check, Copy } from "lucide-react";
 /** Bold (**text**), italic (*text*), strikethrough (~~text~~), inline code (`text`), and auto-links. */
 function inline(text: string): ReactNode[] {
   // Split on markdown inline patterns while keeping delimiters
-  const parts = text.split(/(\*\*[^*]+\*\*|`[^`]+`|\*[^*\n]+\*|~~[^~]+~~|\bhttps?:\/\/[^\s]+)/g);
+  // Markdown links ([label](https://…)) come first so the URL inside them is
+  // never auto-linked on its own (that left "[label](" on screen).
+  const parts = text.split(/(\[[^\]\n]+\]\((?:https?:\/\/|mailto:|tel:)[^)\s]+\)|\*\*[^*]+\*\*|`[^`]+`|\*[^*\n]+\*|~~[^~]+~~|\bhttps?:\/\/[^\s]+)/g);
   return parts.map((part, index) => {
     if (!part) return null;
+    const mdLink = /^\[([^\]\n]+)\]\(((?:https?:\/\/|mailto:|tel:)[^)\s]+)\)$/.exec(part);
+    if (mdLink) {
+      const external = /^https?:/i.test(mdLink[2]!);
+      return (
+        <a key={index} href={mdLink[2]} {...(external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+          className="break-words text-primary underline decoration-primary/30 underline-offset-2 hover:decoration-primary">
+          {mdLink[1]}
+        </a>
+      );
+    }
     if (part.startsWith("**") && part.endsWith("**") && part.length > 4)
       return <strong key={index} className="font-semibold text-foreground">{part.slice(2, -2)}</strong>;
     if (part.startsWith("`") && part.endsWith("`") && part.length > 2)
@@ -16,13 +28,20 @@ function inline(text: string): ReactNode[] {
     if (part.startsWith("~~") && part.endsWith("~~") && part.length > 4)
       return <span key={index} className="line-through opacity-70">{part.slice(2, -2)}</span>;
     if (/^https?:\/\//.test(part)) {
-      const href = part.replace(/[.,;!?)]$/, "");
-      const display = href.replace(/^https?:\/\/(www\.)?/, "").slice(0, 50);
+      // Sentence punctuation after a bare URL ("see https://x.com/a)." ) stays
+      // visible as text instead of being swallowed into or dropped from the link.
+      const href = part.replace(/[.,;:!?)\]'"]+$/, "");
+      const tail = part.slice(href.length);
+      const shown = href.replace(/^https?:\/\/(www\.)?/, "");
+      const display = shown.slice(0, 50);
       return (
-        <a key={index} href={href} target="_blank" rel="noopener noreferrer"
-          className="text-primary underline decoration-primary/30 underline-offset-2 hover:decoration-primary">
-          {display}{href.length > 50 ? "…" : ""}
-        </a>
+        <Fragment key={index}>
+          <a href={href} target="_blank" rel="noopener noreferrer"
+            className="break-all text-primary underline decoration-primary/30 underline-offset-2 hover:decoration-primary">
+            {display}{shown.length > 50 ? "…" : ""}
+          </a>
+          {tail}
+        </Fragment>
       );
     }
     return <Fragment key={index}>{part}</Fragment>;
