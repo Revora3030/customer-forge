@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ineligibleReason, parseCatalogue, routeStatus, staleRosterIds, surfaceFor } from "./catalogue";
-import { catalogueFilterFor, liveCatalogue, resetCatalogueCache } from "./catalogue.server";
+import { catalogueFilterFor, eligibleCatalogueModelsForRole, liveCatalogue, resetCatalogueCache } from "./catalogue.server";
 import { LOVABLE_CONVERSATION_MODELS, parsePickedModel } from "./lovable-models";
 
 const entry = (id: string, surfaces: string[], extra: Record<string, unknown> = {}) => ({
@@ -151,6 +151,24 @@ describe("liveCatalogue (server)", () => {
     expect(allow?.("openai/gpt-5")).toBe(false);
     vi.stubEnv("AI_CATALOGUE_FILTER", "off");
     expect(await catalogueFilterFor("design")).toBeNull();
+    vi.unstubAllGlobals();
+  });
+
+  it("discovers compatible live text models as dynamic fallbacks without routing other endpoints", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(PAYLOAD), { status: 200 })));
+    const design = await eligibleCatalogueModelsForRole("design");
+    expect(design).toContain("openai/gpt-6.1-sol");
+    expect(design).toContain("anthropic/claude-sonnet-5");
+    expect(design).toContain("google/gemini-3.1-flash-lite");
+    for (const unavailable of ["openai/gpt-5.5-pro", "openai/gpt-5", "google/gemini-3.6-flash", "openai/gpt-image-2", "google/veo-3.1"])
+      expect(design).not.toContain(unavailable);
+
+    const vision = await eligibleCatalogueModelsForRole("vision");
+    expect(vision).toContain("openai/gpt-6.1-sol");
+    expect(vision).toContain("anthropic/claude-sonnet-5");
+    expect(vision).not.toContain("google/gemini-3.1-flash-lite");
+    vi.stubEnv("AI_CATALOGUE_FILTER", "off");
+    expect(await eligibleCatalogueModelsForRole("design")).toEqual([]);
     vi.unstubAllGlobals();
   });
 });

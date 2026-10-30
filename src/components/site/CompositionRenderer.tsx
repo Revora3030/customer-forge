@@ -97,9 +97,12 @@ export function styleToCss(style: NodeStyle | undefined, type: CompositionNode["
   if (style.zIndex != null) css.zIndex = style.zIndex;
   if (style.overlap != null) { css.marginTop = -style.overlap; css.position = css.position ?? "relative"; }
   if (style.blur != null) { css.backdropFilter = `blur(${style.blur}px)`; css.WebkitBackdropFilter = `blur(${style.blur}px)`; }
-  // The independent `rotate` property, so hover lift and entrance motion
-  // (which animate \`transform\`) no longer wipe out an authored rotation.
-  if (style.rotate != null) css.rotate = `${style.rotate}deg`;
+  // Independent transform properties keep authored depth and rotation separate from entrance animation transforms.
+  if (style.perspective != null) css.perspective = `${style.perspective}px`;
+  if (style.depth != null) css.translate = `0 0 ${style.depth}px`;
+  if (style.transformStyle) css.transformStyle = style.transformStyle;
+  if (style.backfaceVisibility) css.backfaceVisibility = style.backfaceVisibility;
+  if (style.rotate != null) css.rotate = style.rotateAxis && style.rotateAxis !== "z" ? `${style.rotateAxis} ${style.rotate}deg` : `${style.rotate}deg`;
   if (style.gridAreas && type === "grid") css.gridTemplateAreas = style.gridAreas;
   if (style.area) css.gridArea = style.area;
   return css;
@@ -197,6 +200,7 @@ function baseLayout(type: CompositionNode["type"]): CSSProperties {
     case "stack": return { display: "flex", flexDirection: "column", ...stretch };
     case "row": return { display: "flex", flexWrap: "wrap", ...stretch };
     case "grid": return { display: "grid", ...stretch };
+    case "scene3d": return { display: "block", position: "relative", perspective: "1200px", transformStyle: "preserve-3d", isolation: "isolate", ...stretch };
     case "button": return { display: "inline-flex", alignItems: "center", justifyContent: "center", minHeight: 44, minWidth: 44, textDecoration: "none" };
     case "spacer": return { minHeight: 24 };
     default: return stretch;
@@ -360,7 +364,7 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
   const kids = prunedChildren.map((child, i) => renderNode(child, ctx, `${key}.${i}`));
   // A box whose contents all resolved to nothing (missing facts, unavailable
   // widget or image) is dropped so visitors never see an empty styled frame.
-  const EMPTY_PRUNE = new Set(["card", "stack", "row", "grid"]);
+  const EMPTY_PRUNE = new Set(["card", "stack", "row", "grid", "scene3d"]);
   if (EMPTY_PRUNE.has(node.type) && !node.text && node.children?.length && kids?.every((k) => k == null)) return null;
 
 
@@ -799,8 +803,11 @@ const HOVER_SHADOW = { none: "none", subtle: "0 4px 14px rgb(0 0 0 / .08)", medi
 // eslint-disable-next-line react-refresh/only-export-components -- renderer helpers are intentionally co-located with their composition types.
 export function hoverCss(id: string, h: NodeHover): string {
   const t: string[] = [];
-  if (h.x || h.y) t.push(`translate(${h.x ?? 0}px,${h.y ?? 0}px)`);
+  if (h.z) t.push(`translate3d(${h.x ?? 0}px,${h.y ?? 0}px,${h.z}px)`);
+  else if (h.x || h.y) t.push(`translate(${h.x ?? 0}px,${h.y ?? 0}px)`);
   if (h.scale != null && h.scale !== 1) t.push(`scale(${h.scale})`);
+  if (h.rotateX) t.push(`rotateX(${h.rotateX}deg)`);
+  if (h.rotateY) t.push(`rotateY(${h.rotateY}deg)`);
   if (h.rotate) t.push(`rotate(${h.rotate}deg)`);
   const decl = [t.length ? `transform:${t.join(" ")}` : "", h.opacity != null ? `opacity:${h.opacity / 100}` : "", h.shadow ? `box-shadow:${HOVER_SHADOW[h.shadow]}` : ""].filter(Boolean).join(";");
   const sel = `[data-cn="${id}"]`;

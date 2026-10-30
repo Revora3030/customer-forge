@@ -17,7 +17,7 @@ import {
 import { MAX_BRUSH_TOOLS } from "@/lib/builder/reveal-brush";
 
 export const COMPOSITION_PRIMITIVES = [
-  "stack", "grid", "row", "text", "heading", "media", "button", "link",
+  "stack", "grid", "row", "scene3d", "text", "heading", "media", "button", "link",
   "card", "list", "divider", "spacer", "icon",
   "tabs", "toggle", "accordion", "compare", "marquee", "gallery", "quote", "widget",
   "before_after_slider", "faq_accordion", "tab_group", "mobile_sticky_bar",
@@ -96,6 +96,7 @@ export const PRIMITIVE_GUIDE =
   "collection_row (a horizontally scrolling, snap-aligned row of offer_card children, each with its picture, name, optional real-service price and an accent button; keyboard and swipe friendly). " +
   "widget (text is one of booking_form|quote_calculator|enquiry_form|contact_details|direct_contact|service_menu|review_wall — enquiry_form is the site's working message form (name, phone/email, message; saved to the owner's leads); booking_form/quote_calculator drop the site's real working form, verified phone/email/hours/area, the live service menu (names, prices, durations straight from the owner's Services tool) or the live published reviews into your layout; style its wrapper freely, never retype those facts yourself; service_menu and review_wall stay in sync when the owner edits services or publishes reviews). For working widgets, widgetPresentation may author visible labels, helper/success copy and a bounded local theme (surface, text, muted, border, action, actionText, selected, selectedText); never put business data or pricing into widgetPresentation — the application supplies those facts. " +
   "Real company logos: a media src of https://img.logo.dev/<domain> (e.g. img.logo.dev/stripe.com) renders that company's real logo — use ONLY for companies the customer actually named as partners, clients or platforms they use; never invent an affiliation. " +
+  "3D scenes: scene3d is an AI-authored perspective container; use style.perspective (120-3000px), style.transformStyle preserve-3d, and child style.depth (-800..800px), style.rotateAxis x|y|z with style.rotate (-45..45deg), and style.backfaceVisibility hidden|visible. Compose real HTML/media layers into original CSS 3D scenes; this is not a generated mesh. " +
   "Layering: style.position (relative|sticky|absolute), style.top/left/right/bottom (px), style.zIndex (0-50), style.overlap (px a block pulls up over the one before it), style.blur (frosted-glass backdrop px), style.rotate (deg), style.gridAreas + style.area for named grid regions. " +
   "Motion: motion.kind fade|rise|scale|float|slide-left|slide-right|blur|reveal, motion.delayMs, motion.durationMs, motion.easing (ease|ease-in|ease-out|ease-in-out|linear|spring|snap); presets are optional shortcuts. " +
   "Or design your own: motion.kind custom with motion.from { opacity 0-100, x/y px -240..240, scale 0.5-1.5, rotate deg -45..45, blur px 0-24 } (the block animates from those values to its designed state), " +
@@ -109,9 +110,14 @@ export type MotionFrom = { opacity?: number; x?: number; y?: number; scale?: num
 export const MOTION_FROM_LIMITS: Record<keyof MotionFrom, [number, number]> = {
   opacity: [0, 100], x: [-240, 240], y: [-240, 240], scale: [0.5, 1.5], rotate: [-45, 45], blur: [0, 24],
 };
-export type NodeHover = { scale?: number; x?: number; y?: number; rotate?: number; opacity?: number; shadow?: "none" | "subtle" | "medium" | "strong"; durationMs?: number };
-export const HOVER_LIMITS: Record<"scale" | "x" | "y" | "rotate" | "opacity" | "durationMs", [number, number]> = {
-  scale: [0.9, 1.15], x: [-24, 24], y: [-24, 24], rotate: [-10, 10], opacity: [40, 100], durationMs: [100, 800],
+export type NodeHover = {
+  scale?: number; x?: number; y?: number; z?: number;
+  rotate?: number; rotateX?: number; rotateY?: number;
+  opacity?: number; shadow?: "none" | "subtle" | "medium" | "strong"; durationMs?: number;
+};
+export const HOVER_LIMITS: Record<"scale" | "x" | "y" | "z" | "rotate" | "rotateX" | "rotateY" | "opacity" | "durationMs", [number, number]> = {
+  scale: [0.9, 1.15], x: [-24, 24], y: [-24, 24], z: [-80, 80],
+  rotate: [-10, 10], rotateX: [-15, 15], rotateY: [-15, 15], opacity: [40, 100], durationMs: [100, 800],
 };
 export type NodeMotion = {
   kind: MotionKind; delayMs?: number; durationMs?: number; easing?: MotionEasing;
@@ -161,6 +167,12 @@ export type NodeStyle = {
   overlap?: number;
   blur?: number;
   rotate?: number;
+  /** CSS 3D positioning, accepted only as bounded numeric values. */
+  depth?: number;
+  perspective?: number;
+  rotateAxis?: "x" | "y" | "z";
+  transformStyle?: "flat" | "preserve-3d";
+  backfaceVisibility?: "hidden" | "visible";
   gridAreas?: string;
   area?: string;
 };
@@ -261,6 +273,7 @@ const NUMERIC: Record<string, [number, number]> = {
   opacity: [0, 100], minHeight: [0, 1600],
   top: [-400, 1600], left: [-400, 1600], right: [-400, 1600], bottom: [-400, 1600],
   zIndex: [0, 50], overlap: [0, 400], blur: [0, 40], rotate: [-45, 45],
+  depth: [-800, 800], perspective: [120, 3000],
 };
 const ENUMS: Record<string, readonly string[]> = {
   align: ["left", "center", "right"],
@@ -269,6 +282,9 @@ const ENUMS: Record<string, readonly string[]> = {
   shadow: ["none", "subtle", "medium", "strong"],
   objectFit: ["cover", "contain", "fill"],
   position: ["relative", "sticky", "absolute"],
+  rotateAxis: ["x", "y", "z"],
+  transformStyle: ["flat", "preserve-3d"],
+  backfaceVisibility: ["hidden", "visible"],
 };
 const ENUM_ALIASES: Record<string, string> = {
   "space-between": "between", "flex-start": "start", "flex-end": "end",
@@ -435,6 +451,9 @@ function checkStyle(style: unknown, path: string, issues: CompositionIssue[], no
   }
   const fg = out["color"] as string | undefined;
   const bg = out["background"] as string | undefined;
+  if (out["rotateAxis"] != null && out["rotate"] == null) {
+    issues.push({ path: path + ".rotateAxis", problem: "rotateAxis requires rotate" });
+  }
   if (fg && bg) {
     const ratio = contrastRatio(fg, bg);
     // WCAG AA: 3:1 is the requirement for large text (24px+, or 18.66px+
@@ -1159,7 +1178,7 @@ export function restyleCompositionTree(
     const style: NodeStyle = { ...(node.style ?? {}) };
     const isButton = node.type === "button" || node.type === "link";
     const isContainer = node.type === "grid" || node.type === "stack" ||
-      node.type === "row" || node.type === "card";
+      node.type === "row" || node.type === "card" || node.type === "scene3d";
     const isText = node.type === "heading" || node.type === "text" ||
       node.type === "list" || node.type === "quote";
 
