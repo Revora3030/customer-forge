@@ -1,6 +1,12 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
-import { invoiceSubscriptionId, organizationForStripeSubscription } from "./webhook-invoice";
+import {
+  invoiceLinePriceId,
+  invoiceRecurringLine,
+  invoiceSetupCents,
+  invoiceSubscriptionId,
+  organizationForStripeSubscription,
+} from "./webhook-invoice";
 
 function fakeAdmin(result: { data: unknown; error: unknown }) {
   const calls: Array<[string, string]> = [];
@@ -68,5 +74,27 @@ describe("invoice without workspace metadata", () => {
     expect(block).toContain('setup_payment_status: "paid"');
     expect(block).toContain("setup_checkout_session_id");
     expect(block).toContain("plan_id: GROWTH_PLAN_ID");
+  });
+});
+
+describe("invoice lines across Stripe API versions", () => {
+  const legacy = { amount: 35000, price: { id: "price_setup1" } };
+  const current = { amount: 0, pricing: { price_details: { price: "price_month1" } } };
+
+  it("reads the price id from line.price or line.pricing.price_details.price", () => {
+    expect(invoiceLinePriceId(legacy)).toBe("price_setup1");
+    expect(invoiceLinePriceId({ price: "price_x1" })).toBe("price_x1");
+    expect(invoiceLinePriceId(current)).toBe("price_month1");
+    expect(invoiceLinePriceId({ amount: 5 })).toBeNull();
+    expect(invoiceLinePriceId(null)).toBeNull();
+  });
+
+  it("finds the setup cents and the recurring line regardless of line order", () => {
+    const invoice = { lines: { data: [legacy, current] } };
+    expect(invoiceSetupCents(invoice, "price_setup1")).toBe(35000);
+    expect(invoiceSetupCents(invoice, "price_other")).toBe(0);
+    expect(invoiceSetupCents(null, "price_setup1")).toBe(0);
+    expect(invoiceRecurringLine(invoice, "price_month1")).toBe(current);
+    expect(invoiceRecurringLine({ lines: { data: [legacy] } }, "price_month1")).toBe(legacy);
   });
 });

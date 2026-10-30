@@ -46,3 +46,55 @@ export async function organizationForStripeSubscription(
   if (error) throw new Error(`invoice_subscription_lookup_failed:${error.code ?? error.message}`);
   return typeof data?.organization_id === "string" ? data.organization_id : null;
 }
+
+/** Minimal invoice line shape, read defensively across Stripe API versions. */
+type InvoiceLine = {
+  amount?: unknown;
+  price?: unknown;
+  pricing?: { price_details?: { price?: unknown } | null } | null;
+};
+
+/**
+ * The Stripe Price id of an invoice line. Older API versions put the Price
+ * object (or id) on `line.price`; since 2025-03-31 it lives only at
+ * `line.pricing.price_details.price`.
+ */
+export function invoiceLinePriceId(line: unknown): string | null {
+  if (!line || typeof line !== "object") return null;
+  const record = line as InvoiceLine;
+  const candidates = [record.price, record.pricing?.price_details?.price];
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.startsWith("price_")) return candidate;
+    if (candidate && typeof candidate === "object") {
+      const id = (candidate as { id?: unknown }).id;
+      if (typeof id === "string" && id.startsWith("price_")) return id;
+    }
+  }
+  return null;
+}
+
+/**
+ * Cents on a paid invoice that belong to the one-time setup Price. The first
+ * Growth System invoice carries the $350 setup line (plus the $0 trial month),
+ * and the setup is already recorded from the verified checkout session as
+ * `setup:<session id>`. Recording the full invoice too would count the same
+ * $350 twice in payments and revenue reports.
+ */
+export function invoiceSetupCents(invoice: unknown, setupPriceId: string): number {
+  if (!invoice || typeof invoice !== "object" || !setupPriceId) return 0;
+  const lines = (invoice as { lines?: { data?: unknown[] } }).lines?.data ?? [];
+  let cents = 0;
+  for (const line of lines) {
+    if (invoiceLinePriceId(line) !== setupPriceId) continue;
+    const amount = (line as InvoiceLine).amount;
+    if (typeof amount === "number" && amount > 0) cents += amount;
+  }
+  return cents;
+}
+
+/** The invoice line for the recurring monthly Price, else the first line. */
+export function invoiceRecurringLine(invoice: unknown, monthlyPriceId: string): unknown {
+  if (!invoice || typeof invoice !== "object") return null;
+  const lines = (invoice as { lines?: { data?: unknown[] } }).lines?.data ?? [];
+  return lines.find((line) => invoiceLinePriceId(line) === monthlyPriceId) ?? lines[0] ?? null;
+}

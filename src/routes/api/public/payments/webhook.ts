@@ -136,13 +136,35 @@ async function handleEvent(event: StripeWebhookEvent, env: StripeEnv) {
         console.error("[payments:webhook] invoice without organization metadata", object?.id);
         break;
       }
-      const priceKey = line?.price ? resolvePriceLookupKey(line.price) : null;
-      const mapped = planFromPriceLookupKey(priceKey);
+      const { invoiceRecurringLine, invoiceSetupCents, invoiceLinePriceId } = await import(
+        "@/lib/webhook-invoice"
+      );
+      const { STRIPE_CATALOG } = await import("@/lib/stripe-catalog");
+      const invoiceCatalog = STRIPE_CATALOG[env];
+      // The recurring line, not whichever line Stripe listed first (the first
+      // invoice also carries the one-time setup line).
+      const recurringLine = (invoiceRecurringLine(object, invoiceCatalog.monthly.stripePriceId) ??
+        line) as typeof line;
+      const priceKey = recurringLine?.price ? resolvePriceLookupKey(recurringLine.price) : null;
+      const mapped =
+        planFromPriceLookupKey(priceKey) ??
+        // API 2025-03-31+ lines carry only a Price id under pricing.price_details.
+        (invoiceLinePriceId(recurringLine) === invoiceCatalog.monthly.stripePriceId
+          ? { planId: GROWTH_PLAN_ID, interval: "monthly" as const }
+          : null);
       const paid = event.type === "invoice.paid";
+      // The setup line was already recorded from the verified checkout session
+      // (`setup:<session>`); count only the rest of this invoice.
+      const setupCents = paid ? invoiceSetupCents(object, invoiceCatalog.setup.stripePriceId) : 0;
+      const invoiceCents = Number(paid ? (object?.amount_paid ?? 0) : (object?.amount_due ?? 0));
+      const recordCents = Math.max(0, invoiceCents - setupCents);
+      // A paid invoice that was only the setup (plus the $0 free month) adds
+      // nothing new: no $0 "Payment received" row or notification.
+      if (paid && setupCents > 0 && recordCents === 0) break;
       await recordStripeTransaction(admin, {
         organizationId,
         stripeId: String(object?.id ?? ""),
-        amount: Number(paid ? (object?.amount_paid ?? 0) : (object?.amount_due ?? 0)) / 100,
+        amount: recordCents / 100,
         currency: String(object?.currency ?? "usd"),
         description: `Revora ${mapped?.planId ? mapped.planId : "subscription"} ${mapped?.interval === "annual" ? "(annual)" : "(monthly)"}`,
         status: paid ? "completed" : "failed",
@@ -150,8 +172,12 @@ async function handleEvent(event: StripeWebhookEvent, env: StripeEnv) {
         interval: mapped?.interval ?? null,
         customerEmail: (object?.customer_email as string | undefined) ?? null,
         environment: env,
-        periodStart: line?.period?.start ? new Date(line.period.start * 1000).toISOString() : null,
-        periodEnd: line?.period?.end ? new Date(line.period.end * 1000).toISOString() : null,
+        periodStart: recurringLine?.period?.start
+          ? new Date(recurringLine.period.start * 1000).toISOString()
+          : null,
+        periodEnd: recurringLine?.period?.end
+          ? new Date(recurringLine.period.end * 1000).toISOString()
+          : null,
       });
       // Dunning: renewal payment intents carry no workspace metadata, so the
       // invoice event is the only reliable place to tell the customer.
