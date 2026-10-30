@@ -6,6 +6,7 @@ import { SiteBaseContext } from "@/components/site/site-address-context";
 import { ProspectClaimBar } from "@/components/site/ProspectClaimBar";
 import { PreviewBeacon } from "@/components/site/PreviewBeacon";
 import { prospectLinkState } from "@/lib/prospect-claim.functions";
+import { previewHeadTitle } from "@/lib/builder/draft-route";
 import { BUSINESS } from "@/lib/business-identity";
 
 /**
@@ -25,15 +26,15 @@ export const Route = createFileRoute("/p/$token")({
         : false;
     return { result, isProspect };
   },
-  head: () => ({
+  head: ({ loaderData }) => ({
     meta: [
-      { title: "Website draft preview — Revora" },
+      { title: previewHeadTitle(loaderData?.result) },
       {
         name: "description",
         content: "A private, time-limited preview of a website draft built with Revora.",
       },
       { name: "robots", content: "noindex, nofollow" },
-      { property: "og:title", content: "Website draft preview — Revora" },
+      { property: "og:title", content: previewHeadTitle(loaderData?.result) },
       {
         property: "og:description",
         content: "A private preview link for reviewing a website draft.",
