@@ -16,6 +16,8 @@
     "test:coverage": "vitest run --coverage",
     "format": "prettier --write .",
     "security:audit": "node scripts/security-audit.mjs",
+    "seo:indexnow": "bun scripts/indexnow-ping.ts",
+    "seo:indexnow:dry": "bun scripts/indexnow-ping.ts --dry-run",
     "security:audit:test": "node scripts/security-audit.contract.mjs",
     "stripe:catalog:contract": "bun scripts/stripe-catalog-contract.mjs",
     "stripe:catalog:contract:sandbox": "bun scripts/stripe-catalog-contract.mjs --env=sandbox",
