@@ -5,6 +5,7 @@ import { PreviewMessage } from "@/components/PreviewMessage";
 import { SiteBaseContext } from "@/components/site/site-address-context";
 import { ProspectClaimBar } from "@/components/site/ProspectClaimBar";
 import { PreviewBeacon } from "@/components/site/PreviewBeacon";
+import { previewHeadTitle } from "@/lib/builder/draft-route";
 import { metaDescription } from "@/lib/seo";
 import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
@@ -22,12 +23,12 @@ export const Route = createFileRoute("/p/$token_/$page")({
   },
   loader: async ({ params }) =>
     getPreviewSite({ data: { token: params.token, pageSlug: params.page } }),
-  head: () => ({
+  head: ({ loaderData, params }) => ({
     meta: [
-      { title: "Website draft page preview — Revora" },
+      { title: previewHeadTitle(loaderData, params.page) },
       { name: "description", content: metaDescription("A private, time-limited preview of a website draft page.") },
       { name: "robots", content: "noindex, nofollow" },
-      { property: "og:title", content: "Website draft page preview — Revora" },
+      { property: "og:title", content: previewHeadTitle(loaderData, params.page) },
       { property: "og:description", content: "A private preview link for reviewing a draft page." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
