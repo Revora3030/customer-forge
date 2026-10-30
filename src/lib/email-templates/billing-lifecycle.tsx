@@ -27,6 +27,8 @@ interface BillingProps {
   chargeDate?: string;
   /** Short, customer-safe reason the card was declined, when Stripe provides one. */
   declineReason?: string;
+  /** Formatted date the public website goes offline after a cancellation (14-day grace). */
+  siteOfflineDate?: string;
 }
 
 const Shell = (props: { preview: string; heading: string; children: React.ReactNode }) => (
@@ -95,7 +97,7 @@ const SaleAlertEmail = (p: BillingProps) => (
 const CanceledEmail = (p: BillingProps) => (
   <Shell
     preview="Your Revora subscription was canceled"
-    heading="Your subscription is set to cancel"
+    heading="Your subscription was canceled"
   >
     <Text style={text}>
       We've processed your cancellation for {p.businessName || "your workspace"}. You keep full
@@ -106,8 +108,33 @@ const CanceledEmail = (p: BillingProps) => (
       After that date your workspace becomes read-only: you can still view and export everything,
       and you can reactivate any time to pick up exactly where you left off.
     </Text>
+    <Text style={text}>
+      Your public website stays online for 14 more days, until{" "}
+      <strong>{p.siteOfflineDate || "14 days after your access ends"}</strong>. After that, visitors
+      see a simple "This site is currently unavailable" page instead. Resubscribe and it comes back
+      automatically, exactly as it was. We'll remind you 3 days before it goes offline.
+    </Text>
     <Text style={text}>Changed your mind? One click keeps everything running.</Text>
     {cta(p.billingUrl || "https://revoragrowthsystems.com/app/billing", "Keep my subscription")}
+  </Shell>
+);
+
+const SiteOfflineWarningEmail = (p: BillingProps) => (
+  <Shell
+    preview={`Your website goes offline on ${p.siteOfflineDate || "in 3 days"}`}
+    heading={`Your website goes offline on ${p.siteOfflineDate || "in 3 days"}`}
+  >
+    <Text style={text}>
+      The Revora subscription for {p.businessName || "your workspace"} has ended, and the 14-day
+      grace period for your public website ends on{" "}
+      <strong>{p.siteOfflineDate || "in 3 days"}</strong>. From then on, visitors and search engines
+      see a simple "This site is currently unavailable" page instead of your site.
+    </Text>
+    <Text style={text}>
+      Nothing is deleted. Resubscribe any time and your website comes back automatically, exactly as
+      it was.
+    </Text>
+    {cta(p.billingUrl || "https://revoragrowthsystems.com/app/billing", "Keep my website online")}
   </Shell>
 );
 
@@ -181,6 +208,7 @@ const data = {
   previousPlan: "Revora Growth System",
   newPlan: "Revora Growth System",
   billingUrl: "https://revoragrowthsystems.com/app/billing",
+  siteOfflineDate: "October 12, 2026",
 };
 
 export const welcomeTemplate = {
@@ -204,6 +232,14 @@ export const canceledTemplate = {
   component: CanceledEmail,
   subject: () => "Your Revora subscription is set to cancel — access continues for now",
   displayName: "Billing: cancellation (win-back)",
+  previewData: data,
+} satisfies TemplateEntry;
+
+export const siteOfflineWarningTemplate = {
+  component: SiteOfflineWarningEmail,
+  subject: (d: Record<string, unknown>) =>
+    `Your website goes offline on ${(d?.["siteOfflineDate"] as string) || "in 3 days"} — resubscribe to keep it`,
+  displayName: "Billing: website going offline (3-day warning)",
   previewData: data,
 } satisfies TemplateEntry;
 

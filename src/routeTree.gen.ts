@@ -134,6 +134,7 @@ import { Route as ApiPublicJobsProspectRepliesRouteImport } from './routes/api/p
 import { Route as ApiPublicJobsSiteContentAuditRouteImport } from './routes/api/public/jobs/site-content-audit'
 import { Route as ApiPublicJobsSiteEngineRouteImport } from './routes/api/public/jobs/site-engine'
 import { Route as ApiPublicJobsSiteHealthRouteImport } from './routes/api/public/jobs/site-health'
+import { Route as ApiPublicJobsSiteHostingRouteImport } from './routes/api/public/jobs/site-hosting'
 import { Route as ApiPublicJobsWeeklyReportRouteImport } from './routes/api/public/jobs/weekly-report'
 import { Route as ApiPublicPaymentsWebhookRouteImport } from './routes/api/public/payments/webhook'
 import { Route as ApiPublicTwilioInboundRouteImport } from './routes/api/public/twilio/inbound'
@@ -804,6 +805,12 @@ const ApiPublicJobsSiteHealthRoute = ApiPublicJobsSiteHealthRouteImport.update({
   path: '/api/public/jobs/site-health',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicJobsSiteHostingRoute =
+  ApiPublicJobsSiteHostingRouteImport.update({
+    id: '/api/public/jobs/site-hosting',
+    path: '/api/public/jobs/site-hosting',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicJobsWeeklyReportRoute =
   ApiPublicJobsWeeklyReportRouteImport.update({
     id: '/api/public/jobs/weekly-report',
@@ -986,6 +993,7 @@ export interface FileRoutesByFullPath {
   '/api/public/jobs/site-content-audit': typeof ApiPublicJobsSiteContentAuditRoute
   '/api/public/jobs/site-engine': typeof ApiPublicJobsSiteEngineRoute
   '/api/public/jobs/site-health': typeof ApiPublicJobsSiteHealthRoute
+  '/api/public/jobs/site-hosting': typeof ApiPublicJobsSiteHostingRoute
   '/api/public/jobs/weekly-report': typeof ApiPublicJobsWeeklyReportRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
   '/api/public/twilio/inbound': typeof ApiPublicTwilioInboundRoute
@@ -1117,6 +1125,7 @@ export interface FileRoutesByTo {
   '/api/public/jobs/site-content-audit': typeof ApiPublicJobsSiteContentAuditRoute
   '/api/public/jobs/site-engine': typeof ApiPublicJobsSiteEngineRoute
   '/api/public/jobs/site-health': typeof ApiPublicJobsSiteHealthRoute
+  '/api/public/jobs/site-hosting': typeof ApiPublicJobsSiteHostingRoute
   '/api/public/jobs/weekly-report': typeof ApiPublicJobsWeeklyReportRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
   '/api/public/twilio/inbound': typeof ApiPublicTwilioInboundRoute
@@ -1255,6 +1264,7 @@ export interface FileRoutesById {
   '/api/public/jobs/site-content-audit': typeof ApiPublicJobsSiteContentAuditRoute
   '/api/public/jobs/site-engine': typeof ApiPublicJobsSiteEngineRoute
   '/api/public/jobs/site-health': typeof ApiPublicJobsSiteHealthRoute
+  '/api/public/jobs/site-hosting': typeof ApiPublicJobsSiteHostingRoute
   '/api/public/jobs/weekly-report': typeof ApiPublicJobsWeeklyReportRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
   '/api/public/twilio/inbound': typeof ApiPublicTwilioInboundRoute
@@ -1393,6 +1403,7 @@ export interface FileRouteTypes {
     | '/api/public/jobs/site-content-audit'
     | '/api/public/jobs/site-engine'
     | '/api/public/jobs/site-health'
+    | '/api/public/jobs/site-hosting'
     | '/api/public/jobs/weekly-report'
     | '/api/public/payments/webhook'
     | '/api/public/twilio/inbound'
@@ -1524,6 +1535,7 @@ export interface FileRouteTypes {
     | '/api/public/jobs/site-content-audit'
     | '/api/public/jobs/site-engine'
     | '/api/public/jobs/site-health'
+    | '/api/public/jobs/site-hosting'
     | '/api/public/jobs/weekly-report'
     | '/api/public/payments/webhook'
     | '/api/public/twilio/inbound'
@@ -1661,6 +1673,7 @@ export interface FileRouteTypes {
     | '/api/public/jobs/site-content-audit'
     | '/api/public/jobs/site-engine'
     | '/api/public/jobs/site-health'
+    | '/api/public/jobs/site-hosting'
     | '/api/public/jobs/weekly-report'
     | '/api/public/payments/webhook'
     | '/api/public/twilio/inbound'
@@ -1747,6 +1760,7 @@ export interface RootRouteChildren {
   ApiPublicJobsSiteContentAuditRoute: typeof ApiPublicJobsSiteContentAuditRoute
   ApiPublicJobsSiteEngineRoute: typeof ApiPublicJobsSiteEngineRoute
   ApiPublicJobsSiteHealthRoute: typeof ApiPublicJobsSiteHealthRoute
+  ApiPublicJobsSiteHostingRoute: typeof ApiPublicJobsSiteHostingRoute
   ApiPublicJobsWeeklyReportRoute: typeof ApiPublicJobsWeeklyReportRoute
   ApiPublicPaymentsWebhookRoute: typeof ApiPublicPaymentsWebhookRoute
   ApiPublicTwilioInboundRoute: typeof ApiPublicTwilioInboundRoute
@@ -2633,6 +2647,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicJobsSiteHealthRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/jobs/site-hosting': {
+      id: '/api/public/jobs/site-hosting'
+      path: '/api/public/jobs/site-hosting'
+      fullPath: '/api/public/jobs/site-hosting'
+      preLoaderRoute: typeof ApiPublicJobsSiteHostingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/jobs/weekly-report': {
       id: '/api/public/jobs/weekly-report'
       path: '/api/public/jobs/weekly-report'
@@ -3014,6 +3035,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicJobsSiteContentAuditRoute: ApiPublicJobsSiteContentAuditRoute,
   ApiPublicJobsSiteEngineRoute: ApiPublicJobsSiteEngineRoute,
   ApiPublicJobsSiteHealthRoute: ApiPublicJobsSiteHealthRoute,
+  ApiPublicJobsSiteHostingRoute: ApiPublicJobsSiteHostingRoute,
   ApiPublicJobsWeeklyReportRoute: ApiPublicJobsWeeklyReportRoute,
   ApiPublicPaymentsWebhookRoute: ApiPublicPaymentsWebhookRoute,
   ApiPublicTwilioInboundRoute: ApiPublicTwilioInboundRoute,

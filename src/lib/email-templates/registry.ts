@@ -19,6 +19,7 @@ import {
   paymentFailedTemplate,
   planChangedTemplate,
   saleAlertTemplate,
+  siteOfflineWarningTemplate,
   trialEndingTemplate,
   welcomeTemplate,
 } from "./billing-lifecycle";
@@ -56,6 +57,7 @@ export const TEMPLATES: Record<string, TemplateEntry> = {
   "billing-plan-changed": planChangedTemplate,
   "billing-trial-ending": trialEndingTemplate,
   "billing-payment-failed": paymentFailedTemplate,
+  "billing-site-offline-warning": siteOfflineWarningTemplate,
   "lifecycle-welcome": lifecycleWelcomeTemplate,
   "lifecycle-setup-reminder": lifecycleSetupReminderTemplate,
   "lifecycle-booking-followup": lifecycleBookingFollowUpTemplate,

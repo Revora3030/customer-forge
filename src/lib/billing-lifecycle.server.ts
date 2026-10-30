@@ -203,6 +203,13 @@ export async function handleSubscriptionCanceled(
 
   const businessName = await orgName(admin, input.organizationId);
   const accessUntil = fmtDate(input.accessUntil);
+  // The public website stays online for the grace period after access ends
+  // (src/lib/site-hosting.ts); the sweep warns again 3 days before.
+  const { HOSTING_GRACE_DAYS } = await import("@/lib/site-hosting");
+  const accessEndMs = input.accessUntil ? new Date(input.accessUntil).getTime() : Date.now();
+  const siteOfflineDate = fmtDate(
+    new Date(Math.max(accessEndMs, Date.now()) + HOSTING_GRACE_DAYS * 86_400_000).toISOString(),
+  );
   const { email } = await ownerContact(admin, input.organizationId);
 
   if (email) {
@@ -210,6 +217,7 @@ export async function handleSubscriptionCanceled(
       templateData: {
         businessName,
         accessUntil,
+        siteOfflineDate,
         billingUrl: `${APP_URL}/app/billing`,
       },
       idempotencyKey: marker,
@@ -229,6 +237,34 @@ export async function handleSubscriptionCanceled(
 
   await markRan(admin, input.organizationId, marker, { environment: input.environment });
   return { ran: true as const };
+}
+
+/**
+ * The 3-day warning before a canceled workspace's website goes offline
+ * (src/lib/site-hosting.server.ts). The sweep claims the warning once; the
+ * idempotency key also guards against a repeat send.
+ */
+export async function handleSiteOfflineWarning(
+  admin: Admin,
+  input: { organizationId: string; offlineAfter: string },
+) {
+  const businessName = await orgName(admin, input.organizationId);
+  const siteOfflineDate = fmtDate(input.offlineAfter);
+  const { email } = await ownerContact(admin, input.organizationId);
+  if (email) {
+    await sendTemplateEmail("billing-site-offline-warning", email, {
+      templateData: { businessName, siteOfflineDate, billingUrl: `${APP_URL}/app/billing` },
+      idempotencyKey: `site-offline-warning:${input.organizationId}:${input.offlineAfter.slice(0, 10)}`,
+    });
+  }
+  await admin.from("notifications").insert({
+    organization_id: input.organizationId,
+    title: "Your website goes offline soon",
+    body: `Your subscription has ended. Your public website goes offline on ${siteOfflineDate ?? "in 3 days"} and shows a "currently unavailable" page until you resubscribe. Nothing is deleted.`,
+    kind: "warning",
+    link: "/app/billing",
+  });
+  return { sent: Boolean(email) };
 }
 
 export async function handlePlanChanged(

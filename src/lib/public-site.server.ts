@@ -159,7 +159,12 @@ export async function siteIsLive(orgId: string): Promise<boolean> {
   const { data, error } = await supabaseAdmin.from("organizations").select(SITE_ACCESS_COLUMNS).eq("id", orgId).maybeSingle();
   // An unreadable billing row must not take a paying customer's site down.
   if (error) return true;
-  return siteAccess(data as never).live;
+  const access = siteAccess(data as never);
+  if (!access.live || access.reason === "demo" || access.reason === "owner") return access.live;
+  // A canceled subscription's website goes offline after its grace period.
+  const { hostingOfflineAt } = await import("@/lib/site-hosting.server");
+  const offlineAt = await hostingOfflineAt(supabaseAdmin as never, orgId);
+  return siteAccess({ ...(data as object), hosting_offline_at: offlineAt } as never).live;
 }
 
 export async function loadSite(
