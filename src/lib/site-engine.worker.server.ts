@@ -1424,7 +1424,9 @@ async function runJob(
   // built site. Nothing is invented in their place — the build stops and asks
   // for the real information.
   {
-    const { assertContentIntegrity, inspectContentIntegrity } = await import("@/lib/builder/content-integrity");
+    const { assertContentIntegrity, businessFactIntegrityFields, inspectContentIntegrity } = await import(
+      "@/lib/builder/content-integrity"
+    );
     // A placeholder phone number is not a reason to refuse the whole build.
     // It is withheld from the site (never shown, never replaced by an invented
     // number) and the owner is told to add the real one. Every other field
@@ -1437,23 +1439,17 @@ async function runJob(
       copyFacts.phone = null;
       withheldFacts.push("phone");
     }
-    assertContentIntegrity([
-      { field: "business name", value: copyFacts.businessName, heading: true },
-      { field: "description", value: copyFacts.description },
-      { field: "city", value: copyFacts.city },
-      { field: "service area", value: copyFacts.serviceArea },
-      { field: "phone", value: copyFacts.phone },
-      { field: "email", value: copyFacts.email },
-      ...serviceRows.map((service, index) => ({
-        field: `service ${index + 1} name`,
-        value: service.name,
-        heading: true,
-      })),
-      ...serviceRows.map((service, index) => ({
-        field: `service ${index + 1} description`,
-        value: service.description ?? null,
-      })),
-    ]);
+    assertContentIntegrity(
+      businessFactIntegrityFields({
+        businessName: copyFacts.businessName,
+        description: copyFacts.description,
+        city: copyFacts.city,
+        serviceArea: copyFacts.serviceArea,
+        phone: copyFacts.phone,
+        email: copyFacts.email,
+        services: serviceRows,
+      }),
+    );
   }
 
   // Orchestrator pass: business intelligence, customer intent and conversion
@@ -3189,9 +3185,13 @@ export async function drainSiteEngineQueue(
       // attempt is handed back and the job waits 15 min .. 3 h instead of
       // burning its three attempts in two minutes.
       const { AiCapacityParkError } = await import("@/lib/builder/ai-step-error");
-      const deferral = await capacityDeferral(db, String(job.organization_id), attemptStartedAt, job.id, {
-        forced: error instanceof AiCapacityParkError,
-      });
+      // Business details the owner must fix are never parked or retried: the
+      // same input fails the same way, so the job fails now with the field named.
+      const deferral = failure.kind === "intake_validation"
+        ? null
+        : await capacityDeferral(db, String(job.organization_id), attemptStartedAt, job.id, {
+            forced: error instanceof AiCapacityParkError,
+          });
       if (deferral) {
         await db
           .from("generation_jobs")
