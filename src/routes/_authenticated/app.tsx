@@ -38,7 +38,8 @@ import { dateLong, relative } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useBillingState } from "@/lib/stripe.hooks";
 import { trialEndsAtMs } from "@/lib/trial";
-import { useTrialCountdown } from "@/lib/trial-clock";
+import { useTrialExpiry } from "@/lib/trial-clock";
+import { TrialCountdownLabel } from "@/components/app/TrialCountdownLabel";
 import { useQueryClient } from "@tanstack/react-query";
 import { RouteError } from "@/components/app/RouteStates";
 import { WorkspaceSkeleton } from "@/components/app/WorkspaceSkeleton";
@@ -195,8 +196,11 @@ function AppShell() {
   // Per-client countdown: derived from this workspace's own trial_ends_at, so
   // two clients signing up minutes apart each see their own real deadline.
   const trialEnd = trialEndsAtMs(org);
-  const countdown = useTrialCountdown(trialEnd);
-  const trialStillActive = Boolean(countdown && !countdown.expired);
+  // Only the expired/active flip re-renders the layout; the ticking label is
+  // its own component, so pages under this layout (the builder included) no
+  // longer re-render every second.
+  const trial = useTrialExpiry(trialEnd);
+  const trialStillActive = Boolean(trial && !trial.expired);
 
   const paidAccess = Boolean(
     org &&
@@ -229,7 +233,7 @@ function AppShell() {
   }, [data, isLoading, navigate]);
 
   const queryClient = useQueryClient();
-  const trialExpired = Boolean(countdown?.expired);
+  const trialExpired = Boolean(trial?.expired);
   useEffect(() => {
     if (!trialExpired || !org?.id) return;
     // The clock just ran out: re-read billing/workspace state so the paywall
@@ -440,13 +444,11 @@ function AppShell() {
           </div>
 
           <div className="flex items-center gap-2">
-            {trialStillActive && countdown ? (
+            {trialStillActive ? (
               <Pill tone="attention">
                 <span className="whitespace-nowrap">
                   <span className="hidden min-[400px]:inline">Free access · </span>
-                  <span className="tnum font-semibold" aria-live="off">
-                    {countdown.label}
-                  </span>
+                  <TrialCountdownLabel endMs={trialEnd} />
                 </span>
               </Pill>
             ) : paymentRequired && org?.subscription_status === "trialing" ? (

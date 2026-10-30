@@ -59,6 +59,7 @@ import { pageNavLabel, type ContentPage } from "@/lib/website-content";
 import { pageOfSection } from "@/lib/builder/step-target";
 import { cn } from "@/lib/utils";
 import { LiveCanvasSkeleton } from "@/components/app/LiveCanvasSkeleton";
+import { settleStageSize, type StageSize } from "@/lib/builder/stage-size";
 
 const VIEWPORT_ICONS = {
   compact: Smartphone,
@@ -172,14 +173,17 @@ function BuilderPreviewFrame({
   });
   const frameRef = useRef<HTMLIFrameElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
-  const [stageWidth, setStageWidth] = useState(0);
-  const [stageHeight, setStageHeight] = useState(0);
+  const [stageSize, setStageSize] = useState<StageSize>({ width: 0, height: 0 });
+  const stageWidth = stageSize.width;
+  const stageHeight = stageSize.height;
   useEffect(() => {
     const el = stageRef.current;
     if (!el || typeof ResizeObserver === "undefined") return;
     const ro = new ResizeObserver(([entry]) => {
-      setStageWidth(entry?.contentRect.width ?? 0);
-      setStageHeight(entry?.contentRect.height ?? 0);
+      // Rounded, with pixel jitter ignored: raw readings fed back into the
+      // frame size and kept the preview resizing (and animating) forever.
+      const measured = { width: entry?.contentRect.width ?? 0, height: entry?.contentRect.height ?? 0 };
+      setStageSize((previous) => settleStageSize(previous, measured));
     });
     ro.observe(el);
     return () => ro.disconnect();
@@ -694,7 +698,7 @@ const PreviewFrame = forwardRef<
         <figcaption className="mb-1.5 text-center text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</figcaption>
       ) : null}
       <div
-        className="relative overflow-hidden rounded-lg border border-border bg-background shadow-lift transition-[width,height] duration-300"
+        className="relative overflow-hidden rounded-lg border border-border bg-background shadow-lift transition-[width,height] duration-300 motion-reduce:transition-none"
         style={{ width: Math.round(viewportWidth * scale), height: Math.round(frameHeight * scale) }}
       >
         <div className="origin-top-left" style={{ width: viewportWidth, height: frameHeight, transform: `scale(${scale})` }}>

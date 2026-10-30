@@ -16,6 +16,6 @@ export function builderAccessBlock(message: string): BuilderAccessBlock | null {
   if (["authentication required", "not authenticated", "sign in to continue", "session has expired"].some((part) => text.includes(part)))
     return { kind: "authentication", message: "Your session has expired. Sign in to continue.", retryable: false };
   if (["access_denied:", "you do not have access to this organization", "you do not have permission", "you don't have permission"].some((part) => text.includes(part)))
-    return { kind: "permission", message: "You do not have permission for this action. Ask your workspace owner for the appropriate access.", retryable: false };
+    return { kind: "permission", message: "You don't have permission to build in this workspace. Ask the workspace owner for manager access. Support staff: start a support session for this workspace, then try again.", retryable: false };
   return null;
 }
