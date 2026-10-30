@@ -494,7 +494,7 @@ noteProviderSuccess(config.name);
             rawError instanceof RevoraAiError
               ? rawError
               : stopped
-                ? buildStopped()
+                ? new RevoraAiError(499, buildStopped().message, { category: "cancelled", provider: config.name })
               : controller.signal.aborted
                 ? new RevoraAiError(408, "Revora AI took too long to answer. Try again.", {
                     category: "timeout",
@@ -608,6 +608,9 @@ const UNBILLED_REJECTION_STATUSES = [400, 401, 402, 403, 404, 413, 422, 429];
  */
 export function paidFailureCharge(error: RevoraAiError, estimate: number): number {
   if (error.category === "not_configured") return 0;
+  // Stopped (client left, build cancelled) before any provider was called:
+  // nothing can have been billed, so the whole reservation is released.
+  if (error.category === "cancelled" && !error.provider) return 0;
   return UNBILLED_REJECTION_STATUSES.includes(error.status) ? 0 : estimate;
 }
 

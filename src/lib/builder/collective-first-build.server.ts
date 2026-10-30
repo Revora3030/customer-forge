@@ -133,6 +133,7 @@ const RULES = [
   "Never invent or imply: prices, phone numbers, email addresses, years in business,",
   "review counts, star ratings, awards, certifications, guarantees, licences, staff numbers,",
   "response times, service areas or results.",
+  "You MAY use category-standard, non-specific value props for this trade (the CATEGORY-STANDARD list when given, e.g. upfront quotes, tidy work, clear explanations) so the copy is not generic — never with a number, credential, guarantee or award attached.",
   "Never rename or reorder the business's services, and never add a new question.",
   "Write plainly, in the customer's language, no marketing clichés, no emoji.",
   "Answer with a single JSON object and nothing else.",
