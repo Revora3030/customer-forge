@@ -148,6 +148,195 @@
       "when": 1793314888837,
       "tag": "0020_remove_test_account_analytics",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1793325095523,
+      "tag": "0021_20260913160343_security_consolidate_billing_rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1793325216497,
+      "tag": "0022_20260913230000_revora_10_10_security_performance_hardening",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1793325254785,
+      "tag": "0023_20260919000000_workspace_provisioning_and_outcome_rls_hardening",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1793325288976,
+      "tag": "0024_20260919010000_final_production_hardening",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1793325302069,
+      "tag": "0025_20260919210000_harden_private_security_definer_execute",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1793325348400,
+      "tag": "0026_20260927203100_add_lead_webhook_url",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1793325386861,
+      "tag": "0027_20260928052000_lead_delivery_telemetry",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1793325404229,
+      "tag": "0028_20260928190000_builder_restore_point_fix",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1793325430141,
+      "tag": "0029_20261003010000_membership_role_guard",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1793325505527,
+      "tag": "0030_20261004090000_restore_three_day_full_access_trial",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1793325538419,
+      "tag": "0031_20261005000000_harden_website_rpc_execute",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1793325559742,
+      "tag": "0032_20261005120000_build_and_admin_invariants",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1793325591731,
+      "tag": "0033_20261005140000_builder_crm_image_publish_records",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1793325625161,
+      "tag": "0034_20261007200000_lead_delivery_idempotency",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1793325648086,
+      "tag": "0035_20261015090000_jarvis_autopilot_audit",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1793325676110,
+      "tag": "0036_20261015140000_jarvis_autopilot_safety",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1793325722817,
+      "tag": "0037_20261015180000_jarvis_attachments",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1793325749219,
+      "tag": "0038_20261016090000_claim_prospect_demo",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1793325771652,
+      "tag": "0039_20261016120000_trial_publishing",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1793325787135,
+      "tag": "0040_20261016150000_lead_webhook_secrets",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1793325812507,
+      "tag": "0041_20261016170000_super_admin_owner_accounts",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1793325853070,
+      "tag": "0042_20261016180000_openai_free_token_meter",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1793325876877,
+      "tag": "0043_20261017100000_ai_paid_daily_budget",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1793325895215,
+      "tag": "0044_20261018090000_generation_jobs_request_id",
+      "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1793325922213,
+      "tag": "0045_20261018090200_drop_font_preference_default",
+      "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1793325944218,
+      "tag": "0046_20261018090300_voice_budget",
+      "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1793325981741,
+      "tag": "0047_20261018090400_reconcile_security_hardening",
+      "breakpoints": true
     }
   ]
 }
