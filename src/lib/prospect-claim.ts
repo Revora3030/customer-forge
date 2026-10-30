@@ -30,6 +30,17 @@ export function claimAwareRedirect(token: string | null | undefined): string {
 }
 
 /**
+ * The redirect for a visitor who clicked "Pay" before having an account:
+ * /get-started with `pay=now`, so checkout resumes automatically once they are
+ * signed in (after sign-up, email confirmation or a magic link). Any claim
+ * token rides along exactly as in claimAwareRedirect.
+ */
+export function checkoutResumeRedirect(token: string | null | undefined): string {
+  const base = claimAwareRedirect(token);
+  return `${base}${base.includes("?") ? "&" : "?"}pay=now`;
+}
+
+/**
  * Where an email confirmation or magic link lands. A confirmed user always
  * comes back through /auth first: there the session from the link is picked
  * up, the profile is saved (ensureProfile), the redirect is checked again with

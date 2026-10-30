@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, ArrowRight, Check, Lock, ShieldCheck, Sparkles } from "lucide-react";
@@ -20,13 +20,21 @@ import { smartIntakeValue } from "@/lib/intake-smart";
 import { canonicalLink, ogUrl, OG_IMAGE_META } from "@/lib/seo";
 import { useServerFn } from "@tanstack/react-start";
 import { claimProspectDemo, getProspectClaim } from "@/lib/prospect-claim.functions";
-import { CLAIM_STORAGE_KEY, claimAwareRedirect, isClaimToken } from "@/lib/prospect-claim";
+import {
+  CLAIM_STORAGE_KEY,
+  checkoutResumeRedirect,
+  claimAwareRedirect,
+  isClaimToken,
+} from "@/lib/prospect-claim";
 import { readStarter } from "@/components/marketing/hero-starter-utils";
 import { applyImportedFacts, importExistingWebsite } from "@/lib/site-import.functions";
 
 export const Route = createFileRoute("/get-started")({
-  validateSearch: (search: Record<string, unknown>): { claim?: string } =>
-    isClaimToken(search["claim"]) ? { claim: search["claim"] } : {},
+  validateSearch: (search: Record<string, unknown>): { claim?: string; pay?: "now" } => ({
+    ...(isClaimToken(search["claim"]) ? { claim: search["claim"] } : {}),
+    // `pay=now` resumes checkout after sign-up / email confirmation.
+    ...(search["pay"] === "now" ? { pay: "now" as const } : {}),
+  }),
   head: () => ({
     meta: [
       { title: "Start your Revora Growth System — $350 setup + $100/mo" },
@@ -401,6 +409,15 @@ function GetStarted() {
 
   async function startPayment() {
     setError(null);
+    if (!signedIn) {
+      // Paying needs an account. Send the visitor to sign-up with `pay=now` in
+      // the redirect so checkout resumes on its own once they are signed in.
+      navigate({
+        to: "/auth",
+        search: { mode: "signup", redirect: checkoutResumeRedirect(claimToken) },
+      });
+      return;
+    }
     setProvisioning(true);
     try {
       const orgId = await ensureWorkspace();
@@ -416,6 +433,34 @@ function GetStarted() {
       setProvisioning(false);
     }
   }
+
+  // Back from sign-up / email confirmation with `pay=now`: resume checkout
+  // once, as soon as the account is known. Missing details send the visitor to
+  // the form first instead of a checkout that would reject them.
+  const resumedPayment = useRef(false);
+  useEffect(() => {
+    if (search.pay !== "now" || resumedPayment.current) return;
+    if (session.isLoading || !signedIn) return;
+    if (profileQuery.isLoading || (claimToken && claimInfo.isLoading)) return;
+    resumedPayment.current = true;
+    navigate({
+      to: "/get-started",
+      search: search.claim ? { claim: search.claim } : {},
+      replace: true,
+    });
+    if (alreadySubscribed || !cardsReady) {
+      setStep(2);
+      return;
+    }
+    if (missing.length) {
+      setStep(0);
+      setError(`Add: ${missing.join(", ")} — then continue to payment.`);
+      return;
+    }
+    setStep(2);
+    void startPayment();
+    // startPayment is recreated each render; this runs once per pay=now visit.
+  }, [search.pay, search.claim, session.isLoading, profileQuery.isLoading, signedIn, claimToken, claimInfo.isLoading, alreadySubscribed, cardsReady, missing]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="min-h-screen">
@@ -691,12 +736,12 @@ function GetStarted() {
                       </p>
                       <div className="mt-3 flex flex-col gap-2 sm:flex-row">
                         <Button asChild variant="signal" size="lg">
-                          <Link to="/auth" search={{ mode: "signup", redirect: claimAwareRedirect(claimToken) }}>
+                          <Link to="/auth" search={{ mode: "signup", redirect: checkoutResumeRedirect(claimToken) }}>
                             Create account
                           </Link>
                         </Button>
                         <Button asChild variant="outline" size="lg">
-                          <Link to="/auth" search={{ mode: "signin", redirect: claimAwareRedirect(claimToken) }}>
+                          <Link to="/auth" search={{ mode: "signin", redirect: checkoutResumeRedirect(claimToken) }}>
                             I already have an account
                           </Link>
                         </Button>

@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   authEmailRedirectTo,
+  checkoutResumeRedirect,
   claimAwareRedirect,
   claimErrorMessage,
   isClaimToken,
@@ -49,6 +50,19 @@ describe("claim token survives sign-up", () => {
     // profile and then continues signed in to the carried redirect or /app.
     expect(auth).toContain("emailRedirectTo: authEmailRedirectTo(window.location.origin, redirect)");
     expect(auth).not.toContain("emailRedirectTo: `${window.location.origin}/auth${redirect");
+  });
+
+  it("a logged-out Pay click resumes checkout after sign-up", () => {
+    expect(checkoutResumeRedirect(null)).toBe("/get-started?pay=now");
+    expect(checkoutResumeRedirect(token)).toBe(`/get-started?claim=${token}&pay=now`);
+    expect(isSafeRedirect(checkoutResumeRedirect(token))).toBe(true);
+    const getStarted = readFileSync("src/routes/get-started.tsx", "utf8");
+    const start = getStarted.indexOf("async function startPayment()");
+    const guard = getStarted.indexOf("if (!signedIn)", start);
+    expect(guard).toBeGreaterThan(start);
+    expect(guard).toBeLessThan(getStarted.indexOf("ensureWorkspace()", start));
+    expect(getStarted).toContain("redirect: checkoutResumeRedirect(claimToken)");
+    expect(getStarted).toContain('search["pay"] === "now"');
   });
 
   it("email confirmation returns through /auth with the redirect intact", () => {
