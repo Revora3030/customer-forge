@@ -12,6 +12,13 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 const GA_PATTERN = /^G-[A-Z0-9]{4,20}$/;
 
+/**
+ * Revora's own GA4 property (revoragrowthsystems.com web stream). Used only
+ * when nothing valid is saved in Admin → Analytics, so the admin setting still
+ * wins and can change the ID without a deploy.
+ */
+export const DEFAULT_GA_MEASUREMENT_ID = "G-WC1X5HWN7W";
+
 export interface PlatformSettings {
   gaMeasurementId: string | null;
   updatedAt: string | null;
@@ -49,10 +56,10 @@ export const getPublicGaMeasurementId = createServerFn({ method: "GET" }).handle
         .eq("id", "default")
         .maybeSingle();
       const id = data?.ga_measurement_id;
-      return typeof id === "string" && GA_PATTERN.test(id) ? id : null;
+      return typeof id === "string" && GA_PATTERN.test(id) ? id : DEFAULT_GA_MEASUREMENT_ID;
     } catch (error) {
-      console.warn("[Analytics] Public GA lookup unavailable; continuing without GA4.", error);
-      return null;
+      console.warn("[Analytics] Public GA lookup unavailable; using the default GA4 property.", error);
+      return DEFAULT_GA_MEASUREMENT_ID;
     }
   },
 );

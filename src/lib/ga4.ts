@@ -12,6 +12,7 @@
 
 import { canTrackAds } from "./consent";
 import { isPublicMarketingPath } from "./marketing-paths";
+import { REVORA_ROOT, normalizeHost } from "./revora-address";
 
 type GtagArgs = [string, ...unknown[]];
 
@@ -26,6 +27,16 @@ const GA_ID_PATTERN = /^G-[A-Z0-9]{4,20}$/;
 
 let loadedId: string | null = null;
 
+/**
+ * GA4 reports production traffic only: the live revoragrowthsystems.com hosts.
+ * Local dev, Lovable previews/published lovable.app URLs, the revoraweb.site
+ * redirect domain and client domains never load the tag.
+ */
+export function isGa4ProductionHost(rawHost: string | null | undefined) {
+  const host = normalizeHost(rawHost);
+  return host === REVORA_ROOT || host === `www.${REVORA_ROOT}`;
+}
+
 export function isValidMeasurementId(value: unknown): value is string {
   return typeof value === "string" && GA_ID_PATTERN.test(value.trim().toUpperCase());
 }
@@ -33,6 +44,7 @@ export function isValidMeasurementId(value: unknown): value is string {
 /** Injects gtag.js exactly once for a validated measurement ID. */
 export async function loadGa4(measurementId: string) {
   if (typeof window === "undefined" || typeof document === "undefined") return;
+  if (!isGa4ProductionHost(window.location.hostname)) return;
   if (!isPublicMarketingPath(window.location.pathname) || !(await canTrackAds())) return;
   const id = measurementId.trim().toUpperCase();
   if (!isValidMeasurementId(id) || loadedId === id) return;
