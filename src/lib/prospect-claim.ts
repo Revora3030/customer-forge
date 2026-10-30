@@ -108,3 +108,16 @@ export function claimOwnership(businessEmail: string | null | undefined, claiman
   const [user] = biz.split("@");
   return { allowed: false, hint: `${user!.slice(0, 1)}***@${domain}` };
 }
+
+/**
+ * Owner preview: /draft/:slug is the one place an owner sees an unpublished
+ * site. A public /s/:slug visit to a site that isn't live offers this sign-in
+ * link instead of a dead "Business not found" page.
+ */
+export function ownerPreviewPath(slug: string): string {
+  return `/draft/${encodeURIComponent(slug)}`;
+}
+
+export function ownerPreviewSignInPath(slug: string): string {
+  return `/auth?redirect=${encodeURIComponent(ownerPreviewPath(slug))}`;
+}
