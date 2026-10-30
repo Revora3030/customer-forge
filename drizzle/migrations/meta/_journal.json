@@ -218,6 +218,13 @@
       "when": 1793325505527,
       "tag": "0030_20261004090000_restore_three_day_full_access_trial",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1793325538419,
+      "tag": "0031_20261005000000_harden_website_rpc_execute",
+      "breakpoints": true
     }
   ]
 }
