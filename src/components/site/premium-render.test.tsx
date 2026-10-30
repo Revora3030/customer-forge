@@ -11,7 +11,19 @@ const tree = (root: CompositionNode): CompositionTree => ({ version: 1, root } a
 const resolve = (visual: Record<string, unknown> = { source: "customer", width: 6000, height: 3000 }) => (r: string) => ({ url: `https://img.example.test/${r}.jpg`, visual: visual as never });
 const render = (root: CompositionNode, visual?: Record<string, unknown>) =>
   renderToStaticMarkup(<CompositionRenderer tree={tree(root)} scope="s-test" resolveMedia={resolve(visual)} />);
-const markup = (html: string) => html.replace(/<style[^>]*>[\s\S]*?<\/style>/g, "");
+// Test-only: drop inline <style> blocks so assertions read the visible markup (not a sanitiser).
+const markup = (html: string) => {
+  let out = "";
+  let rest = html;
+  for (;;) {
+    const open = rest.indexOf("<style");
+    if (open < 0) return out + rest;
+    out += rest.slice(0, open);
+    const close = rest.indexOf("</style>", open);
+    if (close < 0) return out;
+    rest = rest.slice(close + "</style>".length);
+  }
+};
 
 const shader: CompositionNode = {
   type: "shader_field", shader: "grain", style: { background: "#0b0d12", gradientTo: "#2f6bff" },

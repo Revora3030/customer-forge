@@ -86,7 +86,7 @@
         "stripe": "22.0.2",
         "tailwind-merge": "^3.5.0",
         "tailwindcss": "^4.2.1",
-        "three": "^0.186.1",
+        "three": "0.186.1",
         "tw-animate-css": "^1.3.4",
         "use-stick-to-bottom": "^1.0.1",
         "use-webmcp-tool": "^0.3.0",
