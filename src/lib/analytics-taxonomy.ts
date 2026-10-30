@@ -33,7 +33,7 @@ export type TaxonomyEntry = {
 export const EVENT_TAXONOMY: readonly TaxonomyEntry[] = [
   { event: "landing_view", source: "browser", funnelStep: 1, idempotency: "per_session", definition: "A visitor viewed a marketing landing page (one per session)." },
   { event: "account_created", source: "server", funnelStep: 2, idempotency: "per_record", definition: "A platform account row was created (mirrors platform_accounts)." },
-  { event: "trial_started", source: "server", funnelStep: 3, idempotency: "per_workspace", definition: "The 3-day full-access trial began for a workspace (server-set trial_ends_at)." },
+  { event: "trial_started", source: "server", funnelStep: 3, idempotency: "per_workspace", definition: `The ${GROWTH_SYSTEM.fullAccessWindowAdjective} full-access trial began for a workspace (server-set trial_ends_at).` },
   { event: "trial_active", source: "server", funnelStep: 4, idempotency: "per_workspace", definition: "Workspace is inside its trial window per server time (derived, never browser)." },
   { event: "checkout_started", source: "server", funnelStep: 5, idempotency: "per_record", definition: "A Stripe Checkout session was created server-side for an authorized member." },
   { event: "setup_payment_completed", source: "server", funnelStep: 6, idempotency: "per_provider_event", definition: `Verified Stripe webhook confirmed the $${GROWTH_SYSTEM.setupPrice} setup payment (or the audited internal waiver).` },

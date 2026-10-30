@@ -29,7 +29,7 @@ The privileged function:
 - accepts only the server-supplied user id;
 - never accepts a caller-selected organization id or role;
 - always creates the owner membership for that same user;
-- clamps the trial to the server-side maximum of 1 day;
+- stamps the full-access trial at exactly 3 days (`FULL_ACCESS_TRIAL_DAYS` in `src/lib/offer.ts`; DB side in migration `20261004090000_restore_three_day_full_access_trial.sql`);
 - validates name, industry and profile shape;
 - serializes retries for the same user;
 - remains inaccessible to anon/authenticated database roles.

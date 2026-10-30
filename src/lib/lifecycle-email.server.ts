@@ -16,6 +16,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  */
 
 import { onboardingJourney, type JourneyFacts } from "@/lib/onboarding-journey";
+import { trialEndsAtMs } from "@/lib/trial";
 import { sendTemplateEmail } from "@/lib/email-templates/send-email";
 import { EmailAPIError } from "@lovable.dev/email-js";
 
@@ -232,10 +233,13 @@ export async function planLifecycleEmails(db: Db, limit = 40): Promise<Lifecycle
     const next = plan.next;
     const firstName = (profile?.owner_name ?? "").trim().split(" ")[0] || "";
     const businessName = org.name ?? "your business";
-    const trialEnds = dateLabel(org.trial_ends_at);
-    const daysLeft = org.trial_ends_at
-      ? Math.max(0, Math.ceil((new Date(org.trial_ends_at).getTime() - now) / DAY))
-      : 0;
+    // Resolve the window the app actually grants (never shorter than
+    // created_at + FULL_ACCESS_TRIAL_DAYS), so a row stamped under an older,
+    // shorter trial can't make an email promise less than the site does.
+    const trialEndMs = org.trial_ends_at ? trialEndsAtMs(org) : null;
+    const trialEndIso = trialEndMs !== null ? new Date(trialEndMs).toISOString() : null;
+    const trialEnds = dateLabel(trialEndIso);
+    const daysLeft = trialEndMs !== null ? Math.max(0, Math.ceil((trialEndMs - now) / DAY)) : 0;
     const ageDays = Math.floor((now - new Date(org.created_at).getTime()) / DAY);
 
     const push = (send: LifecycleSend) => {

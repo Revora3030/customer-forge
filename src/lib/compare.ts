@@ -66,8 +66,7 @@ export const COMPARISONS: readonly Comparison[] = [
       },
       {
         factor: "Speed to live",
-        revora:
-          "Onboarding generates your site from your real services, area and pricing; 3 days of full access first.",
+        revora: `Onboarding generates your site from your real services, area and pricing; ${GROWTH_SYSTEM.fullAccessWindow} of full access first.`,
         other: "Discovery, design and revision cycles measured in weeks.",
       },
       {

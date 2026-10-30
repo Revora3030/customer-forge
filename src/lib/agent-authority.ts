@@ -8,6 +8,8 @@
  * only records and reports that decision, it never carries the action out.
  */
 
+import { GROWTH_SYSTEM } from "@/lib/offer";
+
 export type AuthorityLevel = 1 | 2 | 3 | 4;
 
 export const AUTHORITY_TIERS: readonly { level: AuthorityLevel; name: string; authority: string; operations: readonly string[] }[] = [
@@ -56,8 +58,7 @@ export type Level4Action = keyof typeof LEVEL4_ACTIONS;
 export const LEVEL4_ACTION_KINDS = Object.keys(LEVEL4_ACTIONS) as Level4Action[];
 
 /** Actions whose approval never lets the bot touch money or the canonical offer. */
-export const OFFER_LOCKED_NOTE =
-  "The offer is fixed: $350 setup, first month free, then $100/month, with a 3-day full-access trial. A billing request may never change it.";
+export const OFFER_LOCKED_NOTE = `The offer is fixed: $${GROWTH_SYSTEM.setupPrice} setup, first month free, then $${GROWTH_SYSTEM.monthlyPrice}/month, with a ${GROWTH_SYSTEM.fullAccessWindowAdjective} full-access trial. A billing request may never change it.`;
 
 /** Requests that can't be undone need a second tap on the Approvals screen. */
 const TWO_TAP = new Set<string>(["delete_customer_data", "change_billing", "send_outreach", "deploy_production"]);
