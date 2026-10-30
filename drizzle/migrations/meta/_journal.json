@@ -148,6 +148,13 @@
       "when": 1793314888837,
       "tag": "0020_remove_test_account_analytics",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1793325095523,
+      "tag": "0021_20260913160343_security_consolidate_billing_rls",
+      "breakpoints": true
     }
   ]
 }
