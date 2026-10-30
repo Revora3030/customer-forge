@@ -306,7 +306,7 @@ export function QuoteCalculator({ site, presentation }: { site: Site; presentati
         </div>
       ) : (
         <form
-          className="space-y-4 px-5 py-5"
+          className="space-y-4 px-5 py-5 text-left"
           onSubmit={(e) => {
             e.preventDefault();
             if (pending) return;
@@ -477,7 +477,7 @@ export function BookingForm({ site, presentation }: { site: Site; presentation?:
   return (
     <form
       id="book"
-      className="panel space-y-4 p-5 scroll-mt-24"
+      className="panel space-y-4 p-5 scroll-mt-24 text-left"
       style={widgetPresentationStyle(presentation)}
       onFocus={() => track("booking_start")}
       onSubmit={(e) => {
@@ -698,7 +698,7 @@ export function EnquiryForm({ site, presentation }: { site: Site; presentation?:
   return (
     <form
       id="contact-form"
-      className="panel space-y-4 p-5 scroll-mt-24"
+      className="panel space-y-4 p-5 scroll-mt-24 text-left"
       style={widgetPresentationStyle(presentation)}
       noValidate
       aria-describedby={problem ? fid("problem") : undefined}

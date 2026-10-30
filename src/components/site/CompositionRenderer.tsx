@@ -1317,6 +1317,7 @@ const INTERACTIVE_CSS = `
 .rv-faq-boxed .rv-cn-faq{--rv-faq-gap:12px}.rv-faq-boxed .rv-cn-faq details{border:1px solid color-mix(in srgb,currentColor 14%,transparent);border-radius:var(--radius,12px);padding:0 18px;background:color-mix(in srgb,var(--card,transparent) 70%,transparent)}
 .rv-faq-floating .rv-cn-faq{--rv-faq-gap:12px}.rv-faq-floating .rv-cn-faq details{border:0;border-radius:var(--radius,14px);padding:0 20px;background:var(--card,transparent);box-shadow:var(--site-card-shadow,0 8px 28px rgb(0 0 0 / .12))}
 .rv-faq-minimal .rv-cn-faq details{border:0}
+.rv-cn-faq:is([style*="border"],[style*="background"]):not([style*="padding"]){padding-inline:clamp(14px,2.4vw,24px)}
 .rv-card-tint [data-rv-card]{background:color-mix(in srgb,var(--primary) 7%,var(--card,transparent));border:1px solid color-mix(in srgb,var(--primary) 18%,transparent)}
 .rv-card-outline [data-rv-card]{background:transparent;border:1px solid color-mix(in srgb,currentColor 22%,transparent)}
 .rv-card-elevated [data-rv-card]{border:0;box-shadow:var(--site-card-shadow,0 12px 36px rgb(0 0 0 / .14))}
