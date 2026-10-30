@@ -64,7 +64,7 @@ let scrolls = 0;
 const shownService = () => document.querySelector('[role="combobox"]')?.textContent ?? "";
 
 const option = (label: string) =>
-  Array.from(document.querySelectorAll('[role="option"]')).find((el) => el.textContent?.includes(label));
+  Array.from(document.querySelectorAll<HTMLElement>('[role="option"]')).find((el) => el.textContent?.includes(label));
 
 /**
  * Put the deep link in the address bar the way a real arrival does: the browser
