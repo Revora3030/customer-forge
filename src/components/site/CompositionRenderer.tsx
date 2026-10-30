@@ -12,6 +12,7 @@ import { intrinsicSize } from "@/lib/builder/image-campaign";
 import { LensMagnifier, StickySplitStory, TierFader } from "@/components/site/MasterBlocks";
 import { CollectionRow, DialSelector, SceneVideo, ScrubSequence, ScrubStage, ScrollChapters, SpinViewer, type SpinFrame } from "@/components/site/CinematicBlocks";
 import { CINEMATIC_CSS } from "@/components/site/cinematic-css";
+import { CountUpText } from "@/components/site/CountUp";
 import { ModelViewer } from "@/components/site/ModelViewer";
 import { isModelUrl } from "@/lib/site-models";
 
@@ -392,14 +393,15 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
       } as CSSProperties;
       // Site header/footer: same look, but not a document heading, so the
       // page keeps its one h1 and a clean outline.
-      if (!childrenArePhrasing(node)) return <div key={key} {...props} style={headingStyle}>{node.text}{kids}</div>;
-      if (ctx.chrome) return <p key={key} {...props} style={headingStyle}>{node.text}{kids}</p>;
+      const headingText = countUpText(node, ctx);
+      if (!childrenArePhrasing(node)) return <div key={key} {...props} style={headingStyle}>{headingText}{kids}</div>;
+      if (ctx.chrome) return <p key={key} {...props} style={headingStyle}>{headingText}{kids}</p>;
       const Tag = (`h${node.level ?? 2}`) as "h1" | "h2" | "h3" | "h4";
-      return <Tag key={key} {...props} style={headingStyle}>{node.text}{kids}</Tag>;
+      return <Tag key={key} {...props} style={headingStyle}>{headingText}{kids}</Tag>;
     }
     case "text":
-      if (!childrenArePhrasing(node)) return <div key={key} {...props}>{node.text}{kids}</div>;
-      return <p key={key} {...props}>{node.text}{kids}</p>;
+      if (!childrenArePhrasing(node)) return <div key={key} {...props}>{countUpText(node, ctx)}{kids}</div>;
+      return <p key={key} {...props}>{countUpText(node, ctx)}{kids}</p>;
     case "media":
       { const resolved = node.mediaRef ? ctx.media(node.mediaRef) : null;
         const visual = mediaVisual(resolved);
@@ -1291,4 +1293,10 @@ export function CompositionRenderer({ tree, scope, as = "section", resolveHref, 
       </section>
     )
   );
+}
+
+/** A heading/text's words; a countUp figure counts up on view (exact text on the server and for reduced motion). */
+function countUpText(node: CompositionNode, ctx: Ctx): ReactNode {
+  if (!node.countUp || !node.text || ctx.editable) return node.text;
+  return <CountUpText text={node.text} />;
 }

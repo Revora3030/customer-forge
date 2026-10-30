@@ -118,8 +118,13 @@ export function estimateTotal(options: EstimatorOption[], picked: ReadonlySet<st
   const chosen = options.filter((option) => picked.has(option.id));
   const priced = chosen.filter((option) => option.amount !== null);
   const timed = chosen.filter((option) => option.minutes !== null);
+  const amount = priced.length ? priced.reduce((sum, o) => sum + (o.amount ?? 0), 0) : null;
   return {
     count: chosen.length,
+    /** The summed listed price (null when nothing chosen carries one), for the rolling total. */
+    amount,
+    /** True when the total is a floor ("From …"): a chosen service is "from" priced or unpriced. */
+    from: chosen.some((o) => o.from || o.amount === null),
     price: priced.length ? `${chosen.some((o) => o.from || o.amount === null) ? "From " : ""}${currency(priced.reduce((sum, o) => sum + (o.amount ?? 0), 0))}` : null,
     duration: timed.length ? durationLabel(timed.reduce((sum, o) => sum + (o.minutes ?? 0), 0)) : null,
     unpriced: chosen.length - priced.length,

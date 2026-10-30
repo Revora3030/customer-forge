@@ -28,6 +28,7 @@ import { ReviewWall } from "@/components/site/LiveBlocks";
 import { EnquiryForm } from "@/components/site/SiteForms";
 import { PreviewSelectBridge } from "@/components/site/PreviewSelectBridge";
 import { SiteBackdrop } from "@/components/site/SiteBackdrop";
+import { SiteScrollProgress } from "@/components/site/SiteScrollProgress";
 import { isPlaceholderPalette, siteFontStyle, siteThemeStyle } from "@/lib/site-theme";
 import { readComposition } from "@/lib/visual-composition";
 import { readBackdrop, readBackdropSpec } from "@/lib/site-effects";
@@ -208,6 +209,7 @@ export function SitePageView({
         composition={readComposition(site.settings?.generation ?? null)}
         spec={readBackdropSpec(site.settings?.generation ?? null)}
       />
+      <SiteScrollProgress />
       <div className="relative z-[1]">
         {/* Owner-only notice: a site still on the neutral placeholder palette
             has no AI-authored design yet. Visitors never see this. */}

@@ -94,7 +94,13 @@ ${S} .rv-split-phase{min-height:70vh;display:flex;flex-direction:column;justify-
 ${S} .rv-tier{display:grid;gap:20px;width:100%}
 ${S} .rv-tier-control{display:grid;gap:10px}
 ${S} .rv-tier-label{font-weight:650}
-${S} .rv-tier-range{width:100%;min-height:44px;accent-color:currentColor;touch-action:pan-y;cursor:pointer}
+${S} .rv-tier-range{width:100%;min-height:44px;accent-color:currentColor;touch-action:pan-y;cursor:pointer;-webkit-appearance:none;appearance:none;background:transparent;color:inherit}
+${S} .rv-tier-range::-webkit-slider-runnable-track{height:6px;border-radius:999px;background:linear-gradient(currentColor,currentColor) 0 0/var(--rv-tier-fill,0%) 100% no-repeat,color-mix(in srgb,currentColor 22%,transparent)}
+${S} .rv-tier-range::-moz-range-track{height:6px;border-radius:999px;background:color-mix(in srgb,currentColor 22%,transparent)}
+${S} .rv-tier-range::-moz-range-progress{height:6px;border-radius:999px;background:currentColor}
+${S} .rv-tier-range::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:26px;height:26px;margin-top:-10px;border-radius:999px;background:var(--background,#fff);border:3px solid currentColor;box-shadow:0 4px 14px rgba(0,0,0,.28);transition:transform .18s ease}
+${S} .rv-tier-range::-moz-range-thumb{width:20px;height:20px;border-radius:999px;background:var(--background,#fff);border:3px solid currentColor;box-shadow:0 4px 14px rgba(0,0,0,.28)}
+${S} .rv-tier-range:active::-webkit-slider-thumb{transform:scale(1.12)}
 ${S} .rv-tier-range:focus-visible{outline:3px solid currentColor;outline-offset:3px}
 ${S} .rv-tier-ticks{display:flex;justify-content:space-between;gap:8px;margin:0;padding:0;list-style:none;font-size:14px;opacity:.7}
 ${S} .rv-tier-ticks li[data-on]{opacity:1;font-weight:650}
@@ -159,6 +165,7 @@ ${S} .rv-cn-brush-tools button[aria-pressed="true"],${S} .rv-dial-chips button[a
 ${S} .rv-dial{display:flex;flex-direction:column;gap:14px;width:100%}
 ${S} .rv-dial-gauge{display:grid;justify-items:center;gap:4px;padding:clamp(18px,3vw,28px);border-radius:20px;background:rgba(127,127,127,.08);border:1px solid rgba(127,127,127,.22);text-align:center}
 ${S} .rv-dial-gauge svg{width:min(240px,70%);height:auto;overflow:visible}
+${S} .rv-dial-gauge svg[data-draggable]{cursor:grab;touch-action:none;-webkit-user-select:none;user-select:none}${S} .rv-dial-gauge svg[data-draggable]:active{cursor:grabbing}
 ${S} .rv-dial-fill,${S} .rv-dial-needle{transition:all 520ms cubic-bezier(.2,.8,.2,1)}
 ${S} .rv-dial-reading{display:flex;align-items:baseline;gap:6px;margin-top:-28px}
 ${S} .rv-dial-reading strong{font-size:clamp(24px,3.4vw,34px);font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
@@ -179,4 +186,11 @@ ${S} .rv-model-open{position:absolute;left:50%;bottom:16px;transform:translateX(
 ${S} .rv-model-status{position:absolute;inset:auto 0 16px;text-align:center;font-size:14px;margin:0}
 ${S} .rv-model-caption{display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px;font-size:14px;font-weight:600}
 ${S} .rv-model-hint{font-weight:400;opacity:.7}
+/* Chapter snap: long scroll_chapters pages settle on each chapter instead of
+   stopping between two (proximity, so a visitor can still stop anywhere and
+   tall chapters never trap the scroll). Off for reduced motion. */
+@media (prefers-reduced-motion:no-preference){
+html:has(.rv-site-root .rv-chapters){scroll-snap-type:y proximity}
+${S} .rv-chapters > .rv-chapter{scroll-snap-align:start;scroll-margin-top:var(--rv-header-height,0px)}
+}
 `;
