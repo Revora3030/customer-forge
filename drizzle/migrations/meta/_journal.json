@@ -260,6 +260,13 @@
       "when": 1793325676110,
       "tag": "0036_20261015140000_jarvis_autopilot_safety",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1793325722817,
+      "tag": "0037_20261015180000_jarvis_attachments",
+      "breakpoints": true
     }
   ]
 }
