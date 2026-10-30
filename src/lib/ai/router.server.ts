@@ -27,7 +27,7 @@ import { reportModelAnswered } from "./model-activity-scope.server";
  * Server-only.
  */
 
-import { reservePaidSpend, routerActual, routerEstimate, settlePaidSpend, type PaidReservation } from "@/lib/ai/paid-budget.server";
+import { paidDailyCapUsd, reservePaidSpendDetailed, routerActual, secondsUntilPaidCapReset, type PaidRefusal, routerEstimate, settlePaidSpend, type PaidReservation } from "@/lib/ai/paid-budget.server";
 import { scopedAbortSignal, scopedFreeOnly } from "@/lib/ai/spend-scope.server";
 import {
   aiLimits,
@@ -37,7 +37,7 @@ import {
   type ProviderConfig,
   type ProviderName,
 } from "@/lib/ai/config";
-import { RevoraAiError, buildStopped, notConfigured, providerUnavailable } from "@/lib/ai/errors";
+import { RevoraAiError, buildStopped, notConfigured, paidBudgetRefused, providerUnavailable } from "@/lib/ai/errors";
 import { durableRuntimeFor } from "@/lib/ai/durable-health.server";
 import { preserveGroupOrder, qualityFirstOrder } from "@/lib/ai/orchestration/order";
 import { lovableAdapter, lovableEmbeddings, lovableVideo, postLovableSpeech, type VideoOutcome } from "@/lib/ai/providers/lovable";
@@ -396,6 +396,10 @@ async function run<T>(
     // Each free model that refuses the request as too large makes the next
     // one receive a shorter version of the conversation (context-compaction).
     let compaction = 0;
+    // Why paid candidates were skipped before any request left. When nothing
+    // was attempted, the owner is told the truth (today's cap is used up, or
+    // the ledger could not be read) instead of a generic provider outage.
+    let paidRefusal: PaidRefusal | null = null;
 
     // The build this call belongs to may be stopped at any moment (cancelled, or
     // its lease taken over). Nothing new is started for it, and anything in
@@ -426,8 +430,12 @@ async function run<T>(
       // its whole paid walk and settles it itself; the router must not
       // reserve a second time for each candidate it tries.
       if (options?.budgetReservedExternally !== true) {
-        paidReservation = await reservePaidSpend(routerEstimate(model, limits.maxOutputTokens));
-        if (!paidReservation) continue;
+        const reserved = await reservePaidSpendDetailed(routerEstimate(model, limits.maxOutputTokens));
+        paidReservation = reserved.reservation;
+        if (!paidReservation) {
+          paidRefusal = reserved.refusal;
+          continue;
+        }
       }
 
       try {
@@ -586,9 +594,9 @@ noteProviderSuccess(config.name);
       }
     }
 
-    throw lastError instanceof RevoraAiError
-      ? lastError
-      : providerUnavailable(ordered[0]?.config.name ?? "cloudflare");
+    if (lastError instanceof RevoraAiError) throw lastError;
+    if (paidRefusal) throw paidBudgetRefused(paidRefusal, paidDailyCapUsd(), secondsUntilPaidCapReset());
+    throw providerUnavailable(ordered[0]?.config.name ?? "lovable");
   } finally {
     release(concurrencyKey);
   }

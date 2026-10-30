@@ -23,7 +23,8 @@ export type FounderAlertKind =
   | "payment_failed"
   | "payment_needs_review"
   | "build_completed"
-  | "build_failed";
+  | "build_failed"
+  | "ai_budget_reached";
 
 export type FounderAlert = {
   kind: FounderAlertKind;

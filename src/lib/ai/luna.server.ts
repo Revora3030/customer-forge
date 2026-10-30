@@ -248,13 +248,22 @@ export async function reserveBudget(
   if (scopedFreeOnly()) return null;
   const client = await admin();
   if (!client) return null;
-  const { data, error } = await client.rpc("luna_budget_reserve_tenant", {
-    _organization_id: organizationId,
-    _estimate_microcents: estimate,
-    _global_cap_microcents: lunaMonthlyCapMicrocents(),
-    _tenant_cap_microcents: lunaTenantMonthlyCapMicrocents(),
-  });
-  if (error || !Array.isArray(data) || !data.length) return null;
+  // Fails closed and never throws: an unreachable ledger refuses paid work
+  // (null) instead of breaking a caller documented as never throwing.
+  let data: unknown;
+  try {
+    const reply = await client.rpc("luna_budget_reserve_tenant", {
+      _organization_id: organizationId,
+      _estimate_microcents: estimate,
+      _global_cap_microcents: lunaMonthlyCapMicrocents(),
+      _tenant_cap_microcents: lunaTenantMonthlyCapMicrocents(),
+    });
+    if (reply.error) return null;
+    data = reply.data;
+  } catch {
+    return null;
+  }
+  if (!Array.isArray(data) || !data.length) return null;
   const row = data[0] as ReserveRow;
   let dailyCapped = false;
   let paid: PaidReservation | null = null;
@@ -264,11 +273,15 @@ export async function reserveBudget(
     const { reservePaidSpend } = await import("@/lib/ai/paid-budget.server");
     paid = await reservePaidSpend(estimate);
     if (!paid) {
-      await client.rpc("luna_budget_settle_tenant", {
-        _organization_id: organizationId,
-        _estimate_microcents: estimate,
-        _actual_microcents: 0,
-      });
+      try {
+        await client.rpc("luna_budget_settle_tenant", {
+          _organization_id: organizationId,
+          _estimate_microcents: estimate,
+          _actual_microcents: 0,
+        });
+      } catch (error) {
+        console.warn("[luna] monthly release after daily cap failed", (error as Error)?.message);
+      }
       row.allowed = false;
       dailyCapped = true;
     }
@@ -305,6 +318,10 @@ export async function settleBudget(
       _estimate_microcents: estimate,
       _actual_microcents: actual,
     });
+  } catch (error) {
+    // Never throws: a settle that fails leaves the monthly row at the estimate
+    // (over-counted, never under-counted) and the daily settle still runs.
+    console.warn("[luna] monthly settle failed", (error as Error)?.message);
   } finally {
     if (paid) {
       const { settlePaidSpend } = await import("@/lib/ai/paid-budget.server");
@@ -324,17 +341,24 @@ export async function recordUsage(row: {
 }) {
   const client = await admin();
   if (!client) return;
-  await client.from("luna_usage_events").insert({
-    organization_id: row.organizationId,
-    model: row.model ?? lunaModel(),
-    purpose: row.purpose,
-    input_tokens: row.usage.inputTokens,
-    cached_input_tokens: row.usage.cachedInputTokens,
-    output_tokens: row.usage.outputTokens,
-    cost_microcents: row.cost,
-    outcome: row.outcome,
-    reason: row.reason,
-  });
+  // Usage history is a log: a failed write is reported, never allowed to turn
+  // a paid answer that already succeeded into a failure.
+  try {
+    const { error } = await client.from("luna_usage_events").insert({
+      organization_id: row.organizationId,
+      model: row.model ?? lunaModel(),
+      purpose: row.purpose,
+      input_tokens: row.usage.inputTokens,
+      cached_input_tokens: row.usage.cachedInputTokens,
+      output_tokens: row.usage.outputTokens,
+      cost_microcents: row.cost,
+      outcome: row.outcome,
+      reason: row.reason,
+    });
+    if (error) console.warn("[luna] usage log write failed", (error as { message?: string }).message);
+  } catch (error) {
+    console.warn("[luna] usage log write failed", (error as Error)?.message);
+  }
 }
 
 /** Most of an error body Revora will read: enough for OpenAI's error object. */

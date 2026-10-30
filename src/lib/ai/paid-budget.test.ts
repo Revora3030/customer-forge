@@ -29,8 +29,9 @@ describe("daily paid AI cap", () => {
 
   it("reserves before every paid router call and settles after, and covers every Luna lane", () => {
     const router = readFileSync("src/lib/ai/router.server.ts", "utf8");
-    expect(router).toContain("paidReservation = await reservePaidSpend(routerEstimate(model, limits.maxOutputTokens));");
-    expect(router).toContain("if (!paidReservation) continue;");
+    expect(router).toContain("const reserved = await reservePaidSpendDetailed(routerEstimate(model, limits.maxOutputTokens));");
+    expect(router).toContain("paidReservation = reserved.reservation;");
+    expect(router).toContain("if (paidRefusal) throw paidBudgetRefused(paidRefusal, paidDailyCapUsd(), secondsUntilPaidCapReset());");
     expect(router).toContain("if (paidReservation) await settlePaidSpend(paidReservation, paidActual);");
     const luna = readFileSync("src/lib/ai/luna.server.ts", "utf8");
     expect(luna).toContain("paid = await reservePaidSpend(estimate);");

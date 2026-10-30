@@ -144,6 +144,29 @@ describe("paid reservation ledger (client side)", () => {
     expect(paidReservationStaleSeconds()).toBe(1800);
   });
 
+  it("says why a reservation was refused: cap reached, ledger down, paid off or free-only", async () => {
+    const { reservePaidSpendDetailed, resetPaidCapAlertForTests } = await budget();
+    resetPaidCapAlertForTests();
+    expect((await reservePaidSpendDetailed(2_000_000_000)).refusal).toBe("cap_reached");
+    ledger.failReserve = true;
+    expect((await reservePaidSpendDetailed(1_000)).refusal).toBe("ledger_unavailable");
+    ledger.failReserve = false;
+    const { withAiSpendScope } = await import("@/lib/ai/spend-scope.server");
+    expect((await withAiSpendScope({ freeOnly: true, reason: "demo_workspace" }, () => reservePaidSpendDetailed(1_000))).refusal).toBe("free_only");
+    vi.stubEnv("AI_PAID_DAILY_CAP_USD", "0");
+    expect((await reservePaidSpendDetailed(1_000)).refusal).toBe("cap_zero");
+    vi.stubEnv("AI_PAID_DAILY_CAP_USD", "1");
+    const ok = await reservePaidSpendDetailed(1_000);
+    expect(ok.refusal).toBeNull();
+    expect(ok.reservation?.id).toBeTruthy();
+  });
+
+  it("the cap resets at the next midnight UTC", async () => {
+    const { secondsUntilPaidCapReset } = await budget();
+    expect(secondsUntilPaidCapReset(Date.parse("2026-10-30T23:00:00Z"))).toBe(3600);
+    expect(secondsUntilPaidCapReset(Date.parse("2026-10-30T23:59:59.500Z"))).toBe(60);
+  });
+
   it("fails closed when the ledger errors or throws", async () => {
     const { reservePaidSpend } = await budget();
     ledger.failReserve = true;
@@ -247,14 +270,22 @@ describe("router settles every paid reservation", () => {
   const saved = { ...process.env };
   const reserve = vi.fn();
   const settle = vi.fn();
+  const refusal = { value: "cap_reached" as "cap_reached" | "ledger_unavailable" };
 
   beforeEach(() => {
     isolateProviderEnvironment();
     vi.resetModules();
+    refusal.value = "cap_reached";
     reserve.mockReset().mockImplementation(async (estimate: number) => ({ id: "res-1", day: "unit-test", estimate }));
     settle.mockReset().mockResolvedValue(true);
     vi.doMock("@/lib/ai/paid-budget.server", () => ({
       reservePaidSpend: reserve,
+      reservePaidSpendDetailed: async (estimate: number) => {
+        const reservation = await reserve(estimate);
+        return reservation ? { reservation, refusal: null } : { reservation: null, refusal: refusal.value };
+      },
+      paidDailyCapUsd: () => 10,
+      secondsUntilPaidCapReset: () => 3600,
       settlePaidSpend: settle,
       routerEstimate: () => 5_000,
       routerActual: (_model: string, input: number | null, output: number | null, fallback: number) =>
@@ -297,6 +328,28 @@ describe("router settles every paid reservation", () => {
     expect(reserve).toHaveBeenCalledTimes(1);
     expect(settle).toHaveBeenCalledTimes(1);
     expect(settle).toHaveBeenCalledWith(expect.objectContaining({ id: "res-1" }), 7 * 10 + 3 * 100);
+  });
+
+  it("tells the owner today's AI budget is used up instead of reporting an outage", async () => {
+    reserve.mockResolvedValue(null);
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+    const error = await call().catch((caught: unknown) => caught);
+    expect(error).toMatchObject({ name: "RevoraAiError", status: 402, category: "quota", provider: "lovable", retryAfterSeconds: 3600 });
+    expect((error as Error).message).toContain("Today's AI budget ($10.00) is used up");
+    expect((error as { retryable: boolean }).retryable).toBe(false);
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(settle).not.toHaveBeenCalled();
+  });
+
+  it("names an unreadable spend ledger plainly and keeps it retryable", async () => {
+    reserve.mockResolvedValue(null);
+    refusal.value = "ledger_unavailable";
+    vi.stubGlobal("fetch", vi.fn());
+    const error = await call().catch((caught: unknown) => caught);
+    expect(error).toMatchObject({ name: "RevoraAiError", category: "provider_unavailable", provider: "lovable" });
+    expect((error as Error).message).toContain("couldn't check today's AI budget");
+    expect((error as { retryable: boolean }).retryable).toBe(true);
   });
 
   it("settles a 5xx at the reservation estimate (it may still be billed)", async () => {

@@ -16,6 +16,9 @@ import { isolateProviderEnvironment } from "./provider-test-environment";
 // Routing tests exercise stubbed providers, not the production spend ledger.
 vi.mock("@/lib/ai/paid-budget.server", () => ({
   reservePaidSpend: vi.fn(async (estimate: number) => ({ day: "unit-test", estimate })),
+  reservePaidSpendDetailed: vi.fn(async (estimate: number) => ({ reservation: { id: null, day: "unit-test", estimate }, refusal: null })),
+  paidDailyCapUsd: vi.fn(() => 10),
+  secondsUntilPaidCapReset: vi.fn(() => 3600),
   settlePaidSpend: vi.fn(async () => undefined),
   routerEstimate: vi.fn(() => 1),
   routerActual: vi.fn(() => 1),
