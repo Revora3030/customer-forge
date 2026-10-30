@@ -1,8 +1,8 @@
 /**
  * Invisible speed recorder for published customer websites.
  *
- * Measures the visitor's real experience with the browser's own performance
- * APIs and reports it once, when the page is hidden or left. Renders nothing,
+ * Measures the visitor's real experience with the `web-vitals` library
+ * (browser performance APIs) and reports it once, when the page is hidden or left. Renders nothing,
  * never blocks the page, and is disabled inside builder previews so owner
  * previews cannot pollute real visitor numbers.
  */

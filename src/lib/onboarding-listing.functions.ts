@@ -6,6 +6,8 @@ export type ListingSuggestion = {
   address: string | null;
   phone: string | null;
   website: string | null;
+  /** Google place ID, used only to build the free "leave a review" link. */
+  placeId?: string | null;
 };
 
 export type ListingLookup = { ok: true; listings: ListingSuggestion[] } | { ok: false; message: string };
@@ -32,7 +34,13 @@ export const findMyGoogleListing = createServerFn({ method: "POST" })
         listings: listings
           .filter((l) => l.name)
           .slice(0, 3)
-          .map((l) => ({ name: l.name, address: l.address, phone: l.phone, website: l.website })),
+          .map((l) => ({
+            name: l.name,
+            address: l.address,
+            phone: l.phone,
+            website: l.website,
+            placeId: l.placeId ?? null,
+          })),
       };
     } catch (error) {
       console.warn("google listing lookup failed", (error as Error).message);

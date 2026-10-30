@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { MediaLibrary } from "@/components/app/MediaLibrary";
+import { ReviewLinkTools } from "@/components/app/ReviewLinkTools";
 
 import { useAutosaveOrganization, useAutosaveProfile } from "@/lib/website-content.hooks";
 import {
@@ -372,12 +373,20 @@ export function BuilderWizard({
                     saveProfile.mutate({ years_in_business: value ? Number(value) || null : null })
                   }
                 />
-                <AutoField
-                  label="Review link (Google, Facebook)"
-                  value={text(profile, "review_link")}
-                  disabled={!canManage}
-                  onCommit={(value) => field("review_link", value)}
-                />
+                <div>
+                  <AutoField
+                    label="Review link (Google, Facebook)"
+                    value={text(profile, "review_link")}
+                    disabled={!canManage}
+                    onCommit={(value) => field("review_link", value)}
+                  />
+                  <ReviewLinkTools
+                    value={text(profile, "review_link")}
+                    query={[org?.name ?? "", text(profile, "city")].filter(Boolean).join(" ")}
+                    disabled={!canManage}
+                    onFill={(url) => field("review_link", url)}
+                  />
+                </div>
               </div>
               <AutoField
                 label="Certifications or licences"
