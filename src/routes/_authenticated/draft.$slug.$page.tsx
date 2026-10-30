@@ -15,6 +15,7 @@ import { stepLabel } from "@/lib/site-engine";
 import { ErrorBoundary } from "@/components/app/ErrorBoundary";
 import { SitePageView } from "@/routes/s.$slug.$page";
 import { DraftMessage, DraftUpdatingBanner } from "@/routes/_authenticated/draft.$slug";
+import { DRAFT_PENDING_MS } from "@/lib/builder/draft-route";
 
 export const Route = createFileRoute("/_authenticated/draft/$slug/$page")({
   beforeLoad: ({ params, location }) => {
@@ -28,6 +29,10 @@ export const Route = createFileRoute("/_authenticated/draft/$slug/$page")({
   },
   loader: async ({ params }) =>
     getOwnerDraftSite({ data: { slug: params.slug, pageSlug: params.page } }),
+  pendingMs: DRAFT_PENDING_MS,
+  pendingComponent: () => (
+    <DraftMessage title="Loading this page…" body="Getting the latest version of your site." />
+  ),
   head: () => ({
     meta: [
       { title: "Website page draft — Revora" },

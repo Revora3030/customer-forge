@@ -189,10 +189,13 @@ ${S} .rv-model-open{position:absolute;left:50%;bottom:16px;transform:translateX(
 ${S} .rv-model-status{position:absolute;inset:auto 0 16px;text-align:center;font-size:14px;margin:0}
 ${S} .rv-model-caption{display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px;font-size:14px;font-weight:600}
 ${S} .rv-model-hint{font-weight:400;opacity:.7}
-/* Chapter snap: long scroll_chapters pages settle on each chapter instead of
-   stopping between two (proximity, so a visitor can still stop anywhere and
-   tall chapters never trap the scroll). Off for reduced motion. */
-@media (prefers-reduced-motion:no-preference){
+/* Chapter snap: on touch screens, long scroll_chapters pages settle on each
+   chapter after a swipe instead of stopping between two (proximity, so a
+   visitor can still stop anywhere). Never for a mouse wheel or trackpad: each
+   wheel step is smaller than the snap range of a full-screen chapter, so the
+   page snapped straight back and the wheel seemed not to scroll at all. Off
+   for reduced motion. */
+@media (prefers-reduced-motion:no-preference) and (hover:none) and (pointer:coarse){
 html:has(.rv-site-root .rv-chapters){scroll-snap-type:y proximity}
 ${S} .rv-chapters > .rv-chapter{scroll-snap-align:start;scroll-margin-top:var(--rv-header-height,0px)}
 }

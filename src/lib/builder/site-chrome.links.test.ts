@@ -118,9 +118,9 @@ describe("phone menu", () => {
       },
     };
     expect(menuItems(tree as never)).toEqual([
-      { href: "/services", label: "Services", action: false },
-      { href: "", label: "About", action: false },
-      { href: "/contact", label: "Get a quote", action: true },
+      { href: "/services", label: "Services", action: false, depth: 0 },
+      { href: "", label: "About", action: false, depth: 0 },
+      { href: "/contact", label: "Get a quote", action: true, depth: 0 },
     ]);
     expect(menuItems(null)).toEqual([]);
   });

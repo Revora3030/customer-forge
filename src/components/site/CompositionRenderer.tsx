@@ -300,6 +300,60 @@ function correctSurface(node: CompositionNode, depth: number): CompositionNode {
     : node;
 }
 
+/** The grid tracks a grid's rendered items fill (each item's span, capped at the column count). */
+export function renderedGridSpan(children: readonly CompositionNode[], rendered: readonly ReactNode[]): number {
+  let total = 0;
+  children.forEach((child, i) => {
+    if (rendered[i] == null) return;
+    total += Math.max(1, Math.min(Math.round(child.style?.span ?? 1), 12));
+  });
+  return total;
+}
+
+/** True when a button carries no fill, gradient or border of its own on any screen size. */
+export function isUnpaintedButton(node: CompositionNode): boolean {
+  const painted = (style: NodeStyle | undefined) =>
+    Boolean(style && (style.background || style.gradientTo || (style.borderWidth ?? 0) > 0));
+  if (painted(node.style)) return false;
+  return !Object.values(node.responsive ?? {}).some((style) => painted(style));
+}
+
+function withoutInk(style: CSSProperties | undefined): CSSProperties | undefined {
+  if (!style || style.color === undefined) return style;
+  const { color, ...rest } = style;
+  void color;
+  return rest;
+}
+
+/** A menu-bar link with a dropdown of sub-links: opens on hover, keyboard focus or its toggle. */
+function NavDropdown(props: { panelId: string; label: string; trigger: ReactNode; children: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div
+      className="rv-nav-group"
+      data-rv-nav-group=""
+      {...(open ? { "data-open": "" } : {})}
+      onKeyDown={(event) => {
+        if (event.key === "Escape") setOpen(false);
+      }}
+      onMouseLeave={() => setOpen(false)}
+    >
+      {props.trigger}
+      <button
+        type="button"
+        className="rv-nav-toggle"
+        aria-expanded={open}
+        aria-controls={props.panelId}
+        aria-label={`${props.label} menu`}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <span aria-hidden="true">▾</span>
+      </button>
+      <ul id={props.panelId} className="rv-nav-panel">{props.children}</ul>
+    </div>
+  );
+}
+
 function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): ReactNode {
   const node = correctSurface(rawNode, ctx.depth ?? 0);
   const id = `${ctx.scope}-${ctx.counter.n++}`;
@@ -378,6 +432,20 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
   // widget or image) is dropped so visitors never see an empty styled frame.
   const EMPTY_PRUNE = new Set(["card", "stack", "row", "grid", "scene3d"]);
   if (EMPTY_PRUNE.has(node.type) && !node.text && node.children?.length && kids?.every((k) => k == null)) return null;
+  // A grid laid out for more items than it really shows (a picture that did
+  // not resolve, a widget that is unavailable, or just fewer cards than
+  // columns) would park its content in the first narrow track and leave the
+  // rest of the row empty. It is collapsed to the columns its items fill.
+  if (node.type === "grid" && !node.style?.gridAreas) {
+    const filled = renderedGridSpan(prunedChildren, kids);
+    const tracks = (cols: number | undefined) => (cols != null && filled > 0 && filled < cols ? filled : null);
+    const base = tracks(node.style?.columns);
+    if (base != null) props.style = { ...props.style, gridTemplateColumns: `repeat(${base}, minmax(0, 1fr))` };
+    for (const [bp, rawStyle] of Object.entries(node.responsive ?? {}) as [Breakpoint, NodeStyle][]) {
+      const fit = tracks(rawStyle.columns);
+      if (fit != null) ctx.rules.push(`@media ${MEDIA[bp]}{[data-cn="${id}"]{grid-template-columns:repeat(${fit}, minmax(0, 1fr)) !important}}`);
+    }
+  }
 
 
   switch (node.type) {
@@ -423,9 +491,29 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
       // the resolver knows the site's pages (it maps "" to the enquiry form).
       const href = node.href ? ctx.href(node.href) : ctx.href("") || undefined;
       const external = Boolean(href && /^https:\/\//i.test(href));
+      const label = node.text && ctx.label ? ctx.label(node.text) : node.text;
+      // Menu bar: a link carrying sub-links (folded by foldHeaderSubmenus) is
+      // a dropdown, so its sub-links never spill across the bar.
+      if (ctx.scope === "site-header" && node.type === "link" && node.children?.some((c) => c.type === "link")) {
+        return (
+          <NavDropdown key={key} panelId={`${id}-menu`} label={label ?? ""} trigger={
+            <a {...props} href={href} {...(external ? { target: "_blank", rel: "noopener noreferrer" } : {})}>{label}</a>
+          }>
+            {kids.map((kid, i) => (kid == null ? null : <li key={i}>{kid}</li>))}
+          </NavDropdown>
+        );
+      }
+      // A button with no fill of its own (none authored, or one a canvas heal
+      // removed) still has to look like a button: it gets the site's primary
+      // fill from CSS instead of rendering as bare text.
+      const autoPaint = node.type === "button" && isUnpaintedButton(node);
+      const buttonProps = node.type === "button"
+        ? { "data-rv-button": "", ...(autoPaint ? { "data-rv-auto": "" } : {}) }
+        : {};
+      const linkStyle = autoPaint ? withoutInk(props.style) : props.style;
       return (
-        <a key={key} {...props} {...(node.type === "button" ? { "data-rv-button": "" } : {})} href={href} {...(external ? { target: "_blank", rel: "noopener noreferrer" } : {})}>
-          {node.text && ctx.label ? ctx.label(node.text) : node.text}{kids}
+        <a key={key} {...props} style={linkStyle} {...buttonProps} href={href} {...(external ? { target: "_blank", rel: "noopener noreferrer" } : {})}>
+          {label}{kids}
         </a>
       );
     }
@@ -1234,6 +1322,13 @@ const INTERACTIVE_CSS = `
 .rv-card-elevated [data-rv-card]{border:0;box-shadow:var(--site-card-shadow,0 12px 36px rgb(0 0 0 / .14))}
 .rv-card-glass [data-rv-card]{background:color-mix(in srgb,var(--card,#fff) 55%,transparent);border:1px solid color-mix(in srgb,currentColor 12%,transparent);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
 .rv-card-bare [data-rv-card]{background:transparent;border:0;box-shadow:none}
+[data-rv-button]:where([data-rv-auto]){display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:12px 24px;border-radius:var(--radius,12px);background:var(--primary);color:var(--primary-foreground);font-weight:600;text-decoration:none}
+.rv-nav-group{position:relative;display:inline-flex;align-items:center;gap:2px}
+.rv-nav-toggle{display:inline-flex;align-items:center;justify-content:center;min-width:28px;min-height:44px;padding:0 4px;background:transparent;border:0;color:inherit;cursor:pointer;font-size:12px}
+.rv-nav-panel{display:none;position:absolute;top:100%;left:0;z-index:60;min-width:220px;margin:0;padding:8px;list-style:none;flex-direction:column;gap:0;border-radius:12px;border:1px solid color-mix(in srgb,currentColor 14%,transparent);background:var(--popover,var(--background));color:var(--popover-foreground,var(--foreground));box-shadow:0 18px 40px -16px rgb(0 0 0 / .45)}
+.rv-nav-panel a{display:flex!important;width:100%;padding:8px 12px;border-radius:8px;white-space:nowrap}
+.rv-nav-panel a:hover,.rv-nav-panel a:focus-visible{background:color-mix(in srgb,currentColor 8%,transparent)}
+.rv-nav-group:hover>.rv-nav-panel,.rv-nav-group:focus-within>.rv-nav-panel,.rv-nav-group[data-open]>.rv-nav-panel{display:flex}
 .rv-button-outline [data-rv-button]{background:transparent;color:inherit;border:2px solid var(--primary)}
 .rv-button-soft [data-rv-button]{background:color-mix(in srgb,var(--primary) 16%,transparent);color:inherit;border:0}
 .rv-button-underline [data-rv-button]{background:transparent;color:inherit;border:0;border-bottom:2px solid var(--primary);border-radius:0}

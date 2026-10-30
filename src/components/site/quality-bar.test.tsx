@@ -90,8 +90,8 @@ describe("page progress bar (quality bar #13)", () => {
 });
 
 describe("chapter snap (quality bar #8)", () => {
-  it("snaps scroll_chapters gently, and only for visitors without reduced motion", () => {
-    expect(CINEMATIC_CSS).toMatch(/@media \(prefers-reduced-motion:no-preference\)\{\nhtml:has\(\.rv-site-root \.rv-chapters\)\{scroll-snap-type:y proximity\}/);
+  it("snaps scroll_chapters gently, only on touch screens and without reduced motion", () => {
+    expect(CINEMATIC_CSS).toMatch(/@media \(prefers-reduced-motion:no-preference\) and \(hover:none\) and \(pointer:coarse\)\{\nhtml:has\(\.rv-site-root \.rv-chapters\)\{scroll-snap-type:y proximity\}/);
     expect(CINEMATIC_CSS).toMatch(/\.rv-chapters > \.rv-chapter\{scroll-snap-align:start/);
     expect(CINEMATIC_CSS).not.toContain("scroll-snap-type:y mandatory");
   });
