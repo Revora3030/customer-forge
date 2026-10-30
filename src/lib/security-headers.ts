@@ -65,6 +65,13 @@ export const CONTENT_SECURITY_POLICY = [
     "https://maps.gstatic.com",
     "https://www.google-analytics.com",
     "https://region1.google-analytics.com",
+    // GA4 sends its hits to analytics.google.com (regional *.analytics.google.com)
+    // and, with Google signals on, to stats.g.doubleclick.net. Blocking them
+    // logged a CSP error on every page and forced the slower fallback transport.
+    "https://*.google-analytics.com",
+    "https://analytics.google.com",
+    "https://*.analytics.google.com",
+    "https://stats.g.doubleclick.net",
     "https://www.googletagmanager.com",
     // Google Ads measurement beacons (conversion + consent pings).
     "https://pagead2.googlesyndication.com",

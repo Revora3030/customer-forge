@@ -22,4 +22,22 @@ describe("security headers", () => {
     expect(headers["content-security-policy"]).toContain("default-src 'self'");
     expect(headers["permissions-policy"]).toContain("camera=()");
   });
+
+  it("lets GA4 reach its own collection hosts so analytics isn't blocked on every page", () => {
+    const csp = documentSecurityHeaders({ https: true })["content-security-policy"];
+    const connect = csp.split(";").map((d) => d.trim()).find((d) => d.startsWith("connect-src")) ?? "";
+    for (const host of [
+      "https://www.google-analytics.com",
+      "https://*.google-analytics.com",
+      "https://analytics.google.com",
+      "https://*.analytics.google.com",
+      "https://stats.g.doubleclick.net",
+      "https://www.googletagmanager.com",
+    ]) {
+      expect(connect.split(/\s+/)).toContain(host);
+    }
+    // Still no blanket wildcard.
+    expect(connect.split(/\s+/)).not.toContain("https:");
+    expect(connect.split(/\s+/)).not.toContain("*");
+  });
 });
