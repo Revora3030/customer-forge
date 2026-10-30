@@ -14,6 +14,21 @@ import type { FirstBuildImageAsset } from "@/lib/builder/first-build-images.type
 import { readComponentVisual } from "@/lib/site-style";
 import type { CompositionTree } from "@/lib/builder/composition-tree";
 
+// Drop <style>…</style> blocks by index scanning (no regex sanitizer; test-only helper).
+function stripStyles(html: string): string {
+  let out = "";
+  let rest = html;
+  for (;;) {
+    const start = rest.toLowerCase().indexOf("<style");
+    if (start === -1) return out + rest;
+    out += rest.slice(0, start);
+    const end = rest.toLowerCase().indexOf("</style>", start);
+    if (end === -1) return out;
+    rest = rest.slice(end + "</style>".length);
+  }
+}
+
+
 const asset = (over: Partial<FirstBuildImageAsset>): FirstBuildImageAsset => ({
   slot: "hero",
   label: "Hero picture",
@@ -92,7 +107,7 @@ describe("image resolution check (quality bar #5)", () => {
   it("frames an undersized scene picture instead of stretching it edge to edge", () => {
     const tree: CompositionTree = { version: 1, root: { type: "scene", anchor: "center-left", children: [{ type: "media", mediaRef: "m1" }, { type: "heading", level: 1, text: "Detailing, done right" }] } } as CompositionTree;
     const render = (visual: Record<string, unknown>) =>
-      renderToStaticMarkup(<CompositionRenderer tree={tree} scope="qb2" resolveMedia={() => ({ url: "https://cdn.example/h.png", visual: { alt: "Black sedan", ...visual } })} />).replace(/<style[^>]*>[\s\S]*?<\/style>/g, "");
+      stripStyles(renderToStaticMarkup(<CompositionRenderer tree={tree} scope="qb2" resolveMedia={() => ({ url: "https://cdn.example/h.png", visual: { alt: "Black sedan", ...visual } })} />));
     const small = render({ width: 1024, height: 683 });
     expect(small).toContain("data-framed");
     expect(small).toMatch(/<img class="rv-scene-media" data-soft="" src="https:\/\/cdn.example\/h.png" alt="" aria-hidden="true"/);
