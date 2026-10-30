@@ -186,7 +186,7 @@ function fakeDb(generation: Record<string, unknown> | null, options: { failUploa
 }
 
 const okFetch = (async (url: string) => {
-  const image = String(url).includes("images.pexels.com");
+  const image = new URL(String(url)).hostname === "images.pexels.com";
   return new Response(new Uint8Array(1024), { status: 200, headers: { "content-type": image ? "image/jpeg" : "video/mp4", "content-length": "1024" } });
 }) as unknown as typeof fetch;
 
