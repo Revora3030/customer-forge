@@ -643,7 +643,7 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
             if (!answered) return <p key={i}>{child.text}</p>;
             return (
             <details key={i} className="rv-cn-acc-item" style={styleToCss(child.style, child.type)}>
-              <summary style={{ cursor: "pointer", minHeight: 44, display: "flex", alignItems: "center" }}>{child.text}</summary>
+              <summary style={{ cursor: "pointer", minHeight: 44, display: "flex", alignItems: "center" }}><span style={{ minWidth: 0, overflowWrap: "anywhere" }}>{child.text}</span></summary>
               {child.children?.map((c, j) => renderNode(c, ctx, `${key}.${i}.${j}`))}
             </details>
             );
@@ -1446,7 +1446,11 @@ function mobileCtaStyle(): CSSProperties {
   return { flex: 1, minWidth: 44, minHeight: 44, padding: "8px 14px", borderRadius: 8, border: "1px solid currentColor", font: "inherit", fontWeight: 700, whiteSpace: "normal", overflowWrap: "anywhere", background: "transparent", color: "inherit", touchAction: "manipulation" };
 }
 
-const MARQUEE_CSS = `@media (prefers-reduced-motion: no-preference){.rv-cn-marquee{animation:rv-cn-marquee 30s linear infinite}}@keyframes rv-cn-marquee{to{transform:translateX(-50%)}}`;
+// The phone-safety guard caps every composition descendant at max-width:100%
+// and lets flex items shrink to min-width:0. A marquee track must stay at its
+// max-content width (it scrolls inside its clipped wrapper), and its items must
+// never shrink, or text chips get squeezed into one-letter-wide columns.
+const MARQUEE_CSS = `[data-composition][data-composition] .rv-cn-marquee,[data-composition][data-composition] .rv-cn-marquee>[aria-hidden]{max-width:none;flex-wrap:nowrap}[data-composition][data-composition] .rv-cn-marquee>*,[data-composition][data-composition] .rv-cn-marquee>[aria-hidden]>*{flex-shrink:0}@media (prefers-reduced-motion: no-preference){.rv-cn-marquee{animation:rv-cn-marquee 30s linear infinite}}@keyframes rv-cn-marquee{to{transform:translateX(-50%)}}`;
 const INTERACTIVE_CSS = `
 .rv-cn-interactive{transition:transform .2s cubic-bezier(.16,1,.3,1),box-shadow .2s cubic-bezier(.16,1,.3,1),opacity .2s ease}
 .rv-cn-interactive:hover:not(${FORM_WIDGETS.map((name) => `[data-widget="${name}"]`).join(",")}){transform:translateY(-2px)}
