@@ -5177,13 +5177,6 @@ export type Database = {
             referencedRelation: "services"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "quote_line_items_service_same_org_fkey"
-            columns: ["service_id", "organization_id"]
-            isOneToOne: false
-            referencedRelation: "services"
-            referencedColumns: ["id", "organization_id"]
-          },
         ]
       }
       quote_options: {
