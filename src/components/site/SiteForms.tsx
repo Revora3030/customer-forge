@@ -426,18 +426,21 @@ export function BookingForm({ site, presentation }: { site: Site; presentation?:
     setToday(local.toISOString().slice(0, 10));
   }, []);
   useEffect(() => {
+    // Read the list from the stable key rather than the render's array, so this
+    // effect only ever runs when the bookable services genuinely change.
+    const known = new Set(bookableIds.split("|").filter(Boolean));
     const apply = () => {
       const hash = window.location.hash;
       if (!hash.startsWith("#book")) return;
       const id = decodeURIComponent(hash.slice("#book-".length));
-      if (id && bookable.some((service) => service.id === id)) setServiceId(id);
+      if (id && known.has(id)) setServiceId(id);
       const motion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
       document.getElementById("book")?.scrollIntoView({ behavior: motion ? "auto" : "smooth", block: "start" });
     };
     apply();
     window.addEventListener("hashchange", apply);
     return () => window.removeEventListener("hashchange", apply);
-  }, [bookable]);
+  }, [bookableIds]);
 
   if (done) {
     return (
