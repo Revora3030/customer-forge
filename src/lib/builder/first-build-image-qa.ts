@@ -26,9 +26,66 @@ export type ImageQaOutcome = {
   accepted: FirstBuildImageAsset[];
   /** Assets that were dropped, with a plain-language reason each. */
   rejected: ImageQaFinding[];
+  /**
+   * Accepted pictures too small to fill the screen sharply. They stay on the
+   * site, but are marked `fullBleed: false` so the renderer frames them
+   * instead of stretching them edge to edge.
+   */
+  demoted: ImageQaFinding[];
   /** True when every requested picture passed. */
   clean: boolean;
 };
+
+/* ---------------------------------------------------- resolution check ---- */
+
+/**
+ * Smallest picture allowed to fill a full-bleed hero or scene: HD (1280×720).
+ * Below that a laptop-width hero visibly upscales and goes soft.
+ */
+export const FULL_BLEED_MIN_WIDTH = 1280;
+export const FULL_BLEED_MIN_HEIGHT = 720;
+/** Narrowest picture allowed in a card or column. */
+export const INLINE_MIN_WIDTH = 480;
+
+export type ImageRole = "full-bleed" | "inline";
+
+const FULL_BLEED_PLACEMENT = /hero|masthead|opening|scene|cover|banner|backdrop|full-?bleed|splash/i;
+
+/** Whether a picture is destined to fill the screen edge to edge. */
+export function imageRole(asset: Pick<FirstBuildImageAsset, "slot" | "placement">): ImageRole {
+  return FULL_BLEED_PLACEMENT.test(asset.slot) || (asset.placement ?? []).some((place) => FULL_BLEED_PLACEMENT.test(place))
+    ? "full-bleed"
+    : "inline";
+}
+
+/**
+ * Plain-language problem when a picture is too small for its role, or null.
+ * Unknown sizes never block: an owner photo without recorded dimensions is
+ * still used, and the renderer keeps its own guard.
+ */
+export function imageResolutionIssue(
+  size: { width?: number | null; height?: number | null },
+  role: ImageRole,
+): string | null {
+  const width = Number(size.width) || 0;
+  const height = Number(size.height) || 0;
+  if (!width || !height) return null;
+  if (role === "full-bleed" && (width < FULL_BLEED_MIN_WIDTH || height < FULL_BLEED_MIN_HEIGHT))
+    return `the picture is ${width}×${height}px, too small to fill the screen sharply (needs ${FULL_BLEED_MIN_WIDTH}×${FULL_BLEED_MIN_HEIGHT}px), so it is shown framed instead`;
+  if (role === "inline" && width < INLINE_MIN_WIDTH)
+    return `the picture is ${width}px wide, too small to show without looking blurry`;
+  return null;
+}
+
+/**
+ * Whether a resolved picture may be stretched edge to edge. A picture marked
+ * `full_bleed: false` by the gate, or known to be undersized, is framed.
+ */
+export function fitsFullBleed(visual: { width?: number | null; height?: number | null; full_bleed?: boolean | null } | null | undefined): boolean {
+  if (!visual) return true;
+  if (visual.full_bleed === false) return false;
+  return imageResolutionIssue(visual, "full-bleed") === null;
+}
 
 function altTextProblem(asset: FirstBuildImageAsset): string | null {
   const alt = (asset.altText ?? "").trim();
@@ -63,6 +120,7 @@ function placementProblem(asset: FirstBuildImageAsset): string | null {
 export function gradeFirstBuildImages(assets: FirstBuildImageAsset[]): ImageQaOutcome {
   const accepted: FirstBuildImageAsset[] = [];
   const rejected: ImageQaFinding[] = [];
+  const demoted: ImageQaFinding[] = [];
   const seenPaths = new Set<string>();
   const seenSlotLabels = new Set<string>();
 
@@ -80,12 +138,26 @@ export function gradeFirstBuildImages(assets: FirstBuildImageAsset[]): ImageQaOu
       rejected.push({ slot: asset.slot, label: asset.label, reason });
       continue;
     }
+    // An inline picture that is simply too small would look blurry anywhere.
+    const inlineIssue = imageRole(asset) === "inline" ? imageResolutionIssue(asset, "inline") : null;
+    if (inlineIssue) {
+      rejected.push({ slot: asset.slot, label: asset.label, reason: inlineIssue });
+      continue;
+    }
     seenPaths.add(asset.path);
     seenSlotLabels.add(`${asset.slot}:${asset.label.toLowerCase()}`);
+    // Graceful fallback: an undersized hero is kept (the section never loses
+    // its picture) but is never stretched full-bleed.
+    const heroIssue = imageRole(asset) === "full-bleed" ? imageResolutionIssue(asset, "full-bleed") : null;
+    if (heroIssue) {
+      demoted.push({ slot: asset.slot, label: asset.label, reason: heroIssue });
+      accepted.push({ ...asset, fullBleed: false });
+      continue;
+    }
     accepted.push(asset);
   }
 
-  return { accepted, rejected, clean: rejected.length === 0 };
+  return { accepted, rejected, demoted, clean: rejected.length === 0 };
 }
 
 /* ------------------------------------------------------- repair hand-off ---- */

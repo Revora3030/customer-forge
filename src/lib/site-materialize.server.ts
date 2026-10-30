@@ -13,7 +13,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { pageNavLabel, safeLinkUrl } from "@/lib/website-content";
 import { effectForKind, type DesignDirection } from "@/lib/authored-direction";
 import { writeSectionEffect } from "@/lib/site-effects";
-import { writeComponentVisual } from "@/lib/site-style";
+import { writeComponentVisual, type PersistedComponentVisual } from "@/lib/site-style";
 import type { FirstBuildImageAsset } from "@/lib/builder/first-build-images.server";
 import type { CreativeBrief } from "@/lib/builder/first-build-contract";
 import {
@@ -218,6 +218,17 @@ export const MIN_OWNER_GALLERY_PHOTOS = 3;
  * picture is stamped as an AI starter image.
  */
 function mediaSettings(asset: FirstBuildImageAsset): Record<string, unknown> {
+  const settings = provenanceSettings(asset);
+  // Pixel size and the gate's full-bleed verdict ride along in the visual JSON
+  // (no schema change) so the renderer frames an undersized hero.
+  const size: PersistedComponentVisual = {
+    ...(asset.width && asset.height ? { width: asset.width, height: asset.height } : {}),
+    ...(asset.fullBleed === false ? { full_bleed: false as const } : {}),
+  };
+  return Object.keys(size).length ? writeComponentVisual(settings, size) : settings;
+}
+
+function provenanceSettings(asset: FirstBuildImageAsset): Record<string, unknown> {
   const provenance = assetProvenance(asset);
   if (provenance === "owner") {
     const category = (asset.category ?? "").trim().toLowerCase();

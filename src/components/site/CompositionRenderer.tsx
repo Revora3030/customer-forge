@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import type { Breakpoint, CompositionFaqItem, CompositionNode, CompositionTab, CompositionTree, MotionEasing, NodeHover, NodeMotion, NodeStyle, WidgetPresentation } from "@/lib/builder/composition-tree";
 import type { PersistedComponentVisual } from "@/lib/site-style";
 import { resolveImageSource } from "@/lib/brand-logos";
+import { fitsFullBleed } from "@/lib/builder/first-build-image-qa";
 import { contrastRatio, readableOn, toRgb } from "@/lib/readable-color";
 import { premiumSurface } from "@/lib/site-theme";
 import { clampSplit, splitForKey, splitForPointer } from "@/lib/builder/compare-slider";
@@ -746,11 +747,20 @@ function renderScene(node: CompositionNode, ctx: Ctx, key: string, props: NodePr
   const alt = backdrop?.alt ?? visual?.alt ?? "";
   const objectPosition = node.focal ?? visual?.object_position ?? visual?.focal_point;
   const scrubbed = Boolean(node.scrub && source && VIDEO_SOURCE.test(source));
+  // Quality bar #5: a picture too small to fill the screen is never stretched
+  // edge to edge. It is shown sharp at no more than its own size, in a frame,
+  // over a soft blurred wash of itself, so the scene keeps its picture.
+  const framed = Boolean(source && !VIDEO_SOURCE.test(source) && !backdrop?.src) && !fitsFullBleed(visual);
   const media = !source ? null : scrubbed ? null : VIDEO_SOURCE.test(source) ? (
     <SceneVideo src={source} alt={alt} eager={eager} />
+  ) : framed ? (
+    <img className="rv-scene-media" data-soft="" src={source} alt="" aria-hidden="true" loading={eager ? "eager" : "lazy"} decoding="async" />
   ) : (
     <img className="rv-scene-media" {...(first ? { "data-kenburns": "" } : {})} src={source} alt={alt} loading={eager ? "eager" : "lazy"} decoding="async" {...(eager ? { fetchPriority: "high" as const } : {})} style={objectPosition ? { objectPosition } : undefined} />
   );
+  const frame = framed && source ? (
+    <img className="rv-scene-frame" src={source} alt={alt} {...(visual?.width && visual.height ? { width: visual.width, height: visual.height } : {})} loading={eager ? "eager" : "lazy"} decoding="async" {...(eager ? { fetchPriority: "high" as const } : {})} style={visual?.width ? ({ "--rv-native": `${visual.width}px` } as CSSProperties) : undefined} />
+  ) : null;
   const copy: ReactNode[] = [];
   const offers = new Map<SceneAnchor, ReactNode[]>();
   rest.forEach((child, i) => {
@@ -763,11 +773,12 @@ function renderScene(node: CompositionNode, ctx: Ctx, key: string, props: NodePr
   });
   if (!media && !scrubbed && !copy.length) return null;
   const build = (video: ReactNode) => (
-    <div key={key} {...props} className={`${props.className ?? ""} rv-scene`.trim()} data-anchor={anchor} data-rv-scene="" style={{ ...props.style, ...(ink ? { color: ink } : {}) }}>
+    <div key={key} {...props} className={`${props.className ?? ""} rv-scene`.trim()} data-anchor={anchor} data-rv-scene="" {...(frame ? { "data-framed": "" } : {})} style={{ ...props.style, ...(ink ? { color: ink } : {}) }}>
       {video ?? media}
       {scrimLayer}
       <div className="rv-scene-inner" style={{ alignContent: ANCHOR_ROW[row], justifyItems: ANCHOR_COLUMN[column], textAlign: column === "center" ? "center" : column === "right" ? "right" : "left" }}>
         <div className="rv-scene-slot" style={{ alignItems: column === "center" ? "center" : column === "right" ? "flex-end" : "flex-start" }}>{copy}</div>
+        {frame}
         {[...offers].map(([at, cards]) => (
           <div key={at} className="rv-scene-offers" data-anchor={at} style={{ textAlign: "left" }}>{cards}</div>
         ))}
