@@ -40,6 +40,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { enterKeyAction, isOwnFormSubmit } from "@/components/ai-elements/prompt-input-keys";
 import type { ChatStatus, FileUIPart, SourceDocumentUIPart } from "ai";
 import {
   CornerDownLeftIcon,
@@ -764,6 +765,10 @@ export const PromptInput = ({
   const handleSubmit: FormEventHandler<HTMLFormElement> = useCallback(
     async (event) => {
       event.preventDefault();
+      // A form inside a portalled dialog/popover is a different form: React
+      // bubbles its submit through the component tree, and treating it as the
+      // composer's own submit sent a half-typed message.
+      if (!isOwnFormSubmit(event.target, event.currentTarget)) return;
 
       const form = event.currentTarget;
       const text = usingProvider
@@ -922,20 +927,22 @@ export const PromptInputTextarea = ({
         return;
       }
 
-      if (e.key === "Enter") {
-        if (isComposing || e.nativeEvent.isComposing) {
-          return;
-        }
-        if (e.shiftKey) {
-          return;
-        }
+      const enter = enterKeyAction({
+        key: e.key,
+        shiftKey: e.shiftKey,
+        altKey: e.altKey,
+        composing: isComposing,
+        nativeComposing: e.nativeEvent.isComposing,
+        keyCode: e.nativeEvent.keyCode,
+      });
+      if (enter === "submit") {
         e.preventDefault();
 
-        // Check if the submit button is disabled before submitting
+        // Check the composer's OWN send button (not just the first submit
+        // button in the form) before submitting.
         const { form } = e.currentTarget;
-        const submitButton = form?.querySelector(
-          'button[type="submit"]'
-        ) as HTMLButtonElement | null;
+        const submitButton = (form?.querySelector('button[data-prompt-submit][type="submit"]') ??
+          form?.querySelector('button[type="submit"]')) as HTMLButtonElement | null;
         if (submitButton?.disabled) {
           return;
         }
@@ -1203,6 +1210,7 @@ export const PromptInputSubmit = ({
       onClick={handleClick}
       size={size}
       type={isGenerating && onStop ? "button" : "submit"}
+      data-prompt-submit=""
       variant={variant}
       {...props}
     >

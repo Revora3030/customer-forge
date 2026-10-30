@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { methodNotAllowed } from "@/lib/method-not-allowed";
 import { DEFAULT_OFFER_RATES } from "@/lib/offer";
 import { type StripeEnv, verifyWebhook } from "@/lib/stripe.server";
 import { isPlatformOwnerAccount, PLATFORM_OWNER_ORG_ID } from "@/lib/platform-owner";
@@ -595,6 +596,7 @@ async function associateEvent(
 export const Route = createFileRoute("/api/public/payments/webhook")({
   server: {
     handlers: {
+      GET: () => methodNotAllowed(),
       POST: async ({ request }) => {
         const rawEnv = new URL(request.url).searchParams.get("env");
         if (rawEnv !== "sandbox" && rawEnv !== "live") {

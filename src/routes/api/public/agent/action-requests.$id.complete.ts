@@ -1,9 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { methodNotAllowed } from "@/lib/method-not-allowed";
 
 /** The bot reports the result of an approved action (approved -> completed/failed). Key-protected. */
 export const Route = createFileRoute("/api/public/agent/action-requests/$id/complete")({
   server: {
     handlers: {
+      GET: () => methodNotAllowed(),
       POST: async ({ request, params }) => {
         const { denyUnlessAgent } = await import("@/lib/agent-gateway.server");
         const denied = denyUnlessAgent(request);

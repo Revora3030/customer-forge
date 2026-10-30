@@ -15,12 +15,16 @@ export function WebsiteBriefDialog({ businessName, disabled, onUse }: { business
   return <>
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="ghost" size="icon-sm" disabled={disabled} aria-label="Website brief" title="Website brief"><FilePenLine className="size-4" aria-hidden /></Button>
+        <Button type="button" variant="ghost" size="icon-sm" disabled={disabled} aria-label="Website brief" title="Website brief"><FilePenLine className="size-4" aria-hidden /></Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader><DialogTitle>Your website brief</DialogTitle><DialogDescription>Your business, your brand, your next website.</DialogDescription></DialogHeader>
         <form className="grid gap-4" onSubmit={(event) => {
           event.preventDefault();
+          // The dialog is portalled, but React still bubbles its submit up to
+          // the chat composer's form, which then sent whatever half-typed
+          // message was in the box (e.g. "Build m"). This submit is the brief's alone.
+          event.stopPropagation();
           try { onUse(websiteRequestInstruction(draft)); setOpen(false); } catch (err) { setError(err instanceof Error ? err.message : "Check your brief."); }
         }}>
           <div className="grid gap-4 sm:grid-cols-2">

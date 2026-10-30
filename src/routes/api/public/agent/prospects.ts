@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { methodNotAllowed } from "@/lib/method-not-allowed";
 
 /**
  * The owner's outside bot (Grok) sends leads here. They land in the same review
@@ -8,6 +9,7 @@ import { createFileRoute } from "@tanstack/react-router";
 export const Route = createFileRoute("/api/public/agent/prospects")({
   server: {
     handlers: {
+      GET: () => methodNotAllowed(),
       POST: async ({ request }) => {
         const { denyUnlessAgent, ownerActorId } = await import("@/lib/agent-gateway.server");
         const denied = denyUnlessAgent(request);

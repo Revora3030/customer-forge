@@ -53,7 +53,57 @@ export async function orgRole(
     .eq("organization_id", org)
     .eq("user_id", userId)
     .maybeSingle();
-  return (data?.role as OrgRole | undefined) ?? null;
+  const role = (data?.role as OrgRole | undefined) ?? null;
+  if (role) return role;
+  // A platform super admin in an open, audited support session for THIS
+  // workspace acts as its admin — exactly what the database grants through
+  // `private.has_support_access` (which `org_role_at_least` honours). Without
+  // this the app refused builds and saves that RLS would have allowed.
+  // Never "owner": owner-only actions stay with the workspace's own owner.
+  return (await hasActiveSupportSession(supabase, org, userId)) ? "admin" : null;
+}
+
+/**
+ * Mirrors `private.has_support_access`: support grants last at most this long
+ * after the session starts, even if nobody ends it.
+ */
+export const SUPPORT_SESSION_MAX_AGE_MS = 4 * 60 * 60 * 1000;
+
+/**
+ * True only when the caller is a super admin AND holds an open support session
+ * for this exact workspace that started within the last four hours. Both reads
+ * use the caller's own credentials (RLS applies) and any error fails closed.
+ */
+export async function hasActiveSupportSession(
+  supabase: SupabaseClient<Database>,
+  organizationId: string,
+  userId: string,
+  now: number = Date.now(),
+): Promise<boolean> {
+  if (!userId) return false;
+  try {
+    const since = new Date(now - SUPPORT_SESSION_MAX_AGE_MS).toISOString();
+    const [roleRead, sessionRead] = await Promise.all([
+      supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userId)
+        .eq("role", "super_admin")
+        .limit(1),
+      supabase
+        .from("support_sessions")
+        .select("id")
+        .eq("organization_id", organizationId)
+        .eq("admin_id", userId)
+        .is("ended_at", null)
+        .gt("started_at", since)
+        .limit(1),
+    ]);
+    if (roleRead.error || sessionRead.error) return false;
+    return (roleRead.data?.length ?? 0) > 0 && (sessionRead.data?.length ?? 0) > 0;
+  } catch {
+    return false;
+  }
 }
 
 /**
