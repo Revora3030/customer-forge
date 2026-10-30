@@ -5,8 +5,8 @@
  * blind:
  *  1. First-party — every public page view is written to `marketing_conversions`
  *     with first-touch attribution, and shows up in Admin → Overview.
- *  2. Google Analytics 4 — loaded only when a real measurement ID has been saved
- *     in Admin → Analytics.
+ *  2. Google Analytics 4 — Revora's own property (G-WC1X5HWN7W) on the live
+ *     hosts, plus any extra ID saved in Admin → Analytics.
  *
  * Private surfaces (`/app`, `/admin`, `/api`, tenant preview paths) are never
  * tracked: they are not marketing traffic and tenant paths must not leak into
@@ -16,30 +16,35 @@ import { useRouterState } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
 
 import { trackConversion } from "@/lib/conversion";
-import { ga4PageView, isValidMeasurementId, loadGa4 } from "@/lib/ga4";
+import { ga4IsActive, ga4PageView, loadGa4 } from "@/lib/ga4";
+import { resolveGaMeasurementIds } from "@/lib/ga4-ids";
 import { isPublicMarketingPath } from "@/lib/marketing-paths";
 import { detectStaffBrowser, isStaffBrowser } from "@/lib/staff-browser";
-import { getPublicGaMeasurementId } from "@/lib/platform-settings.functions";
+import { getPublicGaMeasurementIds } from "@/lib/platform-settings.functions";
 
 export function PlatformAnalytics() {
   const path = useRouterState({ select: (state) => state.location.pathname });
   const lastTracked = useRef<string | null>(null);
 
-  // Load the configured GA4 property once per browser session. The ID comes
-  // from the backend — the settings table itself is not publicly readable.
-  // Load the configured GA4 property once per browser session. The lookup is
-  // optional and must never create an unhandled rejection that can turn a
-  // preview/runtime diagnostic into a page-level error.
+  // Load GA4 once per page session. The IDs come from the backend (the
+  // settings table itself is not publicly readable); if that lookup fails, the
+  // default property still loads. Analytics must never create an unhandled
+  // rejection that can turn a preview/runtime diagnostic into a page error.
   useEffect(() => {
     let cancelled = false;
     const load = () => {
     if (!isPublicMarketingPath(window.location.pathname)) return;
     void detectStaffBrowser()
-      .then((staff) => (staff ? null : getPublicGaMeasurementId()))
-      .then(async (id) => {
-        if (cancelled || id === null || !isValidMeasurementId(id)) return;
-        await loadGa4(id);
-        if (cancelled) return;
+      .then((staff) =>
+        staff
+          ? null
+          : getPublicGaMeasurementIds().catch(() => resolveGaMeasurementIds(null)),
+      )
+      .then(async (ids) => {
+        if (cancelled || ids === null) return;
+        const wasActive = ga4IsActive();
+        await loadGa4(Array.isArray(ids) && ids.length > 0 ? ids : resolveGaMeasurementIds(null));
+        if (cancelled || wasActive || !ga4IsActive()) return;
         // The first page_view fires before this async lookup resolves, so GA4
         // was never loaded yet and the landing page was dropped. Send it now.
         const current = window.location.pathname;
