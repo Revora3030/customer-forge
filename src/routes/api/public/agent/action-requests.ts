@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { methodNotAllowed } from "@/lib/method-not-allowed";
 
 /**
  * A bot asks the founder to approve one Level 4 action (merge, deploy,
@@ -8,6 +9,7 @@ import { createFileRoute } from "@tanstack/react-router";
 export const Route = createFileRoute("/api/public/agent/action-requests")({
   server: {
     handlers: {
+      GET: () => methodNotAllowed(),
       POST: async ({ request }) => {
         const { denyUnlessAgent } = await import("@/lib/agent-gateway.server");
         const denied = denyUnlessAgent(request);
