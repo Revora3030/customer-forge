@@ -1,3 +1,9 @@
+## Database migration and history reconciliation (2026-10-30)
+- [x] Applied and read back the tenant-service constraint and index; src content restored byte-for-byte, no publish.
+- [ ] Finish the model MIME restriction: exact combined migration rejected storage.buckets writes; native bucket tools lack MIME settings.
+- [x] Compared all 139 live legacy versions to 193 repository files: no remote-only versions, so no no-op files needed.
+- [x] Constraint/index readback passed and invalid pointers are zero; 54 local-only legacy versions remain, so full ledger equality is not claimed.
+
 ## Ordered platform error fixes — Part 1 (2026-10-29)
 - [x] 1–2: Verify redirects: apex HTTP is 301; www is upstream 302. Hosting permanent-status control unavailable; no DNS changes.
 - [x] 3–4: Repair visible account errors/return navigation and bounded verified-payment reconciliation; isolated tests pass. Real signup/payment not run.
