@@ -281,6 +281,13 @@
       "when": 1793325771652,
       "tag": "0039_20261016120000_trial_publishing",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1793325787135,
+      "tag": "0040_20261016150000_lead_webhook_secrets",
+      "breakpoints": true
     }
   ]
 }
