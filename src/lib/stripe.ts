@@ -1,4 +1,8 @@
-import { loadStripe, type Stripe } from "@stripe/stripe-js";
+// The "pure" entry does not inject js.stripe.com on import; Stripe.js loads
+// only when getStripe() is first called (i.e. when a checkout mounts). This
+// keeps Stripe.js off pages that merely check isPaymentsConfigured().
+import { loadStripe } from "@stripe/stripe-js/pure";
+import type { Stripe } from "@stripe/stripe-js";
 import { paymentsMode, paymentsPublishableKey } from "@/lib/payments-public-config";
 
 type StripeEnv = "sandbox" | "live";
