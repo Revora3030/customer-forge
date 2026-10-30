@@ -1,4 +1,5 @@
 import { formatCents, type DocumentModel } from "@/lib/estimates/printable-estimate";
+import type { EstimateSignature } from "@/lib/estimates/estimate-signature";
 
 const quantityFormat = new Intl.NumberFormat("en-US", { maximumFractionDigits: 3 });
 
@@ -28,7 +29,14 @@ function SignatureLine({ label }: { label: string }) {
  * workspace already holds about the customer. Shown once as the on-screen preview and once more, hidden,
  * as the copy that prints.
  */
-export function EstimateDocument({ doc }: { doc: DocumentModel }) {
+export function EstimateDocument({
+  doc,
+  signature = null,
+}: {
+  doc: DocumentModel;
+  /** The customer's on-screen signature for this exact estimate, when they signed. */
+  signature?: EstimateSignature | null;
+}) {
   const isEstimate = doc.kind === "estimate";
   const contact = [doc.business.phone, doc.business.email, doc.business.website].filter(Boolean);
   const markUntaxed = doc.showPrices && doc.taxRateLabel !== null;
@@ -155,8 +163,33 @@ export function EstimateDocument({ doc }: { doc: DocumentModel }) {
       <section aria-label="Signatures" className="mt-8 break-inside-avoid space-y-6">
         {isEstimate ? (
           <div className="grid gap-6 sm:grid-cols-[2fr_1fr]">
-            <SignatureLine label="Customer approval — signature" />
-            <SignatureLine label="Date" />
+            {signature ? (
+              <>
+                <div className="break-inside-avoid">
+                  <div className="flex h-16 items-end border-b border-neutral-700">
+                    <img
+                      src={signature.dataUrl}
+                      alt={`Signature of ${signature.signerName}`}
+                      className="max-h-16 max-w-[240px] object-contain"
+                    />
+                  </div>
+                  <p className="mt-1 text-[11px] text-neutral-600">
+                    Approved by {signature.signerName} — signed electronically
+                  </p>
+                </div>
+                <div className="break-inside-avoid">
+                  <div className="flex h-16 items-end border-b border-neutral-700">
+                    <span className="tnum">{new Date(signature.signedAt).toLocaleString("en-US")}</span>
+                  </div>
+                  <p className="mt-1 text-[11px] text-neutral-600">Date</p>
+                </div>
+              </>
+            ) : (
+              <>
+                <SignatureLine label="Customer approval — signature" />
+                <SignatureLine label="Date" />
+              </>
+            )}
           </div>
         ) : (
           <>
