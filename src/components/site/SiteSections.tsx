@@ -30,6 +30,8 @@ import { readEmbed } from "@/lib/site-embed";
 import { businessFacts, factsAddressLine } from "@/lib/builder/facts";
 import { safeParagraph, safeText } from "@/lib/builder/presentation";
 import { distinctServiceArea, sectionSurface, siteSurface } from "@/components/site/site-sections-utils";
+import { TradeCalculator } from "@/components/site/TradeCalculator";
+import { readTradeCalculator } from "@/lib/trade-calculator";
 
 type Site = NonNullable<PublicSite>;
 type Section = NonNullable<Site["content"]>["sections"][number];
@@ -145,6 +147,14 @@ function SiteSectionBody({ site, section, lead = false, first = false, surface =
     ? { version: 1 as const, root: preparedRoot }
     : readComposition(section.settings) ?? legacySectionToComposition(section, { lead });
   const kind = storedTree ? "composition" : section.kind;
+  // Owner-entered finance / ROI / price-range figures (quality bar #14). The
+  // existing estimator stays the default view; extra views appear only when
+  // the owner supplied their data.
+  const ownerCalculator = readTradeCalculator(section.settings);
+  const withOwnerCalculator = (estimator: React.ReactNode, presentation?: WidgetPresentation): React.ReactNode =>
+    ownerCalculator ? (
+      <TradeCalculator data={ownerCalculator} businessName={site.org.name} estimator={estimator} {...(presentation ? { presentation } : {})} />
+    ) : estimator;
 
   switch (kind) {
     case "composition": {
@@ -165,11 +175,13 @@ function SiteSectionBody({ site, section, lead = false, first = false, surface =
           resolveOffer={(service) => offerFactsFor(site.services ?? [], service)}
           resolveWidget={(name, presentation?: WidgetPresentation) => {
             if (name === "booking_form") return <BookingForm site={site} {...(presentation ? { presentation } : {})} />;
-            if (name === "quote_calculator") return site.quote ? <QuoteCalculator site={site} {...(presentation ? { presentation } : {})} /> : null;
+            if (name === "quote_calculator")
+              return withOwnerCalculator(site.quote ? <QuoteCalculator site={site} {...(presentation ? { presentation } : {})} /> : null, presentation);
             if (name === "contact_details") return <ContactFacts site={site} {...(presentation ? { presentation } : {})} />;
             if (name === "enquiry_form") return <EnquiryForm site={site} {...(presentation ? { presentation } : {})} />;
             if (name === "service_menu") return <ServiceMenu site={site} {...(presentation ? { presentation } : {})} />;
-            if (name === "service_estimator") return <ServiceEstimator site={site} {...(presentation ? { presentation } : {})} />;
+            if (name === "service_estimator")
+              return withOwnerCalculator(<ServiceEstimator site={site} {...(presentation ? { presentation } : {})} />, presentation);
             if (name === "review_wall") return <ReviewWall site={site} {...(presentation ? { presentation } : {})} />;
             if (name === "direct_contact")
               return <DirectContact profile={profile} businessName={site.org.name} label={presentation?.contactLabel ?? presentation?.title ?? `Call or email ${site.org.name} directly`} {...(presentation ? { presentation } : {})} />;
@@ -179,12 +191,12 @@ function SiteSectionBody({ site, section, lead = false, first = false, surface =
       ) : null;
     }
     case "quote":
-      if (!site.quote) return null;
+      if (!site.quote && !ownerCalculator) return null;
       return (
         <Shell wide id="quote">
           <Heading section={section} lead={lead} />
           <div className="mt-8">
-            <QuoteCalculator site={site} />
+            {withOwnerCalculator(site.quote ? <QuoteCalculator site={site} /> : null)}
           </div>
         </Shell>
       );
