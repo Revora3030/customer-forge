@@ -57,6 +57,20 @@ export const reportClientError = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) => {
     if (!data.message) return { recorded: false };
+    // Unauthenticated endpoint: cap reports per edge-reported client IP.
+    const [{ getRequest }, { clientErrorIp, clientErrorRateLimited }] = await Promise.all([
+      import("@tanstack/react-start/server"),
+      import("@/lib/client-error-rate-limit"),
+    ]);
+    let ip = "unknown";
+    try {
+      ip = clientErrorIp(getRequest().headers);
+    } catch {
+      // No request context (e.g. direct server call in tests).
+    }
+    // Without an edge IP there is no per-visitor key; never let one shared
+    // bucket drop real crash reports for everyone.
+    if (ip !== "unknown" && clientErrorRateLimited(ip)) return { recorded: false, throttled: true as const };
     const { captureError } = await import("@/lib/monitoring.server");
     const result = await captureError({
       message: data.message,
