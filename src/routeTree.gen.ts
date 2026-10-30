@@ -120,6 +120,7 @@ import { Route as ApiPublicAgentBuildsRouteImport } from './routes/api/public/ag
 import { Route as ApiPublicAgentHealthRouteImport } from './routes/api/public/agent/health'
 import { Route as ApiPublicAgentProspectsRouteImport } from './routes/api/public/agent/prospects'
 import { Route as ApiPublicInstagramCallbackRouteImport } from './routes/api/public/instagram/callback'
+import { Route as ApiPublicJobsAutomationRunsRouteImport } from './routes/api/public/jobs/automation-runs'
 import { Route as ApiPublicJobsBackupRouteImport } from './routes/api/public/jobs/backup'
 import { Route as ApiPublicJobsGrowthDigestRouteImport } from './routes/api/public/jobs/growth-digest'
 import { Route as ApiPublicJobsJarvisRoutinesRouteImport } from './routes/api/public/jobs/jarvis-routines'
@@ -722,6 +723,12 @@ const ApiPublicInstagramCallbackRoute =
     path: '/api/public/instagram/callback',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicJobsAutomationRunsRoute =
+  ApiPublicJobsAutomationRunsRouteImport.update({
+    id: '/api/public/jobs/automation-runs',
+    path: '/api/public/jobs/automation-runs',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicJobsBackupRoute = ApiPublicJobsBackupRouteImport.update({
   id: '/api/public/jobs/backup',
   path: '/api/public/jobs/backup',
@@ -959,6 +966,7 @@ export interface FileRoutesByFullPath {
   '/api/public/agent/health': typeof ApiPublicAgentHealthRoute
   '/api/public/agent/prospects': typeof ApiPublicAgentProspectsRoute
   '/api/public/instagram/callback': typeof ApiPublicInstagramCallbackRoute
+  '/api/public/jobs/automation-runs': typeof ApiPublicJobsAutomationRunsRoute
   '/api/public/jobs/backup': typeof ApiPublicJobsBackupRoute
   '/api/public/jobs/growth-digest': typeof ApiPublicJobsGrowthDigestRoute
   '/api/public/jobs/jarvis-routines': typeof ApiPublicJobsJarvisRoutinesRoute
@@ -1088,6 +1096,7 @@ export interface FileRoutesByTo {
   '/api/public/agent/health': typeof ApiPublicAgentHealthRoute
   '/api/public/agent/prospects': typeof ApiPublicAgentProspectsRoute
   '/api/public/instagram/callback': typeof ApiPublicInstagramCallbackRoute
+  '/api/public/jobs/automation-runs': typeof ApiPublicJobsAutomationRunsRoute
   '/api/public/jobs/backup': typeof ApiPublicJobsBackupRoute
   '/api/public/jobs/growth-digest': typeof ApiPublicJobsGrowthDigestRoute
   '/api/public/jobs/jarvis-routines': typeof ApiPublicJobsJarvisRoutinesRoute
@@ -1224,6 +1233,7 @@ export interface FileRoutesById {
   '/api/public/agent/health': typeof ApiPublicAgentHealthRoute
   '/api/public/agent/prospects': typeof ApiPublicAgentProspectsRoute
   '/api/public/instagram/callback': typeof ApiPublicInstagramCallbackRoute
+  '/api/public/jobs/automation-runs': typeof ApiPublicJobsAutomationRunsRoute
   '/api/public/jobs/backup': typeof ApiPublicJobsBackupRoute
   '/api/public/jobs/growth-digest': typeof ApiPublicJobsGrowthDigestRoute
   '/api/public/jobs/jarvis-routines': typeof ApiPublicJobsJarvisRoutinesRoute
@@ -1360,6 +1370,7 @@ export interface FileRouteTypes {
     | '/api/public/agent/health'
     | '/api/public/agent/prospects'
     | '/api/public/instagram/callback'
+    | '/api/public/jobs/automation-runs'
     | '/api/public/jobs/backup'
     | '/api/public/jobs/growth-digest'
     | '/api/public/jobs/jarvis-routines'
@@ -1489,6 +1500,7 @@ export interface FileRouteTypes {
     | '/api/public/agent/health'
     | '/api/public/agent/prospects'
     | '/api/public/instagram/callback'
+    | '/api/public/jobs/automation-runs'
     | '/api/public/jobs/backup'
     | '/api/public/jobs/growth-digest'
     | '/api/public/jobs/jarvis-routines'
@@ -1624,6 +1636,7 @@ export interface FileRouteTypes {
     | '/api/public/agent/health'
     | '/api/public/agent/prospects'
     | '/api/public/instagram/callback'
+    | '/api/public/jobs/automation-runs'
     | '/api/public/jobs/backup'
     | '/api/public/jobs/growth-digest'
     | '/api/public/jobs/jarvis-routines'
@@ -1708,6 +1721,7 @@ export interface RootRouteChildren {
   ApiPublicAgentHealthRoute: typeof ApiPublicAgentHealthRoute
   ApiPublicAgentProspectsRoute: typeof ApiPublicAgentProspectsRoute
   ApiPublicInstagramCallbackRoute: typeof ApiPublicInstagramCallbackRoute
+  ApiPublicJobsAutomationRunsRoute: typeof ApiPublicJobsAutomationRunsRoute
   ApiPublicJobsBackupRoute: typeof ApiPublicJobsBackupRoute
   ApiPublicJobsGrowthDigestRoute: typeof ApiPublicJobsGrowthDigestRoute
   ApiPublicJobsJarvisRoutinesRoute: typeof ApiPublicJobsJarvisRoutinesRoute
@@ -2508,6 +2522,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicInstagramCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/jobs/automation-runs': {
+      id: '/api/public/jobs/automation-runs'
+      path: '/api/public/jobs/automation-runs'
+      fullPath: '/api/public/jobs/automation-runs'
+      preLoaderRoute: typeof ApiPublicJobsAutomationRunsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/jobs/backup': {
       id: '/api/public/jobs/backup'
       path: '/api/public/jobs/backup'
@@ -2959,6 +2980,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicAgentHealthRoute: ApiPublicAgentHealthRoute,
   ApiPublicAgentProspectsRoute: ApiPublicAgentProspectsRoute,
   ApiPublicInstagramCallbackRoute: ApiPublicInstagramCallbackRoute,
+  ApiPublicJobsAutomationRunsRoute: ApiPublicJobsAutomationRunsRoute,
   ApiPublicJobsBackupRoute: ApiPublicJobsBackupRoute,
   ApiPublicJobsGrowthDigestRoute: ApiPublicJobsGrowthDigestRoute,
   ApiPublicJobsJarvisRoutinesRoute: ApiPublicJobsJarvisRoutinesRoute,
