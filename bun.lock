@@ -13,7 +13,9 @@
         "@lovable.dev/email-js": "0.1.0",
         "@lovable.dev/mcp-js": "^3.1.1",
         "@lovable.dev/webhooks-js": "^0.0.1",
+        "@paper-design/shaders-react": "0.0.82",
         "@perplexity-ai/perplexity_ai": "^0.39.1",
+        "@photo-sphere-viewer/core": "5.15.1",
         "@radix-ui/react-accordion": "^1.2.12",
         "@radix-ui/react-alert-dialog": "^1.1.15",
         "@radix-ui/react-aspect-ratio": "^1.1.8",
@@ -132,6 +134,7 @@
     "seroval": "1.6.12",
     "seroval-plugins": "1.6.12",
     "source-map-js": "1.2.2",
+    "three": "0.186.1",
     "undici": "7.30.1",
     "zod": "^4.6.7",
   },
@@ -414,7 +417,13 @@
 
     "@oxc-project/types": ["@oxc-project/types@0.142.0", "https://europe-west1-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache/@oxc-project/types/-/types-0.142.0.tgz", {}, "sha512-7W+2q5AKQVU36fkaryontrHn3YDt1RyUYXatw9i5H8ocYe2sPKSFB6eS8WNPeRKiN1qAWWZUPm7gwFzJGrccqQ=="],
 
+    "@paper-design/shaders": ["@paper-design/shaders@0.0.82", "", {}, "sha512-eCxYQrrCxRVc4KG8sLSQecsq8Ymstbaq/FqZjq/fhOa6UiR1ZZfdMO5IJpHmwL0GYmfzvZVQ4l8ZOLux0uLVdg=="],
+
+    "@paper-design/shaders-react": ["@paper-design/shaders-react@0.0.82", "", { "dependencies": { "@paper-design/shaders": "0.0.82" }, "peerDependencies": { "@types/react": "^18 || ^19", "react": "^18 || ^19" }, "optionalPeers": ["@types/react"] }, "sha512-DSPvsCgqagN23sYJP4vB9UpKj0IM6Aq9DOulI8c6ByHdDD6mIKRCNN6tqHK1FDdzCEQNz0dstlRtcdImAWcqqQ=="],
+
     "@perplexity-ai/perplexity_ai": ["@perplexity-ai/perplexity_ai@0.39.1", "https://europe-west1-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache/@perplexity-ai/perplexity_ai/-/perplexity_ai-0.39.1.tgz", {}, "sha512-hTYweSKbDX9lwKTQLUXZ7S3/oKnwf4tL3TsbBhTXrOqUcV1PGKv0Ml2XZ7ls/ETOyQssFD0eBrAbG4rS6Gvk4g=="],
+
+    "@photo-sphere-viewer/core": ["@photo-sphere-viewer/core@5.15.1", "", { "dependencies": { "three": "^0.185.1" } }, "sha512-nhJviczUB1xiAT/I7mGba9iDIw7DvsiK34hbR9t7kIrg9MySG33uA+a4QUk2dEOP5PjcKMj58wod8I/dQ7ePiw=="],
 
     "@pkgr/core": ["@pkgr/core@0.3.6", "https://europe-west1-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache/@pkgr/core/-/core-0.3.6.tgz", {}, "sha512-SEeaJLb3qBNF/OaXnaR1NmmBbFYk1zC0ZH/52fATcRPLFg/p791YrcyFFy44Bo9sLaGuSuLp5Q6axbb/O+v/RA=="],
 
@@ -2227,8 +2236,6 @@
     "router/is-promise": ["is-promise@4.0.0", "", {}, "sha512-hvpoI6korhJMnej285dSg6nu1+e6uxs7zG3BYAm5byqDsgJNWwxzM6z6iZiAgQR4TJ30JmBTOwqZUw3WlyH3AQ=="],
 
     "source-map-support/source-map": ["source-map@0.6.1", "https://europe-west1-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache/source-map/-/source-map-0.6.1.tgz", {}, "sha512-UjgapumWlbMhkBgzT7Ykc5YXUT46F0iKu8SGXq0bcwP5dz/h0Plj6enJqjz1Zbq2l5WaqYnrVbwWOWMyF3F47g=="],
-
-    "stats-gl/three": ["three@0.170.0", "", {}, "sha512-FQK+LEpYc0fBD+J8g6oSEyyNzjp+Q7Ks1C568WWaoMRLW+TkNNWmenWeGgJjV105Gd+p/2ql1ZcjYvNiPZBhuQ=="],
 
     "three-stdlib/fflate": ["fflate@0.6.11", "", {}, "sha512-3JyEFWGjFn7zHmoa9+zG1BmW7X2okcmAB+0Cnu9UFbVs/jCBnl2A8o065ZlXiw145K3eBM3uLuzrYXC0RK7eDg=="],
 

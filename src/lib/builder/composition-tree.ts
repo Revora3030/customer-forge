@@ -16,6 +16,7 @@ import {
 } from "@/lib/builder/cinematic-primitives";
 import { MAX_BRUSH_TOOLS } from "@/lib/builder/reveal-brush";
 import { parseCountUp } from "@/lib/builder/count-up";
+import { checkFloors, isShaderKind, SHADER_KINDS, TOUR_LIMITS, type BuildingFloor, type ShaderKind } from "@/lib/builder/premium-effects";
 
 export const COMPOSITION_PRIMITIVES = [
   "stack", "grid", "row", "scene3d", "text", "heading", "media", "button", "link",
@@ -25,13 +26,14 @@ export const COMPOSITION_PRIMITIVES = [
   "scene", "scroll_chapters", "offer_card", "spin_viewer", "collection_row",
   "lens_magnifier", "sticky_split_story", "service_tier_fader", "parallax_layers",
   "scrub_sequence", "dial_selector", "model_3d_viewer",
+  "shader_field", "tour_360", "building_explorer",
 ] as const;
 
 /** Primitives a visitor operates (a site's interactive centrepiece). Working form widgets are counted separately. */
 export const INTERACTIVE_PRIMITIVES: ReadonlySet<string> = new Set([
   "tabs", "toggle", "accordion", "compare", "before_after_slider", "faq_accordion", "tab_group",
   "scroll_chapters", "spin_viewer", "collection_row", "lens_magnifier", "sticky_split_story", "service_tier_fader",
-  "scrub_sequence", "dial_selector", "model_3d_viewer",
+  "scrub_sequence", "dial_selector", "model_3d_viewer", "tour_360", "building_explorer",
 ]);
 
 /** Working features an AI layout may place anywhere. Their data (prices, phone, email, hours) always comes from verified business facts. */
@@ -95,16 +97,19 @@ export const PRIMITIVE_GUIDE =
   "parallax_layers (2-4 media children ordered back to front — e.g. a backdrop, a mid layer and a transparent cut-out in front — that drift at different speeds as the page scrolls for a layered depth effect; each with mediaRef and alt — the back layer's alt describes the scene, the layers in front are treated as decoration; pure CSS, still when motion is reduced or unsupported; use one per page for a hero or showcase, not for before/after or proof pictures). " +
   "dial_selector (a \"right setting for every surface\" gauge: text is its short control label such as \"Pick a surface\"; dialOptions holds 2-6 options {label (max 28), value (the reading shown in the dial, max 24, e.g. \"100-500\", \"Soft wash\", \"Level 2\"), note (one line, max 140), level 0-100 for the needle} and dialUnit is an optional unit under the reading such as \"PSI\"; the visitor taps an option chip and the needle sweeps to it; use it to explain a real method choice the business makes per material, room, vehicle, coat or plan — pressure per surface, grit per floor, film per window, intensity per treatment; readings and notes must be method facts the owner gave or that their services state, never prices, guarantees or results; when no figures were supplied use plain words for value such as \"Low\" or \"Soft wash\"; without JavaScript every option is listed). " +
   "model_3d_viewer (an interactive 3D model the visitor drags to orbit and pinches or scrolls to zoom: mediaRef is a supplied part marked model3d — the owner's own uploaded .glb of a real product, vehicle, fixture or space — and never a picture; text is its short label such as \"Turn the …\"; alt describes the object for screen readers; at most one optional media child is the poster picture shown until the visitor taps to load the model and when 3D isn't available; only use it when a model3d part is supplied). " +
+  "shader_field (an animated WebGL colour field behind its children, for a text-led hero or closing band with no supplied picture: shader is \"mesh\" (soft flowing gradient), \"grain\" (grainy light bloom), \"warp\" (bold flowing bands), \"swirl\" (paint-like swirl), \"god-rays\" (light beams from above) or \"neuro-noise\" (fine glowing filaments); style.background is the dark base colour and style.gradientTo the accent it glows with, both from the palette; children are the copy over it (heading, text, buttons) and every text colour must read on both colours; with no WebGL, reduced motion or data saver it is the same palette as a still gradient; one per page, never in place of the owner's real pictures). " +
+  "tour_360 (a 360° panorama tour the visitor drags around: children are 1-8 media scenes, each with mediaRef pointing at a supplied part marked panorama360 — the owner's own equirectangular photo of a real room, venue or property — with alt, and each child's text is its short scene label (max 30, e.g. \"Lobby\", \"Rooftop\"); text is the tour's label such as \"Walk through the …\"; until the visitor taps start, and without WebGL, the first panorama shows as a picture with the scene list; only use it when panorama360 parts are supplied). " +
+  "building_explorer (a 3D stack of floors the visitor clicks to read about each level, for a real building, development, venue or office: floors holds 2-12 rows {label (max 40, e.g. \"Level 12 · Penthouse\"), body (max 160, one line the owner supplied)} from the lowest floor up; text is its label such as \"Explore the building\"; an optional single media child is the building's photo; never type prices, availability or sizes the owner did not give; without WebGL the floors are a plain list). " +
   "collection_row (a horizontally scrolling, snap-aligned row of offer_card children, each with its picture, name, optional real-service price and an accent button; keyboard and swipe friendly). " +
   "widget (text is one of booking_form|quote_calculator|enquiry_form|contact_details|direct_contact|service_menu|review_wall|service_estimator — service_estimator is a zero-token price/time estimator built only from the owner's listed service prices and durations (it renders nothing when fewer than two services carry them); enquiry_form is the site's working message form (name, phone/email, message; saved to the owner's leads); booking_form/quote_calculator drop the site's real working form, verified phone/email/hours/area, the live service menu (names, prices, durations straight from the owner's Services tool) or the live published reviews into your layout; style its wrapper freely, never retype those facts yourself; service_menu and review_wall stay in sync when the owner edits services or publishes reviews; monthly-payment/finance, ROI/yield and price-range views appear inside quote_calculator or service_estimator ONLY from figures the owner typed into the section's calculator settings — never write an APR, interest rate, finance term, deposit, monthly payment, price range, occupancy, yield, ROI or payback figure anywhere in your layout or widgetPresentation, and never promise financing or returns the owner did not supply). For working widgets, widgetPresentation may author visible labels, helper/success copy and a bounded local theme (surface, text, muted, border, action, actionText, selected, selectedText); never put business data or pricing into widgetPresentation — the application supplies those facts. " +
   "Real company logos: a media src of https://img.logo.dev/<domain> (e.g. img.logo.dev/stripe.com) renders that company's real logo — use ONLY for companies the customer actually named as partners, clients or platforms they use; never invent an affiliation. " +
   "3D scenes: scene3d is an AI-authored perspective container; use style.perspective (120-3000px), style.transformStyle preserve-3d, and child style.depth (-800..800px), style.rotateAxis x|y|z with style.rotate (-45..45deg), and style.backfaceVisibility hidden|visible. Compose real HTML/media layers into original CSS 3D scenes; this is not a generated mesh. " +
   "Layering: style.position (relative|sticky|absolute), style.top/left/right/bottom (px), style.zIndex (0-50), style.overlap (px a block pulls up over the one before it), style.blur (frosted-glass backdrop px), style.rotate (deg), style.gridAreas + style.area for named grid regions. " +
-  "Motion: motion.kind fade|rise|scale|float|slide-left|slide-right|blur|reveal, motion.delayMs, motion.durationMs, motion.easing (ease|ease-in|ease-out|ease-in-out|linear|spring|snap); presets are optional shortcuts. " +
+  "Motion: motion.kind fade|rise|scale|float|slide-left|slide-right|blur|reveal|split|depth (split: a heading's words rise in one after another, for one display heading per page; depth: a picture or scene eases from a slight zoom as it scrolls through, at most one per page), motion.delayMs, motion.durationMs, motion.easing (ease|ease-in|ease-out|ease-in-out|linear|spring|snap); presets are optional shortcuts. " +
   "Or design your own: motion.kind custom with motion.from { opacity 0-100, x/y px -240..240, scale 0.5-1.5, rotate deg -45..45, blur px 0-24 } (the block animates from those values to its designed state), " +
   "motion.repeat (1-3 plays, or loop for a gentle back-and-forth), motion.trigger (load|view). " +
   "Pointer/touch response: hover { scale 0.9-1.15, x/y px -24..24, rotate deg -10..10, opacity 40-100, shadow none|subtle|medium|strong, durationMs 100-800 } — applies on hover, keyboard focus and touch press. All motion is skipped for reduced-motion visitors.";
-export const MOTION_KINDS = ["none", "fade", "rise", "scale", "float", "slide-left", "slide-right", "blur", "reveal", "custom"] as const;
+export const MOTION_KINDS = ["none", "fade", "rise", "scale", "float", "slide-left", "slide-right", "blur", "reveal", "split", "depth", "custom"] as const;
 export const MOTION_EASINGS = ["ease", "ease-in", "ease-out", "ease-in-out", "linear", "spring", "snap"] as const;
 export type MotionEasing = (typeof MOTION_EASINGS)[number];
 export type MotionFrom = { opacity?: number; x?: number; y?: number; scale?: number; rotate?: number; blur?: number };
@@ -251,6 +256,10 @@ export type CompositionNode = {
   dialUnit?: string;
   /** spin_viewer only: the angle shown first. */
   initialFrame?: number;
+  /** shader_field only: which animated shader look. */
+  shader?: ShaderKind;
+  /** building_explorer only: the floors from the lowest up, owner facts. */
+  floors?: BuildingFloor[];
   style?: NodeStyle;
   responsive?: Partial<Record<Breakpoint, NodeStyle>>;
   motion?: NodeMotion;
@@ -595,9 +604,14 @@ export type ValidateOptions = {
    * reference them, and a model_3d_viewer may reference nothing else.
    */
   modelRefs?: ReadonlySet<string>;
+  /**
+   * The section's owner-supplied 360° panoramas. When given, a tour_360 may
+   * only show these.
+   */
+  panoramaRefs?: ReadonlySet<string>;
 };
 
-const SOFT_PROBLEM = /submitLabel must be 40|quote gives an estimate range|contrast|unknown style property|button text below 14px|text is too long|label must be 120|must be one of|must be a number between|must be true or false|font name contains|aspect must look like|area must be a simple name|gridAreas must look like|must be 0-3000|must be 150-4000|unknown motion|unknown hover property|must be none, subtle|from is only used|custom motion needs|ariaLabel must be text|shows at most 3 specs|focal must look like|scrim opacity must be|initialFrame must be/;
+const SOFT_PROBLEM = /submitLabel must be 40|quote gives an estimate range|contrast|unknown style property|button text below 14px|text is too long|label must be 120|must be one of|must be a number between|must be true or false|font name contains|aspect must look like|area must be a simple name|gridAreas must look like|must be 0-3000|must be 150-4000|unknown motion|unknown hover property|must be none, subtle|from is only used|custom motion needs|ariaLabel must be text|shows at most 3 specs|focal must look like|scrim opacity must be|initialFrame must be|split motion only/;
 
 const hasPictureSource = (node: CompositionNode) => node.type === "media" && Boolean(node.src || node.mediaRef);
 
@@ -605,7 +619,7 @@ const hasPictureSource = (node: CompositionNode) => node.type === "media" && Boo
  * Structural rules for the cinematic primitives. Renderer safety and truth
  * only: which primitive to use, its copy, anchor and palette stay the AI's.
  */
-function checkCinematic(node: CompositionNode, path: string, issues: CompositionIssue[]) {
+function checkCinematic(node: CompositionNode, path: string, issues: CompositionIssue[], options: ValidateOptions = {}) {
   const kids = node.children ?? [];
   const at = `${path}.children`;
   switch (node.type) {
@@ -659,6 +673,30 @@ function checkCinematic(node: CompositionNode, path: string, issues: Composition
       if (kids.length > 1 || kids.some((child) => !hasPictureSource(child)))
         issues.push({ path: at, problem: "model_3d_viewer holds at most one media child: its poster picture" });
       break;
+    case "shader_field":
+      if (!kids.length) issues.push({ path: at, problem: "shader_field needs its copy (heading, text or buttons) as children" });
+      if (kids.some((child) => ["scene", "scroll_chapters", "scrub_sequence", "shader_field", "mobile_sticky_bar", "tour_360", "building_explorer", "model_3d_viewer"].includes(child.type)))
+        issues.push({ path: at, problem: "shader_field is a backdrop for copy; it cannot hold a scene, another shader or a 3D/360 block" });
+      break;
+    case "tour_360":
+      if (kids.length < TOUR_LIMITS.minScenes || kids.length > TOUR_LIMITS.maxScenes || kids.some((child) => child.type !== "media" || !child.mediaRef))
+        issues.push({ path: at, problem: `tour_360 needs ${TOUR_LIMITS.minScenes}-${TOUR_LIMITS.maxScenes} media scenes, each a supplied panorama (mediaRef of a part marked panorama360)` });
+      kids.forEach((child, i) => {
+        if (child.type !== "media") return;
+        if (!child.alt?.trim()) issues.push({ path: `${at}[${i}].alt`, problem: "every tour_360 scene needs alt text" });
+        if ((child.text?.trim().length ?? 0) > TOUR_LIMITS.label) issues.push({ path: `${at}[${i}].text`, problem: `a tour_360 scene label must be ${TOUR_LIMITS.label} characters or fewer` });
+        if (options.panoramaRefs && child.mediaRef && !options.panoramaRefs.has(child.mediaRef))
+          issues.push({ path: `${at}[${i}].mediaRef`, problem: "tour_360 scenes must be supplied 360° panoramas (parts marked panorama360), not ordinary pictures" });
+      });
+      break;
+    case "building_explorer": {
+      if (!node.floors) issues.push({ path: `${path}.floors`, problem: "building_explorer needs floors: 2-12 {label, body} rows from the owner's facts" });
+      if (kids.length > 1 || kids.some((child) => !hasPictureSource(child)))
+        issues.push({ path: at, problem: "building_explorer holds at most one media child: the building's photo" });
+      const typed = (node.floors ?? []).flatMap((floor) => [floor.label, floor.body]).find((text) => text && TYPED_PRICE.test(text));
+      if (typed) issues.push({ path: `${path}.floors`, problem: `floors carry owner facts, never typed prices; remove the amount from "${typed.slice(0, 60)}"` });
+      break;
+    }
     case "lens_magnifier":
       if (kids.length !== 1 || !hasPictureSource(kids[0]!) || kids[0]!.mediaRef == null)
         issues.push({ path: at, problem: "lens_magnifier needs exactly one media child that is the owner's real photo (a mediaRef with alt text)" });
@@ -1005,6 +1043,29 @@ export function validateComposition(input: unknown, options: ValidateOptions = {
         else node.service = trimmed;
       }
     }
+    if (row["shader"] != null) {
+      const shader = row["shader"];
+      if (node.type !== "shader_field") issues.push({ path: `${path}.shader`, problem: "shader only applies to shader_field" });
+      else if (!isShaderKind(shader)) issues.push({ path: `${path}.shader`, problem: `shader must be one of ${SHADER_KINDS.join(", ")}` });
+      else node.shader = shader;
+    }
+    if (row["floors"] != null) {
+      if (node.type !== "building_explorer") issues.push({ path: `${path}.floors`, problem: "floors only applies to building_explorer" });
+      else {
+        const checked = checkFloors(row["floors"]);
+        if ("problem" in checked) issues.push({ path: `${path}.floors`, problem: checked.problem });
+        else {
+          for (const [i, floor] of checked.floors.entries()) {
+            for (const [key, text] of [["label", floor.label], ["body", floor.body]] as const) {
+              const truth = text ? options.screenText?.(text) : null;
+              if (truth) issues.push({ path: `${path}.floors[${i}].${key}`, problem: truth });
+              if (text && UNSAFE_TEXT.test(text)) issues.push({ path: `${path}.floors[${i}].${key}`, problem: "text contains markup or script" });
+            }
+          }
+          node.floors = checked.floors;
+        }
+      }
+    }
     if (row["initialFrame"] != null) {
       const frame = row["initialFrame"];
       if (node.type !== "spin_viewer") issues.push({ path: `${path}.initialFrame`, problem: "initialFrame is only used on spin_viewer" });
@@ -1079,7 +1140,8 @@ export function validateComposition(input: unknown, options: ValidateOptions = {
             m.from = out;
           }
         } else if (from != null) bad("from", "from is only used with kind custom");
-        node.motion = m;
+        if (m.kind === "split" && node.type !== "heading" && node.type !== "text") bad("kind", "split motion only applies to a heading or text");
+        else node.motion = m;
       }
     }
     if (row["hover"] != null) {
@@ -1126,7 +1188,7 @@ export function validateComposition(input: unknown, options: ValidateOptions = {
     }
     if (node.type === "toggle" && (kids.length !== 2 || kids.some((c) => !c.text))) issues.push({ path: `${path}.children`, problem: "toggle needs exactly two children, each with a text label" });
     if (node.type === "marquee" && kids.length < 1) issues.push({ path: `${path}.children`, problem: "marquee needs children" });
-    checkCinematic(node, path, issues);
+    checkCinematic(node, path, issues, options);
     return node;
   };
 

@@ -13,6 +13,7 @@
  * substitute design.
  */
 import { MODEL_COMPONENT_KIND } from "@/lib/site-models";
+import { isPanoramaPart } from "@/lib/builder/premium-effects";
 import { mapConcurrent } from "@/lib/concurrency";
 import { pageArchitecture } from "./page-architecture";
 import { callBestThinker } from "@/lib/ai/thinker.server";
@@ -159,6 +160,8 @@ function materialFor(section: SectionRow, parts: ComponentRow[]) {
       mediaRef: part.media_url ? part.id : null,
       // The owner's own uploaded .glb: only a model_3d_viewer may show it.
       ...(part.media_url && part.kind === MODEL_COMPONENT_KIND ? { model3d: true } : {}),
+      // The owner's own 360° panorama: the only pictures a tour_360 may show.
+      ...(part.media_url && part.kind !== MODEL_COMPONENT_KIND && isPanoramaPart(part.settings) ? { panorama360: true } : {}),
       // AI_GENERATED_DRAFT / NOT_VERIFIED_WORK_PROOF: illustrative only.
       ...(part.media_url && isNotProofPart(part) ? { notProof: true } : {}),
       ...(part.media_url && partSource(part) === "generated" ? { aiGenerated: true } : {}),
@@ -239,6 +242,14 @@ function modelRefsFor(section: SectionRow, parts: ComponentRow[]) {
   return new Set(
     parts
       .filter((part) => part.section_id === section.id && Boolean(part.media_url) && part.kind === MODEL_COMPONENT_KIND)
+      .map((part) => part.id),
+  );
+}
+
+function panoramaRefsFor(section: SectionRow, parts: ComponentRow[]) {
+  return new Set(
+    parts
+      .filter((part) => part.section_id === section.id && Boolean(part.media_url) && part.kind !== MODEL_COMPONENT_KIND && isPanoramaPart(part.settings))
       .map((part) => part.id),
   );
 }
@@ -349,11 +360,15 @@ export async function composeFirstBuildSections(input: {
   // Every customer gets the owner's reference standard: inside the trade note when a trade or archetype
   // matches, read generally when the business has no category or description yet.
   const tradeNote = playbookNote(facts.industry ?? null, [facts.description ?? "", ...serviceNames].join(" ")) ?? referenceStandardNote("general");
+  // Which premium effects (shader, split headline, depth, 360 tour, building explorer) suit this trade, and the budget.
+  const { premiumEffectsNote } = await import("@/lib/builder/premium-niche");
+  const effectsNote = premiumEffectsNote(facts.industry ?? null, [facts.description ?? "", ...serviceNames].join(" "));
   const promptLook = [
     serviceNames.length
       ? `${input.lookSummary}\nREAL SERVICES (the only names an offer_card service may use, exactly as written): ${JSON.stringify(serviceNames.slice(0, 40))}`
       : input.lookSummary,
     tradeNote,
+    effectsNote,
   ]
     .filter(Boolean)
     .join("\n\n");
@@ -406,6 +421,7 @@ export async function composeFirstBuildSections(input: {
       allowedMediaRefs: mediaRefs,
       requiredMediaRefs: mediaRefs,
       modelRefs: modelRefsFor(section, parts),
+      panoramaRefs: panoramaRefsFor(section, parts),
       serviceNames,
     });
     if (!checked.ok) return { ok: false, issues: checked.issues.slice(0, 12) };
@@ -889,6 +905,7 @@ async function repairDesignQuality(input: {
         allowedMediaRefs: mediaRefs,
         requiredMediaRefs: mediaRefs,
         modelRefs: modelRefsFor(section, input.parts),
+        panoramaRefs: panoramaRefsFor(section, input.parts),
         serviceNames: input.serviceNames,
       });
       if (!checked.ok) continue;
@@ -987,6 +1004,7 @@ async function improveWithTeam(input: {
           allowedMediaRefs: mediaRefs,
           requiredMediaRefs: mediaRefs,
           modelRefs: section ? modelRefsFor(section, input.parts) : new Set<string>(),
+          panoramaRefs: section ? panoramaRefsFor(section, input.parts) : new Set<string>(),
           serviceNames: input.serviceNames,
         });
         // A revision must keep the section's working form/contact widget; a
@@ -1026,6 +1044,7 @@ async function improveWithTeam(input: {
           allowedMediaRefs: mediaRefs,
           requiredMediaRefs: mediaRefs,
           modelRefs: section ? modelRefsFor(section, input.parts) : new Set<string>(),
+          panoramaRefs: section ? panoramaRefsFor(section, input.parts) : new Set<string>(),
           serviceNames: input.serviceNames,
         });
         if (!finalCheck.ok) {

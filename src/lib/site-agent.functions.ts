@@ -14,6 +14,7 @@ import { linkGeneratedMedia } from "@/lib/builder/composition-media-link";
 import { readComposition, restyleCompositionTree, writeComposition, type CompositionNode, type CompositionTree } from "@/lib/builder/composition-tree";
 import { writeBackdrop, writeBackdropSpec, writeSectionEffect } from "@/lib/site-effects";
 import { writeDesignTokens } from "@/lib/builder/design-tokens";
+import { writePremiumSettings } from "@/lib/builder/premium-effects";
 import { writeBlockStyle, writeComponentVisual } from "@/lib/site-style";
 import { writeCustomBlock } from "@/lib/builder/custom-block";
 import { createServerFn } from "@tanstack/react-start";
@@ -1175,6 +1176,7 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
       "set_component_visual",
       "set_theme",
       "set_design_tokens",
+      "set_premium_fx",
       "set_backdrop",
       "set_section_effect",
       "generate_component_image",
@@ -1868,6 +1870,18 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
         case "set_design_tokens":
           await run(action.type, () => {
             const generation = writeDesignTokens(readColumn("website_settings", null, "generation"), action.tokens);
+            noteColumn("website_settings", null, "generation", generation);
+            return supabase
+              .from("website_settings")
+              .upsert({ organization_id: orgId, generation } as never, { onConflict: "organization_id" });
+          });
+          break;
+        case "set_premium_fx":
+          await run(action.type, () => {
+            const generation = writePremiumSettings(readColumn("website_settings", null, "generation"), {
+              ...(action.enabled !== undefined ? { enabled: action.enabled } : {}),
+              ...(action.meterLabel !== undefined ? { meterLabel: action.meterLabel } : {}),
+            });
             noteColumn("website_settings", null, "generation", generation);
             return supabase
               .from("website_settings")

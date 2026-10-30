@@ -15,6 +15,12 @@ import { CollectionRow, DialSelector, HeroVideo, SceneVideo, ScrubSequence, Scru
 import { CINEMATIC_CSS } from "@/components/site/cinematic-css";
 import { CountUpText } from "@/components/site/CountUp";
 import { ModelViewer } from "@/components/site/ModelViewer";
+import { ShaderField } from "@/components/site/ShaderField";
+import { Tour360, type TourScene } from "@/components/site/Tour360";
+import { BuildingExplorer } from "@/components/site/BuildingExplorer";
+import { usePremiumFx } from "@/components/site/premium-fx";
+import { PREMIUM_CSS } from "@/components/site/premium-css";
+import { looksEquirect, splitWords, TOUR_LIMITS } from "@/lib/builder/premium-effects";
 import { isModelUrl } from "@/lib/site-models";
 import type { HeroVideoMedia } from "@/lib/builder/hero-stock-video";
 
@@ -37,6 +43,7 @@ const FILL_WHEN_CAPPED = new Set<CompositionNode["type"]>([
   "stack", "grid", "row", "card", "list", "tabs", "toggle", "accordion", "compare", "gallery", "widget",
   "before_after_slider", "faq_accordion", "tab_group", "offer_card", "spin_viewer", "collection_row",
   "lens_magnifier", "sticky_split_story", "service_tier_fader", "parallax_layers", "scrub_sequence", "dial_selector", "model_3d_viewer", "divider", "marquee",
+  "shader_field", "tour_360", "building_explorer",
 ]);
 // eslint-disable-next-line react-refresh/only-export-components -- renderer helpers are intentionally co-located with their composition types.
 export function styleToCss(style: NodeStyle | undefined, type: CompositionNode["type"]): CSSProperties {
@@ -139,7 +146,7 @@ const CHROME_SCOPES = new Set(["site-header", "site-footer"]);
 /** Facts for an offer card, read from the owner's real Services tool. Never authored by the AI. */
 export type OfferFacts = { name: string; price: string | null; duration: string | null };
 
-type Ctx = { parentType?: string | undefined; align?: NodeStyle["align"] | undefined; offer?: (service: string) => OfferFacts | null; sceneScrim?: string | undefined; chrome?: boolean; editable?: boolean; label?: (text: string) => string; depth?: number | undefined; bg?: string | undefined; bg2?: string | undefined; fg?: string | undefined; rules: string[]; counter: { n: number; sawMedia?: boolean }; eagerFirstMedia?: boolean; heroVideo?: HeroVideoMedia | null; scope: string; href: (h: string) => string; media: (ref: string) => ResolvedMedia | null; widget: (name: string, presentation?: WidgetPresentation) => ReactNode };
+type Ctx = { premiumOff?: boolean; parentType?: string | undefined; align?: NodeStyle["align"] | undefined; offer?: (service: string) => OfferFacts | null; sceneScrim?: string | undefined; chrome?: boolean; editable?: boolean; label?: (text: string) => string; depth?: number | undefined; bg?: string | undefined; bg2?: string | undefined; fg?: string | undefined; rules: string[]; counter: { n: number; sawMedia?: boolean }; eagerFirstMedia?: boolean; heroVideo?: HeroVideoMedia | null; scope: string; href: (h: string) => string; media: (ref: string) => ResolvedMedia | null; widget: (name: string, presentation?: WidgetPresentation) => ReactNode };
 
 const mediaUrl = (media: ResolvedMedia | null): string | null =>
   typeof media === "string" ? media : media?.url ?? null;
@@ -198,6 +205,7 @@ const STRETCH_PANEL = new Set<CompositionNode["type"]>([
   "accordion", "faq_accordion", "tab_group", "tabs", "toggle", "compare", "gallery", "widget",
   "before_after_slider", "scroll_chapters", "scrub_sequence", "sticky_split_story", "service_tier_fader",
   "collection_row", "parallax_layers", "lens_magnifier", "spin_viewer", "offer_card", "dial_selector", "model_3d_viewer",
+  "tour_360", "building_explorer",
 ]);
 
 function baseLayout(type: CompositionNode["type"]): CSSProperties {
@@ -459,7 +467,7 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
   if (paint.color) style.color = paint.color;
   ctx.bg = paint.bg; ctx.bg2 = paint.bg2; ctx.fg = paint.fg;
   ctx.depth = (ctx.depth ?? 0) + 1;
-  const motion = node.motion && node.motion.kind !== "none" ? node.motion : null;
+  const motion = premiumMotion(node, ctx);
   // Default scroll reveal: cards and the items of a grid or row rise in, staggered by position, when the
   // AI gave them no motion of their own. Pure CSS (view timeline), reduced-motion safe, never on chrome,
   // and browsers without view timelines simply show the content.
@@ -544,15 +552,17 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
       } as CSSProperties;
       // Site header/footer: same look, but not a document heading, so the
       // page keeps its one h1 and a clean outline.
-      const headingText = countUpText(node, ctx);
+      const headingText = splitText(node, ctx, motion) ?? countUpText(node, ctx);
       if (!childrenArePhrasing(node)) return <div key={key} {...props} style={headingStyle}>{headingText}{kids}</div>;
       if (ctx.chrome) return <p key={key} {...props} style={headingStyle}>{headingText}{kids}</p>;
       const Tag = (`h${node.level ?? 2}`) as "h1" | "h2" | "h3" | "h4";
       return <Tag key={key} {...props} style={headingStyle}>{headingText}{kids}</Tag>;
     }
-    case "text":
-      if (!childrenArePhrasing(node)) return <div key={key} {...props}>{countUpText(node, ctx)}{kids}</div>;
-      return <p key={key} {...props}>{countUpText(node, ctx)}{kids}</p>;
+    case "text": {
+      const textBody = splitText(node, ctx, motion) ?? countUpText(node, ctx);
+      if (!childrenArePhrasing(node)) return <div key={key} {...props}>{textBody}{kids}</div>;
+      return <p key={key} {...props}>{textBody}{kids}</p>;
+    }
     case "media":
       { const resolved = node.mediaRef ? ctx.media(node.mediaRef) : null;
         const visual = mediaVisual(resolved);
@@ -692,6 +702,36 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
         <ModelViewer key={key} props={props} src={model} alt={alt}
           label={node.text?.trim().slice(0, 60) || "Turn it around"}
           poster={posterSrc && !isModelUrl(posterSrc) ? { src: posterSrc, alt: posterNode?.alt ?? mediaVisual(posterResolved)?.alt ?? alt } : null} />
+      );
+    }
+    case "shader_field":
+      return (
+        <ShaderField key={key} props={props} kind={node.shader ?? "mesh"} base={node.style?.background} accent={node.style?.gradientTo}>
+          {kids}
+        </ShaderField>
+      );
+    case "tour_360": {
+      const scenes: TourScene[] = [];
+      for (const child of (node.children ?? []).slice(0, TOUR_LIMITS.maxScenes)) {
+        if (child.type !== "media" || !child.mediaRef) continue;
+        const resolved = ctx.media(child.mediaRef);
+        const src = mediaUrl(resolved);
+        // Only the owner's own pictures are shown as their place.
+        if (!src || isModelUrl(src) || isGeneratedMedia(resolved) || !looksEquirect(mediaVisual(resolved))) continue;
+        scenes.push({ src, alt: child.alt?.trim() || mediaVisual(resolved)?.alt || "360° view", label: child.text?.trim().slice(0, TOUR_LIMITS.label) ?? "" });
+      }
+      if (!scenes.length) return null;
+      return <Tour360 key={key} props={props} label={node.text?.trim().slice(0, 60) || "Take the 360° tour"} scenes={scenes} />;
+    }
+    case "building_explorer": {
+      if (!node.floors || node.floors.length < 2) return null;
+      const photoNode = node.children?.find((child) => child.type === "media");
+      const photoResolved = photoNode?.mediaRef ? ctx.media(photoNode.mediaRef) : null;
+      const photoSrc = photoNode?.src ? resolveImageSource(photoNode.src) : mediaUrl(photoResolved);
+      return (
+        <BuildingExplorer key={key} props={props} label={node.text?.trim().slice(0, 60) || "Explore the building"} floors={node.floors}
+          accent={node.style?.gradientTo ?? node.style?.color}
+          photo={photoSrc && !isModelUrl(photoSrc) ? { src: photoSrc, alt: photoNode?.alt ?? mediaVisual(photoResolved)?.alt ?? "The building" } : null} />
       );
     }
     case "dial_selector":
@@ -998,6 +1038,14 @@ export const VIEW_REVEAL_RANGE = "entry 0px entry 220px";
 // eslint-disable-next-line react-refresh/only-export-components -- renderer helpers are intentionally co-located with their composition types.
 export function motionStyle(motion: NodeMotion): CSSProperties {
   const out: Record<string, string> = {};
+  // Split words carry the timing to each word; depth runs on the scroll
+  // position across the whole viewport, so neither takes the block timings.
+  if (motion.kind === "split") {
+    if (motion.delayMs) out["--rv-sd"] = `${motion.delayMs}ms`;
+    if (motion.durationMs) out["--rv-sdur"] = `${motion.durationMs}ms`;
+    return out as CSSProperties;
+  }
+  if (motion.kind === "depth") return out as CSSProperties;
   if (motion.delayMs) out["animationDelay"] = `${motion.delayMs}ms`;
   if (motion.durationMs) out["animationDuration"] = `${motion.durationMs}ms`;
   if (motion.easing) out["animationTimingFunction"] = EASING_CSS[motion.easing];
@@ -1469,9 +1517,14 @@ export const BROKEN_MEDIA_CSS = `[data-rv-card]:has(img[data-rv-broken]):not(:ha
 
 const MOTION_CSS = `@media (prefers-reduced-motion: no-preference){.rv-cn-motion{animation:rv-cn-in .7s ease both}.rv-cn-motion[data-motion=rise]{animation-name:rv-cn-rise}.rv-cn-motion[data-motion=scale]{animation-name:rv-cn-scale}.rv-cn-motion[data-motion=float]{animation:rv-cn-float 6s ease-in-out infinite}.rv-cn-motion[data-motion=slide-left]{animation-name:rv-cn-sl}.rv-cn-motion[data-motion=slide-right]{animation-name:rv-cn-sr}.rv-cn-motion[data-motion=blur]{animation-name:rv-cn-blur}.rv-cn-motion[data-motion=reveal]{animation-name:rv-cn-reveal}.rv-cn-motion[data-motion=custom]{animation-name:rv-cn-custom}}@keyframes rv-cn-custom{from{opacity:var(--rv-o,1);transform:translate(var(--rv-x,0),var(--rv-y,0)) scale(var(--rv-s,1)) rotate(var(--rv-r,0));filter:blur(var(--rv-b,0))}}@keyframes rv-cn-sl{from{opacity:0;transform:translateX(32px)}to{opacity:1;transform:none}}@keyframes rv-cn-sr{from{opacity:0;transform:translateX(-32px)}to{opacity:1;transform:none}}@keyframes rv-cn-blur{from{opacity:0;filter:blur(12px)}to{opacity:1;filter:none}}@keyframes rv-cn-reveal{from{clip-path:inset(0 0 100% 0)}to{clip-path:inset(0 0 0 0)}}@keyframes rv-cn-in{from{opacity:0}to{opacity:1}}@keyframes rv-cn-rise{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:none}}@keyframes rv-cn-scale{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:none}}@keyframes rv-cn-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}@media (prefers-reduced-motion:no-preference){img.rv-scene-media[data-kenburns]{animation:rv-kenburns 28s ease-in-out infinite alternate;transform-origin:60% 40%}}@keyframes rv-kenburns{from{transform:scale(1)}to{transform:scale(1.08) translate(-1%,-1%)}}@supports (animation-timeline:view()){@media (prefers-reduced-motion:no-preference){.rv-cn-auto{animation:rv-cn-rise linear both;animation-timeline:view();animation-range:entry calc(var(--rv-i,0)*16px) entry calc(180px + var(--rv-i,0)*16px)}}}`;
 
-export function CompositionRenderer({ tree, scope, as = "section", resolveHref, resolveMedia, resolveWidget, resolveOffer, eagerFirstMedia = false, heroVideo = null, surface = null, linkLabel, editable = false }: { tree: CompositionTree; /** The home page's hero loop, for the first section only. */ heroVideo?: HeroVideoMedia | null; scope: string; editable?: boolean; surface?: string | null; linkLabel?: (text: string) => string; as?: "section" | "div"; resolveHref?: (href: string) => string; resolveMedia?: (ref: string) => ResolvedMedia | null; resolveWidget?: (name: string, presentation?: WidgetPresentation) => ReactNode; /** Real service facts for offer cards (Services tool); without it no price is shown. */ resolveOffer?: (service: string) => OfferFacts | null; eagerFirstMedia?: boolean }) {
+export function CompositionRenderer(args: Parameters<typeof RenderComposition>[0]) {
+  const { enabled } = usePremiumFx();
+  return <RenderComposition {...args} premiumOff={!enabled} />;
+}
+
+function RenderComposition({ premiumOff = false, tree, scope, as = "section", resolveHref, resolveMedia, resolveWidget, resolveOffer, eagerFirstMedia = false, heroVideo = null, surface = null, linkLabel, editable = false }: { premiumOff?: boolean; tree: CompositionTree; /** The home page's hero loop, for the first section only. */ heroVideo?: HeroVideoMedia | null; scope: string; editable?: boolean; surface?: string | null; linkLabel?: (text: string) => string; as?: "section" | "div"; resolveHref?: (href: string) => string; resolveMedia?: (ref: string) => ResolvedMedia | null; resolveWidget?: (name: string, presentation?: WidgetPresentation) => ReactNode; /** Real service facts for offer cards (Services tool); without it no price is shown. */ resolveOffer?: (service: string) => OfferFacts | null; eagerFirstMedia?: boolean }) {
   const page = surface && /^#[0-9a-f]{6}$/i.test(surface) ? surface : undefined;
-  const ctx: Ctx = { ...(resolveOffer ? { offer: resolveOffer } : {}), ...(CHROME_SCOPES.has(scope) ? { chrome: true } : {}), ...(editable ? { editable: true } : {}), ...(linkLabel ? { label: linkLabel } : {}), ...(page ? { bg: page, fg: bestInk(page) } : {}), rules: [], counter: { n: 0 }, eagerFirstMedia, ...(heroVideo && !editable ? { heroVideo } : {}), scope: scope.replace(/[^\w-]/g, "") || "cn", href: resolveHref ?? ((h) => h), media: resolveMedia ?? (() => null), widget: resolveWidget ?? (() => null) };
+  const ctx: Ctx = { ...(premiumOff ? { premiumOff: true } : {}), ...(resolveOffer ? { offer: resolveOffer } : {}), ...(CHROME_SCOPES.has(scope) ? { chrome: true } : {}), ...(editable ? { editable: true } : {}), ...(linkLabel ? { label: linkLabel } : {}), ...(page ? { bg: page, fg: bestInk(page) } : {}), rules: [], counter: { n: 0 }, eagerFirstMedia, ...(heroVideo && !editable ? { heroVideo } : {}), scope: scope.replace(/[^\w-]/g, "") || "cn", href: resolveHref ?? ((h) => h), media: resolveMedia ?? (() => null), widget: resolveWidget ?? (() => null) };
   const body = renderNode(tree.root, ctx, "root");
   // The shared rules are identical for every section. They used to be
   // repeated inline in each one (several KB per section, re-parsed by the
@@ -1479,7 +1532,7 @@ export function CompositionRenderer({ tree, scope, as = "section", resolveHref, 
   // section's own responsive/hover rules stay inline, after the shared ones.
   const shared = (
     <style href="rv-cn-shared" precedence="rv-cn">
-      {MOTION_CSS + MARQUEE_CSS + INTERACTIVE_CSS + PHONE_SAFETY_CSS + CINEMATIC_CSS + BROKEN_MEDIA_CSS}
+      {MOTION_CSS + MARQUEE_CSS + INTERACTIVE_CSS + PHONE_SAFETY_CSS + CINEMATIC_CSS + BROKEN_MEDIA_CSS + PREMIUM_CSS}
     </style>
   );
   const own = ctx.rules.length ? <style>{ctx.rules.join("")}</style> : null;
@@ -1501,6 +1554,39 @@ export function CompositionRenderer({ tree, scope, as = "section", resolveHref, 
         {body}
       </section>
     )
+  );
+}
+
+/**
+ * The node's motion after the premium rules: split words only on a heading or
+ * text (elsewhere it rises), and with the owner's premium switch off split
+ * becomes a plain rise and depth is dropped.
+ */
+function premiumMotion(node: CompositionNode, ctx: Ctx): NodeMotion | null {
+  const motion = node.motion && node.motion.kind !== "none" ? node.motion : null;
+  if (!motion) return null;
+  if (motion.kind === "split" && (ctx.premiumOff || (node.type !== "heading" && node.type !== "text"))) return { ...motion, kind: "rise" };
+  if (motion.kind === "depth" && ctx.premiumOff) return null;
+  return motion;
+}
+
+/**
+ * Split-word headline: each word rises in after the one before it (CSS only).
+ * Screen readers get the sentence once; the word pieces are hidden from them.
+ * The builder editor and count-up figures keep the plain text.
+ */
+function splitText(node: CompositionNode, ctx: Ctx, motion: NodeMotion | null): ReactNode {
+  if (motion?.kind !== "split" || !node.text || ctx.editable || node.countUp) return null;
+  let word = 0;
+  return (
+    <>
+      <span className="rv-sr-only">{node.text}</span>
+      <span aria-hidden="true" data-split={motion.trigger === "view" ? "view" : "load"}>
+        {splitWords(node.text).map((part, i) =>
+          /^\s+$/.test(part) ? part : <span key={i} className="rv-cn-w" style={{ ["--rv-w" as string]: String(Math.min(word++, 24)) } as CSSProperties}>{part}</span>
+        )}
+      </span>
+    </>
   );
 }
 

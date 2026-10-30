@@ -17,6 +17,7 @@ import { INTERACTIVE_PRIMITIVES, type CompositionNode, type CompositionTree } fr
 import { detectGenericPhrases } from "@/lib/builder/genericity";
 import { sceneScrim } from "@/lib/builder/cinematic-primitives";
 import { contrastRatio } from "@/lib/readable-color";
+import { MAX_HEAVY_PER_PAGE, overBudget, shaderPalette, shaderTextContrast } from "@/lib/builder/premium-effects";
 
 export type DesignFinding = {
   /** Stable code, for logs and tests. */
@@ -50,7 +51,9 @@ export type DesignFinding = {
     | "orphan_action"
     | "duplicate_media"
     | "near_duplicate_text"
-    | "flat_section_rhythm";
+    | "flat_section_rhythm"
+    | "too_many_heavy_effects"
+    | "shader_text_contrast";
   severity: "critical" | "major";
   path: string;
   /** Plain repair instruction for the art director. */
@@ -466,6 +469,37 @@ export function auditPageDesign(
     if (findings.length) out[section.id] = findings;
   });
 
+  // Premium effects budget: one live canvas per page, so at most one
+  // shader_field and at most MAX_HEAVY_PER_PAGE heavy blocks in all.
+  for (const hit of overBudget(sections.map((section) => ({ id: section.id, root: section.tree.root })))) {
+    (out[hit.sectionId] ??= []).push({
+      code: "too_many_heavy_effects",
+      severity: "major",
+      path: hit.path,
+      fix: `This page already has its heavy effects (at most one shader_field and ${MAX_HEAVY_PER_PAGE} heavy blocks per page: shader_field, model_3d_viewer, tour_360, building_explorer). Replace this ${hit.type} with a still treatment: a picture, a scene over a supplied picture, or a plain gradient background. Keep every word and fact.`,
+    });
+  }
+  // Copy over a shader must read on every colour the shader moves through.
+  sections.forEach((section) => {
+    for (const { node, path } of walk(section.tree.root)) {
+      if (node.type !== "shader_field") continue;
+      const palette = shaderPalette(node.style?.background, node.style?.gradientTo);
+      for (const { node: inner, path: innerPath } of walk(node)) {
+        if ((inner.type !== "heading" && inner.type !== "text") || !inner.style?.color) continue;
+        const worst = shaderTextContrast(inner.style.color, palette);
+        if (worst !== null && worst < 3) {
+          (out[section.id] ??= []).push({
+            code: "shader_text_contrast",
+            severity: "major",
+            path: `${path}${innerPath.slice(4)}`,
+            fix: `Text colour ${inner.style.color} drops to ${worst.toFixed(1)}:1 on part of the shader's colours. Pick a text colour that reads at 4.5:1 on both style.background and style.gradientTo, or darken the shader's base and accent.`,
+          });
+          break;
+        }
+      }
+    }
+  });
+
   if (options.home && sections.length && !sections.some((section) => hasCentrepiece(section.tree))) {
     // Attached to the first content section after the opening (the opening
     // keeps its own bar); the AI chooses where the centrepiece really fits.
@@ -770,7 +804,7 @@ export function hasInteractive(tree: CompositionTree): boolean {
 }
 
 /** Gates that always go back to the AI, whatever their severity. */
-const ALWAYS_REPAIR = new Set<DesignFinding["code"]>(["flat_page", "lead_not_scene", "lead_not_cinematic", "scene_text_contrast", "page_missing_interactive", "page_mostly_plain", "duplicate_text", "empty_column", "hollow_control", "card_missing_body", "action_label_is_heading", "orphan_action", "duplicate_media"]);
+const ALWAYS_REPAIR = new Set<DesignFinding["code"]>(["flat_page", "lead_not_scene", "lead_not_cinematic", "scene_text_contrast", "page_missing_interactive", "page_mostly_plain", "duplicate_text", "empty_column", "hollow_control", "card_missing_body", "action_label_is_heading", "orphan_action", "duplicate_media", "too_many_heavy_effects", "shader_text_contrast"]);
 
 /** True when any finding must be fixed before the section ships. */
 export function needsDesignRepair(findings: DesignFinding[]): boolean {
