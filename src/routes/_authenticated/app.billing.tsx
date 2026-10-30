@@ -1,3 +1,6 @@
+import { startConfirmationPolling } from "@/lib/checkout-confirmation";
+import { deriveBillingStatus } from "@/lib/billing-status";
+import { trialEndsAtMs } from "@/lib/trial";
 import { useEffect, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { CreditCard, ExternalLink, Receipt, Wallet } from "lucide-react";
@@ -84,6 +87,9 @@ function BillingPage() {
   const { data: billing } = useBillingState(orgId);
   const [cardService, setCardService] = useState<PaymentProduct | null>(null);
   const [portalBusy, setPortalBusy] = useState(false);
+  // Set when Stripe's embedded checkout sends the owner back here. It only
+  // changes wording; paid status still comes from the verified webhook.
+  const [returnedFromCheckout, setReturnedFromCheckout] = useState(false);
   const queryClient = useQueryClient();
   const cardsReady = isPaymentsConfigured();
 
@@ -103,7 +109,7 @@ function BillingPage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get("checkout") !== "complete" || !orgId) return;
-    toast.message("Checkout returned — we're checking your payment status.");
+    setReturnedFromCheckout(true);
     if (orgId) {
       void queryClient.invalidateQueries({ queryKey: ["payments", orgId] });
       void queryClient.invalidateQueries({ queryKey: ["billing_state", orgId] });
@@ -113,6 +119,25 @@ function BillingPage() {
     window.history.replaceState(null, "", "/app/billing");
     setCardService(null);
   }, [orgId, queryClient]);
+
+  const billingSettled = setupPaid && Boolean(billing?.active);
+  // Shared with the dashboard Status Center so both screens say the same thing.
+  const status = deriveBillingStatus({
+    setupPaid,
+    subscription,
+    freeAccessEndsAt: trialEndsAtMs(org),
+  });
+  // Keep re-reading the verified state (bounded) while the webhook settles.
+  useEffect(() => {
+    if (!returnedFromCheckout || !orgId || billingSettled) return;
+    return startConfirmationPolling(
+      () => {
+        void queryClient.invalidateQueries({ queryKey: ["billing_state", orgId] });
+        void queryClient.invalidateQueries({ queryKey: ["payments", orgId] });
+      },
+      () => undefined,
+    );
+  }, [returnedFromCheckout, orgId, billingSettled, queryClient]);
 
   const openPortal = async () => {
     if (!orgId) return;
@@ -142,9 +167,7 @@ function BillingPage() {
         purpose="See what you pay, when it's due, and the cards you have saved."
       >
         <div className="flex flex-wrap items-center gap-2">
-          <Pill tone={subscription?.status === "active" ? "signal" : "neutral"}>
-            {subscription ? subscription.status.replace("_", " ") : "No subscription"}
-          </Pill>
+          <Pill tone={status.tone}>{status.label}</Pill>
 
           {/* Never claim card payments are live when checkout cannot take one. */}
           <Pill tone="neutral">
@@ -156,6 +179,19 @@ function BillingPage() {
       </PageHead>
 
       {ownerWorkspace ? null : <PaymentTestModeBanner />}
+
+      {returnedFromCheckout ? (
+        <div role="status" className="rounded-md border border-border/60 bg-muted/30 px-4 py-3 text-[13px]">
+          <p className="font-medium">
+            {billingSettled ? "Payment confirmed — your plan is active." : "Payment received — we're activating your plan."}
+          </p>
+          {billingSettled ? null : (
+            <p className="mt-1 text-muted-foreground">
+              Our payment provider is confirming it with Revora now. This page updates on its own; you don't need to pay again.
+            </p>
+          )}
+        </div>
+      ) : null}
 
       {subscription?.status === "past_due" ? (
         <div className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-[13px] text-destructive">
@@ -190,7 +226,7 @@ function BillingPage() {
         <MetricCard
           label="Your system"
           value={GROWTH_SYSTEM.name}
-          hint={subscription?.status ?? org?.subscription_status ?? ""}
+          hint={status.label}
         />
         <MetricCard
           label="Setup fee"
@@ -204,28 +240,14 @@ function BillingPage() {
           hint={`${paid.length} payment${paid.length === 1 ? "" : "s"}`}
         />
         <MetricCard
-          label={
-            subscription?.cancel_at_period_end
-              ? "Access ends"
-              : subscription?.status === "trialing"
-                ? "Trial ends"
-                : "Renews"
-          }
-          value={
-            subscription?.status === "trialing" && subscription.trial_ends_at
-              ? new Date(subscription.trial_ends_at).toLocaleDateString()
-              : subscription?.current_period_end
-                ? new Date(subscription.current_period_end).toLocaleDateString()
-                : org?.trial_ends_at
-                  ? new Date(org.trial_ends_at).toLocaleDateString()
-                  : "—"
-          }
+          label={status.dateLabel}
+          value={status.date ? new Date(status.date).toLocaleDateString() : "—"}
           hint={
             subscription?.cancel_at_period_end
               ? "Cancellation scheduled"
               : ownerWorkspace
                 ? "No billing for Revora's own workspace"
-                : "Next billing date"
+                : status.label
           }
         />
       </div>
@@ -262,8 +284,8 @@ function BillingPage() {
               {usdExact(GROWTH_SYSTEM.monthlyPrice)}
             </p>
             <p className="mt-1 text-[12px] text-muted-foreground">{GROWTH_SYSTEM.monthlyLabel}</p>
-            <Pill tone={billing?.active ? "signal" : "neutral"}>
-              {subscription ? subscription.status.replace("_", " ") : "Not active"}
+            <Pill tone={subscription ? status.tone : "neutral"}>
+              {subscription ? status.label : "Not active"}
             </Pill>
           </div>
         </div>

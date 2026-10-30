@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, ArrowRight, Check, Lock, ShieldCheck, Sparkles } from "lucide-react";
@@ -20,13 +20,21 @@ import { smartIntakeValue } from "@/lib/intake-smart";
 import { canonicalLink, ogUrl, OG_IMAGE_META } from "@/lib/seo";
 import { useServerFn } from "@tanstack/react-start";
 import { claimProspectDemo, getProspectClaim } from "@/lib/prospect-claim.functions";
-import { CLAIM_STORAGE_KEY, claimAwareRedirect, isClaimToken } from "@/lib/prospect-claim";
-import { readStarter } from "@/components/marketing/hero-starter-utils";
+import {
+  CLAIM_STORAGE_KEY,
+  checkoutResumeRedirect,
+  claimAwareRedirect,
+  isClaimToken,
+} from "@/lib/prospect-claim";
+import { readStarter, starterFromMetadata } from "@/components/marketing/hero-starter-utils";
 import { applyImportedFacts, importExistingWebsite } from "@/lib/site-import.functions";
 
 export const Route = createFileRoute("/get-started")({
-  validateSearch: (search: Record<string, unknown>): { claim?: string } =>
-    isClaimToken(search["claim"]) ? { claim: search["claim"] } : {},
+  validateSearch: (search: Record<string, unknown>): { claim?: string; pay?: "now" } => ({
+    ...(isClaimToken(search["claim"]) ? { claim: search["claim"] } : {}),
+    // `pay=now` resumes checkout after sign-up / email confirmation.
+    ...(search["pay"] === "now" ? { pay: "now" as const } : {}),
+  }),
   head: () => ({
     meta: [
       { title: "Start your Revora Growth System — $350 setup + $100/mo" },
@@ -203,11 +211,14 @@ function GetStarted() {
   // signed up with fill empty fields, so nobody types the same thing twice.
   // The starter stays saved for onboarding, which clears it.
   useEffect(() => {
-    const starter = readStarter();
+    const localStarter = readStarter();
     let cancelled = false;
     void supabase.auth.getUser().then(({ data }) => {
       if (cancelled) return;
       const meta = (data.user?.user_metadata ?? {}) as Record<string, unknown>;
+      // Same device: localStorage. Another device (email confirmed elsewhere):
+      // the copy saved on the account at sign-up.
+      const starter = localStarter ?? starterFromMetadata(meta);
       const signupName = typeof meta["full_name"] === "string" ? meta["full_name"].slice(0, 120) : "";
       setIntake((prev) => ({
         ...prev,
@@ -401,6 +412,15 @@ function GetStarted() {
 
   async function startPayment() {
     setError(null);
+    if (!signedIn) {
+      // Paying needs an account. Send the visitor to sign-up with `pay=now` in
+      // the redirect so checkout resumes on its own once they are signed in.
+      navigate({
+        to: "/auth",
+        search: { mode: "signup", redirect: checkoutResumeRedirect(claimToken) },
+      });
+      return;
+    }
     setProvisioning(true);
     try {
       const orgId = await ensureWorkspace();
@@ -416,6 +436,34 @@ function GetStarted() {
       setProvisioning(false);
     }
   }
+
+  // Back from sign-up / email confirmation with `pay=now`: resume checkout
+  // once, as soon as the account is known. Missing details send the visitor to
+  // the form first instead of a checkout that would reject them.
+  const resumedPayment = useRef(false);
+  useEffect(() => {
+    if (search.pay !== "now" || resumedPayment.current) return;
+    if (session.isLoading || !signedIn) return;
+    if (profileQuery.isLoading || (claimToken && claimInfo.isLoading)) return;
+    resumedPayment.current = true;
+    navigate({
+      to: "/get-started",
+      search: search.claim ? { claim: search.claim } : {},
+      replace: true,
+    });
+    if (alreadySubscribed || !cardsReady) {
+      setStep(2);
+      return;
+    }
+    if (missing.length) {
+      setStep(0);
+      setError(`Add: ${missing.join(", ")} — then continue to payment.`);
+      return;
+    }
+    setStep(2);
+    void startPayment();
+    // startPayment is recreated each render; this runs once per pay=now visit.
+  }, [search.pay, search.claim, session.isLoading, profileQuery.isLoading, signedIn, claimToken, claimInfo.isLoading, alreadySubscribed, cardsReady, missing]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="min-h-screen">
@@ -445,11 +493,9 @@ function GetStarted() {
         </h1>
         <p className="mt-3 text-[14px] leading-relaxed text-muted-foreground">
           <span className="gold-hl">{usdExact(GROWTH_SYSTEM.setupPrice)} setup charged today</span>.
-          Platform is{" "}
-          <span className="gold-hl">
-            {usdExact(0)} for your first {GROWTH_SYSTEM.trialDays} days
-          </span>
-          , then {usdExact(GROWTH_SYSTEM.monthlyPrice)}/month unless canceled. One complete growth
+          Platform{" "}
+          <span className="gold-hl">{GROWTH_SYSTEM.firstMonthFree}</span>, then{" "}
+          {usdExact(GROWTH_SYSTEM.monthlyPrice)}/month unless canceled. One complete growth
           system — no packages to compare.
         </p>
         <p className="mt-2 text-[12.5px] text-muted-foreground">
@@ -601,7 +647,10 @@ function GetStarted() {
                   </div>
                   <div className="text-right">
                     <p className="tnum text-[15px] font-semibold whitespace-nowrap text-primary">
-                      $0 for 30 days
+                      First month free
+                    </p>
+                    <p className="tnum text-[13px] whitespace-nowrap text-muted-foreground">
+                      {GROWTH_SYSTEM.trialDays} days after setup
                     </p>
                     <p className="tnum text-[13px] whitespace-nowrap text-muted-foreground">
                       then {usdExact(GROWTH_SYSTEM.monthlyPrice)}/month
@@ -673,8 +722,8 @@ function GetStarted() {
                     <h2 className="font-display text-[17px] font-semibold">Payment</h2>
                   </div>
                   <p className="mt-2 text-[13px] text-muted-foreground">
-                    {usdExact(GROWTH_SYSTEM.setupPrice)} one-time setup charged today. Your{" "}
-                    {GROWTH_SYSTEM.trialDays}-day platform trial is free, then{" "}
+                    {usdExact(GROWTH_SYSTEM.setupPrice)} one-time setup charged today. Platform{" "}
+                    {GROWTH_SYSTEM.firstMonthFree}, then{" "}
                     {usdExact(GROWTH_SYSTEM.monthlyPrice)}/month automatically unless canceled.
                     Payments are processed securely by our payment provider — Revora never sees your
                     card details.
@@ -691,12 +740,12 @@ function GetStarted() {
                       </p>
                       <div className="mt-3 flex flex-col gap-2 sm:flex-row">
                         <Button asChild variant="signal" size="lg">
-                          <Link to="/auth" search={{ mode: "signup", redirect: claimAwareRedirect(claimToken) }}>
+                          <Link to="/auth" search={{ mode: "signup", redirect: checkoutResumeRedirect(claimToken) }}>
                             Create account
                           </Link>
                         </Button>
                         <Button asChild variant="outline" size="lg">
-                          <Link to="/auth" search={{ mode: "signin", redirect: claimAwareRedirect(claimToken) }}>
+                          <Link to="/auth" search={{ mode: "signin", redirect: checkoutResumeRedirect(claimToken) }}>
                             I already have an account
                           </Link>
                         </Button>

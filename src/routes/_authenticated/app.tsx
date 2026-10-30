@@ -212,7 +212,8 @@ function AppShell() {
   const paymentLocked = paymentRequired && !pathname.startsWith("/app/billing");
 
   useEffect(() => {
-    if (!isLoading && data && !data.workspace) navigate({ to: "/onboarding", replace: true });
+    // One onboarding door: an account without a workspace goes to /get-started.
+    if (!isLoading && data && !data.workspace) navigate({ to: "/get-started", replace: true });
   }, [data, isLoading, navigate]);
 
   const queryClient = useQueryClient();
