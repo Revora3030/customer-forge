@@ -5,7 +5,20 @@ import type { CompositionNode, CompositionTree } from "@/lib/builder/composition
 
 const render = (root: CompositionNode, scope = "s-test") =>
   renderToStaticMarkup(<CompositionRenderer tree={{ version: 1, root } as CompositionTree} scope={scope} />);
-const markup = (html: string) => html.replace(/<style[^>]*>[\s\S]*?<\/style>/g, "");
+// Drops the renderer's <style> blocks so assertions only see element markup
+// (test-only text slicing, never used to sanitise HTML).
+const markup = (html: string) => {
+  let out = "";
+  let at = 0;
+  for (;;) {
+    const open = html.indexOf("<style", at);
+    if (open < 0) return out + html.slice(at);
+    out += html.slice(at, open);
+    const close = html.indexOf("</style>", open);
+    if (close < 0) return out;
+    at = close + "</style>".length;
+  }
+};
 const card = (t: string): CompositionNode => ({ type: "card", children: [{ type: "heading", level: 3, text: t }] });
 const section: CompositionNode = {
   type: "stack",
