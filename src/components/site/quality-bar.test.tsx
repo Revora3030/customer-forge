@@ -12,15 +12,18 @@ import { currency } from "@/lib/format";
 
 const render = (root: CompositionNode, editable = false) =>
   renderToStaticMarkup(<CompositionRenderer tree={{ version: 1, root } as CompositionTree} scope="qb" editable={editable} />);
+// Drop <style>…</style> blocks by index scanning (no regex sanitizer; test-only markup helper).
 const markup = (html: string) => {
-  // Strip <style> blocks repeatedly until stable (complete multi-character sanitization).
-  let prev: string;
-  let out = html;
-  do {
-    prev = out;
-    out = out.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "");
-  } while (out !== prev);
-  return out.replace(/<\/?style\b[^>]*>/gi, "");
+  let out = "";
+  let rest = html;
+  for (;;) {
+    const start = rest.toLowerCase().indexOf("<style");
+    if (start === -1) return out + rest;
+    out += rest.slice(0, start);
+    const end = rest.toLowerCase().indexOf("</style>", start);
+    if (end === -1) return out;
+    rest = rest.slice(end + "</style>".length);
+  }
 };
 
 describe("count-up stats (quality bar #20)", () => {
