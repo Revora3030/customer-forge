@@ -1,0 +1,54 @@
+name: Revora Lighthouse CI
+# Lighthouse CI (Apache-2.0). Reports stay PRIVATE: filesystem target plus an
+# Actions artifact. Never use temporary-public-storage (it makes reports public).
+on:
+  pull_request:
+    branches: [lovable-sync]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: revora-lhci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  lighthouse:
+    name: Lighthouse (SEO, accessibility, performance)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Pin npm version to match quality gate
+        run: npm install --global npm@11.6.0
+      - name: Install app dependencies
+        run: npm install --no-audit --no-fund
+      - name: Start isolated CI app
+        run: |
+          npm run dev -- --host 0.0.0.0 --port 8080 > /tmp/revora-lhci-app.log 2>&1 &
+          echo $! > /tmp/revora-lhci-app.pid
+          for attempt in {1..90}; do
+            if curl --fail --silent http://127.0.0.1:8080/ >/dev/null; then break; fi # DevSkim: ignore DS162092,DS137138 -- CI-only local app under test.
+            sleep 1
+          done
+          # Warm the dev server so first-hit compilation is not scored.
+          for path in / /pricing /contact; do curl --silent "http://127.0.0.1:8080${path}" >/dev/null || true; done # DevSkim: ignore DS162092,DS137138 -- CI-only local app under test.
+      - name: Run Lighthouse CI
+        run: |
+          if grep -q temporary-public-storage lighthouserc.cjs; then echo "temporary-public-storage is forbidden"; exit 1; fi
+          npx --yes @lhci/cli@0.15.1 autorun --config=./lighthouserc.cjs
+      - name: Upload Lighthouse reports
+        if: always() && hashFiles('lhci-reports/**') != ''
+        continue-on-error: true  # a full Actions artifact quota must not fail a job whose checks passed
+        uses: actions/upload-artifact@v7
+        with:
+          name: lighthouse-${{ github.run_id }}
+          path: lhci-reports
+          retention-days: 14
+      - name: Stop app
+        if: always()
+        run: |
+          if [ -f /tmp/revora-lhci-app.pid ]; then kill "$(cat /tmp/revora-lhci-app.pid)" 2>/dev/null || true; fi

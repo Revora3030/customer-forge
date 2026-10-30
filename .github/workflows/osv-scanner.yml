@@ -1,0 +1,30 @@
+name: Revora OSV-Scanner
+# Free, keyless dependency vulnerability scan of bun.lock (Apache-2.0,
+# https://github.com/google/osv-scanner-action). Closes the "npm audit can't
+# run on a bun lockfile" gap (security-audit.md B1-H3).
+# Baseline-first rollout: findings go to Security > Code scanning as SARIF and
+# do not fail the PR yet. Flip fail-on-vuln to true after the baseline is triaged.
+on:
+  pull_request:
+    branches: [lovable-sync]
+  push:
+    branches: [lovable-sync]
+  schedule:
+    - cron: "37 7 * * 1"
+  workflow_dispatch:
+permissions:
+  actions: read
+  contents: read
+  security-events: write
+concurrency:
+  group: revora-osv-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  scan:
+    name: OSV-Scanner (bun.lock)
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@v2.7.0
+    with:
+      scan-args: |-
+        --lockfile=bun.lock
+      fail-on-vuln: false
+      upload-sarif: true
