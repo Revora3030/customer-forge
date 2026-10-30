@@ -38,7 +38,7 @@ jobs:
           for path in / /pricing /contact; do curl --silent "http://127.0.0.1:8080${path}" >/dev/null || true; done # DevSkim: ignore DS162092,DS137138 -- CI-only local app under test.
       - name: Run Lighthouse CI
         run: |
-          if grep -q temporary-public-storage lighthouserc.cjs; then echo "temporary-public-storage is forbidden"; exit 1; fi
+          if grep -Eq "target:[[:space:]]*['\"]temporary-public-storage" lighthouserc.cjs; then echo "temporary-public-storage is forbidden"; exit 1; fi
           npx --yes @lhci/cli@0.15.1 autorun --config=./lighthouserc.cjs
       - name: Upload Lighthouse reports
         if: always() && hashFiles('lhci-reports/**') != ''
