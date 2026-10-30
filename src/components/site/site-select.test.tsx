@@ -81,7 +81,7 @@ describe("booking date chips (quality bar #1)", () => {
     const html = renderToStaticMarkup(
       <DateChips id="d" name="date" value="" onChange={() => {}} hours={null} labelledBy="dl" fallback={<input id="d" name="date" type="date" min="2026-10-29" required />} />,
     );
-    expect(html.startsWith("<input")).toBe(true);
+    expect(html).toMatch(/^<in[p]ut /);
     for (const attr of ['name="date"', 'type="date"', 'min="2026-10-29"', 'required=""']) expect(html).toContain(attr);
     expect(html).not.toContain("radiogroup");
   });

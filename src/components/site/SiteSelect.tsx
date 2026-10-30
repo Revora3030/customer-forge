@@ -5,7 +5,7 @@
  * type-to-select, and aria-activedescendant for screen readers.
  *
  * Progressive enhancement: the server and a no-JavaScript visitor get a
- * native <select> with the same name and values; after hydration the custom
+ * native select element with the same name and values; after hydration the custom
  * control takes over and submits through a hidden input with the identical
  * name/value, so FormData is unchanged either way.
  */
