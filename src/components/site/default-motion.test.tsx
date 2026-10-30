@@ -35,3 +35,22 @@ describe("default scroll reveal", () => {
     expect(css).toContain("@supports (animation-timeline:view()){@media (prefers-reduced-motion:no-preference){.rv-cn-auto{");
   });
 });
+
+describe("Ken Burns hero fallback", () => {
+  const ref = "00000001-1111-4111-8111-111111111111";
+  const scene: CompositionNode = { type: "scene", children: [{ type: "media", mediaRef: ref, alt: "Clean driveway" }, { type: "heading", level: 1, text: "Clean" }] };
+  it("gives the opening still picture a slow reduced-motion-safe drift", () => {
+    const html = renderToStaticMarkup(
+      <CompositionRenderer tree={{ version: 1, root: scene } as CompositionTree} scope="s-k" resolveMedia={() => ({ url: "https://img.example.test/a.jpg" }) as never} />,
+    );
+    expect(markup(html)).toMatch(/<img[^>]*data-kenburns=""/);
+    expect(html).toContain("@media (prefers-reduced-motion:no-preference){img.rv-scene-media[data-kenburns]");
+  });
+  it("leaves a video backdrop as video", () => {
+    const html = markup(renderToStaticMarkup(
+      <CompositionRenderer tree={{ version: 1, root: scene } as CompositionTree} scope="s-k" resolveMedia={() => ({ url: "https://img.example.test/a.mp4" }) as never} />,
+    ));
+    expect(html).toContain("<video");
+    expect(html).not.toContain("data-kenburns");
+  });
+});
