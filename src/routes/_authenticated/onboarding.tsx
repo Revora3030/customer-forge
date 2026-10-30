@@ -8,7 +8,7 @@ import { saveOwnerLogo, saveOwnerPhotos, type PendingPhoto } from "@/components/
 import { toast } from "@/lib/ui/notify";
 import { ArrowLeft, ArrowRight, Loader2, Plus, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { newTrialEndsAt } from "@/lib/trial";
+import { provisionWorkspace } from "@/lib/platform-funnel.functions";
 import { assertNoError, supabaseErrorMessage } from "@/lib/supabase-error";
 
 import { Logo } from "@/components/brand/Logo";
@@ -409,12 +409,6 @@ function Onboarding() {
       const existingOrg = ws?.workspace?.organization ?? null;
       const existingId = existingOrg && !existingOrg.onboarding_completed ? existingOrg.id : null;
 
-      // Web addresses have to be unique across every workspace, and a client
-      // can't see other people's workspaces — so we can't check first. We ask
-      // for the name we want and take the next free variation if it's taken.
-      const slugBase = existingOrg?.slug ?? safeSlug(draft.businessName);
-      let slug = slugBase;
-
       // Platform wording ("Build my site", "All", "Submit") is never saved as a
       // business service; it would otherwise render on the customer's site.
       const services = sanitizeServices(draft.services.filter((s) => s.name.trim()));
@@ -436,50 +430,33 @@ function Onboarding() {
         onboarding_step: STEPS.length,
       };
 
-      let org: { id: string; slug: string };
-      if (existingId) {
-        const { data: updated, error: updateError } = await supabase
-          .from("organizations")
-          .update(orgFields)
-          .eq("id", existingId)
-          .select("id, slug")
-          .single();
-        if (updateError) throw updateError;
-        org = updated;
-      } else {
-        let inserted: { id: string; slug: string } | null = null;
-        for (let attempt = 0; attempt < 20; attempt++) {
-          slug = attempt === 0 ? slugBase : `${slugBase}-${attempt + 1}`;
-          const { data, error: orgError } = await supabase
-            .from("organizations")
-            .insert({
-              ...orgFields,
-              slug,
-              created_by: user.id,
-              subscription_status: "trialing" as never,
-              trial_ends_at: newTrialEndsAt(),
-            })
-            .select("id, slug")
-            .single();
-          if (!orgError) {
-            inserted = data;
-            break;
-          }
-          const taken =
-            orgError.code === "23505" || /duplicate key|organizations_slug/i.test(orgError.message);
-          if (!taken) throw orgError;
-        }
-        if (!inserted)
-          throw new Error(
-            "That business name is already in use on Revora. Try a slightly different name.",
-          );
-        org = inserted;
-
-        const { error: membershipError } = await supabase
-          .from("memberships")
-          .insert({ organization_id: org.id, user_id: user.id, role: "owner" });
-        assertNoError(membershipError, "Could not link your account to the new workspace");
-      }
+      // One way to create a workspace: the same idempotent, server-side
+      // provisionWorkspace that /get-started uses. It returns the account's
+      // existing workspace if there is one, so a retry or double click never
+      // leaves an orphaned workspace or business profile behind.
+      const workspaceId =
+        existingId ??
+        (
+          await provisionWorkspace({
+            data: {
+              name: orgFields.name || "My business",
+              industry: draft.industry || null,
+              email: draft.email || null,
+              phone: draft.phone || null,
+              city: draft.city || null,
+              state: draft.state || null,
+              website: draft.website || null,
+              description: draft.about || null,
+            },
+          })
+        ).organizationId;
+      const { data: org, error: updateError } = await supabase
+        .from("organizations")
+        .update(orgFields)
+        .eq("id", workspaceId)
+        .select("id, slug")
+        .single();
+      if (updateError) throw updateError;
 
       // The owner's own pictures go in before anything else, so the first build
       // can place them. A failed upload never blocks the site being built.

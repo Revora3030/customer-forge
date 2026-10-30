@@ -7,11 +7,33 @@ export const STARTER_KEY = "revora:starter";
  */
 export type Starter = { businessName: string; about: string; industry: string; website: string; wantsImport: boolean };
 
+/** Account metadata key the starter is saved under at sign-up. */
+export const STARTER_METADATA_KEY = "revora_starter";
+
 export function readStarter(): Starter | null {
   try {
     const raw = window.localStorage.getItem(STARTER_KEY);
     if (!raw) return null;
-    const v = JSON.parse(raw) as Partial<Starter>;
+    return cleanStarter(JSON.parse(raw));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The starter saved on the account at sign-up (user metadata), so what the
+ * visitor typed on the homepage survives confirming their email on another
+ * device, where localStorage is empty. Cleaned exactly like the local copy.
+ */
+export function starterFromMetadata(metadata: unknown): Starter | null {
+  if (!metadata || typeof metadata !== "object") return null;
+  return cleanStarter((metadata as Record<string, unknown>)[STARTER_METADATA_KEY]);
+}
+
+function cleanStarter(value: unknown): Starter | null {
+  try {
+    if (!value || typeof value !== "object") return null;
+    const v = value as Partial<Starter>;
     const businessName = typeof v.businessName === "string" ? v.businessName.slice(0, 120) : "";
     const about = typeof v.about === "string" ? v.about.slice(0, 1000) : "";
     const industry = typeof v.industry === "string" ? v.industry.slice(0, 60) : "";
