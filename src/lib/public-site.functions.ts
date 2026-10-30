@@ -99,19 +99,50 @@ function contactFingerprint(input: { email?: string | null; phone?: string | nul
 }
 
 /** Everything a public business website needs, in one SSR-friendly read. */
+const ADDRESS_RE = /^[a-z0-9-]+$/;
+const PREVIEW_TOKEN_RE = /^[A-Za-z0-9_-]{16,}$/;
+
+/**
+ * Normalises a public site address. Never throws: a malformed slug or page is
+ * flagged `invalid` so the route answers 404 rather than a server error.
+ */
+export function parsePublicSiteInput(input: { slug?: unknown; pageSlug?: unknown } | null | undefined): {
+  slug: string;
+  pageSlug?: string;
+  invalid?: true;
+} {
+  const slug = String(input?.slug ?? "")
+    .trim()
+    .slice(0, 80);
+  const page = String(input?.pageSlug ?? "")
+    .trim()
+    .slice(0, 80);
+  if (!ADDRESS_RE.test(slug) || (page && !ADDRESS_RE.test(page))) return { slug: "", invalid: true };
+  return page ? { slug, pageSlug: page } : { slug };
+}
+
+/** Same contract for preview links: a malformed token is `invalid`, not an exception. */
+export function parsePreviewInput(input: { token?: unknown; pageSlug?: unknown } | null | undefined): {
+  token: string;
+  pageSlug?: string;
+  invalid?: true;
+} {
+  const token = String(input?.token ?? "")
+    .trim()
+    .slice(0, 120);
+  const page = String(input?.pageSlug ?? "")
+    .trim()
+    .slice(0, 80);
+  if (!PREVIEW_TOKEN_RE.test(token) || (page && !ADDRESS_RE.test(page))) return { token: "", invalid: true };
+  return page ? { token, pageSlug: page } : { token };
+}
+
 export const getPublicSite = createServerFn({ method: "GET" })
-  .validator((input: { slug: string; pageSlug?: string }) => {
-    const slug = String(input?.slug ?? "")
-      .trim()
-      .slice(0, 80);
-    if (!/^[a-z0-9-]+$/.test(slug)) throw new Error("Invalid business address");
-    const raw = String(input?.pageSlug ?? "")
-      .trim()
-      .slice(0, 80);
-    if (raw && !/^[a-z0-9-]+$/.test(raw)) throw new Error("Invalid page address");
-    return raw ? { slug, pageSlug: raw } : { slug };
-  })
+  .validator((input: { slug: string; pageSlug?: string }) => parsePublicSiteInput(input))
   .handler(async ({ data }) => {
+    // A malformed address (uppercase, punctuation…) can never match a site:
+    // answer "not found" (404) instead of throwing, which served a 500.
+    if (data.invalid) return null;
     const { loadSite } = await import("@/lib/public-site.server");
     return loadSite(data.slug, data.pageSlug ? { pageSlug: data.pageSlug } : undefined);
   });
@@ -375,18 +406,18 @@ export const getOwnerDraftSite = createServerFn({ method: "GET" })
  * the link is unknown, revoked or expired so the page can say so plainly.
  */
 export const getPreviewSite = createServerFn({ method: "GET" })
-  .validator((input: { token: string; pageSlug?: string }) => {
-    const token = String(input?.token ?? "")
-      .trim()
-      .slice(0, 120);
-    if (!/^[A-Za-z0-9_-]{16,}$/.test(token)) throw new Error("Invalid preview link");
-    const page = String(input?.pageSlug ?? "")
-      .trim()
-      .slice(0, 80);
-    if (page && !/^[a-z0-9-]+$/.test(page)) throw new Error("Invalid page address");
-    return page ? { token, pageSlug: page } : { token };
-  })
+  .validator((input: { token: string; pageSlug?: string }) => parsePreviewInput(input))
   .handler(async ({ data }) => {
+    // A mistyped or truncated link gets the normal "this preview link isn't
+    // valid" page, the same as an unknown token, instead of a 500.
+    if (data.invalid)
+      return {
+        ok: false as const,
+        reason: "unknown" as const,
+        site: null,
+        expiresAt: null as string | null,
+        label: null as string | null,
+      };
     const { loadSite, resolvePreviewToken } = await import("@/lib/public-site.server");
     const link = await resolvePreviewToken(data.token);
     if (!link.ok)
