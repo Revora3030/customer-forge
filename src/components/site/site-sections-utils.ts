@@ -138,6 +138,23 @@ export function distinctServiceArea(area: string | null | undefined, addressLine
   return a;
 }
 
+export { serviceAreaPhrase } from "@/lib/builder/presentation";
+
+/**
+ * The address row is only worth showing when it says more than the service
+ * area already does: a bare "Raleigh, NC" under "Raleigh, NC and up to 25
+ * miles around" just repeats the city.
+ */
+export function addressAddsDetail(addressLine: string | null | undefined, area: string | null | undefined): boolean {
+  const norm = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const address = norm(addressLine ?? "");
+  if (!address) return false;
+  const place = norm(area ?? "");
+  if (!place) return true;
+  if (/\d/.test(address.replace(/\b\d{5}\b/g, ""))) return true; // a street number
+  return !place.startsWith(address.replace(/\s*\b\d{5}(?: \d{4})?$/, "").trim());
+}
+
 /** Widgets that let a visitor actually send something to the business. */
 const LEAD_WIDGETS = ["enquiry_form", "booking_form", "quote_calculator"] as const;
 

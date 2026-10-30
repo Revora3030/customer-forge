@@ -18,6 +18,9 @@ export const CINEMATIC_CSS = `
 ${S} .rv-scene{position:relative;isolation:isolate;overflow:hidden;display:grid;width:100%;max-width:100%;min-height:clamp(560px,100vh,1200px);min-height:clamp(560px,100svh,1200px)}
 ${S} .rv-scene-media{position:absolute!important;inset:0;z-index:-2;width:100%!important;height:100%!important;max-width:none!important;object-fit:cover;display:block}
 ${S} .rv-scene-scrim{position:absolute;inset:0;z-index:-1;pointer-events:none}
+${S} .rv-scene-media.rv-hero-video{opacity:0;transition:opacity .9s ease;background:transparent}
+${S} .rv-scene-media.rv-hero-video[data-playing]{opacity:1}
+@media (prefers-reduced-motion: reduce){${S} .rv-hero-video{display:none!important}}
 ${S} .rv-scene[data-framed] .rv-scene-media[data-soft]{filter:blur(28px) saturate(1.05);transform:scale(1.15)}
 ${S} .rv-scene-frame{display:block;justify-self:center;align-self:center;width:100%;max-width:min(var(--rv-native,720px),100%);height:auto!important;border-radius:18px;box-shadow:0 24px 60px rgb(0 0 0 / .35)}
 @media (min-width:1024px){${S} .rv-scene[data-framed] .rv-scene-inner{grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:center;column-gap:clamp(32px,5vw,80px)}${S} .rv-scene[data-framed] .rv-scene-slot{max-width:100%!important}${S} .rv-scene[data-framed][data-anchor$="-right"] .rv-scene-frame{order:-1}}
@@ -60,6 +63,8 @@ ${S} .rv-chapter .rv-scene-slot,${S} .rv-chapter .rv-scene-offers{animation:rv-s
 ${S} .rv-collection-viewport{scroll-behavior:smooth}
 }
 @keyframes rv-scene-settle{from{transform:scale(1.1)}to{transform:scale(1)}}
+@media (prefers-reduced-motion: no-preference){@supports (animation-timeline: view()){${S} .rv-hero-video[data-playing]{animation:rv-hero-drift linear both;animation-timeline:view();animation-range:exit 0% exit 100%}}}
+@keyframes rv-hero-drift{from{transform:scale(1)}to{transform:scale(1.12)}}
 @keyframes rv-scene-rise{from{opacity:.001;translate:0 48px}to{opacity:1;translate:0 0}}
 ${S} .rv-spin{display:grid;gap:16px;justify-items:center;margin:0;width:100%}
 ${S} .rv-spin-stage{position:relative;width:100%;max-width:960px;aspect-ratio:16 / 10;display:grid;place-items:center;border-radius:24px;overflow:hidden;cursor:grab;user-select:none;touch-action:pan-y}

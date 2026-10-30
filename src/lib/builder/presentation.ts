@@ -816,6 +816,20 @@ function titleWord(
   );
 }
 
+/**
+ * Reads an owner's raw service-area field the way a person would say it:
+ * "Raleigh, NC + 25 Miles" -> "Raleigh, NC and up to 25 miles around".
+ * Anything that is not a "+ N miles/km" radius is returned unchanged.
+ */
+export function serviceAreaPhrase(area: string | null | undefined): string | null {
+  const a = (area ?? "").replace(/\s+/g, " ").trim();
+  if (!a) return null;
+  const m = /^(.*?)\s*(?:\+|plus|&|and)\s*(\d{1,3})\s*(mi|mile|miles|km|kilometres|kilometers)\.?(?:\s*radius)?$/i.exec(a);
+  if (!m || !m[1]) return a;
+  const unit = /^k/i.test(m[3]!) ? "km" : "miles";
+  return `${m[1].replace(/[,\s]+$/, "")} and up to ${m[2]} ${unit} around`;
+}
+
 export function placeDisplay(
   value: unknown,
 ): string | null {

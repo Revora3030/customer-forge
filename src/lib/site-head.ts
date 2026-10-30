@@ -247,7 +247,9 @@ export function localBusinessSchema(input: {
     }
   }
   const area = clean(p.service_area, 200);
-  if (area) schema["areaServed"] = area;
+  // "Raleigh, NC + 25 miles" names the place; the radius is not a place name.
+  const areaPlace = area ? area.replace(/\s*(?:\+|\bplus\b|&)\s*\d{1,3}\s*(?:mi|miles?|km|kilometres|kilometers)\b.*$/i, "").trim() : null;
+  if (areaPlace) schema["areaServed"] = areaPlace;
   const hours = openingHoursSpec(p.hours);
   if (hours.length) schema["openingHoursSpecification"] = hours;
   else {

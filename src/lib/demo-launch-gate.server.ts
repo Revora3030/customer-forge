@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { isHeroVideoCategory } from "@/lib/builder/hero-stock-video";
 import { readProspectDemoMarker } from "@/lib/jarvis-demo-site";
 import { screenClaims, type DnaFacts } from "@/lib/business-dna";
 import { readSeo } from "@/lib/site-seo";
@@ -388,7 +389,7 @@ export async function loadDemoGateFacts(db: SupabaseClient, organizationId: stri
   const seo = readSeo(settings.data?.seo) as Record<string, unknown>;
   const serviceRows = (services.data ?? []) as Array<{ name: string; description: string | null; price: number | null; starting_price: number | null }>;
   const testimonials = Array.isArray(p["testimonials"]) ? p["testimonials"].length : 0;
-  const mediaRows = ((media.data ?? []) as Array<{ url: string | null; source: string | null; category: string | null }>).filter((row) => Boolean(row.url));
+  const mediaRows = ((media.data ?? []) as Array<{ url: string | null; source: string | null; category: string | null }>).filter((row) => Boolean(row.url) && !isHeroVideoCategory(row.category));
   return {
     found: true,
     claimed: Boolean(str((raw as Record<string, unknown>)["claimedAt"])),

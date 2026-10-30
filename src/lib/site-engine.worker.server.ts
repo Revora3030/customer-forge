@@ -10,6 +10,7 @@
  *  - every customer build is written and designed by the AI team; a missing
  *    AI result stops the build, there is no built-in substitute
  */
+import { isHeroVideoCategory } from "@/lib/builder/hero-stock-video";
 import { summarizeCapacityPressure, type ProviderRuntime, type WaitProviders } from "@/lib/builder/capacity-wait";
 import type { PageArchitectureOutcome } from "@/lib/builder/ai-page-architecture.server";
 import { nextPublishState } from "@/lib/publish-state";
@@ -325,6 +326,8 @@ export function classifySiteMediaRow(row: {
     Boolean(row.url) &&
     // A logo is the brand mark, shown in the header — never a page photo.
     String(row.category ?? "").toLowerCase() !== "logo" &&
+    // The hero loop's clip, phone clip and poster belong to the video only.
+    !isHeroVideoCategory(row.category) &&
     // Video clips are not pictures; an <img> of an .mp4 shows nothing.
     !/\.(mp4|webm|mov|m4v)(\?|$)/i.test(String(row.url));
   if (!isPicture) return "skip";
@@ -2684,6 +2687,18 @@ async function runJob(
     } catch (error) {
       console.warn("[site-engine] first-build QA repair skipped", (error as Error)?.message);
     }
+  }
+  // Every built site opens on a moving hero (quality bar #1/#10): a free,
+  // licensed stock loop matched to the trade, copied into this site's own
+  // folder. Idempotent (an existing, owner or switched-off clip is kept) and
+  // never blocks the build; without a clip the hero photo stays.
+  try {
+    const { ensureHeroStockVideo, heroTradeText } = await import("@/lib/builder/hero-stock-video.server");
+    const tradeText = await heroTradeText(db as never, orgId);
+    const heroVideo = await ensureHeroStockVideo(db as never, orgId, { tradeText });
+    if (heroVideo.status === "failed") console.warn("[site-engine] hero video skipped", heroVideo.message);
+  } catch (error) {
+    console.warn("[site-engine] hero video skipped", (error as Error)?.message);
   }
   await step("checks");
   await step("leads");
