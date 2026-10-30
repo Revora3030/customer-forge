@@ -62,6 +62,68 @@ describe("business DNA", () => {
     expect(allowed.some((i) => i.reason === "credential")).toBe(false);
   });
 
+  it("catches claims the owner never supplied (insurance, years, job counts, promises, product claims, PSI)", () => {
+    const invented = [
+      "Fully insured",
+      "20 years of experience",
+      "Serving Raleigh since 2009",
+      "1,200 driveways cleaned",
+      "Trusted by 300+ neighbors",
+      "Same-day service",
+      "Eco-friendly, pet-safe soap",
+      "Dialed to 3,000-4,000 PSI for stone",
+    ];
+    for (const line of invented) expect(screenClaims(line, roofer).length, line).toBeGreaterThan(0);
+  });
+
+  it("lets copy repeat those claims when the owner's own words state them", () => {
+    const owner = {
+      ...roofer,
+      description:
+        "Same-day service with eco-friendly, pet-safe soap. Fully insured. Serving Raleigh since 2009. We have cleaned 1,200 driveways and are trusted by 300 neighbors.",
+      ownerStatements: "Concrete: surface cleaner at 3000 to 4000 psi",
+    };
+    for (const line of [
+      "Fully insured",
+      "Serving Raleigh since 2009",
+      "1,200 driveways cleaned",
+      "Trusted by 300+ neighbors",
+      "Same-day service",
+      "Eco-friendly, pet-safe soap",
+      "Dialed to 3,000-4,000 PSI for stone",
+    ])
+      expect(screenClaims(line, owner), line).toEqual([]);
+  });
+
+  it("still blocks a claim the owner's words do not state", () => {
+    const owner = { ...roofer, description: "Open Monday to Friday. We have cleaned 500 driveways." };
+    expect(screenClaims("1,200 driveways cleaned", owner).length).toBeGreaterThan(0);
+    expect(screenClaims("Same-day service", owner).length).toBeGreaterThan(0);
+    expect(screenClaims("Trusted by 300+ neighbors", owner).length).toBeGreaterThan(0);
+    expect(screenClaims("20 years of experience", { ...owner, description: "We own 20 trucks." }).length).toBeGreaterThan(0);
+    // A different noun is a different claim: the copy must use the owner's words.
+    expect(screenClaims("Trusted by 300+ neighbors", { ...owner, description: "Trusted by 300 local families." }).length).toBeGreaterThan(0);
+  });
+
+  it("does not let real testimonials unlock an invented track record", () => {
+    const withReviews = { ...roofer, testimonialCount: 3 };
+    expect(screenClaims("1,200 driveways cleaned", withReviews).length).toBeGreaterThan(0);
+    expect(screenClaims("Trusted by 300+ neighbors", withReviews).length).toBeGreaterThan(0);
+  });
+
+  it("allows a years claim only when it states the number the owner supplied", () => {
+    const owner = { ...roofer, yearsInBusiness: 12 };
+    expect(screenClaims("12 years of experience", owner)).toEqual([]);
+    expect(screenClaims("Serving Dallas since " + (new Date().getFullYear() - 12), owner)).toEqual([]);
+    expect(screenClaims("30 years of experience", owner).length).toBeGreaterThan(0);
+    expect(screenClaims("Serving Dallas since 1999", owner).length).toBeGreaterThan(0);
+  });
+
+  it("does not flag plain, true sentences", () => {
+    for (const line of ["We wash driveways in Raleigh.", "Call to book a visit.", "Roof repair and inspection in Dallas."])
+      expect(screenClaims(line, roofer), line).toEqual([]);
+  });
+
   it("renders a prompt brief that carries the do-not-guess ledger", () => {
     const brief = dnaBrief(businessDna(roofer));
     expect(brief).toContain("NEVER CLAIM");

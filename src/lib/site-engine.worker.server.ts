@@ -1674,6 +1674,8 @@ async function runJob(
     industry: copyFacts.industry,
     services: copyFacts.services.map((service) => service.name),
     description: copyFacts.description,
+    // The owner's own service descriptions: copy may restate what they say.
+    ownerStatements: copyFacts.services.map((service) => service.description?.trim() ?? "").filter(Boolean).join(" . ") || null,
     city: copyFacts.city,
     region: copyFacts.state,
     serviceArea: copyFacts.serviceArea,

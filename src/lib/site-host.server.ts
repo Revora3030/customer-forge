@@ -299,6 +299,7 @@ export async function platformSitemapSlugs(): Promise<string[]> {
   // Bounded ID batches avoid oversized filters while retaining the existing access boundary.
   const orgs: (Parameters<typeof siteAccess>[0] & { id: string; slug: string | null })[] = [];
   const addresses: AddressRow[] = [];
+  const withSections = new Set<string>();
   for (let start = 0; start < ids.length; start += 200) {
     const batch = ids.slice(start, start + 200);
     const [orgResult, addressResult] = await Promise.all([
@@ -315,6 +316,13 @@ export async function platformSitemapSlugs(): Promise<string[]> {
     if (orgResult.error || addressResult.error) throw new Error("Published site eligibility unavailable");
     orgs.push(...orgResult.rows);
     addresses.push(...addressResult.rows);
+    // A published workspace with no sections yet is an empty shell: keep it out of the sitemap.
+    const built = await fetchAllRows((from, to) => supabaseAdmin
+      .from("website_sections")
+      .select("id, organization_id")
+      .in("organization_id", batch).order("id").range(from, to));
+    if (built.error) throw new Error("Published site content unavailable");
+    for (const row of built.rows as { organization_id: string }[]) withSections.add(row.organization_id);
   }
   const ownDomain = new Set(
     ((addresses ?? []) as AddressRow[])
@@ -324,6 +332,7 @@ export async function platformSitemapSlugs(): Promise<string[]> {
   return ((orgs ?? []) as unknown as (Parameters<typeof siteAccess>[0] & { id: string; slug: string | null })[])
     .filter((org) => org && typeof org.slug === "string" && /^[a-z0-9-]{1,80}$/.test(org.slug))
     .filter((org) => !ownDomain.has(org.id))
+    .filter((org) => withSections.has(org.id))
     .filter((org) => siteAccess(org).live)
     .map((org) => org.slug as string)
     .sort();
