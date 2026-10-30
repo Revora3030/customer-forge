@@ -148,6 +148,20 @@
       "when": 1793314888837,
       "tag": "0020_remove_test_account_analytics",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1793327463861,
+      "tag": "0021_prospect_autopilot_schedule",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1793327470222,
+      "tag": "0022_prospect_replies_schedule",
+      "breakpoints": true
     }
   ]
 }
