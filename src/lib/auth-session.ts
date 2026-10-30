@@ -150,9 +150,10 @@ export async function ensureProfile(user?: User | null): Promise<void> {
 /**
  * Resolves where a signed-in client belongs based on their tenant/workspace
  * access, so login always lands on the right dashboard:
- *  - no workspace yet -> onboarding
- *  - workspace with incomplete onboarding -> onboarding
- *  - workspace ready -> /app
+ *  - no workspace yet -> /get-started (the single onboarding door; it
+ *    provisions the workspace and leads into /app/website)
+ *  - any workspace -> /app (a workspace made on /get-started is never bounced
+ *    into the separate onboarding wizard because onboarding_completed is false)
  *  - platform staff with no client workspace -> /admin
  */
 export async function resolvePostLoginPath(): Promise<string> {
@@ -163,6 +164,7 @@ export async function resolvePostLoginPath(): Promise<string> {
   // A provider redirect can beat the transaction that creates the membership.
   // Re-read a few times so /app never wins a race with workspace provisioning.
   let lastRoles: Array<{ role?: string | null }> = [];
+  let lastMembershipError: unknown = null;
   for (let attempt = 0; attempt < 4; attempt++) {
     const [{ data: memberships, error: membershipError }, { data: roles }] = await Promise.all([
       supabase
@@ -174,10 +176,10 @@ export async function resolvePostLoginPath(): Promise<string> {
     ]);
     lastRoles = roles ?? lastRoles;
     if (!membershipError) {
+      lastMembershipError = null;
       const first = (memberships ?? []).find((m) => m.organizations);
       if (first?.organizations) {
-        const org = first.organizations as { onboarding_completed: boolean | null };
-        return org.onboarding_completed ? "/app" : "/onboarding";
+        return "/app";
       }
       // The user is authenticated but provisioning has not committed yet.
       if (attempt < 3) {
@@ -186,9 +188,14 @@ export async function resolvePostLoginPath(): Promise<string> {
       }
       break;
     }
+    lastMembershipError = membershipError;
     await new Promise((resolve) => setTimeout(resolve, 250 * (attempt + 1)));
   }
 
+  if (lastMembershipError) {
+    throw new Error("We couldn't load your workspace. Please retry signing in; your account has not been removed.");
+  }
+
   const isSuperAdmin = lastRoles.some((r) => r.role === "super_admin");
-  return isSuperAdmin ? "/admin" : "/onboarding";
+  return isSuperAdmin ? "/admin" : "/get-started";
 }

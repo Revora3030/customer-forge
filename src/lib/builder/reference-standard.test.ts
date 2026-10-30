@@ -2,7 +2,9 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { CompositionRenderer } from "@/components/site/CompositionRenderer";
-import { TRADE_PLAYBOOKS, ARCHETYPES, playbookNote } from "@/lib/builder/industry-playbook";
+import { TRADE_PLAYBOOKS, ARCHETYPES, blueprintFor, playbookFor, playbookNote } from "@/lib/builder/industry-playbook";
+import { TRADE_BLUEPRINTS, blueprintForKey } from "@/lib/builder/trade-blueprints";
+import { paletteProblems } from "@/lib/builder/palette-guard";
 import { REFERENCE_MOMENT_KEYS, referenceMomentsFor, referenceStandardNote } from "@/lib/builder/reference-standard";
 import { COMPOSITION_PRIMITIVES, INTERACTIVE_PRIMITIVES, PRIMITIVE_GUIDE, validateComposition, type CompositionTree } from "@/lib/builder/composition-tree";
 import { dialAngle, dialArcPath, dialOptionForKey } from "@/lib/builder/cinematic-primitives";
@@ -44,6 +46,59 @@ describe("reference standard reaches every business category", () => {
     expect(referenceStandardNote("exterior-cleaning")).toContain("Clean this driveway.");
     // A business with no category still gets the general reading in the first build.
     expect(referenceStandardNote(null)).toContain(referenceMomentsFor("general").tryIt);
+  });
+  it("covers all 14 core trades with their own playbook, moments, blueprint and look", () => {
+    const trades: [string, string][] = [
+      ["Plumbing", "plumbing"],
+      ["HVAC repair", "hvac"],
+      ["Roofing contractor", "roofing"],
+      ["Mobile auto detailing", "auto-detailing"],
+      ["Pressure washing", "pressure-washing"],
+      ["Landscaping", "landscaping"],
+      ["House cleaning", "cleaning"],
+      ["Italian restaurant", "restaurants"],
+      ["Barber shop", "salons-barbers"],
+      ["Med spa", "med-spa"],
+      ["Family dentist", "dentist"],
+      ["Personal injury law firm", "law-firms"],
+      ["Real estate agent", "real-estate"],
+      ["CrossFit gym", "gyms-fitness"],
+    ];
+    expect(TRADE_BLUEPRINTS.map((b) => b.key).sort()).toEqual(trades.map(([, k]) => k).sort());
+    for (const [industry, key] of trades) {
+      expect(playbookFor(industry)?.key, industry).toBe(key);
+      expect(REFERENCE_MOMENT_KEYS, industry).toContain(key);
+      const moments = referenceMomentsFor(key);
+      expect(moments.tryIt.length, industry).toBeGreaterThan(20);
+      expect(moments.dial.length, industry).toBeGreaterThan(20);
+      expect(blueprintFor(industry)?.key, industry).toBe(key);
+      const note = playbookNote(industry)!;
+      expect(note, industry).toContain("REFERENCE STANDARD");
+      expect(note, industry).toContain(`TRY IT for this business: ${moments.tryIt}`);
+      expect(note, industry).toContain(blueprintFor(industry)!.palette.canvas);
+      expect(note, industry).toContain(blueprintFor(industry)!.fonts.display);
+      expect(note, industry).toMatch(/never typed/);
+    }
+    expect(referenceStandardNote("pressure-washing")).toContain("Clean this driveway.");
+  });
+  it("gives every blueprint a palette the brand guard accepts, legible ink and no proof claims", () => {
+    for (const b of TRADE_BLUEPRINTS) {
+      expect(paletteProblems({ primary: b.palette.accent, secondary: b.palette.canvas, accent: b.palette.grounding }), b.key).toEqual([]);
+      expect(b.cta.primary.length, b.key).toBeGreaterThan(5);
+      expect([b.hero, b.signatureWidget, b.look, b.cta.primary, b.cta.secondary].join(" ").replace(/never guaranteed outcomes/g, ""), b.key).not.toMatch(/guarantee[ds]? (?:result|outcome)|award|#1\b|best in|\d+ ?stars?|5-star/i);
+    }
+    // Law firms never promise an outcome.
+    expect(blueprintForKey("law-firms")!.look).toMatch(/never guaranteed outcomes/);
+  });
+  it("falls every other category back to its closest blueprint, and only a business with no signal to the obsidian look", () => {
+    expect(blueprintFor("Mobile locksmith")?.key).toBe("plumbing");
+    expect(blueprintFor("Chiropractor")?.key).toBe("dentist");
+    expect(blueprintFor("Boutique hotel")?.key).toBe("restaurants");
+    expect(blueprintFor("SaaS platform")?.key).toBe("hvac");
+    expect(blueprintFor("Interstellar cheese")).toBeNull();
+    for (const p of TRADE_PLAYBOOKS) expect(blueprintForKey(p.key), p.key).not.toBeNull();
+    for (const a of ARCHETYPES.filter((x) => x.key !== "general")) expect(blueprintForKey(a.key), a.key).not.toBeNull();
+    expect(playbookNote("Interstellar cheese")).toContain("Obsidian canvas");
   });
   it("keeps truth rules in the standard", () => {
     const note = referenceStandardNote("general");

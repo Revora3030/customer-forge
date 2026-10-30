@@ -16,17 +16,29 @@ describe("trade playbooks", () => {
   });
   it("matches the trades it names", () => {
     const cases: [string, string][] = [
-      ["Pressure washing", "exterior-cleaning"],
+      ["Pressure washing", "pressure-washing"],
+      ["Gutter and window cleaning", "exterior-cleaning"],
       ["Mobile auto detailing", "auto-detailing"],
       ["Roofing contractor", "roofing"],
       ["Lawn care & landscaping", "landscaping"],
       ["House cleaning", "cleaning"],
       ["HVAC", "hvac"],
       ["Plumbing", "plumbing"],
-      ["Barber shop", "beauty"],
-      ["Family dentist", "health"],
+      ["Barber shop", "salons-barbers"],
+      ["Med spa", "med-spa"],
+      ["Botox and filler clinic", "med-spa"],
+      ["Family dentist", "dentist"],
+      ["Orthodontist", "dentist"],
+      ["CrossFit gym", "gyms-fitness"],
+      ["Yoga studio", "gyms-fitness"],
+      ["Chiropractor", "medical-wellness"],
+      ["Personal injury law firm", "law-firms"],
+      ["Realtor", "real-estate"],
+      ["Italian restaurant", "restaurants"],
+      ["Coffee shop", "restaurants"],
       ["Wedding photographer", "photo-creative"],
-      ["Tax preparation", "real-estate-pro"],
+      ["Tax preparation", "professional-services"],
+      ["Mortgage broker", "professional-services"],
       ["Mobile locksmith", "locksmith"],
       ["24/7 towing and roadside", "towing"],
       ["Solar panel installation", "solar"],
@@ -38,7 +50,7 @@ describe("trade playbooks", () => {
     for (const [industry, key] of cases) expect(playbookFor(industry)?.key, industry).toBe(key);
   });
   it("does not let the new trades steal older ones", () => {
-    for (const [industry, key] of [["Pressure washing", "exterior-cleaning"], ["House cleaning", "cleaning"], ["Day spa", "beauty"], ["Plumbing", "plumbing"], ["Tree service", "landscaping"]] as const)
+    for (const [industry, key] of [["Pressure washing", "pressure-washing"], ["House cleaning", "cleaning"], ["Day spa", "salons-barbers"], ["Accident attorney", "law-firms"], ["Plumbing", "plumbing"], ["Tree service", "landscaping"]] as const)
       expect(playbookFor(industry)?.key, industry).toBe(key);
   });
   it("has no specific trade for an unknown industry, and no note at all for no industry", () => {
@@ -134,7 +146,11 @@ describe("universal archetypes", () => {
     expect(key("Dance academy")).toBe("hospitality-lifestyle");
     const note = playbookNote("Mobile auto detailing")!;
     expect(note).toContain("TRADE PLAYBOOK for Auto detailing and car care");
-    expect(note).toContain("the canvas is obsidian studio on every page");
+    // The look now comes from the trade blueprint, not one obsidian canvas for every business.
+    expect(note).toContain("Auto detailing blueprint");
+    expect(note).not.toContain("the canvas is the cinematic obsidian studio");
+    // Only a business with no category signal keeps the reference's obsidian studio.
+    expect(playbookNote("Mystery business")).toContain("the canvas is the cinematic obsidian studio on every page");
   });
 
   it("falls back to the description or service names when the industry says nothing, and to the general archetype otherwise", () => {

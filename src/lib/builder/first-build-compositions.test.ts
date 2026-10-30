@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 const calls: string[] = [];
+let invalidReturned = false;
 vi.mock("@/lib/ai/thinker.server", () => ({
   callBestThinker: vi.fn(async (req: { user: string }) => {
     calls.push(req.user);
@@ -27,7 +28,9 @@ vi.mock("@/lib/ai/thinker.server", () => ({
       { type: "heading", level: 2, text: "Roof repair" },
     ] } };
     const bad = { version: 1, root: { type: "banana" } };
-    return { ok: true, model: "gpt-6-sol", costMicrocents: 1, text: JSON.stringify({ sections: { s1: withPicture, s2: calls.length === 1 ? bad : good, s3: good } }) };
+    const invalid = req.user.includes('"sectionId": "s2"') && !invalidReturned;
+    if (invalid) invalidReturned = true;
+    return { ok: true, model: "gpt-6-sol", costMicrocents: 1, text: JSON.stringify({ sections: { s1: withPicture, s2: invalid ? bad : good, s3: good } }) };
   }),
 }));
 
@@ -96,13 +99,15 @@ describe("composeFirstBuildSections", () => {
     // One design call, then one targeted AI repair of the invalid tree that
     // carries the exact validator error and the bad output; the review panel
     // follows (its notes here parse as empty, so no revision).
-    expect(calls.filter((c) => c.includes("SECTIONS TO DESIGN"))).toHaveLength(1);
+    const designCalls = calls.filter((c) => c.includes("SECTIONS TO DESIGN"));
+    expect(designCalls).toHaveLength(3);
+    expect(designCalls.every((c) => [...c.matchAll(/"sectionId":/g)].length === 1)).toBe(true);
     expect(result.gateReports).toEqual([]);
-    expect(calls[1]).toContain("EXACT VALIDATOR ERRORS");
-    expect(calls[1]).toContain('unknown building block \\"banana\\"');
-    expect(calls[1]).toContain('"type":"banana"');
+    const repair = calls.find((c) => c.includes("EXACT VALIDATOR ERRORS"));
+    expect(repair).toContain('unknown building block \\"banana\\"');
+    expect(repair).toContain('"type":"banana"');
     expect(result.outputRepairs).toBe(1);
-    expect(calls[0]).toContain('"s3"');
+    expect(designCalls.some((c) => c.includes('"sectionId": "s3"'))).toBe(true);
     // Independent advisers speak before Sol's first design.
     expect(calls[0]).toContain("TEAM ADVICE");
     expect(calls[0]).toContain("Name the service in the heading");

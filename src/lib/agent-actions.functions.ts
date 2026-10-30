@@ -13,7 +13,7 @@ async function guardedAdmin(context: { supabase: unknown; userId: unknown }): Pr
 
 async function pendingLeadCount(db: SupabaseClient): Promise<number | null> {
   const { count, error } = await db.from("prospect_import_queue").select("id", { count: "exact", head: true }).eq("status", "pending");
-  return error ? null : (count ?? 0);
+  return error || count === null ? null : count;
 }
 
 /** Everything waiting for the founder: bot requests, plus counts for Jarvis proposals and leads. */
@@ -21,15 +21,24 @@ export const listFounderApprovalsFn = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const db = await guardedAdmin(context);
-    const { listActionRequests } = await import("./agent-action-requests.server");
+    const { listActionRequests, ActionRequestError } = await import("./agent-action-requests.server");
     const { listApprovals } = await import("./jarvis-approvals.server");
+    // The bot-request queue failing (e.g. its table isn't migrated on this
+    // database yet) must not blank the whole screen: it used to throw, the
+    // client retried with backoff, and the page sat on its loading rows.
+    // The reason is returned instead, and the other counts still show.
+    let queueError: string | null = null;
     const [requests, jarvis, leads] = await Promise.all([
-      listActionRequests(db),
+      listActionRequests(db).catch((error: unknown) => {
+        queueError = error instanceof ActionRequestError ? error.message : "Couldn't load the approval queue.";
+        return [] as Awaited<ReturnType<typeof listActionRequests>>;
+      }),
       listApprovals(db, String(context.userId)).catch(() => null),
-      pendingLeadCount(db),
+      pendingLeadCount(db).catch(() => null),
     ]);
     return {
       requests,
+      queueError: queueError as string | null,
       jarvisWaiting: jarvis ? jarvis.filter((item) => item.state === "pending" || item.state === "failed").length : null,
       leadsWaiting: leads,
     };

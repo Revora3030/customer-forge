@@ -29,7 +29,9 @@ function AdminApprovals() {
   const decideFn = useServerFn(decideAgentActionFn);
   const qc = useQueryClient();
   const [busyId, setBusyId] = useState<string | null>(null);
-  const query = useQuery({ queryKey: ["admin", "approvals"], queryFn: () => listFn(), refetchInterval: 30_000 });
+  // One quick retry, not the default three with backoff: a failing load must
+  // reach the error notice in seconds instead of sitting on loading rows.
+  const query = useQuery({ queryKey: ["admin", "approvals"], queryFn: () => listFn(), refetchInterval: 30_000, retry: 1, retryDelay: 1_000 });
 
   useEffect(() => {
     if (!focusId || !query.data) return;
@@ -77,6 +79,8 @@ function AdminApprovals() {
         <QueryErrorNotice title="Couldn't load approvals." retry={() => query.refetch()} retrying={query.isFetching} />
       ) : query.isPending ? (
         <LoadingRows rows={3} />
+      ) : query.data?.queueError ? (
+        <QueryErrorNotice title={query.data.queueError} retry={() => query.refetch()} retrying={query.isFetching} />
       ) : waiting.length === 0 ? (
         <EmptyState title="Nothing waiting" description="When a bot needs your sign-off it shows up here, and it waits until you decide." />
       ) : (

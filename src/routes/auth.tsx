@@ -19,12 +19,17 @@ import {
   resolvePostLoginPath,
   setRememberPreference,
 } from "@/lib/auth-session";
-import { isSafeRedirect } from "@/lib/prospect-claim";
+import { authEmailRedirectTo, isSafeRedirect } from "@/lib/prospect-claim";
+import { readStarter, STARTER_METADATA_KEY } from "@/components/marketing/hero-starter-utils";
+
+function starterMetadata(): Record<string, unknown> {
+  const starter = readStarter();
+  return starter ? { [STARTER_METADATA_KEY]: starter } : {};
+}
 
 type Search = { mode?: "signup" | "signin"; redirect?: string };
 
 export const Route = createFileRoute("/auth")({
-  ssr: false,
   validateSearch: (search: Record<string, unknown>): Search => {
     const rawMode = search["mode"];
     const rawRedirect = search["redirect"];
@@ -45,6 +50,7 @@ export const Route = createFileRoute("/auth")({
   head: ({ match }) => {
     const label = match.search.mode === "signup" ? "Create your account — Revora" : "Sign in — Revora";
     return {
+    links: [{ rel: "preload", as: "image", href: "/revora-mark-144.png" }],
     meta: [
       { title: label },
       {
@@ -111,6 +117,7 @@ function AuthPage() {
       })
       .catch((error: unknown) => {
         reportRouteError(error, { boundary: "auth_session_check" });
+        if (active) setError(error instanceof Error ? error.message : "We couldn't load your account. Please try signing in again.");
       });
     return () => {
       active = false;
@@ -124,19 +131,20 @@ function AuthPage() {
     try {
       setRememberPreference(remember);
       if (isSignup) {
-        const { error: signUpError } = await supabase.auth.signUp({
+        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
           email,
           password,
           options: {
-            data: { full_name: fullName },
-            emailRedirectTo: `${window.location.origin}${redirect ?? "/app"}`,
+            // The homepage starter rides on the account so /get-started can
+            // prefill it even when the email is confirmed on another device.
+            data: { full_name: fullName, ...starterMetadata() },
+            emailRedirectTo: authEmailRedirectTo(window.location.origin, redirect),
           },
         });
         if (signUpError) throw signUpError;
-        const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-        if (signInError) {
-          const message = `Account created for ${email}. Confirm your email address using the link we just sent, then sign in here — your progress is saved.`;
-          toast.success("Account created. Check your email to confirm, then sign in.");
+        if (!signUpData.session) {
+          const message = "Check your email for a confirmation link before signing in. If you already have an account, sign in or reset your password.";
+          toast.message("Check your email to continue.");
           setNotice(message);
           setPassword("");
           setIsSignup(false);
@@ -144,7 +152,7 @@ function AuthPage() {
         }
         // Save the account details, then send the new client to the exact next
         // step for their workspace (onboarding first, dashboard once ready).
-        await ensureProfile();
+        await ensureProfile(signUpData.session.user);
         toast.success("Welcome to Revora. Let's set up your workspace.");
         await goToWorkspace();
       } else {
@@ -174,7 +182,7 @@ function AuthPage() {
         email,
         options: {
           shouldCreateUser: false,
-          emailRedirectTo: `${window.location.origin}/auth${redirect ? `?redirect=${encodeURIComponent(redirect)}` : ""}`,
+          emailRedirectTo: authEmailRedirectTo(window.location.origin, redirect),
         },
       });
       if (otpError) throw otpError;

@@ -26,7 +26,7 @@ export const startProspectDemoBuild = createServerFn({ method: "POST" })
     const result = await provisionProspectDemo(db, data, String(context.userId));
 
     const origin = new URL(getRequest().url).origin;
-    const { runInBackground } = await import("@/lib/background");
+    const { runInBackground } = await import("@/lib/background.server");
     const { kickWorker } = await import("@/lib/site-engine.functions");
     runInBackground(() => kickWorker(origin, result.organizationId));
 

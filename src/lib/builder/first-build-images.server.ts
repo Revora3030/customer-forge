@@ -32,7 +32,7 @@ import type {
 } from "@/lib/builder/first-build-images.types";
 import { MEDIA_BUCKET, buildObjectPath } from "@/lib/media";
 import type { FirstBuildCreativeDirection } from "@/lib/builder/first-build-contract";
-import type { PlannedShot } from "@/lib/builder/image-campaign";
+import { sharedCampaignStyle, standardShotAspect, type PlannedShot } from "@/lib/builder/image-campaign";
 
 type Db = SupabaseClient;
 
@@ -158,7 +158,7 @@ export function firstBuildImageShots(
     slot: item.slot as PlannedShot["slot"],
     label: item.label,
     purpose: item.purpose,
-    aspect: item.aspectRatio,
+    aspect: standardShotAspect({ slot: item.slot, placement: item.section, aspect: item.aspectRatio }),
     placement: item.section,
     subjectHint: item.subject,
   }));
@@ -325,7 +325,8 @@ export async function generateFirstBuildImages(
       spec.lighting ? `Lighting: ${spec.lighting}.` : "",
       spec.camera ? `Camera: ${spec.camera}.` : "",
       spec.framing ? `Framing: ${spec.framing}.` : "",
-      `Aspect ratio: ${spec.aspectRatio}. Focal point: ${spec.focalPoint}. Keep clear negative space on the ${spec.negativeSpace}.`,
+      sharedCampaignStyle(input.creative.brief.imageInventory),
+      `Aspect ratio: ${shot.aspect}. Focal point: ${spec.focalPoint}. Keep clear negative space on the ${spec.negativeSpace}.`,
       spec.mobileCrop ? `Mobile crop: ${spec.mobileCrop}.` : "",
       spec.palette ? `Palette: ${spec.palette}.` : "",
       spec.mood ? `Mood: ${spec.mood}.` : "",

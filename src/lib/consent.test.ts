@@ -12,6 +12,7 @@ function browser(choice: string | null) {
     location: { hostname: "localhost" },
     localStorage: { getItem: (key: string) => values.get(key) ?? null, setItem: (key: string, value: string) => values.set(key, value) },
     gtag,
+    dispatchEvent: vi.fn(),
   });
   return { values, gtag };
 }
@@ -32,7 +33,7 @@ describe("advertising consent", () => {
     updateConsent("denied");
     expect(await canTrackAds()).toBe(false);
     expect(values.get("cookie_consent")).toBe("denied");
-    expect(gtag).toHaveBeenCalledWith("consent", "update", { ad_storage: "denied", ad_user_data: "denied", ad_personalization: "denied" });
+    expect(gtag).toHaveBeenCalledWith("consent", "update", { ad_storage: "denied", ad_user_data: "denied", ad_personalization: "denied", analytics_storage: "denied" });
   });
   it("accepting persists consent and permits tracking", async () => {
     browser(null);

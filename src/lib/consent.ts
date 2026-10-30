@@ -78,6 +78,10 @@ export function updateConsent(decision: "granted" | "denied") {
     /* private-mode browsers simply lose the stored choice */
   }
   pushConsentSignal(decision);
+  window.dispatchEvent(new Event("revora:consent-changed"));
+  if (decision === "granted") {
+    void import("./google-ads").then(({ loadGoogleAds }) => loadGoogleAds(false)).catch(() => undefined);
+  }
 }
 
 /**
@@ -92,5 +96,6 @@ export function pushConsentSignal(decision: "granted" | "denied") {
     ad_storage: decision,
     ad_user_data: decision,
     ad_personalization: decision,
+    analytics_storage: decision,
   });
 }

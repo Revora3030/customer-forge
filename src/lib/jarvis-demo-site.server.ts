@@ -189,11 +189,13 @@ export async function provisionProspectDemo(
  * the queued job id, or null when there was nothing to start.
  */
 export async function startDeferredDemoBuild(admin: SupabaseClient, organizationId: string): Promise<string | null> {
-  const { data: settings } = await admin.from("website_settings").select("generation").eq("organization_id", organizationId).maybeSingle();
+  const { data: settings, error: settingsError } = await admin.from("website_settings").select("generation").eq("organization_id", organizationId).maybeSingle();
+  if (settingsError) throw new Error(`Couldn't read the demo: ${settingsError.message}`);
   const generation = (settings?.generation ?? null) as Record<string, unknown> | null;
   const raw = generation?.["prospectDemo"] as Record<string, unknown> | undefined;
   if (!raw || raw["pitchFirst"] !== true || raw["claimedAt"]) return null;
-  const { data: existing } = await admin.from("generation_jobs").select("id").eq("organization_id", organizationId).limit(1);
+  const { data: existing, error: existingError } = await admin.from("generation_jobs").select("id").eq("organization_id", organizationId).in("status", ["queued", "processing", "running", "completed"]).limit(1);
+  if (existingError) throw new Error(`Couldn't check the demo build: ${existingError.message}`);
   if ((existing ?? []).length) return null;
 
   const actorId = typeof raw["createdBy"] === "string" ? raw["createdBy"] : null;
@@ -208,7 +210,11 @@ export async function startDeferredDemoBuild(admin: SupabaseClient, organization
     .insert({ organization_id: organizationId, status: "queued", progress: 0, current_step: null, created_by: actorId, steps: [] })
     .select("id")
     .single();
-  if (error || !job) return null;
+  if (error) {
+    if (error.code === "23505") return null; // Existing active-job constraint owns concurrency.
+    throw new Error(`Couldn't queue the demo build: ${error.message}`);
+  }
+  if (!job) throw new Error("Couldn't queue the demo build: no job was returned.");
   await admin
     .from("website_settings")
     .update({ generation: { ...generation, prospectDemo: { ...raw, pitchFirst: false, pitchAnsweredAt: new Date().toISOString() } } } as never)
@@ -274,6 +280,7 @@ export async function listProspectDemos(admin: SupabaseClient, limit = 20): Prom
       .order("created_at", { ascending: false }),
   ]);
   if (orgs.error) throw new Error(orgs.error.message);
+  if (jobs.error) throw new Error(`Couldn't read demo build status: ${jobs.error.message}`);
   const orgById = new Map((orgs.data ?? []).map((org) => [org.id as string, org]));
   const latestJob = new Map<string, NonNullable<typeof jobs.data>[number]>();
   for (const job of jobs.data ?? []) {

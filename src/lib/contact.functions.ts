@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { getRequest } from "@tanstack/react-start/server";
 import { REVORA } from "@/lib/brand";
 
 /**
@@ -16,6 +17,36 @@ const text = (value: unknown, max: number) => {
 };
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i;
+
+/**
+ * Abuse limits. The per-email limit alone was bypassable by rotating
+ * addresses, so the connection is limited too (same approach as the public
+ * assessment form in assessment.functions.ts).
+ */
+export const CONTACT_EMAIL_LIMIT_PER_10_MIN = 5;
+export const CONTACT_IP_LIMIT_PER_HOUR = 10;
+
+export function isContactThrottled(counts: { byEmail: number | null; byIp: number | null }): boolean {
+  return (
+    (counts.byEmail ?? 0) >= CONTACT_EMAIL_LIMIT_PER_10_MIN ||
+    (counts.byIp ?? 0) >= CONTACT_IP_LIMIT_PER_HOUR
+  );
+}
+
+async function sha256Hex(value: string) {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/** Edge-controlled client IP only; spoofable forwarding headers are ignored. */
+function clientIp(): string | null {
+  try {
+    const headers = getRequest().headers;
+    return headers.get("cf-connecting-ip")?.trim() || headers.get("true-client-ip")?.trim() || null;
+  } catch {
+    return null;
+  }
+}
 
 export interface ContactSubmission {
   name: string;
@@ -52,15 +83,30 @@ export const submitContactRequest = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-    // Abuse guard: a single sender cannot flood the inbox.
-    const windowStart = new Date(Date.now() - 10 * 60_000).toISOString();
-    const { count } = await supabaseAdmin
-      .from("marketing_conversions")
-      .select("id", { count: "exact", head: true })
-      .eq("event_name", "contact_submitted")
-      .eq("email", data.email)
-      .gte("created_at", windowStart);
-    if ((count ?? 0) >= 5) {
+    // Abuse guard: neither a single sender nor a single connection can flood
+    // the inbox. The IP is stored only as a SHA-256 hash.
+    const ip = clientIp();
+    const ipHash = ip ? await sha256Hex(`contact|${ip}`) : null;
+    const [byEmail, byIp] = await Promise.all([
+      supabaseAdmin
+        .from("marketing_conversions")
+        .select("id", { count: "exact", head: true })
+        .eq("event_name", "contact_submitted")
+        .eq("email", data.email)
+        .gte("created_at", new Date(Date.now() - 10 * 60_000).toISOString()),
+      ipHash
+        ? supabaseAdmin
+            .from("marketing_conversions")
+            .select("id", { count: "exact", head: true })
+            .eq("event_name", "contact_submitted")
+            .contains("metadata", { ip_hash: ipHash })
+            .gte("created_at", new Date(Date.now() - 3_600_000).toISOString())
+        : Promise.resolve({ count: 0, error: null }),
+    ]);
+    if (byEmail.error || byIp.error) {
+      console.error("submitContactRequest rate check failed", (byEmail.error ?? byIp.error)?.message);
+    }
+    if (isContactThrottled({ byEmail: byEmail.count, byIp: byIp.count })) {
       return { ok: true as const, stored: false, emailed: false, throttled: true as const };
     }
 
@@ -76,6 +122,7 @@ export const submitContactRequest = createServerFn({ method: "POST" })
         business_type: data.businessType ?? "",
         interest: data.interest ?? "",
         message: data.message.slice(0, 500),
+        ...(ipHash ? { ip_hash: ipHash } : {}),
       } as never,
     });
     if (error) {

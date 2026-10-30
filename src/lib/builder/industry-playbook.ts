@@ -9,6 +9,7 @@
  * suggestion: the designer chooses the palette and type.
  */
 import { referenceStandardNote } from "@/lib/builder/reference-standard";
+import { blueprintForKey, blueprintLookNote, type TradeBlueprint } from "@/lib/builder/trade-blueprints";
 
 export type TradePlaybook = {
   key: string;
@@ -72,9 +73,17 @@ export const TRADE_PLAYBOOKS: readonly TradePlaybook[] = [
     needsFromOwner: "Real appliance types and brands serviced, service area and any diagnostic fee exactly as the owner states it.",
   },
   {
+    key: "pressure-washing",
+    label: "Pressure washing and soft washing",
+    match: /pressure|power\s?wash|soft\s?wash/i,
+    signature: "A kinetic hands-on reveal: a scrub_sequence over the owner's real frames of one surface, a before_after_slider with revealMode \"brush\" and a prompt like \"Clean this driveway.\", then a quote_calculator \"Instant price in 20 seconds\" by surface and size from the owner's own pricing.",
+    storyArc: ["the dirty surface", "the method and the crew", "the clean result", "the full property", "a 20-second price"],
+    needsFromOwner: "Real before and after photos of the same surface and the owner's real per-surface pricing. Until then use scroll_chapters scenes from the supplied pictures with copy about the method, a quote_calculator labelled as an example, and no result claims.",
+  },
+  {
     key: "exterior-cleaning",
-    label: "Pressure washing and exterior cleaning",
-    match: /pressure|power\s?wash|soft\s?wash|exterior clean|window clean|gutter|roof clean/i,
+    label: "Exterior, window and gutter cleaning",
+    match: /exterior clean|window clean|gutter|roof clean|house wash|paver seal/i,
     signature: "A hands-on reveal: before_after_slider with revealMode \"brush\" and a prompt like \"Clean this driveway\", then a drag slider for the second surface.",
     storyArc: ["the dirty surface", "the method and the crew", "the clean result", "the full property", "a clear next step"],
     needsFromOwner: "Real before and after photos of the same surface. Until then use scroll_chapters scenes from the supplied pictures with copy about the method, and no result claims.",
@@ -85,7 +94,7 @@ export const TRADE_PLAYBOOKS: readonly TradePlaybook[] = [
     match: /detail|car wash|auto spa|ceramic|paint correction|tint/i,
     signature: "When the home page has two or more pictures of the vehicle, open with a scrub_sequence (a pinned scroll that wipes from the first frame to the last) and a short display heading in the overlay. Otherwise use scroll_chapters. A before_after_slider only of the owner's real before and after of the same vehicle, and a spin_viewer only when the owner photographs one vehicle from 8 or more angles. Real services are offer cards.",
     storyArc: ["the vehicle as it arrived", "the process", "the finished panel in light", "packages", "booking"],
-    needsFromOwner: "Real before and after photos; 8 or more angles of one finished vehicle for a spin. Until then the picture campaign should include 3-4 atmospheric frames of one vehicle (same light, moving closer — not a claimed result) so the home page can open as a scrub_sequence, with each real service as an offer card. The signature canvas is obsidian studio light unless the owner asked for a light editorial palette.",
+    needsFromOwner: "Real before and after photos; 8 or more angles of one finished vehicle for a spin. Until then the picture campaign should include 3-4 atmospheric frames of one vehicle (same light, moving closer — not a claimed result) so the home page can open as a scrub_sequence, with each real service as an offer card.",
   },
   {
     key: "roofing",
@@ -176,25 +185,49 @@ export const TRADE_PLAYBOOKS: readonly TradePlaybook[] = [
     needsFromOwner: "Real services, prices and hours.",
   },
   {
-    key: "beauty",
+    key: "med-spa",
+    label: "Med spa and aesthetics",
+    match: /med\s?spa|medical spa|aesthetic|botox|injectab|filler|laser hair|laser skin|skin clinic|dermatolog|cosmetic (?:clinic|injector)|iv therapy/i,
+    signature: "Clinical luxury: a tab_group of the real treatments with what a visit involves, an outcome before_after_slider with treatment-timeline labels only from the practice's own consented photos, and one consultation action.",
+    storyArc: ["the concern", "the consultation", "the treatment", "aftercare and timeline", "book a consultation"],
+    needsFromOwner: "The real treatment list, the provider credentials they hold and the practice's own consented before and after photos. Never promise results, never show stock faces as patients.",
+  },
+  {
+    key: "salons-barbers",
     label: "Salons, barbers, spas and beauty",
     match: /salon|barber|hair|nail|spa|beauty|lash|brow|massage|tattoo|makeup|wax/i,
-    signature: "A collection_row of real services with prices and a booking_form; a gallery of the owner's real work.",
+    signature: "An editorial gallery of the owner's real work, a stylist picker tab_group of the real team and their services, and a collection_row of real services with prices and a booking_form.",
     storyArc: ["the space", "the services", "the stylists", "the work", "book a chair"],
     needsFromOwner: "Real portfolio photos and the real team; never stock people presented as staff.",
   },
   {
-    key: "food",
+    key: "restaurants",
     label: "Restaurants, cafes and catering",
-    match: /restaurant|cafe|coffee|bakery|catering|food truck|pizza|bar\b|brewery/i,
-    signature: "A menu collection_row with real dishes and prices and a prominent reservation or order action.",
+    match: /restaurant|caf[eé]|coffee|bakery|catering|food truck|pizza|\bbar\b|brewery|bistro|diner|taqueria|sushi|steakhouse|eatery|kitchen &|grill\b/i,
+    signature: "An ambient full-screen food hero with today's real opening hours, a menu tab_group (starters, mains, drinks) of real dishes and prices with dietary badges only where the owner marked them, and a prominent reservation or order action.",
     storyArc: ["the room or the truck", "the signature dishes", "the menu", "hours and location", "reserve or order"],
-    needsFromOwner: "The real menu, prices, hours and photographs of the real food.",
+    needsFromOwner: "The real menu, prices, hours, dietary information and photographs of the real food.",
   },
   {
-    key: "health",
-    label: "Dental, medical and wellness",
-    match: /dent|ortho|clinic|chiropract|physio|therap|medical|doctor|vet|optom|wellness|fitness|gym|yoga|trainer/i,
+    key: "dentist",
+    label: "Dental practice",
+    match: /\bdent(?:al|ist|istry)|orthodon|oral surg|endodon|periodon|invisalign/i,
+    signature: "A welcoming tab_group of real services with what a first visit is like, an insurance and membership checker tab_group listing only plans the practice accepts, a faq_accordion of real patient questions and a new-patient booking action.",
+    storyArc: ["the welcome", "what a first visit is like", "services", "insurance and payment", "book a new patient visit"],
+    needsFromOwner: "Real team, credentials they hold, hours and the insurance plans actually accepted. Never imply a guaranteed result.",
+  },
+  {
+    key: "gyms-fitness",
+    label: "Gyms and fitness studios",
+    match: /\bgym\b|fitness|crossfit|pilates|yoga|personal train|\btrainer|bootcamp|boxing|spin studio|cycling studio|barre/i,
+    signature: "A kinetic hero, a class timetable tab_group by programme from the owner's real schedule, a service_tier_fader of real memberships and a trial-pass action only if the owner runs one.",
+    storyArc: ["the energy", "the programmes", "the timetable", "memberships", "claim a pass"],
+    needsFromOwner: "The real class schedule, coaches, memberships and any trial offer. No transformation photos or results unless the members' own consented ones are supplied.",
+  },
+  {
+    key: "medical-wellness",
+    label: "Medical, therapy and wellness practices",
+    match: /clinic|chiropract|physio|therap|medical|doctor|physician|\bvet|optom|wellness|acupunct|counsel|psych|nutrition/i,
     signature: "A calm service tab_group, a faq_accordion of real patient questions, and an appointment action; no outcome promises.",
     storyArc: ["the concern", "what a visit is like", "the team", "services", "book a visit"],
     needsFromOwner: "Real team, credentials they hold and hours. Never imply a cure or a guaranteed result.",
@@ -208,9 +241,25 @@ export const TRADE_PLAYBOOKS: readonly TradePlaybook[] = [
     needsFromOwner: "The owner's real portfolio.",
   },
   {
-    key: "real-estate-pro",
-    label: "Real estate, legal, accounting and consulting",
-    match: /real estate|realtor|broker|attorney|lawyer|legal|account|tax|bookkeep|consult|insurance|financ/i,
+    key: "law-firms",
+    label: "Law firms and attorneys",
+    match: /attorney|lawyer|law firm|law office|\blaw\b|legal|litigat|paralegal|notary/i,
+    signature: "An authority hero, a practice-area triage tab_group \"What kind of case?\" that ends in a confidential enquiry_form, a faq_accordion of real client questions and credentials only as the attorneys hold them.",
+    storyArc: ["the situation", "practice areas", "how a case review works", "the attorneys", "free case evaluation"],
+    needsFromOwner: "Real practice areas, bar admissions and attorney bios. Never guaranteed outcomes, verdicts or settlement figures, and no client results unless the owner supplies them with the required disclaimers.",
+  },
+  {
+    key: "real-estate",
+    label: "Real estate agents and brokerages",
+    match: /real estate|realtor|realty|brokerage|property listing|homes for sale|home (?:buying|selling)/i,
+    signature: "An architectural cinematic hero, a neighbourhood tab_group of the areas the agent really serves, and a valuation quote_calculator that leads to a real comparative analysis request.",
+    storyArc: ["the home", "the neighbourhoods", "how buying or selling works", "the agent", "get a home valuation"],
+    needsFromOwner: "Real listings, areas served, licence details they hold and the valuation approach. Never sold-price or days-on-market figures unless supplied.",
+  },
+  {
+    key: "professional-services",
+    label: "Accounting, insurance, finance and consulting",
+    match: /account|\btax|bookkeep|consult|insurance|financ|mortgage|broker|\bcpa\b|advis|wealth/i,
     signature: "A faq_accordion of real client questions, a clear consult-booking action and a trust section of credentials the owner holds.",
     storyArc: ["the question clients ask", "how an engagement works", "credentials", "areas served", "book a consult"],
     needsFromOwner: "Real credentials and areas served; no results or outcome claims.",
@@ -352,11 +401,17 @@ const PLAYBOOK_ARCHETYPE: Record<string, ArchetypeKey> = {
   hvac: "emergency-dispatch",
   plumbing: "emergency-dispatch",
   solar: "tech-growth",
-  health: "clinical-trust",
-  "real-estate-pro": "clinical-trust",
+  dentist: "clinical-trust",
+  "medical-wellness": "clinical-trust",
+  "med-spa": "clinical-trust",
+  "law-firms": "clinical-trust",
+  "professional-services": "clinical-trust",
   education: "clinical-trust",
-  beauty: "hospitality-lifestyle",
-  food: "hospitality-lifestyle",
+  "salons-barbers": "hospitality-lifestyle",
+  restaurants: "hospitality-lifestyle",
+  "gyms-fitness": "hospitality-lifestyle",
+  "real-estate": "precision-craft",
+  "pressure-washing": "precision-craft",
   "exterior-cleaning": "precision-craft",
   "auto-detailing": "precision-craft",
   roofing: "precision-craft",
@@ -376,7 +431,7 @@ const PLAYBOOK_ARCHETYPE: Record<string, ArchetypeKey> = {
 
 /** [playbook key, words in the industry, archetype to use instead]. */
 const SPECIFIC_LOOK_OVERRIDES: readonly (readonly [string, RegExp, ArchetypeKey])[] = [
-  ["health", /gym|fitness|yoga|pilates|crossfit|trainer|wellness/i, "hospitality-lifestyle"],
+  ["medical-wellness", /wellness/i, "hospitality-lifestyle"],
   ["education", /dance|music|martial|coach/i, "hospitality-lifestyle"],
 ];
 
@@ -422,6 +477,7 @@ export function guidanceFor(industry: string | null | undefined, hints: string |
 export function playbookNote(industry: string | null | undefined, hints: string | null | undefined = null): string | null {
   const guide = guidanceFor(industry, hints);
   if (!guide) return null;
+  const blueprint = blueprintForKey(guide.specific ? guide.key : guide.archetype.key);
   return [
     guide.specific
       ? `TRADE PLAYBOOK for ${guide.label} (ideas for this trade; use only what the supplied material supports, and never invent proof):`
@@ -429,10 +485,23 @@ export function playbookNote(industry: string | null | undefined, hints: string 
     `Signature moment: ${guide.signature}`,
     `Story arc for a scroll story: ${guide.storyArc.join(" → ")}.`,
     `What the owner must supply: ${guide.needsFromOwner}`,
-    `Look (a suggestion for type and accent; the canvas is obsidian studio on every page — home, services, about, book and contact — unless the owner asked for a light editorial palette): ${guide.archetype.look}`,
-    "A photographic page opens as a scene, scroll_chapters or scrub_sequence. Chapter labels follow the story arc above. Forms are dark glass. The same call to action is not repeated under every section. Prices appear only when the owner supplied them.",
-    referenceStandardNote(guide.key),
+    blueprint
+      ? `Look — ${blueprintLookNote(blueprint)} The same palette and type carry through every page (home, services, about, book and contact). Archetype note: ${guide.archetype.look}`
+      : `Look (a suggestion for type and accent; the canvas is the cinematic obsidian studio on every page — home, services, about, book and contact — unless the owner asked for a light editorial palette): ${guide.archetype.look}`,
+    `A photographic page opens as a scene, scroll_chapters or scrub_sequence. Chapter labels follow the story arc above. Forms are ${blueprint?.tone === "light" ? "clean light panels" : "dark glass"}. The same call to action is not repeated under every section. Prices appear only when the owner supplied them.`,
+    referenceStandardNote(guide.key, blueprint),
   ].join("\n");
+}
+
+/**
+ * The trade blueprint for a business: its own when it is one of the 14 core trades, else the closest one by trade
+ * playbook or archetype. Null only for a business with no category signal, which keeps the obsidian studio look.
+ */
+export function blueprintFor(industry: string | null | undefined, hints: string | null | undefined = null): TradeBlueprint | null {
+  const playbook = playbookFor(industry);
+  if (playbook) return blueprintForKey(playbook.key);
+  const archetype = archetypeFor(industry, hints);
+  return archetype ? blueprintForKey(archetype.key) : null;
 }
 
 export type StarterIdea = { label: string; reason: string; instruction: string };

@@ -355,6 +355,25 @@ export async function handleInvoicePaymentFailed(
       idempotencyKey: marker,
     }).catch((e) => console.error("[billing] payment-failed email failed", (e as Error).message));
   }
+  if (input.environment === "live") {
+    // Founder alert (throttled, once per invoice attempt; never throws).
+    const { sendFounderAlert } = await import("@/lib/founder-alerts.server");
+    await sendFounderAlert(admin, {
+      kind: "payment_failed",
+      marker,
+      organizationId: input.organizationId,
+      title: "Payment failed",
+      summary: "A customer's subscription payment did not go through.",
+      rows: [
+        ["Business", businessName],
+        ["Amount", amount ?? ""],
+        ["Attempt", String(input.attemptCount ?? 1)],
+        ["Next retry", chargeDate ?? ""],
+        ["Reason", declineReason ?? ""],
+      ],
+      link: "https://revoragrowthsystems.com/admin/payments",
+    });
+  }
 
   await admin.from("notifications").insert({
     organization_id: input.organizationId,

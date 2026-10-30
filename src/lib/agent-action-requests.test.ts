@@ -8,9 +8,11 @@ import {
   completeActionRequest,
   createActionRequest,
   decideActionRequest,
+  listActionRequests,
+  pendingActionRequestCount,
   readActionRequest,
 } from "./agent-action-requests.server";
-import { briefingText } from "./agent-gateway.server";
+import { agentHealth, briefingText } from "./agent-gateway.server";
 
 /* A tiny in-memory stand-in for the one table these functions touch. */
 type Row = Record<string, unknown>;
@@ -71,6 +73,28 @@ function fakeDb(rows: Row[] = []) {
     },
   };
   return db;
+}
+
+/**
+ * The shape the live backend returns when the table isn't there yet: a head
+ * count comes back with no number and no error, a full read with PGRST205.
+ */
+function missingTableDb() {
+  let head = false;
+  const chain: Record<string, unknown> = {
+    select: (_cols?: string, opts?: { head?: boolean }) => ((head = Boolean(opts?.head)), chain),
+    eq: () => chain,
+    gt: () => chain,
+    gte: () => chain,
+    in: () => chain,
+    order: () => chain,
+    limit: () => chain,
+    maybeSingle: async () => ({ data: null, error: { code: "PGRST205" } }),
+    single: async () => ({ data: null, error: { code: "PGRST205" } }),
+    then: (resolve: (value: unknown) => void) =>
+      resolve(head ? { count: null, error: null } : { data: null, error: { code: "PGRST205" }, count: null }),
+  };
+  return { from: () => chain };
 }
 
 const base = {
@@ -198,6 +222,25 @@ describe("gateway read shapes", () => {
 
   it("puts every write route at Level 3 and reads at Level 1", () => {
     for (const [route, level] of Object.entries(GATEWAY_LEVELS)) expect(level).toBe(route.startsWith("GET") ? 1 : 3);
+  });
+});
+
+describe("when the queue isn't live yet", () => {
+  it("says the count is unknown instead of reporting zero approvals waiting", async () => {
+    expect(await pendingActionRequestCount(missingTableDb() as never, NOW)).toBeNull();
+  });
+
+  it("refuses to show an empty inbox for a queue it can't read", async () => {
+    await expect(listActionRequests(missingTableDb() as never, NOW)).rejects.toMatchObject({ status: 503 });
+  });
+
+  it("won't pretend a request was saved when the table is missing", async () => {
+    await expect(createActionRequest(missingTableDb() as never, actionRequestSchema.parse(base), NOW)).rejects.toMatchObject({ status: 503 });
+  });
+
+  it("reports every health number as unknown rather than zero", async () => {
+    const health = await agentHealth(missingTableDb() as never, new Date(NOW));
+    expect(health).toMatchObject({ activeBuilds: null, failedBuilds24h: null, leadsAwaitingReview: null, errors24h: null, approvalsWaiting: null });
   });
 });
 

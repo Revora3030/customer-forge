@@ -20,7 +20,7 @@ import { isPlatformOwnerOrg } from "@/lib/platform-owner";
  * accounts are recorded from the authenticated user id, trials from a database
  * function, and paid state exclusively from Stripe webhooks.
  */
-import { createServerFn } from "@tanstack/react-start";
+import { createServerFn, createServerOnlyFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { GROWTH_SYSTEM } from "@/lib/offer";
 import { fetchAllRows } from "@/lib/paginate";
@@ -230,7 +230,8 @@ export const getPlatformFunnel = createServerFn({ method: "GET" })
  * The funnel itself. Callers MUST have verified the caller is a super admin
  * first (the admin page and Jarvis both do); this reads with elevated access.
  */
-export async function computePlatformFunnel(days: number): Promise<PlatformFunnel> {
+/** Server-only: its body (service-role client, *.server modules) must never reach the browser bundle. */
+export const computePlatformFunnel = createServerOnlyFn(async (days: number): Promise<PlatformFunnel> => {
     const data = { days: Math.min(365, Math.max(1, Math.round(days))) };
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
@@ -467,7 +468,7 @@ export async function computePlatformFunnel(days: number): Promise<PlatformFunne
       convertedTrials,
       errors,
     };
-}
+});
 
 export interface FunnelDetails {
   /** Per-day traffic, so the visitor and session stages can be opened up too. */

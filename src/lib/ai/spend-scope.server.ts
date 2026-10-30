@@ -3,7 +3,7 @@
  *
  * One worker process can run builds for several workspaces at once, so a
  * module-level "free only" switch would leak between them. The scope rides on
- * AsyncLocalStorage instead (already used by background.ts, so the runtime has
+ * AsyncLocalStorage instead (already used by background.server.ts, so the runtime has
  * node:async_hooks): every AI call awaited inside `withAiSpendScope` sees the
  * scope of the build that started it, and only that build.
  *

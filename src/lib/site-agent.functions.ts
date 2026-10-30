@@ -511,14 +511,34 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
     // website" loop long after the worker had stopped.
     const { data: buildRows } = await supabase
       .from("generation_jobs")
-      .select("id, status, lease_expires_at, updated_at")
+      .select("id, status, lease_expires_at, updated_at, created_at")
       .eq("organization_id", orgId)
       .in("status", ["queued", "processing"])
       .order("created_at", { ascending: false })
       .limit(5);
-    const { jobIsActive } = await import("@/lib/builder/job-liveness");
-    const activeBuild = ((buildRows ?? []) as { status: string; lease_expires_at: string | null; updated_at: string | null }[])
-      .some((row) => jobIsActive(row));
+    // A queued row nobody picked up for half an hour is a leftover, not a build.
+    const { buildJobRunning, NO_BUILD_REPLY } = await import("@/lib/build-status-reply");
+    const activeBuild = buildJobRunning(
+      (buildRows ?? []) as { status: string; lease_expires_at: string | null; updated_at: string | null; created_at: string | null }[],
+    );
+    // No pages AND no build running: saying "your AI team is finishing the
+    // first website now" would be false (a cancelled or failed build leaves
+    // exactly this state). Say what is true and how to move forward instead.
+    if (!agentContext.pages.length && !activeBuild) {
+      return settle({
+        reply: NO_BUILD_REPLY,
+        summary: "",
+        steps: [] as AgentStep[],
+        questions: [] as string[],
+        notes: [] as string[],
+        dropped: [] as string[],
+        requirements: [] as { label: string; covered: boolean }[],
+        trace: ["No website build is running and the site has no pages yet."],
+        unavailable: null as { reason: string; retryable: boolean; instruction: string } | null,
+        composition: null as import("@/lib/builder/composition-preview").CompositionPreview | null,
+        conversational: true,
+      }, "chat-answer");
+    }
     if (!agentContext.pages.length || activeBuild) {
       // The re-plan sent once the build settles must see the finished site,
       // not this mid-build picture.

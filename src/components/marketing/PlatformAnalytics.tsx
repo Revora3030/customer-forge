@@ -32,11 +32,14 @@ export function PlatformAnalytics() {
   // preview/runtime diagnostic into a page-level error.
   useEffect(() => {
     let cancelled = false;
+    const load = () => {
+    if (!isPublicMarketingPath(window.location.pathname)) return;
     void detectStaffBrowser()
       .then((staff) => (staff ? null : getPublicGaMeasurementId()))
-      .then((id) => {
+      .then(async (id) => {
         if (cancelled || id === null || !isValidMeasurementId(id)) return;
-        loadGa4(id);
+        await loadGa4(id);
+        if (cancelled) return;
         // The first page_view fires before this async lookup resolves, so GA4
         // was never loaded yet and the landing page was dropped. Send it now.
         const current = window.location.pathname;
@@ -45,8 +48,12 @@ export function PlatformAnalytics() {
       .catch(() => {
         // Analytics is non-critical. The public app must continue rendering.
       });
+    };
+    load();
+    window.addEventListener("revora:consent-changed", load);
     return () => {
       cancelled = true;
+      window.removeEventListener("revora:consent-changed", load);
     };
   }, []);
 

@@ -129,6 +129,9 @@ export type ViewportMeasurement = {
    */
   overlayConflicts?: string[] | undefined;
 
+  /** FAQ items (details/summary) whose answer is empty. Undefined means not measured. */
+  emptyFaqAnswers?: string[] | undefined;
+
   accessibility?: AccessibilityMeasurement | undefined;
   performance?: PerformanceMeasurement | undefined;
 };
@@ -147,9 +150,16 @@ export type VisualCoverage = {
   performance: boolean;
 };
 
+/** One quality trait on a 0-10 scale. A trait whose checks did not run is not scored (score null). */
+export type VisualTrait = { name: "layout" | "content" | "accessibility" | "performance"; executed: boolean; score: number | null };
+
 export type VisualReport = {
   score: number;
   passed: boolean;
+  /** Per-trait scores; unexecuted traits never add to the score. */
+  traits?: VisualTrait[];
+  /** Ready only with no P0, an overall score of at least 8/10 and no executed trait below 6/10. */
+  ready?: boolean;
   findings: VisualFinding[];
   widths: number[];
   pages?: string[];
@@ -434,6 +444,15 @@ export function gradeViewport(
     );
   }
 
+  for (const question of (measurement.emptyFaqAnswers ?? []).slice(0, MAX_FINDINGS_PER_CATEGORY)) {
+    add(
+      "empty_faq_answer",
+      "p0",
+      `The FAQ question “${question}” opens to an empty answer.`,
+      "Write the answer from the owner's supplied FAQ, or remove the question.",
+    );
+  }
+
   for (
     const message of (
       measurement.runtimeErrors ?? []
@@ -673,7 +692,7 @@ export function gradeViewport(
     ) {
       add(
         "low_contrast",
-        "advice",
+        "p0",
         `Text in “${item.selector}” has approximately ${item.ratio.toFixed(
           1,
         )}:1 contrast.`,
@@ -891,6 +910,52 @@ function scoreFindings(
   );
 }
 
+const ACCESSIBILITY_KEYS = new Set(["zoom_blocked", "image_missing_alt", "unlabeled_control", "unlabeled_input", "heading_order", "missing_h1", "multiple_h1", "missing_main_landmark", "missing_nav_landmark", "keyboard_unreachable", "low_contrast", "invalid_tab_index", "missing_focus_indicator"]);
+const PERFORMANCE_KEYS = new Set(["slow_main_content", "layout_shift", "slow_server_response", "failed_requests", "heavy_images", "heavy_scripts", "heavy_fonts", "render_blocking", "third_party_overhead", "oversized_image"]);
+const CONTENT_KEYS = new Set(["placeholder_leakage", "no_visible_cta", "dead_control", "missing_opening_visual", "empty_faq_answer", "broken_image", "runtime_error"]);
+const COVERAGE_KEYS = new Set(["not_measured", "page_not_measured", "widths_not_measured"]);
+
+function traitOf(key: string): VisualTrait["name"] {
+  if (ACCESSIBILITY_KEYS.has(key)) return "accessibility";
+  if (PERFORMANCE_KEYS.has(key)) return "performance";
+  if (CONTENT_KEYS.has(key)) return "content";
+  return "layout";
+}
+
+export const READY_MIN_SCORE = 8;
+export const READY_MIN_TRAIT = 6;
+
+/**
+ * Scores each trait 0-10 from its own findings. A trait whose checks never ran (no accessibility or
+ * performance evidence) is reported unexecuted and does not count; it can never lift the score.
+ */
+export function visualTraits(findings: VisualFinding[], coverage: VisualCoverage, measured: boolean): VisualTrait[] {
+  const executed: Record<VisualTrait["name"], boolean> = {
+    layout: measured,
+    content: measured,
+    accessibility: measured && coverage.accessibility,
+    performance: measured && coverage.performance,
+  };
+  return (["layout", "content", "accessibility", "performance"] as const).map((name) => {
+    if (!executed[name]) return { name, executed: false, score: null };
+    const own = findings.filter((f) => !COVERAGE_KEYS.has(f.key) && traitOf(f.key) === name);
+    const kinds = (severity: VisualFinding["severity"]) => new Set(own.filter((f) => f.severity === severity).map((f) => `${f.page ?? ""}|${f.key}`)).size;
+    const score = Math.max(0, Math.min(10, 10 - kinds("p0") * 3 - kinds("advice") * 0.5));
+    return { name, executed: true, score: Math.round(score * 10) / 10 };
+  });
+}
+
+/** Overall 0-100 score from executed traits only, the per-trait list and the ready gate. */
+function gate(findings: VisualFinding[], coverage: VisualCoverage, measured: boolean) {
+  const traits = visualTraits(findings, coverage, measured);
+  const scored = traits.filter((t): t is VisualTrait & { score: number } => t.executed && t.score !== null);
+  const overall = scored.length ? scored.reduce((sum, t) => sum + t.score, 0) / scored.length : 0;
+  const noP0 = !findings.some((f) => f.severity === "p0");
+  const accessibilityRan = traits.some((t) => t.name === "accessibility" && t.executed);
+  const ready = measured && noP0 && accessibilityRan && overall >= READY_MIN_SCORE && scored.every((t) => t.score >= READY_MIN_TRAIT);
+  return { traits, ready, score: Math.min(scoreFindings(findings), clampScore(overall * 10)) };
+}
+
 /* -------------------------------------------------------------------------- */
 /* SINGLE-PAGE REPORT                                                         */
 /* -------------------------------------------------------------------------- */
@@ -984,11 +1049,15 @@ export function gradeVisual(
       !!measurement.performance,
   );
 
+  const graded = gate(findings, { accessibility, performance }, true);
+
   return {
-    score: scoreFindings(findings),
+    score: graded.score,
     passed: !findings.some(
       (finding) => finding.severity === "p0",
     ),
+    traits: graded.traits,
+    ready: graded.ready,
     findings,
     widths,
     ...(page ? { pages: [page] } : {}),
@@ -1124,11 +1193,15 @@ export function gradeSite(
 
   const unique = dedupeFindings(findings);
 
+  const graded = gate(unique, { accessibility, performance }, pages.length > 0);
+
   return {
-    score: scoreFindings(unique),
+    score: graded.score,
     passed: !unique.some(
       (finding) => finding.severity === "p0",
     ),
+    traits: graded.traits,
+    ready: graded.ready,
     findings: unique,
     widths: [...widthSet].sort((a, b) => a - b),
     pages,
@@ -2530,8 +2603,20 @@ export const MEASURE_SCRIPT = `(() => {
   /* FINAL MEASUREMENT                                                       */
   /* ---------------------------------------------------------------------- */
 
+  const emptyFaqAnswers = [...document.querySelectorAll("details")]
+    .filter((d) => d.querySelector("summary"))
+    .filter((d) => {
+      const clone = d.cloneNode(true);
+      const summary = clone.querySelector("summary");
+      if (summary) summary.remove();
+      return !(clone.textContent || "").trim() && !clone.querySelector("img,video,iframe,a,form");
+    })
+    .map((d) => (d.querySelector("summary").textContent || "").trim().slice(0, 80))
+    .slice(0, 12);
+
   return {
     width,
+    emptyFaqAnswers,
 
     scrollWidth:
       Math.max(
