@@ -33,7 +33,7 @@ describe("AI City data boundary", () => {
       const builder = {
         select() { return builder; },
         eq(column: string, value: unknown) { filters.push({ table, column, value }); return builder; },
-        in() { return builder; }, gte() { return builder; }, or() { return builder; }, neq() { return builder; }, order() { return builder; }, limit() { return builder; },
+        in() { return builder; }, gte() { return builder; }, or() { return builder; }, not() { return builder; }, neq() { return builder; }, order() { return builder; }, limit() { return builder; },
         then(resolve: (value: unknown) => unknown) { return Promise.resolve(resolve({ data: table === "generation_jobs" ? [{ id: "1", organization_id: "tenant-a", status: "running", current_step: "Design", progress: 50, updated_at: "2026-10-27T17:29:00Z" }] : [], error: table === failTable ? { message: "denied" } : null, count: table === "generation_jobs" ? 200 : 0 })); },
       };
       return builder;
@@ -216,5 +216,23 @@ describe("AI City approve tap rule", () => {
 
   it("treats an unknown risk level as needing the second tap", () => {
     expect(approveTap("???", false)).toEqual({ armed: true, fire: false });
+  });
+});
+
+describe("AI City failure counts ignore failures already fixed", () => {
+  it("marks a failed build superseded once a later build for the workspace completed", async () => {
+    const { settleSupersededBuilds } = await import("./ai-city");
+    const failed: CityWork = { id: "j1", title: "Build", district: "factory", status: "failed", source: "generation_jobs", at: "2026-10-27T10:00:00Z", organizationId: "o1" };
+    const other: CityWork = { ...failed, id: "j2", organizationId: "o2" };
+    const out = settleSupersededBuilds([failed, other], [{ organization_id: "o1", updated_at: "2026-10-27T12:00:00Z" }, { organization_id: "o2", updated_at: "2026-10-27T09:00:00Z" }]);
+    expect(out.map((r) => r.status)).toEqual(["superseded", "failed"]);
+  });
+  it("marks a Jarvis step recovered when the same run's step later succeeded", async () => {
+    const { settleRecoveredFailures, districtCounts } = await import("./ai-city");
+    const base: CityWork = { id: "e1", title: "AI answer", district: "executive", status: "failed", source: "jarvis_run_events", at: "2026-10-27T17:00:00Z", runId: "r1", kind: "model_call" };
+    const rows = settleRecoveredFailures([base, { ...base, id: "e2", status: "ok", at: "2026-10-27T17:00:05Z" }, { ...base, id: "e3", runId: "r2" }]);
+    expect(rows.map((r) => r.status)).toEqual(["recovered", "ok", "failed"]);
+    const snapshot: CitySnapshot = { checkedAt: "", sources: { events: { available: true, rows, total: 3, truncated: false } } };
+    expect(districtCounts(snapshot, "executive", now)?.errors).toBe(1);
   });
 });
