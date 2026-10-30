@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import {
+  checkoutSetupPaidCents,
   invoiceLinePriceId,
   invoiceRecurringLine,
   invoiceSetupCents,
@@ -96,5 +97,23 @@ describe("invoice lines across Stripe API versions", () => {
     expect(invoiceSetupCents(null, "price_setup1")).toBe(0);
     expect(invoiceRecurringLine(invoice, "price_month1")).toBe(current);
     expect(invoiceRecurringLine({ lines: { data: [legacy] } }, "price_month1")).toBe(legacy);
+  });
+});
+
+describe("promotion codes on the growth checkout", () => {
+  it("records the setup at the amount actually paid", () => {
+    expect(checkoutSetupPaidCents({ amount_subtotal: 35000, amount_discount: 0 }, 35000)).toEqual({ cents: 35000, discountCents: 0 });
+    expect(checkoutSetupPaidCents({ amount_subtotal: 35000, amount_discount: 35000 }, 35000)).toEqual({ cents: 0, discountCents: 35000 });
+    expect(checkoutSetupPaidCents({ amount_subtotal: 35000, amount_discount: 5000 }, 35000)).toEqual({ cents: 30000, discountCents: 5000 });
+    expect(checkoutSetupPaidCents({ amount_subtotal: 35000, amount_discount: 99999 }, 35000).cents).toBe(0);
+    expect(checkoutSetupPaidCents(undefined, 35000)).toEqual({ cents: 35000, discountCents: 0 });
+    expect(checkoutSetupPaidCents({ amount_subtotal: 99999, amount_discount: 0 }, 35000).cents).toBe(35000);
+  });
+
+  it("lets customers enter a promotion code on the growth checkout", () => {
+    const source = readFileSync("src/lib/stripe.functions.ts", "utf8");
+    expect(source).toMatch(/allow_promotion_codes: true/);
+    const webhook = readFileSync("src/routes/api/public/payments/webhook.ts", "utf8");
+    expect(webhook).toContain("checkoutSetupPaidCents(setupLine, setupCents)");
   });
 });

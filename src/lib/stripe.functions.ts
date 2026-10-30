@@ -255,6 +255,10 @@ export const createGrowthSystemCheckout = createServerFn({ method: "POST" })
           },
         },
         payment_method_collection: "always" as const,
+        // Lets a customer (or a one-off live payment test) enter a Stripe
+        // promotion code. Codes are created in the Stripe dashboard; the webhook
+        // records the setup at the amount actually paid, never the list price.
+        allow_promotion_codes: true,
       };
 
       // Live accounts run with full compliance handling, which rejects
