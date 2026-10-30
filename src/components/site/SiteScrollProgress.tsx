@@ -7,9 +7,12 @@
  */
 import { useEffect, useRef } from "react";
 import { SCROLL_PROGRESS_CSS, scrollShare } from "@/lib/site-scroll-progress";
+import { installSectionSettle } from "@/lib/section-settle";
 
 export function SiteScrollProgress() {
   const ref = useRef<HTMLDivElement>(null);
+  // Desktop wheel/trackpad: settle onto a nearby section edge once scrolling stops (never traps the wheel).
+  useEffect(() => (typeof window === "undefined" ? undefined : installSectionSettle(window)), []);
   useEffect(() => {
     const bar = ref.current;
     if (!bar || typeof window === "undefined") return;
