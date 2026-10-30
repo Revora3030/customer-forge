@@ -14,6 +14,69 @@ export type Database = {
   }
   public: {
     Tables: {
+      agent_action_requests: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          decided_at: string | null
+          decided_by: string | null
+          decision_note: string | null
+          detail: string | null
+          evidence: Json | null
+          expires_at: string
+          id: string
+          idempotency_key: string
+          kind: string
+          payload: Json
+          requested_by: string
+          result_note: string | null
+          result_url: string | null
+          status: string
+          target_url: string | null
+          title: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          decision_note?: string | null
+          detail?: string | null
+          evidence?: Json | null
+          expires_at?: string
+          id?: string
+          idempotency_key: string
+          kind: string
+          payload?: Json
+          requested_by?: string
+          result_note?: string | null
+          result_url?: string | null
+          status?: string
+          target_url?: string | null
+          title: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          decision_note?: string | null
+          detail?: string | null
+          evidence?: Json | null
+          expires_at?: string
+          id?: string
+          idempotency_key?: string
+          kind?: string
+          payload?: Json
+          requested_by?: string
+          result_note?: string | null
+          result_url?: string | null
+          status?: string
+          target_url?: string | null
+          title?: string
+        }
+        Relationships: []
+      }
       ai_command_settings: {
         Row: {
           id: number
@@ -1946,6 +2009,65 @@ export type Database = {
           },
         ]
       }
+      jarvis_approvals: {
+        Row: {
+          action_id: string
+          approval_key: string
+          args_hash: string
+          conversation_id: string | null
+          created_at: string
+          decided_at: string | null
+          expires_at: string
+          finished_at: string | null
+          id: string
+          message_id: string | null
+          result_url: string | null
+          status: string
+          summary: string
+          user_id: string
+        }
+        Insert: {
+          action_id: string
+          approval_key: string
+          args_hash: string
+          conversation_id?: string | null
+          created_at?: string
+          decided_at?: string | null
+          expires_at?: string
+          finished_at?: string | null
+          id?: string
+          message_id?: string | null
+          result_url?: string | null
+          status?: string
+          summary?: string
+          user_id: string
+        }
+        Update: {
+          action_id?: string
+          approval_key?: string
+          args_hash?: string
+          conversation_id?: string | null
+          created_at?: string
+          decided_at?: string | null
+          expires_at?: string
+          finished_at?: string | null
+          id?: string
+          message_id?: string | null
+          result_url?: string | null
+          status?: string
+          summary?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "jarvis_approvals_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "jarvis_messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       jarvis_attachments: {
         Row: {
           analysis_status: string
@@ -2378,6 +2500,41 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      jarvis_memory_embeddings: {
+        Row: {
+          content_hash: string
+          created_at: string
+          embedding: string
+          memory_id: string
+          model: string
+          user_id: string
+        }
+        Insert: {
+          content_hash: string
+          created_at?: string
+          embedding: string
+          memory_id: string
+          model: string
+          user_id: string
+        }
+        Update: {
+          content_hash?: string
+          created_at?: string
+          embedding?: string
+          memory_id?: string
+          model?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "jarvis_memory_embeddings_memory_id_fkey"
+            columns: ["memory_id"]
+            isOneToOne: true
+            referencedRelation: "jarvis_memories"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       jarvis_messages: {
         Row: {
@@ -4147,6 +4304,102 @@ export type Database = {
         }
         Relationships: []
       }
+      prospect_import_queue: {
+        Row: {
+          address: string | null
+          batch_id: string
+          blocked_reason: string | null
+          business_name: string
+          category: string | null
+          city: string
+          contact_name: string | null
+          created_at: string
+          created_by: string | null
+          email: string | null
+          id: string
+          name_key: string
+          notes: string | null
+          organization_id: string | null
+          phone: string | null
+          phone_key: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          score: number | null
+          site_host: string | null
+          source: string | null
+          state: string | null
+          status: string
+          website: string | null
+        }
+        Insert: {
+          address?: string | null
+          batch_id: string
+          blocked_reason?: string | null
+          business_name: string
+          category?: string | null
+          city: string
+          contact_name?: string | null
+          created_at?: string
+          created_by?: string | null
+          email?: string | null
+          id?: string
+          name_key: string
+          notes?: string | null
+          organization_id?: string | null
+          phone?: string | null
+          phone_key?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          score?: number | null
+          site_host?: string | null
+          source?: string | null
+          state?: string | null
+          status?: string
+          website?: string | null
+        }
+        Update: {
+          address?: string | null
+          batch_id?: string
+          blocked_reason?: string | null
+          business_name?: string
+          category?: string | null
+          city?: string
+          contact_name?: string | null
+          created_at?: string
+          created_by?: string | null
+          email?: string | null
+          id?: string
+          name_key?: string
+          notes?: string | null
+          organization_id?: string | null
+          phone?: string | null
+          phone_key?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          score?: number | null
+          site_host?: string | null
+          source?: string | null
+          state?: string | null
+          status?: string
+          website?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prospect_import_queue_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prospect_import_queue_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "public_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       prospect_inbound: {
         Row: {
           action: string | null
@@ -5419,6 +5672,60 @@ export type Database = {
           },
           {
             foreignKeyName: "services_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "public_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      site_content_audits: {
+        Row: {
+          audited_at: string
+          findings: Json
+          id: string
+          label: string
+          organization_id: string
+          p1_count: number
+          p2_count: number
+          reachable: boolean
+          run_id: string
+          url: string
+        }
+        Insert: {
+          audited_at?: string
+          findings?: Json
+          id?: string
+          label: string
+          organization_id: string
+          p1_count?: number
+          p2_count?: number
+          reachable: boolean
+          run_id: string
+          url: string
+        }
+        Update: {
+          audited_at?: string
+          findings?: Json
+          id?: string
+          label?: string
+          organization_id?: string
+          p1_count?: number
+          p2_count?: number
+          reachable?: boolean
+          run_id?: string
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "site_content_audits_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "site_content_audits_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "public_organizations"
@@ -6936,6 +7243,13 @@ export type Database = {
           _organization_id: string
         }
         Returns: undefined
+      }
+      match_jarvis_memories: {
+        Args: { p_limit?: number; p_query: string; p_user_id: string }
+        Returns: {
+          memory_id: string
+          similarity: number
+        }[]
       }
       org_team_members: {
         Args: { _organization_id: string }
