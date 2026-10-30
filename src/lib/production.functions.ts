@@ -187,6 +187,7 @@ async function gatherReadiness(
   // or unsupported claims stop a publish instead of reaching customers.
   const { auditWorkspaceWebsite } = await import("@/lib/builder/quality.server");
   const quality = await auditWorkspaceWebsite(supabase as never, organizationId);
+  const { QUALITY_BAND_LABEL, weakestTeamArea } = await import("@/lib/builder/quality");
 
   const checks: ReadinessCheck[] = [
     {
@@ -292,13 +293,13 @@ async function gatherReadiness(
       ok: quality.productionReady,
       detail: !quality.ready
         ? (quality.blockers[0]?.detail ??
-          `Quality score ${quality.score}/100 — a few pages still need work.`)
+          `Quality score ${quality.score}/100 — ${QUALITY_BAND_LABEL[quality.band]}. ${weakestTeamArea(quality.team)}`.trim())
         : !quality.measured
           ? "The content passes. Now run the visual check so Revora can measure the pages on real phone and desktop screen sizes."
           : !quality.productionReady
             ? (quality.issues.find((item) => item.severity === "blocker")?.detail ??
               "The browser check found launch blockers. Fix those findings and run it again.")
-            : `Quality score ${quality.score}/100, verified in a real browser at phone and desktop sizes.`,
+            : `Quality score ${quality.score}/100 (${QUALITY_BAND_LABEL[quality.band]}), verified in a real browser at phone and desktop sizes.`,
     },
     {
       key: "suspension",
