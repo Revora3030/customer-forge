@@ -178,7 +178,7 @@ ${S} .rv-dial-fill,${S} .rv-dial-needle{transition:all 520ms cubic-bezier(.2,.8,
 ${S} .rv-dial-reading{display:flex;align-items:baseline;gap:6px;margin-top:-28px}
 ${S} .rv-dial-reading strong{font-size:clamp(24px,3.4vw,34px);font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
 ${S} .rv-dial-reading span{font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;opacity:.7}
-${S} .rv-dial-option{margin:6px 0 0;font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--primary,currentColor)}
+${S} .rv-dial-option{margin:6px 0 0;font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--primary-ink,var(--primary,currentColor))}
 ${S} .rv-dial-note{margin:0;max-width:34ch;font-size:14px;line-height:1.5;opacity:.8}
 ${S} .rv-dial-list{width:100%;border-collapse:collapse;font-size:14px}
 ${S} .rv-dial-list caption{text-align:left;font-weight:700;padding-bottom:6px}
