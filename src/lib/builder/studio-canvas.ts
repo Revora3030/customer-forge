@@ -20,8 +20,28 @@ export function compositionHasChapter(node: CompositionNode | null | undefined):
   return (node.children ?? []).some(compositionHasChapter);
 }
 
-/** CSS variables that put forms, menus and the page on one dark glass canvas. */
-export function studioThemeVars(): Record<string, string> {
+/** A trade blueprint's own dark canvas, so a dentist's navy and a gym's iron are not both painted obsidian. */
+export type StudioCanvas = { canvas: string; surface: string; ink: string; muted: string };
+
+/** CSS variables that put forms, menus and the page on one dark glass canvas (the blueprint's when given). */
+export function studioThemeVars(canvas: StudioCanvas | null = null): Record<string, string> {
+  if (canvas) {
+    return {
+      "--background": canvas.canvas,
+      "--foreground": canvas.ink,
+      "--card": "rgba(255,255,255,0.04)",
+      "--card-foreground": canvas.ink,
+      "--popover": canvas.surface,
+      "--popover-foreground": canvas.ink,
+      "--secondary": canvas.surface,
+      "--secondary-foreground": canvas.ink,
+      "--muted": canvas.surface,
+      "--muted-foreground": canvas.muted,
+      "--border": "rgba(255,255,255,0.10)",
+      "--input": "rgba(0,0,0,0.45)",
+      "--elevated": canvas.surface,
+    };
+  }
   return {
     "--background": STUDIO_CANVAS,
     "--foreground": STUDIO_INK,
@@ -39,10 +59,10 @@ export function studioThemeVars(): Record<string, string> {
   };
 }
 
-/** A light or mid section fill on a studio page becomes the obsidian canvas. */
-export function studioSectionColor(bg: string | null, studio: boolean): string | null {
+/** A light or mid section fill on a studio page becomes the studio canvas (the blueprint's, else obsidian). */
+export function studioSectionColor(bg: string | null, studio: boolean, canvas: string = STUDIO_CANVAS): string | null {
   if (!studio || !bg || !/^#[0-9a-f]{6}$/i.test(bg)) return bg;
-  return luminance(bg) > 0.12 ? STUDIO_CANVAS : bg;
+  return luminance(bg) > 0.12 ? canvas : bg;
 }
 
 function buttonLabel(node: CompositionNode): string | null {

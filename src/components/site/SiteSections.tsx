@@ -88,14 +88,14 @@ const Heading = ({ section, lead = false }: { section: Section; lead?: boolean }
  * The owner's own block edits still apply, and the AI-authored section effect
  * (settings.effect) is drawn as a bounded, reduced-motion-safe class.
  */
-export function SiteSection({ site, section, lead = false, first = false, studio = false, preparedRoot = null }: { site: Site; section: Section; lead?: boolean; first?: boolean; studio?: boolean; preparedRoot?: CompositionNode | null }) {
+export function SiteSection({ site, section, lead = false, first = false, studio = false, studioCanvas = STUDIO_CANVAS, preparedRoot = null }: { site: Site; section: Section; lead?: boolean; first?: boolean; studio?: boolean; studioCanvas?: string; preparedRoot?: CompositionNode | null }) {
   const block = readBlockStyle(section.settings);
   // A section's own background (set from the builder) wins over the page
   // surface. Mid-grey washes are corrected to a clean tint or deep shade, the
   // same way the page surface is, so no section ships as dull grey. A studio
   // page then pulls any remaining light band back onto the obsidian canvas.
   const corrected = block.bgColor && /^#[0-9a-f]{6}$/i.test(block.bgColor) && !block.bgImage ? premiumSurface(block.bgColor) : null;
-  const ownBg = studioSectionColor(corrected, studio);
+  const ownBg = studioSectionColor(corrected, studio, studioCanvas);
   const css = blockCss(ownBg ? { ...block, bgColor: ownBg } : block, siteSurface(site));
   // In-page anchors for buttons like "#contact" or "#services": the section's
   // role (kept when it became an AI layout) or its kind.
@@ -112,7 +112,7 @@ export function SiteSection({ site, section, lead = false, first = false, studio
       className={fx ? `rv-site-section scroll-mt-20 ${fx}` : "rv-site-section scroll-mt-20"}
       style={{ ...css, minWidth: 0, maxWidth: "100%" }}
     >
-      <SiteSectionBody site={site} section={section} lead={lead} first={first} surface={studio ? (ownBg ?? STUDIO_CANVAS) : ownBg} preparedRoot={preparedRoot} />
+      <SiteSectionBody site={site} section={section} lead={lead} first={first} surface={studio ? (ownBg ?? studioCanvas) : ownBg} preparedRoot={preparedRoot} />
     </div>
   );
 }
