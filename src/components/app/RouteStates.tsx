@@ -7,7 +7,7 @@
  * or a framework default.
  */
 import { Link, useRouter } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Logo } from "@/components/brand/Logo";
 import { Button } from "@/components/ui/button";
 
@@ -71,6 +71,36 @@ export function RouteError({ error, reset }: { error: unknown; reset?: () => voi
           </Button>
           <Button asChild variant="outline"><a href="/">Go home</a></Button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/** How long a screen may stay on "Loading" before the visitor is offered a reload. */
+export const ROUTE_PENDING_RELOAD_MS = 8000;
+
+/**
+ * Shown while a client-only route (the signed-in app, owner drafts) checks the
+ * session and loads its data. It is also what the server sends for those
+ * routes, so the first paint is never a blank dark screen. A load that hangs
+ * offers a plain reload link, which works even when the app's script did not.
+ */
+export function RoutePending() {
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setSlow(true), ROUTE_PENDING_RELOAD_MS);
+    return () => window.clearTimeout(timer);
+  }, []);
+  return (
+    <div role="status" aria-live="polite" data-route-pending="" className="flex min-h-screen items-center justify-center bg-background px-4">
+      <div className="max-w-md text-center">
+        <div className="mb-6 flex justify-center"><Logo /></div>
+        <p className="text-sm text-muted-foreground">Loading…</p>
+        {slow ? (
+          <p className="mt-4 text-sm text-muted-foreground">
+            Taking longer than usual. <a className="underline underline-offset-4 text-foreground" href="">Reload the page</a>
+          </p>
+        ) : null}
       </div>
     </div>
   );

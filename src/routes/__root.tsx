@@ -21,6 +21,7 @@ import { CookieConsent } from "@/components/marketing/CookieConsent";
 import { PlatformAnalytics } from "@/components/marketing/PlatformAnalytics";
 import { loadGoogleAds } from "@/lib/google-ads";
 import { reportRouteError } from "@/lib/route-error-reporting";
+import { BOOT_WATCHDOG } from "@/lib/boot-watchdog";
 import { describeClientError, errorFromWindowEvent, isStaleDeployError, reloadOnceForNewBuild } from "@/lib/client-error-classify";
 import { safeJsonLd } from "@/lib/json-ld";
 
@@ -110,6 +111,12 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         children:
           "window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('consent','default',{ad_storage:'granted',ad_user_data:'granted',ad_personalization:'granted'});gtag('consent','default',{ad_storage:'denied',ad_user_data:'denied',ad_personalization:'denied',wait_for_update:500,region:['AT','BE','BG','HR','CY','CZ','DK','EE','FI','FR','DE','GR','HU','IE','IT','LV','LT','LU','MT','NL','PL','PT','RO','SK','SI','ES','SE','IS','LI','NO','GB','CH','CA-QC']});",
       },
+      // Boot watchdog: the app's own stale-build guard only runs once the app
+      // has started, so a page whose code bundle failed to load (a cached or
+      // half-downloaded script) stayed blank until a hard reload. This reloads
+      // once (per minute, per tab) when a bundle script fails or the app has
+      // not started 15s after the document loaded.
+      { children: BOOT_WATCHDOG },
       { type: "application/ld+json", children: safeJsonLd(ORGANIZATION_SCHEMA) },
       { type: "application/ld+json", children: safeJsonLd(WEBSITE_SCHEMA) },
     ],
@@ -254,6 +261,7 @@ function RootComponent() {
       });
     };
 
+    (window as Window & { __rvBooted?: boolean }).__rvBooted = true;
     window.addEventListener("vite:preloadError", onPreloadError);
     window.addEventListener("error", onError);
     window.addEventListener("unhandledrejection", onUnhandledRejection);

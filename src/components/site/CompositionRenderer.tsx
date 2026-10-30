@@ -5,7 +5,7 @@ import type { PersistedComponentVisual } from "@/lib/site-style";
 import { resolveImageSource } from "@/lib/brand-logos";
 import { fitsFullBleed } from "@/lib/builder/first-build-image-qa";
 import { contrastRatio, readableOn, toRgb } from "@/lib/readable-color";
-import { premiumSurface } from "@/lib/site-theme";
+import { isGenericFace, premiumSurface } from "@/lib/site-theme";
 import { clampSplit, splitForKey, splitForPointer } from "@/lib/builder/compare-slider";
 import { brushRadius, coverRect, formatElapsed, toolRadius, MAX_BRUSH_TOOLS, coveragePercent, isRevealDone, newGrid, paintAt, strokePoints, type RevealGrid } from "@/lib/builder/reveal-brush";
 import { DEFAULT_OFFER_ANCHOR, DEFAULT_SCENE_ANCHOR, sceneScrim, type SceneAnchor } from "@/lib/builder/cinematic-primitives";
@@ -76,7 +76,9 @@ export function styleToCss(style: NodeStyle | undefined, type: CompositionNode["
   if (style.letterSpacing != null) css.letterSpacing = `${Math.max(-0.05, Math.min(0.5, style.letterSpacing))}em`;
   if (style.italic) css.fontStyle = "italic";
   if (style.uppercase) css.textTransform = "uppercase";
-  if (style.font) css.fontFamily = `"${style.font}", var(--font-body, system-ui), sans-serif`;
+  // A stock face (Space Grotesk, Inter…) copied into a layout from the old
+  // platform seed inherits the site's own pairing instead of overriding it.
+  if (style.font && !isGenericFace(style.font)) css.fontFamily = `"${style.font}", var(--font-body, system-ui), sans-serif`;
   if (style.color) css.color = style.color;
   if (style.background && style.gradientTo) {
     css.backgroundImage = `linear-gradient(${style.gradientAngle ?? 180}deg, ${style.background}, ${style.gradientTo})`;
@@ -137,7 +139,7 @@ const CHROME_SCOPES = new Set(["site-header", "site-footer"]);
 /** Facts for an offer card, read from the owner's real Services tool. Never authored by the AI. */
 export type OfferFacts = { name: string; price: string | null; duration: string | null };
 
-type Ctx = { parentType?: string | undefined; offer?: (service: string) => OfferFacts | null; sceneScrim?: string | undefined; chrome?: boolean; editable?: boolean; label?: (text: string) => string; depth?: number | undefined; bg?: string | undefined; bg2?: string | undefined; fg?: string | undefined; rules: string[]; counter: { n: number; sawMedia?: boolean }; eagerFirstMedia?: boolean; heroVideo?: HeroVideoMedia | null; scope: string; href: (h: string) => string; media: (ref: string) => ResolvedMedia | null; widget: (name: string, presentation?: WidgetPresentation) => ReactNode };
+type Ctx = { parentType?: string | undefined; align?: NodeStyle["align"] | undefined; offer?: (service: string) => OfferFacts | null; sceneScrim?: string | undefined; chrome?: boolean; editable?: boolean; label?: (text: string) => string; depth?: number | undefined; bg?: string | undefined; bg2?: string | undefined; fg?: string | undefined; rules: string[]; counter: { n: number; sawMedia?: boolean }; eagerFirstMedia?: boolean; heroVideo?: HeroVideoMedia | null; scope: string; href: (h: string) => string; media: (ref: string) => ResolvedMedia | null; widget: (name: string, presentation?: WidgetPresentation) => ReactNode };
 
 const mediaUrl = (media: ResolvedMedia | null): string | null =>
   typeof media === "string" ? media : media?.url ?? null;
@@ -225,14 +227,88 @@ function childrenArePhrasing(node: CompositionNode): boolean {
 }
 
 function renderNode(node: CompositionNode, ctx: Ctx, key: string): ReactNode {
-  const saved = { bg: ctx.bg, bg2: ctx.bg2, fg: ctx.fg, depth: ctx.depth, sceneScrim: ctx.sceneScrim, parentType: ctx.parentType };
+  const saved = { bg: ctx.bg, bg2: ctx.bg2, fg: ctx.fg, depth: ctx.depth, sceneScrim: ctx.sceneScrim, parentType: ctx.parentType, align: ctx.align };
   try {
     return renderNodeInner(node, ctx, key);
   } finally {
-    ctx.bg = saved.bg; ctx.bg2 = saved.bg2; ctx.fg = saved.fg; ctx.depth = saved.depth; ctx.sceneScrim = saved.sceneScrim; ctx.parentType = saved.parentType;
+    ctx.bg = saved.bg; ctx.bg2 = saved.bg2; ctx.fg = saved.fg; ctx.depth = saved.depth; ctx.sceneScrim = saved.sceneScrim; ctx.parentType = saved.parentType; ctx.align = saved.align;
   }
 }
 
+const hasCopy = (node: CompositionNode): boolean =>
+  node.type === "heading" || node.type === "text" || (node.children ?? []).some(hasCopy);
+const firstCopyAlign = (node: CompositionNode): NodeStyle["align"] | null => {
+  if (node.style?.align) return node.style.align;
+  if (node.type === "heading" || node.type === "text") return null;
+  for (const child of node.children ?? []) {
+    if (!hasCopy(child)) continue;
+    return firstCopyAlign(child);
+  }
+  return null;
+};
+const uncenter = (style: NodeStyle | undefined): NodeStyle | undefined => {
+  if (!style || (style.align !== "center" && style.items !== "center")) return style;
+  return { ...style, ...(style.align === "center" ? { align: "left" as const } : {}), ...(style.items === "center" ? { items: "start" as const } : {}) };
+};
+const uncenterTree = (node: CompositionNode): CompositionNode => {
+  const responsive = node.responsive
+    ? (Object.fromEntries(Object.entries(node.responsive).map(([bp, st]) => [bp, bp === "mobile" ? st : uncenter(st)])) as CompositionNode["responsive"])
+    : undefined;
+  const style = uncenter(node.style);
+  return {
+    ...node,
+    ...(style ? { style } : {}),
+    ...(responsive ? { responsive } : {}),
+    ...(node.children ? { children: node.children.map(uncenterTree) } : {}),
+  };
+};
+/**
+ * Side-by-side columns of copy (a "Where we work" label beside its centred
+ * statement) read as one section, so they share one alignment.
+ */
+// eslint-disable-next-line react-refresh/only-export-components -- renderer helper, exported for tests.
+export function alignSplitColumns(node: Pick<CompositionNode, "type" | "style" | "children">, inherited?: NodeStyle["align"]): CompositionNode[] {
+  const children = node.children ?? [];
+  const sideBySide = node.type === "row" || (node.type === "grid" && (node.style?.columns ?? 1) >= 2);
+  if (!sideBySide || children.length < 2) return children;
+  const base = node.style?.align ?? inherited ?? "left";
+  const copy = children.map((child) => (hasCopy(child) ? (firstCopyAlign(child) ?? base) : null));
+  const flushLeft = (child: CompositionNode): CompositionNode => {
+    const out = uncenterTree(child);
+    // A column that was only centred by its section still inherits that, so it is set left explicitly.
+    return out.style?.align ? out : { ...out, style: { ...out.style, align: "left" } };
+  };
+  const columns = copy.filter((align): align is NonNullable<NodeStyle["align"]> => align !== null);
+  if (columns.length < 2 || !columns.includes("center")) return children;
+  // A two-column split (a label or heading beside its copy) is set flush left
+  // as a whole: centred text in side-by-side columns leaves each column
+  // floating on its own axis. Matching cards (two plans, two features) keep
+  // the centring the design gave them.
+  const copyKids = children.filter((_, i) => copy[i] !== null);
+  const matchingCards = copyKids.every((child) => child.type === "card" || child.type === "offer_card");
+  if (columns.length === 2 && !matchingCards) return children.map((child, i) => (copy[i] !== null ? flushLeft(child) : child));
+  // Wider grids only change when their columns disagree.
+  if (columns.every((align) => align === "center")) return children;
+  return children.map((child, i) => (copy[i] === "center" ? flushLeft(child) : child));
+}
+const markBrokenImage = (event: { currentTarget: HTMLImageElement }) => {
+  event.currentTarget.setAttribute("data-rv-broken", "");
+};
+const DECORATION = new Set<CompositionNode["type"]>(["divider", "spacer", "icon"]);
+/** True when every child that carried content rendered nothing and only decoration is left. */
+// eslint-disable-next-line react-refresh/only-export-components -- renderer helper, exported for tests.
+export function onlyDecorationLeft(children: readonly CompositionNode[], kids: readonly ReactNode[]): boolean {
+  let lostContent = false;
+  for (let i = 0; i < children.length; i++) {
+    const decorative = DECORATION.has(children[i]!.type);
+    if (kids[i] == null) {
+      if (!decorative) lostContent = true;
+    } else if (!decorative) {
+      return false;
+    }
+  }
+  return lostContent;
+}
 const TEXTUAL = new Set<CompositionNode["type"]>(["heading", "text", "link", "button", "list", "quote", "icon", "accordion", "faq_accordion", "tabs", "toggle", "tab_group"]);
 const BRIGHT = "#ffffff";
 const INK = "#101114";
@@ -417,7 +493,8 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
   if (node.type === "scene") return renderScene(node, ctx, key, props);
   if (node.type === "spin_viewer") return renderSpin(node, ctx, key, props);
   if (node.type === "offer_card") offerSurface(node, ctx, props);
-  const children = node.children ?? [];
+  const children = alignSplitColumns(node, ctx.align);
+  if (node.style?.align) ctx.align = node.style.align;
   const prunedChildren = children.filter((child, index) => {
     if (child.type !== "icon" || index === children.length - 1) return true;
     const next = children[index + 1];
@@ -433,6 +510,10 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
   // widget or image) is dropped so visitors never see an empty styled frame.
   const EMPTY_PRUNE = new Set(["card", "stack", "row", "grid", "scene3d"]);
   if (EMPTY_PRUNE.has(node.type) && !node.text && node.children?.length && kids?.every((k) => k == null)) return null;
+  // The same box is also dropped when only decoration survived (an accent rule,
+  // spacer or icon) because its picture or content did not resolve: otherwise
+  // visitors see a large empty card with just a coloured strip across its top.
+  if (EMPTY_PRUNE.has(node.type) && !node.text && onlyDecorationLeft(prunedChildren, kids)) return null;
   // A grid laid out for more items than it really shows (a picture that did
   // not resolve, a widget that is unavailable, or just fewer cards than
   // columns) would park its content in the first narrow track and leave the
@@ -482,7 +563,7 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
         // so the largest paint is not delayed by lazy loading.
         const first = !ctx.counter.sawMedia;
         ctx.counter.sawMedia = true;
-        const box = intrinsicSize(typeof style.aspectRatio === "string" ? style.aspectRatio : visual?.aspect_ratio ?? null); return source ? <img key={key} {...props} {...(box ? { width: box.width, height: box.height } : {})} src={source} alt={node.alt ?? visual?.alt ?? ""} loading={first && ctx.eagerFirstMedia ? "eager" : "lazy"} decoding="async" {...(first && ctx.eagerFirstMedia ? { fetchPriority: "high" as const } : {})} style={{ width: "100%", height: style.aspectRatio || visual?.aspect_ratio ? "100%" : undefined, objectFit: style.objectFit ?? visual?.object_fit ?? (style.aspectRatio ? "cover" : undefined), ...mediaCss(visual), ...props.style }} /> : null; }
+        const box = intrinsicSize(typeof style.aspectRatio === "string" ? style.aspectRatio : visual?.aspect_ratio ?? null); return source ? <img key={key} {...props} {...(box ? { width: box.width, height: box.height } : {})} src={source} onError={markBrokenImage} alt={node.alt ?? visual?.alt ?? ""} loading={first && ctx.eagerFirstMedia ? "eager" : "lazy"} decoding="async" {...(first && ctx.eagerFirstMedia ? { fetchPriority: "high" as const } : {})} style={{ width: "100%", height: style.aspectRatio || visual?.aspect_ratio ? "100%" : undefined, objectFit: style.objectFit ?? visual?.object_fit ?? (style.aspectRatio ? "cover" : undefined), ...mediaCss(visual), ...props.style }} /> : null; }
     case "widget":
       { const w = node.text ? ctx.widget(node.text, node.widgetPresentation) : null;
         return w ? <div key={key} {...props} data-widget={node.text} style={{ ...props.style, ...widgetThemeStyle(node.widgetPresentation?.theme) }}>{w}{kids}</div> : null; }
@@ -912,6 +993,9 @@ const EASING_CSS: Record<MotionEasing, string> = {
 };
 /** Turns the AI's validated motion description into CSS variables/animation settings. */
 // eslint-disable-next-line react-refresh/only-export-components -- renderer helpers are intentionally co-located with their composition types.
+/** Scroll-linked reveals finish within the first 220px a block has entered the screen. */
+export const VIEW_REVEAL_RANGE = "entry 0px entry 220px";
+// eslint-disable-next-line react-refresh/only-export-components -- renderer helpers are intentionally co-located with their composition types.
 export function motionStyle(motion: NodeMotion): CSSProperties {
   const out: Record<string, string> = {};
   if (motion.delayMs) out["animationDelay"] = `${motion.delayMs}ms`;
@@ -920,7 +1004,11 @@ export function motionStyle(motion: NodeMotion): CSSProperties {
   if (motion.repeat === "loop") { out["animationIterationCount"] = "infinite"; out["animationDirection"] = "alternate"; }
   else if (motion.repeat && motion.repeat > 1) { out["animationIterationCount"] = String(motion.repeat); out["animationDirection"] = "alternate"; }
   if (motion.trigger === "view") out["animationTimeline"] = "view()";
-  if (motion.trigger === "view") out["animationRange"] = "entry 0% cover 35%";
+  // The range is in pixels of the block's entry, not a share of its height: a
+  // tall picture already on screen at load (a hero card) would otherwise stay
+  // frozen mostly clipped or faded, showing an empty frame, until the visitor
+  // scrolled through a fraction of its whole height.
+  if (motion.trigger === "view") out["animationRange"] = VIEW_REVEAL_RANGE;
   const f = motion.from;
   if (motion.kind === "custom" && f) {
     out["--rv-o"] = String((f.opacity ?? 100) / 100);
@@ -1375,7 +1463,11 @@ const INTERACTIVE_CSS = `
  */
 export const PHONE_SAFETY_CSS = `[data-composition]{box-sizing:border-box;max-width:100%;min-width:0;overflow-x:clip;padding-inline-start:max(0px,env(safe-area-inset-left,0px));padding-inline-end:max(0px,env(safe-area-inset-right,0px))}[data-composition][data-composition] *{box-sizing:border-box;min-width:0;max-width:100%;overflow-wrap:break-word}[data-composition][data-composition] :is(h1,h2,h3,h4){text-wrap:balance;overflow-wrap:break-word;word-break:normal;hyphens:manual}[data-composition][data-composition] :is(p,span,li,label){overflow-wrap:break-word;word-break:normal}[data-composition][data-composition] :is(p,li){text-wrap:pretty}[data-composition][data-composition] img{image-rendering:auto}[data-composition][data-composition] img,[data-composition][data-composition] video,[data-composition][data-composition] iframe{max-width:100%;height:auto}@media (max-width:639px){[data-composition][data-composition] [style*="grid-template-columns"]:not([data-mobile-cols]),[data-composition][data-composition] .grid:not([data-mobile-cols]){width:100%!important;max-width:100%!important;grid-template-columns:minmax(0,1fr)!important}[data-composition][data-composition] [data-widget],[data-composition][data-composition] form{width:100%!important;max-width:100%!important}[data-composition][data-composition] h1{font-size:min(var(--rv-mfs,2.75rem),2.75rem,11vw)!important;line-height:max(1.05,var(--rv-mlh,1.05))!important}[data-composition][data-composition] h2{font-size:min(var(--rv-mfs,2.25rem),2.25rem,9.5vw)!important;line-height:max(1.1,var(--rv-mlh,1.1))!important}[data-composition][data-composition] h3{font-size:min(var(--rv-mfs,1.6rem),1.6rem,7vw)!important;line-height:max(1.12,var(--rv-mlh,1.12))!important}[data-composition][data-composition] p,[data-composition][data-composition] li,[data-composition][data-composition] span,[data-composition][data-composition] a,[data-composition][data-composition] small,[data-composition][data-composition] label{font-size:max(14px,1em)!important;line-height:1.45}[data-composition][data-composition] a,[data-composition][data-composition] button{min-height:44px!important}[data-composition][data-composition] a{align-items:center}[data-composition][data-composition] [style*="grid-template-areas"]{grid-template-areas:none!important}[data-composition][data-composition] [style*="grid-area"]{grid-area:auto!important}[data-composition][data-composition] [style*="aspect-ratio"]:not(:has(img)):not(:has(video)){aspect-ratio:auto!important}}`;
 
-const MOTION_CSS = `@media (prefers-reduced-motion: no-preference){.rv-cn-motion{animation:rv-cn-in .7s ease both}.rv-cn-motion[data-motion=rise]{animation-name:rv-cn-rise}.rv-cn-motion[data-motion=scale]{animation-name:rv-cn-scale}.rv-cn-motion[data-motion=float]{animation:rv-cn-float 6s ease-in-out infinite}.rv-cn-motion[data-motion=slide-left]{animation-name:rv-cn-sl}.rv-cn-motion[data-motion=slide-right]{animation-name:rv-cn-sr}.rv-cn-motion[data-motion=blur]{animation-name:rv-cn-blur}.rv-cn-motion[data-motion=reveal]{animation-name:rv-cn-reveal}.rv-cn-motion[data-motion=custom]{animation-name:rv-cn-custom}}@keyframes rv-cn-custom{from{opacity:var(--rv-o,1);transform:translate(var(--rv-x,0),var(--rv-y,0)) scale(var(--rv-s,1)) rotate(var(--rv-r,0));filter:blur(var(--rv-b,0))}}@keyframes rv-cn-sl{from{opacity:0;transform:translateX(32px)}to{opacity:1;transform:none}}@keyframes rv-cn-sr{from{opacity:0;transform:translateX(-32px)}to{opacity:1;transform:none}}@keyframes rv-cn-blur{from{opacity:0;filter:blur(12px)}to{opacity:1;filter:none}}@keyframes rv-cn-reveal{from{clip-path:inset(0 0 100% 0)}to{clip-path:inset(0 0 0 0)}}@keyframes rv-cn-in{from{opacity:0}to{opacity:1}}@keyframes rv-cn-rise{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:none}}@keyframes rv-cn-scale{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:none}}@keyframes rv-cn-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}@media (prefers-reduced-motion:no-preference){img.rv-scene-media[data-kenburns]{animation:rv-kenburns 28s ease-in-out infinite alternate;transform-origin:60% 40%}}@keyframes rv-kenburns{from{transform:scale(1)}to{transform:scale(1.08) translate(-1%,-1%)}}@supports (animation-timeline:view()){@media (prefers-reduced-motion:no-preference){.rv-cn-auto{animation:rv-cn-rise linear both;animation-timeline:view();animation-range:entry calc(var(--rv-i,0)*4%) entry calc(75% + var(--rv-i,0)*4%)}}}`;
+/** A card whose only content was a picture that failed to load collapses instead of showing an empty frame. */
+// eslint-disable-next-line react-refresh/only-export-components -- renderer helper, exported for tests.
+export const BROKEN_MEDIA_CSS = `[data-rv-card]:has(img[data-rv-broken]):not(:has(.rv-cn-copy,a,li,blockquote,form,[data-widget],video,iframe,canvas,svg,img:not([data-rv-broken]))){display:none}img[data-rv-broken]{display:none}`;
+
+const MOTION_CSS = `@media (prefers-reduced-motion: no-preference){.rv-cn-motion{animation:rv-cn-in .7s ease both}.rv-cn-motion[data-motion=rise]{animation-name:rv-cn-rise}.rv-cn-motion[data-motion=scale]{animation-name:rv-cn-scale}.rv-cn-motion[data-motion=float]{animation:rv-cn-float 6s ease-in-out infinite}.rv-cn-motion[data-motion=slide-left]{animation-name:rv-cn-sl}.rv-cn-motion[data-motion=slide-right]{animation-name:rv-cn-sr}.rv-cn-motion[data-motion=blur]{animation-name:rv-cn-blur}.rv-cn-motion[data-motion=reveal]{animation-name:rv-cn-reveal}.rv-cn-motion[data-motion=custom]{animation-name:rv-cn-custom}}@keyframes rv-cn-custom{from{opacity:var(--rv-o,1);transform:translate(var(--rv-x,0),var(--rv-y,0)) scale(var(--rv-s,1)) rotate(var(--rv-r,0));filter:blur(var(--rv-b,0))}}@keyframes rv-cn-sl{from{opacity:0;transform:translateX(32px)}to{opacity:1;transform:none}}@keyframes rv-cn-sr{from{opacity:0;transform:translateX(-32px)}to{opacity:1;transform:none}}@keyframes rv-cn-blur{from{opacity:0;filter:blur(12px)}to{opacity:1;filter:none}}@keyframes rv-cn-reveal{from{clip-path:inset(0 0 100% 0)}to{clip-path:inset(0 0 0 0)}}@keyframes rv-cn-in{from{opacity:0}to{opacity:1}}@keyframes rv-cn-rise{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:none}}@keyframes rv-cn-scale{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:none}}@keyframes rv-cn-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}@media (prefers-reduced-motion:no-preference){img.rv-scene-media[data-kenburns]{animation:rv-kenburns 28s ease-in-out infinite alternate;transform-origin:60% 40%}}@keyframes rv-kenburns{from{transform:scale(1)}to{transform:scale(1.08) translate(-1%,-1%)}}@supports (animation-timeline:view()){@media (prefers-reduced-motion:no-preference){.rv-cn-auto{animation:rv-cn-rise linear both;animation-timeline:view();animation-range:entry calc(var(--rv-i,0)*16px) entry calc(180px + var(--rv-i,0)*16px)}}}`;
 
 export function CompositionRenderer({ tree, scope, as = "section", resolveHref, resolveMedia, resolveWidget, resolveOffer, eagerFirstMedia = false, heroVideo = null, surface = null, linkLabel, editable = false }: { tree: CompositionTree; /** The home page's hero loop, for the first section only. */ heroVideo?: HeroVideoMedia | null; scope: string; editable?: boolean; surface?: string | null; linkLabel?: (text: string) => string; as?: "section" | "div"; resolveHref?: (href: string) => string; resolveMedia?: (ref: string) => ResolvedMedia | null; resolveWidget?: (name: string, presentation?: WidgetPresentation) => ReactNode; /** Real service facts for offer cards (Services tool); without it no price is shown. */ resolveOffer?: (service: string) => OfferFacts | null; eagerFirstMedia?: boolean }) {
   const page = surface && /^#[0-9a-f]{6}$/i.test(surface) ? surface : undefined;
@@ -1387,7 +1479,7 @@ export function CompositionRenderer({ tree, scope, as = "section", resolveHref, 
   // section's own responsive/hover rules stay inline, after the shared ones.
   const shared = (
     <style href="rv-cn-shared" precedence="rv-cn">
-      {MOTION_CSS + MARQUEE_CSS + INTERACTIVE_CSS + PHONE_SAFETY_CSS + CINEMATIC_CSS}
+      {MOTION_CSS + MARQUEE_CSS + INTERACTIVE_CSS + PHONE_SAFETY_CSS + CINEMATIC_CSS + BROKEN_MEDIA_CSS}
     </style>
   );
   const own = ctx.rules.length ? <style>{ctx.rules.join("")}</style> : null;

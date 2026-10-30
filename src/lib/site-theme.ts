@@ -221,9 +221,52 @@ export const SITE_HEADING_FONTS: Record<string, string> = {
   Syne: "Syne:wght@600;700;800",
   Urbanist: "Urbanist:wght@500;600;700",
   "Work Sans": "Work+Sans:wght@500;600;700",
+  // Display faces of the curated pairings (site-font-pairings.ts), each
+  // request checked against Google Fonts.
+  "Big Shoulders Display": "Big+Shoulders+Display:wght@600;700;800",
+  Unbounded: "Unbounded:wght@500;600;700",
+  "Young Serif": "Young+Serif",
 };
 
+/**
+ * Requests for a family used as the BODY face. Running text is set at 400, so
+ * these include the regular weight (and a regular italic for emphasis) that the
+ * heading requests above leave out. Each was checked against Google Fonts.
+ */
+const SITE_TEXT_FONTS: Record<string, string> = {
+  Barlow: "Barlow:ital,wght@0,400;0,500;0,600;0,700;1,400",
+  Commissioner: "Commissioner:wght@400;500;600;700",
+  Figtree: "Figtree:ital,wght@0,400;0,500;0,600;0,700;1,400",
+  "IBM Plex Sans": "IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400",
+  "Instrument Sans": "Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400",
+  Karla: "Karla:ital,wght@0,400;0,500;0,600;0,700;1,400",
+  Manrope: "Manrope:wght@400;500;600;700",
+  Newsreader: "Newsreader:ital,wght@0,400;0,500;0,600;1,400",
+  "Plus Jakarta Sans": "Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400",
+  "Public Sans": "Public+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400",
+  "Work Sans": "Work+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400",
+};
+
+/**
+ * Faces that read as "no typographic decision": the platform seed and the
+ * stock UI grotesks. A site whose stored type is one of these renders with its
+ * curated pairing instead (site-font-pairings.ts), and a layout node naming one
+ * inherits the site's faces rather than forcing the stock face back in.
+ */
+export const GENERIC_FACES: ReadonlySet<string> = new Set(
+  ["Space Grotesk", "Inter", "DM Sans", "Roboto", "Open Sans", "Arial", "Helvetica", "Lato", "Poppins", "Montserrat", "system ui", "system-ui", "sans serif", "sans-serif", "ui-sans-serif"].map((f) => f.toLowerCase()),
+);
+
+export const isGenericFace = (name: string | null | undefined): boolean =>
+  !name || GENERIC_FACES.has(name.trim().toLowerCase().replace(/\s+/g, " "));
+
+const headingSpec = (name: string) =>
+  SITE_ITALIC_FONTS[name] ?? SITE_HEADING_FONTS[name] ?? `${name.replace(/ /g, "+")}:wght@400;500;600;700`;
+const bodySpec = (name: string) => SITE_TEXT_FONTS[name] ?? `${name.replace(/ /g, "+")}:wght@400;500;600;700`;
+
 const SERIF_FONTS = new Set([
+  "Newsreader",
+  "Young Serif",
   "Cormorant Garamond",
   "DM Serif Display",
   "Fraunces",
@@ -315,17 +358,10 @@ export function siteFontHref(value: string | null | undefined): string | null {
   if (!font) return null;
   // Request the italic face too when the family has one, so an AI-chosen
   // italic headline renders as a designed italic rather than a faked slant.
-  const families = [font, siteBodyFont(value)]
-    .filter((name): name is string => Boolean(name))
-    .filter((name, index, all) => all.indexOf(name) === index)
-    .map(
-      (name) =>
-        SITE_ITALIC_FONTS[name] ??
-        SITE_HEADING_FONTS[name] ??
-        // A family chosen outside the tuned list: ask for the weights the
-        // renderer uses. Google Fonts serves the nearest available faces.
-        `${name.replace(/ /g, "+")}:wght@400;500;600;700`,
-    );
+  // A family chosen outside the tuned lists asks for the weights the renderer
+  // uses; Google Fonts serves the nearest available faces.
+  const body = siteBodyFont(value);
+  const families = [headingSpec(font), ...(body && body !== font ? [bodySpec(body)] : [])];
   return `https://fonts.googleapis.com/css2?${families.map((family) => `family=${family}`).join("&")}&display=swap`;
 }
 
@@ -373,21 +409,21 @@ export function compositionFonts(trees: unknown[]): string[] {
   };
   for (const tree of trees) walk((tree as { root?: unknown } | null)?.root, 0);
   // System and generic names need no download.
+  // Stock faces are not rendered from layouts either (see GENERIC_FACES).
   for (const generic of ["system ui", "sans serif", "serif", "monospace", "Arial", "Helvetica", "Georgia", "Times New Roman"])
     found.delete(generic);
+  for (const font of [...found]) if (isGenericFace(font)) found.delete(font);
   return [...found].slice(0, 6);
 }
 
 /** One stylesheet URL for the site font plus any fonts its layouts use. */
 export function siteFontsHref(preference: string | null | undefined, extra: string[]): string | null {
-  const families = [siteHeadingFont(preference), siteBodyFont(preference), ...extra]
+  const body = siteBodyFont(preference);
+  const families = [siteHeadingFont(preference), body, ...extra]
     .filter((name): name is string => Boolean(name))
     .filter((name, index, all) => all.indexOf(name) === index)
     .slice(0, 8)
-    .map(
-      (name) =>
-        SITE_ITALIC_FONTS[name] ?? SITE_HEADING_FONTS[name] ?? `${name.replace(/ /g, "+")}:wght@400;500;600;700`,
-    );
+    .map((name) => (name === body && name !== siteHeadingFont(preference) ? bodySpec(name) : headingSpec(name)));
   if (!families.length) return null;
   return `https://fonts.googleapis.com/css2?${families.map((family) => `family=${family}`).join("&")}&display=swap`;
 }

@@ -2377,7 +2377,9 @@ a[href*="lovable.app"][target="_blank"][class*="fixed"],
     .rv-section > section {
       animation: rv-section-enter 600ms cubic-bezier(0.22, 1, 0.36, 1) both;
       animation-timeline: view();
-      animation-range: entry 0% entry 55%;
+      /* Pixels, not a share of the section height: a tall section already on
+         screen at load would otherwise stay half faded until scrolled. */
+      animation-range: entry 0px entry 200px;
     }
   }
 }

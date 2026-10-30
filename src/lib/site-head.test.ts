@@ -239,9 +239,11 @@ describe("layout fonts", () => {
   it("loads fonts named inside AI layouts", () => {
     const fonts = compositionFonts([
       { root: { type: "stack", children: [{ type: "heading", style: { font: "Fraunces" } }, { type: "text", style: { font: "Arial" } }] } },
-      { root: { type: "row", responsive: { mobile: { font: "Inter" } } } },
+      { root: { type: "row", responsive: { mobile: { font: "Lora" } } } },
+      // Stock faces are left to the site's own pairing and never downloaded.
+      { root: { type: "heading", style: { font: "Inter" } } },
     ]);
-    expect(fonts).toEqual(["Fraunces", "Inter"]);
+    expect(fonts).toEqual(["Fraunces", "Lora"]);
     const href = siteFontsHref("Sora", fonts)!;
     expect(href).toContain("family=Sora");
     expect(href).toContain("family=Fraunces");
