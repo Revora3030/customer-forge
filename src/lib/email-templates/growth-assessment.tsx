@@ -61,7 +61,7 @@ const AssessmentEmail = (p: AssessmentEmailProps) => (
           automated follow-up, reviews, local SEO and analytics.
         </Text>
         <Link href="https://revoragrowthsystems.com/get-started" style={button}>
-          Start 1 day of free full access
+          Start {GROWTH_SYSTEM.fullAccessWindow} of free full access
         </Link>
         <Text style={footer}>
           ${GROWTH_SYSTEM.setupPrice} one-time setup, first month free, then ${GROWTH_SYSTEM.monthlyPrice}/month.

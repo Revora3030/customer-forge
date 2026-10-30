@@ -11,7 +11,7 @@ export const MARKETING_SEARCH = {
   states: {
     path: "/states",
     title: "Business Websites & CRM in All 50 States | Revora",
-    description: "Explore business websites, lead capture, CRM and booking across all 50 states. Browse service areas, compare the offer and try Revora free for 3 days.",
+    description: `Explore business websites, lead capture, CRM and booking across all 50 states. Browse service areas, compare the offer and try Revora free for ${GROWTH_SYSTEM.fullAccessWindow}.`,
   },
   about: {
     path: "/about",

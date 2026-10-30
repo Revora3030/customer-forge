@@ -3,6 +3,19 @@
  * the application derives from this module — there is exactly one offer:
  * $350 one-time setup + $100/month.
  */
+
+/**
+ * THE single source of truth for the no-card, full-access free trial at
+ * signup, in days. Owner rule: 3 days. Every trial label, email, prompt, test
+ * and server-side trial stamp derives from this number (see `src/lib/trial.ts`).
+ * The database mirrors it in migration 20261004090000 (column default,
+ * `provision_workspace_server` and `offer_config.full_access_days`); change both
+ * together and never hard-code a trial length in copy.
+ */
+export const FULL_ACCESS_TRIAL_DAYS: number = 3;
+
+const fullAccessWindowLabel = `${FULL_ACCESS_TRIAL_DAYS} ${FULL_ACCESS_TRIAL_DAYS === 1 ? "day" : "days"}`;
+
 export const GROWTH_SYSTEM = {
   planId: "revora_growth_system",
   name: "Revora Growth System",
@@ -29,11 +42,13 @@ export const GROWTH_SYSTEM = {
   /** Truthful wording for the paid plan's free first month. */
   firstMonthFree: "first month free (30 days after $350 setup)",
   /** Length of the full-system free access window at signup, in days. */
-  fullAccessTrialDays: 3,
+  fullAccessTrialDays: FULL_ACCESS_TRIAL_DAYS,
   /** Human-readable full-access window, e.g. "3 days". */
-  fullAccessWindow: "3 days",
+  fullAccessWindow: fullAccessWindowLabel,
+  /** Adjective form for prose, e.g. "3-day". */
+  fullAccessWindowAdjective: `${FULL_ACCESS_TRIAL_DAYS}-day`,
   /** Uppercase variant for badges/CTAs, e.g. "3 DAYS". */
-  fullAccessWindowUpper: "3 DAYS",
+  fullAccessWindowUpper: fullAccessWindowLabel.toUpperCase(),
   trialBadge: "FIRST MONTH FREE",
   ctaPrimary: "START MY REVORA SYSTEM — $350 SETUP",
   ctaSecondary:

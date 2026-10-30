@@ -9,7 +9,8 @@ import { readWebsiteState } from "@/lib/site-restore.functions";
  *
  * Two environments, one project:
  * - SANDBOX  — the full builder. Everything can be built, configured, tested,
- *   versioned and previewed here, on a free 7-day access window or after it.
+ *   versioned and previewed here, during the free full-access window
+ *   (GROWTH_SYSTEM.fullAccessTrialDays, 3 days) or after it.
  * - PRODUCTION — the live website, live domain and live customer-facing
  *   operations. Only unlocked once the $350 setup payment is verified.
  *
