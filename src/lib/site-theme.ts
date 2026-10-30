@@ -13,7 +13,7 @@
  */
 
 import type { CSSProperties } from "react";
-import { mutedOn } from "@/lib/readable-color";
+import { mutedOn, readableOn } from "@/lib/readable-color";
 
 const HEX = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
 
@@ -158,6 +158,10 @@ export function siteThemeStyle(input: {
   const actionText = primary ? onPrimary : light ? "#ffffff" : "#101114";
   vars["--primary"] = action;
   vars["--primary-foreground"] = actionText;
+  // Brand colour used AS TEXT (small labels, eyebrows) on the page surface:
+  // the same hue, moved just far enough toward ink to pass WCAG AA. A pale
+  // brand (yellow, sky, mint) stays recognisable without becoming unreadable.
+  vars["--primary-ink"] = readableOn(action, background);
   vars["--ring"] = action;
   vars["--gold"] = action;
   vars["--gold-deep"] = mix("#000000", action, 18);
