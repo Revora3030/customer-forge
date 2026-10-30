@@ -155,3 +155,71 @@ describe("post-apply QA loop", () => {
     expect(result.summary).toContain("Nothing needed an automatic repair");
   });
 });
+
+describe("post-apply QA loop — verify before claiming a fix", () => {
+  it("reports 'not checked' instead of a clean score when a read fails", async () => {
+    const failing = {
+      from() {
+        return {
+          select() {
+            return {
+              eq() {
+                return { order: () => Promise.resolve({ data: null, error: { message: "permission denied" } }) };
+              },
+            };
+          },
+        };
+      },
+    };
+    const result = await runQaRepairLoop(failing as never, ORG, "");
+    expect(result.checked).toBe(false);
+    expect(result.repaired).toEqual([]);
+    expect(result.summary).toContain("couldn't read the site");
+  });
+
+  it("never throws even when the database client itself throws", async () => {
+    const throwing = {
+      from() {
+        throw new Error("socket hang up");
+      },
+    };
+    const result = await runQaRepairLoop(throwing as never, ORG, "");
+    expect(result.checked).toBe(false);
+  });
+
+  it("does not count a write the database accepted but did not apply as fixed", async () => {
+    const tables = siteWithMissingSeo();
+    const { db } = fakeDb(tables);
+    // Simulate a write that returns no error but changes nothing (e.g. an RLS
+    // filter matching zero rows): the re-test still sees the problem.
+    const silent = db as unknown as { from: (t: string) => Record<string, unknown> };
+    const realFrom = silent.from.bind(silent);
+    silent.from = (table: string) => {
+      const api = realFrom(table) as Record<string, unknown>;
+      return {
+        ...api,
+        update() {
+          const chain = { eq: () => chain2 };
+          const chain2 = { eq: () => Promise.resolve({ error: null }) };
+          return chain;
+        },
+      };
+    };
+
+    const result = await runQaRepairLoop(silent as never, ORG, "");
+    expect(result.checked).toBe(true);
+    expect(result.repaired).toEqual([]);
+    expect(result.unresolved.length).toBeGreaterThan(0);
+    expect(result.reported.some((entry) => entry.includes("did not resolve"))).toBe(true);
+    expect(result.summary).not.toContain("fixed");
+  });
+
+  it("runs at most two repair rounds and records how many ran", async () => {
+    const tables = siteWithMissingSeo();
+    const { db } = fakeDb(tables);
+    const result = await runQaRepairLoop(db, ORG, "");
+    expect(result.rounds).toBeGreaterThanOrEqual(1);
+    expect(result.rounds).toBeLessThanOrEqual(2);
+    expect(result.checked).toBe(true);
+  });
+});
