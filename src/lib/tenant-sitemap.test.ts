@@ -152,6 +152,20 @@ describe("/s/<slug>/sitemap.xml", () => {
     expect((await platformTenantSitemapResponse("../etc")).status).toBe(404);
   });
 
+  it("returns 404 for a published shell whose home page is still empty", async () => {
+    // Snapshot with no populated home: the page renders "still being built" with noindex.
+    const snapshot = db.tables["website_versions"]![0]!;
+    snapshot["pages"] = { live_format: 1, settings_pages: null, pages: livePages.map((p) => (p.kind === "home" ? { ...p, sections: [] } : p)) };
+    expect((await platformTenantSitemapResponse("acme")).status).toBe(404);
+    // No snapshot and no home page row at all: same.
+    db.tables["website_versions"] = [];
+    expect((await platformTenantSitemapResponse("acme")).status).toBe(404);
+    // No snapshot, home row with a visible section: listed again.
+    db.tables["website_pages"] = [{ id: "home-row", organization_id: ORG, slug: "home", kind: "home", noindex: false, is_visible: true }];
+    db.tables["website_sections"] = [{ id: "sec-home", organization_id: ORG, page_id: "home-row", is_visible: true }];
+    expect((await platformTenantSitemapResponse("acme")).status).toBe(200);
+  });
+
   it("dates the home entry with the publish time too", () => {
     const urls = sitemapUrls({ slug: "x", origin: "https://x.test", noindex: false, publishedAt: PUBLISHED_AT, pages: [] }, "https://x.test");
     expect(urls).toEqual([{ loc: "https://x.test", lastmod: PUBLISHED_AT }]);
