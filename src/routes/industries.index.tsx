@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { SiteFooter, SiteHeader } from "@/components/marketing/Chrome";
 import { Button } from "@/components/ui/button";
 import { INDUSTRIES, industrySlug } from "@/lib/domain";
-import { canonicalLink, ogUrl } from "@/lib/seo";
+import { canonicalLink, ogUrl, OG_IMAGE_META } from "@/lib/seo";
 
 export const Route = createFileRoute("/industries/")({
   head: () => ({
@@ -21,6 +21,7 @@ export const Route = createFileRoute("/industries/")({
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
       ogUrl("/industries"),
+      ...OG_IMAGE_META,
     ],
     links: [canonicalLink("/industries")],
   }),
@@ -66,7 +67,7 @@ function Industries() {
           Contractors, HVAC, plumbing and roofing crews: see how the{" "}
           <Link
             to="/crm-for-contractors"
-            className="text-primary underline-offset-4 hover:underline"
+            className="text-primary underline underline-offset-4 hover:no-underline"
           >
             CRM for contractors
           </Link>{" "}

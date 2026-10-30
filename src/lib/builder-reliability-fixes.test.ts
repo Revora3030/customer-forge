@@ -155,9 +155,12 @@ describe("review fixes for the chat request engine", () => {
   it("a tracked first build never blocks the chat queue or counts as busy", () => {
     expect(hooks).toContain("const next = nextRunnable(tasks.filter((task) => !task.tracking));");
     expect(hooks).toContain('const busy = tasks.some((task) => !task.tracking && (task.state === "planning" || task.state === "building"));');
-    expect(hooks).toContain('{ ...task, state: "building" as const, tracking: true }');
-    // A job no worker claims is not tracked forever.
-    expect(route).toContain('(status === "queued" && queuedFor > FIRST_BUILD_QUEUED_TIMEOUT_MS)');
+    expect(hooks).toContain('{ ...task, state: "building" as const, tracking: true, isBuild: true }');
+    // A job no worker claims is not tracked forever. The rule lives in job-liveness
+    // (tested there): a build waiting for its RETRY is counted from when the retry
+    // was due, never from creation.
+    expect(route).toContain("const stop = stopWaiting(latestRow as never);");
+    expect(read("src/lib/builder/job-liveness.ts")).toContain('return Number.isFinite(created) && now - created > QUEUED_PICKUP_TIMEOUT_MS ? "never_started" : null;');
   });
 
   it("a resumed request only reuses a plan the server's 15-minute apply dedupe still covers", () => {

@@ -12,6 +12,7 @@ name: Scheduled maintenance jobs
 #   weekly-report  Mondays 12:00 UTC              — last 7 days per workspace
 #   site-health    hourly                          — main site + live custom domains
 #   lead-alert-retry hourly at :40                 — re-send transiently failed lead alerts
+#   site-content-audit Mondays 13:05 UTC           — title/h1/structured-data/alt/link check of published sites
 # Nothing here needs n8n.
 #
 # Media clean-up runs as a DRY RUN (report only). Set the repository variable
@@ -31,13 +32,15 @@ on:
     - cron: "20 * * * *"
     # Hourly at :40: retry lead alerts that failed for a transient reason.
     - cron: "40 * * * *"
+    # Mondays 13:05 UTC: weekly content check of published customer sites.
+    - cron: "5 13 * * 1"
   workflow_dispatch:
     inputs:
       job:
         description: "Which job to run now"
         required: true
         type: choice
-        options: [backup, media-cleanup, lifecycle-email, site-engine, lead-reminder, weekly-report, site-health, lead-alert-retry]
+        options: [backup, media-cleanup, lifecycle-email, site-engine, lead-reminder, weekly-report, site-health, lead-alert-retry, site-content-audit]
       apply:
         description: "media-cleanup only: actually delete (otherwise dry run)"
         required: false
@@ -67,6 +70,7 @@ jobs:
             "15 12 * * 1") echo "job=weekly-report" >> "$GITHUB_OUTPUT" ;;
             "20 * * * *") echo "job=site-health" >> "$GITHUB_OUTPUT" ;;
             "40 * * * *") echo "job=lead-alert-retry" >> "$GITHUB_OUTPUT" ;;
+            "5 13 * * 1") echo "job=site-content-audit" >> "$GITHUB_OUTPUT" ;;
             *) echo "job=${{ inputs.job }}" >> "$GITHUB_OUTPUT" ;;
           esac
 

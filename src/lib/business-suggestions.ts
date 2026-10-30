@@ -10,6 +10,8 @@
  * This is app UI derived from real data, not customer-website creative.
  */
 
+import { mergeSplitServices } from "@/lib/builder/intake-sanitize";
+
 /** "unknown": the site facts haven't loaded (or failed to): no build, launch or domain step is suggested. */
 export type SiteState = "none" | "draft" | "published" | "unknown";
 
@@ -71,7 +73,8 @@ function slugify(value: string): string {
 function uniqueServices(services: BusinessSuggestionInput["services"]): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
-  for (const raw of services ?? []) {
+  const merged = mergeSplitServices((services ?? []).map((name) => ({ name: clean(name) }))).map((service) => service.name ?? "");
+  for (const raw of merged) {
     const name = clean(raw).slice(0, 60);
     const key = slugify(name);
     if (!name || !key || seen.has(key)) continue;

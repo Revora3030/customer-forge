@@ -163,6 +163,7 @@ export async function resolvePostLoginPath(): Promise<string> {
   // A provider redirect can beat the transaction that creates the membership.
   // Re-read a few times so /app never wins a race with workspace provisioning.
   let lastRoles: Array<{ role?: string | null }> = [];
+  let lastMembershipError: unknown = null;
   for (let attempt = 0; attempt < 4; attempt++) {
     const [{ data: memberships, error: membershipError }, { data: roles }] = await Promise.all([
       supabase
@@ -174,6 +175,7 @@ export async function resolvePostLoginPath(): Promise<string> {
     ]);
     lastRoles = roles ?? lastRoles;
     if (!membershipError) {
+      lastMembershipError = null;
       const first = (memberships ?? []).find((m) => m.organizations);
       if (first?.organizations) {
         const org = first.organizations as { onboarding_completed: boolean | null };
@@ -186,7 +188,12 @@ export async function resolvePostLoginPath(): Promise<string> {
       }
       break;
     }
+    lastMembershipError = membershipError;
     await new Promise((resolve) => setTimeout(resolve, 250 * (attempt + 1)));
+  }
+
+  if (lastMembershipError) {
+    throw new Error("We couldn't load your workspace. Please retry signing in; your account has not been removed.");
   }
 
   const isSuperAdmin = lastRoles.some((r) => r.role === "super_admin");

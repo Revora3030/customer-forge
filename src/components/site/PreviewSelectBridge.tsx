@@ -283,6 +283,28 @@ export function PreviewSelectBridge() {
         runA11yCheck();
         return;
       }
+      if (message.type === "reveal") {
+        const block = document.querySelector<HTMLElement>(`[data-rvb="${CSS.escape(message.id)}"]`);
+        if (!block) return;
+        const calm = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+        block.scrollIntoView({ block: "center", behavior: calm ? "auto" : "smooth" });
+        // Outline it once the scroll has settled (any scroll hides the overlay), then let it go.
+        // A picked block keeps its own outline (data-rvb-selected).
+        let last = Number.NaN;
+        let still = 0;
+        let frames = 0;
+        const settle = () => {
+          const top = block.getBoundingClientRect().top;
+          still = Math.abs(top - last) < 1 ? still + 1 : 0;
+          last = top;
+          frames += 1;
+          if (still < 3 && frames < 90) return void window.requestAnimationFrame(settle);
+          place(block, labelFor(block, null));
+          window.setTimeout(() => place(null, null), 1600);
+        };
+        window.requestAnimationFrame(settle);
+        return;
+      }
       if (message.type === "status") {
         status.textContent = message.text ?? "";
         status.style.display = message.text ? "block" : "none";

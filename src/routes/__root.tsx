@@ -228,15 +228,20 @@ function RootComponent() {
     })();
     const recoverStaleBuild = (error: unknown) =>
       isStaleDeployError(describeClientError(error).message) && reloadOnceForNewBuild(storage, () => window.location.reload());
-    // Vite reports a missing code chunk (a deploy replaced it) here.
+    // Vite reports a code chunk that failed to load (a deploy replaced it, or the
+    // module threw while loading) here. The error is swallowed only when the page
+    // reloads for the new build: swallowed without a reload, the import resolves to
+    // nothing and the route crashes with "undefined is not an object (evaluating
+    // 'e[t ?? "default"]')", which hides the real cause from the owner and Sentry.
     const onPreloadError = (event: Event) => {
-      event.preventDefault();
-      if (!reloadOnceForNewBuild(storage, () => window.location.reload())) {
-        reportRouteError((event as Event & { payload?: unknown }).payload ?? new Error("Code chunk failed to load"), {
-          boundary: "window_error",
-          mechanism: "preload_error",
-        });
+      if (reloadOnceForNewBuild(storage, () => window.location.reload())) {
+        event.preventDefault();
+        return;
       }
+      reportRouteError((event as Event & { payload?: unknown }).payload ?? new Error("Code chunk failed to load"), {
+        boundary: "window_error",
+        mechanism: "preload_error",
+      });
     };
     const onError = (event: ErrorEvent) => {
       if (recoverStaleBuild(errorFromWindowEvent(event))) return;
@@ -288,11 +293,16 @@ function RootComponent() {
   const builderOpen = useRouterState({
     select: (s) => s.location.pathname.startsWith("/app/website"),
   });
+  // Customer websites keep their own canvas. Revora's shells get the obsidian
+  // atmosphere and glass panels; a published or preview site must not.
+  const clientSite = useRouterState({
+    select: (s) => s.matches.some((match) => isClientSiteMatch(match)),
+  });
 
   return (
     <QueryClientProvider client={queryClient}>
       <PlatformAnalytics />
-      <div className="flex min-h-dvh flex-col">
+      <div className={clientSite ? "flex min-h-dvh flex-col" : "platform-shell flex min-h-dvh flex-col"}>
         <CookieConsent />
         {/* The phone notice occupies its own row, never the signup form. */}
         <div className="min-w-0 flex-1"><Outlet /></div>

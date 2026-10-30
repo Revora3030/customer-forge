@@ -18,6 +18,8 @@ import { BuildLive } from "@/components/app/BuildLive";
 import { ActivityFeed } from "@/components/app/ActivityFeed";
 import { RevoraCommandBar } from "@/components/app/RevoraCommandBar";
 import { ClientWebsiteSummary } from "@/components/app/ClientWebsiteSummary";
+import { SpeedToLeadCard } from "@/components/app/SpeedToLeadCard";
+import { WinbackCard } from "@/components/app/WinbackCard";
 
 import { useProductionStatus } from "@/lib/production.hooks";
 
@@ -463,6 +465,15 @@ function Dashboard() {
         bookings={appts.filter((a) => a.status !== "cancelled").length}
         visits={events.filter((e) => e.event_type === "page_view").length}
       />
+
+      <SpeedToLeadCard
+        organizationId={orgId}
+        leads={leads}
+        leadsFailed={leadsQuery.isError}
+        retryLeads={leadsQuery.refetch}
+      />
+
+      <WinbackCard organizationId={orgId} businessName={org?.name ?? null} />
 
       <ProductionSummaryCard status={production} />
 

@@ -133,4 +133,37 @@ describe("extended custom blocks", () => {
       }).ok,
     ).toBe(false);
   });
+
+  it("accepts a selector whose figures come from the spec and bounds its level", () => {
+    const parsed = spec({
+      type: "selector",
+      figureLabel: "Pressure",
+      items: [
+        { label: "Concrete", figure: "3,000 PSI", level: 80, body: "Surface cleaner." },
+        { label: "Vinyl siding", figure: "1,200 PSI" },
+      ],
+    });
+    if (parsed.type !== "selector") throw new Error("wrong type");
+    expect(parsed.items[0]?.level).toBe(80);
+    expect(parsed.items[1]?.level).toBeUndefined();
+    expect(describeCustomBlock(parsed)).toContain("2 choices");
+  });
+
+  it("rejects a selector with no figure, one choice, or an out-of-range level", () => {
+    const ok = { label: "A", figure: "1" };
+    expect(parseCustomBlock({ type: "selector", items: [ok, { label: "B" }] }).ok).toBe(false);
+    expect(parseCustomBlock({ type: "selector", items: [ok] }).ok).toBe(false);
+    expect(
+      parseCustomBlock({ type: "selector", items: [ok, { label: "B", figure: "2", level: 150 }] }).ok,
+    ).toBe(false);
+  });
+
+  it("keeps the dial display only when asked for", () => {
+    const items = [{ label: "A", figure: "1", level: 40 }, { label: "B", figure: "2" }];
+    const dial = spec({ type: "selector", display: "dial", items });
+    const bar = spec({ type: "selector", items });
+    if (dial.type !== "selector" || bar.type !== "selector") throw new Error("wrong type");
+    expect(dial.display).toBe("dial");
+    expect(bar.display).toBeUndefined();
+  });
 });

@@ -18,10 +18,14 @@ describe("marketing paths", () => {
       "/auth",
       "/s/elite-mobile",
       "/p/token",
+      // /draft/$slug is a signed-in preview surface, never a marketing page.
+      "/draft/supreme-barber-shop",
+      "/draft/test-business-co/about",
     ]) {
       expect(isPublicMarketingPath(path)).toBe(false);
     }
   });
+
 
   it("prefers the exact recorded page over the session landing page", () => {
     expect(eventPath({ landing_path: "/", metadata: { path: "/admin" } })).toBe("/admin");

@@ -61,6 +61,14 @@ describe("Services and Reviews tools reach the website", () => {
     expect(items[0]!.duration).toBe("4 hr");
     expect(items[1]!.bookable).toBe(true);
   });
+  it("joins a split qualifier so Full and Auto detailing read as one service", () => {
+    const items = serviceMenuItems([
+      { id: "a", name: "Full", price: 350, sort_order: 0 },
+      { id: "b", name: "Auto detailing", sort_order: 1 },
+    ]);
+    expect(items.map((item) => item.name)).toEqual(["Full Auto detailing"]);
+    expect(items[0]!.price).toMatch(/\$350/);
+  });
   it("shows only reviews with real words", () => {
     const items = reviewWallItems([
       { id: "a", author_name: "Dana", rating: 5, comment: "Car looked brand new after the detail." },

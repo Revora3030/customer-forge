@@ -354,13 +354,19 @@ export async function kickWorker(origin: string, organizationId: string) {
   }
   // Direct fallback: drain the queue in-process when the HTTP kick is
   // unavailable (missing LOVABLE_CRON_SECRET, no scheduler, or network
-  // failure). This is best effort only: serverless background grace periods
-  // cannot sustain a long build. The independent runner/client request must
-  // remain connected. Always scope the fallback to the initiating workspace.
+  // failure). Serverless background grace periods cannot sustain a build, so
+  // this runs at most a short first slice and then hands the job back to the
+  // queue (no attempt used); the backstop schedule owns the rest. Always
+  // scoped to the initiating workspace.
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { drainSiteEngineQueue } = await import("@/lib/site-engine.worker.server");
-    await drainSiteEngineQueue(supabaseAdmin as never, { max: 1, organizationId, invoker: "kick" });
+    const { drainSiteEngineQueue, KICK_SLICE_BUDGET_MS } = await import("@/lib/site-engine.worker.server");
+    await drainSiteEngineQueue(supabaseAdmin as never, {
+      max: 1,
+      organizationId,
+      invoker: "kick",
+      sliceBudgetMs: KICK_SLICE_BUDGET_MS,
+    });
   } catch {
     // The client pump and the scheduled run still pick the job up.
   }
@@ -717,11 +723,10 @@ export const saveMissingFacts = createServerFn({ method: "POST" })
       if (!value) continue; // an untouched box is not an answer, and never overwrites saved data
       const field = fieldByKey.get(key);
       if (field === "services_list") {
-        for (const line of value
-          .split(/[\n,]/)
-          .map((l) => l.trim())
-          .filter(Boolean))
-          serviceNames.push(line);
+        const { mergeSplitServices } = await import("@/lib/builder/intake-sanitize");
+        const lines = value.split(/[\n,]/).map((l) => l.trim()).filter(Boolean);
+        for (const name of mergeSplitServices(lines.map((name) => ({ name }))).map((row) => row.name ?? "").filter(Boolean))
+          serviceNames.push(name);
       } else if (field) profilePatch[field] = value;
       else context_answers[key] = value;
     }

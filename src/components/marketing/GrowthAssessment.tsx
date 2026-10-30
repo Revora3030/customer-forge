@@ -18,7 +18,6 @@ import { Panel, Pill } from "@/components/app/Bits";
 import { FreeAccessButton } from "@/components/marketing/FreeAccess";
 import { currency } from "@/lib/format";
 import { INDUSTRIES } from "@/lib/domain";
-import { trackConversion } from "@/lib/conversion";
 import {
   CAPABILITY_QUESTIONS,
   DEFAULT_ANSWERS,
@@ -95,10 +94,8 @@ export function GrowthAssessment({ mode = "assessment" }: { mode?: "assessment" 
       });
       setEmailed(response.emailed);
       setStatus("done");
-      trackConversion(mode === "audit" ? "audit_requested" : "assessment_submitted", {
-        email: answers.email,
-        metadata: { score: result.score, band: result.band, gaps: result.gaps.length },
-      });
+      // The server already recorded this submission as its single authoritative event; recording it again
+      // here would count one lead twice.
       document
         .getElementById("assessment-result")
         ?.scrollIntoView({ behavior: "smooth", block: "start" });

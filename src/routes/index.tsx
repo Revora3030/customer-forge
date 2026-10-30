@@ -3,6 +3,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { SiteFooter, SiteHeader } from "@/components/marketing/Chrome";
+import { BrandEmblem } from "@/components/brand/Logo";
 import { AuthHint } from "@/components/marketing/AuthButtons";
 import { HeroStarter } from "@/components/marketing/HeroStarter";
 import { ParticleField } from "@/components/marketing/ParticleField";
@@ -10,6 +11,10 @@ import { DashboardPreview } from "@/components/marketing/DashboardPreview";
 import { FAQ } from "@/components/marketing/FAQ";
 import { HOME_HEADLINE, HOME_TRIAL_CHARGE_NOTE, marketingHomeHead } from "@/components/marketing/home-head";
 import { ProductTour } from "@/components/marketing/ProductTour";
+import { OfferIncludes } from "@/components/marketing/OfferIncludes";
+import { SavingsCalculator } from "@/components/marketing/SavingsCalculator";
+import { SoftwareComparison } from "@/components/marketing/SoftwareComparison";
+import { AiTeam } from "@/components/marketing/AiTeam";
 import { Pill, SectionHeading } from "@/components/app/Bits";
 import { RouteError } from "@/components/app/RouteStates";
 import { Button } from "@/components/ui/button";
@@ -19,7 +24,6 @@ import { VisualComposition } from "@/components/site/VisualComposition";
 import { HOMEPAGE_COMPOSITION } from "@/lib/homepage-concept";
 import { SiteAddressProvider } from "@/components/site/site-links-context";
 import { getHostSite } from "@/lib/host-site.functions";
-import { isPossibleTenantHost } from "@/lib/revora-address";
 import { PublicSiteView } from "@/routes/s.$slug";
 import { tenantSiteHead } from "@/lib/site-head";
 
@@ -30,9 +34,6 @@ export const Route = createFileRoute("/")({
    * published website.
    */
   loader: async () => {
-    if (typeof window !== "undefined" && !isPossibleTenantHost(window.location.hostname)) {
-      return null;
-    }
     try {
       const response = await getHostSite({ data: {} });
       if (response?.result) return response.result;
@@ -127,6 +128,7 @@ function Landing() {
       <main>
         {/* HERO */}
         <section className="hero-aura relative overflow-hidden border-b border-border">
+          <BrandEmblem className="top-6 right-[-1.5rem] sm:top-10 sm:right-6" />
           <ParticleField className="pointer-events-none absolute inset-0 h-full w-full opacity-70" />
           {/* grid-cols-1 pins the mobile column to minmax(0,1fr); without it the
               implicit auto column grows to the widest child's min-content width
@@ -179,6 +181,16 @@ function Landing() {
           </div>
         </section>
 
+        {/* THE AI TEAM */}
+        <section id="ai-team" className="scroll-mt-20 border-b border-border">
+          <div className="mx-auto max-w-6xl px-4 py-10">
+            <SectionHeading eyebrow="Your AI team" title="Who designs, writes and checks your website" />
+            <div className="mt-6">
+              <AiTeam />
+            </div>
+          </div>
+        </section>
+
         {/* VALUE + PRICING */}
         <section id="pricing" className="scroll-mt-20 border-b border-border">
           <div className="mx-auto max-w-6xl px-4 py-10">
@@ -228,6 +240,18 @@ function Landing() {
                   {GROWTH_SYSTEM.explainer}
                 </p>
               </div>
+              <OfferIncludes />
+            </div>
+          </div>
+        </section>
+
+        {/* SOFTWARE SAVINGS */}
+        <section id="savings" className="scroll-mt-20 border-b border-border">
+          <div className="mx-auto max-w-6xl px-4 py-10">
+            <SectionHeading eyebrow="Compare" title="What you pay for software today" />
+            <div className="mt-6 grid gap-4">
+              <SoftwareComparison />
+              <SavingsCalculator />
             </div>
           </div>
         </section>

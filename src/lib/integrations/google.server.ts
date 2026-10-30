@@ -256,7 +256,7 @@ export async function localListings(query: string): Promise<LocalListing[]> {
 
   const payload = (await callGateway("google_maps", "/places/v1/places:searchText", {
     method: "POST",
-    body: { textQuery: text, maxResultCount: 5 },
+    body: { textQuery: text, pageSize: 5 },
     headers: {
       "X-Goog-FieldMask":
         "places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.websiteUri,places.rating,places.userRatingCount,places.googleMapsUri",
@@ -305,7 +305,7 @@ export async function searchPlacesForProspects(
   extraFields: string[] = [],
 ): Promise<Record<string, unknown>[]> {
   const fieldMask = [PROSPECT_FIELDS, ...extraFields.filter((field) => /^places\.[A-Za-z.]+$/.test(field))].join(",");
-  const body: Record<string, unknown> = { textQuery: textQuery.slice(0, 200), maxResultCount: Math.min(20, Math.max(1, maxResultCount)), languageCode: "en" };
+  const body: Record<string, unknown> = { textQuery: textQuery.slice(0, 200), pageSize: Math.min(20, Math.max(1, maxResultCount)), languageCode: "en" };
   // A Maps link carries the map's center: prefer the listing the owner was looking at.
   if (near) body["locationBias"] = { circle: { center: { latitude: near.lat, longitude: near.lng }, radius: 5000 } };
   const ownKey = process.env["GOOGLE_PLACES_API_KEY"]?.trim();

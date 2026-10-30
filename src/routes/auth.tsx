@@ -4,7 +4,7 @@ import { toast } from "@/lib/ui/notify";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
-import { Logo } from "@/components/brand/Logo";
+import { BrandEmblem, Logo } from "@/components/brand/Logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,7 +24,6 @@ import { isSafeRedirect } from "@/lib/prospect-claim";
 type Search = { mode?: "signup" | "signin"; redirect?: string };
 
 export const Route = createFileRoute("/auth")({
-  ssr: false,
   validateSearch: (search: Record<string, unknown>): Search => {
     const rawMode = search["mode"];
     const rawRedirect = search["redirect"];
@@ -45,6 +44,7 @@ export const Route = createFileRoute("/auth")({
   head: ({ match }) => {
     const label = match.search.mode === "signup" ? "Create your account — Revora" : "Sign in — Revora";
     return {
+    links: [{ rel: "preload", as: "image", href: "/revora-mark-144.png" }],
     meta: [
       { title: label },
       {
@@ -111,6 +111,7 @@ function AuthPage() {
       })
       .catch((error: unknown) => {
         reportRouteError(error, { boundary: "auth_session_check" });
+        if (active) setError(error instanceof Error ? error.message : "We couldn't load your account. Please try signing in again.");
       });
     return () => {
       active = false;
@@ -124,19 +125,18 @@ function AuthPage() {
     try {
       setRememberPreference(remember);
       if (isSignup) {
-        const { error: signUpError } = await supabase.auth.signUp({
+        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
           email,
           password,
           options: {
             data: { full_name: fullName },
-            emailRedirectTo: `${window.location.origin}${redirect ?? "/app"}`,
+            emailRedirectTo: `${window.location.origin}/auth${redirect ? `?redirect=${encodeURIComponent(redirect)}` : ""}`,
           },
         });
         if (signUpError) throw signUpError;
-        const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-        if (signInError) {
-          const message = `Account created for ${email}. Confirm your email address using the link we just sent, then sign in here — your progress is saved.`;
-          toast.success("Account created. Check your email to confirm, then sign in.");
+        if (!signUpData.session) {
+          const message = "Check your email for a confirmation link before signing in. If you already have an account, sign in or reset your password.";
+          toast.message("Check your email to continue.");
           setNotice(message);
           setPassword("");
           setIsSignup(false);
@@ -144,7 +144,7 @@ function AuthPage() {
         }
         // Save the account details, then send the new client to the exact next
         // step for their workspace (onboarding first, dashboard once ready).
-        await ensureProfile();
+        await ensureProfile(signUpData.session.user);
         toast.success("Welcome to Revora. Let's set up your workspace.");
         await goToWorkspace();
       } else {
@@ -242,7 +242,7 @@ function AuthPage() {
     <div className="flex min-h-screen flex-col bg-background">
       <header className="border-b border-border">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
-          <Link to="/">
+          <Link to="/" className="flex min-h-11 items-center">
             <Logo />
           </Link>
           <Link
@@ -254,8 +254,9 @@ function AuthPage() {
         </div>
       </header>
 
-      <main className="flex flex-1 items-center justify-center px-4 py-12">
-        <div className="w-full max-w-sm">
+      <main className="relative flex flex-1 items-center justify-center overflow-hidden px-4 py-12">
+        <BrandEmblem className="top-8 right-[-2rem] sm:right-10" />
+        <div className="relative w-full max-w-sm">
           {isSignup ? (
             <Pill tone="signal">{`${GROWTH_SYSTEM.fullAccessWindowUpper} FREE — FULL ACCESS`}</Pill>
           ) : null}
@@ -370,7 +371,7 @@ function AuthPage() {
                 type="button"
                 onClick={() => void handleGoogle("switch")}
                 disabled={busy !== null}
-                className="mt-2 w-full cursor-pointer rounded-md py-2 text-[13px] text-primary underline-offset-4 transition-colors hover:underline disabled:opacity-60"
+                className="mt-2 min-h-11 w-full cursor-pointer rounded-md py-2 text-[13px] text-primary underline-offset-4 transition-colors hover:underline disabled:opacity-60"
               >
                 Use a different Google account
               </button>

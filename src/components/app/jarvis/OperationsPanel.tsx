@@ -1,5 +1,6 @@
 import { LovableModelsPanel, ModelsPanel, ToolsPanel } from "./ModelsToolsPanels";
 import { ApprovalLogCard } from "./ApprovalLogCard";
+import { ApprovalsCard } from "./ApprovalsCard";
 import { InstagramPanel } from "./InstagramPanel";
 import { FreeToolsPanel } from "./FreeToolsPanel";
 import { useEffect, useRef } from "react";
@@ -12,6 +13,7 @@ import { ClaudeCodePanel } from "@/components/app/ClaudeCodePanel";
 import { EngineTodayCard } from "./EngineTodayCard";
 import { ProspectAutopilotCard } from "./ProspectAutopilotCard";
 import { ProspectInboxCard } from "./ProspectInboxCard";
+import { ProspectLeadImportCard } from "./ProspectLeadImportCard";
 import type { getJarvisAcquisitionReadiness, getJarvisDiagnostics, runJarvisDiagnosticTool } from "@/lib/jarvis.functions";
 import type { ProspectDraft } from "@/lib/jarvis-prospecting.functions";
 
@@ -112,6 +114,8 @@ export function OperationsPanel({ diagnostics, acquisition, scorecard, prospecto
       <EngineTodayCard />
       <ProspectAutopilotCard />
       <ProspectInboxCard />
+      <ProspectLeadImportCard />
+      <ApprovalsCard />
       <ApprovalLogCard />
       <InstagramPanel />
       <FreeToolsPanel />
@@ -192,7 +196,7 @@ export function OperationsPanel({ diagnostics, acquisition, scorecard, prospecto
         </div>
         <p className="text-sm text-muted-foreground">Jarvis can prepare an evidence-backed daily plan and identify missing integrations. This check does not read prospect records, send messages, publish changes, or spend money.</p>
         {acquisition.data ? <div className="space-y-3">
-          <div className="rounded-md border border-border p-3"><div className="flex flex-wrap items-center justify-between gap-2"><strong>Readiness: {acquisition.data.status.replaceAll("_", " ")}</strong><span className="text-xs text-muted-foreground">Spend authorized: No · Sending enabled: No</span></div><p className="mt-1 text-xs text-muted-foreground">{acquisition.data.note}</p><p className="mt-2 text-xs">Verified signals: analytics {acquisition.data.analyticsVerified ? "yes" : "unknown"}, lead source {acquisition.data.liveLeadSourceVerified ? "yes" : "unknown"}, outbound provider {acquisition.data.outboundProviderVerified ? "yes" : "unknown"}, booking {acquisition.data.bookingVerified ? "yes" : "unknown"}, payment flow {acquisition.data.paymentFlowVerified ? "yes" : "unknown"}.</p><p className="mt-1 text-xs">Server-approved daily spend cap: {(acquisition.data.configuredSpendCapCents / 100).toLocaleString(undefined, { style: "currency", currency: "USD" })}; this run requested $0.</p></div>
+          <div className="rounded-md border border-border p-3"><div className="flex flex-wrap items-center justify-between gap-2"><strong>Readiness: {acquisition.data.status.replaceAll("_", " ")}</strong><span className="text-xs text-muted-foreground">Spend authorized: {acquisition.data.spendAuthorized ? "Yes" : "No"} · Sending enabled: {acquisition.data.sendsEnabled ? "Yes" : "No"}</span></div><p className="mt-1 text-xs text-muted-foreground">{acquisition.data.note}</p><p className="mt-2 text-xs">Verified signals: analytics {acquisition.data.analyticsVerified ? "yes" : "no"}, lead source {acquisition.data.liveLeadSourceVerified ? "yes" : "no"}, outbound provider {acquisition.data.outboundProviderVerified ? "yes" : "no"}, booking {acquisition.data.bookingVerified ? "yes" : "no"}, payment flow {acquisition.data.paymentFlowVerified ? "yes" : "no"}.</p><p className="mt-1 text-xs">Server-approved daily spend cap: {(acquisition.data.configuredSpendCapCents / 100).toLocaleString(undefined, { style: "currency", currency: "USD" })}; this run requested $0.</p></div>
           <div className="space-y-2">
             <h3 className="text-sm font-semibold">Observed funnel signals</h3>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">

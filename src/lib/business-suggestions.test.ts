@@ -169,4 +169,18 @@ describe("site state not loaded", () => {
     expect(labels).not.toContain("Connect my domain");
     expect(labels.some((label) => label.startsWith("Add a page for"))).toBe(false);
   });
+
+  it("merges a split Full and Auto detailing chip into one service", () => {
+    const { chips } = buildBusinessSuggestions({
+      businessName: "Elite mobile detail",
+      industry: "auto_detailing",
+      services: ["Full", "Auto detailing", "Ceramic Coating"],
+      siteState: "published",
+      pages: [],
+    });
+    const labels = chips.map((chip) => chip.label);
+    expect(labels).toContain("Add a page for Full Auto detailing");
+    expect(labels).not.toContain("Add a page for Full");
+    expect(labels).not.toContain("Add a page for Auto detailing");
+  });
 });

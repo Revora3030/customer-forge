@@ -12,27 +12,29 @@
  */
 
 import { canTrackAds, pushConsentSignal } from "@/lib/consent";
+import { isPublicMarketingPath } from "@/lib/marketing-paths";
 
 const GOOGLE_ADS_ID = "AW-18474339242";
 
 let loadPromise: Promise<void> | null = null;
 
-export async function loadGoogleAds(consentModeRoute = true): Promise<void> {
+export async function loadGoogleAds(_consentModeRoute = true): Promise<void> {
   if (typeof window === "undefined" || typeof document === "undefined") return;
+  if (!isPublicMarketingPath(window.location.pathname) || !(await canTrackAds())) return;
   loadPromise ??= (async () => {
     // Client websites live on other hosts; the ad tag is Revora's own only.
     const { isRevoraOwnHost } = await import("@/lib/revora-address");
     if (!isRevoraOwnHost(window.location.hostname)) return;
 
     const allowed = await canTrackAds();
-    if (!consentModeRoute && !allowed) return;
+    if (!allowed) return;
     // Keep Google's consent signals aligned with the visitor's state, without
     // recording a choice the visitor never made.
     pushConsentSignal(allowed ? "granted" : "denied");
 
     window.dataLayer ??= [];
     window.gtag = window.gtag || function gtag(...args: [string, ...unknown[]]) {
-      window.dataLayer!.push(args);
+      window.dataLayer?.push(args);
     };
     if (document.querySelector("script[data-google-ads]")) return;
     window.gtag("js", new Date());
@@ -53,6 +55,7 @@ export async function loadGoogleAds(consentModeRoute = true): Promise<void> {
 
 /** Fires the "Free trial started" conversion once a trial genuinely starts. */
 export async function trackTrialStarted(): Promise<void> {
+  if (typeof window === "undefined" || !(await canTrackAds())) return;
   await loadGoogleAds(true);
   window.gtag?.("event", "conversion", {
     send_to: "AW-18474339242/mP7GCMvYgIUdEKqXoOlE",

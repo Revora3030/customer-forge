@@ -19,7 +19,7 @@ import { formatLocality } from "@/lib/locality";
 import type { SiteCopy } from "@/lib/site-engine";
 import type { SiteBrief } from "@/lib/site-brief";
 import type { FirstBuildCreativeDirection } from "@/lib/builder/first-build-contract";
-import type { CreativeBrief } from "@/lib/builder/first-build-contract";
+import type { CreativeBrief, SectionArtDirection, ShotList } from "@/lib/builder/first-build-contract";
 import {
   approvableFields,
   mergeRefinement,
@@ -79,7 +79,49 @@ type CreativeBriefPatch = Partial<
   shapeLanguage?: Partial<CreativeBrief["shapeLanguage"]>;
   motion?: Partial<CreativeBrief["motion"]>;
   imageInventory?: CreativeBrief["imageInventory"];
+  shotList?: ShotList;
 };
+
+const SHOT_FIELDS = ["setting", "light", "cameraAngle", "mood", "paletteTieIn", "copySpace"] as const;
+
+/**
+ * Reads Sol's per-section art direction (the shot list). Every field is the
+ * AI's own words, screened like the rest of the brief: a direction that tries
+ * to state proof or an unsupported claim is refused, never rewritten. An
+ * entry needs a section role plus setting, light, camera angle and mood.
+ */
+export function shotListAt(value: unknown, facts: DnaFacts): { shotList: ShotList | null; rejected: RefinementRejection[] } {
+  const rejected: RefinementRejection[] = [];
+  if (!value || typeof value !== "object" || Array.isArray(value)) return { shotList: null, rejected };
+  const raw = value as Record<string, unknown>;
+  const continuity = textAt(raw["continuity"], 240) ?? "";
+  if (continuity && visualTextProblem(continuity, facts)) {
+    rejected.push({ field: "brief.shotList.continuity", reason: visualTextProblem(continuity, facts)! });
+  }
+  const sections: SectionArtDirection[] = [];
+  const seen = new Set<string>();
+  for (const [index, entry] of (Array.isArray(raw["sections"]) ? raw["sections"] : []).slice(0, 16).entries()) {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) continue;
+    const item = entry as Record<string, unknown>;
+    const section = textAt(item["section"], 60)?.toLowerCase().replace(/[^a-z0-9_-]+/g, "_").replace(/^_+|_+$/g, "") ?? "";
+    if (!section || seen.has(section)) continue;
+    const out = { section } as SectionArtDirection;
+    for (const field of SHOT_FIELDS) out[field] = textAt(item[field], 180) ?? "";
+    if (!out.setting || !out.light || !out.cameraAngle || !out.mood) {
+      rejected.push({ field: `brief.shotList.sections[${index}]`, reason: "a shot needs setting, light, cameraAngle and mood" });
+      continue;
+    }
+    const problem = SHOT_FIELDS.map((field) => (out[field] ? visualTextProblem(out[field], facts) : null)).find(Boolean);
+    if (problem) {
+      rejected.push({ field: `brief.shotList.sections[${index}]`, reason: problem });
+      continue;
+    }
+    seen.add(section);
+    sections.push(out);
+  }
+  const safeContinuity = continuity && !visualTextProblem(continuity, facts) ? continuity : "";
+  return { shotList: sections.length ? { continuity: safeContinuity, sections } : null, rejected };
+}
 
 export type CreativeRefinement = {
   brief?: CreativeBriefPatch;
@@ -442,6 +484,9 @@ export function reviewCreativeProposal(input: {
 
     const imageInventory = imageInventoryAt(briefRaw["imageInventory"], input.facts);
     if (imageInventory.length) brief.imageInventory = imageInventory;
+    const shots = shotListAt(briefRaw["shotList"], input.facts);
+    rejected.push(...shots.rejected);
+    if (shots.shotList) brief.shotList = shots.shotList;
     if (Object.keys(brief).length) accepted.brief = brief;
   }
 
@@ -518,52 +563,91 @@ function creativeApprovableFields(proposal: Record<string, unknown> | null): str
   return fields;
 }
 
-async function refineCreativeWithCollective(input: {
+/** The brief fields Sol authors in the first, short call: the look, not the picture list. */
+export const CORE_BRIEF_FIELDS = [
+  "concept",
+  "personality",
+  "typography",
+  "color",
+  "heroComposition",
+  "sectionRhythm",
+  "density",
+  "cardLanguage",
+  "ctaLanguage",
+  "backgroundTreatment",
+  "shapeLanguage",
+  "motion",
+  "mobileStrategy",
+  "conversionStrategy",
+  "industryConventions",
+  "photography",
+] as const;
+
+/** The brief fields Sol authors in the second call, once it has decided the look. */
+export const CAMPAIGN_BRIEF_FIELDS = ["imageInventory", "shotList"] as const;
+
+/**
+ * Every picture is inspected before it goes on the site by an adversarial photo
+ * editor that rejects visible text, logos, badges, emblems, licence plates,
+ * readable signage, malformed hands or faces and cluttered frames. A real
+ * build kept 1 of 3 pictures because two were planned as badge-bearing car
+ * fronts and wheel close-ups. Planning frames that avoid those details keeps
+ * the bar where it is and lets most pictures pass the first time.
+ */
+export const REVIEWER_AWARE_FRAMING =
+  "Every picture is inspected by a strict photo editor who rejects any visible text, logos, badges, emblems, licence plates, readable signage, malformed hands or faces, and cluttered frames. Plan frames that avoid those details altogether, so most pass the first time: for example side or rear three-quarter views instead of badge-bearing fronts, close macro textures, tools and materials laid out, finished interiors and empty rooms, hands and faces out of frame, calm uncluttered backgrounds.";
+
+/** The part of Sol's own first answer the picture campaign is shown, so the pictures belong to the look. */
+const LOOK_FIELDS_FOR_PICTURES = ["concept", "personality", "color", "photography", "heroComposition", "sectionRhythm", "backgroundTreatment"] as const;
+
+/** Output budgets. One answer must finish well inside the gateway's two-minute edge limit on a slow day. */
+const CORE_DIRECTION_TOKENS = 4000;
+const PICTURE_CAMPAIGN_TOKENS = 7000;
+
+/** What a long creative step tells the owner it is doing (cosmetic; never affects the build). */
+export type CollectiveStepReporter = (label: string) => void;
+
+/**
+ * The job's saved early-stage work (see job-stage-checkpoints). A retry of the
+ * same job reads back what an earlier attempt finished, so a slow picture
+ * campaign no longer sends the whole design direction back to the start.
+ */
+export type CollectiveCheckpoints = {
+  get<T>(key: string, inputs: unknown): Promise<T | null>;
+  put(key: string, inputs: unknown, value: unknown): Promise<boolean>;
+};
+
+type CreativeStepResult = {
+  creative: FirstBuildCreativeDirection;
+  changed: boolean;
+  passes: CollectivePassRecord[];
+};
+
+/**
+ * Sol's first call: the whole look and feel (concept, type, colour, hero,
+ * rhythm, cards, buttons, motion, photography language) and nothing else, so
+ * the answer is short and finishes quickly. The picture list is a second call
+ * that can see these decisions. Terra then reviews this proposal.
+ */
+async function authorCoreDirection(input: {
   organizationId: string;
   facts: DnaFacts;
   brief: SiteBrief;
   creative: FirstBuildCreativeDirection;
   signal?: AbortSignal;
-}): Promise<{
-  creative: FirstBuildCreativeDirection;
-  changed: boolean;
-  passes: CollectivePassRecord[];
-}> {
+}): Promise<CreativeStepResult> {
   const passes: CollectivePassRecord[] = [];
   const facts = factSheet(input.facts, input.brief, input.creative);
   const current = creativeSheet(input.creative);
-  const vocabulary = JSON.stringify(
-    {
-      briefFields: [
-        "concept",
-        "personality",
-        "typography",
-        "color",
-        "heroComposition",
-        "sectionRhythm",
-        "density",
-        "cardLanguage",
-        "ctaLanguage",
-        "backgroundTreatment",
-        "shapeLanguage",
-        "motion",
-        "mobileStrategy",
-        "conversionStrategy",
-        "industryConventions",
-        "photography",
-        "imageInventory",
-      ],
-    },
-    null,
-    2,
-  );
+  const vocabulary = JSON.stringify({ briefFields: [...CORE_BRIEF_FIELDS] }, null, 2);
 
   const solCall = await callBestThinker({
     json: true,
     purpose: "creative_direction",
     complexity: "high",
     organizationId: input.organizationId,
-    maxOutputTokens: 8000,
+    maxOutputTokens: CORE_DIRECTION_TOKENS,
+    stage: "design_direction",
     ...(input.signal ? { signal: input.signal } : {}),
     system: `${CREATIVE_RULES} You are Sol, the master creative director. Improve the design strategy so it can materially shape layout, imagery and section composition across every page. ${creativeQualityPrompt(input.creative.brief.qualityMatrix)} ${craftBarPrompt("creative_direction")}`,
     user: [
@@ -579,16 +663,14 @@ async function refineCreativeWithCollective(input: {
       "Return JSON with one key: brief. Include only decisions you authored for this site.",
       "Describe every creative decision in your own words; no platform style vocabulary is supplied.",
       "brief.concept is required. Author typography, color, heroComposition, sectionRhythm, density, cardLanguage, ctaLanguage, backgroundTreatment, shapeLanguage, motion, mobileStrategy, conversionStrategy, industryConventions and photography as your own words.",
-      `brief.imageInventory must be a page-aware picture campaign that gives EVERY page of the site real photography on the first build: one hero picture for the home page, one picture for each real service (${(input.facts.services ?? []).length || "each"} service${(input.facts.services ?? []).length === 1 ? "" : "s"}), one for the about/story page, and one for each other page you plan — at least 5 pictures, at most 28 for generation cost. An empty or thin campaign is refused.`,
-      "Each picture's section array names the exact section roles it belongs to (for example [\"hero\"], [\"services\"], [\"story\"], [\"process\"]). Invent a short lowercase-hyphenated semantic slot for each image; there is no slot catalogue. Each item: slot, label, purpose, subject, environment, action, lighting, camera, framing, focalPoint and negativeSpace (your own words), aspectRatio (any positive ratio written like width:height), palette, mood, section (array of exact intended section roles), mobileCrop, altText, and serviceName (only for a picture of one real service: that service's name exactly as supplied; omit it otherwise).",
-      "Every picture must have a distinct job in the final site. Generated images are marketing visuals, never staff, customer proof, completed-work evidence, reviews, awards or results.",
+      "Do NOT write the picture list or shot list in this answer: you will plan the picture campaign next, once this look is decided. brief.photography is the campaign's visual language (light, environment, treatment), not individual pictures.",
     ].join("\n"),
   });
 
   let proposal: Record<string, unknown> | null = null;
   if (!solCall.ok) {
     // Sol could not author creative direction. Recorded as unused; the caller
-    // stops a first build rather than ship the baseline.
+    // repairs what is missing and stops a first build rather than ship the baseline.
     console.warn("[collective-first-build] Sol creative direction failed.");
     passes.push(
       record(solCall.tier ?? "hall_of_fame", "creative_direction", {
@@ -598,7 +680,8 @@ async function refineCreativeWithCollective(input: {
         skipped: solCall.detail ?? solCall.reason,
         acceptedFields: [],
       }),
-    );    return { creative: input.creative, changed: false, passes };
+    );
+    return { creative: input.creative, changed: false, passes };
   }
 
   proposal = parseCreativeProposal(solCall.text);
@@ -643,22 +726,6 @@ async function refineCreativeWithCollective(input: {
     // Terra could not review. Accept Sol's direction without review rather
     // than stopping the build.
     console.warn("[collective-first-build] Terra review failed; accepting Sol's direction unreviewed.");
-    const gated = reviewCreativeProposal({ proposal, facts: input.facts, baseline: input.creative });
-    const acceptedFields = Object.keys(gated.accepted.brief ?? {}).map((key) => `brief.${key}`);
-    const solPass = passes.find((pass) => pass.purpose === "creative_direction");
-    if (solPass) {
-      solPass.acceptedFields = acceptedFields;
-      solPass.rejected = gated.rejected;
-      solPass.used = acceptedFields.length > 0;
-    }
-    if (acceptedFields.length) {
-      return {
-        creative: mergeCreativeRefinement(input.creative, gated.accepted),
-        changed: true,
-        passes,
-      };
-    }
-    return { creative: input.creative, changed: false, passes };
   } else {
     const parsed = parseReview(terraCall.text);
     passes.push(
@@ -673,11 +740,7 @@ async function refineCreativeWithCollective(input: {
     );
   }
 
-  const gated = reviewCreativeProposal({
-    proposal,
-    facts: input.facts,
-    baseline: input.creative,
-  });
+  const gated = reviewCreativeProposal({ proposal, facts: input.facts, baseline: input.creative });
   const acceptedFields = Object.keys(gated.accepted.brief ?? {}).map((key) => `brief.${key}`);
   const solPass = passes.find((pass) => pass.purpose === "creative_direction");
   if (solPass) {
@@ -697,6 +760,92 @@ async function refineCreativeWithCollective(input: {
     changed: true,
     passes,
   };
+}
+
+/**
+ * Sol's second call: the picture campaign (every picture the site needs, one
+ * job each) and the shot list that makes them read as one set, planned with
+ * the look from the first call in front of it. Same deterministic claim gate
+ * as every other creative field.
+ */
+async function authorPictureCampaign(input: {
+  organizationId: string;
+  facts: DnaFacts;
+  brief: SiteBrief;
+  creative: FirstBuildCreativeDirection;
+  signal?: AbortSignal;
+}): Promise<CreativeStepResult> {
+  const passes: CollectivePassRecord[] = [];
+  const serviceCount = (input.facts.services ?? []).length;
+  // Sol's own decisions from the first call, handed back so the pictures belong
+  // to the look it chose. Nothing here is supplied by the platform: these
+  // fields were authored by Sol and passed the same safety gate.
+  const authoredBrief = input.creative.brief as unknown as Record<string, unknown>;
+  const decided = JSON.stringify(
+    Object.fromEntries(LOOK_FIELDS_FOR_PICTURES.map((field) => [field, authoredBrief[field]])),
+    null,
+    2,
+  );
+
+  const solCall = await callBestThinker({
+    json: true,
+    purpose: "creative_direction",
+    complexity: "high",
+    organizationId: input.organizationId,
+    maxOutputTokens: PICTURE_CAMPAIGN_TOKENS,
+    stage: "picture_campaign",
+    ...(input.signal ? { signal: input.signal } : {}),
+    system: `${CREATIVE_RULES} You are Sol, the master creative director, planning this site's cinematic picture campaign. ${craftBarPrompt("creative_direction")}`,
+    user: [
+      "FACTS (truth source, not copy to invent from):",
+      factSheet(input.facts, input.brief, input.creative),
+      "",
+      "THE LOOK YOU HAVE ALREADY DECIDED FOR THIS SITE (the pictures must belong to it):",
+      decided,
+      "",
+      "Return JSON with one key: brief, holding exactly two fields: imageInventory and shotList.",
+      `brief.imageInventory must be a page-aware picture campaign that gives EVERY page of the site real photography on the first build: a photographic trade (vehicles, places, products, detailing) gets 3-4 atmospheric frames of one subject for the home page so it can open as a scrub_sequence; other home pages get one hero, or 2-4 frames when a scroll-scrubbed opening is the right one. Then one picture for each real service (${serviceCount || "each"} service${serviceCount === 1 ? "" : "s"}), one for the about/story page, and one for each other page you plan — at least ${MIN_FIRST_BUILD_PICTURES} pictures, at most 28 for generation cost. Hero-sequence frames share the section role "hero" and distinct slots. An empty or thin campaign is refused.`,
+      "Each picture's section array names the exact section roles it belongs to (for example [\"hero\"], [\"services\"], [\"story\"], [\"process\"]). Invent a short lowercase-hyphenated semantic slot for each image; there is no slot catalogue. Each item: slot, label, purpose, subject, environment, action, lighting, camera, framing, focalPoint and negativeSpace (your own words), aspectRatio (any positive ratio written like width:height), palette, mood, section (array of exact intended section roles), mobileCrop, altText, and serviceName (only for a picture of one real service: that service's name exactly as supplied; omit it otherwise).",
+      "Every picture must have a distinct job in the final site. Generated images are marketing visuals, never staff, customer proof, completed-work evidence, reviews, awards or results.",
+      REVIEWER_AWARE_FRAMING,
+      "brief.shotList is your art-direction shot list so every picture on the site reads as one coherent campaign: {\"continuity\": \"the thread shared by every picture (time of day, colour grade, lens family)\", \"sections\": [{\"section\": \"exact section role, matching imageInventory section entries\", \"setting\": \"...\", \"light\": \"...\", \"cameraAngle\": \"...\", \"mood\": \"...\", \"paletteTieIn\": \"how the picture's colours tie into the site palette and its accent\", \"copySpace\": \"where the frame leaves calm space for overlaid headline copy\"}]}. One entry per section role that carries a picture, at most 16. Your own words for this business; describe places, light and framing only — never people, results, reviews or claims.",
+    ].join("\n"),
+  });
+
+  if (!solCall.ok) {
+    console.warn("[collective-first-build] Sol picture campaign failed.");
+    passes.push(
+      record(solCall.tier ?? "hall_of_fame", "picture_campaign", {
+        skipped: solCall.detail ?? solCall.reason,
+      }),
+    );
+    return { creative: input.creative, changed: false, passes };
+  }
+  const proposal = parseCreativeProposal(solCall.text);
+  const gated = reviewCreativeProposal({ proposal, facts: input.facts, baseline: input.creative });
+  // Only the campaign fields count from this call, whatever else the model added.
+  const accepted: CreativeRefinement = {
+    brief: Object.fromEntries(
+      Object.entries(gated.accepted.brief ?? {}).filter(([key]) => (CAMPAIGN_BRIEF_FIELDS as readonly string[]).includes(key)),
+    ) as CreativeBriefPatch,
+  };
+  const acceptedFields = Object.keys(accepted.brief ?? {}).map((key) => `brief.${key}`);
+  passes.push(
+    record(solCall.tier ?? "hall_of_fame", "picture_campaign", {
+      model: solCall.model,
+      used: acceptedFields.length > 0,
+      costMicrocents: solCall.costMicrocents,
+      skipped: acceptedFields.length
+        ? null
+        : proposal === null
+          ? "the answer was not in the agreed shape"
+          : "no picture or shot-list entry survived the safety check",
+      acceptedFields,
+      rejected: gated.rejected,
+    }),
+  );
+  if (!acceptedFields.length) return { creative: input.creative, changed: false, passes };
+  return { creative: mergeCreativeRefinement(input.creative, accepted), changed: true, passes };
 }
 
 /** The typography fields a first build cannot ship without. */
@@ -815,6 +964,76 @@ async function repairColor(input: {
   };
 }
 
+/** Fewest AI-authored pictures a first build may plan (hero plus supporting pages). */
+export const MIN_FIRST_BUILD_PICTURES = 5;
+
+/**
+ * The picture campaign and layout direction a first build cannot ship without.
+ * Blank seeded picture slots (no subject) do not count as a campaign.
+ */
+export function missingVisualCampaign(brief: CreativeBrief): string[] {
+  const missing: string[] = [];
+  const authored = (brief.imageInventory ?? []).filter((item) => item.subject?.trim() && item.altText?.trim());
+  if (authored.length < MIN_FIRST_BUILD_PICTURES) missing.push("imageInventory");
+  if (!brief.heroComposition?.trim()) missing.push("heroComposition");
+  if (!brief.sectionRhythm?.trim()) missing.push("sectionRhythm");
+  if (!brief.backgroundTreatment?.trim()) missing.push("backgroundTreatment");
+  if (!brief.photography?.language?.trim()) missing.push("photography");
+  return missing;
+}
+
+/** One AI pass that authors only the missing picture campaign and layout direction, through the same gate. */
+async function repairVisualCampaign(input: {
+  organizationId: string;
+  facts: DnaFacts;
+  brief: SiteBrief;
+  creative: FirstBuildCreativeDirection;
+  missing: string[];
+  signal?: AbortSignal;
+}): Promise<{ creative: FirstBuildCreativeDirection | null; pass: CollectivePassRecord }> {
+  const serviceCount = (input.facts.services ?? []).length;
+  const call = await callBestThinker({
+    json: true,
+    purpose: "creative_direction",
+    complexity: "high",
+    organizationId: input.organizationId,
+    maxOutputTokens: 4500,
+    stage: "picture_campaign_repair",
+    ...(input.signal ? { signal: input.signal } : {}),
+    system: `${CREATIVE_RULES} You are Sol, the master creative director, completing this site's cinematic picture campaign and layout direction. ${craftBarPrompt("creative_direction")}`,
+    user: [
+      "FACTS (truth source, not copy to invent from):",
+      factSheet(input.facts, input.brief, input.creative),
+      "",
+      "CURRENT CREATIVE DIRECTION:",
+      creativeSheet(input.creative),
+      "",
+      `Your brief is missing: ${input.missing.join(", ")}.`,
+      'Return JSON: {"brief": {"heroComposition": "...", "sectionRhythm": "...", "backgroundTreatment": "...", "photography": {"language": "...", "lighting": "...", "environment": "...", "treatment": "..."}, "imageInventory": [ ... ], "shotList": {"continuity": "...", "sections": [ ... ]}}}',
+      "heroComposition: an image-led, full-bleed opening (never a text-only hero). sectionRhythm: how full-width photographic scenes alternate with tighter content bands across pages. backgroundTreatment: how surfaces, photography and colour bands sit edge to edge.",
+      `imageInventory: at least ${MIN_FIRST_BUILD_PICTURES} and at most 12 pictures. A photographic trade gets 3-4 atmospheric frames of one subject for the home page (section role "hero", distinct slots) so it can open as a scrub_sequence; otherwise one hero. Then one picture per real service (${serviceCount || "each"}), one for the about/story page, plus process/booking/contact scenes. Each item: slot (short lowercase-hyphenated), label, purpose, subject, environment, action, lighting, camera, framing, focalPoint, negativeSpace, aspectRatio (like 16:9), palette, mood, section (array of section roles such as ["hero"], ["services"], ["story"], ["process"], ["booking"]), mobileCrop, altText, and serviceName only when it shows exactly one supplied service.`,
+      "Generated pictures are marketing visuals of places, vehicles, tools and light — never staff, customers, completed-work proof, before/after, reviews, awards or results.",
+      REVIEWER_AWARE_FRAMING,
+      "shotList.sections: one entry per picture-carrying section role: section, setting, light, cameraAngle, mood, paletteTieIn, copySpace.",
+    ].join("\n"),
+  });
+  if (!call.ok)
+    return { creative: null, pass: record(call.wanted, "creative_direction", { skipped: call.detail ?? call.reason }) };
+  const proposal = parseCreativeProposal(call.text);
+  const gated = reviewCreativeProposal({ proposal, facts: input.facts, baseline: input.creative });
+  const accepted = gated.accepted.brief ?? {};
+  const fields = Object.keys(accepted).map((key) => `brief.${key}`);
+  const pass = record(call.tier ?? "hall_of_fame", "creative_direction", {
+    model: call.model,
+    used: fields.length > 0,
+    costMicrocents: call.costMicrocents,
+    skipped: fields.length ? null : "the picture campaign repair was not in the agreed shape",
+    acceptedFields: fields,
+    rejected: gated.rejected,
+  });
+  return { creative: fields.length ? mergeCreativeRefinement(input.creative, { brief: accepted }) : null, pass };
+}
+
 /** The identity fields a first build cannot ship without (the design contract requires a concept). */
 export function missingConcept(brief: CreativeBrief): string[] {
   return brief.concept?.trim() ? [] : ["concept"];
@@ -887,6 +1106,10 @@ export async function refineFirstBuildWithCollective(input: {
   /** New first builds fail rather than preserving detected stock copy after repair. */
   hardGenericityGate?: boolean;
   signal?: AbortSignal;
+  /** Tells the owner which step is running. Cosmetic: never affects the build. */
+  onStep?: CollectiveStepReporter;
+  /** The job's saved early-stage work, so a retry resumes at the step that failed. */
+  checkpoints?: CollectiveCheckpoints;
 }): Promise<CollectiveFirstBuild> {
   const passes: CollectivePassRecord[] = [];
   let creative = input.creative;
@@ -894,87 +1117,168 @@ export async function refineFirstBuildWithCollective(input: {
   let creativeChanged = false;
   let copyChanged = false;
 
-  const creativeResult = await refineCreativeWithCollective({
-    organizationId: input.organizationId,
-    facts: input.facts,
-    brief: input.brief,
-    creative,
-    ...(input.signal ? { signal: input.signal } : {}),
-  });
-  creative = creativeResult.creative;
-  creativeChanged = creativeResult.changed;
-  passes.push(...creativeResult.passes);
+  const report = (label: string) => {
+    try {
+      input.onStep?.(label);
+    } catch {
+      /* cosmetic only */
+    }
+  };
+  type CreativeSnapshot = { creative: FirstBuildCreativeDirection; changed: boolean; passes: CollectivePassRecord[] };
+  const snapshotInputs = { facts: input.facts, brief: input.brief, creative: input.creative };
+  const saveSnapshot = async (key: string, creativePasses: CollectivePassRecord[]) => {
+    if (!input.checkpoints) return;
+    await input.checkpoints.put(key, snapshotInputs, { creative, changed: creativeChanged, passes: creativePasses } satisfies CreativeSnapshot);
+  };
 
-  // Typography is the AI's decision. A brief without a display face, a body
-  // face and a type scale gets ONE repair pass naming what is missing; if the
-  // team still cannot author it, the build stops. No font is ever defaulted.
-  const missingType = missingTypography(creative.brief);
-  if (missingType.length) {
-    const repaired = await repairTypography({
+  // Everything the design team authors about the look and the pictures, in two
+  // short calls with saved checkpoints. The one long request this used to be
+  // (look and a 28-picture campaign together) outran the gateway's edge limit
+  // on a slow model, and every retry started over from the first word.
+  const creativePasses: CollectivePassRecord[] = [];
+  const resumedDirection = input.checkpoints
+    ? await input.checkpoints.get<CreativeSnapshot>("creative-direction", snapshotInputs)
+    : null;
+  if (resumedDirection) {
+    creative = resumedDirection.creative;
+    creativeChanged = resumedDirection.changed;
+    creativePasses.push(...resumedDirection.passes);
+  } else {
+    const resumedCore = input.checkpoints
+      ? await input.checkpoints.get<CreativeSnapshot>("creative-core", snapshotInputs)
+      : null;
+    if (resumedCore) {
+      creative = resumedCore.creative;
+      creativeChanged = resumedCore.changed;
+      creativePasses.push(...resumedCore.passes);
+    } else {
+      report("planning your design direction");
+      const coreResult = await authorCoreDirection({
+        organizationId: input.organizationId,
+        facts: input.facts,
+        brief: input.brief,
+        creative,
+        ...(input.signal ? { signal: input.signal } : {}),
+      });
+      creative = coreResult.creative;
+      creativeChanged = coreResult.changed;
+      creativePasses.push(...coreResult.passes);
+
+      // Typography is the AI's decision. A brief without a display face, a body
+      // face and a type scale gets ONE repair pass naming what is missing; if the
+      // team still cannot author it, the build stops. No font is ever defaulted.
+      const missingType = missingTypography(creative.brief);
+      if (missingType.length) {
+        report("choosing your typography");
+        const repaired = await repairTypography({
+          organizationId: input.organizationId,
+          facts: input.facts,
+          brief: input.brief,
+          creative,
+          missing: missingType,
+          ...(input.signal ? { signal: input.signal } : {}),
+        });
+        creativePasses.push(repaired.pass);
+        if (repaired.creative) {
+          creative = repaired.creative;
+          creativeChanged = true;
+        }
+        const stillMissing = missingTypography(creative.brief);
+        if (stillMissing.length)
+          throw new Error(
+            `The AI design team did not choose this site's typography (missing ${stillMissing.join(", ")}). The build stopped so it can be retried; Revora never fills in a default font.`,
+          );
+      }
+
+      // The visual concept anchors the design contract. When the creative pass
+      // left it out (often a timed-out provider), one repair pass names it; if
+      // the team still cannot, the build stops rather than inventing one.
+      if (missingConcept(creative.brief).length) {
+        report("naming your visual concept");
+        const repaired = await repairConcept({
+          organizationId: input.organizationId,
+          facts: input.facts,
+          brief: input.brief,
+          creative,
+          ...(input.signal ? { signal: input.signal } : {}),
+        });
+        creativePasses.push(repaired.pass);
+        if (repaired.creative) {
+          creative = repaired.creative;
+          creativeChanged = true;
+        }
+        if (missingConcept(creative.brief).length)
+          throw new Error(
+            "The AI design team did not name this site's visual concept (the AI providers did not answer in time). The build stopped so it can be retried; Revora never fills in a stock concept.",
+          );
+      }
+
+      // Colour is the AI's decision too: one repair pass, then the build stops
+      // rather than shipping the renderer's plain light default.
+      const missingPalette = missingColor(creative.brief);
+      if (missingPalette.length) {
+        report("choosing your colours");
+        const repaired = await repairColor({
+          organizationId: input.organizationId,
+          facts: input.facts,
+          brief: input.brief,
+          creative,
+          missing: missingPalette,
+          ...(input.signal ? { signal: input.signal } : {}),
+        });
+        creativePasses.push(repaired.pass);
+        if (repaired.creative) {
+          creative = repaired.creative;
+          creativeChanged = true;
+        }
+        const stillMissing = missingColor(creative.brief);
+        if (stillMissing.length)
+          throw new Error(
+            `The AI design team did not choose this site's colours (missing ${stillMissing.join(", ")}). The build stopped so it can be retried; Revora never fills in a default palette.`,
+          );
+      }
+      await saveSnapshot("creative-core", creativePasses);
+    }
+
+    // The picture campaign and layout direction are the AI's decision too.
+    report("planning your picture campaign");
+    const campaignResult = await authorPictureCampaign({
       organizationId: input.organizationId,
       facts: input.facts,
       brief: input.brief,
       creative,
-      missing: missingType,
       ...(input.signal ? { signal: input.signal } : {}),
     });
-    passes.push(repaired.pass);
-    if (repaired.creative) {
-      creative = repaired.creative;
-      creativeChanged = true;
-    }
-    const stillMissing = missingTypography(creative.brief);
-    if (stillMissing.length)
-      throw new Error(
-        `The AI design team did not choose this site's typography (missing ${stillMissing.join(", ")}). The build stopped so it can be retried; Revora never fills in a default font.`,
-      );
-  }
+    creative = campaignResult.creative;
+    creativeChanged = creativeChanged || campaignResult.changed;
+    creativePasses.push(...campaignResult.passes);
 
-  // The visual concept anchors the design contract. When the creative pass
-  // left it out (often a timed-out provider), one repair pass names it; if
-  // the team still cannot, the build stops rather than inventing one.
-  if (missingConcept(creative.brief).length) {
-    const repaired = await repairConcept({
-      organizationId: input.organizationId,
-      facts: input.facts,
-      brief: input.brief,
-      creative,
-      ...(input.signal ? { signal: input.signal } : {}),
-    });
-    passes.push(repaired.pass);
-    if (repaired.creative) {
-      creative = repaired.creative;
-      creativeChanged = true;
+    // Anything still missing (the campaign call failed or came back thin) gets
+    // one smaller repair pass; the build stops rather than ship without pictures.
+    const missingVisual = missingVisualCampaign(creative.brief);
+    if (missingVisual.length) {
+      report("planning your picture campaign (second pass)");
+      const repaired = await repairVisualCampaign({
+        organizationId: input.organizationId,
+        facts: input.facts,
+        brief: input.brief,
+        creative,
+        missing: missingVisual,
+        ...(input.signal ? { signal: input.signal } : {}),
+      });
+      creativePasses.push(repaired.pass);
+      if (repaired.creative) {
+        creative = repaired.creative;
+        creativeChanged = true;
+      }
+      if (missingVisualCampaign(creative.brief).includes("imageInventory"))
+        throw new Error(
+          "The AI design team did not plan this site's pictures (the AI providers did not answer in time). The build stopped so it can be retried from its saved design direction; Revora never ships a site without its picture campaign.",
+        );
     }
-    if (missingConcept(creative.brief).length)
-      throw new Error(
-        "The AI design team did not name this site's visual concept (the AI providers may be busy). The build stopped so it can be retried; Revora never fills in a stock concept.",
-      );
+    await saveSnapshot("creative-direction", creativePasses);
   }
-
-  // Colour is the AI's decision too: one repair pass, then the build stops
-  // rather than shipping the renderer's plain light default.
-  const missingPalette = missingColor(creative.brief);
-  if (missingPalette.length) {
-    const repaired = await repairColor({
-      organizationId: input.organizationId,
-      facts: input.facts,
-      brief: input.brief,
-      creative,
-      missing: missingPalette,
-      ...(input.signal ? { signal: input.signal } : {}),
-    });
-    passes.push(repaired.pass);
-    if (repaired.creative) {
-      creative = repaired.creative;
-      creativeChanged = true;
-    }
-    const stillMissing = missingColor(creative.brief);
-    if (stillMissing.length)
-      throw new Error(
-        `The AI design team did not choose this site's colours (missing ${stillMissing.join(", ")}). The build stopped so it can be retried; Revora never fills in a default palette.`,
-      );
-  }
+  passes.push(...creativePasses);
 
   const sheet = factSheet(input.facts, input.brief, creative);
 
@@ -1012,6 +1316,7 @@ export async function refineFirstBuildWithCollective(input: {
   ].join("\n");
 
   /* -------------------------------- 1. Sol -------------------------------- */
+  report("writing your wording");
   let solCall = await callBestThinker({
     json: true,
     purpose: "content_strategy",

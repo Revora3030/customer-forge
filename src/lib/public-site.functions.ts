@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { createClient } from "@supabase/supabase-js";
+import { isAutomatedUserAgent } from "@/lib/automated-traffic";
 import type { Database } from "@/integrations/supabase/types";
 // Type-only import: erased at build time, so nothing server-only ships to the client.
 import type { loadSite } from "@/lib/public-site.server";
@@ -1124,6 +1125,8 @@ export const trackPublicEvent = createServerFn({ method: "POST" })
     },
   )
   .handler(async ({ data }) => {
+    // Crawlers and monitors that run the page's script are not visitors.
+    if (isAutomatedUserAgent(getRequest().headers.get("user-agent"))) return { ok: false };
     const supabase = publicClient();
     const org = await publicOrganization(data.slug);
     if (!org?.id) return { ok: false };
@@ -1203,6 +1206,9 @@ export const recordSiteVitals = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) => {
     if (data.samples.length === 0) return { ok: false, recorded: 0 };
+    // Speed-test tools produce lab numbers, not what real visitors experienced.
+    if (isAutomatedUserAgent(getRequest().headers.get("user-agent")))
+      return { ok: false, recorded: 0, reason: "automated_traffic" as const };
     const supabase = publicClient();
     const org = await publicOrganization(data.slug);
     if (!org?.id) return { ok: false, recorded: 0 };

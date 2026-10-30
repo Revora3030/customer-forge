@@ -16,6 +16,7 @@
  * The AI team still replaces it with a bespoke composition on the next
  * redesign.
  */
+import { MODEL_COMPONENT_KIND } from "@/lib/site-models";
 import type { CompositionNode, CompositionTree } from "@/lib/builder/composition-tree";
 import { isSafeHref } from "@/lib/builder/composition-tree";
 import { safeParagraph, safeText } from "@/lib/builder/presentation";
@@ -60,6 +61,9 @@ function media(component: LegacyComponent, alt: string, aspect: string, radius: 
   if (!component.url) return null;
   // Renderer resolves the component's own (signed) URL through its media map.
   if (!SAFE_REF.test(component.id)) return null;
+  // The owner's uploaded 3D model gets its viewer, never an <img>.
+  if (component.kind === MODEL_COMPONENT_KIND)
+    return { type: "model_3d_viewer", mediaRef: component.id, text: (safeText(component.label) ?? "").slice(0, 60) || "Turn it around", alt: alt || "3D model", style: { radius } };
   return {
     type: "media",
     mediaRef: component.id,
@@ -102,7 +106,8 @@ export function legacySectionToComposition(section: LegacySection, options: { le
     .map((c, index) => action(c, index === 0))
     .filter((node): node is CompositionNode => node !== null);
   const cards = components.filter((c) => c.kind === "card" && (safeText(c.label) || safeText(c.body)));
-  if (!heading && !subheading && !body && !cards.length && !images.length) return null;
+  const models = components.filter((c) => c.kind === MODEL_COMPONENT_KIND && c.url);
+  if (!heading && !subheading && !body && !cards.length && !images.length && !models.length) return null;
 
   const isHero = section.kind === "hero" || options.lead === true;
   const copy: CompositionNode[] = [];
@@ -175,6 +180,12 @@ export function legacySectionToComposition(section: LegacySection, options: { le
         children: gallery,
       });
     }
+  }
+
+  // The owner's uploaded 3D models, each in its own viewer.
+  for (const model of models.slice(0, 2)) {
+    const viewer = media(model, safeText(model.label) ?? heading ?? "3D model", "4:3", 24);
+    if (viewer) blocks.push(viewer);
   }
 
   return {

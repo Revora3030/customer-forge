@@ -36,6 +36,13 @@ describe("capability registry", () => {
     expect(resolution.provider?.id).toBe("revora-native-fetch");
     expect(resolution.status).toBe("ready");
   });
+  it("requires Lovable credentials for AI instead of claiming a keyless free router", () => {
+    const router = PROVIDERS.find(provider => provider.id === "revora-ai-router");
+    expect(router).toBeDefined();
+    if (!router) throw new Error("AI router definition is missing");
+    expect(router.credentials).toEqual(["LOVABLE_API_KEY"]);
+    expect(router.cost).toBe("paid");
+  });
 
 
   it("never reports a capability as ready when no server code exists for it", async () => {

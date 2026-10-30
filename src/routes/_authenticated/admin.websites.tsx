@@ -1,5 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { toast } from "@/lib/ui/notify";
+import { releaseStuckGenerating } from "@/lib/website-review.functions";
 import { useState } from "react";
 import { ClipboardList } from "lucide-react";
 import { EmptyState, LoadingRows, Panel, Pill, SectionHeading } from "@/components/app/Bits";
@@ -69,6 +72,16 @@ const FILTERS = [
 function AdminWebsites() {
   const requests = useAllRequests();
   const states = useWebsiteStates();
+  const queryClient = useQueryClient();
+  const release = useServerFn(releaseStuckGenerating);
+  const releaseStuck = useMutation({
+    mutationFn: (organizationId: string) => release({ data: { organizationId } }),
+    onSuccess: (result) => {
+      toast.success(result.state === "ready_for_review" ? "Released for review." : "Returned to onboarding.");
+      void queryClient.invalidateQueries({ queryKey: ["admin_website_states"] });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
   const update = useUpdateWebsiteRequest();
   const [filter, setFilter] = useState("open");
   const [notesFor, setNotesFor] = useState<string | null>(null);
@@ -109,7 +122,20 @@ function AdminWebsites() {
                       /s/{org?.slug} · publish: {String(s.publish_state)}
                     </p>
                   </div>
-                  <Pill tone="neutral">{String(s.review_state ?? "onboarding")}</Pill>
+                  <div className="flex items-center gap-2">
+                    <Pill tone="neutral">{String(s.review_state ?? "onboarding")}</Pill>
+                    {s.review_state === "generating" ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={releaseStuck.isPending}
+                        onClick={() => releaseStuck.mutate(String(s.organization_id))}
+                      >
+                        Release stuck build
+                      </Button>
+                    ) : null}
+                  </div>
                 </li>
               );
             })}

@@ -9,6 +9,7 @@ import { AUTOMATION_RECIPES } from "@/lib/automation-engine";
 import { runDueAutomations } from "@/lib/automations.functions";
 import { queueAutomationEvent } from "@/lib/automation-queue.functions";
 import { setWebsiteReviewState } from "@/lib/website-review.functions";
+import { RESPONSE_KINDS } from "@/lib/speed-to-lead";
 
 /**
  * Client code can only queue automation steps — actual email/SMS delivery runs
@@ -550,6 +551,31 @@ export function useLeadActivities(organizationId: string | undefined, leadId: st
         .limit(50);
       if (error) throw error;
       return data;
+    },
+  });
+}
+
+/** Logged call/email/text contacts since a date, oldest first, so the earliest per lead is reliable. */
+export const FIRST_CONTACT_LIMIT = 1000;
+
+export function useLeadFirstContacts(organizationId: string | undefined, sinceIso: string) {
+  return useQuery({
+    queryKey: ["lead_activities", organizationId, "first-contacts", sinceIso.slice(0, 10)],
+    enabled: !!organizationId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("lead_activities")
+        .select("lead_id, kind, created_at")
+        .eq("organization_id", organizationId!)
+        .in("kind", [...RESPONSE_KINDS])
+        .gte("created_at", sinceIso)
+        .order("created_at", { ascending: true })
+        .limit(FIRST_CONTACT_LIMIT);
+      if (error) throw error;
+      const rows = data.flatMap((row) =>
+        row.lead_id ? [{ lead_id: row.lead_id, kind: row.kind, created_at: row.created_at }] : [],
+      );
+      return { rows, truncated: data.length >= FIRST_CONTACT_LIMIT };
     },
   });
 }

@@ -19,7 +19,7 @@ import {
   joinWithPortalCode,
   normalizePortalCode,
 } from "@/lib/portal.functions";
-import { canonicalLink, ogUrl } from "@/lib/seo";
+import { canonicalLink, ogUrl, OG_IMAGE_META } from "@/lib/seo";
 import { GROWTH_SYSTEM } from "@/lib/offer";
 
 type Search = { code?: string };
@@ -47,6 +47,7 @@ export const Route = createFileRoute("/portal")({
       { name: "robots", content: "noindex, follow" },
 
       ogUrl("/portal"),
+      ...OG_IMAGE_META,
     ],
     links: [canonicalLink("/portal")],
   }),

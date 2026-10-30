@@ -16,7 +16,8 @@ import { readSiteChrome } from "@/lib/builder/site-chrome";
 import { readCopy } from "@/lib/site-engine";
 import { readSeo } from "@/lib/site-seo";
 import { compositionFonts, siteFontsHref } from "@/lib/site-theme";
-import { metaDescription, metaTitle } from "@/lib/seo";
+import { faqPageSchema, metaDescription, metaTitle } from "@/lib/seo";
+import { compositionFaqItems } from "@/lib/builder/composition-faq";
 import { pageNavLabel } from "@/lib/website-content";
 
 type Profile = {
@@ -386,6 +387,7 @@ export function tenantSiteHead(input: {
     readSiteChrome,
   );
   const noindex = input.noindex === true || page?.noindex === true;
+  const faqs = compositionFaqItems(sections ?? []);
 
   return {
     meta: [
@@ -406,7 +408,7 @@ export function tenantSiteHead(input: {
       ...(noindex ? [{ name: "robots", content: "noindex" }] : []),
       ...extras.meta,
     ],
-    scripts: extras.scripts,
+    scripts: [...extras.scripts, ...(faqs.length ? [{ type: "application/ld+json", children: safeJsonLd(faqPageSchema(faqs)) }] : [])],
     links: [{ rel: "canonical", href: input.canonical }, ...extras.links],
   };
 }

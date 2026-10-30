@@ -6,6 +6,7 @@
  * unpublished draft may be served, which the caller states explicitly.
  */
 import { customerBusinessEmail, sanitizeServices } from "@/lib/builder/intake-sanitize";
+import { MODEL_BUCKET, isModelPath, isOrgModelPath } from "@/lib/site-models";
 import { createClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/integrations/supabase/types";
 import { safeLinkUrl } from "@/lib/website-content";
@@ -328,7 +329,7 @@ export async function loadSite(
   }
 
   // Photos live in a private bucket, so pages get short-lived signed URLs.
-  const { MEDIA_BUCKET, SIGNED_URL_TTL_SECONDS, isStoragePath } = await import("@/lib/media");
+  const { MEDIA_BUCKET, SIGNED_URL_TTL_SECONDS, isStoragePath, isOrgStoragePath } = await import("@/lib/media");
   const gallery = galleryRows.data ?? [];
   const profileRow = profile.data;
 
@@ -481,12 +482,24 @@ export async function loadSite(
     profileRow?.hero_image_url ?? null,
     currentPage?.og_image_url ?? null,
     ...componentRows.map((row) => row.media_url),
-  ].filter((value): value is string => typeof value === "string" && isStoragePath(value));
+  ].filter(
+    (value): value is string =>
+      typeof value === "string" && isStoragePath(value) && isOrgStoragePath(value, orgId),
+  );
 
   const signed = new Map<string, string>();
-  if (toSign.length) {
+  // Owner 3D models live in their own private bucket.
+  const modelPaths = [...new Set(toSign.filter((path) => isOrgModelPath(path, orgId)))];
+  if (modelPaths.length) {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const uniquePaths = [...new Set(toSign)];
+    const { data: urls, error: modelError } = await supabaseAdmin.storage.from(MODEL_BUCKET).createSignedUrls(modelPaths, SIGNED_URL_TTL_SECONDS);
+    if (modelError) console.error("[public-site] 3D models could not be signed", { organizationId: orgId, count: modelPaths.length, message: modelError.message });
+    for (const entry of urls ?? []) if (entry.path && entry.signedUrl) signed.set(entry.path, entry.signedUrl);
+  }
+  const picturePaths = toSign.filter((path) => !isModelPath(path));
+  if (picturePaths.length) {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const uniquePaths = [...new Set(picturePaths)];
     const { data: urls, error: signingError } = await supabaseAdmin.storage
       .from(MEDIA_BUCKET)
       .createSignedUrls(uniquePaths, SIGNED_URL_TTL_SECONDS);

@@ -21,10 +21,10 @@ describe("Jarvis for visitors", () => {
     expect(prompt).toContain("Never ask for passwords or card details");
   });
 
-  it("runs on free models only, rate-limited, and is mounted on every marketing page", () => {
+  it("runs on the paid team under the shared caps, rate-limited, and is mounted on every marketing page", () => {
     const fns = readFileSync("src/lib/visitor-jarvis.functions.ts", "utf8");
-    expect(fns).toContain("freeOnly: true");
-    expect(fns).toContain("if (!allow(visitorKey()))");
+    expect(fns).not.toContain("freeOnly");
+    expect(fns).toContain("if (!allow(key) || !(await durableAllow(key)))");
     expect(readFileSync("src/components/marketing/Chrome.tsx", "utf8")).toContain("<VisitorJarvis />");
   });
 });

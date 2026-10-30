@@ -90,6 +90,7 @@ describe("no third-party AI gateway remains", () => {
       // Catalogue and roster tests stub the key with fake values.
       "ai/catalogue.test.ts",
       "ai/roster-catalogue.test.ts",
+      "ai/reviewer-roster.test.ts",
       // The router's keyed Lovable paid provider and its unit tests.
       "ai/config.ts",
       "ai/providers/lovable.ts",
@@ -97,6 +98,7 @@ describe("no third-party AI gateway remains", () => {
       "ai/luna.server.ts",
       "ai/collective.test.ts",
       "ai/luna.test.ts",
+      "ai/paid-image.server.test.ts",
       "ai/router.server.ts",
       "ai/provider-test-environment",
       "ai/lovable-provider.test.ts",
@@ -113,6 +115,8 @@ describe("no third-party AI gateway remains", () => {
       // through the connector gateway; it returns research links, never model
       // output, and its results are marked third-party research.
       "integrations/research.server.ts",
+      // Verifies the client-safe capability registry declares the managed key name, never its value.
+      "integrations/registry.test.ts",
       // Semrush keyword data for SEO reviewers, via the connector gateway; no model.
       "builder/review-evidence.server.ts",
       // Calendly booking options for Revora's contact page, via the connector gateway; no model.

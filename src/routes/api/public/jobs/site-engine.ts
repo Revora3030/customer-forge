@@ -24,8 +24,9 @@ async function handle(request: Request): Promise<Response> {
   const { drainSiteEngineQueue } = await import("@/lib/site-engine.worker.server");
 
   const run = drainSiteEngineQueue(supabaseAdmin as never, {
-    // One long-lived request per build; do not pile several multi-minute
-    // builds behind the same HTTP request or override an operator pause.
+    // One build slice per request (RUN_BUDGET_MS); a slice that hands back
+    // asks for the next run itself. Never pile several builds behind one
+    // request or override an operator pause.
     max: 1,
     invoker,
     ...(organizationId ? { organizationId } : {}),

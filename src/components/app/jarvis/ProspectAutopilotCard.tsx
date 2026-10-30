@@ -263,6 +263,10 @@ export function ProspectAutopilotCard({ className }: { className?: string }) {
               <Label htmlFor="autopilot-sms" className="text-xs">Text opted-in numbers</Label>
               <Switch id="autopilot-sms" checked={draft.sendSms} onCheckedChange={(sendSms) => update({ sendSms })} />
             </div>
+            <div className="flex min-h-11 items-center justify-between gap-2 sm:flex-col sm:items-start">
+              <Label htmlFor="autopilot-pitch" className="text-xs">Pitch first, build after reply</Label>
+              <Switch id="autopilot-pitch" checked={draft.pitchFirst} onCheckedChange={(pitchFirst) => update({ pitchFirst })} />
+            </div>
           </div>
 
           <div className="flex flex-wrap gap-2">

@@ -666,3 +666,84 @@ describe("legacy demo re-verification", () => {
     expect(failed.skipped).toContainEqual({ reason: "legacy_reverify_failed: dns down" });
   });
 });
+
+describe("pitch-first mode", () => {
+  const shellMarker = (extra: Row = {}) => ({ prospectDemo: { kind: "prospect_demo", createdAt: "2026-10-18T00:00:00Z", source: "autopilot", pitchFirst: true, ...extra } });
+
+  it("verifies a public OSM email and preserves its exact listing before creating a pitch shell", async () => {
+    const { db } = seed({ prospect_autopilot_settings: [settings({ pitch_first: true })] });
+    mocks.findProspects.mockResolvedValue({ prospects: [{ ...prospect({ placeId: "osm:node/42" }), email: "Owner@shine.com" }] });
+    await runProspectAutopilot(db, { now: () => NOW });
+    expect(mocks.provisionProspectDemo).toHaveBeenCalledWith(db, expect.objectContaining({ email: "owner@shine.com" }), OWNER,
+      expect.objectContaining({ pitchFirst: true, enrichment: expect.objectContaining({ email: "owner@shine.com", status: "verified", source: "public_listing", sourceUrl: "https://www.openstreetmap.org/node/42" }) }));
+    expect(mocks.fetch).toHaveBeenCalled();
+  });
+
+  it("rejects a suppressed public-listing email before creating or emailing a pitch shell", async () => {
+    const { db } = seed({ prospect_autopilot_settings: [settings({ pitch_first: true })] });
+    mocks.findProspects.mockResolvedValue({ prospects: [{ ...prospect({ placeId: "osm:node/42" }), email: "owner@shine.com" }] });
+    mocks.isDoNotContact.mockImplementation(async (_db: unknown, value: string) => value === "owner@shine.com");
+    const result = await runProspectAutopilot(db, { now: () => NOW });
+    expect(mocks.provisionProspectDemo).not.toHaveBeenCalled();
+    expect(result.skipped).toContainEqual(expect.objectContaining({ reason: "email_rejected: do_not_contact" }));
+    expect(mocks.sendDemoOutreach).not.toHaveBeenCalled();
+  });
+
+  it("records a failed directory search explicitly instead of reporting successful empty discovery", async () => {
+    const { db } = seed();
+    mocks.findProspects.mockRejectedValue(new Error("OpenStreetMap discovery is unavailable"));
+    const result = await runProspectAutopilot(db, { now: () => NOW });
+    expect(result.skipped).toContainEqual(expect.objectContaining({ reason: "search_failed: OpenStreetMap discovery is unavailable" }));
+    expect(mocks.provisionProspectDemo).not.toHaveBeenCalled();
+  });
+
+  it("is off by default and validates, describes and saves like any other switch", async () => {
+    expect(readAutopilotSettings(null).pitchFirst).toBe(false);
+    expect(readAutopilotSettings({ pitch_first: true }).pitchFirst).toBe(true);
+    expect(parseAutopilotPatch({ pitchFirst: true })).toEqual({ pitchFirst: true });
+    expect(() => parseAutopilotPatch({ pitchFirst: "yes" })).toThrow(/true or false/);
+    expect(describeAutopilotPatch({ pitchFirst: true })).toMatch(/text pitch first and build the demo only after the owner replies/);
+    expect(describeAutopilotPatch({ pitchFirst: false })).toMatch(/build the demo first/i);
+
+    const { db, tables } = seed();
+    await saveAutopilotSettings(db, { dailyBuildCap: 3 }, OWNER);
+    expect(tables["prospect_autopilot_settings"]![0]).not.toHaveProperty("pitch_first");
+    await saveAutopilotSettings(db, { pitchFirst: true }, OWNER);
+    expect(tables["prospect_autopilot_settings"]![0]).toMatchObject({ pitch_first: true });
+  });
+
+  it("creates only the workspace shell, needs a published email, and never starts a build pump", async () => {
+    const { db } = seed({ prospect_autopilot_settings: [settings({ pitch_first: true, send_sms: true })] });
+    mocks.findProspects.mockResolvedValue({
+      query: "q",
+      searched: 2,
+      prospects: [prospect({ placeId: "no-mail", name: "No Mail" }), { ...prospect({ placeId: "has-mail", name: "Has Mail" }), email: "owner@hasmail.com" } as FoundProspect],
+    });
+    const queued: string[] = [];
+    const result = await runProspectAutopilot(db, { now: () => NOW, onQueued: (id) => queued.push(id) });
+
+    // Texting is on, but a pitch is email-only, so a business with no published address is skipped.
+    expect(result.skipped).toContainEqual(expect.objectContaining({ reason: "no_public_email", name: "No Mail" }));
+    expect(mocks.provisionProspectDemo).toHaveBeenCalledTimes(1);
+    expect(mocks.provisionProspectDemo.mock.calls[0]![3]).toMatchObject({ source: "autopilot", pitchFirst: true });
+    expect(queued).toEqual([]);
+  });
+
+  it("queues the pitch by email only, skips the site quality gate, and never queues a follow-up", async () => {
+    const { db } = seed({
+      prospect_autopilot_settings: [settings({ targets: [], send_sms: true, pitch_first: true })],
+      website_settings: [{ organization_id: "shell", generation: shellMarker({ enrichment: verified("shell@example.com") }) }],
+      organizations: [{ id: "shell", name: "Shell Detail" }],
+      business_profiles: [{ organization_id: "shell", email: "shell@example.com", phone: "919-555-0123" }],
+    });
+    mocks.assessDemoForOutreach.mockResolvedValue({ ok: false, blockers: [{ code: "x", message: "no site", severity: "safety" }] });
+
+    const result = await runProspectAutopilot(db, { now: () => NOW });
+    expect(mocks.sendDemoOutreach.mock.calls.map((call) => call[1])).toEqual([
+      { organizationId: "shell", channel: "email", to: "shell@example.com", mode: "autopilot", actorId: null },
+    ]);
+    expect(mocks.assessDemoForOutreach).not.toHaveBeenCalled();
+    expect(mocks.enqueued.map((item) => item.kind)).toEqual(["first_touch"]);
+    expect(result).toMatchObject({ emailed: 1, texted: 0 });
+  });
+});

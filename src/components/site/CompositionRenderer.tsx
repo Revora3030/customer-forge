@@ -1,10 +1,18 @@
-import { useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { Button } from "@/components/ui/button";
 import type { Breakpoint, CompositionFaqItem, CompositionNode, CompositionTab, CompositionTree, MotionEasing, NodeHover, NodeMotion, NodeStyle, WidgetPresentation } from "@/lib/builder/composition-tree";
 import type { PersistedComponentVisual } from "@/lib/site-style";
 import { resolveImageSource } from "@/lib/brand-logos";
 import { contrastRatio, readableOn, toRgb } from "@/lib/readable-color";
 import { premiumSurface } from "@/lib/site-theme";
 import { clampSplit, splitForKey, splitForPointer } from "@/lib/builder/compare-slider";
+import { brushRadius, coverRect, formatElapsed, toolRadius, MAX_BRUSH_TOOLS, coveragePercent, isRevealDone, newGrid, paintAt, strokePoints, type RevealGrid } from "@/lib/builder/reveal-brush";
+import { DEFAULT_OFFER_ANCHOR, DEFAULT_SCENE_ANCHOR, sceneScrim, type SceneAnchor } from "@/lib/builder/cinematic-primitives";
+import { LensMagnifier, StickySplitStory, TierFader } from "@/components/site/MasterBlocks";
+import { CollectionRow, DialSelector, SceneVideo, ScrubSequence, ScrubStage, ScrollChapters, SpinViewer, type SpinFrame } from "@/components/site/CinematicBlocks";
+import { CINEMATIC_CSS } from "@/components/site/cinematic-css";
+import { ModelViewer } from "@/components/site/ModelViewer";
+import { isModelUrl } from "@/lib/site-models";
 
 /**
  * Draws any validated AI-authored composition tree. It only translates the
@@ -21,6 +29,11 @@ const SHADOWS: Record<string, string> = {
 const JUSTIFY = { start: "flex-start", center: "center", end: "flex-end", between: "space-between" } as const;
 const ITEMS = { start: "flex-start", center: "center", end: "flex-end", stretch: "stretch" } as const;
 
+const FILL_WHEN_CAPPED = new Set<CompositionNode["type"]>([
+  "stack", "grid", "row", "card", "list", "tabs", "toggle", "accordion", "compare", "gallery", "widget",
+  "before_after_slider", "faq_accordion", "tab_group", "offer_card", "spin_viewer", "collection_row",
+  "lens_magnifier", "sticky_split_story", "service_tier_fader", "parallax_layers", "scrub_sequence", "dial_selector", "model_3d_viewer", "divider", "marquee",
+]);
 // eslint-disable-next-line react-refresh/only-export-components -- renderer helpers are intentionally co-located with their composition types.
 export function styleToCss(style: NodeStyle | undefined, type: CompositionNode["type"]): CSSProperties {
   if (!style) return {};
@@ -31,7 +44,14 @@ export function styleToCss(style: NodeStyle | undefined, type: CompositionNode["
   if (style.padding != null) css.padding = style.padding;
   if (style.paddingX != null) { css.paddingLeft = style.paddingX; css.paddingRight = style.paddingX; }
   if (style.paddingY != null) { css.paddingTop = style.paddingY; css.paddingBottom = style.paddingY; }
-  if (style.maxWidth != null) { css.maxWidth = style.maxWidth; css.marginLeft = "auto"; css.marginRight = "auto"; }
+  if (style.maxWidth != null) {
+    css.maxWidth = style.maxWidth; css.marginLeft = "auto"; css.marginRight = "auto";
+    // Auto margins stop a flex child from stretching, so a capped panel shrank
+    // to its shortest label (an accordion of "Full" / "Auto detailing" became a
+    // narrow box on phones). Panels fill the row up to their cap; text and
+    // buttons keep their natural width.
+    if (FILL_WHEN_CAPPED.has(type)) css.width = "100%";
+  }
   if (style.align) css.textAlign = style.align;
   if (style.justify) css.justifyContent = JUSTIFY[style.justify];
   if (style.items) css.alignItems = ITEMS[style.items];
@@ -110,7 +130,10 @@ const FORM_WIDGETS = ["booking_form", "quote_calculator", "enquiry_form"] as con
 /** Scopes that draw the shared site header/footer: the page itself owns its headings and its single h1. */
 const CHROME_SCOPES = new Set(["site-header", "site-footer"]);
 
-type Ctx = { chrome?: boolean; editable?: boolean; label?: (text: string) => string; depth?: number | undefined; bg?: string | undefined; bg2?: string | undefined; fg?: string | undefined; rules: string[]; counter: { n: number; sawMedia?: boolean }; eagerFirstMedia?: boolean; scope: string; href: (h: string) => string; media: (ref: string) => ResolvedMedia | null; widget: (name: string, presentation?: WidgetPresentation) => ReactNode };
+/** Facts for an offer card, read from the owner's real Services tool. Never authored by the AI. */
+export type OfferFacts = { name: string; price: string | null; duration: string | null };
+
+type Ctx = { offer?: (service: string) => OfferFacts | null; sceneScrim?: string | undefined; chrome?: boolean; editable?: boolean; label?: (text: string) => string; depth?: number | undefined; bg?: string | undefined; bg2?: string | undefined; fg?: string | undefined; rules: string[]; counter: { n: number; sawMedia?: boolean }; eagerFirstMedia?: boolean; scope: string; href: (h: string) => string; media: (ref: string) => ResolvedMedia | null; widget: (name: string, presentation?: WidgetPresentation) => ReactNode };
 
 const mediaUrl = (media: ResolvedMedia | null): string | null =>
   typeof media === "string" ? media : media?.url ?? null;
@@ -164,24 +187,45 @@ function mediaCss(visual: PersistedComponentVisual | undefined): CSSProperties {
   return css;
 }
 
+/** Panels that must fill the row. A centred parent otherwise shrinks them to their shortest label. */
+const STRETCH_PANEL = new Set<CompositionNode["type"]>([
+  "accordion", "faq_accordion", "tab_group", "tabs", "toggle", "compare", "gallery", "widget",
+  "before_after_slider", "scroll_chapters", "scrub_sequence", "sticky_split_story", "service_tier_fader",
+  "collection_row", "parallax_layers", "lens_magnifier", "spin_viewer", "offer_card", "dial_selector", "model_3d_viewer",
+]);
+
 function baseLayout(type: CompositionNode["type"]): CSSProperties {
+  const stretch = STRETCH_PANEL.has(type) ? { width: "100%", alignSelf: "stretch" as const, minWidth: 0 } : {};
   switch (type) {
-    case "stack": return { display: "flex", flexDirection: "column" };
-    case "row": return { display: "flex", flexWrap: "wrap" };
-    case "grid": return { display: "grid" };
-    case "scene3d": return { display: "block", position: "relative", perspective: "1200px", transformStyle: "preserve-3d", isolation: "isolate" };
+    case "stack": return { display: "flex", flexDirection: "column", ...stretch };
+    case "row": return { display: "flex", flexWrap: "wrap", ...stretch };
+    case "grid": return { display: "grid", ...stretch };
+    case "scene3d": return { display: "block", position: "relative", perspective: "1200px", transformStyle: "preserve-3d", isolation: "isolate", ...stretch };
     case "button": return { display: "inline-flex", alignItems: "center", justifyContent: "center", minHeight: 44, minWidth: 44, textDecoration: "none" };
     case "spacer": return { minHeight: 24 };
-    default: return {};
+    default: return stretch;
   }
 }
 
+/** A text-only frame with an aspect ratio paints as a tall empty box. Pictures keep theirs. */
+function containsVisual(node: CompositionNode): boolean {
+  if (node.type === "media" || node.type === "scene" || node.type === "scroll_chapters" || node.type === "scrub_sequence" || node.type === "gallery" || node.type === "widget" || node.type === "parallax_layers" || node.type === "spin_viewer" || node.src || node.mediaRef) return true;
+  return (node.children ?? []).some(containsVisual);
+}
+
+/** Tags that may only contain phrasing content. A block child makes the browser
+ * rewrite the tree before hydration (React #418). */
+const PHRASING_TYPES = new Set(["media", "icon", "button", "link", "divider"]);
+function childrenArePhrasing(node: CompositionNode): boolean {
+  return (node.children ?? []).every((child) => PHRASING_TYPES.has(child.type) && childrenArePhrasing(child));
+}
+
 function renderNode(node: CompositionNode, ctx: Ctx, key: string): ReactNode {
-  const saved = { bg: ctx.bg, bg2: ctx.bg2, fg: ctx.fg, depth: ctx.depth };
+  const saved = { bg: ctx.bg, bg2: ctx.bg2, fg: ctx.fg, depth: ctx.depth, sceneScrim: ctx.sceneScrim };
   try {
     return renderNodeInner(node, ctx, key);
   } finally {
-    ctx.bg = saved.bg; ctx.bg2 = saved.bg2; ctx.fg = saved.fg; ctx.depth = saved.depth;
+    ctx.bg = saved.bg; ctx.bg2 = saved.bg2; ctx.fg = saved.fg; ctx.depth = saved.depth; ctx.sceneScrim = saved.sceneScrim;
   }
 }
 
@@ -269,6 +313,11 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
     ...baseLayout(node.type),
     ...styleToCss(actionable && node.style?.hidden ? { ...node.style, hidden: false } : node.style, node.type),
   };
+  // An aspect ratio on a text-only grid or card becomes a hollow frame (two
+  // short labels stacked in a tall bordered box). Pictures keep their crop.
+  if (style.aspectRatio && (node.type === "grid" || node.type === "stack" || node.type === "card" || node.type === "row") && !containsVisual(node)) {
+    delete style.aspectRatio;
+  }
   // Readability guard: saved layouts render even when a quality check failed,
   // so a heading could be painted white on a pale grey panel (unreadable).
   // Text is re-paired with the surface it actually sits on, keeping its hue.
@@ -296,6 +345,11 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
     className: classNames,
     style: motion ? { ...style, ...motionStyle(motion) } : style,
   };
+  // Cinematic blocks paint their own surfaces (a computed scrim, a frosted
+  // offer card), so their children are measured against those surfaces.
+  if (node.type === "scene") return renderScene(node, ctx, key, props);
+  if (node.type === "spin_viewer") return renderSpin(node, ctx, key, props);
+  if (node.type === "offer_card") offerSurface(node, ctx, props);
   const children = node.children ?? [];
   const prunedChildren = children.filter((child, index) => {
     if (child.type !== "icon" || index === children.length - 1) return true;
@@ -328,16 +382,20 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
       } as CSSProperties;
       // Site header/footer: same look, but not a document heading, so the
       // page keeps its one h1 and a clean outline.
+      if (!childrenArePhrasing(node)) return <div key={key} {...props} style={headingStyle}>{node.text}{kids}</div>;
       if (ctx.chrome) return <p key={key} {...props} style={headingStyle}>{node.text}{kids}</p>;
       const Tag = (`h${node.level ?? 2}`) as "h1" | "h2" | "h3" | "h4";
       return <Tag key={key} {...props} style={headingStyle}>{node.text}{kids}</Tag>;
     }
     case "text":
+      if (!childrenArePhrasing(node)) return <div key={key} {...props}>{node.text}{kids}</div>;
       return <p key={key} {...props}>{node.text}{kids}</p>;
     case "media":
       { const resolved = node.mediaRef ? ctx.media(node.mediaRef) : null;
         const visual = mediaVisual(resolved);
         const source = node.src ? resolveImageSource(node.src) : mediaUrl(resolved);
+        // A 3D model is never drawn as an <img>; only model_3d_viewer shows it.
+        if (source && isModelUrl(source)) return null;
         // The first picture of a section is usually the hero: load it eagerly
         // so the largest paint is not delayed by lazy loading.
         const first = !ctx.counter.sawMedia;
@@ -376,13 +434,17 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
       );
     case "accordion":
       return (
-        <div key={key} {...props}>
-          {node.children?.map((child, i) => (
-            <details key={i} style={styleToCss(child.style, "card")}>
+        <div key={key} {...props} className={`${props.className ?? ""} rv-cn-acc`.trim()}>
+          {node.children?.map((child, i) => {
+            const answered = (child.children ?? []).some((part) => part.text?.trim() || (part.children ?? []).length > 0 || (part.items ?? []).length > 0);
+            if (!answered) return <p key={i}>{child.text}</p>;
+            return (
+            <details key={i} className="rv-cn-acc-item" style={styleToCss(child.style, child.type)}>
               <summary style={{ cursor: "pointer", minHeight: 44, display: "flex", alignItems: "center" }}>{child.text}</summary>
               {child.children?.map((c, j) => renderNode(c, ctx, `${key}.${i}.${j}`))}
             </details>
-          ))}
+            );
+          })}
         </div>
       );
     case "tabs":
@@ -408,6 +470,13 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
       if (isGeneratedMedia(beforeMedia) || isGeneratedMedia(afterMedia)) return null;
       const beforeSource = beforeImage.mediaRef ? mediaUrl(beforeMedia) : beforeImage.src ? resolveImageSource(beforeImage.src) : null;
       const afterSource = afterImage.mediaRef ? mediaUrl(afterMedia) : afterImage.src ? resolveImageSource(afterImage.src) : null;
+      if (beforeSource && afterSource && node.revealMode === "brush")
+        return (
+          <BrushReveal key={key} props={props} prompt={node.text?.trim().slice(0, 60) || "Reveal the result"}
+            tools={(node.items ?? []).map((item) => item.trim().slice(0, 28)).filter(Boolean).slice(0, MAX_BRUSH_TOOLS)}
+            before={{ alt: beforeImage.alt, label: beforeImage.label, src: beforeSource }}
+            after={{ alt: afterImage.alt, label: afterImage.label, src: afterSource }} />
+        );
       return beforeSource && afterSource ? (
         <BeforeAfterSlider key={key} props={props}
           before={{ alt: beforeImage.alt, label: beforeImage.label, src: beforeSource }}
@@ -415,6 +484,23 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
           initialSplit={node.initialSplit ?? 50} />
       ) : null;
     }
+    case "model_3d_viewer": {
+      const model = node.mediaRef ? mediaUrl(ctx.media(node.mediaRef)) : null;
+      if (!model || !isModelUrl(model)) return null;
+      const posterNode = node.children?.find((child) => child.type === "media");
+      const posterResolved = posterNode?.mediaRef ? ctx.media(posterNode.mediaRef) : null;
+      const posterSrc = posterNode?.src ? resolveImageSource(posterNode.src) : mediaUrl(posterResolved);
+      const alt = node.alt?.trim() || "3D model";
+      return (
+        <ModelViewer key={key} props={props} src={model} alt={alt}
+          label={node.text?.trim().slice(0, 60) || "Turn it around"}
+          poster={posterSrc && !isModelUrl(posterSrc) ? { src: posterSrc, alt: posterNode?.alt ?? mediaVisual(posterResolved)?.alt ?? alt } : null} />
+      );
+    }
+    case "dial_selector":
+      return (node.dialOptions?.length ?? 0) >= 2 ? (
+        <DialSelector key={key} props={props} label={node.text?.trim().slice(0, 60) || "Choose an option"} options={node.dialOptions!.slice(0, 6)} unit={node.dialUnit} />
+      ) : null;
     case "faq_accordion":
       return node.faqItems?.length ? <FaqAccordion key={key} props={props} items={node.faqItems} /> : null;
     case "tab_group":
@@ -467,9 +553,222 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
           </div>
         </div>
       );
+    case "offer_card": {
+      // The price and duration are only ever the named real service's own
+      // values from the Services tool. No service, or no price: none shown.
+      const facts = node.service && ctx.offer ? ctx.offer(node.service) : null;
+      const title = node.text?.trim() || facts?.name || "";
+      const actionIndex = children.findIndex((child) => child.type === "button");
+      const action = actionIndex >= 0 ? kids[actionIndex] : null;
+      if (!title || !action) return null;
+      const picture = children.find((child) => child.type === "media");
+      const pictureResolved = picture?.mediaRef ? ctx.media(picture.mediaRef) : null;
+      const pictureSource = picture?.src ? resolveImageSource(picture.src) : mediaUrl(pictureResolved);
+      const specs = (node.items ?? []).map((item) => item.trim()).filter(Boolean).slice(0, 3);
+      const Title = ctx.chrome ? "p" : (`h${node.level ?? 3}` as "h2" | "h3" | "h4");
+      return (
+        <article key={key} {...props} className={`${props.className ?? ""} rv-offer`.trim()} data-rv-card="" data-rv-overlay="offer">
+          {picture && pictureSource ? <img className="rv-offer-media" src={pictureSource} alt={picture.alt ?? mediaVisual(pictureResolved)?.alt ?? ""} loading="lazy" decoding="async" style={mediaCss(mediaVisual(pictureResolved))} /> : null}
+          <Title className="rv-offer-title">{title}</Title>
+          {facts?.price ? <p className="rv-offer-price">{facts.price}{facts.duration ? <span> · {facts.duration}</span> : null}</p> : null}
+          {specs.length ? <ul className="rv-offer-specs">{specs.map((spec, i) => <li key={i}>{spec}</li>)}</ul> : null}
+          {action}
+        </article>
+      );
+    }
+    case "scroll_chapters": {
+      const pairs = children.map((child, i) => ({ chapter: kids[i], label: sceneLabel(child) || `Chapter ${i + 1}` })).filter((pair) => pair.chapter != null);
+      return pairs.length ? <ScrollChapters key={key} props={props} chapters={pairs.map((pair) => pair.chapter)} labels={pairs.map((pair) => pair.label)} /> : null;
+    }
+    case "lens_magnifier": {
+      const photo = children[0];
+      const resolved = photo?.mediaRef ? ctx.media(photo.mediaRef) : null;
+      // A magnifier implies real, fine detail: generated or stock pictures show nothing.
+      if (!photo || isGeneratedMedia(resolved)) return null;
+      const source = mediaUrl(resolved);
+      if (!source) return null;
+      return <LensMagnifier key={key} props={props} src={source} alt={photo.alt ?? mediaVisual(resolved)?.alt ?? ""} prompt={node.text?.trim().slice(0, 60) || "Inspect the detail"} />;
+    }
+    case "sticky_split_story": {
+      const phases = kids.slice(1).filter((kid) => kid != null);
+      return kids[0] && phases.length ? <StickySplitStory key={key} props={props} picture={kids[0]} phases={phases} /> : null;
+    }
+    case "parallax_layers": {
+      // Atmosphere, like a scene backdrop: layers are never presented as proof of work.
+      const layers = children.flatMap((child, i) => {
+        const resolved = child.mediaRef ? ctx.media(child.mediaRef) : null;
+        const src = child.src ? resolveImageSource(child.src) : mediaUrl(resolved);
+        return src ? [{ src, alt: child.alt ?? mediaVisual(resolved)?.alt ?? "", depth: i }] : [];
+      });
+      if (layers.length < 2) return null;
+      ctx.counter.sawMedia = true;
+      return (
+        <div key={key} {...props} className={`${props.className ?? ""} rv-px`.trim()}>
+          {layers.map((layer) => (
+            <img key={layer.depth} className="rv-px-layer" data-depth={layer.depth} src={layer.src} alt={layer.depth === 0 ? layer.alt : ""} {...(layer.depth === 0 ? {} : { "aria-hidden": true })} loading="lazy" decoding="async" />
+          ))}
+        </div>
+      );
+    }
+    case "service_tier_fader": {
+      const pairs = children.map((child, i) => ({ card: kids[i], label: child.text?.trim() || (child.service && ctx.offer ? ctx.offer(child.service)?.name : "") || `Option ${i + 1}` })).filter((pair) => pair.card != null);
+      return pairs.length > 1 ? <TierFader key={key} props={props} label={node.text?.trim() || "Choose your package"} labels={pairs.map((pair) => pair.label)} cards={pairs.map((pair) => pair.card)} /> : null;
+    }
+    case "collection_row": {
+      const items = kids.filter((kid) => kid != null);
+      return items.length ? <CollectionRow key={key} props={props} label={node.text?.trim() || "Collection"} items={items} /> : null;
+    }
+    case "scrub_sequence": {
+      const frames: { src: string; alt: string; label?: string }[] = [];
+      const copy: ReactNode[] = [];
+      children.forEach((child, i) => {
+        if (child.type !== "media") {
+          if (kids[i] != null) copy.push(kids[i]);
+          return;
+        }
+        const resolved = child.mediaRef ? ctx.media(child.mediaRef) : null;
+        const source = child.src ? resolveImageSource(child.src) : mediaUrl(resolved);
+        if (!source) return;
+        const label = child.text?.trim().slice(0, 30);
+        frames.push({ src: source, alt: child.alt ?? mediaVisual(resolved)?.alt ?? "", ...(label ? { label } : {}) });
+      });
+      if (frames.length < 2 && copy.length === 0) return null;
+      if (frames.length) ctx.counter.sawMedia = true;
+      const scrim = sceneScrim({ ink: node.style?.color ?? "#ffffff", scrim: node.scrim?.color ?? "#0c0e12", opacity: node.scrim?.opacity ?? 46 });
+      return (
+        <ScrubSequence
+          key={key}
+          props={props}
+          frames={frames}
+          copy={copy}
+          prompt={node.text?.trim().slice(0, 40) || ""}
+          scrim={rgba(scrim.scrim, scrim.opacity)}
+          ink={scrim.ink}
+        />
+      );
+    }
     default:
       return <div key={key} {...props}>{node.text ? <span>{node.text}</span> : null}{kids}</div>;
   }
+}
+
+const VIDEO_SOURCE = /\.(?:mp4|webm|m4v|mov)(?:[?#]|$)/i;
+const ANCHOR_ROW = { top: "start", center: "center", bottom: "end" } as const;
+const ANCHOR_COLUMN = { left: "start", center: "center", right: "end" } as const;
+const anchorParts = (anchor: SceneAnchor): [keyof typeof ANCHOR_ROW, keyof typeof ANCHOR_COLUMN] =>
+  anchor === "center" ? ["center", "center"] : (anchor.split("-") as [keyof typeof ANCHOR_ROW, keyof typeof ANCHOR_COLUMN]);
+const rgba = (hex: string, alpha: number) => {
+  const rgb = toRgb(hex) ?? { r: 0, g: 0, b: 0 };
+  return `rgb(${rgb.r} ${rgb.g} ${rgb.b} / ${Math.max(0, Math.min(1, alpha)).toFixed(3)})`;
+};
+const GRADIENT_TOWARD: Record<SceneAnchor, string | null> = {
+  "top-left": "to bottom", "top-center": "to bottom", "top-right": "to bottom",
+  "center-left": "to right", center: null, "center-right": "to left",
+  "bottom-left": "to top", "bottom-center": "to top", "bottom-right": "to top",
+};
+
+/** The first heading of a scene, used to name its chapter. */
+function sceneLabel(node: CompositionNode): string {
+  const heading = (node.children ?? []).find((child) => child.type === "heading" && child.text?.trim());
+  return heading?.text?.trim().slice(0, 80) ?? "";
+}
+
+/**
+ * A frosted offer card over a scene paints a scrim-tinted surface whose
+ * opacity is computed (like the scene's) so its text passes AA whatever the
+ * photo behind it shows. An AI-authored background always wins.
+ */
+function offerSurface(node: CompositionNode, ctx: Ctx, props: NodeProps) {
+  if (node.style?.background || !ctx.sceneScrim) return;
+  const scrim = sceneScrim({ ink: node.style?.color ?? ctx.fg, scrim: ctx.sceneScrim, opacity: 72 });
+  props.style = { ...props.style, backgroundColor: rgba(scrim.scrim, scrim.opacity), color: scrim.ink };
+  ctx.bg = scrim.surfaces[0]; ctx.bg2 = scrim.surfaces[1]; ctx.fg = scrim.ink;
+}
+
+/**
+ * A full-viewport photographic chapter. The backdrop is the first media
+ * child; the scrim is computed so the copy slot passes WCAG AA over any photo
+ * (the AI's colour and opacity are kept as a floor); the remaining children
+ * render in the AI-anchored slot, with offer cards floating on wide screens.
+ */
+function renderScene(node: CompositionNode, ctx: Ctx, key: string, props: NodeProps): ReactNode {
+  const [backdrop, ...rest] = node.children ?? [];
+  const resolved = backdrop?.mediaRef ? ctx.media(backdrop.mediaRef) : null;
+  const source = backdrop?.type === "media" ? (backdrop.src ? resolveImageSource(backdrop.src) : mediaUrl(resolved)) : null;
+  const visual = mediaVisual(resolved);
+  const anchor = node.anchor ?? DEFAULT_SCENE_ANCHOR;
+  const [row, column] = anchorParts(anchor);
+  const id = props["data-cn"];
+  let ink: string | undefined;
+  let scrimLayer: ReactNode = null;
+  if (source) {
+    const scrim = sceneScrim({ ink: node.style?.color ?? null, scrim: node.scrim?.color ?? null, opacity: node.scrim?.opacity ?? null });
+    ink = scrim.ink;
+    ctx.bg = scrim.surfaces[0]; ctx.bg2 = scrim.surfaces[1]; ctx.fg = scrim.ink; ctx.sceneScrim = scrim.scrim;
+    const solid = rgba(scrim.scrim, scrim.opacity);
+    const toward = GRADIENT_TOWARD[anchor];
+    const background = toward
+      ? `linear-gradient(${toward}, ${solid} 0%, ${solid} 72%, ${rgba(scrim.scrim, scrim.opacity * 0.3)} 100%)`
+      : solid;
+    // Phones always get the even scrim: the copy may cover most of the frame.
+    ctx.rules.push(`@media (max-width:767px){[data-cn="${id}"] > .rv-scene-scrim{background:${solid}!important}}`);
+    scrimLayer = <div className="rv-scene-scrim" aria-hidden="true" data-scrim-opacity={scrim.opacity.toFixed(2)} style={{ background }} />;
+  }
+  const first = !ctx.counter.sawMedia;
+  if (source) ctx.counter.sawMedia = true;
+  const eager = first && Boolean(ctx.eagerFirstMedia);
+  const alt = backdrop?.alt ?? visual?.alt ?? "";
+  const objectPosition = node.focal ?? visual?.object_position ?? visual?.focal_point;
+  const scrubbed = Boolean(node.scrub && source && VIDEO_SOURCE.test(source));
+  const media = !source ? null : scrubbed ? null : VIDEO_SOURCE.test(source) ? (
+    <SceneVideo src={source} alt={alt} eager={eager} />
+  ) : (
+    <img className="rv-scene-media" src={source} alt={alt} loading={eager ? "eager" : "lazy"} decoding="async" {...(eager ? { fetchPriority: "high" as const } : {})} style={objectPosition ? { objectPosition } : undefined} />
+  );
+  const copy: ReactNode[] = [];
+  const offers = new Map<SceneAnchor, ReactNode[]>();
+  rest.forEach((child, i) => {
+    const rendered = renderNode(child, ctx, `${key}.${i + 1}`);
+    if (rendered == null) return;
+    if (child.type === "offer_card") {
+      const at = child.anchor ?? DEFAULT_OFFER_ANCHOR;
+      offers.set(at, [...(offers.get(at) ?? []), rendered]);
+    } else copy.push(rendered);
+  });
+  if (!media && !scrubbed && !copy.length) return null;
+  const build = (video: ReactNode) => (
+    <div key={key} {...props} className={`${props.className ?? ""} rv-scene`.trim()} data-anchor={anchor} data-rv-scene="" style={{ ...props.style, ...(ink ? { color: ink } : {}) }}>
+      {video ?? media}
+      {scrimLayer}
+      <div className="rv-scene-inner" style={{ alignContent: ANCHOR_ROW[row], justifyItems: ANCHOR_COLUMN[column], textAlign: column === "center" ? "center" : column === "right" ? "right" : "left" }}>
+        <div className="rv-scene-slot" style={{ alignItems: column === "center" ? "center" : column === "right" ? "flex-end" : "flex-start" }}>{copy}</div>
+        {[...offers].map(([at, cards]) => (
+          <div key={at} className="rv-scene-offers" data-anchor={at} style={{ textAlign: "left" }}>{cards}</div>
+        ))}
+      </div>
+    </div>
+  );
+  return scrubbed && source ? <ScrubStage key={key} src={source} alt={alt} render={build} /> : build(null);
+}
+
+/**
+ * The turntable. Angle pictures marked generated or stock are never spun:
+ * they are not photographs of one real object, so a single still is shown.
+ */
+function renderSpin(node: CompositionNode, ctx: Ctx, key: string, props: NodeProps): ReactNode {
+  let illustrative = false;
+  const frames: SpinFrame[] = (node.children ?? []).flatMap((child) => {
+    if (child.type !== "media") return [];
+    const resolved = child.mediaRef ? ctx.media(child.mediaRef) : null;
+    if (isGeneratedMedia(resolved)) illustrative = true;
+    const src = child.src ? resolveImageSource(child.src) : mediaUrl(resolved);
+    return src ? [{ src, alt: child.alt ?? mediaVisual(resolved)?.alt ?? "" }] : [];
+  });
+  if (!frames.length) return null;
+  ctx.counter.sawMedia = true;
+  return (
+    <SpinViewer key={key} props={props} frames={illustrative ? frames.slice(0, 1) : frames} label={node.text?.trim() ?? ""} initialFrame={illustrative ? 0 : node.initialFrame ?? 0} podium={node.style?.borderColor} />
+  );
 }
 
 const EASING_CSS: Record<MotionEasing, string> = {
@@ -549,6 +848,170 @@ function Compare({ props, before, after, beforeSource, afterSource }: { props: N
   );
 }
 
+/**
+ * The hands-on reveal: drag across the before picture and the after appears where you have been, with a live
+ * percentage. A mouse paints straight away; on a touch screen the brush is switched on with a button so the
+ * page can still be scrolled past it. Keyboard and screen-reader users get a button that shows the finished
+ * result, and without JavaScript the finished picture is simply shown.
+ */
+function BrushReveal({ props, prompt, tools = [], before, after }: {
+  props: NodeProps;
+  prompt: string;
+  /** Optional tool chips, widest first; each later tool paints a narrower path. */
+  tools?: string[];
+  before: { src: string; alt: string; label: string };
+  after: { src: string; alt: string; label: string };
+}) {
+  const figureRef = useRef<HTMLElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const afterImage = useRef<HTMLImageElement | null>(null);
+  const grid = useRef<RevealGrid>(newGrid());
+  const last = useRef<{ x: number; y: number } | null>(null);
+  const [percent, setPercent] = useState(0);
+  const [done, setDone] = useState(false);
+  const [armed, setArmed] = useState(false);
+  const [tool, setTool] = useState(0);
+  const [startedAt, setStartedAt] = useState<number | null>(null);
+  const [elapsed, setElapsed] = useState(0);
+  const radiusFor = (w: number) => (tools.length > 1 ? toolRadius(w, tool, tools.length) : brushRadius(w));
+
+  useEffect(() => {
+    if (startedAt == null || done) return;
+    const tick = () => setElapsed(Date.now() - startedAt);
+    tick();
+    const timer = window.setInterval(tick, 250);
+    return () => window.clearInterval(timer);
+  }, [startedAt, done]);
+
+  const size = () => {
+    const box = figureRef.current?.getBoundingClientRect();
+    return { w: box?.width ?? 0, h: box?.height ?? 0 };
+  };
+  const reset = () => {
+    grid.current = newGrid();
+    last.current = null;
+    setPercent(0);
+    setDone(false);
+    setStartedAt(null);
+    setElapsed(0);
+    const canvas = canvasRef.current;
+    canvas?.getContext("2d")?.clearRect(0, 0, canvas.width, canvas.height);
+  };
+
+  useEffect(() => {
+    const image = new Image();
+    image.src = after.src;
+    afterImage.current = image;
+    const fit = () => {
+      const canvas = canvasRef.current;
+      const { w, h } = size();
+      if (!canvas || !w || !h) return;
+      const ratio = Math.min(2, window.devicePixelRatio || 1);
+      canvas.width = Math.round(w * ratio);
+      canvas.height = Math.round(h * ratio);
+      grid.current = newGrid();
+      setPercent(0);
+      setDone(false);
+    };
+    fit();
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(fit);
+    if (figureRef.current) observer?.observe(figureRef.current);
+    return () => observer?.disconnect();
+  }, [after.src]);
+
+  const stamp = (x: number, y: number) => {
+    const canvas = canvasRef.current;
+    const image = afterImage.current;
+    const { w, h } = size();
+    if (!canvas || !image || !image.complete || !w || !h) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const ratio = canvas.width / w;
+    const radius = radiusFor(w);
+    const rect = coverRect(image.naturalWidth, image.naturalHeight, w, h);
+    ctx.save();
+    ctx.scale(ratio, ratio);
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.drawImage(image, rect.x, rect.y, rect.w, rect.h);
+    ctx.restore();
+    paintAt(grid.current, x, y, radius, w, h);
+  };
+  const point = (event: { clientX: number; clientY: number }) => {
+    const box = figureRef.current?.getBoundingClientRect();
+    return { x: event.clientX - (box?.left ?? 0), y: event.clientY - (box?.top ?? 0) };
+  };
+  const sweep = (event: { clientX: number; clientY: number }) => {
+    const to = point(event);
+    const { w } = size();
+    if (startedAt == null) setStartedAt(Date.now());
+    for (const p of strokePoints(last.current ?? to, to, radiusFor(w))) stamp(p.x, p.y);
+    last.current = to;
+    const next = coveragePercent(grid.current);
+    setPercent(next);
+    if (isRevealDone(next)) setDone(true);
+  };
+  const live = (pointerType: string) => pointerType === "mouse" || armed;
+
+  return (
+    <figure {...props} className={`${props.className ?? ""} rv-cn-compare rv-cn-brush`.trim()} style={{ width: "100%", margin: 0, ...props.style, aspectRatio: undefined }}>
+    <div
+      ref={figureRef as React.RefObject<HTMLDivElement>}
+      style={{ position: "relative", overflow: "hidden", aspectRatio: props.style.aspectRatio ?? "16 / 10", width: "100%", userSelect: "none", touchAction: armed ? "none" : "pan-y", cursor: done ? "default" : "crosshair" }}
+      onPointerDown={(event) => {
+        if (done || event.button !== 0 || !event.isPrimary || !live(event.pointerType)) return;
+        last.current = null;
+        event.currentTarget.setPointerCapture?.(event.pointerId);
+        sweep(event);
+      }}
+      onPointerMove={(event) => {
+        if (!done && last.current && live(event.pointerType)) sweep(event);
+      }}
+      onPointerUp={() => (last.current = null)}
+      onPointerCancel={() => (last.current = null)}
+      onLostPointerCapture={() => (last.current = null)}
+    >
+      <img src={before.src} alt={before.alt} loading="lazy" draggable={false} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+      <canvas ref={canvasRef} aria-hidden="true" data-testid="brush-canvas" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: done ? 0 : 1, transition: "opacity 400ms ease" }} />
+      <img src={after.src} alt={done ? after.alt : ""} aria-hidden={done ? undefined : true} draggable={false} data-testid="brush-after" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: done ? 1 : 0, transition: "opacity 400ms ease", pointerEvents: "none" }} />
+      <noscript>
+        <img src={after.src} alt={after.alt} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+      </noscript>
+      <div className="rv-cn-compare-label rv-cn-compare-label-before">{done ? after.label : before.label}</div>
+      {startedAt != null ? (
+        <div className="rv-cn-brush-hud" aria-hidden="true">
+          <span><small>Progress</small><strong>{done ? 100 : percent}%</strong></span>
+          <span><small>Time</small><strong>{formatElapsed(elapsed)}</strong></span>
+        </div>
+      ) : null}
+    </div>
+    {tools.length ? (
+      <div role="group" aria-label="Tool" className="rv-cn-brush-tools">
+        {tools.map((label, index) => (
+          <button key={label} type="button" aria-pressed={tool === index} onClick={() => setTool(index)}>{label}</button>
+        ))}
+      </div>
+    ) : null}
+    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, justifyContent: "space-between", paddingTop: 10 }}>
+      <span aria-live="polite" style={{ fontSize: 14, fontWeight: 600 }}>
+        {done ? `${after.label}: all revealed` : percent > 0 ? `${prompt}: ${percent}%` : `${prompt}. Drag across the picture`}
+      </span>
+      <span style={{ display: "flex", gap: 8 }}>
+        {!done ? (
+          <button type="button" aria-pressed={armed} onClick={() => setArmed((value) => !value)} className="rv-cn-brush-touch" style={{ minHeight: 44, padding: "0 14px", borderRadius: 999, border: "1px solid currentColor", background: "transparent", color: "inherit", fontWeight: 600, opacity: armed ? 1 : 0.85 }}>
+            {armed ? "Stop" : "Start on touch"}
+          </button>
+        ) : null}
+        <button type="button" onClick={() => (done ? reset() : setDone(true))} style={{ minHeight: 44, padding: "0 14px", borderRadius: 999, border: "1px solid currentColor", background: "transparent", color: "inherit", fontWeight: 600 }}>
+          {done ? "Start over" : "Show finished result"}
+        </button>
+      </span>
+    </div>
+    </figure>
+  );
+}
+
 function BeforeAfterSlider({ props, before, after, initialSplit }: {
   props: NodeProps;
   before: { src: string; alt: string; label: string };
@@ -564,6 +1027,7 @@ function BeforeAfterSlider({ props, before, after, initialSplit }: {
   return (
     <figure {...props} className={`${props.className ?? ""} rv-cn-compare`.trim()} style={{ position: "relative", overflow: "hidden", aspectRatio: props.style.aspectRatio ?? "16 / 10", width: "100%", touchAction: "pan-y", userSelect: "none", ...props.style }}
       onPointerDown={(event) => {
+        if (event.button !== 0 || !event.isPrimary) return;
         dragging.current = true;
         event.currentTarget.setPointerCapture?.(event.pointerId);
         moveTo(event);
@@ -573,11 +1037,12 @@ function BeforeAfterSlider({ props, before, after, initialSplit }: {
       }}
       onPointerUp={() => (dragging.current = false)}
       onPointerCancel={() => (dragging.current = false)}
+      onLostPointerCapture={() => (dragging.current = false)}
     >
       {/* Both pictures fill the same frame with object-fit: cover, so neither is ever stretched. */}
       <img src={after.src} alt={after.alt} loading="lazy" draggable={false} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
       <div aria-hidden="true" style={{ position: "absolute", inset: 0, overflow: "hidden", clipPath: `inset(0 ${100 - pos}% 0 0)` }}>
-        <img src={before.src} alt="" loading="lazy" draggable={false} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+        <img src={before.src} alt={before.alt} loading="lazy" draggable={false} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
       </div>
       <div className="rv-cn-compare-label rv-cn-compare-label-before">{before.label}</div>
       <div className="rv-cn-compare-label rv-cn-compare-label-after">{after.label}</div>
@@ -586,6 +1051,7 @@ function BeforeAfterSlider({ props, before, after, initialSplit }: {
         role="slider"
         tabIndex={0}
         aria-label="Before and after comparison slider"
+        aria-description={`${before.alt}. ${after.alt}.`}
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={Math.round(pos)}
@@ -603,6 +1069,7 @@ function BeforeAfterSlider({ props, before, after, initialSplit }: {
     </figure>
   );
 }
+
 
 function FaqAccordion({ props, items }: { props: NodeProps; items: CompositionFaqItem[] }) {
   return (
@@ -629,6 +1096,8 @@ function TabGroup({ props, tabs, renderPanel }: {
     const next = Math.max(0, Math.min(tabs.length - 1, index));
     document.getElementById(`${id}-tab-${next}`)?.focus();
   };
+  const activeTab = tabs[active];
+  if (!activeTab) return null;
   return (
     <div {...props} className={`${props.className ?? ""} rv-cn-tab-group`.trim()}>
       <div role="tablist" aria-label="Options" className="rv-cn-tab-list">
@@ -647,7 +1116,7 @@ function TabGroup({ props, tabs, renderPanel }: {
         ))}
       </div>
       <div role="tabpanel" id={`${id}-panel-${active}`} aria-labelledby={`${id}-tab-${active}`} className="rv-cn-tab-panel">
-        {renderPanel(tabs[active]!, active)}
+        {renderPanel(activeTab, active)}
       </div>
     </div>
   );
@@ -658,21 +1127,40 @@ function MobileStickyBar({ props, primary, secondary }: {
   primary: { label: string; href: string; ariaLabel: string };
   secondary?: { label: string; href: string; ariaLabel: string };
 }) {
+  const bar = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const element = bar.current;
+    if (!element) return;
+    const measure = () => {
+      const height = Math.max(0, ...Array.from(document.querySelectorAll<HTMLElement>(".rv-cn-mobile-sticky-bar")).map((item) => item.getBoundingClientRect().height));
+      document.documentElement.style.setProperty("--rv-sticky-height", `${Math.ceil(height)}px`);
+    };
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
+    observer?.observe(element);
+    window.addEventListener("resize", measure);
+    measure();
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", measure);
+      document.documentElement.style.removeProperty("--rv-sticky-height");
+    };
+  }, []);
   return (
-    <div {...props} className={`${props.className ?? ""} rv-cn-mobile-sticky-bar`.trim()} style={{
+    <div ref={bar} {...props} role="navigation" aria-label="Quick actions" data-rv-overlay="sticky" className={`${props.className ?? ""} rv-cn-mobile-sticky-bar`.trim()} style={{
       ...props.style,
       position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 50, display: "flex", gap: 8, alignItems: "stretch",
       padding: "10px 12px", paddingBottom: "max(10px, env(safe-area-inset-bottom, 0px))",
-      background: props.style.background ?? "Canvas", color: props.style.color ?? "CanvasText",
+      background: props.style.background ?? "var(--background)", color: props.style.color ?? "var(--foreground)",
+      backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)",
     }}>
-      <a href={primary.href} aria-label={primary.ariaLabel ?? primary.label} style={{ flex: secondary ? 1 : "0 1 100%", minWidth: 0, minHeight: 44, display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "0 14px", textDecoration: "none", touchAction: "manipulation", ...mobileCtaStyle(true) }}>{primary.label}</a>
-      {secondary ? <a href={secondary.href} aria-label={secondary.ariaLabel ?? secondary.label} style={{ flex: 1, minWidth: 0, minHeight: 44, display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "0 14px", textDecoration: "none", touchAction: "manipulation", ...mobileCtaStyle(false) }}>{secondary.label}</a> : null}
+      <Button asChild variant="outline" style={mobileCtaStyle()}><a href={primary.href} aria-label={primary.ariaLabel}>{primary.label}</a></Button>
+      {secondary ? <Button asChild variant="outline" style={mobileCtaStyle()}><a href={secondary.href} aria-label={secondary.ariaLabel}>{secondary.label}</a></Button> : null}
     </div>
   );
 }
 
-function mobileCtaStyle(primary: boolean): CSSProperties {
-  return { borderRadius: 10, border: "1px solid currentColor", font: "inherit", fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", background: primary ? "currentColor" : "transparent", color: primary ? "Canvas" : "inherit" };
+function mobileCtaStyle(): CSSProperties {
+  return { flex: 1, minWidth: 44, minHeight: 44, padding: "8px 14px", borderRadius: 8, border: "1px solid currentColor", font: "inherit", fontWeight: 700, whiteSpace: "normal", overflowWrap: "anywhere", background: "transparent", color: "inherit", touchAction: "manipulation" };
 }
 
 const MARQUEE_CSS = `@media (prefers-reduced-motion: no-preference){.rv-cn-marquee{animation:rv-cn-marquee 30s linear infinite}}@keyframes rv-cn-marquee{to{transform:translateX(-50%)}}`;
@@ -683,6 +1171,7 @@ const INTERACTIVE_CSS = `
 .rv-cn-interactive a:focus-visible,.rv-cn-interactive button:focus-visible{outline:3px solid currentColor;outline-offset:3px}
 @media (prefers-reduced-motion: reduce){.rv-cn-interactive{transition:none!important}.rv-cn-interactive:hover{transform:none}}
 .rv-cn-compare{cursor:ew-resize}
+[data-composition][data-composition] .rv-cn-compare img{height:100%!important;width:100%!important;max-width:none!important}
 .rv-cn-compare-divider{position:absolute;top:0;bottom:0;width:3px;background:#fff;box-shadow:0 0 0 1px rgb(0 0 0 / .45),0 0 12px rgb(0 0 0 / .35);transform:translateX(-50%);pointer-events:none;z-index:2}
 .rv-cn-compare-handle{position:absolute;top:50%;width:48px;height:48px;border-radius:999px;border:2px solid #fff;background:rgb(17 17 20 / .55);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);box-shadow:0 4px 18px rgb(0 0 0 / .35);transform:translate(-50%,-50%);z-index:3;cursor:ew-resize;touch-action:none;color:#fff;transition:transform .15s ease}
 .rv-cn-compare-handle:focus-visible{outline:3px solid #fff;outline-offset:3px}
@@ -714,14 +1203,21 @@ const INTERACTIVE_CSS = `
 .rv-cn-faq-panel{display:grid;grid-template-rows:0fr;transition:grid-template-rows .24s ease}
 .rv-cn-faq details[open] .rv-cn-faq-panel{grid-template-rows:1fr}
 .rv-cn-faq-panel-inner{min-height:0;overflow:hidden;padding:0 0 14px;white-space:pre-wrap}
+@supports (interpolate-size:allow-keywords){.rv-cn-faq details{interpolate-size:allow-keywords}.rv-cn-faq details::details-content{block-size:0;overflow:clip;transition:block-size .24s ease,content-visibility .24s;transition-behavior:allow-discrete}.rv-cn-faq details[open]::details-content{block-size:auto}}
 .rv-cn-tab-list{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;border-bottom:1px solid currentColor}
 .rv-cn-tab{position:relative;min-height:44px;padding:0 16px;border:0;border-radius:0;background:transparent;color:inherit;font:inherit;font-weight:650;cursor:pointer;opacity:.65}
 .rv-cn-tab::after{content:"";position:absolute;left:12px;right:12px;bottom:-1px;height:3px;background:currentColor;transform:scaleX(0);transform-origin:center;transition:transform .22s ease}
 .rv-cn-tab.is-active{opacity:1}.rv-cn-tab.is-active::after{transform:scaleX(1)}
 .rv-cn-tab:focus-visible,.rv-cn-faq summary:focus-visible,.rv-cn-mobile-sticky-bar a:focus-visible{outline:3px solid currentColor;outline-offset:3px}
+.rv-cn-acc{display:flex;flex-direction:column;width:100%;align-self:stretch;min-width:0}
+.rv-cn-acc-item{border-bottom:1px solid color-mix(in srgb,currentColor 16%,transparent)}
+.rv-cn-acc-item summary{list-style:none}
+.rv-cn-acc-item summary::-webkit-details-marker{display:none}
 .rv-cn-mobile-sticky-bar{display:none}
 @media (max-width:767px){.rv-cn-mobile-sticky-bar{display:flex!important;position:fixed!important;left:0!important;right:0!important;bottom:0!important;z-index:50!important;padding-bottom:max(10px,env(safe-area-inset-bottom,0px))!important}.rv-cn-mobile-sticky-bar a{min-height:44px;min-width:44px}}
 @media (min-width:768px){.rv-cn-mobile-sticky-bar{display:none!important}}
+@media (max-width:767px){html:has(input:focus,textarea:focus,select:focus) .rv-cn-mobile-sticky-bar{display:none!important}}
+@media (prefers-reduced-motion: reduce){.rv-cn-faq details::details-content{transition:none!important}}
 @media (prefers-reduced-motion: reduce){.rv-cn-faq-chevron,.rv-cn-faq-panel,.rv-cn-tab::after{transition:none!important}}
 `;
 
@@ -734,13 +1230,13 @@ const INTERACTIVE_CSS = `
  * clipping). These never choose colours, fonts, order or layout — they only
  * stop AI-authored layers from becoming unusable on narrow screens.
  */
-export const PHONE_SAFETY_CSS = `[data-composition]{box-sizing:border-box;max-width:100%;min-width:0;overflow-x:clip;padding-inline-start:max(0px,env(safe-area-inset-left,0px));padding-inline-end:max(0px,env(safe-area-inset-right,0px))}[data-composition][data-composition] *{box-sizing:border-box;min-width:0;max-width:100%;overflow-wrap:break-word}[data-composition][data-composition] :is(h1,h2,h3,h4){text-wrap:balance;overflow-wrap:break-word;word-break:normal;hyphens:manual}[data-composition][data-composition] :is(p,span,li,label){overflow-wrap:break-word;word-break:normal}[data-composition][data-composition] :is(p,li){text-wrap:pretty}[data-composition][data-composition] img{image-rendering:auto}[data-composition][data-composition] img,[data-composition][data-composition] video,[data-composition][data-composition] iframe{max-width:100%;height:auto}@media (max-width:639px){[data-composition][data-composition] [style*="grid-template-columns"]:not([data-mobile-cols]),[data-composition][data-composition] .grid:not([data-mobile-cols]){width:100%!important;max-width:100%!important;grid-template-columns:minmax(0,1fr)!important}[data-composition][data-composition] [data-widget],[data-composition][data-composition] form{width:100%!important;max-width:100%!important}[data-composition][data-composition] h1{font-size:min(var(--rv-mfs,2.75rem),2.75rem,11vw)!important;line-height:max(1.05,var(--rv-mlh,1.05))!important}[data-composition][data-composition] h2{font-size:min(var(--rv-mfs,2.25rem),2.25rem,9.5vw)!important;line-height:max(1.1,var(--rv-mlh,1.1))!important}[data-composition][data-composition] h3{font-size:min(var(--rv-mfs,1.6rem),1.6rem,7vw)!important;line-height:max(1.12,var(--rv-mlh,1.12))!important}[data-composition][data-composition] p,[data-composition][data-composition] li,[data-composition][data-composition] span,[data-composition][data-composition] a,[data-composition][data-composition] small,[data-composition][data-composition] label{font-size:max(14px,1em)!important;line-height:1.45}[data-composition][data-composition] a,[data-composition][data-composition] button{min-height:44px!important}[data-composition][data-composition] a{align-items:center}[data-composition][data-composition] [style*="grid-template-areas"]{grid-template-areas:none!important}[data-composition][data-composition] [style*="grid-area"]{grid-area:auto!important}}`;
+export const PHONE_SAFETY_CSS = `[data-composition]{box-sizing:border-box;max-width:100%;min-width:0;overflow-x:clip;padding-inline-start:max(0px,env(safe-area-inset-left,0px));padding-inline-end:max(0px,env(safe-area-inset-right,0px))}[data-composition][data-composition] *{box-sizing:border-box;min-width:0;max-width:100%;overflow-wrap:break-word}[data-composition][data-composition] :is(h1,h2,h3,h4){text-wrap:balance;overflow-wrap:break-word;word-break:normal;hyphens:manual}[data-composition][data-composition] :is(p,span,li,label){overflow-wrap:break-word;word-break:normal}[data-composition][data-composition] :is(p,li){text-wrap:pretty}[data-composition][data-composition] img{image-rendering:auto}[data-composition][data-composition] img,[data-composition][data-composition] video,[data-composition][data-composition] iframe{max-width:100%;height:auto}@media (max-width:639px){[data-composition][data-composition] [style*="grid-template-columns"]:not([data-mobile-cols]),[data-composition][data-composition] .grid:not([data-mobile-cols]){width:100%!important;max-width:100%!important;grid-template-columns:minmax(0,1fr)!important}[data-composition][data-composition] [data-widget],[data-composition][data-composition] form{width:100%!important;max-width:100%!important}[data-composition][data-composition] h1{font-size:min(var(--rv-mfs,2.75rem),2.75rem,11vw)!important;line-height:max(1.05,var(--rv-mlh,1.05))!important}[data-composition][data-composition] h2{font-size:min(var(--rv-mfs,2.25rem),2.25rem,9.5vw)!important;line-height:max(1.1,var(--rv-mlh,1.1))!important}[data-composition][data-composition] h3{font-size:min(var(--rv-mfs,1.6rem),1.6rem,7vw)!important;line-height:max(1.12,var(--rv-mlh,1.12))!important}[data-composition][data-composition] p,[data-composition][data-composition] li,[data-composition][data-composition] span,[data-composition][data-composition] a,[data-composition][data-composition] small,[data-composition][data-composition] label{font-size:max(14px,1em)!important;line-height:1.45}[data-composition][data-composition] a,[data-composition][data-composition] button{min-height:44px!important}[data-composition][data-composition] a{align-items:center}[data-composition][data-composition] [style*="grid-template-areas"]{grid-template-areas:none!important}[data-composition][data-composition] [style*="grid-area"]{grid-area:auto!important}[data-composition][data-composition] [style*="aspect-ratio"]:not(:has(img)):not(:has(video)){aspect-ratio:auto!important}}`;
 
 const MOTION_CSS = `@media (prefers-reduced-motion: no-preference){.rv-cn-motion{animation:rv-cn-in .7s ease both}.rv-cn-motion[data-motion=rise]{animation-name:rv-cn-rise}.rv-cn-motion[data-motion=scale]{animation-name:rv-cn-scale}.rv-cn-motion[data-motion=float]{animation:rv-cn-float 6s ease-in-out infinite}.rv-cn-motion[data-motion=slide-left]{animation-name:rv-cn-sl}.rv-cn-motion[data-motion=slide-right]{animation-name:rv-cn-sr}.rv-cn-motion[data-motion=blur]{animation-name:rv-cn-blur}.rv-cn-motion[data-motion=reveal]{animation-name:rv-cn-reveal}.rv-cn-motion[data-motion=custom]{animation-name:rv-cn-custom}}@keyframes rv-cn-custom{from{opacity:var(--rv-o,1);transform:translate(var(--rv-x,0),var(--rv-y,0)) scale(var(--rv-s,1)) rotate(var(--rv-r,0));filter:blur(var(--rv-b,0))}}@keyframes rv-cn-sl{from{opacity:0;transform:translateX(32px)}to{opacity:1;transform:none}}@keyframes rv-cn-sr{from{opacity:0;transform:translateX(-32px)}to{opacity:1;transform:none}}@keyframes rv-cn-blur{from{opacity:0;filter:blur(12px)}to{opacity:1;filter:none}}@keyframes rv-cn-reveal{from{clip-path:inset(0 0 100% 0)}to{clip-path:inset(0 0 0 0)}}@keyframes rv-cn-in{from{opacity:0}to{opacity:1}}@keyframes rv-cn-rise{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:none}}@keyframes rv-cn-scale{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:none}}@keyframes rv-cn-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}`;
 
-export function CompositionRenderer({ tree, scope, as = "section", resolveHref, resolveMedia, resolveWidget, eagerFirstMedia = false, surface = null, linkLabel, editable = false }: { tree: CompositionTree; scope: string; editable?: boolean; surface?: string | null; linkLabel?: (text: string) => string; as?: "section" | "div"; resolveHref?: (href: string) => string; resolveMedia?: (ref: string) => ResolvedMedia | null; resolveWidget?: (name: string, presentation?: WidgetPresentation) => ReactNode; eagerFirstMedia?: boolean }) {
+export function CompositionRenderer({ tree, scope, as = "section", resolveHref, resolveMedia, resolveWidget, resolveOffer, eagerFirstMedia = false, surface = null, linkLabel, editable = false }: { tree: CompositionTree; scope: string; editable?: boolean; surface?: string | null; linkLabel?: (text: string) => string; as?: "section" | "div"; resolveHref?: (href: string) => string; resolveMedia?: (ref: string) => ResolvedMedia | null; resolveWidget?: (name: string, presentation?: WidgetPresentation) => ReactNode; /** Real service facts for offer cards (Services tool); without it no price is shown. */ resolveOffer?: (service: string) => OfferFacts | null; eagerFirstMedia?: boolean }) {
   const page = surface && /^#[0-9a-f]{6}$/i.test(surface) ? surface : undefined;
-  const ctx: Ctx = { ...(CHROME_SCOPES.has(scope) ? { chrome: true } : {}), ...(editable ? { editable: true } : {}), ...(linkLabel ? { label: linkLabel } : {}), ...(page ? { bg: page, fg: bestInk(page) } : {}), rules: [], counter: { n: 0 }, eagerFirstMedia, scope: scope.replace(/[^\w-]/g, "") || "cn", href: resolveHref ?? ((h) => h), media: resolveMedia ?? (() => null), widget: resolveWidget ?? (() => null) };
+  const ctx: Ctx = { ...(resolveOffer ? { offer: resolveOffer } : {}), ...(CHROME_SCOPES.has(scope) ? { chrome: true } : {}), ...(editable ? { editable: true } : {}), ...(linkLabel ? { label: linkLabel } : {}), ...(page ? { bg: page, fg: bestInk(page) } : {}), rules: [], counter: { n: 0 }, eagerFirstMedia, scope: scope.replace(/[^\w-]/g, "") || "cn", href: resolveHref ?? ((h) => h), media: resolveMedia ?? (() => null), widget: resolveWidget ?? (() => null) };
   const body = renderNode(tree.root, ctx, "root");
   // The shared rules are identical for every section. They used to be
   // repeated inline in each one (several KB per section, re-parsed by the
@@ -748,7 +1244,7 @@ export function CompositionRenderer({ tree, scope, as = "section", resolveHref, 
   // section's own responsive/hover rules stay inline, after the shared ones.
   const shared = (
     <style href="rv-cn-shared" precedence="rv-cn">
-      {MOTION_CSS + MARQUEE_CSS + INTERACTIVE_CSS + PHONE_SAFETY_CSS}
+      {MOTION_CSS + MARQUEE_CSS + INTERACTIVE_CSS + PHONE_SAFETY_CSS + CINEMATIC_CSS}
     </style>
   );
   const own = ctx.rules.length ? <style>{ctx.rules.join("")}</style> : null;

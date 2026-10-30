@@ -136,7 +136,9 @@ export const getAiHealth = createServerFn({ method: "GET" })
     );
     if (error) throw new Error("Couldn't read AI usage.");
 
-    const events = rows ?? [];
+    const { eventCostUsd } = await import("@/lib/ai/config");
+    const { currentLovableUsage } = await import("@/lib/ai/health-merge");
+    const events = currentLovableUsage(rows ?? []);
     const day = events.filter((row) => new Date(row.created_at).getTime() >= dayAgo);
 
     const tasks = new Map<
@@ -162,8 +164,9 @@ export const getAiHealth = createServerFn({ method: "GET" })
       toolCalls += row.tool_calls ?? 0;
       input += row.input_tokens ?? 0;
       output += row.output_tokens ?? 0;
-      if (row.estimated_cost_usd !== null) {
-        cost += Number(row.estimated_cost_usd);
+      const rowCost = eventCostUsd(row);
+      if (rowCost !== null) {
+        cost += rowCost;
         priced = true;
       }
       if (!row.ok && row.error_category)
@@ -179,8 +182,8 @@ export const getAiHealth = createServerFn({ method: "GET" })
       task.calls += 1;
       if (!row.ok) task.failures += 1;
       task.latency.push(row.latency_ms ?? 0);
-      if (row.estimated_cost_usd !== null) {
-        task.cost += Number(row.estimated_cost_usd);
+      if (rowCost !== null) {
+        task.cost += rowCost;
         task.priced = true;
       }
       tasks.set(row.task, task);
@@ -238,7 +241,8 @@ export const getAiHealth = createServerFn({ method: "GET" })
       entry.attempts += 1;
       if (row.ok) entry.successes += 1;
       if (typeof row.latency_ms === "number") entry.latency.push(row.latency_ms);
-      if (row.estimated_cost_usd !== null) { entry.cost += Number(row.estimated_cost_usd); entry.priced = true; }
+      const dayCost = eventCostUsd(row);
+      if (dayCost !== null) { entry.cost += dayCost; entry.priced = true; }
       if (!entry.last || row.created_at > entry.last) entry.last = row.created_at;
       usage.set(id, entry);
     }

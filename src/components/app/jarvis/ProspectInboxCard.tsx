@@ -64,9 +64,8 @@ export function ProspectInboxCard({ className }: { className?: string }) {
         {inbox.isLoading ? <p className="text-muted-foreground">Loading replies…</p> : null}
         {inbox.isError ? <p className="text-destructive">Couldn't load replies.</p> : null}
         {data && !data.configured ? (
-          <p className="rounded-md bg-muted p-3">
-            Gmail isn't connected, so replies aren't read yet. Add these secrets in Lovable:{" "}
-            <strong>{(data.missingSecrets.length ? data.missingSecrets : ["GMAIL_CLIENT_ID", "GMAIL_CLIENT_SECRET", "GMAIL_REFRESH_TOKEN", "GMAIL_SENDER_EMAIL"]).join(", ")}</strong>.
+          <p className="rounded-md border border-border p-3 text-xs text-muted-foreground">
+            {data.message ?? "Gmail isn't connected, so replies aren't read yet."} Jarvis never takes them in a form or chat.
           </p>
         ) : null}
         {data?.lastPolledAt ? <p className="text-xs text-muted-foreground">Last checked {when(data.lastPolledAt)}{data.lastError ? ` · ${data.lastError}` : ""}</p> : null}

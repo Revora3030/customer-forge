@@ -166,14 +166,21 @@ export function useGenerateSectionsFromText(organizationId: string | undefined) 
   const run = useServerFn(runSiteGeneration);
 
   return useMutation({
-    mutationFn: async (vars?: { requestId?: string; instruction?: string }) => {
+    mutationFn: async (vars?: { requestId?: string; instruction?: string; fresh?: boolean }) => {
       if (!organizationId) throw new Error("Choose a workspace before generating your website.");
       const analysis = await analyze({ data: { organizationId, ...(vars?.instruction ? { instruction: vars.instruction } : {}) } });
       await save({
         data: { organizationId, brief: analysis.brief, approved: true },
       });
+      // A fresh rebuild is only ever started from the chat's confirm card, which
+      // is the owner's explicit approval to replace the draft (a backup is taken first).
       return run({
-        data: { organizationId, mode: "safe", ...(vars?.requestId ? { requestId: vars.requestId } : {}) },
+        data: {
+          organizationId,
+          mode: vars?.fresh ? "fresh_replace" : "safe",
+          ...(vars?.fresh ? { confirmation: "FRESH REBUILD" } : {}),
+          ...(vars?.requestId ? { requestId: vars.requestId } : {}),
+        },
       });
     },
     onSuccess: () => {
@@ -509,8 +516,9 @@ export function useEnsureFirstBuild(
     const key = `revora.firstbuild.${organizationId}`;
     // The marker only stops a double start in the same few minutes. A first
     // build that failed for good (an AI step unavailable after its retries)
-    // leaves no pages and no job, so after a pause the build is tried again
-    // instead of leaving the owner looking at an empty builder for the session.
+    // leaves no pages; the caller's `hasAnyJob` (blocksAutoBuild) keeps it from
+    // being re-queued here for a day, because each automatic start spends real
+    // credits. The owner starts it again by hand with one message in the chat.
     const startedAt = Number(sessionStorage.getItem(key) ?? 0);
     if (startedAt && Date.now() - startedAt < 10 * 60 * 1000) return;
     sessionStorage.setItem(key, String(Date.now()));

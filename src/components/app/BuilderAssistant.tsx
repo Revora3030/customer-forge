@@ -18,6 +18,7 @@ import {
   ArrowUp,
   Check,
   ChevronDown,
+  Eye,
   GitBranch,
   History,
   ImagePlus,
@@ -68,15 +69,19 @@ import { useServerFn } from "@tanstack/react-start";
 import { getAiSuggestions } from "@/lib/ai-suggestions.functions";
 import { QUEUE_LABELS, timelineFor } from "@/lib/builder-queue";
 import { onAssistantPrompt } from "@/lib/assistant-bridge";
-import { selectionPrefix } from "@/lib/builder/preview-bridge";
+import { pageContextPrefix, selectionPrefix, type PageContext } from "@/lib/builder/preview-bridge";
 import { actionsForElement } from "@/lib/builder/element-actions";
 import { MAIN_BRANCH, normaliseRequestId } from "@/lib/builder/chat-thread";
+import { wantsFreshRebuild } from "@/lib/builder/rebuild-intent";
 import type { ChatTask } from "@/lib/builder/hydrate-tasks";
 import { SectionHistoryButton } from "@/components/app/SectionHistoryButton";
 import { INSTRUCTION_LIMIT, type BuilderRequests } from "@/lib/builder-requests.hooks";
 import type { AgentAttachment } from "@/lib/site-agent";
 import { cn } from "@/lib/utils";
 import { WebsiteBriefDialog } from "@/components/app/WebsiteBriefDialog";
+import type { StepTarget } from "@/lib/builder/step-target";
+import { WorkFeed } from "@/components/app/WorkFeed";
+import { formatDuration, modelsAsked, timedSteps } from "@/lib/builder/work-feed";
 
 /** How many suggestion chips sit above the composer before "More". */
 const CHIP_LIMIT = 3;
@@ -94,6 +99,14 @@ export function BuilderAssistant({
   businessName = null,
   compact = false,
   selection = null,
+  pageContext = null,
+  onReveal,
+  starterIdeas = [],
+  onFreshRebuild,
+  canFreshRebuild = false,
+  rebuildBusy = false,
+  onStopBuild,
+  stoppingBuild = false,
   onClearSelection,
   onOpenHistory,
   onShowPreview,
@@ -117,6 +130,21 @@ export function BuilderAssistant({
   compact?: boolean;
   /** The block the owner clicked in the preview, if any. */
   selection?: { id: string; label: string | null; kind: string | null; text: string | null } | null;
+  /** The page open in the preview: shown as a chip and sent as soft context with each request. */
+  pageContext?: PageContext | null;
+  /** Shows a planned or applied change in the preview: opens its page, scrolls to it and outlines it. */
+  onReveal?: (target: StepTarget) => void;
+  /** Trade-specific first requests, shown at once in an empty chat while the AI's own ideas load. */
+  starterIdeas?: { label: string; reason: string; instruction: string }[];
+  /** Replaces the whole draft with a new build. Offered only behind the confirm card. */
+  onFreshRebuild?: (instruction: string) => Promise<void>;
+  /** Owners and admins only; the server re-checks. */
+  canFreshRebuild?: boolean;
+  /** A build is already running, so a rebuild can't start. */
+  rebuildBusy?: boolean;
+  /** Stops the running build (managers and above; the server re-checks). Shown on the build's live card. */
+  onStopBuild?: (jobId: string) => void;
+  stoppingBuild?: boolean;
   onClearSelection?: () => void;
   /** Opens History, where the before-and-after comparison lives. */
   onOpenHistory?: () => void;
@@ -147,6 +175,8 @@ export function BuilderAssistant({
   const [branchName, setBranchName] = useState("");
   /** A question Revora asked, which the next message answers. */
   const [answering, setAnswering] = useState<string | null>(null);
+  /** The owner asked to rebuild the whole site: nothing happens until they confirm here. */
+  const [rebuildAsk, setRebuildAsk] = useState<{ instruction: string } | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const sectionRef = useRef<HTMLElement>(null);
   useChatTop(sectionRef);
@@ -173,7 +203,8 @@ export function BuilderAssistant({
       return fetchSuggestions({ data: { organizationId } });
     },
   });
-  const SUGGESTIONS = suggestionsQuery.data?.suggestions ?? [];
+  const AI_SUGGESTIONS = suggestionsQuery.data?.suggestions ?? [];
+  const SUGGESTIONS = AI_SUGGESTIONS;
   // Suggestions come from the Lovable AI team and can be slow; after a short
   // wait the empty placeholders give way to the composer instead of pulsing.
   const [suggestionsSlow, setSuggestionsSlow] = useState(false);
@@ -200,6 +231,8 @@ export function BuilderAssistant({
   const scoped = (text: string) => {
     const parts: string[] = [];
     if (selection) parts.push(selectionPrefix(selection));
+    // A picked block is more specific than the open page, and a first build has no page yet.
+    else if (pageContext && !onFirstBuild) parts.push(pageContextPrefix(pageContext));
     if (answering) parts.push(`Answering your question "${answering}":`);
     return parts.length ? `${parts.join(" ")} ${text}` : text;
   };
@@ -241,6 +274,14 @@ export function BuilderAssistant({
       onClearSelection?.();
       afterSend();
       void onFirstBuild(instruction);
+      return;
+    }
+    // "Fresh rebuild" in the chat is a request about the whole site, not an edit
+    // to plan: it gets its own confirm card instead of reaching the edit planner.
+    if (onFreshRebuild && attachments.length === 0 && wantsFreshRebuild(text)) {
+      setRebuildAsk({ instruction: text.trim() });
+      setValue("");
+      afterSend();
       return;
     }
     requests.queue(scoped(text), attachments);
@@ -412,7 +453,7 @@ export function BuilderAssistant({
           </button>
         </form>
       ) : null}
-      {banner ? <div className="mx-3 mt-2 shrink-0 empty:hidden">{banner}</div> : null}
+      {banner ? <div className="mx-3 mt-2 mb-1 shrink-0 empty:hidden">{banner}</div> : null}
 
       <Conversation className="min-h-0 flex-1 overscroll-contain" onPointerDown={dismissKeyboard} aria-label="Conversation with Revora">
         <ConversationContent className="mx-auto w-full max-w-[var(--chat-measure)] gap-5 px-3 py-5 sm:px-4">
@@ -448,16 +489,16 @@ export function BuilderAssistant({
                   {emptyHint}
                 </p>
               </div>
-              {SUGGESTIONS.length || suggestionsLoading ? (
+              {SUGGESTIONS.length || suggestionsLoading || starterIdeas.length ? (
                 <div className="mx-auto w-full max-w-xl space-y-2">
                   <p className="flex items-center gap-1.5 px-1 text-xs font-medium tracking-wide text-muted-foreground uppercase">
                     <Sparkles className="size-3.5 text-primary" aria-hidden /> Suggested for your site
                   </p>
-                  {suggestionsLoading && SUGGESTIONS.length === 0
+                  {suggestionsLoading && SUGGESTIONS.length === 0 && starterIdeas.length === 0
                     ? [0, 1, 2].map((key) => (
                         <div key={key} className="h-[52px] animate-pulse rounded-xl border border-border/60 bg-muted/40" />
                       ))
-                    : SUGGESTIONS.slice(0, 4).map((action) => (
+                    : [...SUGGESTIONS, ...starterIdeas].slice(0, 3).map((action) => (
                         <button
                           key={action.label}
                           type="button"
@@ -502,6 +543,9 @@ export function BuilderAssistant({
                     isActive={task.id === activeTaskId || Boolean(task.tracking)}
                     organizationId={organizationId}
                     onAnswer={setAnswering}
+                    {...(onReveal ? { onReveal } : {})}
+                    {...(onStopBuild ? { onStopBuild } : {})}
+                    stoppingBuild={stoppingBuild}
                     {...(onOpenHistory ? { onOpenHistory } : {})}
                     {...(onShowPreview ? { onShowPreview } : {})}
                     onFollowUp={(prompt) => {
@@ -513,6 +557,24 @@ export function BuilderAssistant({
               </div>
             ));
           })()}
+
+          {rebuildAsk ? (
+            <div className="chat-rise space-y-3">
+              <UserTurn text={rebuildAsk.instruction} />
+              <AssistantTurn>
+                <RebuildConfirm
+                  allowed={canFreshRebuild}
+                  busy={rebuildBusy || busy}
+                  onCancel={() => setRebuildAsk(null)}
+                  onConfirm={() => {
+                    const instruction = rebuildAsk.instruction;
+                    setRebuildAsk(null);
+                    void onFreshRebuild?.(instruction);
+                  }}
+                />
+              </AssistantTurn>
+            </div>
+          ) : null}
 
           {factLog.map((entry, i) => (
             <div key={`fact-${i}`} className="chat-rise space-y-3">
@@ -607,8 +669,17 @@ export function BuilderAssistant({
               send(value);
             }}
           >
-            {selection || answering ? (
+            {selection || answering || (pageContext && !onFirstBuild) ? (
               <div className="order-first flex w-full flex-wrap gap-1.5 px-3 pt-3">
+                {pageContext && !onFirstBuild && !selection ? (
+                  <span
+                    className="inline-flex max-w-full items-center gap-1.5 rounded-lg border border-border/70 bg-muted/40 px-2.5 py-1 text-xs text-muted-foreground"
+                    title="Requests know which page you have open. Say so if you mean the whole site."
+                  >
+                    <Eye className="size-3.5 shrink-0" aria-hidden />
+                    <span className="truncate">Viewing: {pageContext.title}</span>
+                  </span>
+                ) : null}
                 {selection ? (
                   <span className="inline-flex max-w-full items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 py-1 pr-1 pl-2.5 text-xs text-foreground">
                     <span className="truncate">Editing: {selection.label ?? selection.kind ?? "the block you picked"}</span>
@@ -742,6 +813,45 @@ export function BuilderAssistant({
   );
 }
 
+/**
+ * The confirm card for replacing the whole draft. It says what happens before
+ * anything does: a backup is saved, the live site is untouched, and a failed
+ * rebuild restores the draft.
+ */
+export function RebuildConfirm({
+  allowed,
+  busy,
+  onConfirm,
+  onCancel,
+}: {
+  allowed: boolean;
+  busy: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div className="space-y-3 rounded-xl border border-border/70 bg-card/50 p-3.5" role="group" aria-label="Confirm a fresh rebuild">
+      <p className="font-medium text-foreground">{allowed ? "Replace your whole draft with a fresh build?" : "Only an owner or admin can replace the whole draft"}</p>
+      <p className="text-[14px] leading-6 text-muted-foreground">
+        {allowed
+          ? "I save a backup first, then design every page again from your saved facts and what you just asked for. Your live site isn't touched until you publish, and if the rebuild fails your draft is put back."
+          : "Tell me what you'd like changed and I'll edit the site you have, or ask an owner or admin to start a fresh rebuild."}
+      </p>
+      {allowed && busy ? <p className="text-[13px] text-muted-foreground">A build is already running. Wait for it to finish first.</p> : null}
+      <div className="flex flex-wrap gap-2">
+        {allowed ? (
+          <Button size="sm" variant="destructive" data-tap="primary" disabled={busy} onClick={onConfirm}>
+            Start fresh rebuild
+          </Button>
+        ) : null}
+        <Button size="sm" variant="outline" data-tap="primary" onClick={onCancel}>
+          {allowed ? "Keep my site" : "OK"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 /** The owner's message: a warm bubble on the right, like Claude and ChatGPT. */
 function UserTurn({ text, attachments = 0 }: { text: string; attachments?: number }) {
   return (
@@ -788,6 +898,8 @@ function LiveActivity({
   const MODEL_STAGE = "model at work";
   const workingModel = allSteps.find((step) => step.stage === MODEL_STAGE)?.detail ?? null;
   const steps = allSteps.filter((step) => step.stage !== MODEL_STAGE);
+  const askedModels = modelsAsked(allSteps);
+  const timed = new Map(timedSteps(steps).map((step) => [step.stage, step.durationMs]));
   const latest = rawLatest?.stage === MODEL_STAGE ? (steps[0] ?? null) : rawLatest;
   const [startedAt] = useState(() => Date.now());
   const [now, setNow] = useState(() => Date.now());
@@ -844,12 +956,17 @@ function LiveActivity({
               {done.map((step) => (
                 <li key={`${step.stage}-${step.at}`} className="chat-rise flex items-start gap-2 text-[13px] leading-5 text-muted-foreground">
                   <Check className="mt-0.5 size-3.5 shrink-0 text-emerald-400" aria-hidden />
-                  <span className="min-w-0 break-words">
+                  <span className="min-w-0 flex-1 break-words">
                     {step.stage}
                     {step.stage === "plan ready" && step.detail ? (
                       <span className="mt-0.5 block text-foreground/80">{step.detail}</span>
+                    ) : step.detail ? (
+                      <span className="mt-0.5 block text-xs text-muted-foreground/80">{step.detail}</span>
                     ) : null}
                   </span>
+                  {timed.get(step.stage) != null ? (
+                    <span className="tnum shrink-0 text-xs text-muted-foreground/70">{formatDuration(timed.get(step.stage))}</span>
+                  ) : null}
                 </li>
               ))}
             </ol>
@@ -861,6 +978,9 @@ function LiveActivity({
                 {workingModel}
               </span>
             </p>
+          ) : null}
+          {askedModels.length > 1 ? (
+            <p className="text-xs text-muted-foreground">Asked so far: {askedModels.join(" → ")}</p>
           ) : null}
           {latest?.detail ? (
             <p className="text-xs break-words text-muted-foreground">{latest.detail}</p>
@@ -881,6 +1001,9 @@ function TaskBody({
   onAnswer,
   onOpenHistory,
   onShowPreview,
+  onReveal,
+  onStopBuild,
+  stoppingBuild = false,
   onFollowUp,
 }: {
   task: ChatTask;
@@ -892,6 +1015,9 @@ function TaskBody({
   onAnswer: (question: string) => void;
   onOpenHistory?: () => void;
   onShowPreview?: () => void;
+  onReveal?: (target: StepTarget) => void;
+  onStopBuild?: (jobId: string) => void;
+  stoppingBuild?: boolean;
   onFollowUp: (prompt: string) => void;
 }) {
   const working = task.state === "queued" || task.state === "planning" || task.state === "building";
@@ -903,7 +1029,12 @@ function TaskBody({
   const retrySkippedPrompt = `Try again the ${skipped} change${skipped === 1 ? "" : "s"} from my request “${task.instruction}” that didn't go through last time. Plan ${skipped === 1 ? "it" : "them"} against my site as it is now.`;
   return (
     <div className="space-y-2">
-      {working && isActive ? (
+      {task.waitingOnBuild && working ? (
+        // Held behind the first build: show that build's own log, not empty dots.
+        <WorkFeed organizationId={organizationId} {...(onStopBuild ? { onStop: onStopBuild } : {})} stopping={stoppingBuild} />
+      ) : task.isBuild && working ? (
+        <WorkFeed organizationId={organizationId} runId={requests.progressRunId(task.id)} {...(onStopBuild ? { onStop: onStopBuild } : {})} stopping={stoppingBuild} />
+      ) : working && isActive ? (
         <LiveActivity
           organizationId={organizationId}
           requestId={requests.progressRunId(task.id)}
@@ -947,8 +1078,10 @@ function TaskBody({
 
       {task.reply ? <ReplyText text={task.reply} className="text-[15px] leading-7" /> : null}
       {task.error ? <p className="text-sm leading-6">{task.error}</p> : null}
+      {/* A build started here keeps its work log under its message once it has ended. */}
+      {task.isBuild && !working ? <WorkFeed organizationId={organizationId} runId={requests.progressRunId(task.id)} live={false} /> : null}
 
-      {working && isActive ? (
+      {working && isActive && !task.isBuild && !task.waitingOnBuild ? (
         <p className="text-xs text-muted-foreground">
           {timeline.stages[timeline.current]}
         </p>
@@ -961,6 +1094,9 @@ function TaskBody({
           staleCount={task.staleCount}
           reasons={task.reasons}
           titles={task.titles ?? task.steps.filter((step) => step.included).map((step) => step.title)}
+          {...(!task.titles && onReveal
+            ? { reveals: task.steps.filter((step) => step.included).map((step) => (step.target ? () => onReveal(step.target!) : null)) }
+            : {})}
           details={task.details}
           onRetrySkipped={skipped > 0 ? () => onFollowUp(retrySkippedPrompt) : undefined}
           onUndo={onOpenHistory}
@@ -1050,6 +1186,16 @@ function TaskBody({
                     </span>
                   ) : null}
                   {step.destructive ? <span className="ml-1 opacity-80">— removes content</span> : null}
+                  {step.target && onReveal ? (
+                    <button
+                      type="button"
+                      onClick={() => onReveal(step.target!)}
+                      aria-label={`Show in preview: ${step.title}`}
+                      className="relative mt-1 inline-flex cursor-pointer items-center gap-1 text-xs text-muted-foreground underline-offset-2 after:absolute after:-inset-2 hover:text-foreground hover:underline"
+                    >
+                      <Eye className="size-3" aria-hidden /> Show in preview
+                    </button>
+                  ) : null}
                 </span>
                 {task.state === "waiting_for_approval" ? (
                   <span className="flex shrink-0 items-center gap-1.5">

@@ -3,7 +3,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { SiteFooter, SiteHeader } from "@/components/marketing/Chrome";
 import { Button } from "@/components/ui/button";
 import { GROWTH_SYSTEM, usd } from "@/lib/offer";
-import { breadcrumbSchema, canonicalLink, ogUrl, metaDescription } from "@/lib/seo";
+import { breadcrumbSchema, canonicalLink, ogUrl, metaDescription, OG_IMAGE_META } from "@/lib/seo";
 import { LOCAL_INDUSTRIES } from "@/lib/local-pages";
 import { US_STATES } from "@/lib/us-states";
 
@@ -20,6 +20,7 @@ export const Route = createFileRoute("/local/")({
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
       ogUrl("/local"),
+      ...OG_IMAGE_META,
     ],
     links: [canonicalLink("/local")],
     scripts: [
@@ -86,7 +87,7 @@ function LocalHub() {
               <Link
                 to="/states/$state"
                 params={{ state: state.slug }}
-                className="text-[14px] text-muted-foreground hover:text-primary"
+                className="tap-target py-1 text-[14px] text-muted-foreground hover:text-primary"
               >
                 {state.name}
               </Link>

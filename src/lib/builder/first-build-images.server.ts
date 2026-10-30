@@ -16,6 +16,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Json } from "@/integrations/supabase/types";
 import { generateImageBase64, decodeBase64 } from "@/lib/image-studio.server";
 import { generatePaidImageBase64, paidImageStatus } from "@/lib/ai/paid-image.server";
+import { scopedBuildStopped } from "@/lib/ai/spend-scope.server";
 import {
   acceptedForUse,
   inspectPhoto,
@@ -79,10 +80,20 @@ export function firstBuildImageConcurrency() {
   return Number.isFinite(raw) && raw > 0 ? Math.min(Math.floor(raw), 6) : 3;
 }
 
+/**
+ * The AI's picture descriptions routinely carry their own disclaimers
+ * ("without suggesting completed work", "never a before-and-after result").
+ * A disclaimer is not a claim, so negated clauses are removed before the
+ * claim check; otherwise the safest-worded shots were the ones dropped.
+ */
+export function claimWords(text: string): string {
+  return text.replace(/\b(?:without|never|not|no|nor|avoid(?:ing|s)?)\b[^.;:()]*/gi, " ");
+}
+
 function safeSlot(shot: PlannedShot) {
   if (!/^[a-z0-9][a-z0-9-]{0,59}$/.test(shot.slot)) return false;
   if (shot.placement.some((place) => /gallery|proof|testimonial|review|award|team|result|before|after/i.test(place))) return false;
-  return !/testimonial|review|award|team|result|completed work|proof|before|after/i.test(`${shot.slot} ${shot.label} ${shot.purpose}`);
+  return !/testimonial|review|award|team|result|completed work|proof|before|after/i.test(`${shot.slot} ${claimWords(shot.label)} ${claimWords(shot.purpose)}`);
 }
 
 /**
@@ -108,6 +119,28 @@ function artDirectionNote(creative: FirstBuildCreativeDirection, shot: PlannedSh
     `Keep clear negative space on the ${spec.negativeSpace} for headline text.`,
     `${spec.mobileCrop}.`,
   ].join(" ");
+}
+
+const roleKey = (value: string) => value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+
+/**
+ * The shot-list direction for this picture: the AI-authored art direction of
+ * the section the picture is placed in, plus the campaign's continuity
+ * thread, so every picture on the site is shot as one coherent set. Empty
+ * when the brief carries no shot list (older briefs); nothing is invented.
+ */
+export function shotDirectionFor(creative: Pick<FirstBuildCreativeDirection, "brief">, shot: Pick<PlannedShot, "slot" | "placement">): string {
+  const list = creative.brief?.shotList;
+  if (!list?.sections?.length) return "";
+  const wanted = [...shot.placement, shot.slot].map(roleKey).filter(Boolean);
+  const entry = list.sections.find((item) => wanted.includes(roleKey(item.section)));
+  if (!entry) return list.continuity ? `Site-wide continuity: ${list.continuity}.` : "";
+  return [
+    `Scene direction for the ${entry.section} section: setting ${entry.setting}; light ${entry.light}; camera angle ${entry.cameraAngle}; mood ${entry.mood}.`,
+    entry.paletteTieIn ? `Palette tie-in: ${entry.paletteTieIn}.` : "",
+    entry.copySpace ? `Leave calm copy space: ${entry.copySpace}.` : "",
+    list.continuity ? `Site-wide continuity: ${list.continuity}.` : "",
+  ].filter(Boolean).join(" ");
 }
 
 function fileStem(shot: PlannedShot, index: number) {
@@ -199,7 +232,7 @@ export async function generateFirstBuildImages(
   // retried per shot, which slowed every build and left the free lane to pick
   // up the pieces one failure at a time.
   let paidUsable = paid.allowed;
-  const PAID_STOP = new Set(["disabled", "no_key", "model_unavailable", "budget_exhausted", "ledger_unavailable"]);
+  const PAID_STOP = new Set(["disabled", "no_key", "model_unavailable", "budget_exhausted", "ledger_unavailable", "build_stopped"]);
   // Quality first. Sunburst owns hero/editorial frames and Flare owns supporting
   // imagery when enabled and inside the durable budget gate. The standard lane
   // is capability-aware failover, not the default merely because it is free.
@@ -238,6 +271,11 @@ export async function generateFirstBuildImages(
   const placementOf = (shot: PlannedShot) => `${shot.slot} ${shot.placement.join(" ")}`.trim();
 
   async function makeShot(shot: PlannedShot, index: number): Promise<FirstBuildImageAsset | null> {
+    // A stopped build starts no further pictures (each is a paid call).
+    if (scopedBuildStopped()) {
+      skipped.push({ slot: shot.slot, label: shot.label, reason: "the build was stopped" });
+      return null;
+    }
     // Out of time: keep the build moving. The hero (index 0) is always tried.
     if (index > 0 && Date.now() >= deadline) {
       skipped.push({ slot: shot.slot, label: shot.label, reason: "picture time budget reached; left for the picture repair" });
@@ -280,7 +318,7 @@ export async function generateFirstBuildImages(
     // the cap is cut — so the subject and the safety rules lead, and the long
     // art-direction notes follow.
     const prompt = [
-      `Photorealistic professional website photograph of ${spec.subject}. Single photograph, not a collage or split-screen. No text, letters, numbers, logos, car badges, emblems, licence plates, watermarks, signage or recognisable real people.`,
+      `Photorealistic professional website photograph of ${spec.subject}. Single photograph, not a collage or split-screen. No text, letters, numbers, logos, car badges, emblems, licence plates, watermarks, signage or recognisable real people; any vehicle is fully debadged, with a plain grille and plain wheel centres.`,
       `Purpose: ${spec.purpose}.`,
       spec.action ? `Action: ${spec.action}.` : "",
       spec.environment ? `Environment: ${spec.environment}.` : "",
@@ -291,6 +329,9 @@ export async function generateFirstBuildImages(
       spec.mobileCrop ? `Mobile crop: ${spec.mobileCrop}.` : "",
       spec.palette ? `Palette: ${spec.palette}.` : "",
       spec.mood ? `Mood: ${spec.mood}.` : "",
+      // The section's shot-list art direction keeps every picture on the site
+      // one coherent campaign (AI-authored in the creative-direction pass).
+      shotDirectionFor(input.creative, shot),
       artDirectionNote(input.creative, shot),
       ...spec.constraints,
       "Starter marketing image only. Do not depict a real employee, actual customer, award, review, brand logo, licence plate, address, or before-and-after result.",
@@ -346,17 +387,24 @@ export async function generateFirstBuildImages(
     );
     if (!acceptedForUse(verdict, policy)) {
       let replaced = false;
-      if (shouldReshoot(verdict)) {
-        const brief = verdict.revisedPrompt ?? `${prompt} Fix these problems: ${verdict.defects.join("; ")}.`;
-        // One corrected reshoot on the best lane available. A second free
-        // reshoot used to double the cost of every rejected frame.
+      // The opening picture decides how the whole site reads, and a build whose
+      // hero was rejected (seen: the vehicle's grille badge and wheel hub) shipped
+      // a text-only opening. It gets one more corrective round than the rest.
+      const isHero = /hero|masthead|opening|lead/i.test(placementOf(shot));
+      const rounds = isHero ? 2 : 1;
+      let current = verdict;
+      let currentPrompt = prompt;
+      for (let round = 0; round < rounds && !replaced && shouldReshoot(current); round += 1) {
+        const brief = current.revisedPrompt ?? `${currentPrompt} Fix these problems: ${current.defects.join("; ")}.`;
+        // One corrected reshoot per round on the best lane available. A second
+        // free reshoot used to double the cost of every rejected frame.
         let reshoot: Made | null = null;
         let reshootPremium = false;
         if (paidUsable) {
           const premium = await generatePaidImageBase64(
             brief,
             caller,
-            /hero|masthead|opening|lead/i.test(placementOf(shot)) ? "hero_master" : "editorial_feature",
+            isHero ? "hero_master" : "editorial_feature",
           );
           if (premium.ok) {
             paidCostMicrocents += premium.costMicrocents;
@@ -365,29 +413,31 @@ export async function generateFirstBuildImages(
           }
         }
         if (!reshoot) reshoot = await standardShot(brief);
-        if (reshoot) {
-          const recheck = await inspectPhoto(
-            { base64: reshoot.base64, mimeType: reshoot.mimeType },
-            { prompt: brief, placement: placementOf(shot) },
-            caller,
-          );
-          // The reshoot was made from Terra's own correction; a review outage on
-          // the recheck follows the same safe-fallback policy as the first look.
-          if (acceptedForUse(recheck, policy)) {
-            if (recheck.reviewFailed) reviewFallbacks += 1;
-            made = reshoot;
-            madePremium = reshootPremium;
-            replaced = true;
-          }
+        if (!reshoot) break;
+        const recheck = await inspectPhoto(
+          { base64: reshoot.base64, mimeType: reshoot.mimeType },
+          { prompt: brief, placement: placementOf(shot) },
+          caller,
+        );
+        // The reshoot was made from Terra's own correction; a review outage on
+        // the recheck follows the same safe-fallback policy as the first look.
+        if (acceptedForUse(recheck, policy)) {
+          if (recheck.reviewFailed) reviewFallbacks += 1;
+          made = reshoot;
+          madePremium = reshootPremium;
+          replaced = true;
+        } else {
+          current = recheck;
+          currentPrompt = brief;
         }
       }
       if (!replaced) {
         skipped.push({
           slot: shot.slot,
           label: shot.label,
-          reason: verdict.reviewFailed
+          reason: current.reviewFailed
             ? "the picture could not be quality-checked, so it was not used"
-            : `picture failed quality review (${verdict.defects.join("; ") || "off-brief"})`,
+            : `picture failed quality review (${current.defects.join("; ") || "off-brief"})`,
         });
         return null;
       }

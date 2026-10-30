@@ -31,6 +31,7 @@ import { adaptMissingMedia, assertMediaIntegrity } from "@/lib/builder/media-int
 import type { DnaFacts } from "@/lib/business-dna";
 import { screenPageSeo } from "@/lib/builder/first-build-safety";
 import { auditSiteDepth, type PageDepth } from "@/lib/builder/page-depth";
+import type { FirstBuildInventory } from "@/lib/builder/first-build-saved-coverage";
 
 type Db = SupabaseClient;
 
@@ -437,6 +438,8 @@ export async function materializeSiteContent(
   designContract: AiDesignContract | null;
   /** Measured depth per page slug, when pages were written. */
   depth?: Record<string, PageDepth>;
+  /** Exact inserted identities, carried to the tenant-scoped completion readback. */
+  inventory?: FirstBuildInventory;
 }> {
   const { count } = await db
     .from("website_pages")
@@ -753,6 +756,7 @@ export async function materializeSiteContent(
   await clearExisting();
   let sections = 0;
   let components = 0;
+  const inventory: FirstBuildInventory = { pages: [], sections: [] };
 
   for (const [pageIndex, page] of tree.entries()) {
     const { data: pageRow, error: pageError } = await db
@@ -774,6 +778,8 @@ export async function materializeSiteContent(
       .select("id")
       .single();
     if (pageError) throw new Error(pageError.message);
+    if (!pageRow?.id) throw new Error("Couldn't verify the saved website page");
+    inventory.pages.push({ id: pageRow.id, slug: page.slug });
 
     for (const [sectionIndex, section] of page.sections.entries()) {
       const design = materializedSectionDesign(
@@ -799,6 +805,8 @@ export async function materializeSiteContent(
         .select("id")
         .single();
       if (sectionError) throw new Error(sectionError.message);
+      if (!sectionRow?.id) throw new Error("Couldn't verify the saved website section");
+      inventory.sections.push({ id: sectionRow.id, page_id: pageRow.id, role: section.kind });
       sections += 1;
 
       const rows = (section.components ?? []).map((component, index) => ({
@@ -825,5 +833,5 @@ export async function materializeSiteContent(
   // Measured depth of what was written, for the section-wording pass and the
   // build report (repair notes for the AI, never sections added by rule).
   const depth = auditSiteDepth(tree);
-  return { pages: tree.length, sections, components, skipped: false, designContract, depth };
+  return { pages: tree.length, sections, components, skipped: false, designContract, depth, inventory };
 }

@@ -292,6 +292,8 @@ const VISUAL_CATEGORY: Record<
   small_tap_target: "accessibility",
   tiny_text: "accessibility",
   unreachable_control: "accessibility",
+  overlay_covers_control: "accessibility",
+  overlay_overlap_not_measured: "accessibility",
 
   broken_image: "visual",
   distorted_image: "visual",

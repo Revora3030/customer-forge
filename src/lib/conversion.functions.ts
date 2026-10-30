@@ -1,5 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+
 
 const EVENTS = [
   "page_view",
@@ -204,24 +206,36 @@ export const getConversionReport = createServerFn({ method: "GET" })
     const since = new Date(Date.now() - data.days * 86_400_000).toISOString();
 
     // Aggregate every row in the window: analytics must never be truncated.
-    const rows: {
+    const allRows: {
       event_name: string;
       industry_slug: string | null;
       landing_path: string | null;
       metadata: unknown;
       created_at: string;
+      session_id: string | null;
+      email: string | null;
     }[] = [];
     for (let page = 0; page < 200; page += 1) {
       const { data: batch, error } = await supabaseAdmin
         .from("marketing_conversions")
-        .select("event_name, industry_slug, landing_path, metadata, created_at")
+        .select("event_name, industry_slug, landing_path, metadata, created_at, session_id, email")
         .gte("created_at", since)
         .order("created_at", { ascending: false })
         .range(page * 1000, page * 1000 + 999);
       if (error) throw new Error("Analytics unavailable");
-      rows.push(...(batch ?? []));
+      allRows.push(...(batch ?? []));
       if ((batch?.length ?? 0) < 1000) break;
     }
+
+    // Revora's own staff test signup/checkout, plus the owner's confirmed test
+    // accounts: their sessions are never prospects.
+    const { staffSessionIds, isStaffRow, staffEmailAddresses } = await import(
+      "@/lib/staff-sessions"
+    );
+    const staffEmails = await staffEmailAddresses(supabaseAdmin);
+    const staffSessions = staffSessionIds(allRows, staffEmails);
+
+    const rows = allRows.filter((r) => !isStaffRow(r, staffSessions, staffEmails));
 
     const grouped = new Map<string, FunnelRow>();
     const variants = new Map<string, VariantRow>();
@@ -317,6 +331,9 @@ export const getTrafficReport = createServerFn({ method: "GET" })
     const since = new Date(Date.now() - data.days * 86_400_000).toISOString();
 
     const { eventPath, isPublicMarketingPath } = await import("@/lib/marketing-paths");
+    const { staffSessionIds, isStaffRow, staffEmailAddresses } = await import(
+      "@/lib/staff-sessions"
+    );
 
     const rows: {
       event_name: string;
@@ -326,11 +343,14 @@ export const getTrafficReport = createServerFn({ method: "GET" })
       utm_source: string | null;
       metadata: unknown;
       created_at: string;
+      email: string | null;
     }[] = [];
     for (let page = 0; page < 200; page += 1) {
       const { data: batch, error } = await supabaseAdmin
         .from("marketing_conversions")
-        .select("event_name, landing_path, session_id, referrer, utm_source, metadata, created_at")
+        .select(
+          "event_name, landing_path, session_id, referrer, utm_source, metadata, created_at, email",
+        )
         .gte("created_at", since)
         .order("created_at", { ascending: false })
         .range(page * 1000, page * 1000 + 999);
@@ -338,6 +358,11 @@ export const getTrafficReport = createServerFn({ method: "GET" })
       rows.push(...(batch ?? []));
       if ((batch?.length ?? 0) < 1000) break;
     }
+
+    // Revora's own staff and the owner's confirmed test accounts are not traffic.
+    const staffEmails = await staffEmailAddresses(supabaseAdmin);
+    const staffSessions = staffSessionIds(rows, staffEmails);
+
 
     const pages = new Map<string, { views: number; sessions: Set<string> }>();
     const sources = new Map<
@@ -354,11 +379,17 @@ export const getTrafficReport = createServerFn({ method: "GET" })
     let internalExcluded = 0;
 
     for (const row of rows) {
-      // Revora's own staff screens and tenant previews are not marketing traffic.
+      // Revora's own staff screens, tenant previews and confirmed test accounts
+      // are not marketing traffic.
+      if (isStaffRow(row, staffSessions, staffEmails)) {
+        internalExcluded += 1;
+        continue;
+      }
       if (!isPublicMarketingPath(eventPath(row))) {
         internalExcluded += 1;
         continue;
       }
+
       const session = row.session_id ?? "";
       if (session) allSessions.add(session);
 

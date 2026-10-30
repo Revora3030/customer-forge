@@ -8,6 +8,9 @@ import { stepLabel } from "@/lib/site-engine";
  * most recent build, so the owner watches real progress rather than a guess.
  * Polls only while a build is running, and only looks at the last few minutes.
  */
+/** The stage name the router's model reporter writes (see withModelActivity). */
+export const MODEL_AT_WORK = "model at work";
+
 export type BuildProgressStep = { stage: string; detail: string | null; at: string };
 
 export function useBuildProgress(
@@ -76,6 +79,8 @@ export function useBuildProgress(
 
   return {
     steps: query.data ?? [],
-    latest: (query.data ?? [])[0] ?? null,
+    // The newest STEP. "model at work" rows only say which model just answered;
+    // as the status line they read "Now: model at work" and hid the step.
+    latest: (query.data ?? []).find((step) => step.stage !== MODEL_AT_WORK) ?? null,
   };
 }

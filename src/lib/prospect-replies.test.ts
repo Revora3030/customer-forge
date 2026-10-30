@@ -614,6 +614,11 @@ describe("reply polling and follow-up", () => {
   });
 
   it("returns gmail_not_configured cleanly and names the four secrets", async () => {
+    vi.stubEnv("GOOGLE_OAUTH_CLIENT_ID", "");
+    vi.stubEnv("GOOGLE_OAUTH_CLIENT_SECRET", "");
+    onTestFinished(() => {
+      vi.unstubAllEnvs();
+    });
     const { db } = fakeDb(demoSeed({ prospect_outreach: [sentOutreach()] }));
     const result = await runProspectReplies(db);
     expect(result.status).toBe("gmail_not_configured");
@@ -649,6 +654,24 @@ describe("reply polling and follow-up", () => {
     expect(sends).toHaveLength(1);
   });
 
+  it("classifies, writes and reviews on the shared router lane with no free-only flag", async () => {
+    setGmail();
+    threadMessages = [inbound("in1", "Yes, I like it! What next?")];
+    const { db } = fakeDb(demoSeed({ prospect_outreach: [sentOutreach()] }));
+    expect(await runProspectReplies(db)).toMatchObject({ autoReplied: 1 });
+    const calls = vi.mocked(generateText).mock.calls;
+    // Intent, reply and second-pass review all went through the router.
+    expect(calls).toHaveLength(3);
+    for (const [caller, request] of calls) {
+      expect(caller).toMatchObject({ task: "admin.jarvis" });
+      // There is no free lane any more: the call uses the Lovable team under
+      // the router's daily paid-cap reservation, never a dead freeOnly flag.
+      expect(request).not.toHaveProperty("freeOnly");
+      expect(request).not.toHaveProperty("paidOnly");
+    }
+    expect(readFileSync(new URL("./prospect-replies.server.ts", import.meta.url), "utf8")).not.toMatch(/freeOnly/);
+  });
+
   it("turns a stop reply into do-not-contact with no reply and no draft", async () => {
     setGmail();
     ai.intent = '{"intent":"positive","confidence":0.95}';
@@ -664,6 +687,24 @@ describe("reply polling and follow-up", () => {
     // The operator can't answer it either.
     const approved = await approveReplyDraft(db, { inboundId: String(tables["prospect_inbound"]![0]!["id"]), body: "Sorry!", actorId: "admin" });
     expect(approved).toMatchObject({ ok: false, reason: "do_not_contact" });
+  });
+
+  it("cancels a waiting automatic follow-up when the prospect answers, and leaves other sends alone", async () => {
+    setGmail();
+    threadMessages = [inbound("in1", "Yes, I like it! What next?")];
+    const { db, tables } = fakeDb(
+      demoSeed({
+        prospect_outreach: [sentOutreach()],
+        prospect_send_queue: [
+          { id: "q1", organization_id: ORG, channel: "email", kind: "follow_up", recipient: "owner@triangle.com", status: "queued", not_before: "2026-10-30T19:00:00Z", attempts: 0 },
+          { id: "q2", organization_id: ORG, channel: "sms", kind: "first_touch", recipient: "+19195550100", status: "queued", not_before: "2026-10-30T19:00:00Z", attempts: 0 },
+        ],
+      }),
+    );
+    await runProspectReplies(db);
+    const queue = tables["prospect_send_queue"]!;
+    expect(queue.find((r) => r["id"] === "q1")).toMatchObject({ status: "cancelled", last_error: "prospect_replied" });
+    expect(queue.find((r) => r["id"] === "q2")).toMatchObject({ status: "queued" });
   });
 
   it("stops a reply typed below the quoted history even with the AI down", async () => {

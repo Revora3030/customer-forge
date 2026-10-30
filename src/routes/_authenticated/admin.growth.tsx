@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import * as G from "@/lib/growth-engine.functions";
 import { MODULE_LABEL, type ApprovalItemType } from "@/lib/growth-engine/rules";
+import { approvalContentHash } from "@/lib/cognition/approval-token";
 
 export const Route = createFileRoute("/_authenticated/admin/growth")({
   head: () => ({
@@ -151,7 +152,7 @@ function Approvals() {
   const edit = useServerFn(G.editApproval);
   const hist = useServerFn(G.approvalHistory);
   const q = useQuery({ queryKey: ["growth-queue", status], queryFn: () => load({ data: { status } }) });
-  const act = useAct((v: { id: string; decision: "approve" | "reject" }) => decide({ data: v }), []);
+  const act = useAct((v: { id: string; decision: "approve" | "reject"; seenHash?: string }) => decide({ data: v }), []);
   const save = useAct((v: { id: string; preview: string }) => edit({ data: v }), []);
   const [editing, setEditing] = useState<{ id: string; text: string } | null>(null);
   const [history, setHistory] = useState<{ id: string; rows: { version: number; content: { preview: string }; created_at: string }[] } | null>(null);
@@ -184,7 +185,7 @@ function Approvals() {
                 <div className="mt-3 flex flex-wrap gap-2">
                   {item.status === "pending" && editing?.id !== item.id && (
                     <>
-                      <Button size="sm" onClick={() => act.mutate({ id: item.id, decision: "approve" })} disabled={act.isPending}><Check className="mr-1 size-4" />Approve</Button>
+                      <Button size="sm" onClick={async () => act.mutate({ id: item.id, decision: "approve", seenHash: await approvalContentHash(item) })} disabled={act.isPending}><Check className="mr-1 size-4" />Approve</Button>
                       <Button size="sm" variant="outline" onClick={() => act.mutate({ id: item.id, decision: "reject" })} disabled={act.isPending}><X className="mr-1 size-4" />Reject</Button>
                     </>
                   )}

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Download, MoreHorizontal, Radio, RefreshCw, Square, Trash2, Volume2, VolumeX, Wrench, MessagesSquare } from "lucide-react";
+import { LogoMark } from "@/components/brand/Logo";
 import { Button } from "@/components/ui/button";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -40,10 +41,11 @@ export function JarvisHeader(props: Props) {
   const { voiceState, level, status, checks, onOpenChecks, speaking, onStopSpeaking, live, onToggleLive, voice, onToggleVoice, refreshing, onRefreshDiagnostics, onExport, showOperationsItem, onOpenOperations, clearDisabled, onClear, onOpenConversations } = props;
   const [confirmClear, setConfirmClear] = useState(false);
   return (
-    <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border/60 px-3 sm:px-4">
+    <header className="relative z-30 flex h-14 shrink-0 items-center gap-2 border-b border-white/10 bg-white/[0.03] px-3 backdrop-blur-xl sm:px-4">
       <Button type="button" variant="ghost" size="icon-sm" data-jarvis-tap="" aria-label="Conversations" onClick={onOpenConversations} className="size-9 shrink-0 rounded-full sm:size-9">
         <MessagesSquare className="size-4" aria-hidden />
       </Button>
+      <LogoMark className="size-8 shrink-0" />
       <span className="hidden shrink-0 sm:inline-flex [&>span]:size-8"><VoiceWave state={voiceState} level={level} /></span>
       <div className="min-w-0 flex-1">
         <h1 className="truncate text-base font-semibold leading-tight">Jarvis</h1>
@@ -78,7 +80,7 @@ export function JarvisHeader(props: Props) {
       </Button>
       <Tooltip>
         <TooltipTrigger asChild>
-          <Button type="button" variant="ghost" size="icon-sm" data-jarvis-tap="" aria-label={voice ? "Mute replies" : "Speak replies"} aria-pressed={voice} onClick={onToggleVoice} className="size-9 shrink-0 rounded-full sm:size-9">
+          <Button type="button" variant="ghost" size="icon-sm" data-jarvis-tap="" aria-label={voice ? "Mute replies" : "Speak replies"} aria-pressed={voice} onClick={onToggleVoice} className={`pointer-events-auto relative z-30 size-9 shrink-0 rounded-full sm:size-9 ${voice ? "bg-primary/20 text-primary ring-1 ring-primary/50" : ""}`}>
             {voice ? <Volume2 className="size-4" aria-hidden /> : <VolumeX className="size-4" aria-hidden />}
           </Button>
         </TooltipTrigger>

@@ -437,6 +437,8 @@ export async function executeJarvisDiagnosticTool(
       setEvidence("safety.redaction", "configured", "Redaction helpers are present; production output was not adversarially exercised in this run.", "code configuration only");
       setEvidence("safety.audit", "configured", "Audit storage contracts exist; append-only trigger and grants require migration-level verification.", "database schema design only");
       setEvidence("safety.secretBoundary", "configured", "Diagnostic outputs exclude credential values by design; full model/tool data-flow verification remains required.", "tool registry and redaction design");
+      const { applyLiveCapabilityEvidence } = await import("./jarvis-live-readiness.server");
+      await applyLiveCapabilityEvidence(db, setEvidence);
 
       const scorecard = scoreJarvisCapabilities(evidence, checkedAt);
       // The prospect demo engine's own seven rows, from its live tables.

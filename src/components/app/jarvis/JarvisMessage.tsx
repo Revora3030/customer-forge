@@ -1,4 +1,4 @@
-import { Fragment, type ReactNode } from "react";
+import { Fragment, useState, type ReactNode } from "react";
 import { Bot, Check, Copy, RotateCcw, Square, Volume2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -22,7 +22,7 @@ export function UserMessage({ content, createdAt }: { content: string; createdAt
   return (
     <article className="flex min-w-0 flex-col items-end gap-1">
       <h2 className="sr-only">You said</h2>
-      <div className="ml-auto max-w-[85%] rounded-2xl rounded-br-md bg-[var(--jarvis-user-bg)] px-3.5 py-2.5 text-[15px] leading-6 whitespace-pre-wrap break-words">{content}</div>
+      <div className="ml-auto max-w-[85%] rounded-2xl rounded-br-md border border-white/10 bg-white/[0.03] px-3.5 py-2.5 text-[15px] leading-6 whitespace-pre-wrap break-words backdrop-blur-xl">{content}</div>
       {createdAt ? <time dateTime={createdAt} title={fullDate(createdAt)} className="text-xs text-muted-foreground">{clock(createdAt)}</time> : null}
     </article>
   );
@@ -63,6 +63,9 @@ type AssistantProps = {
 
 export function AssistantMessage({ message, isLast, busy, regenerating, speakingThis, approvalState, approvalUrl, onApprove, onCopy, onListen, onStopListening, onRegenerate, renderAfterProposal, onShowSteps }: AssistantProps) {
   const { body, meta } = splitReplyMeta(message.content);
+  const [expanded, setExpanded] = useState(isLast);
+  const long = body.length > 900;
+  const shown = long && !expanded ? `${body.slice(0, 700).trimEnd()}…` : body;
   return (
     <article className={`group flex min-w-0 gap-3 transition-opacity ${regenerating ? "opacity-50" : ""}`}>
       <span className="mt-0.5 hidden size-6 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary sm:flex" aria-hidden><Bot className="size-3.5" /></span>
@@ -73,7 +76,8 @@ export function AssistantMessage({ message, isLast, busy, regenerating, speaking
             {meta.ran.map((item) => <li key={item} className="inline-flex h-6 items-center gap-1 rounded-full border border-border/70 px-2 text-xs text-muted-foreground"><Check className="size-3" aria-hidden />{item}</li>)}
           </ul>
         ) : null}
-        <div className="text-[15px] leading-7"><JarvisMarkdown>{body}</JarvisMarkdown></div>
+        <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-3.5 py-2.5 text-[15px] leading-7 backdrop-blur-xl"><JarvisMarkdown>{shown}</JarvisMarkdown></div>
+        {long ? <button type="button" className="mt-1 min-h-11 px-1 text-xs text-muted-foreground underline-offset-2 hover:underline" onClick={() => setExpanded((open) => !open)}>{expanded ? "Show less" : "Show full reply"}</button> : null}
         {message.run_id ? <div><ModelTag runId={message.run_id} /></div> : null}
         {message.run_id && onShowSteps ? (
           <button type="button" onClick={() => onShowSteps(message.run_id!)} className="mt-1 inline-flex min-h-11 items-center gap-1 rounded-md px-1 text-xs text-muted-foreground underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-ring">

@@ -20,7 +20,7 @@ vi.mock("@/integrations/supabase/client.server", () => ({
 }));
 
 async function run() {
-  const { Route } = await import("./growth-digest");
+  const { Route } = await import("@/routes/api/public/jobs/growth-digest");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const post = (Route.options as any).server.handlers.POST;
   return (await post({ request: new Request("http://x/api/public/jobs/growth-digest", { method: "POST" }) })).json();

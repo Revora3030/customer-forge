@@ -20,7 +20,7 @@ import {
   Menu,
   X,
 } from "lucide-react";
-import { Logo } from "@/components/brand/Logo";
+import { Logo, LogoMark } from "@/components/brand/Logo";
 import { Button } from "@/components/ui/button";
 import { EmptyState, LiveDot, Pill } from "@/components/app/Bits";
 import { WorkspaceNav, type WorkspaceNavItem } from "@/components/app/WorkspaceNav";
@@ -47,7 +47,9 @@ export const Route = createFileRoute("/_authenticated/admin")({
 
 const PRIMARY_NAV = [
   { to: "/admin", label: "Overview", icon: LayoutGrid, exact: true },
+  { to: "/admin/city", label: "AI City", icon: Building2, exact: false },
   { to: "/admin/jarvis", label: "Jarvis", icon: Bot, exact: false },
+  { to: "/admin/approvals", label: "Approvals", icon: ShieldCheck, exact: false },
   { to: "/admin/clients", label: "Clients", icon: Building2, exact: false },
   { to: "/admin/websites", label: "Websites", icon: ClipboardList, exact: false },
   { to: "/admin/monitoring", label: "Monitoring", icon: Activity, exact: false },
@@ -112,7 +114,12 @@ function AdminShell() {
   }, [navOpen]);
 
   if (isLoading) {
-    return <div className="p-10 text-[13px] text-muted-foreground">Checking your access…</div>;
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 p-10 text-[13px] text-muted-foreground">
+        <Logo />
+        Checking your access…
+      </div>
+    );
   }
 
   if (!data?.isSuperAdmin) {
@@ -150,8 +157,9 @@ function AdminShell() {
         </div>
       </aside>
       <div className="min-w-0 flex-1">
-        <header className="sticky top-0 z-30 flex h-[calc(3.5rem+env(safe-area-inset-top))] pt-[env(safe-area-inset-top)] items-center gap-3 border-b border-border bg-background/95 px-4 backdrop-blur">
+        <header className="sticky top-0 z-30 flex h-[calc(3.5rem+env(safe-area-inset-top))] pt-[env(safe-area-inset-top)] items-center gap-3 border-b border-border bg-background/80 px-4 backdrop-blur">
           <Button ref={navTrigger} variant="ghost" size="icon" onClick={() => setNavOpen(true)} className="min-h-11 min-w-11 lg:hidden" aria-label="Open navigation" aria-expanded={navOpen} aria-controls="admin-navigation"><Menu className="size-4" /></Button>
+          <LogoMark className="size-8" />
           <p className="text-[13px] font-medium">Platform workspace</p>
           <LiveDot label="Live data" />
           <span className="ml-auto hidden items-center gap-1.5 text-[11px] text-muted-foreground sm:flex"><LifeBuoy className="size-3.5" /> Support access is audited</span>

@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   CalendarPlus,
   Download,
+  FileText,
   Mail,
   MessageSquare,
   Phone,
@@ -49,6 +50,8 @@ import { DueTasksStrip, LeadTasks } from "@/components/app/LeadTasks";
 import { currency, relative } from "@/lib/format";
 import { filterLeadsByService, leadServiceId, type ServiceFilter } from "@/lib/service-catalog";
 import { QueryErrorNotice } from "@/components/app/QueryErrorNotice";
+import { EstimateBuilderDialog } from "@/components/app/EstimateBuilderDialog";
+import { documentLogBody } from "@/lib/estimates/printable-estimate";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -117,6 +120,7 @@ function LeadsPage() {
   }, [search.lead]);
   const [note, setNote] = useState("");
   const [bookOpen, setBookOpen] = useState(false);
+  const [estimateOpen, setEstimateOpen] = useState(false);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -144,6 +148,12 @@ function LeadsPage() {
         estimated_value: Number(selected.estimated_value ?? 0),
       }
     : null;
+
+  const assignedProfile = (team ?? []).find((m) => m.user_id === selected?.assigned_to)?.profiles as
+    | { full_name?: string | null; email?: string | null }
+    | null
+    | undefined;
+  const assignedName = assignedProfile?.full_name || assignedProfile?.email || "";
 
   const triggerFor = (status: LeadStatus) =>
     status === "quoted" ? "quote_requested" : status === "booked" ? "booking_created" : undefined;
@@ -389,6 +399,7 @@ function LeadsPage() {
         onOpenChange={(open) => {
           if (!open) {
             setSelectedId(null);
+            setEstimateOpen(false);
             // Drop ?lead so a refresh doesn't reopen the drawer.
             if (search.lead) void navigate({ to: "/app/leads", search: {}, replace: true });
           }
@@ -472,6 +483,9 @@ function LeadsPage() {
                     disabled={createAppointment.isPending}
                   >
                     <CalendarPlus className="size-4" /> Book job
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => setEstimateOpen(true)}>
+                    <FileText className="size-4" /> Estimate or work order
                   </Button>
                   <Button
                     variant="outline"
@@ -675,6 +689,23 @@ function LeadsPage() {
           ) : null}
         </DialogContent>
       </Dialog>
+
+      {/* Printable estimate or work order for this lead */}
+      {selected && leadRef ? (
+        <EstimateBuilderDialog
+          open={estimateOpen}
+          onOpenChange={setEstimateOpen}
+          organizationId={orgId}
+          businessName={businessName}
+          lead={{ id: selected.id, name: selected.name, email: selected.email, phone: selected.phone }}
+          serviceName={serviceLabel(selected)}
+          assignedName={assignedName}
+          services={services ?? []}
+          onPrepared={(doc) =>
+            action.mutate({ lead: leadRef, activity: { kind: doc.kind, body: documentLogBody(doc) } })
+          }
+        />
+      ) : null}
 
       {/* Book a job for this lead */}
       <Dialog open={bookOpen} onOpenChange={setBookOpen}>

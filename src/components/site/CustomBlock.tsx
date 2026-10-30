@@ -18,7 +18,7 @@ function Title({ title }: { title?: string | undefined }) {
 
 function money(value: number, currency: boolean): string {
   const rounded = Math.round(value * 100) / 100;
-  const text = rounded.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  const text = rounded.toLocaleString("en-US", { maximumFractionDigits: 2 });
   return currency ? `$${text}` : text;
 }
 
@@ -511,6 +511,76 @@ function GaugeStrip({ spec }: { spec: Extract<CustomBlockSpec, { type: "gauge" }
   );
 }
 
+function OptionSelector({ spec }: { spec: Extract<CustomBlockSpec, { type: "selector" }> }) {
+  const [active, setActive] = useState(0);
+  const current = spec.items[active] ?? spec.items[0];
+  return (
+    <div>
+      <Title title={spec.title} />
+      <div role="radiogroup" aria-label={spec.title ?? "Choose one"} className="mt-6 flex flex-wrap gap-2">
+        {spec.items.map((item, index) => (
+          <button
+            key={item.label}
+            type="button"
+            role="radio"
+            aria-checked={index === active}
+            onClick={() => setActive(index)}
+            className={`min-h-11 rounded-full border px-4 text-[14px] transition ${
+              index === active
+                ? "border-primary bg-primary/10 text-foreground"
+                : "border-border text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+      {current ? (
+        <div aria-live="polite" className="mt-5 rounded-2xl border border-border bg-card/40 p-5">
+          {spec.figureLabel ? <p className="text-[14px] text-muted-foreground">{spec.figureLabel}</p> : null}
+          <p className="font-display text-[34px] leading-tight font-semibold">{current.figure}</p>
+          {current.level !== undefined && spec.display === "dial" ? (
+            <svg
+              role="img"
+              aria-label={`${current.label}: ${current.level} on a scale of 100`}
+              viewBox="0 0 120 70"
+              className="mt-3 w-44 max-w-full"
+            >
+              <path d="M10 62 A50 50 0 0 1 110 62" pathLength={100} fill="none" strokeWidth="10" strokeLinecap="round" className="stroke-border" />
+              <path
+                d="M10 62 A50 50 0 0 1 110 62"
+                pathLength={100}
+                fill="none"
+                strokeWidth="10"
+                strokeLinecap="round"
+                strokeDasharray={`${current.level} 100`}
+                className="stroke-primary transition-[stroke-dasharray] motion-reduce:transition-none"
+              />
+            </svg>
+          ) : current.level !== undefined ? (
+            <div
+              role="img"
+              aria-label={`${current.label}: ${current.level} on a scale of 100`}
+              className="mt-3 h-2 w-full overflow-hidden rounded-full bg-border"
+            >
+              <div
+                className="h-full rounded-full bg-primary transition-[width] motion-reduce:transition-none"
+                style={{ width: `${current.level}%` }}
+              />
+            </div>
+          ) : null}
+          {current.body ? (
+            <p className="mt-3 text-[15px] leading-relaxed whitespace-pre-line text-muted-foreground">
+              {current.body}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+      {spec.note ? <p className="mt-4 text-[14px] text-muted-foreground">{spec.note}</p> : null}
+    </div>
+  );
+}
+
 export function CustomBlock({ spec }: { spec: CustomBlockSpec }) {
   switch (spec.type) {
     case "calculator":
@@ -538,6 +608,8 @@ export function CustomBlock({ spec }: { spec: CustomBlockSpec }) {
       return <BookingSelector spec={spec} />;
     case "gauge":
       return <GaugeStrip spec={spec} />;
+    case "selector":
+      return <OptionSelector spec={spec} />;
     case "freeform":
       return <FreeformBlock spec={spec} />;
   }

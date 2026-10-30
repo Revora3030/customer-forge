@@ -9,16 +9,18 @@ import { useOwnAddress, useSiteBase } from "@/components/site/use-own-address";
  */
 import { usePreviewMode } from "@/components/site/preview-mode-context";
 import { CompositionRenderer } from "@/components/site/CompositionRenderer";
-import { readComposition, type WidgetPresentation } from "@/lib/builder/composition-tree";
+import { readComposition, type CompositionNode, type WidgetPresentation } from "@/lib/builder/composition-tree";
 import { legacySectionToComposition } from "@/lib/builder/legacy-composition";
 import { blockCss, readBlockStyle, readComponentVisual } from "@/lib/site-style";
 import { premiumSurface } from "@/lib/site-theme";
+import { studioSectionColor, STUDIO_CANVAS } from "@/lib/builder/studio-canvas";
 import { readSectionEffect, sectionFxClassName } from "@/lib/site-effects";
 import { SitePageLink } from "@/components/site/site-links";
 import { Mail, MapPin, Phone } from "lucide-react";
 import { BookingForm, EnquiryForm, QuoteCalculator } from "@/components/site/SiteForms";
 import { DirectContact } from "@/components/site/ContactDetails";
 import { ReviewWall, ServiceMenu } from "@/components/site/LiveBlocks";
+import { offerFactsFor } from "@/components/site/live-blocks-utils";
 import type { PublicSite } from "@/lib/public-site.functions";
 import { readCustomBlock } from "@/lib/builder/custom-block";
 import { CustomBlock } from "@/components/site/CustomBlock";
@@ -86,12 +88,14 @@ const Heading = ({ section, lead = false }: { section: Section; lead?: boolean }
  * The owner's own block edits still apply, and the AI-authored section effect
  * (settings.effect) is drawn as a bounded, reduced-motion-safe class.
  */
-export function SiteSection({ site, section, lead = false, first = false }: { site: Site; section: Section; lead?: boolean; first?: boolean }) {
+export function SiteSection({ site, section, lead = false, first = false, studio = false, preparedRoot = null }: { site: Site; section: Section; lead?: boolean; first?: boolean; studio?: boolean; preparedRoot?: CompositionNode | null }) {
   const block = readBlockStyle(section.settings);
   // A section's own background (set from the builder) wins over the page
   // surface. Mid-grey washes are corrected to a clean tint or deep shade, the
-  // same way the page surface is, so no section ships as dull grey.
-  const ownBg = block.bgColor && /^#[0-9a-f]{6}$/i.test(block.bgColor) && !block.bgImage ? premiumSurface(block.bgColor) : null;
+  // same way the page surface is, so no section ships as dull grey. A studio
+  // page then pulls any remaining light band back onto the obsidian canvas.
+  const corrected = block.bgColor && /^#[0-9a-f]{6}$/i.test(block.bgColor) && !block.bgImage ? premiumSurface(block.bgColor) : null;
+  const ownBg = studioSectionColor(corrected, studio);
   const css = blockCss(ownBg ? { ...block, bgColor: ownBg } : block, siteSurface(site));
   // In-page anchors for buttons like "#contact" or "#services": the section's
   // role (kept when it became an AI layout) or its kind.
@@ -108,12 +112,12 @@ export function SiteSection({ site, section, lead = false, first = false }: { si
       className={fx ? `rv-site-section scroll-mt-20 ${fx}` : "rv-site-section scroll-mt-20"}
       style={{ ...css, minWidth: 0, maxWidth: "100%" }}
     >
-      <SiteSectionBody site={site} section={section} lead={lead} first={first} surface={ownBg} />
+      <SiteSectionBody site={site} section={section} lead={lead} first={first} surface={studio ? (ownBg ?? STUDIO_CANVAS) : ownBg} preparedRoot={preparedRoot} />
     </div>
   );
 }
 
-function SiteSectionBody({ site, section, lead = false, first = false, surface = null }: { site: Site; section: Section; lead?: boolean; first?: boolean; surface?: string | null }) {
+function SiteSectionBody({ site, section, lead = false, first = false, surface = null, preparedRoot = null }: { site: Site; section: Section; lead?: boolean; first?: boolean; surface?: string | null; preparedRoot?: CompositionNode | null }) {
   const components = section.components ?? [];
   const { profile, org } = site;
   const ownAddress = useOwnAddress();
@@ -128,7 +132,9 @@ function SiteSectionBody({ site, section, lead = false, first = false, surface =
   // tree from their own saved words and pictures, so every content section
   // renders through the same CompositionRenderer — there is no second,
   // hard-coded template engine.
-  const storedTree = readComposition(section.settings) ?? legacySectionToComposition(section, { lead });
+  const storedTree = preparedRoot
+    ? { version: 1 as const, root: preparedRoot }
+    : readComposition(section.settings) ?? legacySectionToComposition(section, { lead });
   const kind = storedTree ? "composition" : section.kind;
 
   switch (kind) {
@@ -147,6 +153,7 @@ function SiteSectionBody({ site, section, lead = false, first = false, surface =
           eagerFirstMedia={first}
           resolveMedia={(ref) => media.get(ref) ?? null}
           resolveHref={(href) => resolveSiteHref(href, org.slug, ownAddress, null, null, previewBase)}
+          resolveOffer={(service) => offerFactsFor(site.services ?? [], service)}
           resolveWidget={(name, presentation?: WidgetPresentation) => {
             if (name === "booking_form") return <BookingForm site={site} {...(presentation ? { presentation } : {})} />;
             if (name === "quote_calculator") return site.quote ? <QuoteCalculator site={site} {...(presentation ? { presentation } : {})} /> : null;

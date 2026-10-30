@@ -19,6 +19,8 @@ jobs:
     name: Typecheck, lint, test, build
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    outputs:
+      coverage_uploaded: ${{ steps.coverage_api.outcome == 'success' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -99,14 +101,17 @@ jobs:
 
       - name: Upload coverage artifacts
         if: always()
+        continue-on-error: true  # a full Actions artifact quota must not fail a job whose checks passed
         uses: actions/upload-artifact@v4
         with:
           name: coverage-report-${{ github.run_id }}
           path: coverage/
-          retention-days: 30
+          retention-days: 7
 
       - name: Upload coverage artifact for code coverage API
+        id: coverage_api
         if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        continue-on-error: true  # a full Actions artifact quota must not fail a job whose checks passed
         uses: actions/upload-artifact@v4
         with:
           name: coverage-report-typescript
@@ -125,7 +130,7 @@ jobs:
   upload-coverage-typescript:
     name: Upload TypeScript coverage
     needs: quality
-    if: ${{ !cancelled() && needs.quality.result == 'success' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+    if: ${{ !cancelled() && needs.quality.result == 'success' && needs.quality.outputs.coverage_uploaded == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: ubuntu-latest
     permissions:
       contents: read

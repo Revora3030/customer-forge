@@ -1,3 +1,4 @@
+import { Logo } from "@/components/brand/Logo";
 import { Panel } from "@/components/app/Bits";
 
 export function WorkspaceSkeleton({
@@ -9,6 +10,7 @@ export function WorkspaceSkeleton({
 }) {
   return (
     <div className="product-page">
+      <Logo />
       <div>
         <p className="eyebrow">Workspace</p>
         <h1 className="mt-1 font-editorial text-[30px] leading-tight">{title}</h1>

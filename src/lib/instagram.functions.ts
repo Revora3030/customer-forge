@@ -19,13 +19,13 @@ export const startInstagramConnectFn = createServerFn({ method: "POST" }).middle
   const { startInstagramOAuth } = await import("./instagram.server");
   return startInstagramOAuth(db, String(context.userId));
 });
-export const saveInstagramDraftFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).inputValidator(parseInstagramDraft).handler(async ({ context, data }) => {
+export const saveInstagramDraftFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).validator(parseInstagramDraft).handler(async ({ context, data }) => {
   const db = await ownerDb(context);
   const { saveInstagramDraft } = await import("./instagram.server");
   return saveInstagramDraft(db, String(context.userId), data);
 });
 export const publishInstagramDraftFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((input: { postId: string; contentHash: string; approved: boolean; rightsConfirmed: boolean }) => {
+  .validator((input: { postId: string; contentHash: string; approved: boolean; rightsConfirmed: boolean }) => {
     if (!/^[a-f0-9-]{36}$/i.test(input?.postId ?? "") || !/^[a-f0-9]{64}$/.test(input?.contentHash ?? "")) throw new Error("Choose a saved Instagram draft.");
     if (input.approved !== true || input.rightsConfirmed !== true) throw new Error("Approve this post and confirm you can use its image.");
     return input;
@@ -44,7 +44,7 @@ export const disconnectInstagramFn = createServerFn({ method: "POST" }).middlewa
   return { disconnected: true };
 });
 export const cancelInstagramDraftFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((input: { postId: string }) => {
+  .validator((input: { postId: string }) => {
     if (!/^[a-f0-9-]{36}$/i.test(input?.postId ?? "")) throw new Error("Choose a saved draft.");
     return input;
   }).handler(async ({ context, data }) => {

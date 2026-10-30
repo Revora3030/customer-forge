@@ -27,6 +27,7 @@ const saved = { ...process.env };
 
 function enablePaidLane() {
   process.env["OPENAI_API_KEY"] = "sk-test";
+  process.env["LOVABLE_API_KEY"] = "test-lovable";
   process.env["LUNA_ENABLED"] = "true";
   process.env["BUILDER_EXTERNAL_AI_ALLOWED"] = "true";
 }

@@ -1,12 +1,16 @@
 import { pageNavLabel, stripBusinessSuffix } from "@/lib/website-content";
 import { designTokenClasses, designTokenVars, readDesignTokens } from "@/lib/builder/design-tokens";
+import { readComposition as readSectionTree } from "@/lib/builder/composition-tree";
+import { prepareStudioPage, studioThemeVars } from "@/lib/builder/studio-canvas";
+import { premiumSurface } from "@/lib/site-theme";
 /**
  * A single structured page of a published business website
  * (`/s/:slug/:page`) — service pages, area pages, pricing, booking, FAQ and
  * anything else the builder laid out. Each one carries its own metadata and its
  * own lead-capture blocks.
  */
-import { createFileRoute, notFound } from "@tanstack/react-router";
+import { createFileRoute, Link, notFound, useParams } from "@tanstack/react-router";
+import { Button } from "@/components/ui/button";
 import { useEffect } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { SiteSection } from "@/components/site/SiteSections";
@@ -37,7 +41,6 @@ import { knownPageSlugs, missingChromeLinks, readSiteChrome, repairStoredLinks, 
 import { AiSiteHeader } from "@/components/site/AiSiteHeader";
 import { useOwnAddress, useSiteBase } from "@/components/site/use-own-address";
 import { tenantSiteHead } from "@/lib/site-head";
-import { premiumSurface } from "@/lib/site-theme";
 
 export const Route = createFileRoute("/s/$slug/$page")({
   loader: async ({ params }) => {
@@ -74,15 +77,28 @@ export const Route = createFileRoute("/s/$slug/$page")({
       </p>
     </div>
   ),
-  notFoundComponent: () => (
+  notFoundComponent: PageNotFound,
+});
+
+/** A missing page is a way back into the business, not a dead end. */
+function PageNotFound() {
+  const { slug } = useParams({ strict: false }) as { slug?: string };
+  return (
     <div className="flex min-h-screen items-center justify-center px-4 text-center">
       <div>
         <h1 className="font-display text-[22px] font-semibold">Page not found</h1>
         <p className="mt-2 text-[13px] text-muted-foreground">This page isn't published yet.</p>
+        {slug ? (
+          <Button asChild className="mt-5 min-h-11">
+            <Link to="/s/$slug" params={{ slug }}>
+              Back to the home page
+            </Link>
+          </Button>
+        ) : null}
       </div>
     </div>
-  ),
-});
+  );
+}
 
 function SitePageRoute() {
   return <SitePageView site={Route.useLoaderData()} />;
@@ -135,6 +151,10 @@ export function SitePageView({
   const chromeHref = (href: string) => resolveSiteHref(href, org.slug, ownAddress, knownPages, pageAnchors, previewBase);
   // Pages the AI menu left out are still offered, so no page is orphaned.
   const extraNav = missingChromeLinks(chrome.header, navRows as never);
+  const sectionRoots = sections.map((section) => readSectionTree(section.settings)?.root ?? null);
+  // Every customer page, in every trade, stays on the obsidian studio canvas.
+  // A light cream or mint band is not a fallback for any category.
+  const studioPage = prepareStudioPage(sectionRoots, true);
 
   useEffect(() => {
     if (preview) return;
@@ -174,7 +194,9 @@ export function SitePageView({
         }),
         ...siteFontStyle(profile?.font_preference ?? null),
         ...designTokenVars(readDesignTokens(site.settings?.generation ?? null)),
+        ...(studioPage.studio ? studioThemeVars() : {}),
       }}
+      {...(studioPage.studio ? { "data-studio": "" } : {})}
     >
       <SiteBackdrop
         backdrop={readBackdrop(site.settings?.generation ?? null)}
@@ -240,7 +262,7 @@ export function SitePageView({
               const section = sections[index];
               if (!section) return null;
               return (
-                <SiteSection key={section.id} site={site} section={section} lead={index === lead} first={index === 0} />
+                <SiteSection key={section.id} site={site} section={section} lead={index === lead} first={index === 0} studio={studioPage.studio} preparedRoot={studioPage.roots[index] ?? null} />
               );
             });
           })()}

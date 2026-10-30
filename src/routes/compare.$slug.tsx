@@ -5,7 +5,7 @@ import { RelatedLinks } from "@/components/marketing/SeoLinks";
 import { Button } from "@/components/ui/button";
 import { findComparison, type Comparison } from "@/lib/compare";
 import { GROWTH_SYSTEM, usdExact } from "@/lib/offer";
-import { breadcrumbSchema, canonicalLink, ogUrl, metaDescription } from "@/lib/seo";
+import { breadcrumbSchema, canonicalLink, ogUrl, metaDescription, OG_IMAGE_META } from "@/lib/seo";
 
 export const Route = createFileRoute("/compare/$slug")({
   beforeLoad: ({ params }) => {
@@ -30,6 +30,7 @@ export const Route = createFileRoute("/compare/$slug")({
         { property: "og:type", content: "article" },
         { name: "twitter:card", content: "summary_large_image" },
         ogUrl(path),
+        ...OG_IMAGE_META,
       ],
       links: [canonicalLink(path)],
       scripts: [
@@ -80,7 +81,7 @@ function ComparePage() {
         </h1>
         <p className="mt-4 text-[15px] leading-relaxed text-muted-foreground">{comparison.intro}</p>
 
-        <div className="mt-8 overflow-x-auto rounded-2xl border border-border/60">
+        <div tabIndex={0} role="region" aria-label="Comparison table" className="mt-8 overflow-x-auto rounded-2xl border border-border/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
           <table className="w-full min-w-[560px] text-left text-[14px]">
             <caption className="sr-only">Revora compared with {comparison.otherName}</caption>
             <thead className="bg-card/60 text-[13px]">

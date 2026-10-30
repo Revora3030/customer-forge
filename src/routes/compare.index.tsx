@@ -4,7 +4,7 @@ import { SiteFooter, SiteHeader } from "@/components/marketing/Chrome";
 import { Button } from "@/components/ui/button";
 import { COMPARISONS } from "@/lib/compare";
 import { GROWTH_SYSTEM, usdExact } from "@/lib/offer";
-import { breadcrumbSchema, canonicalLink, ogUrl, metaDescription } from "@/lib/seo";
+import { breadcrumbSchema, canonicalLink, ogUrl, metaDescription, OG_IMAGE_META } from "@/lib/seo";
 
 const TITLE = "Compare Revora with agencies, DIY builders, bought leads and hiring";
 const DESCRIPTION = `Honest side-by-side comparisons of Revora's ${usdExact(GROWTH_SYSTEM.setupPrice)} setup and ${usdExact(GROWTH_SYSTEM.monthlyPrice)}/month growth system against marketing agencies, DIY website builders, lead marketplaces and hiring office help — including when the alternative is the better choice.`;
@@ -19,6 +19,7 @@ export const Route = createFileRoute("/compare/")({
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
       ogUrl("/compare"),
+      ...OG_IMAGE_META,
     ],
     links: [canonicalLink("/compare")],
     scripts: [

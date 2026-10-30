@@ -31,7 +31,7 @@ export function CatalogueModelsPanel({ catalogue }: { catalogue: AiHealth["catal
               <th className="py-1 pr-3 font-medium">Model</th>
               <th className="py-1 pr-3 font-medium">Used for</th>
               <th className="py-1 pr-3 font-medium">Calls</th>
-              <th className="py-1 pr-3 font-medium">OK / failed</th>
+              <th className="py-1 pr-3 font-medium">Succeeded / failed calls</th>
               <th className="py-1 pr-3 font-medium">Median time</th>
               <th className="py-1 pr-3 font-medium">Est. cost</th>
               <th className="py-1 font-medium">Last used / why not</th>

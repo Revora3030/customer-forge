@@ -10,7 +10,7 @@ import { BUSINESS } from "@/lib/business-identity";
 import { findState, type UsState } from "@/lib/us-states";
 import { INDUSTRIES, industrySlug } from "@/lib/domain";
 import { GROWTH_SYSTEM, usdExact } from "@/lib/offer";
-import { breadcrumbSchema, canonicalLink, ogUrl, metaDescription } from "@/lib/seo";
+import { breadcrumbSchema, canonicalLink, ogUrl, metaDescription, OG_IMAGE_META } from "@/lib/seo";
 import { trackConversion } from "@/lib/conversion";
 
 const PILLARS = [
@@ -72,6 +72,7 @@ export const Route = createFileRoute("/states/$state")({
         { property: "og:type", content: "website" },
         { name: "twitter:card", content: "summary_large_image" },
         ogUrl(path),
+        ...OG_IMAGE_META,
       ],
       links: [canonicalLink(path)],
       scripts: [
@@ -224,7 +225,7 @@ function StatePage() {
             </ul>
             <p className="mt-4 text-[13px] text-muted-foreground">
               Every trade Revora builds for is on the{" "}
-              <Link to="/states" className="text-primary underline-offset-4 hover:underline">
+              <Link to="/states" className="text-primary underline underline-offset-4 hover:no-underline">
                 full list
               </Link>
               .

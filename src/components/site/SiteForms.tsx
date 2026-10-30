@@ -1,5 +1,5 @@
 import { checkBookingTime } from "@/lib/booking-hours";
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "@/lib/ui/notify";
 import { friendlyError } from "@/lib/user-error";
@@ -16,9 +16,12 @@ import { estimateQuote, isUsableQuote } from "@/lib/quote-estimate";
 import { cn } from "@/lib/utils";
 import { useStepScroll } from "@/lib/use-step-scroll";
 import { DirectContact } from "@/components/site/ContactDetails";
+import { PrintableEstimate } from "@/components/site/PrintableEstimate";
 import { widgetPresentationStyle } from "@/components/site/contact-details-utils";
 import type { WidgetPresentation } from "@/lib/builder/composition-tree";
 import { usePreviewMode } from "@/components/site/preview-mode-context";
+import { shouldTrackFormEvent } from "@/lib/site-event-once";
+import { mergeSplitServices } from "@/lib/builder/intake-sanitize";
 
 type Site = NonNullable<PublicSite>;
 
@@ -35,7 +38,10 @@ function currentSessionId(): string {
 
 function useTracker(slug: string) {
   const track = useServerFn(trackPublicEvent);
+  const preview = usePreviewMode();
+  const seen = useRef(new Set<string>());
   return (eventType: string) => {
+    if (!shouldTrackFormEvent(seen.current, eventType, preview)) return;
     void track({
       data: {
         slug,
@@ -111,6 +117,8 @@ function useLeadSubmit(): typeof submitPublicLead {
 }
 
 export function QuoteCalculator({ site, presentation }: { site: Site; presentation?: WidgetPresentation }) {
+  const uid = useId();
+  const fid = (key: string) => `q-${key}-${uid}`;
   const quote = site.quote;
   const submit = useLeadSubmit();
   const track = useTracker(site.org.slug);
@@ -124,22 +132,6 @@ export function QuoteCalculator({ site, presentation }: { site: Site; presentati
 
   // A form with no choosable options can never produce an estimate: show nothing rather than a dead widget.
   if (!quote || !isUsableQuote(quote.questions)) return null;
-  if (done) {
-    return (
-      <div ref={stepRef}>
-        <Success
-          title={presentation?.successTitle ?? "Request received"}
-          body={
-            presentation?.successBody ??
-            (confirmationEmail
-              ? "Thank you! Your request has been received. Check your email for confirmation."
-              : "Thank you! Your request has been received. We'll get back to you shortly.")
-          }
-        />
-      </div>
-    );
-  }
-
   // Only questions with options can be answered (the server ignores the rest too).
   const questions = quote.questions.filter((question) => question.options.length > 0);
   const selected = questions.map((question) => {
@@ -163,6 +155,32 @@ export function QuoteCalculator({ site, presentation }: { site: Site; presentati
   const floor = Number(quote.form.min_price ?? 0);
   const fromPrice = Number.isFinite(floor) && floor > 0 ? floor : null;
 
+  if (done) {
+    return (
+      <div ref={stepRef}>
+        <Success
+          title={presentation?.successTitle ?? "Request received"}
+          body={
+            presentation?.successBody ??
+            (confirmationEmail
+              ? "Thank you! Your request has been received. Check your email for confirmation."
+              : "Thank you! Your request has been received. We'll get back to you shortly.")
+          }
+        />
+        {complete ? (
+          <PrintableEstimate
+            businessName={site.org.name}
+            title={presentation?.title ?? quote.form.name}
+            min={min}
+            max={max}
+            lines={selected.flatMap(({ question, option }) => (option ? [{ question: question.label, answer: option.label }] : []))}
+            extras={chosenAddons.map((addon) => ({ label: addon.label, price: Number(addon.price) }))}
+          />
+        ) : null}
+      </div>
+    );
+  }
+
   return (
     <div ref={stepRef} className="panel overflow-hidden" style={widgetPresentationStyle(presentation)}>
       <div className="border-b border-border px-5 py-4">
@@ -183,23 +201,24 @@ export function QuoteCalculator({ site, presentation }: { site: Site; presentati
                 {question.options.map((option) => {
                   const active = answers[question.id] === option.id;
                   return (
-                    <button
+                    <Button
                       key={option.id}
                       type="button"
+                      variant="outline"
                       onClick={() => {
-                        if (!answered) track("quote_start");
+                        track("quote_start");
                         setAnswers((prev) => ({ ...prev, [question.id]: option.id }));
                       }}
                       aria-pressed={active}
                       className={cn(
-                        "min-h-11 cursor-pointer rounded-md border px-3.5 py-2.5 text-left text-[14px] transition-colors",
+                        "min-h-11 justify-start rounded-md border px-3.5 py-2.5 text-left text-[14px] transition-colors",
                         active
                           ? "border-primary bg-primary/10 text-foreground"
                           : "border-border hover:bg-elevated",
                       )}
                     >
                       {option.label}
-                    </button>
+                    </Button>
                   );
                 })}
               </div>
@@ -213,9 +232,10 @@ export function QuoteCalculator({ site, presentation }: { site: Site; presentati
                 {addons.map((addon) => {
                   const active = picked.includes(addon.id);
                   return (
-                    <button
+                    <Button
                       key={addon.id}
                       type="button"
+                      variant="outline"
                       aria-pressed={active}
                       onClick={() =>
                         setPicked((prev) =>
@@ -225,7 +245,7 @@ export function QuoteCalculator({ site, presentation }: { site: Site; presentati
                         )
                       }
                       className={cn(
-                        "min-h-11 cursor-pointer rounded-md border px-3.5 py-2.5 text-left text-[14px] transition-colors",
+                        "min-h-11 flex-col items-stretch rounded-md border px-3.5 py-2.5 text-left text-[14px] transition-colors",
                         active
                           ? "border-primary bg-primary/10 text-foreground"
                           : "border-border hover:bg-elevated",
@@ -240,7 +260,7 @@ export function QuoteCalculator({ site, presentation }: { site: Site; presentati
                           {addon.description}
                         </span>
                       ) : null}
-                    </button>
+                    </Button>
                   );
                 })}
               </div>
@@ -253,7 +273,7 @@ export function QuoteCalculator({ site, presentation }: { site: Site; presentati
               {/* Before the visitor has chosen, an empty dash reads as broken.
                   Say what is needed instead — never show an invented number. */}
               {complete ? (
-                <p className="tnum mt-1 font-display text-[24px] font-semibold text-primary">
+                <p role="status" aria-live="polite" className="tnum mt-1 font-display text-[24px] font-semibold text-primary">
                   {currency(min)} – {currency(max)}
                 </p>
               ) : (
@@ -286,6 +306,7 @@ export function QuoteCalculator({ site, presentation }: { site: Site; presentati
           className="space-y-4 px-5 py-5"
           onSubmit={(e) => {
             e.preventDefault();
+            if (pending) return;
             const form = new FormData(e.currentTarget);
             const email = String(form.get("email") ?? "").trim();
             const problem = contactProblem(email, String(form.get("phone") ?? "").trim());
@@ -314,13 +335,11 @@ export function QuoteCalculator({ site, presentation }: { site: Site; presentati
                 quote: {
                   formId: quote.form.id,
                   answers: [
-                    ...selected
-                      .filter((s) => s.option)
-                      .map((s) => ({
+                    ...selected.flatMap((s) => s.option ? [{
                         question: s.question.label,
-                        answer: s.option!.label,
-                        modifier: s.option!.price_modifier,
-                      })),
+                        answer: s.option.label,
+                        modifier: s.option.price_modifier,
+                      }] : []),
                     ...chosenAddons.map((a) => ({
                       question: "Add-on",
                       answer: a.label,
@@ -345,22 +364,22 @@ export function QuoteCalculator({ site, presentation }: { site: Site; presentati
             </span>
           </p>
           <div className="space-y-1.5">
-            <Label htmlFor="q-name">{presentation?.fieldLabels?.name ?? "Your name"}</Label>
-            <Input id="q-name" name="name" required autoComplete="name" />
+            <Label htmlFor={fid("name")}>{presentation?.fieldLabels?.name ?? "Your name"}</Label>
+            <Input id={fid("name")} name="name" required autoComplete="name" />
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label htmlFor="q-phone">{presentation?.fieldLabels?.phone ?? "Phone"}</Label>
-              <Input id="q-phone" name="phone" type="tel" autoComplete="tel" inputMode="tel" />
+              <Label htmlFor={fid("phone")}>{presentation?.fieldLabels?.phone ?? "Phone"}</Label>
+              <Input id={fid("phone")} name="phone" type="tel" autoComplete="tel" inputMode="tel" />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="q-email">{presentation?.fieldLabels?.email ?? "Email"}</Label>
-              <Input id="q-email" name="email" type="email" autoComplete="email" inputMode="email" />
+              <Label htmlFor={fid("email")}>{presentation?.fieldLabels?.email ?? "Email"}</Label>
+              <Input id={fid("email")} name="email" type="email" autoComplete="email" inputMode="email" />
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="q-message">{presentation?.fieldLabels?.details ?? "Anything we should know?"}</Label>
-            <Textarea id="q-message" name="message" rows={3} />
+            <Label htmlFor={fid("message")}>{presentation?.fieldLabels?.details ?? "Anything we should know?"}</Label>
+            <Textarea id={fid("message")} name="message" rows={3} />
           </div>
           <div className="flex gap-2">
             <Button type="submit" variant="signal" disabled={pending}>
@@ -381,7 +400,7 @@ export function BookingForm({ site, presentation }: { site: Site; presentation?:
   const fid = (key: string) => `b-${key}-${uid}`;
   const submit = useLeadSubmit();
   const track = useTracker(site.org.slug);
-  const bookable = site.services.filter((s) => s.bookable);
+  const bookable = mergeSplitServices(site.services).filter((s) => s.bookable);
   const [pending, setPending] = useState(false);
   const [done, setDone] = useState(false);
   const [confirmationEmail, setConfirmationEmail] = useState("");
@@ -398,6 +417,19 @@ export function BookingForm({ site, presentation }: { site: Site; presentation?:
     local.setMinutes(local.getMinutes() - local.getTimezoneOffset());
     setToday(local.toISOString().slice(0, 10));
   }, []);
+  useEffect(() => {
+    const apply = () => {
+      const hash = window.location.hash;
+      if (!hash.startsWith("#book")) return;
+      const id = decodeURIComponent(hash.slice("#book-".length));
+      if (id && bookable.some((service) => service.id === id)) setServiceId(id);
+      const motion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+      document.getElementById("book")?.scrollIntoView({ behavior: motion ? "auto" : "smooth", block: "start" });
+    };
+    apply();
+    window.addEventListener("hashchange", apply);
+    return () => window.removeEventListener("hashchange", apply);
+  }, [bookable]);
 
   if (done) {
     return (
@@ -441,7 +473,8 @@ export function BookingForm({ site, presentation }: { site: Site; presentation?:
 
   return (
     <form
-      className="panel space-y-4 p-5"
+      id="book"
+      className="panel space-y-4 p-5 scroll-mt-24"
       style={widgetPresentationStyle(presentation)}
       onFocus={() => track("booking_start")}
       onSubmit={(e) => {

@@ -18,7 +18,14 @@ export const Route = createFileRoute("/api/public/jobs/jarvis-routines")({
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
         const { runDueJarvisRoutines } = await import("@/lib/jarvis-routines.server");
         try {
-          return Response.json(await runDueJarvisRoutines(supabaseAdmin as never));
+          const routines = await runDueJarvisRoutines(supabaseAdmin as never);
+          // Event nudges cost no AI spend (plain chat notices); a failure here never hides the routine result.
+          const { runJarvisEventWatch } = await import("@/lib/jarvis-event-watch.server");
+          const events = await runJarvisEventWatch(supabaseAdmin as never).catch((error: unknown) => {
+            console.error("[jarvis-event-watch]", error);
+            return { error: "event watch failed" };
+          });
+          return Response.json({ ...routines, events });
         } catch (error) {
           const { captureError } = await import("@/lib/monitoring.server");
           await captureError(error, { route: "jobs/jarvis-routines" });

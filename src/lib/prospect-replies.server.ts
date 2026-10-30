@@ -1,9 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { gmailConfig, gmailNotConfiguredMessage, getGmailThread, missingGmailSecrets, type GmailConfig } from "@/lib/gmail/client.server";
+import { gmailConfig, gmailNotConfiguredMessage, getGmailThread, mailingAddress, missingGmailSecrets, type GmailConfig } from "@/lib/gmail/client.server";
 import { parseGmailMessage, type GmailApiMessage, type ParsedGmailMessage } from "@/lib/gmail/mime.server";
 import {
   addDoNotContact,
   appBaseUrl,
+  demoOfferTerms,
   isDoNotContact,
   loadDemoForOutreach,
   normalizeEmail,
@@ -11,6 +12,7 @@ import {
 } from "@/lib/prospect-outreach.server";
 import {
   autoReplyDecision,
+  AUTO_REPLY_INTENTS,
   buildFactsSheet,
   factCheckReply,
   fallbackDraft,
@@ -33,11 +35,11 @@ import {
  *   1. drains the outreach send queue,
  *   2. reads the Gmail threads of emails we sent (prospect_outreach.gmail_thread_id),
  *      least recently checked first, and stores each new message from the
- *      prospect in prospect_inbound with its intent (free AI pool, with a
- *      deterministic stop override),
+ *      prospect in prospect_inbound with its intent (Lovable AI lane under
+ *      the daily paid cap, with a deterministic stop override),
  *   3. follows up: stop => do-not-contact, no reply; positive/price/question =>
  *      an AI reply limited to the facts sheet, checked deterministically and
- *      by a second free-model review, sent in-thread (max 2 per thread, held
+ *      by a second model review, sent in-thread (max 2 per thread, held
  *      by a unique slot index); anything else, or a reply that fails a check
  *      => a draft the operator reviews in Jarvis.
  * Without the four GMAIL_* secrets, polling returns "gmail_not_configured".
@@ -135,7 +137,6 @@ export async function classifyInbound(message: { text: string; subject: string }
     const { generateText } = await import("@/lib/ai/router.server");
     const result = await generateText({ userId: null, task: "admin.jarvis" }, {
       role: "fast",
-      freeOnly: true,
       json: true,
       maxOutputTokens: 80,
       messages: [
@@ -311,6 +312,17 @@ async function storeNewReplies(
     }
     summary.stored += 1;
     if (stop) summary.stopped += 1;
+    else if (!message.autoSubmitted) {
+      // A real person answered: any automatic follow-up still waiting must not go out after the reply.
+      // (A STOP already cancelled everything; an out-of-office or bounce is not an answer.)
+      const { cancelQueuedOutreach } = await import("@/lib/prospect-send-queue.server");
+      await cancelQueuedOutreach(db, info.organizationId, "prospect_replied", { kind: "follow_up" }).catch(() => undefined);
+      // A pitch-first prospect who is interested (or asks a question) gets their demo built now.
+      if (AUTO_REPLY_INTENTS.has(classification.intent)) {
+        const { startDeferredDemoBuild } = await import("@/lib/jarvis-demo-site.server");
+        await startDeferredDemoBuild(db, info.organizationId).catch(() => undefined);
+      }
+    }
   }
   return complete;
 }
@@ -340,7 +352,6 @@ async function writeReply(facts: FactsSheet, inbound: InboundItem): Promise<stri
     const { generateText } = await import("@/lib/ai/router.server");
     const result = await generateText({ userId: null, task: "admin.jarvis" }, {
       role: "conversation",
-      freeOnly: true,
       maxOutputTokens: 400,
       messages: [
         { role: "system", content: REPLY_SYSTEM },
@@ -356,13 +367,12 @@ async function writeReply(facts: FactsSheet, inbound: InboundItem): Promise<stri
   }
 }
 
-/** Second, independent free-model pass. Anything but an explicit pass is a fail. */
+/** Second, independent model pass. Anything but an explicit pass is a fail. */
 async function reviewReply(facts: FactsSheet, body: string): Promise<{ pass: boolean; problems: string[] }> {
   try {
     const { generateText } = await import("@/lib/ai/router.server");
     const result = await generateText({ userId: null, task: "admin.jarvis" }, {
       role: "fast",
-      freeOnly: true,
       json: true,
       maxOutputTokens: 200,
       messages: [
@@ -390,7 +400,7 @@ export async function sendThreadReply(
   const body = input.body.trim().slice(0, 4000);
   if (!body) return { ok: false, reason: "empty_reply" };
   // CAN-SPAM: like a first touch, no reply goes out without the physical mailing address.
-  const address = process.env["REVORA_MAILING_ADDRESS"]?.trim();
+  const address = mailingAddress();
   if (!address) return { ok: false, reason: "mailing_address_missing" };
   const bytes = new Uint8Array(24);
   crypto.getRandomValues(bytes);
@@ -491,7 +501,8 @@ async function factsFor(db: SupabaseClient, inbound: InboundItem, config: GmailC
     senderEmail: config.sender,
     businessWebsite: website,
   });
-  return { facts, available: !demo.claimed };
+  // A pitch-first prospect has no finished preview yet: replies go to the operator, never an automatic answer.
+  return { facts, available: !demo.claimed && !demo.pitchPending };
 }
 
 /** Handles one claimed inbound reply: an automatic in-thread reply when every rule allows it, else a draft. */
@@ -572,6 +583,95 @@ export async function followUpInbound(db: SupabaseClient, config: GmailConfig, i
     .update({ status: "handled", action: "auto_replied", reply_outreach_id: sent.outreachId, draft_text: written, handled_at: now.toISOString() })
     .eq("id", inbound.id);
   return "auto_replied";
+}
+
+/** Plain-text reply that hands the owner the finished private preview. No HTML. */
+export function deferredPreviewReply(name: string, previewUrl: string): string {
+  const who = name.trim() || "there";
+  return [
+    `Hi ${who} team,`,
+    "",
+    "Your private website draft is ready. Nothing is published:",
+    previewUrl,
+    "",
+    "If you sign up from that page, the site is already saved in your account: you keep it, can edit anything, and get full access during the free trial.",
+    demoOfferTerms(),
+  ].join("\n");
+}
+
+async function markDeferredDelivered(db: SupabaseClient, inboundId: string, outreachId: string | null, now: Date) {
+  const patch = {
+    status: "auto_replied",
+    action: "auto_replied",
+    draft_reason: "deferred_demo_delivered",
+    ...(outreachId ? { reply_outreach_id: outreachId } : {}),
+    handled_at: now.toISOString(),
+  };
+  const updated = await db.from("prospect_inbound").update(patch).eq("id", inboundId);
+  if (updated.error) {
+    await db.from("prospect_inbound").update({ ...patch, status: "handled" }).eq("id", inboundId);
+  }
+}
+
+/**
+ * Pitch → reply → deferred build → preview. When the owner answered a text
+ * pitch and the demo has since finished and passed the launch gate, send the
+ * private /p/:token link in the same Gmail thread. The first pitch is already
+ * "sent", so this is a thread reply, not a second first touch.
+ */
+export async function deliverDeferredPitchPreviews(db: SupabaseClient, now = new Date()): Promise<number> {
+  const config = gmailConfig();
+  if (!config) return 0;
+  const { data, error } = await db
+    .from("prospect_inbound")
+    .select("*")
+    .eq("status", "awaiting_operator")
+    .eq("draft_reason", "demo_unavailable")
+    .in("intent", ["positive", "price", "question"])
+    .order("received_at", { ascending: true })
+    .limit(8);
+  if (error || !Array.isArray(data)) return 0;
+  const { assessDemoForOutreach } = await import("@/lib/demo-launch-gate.server");
+  let delivered = 0;
+  for (const row of data as Row[]) {
+    const inbound = fullInbound(row);
+    const demo = await loadDemoForOutreach(db, inbound.organizationId);
+    if (!demo || demo.claimed || demo.pitchPending || demo.build?.status !== "completed") continue;
+    const settings = await db.from("website_settings").select("generation").eq("organization_id", inbound.organizationId).maybeSingle();
+    const marker = ((settings.data as { generation?: Record<string, unknown> } | null)?.generation?.["prospectDemo"] ?? null) as Record<string, unknown> | null;
+    if (!marker || typeof marker["pitchAnsweredAt"] !== "string") continue;
+    let gate: { ok: boolean };
+    try {
+      gate = await assessDemoForOutreach(db, inbound.organizationId);
+    } catch {
+      continue;
+    }
+    if (!gate.ok) continue;
+    const prior = await db
+      .from("prospect_outreach")
+      .select("id")
+      .eq("organization_id", inbound.organizationId)
+      .eq("reason", "deferred_demo_delivered")
+      .eq("status", "sent")
+      .limit(1);
+    if ((prior.data ?? []).length) {
+      await markDeferredDelivered(db, inbound.id, null, now);
+      delivered += 1;
+      continue;
+    }
+    const previewUrl = `${appBaseUrl()}/p/${demo.previewToken}`;
+    const sent = await sendThreadReply(db, config, {
+      inbound,
+      body: deferredPreviewReply(demo.name, previewUrl),
+      mode: "autopilot",
+      reason: "deferred_demo_delivered",
+      actorId: null,
+    });
+    if (!sent.ok) continue;
+    await markDeferredDelivered(db, inbound.id, sent.outreachId, now);
+    delivered += 1;
+  }
+  return delivered;
 }
 
 async function followUpPending(db: SupabaseClient, config: GmailConfig, summary: RepliesRunSummary, now: Date, owner: string): Promise<void> {
@@ -708,6 +808,7 @@ async function runLeased(db: SupabaseClient, owner: string, now: () => Date): Pr
     // A thread that failed marks the run failed but doesn't hold back follow-ups already stored.
     await pollGmailReplies(db, config, summary, started);
     await followUpPending(db, config, summary, now(), owner);
+    await deliverDeferredPitchPreviews(db, now()).catch(() => 0);
   } catch (error) {
     summary.status = "failed";
     summary.errors.push(error instanceof Error ? error.message.slice(0, 300) : "failed");

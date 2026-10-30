@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   PREVIEW_BRIDGE_SOURCE,
   readBuilderMessage,
+  pageContextPrefix,
   readPreviewMessage,
   selectionPrefix,
 } from "./preview-bridge";
@@ -102,5 +103,30 @@ describe("preview bridge: overflow and accessibility contracts", () => {
     expect(requiredRatio(16, 400)).toBe(4.5);
     expect(requiredRatio(24, 400)).toBe(3);
     expect(requiredRatio(19, 700)).toBe(3);
+  });
+});
+
+describe("pageContextPrefix", () => {
+  it("names the open page as context, not a limit", () => {
+    expect(pageContextPrefix({ id: "p", title: "Services", slug: "services" })).toBe(
+      '(The owner has the "Services" page, /services, open in the preview. Treat that as context, not a limit.)',
+    );
+    expect(pageContextPrefix({ id: "p", title: "Home", slug: "home" })).toContain(", /,");
+  });
+
+  it("neutralises quotes and line breaks in a page title, and is empty with no page", () => {
+    const prefix = pageContextPrefix({ id: "p", title: 'Bad "title"\nhere', slug: "x" });
+    expect(prefix).not.toMatch(/[\r\n]/);
+    expect(prefix.match(/"/g)).toHaveLength(2);
+    expect(pageContextPrefix(null)).toBe("");
+  });
+});
+
+describe("reveal message", () => {
+  it("reads a reveal for a block id and nothing else", () => {
+    expect(readBuilderMessage({ source: PREVIEW_BRIDGE_SOURCE, type: "reveal", id: "3f8a-bc" })).toEqual({ source: PREVIEW_BRIDGE_SOURCE, type: "reveal", id: "3f8a-bc" });
+    expect(readBuilderMessage({ source: PREVIEW_BRIDGE_SOURCE, type: "reveal", id: "bad id!" })).toBeNull();
+    expect(readBuilderMessage({ source: PREVIEW_BRIDGE_SOURCE, type: "reveal" })).toBeNull();
+    expect(readBuilderMessage({ source: "someone-else", type: "reveal", id: "abc" })).toBeNull();
   });
 });

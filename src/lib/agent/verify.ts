@@ -236,7 +236,7 @@ export function summarise(checks: Check[]): VerificationReport {
     if (check.ok) categories[category].passed += 1;
     else categories[category].failed += 1;
   }
-  const totalWeight = checks.reduce((sum, check) => sum + (check.severity === "critical" ? 2 : 1), 0);
+  const totalWeight = checks.filter((check) => !check.notChecked).reduce((sum, check) => sum + (check.severity === "critical" ? 2 : 1), 0);
   const failedWeight = failures.reduce((sum, check) => sum + (check.severity === "critical" ? 2 : 1), 0);
   const score = totalWeight ? Math.max(0, Math.round(100 - (failedWeight / totalWeight) * 100)) : 0;
   const status = notChecked || !checks.length ? "incomplete" : failures.length ? "issues" : "passed";

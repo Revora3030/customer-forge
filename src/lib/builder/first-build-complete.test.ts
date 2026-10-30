@@ -86,7 +86,8 @@ describe("pictures on every page", () => {
   it("asks for a picture campaign covering every page and service, at least 5", () => {
     const src = read("src/lib/builder/collective-first-build.server.ts");
     expect(src).toMatch(/one picture for each real service/);
-    expect(src).toMatch(/at least 5 pictures/);
+    expect(src).toMatch(/at least \$\{MIN_FIRST_BUILD_PICTURES\} pictures/);
+    expect(src).toMatch(/MIN_FIRST_BUILD_PICTURES = 5;/);
   });
   it("keeps descriptive slot names instead of dropping them at 20 characters", () => {
     const src = read("src/lib/builder/collective-first-build.server.ts");

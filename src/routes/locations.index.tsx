@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { BusinessDetails } from "@/components/marketing/BusinessDetails";
 import { BUSINESS, NC_LOCATIONS } from "@/lib/business-identity";
 import { GROWTH_SYSTEM } from "@/lib/offer";
-import { breadcrumbSchema, canonicalLink, ogUrl, metaDescription } from "@/lib/seo";
+import { breadcrumbSchema, canonicalLink, ogUrl, metaDescription, OG_IMAGE_META } from "@/lib/seo";
 import { trackConversion } from "@/lib/conversion";
 
 const TITLE = "Website & Lead Gen for NC Businesses | Revora";
@@ -24,6 +24,7 @@ export const Route = createFileRoute("/locations/")({
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
       ogUrl("/locations"),
+      ...OG_IMAGE_META,
     ],
     links: [canonicalLink("/locations")],
     scripts: [
@@ -72,7 +73,7 @@ function LocationsIndex() {
             Revora is run from {BUSINESS.region.name} and serves owners across the state — and
             anywhere in the {BUSINESS.areasServed[1]} or beyond. Pick your city to see how the
             system captures the customers already searching for your service. Outside NC?{" "}
-            <Link to="/states" className="text-primary underline-offset-4 hover:underline">
+            <Link to="/states" className="text-primary underline underline-offset-4 hover:no-underline">
               See all 50 states
             </Link>
             .

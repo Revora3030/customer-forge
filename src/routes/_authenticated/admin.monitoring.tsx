@@ -12,7 +12,7 @@ import {
   SectionHeading,
 } from "@/components/app/Bits";
 import { getErrorFeed } from "@/lib/monitoring.functions";
-import { getBuildHealth } from "@/lib/build-monitoring.functions";
+import { getBuildHealth, getRecentBuildReports } from "@/lib/build-monitoring.functions";
 
 export const Route = createFileRoute("/_authenticated/admin/monitoring")({
   head: () => ({
@@ -54,6 +54,12 @@ function AdminMonitoring() {
     refetchInterval: 60_000,
   });
   const h = health.data;
+  const loadReports = useServerFn(getRecentBuildReports);
+  const reports = useQuery({
+    queryKey: ["admin-build-reports"],
+    queryFn: () => loadReports({}),
+    refetchInterval: 60_000,
+  });
   const secs = (value: number | null | undefined) =>
     value == null ? "—" : value < 90 ? `${Math.round(value)}s` : `${Math.round(value / 60)}m`;
 
@@ -136,6 +142,39 @@ function AdminMonitoring() {
             </div>
           </>
         ) : null}
+      </Panel>
+
+      <Panel>
+        <SectionHeading
+          title="Latest builds"
+          description="What each recent build produced: primitives used, pictures held and stage timings. Primitives and pictures show the site as it is now."
+        />
+        {reports.isLoading ? <LoadingRows /> : null}
+        {reports.error ? <ErrorNote message={(reports.error as Error).message} /> : null}
+        <div className="space-y-2">
+          {(reports.data ?? []).map((job) => (
+            <div key={job.id} className="product-tile">
+              <div className="flex flex-wrap items-center gap-2">
+                <Pill tone={job.status === "completed" ? "signal" : job.status === "failed" ? "danger" : "info"}>{job.status}</Pill>
+                <span className="text-muted-foreground">{when(job.createdAt)} · org {job.organization}</span>
+                {job.failedStage ? <Pill tone="attention">failed at {job.failedStage}</Pill> : null}
+              </div>
+              <p className="mt-1 text-muted-foreground">
+                {job.report.composed}/{job.report.sections} sections composed · {job.report.interactive} interactive blocks · pictures {job.report.pictures.approved} approved, {job.report.pictures.pending} pending, {job.report.pictures.rejected} rejected, {job.report.pictures.failed} failed
+              </p>
+              {job.report.primitives.length ? (
+                <p className="mt-1 break-words text-muted-foreground">
+                  {job.report.primitives.map((p) => `${p.type} ${p.count}`).join(" · ")}
+                </p>
+              ) : null}
+              {job.report.stages.length ? (
+                <p className="mt-1 break-words text-muted-foreground">
+                  {job.report.stages.map((s) => `${s.stage} ${s.seconds}s`).join(" · ")}
+                </p>
+              ) : null}
+            </div>
+          ))}
+        </div>
       </Panel>
 
       <Panel>

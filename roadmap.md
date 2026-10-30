@@ -1,11 +1,125 @@
+## Ordered platform error fixes — Part 1 (2026-10-29)
+- [x] 1–2: Verify redirects: apex HTTP is 301; www is upstream 302. Hosting permanent-status control unavailable; no DNS changes.
+- [x] 3–4: Repair visible account errors/return navigation and bounded verified-payment reconciliation; isolated tests pass. Real signup/payment not run.
+- [x] 6: Fix nested client detail outlet; signed-in real client screen verified.
+- [ ] 5: Publish actual Elite draft or approve a verified historical alias; two reported slugs belong to different organizations.
+- [ ] 7: Atomic demo identity reservation and duplicate survivor cleanup require reviewed migration/identity approval; no deletion or policy changes made.
+- [x] 8–10: Single-section bounded parallelism, section-owned retries, retained checkpoints and deferred-demo read/recovery fixes; offline tests pass.
+- [ ] 10: Eight historical demos have no job; recovery/build dispatch not run without live spending authorization.
+- [x] 11–15: Signed-in Jarvis errors not reproduced; CSP already allows fonts; auth SSR/logo preload, heading order and regional-consent Google tag gate repaired and browser checked.
+- [x] Webhook fail-closed acknowledgement, checked settlement and environment-scoped association; mocked lifecycle tests pass.
+- [x] Stable section architecture, owner direction and authored strategy in single-section composition; no fixed house style.
+- [x] Verification score excludes missing evidence.
+- [ ] Diagnose saved Elite desktop blank area and incomplete image; inspected draft only.
+- [ ] Hosting www 301, live failure/latency metrics, reported React stacks, real checkout and production Lighthouse remain unverified.
+- [ ] Publish and live acceptance evidence (owner approval required); report each item's verification limits.
+- [ ] Approved proof build after Phase A/B fixes; requires explicit spending approval.
+
+## Reference standard, CI sweep and AI City touch (2026-10-29)
+- [x] Reference standard (Kestrel video) for every trade and archetype: labelled `scrub_sequence` progress ring, brush reveal tool chips + stopwatch, new `dial_selector`; Jarvis demo.build and AI City missions point at it.
+- [x] AI City phone gestures: one-finger pan with damped glide, pinch zooms toward the fingers, two-finger twist rotates; panning cannot slide the city off screen.
+- [ ] Proof on a live build that the standard renders as in the video (needs owner-approved build spend).
+
+## Daily pitch-first outreach verification (2026-10-28)
+- [x] Verify selected public-listing emails through the existing verifier and retain their source evidence before outreach; regression tests pass.
+- [x] Report failed OpenStreetMap discovery as unavailable, not as a successful empty search; regression tests pass.
+- [ ] Verify daily discovery and delivery on the published schedules; blocked by publishing these fixes and configuring an authorized outreach sender. Current Lovable app-email fallback cannot send cold promotions; email sending paused, discovery enabled.
+
+## Reveal brush and trade playbooks (2026-10-28)
+- [x] `before_after_slider` takes `revealMode: "brush"`: the visitor drags across the before picture and the after appears where they have been, with a live percentage ("Clean this driveway: 44%"), a button that shows the finished result for keyboard and screen-reader users, a touch switch so the page still scrolls past it, and the finished picture for no-JavaScript visitors. It keeps the existing rule: the owner's own real before and after photos only, never generated pictures.
+- [x] Trade playbooks (`builder/industry-playbook.ts`): for 19 kinds of local business, the signature moment, a scene order for a scroll story, and exactly what the owner must supply. Added to the first-build design prompt as ideas, not orders.
+- [ ] Not built: AI-made before and after pairs (they would present invented results; the builder refuses them on purpose), and any proof that a first build with real generated pictures looks like the reference video, which needs a live build.
+
 # Roadmap — Five-phase blocker elimination
+
+## Blueprint batches C, D and E (2026-10-27)
+- [x] Batch C was checked against the code before anything was built: the instant quote estimator is the existing `quote_calculator`, the floating mobile bar is `mobile_sticky_bar`, the before/after slider has keyboard steps (`SLIDER_STEP = 5`), scroll chapters, the five-picture first-build gate and the duplicate-text / empty-column / contrast repair gates all exist. Nothing was rebuilt.
+- [x] Estimates and work orders for a lead (Leads → open a lead → "Estimate or work order"): `lib/estimates/printable-estimate.ts` builds the document in exact cents from what the owner types (lines, quantity, price, a tax rate that applies only to lines marked Taxed, discount lines, validity, terms); a work order is a crew checklist without prices unless the owner turns them on. It prefills only from records the workspace already holds (service, assigned teammate, next appointment, business profile) and shows the visitor's calculator range and choices for reference without copying them into prices. It prints or saves as PDF from the browser, names the PDF after the document number, remembers tax rate, validity and terms on that device, and logs one activity line on the lead when the owner ticks the box. Nothing is sent to the customer. The leads page already had the stage board, status filter and CSV export, so none of that was rebuilt.
+- [x] 44px phone targets: `scripts/page-sweep.mjs --target=44` lists the controls that miss it, most widespread first. The shared header, footer and buttons already passed; the misses were standalone links and chips (state, trade and related-page lists), the small button size, the auth logo link and one auth button. They now use the `tap-target` utility, and the sweep reports zero small targets across the 36 sampled public pages. Buttons also give a subtle press (scale 0.98, off under reduced motion).
+- [ ] Not built: a universal MCP gateway, SVG social cards and a tenant service worker (no recorded need, and each adds an outbound or caching surface that needs an owner decision).
+
+## Blueprint batches A and B (2026-10-27)
+- [x] Event bus: `cognition/event-emitter.ts` collects independent sources and reports an unreadable one by name; new sources for failed builds (names the stopped step), failed CI on the release branch's current commit, Revora's own unanswered leads and trials ending within a day. Owner notices only: nothing is retried, and no client is contacted.
+- [x] Approve exactly what you saw: the approval call can carry a fingerprint of the content shown; the server refuses if the item changed since and pins the claim to that content. Used by the existing Growth queue and the new City cards.
+- [x] `cognition/build-plan.ts` derives the build's task graph from the real generation steps (tested against them) to say where a failed build stopped.
+- [x] AI City: one-finger rotate, two-finger zoom and pan; pixel ratio up to 2x with fall-back to 1x if the frame rate drops, 2048 shadows on desktop; beacon pulse speed follows queue depth; live worker cards from recorded fields; quick missions per district tied to real read-only tools (drift-tested); approval review cards in the Growth district (two taps for medium and high risk).
+- [ ] Not built: cryptographic HMAC tokens (the queue row is the server-side authority, so a keyed token adds nothing), per-task token-budget reservations (not recorded), travelling data pulses between districts (not recorded), automatic build retries or client notifications (spend / outbound sends need owner approval), simulated vision review.
+
+## AI City upgrade (2026-10-27)
+- [x] "Needs you" triage panel: every failed or waiting record, failures first then longest-standing, opening the record's evidence; says "records unavailable" rather than looking calm when sources cannot be read.
+- [x] 3D scene: rings and beacons coloured by recorded state (green working with pulse waves, red failures, gold waiting, grey unreadable), floating labels with live running/waiting/failed counts, smooth camera flight between districts, colour key.
+- [x] "All activity" tab: newest-first feed across every district with text search and district filters; per-district records-per-hour chart in the inspector.
+- [x] District shareable in the address (?district=growth); keys 1-7 and arrows switch district (ignored inside fields and dialogs).
+- [x] 23 City tests (triage ranking, counts, hourly buckets, search, feed, deep-link parsing, key mapping, panel rendering). Rendered with a stand-in model and sample records at 1280 and 390: no errors, no overflow.
+- [x] Scene: warm key and cool rim lighting with a gold glow over the tower, depth fog, district pads that glow with recorded state, status-coloured conduit lines from the Jarvis hub to each district (a status indicator only; nothing travels along them).
+- [x] Phone: thumb-zone district carousel pinned above the safe area, compact count badges with a full label only on the chosen district, bottom sheet that opens at about half height, resizes by tap or swipe on its handle and swipes down to close.
+- [ ] Not built: autonomous cold outreach sending (needs explicit owner approval per AGENTS.md).
+- [ ] Not built: model "sprites" travelling between districts. Records do not say which district hands work to which, so any movement would be invented.
+- [ ] Not verified against live records or your real building models (needs your signed-in /admin/city).
+
+## Jarvis event nudges (2026-10-27)
+- [x] The routines job now also posts a plain, no-AI notice into each super admin's Jarvis chat when a site build failed in the last day (cooldown per workspace, at most 5 per pass), with a suggested question to ask. 4 tests.
+- [x] `ci.failed` and `lead.unanswered` emitters wired (`ciFailedSource`, `leadUnansweredSource` in `event-sources.server.ts`, read by `jarvis-event-watch.server.ts`).
+
+## Weekly content audit of published sites (2026-10-27)
+- [x] `site-content-audit` job (Mondays 13:05 UTC) checks each published customer site's home page and up to 6 internal links for title, h1, structured-data validity, alt text and broken links; up to 40 sites per run, rotated weekly; one digest per week to the Revora inbox only (customers are not emailed). 8 tests.
+- [x] Results table `site_content_audits` (owner-approved 2026-10-29): one row per audited site per run (P1/P2 counts, trimmed findings), a year of history, server-only writes, workspace members read their own site's rows; adversarial RLS test.
+- [ ] Not run against live sites; first scheduled run happens after the migration is published.
+
+## Public page sweep (2026-10-27)
+- [x] `scripts/page-sweep.mjs` (`npm run site:sweep`) crawls a running site at phone and desktop width and measures status, script errors, overflow, title/description/h1, unnamed controls, image alt, tap targets and broken internal links.
+- [x] First run: 43 pages across 21 families, 0 failures; fixed 15 small phone tap targets on location, state and guide link lists. Authenticated pages and the one-time-token pages are not covered (no sign-in available to the crawler).
+- [x] Sweep runs in CI: Browser QA workflow runs `site:sweep` (phone + desktop, 80 pages) against the started app; fails on any P0 or when no browser runs (2026-10-29).
+
+## Free upgrades from the model scan (2026-10-27)
+- [x] Printable / save-as-PDF estimate after a quote request (browser print, no server cost, labelled as an estimate not a quote).
+- [x] Customer-site "page not found" now links back to the business's home page.
+- [ ] Already present, not rebuilt: QR codes (campaigns), voice dictation (Jarvis dock, chat tools), dashboard install manifest.
+- [ ] Not built: SVG social cards (Facebook, iMessage and X do not accept SVG share images; needs PNG rendering), tenant service worker (stale-site risk), tsvector search and audit triggers (migrations need approval).
+
+## Cognitive architecture foundations (2026-10-27)
+- [x] Six-pillar foundations in `src/lib/cognition/` with 33 tests (plan graph, ReAct loop, memory recall, approval tokens, vision review, event rules, deliberation); see docs/COGNITIVE_ARCHITECTURE.md.
+- [x] Jarvis memory now recalls relevant memories from all 200 for the owner's latest message instead of only the newest 40.
+- [x] Database-backed approval store `jarvis_approvals` (owner-approved 2026-10-29): one row per proposal when a reply is saved, atomic single-use claim, 24-hour expiry, arguments must hash to what Jarvis proposed, stale claims freed after 30 min; owner-only RLS and cross-owner adversarial tests.
+- [x] pgvector memory (owner-approved 2026-10-29): `jarvis_memory_embeddings` + `match_jarvis_memories`, openai/text-embedding-3-small through the provider layer; recall blends cosine with lexical + recency and falls back to lexical without a key or on error. Live embedding call not yet observed.
+- [ ] Vision-model critique, event emitters, live multi-agent runs (each spends budget; none wired).
+
+## AI City and workforce-first continuation (2026-10-27)
+- [x] Harden existing routine runner with conditional pre-execution claims, owner/attempt-fenced settlement and explicit uncertain outcomes; overlapping wake-ups, changed prompts and failed settlement tested without paid calls or production writes. 51 focused tests pass; lint clean; automatic build OK. Hosted concurrency and live cron remain unverified (docs/workforce-routine-verification.md).
+- [x] Build authenticated AI City with all seven operational districts, real queues/evidence, full returned Lovable capability catalogue and phone/desktop navigation. Super-admin reads preserve owner-filtered Jarvis records and per-source failures.
+- [x] Connect read-only department checks to the existing executor and prepare review-only missions in Jarvis; no simulated jobs, second worker or automatic spend/send/publish path. Existing department review pages remain execution entry points.
+- [x] Signed-in real records, 3D scene, district selection, Operations fallback, full catalogue, mission composer handoff and real read-only error diagnostic checked; 320/390/768/1280/2560 no overflow, reduced-motion fallback, no page errors after repair; 78 focused regressions pass, lint clean, automatic build OK. Evidence: docs/ai-city-verification.md.
+- [ ] Full workforce automation beyond existing executors: durable approval consumption/unified inbox, persistent employee task contracts and evaluated media workflows remain unfinished. Same-routine claims implemented; owner-wide serialization and live scheduler acceptance remain unverified. No approved paid employee run or complete all-pillar acceptance evidence exists; city controls do not imply these are complete.
+- [ ] Continue unfinished pillars after city; live paid work, outbound sends and publishing wait for specific approval; external credentials and measured live evidence remain blockers, not completed milestones.
+
+## Admin account Lovable-only repair (2026-10-27)
+- [x] Inspect all 16 admin index/list screens signed in as the requesting owner; no page script errors or document overflow. Client-detail permutations and every mutation are not covered by this route-load audit.
+- [x] Replace usage-derived routing controls with eligible configured Lovable model IDs; reject obsolete pins/pauses server-side and retain immutable usage history. Special media selectors and existing roster order preserved.
+- [x] Remove outdated multi-provider/free-router claims, filter current AI health to Lovable records, distinguish configuration from verified calls, fail budget/design reads honestly, and fix phone-clipped AI reporting.
+- [x] 29 initial routing checks passed; full suite 438 files / 3,371 tests passed / 6 live tests skipped; changed-file lint clean and automatic build OK. Signed-in Command Center/AI health verified at 390/1280, local Pin/Unpin exercised without saving. Evidence: docs/admin-lovable-only-verification.md.
+- [ ] Real AI requests, saved routing changes, every admin mutation and client-detail permutations remain unverified; paid actions/publishing require explicit approval. No provider calls or publishing performed.
+
+## Roadmap continuation (2026-10-27)
+- [x] Priority 1: reject zero-row first-build composition saves; eight initial tests passed, including exact tenant filters and missing/duplicate/wrong-row failures.
+- [x] Priority 2: compare saved page/section identities, original roles and multiplicity with the materialized build inventory, not only aggregate counts; substituted pages, moved/duplicate sections and lost roles rejected. Completion readback tested with a fake database; no hosted writes.
+- [x] Existing controls reviewed: queued/running generation cancellation and recovery already exist; client-side request dismissal is not remote cancellation, and local approval memory is not server authorization. Durable approval consumption and the unified approvals list shipped 2026-10-29 (see Cognition).
+- [x] Batch verification: 144 affected files / 1,079 tests passed; full offline suite: 436 files / 3,365 passed / 6 live tests skipped; changed-code lint clean; automatic build OK. Evidence: docs/roadmap-reliability-verification-2026-10-27.md.
+- [ ] Live generation, real lead delivery, paid provider calls, publishing and production mutations require separate owner authorization; none authorized by this continuation.
+
+## Interactive tools and conversion completion (2026-10-27)
+- [x] Complete existing comparison slider pointer and image behavior; preserve real-work provenance.
+- [x] Complete FAQ structured-data parity for dedicated visible customer FAQ compositions; inactive tabs deliberately omitted.
+- [x] Harden existing mobile sticky actions for contrast, long labels, and measured variable-height clearance; hide while typing.
+- [x] Complete existing quote selection controls, unique field identifiers, and prevent duplicate/preview tracking.
+- [x] 89 focused regressions pass, changed-file lint clean, automatic build OK; isolated browser fixture comparison/FAQ/quote simulated submission and 320/390/768/1280/2560 layout checks pass without script errors. Evidence: docs/interactive-tools-verification.md.
+- [ ] Actual customer generation and real lead delivery remain unverified: require authorized AI spending and production mutations. The broader workforce/connector/growth roadmap is not completed by this focused tools pass.
 
 ## All-model wiring (2026-10-22)
 - [x] Jarvis voice choice: Auto / ElevenLabs / Lovable AI speech (Gemini TTS, budgeted, router telemetry). No live speech call made.
 - [x] Maps review form: per-fact source labels, editable address and hours, website suggestions needing approval, existing build handoff kept.
 - [x] Veo, music, live voice and embeddings labelled with exact blockers in the model panel.
 - [ ] Veo routes: request shape and pricing unverified.
-- [ ] Search memory: needs a vector-storage migration the owner approves.
+- [x] Search memory: pgvector migration approved and added 2026-10-29 (applies on publish).
 - [ ] Music and two-way live voice: not built.
 - [ ] Live end-to-end check of Lovable voice and a Maps-to-build run (needs a paid call / live build approval).
 
@@ -18,9 +132,10 @@
 ## Raise rating gaps (2026-10-22 plan)
 - [ ] Phase 1: one free-model test-workspace build + every-page report — waiting on owner approval to run.
 - [x] Phase 2a: live Jarvis step events shown while working (tested).
-- [ ] Phase 2: Stop/Resume, expiring single-use approvals, unified approvals list.
+- [x] Phase 2 (part): expiring single-use approvals and a unified approvals list (Jarvis operations panel, dismiss from there), 2026-10-29.
+- [ ] Phase 2: Stop/Resume.
 - [x] Phase 3 (partial): security scan clean; linter shows 28 server-only tables locked by design (no browser policies) and 1 extension-in-public warning.
-- [ ] Phase 3: cross-workspace isolation test suite.
+- [x] Phase 3 (static part): `tenant-rls-coverage.test.ts` checks every migration-created table with an organization_id has RLS on, never switched off, and no anon update/delete grant. A live two-workspace test against a non-production database is still open.
 - [ ] Phase 4: honest status page (Instagram blocked on Meta credentials).
 - [ ] Phase 5: 320/390/768/1280 sweep.
 
@@ -35,7 +150,8 @@
 - [x] First builds now read back every saved page/section and renderable AI composition before ready/completed; all composition material reads paginate and fail closed.
 - [x] Full regression suite: 3,491 passed, 6 live tests skipped; changed-code lint and automatic build checked.
 - [ ] Live new-customer signup-to-generated-site verification unrun under standing no-live-build/no-paid-spend restriction. Provider capacity is not guaranteed; existing pause/resume and publication gates retained.
-- [ ] Investigation follow-ups: accepted-contract identity/multiplicity comparison, unmarked partial-site handling, service-card architecture coverage and zero-row composition writes still require targeted hardening; no complete-production claim.
+- [x] Materialized inventory identity/multiplicity and zero-row composition saves hardened (2026-10-27); completion now requires exact inserted page IDs/slugs and section IDs/page ownership/roles.
+- [ ] Investigation follow-ups: unmarked partial-site handling and upstream service-card architecture coverage still require targeted hardening; this readback verifies inserted inventory, not independent completeness of the architect's design or rendered quality.
 
 ## Whole customer-site repair (2026-10-22)
 - [x] Inspect all eight Elite Mobile Detail pages and saved requests; no active generation job or duplicate rebuild started.
@@ -121,12 +237,12 @@
 - [x] AI repair pass when a page plan is unusable; home-page address aliases accepted.
 - [x] Full suite green after fixing a test that read live provider state.
 - [ ] One build end to end (BLOCKED: workspace daily AI limit and $5/day paid cap reached today; free pool heavily rate-limited). Daily site limit stays 5 until it passes.
-- [ ] Migration drift: needs the remote migration version list (not readable from here) to reconcile.
+- [ ] Migration drift: the Supabase Preview check is linked to the unused "Revora Growth Systems" project (xmkckvtdzieiubbqvmto: 1 workspace, no jobs, 31 dashboard-only migrations, last 2026-10-11), not the live Lovable Cloud project (smqngrtayopyirrqcbhq). Fix: owner disconnects the GitHub integration on that project (2026-10-29).
 - [x] Retired stale offer conflict: current owner rule is $350 setup, first month free, then $100/month and 3-day full access; billing unchanged.
 - [x] Jarvis tool/permission inventory documented (docs/operations/jarvis-tool-inventory.md).
 - [x] Queued autopilot sends respect the off switch; launch review requires workspace membership.
 - [x] Migration reconciliation runbook (docs/operations/migration-reconciliation.md).
-- [ ] Wire durable approval proof into Jarvis consequential endpoints (needs table + UI).
+- [x] Durable approval proof: every Jarvis proposal is claimed server-side before it runs and reported done/failed after (2026-10-29).
 - [ ] Live two-workspace RLS test (needs test accounts in a non-production database).
 
 ## Jarvis model access (2026-10-20)
@@ -192,7 +308,7 @@
 - [x] Builder buttons verified signed in (2026-10-20): fullscreen preview was trapped under the app header (shell backdrop-blur stacking context) with the exit button covered by Notifications — fixed by portalling the fullscreen preview to document.body; verified open/exit at 1280x1800 with zero page errors. Compare on an unpublished site no longer loads the 404 live page (shows "Not published yet"). Point-and-edit toggles on/off (aria-pressed). Publish dialog opens with correct gating copy ($350 setup, first month free, then $100/month, trial-ended message). 50 related tests pass; no publish performed.
 - [ ] Phase B point-and-edit end-to-end AI edit + before/after compare of a live change (needs an AI edit run).
 - [ ] Phase C fact provenance + launch checklist.
-- [ ] Phase D claimed demo → Activate → setup-fee checkout (BLOCKED: canonical setup price $350 vs $750).
+- [ ] Phase D claimed demo → Activate → setup-fee checkout (setup price is settled at $350; the old $750 figure is retired).
 - [x] Phase E approval log (Jarvis operations panel, from the permanent audit record).
 - [ ] Phase E daily brief upgrade.
 - [ ] Phase F signed-in journey/accessibility/speed pass.
@@ -245,3 +361,60 @@ Owner approved porting two ideas (audit of the uploaded Next.js project; auto pa
 - [x] Prospect/outreach admin drafts: decide router vs free-only
 - [ ] Maps → fact review/edit → first build handoff, official-site enrichment, provenance
 - [x] Durable build worker/cancellation audit
+
+- [x] AI City sales pipeline strip (Found → Demo ready → Awaiting approval → Sent → Replied) with approval-gated Scout/Demo/Pitch missions
+- [x] AI City district inspector panel (bottom sheet on phone, side panel on desktop)
+
+## Website Factory finish rate (2026-10-27)
+- [x] Unsaved picture repaired per section instead of failing the site
+- [x] Reviewer notes that clear themselves ("Not a violation") count as advice
+- [x] September design-setting spellings confirmed tolerated
+- [ ] Signup brief carry-through audit (homepage → builder)
+- [ ] Completeness + craft score gate (≥8) with one improvement round
+- [ ] Approved paid test builds for 2–3 business types (needs owner approval)
+
+## Primitive inventory (2026-10-28)
+Counted from the code, not from audits.
+- **Composition primitives (30):** stack, grid, row, text, heading, media, button, link, card, list, divider, spacer, icon, tabs, toggle, accordion, compare, marquee, gallery, quote, widget, before_after_slider (slider or `revealMode: "brush"`), faq_accordion, tab_group, mobile_sticky_bar, scene, scroll_chapters, offer_card, spin_viewer, collection_row.
+- **Working widgets (7):** booking_form, quote_calculator, enquiry_form, contact_details, direct_contact, service_menu, review_wall.
+- **Custom blocks (15):** calculator, quiz, comparison, checklist, steps, tabs, metrics, accordion, timeline, filter, eligibility, booking, gauge (static progress strip), selector (chips + readout, owner figures only), freeform (validated free-form tree).
+- **Home-page gate:** `design-quality.ts` flags `page_missing_interactive` when the home page has none of the INTERACTIVE_PRIMITIVES. Custom blocks do not count towards it.
+- **Claimed gaps that already exist:** `interactive_reveal` = brush mode; `gauge_selector` = `selector`; `treatment_timeline` = custom `timeline`; reservation picker = custom `booking` (services × times, no invented availability); menu drawer = `service_menu` + custom `filter`; provider cards = `card` composition; video backdrop = `scene` media.
+- **Real gaps, none buildable without owner data or third parties:** service-area map (needs a map provider, privacy review), verified-badge strip (needs owner-supplied credentials, never invented), live availability (needs a calendar connection).
+- **Unproven:** which primitives Sol actually chooses per trade. Needs one live build.
+
+## Lens, pinned story, review filter (2026-10-28)
+- [x] `lens_magnifier`: loupe over one real photo (mediaRef only; generated/stock shows nothing); hover, arrow keys, "Magnify on touch" switch
+- [x] `sticky_split_story`: pinned picture beside 2-6 scrolling phases; sticky on wide screens only
+- [x] Review wall rating filter (All / 5 stars / 4 stars & up), only when it changes what is shown
+- [x] `model_3d_viewer` (owner-approved 2026-10-29): owners upload their own .glb ("3D model" in the builder section toolbar; header-checked, 25 MB, private `site-models` bucket scoped to the workspace folder); the AI may place it only in a model_3d_viewer (validator enforces both directions); server-renders the poster, loads three.js only on "View in 3D" with WebGL; signed URLs on public sites. Not yet tried with a real customer model.
+- Not built on purpose: live booking ticker (invented social proof), soundboard, thermal overlay (invented findings), gravity badges.
+- [x] `service_tier_fader`: slider cross-fading 2-4 offer cards (prices only from the Services tool); every package listed without JavaScript
+- [x] `selector` gains `display: "dial"` (round gauge instead of a bar)
+- [x] `scene` `scrub: true`: a video backdrop's playhead follows the scroll while the scene stays pinned (~3 screens); never plays, no sound; first frame without JS or for reduced motion; not allowed inside scroll_chapters. Replaces the frame-sequence idea: owners upload one short video, no frames needed.
+- [x] `parallax_layers`: 2-4 stacked pictures drifting at different speeds on scroll (CSS scroll timeline on the container; still for reduced motion or unsupported browsers). Browser check caught that `overflow:hidden` made the layer its own scroller; the container now uses `overflow:clip`.
+- Seen in reference videos and not built: abstract WebGL particle scenes (galaxy, helix, mesh blob). Pure atmosphere with no business content, a poor fit for local trades; revisit for tech/agency customers via the existing three/R3F dependency.
+
+## Live-test fixes and builder guards (2026-10-28)
+- [x] Picture truth filter ignores negated claims ("without…", "never…"); vehicles prompted fully debadged (#334)
+- [x] Capped-width containers fill their column (narrow accordion fix); Builder return pill clears bottom-pinned bars with iPhone tolerance (#334, #335)
+- [x] Services page "Suggest packages": wording only, no digits, prices, claims or timings; owner edits each before adding; 6 asks/hour/org (#336)
+- [x] Homepage: honest AI-team section and typical-tools-vs-Revora comparison, figures from `software-savings.ts` (#337)
+- [x] `page_mostly_plain` gate: a home page of 4+ sections that is mostly text on stacks and cards goes back for repair; not asked when no pictures exist (#338)
+- [x] Admin monitoring "Latest builds": primitives, interactive count, pictures by status, stage timings per recent build (#339)
+- [x] Playbooks added for locksmith, towing, solar, pool, garage door, appliance repair (#340)
+- [x] First-build attention list tells the owner when the service menu is thin (#341)
+- Already existed, nothing to build: every supplied picture must appear in its section's composition (`requiredMediaRefs`); stale-deploy reload on `vite:preloadError`.
+- [x] Prospect replies cancel a waiting automatic follow-up (#329, merged)
+- [ ] Unproven until one fresh build: which primitives Sol picks per trade, and whether the plain-layout gate triggers in practice. The new Latest builds panel shows both.
+- Needs the owner: screenshot QA after each build (Cloudflare account ID and token, and signed preview link vs page HTML), reply engine mailbox secrets, pgvector memory migration approval, Meta credentials, a .glb upload path.
+
+## REVORA × GROK operations (2026-10-30)
+- [x] 4-level authority matrix in code (`src/lib/agent-authority.ts`); Level 4 kinds are the only things a bot can ask for
+- [x] Gateway: `/builds`, `/builds/:id`, `/analytics` (same MRR and funnel math as the admin dashboard), `/briefing` (speakable 8 AM text), `/action-requests` (+ `/:id`, `/:id/complete`); `/health` now counts approvals waiting
+- [x] Founder approval queue: table `agent_action_requests` (super-admin read only, server writes, 48 h expiry, idempotent, 50-waiting cap) and the phone-first `/admin/approvals` screen with evidence cards and a second tap for irreversible kinds
+- [x] Evidence card: `npm run agent:evidence` (vitest counts, tsc, build, changed files) and `.github/pull_request_template.md`
+- [x] Phase 5: TruffleHog workflow (`secret-scan.yml`), Dependabot (`dependabot.yml`), page sweep `--all-viewports` (320/390/768/1280)
+- [x] Runbook for Grok and the bot team: `docs/agents/GROK_OPERATOR.md`
+- [ ] Needs the owner: publish in Lovable (routes and the new table go live), set `REVORA_AGENT_API_KEY` in Grok's sandbox, add `/admin/approvals` to the iPhone home screen
+- [ ] Not built here: push notifications (Grok sends the approval link), `.ics` booking invites, crew work-order view

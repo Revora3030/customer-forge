@@ -13,6 +13,7 @@
 import { summarizeCapacityPressure, type ProviderRuntime, type WaitProviders } from "@/lib/builder/capacity-wait";
 import type { PageArchitectureOutcome } from "@/lib/builder/ai-page-architecture.server";
 import { nextPublishState } from "@/lib/publish-state";
+import { menuNeedsHelp } from "@/lib/service-suggestions";
 import {
   INTERRUPTED_BUILD_MESSAGE,
   RECOVERING_BUILD_MESSAGE,
@@ -35,6 +36,117 @@ const LAYOUT_OPTIONAL_BUDGET_MS = 240_000;
 /** Wall-clock bound for the per-section layout rescue rounds of one attempt. */
 export const LAYOUT_RESCUE_BUDGET_MS = 420_000;
 const MAX_ATTEMPTS = 3;
+
+/**
+ * BUILD LIFETIME. A build is no longer one long request: every worker run
+ * works under a wall-clock budget and, at a resumable point once the budget
+ * is nearly spent, saves where it is and hands the job back to the queue
+ * (BuildHandBackError -> handBackLease). The next run (chained through the
+ * database-held worker call, or the backstop schedule) resumes from the
+ * stage and section checkpoints. A clean hand-back never costs an attempt;
+ * only a run that dies (its heartbeat lapses) does.
+ *
+ * The ceiling budgeted against: the app is deployed by Lovable as a
+ * Cloudflare Worker (nitro `cloudflare-module`, generated wrangler config;
+ * the repository sets no `limits`). Workers do not promise a fixed HTTP
+ * wall-clock, but cap CPU at 5 minutes at most and recycle long-lived
+ * isolates, and the rest of this worker is already sized to 300 s (the lease,
+ * and the paid AI attempt cap of 240 s). One run is held to 80% of that.
+ */
+export const PLATFORM_REQUEST_LIMIT_MS = 300_000;
+export const RUN_BUDGET_MS = Math.floor(PLATFORM_REQUEST_LIMIT_MS * 0.8);
+/**
+ * A run does not start another stage with less than this left of its budget:
+ * single stages (identity, wording, pictures) can take a minute or more.
+ */
+export const NEXT_STAGE_RESERVE_MS = 90_000;
+/**
+ * In-process kick fallback (inside the enqueue request's short background
+ * grace): at most a short first slice, then the job goes back to the queue.
+ */
+export const KICK_SLICE_BUDGET_MS = 20_000;
+/**
+ * Fuse: after this many hand-backs of one job, its runs stop handing back,
+ * so a stage whose checkpoint never matches cannot cycle forever.
+ */
+export const MAX_HAND_BACKS = 12;
+const HAND_BACK_KEY = "handback";
+/**
+ * Stage boundaries where everything finished so far resumes from the job's
+ * checkpoints (or is cheap to redo). Pictures, pages, identity, wording copy
+ * and incomplete layouts have their own points in runJob; nothing after the
+ * site chrome is composed hands back, because that work is not checkpointed.
+ */
+const HAND_BACK_STEPS = new Set(["business", "services", "brand", "analysis", "structure", "copy", "conversion", "wording"]);
+const HAND_BACK_INPUTS = { version: 1 };
+
+/** Thrown at a resumable point once the run's budget is spent; the drain hands the lease back. */
+export class BuildHandBackError extends Error {
+  constructor(
+    jobId: string,
+    public readonly point: string,
+  ) {
+    super(`Build run for job ${jobId} reached its time budget at "${point}"; handing back to resume.`);
+    this.name = "BuildHandBackError";
+  }
+}
+
+/** True once a run with this deadline should stop before starting another stage. */
+export function handBackDue(deadline: number, now = Date.now(), reserveMs = NEXT_STAGE_RESERVE_MS): boolean {
+  return now >= deadline - reserveMs;
+}
+
+type HandBackStore = {
+  get: <T>(key: string, inputs: unknown) => Promise<T | null>;
+  put: (key: string, inputs: unknown, value: unknown) => Promise<boolean>;
+};
+
+export type RunSlice = {
+  deadline: number;
+  /** This run saved new resumable work (a checkpoint, new pictures, new section designs). */
+  progressed: () => void;
+  /** True once the deadline itself has passed. */
+  expired: () => boolean;
+  /** Throws BuildHandBackError when the budget is spent and the run has progressed. */
+  handBackIfDue: (point: string) => Promise<void>;
+};
+
+/**
+ * One run's budget. A run only hands back after it made progress the next
+ * run can reuse (a brand-new job counts: nothing would be redone), so slices
+ * always move the build forward; MAX_HAND_BACKS bounds the rest.
+ */
+export function createRunSlice(input: {
+  jobId: string;
+  deadline: number;
+  /** Nothing to redo before handing back: a brand-new job, or a short (kick) slice. */
+  fresh: boolean;
+  store: HandBackStore;
+  now?: () => number;
+}): RunSlice {
+  const now = input.now ?? Date.now;
+  let progress = input.fresh;
+  let fuseBlown = false;
+  return {
+    deadline: input.deadline,
+    progressed: () => {
+      progress = true;
+    },
+    expired: () => now() >= input.deadline,
+    handBackIfDue: async (point) => {
+      if (!progress || fuseBlown || !Number.isFinite(input.deadline) || !handBackDue(input.deadline, now())) return;
+      const count = (await input.store.get<{ count?: number }>(HAND_BACK_KEY, HAND_BACK_INPUTS))?.count ?? 0;
+      if (count >= MAX_HAND_BACKS) {
+        fuseBlown = true;
+        console.warn(`[site-engine] job ${input.jobId} handed back ${count} times; this run finishes without another hand-back.`);
+        return;
+      }
+      // Recorded before handing back; without the count the fuse cannot work.
+      if (!(await input.store.put(HAND_BACK_KEY, HAND_BACK_INPUTS, { count: count + 1, point }))) return;
+      throw new BuildHandBackError(input.jobId, point);
+    },
+  };
+}
 
 type Db = SupabaseClient;
 
@@ -542,6 +654,9 @@ export async function settleFailedAttempt(
   deps: AttemptFailureDeps,
 ): Promise<never> {
   const { error } = input;
+  // A run that handed back keeps everything (pictures, fresh-rebuild marker):
+  // the same job resumes from here.
+  if (error instanceof BuildHandBackError) throw error;
   if (error instanceof StaleAttemptError) {
     const { data: latest } = await db.from("generation_jobs").select("status").eq("id", input.jobId).maybeSingle();
     if ((latest as { status?: string } | null)?.status !== "cancelled") throw error;
@@ -654,6 +769,8 @@ export function startLeaseHeartbeat(
   db: Db,
   job: { id: string; attempts: number },
   intervalMs = heartbeatIntervalMs(),
+  /** Called once when this attempt no longer holds the job (cancelled by the owner, or taken over). */
+  onLost?: () => void,
 ): LeaseHeartbeat {
   let stopped = false;
   let lost = false;
@@ -688,6 +805,11 @@ export function startLeaseHeartbeat(
         console.warn(
           `[site-engine] lease for job ${job.id} is no longer held by attempt ${job.attempts}; heartbeat stopped.`,
         );
+        try {
+          onLost?.();
+        } catch {
+          /* stopping is best-effort; the next stage fence stops the attempt anyway */
+        }
       }
     } catch (error) {
       failures += 1;
@@ -729,6 +851,48 @@ export async function touchLease(db: Db, job: { id: string; attempts: number }):
     .select("id");
   if (error) throw new Error(`Build lease could not be renewed: ${error.message}`);
   if (!data?.length) throw new StaleAttemptError(job.id);
+}
+
+/**
+ * Ends a run that reached its budget cleanly: records the attempt's end (it
+ * bounds the partial rows the next run may clear, see findOwnPartialBuild),
+ * then returns the job to the queue with its attempt given back and no lease,
+ * so the next run claims it at once and resumes from its checkpoints. Fenced
+ * on the attempt and "processing": a cancelled or superseded job is untouched.
+ * This is not a capacity wait; those stay in the capacity deferral.
+ */
+export async function handBackLease(
+  db: Db,
+  job: { id: string; organization_id: string; created_by: string | null; attempts: number },
+  point: string,
+): Promise<boolean> {
+  try {
+    await db.from("ai_generations").insert({
+      organization_id: job.organization_id,
+      job_id: job.id,
+      kind: "build_attempt_ended",
+      model: "none",
+      instruction: null,
+      result: { attempt: Number(job.attempts), outcome: "handed_back", point } as unknown as never,
+      created_by: job.created_by ?? null,
+    } as never);
+  } catch (error) {
+    console.warn(`[site-engine] attempt-end record for job ${job.id} skipped`, error);
+  }
+  const { data, error } = await db
+    .from("generation_jobs")
+    .update({
+      status: "queued",
+      attempts: Math.max(0, Number(job.attempts) - 1),
+      lease_expires_at: null,
+      updated_at: new Date().toISOString(),
+    } as never)
+    .eq("id", job.id)
+    .eq("attempts", job.attempts)
+    .eq("status", "processing")
+    .select("id");
+  if (error) console.warn(`[site-engine] hand-back of job ${job.id} failed: ${error.message}`);
+  return !error && Boolean(data?.length);
 }
 
 /**
@@ -898,12 +1062,50 @@ export async function deferCutOffJobs(db: Db, now: string, organizationId?: stri
 
 /** Claims one runnable job with a lease. Returns null when there is nothing to do. */
 export type WorkerInvoker = "pg_net" | "kick" | "pump" | "runner" | "unknown";
+/** current_step is where the previous run left the job (null for a new job). */
+export type ClaimedJob = { id: string; organization_id: string; created_by: string | null; attempts: number; current_step?: string | null };
+
+/**
+ * A workspace left on "generating" after its build failed, or after nothing
+ * picked the job up, stays stuck in the admin queue. Release it once no job
+ * is actually running. A draft that already exists goes back to review; a
+ * workspace with no draft goes back to onboarding so the owner can start again.
+ */
+export async function releaseAbandonedGenerating(db: Db, now = Date.now()) {
+  try {
+    const { data, error } = await db
+      .from("website_settings")
+      .select("organization_id, generated_at, updated_at")
+      .eq("review_state", "generating")
+      .limit(40);
+    if (error || !data?.length) return;
+    for (const row of data) {
+      const updated = Date.parse(String((row as { updated_at?: string }).updated_at ?? ""));
+      if (Number.isFinite(updated) && now - updated < 15 * 60_000) continue;
+      const orgId = String((row as { organization_id: string }).organization_id);
+      const { data: job } = await db
+        .from("generation_jobs")
+        .select("status")
+        .eq("organization_id", orgId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const status = (job as { status?: string } | null)?.status;
+      if (status === "queued" || status === "processing") continue;
+      const next = (row as { generated_at?: string | null }).generated_at ? "ready_for_review" : "onboarding";
+      await db.from("website_settings").update({ review_state: next } as never).eq("organization_id", orgId).eq("review_state", "generating");
+    }
+  } catch (error) {
+    console.warn("[site-engine] could not release abandoned generating states", error);
+  }
+}
 
 export async function claimJob(db: Db, organizationId?: string, invoker: WorkerInvoker = "unknown") {
+  await releaseAbandonedGenerating(db);
   const now = new Date();
   let query = db
     .from("generation_jobs")
-    .select("id, organization_id, attempts, created_by, status, lease_expires_at, current_step")
+    .select("id, organization_id, attempts, created_by, status, lease_expires_at, current_step, started_at")
     .in("status", ["queued", "processing"])
     .lt("attempts", MAX_ATTEMPTS)
     // Filter BEFORE limit, otherwise five live/backing-off jobs starve every
@@ -933,7 +1135,9 @@ export async function claimJob(db: Db, organizationId?: string, invoker: WorkerI
       .update({
         status: "processing",
         attempts: (job.attempts as number) + 1,
-        started_at: job.status === "queued" ? now.toISOString() : undefined,
+        // A later stage re-queues the same job. Keep the first start so elapsed
+        // time is not reset when that stage is claimed.
+        ...((job as { started_at?: string | null }).started_at ? {} : { started_at: now.toISOString() }),
         lease_expires_at: new Date(now.getTime() + LEASE_SECONDS * 1000).toISOString(),
         updated_at: now.toISOString(),
         ...(recovering ? { error_message: RECOVERING_BUILD_MESSAGE } : {}),
@@ -942,7 +1146,7 @@ export async function claimJob(db: Db, organizationId?: string, invoker: WorkerI
       .eq("attempts", job.attempts as number)
       .eq("status", job.status)
       .or(`lease_expires_at.is.null,lease_expires_at.lte.${now.toISOString()}`)
-      .select("id, organization_id, created_by, attempts")
+      .select("id, organization_id, created_by, attempts, current_step")
       .maybeSingle();
     if (claimed && recovering) {
       // Attribution for the attempt that died: the values are the ones read
@@ -970,15 +1174,30 @@ export async function claimJob(db: Db, organizationId?: string, invoker: WorkerI
       }
     }
     if (claimed)
-      return claimed as { id: string; organization_id: string; created_by: string | null; attempts: number };
+      return claimed as ClaimedJob;
   }
   return null;
 }
 
+/** Stage boundaries where a build's spending ceiling is checked: before the costly middle, never at the finish line. */
+const SPEND_CHECKED_STEPS = new Set(["conversion", "pictures", "pages", "wording"]);
+
+/** Where the progress bar stands while each named step of the creative stage runs (between 46% and 58%). */
+const REFINE_STEP_PROGRESS: Record<string, number> = {
+  "planning your design direction": 48,
+  "choosing your typography": 49,
+  "naming your visual concept": 49,
+  "choosing your colours": 50,
+  "planning your picture campaign": 51,
+  "planning your picture campaign (second pass)": 52,
+  "writing your wording": 53,
+};
+
 /** Runs the generation stages (GENERATION_STEPS) for one claimed job using the privileged client. */
 async function runJob(
   db: Db,
-  job: { id: string; organization_id: string; created_by: string | null; attempts: number },
+  job: ClaimedJob,
+  run: { deadline: number; short?: boolean } = { deadline: Number.POSITIVE_INFINITY },
 ) {
   const orgId = job.organization_id;
   const { GENERATION_STEPS } = await import("@/lib/site-engine");
@@ -1000,6 +1219,20 @@ async function runJob(
   // the chat records its stages under that request id; otherwise the job id.
   const requestId = await readJobRequestId(db, job.id);
   const runId = requestId ?? job.id;
+  // Early-stage checkpoints: an interrupted attempt of this same job reuses the
+  // AI team's finished work instead of asking for it again.
+  const stageStore = (await import("@/lib/builder/job-stage-checkpoints")).jobStageCheckpointStore(db as never, {
+    jobId: job.id,
+    organizationId: orgId,
+    attempts: job.attempts,
+  });
+  // This run's wall-clock budget. At the resumable points below the run hands
+  // the job back once the budget is nearly spent; the next run resumes here.
+  // A short slice (the in-process kick) stops at the first resumable point.
+  const slice = createRunSlice({ jobId: job.id, deadline: run.deadline, fresh: !job.current_step || run.short === true, store: stageStore });
+  const saved = (ok: boolean) => {
+    if (ok) slice.progressed();
+  };
   const WORKER_STAGE_LABELS: Record<string, string> = {
     business: "reading your business",
     services: "reading your services",
@@ -1043,12 +1276,48 @@ async function runJob(
       .eq("attempts", job.attempts)
       .select("id");
     if (!fenced || fenced.length === 0) throw new StaleAttemptError(job.id);
+    if (SPEND_CHECKED_STEPS.has(key)) await assertWithinBuildSpend();
     // Progress names the stage that is STARTING now ("generating your
     // pictures" while they are made), never the one that just finished.
     const nextKey = GENERATION_STEPS[GENERATION_STEPS.findIndex((s) => s.key === key) + 1]?.key;
     const starting = nextKey ? WORKER_STAGE_LABELS[nextKey] : undefined;
     if (starting) noteStage(orgId, runId, starting);
+    if (HAND_BACK_STEPS.has(key)) await slice.handBackIfDue(key);
   };
+  // The long middle of a build (brand direction, design direction, picture
+  // campaign, wording, page plan, pictures) all happens between two steps, so
+  // the bar sat at 46% for most of the build. This moves it inside that stretch
+  // as real work finishes. Never backwards (a resumed attempt may already be
+  // further on) and never allowed to fail the build.
+  const advanceTo = async (percent: number) => {
+    try {
+      await db
+        .from("generation_jobs")
+        .update({ progress: percent, updated_at: new Date().toISOString() } as never)
+        .eq("id", job.id)
+        .eq("attempts", job.attempts)
+        .eq("status", "processing")
+        .lt("progress", percent);
+    } catch {
+      /* cosmetic only */
+    }
+  };
+  // One build's spending ceiling (build-spend.ts), counted across all of its
+  // attempts. Checked before an attempt starts, at the mid-build stage boundaries
+  // and after each picture, so a build that keeps failing and keeps paying is
+  // stopped with a plain message instead of being tried again. Not checked in
+  // the last stages: failing a finished build over pennies would waste it.
+  const spendLimit = await import("@/lib/builder/build-spend");
+  const spendCap = spendLimit.buildSpendCapMicrocents();
+  const askedAt = spendCap > 0
+    ? (((await db.from("generation_jobs").select("created_at").eq("id", job.id).maybeSingle()).data as { created_at?: string } | null)?.created_at ?? null)
+    : null;
+  const assertWithinBuildSpend = async () => {
+    if (!askedAt) return;
+    const spent = await spendLimit.readBuildSpendMicrocents(db as never, orgId, askedAt);
+    if (spent !== null && spendLimit.overBuildSpendCap(spent, spendCap)) throw new spendLimit.BuildSpendLimitError(spent, spendCap);
+  };
+  await assertWithinBuildSpend();
   noteStage(orgId, runId, WORKER_STAGE_LABELS["business"] ?? "reading your business");
 
   const [org, profile, services, media, socials, forms, bookable] = await Promise.all([
@@ -1060,7 +1329,7 @@ async function runJob(
     db.from("business_profiles").select("*").eq("organization_id", orgId).maybeSingle(),
     db
       .from("services")
-      .select("name, description, price, starting_price")
+      .select("id, name, description, price, starting_price")
       .eq("organization_id", orgId)
       .eq("is_active", true)
       .order("sort_order"),
@@ -1083,15 +1352,35 @@ async function runJob(
   // Platform UI wording ("Build my site", "All") saved as a service by an
   // earlier intake bug is never a real business service, so it is dropped
   // before anything is written about it. Nothing is invented in its place.
-  const { sanitizeServices, customerBusinessEmail } = await import("@/lib/builder/intake-sanitize");
-  const serviceRows = sanitizeServices(
+  const { mergeSplitServices, sanitizeServices, customerBusinessEmail } = await import("@/lib/builder/intake-sanitize");
+  const rawServices = sanitizeServices(
     (services.data ?? []) as {
+      id?: string;
       name: string;
       description?: string | null;
       price?: number | null;
       starting_price?: number | null;
     }[],
   );
+  const serviceRows = mergeSplitServices(rawServices);
+  // A fresh rebuild heals the workspace rows too, so the booking menu and the
+  // next layout see "Full Auto detailing" instead of two stub names.
+  try {
+    const kept = new Set(serviceRows.map((row) => row.id).filter(Boolean));
+    for (const row of serviceRows) {
+      const original = rawServices.find((item) => item.id && item.id === row.id);
+      if (row.id && original && original.name !== row.name) {
+        await db.from("services").update({ name: row.name } as never).eq("id", row.id).eq("organization_id", orgId);
+      }
+    }
+    for (const row of rawServices) {
+      if (row.id && !kept.has(row.id)) {
+        await db.from("services").update({ is_active: false } as never).eq("id", row.id).eq("organization_id", orgId);
+      }
+    }
+  } catch (error) {
+    console.warn("[site-engine] split service names were not rewritten", error);
+  }
   // Revora's own inbox is never a customer's business email (except on
   // Revora's internal workspace). Treated as "not supplied", never replaced.
   const businessEmail = customerBusinessEmail(p["email"], orgId);
@@ -1221,18 +1510,11 @@ async function runJob(
   const approvedBrief = readBrief(priorGeneration["brief"]);
 
   // No built-in strategy: an unapproved brief is written by the AI.
-  // Early-stage checkpoints: an interrupted attempt of this same job reuses the
-  // AI team's finished work instead of asking for it again.
-  const stageStore = (await import("@/lib/builder/job-stage-checkpoints")).jobStageCheckpointStore(db as never, {
-    jobId: job.id,
-    organizationId: orgId,
-    attempts: job.attempts,
-  });
   const resumedBrief = approvedBrief?.approved ? null : await stageStore.get<Awaited<ReturnType<typeof analyzeBusiness>>>("brief", copyFacts);
   const brief = approvedBrief?.approved
     ? approvedBrief
     : resumedBrief ?? await analyzeBusiness(copyFacts, { organizationId: orgId, userId: job.created_by });
-  if (!approvedBrief?.approved && !resumedBrief) await stageStore.put("brief", copyFacts, brief);
+  if (!approvedBrief?.approved && !resumedBrief) saved(await stageStore.put("brief", copyFacts, brief));
   if (!approvedBrief?.approved && !resumedBrief) {
     await db.from("ai_generations").insert({
       organization_id: orgId,
@@ -1308,9 +1590,13 @@ async function runJob(
   };
   type BrandIdentity = Awaited<ReturnType<typeof authorBrandIdentity>>;
   const resumedIdentity = await stageStore.get<BrandIdentity>("identity", identityInputs);
+  if (!resumedIdentity) noteStage(orgId, runId, "choosing your brand direction", job.attempts > 1 ? `attempt ${job.attempts}` : undefined);
   const identity = resumedIdentity ?? await authorBrandIdentity(identityInputs);
-  if (!resumedIdentity && identity.direction) await stageStore.put("identity", identityInputs, identity);
+  if (!resumedIdentity && identity.direction) saved(await stageStore.put("identity", identityInputs, identity));
   await touchLease(db, job);
+  await advanceTo(48);
+  // Resumable only when the identity is stored (or came from the store).
+  if (resumedIdentity || identity.direction) await slice.handBackIfDue("identity");
   const direction = identity.direction;
   // Pure black/white saved colours are an old neutral placeholder, not an
   // owner brand: the AI team authors the whole palette instead.
@@ -1412,10 +1698,25 @@ async function runJob(
   const refineInputs = { organizationId: orgId, facts: buildFacts, brief, copy, creative, hardGenericityGate: true as const };
   type Refined = Awaited<ReturnType<typeof refineFirstBuildWithCollective>>;
   const resumedRefined = await stageStore.get<Refined>("refined", refineInputs);
-  const refined = resumedRefined ?? await refineFirstBuildWithCollective(refineInputs);
-  if (!resumedRefined && refined.creativeChanged && refined.changed && missingAiCopy(refined.copy).length === 0)
-    await stageStore.put("refined", refineInputs, refined);
+  // The step names are shown to the owner as they happen. A retry's rows carry
+  // its attempt number: progress rows of the same wording are otherwise
+  // collapsed, which made a second attempt look frozen.
+  const attemptNote = job.attempts > 1 ? `attempt ${job.attempts}` : undefined;
+  const refined = resumedRefined ?? await refineFirstBuildWithCollective({
+    ...refineInputs,
+    checkpoints: stageStore,
+    onStep: (label) => {
+      noteStage(orgId, runId, label, attemptNote);
+      const to = REFINE_STEP_PROGRESS[label];
+      if (to) void advanceTo(to);
+    },
+  });
+  await advanceTo(54);
+  const refinedUsable = refined.creativeChanged && refined.changed && missingAiCopy(refined.copy).length === 0;
+  if (!resumedRefined && refinedUsable) saved(await stageStore.put("refined", refineInputs, refined));
   await touchLease(db, job);
+  // Unusable wording is not handed back: the checks below fail it now.
+  if (resumedRefined || refinedUsable) await slice.handBackIfDue("refined");
   if (refined.creativeChanged) creative = refined.creative;
   if (refined.changed) {
     copy = refined.copy;
@@ -1548,7 +1849,7 @@ async function runJob(
         };
         const resumedPlan = await stageStore.get<PageArchitectureOutcome>("architecture", architectureInputs);
         const outcome = resumedPlan ?? await proposePageArchitecture(architectureInputs);
-        if (!resumedPlan && outcome.architecture?.length) await stageStore.put("architecture", architectureInputs, outcome);
+        if (!resumedPlan && outcome.architecture?.length) saved(await stageStore.put("architecture", architectureInputs, outcome));
         architectureRef.current = outcome;
         if (!outcome.architecture?.length) {
           // Carry the real reason (provider, shape, or review refusal) so the
@@ -1567,7 +1868,8 @@ async function runJob(
   // Honest progress: on a first build the page plan is written WHILE the
   // pictures are made, so the label names both instead of only pictures.
   let architectureSettled = architecturePlan === null;
-  void architecturePlan?.then(() => { architectureSettled = true; }, () => { architectureSettled = true; });
+  let architectureReady = architecturePlan === null;
+  void architecturePlan?.then(() => { architectureSettled = true; architectureReady = true; }, () => { architectureSettled = true; });
   noteStage(orgId, runId, architecturePlan ? "planning your pages and making your pictures" : "generating your pictures");
   // A retry of an interrupted build reuses the pictures its earlier attempt
   // already stored (only this job's own generated files, by creation time).
@@ -1589,6 +1891,8 @@ async function runJob(
     }
   }
   await touchLease(db, job);
+  await advanceTo(55);
+  let picturesDone = 0;
   const starterImages = await generateFirstBuildImages(db, {
     organizationId: orgId,
     userId: job.created_by,
@@ -1609,13 +1913,41 @@ async function runJob(
     // The picture stage has a fixed time budget so a slow or rate-limited
     // picture service can never stop the build before pages, menus and buttons
     // are written. Unfilled slots go to the picture repair afterwards.
-    onShotDone: () => touchLease(db, job),
+    onShotDone: async () => {
+      await touchLease(db, job);
+      await assertWithinBuildSpend();
+      picturesDone += 1;
+      await advanceTo(Math.min(57, 55 + Math.floor(picturesDone / 3)));
+    },
     reusable: reusablePictures,
   });
   await touchLease(db, job);
+  {
+    // Finish-line rule: never complete a site with zero pictures when the
+    // owner supplied none; stop for retry instead of shipping text-only pages.
+    const { firstBuildPictureGap } = await import("@/lib/builder/first-build-picture-gate");
+    const gap = firstBuildPictureGap({
+      ownerPhotoCount: realMediaCount,
+      generatedStatus: starterImages.evidence.status,
+      keptPictures: starterImages.assets.length,
+    });
+    if (gap) {
+      const { AiStepUnavailableError } = await import("@/lib/builder/ai-step-error");
+      throw new AiStepUnavailableError("pictures", starterImages.evidence.message || gap);
+    }
+  }
   await step("pictures");
-  // Picture records (spec D): one per generated slot with its art direction,
-  // pending owner approval. Cosmetic bookkeeping — never blocks the build.
+  {
+    // New pictures are kept for the next run (see settleFailedAttempt), so
+    // they are progress; reused ones are not.
+    const reusedIds = new Set(reusablePictures.map((row) => row.id));
+    if (starterImages.assets.some((asset) => !asset.mediaId || !reusedIds.has(asset.mediaId))) slice.progressed();
+    // Never hand back with the page plan still being written: that answer would be lost.
+    if (architectureReady) await slice.handBackIfDue("pictures");
+  }
+  // Picture records (spec D): one per generated slot. The visual check already
+  // passed, so the record is approved. The owner can still reject it later.
+  // Bookkeeping only — it never blocks the build.
   if (starterImages.assets.length) {
     const { normaliseSlot } = await import("@/lib/builder/image-records");
     const rows = starterImages.assets
@@ -1625,7 +1957,9 @@ async function runJob(
         direction: String(asset.prompt ?? "").slice(0, 4000),
         alt_text: asset.altText ? String(asset.altText).slice(0, 200) : null,
         source: "generated",
-        status: "pending",
+        // The visual check already ran before this row was stored. Pending made
+        // every finished build look like zero pictures were approved.
+        status: "approved",
         media_id: asset.mediaId,
         rendered_url: asset.path,
         provider: asset.provider || null,
@@ -1635,6 +1969,24 @@ async function runJob(
     if (rows.length) {
       const { error: recordError } = await db.from("image_records").upsert(rows as never, { onConflict: "organization_id,slot" });
       if (recordError) console.warn("[site-engine] picture records skipped", recordError.message);
+      else {
+        // Earlier failed runs left pending rows. This build's slots are approved;
+        // the leftovers are not still waiting, so monitoring can stop counting them.
+        try {
+          const { stalePendingSlots } = await import("@/lib/builder/studio-canvas");
+          const { data: prior } = await db.from("image_records").select("slot, status").eq("organization_id", orgId);
+          const stale = stalePendingSlots(
+            (prior ?? []) as { slot: string; status: string }[],
+            rows.map((row) => row.slot).filter((slot): slot is string => Boolean(slot)),
+          );
+          if (stale.length) {
+            const { error: staleError } = await db.from("image_records").update({ status: "rejected" } as never).eq("organization_id", orgId).eq("status", "pending").in("slot", stale);
+            if (staleError) console.warn("[site-engine] stale pending pictures were not closed", staleError.message);
+          }
+        } catch (error) {
+          console.warn("[site-engine] stale pending pictures were not closed", error);
+        }
+      }
     }
   }
   // The customer's own photos always go on the site first, in the places
@@ -1835,6 +2187,8 @@ async function runJob(
     result: attachedEvidence as unknown as never,
     created_by: job.created_by,
   } as never);
+  // Pages are re-assembled from the saved plan on resume; the wording pass is next.
+  await slice.handBackIfDue("pages");
 
   // Section-by-section wording authority. Sol reviews every authored section,
   // Terra approves it individually and the same fact gate blocks invention.
@@ -1932,7 +2286,7 @@ async function runJob(
       }
       // Saved either way (an overrun saves "no changes"), so a resumed attempt
       // keeps exactly the wording its saved section designs were made from.
-      await stageStore.put("wording", wordingInputs, wordingCheckpoint.toStoredWordingPatches(wording, outcome.patches as never));
+      saved(await stageStore.put("wording", wordingInputs, wordingCheckpoint.toStoredWordingPatches(wording, outcome.patches as never)));
     }
     await touchLease(db, job);
     for (const patch of outcome.patches) {
@@ -1982,8 +2336,10 @@ async function runJob(
       facts: buildFacts,
       // Optional review/craft rounds stop once this build has used its layout
       // budget; the required AI design and safety checks always complete.
-      optionalPassDeadline: Date.now() + LAYOUT_OPTIONAL_BUDGET_MS,
-      rescueDeadline: Date.now() + LAYOUT_RESCUE_BUDGET_MS,
+      // Both also end with this run's budget; designs accepted so far are
+      // checkpointed and the next run continues with the rest.
+      optionalPassDeadline: Math.min(Date.now() + LAYOUT_OPTIONAL_BUDGET_MS, slice.deadline),
+      rescueDeadline: Math.min(Date.now() + LAYOUT_RESCUE_BUDGET_MS, slice.deadline),
       onPageDone: () => touchLease(db, job),
       // Accepted section designs are checkpointed on the job after every
       // chunk; a retry of this job restores the ones whose inputs still match.
@@ -1996,6 +2352,10 @@ async function runJob(
         }),
       },
       lookSummary: JSON.stringify({
+        ownerWebsiteRequest: brief.factAnswers["build_request"] ?? null,
+        density: creative.brief.density,
+        mobileStrategy: creative.brief.mobileStrategy,
+        conversionStrategy: creative.brief.conversionStrategy,
         concept: creative.brief.concept,
         personality: creative.brief.personality,
         typography: creative.brief.typography,
@@ -2008,6 +2368,9 @@ async function runJob(
         shapeLanguage: creative.brief.shapeLanguage,
         motion: creative.brief.motion,
         photography: creative.brief.photography,
+        // The AI's per-section art direction the pictures were shot to, so
+        // scenes anchor copy where the photo left space.
+        ...(creative.brief.shotList?.sections?.length ? { shotList: creative.brief.shotList } : {}),
         // The palette the site will actually wear: the owner's own colours
         // when set (they are never overwritten), else the AI identity. Sections
         // composed against a different palette than the theme clashed with it.
@@ -2019,6 +2382,13 @@ async function runJob(
     // Every section is designed by the AI team. A section left without its
     // layout stops the build (it is retried) instead of shipping a default.
     if ((composed.fallback ?? 0) > 0) {
+      // Stopped by this run's budget after designing new sections: hand back
+      // so the next run designs the rest. Otherwise the existing rules apply
+      // (capacity -> the capacity deferral; anything else fails the attempt).
+      if (slice.expired() && composed.composed > (composed.resumed ?? 0)) {
+        slice.progressed();
+        await slice.handBackIfDue("layout");
+      }
       const { AiStepUnavailableError, AiCapacityParkError } = await import("@/lib/builder/ai-step-error");
       if (composed.capacityParked)
         throw new AiCapacityParkError(
@@ -2199,6 +2569,9 @@ async function runJob(
         ? []
         : ["Turn on the quote calculator or make a service bookable so visitors can enquire."]),
       ...((media.data ?? []).length >= 5 ? [] : ["Add at least five photos of your own work."]),
+      ...(menuNeedsHelp(serviceRows)
+        ? ["Your services are thin: give each a one-line description in your own words (the Services page can suggest wording), so the site can say more about what you really offer."]
+        : []),
       // Picture problems feed the same attention list the repair loop reads, so a
       // blocked or rejected starter picture is fixed rather than quietly ignored.
       ...(starterImages.evidence.status === "owner_photos" || starterImages.assets.length > 0
@@ -2215,7 +2588,8 @@ async function runJob(
 
   if (!built.skipped) {
     const { assertFirstBuildSavedCoverage } = await import("@/lib/builder/first-build-saved-coverage.server");
-    await assertFirstBuildSavedCoverage(db, orgId, { pages: built.pages, sections: built.sections });
+    if (!built.inventory) throw new Error("Couldn't verify the accepted website inventory");
+    await assertFirstBuildSavedCoverage(db, orgId, { pages: built.pages, sections: built.sections, inventory: built.inventory });
   }
 
   // Re-read generation right before the final save. Stages above (the AI
@@ -2566,18 +2940,37 @@ export type DrainResult = {
   paused: boolean;
   pauseReason: string | null;
   idle: boolean;
+  /** Runs that reached their budget and returned the job to the queue to resume. */
+  handedBack?: number;
 };
+
+/** Asks the database-held worker call to run the next slice of a handed-back build. */
+async function requestNextSlice(organizationId: string): Promise<unknown> {
+  const { requestDurableWorkerRun } = await import("@/lib/builder/durable-worker-kick.server");
+  return requestDurableWorkerRun(organizationId);
+}
 
 /**
  * Processes a bounded batch of jobs. Safe to call from cron, from a kick after
  * enqueue, or from the client's polling hook — the lease keeps it single-flight.
+ * Each job runs under `sliceBudgetMs` (RUN_BUDGET_MS by default); a run that
+ * hands back ends this drain and asks for the next slice (the backstop
+ * schedule picks it up if that request cannot be made).
  */
 export async function drainSiteEngineQueue(
   db: Db,
-  options: { max?: number; organizationId?: string; probeWhilePaused?: boolean; invoker?: WorkerInvoker } = {},
+  options: {
+    max?: number;
+    organizationId?: string;
+    probeWhilePaused?: boolean;
+    invoker?: WorkerInvoker;
+    sliceBudgetMs?: number;
+    continueBuild?: (organizationId: string) => Promise<unknown>;
+  } = {},
   executeJob: typeof runJob = runJob,
 ): Promise<DrainResult> {
   const max = Math.min(Math.max(options.max ?? 2, 1), 5);
+  const sliceBudgetMs = Math.max(0, Math.min(options.sliceBudgetMs ?? RUN_BUDGET_MS, RUN_BUDGET_MS));
   let state = await readQueueState(db);
 
   // Recover legacy automatic pauses. A tenant's quota/policy/provider failure
@@ -2657,21 +3050,51 @@ export async function drainSiteEngineQueue(
     } catch (error) {
       console.warn(`[site-engine] attempt-start record for job ${job.id} skipped`, error);
     }
-    const heartbeat = startLeaseHeartbeat(db, job);
+    // Aborted when the owner stops the build (or another worker takes it over),
+    // and again when this attempt ends: every AI call in the attempt stops with
+    // it, including work still running in the background after a failure.
+    const attemptAbort = new AbortController();
+    const heartbeat = startLeaseHeartbeat(db, job, undefined, () => attemptAbort.abort());
     try {
       // Demo (is_demo) workspaces build on the free pool only. The scope is
       // per job (AsyncLocalStorage), so a concurrent customer build in this
       // process keeps its own paid allowance.
       const { buildSpendScope, withAiSpendScope } = await import("@/lib/ai/spend-scope.server");
       const spendScope = await buildSpendScope(db as never, job.organization_id);
-      await withAiSpendScope(spendScope, () => executeJob(db, job));
+      const deadline = Date.parse(attemptStartedAt) + sliceBudgetMs;
+      // Each model that answers is shown to the owner as it happens ("model at
+      // work"), under the same run id the build's stages use.
+      const { withModelActivity } = await import("@/lib/ai/model-activity-scope.server");
+      const { noteStage: noteModel } = await import("@/lib/builder/progress.server");
+      const modelRunId = (await readJobRequestId(db, job.id)) ?? job.id;
+      await withAiSpendScope({ ...spendScope, signal: attemptAbort.signal }, () =>
+        withModelActivity(
+          (provider, model) => noteModel(job.organization_id, modelRunId, "model at work", `${provider} · ${model}`),
+          () => executeJob(db, job, { deadline, short: sliceBudgetMs < NEXT_STAGE_RESERVE_MS }),
+        ),
+      );
       heartbeat.stop();
+      attemptAbort.abort();
       processed += 1;
     } catch (error) {
       heartbeat.stop();
+      attemptAbort.abort();
       // A superseded attempt must not requeue, fail or restore anything —
       // the newer attempt owns the job and the site now.
       if (error instanceof StaleAttemptError) continue;
+      // Budget spent at a resumable point: give the lease (and the attempt)
+      // back and let the next run continue. This drain's budget is used up.
+      if (error instanceof BuildHandBackError) {
+        if (await handBackLease(db, job, error.point)) {
+          console.info(`[site-engine] job ${job.id} handed back at "${error.point}" to resume in the next run.`);
+          try {
+            await (options.continueBuild ?? requestNextSlice)(job.organization_id);
+          } catch (continueError) {
+            console.warn(`[site-engine] next-run request for job ${job.id} failed; the backstop schedule resumes it.`, continueError);
+          }
+        }
+        return { processed, failed, paused: false, pauseReason: null, idle: false, handedBack: 1 };
+      }
       // An owner-cancelled build stays cancelled: never requeue or relabel it.
       {
         const { data: latest } = await db

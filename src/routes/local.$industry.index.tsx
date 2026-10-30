@@ -3,7 +3,7 @@ import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { SiteFooter, SiteHeader } from "@/components/marketing/Chrome";
 import { Button } from "@/components/ui/button";
 import { GROWTH_SYSTEM, usd } from "@/lib/offer";
-import { breadcrumbSchema, canonicalLink, ogUrl, metaDescription } from "@/lib/seo";
+import { breadcrumbSchema, canonicalLink, ogUrl, metaDescription, OG_IMAGE_META } from "@/lib/seo";
 import { findLocalIndustry, localPath, type LocalIndustry } from "@/lib/local-pages";
 import { US_STATES } from "@/lib/us-states";
 
@@ -32,6 +32,7 @@ export const Route = createFileRoute("/local/$industry/")({
         { property: "og:type", content: "website" },
         { name: "twitter:card", content: "summary_large_image" },
         ogUrl(path),
+        ...OG_IMAGE_META,
       ],
       links: [canonicalLink(path)],
       scripts: [
@@ -59,7 +60,7 @@ function LocalIndustryHub() {
       <SiteHeader />
       <main className="mx-auto max-w-5xl px-4 pt-14 pb-20 sm:px-6 sm:pt-20">
         <nav aria-label="Breadcrumb" className="text-xs text-muted-foreground">
-          <Link to="/local" className="hover:text-primary">
+          <Link to="/local" className="tap-target py-1.5 hover:text-primary">
             Local growth systems
           </Link>
           <span aria-hidden> / </span>
@@ -92,7 +93,7 @@ function LocalIndustryHub() {
               <Link
                 to="/local/$industry/$state"
                 params={{ industry: industry.slug, state: state.slug }}
-                className="text-[14px] text-muted-foreground hover:text-primary"
+                className="tap-target py-1 text-[14px] text-muted-foreground hover:text-primary"
               >
                 {industry.name} in {state.name}
               </Link>

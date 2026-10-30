@@ -28,7 +28,7 @@ import { reportModelAnswered } from "./model-activity-scope.server";
  */
 
 import { reservePaidSpend, routerActual, routerEstimate, settlePaidSpend, type PaidReservation } from "@/lib/ai/paid-budget.server";
-import { scopedFreeOnly } from "@/lib/ai/spend-scope.server";
+import { scopedAbortSignal, scopedFreeOnly } from "@/lib/ai/spend-scope.server";
 import {
   aiLimits,
   providerChain,
@@ -37,10 +37,10 @@ import {
   type ProviderConfig,
   type ProviderName,
 } from "@/lib/ai/config";
-import { RevoraAiError, notConfigured, providerUnavailable } from "@/lib/ai/errors";
+import { RevoraAiError, buildStopped, notConfigured, providerUnavailable } from "@/lib/ai/errors";
 import { durableRuntimeFor } from "@/lib/ai/durable-health.server";
 import { preserveGroupOrder, qualityFirstOrder } from "@/lib/ai/orchestration/order";
-import { lovableAdapter, lovableVideo, postLovableSpeech, type VideoOutcome } from "@/lib/ai/providers/lovable";
+import { lovableAdapter, lovableEmbeddings, lovableVideo, postLovableSpeech, type VideoOutcome } from "@/lib/ai/providers/lovable";
 
 import { base64ByteLength } from "@/lib/ai/providers/shared";
 import { compactMessages } from "@/lib/ai/context-compaction";
@@ -344,7 +344,24 @@ async function run<T>(
     // A no-spend scope keeps every AI call out.
     scopedFreeOnly(),
   );
-  const chain = applyModelPreference(rawChain, scopedPreferredModels(options?.preferModels), options?.avoidModels);
+  let candidates = rawChain;
+  const prefer = options?.preferModels;
+  if (prefer?.length) {
+    const config = rawChain[0]?.config ?? providerChain()[0];
+    if (config) {
+      const { catalogueFilterFor } = await import("@/lib/ai/catalogue.server");
+      const allow = await catalogueFilterFor(role);
+      const have = new Set(candidates.map((entry) => entry.model));
+      for (const model of chatRosterExtras(config.models, role, prefer)) {
+        if (have.has(model)) continue;
+        if (options?.capable && !options.capable(model)) continue;
+        if (allow && !allow(model)) continue;
+        candidates = [...candidates, { config, model }];
+        have.add(model);
+      }
+    }
+  }
+  const chain = applyModelPreference(candidates, scopedPreferredModels(prefer), options?.avoidModels);
   const attemptTimeoutMs = attemptTimeoutFor(clampPositive(options?.timeoutMs, limits.requestTimeoutMs), options?.longAttemptMs);
   const chainBudgetMs = clampPositive(options?.chainDeadlineMs, chainDeadlineMs());
   if (chain.length === 0)
@@ -380,9 +397,14 @@ async function run<T>(
     // one receive a shorter version of the conversation (context-compaction).
     let compaction = 0;
 
+    // The build this call belongs to may be stopped at any moment (cancelled, or
+    // its lease taken over). Nothing new is started for it, and anything in
+    // flight is aborted below, so a stopped build stops spending.
+    const stopSignal = scopedAbortSignal();
     for (let index = 0; index < ordered.length; index += 1) {
       const candidate = ordered[index]!;
       const config = candidate.config;
+      if (stopSignal?.aborted || options?.signal?.aborted) throw buildStopped();
       if (deadProviders.has(config.name)) continue;
       if (index > 0 && Date.now() >= chainDeadline) break;
       const adapter = ADAPTERS[config.name];
@@ -422,8 +444,9 @@ async function run<T>(
         // paid call too, so the walk does not burn budget after the caller left.
         const external = options?.signal ?? null;
         const onExternalAbort = () => controller.abort();
-        if (external?.aborted) controller.abort();
+        if (external?.aborted || stopSignal?.aborted) controller.abort();
         external?.addEventListener("abort", onExternalAbort);
+        stopSignal?.addEventListener("abort", onExternalAbort);
         try {
           const result = await execute({ adapter, config, model, signal: controller.signal, compaction });
           noteSuccess(breakerScope);
@@ -466,9 +489,12 @@ noteProviderSuccess(config.name);
             outputTokens: result.outputTokens ?? null,
           };
         } catch (rawError) {
+          const stopped = stopSignal?.aborted === true || external?.aborted === true;
           const error =
             rawError instanceof RevoraAiError
               ? rawError
+              : stopped
+                ? buildStopped()
               : controller.signal.aborted
                 ? new RevoraAiError(408, "Revora AI took too long to answer. Try again.", {
                     category: "timeout",
@@ -516,6 +542,8 @@ noteProviderSuccess(config.name);
           // calls. The exception is a request carrying an attachment: providers
           // differ in what they accept, so one refusing a picture says nothing
           // about the next free provider. Move on instead of giving up.
+          // A stopped build ends the whole walk: no next model, no retry.
+          if (error.category === "cancelled") throw error;
           if (error.category === "unauthorized" || error.category === "quota") deadProviders.add(config.name);
           if (error.category === "invalid_request" && options?.nextProviderOnInvalidRequest) break;
           // Free models have very different context windows (Groq's free tier
@@ -533,6 +561,11 @@ noteProviderSuccess(config.name);
             break;
           }
           if (!error.retryable) break;
+          // A model that used its whole time budget (or hit the gateway's own
+          // edge limit, a 524) will do exactly the same with the same request.
+          // Repeating it only burns the chain's wall-clock and leaves the next
+          // model with minutes it no longer has, so hand over now.
+          if (error.category === "timeout") break;
           // In the free pool the next model is usually faster than waiting out
           // a rate limit or a slow model: only a transient 5xx is worth a retry
           // of the same model.
@@ -545,6 +578,7 @@ noteProviderSuccess(config.name);
         } finally {
           clearTimeout(timer);
           external?.removeEventListener("abort", onExternalAbort);
+          stopSignal?.removeEventListener("abort", onExternalAbort);
         }
       }
       } finally {
@@ -638,6 +672,42 @@ function carriesAttachment(messages: AiRequest["messages"]): boolean {
  * order; avoided ones (e.g. the model that wrote what is being reviewed) move
  * to the very back so they answer only if nobody else can. Nothing is removed.
  */
+/** Chat rosters a review preference may recruit from. Image and transcription stay out. */
+const CHAT_ROSTER_ROLES = new Set(["primary", "design", "fast", "coding", "vision", "conversation"]);
+
+const splitRoster = (list: string | undefined) =>
+  (list ?? "").split(",").map((id) => id.trim()).filter(Boolean);
+
+/**
+ * Preferred ids that are on a chat roster other than this call's role.
+ * `applyModelPreference` only reorders models already in the chain, so a
+ * review area whose model lives on `design` or `fast` was silently ignored
+ * when the purpose ran on `primary`. These ids are appended, then the
+ * preference sort moves them to the front. The catalogue filter still has
+ * to accept them for this role's surface.
+ */
+export function chatRosterExtras(
+  models: Record<string, string>,
+  role: string,
+  prefer: readonly string[] | undefined,
+): string[] {
+  if (!prefer?.length) return [];
+  const own = new Set(splitRoster(models[role]));
+  const elsewhere = new Set<string>();
+  for (const [name, list] of Object.entries(models)) {
+    if (name === role || !CHAT_ROSTER_ROLES.has(name)) continue;
+    for (const id of splitRoster(list)) elsewhere.add(id);
+  }
+  const seen = new Set<string>();
+  const extras: string[] = [];
+  for (const id of prefer) {
+    if (!elsewhere.has(id) || own.has(id) || seen.has(id)) continue;
+    seen.add(id);
+    extras.push(id);
+  }
+  return extras;
+}
+
 export function applyModelPreference<T extends { model: string }>(
   chain: T[],
   prefer?: string[],
@@ -849,6 +919,27 @@ export async function analyzeImage(caller: AiCaller, request: AiRequest) {
 /** Video understanding; routes to the vision model. */
 export async function analyzeVideo(caller: AiCaller, request: AiRequest) {
   return generateText(caller, { ...request, role: request.role ?? "vision" });
+}
+
+/**
+ * Text embeddings for Jarvis memory recall. Fails open: null without a key,
+ * on any provider error, or when `apiKey` is explicitly null (tests).
+ */
+export async function embedWithProvider(
+  model: string,
+  input: string[],
+  options: { apiKey?: string | null; signal?: AbortSignal; fetcher?: typeof fetch } = {},
+): Promise<unknown[] | null> {
+  const apiKey = options.apiKey === undefined ? (providerConfig()?.apiKey ?? null) : options.apiKey;
+  if (!apiKey || !input.length) return null;
+  try {
+    return await lovableEmbeddings(apiKey, model, input, {
+      ...(options.signal ? { signal: options.signal } : {}),
+      ...(options.fetcher ? { fetcher: options.fetcher } : {}),
+    });
+  } catch {
+    return null;
+  }
 }
 
 /** Voice to text. */

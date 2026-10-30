@@ -79,7 +79,7 @@ export function JarvisComposer({ value, onChange, onSubmit, maxLength, busy, coa
       onDragOver={onDragOver}
       onDragLeave={() => setDropping(false)}
       onDrop={onDrop}
-      className={`rounded-2xl border bg-card/80 transition-colors focus-within:border-primary/60 ${dropping ? "border-primary ring-2 ring-primary/40" : "border-border"}`}
+      className={`rounded-2xl border bg-white/[0.03] shadow-[0_12px_40px_rgba(0,0,0,0.35)] backdrop-blur-xl transition-colors focus-within:border-primary/60 ${dropping ? "border-primary ring-2 ring-primary/40" : "border-white/10"}`}
     >
       {dropping ? <p className="px-3.5 pt-2.5 text-sm text-primary" aria-live="polite">Drop the picture to build a demo from it</p> : null}
       <label htmlFor="jarvis-message" className="sr-only">Message Jarvis</label>

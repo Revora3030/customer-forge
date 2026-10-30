@@ -13,7 +13,7 @@ import {
   type LunaSkipReason,
 } from "@/lib/ai/luna.server";
 import { paidCollectiveAllowed } from "@/lib/ai/free-only-policy.server";
-import { scopedFreeOnly } from "@/lib/ai/spend-scope.server";
+import { scopedBuildStopped, scopedFreeOnly } from "@/lib/ai/spend-scope.server";
 
 export type HallOfFameAttempt = {
   provider: string;
@@ -106,8 +106,8 @@ async function callPaidThinker(request: {
   if (selection.tier === null)
     return { ok: false, tier: null, wanted, reason: "no_tier_available", detail: "no paid tier configured" };
   const tier = selection.tier;
-  // A cancelled build never reaches a paid provider.
-  if (request.signal?.aborted)
+  // A cancelled build never reaches a paid provider (nothing is reserved either).
+  if (request.signal?.aborted || scopedBuildStopped())
     return { ok: false, tier, wanted, reason: "provider_unavailable", detail: "request cancelled" };
   // Loaded before any reservation, so a router that cannot load fails closed
   // with no spend held.
@@ -170,7 +170,7 @@ async function callPaidThinker(request: {
       maxOutputTokens,
       // One thinker step gets a bounded share of the build's wall-clock, not
       // the router's whole six-minute chain budget.
-      chainDeadlineMs: 300_000,
+      chainDeadlineMs: thinkerChainBudgetMs(maxOutputTokens),
     };
     const lane = {
       budgetReservedExternally: true,
@@ -309,4 +309,15 @@ export async function callBestThinker(
  */
 export function thinkerAttemptTimeoutMs(maxOutputTokens: number): number {
   return Math.min(240_000, Math.max(90_000, 30_000 + Math.ceil(maxOutputTokens) * 25));
+}
+
+/**
+ * Wall-clock for one thinker step across every model it may try: a full
+ * attempt for the first model AND a full attempt for the one that takes over,
+ * plus a little slack. A flat five minutes let a first model that burned two
+ * attempts (125 s each, seen on the gateway) leave its fallback 49 s, which no
+ * long answer can finish in, so the step failed with an idle fallback.
+ */
+export function thinkerChainBudgetMs(maxOutputTokens: number): number {
+  return Math.min(360_000, thinkerAttemptTimeoutMs(maxOutputTokens) * 2 + 10_000);
 }

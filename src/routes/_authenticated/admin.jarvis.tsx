@@ -28,7 +28,7 @@ import { readApprovals, rememberApproval, type Approvals } from "@/components/ap
 import { DemoBuildCard } from "@/components/app/jarvis/DemoBuildCard";
 import { findMapsLink, readDemoCards, readDemoSendProposal, rememberDemoCard, type DemoCardRef, type DemoChannel } from "@/components/app/jarvis/demo-build";
 import "@/components/app/jarvis/jarvis.css";
-import { askClaudeToFixPullRequestFn, openJarvisPullRequestFn, recoverStalledBuildsFn, sendClaudeCodeRequestFn, clearJarvisHistory, getJarvisHistory, getJarvisDiagnostics, getJarvisAcquisitionReadiness, getJarvisDiagnosticTools, runJarvisDiagnosticTool, regenerateJarvisReply, sendJarvisMessage, forgetJarvisMemoryFn, saveJarvisRoutineFn, deleteJarvisRoutineFn, JARVIS_HISTORY_PAGE } from "@/lib/jarvis.functions";
+import { askClaudeToFixPullRequestFn, openJarvisPullRequestFn, recoverStalledBuildsFn, sendClaudeCodeRequestFn, clearJarvisHistory, getJarvisHistory, getJarvisDiagnostics, getJarvisAcquisitionReadiness, getJarvisDiagnosticTools, runJarvisDiagnosticTool, regenerateJarvisReply, sendJarvisMessage, forgetJarvisMemoryFn, claimJarvisApprovalFn, finishJarvisApprovalFn, saveJarvisRoutineFn, deleteJarvisRoutineFn, JARVIS_HISTORY_PAGE } from "@/lib/jarvis.functions";
 import { draftProspectOutreach, type ProspectDraft } from "@/lib/jarvis-prospecting.functions";
 import { formatRevoraOffer } from "@/lib/jarvis-acquisition-policy";
 import { jarvisVoiceLinks, synthesizeJarvisVoice, type JarvisVoiceProvider } from "@/lib/jarvis-voice.functions";
@@ -84,6 +84,7 @@ const COMMANDS = [
   ["Fix top error", FIX_TOP_ERROR],
   ["Propose an upgrade", UPGRADE],
   ["Fix stuck builds", "Run the builder health check. If any website builds are stuck or failing repeatedly, explain why from the evidence and propose builds.recover."],
+  ["Seed daily routines", "Draft the daily Jarvis routines for a morning briefing, build health, and prospect follow-up. Show each routine and wait for my approval before saving or running one."],
   ["Daily briefing", BRIEFING],
   ["Autopilot plan", AUTOPILOT],
   ["Prospect ideas", PROSPECT_IDEAS],
@@ -353,7 +354,11 @@ function Jarvis() {
   useEffect(() => {
     try {
       const draft = localStorage.getItem(DRAFT_KEY);
-      if (draft) setText(draft.slice(0, MAX_LENGTH));
+      const cityMission = sessionStorage.getItem("revora:city-mission");
+      if (cityMission) {
+        setText(cityMission.slice(0, MAX_LENGTH));
+        sessionStorage.removeItem("revora:city-mission");
+      } else if (draft) setText(draft.slice(0, MAX_LENGTH));
       const saved = localStorage.getItem(MODE_KEY);
       if (saved === "brief" || saved === "balanced" || saved === "deep") setMode(saved);
       const rawDnc = localStorage.getItem(DNC_KEY);
@@ -573,14 +578,43 @@ function Jarvis() {
     recognition.current = rec;
     try { rec.start(); setListening(true); } catch { recognition.current = null; setListening(false); if (!autoSend) toast.error("Microphone could not start."); }
   }
-  const forget = (key: string) => setApproved((current) => { const next = { ...current }; delete next[key]; return next; });
+  // Keys claimed server-side in this tab; finishing reports back so the approval is single-use.
+  const claimedKeys = useRef(new Set<string>());
+  const settleClaim = (key: string, ok: boolean, url?: string) => {
+    if (!claimedKeys.current.delete(key)) return;
+    void finishJarvisApprovalFn({ data: { key, ok, url: url ?? null } })
+      .catch(() => undefined)
+      .finally(() => { void qc.invalidateQueries({ queryKey: ["jarvis", "approvals"] }); });
+  };
+  const forget = (key: string) => {
+    settleClaim(key, false);
+    setApproved((current) => { const next = { ...current }; delete next[key]; return next; });
+  };
   const markDone = (key: string, url?: string) => {
+    settleClaim(key, true, url);
     setApproved((current) => ({ ...current, [key]: "done" }));
     if (url) setOpenedPrs((current) => ({ ...current, [key]: url }));
     setRemembered(rememberApproval(key, { state: "done", url }));
   };
   const approveProposal = async (key: string, proposal: WriteProposal) => {
     setApproved((current) => ({ ...current, [key]: "building" }));
+    try {
+      const claim = await claimJarvisApprovalFn({ data: { key, proposal } });
+      if (!claim.ok) {
+        setApproved((current) => { const next = { ...current }; delete next[key]; return next; });
+        if (claim.reason === "used") setRemembered(rememberApproval(key, { state: "done" }));
+        toast.error(claim.message);
+        return;
+      }
+      claimedKeys.current.add(key);
+    } catch (error) {
+      setApproved((current) => { const next = { ...current }; delete next[key]; return next; });
+      toast.error(error instanceof Error ? error.message : "That approval couldn't be checked. Try again.");
+      return;
+    }
+    return runApprovedProposal(key, proposal);
+  };
+  const runApprovedProposal = async (key: string, proposal: WriteProposal) => {
     if (proposal.id === "research.ask") {
       try {
         const result = await approvePerplexityResearch({ data: { question: proposal.question, preset: proposal.preset } });
@@ -961,7 +995,7 @@ function Jarvis() {
                 <select
                   value={pickedModel ?? ""}
                   onChange={(event) => setPickedModel(event.target.value || null)}
-                  className="h-9 min-w-0 flex-1 rounded-md border border-border bg-card px-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:max-w-xs"
+                  className="h-9 min-w-0 flex-1 rounded-full border border-white/10 bg-white/[0.03] px-3 text-sm text-foreground backdrop-blur-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:max-w-xs"
                 >
                   <option value="">Auto (best per job)</option>
                   {(["openai", "anthropic", "google"] as const).map((family) => (

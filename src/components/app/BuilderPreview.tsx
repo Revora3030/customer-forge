@@ -56,6 +56,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { createPortal } from "react-dom";
 import { toast } from "@/lib/ui/notify";
 import { pageNavLabel, type ContentPage } from "@/lib/website-content";
+import { pageOfSection } from "@/lib/builder/step-target";
 import { cn } from "@/lib/utils";
 import { LiveCanvasSkeleton } from "@/components/app/LiveCanvasSkeleton";
 
@@ -95,6 +96,10 @@ type BuilderPreviewProps = {
   firstRun?: boolean;
   /** False until the site has been published: compare shows a note instead of the 404 live page. */
   livePublished?: boolean;
+  /** The page open in the frame, so the chat can answer about what the owner is looking at. */
+  onPageChange?: (page: { id: string; title: string; slug: string } | null) => void;
+  /** Scroll a section into view and outline it ("Show in preview" from the chat). A new nonce asks again. */
+  reveal?: { id: string; nonce: number } | null;
 };
 
 /**
@@ -122,9 +127,13 @@ function BuilderPreviewFrame({
   onInlineSaved,
   organizationId = null,
   livePublished = true,
+  onPageChange,
+  reveal = null,
 }: Omit<BuilderPreviewProps, "firstRun">) {
   const ordered = useMemo(() => [...pages].sort((a, b) => a.sort_order - b.sort_order), [pages]);
   const [pageId, setPageId] = useState<string | null>(null);
+  /** A reveal waiting for its page to load (the frame says "ready" when it can answer). */
+  const pendingReveal = useRef<string | null>(null);
   const [viewport, setViewport] = useState<BuilderViewportKey>("laptop");
   // On a phone, open the preview in phone size: it's what the owner is
   // holding, and a full desktop render inside a phone is heavy.
@@ -176,6 +185,14 @@ function BuilderPreviewFrame({
     return () => ro.disconnect();
   }, [fullscreen]);
   const page = ordered.find((item) => item.id === pageId) ?? ordered[0];
+  const pageChangeRef = useRef(onPageChange);
+  pageChangeRef.current = onPageChange;
+  const openPageId = page?.id ?? null;
+  const openPageTitle = page ? (page.kind === "home" || page.slug === "home" ? "Home" : pageNavLabel(page.title, businessName, page.slug)) : "";
+  const openPageSlug = page?.slug ?? "";
+  useEffect(() => {
+    pageChangeRef.current?.(openPageId ? { id: openPageId, title: openPageTitle, slug: openPageSlug } : null);
+  }, [openPageId, openPageTitle, openPageSlug]);
   const currentViewport = BUILDER_VIEWPORTS.find((item) => item.key === viewport);
   const viewportWidth = currentViewport?.width ?? 1280;
   const CurrentViewportIcon = VIEWPORT_ICONS[viewport];
@@ -278,6 +295,19 @@ function BuilderPreviewFrame({
     tell({ type: "status", text: liveStatus ?? null, id: selectedId });
   }, [liveStatus, selectedId, tell]);
 
+  // "Show in preview": open the page the section is on (waiting for it to load), then scroll to it.
+  useEffect(() => {
+    if (!reveal) return;
+    const ownerId = pageOfSection(ordered, reveal.id);
+    if (ownerId && ownerId !== page?.id) {
+      pendingReveal.current = reveal.id;
+      setPageId(ownerId);
+      return;
+    }
+    tell({ type: "reveal", id: reveal.id });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- a new request is a new nonce, not a new page or tree
+  }, [reveal?.nonce]);
+
   // Another tab (or the canvas editor) changed this draft: reload this preview.
   // Pings this preview sent itself (inline saves) are skipped: it already shows
   // the new words, and a reload would discard an edit in progress.
@@ -329,6 +359,12 @@ function BuilderPreviewFrame({
         window.setTimeout(runA11y, 900);
         syncSelectMode(selectMode);
         tell({ type: "status", text: liveStatus ?? null, id: selectedId });
+        if (pendingReveal.current) {
+          const id = pendingReveal.current;
+          pendingReveal.current = null;
+          // The page has just rendered; give its first paint a moment before scrolling.
+          window.setTimeout(() => tell({ type: "reveal", id }), 400);
+        }
         return;
       }
       if (message.type === "inline-edit") {
@@ -359,7 +395,7 @@ function BuilderPreviewFrame({
       aria-label="Live website preview"
       data-testid="builder-preview"
     >
-      <header className="flex flex-wrap items-center gap-2 border-b border-border bg-card/80 p-2.5 backdrop-blur">
+      <header className="relative z-30 flex flex-wrap items-center gap-2 border-b border-border bg-card/95 p-2.5 pointer-events-auto backdrop-blur">
         <div className="min-w-0 flex-1 overflow-x-auto">
           <nav aria-label="Preview pages" className="flex min-w-max items-center gap-1">
             {ordered.map((item) => (
@@ -371,7 +407,7 @@ function BuilderPreviewFrame({
                 data-testid="builder-preview-page"
                 aria-current={item.id === page?.id ? "page" : undefined}
                 onClick={() => setPageId(item.id)}
-                className="shrink-0"
+                className="pointer-events-auto relative z-30 min-h-11 shrink-0"
               >
                 {item.kind === "home" || item.slug === "home" ? "Home" : pageNavLabel(item.title, businessName, item.slug)}
               </Button>
@@ -423,13 +459,13 @@ function BuilderPreviewFrame({
                 type="button"
                 size="icon-sm"
                 variant={viewport === option.key ? "secondary" : "ghost"}
-                className="hidden sm:inline-flex"
+                className="pointer-events-auto relative z-30 inline-flex min-h-11 min-w-11 px-2"
                 aria-label={`${option.label} preview, ${option.width} pixels`}
                 aria-pressed={viewport === option.key}
                 title={`${option.label} · ${option.width}px`}
                 onClick={() => setViewport(option.key)}
               >
-                <Icon className="size-4" aria-hidden />
+                <span className="text-xs tabular-nums">{option.width}</span>
               </Button>
             );
           })}
@@ -669,7 +705,7 @@ const PreviewFrame = forwardRef<
             data-preview-src={src}
             title={title}
             src={src}
-            loading="lazy"
+            loading="eager"
             onLoad={() => setLoadState((s) => nextPreviewLoadState(s, "load"))}
             onError={() => setLoadState((s) => nextPreviewLoadState(s, "error"))}
             sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"
@@ -677,6 +713,12 @@ const PreviewFrame = forwardRef<
             style={{ width: viewportWidth, minWidth: viewportWidth, maxWidth: viewportWidth, height: frameHeight, backgroundColor: "#fff" }}
           />
         </div>
+        {loadState === "loading" ? (
+          // A frame that has not painted yet is blank; say so instead of leaving an empty box.
+          <div aria-hidden className="pointer-events-none absolute inset-0 grid place-items-center bg-background text-[13px] text-muted-foreground">
+            <span className="animate-pulse">Loading your preview…</span>
+          </div>
+        ) : null}
         {loadState === "failed" ? (
           <div role="alert" className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-background p-4 text-center">
             <p className="text-[14px] font-semibold">Preview couldn't load</p>
@@ -773,7 +815,7 @@ function OverlayCompare({
         data-preview-src={src}
         title={testId ? title : "Published site"}
         src={src}
-        loading="lazy"
+        loading="eager"
         sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"
         className="block border-0"
         style={{ width: viewportWidth, height: frameHeight, backgroundColor: "#fff" }}

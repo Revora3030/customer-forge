@@ -5,7 +5,7 @@ import { RelatedLinks } from "@/components/marketing/SeoLinks";
 import { Button } from "@/components/ui/button";
 import { findGuide, type Guide } from "@/lib/guides";
 import { BUSINESS } from "@/lib/business-identity";
-import { breadcrumbSchema, canonicalLink, ogUrl, SITE_URL, metaDescription } from "@/lib/seo";
+import { breadcrumbSchema, canonicalLink, ogUrl, SITE_URL, metaDescription, OG_IMAGE_META } from "@/lib/seo";
 import { safeJsonLd } from "@/lib/json-ld";
 
 export const Route = createFileRoute("/guides/$slug")({
@@ -31,6 +31,7 @@ export const Route = createFileRoute("/guides/$slug")({
         { property: "og:type", content: "article" },
         { name: "twitter:card", content: "summary_large_image" },
         ogUrl(path),
+        ...OG_IMAGE_META,
       ],
       links: [canonicalLink(path)],
       scripts: [
@@ -130,7 +131,7 @@ function GuidePage() {
           <section className="mt-10 border-t border-border pt-6">
             <h2 className="text-base font-semibold">Sources and policy guidance</h2>
             <ul className="mt-3 space-y-2">
-              {guide.sources.map((source) => <li key={source.url}><a href={source.url} className="text-sm text-primary underline underline-offset-4">{source.label}</a></li>)}
+              {guide.sources.map((source) => <li key={source.url}><a href={source.url} className="tap-target py-1 text-sm text-primary underline underline-offset-4">{source.label}</a></li>)}
             </ul>
           </section>
         )}

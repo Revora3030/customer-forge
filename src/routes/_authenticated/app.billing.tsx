@@ -102,8 +102,8 @@ function BillingPage() {
   // Stripe embedded checkout redirects here after a completed payment.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get("checkout") !== "complete") return;
-    toast.success("Payment received — your service is being activated.");
+    if (params.get("checkout") !== "complete" || !orgId) return;
+    toast.message("Checkout returned — we're checking your payment status.");
     if (orgId) {
       void queryClient.invalidateQueries({ queryKey: ["payments", orgId] });
       void queryClient.invalidateQueries({ queryKey: ["billing_state", orgId] });

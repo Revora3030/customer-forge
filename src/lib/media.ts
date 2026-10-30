@@ -12,6 +12,14 @@ export const MEDIA_BUCKET = "tenant-media";
 /** Long-lived signed URLs: long enough for page caching, short enough to rotate. */
 export const SIGNED_URL_TTL_SECONDS = 60 * 60 * 24 * 7;
 
+/** Short-lived links for signed-in workspace views, so removed teammates lose access quickly. */
+export const WORKSPACE_SIGNED_URL_TTL_SECONDS = 60 * 60;
+
+/** True when a bucket path sits inside the given organization's folder. */
+export function isOrgStoragePath(path: string, organizationId: string): boolean {
+  return !!organizationId && path.startsWith(`${organizationId}/`) && !path.includes("..");
+}
+
 export const MEDIA_CATEGORIES = [
   { id: "hero", label: "Hero / banner" },
   { id: "work", label: "Completed work" },

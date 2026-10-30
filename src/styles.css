@@ -72,13 +72,25 @@
 }
 
 :root {
+  /* AI City material roles; read by the 3D renderer after hydration. */
+  --city-ground: #14191e;
+  --city-road: #242c32;
+  --city-structure: #536069;
+  --city-gold: #dfbd67;
+  --city-cyan: #64c9dc;
+  --city-magenta: #dc84ad;
+  --city-light: #f5f1e7;
+  --city-muted: #89949d;
+  --city-ok: #5fcf9a;
+  --city-danger: #e5645f;
   --radius: 0.625rem;
 
   --font-heading: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
   --font-body: "DM Sans", ui-sans-serif, system-ui, sans-serif;
 
-  /* surfaces — blackened graphite, subtle tonal steps */
-  --background: oklch(0.1421 0.0032 286);
+  /* surfaces — obsidian canvas. Gold-on-dark button ink stays at 0.142 so
+     labels on the metallic gold controls keep the same contrast. */
+  --background: oklch(0.108 0.004 286);
   --foreground: oklch(0.9842 0 0);
   --card: oklch(0.1795 0.0035 286);
   --card-foreground: oklch(0.9842 0 0);
@@ -187,30 +199,35 @@
     z-index: -2;
     pointer-events: none;
     background:
+      /* studio spotlight over the opening */
+      radial-gradient(
+        42% 36% at 50% 8%,
+        color-mix(in oklab, var(--color-gold) 11%, transparent) 0%,
+        transparent 70%
+      ),
       /* signature gold aurora, top left */
       radial-gradient(
-        52% 44% at 18% -6%,
-        color-mix(in oklab, var(--color-gold) 13%, transparent) 0%,
+        52% 44% at 14% -4%,
+        color-mix(in oklab, var(--color-gold) 18%, transparent) 0%,
         transparent 68%
       ),
       /* warm bronze echo, top right */
         radial-gradient(
-          38% 34% at 86% -2%,
-          color-mix(in oklab, var(--color-gold-deep) 9%, transparent) 0%,
+          36% 32% at 92% 4%,
+          color-mix(in oklab, var(--color-gold-deep) 14%, transparent) 0%,
           transparent 66%
         ),
-      /* cool steel counterweight, bottom right — keeps depth without a second accent */
+      /* cool steel counterweight, bottom right */
         radial-gradient(
-          46% 40% at 78% 108%,
-          color-mix(in oklab, var(--color-elevated) 55%, transparent) 0%,
-          transparent 70%
+          48% 42% at 80% 112%,
+          color-mix(in oklab, var(--color-info) 10%, transparent) 0%,
+          transparent 72%
         ),
-      /* very subtle top-of-page lift so the page never feels flat */
         linear-gradient(
           180deg,
-          oklch(0.16 0.004 286) 0%,
-          var(--color-background) 38%,
-          oklch(0.128 0.003 286) 100%
+          oklch(0.145 0.006 286) 0%,
+          var(--color-background) 42%,
+          oklch(0.09 0.003 286) 100%
         );
     animation: aura-drift 26s ease-in-out infinite alternate;
   }
@@ -279,6 +296,17 @@
 }
 
 /* Tabular numerals for every metric readout. */
+/* A standalone link or chip: a 44px-tall hit area on phones without changing how it looks. Links inside a
+   sentence do not need it. */
+@utility tap-target {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  @media (min-width: 640px) {
+    min-height: 0;
+  }
+}
+
 @utility tnum {
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum";
@@ -330,7 +358,26 @@
   background-position: top;
 }
 .product-workspace {
-  background: var(--color-background);
+  background: color-mix(in oklab, var(--color-background) 88%, transparent);
+}
+/* Revora's own shells only. Customer sites are not wrapped in this class, so
+   their cards keep the flat panel and never pick up the platform glass. */
+.platform-shell .panel {
+  background-color: color-mix(in oklab, var(--card) 78%, transparent);
+  border-color: color-mix(in oklab, var(--border) 80%, var(--gold));
+  box-shadow: 0 18px 48px -36px oklch(0 0 0 / 80%);
+  backdrop-filter: blur(10px);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .platform-shell .panel {
+    transition: border-color 180ms ease, box-shadow 180ms ease;
+  }
+  .platform-shell .panel:hover {
+    border-color: color-mix(in oklab, var(--gold) 42%, var(--border));
+    box-shadow:
+      0 22px 50px -32px oklch(0 0 0 / 85%),
+      0 0 0 1px color-mix(in oklab, var(--gold) 16%, transparent) inset;
+  }
 }
 .product-canvas {
   width: min(100%, 68rem);
@@ -338,9 +385,14 @@
 }
 .product-page {
   display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
   gap: 1.25rem;
   /* Each workspace page settles in instead of snapping. */
   animation: revora-reveal 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.product-page > * {
+  min-width: 0;
 }
 .product-page > .panel + .panel,
 .product-page > div + .panel,
@@ -2737,4 +2789,31 @@ html.reveal-ready [data-reveal] {
 
 @media (prefers-reduced-motion: reduce) {
   .gold-sheen { animation: none; }
+}
+
+/* Printing an estimate: when one is on the page, print only that estimate. */
+@media print {
+  body:has([data-print-estimate]) * { visibility: hidden !important; }
+  body:has([data-print-estimate]) [data-print-estimate],
+  body:has([data-print-estimate]) [data-print-estimate] * { visibility: visible !important; }
+  body:has([data-print-estimate]) [data-print-estimate] {
+    position: absolute; left: 0; top: 0; width: 100%;
+    background: #fff !important; color: #111 !important; border-color: #ccc !important;
+  }
+  body:has([data-print-estimate]) [data-print-estimate] * { color: #111 !important; }
+  .print-hide { display: none !important; }
+}
+
+/* Owner documents (estimate, work order): the dialog is for editing, so only the copy rendered straight
+   under <body> prints. It is hidden on screen, and everything else on the page is dropped from the printout. */
+[data-print-document] { display: none; }
+@media print {
+  html:has([data-print-document]),
+  html body:has([data-print-document]) {
+    background: #fff !important; overflow: visible !important; height: auto !important;
+    position: static !important; margin: 0 !important; padding: 0 !important;
+  }
+  html body:has([data-print-document]) > :not([data-print-document]) { display: none !important; }
+  html body:has([data-print-document]) > [data-print-document] { display: block !important; background: #fff; color: #111; }
+  [data-print-document] .estimate-paper { border: 0; border-radius: 0; padding: 0; }
 }

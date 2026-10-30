@@ -270,9 +270,9 @@ export function ProductTour() {
     <div className="grid gap-6 lg:grid-cols-[0.82fr_1.18fr] lg:gap-8">
       <div>
         <Pill tone="signal">Product tour</Pill>
-        <h3 className="mt-4 font-display text-[clamp(1.3rem,2.5vw,1.8rem)] leading-tight font-semibold">
+        <h2 className="mt-4 font-display text-[clamp(1.3rem,2.5vw,1.8rem)] leading-tight font-semibold">
           Website to customer, in one workspace.
-        </h3>
+        </h2>
         <p className="mt-3 text-[13.5px] leading-relaxed text-muted-foreground">
           Website, leads, quotes, booking and follow-up, brought together. The examples below use sample data.
         </p>
@@ -322,7 +322,7 @@ export function ProductTour() {
         </Button>
       </div>
 
-      <Panel className="min-w-0 p-4 sm:p-5" id="tour-panel" role="tabpanel" aria-labelledby={`tour-tab-${view}`}>
+      <Panel className="min-w-0 p-4 sm:p-5 lg:sticky lg:top-24 lg:self-start" id="tour-panel" role="tabpanel" aria-labelledby={`tour-tab-${view}`}>
         <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-b border-border pb-3">
           <p className="font-display text-[13px] font-semibold">{active.label}</p>
           <span className="rounded-full border border-primary/35 bg-primary/10 px-2.5 py-0.5 text-[10.5px] text-primary">

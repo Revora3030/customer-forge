@@ -8,13 +8,30 @@
  */
 import { contrastRatio } from "@/lib/readable-color";
 import { widgetPresentationProblems } from "@/lib/builder/presentation";
+import {
+  DIAL_LIMITS, MAX_DIAL_OPTIONS, MIN_DIAL_OPTIONS,
+  MAX_CHAPTERS, MAX_COLLECTION_ITEMS, MAX_OFFER_SPECS, MAX_SCRIM_OPACITY, MAX_SPIN_FRAMES, MIN_CHAPTERS,
+  DEFAULT_OFFER_ANCHOR, DEFAULT_SCENE_ANCHOR, SCENE_ANCHORS, TYPED_PRICE,
+  anchorsCollide, matchService, offerActionProblem, type SceneAnchor,
+} from "@/lib/builder/cinematic-primitives";
+import { MAX_BRUSH_TOOLS } from "@/lib/builder/reveal-brush";
 
 export const COMPOSITION_PRIMITIVES = [
   "stack", "grid", "row", "scene3d", "text", "heading", "media", "button", "link",
   "card", "list", "divider", "spacer", "icon",
   "tabs", "toggle", "accordion", "compare", "marquee", "gallery", "quote", "widget",
   "before_after_slider", "faq_accordion", "tab_group", "mobile_sticky_bar",
+  "scene", "scroll_chapters", "offer_card", "spin_viewer", "collection_row",
+  "lens_magnifier", "sticky_split_story", "service_tier_fader", "parallax_layers",
+  "scrub_sequence", "dial_selector", "model_3d_viewer",
 ] as const;
+
+/** Primitives a visitor operates (a site's interactive centrepiece). Working form widgets are counted separately. */
+export const INTERACTIVE_PRIMITIVES: ReadonlySet<string> = new Set([
+  "tabs", "toggle", "accordion", "compare", "before_after_slider", "faq_accordion", "tab_group",
+  "scroll_chapters", "spin_viewer", "collection_row", "lens_magnifier", "sticky_split_story", "service_tier_fader",
+  "scrub_sequence", "dial_selector", "model_3d_viewer",
+]);
 
 /** Working features an AI layout may place anywhere. Their data (prices, phone, email, hours) always comes from verified business facts. */
 export const COMPOSITION_WIDGETS = ["booking_form", "quote_calculator", "enquiry_form", "contact_details", "direct_contact", "service_menu", "review_wall"] as const;
@@ -61,10 +78,22 @@ export const PRIMITIVE_GUIDE =
   "marquee (children scroll sideways in a loop; stops for reduced motion), " +
   "gallery (media children in a grid; tap opens full size), " +
   "quote (text is the quoted words; items[0] optional attribution — only real, supplied quotes). " +
-  "before_after_slider (beforeImage + afterImage, each {src or mediaRef, alt, label}, with a 0-100 split; use for genuine transformation work such as renovation, roofing or detailing). " +
+  "before_after_slider (beforeImage + afterImage, each {src or mediaRef, alt, label}, with a 0-100 split; use for genuine transformation work such as renovation, roofing or detailing; add revealMode:\"brush\" for a hands-on reveal where the visitor drags across the before picture to uncover the after, with text as its short prompt such as \"Clean this driveway\" and optional items as 1-3 tool chips the visitor switches between, widest first (e.g. \"Surface cleaner\", \"25° tip\", \"40° tip\" — each later tool paints a narrower path); a live percent and stopwatch sit over the picture; only ever with the owner's own real before and after photos). " +
   "faq_accordion (items are question/answer pairs; defaultOpen is optional and at most the supplied FAQ content may be used). " +
   "tab_group (tabs are labelled panels; each tab owns child nodes and only the active panel is rendered). " +
   "mobile_sticky_bar (primaryCta and optional secondaryCta; conversion actions only, hidden above the mobile breakpoint). " +
+  "Cinematic blocks — scene (a full-viewport photographic chapter: children[0] MUST be its media backdrop, a supplied picture or video by mediaRef with alt; the other children form the overlay copy slot, e.g. a short editorial heading — an italic accent line can be a second heading or text with style.italic — one line of body and one button; anchor places that slot: top-left|top-center|top-right|center-left|center|center-right|bottom-left|bottom-center|bottom-right; scrub:true makes a VIDEO backdrop play forward and back with the scroll while the scene stays pinned for about three screens (use for one short product, process or transformation film the owner supplied; ignored for a picture; never with sound; use at most once per page and not inside scroll_chapters); optional scrim {color #RRGGBB, opacity 0-95} and focal \"x% y%\" for the photo crop; the renderer raises the scrim until the text passes WCAG AA over any photo, so pick a scrim colour from the palette; an offer_card child floats over the photo at its own anchor on wide screens and flows below the copy on phones). " +
+  "scroll_chapters (2-8 scene children shown as consecutive full-screen chapters with scroll-driven transitions and a chapter rail; without JavaScript or for reduced motion they are simply stacked scenes). " +
+  "scrub_sequence (a pinned full-viewport sequence of 2-6 media frames of ONE subject, in scroll order, that wipes from frame to frame as the visitor scrolls — a camera move, a change of light, or frames the owner actually photographed; generated frames are atmosphere only and must never be shown as proof of a result; the other children are the overlay copy: one short display heading using style.uppercase, style.letterSpacing around 0.08-0.18 and a large style.size, one line of body and one button; text is an optional scroll prompt such as \"Scroll\"; each frame's own text is its short chapter label (max 30 characters, e.g. \"Driveway\", \"Roof soft wash\", \"House wash\" — the stages of the real service story) and, once the frames are labelled, a progress ring in the corner reads the percent scrolled with \"2/3 · label\"; optional scrim works like a scene; without JavaScript or for reduced motion the last frame and the copy are one still; use at most once per page, never inside scroll_chapters, and never as a before/after of work the owner did not photograph). " +
+  "offer_card (a compact card over media: text is its title; service names one real service EXACTLY as supplied and its price and duration are filled in from the owner's Services tool — never type a price anywhere; items holds up to 3 short specs; children are an optional media picture plus exactly one button whose href is the business's own booking/quote page, a form anchor such as #booking, tel: or mailto: — never an external or checkout address; anchor positions it inside a scene). " +
+  "spin_viewer (an interactive 360° turntable on a lit podium: text is its label such as \"Spin the …\"; children are the ordered angle pictures — media with mediaRef and alt — of one real object photographed by the owner, never AI-made or stock; with fewer than 8 angles it shows one still; style.background is the stage and style.borderColor the podium light). " +
+  "lens_magnifier (a round loupe that follows the pointer over ONE real photograph so visitors can inspect fine detail such as paint clarity, grout lines or stitching: text is its short prompt such as \"Inspect the finish\"; exactly one media child with mediaRef and alt, the owner's own real photo — never AI-made or stock, or nothing is shown; on touch it needs a switch, from the keyboard the arrow keys move it). " +
+  "sticky_split_story (the first child is a media picture that stays pinned on one side while 2-6 following children — each a stack or card of heading and text — scroll past as phases; use for a real process told in order, such as prep, wash, seal; on phones the picture sits above the phases; the picture is one the owner supplied and the phase copy must be facts the owner gave). " +
+  "service_tier_fader (a slider that picks one package and cross-fades between 2-4 offer_card children, e.g. Good / Better / Best; text is the slider label such as \"Choose your package\"; every child is an offer_card naming a real service EXACTLY as supplied, so prices and durations come from the owner's Services tool — never type a price; without JavaScript every package is listed). " +
+  "parallax_layers (2-4 media children ordered back to front — e.g. a backdrop, a mid layer and a transparent cut-out in front — that drift at different speeds as the page scrolls for a layered depth effect; each with mediaRef and alt — the back layer's alt describes the scene, the layers in front are treated as decoration; pure CSS, still when motion is reduced or unsupported; use one per page for a hero or showcase, not for before/after or proof pictures). " +
+  "dial_selector (a \"right setting for every surface\" gauge: text is its short control label such as \"Pick a surface\"; dialOptions holds 2-6 options {label (max 28), value (the reading shown in the dial, max 24, e.g. \"100-500\", \"Soft wash\", \"Level 2\"), note (one line, max 140), level 0-100 for the needle} and dialUnit is an optional unit under the reading such as \"PSI\"; the visitor taps an option chip and the needle sweeps to it; use it to explain a real method choice the business makes per material, room, vehicle, coat or plan — pressure per surface, grit per floor, film per window, intensity per treatment; readings and notes must be method facts the owner gave or that their services state, never prices, guarantees or results; when no figures were supplied use plain words for value such as \"Low\" or \"Soft wash\"; without JavaScript every option is listed). " +
+  "model_3d_viewer (an interactive 3D model the visitor drags to orbit and pinches or scrolls to zoom: mediaRef is a supplied part marked model3d — the owner's own uploaded .glb of a real product, vehicle, fixture or space — and never a picture; text is its short label such as \"Turn the …\"; alt describes the object for screen readers; at most one optional media child is the poster picture shown until the visitor taps to load the model and when 3D isn't available; only use it when a model3d part is supplied). " +
+  "collection_row (a horizontally scrolling, snap-aligned row of offer_card children, each with its picture, name, optional real-service price and an accent button; keyboard and swipe friendly). " +
   "widget (text is one of booking_form|quote_calculator|enquiry_form|contact_details|direct_contact|service_menu|review_wall — enquiry_form is the site's working message form (name, phone/email, message; saved to the owner's leads); booking_form/quote_calculator drop the site's real working form, verified phone/email/hours/area, the live service menu (names, prices, durations straight from the owner's Services tool) or the live published reviews into your layout; style its wrapper freely, never retype those facts yourself; service_menu and review_wall stay in sync when the owner edits services or publishes reviews). For working widgets, widgetPresentation may author visible labels, helper/success copy and a bounded local theme (surface, text, muted, border, action, actionText, selected, selectedText); never put business data or pricing into widgetPresentation — the application supplies those facts. " +
   "Real company logos: a media src of https://img.logo.dev/<domain> (e.g. img.logo.dev/stripe.com) renders that company's real logo — use ONLY for companies the customer actually named as partners, clients or platforms they use; never invent an affiliation. " +
   "3D scenes: scene3d is an AI-authored perspective container; use style.perspective (120-3000px), style.transformStyle preserve-3d, and child style.depth (-800..800px), style.rotateAxis x|y|z with style.rotate (-45..45deg), and style.backfaceVisibility hidden|visible. Compose real HTML/media layers into original CSS 3D scenes; this is not a generated mesh. " +
@@ -156,6 +185,14 @@ export type CompositionImage = {
   label: string;
 };
 
+/** One dial_selector option: the chip label, the reading in the dial, one line of note and the needle position. */
+export type CompositionDialOption = {
+  label: string;
+  value: string;
+  note?: string;
+  level: number;
+};
+
 export type CompositionFaqItem = {
   question: string;
   answer: string;
@@ -173,6 +210,9 @@ export type CompositionCta = {
   ariaLabel?: string;
 };
 
+/** A scene's AI-authored scrim. The opacity is a floor the renderer raises until text passes AA. */
+export type SceneScrimSpec = { color?: string; opacity?: number };
+
 export type CompositionNode = {
   type: CompositionPrimitive;
   text?: string;
@@ -185,10 +225,28 @@ export type CompositionNode = {
   beforeImage?: CompositionImage;
   afterImage?: CompositionImage;
   initialSplit?: number;
+  /** before_after_slider only: "slider" (drag a divider, the default) or "brush" (drag across the picture to reveal the after). */
+  revealMode?: "slider" | "brush";
   faqItems?: CompositionFaqItem[];
   tabs?: CompositionTab[];
   primaryCta?: CompositionCta;
   secondaryCta?: CompositionCta;
+  /** scene: where its copy slot sits; offer_card: where it floats over its scene. */
+  anchor?: SceneAnchor;
+  /** scene only. */
+  scrim?: SceneScrimSpec;
+  /** scene only: a video backdrop's playhead follows the scroll while the scene stays pinned. */
+  scrub?: boolean;
+  /** scene only: object-position of the backdrop, "x% y%". */
+  focal?: string;
+  /** offer_card only: one real service, exactly as supplied; price and duration come from the Services tool. */
+  service?: string;
+  /** dial_selector only: the options the visitor taps between. */
+  dialOptions?: CompositionDialOption[];
+  /** dial_selector only: a short unit under the reading, e.g. "PSI". */
+  dialUnit?: string;
+  /** spin_viewer only: the angle shown first. */
+  initialFrame?: number;
   style?: NodeStyle;
   responsive?: Partial<Record<Breakpoint, NodeStyle>>;
   motion?: NodeMotion;
@@ -523,9 +581,119 @@ export type ValidateOptions = {
    * img.logo.dev in a media node. Default false keeps the general behaviour.
    */
   firstBuild?: boolean;
+  /**
+   * The business's real service names. When given, an offer_card may only
+   * name one of them (its price is read from that service at render time).
+   */
+  serviceNames?: readonly string[];
+  /**
+   * The section's owner-uploaded 3D models (.glb). Only a model_3d_viewer may
+   * reference them, and a model_3d_viewer may reference nothing else.
+   */
+  modelRefs?: ReadonlySet<string>;
 };
 
-const SOFT_PROBLEM = /submitLabel must be 40|quote gives an estimate range|contrast|unknown style property|button text below 14px|text is too long|label must be 120|must be one of|must be a number between|must be true or false|font name contains|aspect must look like|area must be a simple name|gridAreas must look like|must be 0-3000|must be 150-4000|unknown motion|unknown hover property|must be none, subtle|from is only used|custom motion needs|ariaLabel must be text/;
+const SOFT_PROBLEM = /submitLabel must be 40|quote gives an estimate range|contrast|unknown style property|button text below 14px|text is too long|label must be 120|must be one of|must be a number between|must be true or false|font name contains|aspect must look like|area must be a simple name|gridAreas must look like|must be 0-3000|must be 150-4000|unknown motion|unknown hover property|must be none, subtle|from is only used|custom motion needs|ariaLabel must be text|shows at most 3 specs|focal must look like|scrim opacity must be|initialFrame must be/;
+
+const hasPictureSource = (node: CompositionNode) => node.type === "media" && Boolean(node.src || node.mediaRef);
+
+/**
+ * Structural rules for the cinematic primitives. Renderer safety and truth
+ * only: which primitive to use, its copy, anchor and palette stay the AI's.
+ */
+function checkCinematic(node: CompositionNode, path: string, issues: CompositionIssue[]) {
+  const kids = node.children ?? [];
+  const at = `${path}.children`;
+  switch (node.type) {
+    case "scene": {
+      if (!kids[0] || !hasPictureSource(kids[0]))
+        issues.push({ path: `${at}[0]`, problem: "scene needs its media backdrop (a picture or video with alt text) as the first child" });
+      const copyAnchor = node.anchor ?? DEFAULT_SCENE_ANCHOR;
+      kids.slice(1).forEach((child, i) => {
+        if (child.type === "scene" || child.type === "scroll_chapters" || child.type === "mobile_sticky_bar")
+          issues.push({ path: `${at}[${i + 1}]`, problem: `a scene cannot contain a ${child.type}` });
+        if (child.type === "offer_card" && anchorsCollide(copyAnchor, child.anchor ?? DEFAULT_OFFER_ANCHOR))
+          issues.push({ path: `${at}[${i + 1}].anchor`, problem: `the offer_card at ${child.anchor ?? DEFAULT_OFFER_ANCHOR} would cover the scene's copy at ${copyAnchor}; place it on the other side or the opposite row` });
+      });
+      break;
+    }
+    case "scroll_chapters":
+      if (kids.length < MIN_CHAPTERS || kids.length > MAX_CHAPTERS || kids.some((child) => child.type !== "scene"))
+        issues.push({ path: at, problem: `scroll_chapters needs ${MIN_CHAPTERS}-${MAX_CHAPTERS} scene children` });
+      if (kids.some((child) => child.scrub))
+        issues.push({ path: at, problem: "a scrub scene already pins itself; use it on its own, not inside scroll_chapters" });
+      break;
+    case "offer_card": {
+      const buttons = kids.filter((child) => child.type === "button");
+      const pictures = kids.filter((child) => child.type === "media");
+      if (kids.some((child) => child.type !== "button" && child.type !== "media"))
+        issues.push({ path: at, problem: "offer_card children are an optional media picture and exactly one button" });
+      if (buttons.length !== 1)
+        issues.push({ path: at, problem: "offer_card needs exactly one button that links to the business's booking or quote page, a form anchor, phone or email" });
+      if (pictures.length > 1) issues.push({ path: at, problem: "offer_card holds at most one picture" });
+      const action = buttons[0];
+      if (action) {
+        const problem = offerActionProblem(action.href);
+        if (problem) issues.push({ path: `${at}.href`, problem });
+      }
+      if (!node.text?.trim() && !node.service) issues.push({ path, problem: "offer_card needs a title in text or a real service name" });
+      if ((node.items?.length ?? 0) > MAX_OFFER_SPECS) {
+        issues.push({ path: `${path}.items`, problem: `offer_card shows at most 3 specs` });
+        node.items = node.items!.slice(0, MAX_OFFER_SPECS);
+      }
+      const typed = [node.text, ...(node.items ?? []), action?.text].find((text) => text && TYPED_PRICE.test(text));
+      if (typed) issues.push({ path, problem: `offer_card prices come only from the named real service; remove the typed amount from "${typed.slice(0, 60)}"` });
+      break;
+    }
+    case "spin_viewer":
+      if (!kids.length || kids.length > MAX_SPIN_FRAMES || kids.some((child) => !hasPictureSource(child)))
+        issues.push({ path: at, problem: `spin_viewer children must be 1-${MAX_SPIN_FRAMES} ordered angle pictures (media with a source and alt)` });
+      break;
+    case "model_3d_viewer":
+      if (!node.mediaRef) issues.push({ path, problem: "model_3d_viewer needs mediaRef: a supplied 3D model (a part marked model3d)" });
+      if (!node.alt?.trim()) issues.push({ path: `${path}.alt`, problem: "model_3d_viewer needs alt text describing the object" });
+      if (kids.length > 1 || kids.some((child) => !hasPictureSource(child)))
+        issues.push({ path: at, problem: "model_3d_viewer holds at most one media child: its poster picture" });
+      break;
+    case "lens_magnifier":
+      if (kids.length !== 1 || !hasPictureSource(kids[0]!) || kids[0]!.mediaRef == null)
+        issues.push({ path: at, problem: "lens_magnifier needs exactly one media child that is the owner's real photo (a mediaRef with alt text)" });
+      break;
+    case "sticky_split_story":
+      if (!kids[0] || !hasPictureSource(kids[0]))
+        issues.push({ path: `${at}[0]`, problem: "sticky_split_story needs its pinned picture (media with a source and alt text) as the first child" });
+      if (kids.length < 3 || kids.length > 7 || kids.slice(1).some((child) => child.type === "media" || child.type === "scene" || child.type === "scroll_chapters" || child.type === "mobile_sticky_bar"))
+        issues.push({ path: at, problem: "sticky_split_story needs the picture plus 2-6 phase children (stack, card, heading or text), not pictures or scenes" });
+      break;
+    case "service_tier_fader":
+      if (kids.length < 2 || kids.length > 4 || kids.some((child) => child.type !== "offer_card"))
+        issues.push({ path: at, problem: "service_tier_fader needs 2-4 offer_card children, one per package" });
+      break;
+    case "parallax_layers":
+      if (kids.length < 2 || kids.length > 4 || kids.some((child) => !hasPictureSource(child)))
+        issues.push({ path: at, problem: "parallax_layers needs 2-4 media children (back to front), each with a picture source" });
+      break;
+    case "scrub_sequence": {
+      const frames = kids.filter((child) => hasPictureSource(child));
+      if (frames.length < 2 || frames.length > 6)
+        issues.push({ path: at, problem: "scrub_sequence needs 2-6 media frames of one subject, in order" });
+      if (frames.some((frame) => !frame.alt?.trim()))
+        issues.push({ path: at, problem: "every scrub_sequence frame needs alt text" });
+      if (frames.some((frame) => (frame.text?.trim().length ?? 0) > 30))
+        issues.push({ path: at, problem: "a scrub_sequence frame's chapter label (its text) must be 30 characters or fewer" });
+      if (kids.some((child) => child.type === "scene" || child.type === "scroll_chapters" || child.type === "scrub_sequence" || child.type === "mobile_sticky_bar" || child.type === "offer_card"))
+        issues.push({ path: at, problem: "scrub_sequence copy is headings, text and one button over its frames, not another scene" });
+      break;
+    }
+    case "collection_row":
+      if (!kids.length || kids.length > MAX_COLLECTION_ITEMS || kids.some((child) => child.type !== "offer_card"))
+        issues.push({ path: at, problem: `collection_row needs 1-${MAX_COLLECTION_ITEMS} offer_card children` });
+      break;
+    default:
+      if (kids.some((child) => child.type === "offer_card") && node.type !== "stack" && node.type !== "grid" && node.type !== "row" && node.type !== "card")
+        issues.push({ path: at, problem: "offer_card sits inside a scene, collection_row or a layout container" });
+  }
+}
 
 export function validateComposition(input: unknown, options: ValidateOptions = {}): CompositionResult {
   const issues: CompositionIssue[] = [];
@@ -568,6 +736,10 @@ export function validateComposition(input: unknown, options: ValidateOptions = {
       if (typeof mediaRef !== "string" || !SAFE_MEDIA_REF.test(mediaRef)) issues.push({ path: `${path}.mediaRef`, problem: "invalid website picture reference" });
       else if (options.allowedMediaRefs && !options.allowedMediaRefs.has(mediaRef))
         issues.push({ path: `${path}.mediaRef`, problem: "website picture reference does not belong to this section" });
+      else if (options.modelRefs && node.type === "model_3d_viewer" && !options.modelRefs.has(mediaRef))
+        issues.push({ path: `${path}.mediaRef`, problem: "model_3d_viewer mediaRef must be a supplied 3D model (a part marked model3d), not a picture" });
+      else if (options.modelRefs?.has(mediaRef) && node.type !== "model_3d_viewer")
+        issues.push({ path: `${path}.mediaRef`, problem: `${mediaRef} is a 3D model; show it only in a model_3d_viewer` });
       else {
         node.mediaRef = mediaRef;
         usedMediaRefs.add(mediaRef);
@@ -646,6 +818,52 @@ export function validateComposition(input: unknown, options: ValidateOptions = {
         issues.push({ path: `${path}.initialSplit`, problem: "initialSplit must be a number from 0 to 100" });
       else node.initialSplit = split;
     }
+    if (row["revealMode"] != null) {
+      if (node.type !== "before_after_slider") issues.push({ path: `${path}.revealMode`, problem: "revealMode only applies to before_after_slider" });
+      else if (row["revealMode"] !== "slider" && row["revealMode"] !== "brush") issues.push({ path: `${path}.revealMode`, problem: 'revealMode must be "slider" or "brush"' });
+      else node.revealMode = row["revealMode"];
+    }
+
+    if (row["dialOptions"] != null) {
+      const value = row["dialOptions"];
+      if (node.type !== "dial_selector") issues.push({ path: `${path}.dialOptions`, problem: "dialOptions only applies to dial_selector" });
+      else if (!Array.isArray(value)) issues.push({ path: `${path}.dialOptions`, problem: "dialOptions must be a list of options" });
+      else {
+        node.dialOptions = value.map((item, i) => {
+          const optionPath = `${path}.dialOptions[${i}]`;
+          if (!item || typeof item !== "object" || Array.isArray(item)) {
+            issues.push({ path: optionPath, problem: "dial option must be an object with label, value and level" });
+            return null;
+          }
+          const raw = item as Record<string, unknown>;
+          const label = checkText(raw["label"], `${optionPath}.label`, issues, options.screenText)?.trim();
+          const reading = checkText(raw["value"], `${optionPath}.value`, issues, options.screenText)?.trim();
+          const note = checkText(raw["note"], `${optionPath}.note`, issues, options.screenText)?.trim();
+          const level = raw["level"];
+          if (!label || !reading) {
+            issues.push({ path: optionPath, problem: "dial option needs a label and a value" });
+            return null;
+          }
+          if (label.length > DIAL_LIMITS.label) issues.push({ path: `${optionPath}.label`, problem: `dial option label must be ${DIAL_LIMITS.label} characters or fewer` });
+          if (reading.length > DIAL_LIMITS.value) issues.push({ path: `${optionPath}.value`, problem: `dial option value must be ${DIAL_LIMITS.value} characters or fewer` });
+          if (note && note.length > DIAL_LIMITS.note) issues.push({ path: `${optionPath}.note`, problem: `dial option note must be ${DIAL_LIMITS.note} characters or fewer` });
+          if (typeof level !== "number" || !Number.isFinite(level) || level < 0 || level > 100) {
+            issues.push({ path: `${optionPath}.level`, problem: "dial option level must be a number from 0 to 100" });
+            return null;
+          }
+          const typed = [label, reading, note].find((text) => text && TYPED_PRICE.test(text));
+          if (typed) issues.push({ path: optionPath, problem: `a dial shows method readings, never prices; remove the amount from "${typed.slice(0, 60)}"` });
+          return { label, value: reading, ...(note ? { note } : {}), level };
+        }).filter((option): option is CompositionDialOption => option != null);
+      }
+    }
+    if (row["dialUnit"] != null) {
+      const unit = checkText(row["dialUnit"], `${path}.dialUnit`, issues, options.screenText)?.trim();
+      if (node.type !== "dial_selector") issues.push({ path: `${path}.dialUnit`, problem: "dialUnit only applies to dial_selector" });
+      else if (unit && unit.length > DIAL_LIMITS.unit) issues.push({ path: `${path}.dialUnit`, problem: `dialUnit must be ${DIAL_LIMITS.unit} characters or fewer` });
+      else if (unit && (TYPED_PRICE.test(unit) || /[$€£¥₹]|\b(?:usd|eur|gbp|cad|aud|dollars?|euros?|pounds?)\b/i.test(unit))) issues.push({ path: `${path}.dialUnit`, problem: "a dial unit is a measure such as PSI, never a currency" });
+      else if (unit) node.dialUnit = unit;
+    }
 
     if (row["faqItems"] != null) {
       const value = row["faqItems"];
@@ -720,12 +938,75 @@ export function validateComposition(input: unknown, options: ValidateOptions = {
 
     if (node.type === "before_after_slider" && (!node.beforeImage || !node.afterImage))
       issues.push({ path, problem: "before_after_slider needs beforeImage and afterImage" });
+    if (node.type === "dial_selector" && (!node.dialOptions || node.dialOptions.length < MIN_DIAL_OPTIONS || node.dialOptions.length > MAX_DIAL_OPTIONS))
+      issues.push({ path: `${path}.dialOptions`, problem: `dial_selector needs ${MIN_DIAL_OPTIONS}-${MAX_DIAL_OPTIONS} dialOptions` });
     if (node.type === "faq_accordion" && !node.faqItems?.length)
       issues.push({ path, problem: "faq_accordion needs at least one FAQ item" });
     if (node.type === "tab_group" && !node.tabs?.length)
       issues.push({ path, problem: "tab_group needs at least one tab" });
     if (node.type === "mobile_sticky_bar" && !node.primaryCta)
       issues.push({ path: `${path}.primaryCta`, problem: "mobile_sticky_bar needs a primary CTA" });
+
+    // Cinematic primitive fields. Each is only meaningful on its own block;
+    // values are AI-authored and only checked for renderer safety.
+    if (row["anchor"] != null) {
+      if (node.type !== "scene" && node.type !== "offer_card") issues.push({ path: `${path}.anchor`, problem: "anchor is only used on scene and offer_card" });
+      else if (!SCENE_ANCHORS.includes(row["anchor"] as SceneAnchor)) issues.push({ path: `${path}.anchor`, problem: `anchor must be one of ${SCENE_ANCHORS.join(", ")}` });
+      else node.anchor = row["anchor"] as SceneAnchor;
+    }
+    if (row["scrub"] != null) {
+      if (node.type !== "scene") issues.push({ path: `${path}.scrub`, problem: "scrub is only used on scene" });
+      else if (typeof row["scrub"] !== "boolean") issues.push({ path: `${path}.scrub`, problem: "scrub must be true or false" });
+      else if (row["scrub"]) node.scrub = true;
+    }
+    if (row["scrim"] != null) {
+      const scrim = row["scrim"];
+      if (node.type !== "scene") issues.push({ path: `${path}.scrim`, problem: "scrim is only used on scene" });
+      else if (!scrim || typeof scrim !== "object" || Array.isArray(scrim)) issues.push({ path: `${path}.scrim`, problem: "scrim must be an object with color and opacity" });
+      else {
+        const raw = scrim as Record<string, unknown>;
+        const out: SceneScrimSpec = {};
+        if (raw["color"] != null) {
+          if (typeof raw["color"] !== "string" || !HEX.test(raw["color"])) issues.push({ path: `${path}.scrim.color`, problem: "must be a #RRGGBB colour" });
+          else out.color = raw["color"];
+        }
+        if (raw["opacity"] != null) {
+          const opacity = raw["opacity"];
+          if (typeof opacity !== "number" || !Number.isFinite(opacity) || opacity < 0 || opacity > 100) issues.push({ path: `${path}.scrim.opacity`, problem: `scrim opacity must be 0-${MAX_SCRIM_OPACITY}` });
+          else out.opacity = Math.min(MAX_SCRIM_OPACITY, opacity);
+        }
+        if (Object.keys(out).length) node.scrim = out;
+      }
+    }
+    if (row["focal"] != null) {
+      const focal = row["focal"];
+      if (node.type !== "scene") issues.push({ path: `${path}.focal`, problem: "focal is only used on scene" });
+      else if (typeof focal !== "string" || !/^\d{1,3}% \d{1,3}%$/.test(focal.trim())) issues.push({ path: `${path}.focal`, problem: 'focal must look like "50% 40%"' });
+      else node.focal = focal.trim();
+    }
+    if (row["service"] != null) {
+      const service = checkText(row["service"], `${path}.service`, issues, options.screenText);
+      if (node.type !== "offer_card") issues.push({ path: `${path}.service`, problem: "service is only used on offer_card" });
+      else if (service !== undefined) {
+        const trimmed = service.trim().slice(0, 160);
+        if (!trimmed) issues.push({ path: `${path}.service`, problem: "service must name one of the business's real services" });
+        else if (options.serviceNames && !matchService(trimmed, options.serviceNames.map((name) => ({ name }))))
+          issues.push({ path: `${path}.service`, problem: `service must be one of the business's real services exactly as supplied (${options.serviceNames.slice(0, 12).join(", ") || "none supplied"})` });
+        else node.service = trimmed;
+      }
+    }
+    if (row["initialFrame"] != null) {
+      const frame = row["initialFrame"];
+      if (node.type !== "spin_viewer") issues.push({ path: `${path}.initialFrame`, problem: "initialFrame is only used on spin_viewer" });
+      else if (typeof frame !== "number" || !Number.isInteger(frame) || frame < 0 || frame >= MAX_SPIN_FRAMES) issues.push({ path: `${path}.initialFrame`, problem: `initialFrame must be a whole number 0-${MAX_SPIN_FRAMES - 1}` });
+      else node.initialFrame = frame;
+    }
+    if (node.type === "offer_card") {
+      // Prices on an offer card only ever come from the named real service.
+      for (const key of ["price", "priceLabel", "amount", "cost"]) {
+        if (row[key] != null) issues.push({ path: `${path}.${key}`, problem: "offer_card prices come only from the named real service; remove the typed price and set service instead" });
+      }
+    }
 
     if (row["level"] != null) {
       if (![1, 2, 3, 4].includes(row["level"] as number)) issues.push({ path: `${path}.level`, problem: "level must be 1-4" });
@@ -820,7 +1101,12 @@ export function validateComposition(input: unknown, options: ValidateOptions = {
     }
     if (node.type === "mobile_sticky_bar" && kids.length)
       issues.push({ path: `${path}.children`, problem: "mobile_sticky_bar uses primaryCta/secondaryCta instead of child nodes" });
-    if ((node.type === "before_after_slider" || node.type === "faq_accordion" || node.type === "tab_group") && kids.length)
+    if (node.type === "before_after_slider" && (node.items?.length ?? 0) > 0) {
+      if (node.revealMode !== "brush") issues.push({ path: `${path}.items`, problem: "before_after_slider items are tool chips and only apply with revealMode \"brush\"" });
+      else if (node.items!.length > MAX_BRUSH_TOOLS) issues.push({ path: `${path}.items`, problem: `a brush reveal offers at most ${MAX_BRUSH_TOOLS} tools` });
+      else if (node.items!.some((item) => !item.trim() || item.trim().length > 28)) issues.push({ path: `${path}.items`, problem: "each brush tool label needs 1-28 characters" });
+    }
+    if ((node.type === "before_after_slider" || node.type === "faq_accordion" || node.type === "tab_group" || node.type === "dial_selector") && kids.length)
       issues.push({ path: `${path}.children`, problem: `${node.type} uses its dedicated data fields instead of child nodes` });
     if (node.type === "compare" && (kids.length !== 2 || kids.some((c) => c.type !== "media" || (!c.src && !c.mediaRef)))) {
       issues.push({ path: `${path}.children`, problem: "compare needs exactly two media children with a picture source (before, after)" });
@@ -830,6 +1116,7 @@ export function validateComposition(input: unknown, options: ValidateOptions = {
     }
     if (node.type === "toggle" && (kids.length !== 2 || kids.some((c) => !c.text))) issues.push({ path: `${path}.children`, problem: "toggle needs exactly two children, each with a text label" });
     if (node.type === "marquee" && kids.length < 1) issues.push({ path: `${path}.children`, problem: "marquee needs children" });
+    checkCinematic(node, path, issues);
     return node;
   };
 

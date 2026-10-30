@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useChildMatches } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -20,7 +20,7 @@ export const Route = createFileRoute("/_authenticated/admin/clients")({
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" }, { name: "robots", content: "noindex, nofollow" }],
   }),
-  component: AdminClients,
+  component: AdminClientsRoute,
 });
 
 const FILTERS = [
@@ -31,6 +31,11 @@ const FILTERS = [
   { value: "setup", label: "In setup" },
   { value: "suspended", label: "Suspended" },
 ] as const;
+
+function AdminClientsRoute() {
+  const children = useChildMatches();
+  return children.length > 0 ? <Outlet /> : <AdminClients />;
+}
 
 function AdminClients() {
   const clientsFn = useServerFn(listClients);

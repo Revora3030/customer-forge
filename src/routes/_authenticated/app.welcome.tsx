@@ -1,4 +1,5 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { startConfirmationPolling } from "@/lib/checkout-confirmation";
 import { trackConversion } from "@/lib/conversion";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
@@ -36,14 +37,16 @@ function WelcomePage() {
   const { data: ws } = useWorkspace();
   const org = ws?.workspace?.organization;
   const orgId = ws?.workspace?.organizationId;
-  const { data: billing } = useBillingState(orgId);
+  const { data: billing, error: billingError } = useBillingState(orgId);
+  const [confirmationTimedOut, setConfirmationTimedOut] = useState(false);
+  const [confirmationAttempt, setConfirmationAttempt] = useState(0);
   const subscription = billing?.subscription ?? null;
   const queryClient = useQueryClient();
 
   // Stripe returns here after checkout; refresh the verified server state.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get("checkout") !== "complete") return;
+    if (params.get("checkout") !== "complete" || !orgId) return;
     // Marketing telemetry only. Paid status comes exclusively from the
     // signature-verified Stripe webhook, never from this browser return.
     trackConversion("checkout_return");
@@ -59,6 +62,14 @@ function WelcomePage() {
   const trialing = subscription?.status === "trialing";
   const trialEnd = subscription?.trial_ends_at ?? null;
   const subActive = Boolean(billing?.active);
+  useEffect(() => {
+    if (!orgId || (setupPaid && subActive)) return;
+    setConfirmationTimedOut(false);
+    return startConfirmationPolling(() => {
+      void queryClient.invalidateQueries({ queryKey: ["billing_state", orgId] });
+      void queryClient.invalidateQueries({ queryKey: ["workspace"] });
+    }, () => setConfirmationTimedOut(true));
+  }, [orgId, setupPaid, subActive, queryClient, confirmationAttempt]);
   const steps = [
     { label: "Setup payment received", done: setupPaid },
     {
@@ -86,6 +97,16 @@ function WelcomePage() {
             : "Payment confirmation comes directly from our payment provider. If you just paid, this page updates within a few seconds — nothing is activated until the payment is verified."}
         </p>
       </div>
+
+      {billingError || confirmationTimedOut ? (
+        <div role="status" className="space-y-2">
+          <p className="text-sm text-muted-foreground">
+            {billingError ? "We couldn't read your payment status." : "Payment confirmation is taking longer than expected."}
+            {" "}Please check again before starting another checkout.
+          </p>
+          <Button variant="outline" onClick={() => setConfirmationAttempt((attempt) => attempt + 1)}>Check payment status</Button>
+        </div>
+      ) : null}
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <MetricCard

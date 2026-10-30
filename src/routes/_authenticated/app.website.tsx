@@ -30,14 +30,17 @@ import { BuilderWizard } from "@/components/app/BuilderWizard";
 import { BuilderShell } from "@/components/app/BuilderShell";
 import { MissingMenuBanner } from "@/components/app/MissingMenuBanner";
 import { readSiteChrome } from "@/lib/builder/site-chrome";
-import { jobIsActive, jobLiveness } from "@/lib/builder/job-liveness";
+import { blocksAutoBuild, jobIsActive, stopWaiting, stopWaitingMessage } from "@/lib/builder/job-liveness";
 import { Disclosure, OverlayPanel } from "@/components/app/BuilderTools";
 import { BuilderHistoryProvider } from "@/lib/builder-history.hooks";
 import { GroupTabs } from "@/components/app/BuilderGroups";
 import { orderGroups } from "@/components/app/builder-groups-utils";
 import { BuilderAssistant } from "@/components/app/BuilderAssistant";
 import { useBuilderRequests } from "@/lib/builder-requests.hooks";
-import { actionPrompt, selectionPrefix } from "@/lib/builder/preview-bridge";
+import { actionPrompt, selectionPrefix, type PageContext } from "@/lib/builder/preview-bridge";
+import { starterIdeasFor } from "@/lib/builder/industry-playbook";
+import { isBareRebuildCommand } from "@/lib/builder/rebuild-intent";
+import { sectionOfTarget } from "@/lib/builder/step-target";
 import { liveStatusLine } from "@/lib/builder/live-status";
 import { useBuildProgress } from "@/lib/builder/progress.hooks";
 import { ConversionOptimizer } from "@/components/app/ConversionOptimizer";
@@ -114,6 +117,7 @@ import {
   revoraScore,
 } from "@/lib/site-engine";
 import { useBuildReadiness, useSaveMissingFacts, useScoreFacts } from "@/lib/site-engine.hooks";
+import { useCancelSiteEngine } from "@/lib/site-engine-cancel.hooks";
 import {
   useEnsureFirstBuild,
   useGenerateSectionsFromText,
@@ -157,9 +161,6 @@ const GROUP_ALIAS: Record<string, string> = {
   seo: "seo",
   enquiries: "enquiries",
 };
-
-/** A first build still waiting for a worker after this long is no longer tracked in the chat. */
-const FIRST_BUILD_QUEUED_TIMEOUT_MS = 10 * 60 * 1000;
 
 const resolveGroup = (key: string | null | undefined) =>
   (key ? GROUP_ALIAS[key] : undefined) ?? "build";
@@ -251,6 +252,10 @@ function WebsitePage() {
   }, []);
   /** The block the owner clicked in the preview, scoping their next message. */
   const [selected, setSelected] = useState<PreviewSelection | null>(null);
+  /** The page open in the preview, so chat requests know what the owner is looking at. */
+  const [viewingPage, setViewingPage] = useState<PageContext | null>(null);
+  /** "Show in preview" from the chat: the section to scroll to and outline. */
+  const [reveal, setReveal] = useState<{ id: string; nonce: number } | null>(null);
 
   /** One request engine for the whole workspace. */
   const superAdmin = useQuery({
@@ -273,12 +278,15 @@ function WebsitePage() {
     ? liveStatusLine(progress.latest?.stage ?? (activeTask.state === "building" ? "designing your change" : "planning the change"), selected?.label ?? null)
     : null;
   const firstBuild = useGenerateSectionsFromText(orgId);
+  /** Stops a running build from the chat (managers and above): a build spends credits for as long as it runs. */
+  const cancelBuild = useCancelSiteEngine(orgId);
   const latestJob = useLatestGenerationJob(orgId);
   useEnsureFirstBuild(orgId, {
     jobsLoaded: latestJob.isSuccess,
     // A build the owner cancelled counts too: an open builder must never
-    // restart a build the owner stopped.
-    hasAnyJob: !!latestJob.data && ["queued", "processing", "cancelled"].includes((latestJob.data as { status?: string })?.status ?? ""),
+    // restart a build the owner stopped. So does one that failed in the last
+    // day: it is not silently re-queued (and re-paid) each time the page opens.
+    hasAnyJob: blocksAutoBuild((latestJob.data ?? null) as never),
     pageCount: pages ? (pages as unknown[]).length : undefined,
     canManage: manage,
     ready: !!readiness && readiness.requiredGaps.length === 0,
@@ -300,6 +308,12 @@ function WebsitePage() {
   const pendingBuild = (settings?.generation as { pendingBuild?: { mode?: unknown; jobId?: unknown } } | null | undefined)?.pendingBuild;
   const freshRebuildActive =
     jobIsActive(latestJob.data as never) && pendingBuild?.mode === "fresh_replace";
+  // A fresh rebuild keeps the previous draft on screen until the new pages land;
+  // say so on the preview, with the step the build is on, instead of looking stuck.
+  const rebuildProgress = useBuildProgress(orgId, freshRebuildActive);
+  const rebuildStatus = freshRebuildActive
+    ? `Rebuilding — this is your previous draft${rebuildProgress.latest?.stage ? `. Now: ${rebuildProgress.latest.stage}` : ""}`.slice(0, 90)
+    : null;
   const lastNonEmptyPages = useRef<NonNullable<typeof pages>>([]);
   if (pages && pages.length > 0) lastNonEmptyPages.current = pages;
   const shownPages = freshRebuildActive && !(pages ?? []).length ? lastNonEmptyPages.current : (pages ?? []);
@@ -321,19 +335,14 @@ function WebsitePage() {
     const status = latestRow.status;
     // A worker cut off mid-build leaves the row "processing" with a dead
     // lease, and a job no worker ever claims stays "queued" (jobLiveness never
-    // calls that stalled). Stop tracking either here; nothing is claimed about
-    // how it ended.
-    const queuedFor = status === "queued" && latestRow.created_at ? Date.now() - Date.parse(latestRow.created_at) : 0;
-    if (
-      (status === "processing" && jobLiveness(latestRow as never) === "stalled") ||
-      (status === "queued" && queuedFor > FIRST_BUILD_QUEUED_TIMEOUT_MS)
-    ) {
-      settleBuild(trackedBuild.taskId, {
-        ok: false,
-        message: status === "queued"
-          ? "Your build hasn't started yet, so I've stopped waiting on it here. Nothing was published — check the preview in a few minutes, or start the build again."
-          : "Your build stopped responding, so I've stopped waiting on it here. Nothing was published — check the preview in a minute, or start the build again.",
-      });
+    // calls that stalled). A build that failed an attempt goes back to "queued"
+    // for its retry with its ORIGINAL created_at, so waiting time is counted
+    // from when the retry was due, never from creation (that said "hasn't
+    // started yet" about a build that had run for eleven minutes). Stop
+    // tracking here; nothing is claimed about how it ended.
+    const stop = stopWaiting(latestRow as never);
+    if (stop) {
+      settleBuild(trackedBuild.taskId, { ok: false, message: stopWaitingMessage(stop) });
       setTrackedBuild(null);
       return undefined;
     }
@@ -357,6 +366,41 @@ function WebsitePage() {
     setTrackedBuild(null);
     return undefined;
   }, [trackedBuild, latestRow, linkBuild, buildTick]);
+
+  /**
+   * Starts a build as one request in the chat, from the owner's words to its
+   * result, under one request id. The job records that id and the worker writes
+   * its stages under it; jobs without one fall back to the job id.
+   * `fresh` replaces the draft (backup first); the server re-checks the role.
+   */
+  const startTrackedBuild = async (text: string, fresh: boolean) => {
+    const task = newTask(text);
+    requests.remember([
+      { role: "user", content: text },
+      {
+        role: "assistant",
+        content: fresh
+          ? "On it — replacing your draft with a fresh build. A backup is saved first and your live site isn't touched. I'll show you each step as it finishes."
+          : "On it — I'm building your website now. I'll show you each step as it finishes.",
+      },
+    ], task.id);
+    requests.trackBuild(task);
+    try {
+      // A bare "Fresh rebuild" has no design direction, so nothing is added to the brief.
+      const started = await firstBuild.mutateAsync({
+        requestId: task.id,
+        ...(fresh && isBareRebuildCommand(text) ? {} : { instruction: text }),
+        ...(fresh ? { fresh: true } : {}),
+      });
+      setTrackedBuild({ taskId: task.id, jobId: started?.jobId ?? null });
+      if (!started?.jobId) requests.settleBuild(task.id, { ok: true, message: "Your build is queued. I'll keep working on it in the background." });
+    } catch (error) {
+      requests.settleBuild(task.id, {
+        ok: false,
+        message: friendlyError(error, "Revora couldn't start from that description. Your text is saved."),
+      });
+    }
+  };
 
   /** Older deep links (and panels that ask to jump) resolve to the new doors. */
   const goTo = (key: string) => {
@@ -645,6 +689,22 @@ function WebsitePage() {
             />
             }
             selection={selected}
+            pageContext={viewingPage}
+            onReveal={(target) => {
+              const id = sectionOfTarget(target, shownPages as never);
+              if (!id) return;
+              setReveal({ id, nonce: Date.now() });
+              // On a phone the preview is its own tab.
+              setPreviewOpen(true);
+            }}
+            {...(!firstRun && manage ? {
+              onFreshRebuild: (instruction: string) => startTrackedBuild(instruction, true),
+              canFreshRebuild,
+              rebuildBusy: freshRebuildActive || jobIsActive(latestJob.data as never) || firstBuild.isPending,
+            } : {})}
+            {...(manage ? { onStopBuild: (jobId: string) => cancelBuild.mutate(jobId) } : {})}
+            stoppingBuild={cancelBuild.isPending}
+            starterIdeas={starterIdeasFor((org?.industry as string | undefined) ?? null)}
             onClearSelection={() => setSelected(null)}
             onOpenHistory={() => setHistoryOpen(true)}
             onShowPreview={() => setPreviewOpen(true)}
@@ -698,26 +758,7 @@ function WebsitePage() {
                   await firstBuild.mutateAsync(undefined).catch(() => undefined);
                   return;
                 }
-                // The build is one request in the chat, from the owner's words
-                // to its result, under one request id.
-                const task = newTask(text);
-                requests.remember([
-                  { role: "user", content: text },
-                  { role: "assistant", content: "On it — I'm building your website now. I'll show you each step as it finishes." },
-                ], task.id);
-                requests.trackBuild(task);
-                try {
-                  // The job records this chat request id and the worker writes
-                  // its stages under it; jobs without one fall back to the job id.
-                  const started = await firstBuild.mutateAsync({ requestId: task.id, instruction: text });
-                  setTrackedBuild({ taskId: task.id, jobId: started?.jobId ?? null });
-                  if (!started?.jobId) requests.settleBuild(task.id, { ok: true, message: "Your build is queued. I'll keep working on it in the background." });
-                } catch (error) {
-                  requests.settleBuild(task.id, {
-                    ok: false,
-                    message: friendlyError(error, "Revora couldn't start from that description. Your text is saved."),
-                  });
-                }
+                await startTrackedBuild(text, false);
               },
               firstBuildBusy: firstBuild.isPending,
             } : {})}
@@ -740,7 +781,9 @@ function WebsitePage() {
               refreshRevision={requests.refreshRevision}
               selectedId={selected?.id ?? null}
               selectedPath={selected?.path ?? null}
-              liveStatus={liveStatus}
+              onPageChange={setViewingPage}
+              reveal={reveal}
+              liveStatus={liveStatus ?? rebuildStatus}
               onInlineSaved={() => {
                 // The frame already shows the new words; refresh caches so
                 // the canvas, history and chat context read the saved text.

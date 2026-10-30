@@ -18,6 +18,8 @@ export type ApplyResultCardProps = {
   reasons?: string[] | undefined;
   /** Titles of the planned changes. */
   titles?: string[] | undefined;
+  /** For each title, a way to show that change in the preview (null where it has no place there). */
+  reveals?: (((() => void) | null) | undefined)[] | undefined;
   /** Raw apply labels, only under "Technical details". */
   details?: string[] | undefined;
   onRetrySkipped?: (() => void) | undefined;
@@ -31,6 +33,7 @@ export function ApplyResultCard({
   staleCount = 0,
   reasons,
   titles = [],
+  reveals = [],
   details = [],
   onRetrySkipped,
   onUndo,
@@ -58,6 +61,16 @@ export function ApplyResultCard({
             {titles.map((title, index) => (
               <li key={`${title}-${index}`} className="list-disc break-words">
                 {title}
+                {reveals[index] ? (
+                  <button
+                    type="button"
+                    onClick={reveals[index]!}
+                    aria-label={`Show in preview: ${title}`}
+                    className="relative ml-2 inline-flex cursor-pointer items-center gap-1 align-middle text-xs text-muted-foreground underline-offset-2 after:absolute after:-inset-2 hover:text-foreground hover:underline"
+                  >
+                    <Eye className="size-3" aria-hidden /> Show
+                  </button>
+                ) : null}
               </li>
             ))}
           </ul>

@@ -18,12 +18,11 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 const askInput = z.object({
   question: z.string().min(1).max(4_000),
   preset: z.enum(["fast", "low", "medium", "high", "xhigh"]).optional(),
-  instructions: z.string().max(2_000).optional(),
 });
 
 export const askPerplexityAgent = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data) => askInput.parse(data))
+  .validator((data) => askInput.parse(data))
   .handler(async ({ data }) => {
     const { paidCollectiveAllowed } = await import("@/lib/ai/free-only-policy.server");
     if (!paidCollectiveAllowed("research.web")) {
@@ -38,7 +37,6 @@ export const askPerplexityAgent = createServerFn({ method: "POST" })
     return runPerplexityAgent({
       input: data.question,
       ...(data.preset ? { preset: data.preset } : {}),
-      ...(data.instructions ? { instructions: data.instructions } : {}),
     });
   });
 
@@ -85,7 +83,7 @@ const approvedResearchInput = z.object({
  */
 export const approvePerplexityResearch = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data) => approvedResearchInput.parse(data))
+  .validator((data) => approvedResearchInput.parse(data))
   .handler(async ({ data, context }) => {
     const { assertSuperAdmin } = await import("@/lib/admin.server");
     await assertSuperAdmin(

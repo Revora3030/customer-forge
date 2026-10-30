@@ -12,7 +12,7 @@ import { SiteFooter, SiteHeader } from "@/components/marketing/Chrome";
 import { Button } from "@/components/ui/button";
 import { CRM_SOLUTIONS } from "@/lib/crm-solutions";
 import { GROWTH_SYSTEM } from "@/lib/offer";
-import { metaDescription } from "@/lib/seo";
+import { metaDescription, OG_IMAGE_META } from "@/lib/seo";
 
 const TITLE = "CRM for Contractors — Leads, Quotes & Follow-Up | Revora";
 const DESCRIPTION =
@@ -29,6 +29,7 @@ export const Route = createFileRoute("/crm-for-contractors")({
       { property: "og:type", content: "product" },
       { property: "og:url", content: URL },
       { name: "twitter:card", content: "summary_large_image" },
+      ...OG_IMAGE_META,
     ],
     links: [{ rel: "canonical", href: URL }],
     scripts: [
@@ -157,15 +158,15 @@ function ContractorCrmPage() {
           </ul>
           <p className="mt-6 text-[13px] text-muted-foreground">
             Working in a related trade? Read how this works for{" "}
-            <Link to="/crm" className="text-primary underline-offset-4 hover:underline">
+            <Link to="/crm" className="text-primary underline underline-offset-4 hover:no-underline">
               your specific trade
             </Link>
             , browse the{" "}
-            <Link to="/industries" className="text-primary underline-offset-4 hover:underline">
+            <Link to="/industries" className="text-primary underline underline-offset-4 hover:no-underline">
               full list of trades we build for
             </Link>{" "}
             or see{" "}
-            <Link to="/pricing" className="text-primary underline-offset-4 hover:underline">
+            <Link to="/pricing" className="text-primary underline underline-offset-4 hover:no-underline">
               pricing
             </Link>
             .
@@ -184,7 +185,7 @@ function ContractorCrmPage() {
                 key={solution.slug}
                 to="/crm/$trade"
                 params={{ trade: solution.slug }}
-                className="rounded-full border border-border px-3 py-1.5 text-muted-foreground hover:border-primary/50 hover:text-primary"
+                className="tap-target rounded-full border border-border px-3 py-1.5 text-muted-foreground hover:border-primary/50 hover:text-primary"
               >
                 {solution.heading}
               </Link>
