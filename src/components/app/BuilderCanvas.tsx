@@ -16,6 +16,9 @@
 import * as React from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { generateSectionVideo, heroVideoBrief } from "@/lib/site-video.functions";
+import { addStockHeroVideo, heroVideoState, removeHeroVideo, setOwnHeroVideo } from "@/lib/hero-video.functions";
+import { supabase } from "@/integrations/supabase/client";
+import { MEDIA_BUCKET, buildObjectPath } from "@/lib/media";
 
 import {
   ArrowDown,
@@ -308,6 +311,104 @@ import {
  * their business, and a failure is reported in plain words with the picture left
  * exactly as it was.
  */
+const HERO_VIDEO_TYPES = ["video/mp4", "video/webm", "video/quicktime"];
+const MAX_HERO_UPLOAD_BYTES = 40 * 1024 * 1024;
+
+/**
+ * The home page's top-of-page video loop: shows which clip plays and its
+ * licence, and lets the owner get a stock clip for their trade, use their own
+ * video, or turn it off. Every change reaches visitors on the next Publish.
+ */
+function HeroVideoControls({ organizationId, disabled }: { organizationId: string | undefined; disabled: boolean }) {
+  const readState = useServerFn(heroVideoState);
+  const addStock = useServerFn(addStockHeroVideo);
+  const applyOwn = useServerFn(setOwnHeroVideo);
+  const turnOff = useServerFn(removeHeroVideo);
+  const [state, setState] = React.useState<Awaited<ReturnType<typeof heroVideoState>> | null>(null);
+  const [busy, setBusy] = React.useState(false);
+  const [message, setMessage] = React.useState<string | null>(null);
+  const fileRef = React.useRef<HTMLInputElement>(null);
+  const refresh = React.useCallback(() => {
+    if (!organizationId) return;
+    readState({ data: { organizationId } }).then(setState).catch(() => {});
+  }, [organizationId, readState]);
+  React.useEffect(refresh, [refresh]);
+
+  const act = async (work: () => Promise<{ message: string }>) => {
+    setBusy(true);
+    try {
+      setMessage((await work()).message);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "That didn't work. Your top of page is unchanged.");
+    } finally {
+      setBusy(false);
+      refresh();
+    }
+  };
+
+  const upload = (file: File) =>
+    act(async () => {
+      if (!organizationId) throw new Error("Pick a business first.");
+      if (!HERO_VIDEO_TYPES.includes(file.type)) throw new Error("Use an MP4, WebM or MOV video.");
+      if (file.size > MAX_HERO_UPLOAD_BYTES) throw new Error("That video is over 40 MB. Use a shorter clip (5–10 seconds is plenty).");
+      const path = buildObjectPath(organizationId, file.name);
+      const { error: uploadError } = await supabase.storage.from(MEDIA_BUCKET).upload(path, file, { contentType: file.type, upsert: false });
+      if (uploadError) throw uploadError;
+      const { data: row, error: rowError } = await supabase
+        .from("media")
+        .insert({ organization_id: organizationId, url: path, category: "hero_video", file_name: file.name.slice(0, 120), size_bytes: file.size, alt_text: null, source: "owner" } as never)
+        .select("id")
+        .single();
+      if (rowError || !row) {
+        await supabase.storage.from(MEDIA_BUCKET).remove([path]);
+        throw rowError ?? new Error("Couldn't save that video.");
+      }
+      return applyOwn({ data: { organizationId, path, mediaId: (row as { id: string }).id } });
+    });
+
+  const on = state?.state === "on";
+  return (
+    <div className="space-y-2 rounded-xl border border-border p-3">
+      <p className="text-[12px] font-medium">Home page top video {on ? "· on" : state?.state === "off" ? "· off" : ""}</p>
+      {on && state?.credit ? (
+        <p className="text-[12px] text-muted-foreground">
+          {state.credit}
+          {state.license ? ` · ${state.license}` : ""}. Stock footage is licensed for your site only.
+        </p>
+      ) : on && state?.source === "owner" ? (
+        <p className="text-[12px] text-muted-foreground">Your own video is playing.</p>
+      ) : (
+        <p className="text-[12px] text-muted-foreground">A short muted loop that plays behind your headline.</p>
+      )}
+      <div className="flex flex-wrap gap-2">
+        <Button type="button" size="sm" variant="outline" disabled={disabled || busy || !organizationId} onClick={() => organizationId && act(() => addStock({ data: { organizationId, replace: on } }))}>
+          {on ? "Try another stock clip" : "Add stock video"}
+        </Button>
+        <Button type="button" size="sm" variant="outline" disabled={disabled || busy || !organizationId} onClick={() => fileRef.current?.click()}>
+          Use my own video
+        </Button>
+        {on ? (
+          <Button type="button" size="sm" variant="ghost" disabled={disabled || busy || !organizationId} onClick={() => organizationId && act(() => turnOff({ data: { organizationId } }))}>
+            Turn off
+          </Button>
+        ) : null}
+      </div>
+      <input
+        ref={fileRef}
+        type="file"
+        accept={HERO_VIDEO_TYPES.join(",")}
+        className="hidden"
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          event.target.value = "";
+          if (file) void upload(file);
+        }}
+      />
+      {message ? <p className="text-[12px] text-muted-foreground">{message}</p> : null}
+    </div>
+  );
+}
+
 function MotionBackgroundControls({
   organizationId,
   componentId,
@@ -1441,6 +1542,7 @@ export function BuilderCanvas({
                     settings={selectedComponent.settings}
                     disabled={!canManage}
                   />
+                  <HeroVideoControls organizationId={organizationId} disabled={!canManage} />
                 </>
               ) : null}
 

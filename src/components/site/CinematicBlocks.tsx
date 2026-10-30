@@ -36,6 +36,82 @@ export function SceneVideo({ src, alt, eager }: { src: string; alt: string; eage
 }
 
 /**
+ * The home page's moving hero loop (quality bar #1/#10), layered over the
+ * scene's own photo. The server HTML carries no video source at all, so the
+ * photo (with its alt text and eager loading) is what paints first and what
+ * no-JS and reduced-motion visitors keep. After hydration, once the hero is
+ * near the screen, the phone or desktop rendition is attached and played
+ * muted, inline and looped; it fades in only when frames are actually
+ * playing, so there is no layout shift and no blank flash. It pauses off
+ * screen, and an optional loop window keeps a long stock clip to a short web
+ * loop.
+ */
+export function HeroVideo({ src, mobileSrc, poster, loopStart = 0, loopEnd = null, eager }: { src: string; mobileSrc?: string | null; poster?: string | null; loopStart?: number; loopEnd?: number | null; eager: boolean }) {
+  const ref = useRef<HTMLVideoElement>(null);
+  const [playing, setPlaying] = useState(false);
+  useEffect(() => {
+    const video = ref.current;
+    if (!video || prefersReducedMotion()) return;
+    const phone = typeof window.matchMedia === "function" && window.matchMedia("(max-width: 767px)").matches;
+    const chosen = phone && mobileSrc ? mobileSrc : src;
+    let attached = false;
+    const play = () => void video.play?.()?.catch?.(() => undefined);
+    const attach = () => {
+      if (attached) return;
+      attached = true;
+      video.muted = true;
+      video.src = chosen;
+      if (loopStart > 0) video.currentTime = loopStart;
+      play();
+    };
+    const onPlaying = () => setPlaying(true);
+    const onTime = () => {
+      if (loopEnd != null && video.currentTime >= loopEnd) video.currentTime = loopStart;
+    };
+    video.addEventListener("playing", onPlaying);
+    video.addEventListener("timeupdate", onTime);
+    let observer: IntersectionObserver | null = null;
+    if (typeof IntersectionObserver === "undefined") attach();
+    else {
+      observer = new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries) {
+            if (entry.isIntersecting) {
+              if (!attached) attach();
+              else play();
+            } else if (attached) video.pause();
+          }
+        },
+        { rootMargin: eager ? "400px 0px" : "200px 0px" },
+      );
+      observer.observe(video);
+    }
+    return () => {
+      observer?.disconnect();
+      video.removeEventListener("playing", onPlaying);
+      video.removeEventListener("timeupdate", onTime);
+    };
+  }, [src, mobileSrc, loopStart, loopEnd, eager]);
+  return (
+    <video
+      ref={ref}
+      className="rv-scene-media rv-hero-video"
+      data-hero-video=""
+      {...(playing ? { "data-playing": "" } : {})}
+      poster={poster ?? undefined}
+      aria-hidden="true"
+      tabIndex={-1}
+      muted
+      playsInline
+      loop
+      preload="none"
+      disablePictureInPicture
+      disableRemotePlayback
+    />
+  );
+}
+
+/**
  * Consecutive full-screen chapters. Without JavaScript (or for reduced
  * motion) they are simply stacked scenes; the rail is plain anchor links and
  * the observer only marks which chapter is in view.

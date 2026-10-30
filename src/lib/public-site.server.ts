@@ -5,6 +5,7 @@
  * links (`/p/:token`). The only difference between them is whether an
  * unpublished draft may be served, which the caller states explicitly.
  */
+import { readHeroVideo, isHeroVideoCategory, type HeroVideoMedia, type HeroVideoPointer } from "@/lib/builder/hero-stock-video";
 import { customerBusinessEmail, sanitizeServices } from "@/lib/builder/intake-sanitize";
 import { MODEL_BUCKET, isModelPath, isOrgModelPath } from "@/lib/site-models";
 import { createClient } from "@supabase/supabase-js";
@@ -330,7 +331,8 @@ export async function loadSite(
 
   // Photos live in a private bucket, so pages get short-lived signed URLs.
   const { MEDIA_BUCKET, SIGNED_URL_TTL_SECONDS, isStoragePath, isOrgStoragePath } = await import("@/lib/media");
-  const gallery = galleryRows.data ?? [];
+  // The hero loop's files are the video's own, never gallery photos.
+  const gallery = (galleryRows.data ?? []).filter((row) => !isHeroVideoCategory(row.category));
   const profileRow = profile.data;
 
   // Structured content: the builder's page/section tree. Loads the requested
@@ -476,8 +478,16 @@ export async function loadSite(
 
   }
 
+  // The home page's moving hero (quality bar #1/#10). Published sites read
+  // it from the published copy, so a new clip reaches visitors on Publish.
+  const effectiveGeneration = (live && settings.data ? (live.generation ?? settings.data.generation) : settings.data?.generation) ?? null;
+  const heroPointer = currentPage?.kind === "home" ? readHeroVideo(effectiveGeneration, orgId) : null;
+
   const toSign = [
     ...gallery.map((g) => g.url),
+    heroPointer?.src ?? null,
+    heroPointer?.mobileSrc ?? null,
+    heroPointer?.poster ?? null,
     profileRow?.logo_url ?? null,
     profileRow?.hero_image_url ?? null,
     currentPage?.og_image_url ?? null,
@@ -574,6 +584,7 @@ export async function loadSite(
       created_at: r.created_at as string,
     })),
     gallery: gallery.map((g) => ({ ...g, url: resolve(g.url) ?? g.url })),
+    heroVideo: heroVideoMedia(heroPointer, resolve),
     // An active form with no answerable question renders no widget at all.
     quote: quoteForm.data && questions.length > 0 ? { form: quoteForm.data, questions, addons } : null,
     content: currentPage
@@ -625,5 +636,20 @@ export async function resolvePreviewToken(token: string) {
     organizationId: link.organization_id as string,
     expiresAt: link.expires_at,
     label: link.label,
+  };
+}
+
+/** Signed hero-loop sources, or null when the clip cannot be shown (the hero photo stays). */
+function heroVideoMedia(pointer: HeroVideoPointer | null, resolve: (value: string | null) => string | null): HeroVideoMedia | null {
+  if (!pointer) return null;
+  const src = resolve(pointer.src);
+  if (!src) return null;
+  return {
+    src,
+    mobileSrc: resolve(pointer.mobileSrc),
+    poster: resolve(pointer.poster),
+    loopStart: pointer.loopStart,
+    loopEnd: pointer.loopEnd,
+    source: pointer.source,
   };
 }

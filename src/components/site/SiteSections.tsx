@@ -181,6 +181,7 @@ function SiteSectionBody({ site, section, lead = false, first = false, surface =
           editable={editable}
           surface={sectionSurface(site, readBlockStyle(section.settings).bgColor)}
           eagerFirstMedia={first}
+          heroVideo={first ? (site.heroVideo ?? null) : null}
           resolveMedia={(ref) => media.get(ref) ?? null}
           resolveHref={(href) => resolveSiteHref(href, org.slug, ownAddress, null, null, previewBase)}
           resolveOffer={(service) => offerFactsFor(site.services ?? [], service)}
