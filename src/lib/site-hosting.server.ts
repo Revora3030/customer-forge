@@ -1,7 +1,7 @@
 /**
  * Server side of "canceled sites go offline after a grace period"
  * (rules in src/lib/site-hosting.ts). Runs hourly from pg_cron
- * (`revora-site-hosting`, migration 20261030140000) through
+ * (`revora-site-hosting`, migration 20261030141000) through
  * /api/public/jobs/site-hosting, and the Stripe webhook restores a site the
  * moment its workspace subscribes again.
  *
