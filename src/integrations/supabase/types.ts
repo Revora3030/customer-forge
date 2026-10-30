@@ -4147,6 +4147,102 @@ export type Database = {
         }
         Relationships: []
       }
+      prospect_import_queue: {
+        Row: {
+          address: string | null
+          batch_id: string
+          blocked_reason: string | null
+          business_name: string
+          category: string | null
+          city: string
+          contact_name: string | null
+          created_at: string
+          created_by: string | null
+          email: string | null
+          id: string
+          name_key: string
+          notes: string | null
+          organization_id: string | null
+          phone: string | null
+          phone_key: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          score: number | null
+          site_host: string | null
+          source: string | null
+          state: string | null
+          status: string
+          website: string | null
+        }
+        Insert: {
+          address?: string | null
+          batch_id: string
+          blocked_reason?: string | null
+          business_name: string
+          category?: string | null
+          city: string
+          contact_name?: string | null
+          created_at?: string
+          created_by?: string | null
+          email?: string | null
+          id?: string
+          name_key: string
+          notes?: string | null
+          organization_id?: string | null
+          phone?: string | null
+          phone_key?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          score?: number | null
+          site_host?: string | null
+          source?: string | null
+          state?: string | null
+          status?: string
+          website?: string | null
+        }
+        Update: {
+          address?: string | null
+          batch_id?: string
+          blocked_reason?: string | null
+          business_name?: string
+          category?: string | null
+          city?: string
+          contact_name?: string | null
+          created_at?: string
+          created_by?: string | null
+          email?: string | null
+          id?: string
+          name_key?: string
+          notes?: string | null
+          organization_id?: string | null
+          phone?: string | null
+          phone_key?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          score?: number | null
+          site_host?: string | null
+          source?: string | null
+          state?: string | null
+          status?: string
+          website?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prospect_import_queue_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prospect_import_queue_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "public_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       prospect_inbound: {
         Row: {
           action: string | null

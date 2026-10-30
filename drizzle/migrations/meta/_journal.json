@@ -218,6 +218,20 @@
       "when": 1793326983036,
       "tag": "0030_generation_stage_checkpoints",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1793327028302,
+      "tag": "0031_gmail_connection",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1793327035434,
+      "tag": "0032_prospect_import_queue",
+      "breakpoints": true
     }
   ]
 }
