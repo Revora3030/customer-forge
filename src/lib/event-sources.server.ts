@@ -212,3 +212,20 @@ export function trialExpiringSource(db: Db): EventSource {
     },
   };
 }
+
+/**
+ * Retention Autopilot: client workspaces whose health score fell below the
+ * retention lines, that have had no leads for 14 days while live, or whose
+ * leads have waited 72h+ with no reply (past the owner's own 24h reminder).
+ * Customers only (setup paid or subscribed); prospects and demos are skipped.
+ */
+export function clientHealthSource(db: Db): EventSource {
+  return {
+    name: "client.health",
+    async read(now) {
+      const { loadClientHealth } = await import("@/lib/retention/health-data.server");
+      const { clientHealthEvents } = await import("@/lib/retention/health-events");
+      return clientHealthEvents(await loadClientHealth(db, now), now);
+    },
+  };
+}

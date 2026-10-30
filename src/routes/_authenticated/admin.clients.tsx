@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NewClientDialog } from "@/components/admin/NewClientDialog";
 import { listClients } from "@/lib/admin.functions";
+import { getClientHealth } from "@/lib/retention/client-health.functions";
+import { HEALTH_AT_RISK, HEALTH_CRITICAL } from "@/lib/retention/health-score";
 import { DOMAIN_STATES, PUBLISH_STATES } from "@/lib/readiness";
 import { currency, dateShort, number } from "@/lib/format";
 
@@ -30,6 +32,7 @@ const FILTERS = [
   { value: "live", label: "Live" },
   { value: "setup", label: "In setup" },
   { value: "suspended", label: "Suspended" },
+  { value: "at_risk", label: "At risk" },
 ] as const;
 
 function AdminClientsRoute() {
@@ -41,6 +44,9 @@ function AdminClients() {
   const clientsFn = useServerFn(listClients);
   const queryClient = useQueryClient();
   const clients = useQuery({ queryKey: ["admin", "clients"], queryFn: () => clientsFn({}), refetchInterval: 120_000 });
+  const healthFn = useServerFn(getClientHealth);
+  const health = useQuery({ queryKey: ["admin", "client-health"], queryFn: () => healthFn(), staleTime: 300_000 });
+  const healthBy = useMemo(() => new Map((health.data ?? []).map((h) => [h.organizationId, h])), [health.data]);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<(typeof FILTERS)[number]["value"]>("all");
   const [creating, setCreating] = useState(false);
@@ -65,10 +71,12 @@ function AdminClients() {
                 ? client.publish_state === "published" && !client.is_suspended
                 : filter === "setup"
                   ? client.publish_state !== "published" && !client.is_suspended
-                  : client.is_suspended;
+                  : filter === "at_risk"
+                    ? (healthBy.get(client.id)?.score ?? 100) < HEALTH_AT_RISK
+                    : client.is_suspended;
       return matches && state;
     });
-  }, [clients.data, search, filter]);
+  }, [clients.data, search, filter, healthBy]);
 
   return (
     <div className="product-page">
@@ -170,6 +178,7 @@ function AdminClients() {
                       ? `Subscription ${client.subscription_state}`
                       : "Awaiting payment"}
                 </Pill>
+                <HealthPill health={healthBy.get(client.id)} />
                 <Pill tone={client.readinessScore >= 90 ? "signal" : "attention"}>
                   {client.readinessScore}% ready
                 </Pill>
@@ -199,5 +208,22 @@ function AdminClients() {
         }}
       />
     </div>
+  );
+}
+
+type HealthView = { score: number | null; reasons: string[]; unknown: string[] };
+
+/** Customer health score (Retention Autopilot); hover for the reasons it lost points. */
+function HealthPill({ health }: { health: HealthView | undefined }) {
+  if (!health || health.score === null) return null;
+  const tone = health.score < HEALTH_CRITICAL ? "danger" : health.score < HEALTH_AT_RISK ? "attention" : "signal";
+  const title = [
+    ...health.reasons,
+    health.unknown.length ? `Not scored (no record): ${health.unknown.join(", ")}.` : "",
+  ].filter(Boolean).join("\n");
+  return (
+    <span title={title || "No issues found"}>
+      <Pill tone={tone}>Health {health.score}</Pill>
+    </span>
   );
 }

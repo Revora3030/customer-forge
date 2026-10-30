@@ -10,7 +10,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { collectEvents, type EventSource } from "@/lib/cognition/event-emitter";
 import { DEFAULT_EVENT_RULES, planEventResponses } from "@/lib/cognition/event-rules";
-import { buildFailedSource, ciFailedSource, leadUnansweredSource, paymentFailedSource, routineFailedSource, siteDownSource, trialExpiringSource } from "@/lib/event-sources.server";
+import { buildFailedSource, ciFailedSource, clientHealthSource, leadUnansweredSource, paymentFailedSource, routineFailedSource, siteDownSource, trialExpiringSource } from "@/lib/event-sources.server";
 
 type Db = Pick<SupabaseClient, "from">;
 
@@ -87,5 +87,5 @@ export async function runJarvisEventWatch(db: Db, now = Date.now(), sources: rea
 }
 
 function defaultSources(db: Db): EventSource[] {
-  return [buildFailedSource(db), ciFailedSource(), routineFailedSource(db), paymentFailedSource(db), siteDownSource(db), leadUnansweredSource(db), trialExpiringSource(db)];
+  return [buildFailedSource(db), ciFailedSource(), routineFailedSource(db), paymentFailedSource(db), siteDownSource(db), leadUnansweredSource(db), trialExpiringSource(db), clientHealthSource(db)];
 }
