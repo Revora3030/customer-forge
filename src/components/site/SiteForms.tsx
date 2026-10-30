@@ -404,6 +404,11 @@ export function BookingForm({ site, presentation }: { site: Site; presentation?:
   const submit = useLeadSubmit();
   const track = useTracker(site.org.slug);
   const bookable = mergeSplitServices(site.services).filter((s) => s.bookable);
+  // `bookable` is a brand-new array on every render, so it cannot be an effect
+  // dependency: the effect would re-run on every keystroke and drag the visitor
+  // back to the service named in the address bar. This joined id list is the
+  // stable identity of the same list, and only changes when the services do.
+  const bookableIds = bookable.map((s) => s.id).join("|");
   const [pending, setPending] = useState(false);
   const [done, setDone] = useState(false);
   const [confirmationEmail, setConfirmationEmail] = useState("");
