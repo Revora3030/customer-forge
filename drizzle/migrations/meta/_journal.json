@@ -253,6 +253,13 @@
       "when": 1793325648086,
       "tag": "0035_20261015090000_jarvis_autopilot_audit",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1793325676110,
+      "tag": "0036_20261015140000_jarvis_autopilot_safety",
+      "breakpoints": true
     }
   ]
 }
