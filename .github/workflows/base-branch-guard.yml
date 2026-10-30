@@ -1,0 +1,57 @@
+name: Base branch guard
+
+on:
+  push:
+    branches: [lovable-sync]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: base-branch-guard
+  cancel-in-progress: true
+
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - name: Unit tests
+        id: tests
+        env:
+          E2E_ALLOW_OFFLINE: "1"
+        run: bunx vitest run --reporter=default --reporter=json --outputFile=vitest.json
+      - name: Open or update "lovable-sync is red" issue
+        if: failure() && steps.tests.outcome == 'failure'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require("fs");
+            let failed = [];
+            try {
+              const r = JSON.parse(fs.readFileSync("vitest.json", "utf8"));
+              for (const f of r.testResults || [])
+                for (const a of f.assertionResults || [])
+                  if (a.status === "failed")
+                    failed.push(`- ${f.name.replace(process.cwd() + "/", "")}: ${a.fullName}`);
+            } catch (e) {
+              failed.push("- (could not read vitest.json; see run log)");
+            }
+            const title = "lovable-sync is red";
+            const run = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const body = `Unit tests failed on \`lovable-sync\` at ${context.sha}.\n\nRun: ${run}\n\nFailing tests:\n${failed.slice(0, 100).join("\n")}`;
+            const { data: issues } = await github.rest.issues.listForRepo({ ...context.repo, state: "open", per_page: 100 });
+            const existing = issues.find((i) => i.title === title && !i.pull_request);
+            if (existing) {
+              await github.rest.issues.update({ ...context.repo, issue_number: existing.number, body });
+              await github.rest.issues.createComment({ ...context.repo, issue_number: existing.number, body: `Still red at ${context.sha}: ${run}` });
+            } else {
+              await github.rest.issues.create({ ...context.repo, title, body });
+            }
