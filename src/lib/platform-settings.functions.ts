@@ -1,5 +1,12 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import {
+  DEFAULT_GA_MEASUREMENT_ID,
+  GA_MEASUREMENT_ID_PATTERN,
+  resolveGaMeasurementIds,
+} from "@/lib/ga4-ids";
+
+export { DEFAULT_GA_MEASUREMENT_ID };
 
 /**
  * Platform-wide settings (super-admin only).
@@ -10,17 +17,13 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
  * super-admin check here.
  */
 
-const GA_PATTERN = /^G-[A-Z0-9]{4,20}$/;
-
-/**
- * Revora's own GA4 property (revoragrowthsystems.com web stream). Used only
- * when nothing valid is saved in Admin → Analytics, so the admin setting still
- * wins and can change the ID without a deploy.
- */
-export const DEFAULT_GA_MEASUREMENT_ID = "G-WC1X5HWN7W";
+const GA_PATTERN = GA_MEASUREMENT_ID_PATTERN;
 
 export interface PlatformSettings {
+  /** The extra ID saved in Admin → Analytics (null when none). */
   gaMeasurementId: string | null;
+  /** Every GA4 property production actually sends to (default always first). */
+  effectiveGaMeasurementIds: string[];
   updatedAt: string | null;
 }
 
@@ -37,17 +40,21 @@ export const getPlatformSettings = createServerFn({ method: "GET" })
       .maybeSingle();
     return {
       gaMeasurementId: data?.ga_measurement_id ?? null,
+      effectiveGaMeasurementIds: resolveGaMeasurementIds(data?.ga_measurement_id),
       updatedAt: data?.updated_at ?? null,
     };
   });
 
 /**
- * The ONLY public read of platform_settings: the GA measurement ID, which is
- * public by nature (it loads in the visitor's browser). The table itself is
+ * The ONLY public read of platform_settings: the GA measurement IDs, which are
+ * public by nature (they load in the visitor's browser). The table itself is
  * not readable by visitors; everything else in it stays server-side.
+ *
+ * Revora's own property is always first; a different saved ID is added as a
+ * second destination, never a replacement.
  */
-export const getPublicGaMeasurementId = createServerFn({ method: "GET" }).handler(
-  async (): Promise<string | null> => {
+export const getPublicGaMeasurementIds = createServerFn({ method: "GET" }).handler(
+  async (): Promise<string[]> => {
     try {
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       const { data } = await supabaseAdmin
@@ -55,11 +62,10 @@ export const getPublicGaMeasurementId = createServerFn({ method: "GET" }).handle
         .select("ga_measurement_id")
         .eq("id", "default")
         .maybeSingle();
-      const id = data?.ga_measurement_id;
-      return typeof id === "string" && GA_PATTERN.test(id) ? id : DEFAULT_GA_MEASUREMENT_ID;
+      return resolveGaMeasurementIds(data?.ga_measurement_id);
     } catch (error) {
       console.warn("[Analytics] Public GA lookup unavailable; using the default GA4 property.", error);
-      return DEFAULT_GA_MEASUREMENT_ID;
+      return resolveGaMeasurementIds(null);
     }
   },
 );

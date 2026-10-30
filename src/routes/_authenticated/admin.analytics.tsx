@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getBuilderPublishFunnel, getTrafficReport } from "@/lib/conversion.functions";
 import { getFunnelDetails, getPlatformFunnel } from "@/lib/platform-funnel.functions";
+import { DEFAULT_GA_MEASUREMENT_ID } from "@/lib/ga4-ids";
 import { getPlatformSettings, setGaMeasurementId } from "@/lib/platform-settings.functions";
 import { number } from "@/lib/format";
 import { SITE_URL } from "@/lib/seo";
@@ -93,8 +94,8 @@ function AdminAnalytics() {
     onSuccess: (result) => {
       toast.success(
         result.measurementId
-          ? `Google Analytics connected (${result.measurementId}). It starts collecting on the next page load.`
-          : "Google Analytics disconnected. Revora's own tracking keeps running.",
+          ? `Also sending to ${result.measurementId} from the next page load. ${DEFAULT_GA_MEASUREMENT_ID} keeps reporting too.`
+          : `Additional property removed. The site keeps reporting to ${DEFAULT_GA_MEASUREMENT_ID}.`,
       );
       void qc.invalidateQueries({ queryKey: ["admin", "platform-settings"] });
     },
@@ -105,6 +106,54 @@ function AdminAnalytics() {
 
   return (
     <div className="product-page">
+      <Panel className="space-y-4" data-testid="ga4-settings">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="font-display text-[15px] font-semibold">Google Analytics 4</p>
+          <Pill tone="signal">Connected</Pill>
+        </div>
+        <p className="text-[12px] text-muted-foreground">
+          The live site always reports to Revora's GA4 property ({DEFAULT_GA_MEASUREMENT_ID}). To also
+          send traffic to a second property, paste its measurement ID below (GA4 Admin → Data streams →
+          Web). Visitors in regions that need consent are only tracked after they accept cookies.
+          Revora's own tracking runs either way, so ad blockers can't hide your numbers.
+        </p>
+        <p className="text-[12px]" data-testid="ga4-effective-ids">
+          Sending to:{" "}
+          <span className="font-mono">
+            {(settings.data?.effectiveGaMeasurementIds ?? [DEFAULT_GA_MEASUREMENT_ID]).join(", ")}
+          </span>
+          {settings.isError ? (
+            <span className="text-muted-foreground"> (saved setting could not be read)</span>
+          ) : null}
+        </p>
+        <div className="space-y-2">
+          <Label htmlFor="ga-id">Additional measurement ID (optional)</Label>
+          <Input
+            id="ga-id"
+            value={gaId}
+            onChange={(event) => setGaId(event.target.value)}
+            placeholder="G-XXXXXXXXXX"
+            autoComplete="off"
+            spellCheck={false}
+          />
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            size="sm"
+            variant="signal"
+            onClick={() => save.mutate()}
+            disabled={save.isPending}
+          >
+            {save.isPending ? "Saving…" : "Save"}
+          </Button>
+          <Button asChild size="sm" variant="outline">
+            <a href="https://analytics.google.com/" target="_blank" rel="noopener noreferrer">
+              Open Google Analytics <ExternalLink className="ml-1 size-3.5" aria-hidden="true" />
+            </a>
+          </Button>
+        </div>
+      </Panel>
+
       <SectionHeading
         eyebrow="Funnel"
         title="Unique visitors → unique sessions → accounts → trials → paid customers"
@@ -543,46 +592,6 @@ function AdminAnalytics() {
           </Panel>
         </>
       )}
-
-      <Panel className="space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="font-display text-[15px] font-semibold">Google Analytics 4</p>
-          <Pill tone={settings.data?.gaMeasurementId ? "signal" : "info"}>
-            {settings.data?.gaMeasurementId ? "Connected" : "Not connected"}
-          </Pill>
-        </div>
-        <p className="text-[12px] text-muted-foreground">
-          Paste the measurement ID from your GA4 property (Admin → Data streams → Web). Until a real
-          ID is saved, no Google script loads at all. Revora's own tracking above runs either way,
-          so ad blockers can't hide your numbers.
-        </p>
-        <div className="space-y-2">
-          <Label htmlFor="ga-id">Measurement ID</Label>
-          <Input
-            id="ga-id"
-            value={gaId}
-            onChange={(event) => setGaId(event.target.value)}
-            placeholder="G-XXXXXXXXXX"
-            autoComplete="off"
-            spellCheck={false}
-          />
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button
-            size="sm"
-            variant="signal"
-            onClick={() => save.mutate()}
-            disabled={save.isPending}
-          >
-            {save.isPending ? "Saving…" : "Save"}
-          </Button>
-          <Button asChild size="sm" variant="outline">
-            <a href="https://analytics.google.com/" target="_blank" rel="noopener noreferrer">
-              Open Google Analytics <ExternalLink className="ml-1 size-3.5" aria-hidden="true" />
-            </a>
-          </Button>
-        </div>
-      </Panel>
 
       <Panel className="space-y-3">
         <p className="font-display text-[15px] font-semibold">Google Search Console</p>
