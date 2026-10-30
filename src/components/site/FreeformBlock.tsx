@@ -9,6 +9,7 @@
  */
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { SiteSelect } from "@/components/site/SiteSelect";
 import {
   evaluateExpr,
   freeformInitialValues,
@@ -169,20 +170,15 @@ function Node({ node, ctx }: { node: FreeformNode; ctx: Ctx }) {
       const current = ctx.values[node.id] ?? 0;
       if (node.kind === "select") {
         return (
-          <label className="grid gap-2 text-[14px]">
+          <div className="grid gap-2 text-[14px]">
             <span className="font-medium">{node.label}</span>
-            <select
-              className="min-h-11 rounded-xl border border-border bg-background px-3 text-[15px]"
-              value={current}
-              onChange={(event) => ctx.set(node.id, Number(event.target.value))}
-            >
-              {node.options.map((option) => (
-                <option key={option.label} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
+            <SiteSelect
+              ariaLabel={node.label}
+              value={String(current)}
+              onChange={(next) => ctx.set(node.id, Number(next))}
+              options={node.options.map((option) => ({ value: String(option.value), label: option.label }))}
+            />
+          </div>
         );
       }
       if (node.kind === "toggle") {
