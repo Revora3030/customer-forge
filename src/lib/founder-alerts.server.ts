@@ -18,7 +18,12 @@ export const FOUNDER_ALERT_HOURLY_CAP = 20;
 const ADMIN_URL = "https://revoragrowthsystems.com/admin";
 
 export type FounderAlertKind =
-  "signup" | "payment_completed" | "payment_failed" | "build_completed" | "build_failed";
+  | "signup"
+  | "payment_completed"
+  | "payment_failed"
+  | "payment_needs_review"
+  | "build_completed"
+  | "build_failed";
 
 export type FounderAlert = {
   kind: FounderAlertKind;

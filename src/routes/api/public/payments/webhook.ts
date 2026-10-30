@@ -245,8 +245,23 @@ async function handleEvent(event: StripeWebhookEvent, env: StripeEnv) {
         const session = await stripe.checkout.sessions.retrieve(String(object?.id ?? ""), {
           expand: ["line_items.data.price", "subscription", "customer"],
         });
+        // A paid session that fails verification must reach a person: setup
+        // stays locked, so log it and alert the founder once per event.
+        const rejectGrowthSession = async (reason: string) => {
+          console.error("[payments:webhook] growth session rejected", session.id, reason);
+          const { alertPaymentNeedsReview } = await import("@/lib/payment-review-alert.server");
+          await alertPaymentNeedsReview(admin, {
+            eventId: String(event.id ?? session.id),
+            stage: "verification",
+            eventType: event.type,
+            environment: env,
+            organizationId,
+            reason,
+            resourceId: String(session.id),
+          });
+        };
         if (session.mode !== "subscription" || session.payment_status === "unpaid") {
-          console.error("[payments:webhook] growth session not payable", session.id);
+          await rejectGrowthSession("session not payable (mode or payment status)");
           break;
         }
         const lines = session.line_items?.data ?? [];
@@ -256,7 +271,7 @@ async function handleEvent(event: StripeWebhookEvent, env: StripeEnv) {
           const authUser = userId ? await admin.auth.admin.getUserById(userId) : { data: { user: null } };
           const ownerEmail = authUser.data.user?.email ?? null;
           if (!isPlatformOwnerAccount(organizationId, ownerEmail)) {
-            console.error("[payments:webhook] invalid setup-fee waiver", session.id);
+            await rejectGrowthSession("setup-fee waiver requested by a non-owner account");
             break;
           }
           // A granted waiver must be auditable: record the actor, the session
@@ -286,16 +301,16 @@ async function handleEvent(event: StripeWebhookEvent, env: StripeEnv) {
           : [catalog.setup.stripePriceId, catalog.monthly.stripePriceId];
         const unexpected = priceIds.filter((id) => !expectedIds.includes(id));
         if (unexpected.length || !expectedIds.every((id) => priceIds.includes(id))) {
-          console.error("[payments:webhook] unexpected prices on growth session", session.id);
+          await rejectGrowthSession("line items do not match the pinned setup and monthly prices");
           break;
         }
         if (setupWaived && organizationId !== PLATFORM_OWNER_ORG_ID) {
-          console.error("[payments:webhook] setup waiver on non-owner workspace", session.id);
+          await rejectGrowthSession("setup-fee waiver on a non-owner workspace");
           break;
         }
         const currency = String(session.currency ?? "usd").toLowerCase();
         if (currency !== "usd") {
-          console.error("[payments:webhook] non-usd growth session", session.id, currency);
+          await rejectGrowthSession(`currency ${currency} is not usd`);
           break;
         }
         const setupLine = lines.find((l) => l.price?.id === catalog.setup.stripePriceId);
@@ -306,14 +321,14 @@ async function handleEvent(event: StripeWebhookEvent, env: StripeEnv) {
           !setupWaived &&
           setupLine?.price?.unit_amount !== setupCents
         ) {
-          console.error("[payments:webhook] setup amount mismatch", session.id);
+          await rejectGrowthSession("setup fee amount does not match the offer");
           break;
         }
         if (
           monthlyLine?.price?.unit_amount !== monthlyCents ||
           monthlyLine?.price?.recurring?.interval !== "month"
         ) {
-          console.error("[payments:webhook] monthly price mismatch", session.id);
+          await rejectGrowthSession("monthly price or interval does not match the offer");
           break;
         }
         const sessionOrgId =
@@ -324,7 +339,7 @@ async function handleEvent(event: StripeWebhookEvent, env: StripeEnv) {
               ] ?? null)
             : null);
         if (sessionOrgId !== organizationId) {
-          console.error("[payments:webhook] growth session org mismatch", session.id);
+          await rejectGrowthSession("session workspace does not match the checkout metadata");
           break;
         }
         // Only a verified paid setup unlocks production for customer workspaces.
@@ -550,14 +565,18 @@ async function claimEvent(
         .eq("provider", "stripe")
         .eq("provider_event_id", eventId)
         .maybeSingle();
-      return { outcome: completedWebhookDuplicate(previous, readError, { organizationId, eventType: event.type, resourceId: String(event.data?.object?.id ?? ""), environment: env }) ? "duplicate" as const : "transient" as const, admin, eventId, organizationId };
+      const done = completedWebhookDuplicate(previous, readError, { organizationId, eventType: event.type, resourceId: String(event.data?.object?.id ?? ""), environment: env });
+      // Claimed before but never processed (an earlier attempt threw): every
+      // retry is refused until someone looks, so flag it as stuck.
+      const stuck = !done && !readError && Boolean(previous) && previous?.processed !== true;
+      return { outcome: done ? "duplicate" as const : "transient" as const, stuck, admin, eventId, organizationId };
     }
     if (outcome === "transient") {
       console.error("[payments:webhook] claim failed (retryable)", error.message);
     }
-    return { outcome, admin, eventId, organizationId };
+    return { outcome, stuck: false, admin, eventId, organizationId };
   }
-  return { outcome: "claimed" as const, admin, eventId, organizationId };
+  return { outcome: "claimed" as const, stuck: false, admin, eventId, organizationId };
 }
 
 /**
@@ -619,6 +638,30 @@ async function associateEvent(
   }
 }
 
+/** Founder alert for a claimed event that failed or is stuck; never throws. */
+async function reviewPayment(
+  claim: Awaited<ReturnType<typeof claimEvent>>,
+  event: StripeWebhookEvent,
+  env: StripeEnv,
+  stage: "processing" | "stuck",
+  reason: string,
+) {
+  try {
+    const { alertPaymentNeedsReview } = await import("@/lib/payment-review-alert.server");
+    await alertPaymentNeedsReview(claim.admin, {
+      eventId: claim.eventId,
+      stage,
+      eventType: event.type,
+      environment: env,
+      organizationId: claim.organizationId,
+      reason,
+      resourceId: String(event.data?.object?.id ?? ""),
+    });
+  } catch {
+    // The alert is best-effort; the webhook response must not change.
+  }
+}
+
 export const Route = createFileRoute("/api/public/payments/webhook")({
   server: {
     handlers: {
@@ -638,21 +681,28 @@ export const Route = createFileRoute("/api/public/payments/webhook")({
           console.error("[payments:webhook] error", (error as Error).message);
           return new Response("Webhook error", { status: 400 });
         }
+        let claim: Awaited<ReturnType<typeof claimEvent>> | null = null;
         try {
-          const claim = await claimEvent(event, rawEnv);
+          claim = await claimEvent(event, rawEnv);
           if (claim.outcome === "duplicate")
             return Response.json({ received: true, duplicate: true });
-          if (claim.outcome === "transient")
+          if (claim.outcome === "transient") {
+            if (claim.stuck) await reviewPayment(claim, event, rawEnv, "stuck", "claimed earlier but never processed");
             return new Response("Temporarily unable to record webhook", { status: 503 });
+          }
           await finishClaimedWebhook({
             process: () => handleEvent(event, rawEnv),
-            settle: () => associateEvent(claim.admin, claim.eventId, claim.organizationId, String(event.data?.object?.id ?? ""), rawEnv),
+            settle: () => associateEvent(claim!.admin, claim!.eventId, claim!.organizationId, String(event.data?.object?.id ?? ""), rawEnv),
           });
           return Response.json({ received: true });
         } catch (error) {
           // An internal failure after a valid signature (database client,
           // claim bookkeeping) must be retried by Stripe, not dropped as a 400.
           console.error("[payments:webhook] internal error", (error as Error).message);
+          // Once claimed, the event stays unprocessed and retries are refused,
+          // so a person has to look: alert the founder once for this event.
+          if (claim?.outcome === "claimed")
+            await reviewPayment(claim, event, rawEnv, "processing", (error as Error).message ?? "unknown");
           return new Response("Webhook processing failed", { status: 500 });
         }
       },

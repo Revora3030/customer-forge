@@ -434,6 +434,36 @@ describe("paid signup chain (live webhook events, mocked edges)", () => {
     expect(payments(db)).toHaveLength(0);
   });
 
+  it("alerts the founder once when a paid checkout fails verification", async () => {
+    const db = mocks.db;
+    seed(db);
+    mocks.retrieveSession.mockResolvedValue(stripeSession("live", ORG, 100));
+    await deliver("live", "checkout.session.completed", checkoutCompleted(), { id: "evt_review_1" });
+    await deliver("live", "checkout.session.completed", checkoutCompleted(), { id: "evt_review_1" });
+    const alerts = emailsTo("founder-alert");
+    expect(alerts).toHaveLength(1);
+    const data = (alerts[0]![2] as { templateData: { title: string; rows: [string, string][] } }).templateData;
+    expect(data.title).toBe("A payment needs your review");
+    expect(data.rows).toContainEqual(["Reason", "setup fee amount does not match the offer"]);
+    expect(data.rows).toContainEqual(["Workspace", ORG]);
+    expect(db.org(ORG)["setup_paid_at"]).toBeNull();
+  });
+
+  it("alerts the founder once when a claimed event fails and Stripe's retries are refused", async () => {
+    const db = mocks.db;
+    seed(db);
+    mocks.retrieveSession.mockRejectedValue(new Error(`stripe unavailable ${["sk", "live", "abc123"].join("_")}`));
+    expect((await deliver("live", "checkout.session.completed", checkoutCompleted(), { id: "evt_stuck_1" })).status).toBe(500);
+    expect((await deliver("live", "checkout.session.completed", checkoutCompleted(), { id: "evt_stuck_1" })).status).toBe(503);
+    expect((await deliver("live", "checkout.session.completed", checkoutCompleted(), { id: "evt_stuck_1" })).status).toBe(503);
+    const alerts = emailsTo("founder-alert");
+    expect(alerts).toHaveLength(1);
+    const data = (alerts[0]![2] as { templateData: { rows: [string, string][] } }).templateData;
+    const reason = data.rows.find(([k]) => k === "Reason")?.[1] ?? "";
+    expect(reason).toContain("stripe unavailable");
+    expect(reason).not.toContain(["sk", "live"].join("_"));
+  });
+
   it("rejects forged, unsigned and wrong-environment deliveries", async () => {
     const db = mocks.db;
     seed(db);
