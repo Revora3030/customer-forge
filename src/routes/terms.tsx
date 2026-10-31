@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { SiteFooter, SiteHeader } from "@/components/marketing/Chrome";
 import { REVORA } from "@/lib/brand";
 import { GROWTH_SYSTEM, REFUND_POLICY, usd } from "@/lib/offer";
-import { canonicalLink, ogUrl, OG_IMAGE_META } from "@/lib/seo";
+import { breadcrumbSchema, canonicalLink, jsonLdScript, ogUrl, OG_IMAGE_META } from "@/lib/seo";
 
 export const Route = createFileRoute("/terms")({
   head: () => ({
@@ -25,6 +25,7 @@ export const Route = createFileRoute("/terms")({
       ...OG_IMAGE_META,
     ],
     links: [canonicalLink("/terms")],
+    scripts: [jsonLdScript(breadcrumbSchema([{ name: "Revora", path: "/" }, { name: "Terms of service", path: "/terms" }]))],
   }),
   component: TermsPage,
 });

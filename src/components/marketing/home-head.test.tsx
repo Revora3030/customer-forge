@@ -15,7 +15,8 @@ function schemas(): Schema[] {
   });
 }
 
-const byType = (type: string) => schemas().find((schema) => schema["@type"] === type);
+const byType = (type: string) =>
+  schemas().find((schema) => ([] as unknown[]).concat(schema["@type"]).includes(type));
 
 // One decoding pass, so "&amp;lt;" stays the text "&lt;".
 const ENTITIES: Record<string, string> = { "#x27": "'", quot: '"', amp: "&", lt: "<", gt: ">" };
@@ -38,7 +39,8 @@ describe("homepage structured data", () => {
 
   it("carries one offer record whose prices are the offer.ts constants", () => {
     const all = schemas();
-    expect(all.filter((schema) => schema["@type"] === "Service")).toHaveLength(1);
+    const isService = (schema: Schema) => ([] as unknown[]).concat(schema["@type"]).includes("Service");
+    expect(all.filter(isService)).toHaveLength(1);
     const service = byType("Service")!;
     expect(service["name"]).toBe(GROWTH_SYSTEM.name);
     const offers = service["offers"] as Schema[];

@@ -82,7 +82,7 @@ describe("payment truth", () => {
 describe("search data describes a service, not a retail product", () => {
   const seo = read("./seo.ts");
   it("uses Service schema for the growth system", () => {
-    expect(seo).toContain('"@type": "Service",\n  name: GROWTH_SYSTEM.name');
+    expect(seo).toContain('"@type": ["Service", "SoftwareApplication"],\n  name: GROWTH_SYSTEM.name');
     expect(seo).not.toContain('"@type": "Product"');
   });
 });
