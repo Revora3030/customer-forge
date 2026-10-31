@@ -148,12 +148,18 @@ export const runSiteGeneration = createServerFn({ method: "POST" })
     // a real build that is waiting for the worker and must not be cancelled.
     const now = new Date();
     const staleQueuedBefore = new Date(now.getTime() - 30 * 60 * 1000).toISOString();
-    await supabase
+    // A build parked for AI capacity is queued on purpose (its lease and resume
+    // time point at the retry), so it is never "stale" while it waits. Only
+    // leftovers are closed, and the write carries a failure kind.
+    const { staleQueuedGuardFilters, staleQueuedClearUpdate } = await import("@/lib/builder/job-liveness");
+    let staleQuery = supabase
       .from("generation_jobs")
-      .update({ status: "failed", error_message: "Stale job cleared for new build request", completed_at: now.toISOString(), lease_expires_at: null })
+      .update(staleQueuedClearUpdate(now.toISOString()) as never)
       .eq("organization_id", orgId)
       .eq("status", "queued")
       .lt("updated_at", staleQueuedBefore);
+    for (const guard of staleQueuedGuardFilters(now.getTime())) staleQuery = staleQuery.or(guard);
+    await staleQuery;
     // A processing job whose worker died keeps its row with a lapsed lease.
     // The worker heartbeat renews the lease well inside its window, so a lease
     // that lapsed more than the shared stall grace ago (and a row untouched
