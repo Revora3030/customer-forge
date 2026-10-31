@@ -65,7 +65,7 @@ export async function loadGa4(measurementIds: string | readonly string[]) {
   for (const id of ids) {
     configuredIds.add(id);
     // Manual page_view so client-side route changes are counted exactly once.
-    window.gtag("config", id, { send_page_view: false, anonymize_ip: true });
+    window.gtag?.("config", id, { send_page_view: false, anonymize_ip: true });
   }
   if (!firstLoad) return;
 
