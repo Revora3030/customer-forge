@@ -185,3 +185,34 @@ describe("noindex pages and publisher identity", () => {
     expect(LOCAL_BUSINESS_SCHEMA).not.toHaveProperty("openingHours");
   });
 });
+
+describe("search snippets are finished text within Google's limits", () => {
+  it("compare, CRM and guide pages: title <= 60, description <= 160 and ends cleanly", async () => {
+    const { COMPARISONS } = await import("@/lib/compare");
+    const { CRM_SOLUTIONS } = await import("@/lib/crm-solutions");
+    const { GUIDES } = await import("@/lib/guides");
+    const { metaDescription } = await import("@/lib/seo");
+    const rows = [
+      ...COMPARISONS.map((c) => [c.title, c.description]),
+      ...CRM_SOLUTIONS.map((c) => [c.metaTitle, c.description]),
+      ...GUIDES.map((c) => [c.metaTitle, c.description]),
+    ];
+    for (const [title = "", description = ""] of rows) {
+      expect(title.length, title).toBeLessThanOrEqual(60);
+      const meta = metaDescription(description);
+      expect(meta.length, meta).toBeLessThanOrEqual(160);
+      expect(meta, meta).toMatch(/[.!?]$/);
+    }
+  });
+
+  it("metaDescription cuts at a sentence or word boundary and never adds an ellipsis", async () => {
+    const { metaDescription } = await import("@/lib/seo");
+    const longSentences = "First sentence is here and it is long enough to matter for the budget. Second sentence adds more detail about the offer and the setup fee. Third one runs past the limit entirely.";
+    expect(metaDescription(longSentences)).toBe("First sentence is here and it is long enough to matter for the budget. Second sentence adds more detail about the offer and the setup fee.");
+    const noPeriods = "word ".repeat(60).trim();
+    const cut = metaDescription(noPeriods);
+    expect(cut.length).toBeLessThanOrEqual(160);
+    expect(cut).not.toContain("…");
+    expect(cut).toMatch(/word$/);
+  });
+});

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { findComparison, type Comparison } from "@/lib/compare";
 import { GROWTH_SYSTEM, usdExact } from "@/lib/offer";
 import { breadcrumbSchema, canonicalLink, ogUrl, metaDescription, OG_IMAGE_META } from "@/lib/seo";
+import { lowerPhrase } from "@/lib/grammar";
 
 export const Route = createFileRoute("/compare/$slug")({
   beforeLoad: ({ params }) => {
@@ -113,7 +114,7 @@ function ComparePage() {
 
         <section className="mt-8 rounded-2xl border border-border/60 bg-card/40 p-5">
           <h2 className="font-display text-[17px] font-semibold">
-            When {comparison.otherName.toLowerCase()} is the better choice
+            When {lowerPhrase(comparison.otherName)} is the better choice
           </h2>
           <p className="mt-2 text-[14px] leading-relaxed text-muted-foreground">
             {comparison.whenOther}

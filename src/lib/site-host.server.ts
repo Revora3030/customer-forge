@@ -374,12 +374,20 @@ export function xmlSitemapIndex(slugs: string[], origin = PLATFORM_ORIGIN) {
  * pages with real unique value are advertised: private surfaces, demos, share
  * helpers and thin pages are excluded automatically rather than by hand.
  */
+/**
+ * When Revora's own marketing pages (titles, descriptions, copy) last changed
+ * in a way worth a re-crawl. Bump this, and only this, with a content change:
+ * the platform sitemap reports it as <lastmod> for every page.
+ */
+export const PLATFORM_CONTENT_LASTMOD = "2026-10-31";
+
 export function sitemapUrls(site: HostSite | null, origin: string) {
   if (!site) {
     return indexablePlatformPaths().map((path) => ({
       loc: `${origin}${path}`,
-      // No fabricated lastmod: a build-time date on a static page is noise.
-      lastmod: null as string | null,
+      // A real date: when this marketing content was last edited (see
+      // PLATFORM_CONTENT_LASTMOD), not the time of the request or the build.
+      lastmod: PLATFORM_CONTENT_LASTMOD as string | null,
     }));
   }
   // An offline tenant site (see resolveHostSite) has no indexable URLs.

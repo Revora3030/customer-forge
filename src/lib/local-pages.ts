@@ -13,6 +13,8 @@
  */
 
 import { INDUSTRIES, industrySlug } from "@/lib/domain";
+import { lowerPhrase, withArticle } from "@/lib/grammar";
+import { brandedTitle } from "@/lib/seo";
 import { US_STATES, findState, type UsState } from "@/lib/us-states";
 import { GROWTH_SYSTEM, usd } from "@/lib/offer";
 
@@ -193,18 +195,20 @@ export function localPageContent(
 
   const metros = state.metros;
   const metroList = metros.join(", ");
-  const topMetros = metros.slice(0, 3).join(", ");
+  const topThree = priorityMetros(industry.slug, state);
+  const topMetros = topThree.join(", ");
   const path = localPath(industry.slug, state.slug);
-  const lowerName = industry.name === industry.name.toUpperCase() ? industry.name : industry.name.toLowerCase();
+  const lowerName = lowerPhrase(industry.name);
+  const aLowerName = withArticle(industry.name);
 
   return {
     industry,
     state,
     path,
-    title: localTitle(industry.name, state.name, metros),
-    description: `${industry.name} lead generation for ${topMetros} and all of ${state.name}: website, instant quotes, booking and follow-up. ${SETUP} setup, first month free, then ${MONTHLY}/mo.`,
-    heading: `${industry.name} lead generation in ${topMetros} and across ${state.name}`,
-    intro: `If you run a ${lowerName} business in ${topMetros} or anywhere in ${state.name}, your next customer is already searching. Revora gives you the whole system that turns that search into a booked job — a fast local website, instant quotes, online booking, a CRM that holds every lead, and follow-up that runs while you work. ${SETUP} one-time setup, your first month free, then ${MONTHLY}/month, with 3 days of full access to try it first.`,
+    title: localTitle(industry.name, state.name, TITLE_OVERRIDES[`${industry.slug}/${state.slug}`]),
+    description: localDescription(industry.name, state.name, topThree),
+    heading: `${industry.name} website design and lead generation in ${topMetros} and across ${state.name}`,
+    intro: `If you run ${aLowerName} business in ${topMetros} or anywhere in ${state.name}, your next customer is already searching. Revora gives you the whole system that turns that search into a booked job — professional website design for your business, instant quotes, online booking, a CRM that holds every lead, and follow-up that runs while you work. ${SETUP} one-time setup, your first month free, then ${MONTHLY}/month, with 3 days of full access to try it first.`,
     metroLine: `Serving ${metroList} and every community across ${state.name} (${state.code}) — Revora works remotely, so there is no travel or install day.`,
     sections: [
       {
@@ -254,13 +258,48 @@ export function localPageContent(
 }
 
 /**
- * Name up to three metros in the title when it still fits a search result
- * (~65 chars): Search Console showed city-specific searches (e.g. the third
- * metro) ranking with zero clicks because the city wasn't in the title.
+ * Metros to name in a page's title, heading and description. Defaults to the
+ * state's first three; a page may lead with the cities people actually search
+ * (Search Console, Oct 2026: "hvac lead generation montgomery al" 20,
+ * "huntsville al" 18, "birmingham al" 10 impressions).
  */
-export function localTitle(industry: string, state: string, metros: readonly string[]): string {
-  const base = `${industry} Lead Generation ${state}: `;
-  const three = `${base}${metros.slice(0, 3).join(", ")}`;
-  if (metros.length >= 3 && three.length <= 65) return three;
-  return `${base}${metros.slice(0, 2).join(", ")} & More`;
+const PRIORITY_METROS: Record<string, readonly string[]> = {
+  "hvac/alabama": ["Montgomery", "Huntsville", "Birmingham"],
+};
+
+function priorityMetros(industrySlugValue: string, state: UsState): string[] {
+  const preferred = PRIORITY_METROS[`${industrySlugValue}/${state.slug}`];
+  if (preferred && preferred.every((city) => state.metros.includes(city))) return [...preferred];
+  return state.metros.slice(0, 3);
+}
+
+/**
+ * Titles for pages whose searchers use city names rather than the state.
+ * Brand-less on purpose: "HVAC Lead Generation in Montgomery, Huntsville &
+ * Birmingham" is already 59 of the 60 characters Google shows.
+ */
+const TITLE_OVERRIDES: Record<string, string> = {
+  "hvac/alabama": "HVAC Lead Generation in Montgomery, Huntsville & Birmingham",
+};
+
+/**
+ * Title <= 60 characters, leading with what people search for:
+ * "<Trade> Website Design in <State> | Revora Growth Systems" (or "| Revora"
+ * when the full brand does not fit).
+ */
+export function localTitle(industry: string, state: string, override?: string): string {
+  if (override && override.length <= 60) return override;
+  return brandedTitle(`${industry} Website Design in ${state}`);
+}
+
+/** One complete sentence-pair of 150-160 characters or less: services, cities, offer. */
+export function localDescription(industry: string, state: string, metros: readonly string[]): string {
+  const offer = `${SETUP} setup, first month free, then ${MONTHLY}/mo.`;
+  const [first, second, third] = metros;
+  const variants = [
+    third ? `${industry} website design and lead generation for ${first}, ${second} and ${third}: instant quotes, booking and CRM. ${offer}` : "",
+    second ? `${industry} website design and lead generation in ${state}, including ${first} and ${second}: quotes, booking, CRM. ${offer}` : "",
+    `${industry} website design and lead generation in ${state}: instant quotes, booking and CRM. ${offer}`,
+  ].filter(Boolean);
+  return variants.find((v) => v.length <= 160) ?? variants[variants.length - 1]!;
 }

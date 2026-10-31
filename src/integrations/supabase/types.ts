@@ -3193,27 +3193,6 @@ export type Database = {
           },
         ]
       }
-      lifecycle_email_optouts: {
-        Row: {
-          created_at: string
-          email: string
-          opted_out_at: string | null
-          token: string
-        }
-        Insert: {
-          created_at?: string
-          email: string
-          opted_out_at?: string | null
-          token: string
-        }
-        Update: {
-          created_at?: string
-          email?: string
-          opted_out_at?: string | null
-          token?: string
-        }
-        Relationships: []
-      }
       local_events: {
         Row: {
           created_at: string
@@ -5756,54 +5735,6 @@ export type Database = {
             foreignKeyName: "site_content_audits_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
-            referencedRelation: "public_organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      site_hosting_grace: {
-        Row: {
-          created_at: string
-          ended_at: string
-          offline_after: string
-          offline_at: string | null
-          organization_id: string
-          stripe_subscription_id: string | null
-          updated_at: string
-          warning_sent_at: string | null
-        }
-        Insert: {
-          created_at?: string
-          ended_at: string
-          offline_after: string
-          offline_at?: string | null
-          organization_id: string
-          stripe_subscription_id?: string | null
-          updated_at?: string
-          warning_sent_at?: string | null
-        }
-        Update: {
-          created_at?: string
-          ended_at?: string
-          offline_after?: string
-          offline_at?: string | null
-          organization_id?: string
-          stripe_subscription_id?: string | null
-          updated_at?: string
-          warning_sent_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "site_hosting_grace_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: true
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "site_hosting_grace_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: true
             referencedRelation: "public_organizations"
             referencedColumns: ["id"]
           },

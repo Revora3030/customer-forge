@@ -37,16 +37,37 @@ describe("local landing pages", () => {
   });
 });
 
-import { localTitle } from "./local-pages";
+import { localDescription, localTitle } from "./local-pages";
 describe("localTitle", () => {
-  it("names three metros when it fits", () => {
-    expect(localTitle("HVAC", "Alabama", ["Birmingham", "Montgomery", "Huntsville", "Mobile"])).toBe(
-      "HVAC Lead Generation Alabama: Birmingham, Montgomery, Huntsville",
-    );
+  it("leads with website design and the brand, never 'Lead Generation <State>:'", () => {
+    expect(localTitle("HVAC", "Georgia")).toBe("HVAC Website Design in Georgia | Revora Growth Systems");
   });
-  it("falls back to two metros when too long", () => {
-    expect(localTitle("Landscaping", "Massachusetts", ["Boston", "Worcester", "Springfield"])).toBe(
-      "Landscaping Lead Generation Massachusetts: Boston, Worcester & More",
-    );
+  it("falls back to the short brand when the long one does not fit", () => {
+    expect(localTitle("Landscaping", "Massachusetts")).toBe("Landscaping Website Design in Massachusetts | Revora");
+  });
+  it("names the three searched cities on Alabama HVAC", () => {
+    const page = localPageContent("hvac", "alabama");
+    expect(page?.title).toBe("HVAC Lead Generation in Montgomery, Huntsville & Birmingham");
+    expect(page?.heading).toContain("Montgomery, Huntsville, Birmingham");
+  });
+});
+
+describe("local page titles and descriptions", () => {
+  it("keep every title within 60 characters and every description a complete 90-160 character text", () => {
+    for (const path of localPaths()) {
+      const [, , industry, state] = path.split("/");
+      if (!industry || !state) continue; // hub pages, not industry x state pages
+      const page = localPageContent(industry, state)!;
+      expect(page.title.length, page.title).toBeLessThanOrEqual(60);
+      if (path !== "/local/hvac/alabama") expect(page.title).toContain("Revora");
+      expect(page.title).not.toContain("Lead Generation Alabama:");
+      expect(page.description.length, page.description).toBeLessThanOrEqual(160);
+      expect(page.description.length, page.description).toBeGreaterThanOrEqual(90);
+      expect(page.description).toMatch(/[.!]$/);
+      expect(page.intro).not.toMatch(/\ba (auto|[aeiou])/i);
+    }
+  });
+  it("describes with the real cities", () => {
+    expect(localDescription("HVAC", "Alabama", ["Montgomery", "Huntsville", "Birmingham"])).toContain("Montgomery, Huntsville and Birmingham");
   });
 });
