@@ -11,6 +11,7 @@ import { NewClientDialog } from "@/components/admin/NewClientDialog";
 import { listClients } from "@/lib/admin.functions";
 import { getClientHealth } from "@/lib/retention/client-health.functions";
 import { HEALTH_AT_RISK, HEALTH_CRITICAL } from "@/lib/retention/health-score";
+import { clientStatus, type ClientStatus } from "@/lib/retention/client-status";
 import { DOMAIN_STATES, PUBLISH_STATES } from "@/lib/readiness";
 import { currency, dateShort, number } from "@/lib/format";
 
@@ -42,6 +43,7 @@ const FILTERS = [
   { value: "setup", label: "In setup" },
   { value: "suspended", label: "Suspended" },
   { value: "at_risk", label: "At risk" },
+  { value: "needs_attention", label: "Needs attention" },
 ] as const;
 
 function AdminClientsRoute() {
@@ -56,6 +58,27 @@ function AdminClients() {
   const healthFn = useServerFn(getClientHealth);
   const health = useQuery({ queryKey: ["admin", "client-health"], queryFn: () => healthFn(), staleTime: 300_000 });
   const healthBy = useMemo(() => new Map((health.data ?? []).map((h) => [h.organizationId, h])), [health.data]);
+  // Badge per client (Healthy / At risk / Needs attention) from facts already on the list row;
+  // lead, live-days and onboarding facts come from the health read and are simply skipped until it loads.
+  const statusBy = useMemo(() => {
+    const now = Date.now();
+    const out = new Map<string, ClientStatus>();
+    for (const client of clients.data ?? []) {
+      const h = healthBy.get(client.id);
+      const status = clientStatus({
+        now,
+        isDemo: client.is_demo,
+        publishState: client.publish_state,
+        leadsLast14: h ? h.leadsLast14 : null,
+        liveDays: h ? h.liveDays : null,
+        subscriptionState: client.subscription_state,
+        currentPeriodEnd: client.current_period_end,
+        onboardingCompleted: h ? h.onboardingCompleted : null,
+      });
+      if (status) out.set(client.id, status);
+    }
+    return out;
+  }, [clients.data, healthBy]);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<(typeof FILTERS)[number]["value"]>("all");
   const [creating, setCreating] = useState(false);
@@ -82,10 +105,12 @@ function AdminClients() {
                   ? client.publish_state !== "published" && !client.is_suspended
                   : filter === "at_risk"
                     ? (healthBy.get(client.id)?.score ?? 100) < HEALTH_AT_RISK
-                    : client.is_suspended;
+                    : filter === "needs_attention"
+                      ? (statusBy.get(client.id)?.level ?? "healthy") !== "healthy"
+                      : client.is_suspended;
       return matches && state;
     });
-  }, [clients.data, search, filter, healthBy]);
+  }, [clients.data, search, filter, healthBy, statusBy]);
 
   return (
     <div className="product-page">
@@ -174,6 +199,11 @@ function AdminClients() {
                     ? ` · renews ${dateShort(client.current_period_end)}`
                     : ""}
                 </p>
+                {statusBy.get(client.id)?.reasons.length ? (
+                  <p className="mt-0.5 text-[11px] text-muted-foreground">
+                    {statusBy.get(client.id)!.reasons.map((reason) => reason.text).join(" ")}
+                  </p>
+                ) : null}
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <Pill
@@ -195,6 +225,7 @@ function AdminClients() {
                       ? `Subscription ${client.subscription_state}`
                       : "Awaiting payment"}
                 </Pill>
+                <StatusBadge status={statusBy.get(client.id)} />
                 <HealthPill health={healthBy.get(client.id)} />
                 <Pill tone={client.readinessScore >= 90 ? "signal" : "attention"}>
                   {client.readinessScore}% ready
@@ -228,7 +259,25 @@ function AdminClients() {
   );
 }
 
-type HealthView = { score: number | null; reasons: string[]; unknown: string[] };
+type HealthView = {
+  score: number | null;
+  reasons: string[];
+  unknown: string[];
+  leadsLast14: number;
+  liveDays: number | null;
+  onboardingCompleted: boolean | null;
+};
+
+/** Healthy / At risk / Needs attention, with the reasons on hover and in the row. */
+function StatusBadge({ status }: { status: ClientStatus | undefined }) {
+  if (!status) return null;
+  const tone = status.level === "needs_attention" ? "danger" : status.level === "at_risk" ? "attention" : "signal";
+  return (
+    <span title={status.reasons.length ? status.reasons.map((r) => r.text).join("\n") : "No issues found"}>
+      <Pill tone={tone}>{status.label}</Pill>
+    </span>
+  );
+}
 
 /** Customer health score (Retention Autopilot); hover for the reasons it lost points. */
 function HealthPill({ health }: { health: HealthView | undefined }) {
