@@ -178,4 +178,10 @@ describe("noindex pages and publisher identity", () => {
     expect(ORGANIZATION_SCHEMA.logo.width).toBeGreaterThanOrEqual(112);
     expect(LOCAL_BUSINESS_SCHEMA.image).toBe("https://revoragrowthsystems.com/og.jpg");
   });
+
+  it("does not claim Revora is open 24/7 (remote business, no opening hours markup)", async () => {
+    const { LOCAL_BUSINESS_SCHEMA } = await import("@/lib/seo");
+    expect(LOCAL_BUSINESS_SCHEMA).not.toHaveProperty("openingHoursSpecification");
+    expect(LOCAL_BUSINESS_SCHEMA).not.toHaveProperty("openingHours");
+  });
 });

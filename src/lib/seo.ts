@@ -113,14 +113,8 @@ export const LOCAL_BUSINESS_SCHEMA = {
   areaServed: BUSINESS.areasServed.map((name) => ({ "@type": "AdministrativeArea", name })),
   serviceType: "Website design, lead generation and customer acquisition systems",
   knowsLanguage: BUSINESS.languages,
-  openingHoursSpecification: [
-    {
-      "@type": "OpeningHoursSpecification",
-      dayOfWeek: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
-      opens: "00:00",
-      closes: "23:59",
-    },
-  ],
+  // No openingHoursSpecification: Revora is a remote business, and claiming it is
+  // open 24/7 is misleading structured data.
   hasOfferCatalog: {
     "@type": "OfferCatalog",
     name: "Revora Growth System",

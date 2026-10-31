@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import {
+  hasPlaceholderContact,
   localBusinessSchema,
   openingHoursSpec,
   safeJsonLd,
@@ -178,6 +179,53 @@ describe("tenantSiteHead (one head for every client route)", () => {
     expect(head.scripts.map((s) => s.children).join("")).toContain("aggregateRating");
   });
 
+  it("emits no JSON-LD and stays noindex for a demo workspace, even with sections and seeded reviews", () => {
+    const head = tenantSiteHead({
+      site: site(
+        { kind: "home", slug: "home", title: "Home" },
+        {
+          isDemo: true,
+          reviews: [{ rating: 5, author_name: "Sofia L.", comment: "Great" }] as never,
+          content: { page: { kind: "home", slug: "home", title: "Home" }, sections: [{ settings: {} }] },
+        },
+      ),
+      pageSlug: null,
+      canonical: "https://acme.test",
+      businessUrl: "https://acme.test",
+    });
+    expect(meta(head, "robots")?.content).toBe("noindex");
+    expect(head.scripts).toEqual([]);
+  });
+
+  it("emits no JSON-LD for a placeholder business (555-01xx phone or .example email)", () => {
+    for (const profile of [
+      { phone: "(512) 555-0142", city: "Austin" },
+      { email: "hello@elitemobiledetailing.example", city: "Austin" },
+    ]) {
+      const head = tenantSiteHead({
+        site: site(
+          { kind: "home", slug: "home", title: "Home" },
+          { profile, content: { page: { kind: "home", slug: "home", title: "Home" }, sections: [{ settings: {} }] } },
+        ),
+        pageSlug: null,
+        canonical: "https://acme.test",
+        businessUrl: "https://acme.test",
+      });
+      expect(meta(head, "robots")?.content).toBe("noindex");
+      expect(head.scripts).toEqual([]);
+    }
+  });
+
+  it("emits no JSON-LD for an empty home page", () => {
+    const head = tenantSiteHead({
+      site: site({ kind: "home", slug: "home", title: "Home" }),
+      pageSlug: null,
+      canonical: "https://acme.test",
+      businessUrl: "https://acme.test",
+    });
+    expect(head.scripts).toEqual([]);
+  });
+
   it("never emits a non-https share image", () => {
     const head = tenantSiteHead({
       site: site({ kind: "page", slug: "faq", title: "FAQ", og_image_url: "org/a.jpg" }, { profile: { hero_image_url: "http://x/y.jpg" } }), // DevSkim: ignore DS137138 -- Negative fixture: plaintext share images must be rejected.
@@ -273,5 +321,16 @@ describe("readable text on brand colours", () => {
     expect(isLight("#f59e0b")).toBe(true); // amber
     expect(isLight("#38bdf8")).toBe(true); // sky
     expect(isLight("#1e3a8a")).toBe(false); // navy
+  });
+});
+
+describe("hasPlaceholderContact", () => {
+  it("flags reserved sample phones and example domains only", () => {
+    expect(hasPlaceholderContact({ phone: "(512) 555-0142" })).toBe(true);
+    expect(hasPlaceholderContact({ phone: "+1 512-555-0199" })).toBe(true);
+    expect(hasPlaceholderContact({ email: "a@biz.example" })).toBe(true);
+    expect(hasPlaceholderContact({ email: "a@example.com" })).toBe(true);
+    expect(hasPlaceholderContact({ phone: "(919) 555-2368", email: "owner@realbiz.com" })).toBe(false);
+    expect(hasPlaceholderContact(null)).toBe(false);
   });
 });
