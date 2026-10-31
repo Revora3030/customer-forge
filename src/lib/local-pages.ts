@@ -17,6 +17,7 @@ import { lowerPhrase, withArticle } from "@/lib/grammar";
 import { brandedTitle } from "@/lib/seo";
 import { US_STATES, findState, type UsState } from "@/lib/us-states";
 import { GROWTH_SYSTEM, usd } from "@/lib/offer";
+import { LOCAL_DOCS, LOCAL_NOINDEX_PATHS, type SeoDoc } from "@/lib/seo-docs";
 
 export interface LocalIndustry {
   slug: string;
@@ -177,15 +178,52 @@ export interface LocalPageContent {
   intro: string;
   metroLine: string;
   sections: { title: string; body: string }[];
-  faqs: { q: string; a: string }[];
+  faqs: readonly { q: string; a: string }[];
   path: string;
+  /** Hand-written copy for this page, when it is one of the published local pages. */
+  doc?: SeoDoc;
 }
 
 const SETUP = usd(GROWTH_SYSTEM.setupPrice);
 const MONTHLY = usd(GROWTH_SYSTEM.monthlyPrice);
 
-/** Builds the grounded copy for one industry × state page. */
+/** Hand-written local pages by path. */
+const LOCAL_DOC_BY_PATH: ReadonlyMap<string, SeoDoc> = new Map(LOCAL_DOCS.map((doc) => [doc.path, doc]));
+
+/** True for the generated pages the SEO plan keeps out of the index (`noindex,follow`). */
+export function isLocalNoindex(path: string): boolean {
+  return LOCAL_NOINDEX_PATHS.has(path);
+}
+
+/** Paths of the hand-written local pages, which are the only local pages in the sitemap. */
+export function publishedLocalPaths(): string[] {
+  return LOCAL_DOCS.map((doc) => doc.path);
+}
+
+/**
+ * Copy for one industry × state page: the hand-written page when one exists,
+ * otherwise the grounded generated copy.
+ */
 export function localPageContent(
+  industrySlugValue: string,
+  stateSlug: string,
+): LocalPageContent | null {
+  const generated = generatedLocalPageContent(industrySlugValue, stateSlug);
+  if (!generated) return null;
+  const doc = LOCAL_DOC_BY_PATH.get(generated.path);
+  if (!doc) return generated;
+  return {
+    ...generated,
+    title: doc.title,
+    description: doc.description,
+    heading: doc.h1,
+    faqs: doc.faqs,
+    doc,
+  };
+}
+
+/** Builds the grounded generated copy for one industry × state page. */
+function generatedLocalPageContent(
   industrySlugValue: string,
   stateSlug: string,
 ): LocalPageContent | null {
@@ -221,11 +259,11 @@ export function localPageContent(
       },
       {
         title: "Never lose a lead again",
-        body: `In ${lowerName}, ${industry.leak}. Revora answers instantly with an automatic first reply, drops every call, form, quote and booking into one pipeline, and keeps following up on a schedule until the customer replies or books.`,
+        body: `In ${lowerName}, ${industry.leak}. Revora can send a first reply right away through a ready-made new-lead automation you switch on, put every form, quote and booking from your site into one pipeline, and follow up on a schedule you choose.`,
       },
       {
         title: `Reviews and repeat work across ${state.name}`,
-        body: `After each completed job, a review request goes out automatically, so your local proof keeps compounding in ${topMetros} and everywhere else you work. Past customers get seasonal reminders, which is the cheapest revenue any ${lowerName} business has.`,
+        body: `After you mark a job complete, a ready-made review-request automation sends a text to customers who agreed to texts, then a follow-up email, so your local proof can keep building in ${topMetros} and everywhere else you work. You can set reminders for customers who have gone quiet, which is the cheapest revenue any ${lowerName} business has.`,
       },
       {
         title: "You own it, and you can see what pays",

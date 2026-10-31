@@ -334,8 +334,9 @@ export function seoInventory(): SeoPage[] {
     for (const state of US_STATES) {
       const content = localPageContent(industry.slug, state.slug);
       if (!content) continue;
-      const words =
-        countWords(content.intro) +
+      const words = content.doc
+        ? content.doc.words
+        : countWords(content.intro) +
         countWords(content.metroLine) +
         content.sections.reduce((sum, s) => sum + countWords(s.title) + countWords(s.body), 0) +
         content.faqs.reduce((sum, f) => sum + countWords(f.q) + countWords(f.a), 0);
@@ -346,11 +347,12 @@ export function seoInventory(): SeoPage[] {
           content.title,
           content.description,
           words,
-          // Trade x state combinations are generated from one template, so they
-          // are near-duplicates of each other and of the trade hub. They stay
-          // live and crawlable with self-referencing metadata, but remain out
-          // of the promoted sitemap inventory until they carry unique value.
-          false,
+          // Only the hand-written local pages are promoted. The rest are
+          // generated from one template, so they are near-duplicates of each
+          // other and of the trade hub: they stay live with self-referencing
+          // metadata, out of the sitemap (and `noindex,follow` where the SEO
+          // plan lists them) until they carry unique value.
+          content.doc !== undefined,
         ),
       );
     }

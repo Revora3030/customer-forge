@@ -47,8 +47,8 @@ describe("localTitle", () => {
   });
   it("names the three searched cities on Alabama HVAC", () => {
     const page = localPageContent("hvac", "alabama");
-    expect(page?.title).toBe("HVAC Lead Generation in Montgomery, Huntsville & Birmingham");
-    expect(page?.heading).toContain("Montgomery, Huntsville, Birmingham");
+    expect(page?.title).toBe("HVAC Website Design in Alabama | Revora");
+    expect(page?.heading).toContain("Montgomery, Huntsville and Birmingham");
   });
 });
 
@@ -59,7 +59,8 @@ describe("local page titles and descriptions", () => {
       if (!industry || !state) continue; // hub pages, not industry x state pages
       const page = localPageContent(industry, state)!;
       expect(page.title.length, page.title).toBeLessThanOrEqual(60);
-      if (path !== "/local/hvac/alabama") expect(page.title).toContain("Revora");
+      // Hand-written pages carry their own approved title, which may not fit the brand.
+      if (!page.doc) expect(page.title).toContain("Revora");
       expect(page.title).not.toContain("Lead Generation Alabama:");
       expect(page.description.length, page.description).toBeLessThanOrEqual(160);
       expect(page.description.length, page.description).toBeGreaterThanOrEqual(90);
