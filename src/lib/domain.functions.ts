@@ -186,7 +186,7 @@ export const recheckDomain = createServerFn({ method: "POST" })
     if (!domain) throw new Error("No custom domain is connected yet.");
 
     const check = await checkDomain(domain);
-    await context.supabase
+    const { error: statusError } = await context.supabase
       .from("website_settings")
       .update({
         domain_status: check.status,
@@ -200,6 +200,9 @@ export const recheckDomain = createServerFn({ method: "POST" })
         domain_records: check.records,
       })
       .eq("organization_id", data.organizationId);
+    if (statusError) {
+      throw new Error("We checked your domain but couldn't save the result. Please try again.");
+    }
 
     const records = (check.records ?? {}) as {
       a?: string[];
