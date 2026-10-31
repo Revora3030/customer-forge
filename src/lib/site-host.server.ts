@@ -10,6 +10,7 @@
  */
 import { publicClient, publicOrganization } from "@/lib/public-site.server";
 import { indexablePlatformEntries } from "@/lib/seo-intent";
+import { hasTestSlug } from "@/lib/site-head";
 import { fetchAllRows } from "@/lib/paginate";
 
 import {
@@ -376,6 +377,8 @@ export async function platformSitemapSlugs(): Promise<string[]> {
   return ((orgs ?? []) as unknown as (Parameters<typeof siteAccess>[0] & { id: string; slug: string | null })[])
     .filter((org) => org && typeof org.slug === "string" && /^[a-z0-9-]{1,80}$/.test(org.slug))
     .filter((org) => !ownDomain.has(org.id))
+    // Demo workspaces and test/demo/sample slugs are never advertised.
+    .filter((org) => org.is_demo !== true && !hasTestSlug(org.slug))
     .filter((org) => withSections.has(org.id))
     .filter((org) => siteAccess({ ...org, hosting_offline_at: hostingEnded.has(org.id) ? "ended" : null }).live)
     .map((org) => org.slug as string)
