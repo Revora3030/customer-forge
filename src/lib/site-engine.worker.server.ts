@@ -2431,16 +2431,6 @@ async function runJob(
         `${composed.fallback} section${composed.fallback === 1 ? "" : "s"} could not be designed`,
       );
     }
-    {
-      // Optional polish rounds that were skipped or broke never fail the
-      // attempt; they are recorded as a follow-up repair instead.
-      const { degradeLayoutPolish } = await import("@/lib/builder/graceful-degrade");
-      const polish = degradeLayoutPolish({ optionalSkipped: composed.optionalSkipped ?? 0, optionalFailed: composed.optionalFailed ?? 0 });
-      if (polish) {
-        degradedSteps.push(polish.followUp);
-        degradedAttention.push(polish.attention);
-      }
-    }
     await db.from("ai_generations").insert({
       organization_id: orgId,
       job_id: job.id,
@@ -2450,6 +2440,18 @@ async function runJob(
       result: composed as unknown as never,
       created_by: job.created_by,
     } as never);
+    {
+      // Placed after the layout record (and after any hand-back) so a resumed run
+      // computes this once, on the run that finishes the layout. Optional polish
+      // rounds that were skipped or broke never fail the attempt; they are
+      // recorded as a follow-up repair instead.
+      const { degradeLayoutPolish } = await import("@/lib/builder/graceful-degrade");
+      const polish = degradeLayoutPolish({ optionalSkipped: composed.optionalSkipped ?? 0, optionalFailed: composed.optionalFailed ?? 0 });
+      if (polish) {
+        degradedSteps.push(polish.followUp);
+        degradedAttention.push(polish.attention);
+      }
+    }
     // Sol also designs the menu bar and footer. Its failure stops the build
     // (it is retried); no generic menu is substituted.
     const { composeSiteChrome } = await import("@/lib/builder/first-build-chrome.server");
