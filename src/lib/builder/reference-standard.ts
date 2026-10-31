@@ -13,6 +13,7 @@
  * no business category is left with the pressure-washing wording.
  */
 
+import { CATALOG_ESTIMATE_TRADES, CATALOG_MOMENTS } from "@/lib/builder/playbook-catalog";
 import type { TradeBlueprint } from "@/lib/builder/trade-blueprints";
 
 export type ReferenceMoments = {
@@ -37,6 +38,11 @@ export const REFERENCE_LOOK =
   "Obsidian canvas, white display type set tight and heavy (short imperative headlines ending in a full stop, e.g. \"Clean this driveway.\"), one saturated signal accent (the reference used a high-visibility yellow; pick the brand's own) used only on primary buttons, progress rings and selected chips, small uppercase tracked eyebrows above each heading, glass cards with 1px translucent borders, a slim header with anchor links to each beat and a pill \"Free quote\" style action.";
 
 const MOMENTS: Record<string, ReferenceMoments> = {
+  // Catalog categories without a hand-written moment get one derived from their signature tool (overridden below).
+  ...CATALOG_MOMENTS,
+  "watersports-rentals": { tryIt: "a fleet bento: glass collection_row cards for each craft the owner rents with the specs and rate they gave, then a booking_form request (craft, date, party size, duration) in request mode; any stat band uses countUp only for figures the owner supplied", dial: "the ride per rider level or water condition (calm, choppy, open water), only craft and rules the owner states — never speeds or safety claims the owner did not give" },
+  "golf-course": { tryIt: "a scroll tour of the course through the owner's real photographs, one label per named hole, ending in a tee-time request booking_form (date, time of day, players); course facts such as par or yardage are measured data only, shown exactly as the owner states them", dial: "the round per player type (full 18, twilight, juniors, lessons), only formats and rates the owner offers" },
+  "home-builder": { tryIt: "a pinned scrub_sequence time-lapse of one real property across the owner's build photographs, then a toggle or tab_group configurator swapping real finish renders (kitchen, bath, backyard) the owner supplied; never an instant price, because a build is quoted through a consult", dial: "the engagement per stage (design, build, finish), only stages and services the owner states — never budgets or timelines unless supplied" },
   locksmith: { tryIt: "a tab_group \"What happened?\" (locked out, lost keys, broken lock) where each tab shows the real next step and the call button", dial: "security level per door or lock type, only grades or products the owner fits" },
   towing: { tryIt: "a tab_group \"What happened?\" (won't start, flat tyre, accident, locked out) where each tab shows the real service and one-tap call", dial: "which truck or method suits each vehicle type, only equipment the owner runs" },
   solar: { tryIt: "scroll_chapters walking the visitor through their own roof from consult to switch-on", dial: "system or battery sizing per home size, only ranges the owner states — never savings figures" },
@@ -63,7 +69,7 @@ const MOMENTS: Record<string, ReferenceMoments> = {
   "gyms-fitness": { tryIt: "a class timetable tab_group by day or programme from the owner's real schedule, each class with its booking or trial-pass action", dial: "the programme intensity per goal (strength, conditioning, mobility), only classes the gym runs — never body results" },
   "medical-wellness": { tryIt: "a tab_group \"What brings you in?\" listing only the real treatments with the booking action", dial: "the programme intensity per goal (recovery, maintenance, performance), only programmes the practice offers — never outcomes" },
   "law-firms": { tryIt: "a practice-area triage tab_group \"What kind of case?\" whose every tab explains how a case review works and ends in the confidential enquiry_form", dial: "the engagement type per situation (consultation, representation, review), only services the firm offers — never guaranteed outcomes" },
-  "real-estate": { tryIt: "a neighbourhood tab_group of the areas the agent really serves, then a valuation quote_calculator that requests a real comparative analysis — never an automated price", dial: "the service per client situation (buying, selling, investing), only services the agent offers" },
+  "real-estate": { tryIt: "a neighbourhood tab_group of the areas the agent really serves, then a valuation quote_calculator that requests a real comparative analysis — never an automated price; for a development or condo building with its own photographs, a building_explorer floor selector whose floors carry only the unit, level, size and price lines the developer supplied", dial: "the service per client situation (buying, selling, investing), only services the agent offers" },
   "professional-services": { tryIt: "scroll_chapters of the real process from first call to completed engagement", dial: "the service level per client situation (individual, small business, growing firm), only services the owner offers" },
   "pressure-washing": { tryIt: "a brush reveal \"Clean this driveway.\" with tool chips (e.g. Surface cleaner, 25° tip, 40° tip), live percent and stopwatch, from the owner's real dirty/clean photos of the same surface, then the 20-second quote_calculator", dial: "pressure per surface (concrete, siding, roof, deck, brick) with dialUnit PSI only when the owner gave figures, otherwise plain words such as Soft wash" },
   "photo-creative": { tryIt: "a gallery or spin_viewer of real work; a lens_magnifier over one real photo", dial: "the package per occasion (portrait, event, brand), only packages the owner offers" },
@@ -96,5 +102,31 @@ export function referenceStandardNote(key: string | null | undefined, blueprint:
     blueprint
       ? `Look: the ${blueprint.label} blueprint above (canvas ${blueprint.palette.canvas}, accent ${blueprint.palette.accent}, ${blueprint.fonts.display} display) — keep the reference's craft: tight display headlines, small uppercase eyebrows, one accent used only on actions, progress rings and selected chips, fine borders.`
       : `Look: ${REFERENCE_LOOK}`,
+  ].join("\n");
+}
+
+
+/** Trades whose lead tool is an instant estimate. A luxury builder is quoted by consultation and is not here. */
+export const ESTIMATE_TRADE_KEYS: ReadonlySet<string> = new Set([
+  "pressure-washing", "exterior-cleaning", "roofing", "landscaping", "cleaning", "painting", "hvac", "plumbing",
+  "electrical", "contracting", "moving", "pest", "garage-door", "appliance-repair", "pool", "auto-detailing",
+  "solar", "locksmith", "towing", "auto-repair", "home-services", "precision-craft", "emergency-dispatch",
+  ...CATALOG_ESTIMATE_TRADES,
+]);
+
+/**
+ * Structure every trade site must have. A live build had a "Calculate a quote" nav link with no calculator behind
+ * it and only Home, About and Contact sections: no services, gallery or pricing. This note makes the signature
+ * tool and a services section required for trades, and keeps the owner's numbers the only numbers on the site.
+ */
+export function tradeStructureNote(key: string | null | undefined, archetypeKey: string | null | undefined = null): string | null {
+  const estimate = ESTIMATE_TRADE_KEYS.has(key ?? "") || (key === archetypeKey && ESTIMATE_TRADE_KEYS.has(archetypeKey ?? ""));
+  if (!estimate) return null;
+  return [
+    "TRADE STRUCTURE (required for a trade site, never optional):",
+    "- The home page MUST contain the trade's lead tool: a quote_calculator widget. A menu item or button that says \"Get a quote\" or \"Calculate\" with no tool behind it is a defect — never link to a tool the site does not have.",
+    "- The home page MUST have a services section listing every service the owner supplied, and the site MUST have its own services page. Add a gallery only from the owner's real photographs and a pricing or packages section only when the owner set rates.",
+    "- Instant estimate: the calculator may show a \"from $X\" price only when the owner set a rate for that service in the Services tool, and the figure is computed from the owner's rates alone. With no rate set it runs request-only: it collects the job details and sends the request, and shows no number at all.",
+    "- Stat bands (years, jobs done, customers, ratings) appear only with real numbers the owner supplied, as countUp figures; with none supplied, omit the band. Never fill it with typical or example numbers.",
   ].join("\n");
 }

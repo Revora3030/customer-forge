@@ -8,6 +8,8 @@
  * cinematic obsidian studio look.
  */
 
+import { CATALOG_BLUEPRINTS, CATALOG_CLOSEST_BLUEPRINT } from "@/lib/builder/playbook-catalog";
+
 export type StudioTransition = "dark-to-light" | "dark-only";
 
 /** Blueprints whose dark cinematic hero flows into light content. Every other blueprint stays dark-only. */
@@ -27,7 +29,10 @@ export type TradeBlueprintKey =
   | "dentist"
   | "law-firms"
   | "real-estate"
-  | "gyms-fitness";
+  | "gyms-fitness"
+  | "watersports-rentals"
+  | "golf-course"
+  | "home-builder";
 
 /**
  * Hexes follow the Phase B plan. Near-neutral canvases (charcoal, carbon, matte black, obsidian, iron) carry a faint
@@ -240,10 +245,13 @@ export const TRADE_BLUEPRINTS: readonly TradeBlueprint[] = [
     cta: { primary: "Claim your free pass", secondary: "View class schedule" },
     look: "an iron-black canvas with a hot orange action colour, tall condensed display type, bold diagonal energy",
   },
+  // Jet ski and boat rental, golf and home builder: built from the Site Factory catalog (playbook-catalog.ts).
+  ...CATALOG_BLUEPRINTS,
 ];
 
 /** Every trade playbook or archetype that is not one of the 14, mapped to the closest blueprint. */
 const CLOSEST: Record<string, TradeBlueprintKey> = {
+  ...CATALOG_CLOSEST_BLUEPRINT,
   // Specific playbooks.
   locksmith: "plumbing",
   towing: "plumbing",

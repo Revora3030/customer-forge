@@ -257,14 +257,19 @@ describe("home page hero video loop", () => {
     expect(body).toMatch(/<video[^>]*aria-hidden="true"/);
     // No source until hydration: the photo paints first; reduced motion never loads the clip.
     expect(body).not.toContain("hero.mp4");
+    // The play/pause control only exists after hydration, when it can work.
+    expect(body).not.toContain("data-hero-control");
     expect(body).not.toMatch(/autoplay/i);
     expect(body.indexOf("rv-hero-video")).toBeLessThan(body.indexOf("rv-scene-scrim"));
   });
 
-  it("fades in only when playing, hides for reduced motion and drifts with scroll where supported", () => {
+  it("fades in only when playing, shows the poster with a control for reduced motion and drifts with scroll where supported", () => {
     expect(CINEMATIC_CSS).toMatch(/\.rv-scene-media\.rv-hero-video\{opacity:0/);
     expect(CINEMATIC_CSS).toMatch(/\.rv-hero-video\[data-playing\]\{opacity:1\}/);
-    expect(CINEMATIC_CSS).toMatch(/prefers-reduced-motion: reduce\)\{[^}]*\.rv-hero-video\{display:none/);
+    // Reduced motion keeps the poster frame on screen (never a blank hero) and adds a visible play/pause control.
+    expect(CINEMATIC_CSS).toMatch(/prefers-reduced-motion: reduce\)\{[^}]*\.rv-hero-video\{opacity:1/);
+    expect(CINEMATIC_CSS).not.toMatch(/prefers-reduced-motion: reduce\)\{[^}]*\.rv-hero-video\{display:none/);
+    expect(CINEMATIC_CSS).toMatch(/\.rv-hero-control\{[^}]*min-width:44px;min-height:44px/);
     expect(CINEMATIC_CSS).toContain("animation-timeline:view()");
   });
 

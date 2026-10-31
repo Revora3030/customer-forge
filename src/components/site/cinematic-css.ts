@@ -20,7 +20,9 @@ ${S} .rv-scene-media{position:absolute!important;inset:0;z-index:-2;width:100%!i
 ${S} .rv-scene-scrim{position:absolute;inset:0;z-index:-1;pointer-events:none}
 ${S} .rv-scene-media.rv-hero-video{opacity:0;transition:opacity .9s ease;background:transparent}
 ${S} .rv-scene-media.rv-hero-video[data-playing]{opacity:1}
-@media (prefers-reduced-motion: reduce){${S} .rv-hero-video{display:none!important}}
+@media (prefers-reduced-motion: reduce){${S} .rv-scene-media.rv-hero-video{opacity:1;transition:none}}
+${S} .rv-hero-control{position:absolute;z-index:3;right:16px;bottom:16px;display:inline-flex;align-items:center;justify-content:center;min-width:44px;min-height:44px;padding:0 14px;border:1px solid rgb(255 255 255 / .35);border-radius:999px;background:rgb(8 12 18 / .55);color:#fff;font:600 13px/1 system-ui,sans-serif;letter-spacing:.04em;cursor:pointer;backdrop-filter:blur(10px)}
+${S} .rv-hero-control:focus-visible{outline:2px solid #fff;outline-offset:3px}
 ${S} .rv-scene[data-framed] .rv-scene-media[data-soft]{filter:blur(28px) saturate(1.05);transform:scale(1.15)}
 ${S} .rv-scene-frame{display:block;justify-self:center;align-self:center;width:100%;max-width:min(var(--rv-native,720px),100%);height:auto!important;border-radius:18px;box-shadow:0 24px 60px rgb(0 0 0 / .35)}
 @media (min-width:1024px){${S} .rv-scene[data-framed] .rv-scene-inner{grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:center;column-gap:clamp(32px,5vw,80px)}${S} .rv-scene[data-framed] .rv-scene-slot{max-width:100%!important}${S} .rv-scene[data-framed][data-anchor$="-right"] .rv-scene-frame{order:-1}}
