@@ -20,12 +20,12 @@ import { usePaymentProducts, usePayments, type PaymentProduct } from "@/lib/paym
 import { useBillingState } from "@/lib/stripe.hooks";
 import { createBillingPortalSession } from "@/lib/stripe.functions";
 import { getStripeEnvironment, isPaymentsConfigured } from "@/lib/stripe";
-import { GROWTH_SYSTEM, usdExact } from "@/lib/offer";
+import { GROWTH_SYSTEM, REFUND_POLICY, usdExact } from "@/lib/offer";
 import { BUILDER_INCLUDED_DETAIL, BUILDER_INCLUDED_LABEL } from "@/lib/access-state";
 import { useWorkspace } from "@/lib/use-tenant";
 import { isPlatformOwnerOrg } from "@/lib/platform-owner";
 import { canManage } from "@/lib/use-tenant";
-import { REVORA } from "@/lib/brand";
+import { MAIL_SUBJECTS, REVORA, revoraMailto, revoraTel } from "@/lib/brand";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/lib/ui/notify";
 
@@ -151,7 +151,8 @@ function BillingPage() {
         },
       });
       if ("error" in result) throw new Error(result.error);
-      window.open(result.url, "_blank", "noopener");
+      // Same-tab redirect: a popup blocker can no longer swallow the cancel path.
+      window.location.assign(result.url);
     } catch (error) {
       toast.error((error as Error).message);
     } finally {
@@ -331,6 +332,18 @@ function BillingPage() {
           Checkout accepts cards, Apple Pay, Google Pay and Cash App Pay where the provider and your
           device support them. {GROWTH_SYSTEM.explainer}
         </p>
+        <p className="mt-3 text-[12px] text-muted-foreground" data-testid="refund-policy">
+          {REFUND_POLICY}
+        </p>
+        {!subscription?.provider_subscription_id ? (
+          <p className="mt-2 text-[12px] text-muted-foreground" data-testid="cancel-by-email">
+            To cancel or change your plan, email{" "}
+            <a className="underline underline-offset-2" href={revoraMailto(MAIL_SUBJECTS.support)}>
+              {REVORA.email}
+            </a>{" "}
+            and we'll take care of it.
+          </p>
+        ) : null}
       </Panel>
 
       <Panel className="p-5">
@@ -413,8 +426,14 @@ function BillingPage() {
         <SectionHeading eyebrow="Support" title="Billing questions" />
         <p className="mt-3 text-[13px] text-muted-foreground">
           One-off services above are charged once by card. Software plans are billed as a
-          subscription and can be changed or cancelled at any time. Questions: {REVORA.email} ·{" "}
-          {REVORA.phoneDisplay ?? REVORA.phone}
+          subscription and can be changed or cancelled at any time. Questions:{" "}
+          <a className="underline underline-offset-2" href={revoraMailto(MAIL_SUBJECTS.support)}>
+            {REVORA.email}
+          </a>{" "}
+          ·{" "}
+          <a className="underline underline-offset-2" href={revoraTel}>
+            {REVORA.phoneDisplay ?? REVORA.phone}
+          </a>
         </p>
       </Panel>
 

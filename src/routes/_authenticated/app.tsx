@@ -33,6 +33,7 @@ import { useNotifications, useWebsiteSettings, useWorkspaceRealtime } from "@/li
 import { useSignOut, useWorkspace } from "@/lib/use-tenant";
 import { endSupportSession } from "@/lib/admin.functions";
 import { GROWTH_SYSTEM, usd } from "@/lib/offer";
+import { MAIL_SUBJECTS, REVORA, revoraMailto, revoraTel } from "@/lib/brand";
 import { useSupportMode, writeSupportMode } from "@/lib/support-mode";
 import { dateLong, relative } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -165,6 +166,13 @@ const SECONDARY_NAV = [
         icon: Settings,
         exact: false,
         hint: "Business details, team and preferences",
+      },
+      {
+        to: "/contact",
+        label: "Help & support",
+        icon: LifeBuoy,
+        exact: false,
+        hint: "Message the Revora team",
       },
 ] satisfies readonly WorkspaceNavItem[];
 
@@ -535,12 +543,12 @@ function AppShell() {
 
               <p className="mt-4 text-[12px] text-muted-foreground">
                 Questions?{" "}
-                <a href="mailto:hello@revoragrowthsystems.com" className="text-primary hover:underline">
+                <a href={revoraMailto(MAIL_SUBJECTS.support)} className="text-primary hover:underline">
                   Email support
                 </a>{" "}
                 or{" "}
-                <a href="tel:+19196226620" className="text-primary hover:underline">
-                  call (919) 622-6620
+                <a href={revoraTel} className="text-primary hover:underline">
+                  call {REVORA.phoneDisplay}
                 </a>
                 .
               </p>

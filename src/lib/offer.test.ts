@@ -96,3 +96,12 @@ describe("verifyGrowthPrices", () => {
     if (!result.ok) expect(result.reason).toMatch(/not a recurring/i);
   });
 });
+
+describe("REFUND_POLICY", () => {
+  it("is the exact approved refund and cancellation wording", async () => {
+    const { REFUND_POLICY } = await import("./offer");
+    expect(REFUND_POLICY).toBe(
+      "Your $350 setup fee is fully refundable within 7 days if we haven't started your build. Your monthly plan is month-to-month, so cancel anytime and you won't be billed again. Charges already made aren't refunded.",
+    );
+  });
+});

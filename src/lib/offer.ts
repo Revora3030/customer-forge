@@ -16,6 +16,13 @@ export const FULL_ACCESS_TRIAL_DAYS: number = 3;
 
 const fullAccessWindowLabel = `${FULL_ACCESS_TRIAL_DAYS} ${FULL_ACCESS_TRIAL_DAYS === 1 ? "day" : "days"}`;
 
+/**
+ * The one refund and cancellation sentence. Billing and the terms page both
+ * render this constant so the wording can never drift between them.
+ */
+export const REFUND_POLICY =
+  "Your $350 setup fee is fully refundable within 7 days if we haven't started your build. Your monthly plan is month-to-month, so cancel anytime and you won't be billed again. Charges already made aren't refunded.";
+
 export const GROWTH_SYSTEM = {
   planId: "revora_growth_system",
   name: "Revora Growth System",
