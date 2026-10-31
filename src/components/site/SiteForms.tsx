@@ -105,6 +105,41 @@ function contactProblem(email: string, phone: string): string | null {
   return null;
 }
 
+/** Same wording as the printable estimate: a range is not a quote. */
+function EstimateNotice({ orgName }: { orgName: string }) {
+  return (
+    <p className="mt-1 text-[14px] text-muted-foreground">
+      Estimate only. {orgName} confirms the final price before any work starts.
+    </p>
+  );
+}
+
+/** Factual consent line shown under every lead form. It states no policy. */
+function ConsentNote({ orgName }: { orgName: string }) {
+  return (
+    <p className="text-[13px] text-muted-foreground">
+      By sending this you agree {orgName} may contact you about your request.
+    </p>
+  );
+}
+
+function ReachHint({ id }: { id: string }) {
+  return (
+    <p id={id} className="-mt-2 text-[13px] text-muted-foreground sm:col-span-2">
+      Phone or email — at least one, so we can reply.
+    </p>
+  );
+}
+
+/** Inline, announced form error (replaces a toast that vanishes). */
+function FormProblem({ id, problem }: { id: string; problem: string | null }) {
+  return problem ? (
+    <p id={id} role="alert" className="text-[14px] font-medium text-destructive">
+      {problem}
+    </p>
+  ) : null;
+}
+
 /**
  * Sends a lead, or SIMULATES sending it in the owner's draft preview: the form
  * runs its real validation and shows its real success screen, but no lead,
@@ -159,6 +194,7 @@ function QuoteCalculatorLive({ site, presentation }: { site: Site; presentation?
   const [step, setStep] = useState<"questions" | "contact">("questions");
   const stepRef = useStepScroll<HTMLDivElement>(step);
   const [pending, setPending] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const [confirmationEmail, setConfirmationEmail] = useState("");
 
@@ -305,9 +341,12 @@ function QuoteCalculatorLive({ site, presentation }: { site: Site; presentation?
               {/* Before the visitor has chosen, an empty dash reads as broken.
                   Say what is needed instead — never show an invented number. */}
               {complete ? (
-                <p role="status" aria-live="polite" className="tnum mt-1 font-display text-[24px] font-semibold text-primary">
-                  <RollingNumber value={min} format={currency} /> – <RollingNumber value={max} format={currency} />
-                </p>
+                <>
+                  <p role="status" aria-live="polite" className="tnum mt-1 font-display text-[24px] font-semibold text-primary">
+                    <RollingNumber value={min} format={currency} /> – <RollingNumber value={max} format={currency} />
+                  </p>
+                  <EstimateNotice orgName={site.org.name} />
+                </>
               ) : (
                 <>
                   <p className="mt-1 text-[14px] text-muted-foreground">
@@ -341,9 +380,10 @@ function QuoteCalculatorLive({ site, presentation }: { site: Site; presentation?
             if (pending) return;
             const form = new FormData(e.currentTarget);
             const email = String(form.get("email") ?? "").trim();
-            const problem = contactProblem(email, String(form.get("phone") ?? "").trim());
-            if (problem) {
-              toast.error(problem);
+            const found = contactProblem(email, String(form.get("phone") ?? "").trim());
+            setProblem(found);
+            if (found) {
+              document.getElementById(fid("phone"))?.focus();
               return;
             }
             setConfirmationEmail(email);
@@ -385,7 +425,7 @@ function QuoteCalculatorLive({ site, presentation }: { site: Site; presentation?
               },
             })
               .then(() => setDone(true))
-              .catch((error: Error) => toast.error(friendlyError(error)))
+              .catch((error: Error) => setProblem(friendlyError(error)))
               .finally(() => setPending(false));
           }}
         >
@@ -397,6 +437,7 @@ function QuoteCalculatorLive({ site, presentation }: { site: Site; presentation?
               {currency(min)} – {currency(max)}
             </span>
           </p>
+          <EstimateNotice orgName={site.org.name} />
           <div className="space-y-1.5">
             <Label htmlFor={fid("name")}>{presentation?.fieldLabels?.name ?? "Your name"}</Label>
             <Input id={fid("name")} name="name" required autoComplete="name" />
@@ -404,25 +445,28 @@ function QuoteCalculatorLive({ site, presentation }: { site: Site; presentation?
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor={fid("phone")}>{presentation?.fieldLabels?.phone ?? "Phone"}</Label>
-              <Input id={fid("phone")} name="phone" type="tel" autoComplete="tel" inputMode="tel" />
+              <Input id={fid("phone")} name="phone" type="tel" autoComplete="tel" inputMode="tel" aria-invalid={problem ? true : undefined} aria-describedby={fid("reach")} />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor={fid("email")}>{presentation?.fieldLabels?.email ?? "Email"}</Label>
-              <Input id={fid("email")} name="email" type="email" autoComplete="email" inputMode="email" />
+              <Input id={fid("email")} name="email" type="email" autoComplete="email" inputMode="email" aria-invalid={problem ? true : undefined} aria-describedby={fid("reach")} />
             </div>
+            <ReachHint id={fid("reach")} />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor={fid("message")}>{presentation?.fieldLabels?.details ?? "Anything we should know?"}</Label>
             <Textarea id={fid("message")} name="message" rows={3} />
           </div>
+          <FormProblem id={fid("problem")} problem={problem} />
           <div className="flex gap-2">
-            <Button type="submit" variant="signal" disabled={pending}>
-              {pending ? <Loader2 className="size-4 animate-spin" /> : null} {presentation?.submitLabel ?? "Send request"}
+            <Button type="submit" variant="signal" disabled={pending} aria-busy={pending}>
+              {pending ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : null} {presentation?.submitLabel ?? "Send request"}
             </Button>
             <Button type="button" variant="ghost" onClick={() => setStep("questions")}>
               {presentation?.backLabel ?? "Back"}
             </Button>
           </div>
+          <ConsentNote orgName={site.org.name} />
         </form>
       )}
     </div>
@@ -449,6 +493,7 @@ function BookingFormLive({ site, presentation }: { site: Site; presentation?: Wi
   // stable identity of the same list, and only changes when the services do.
   const bookableIds = bookable.map((s) => s.id).join("|");
   const [pending, setPending] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const [confirmationEmail, setConfirmationEmail] = useState("");
   const [booked, setBooked] = useState<{ localDate: string; localTime: string; durationMinutes: number; serviceName: string | null } | null>(null);
@@ -537,26 +582,27 @@ function BookingFormLive({ site, presentation }: { site: Site; presentation?: Wi
       className="panel space-y-4 p-5 scroll-mt-24 text-left"
       style={widgetPresentationStyle(presentation)}
       onFocus={() => track("booking_start")}
+      aria-describedby={problem ? fid("problem") : undefined}
       onSubmit={(e) => {
         e.preventDefault();
-        if (hoursProblem) {
-          toast.error(hoursProblem);
-          return;
-        }
+        if (pending) return;
+        // The hours problem is already shown inline next to the time picker.
+        if (hoursProblem) return;
         const form = new FormData(e.currentTarget);
         const date = String(form.get("date") ?? "");
         const time = String(form.get("time") ?? "");
         // The date chips submit through a hidden input, which the browser's
         // own "required" check cannot see, so ask here.
         if (bookable.length && !date) {
-          toast.error("Choose a preferred date.");
+          setProblem("Choose a preferred date.");
           document.getElementById(fid("date"))?.querySelector<HTMLElement>('[tabindex="0"]')?.focus();
           return;
         }
         const email = String(form.get("email") ?? "").trim();
-        const problem = contactProblem(email, String(form.get("phone") ?? "").trim());
-        if (problem) {
-          toast.error(problem);
+        const found = contactProblem(email, String(form.get("phone") ?? "").trim());
+        setProblem(found);
+        if (found) {
+          document.getElementById(fid("phone"))?.focus();
           return;
         }
         setConfirmationEmail(email);
@@ -602,7 +648,7 @@ function BookingFormLive({ site, presentation }: { site: Site; presentation?: Wi
           },
         })
           .then(() => setDone(true))
-          .catch((error: Error) => toast.error(friendlyError(error)))
+          .catch((error: Error) => setProblem(friendlyError(error)))
           .finally(() => setPending(false));
       }}
     >
@@ -636,12 +682,13 @@ function BookingFormLive({ site, presentation }: { site: Site; presentation?: Wi
         </div>
         <div className="space-y-1.5">
           <Label htmlFor={fid("phone")}>{presentation?.fieldLabels?.phone ?? "Phone"}</Label>
-          <Input id={fid("phone")} name="phone" type="tel" autoComplete="tel" inputMode="tel" />
+          <Input id={fid("phone")} name="phone" type="tel" autoComplete="tel" inputMode="tel" aria-invalid={problem ? true : undefined} aria-describedby={fid("reach")} />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor={fid("email")}>{presentation?.fieldLabels?.email ?? "Email"}</Label>
-          <Input id={fid("email")} name="email" type="email" autoComplete="email" inputMode="email" />
+          <Input id={fid("email")} name="email" type="email" autoComplete="email" inputMode="email" aria-invalid={problem ? true : undefined} aria-describedby={fid("reach")} />
         </div>
+        <ReachHint id={fid("reach")} />
         <div className="space-y-1.5">
           <Label htmlFor={fid("city")}>{presentation?.fieldLabels?.location ?? "City / address"}</Label>
           <Input id={fid("city")} name="city" />
@@ -677,7 +724,7 @@ function BookingFormLive({ site, presentation }: { site: Site; presentation?: Wi
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor={fid("time")}>{presentation?.fieldLabels?.time ?? "Preferred time (your local time)"}</Label>
+              <Label htmlFor={fid("time")}>{presentation?.fieldLabels?.time ?? "Preferred time (business local time)"}</Label>
               <Input
                 id={fid("time")}
                 name="time"
@@ -701,16 +748,11 @@ function BookingFormLive({ site, presentation }: { site: Site; presentation?: Wi
       </div>
       {bookable.length ? (
         <p className="text-[14px] text-muted-foreground">
-          {/* Real limitation, not just copy: nothing in this codebase stores the
-              business's own timezone, so a time typed here is captured in the
-              visitor's own device timezone. If a customer books while set to a
-              different timezone than the business operates in, the saved
-              appointment time will be genuinely off — not a display glitch, the
-              stored time itself. This line makes that visible instead of silent,
-              and the business gets a chance to catch and correct it before it's
-              confirmed. The real fix needs a stored business timezone (a schema
-              column + settings field), which isn't something to guess at. */}
-          Times are shown in your device's local time — we'll confirm your exact appointment time
+          {/* The times offered come from the business's own opening hours, so they are
+              the business's local time, not the visitor's device time. The saved
+              wall-clock date and time (localDate / localTime) are the source of truth;
+              a stored business time zone is the proper long-term fix. */}
+          Times are in {site.org.name}'s local time. We'll confirm your exact appointment time
           before it's booked.
         </p>
       ) : null}
@@ -720,12 +762,14 @@ function BookingFormLive({ site, presentation }: { site: Site; presentation?: Wi
         <Textarea id={fid("message")} name="message" rows={3} />
       </div>
 
-      <Button type="submit" variant="signal" disabled={pending}>
-        {pending ? <Loader2 className="size-4 animate-spin" /> : null} {presentation?.actionLabel ?? "Request appointment"}
+      <FormProblem id={fid("problem")} problem={problem} />
+      <Button type="submit" variant="signal" disabled={pending} aria-busy={pending}>
+        {pending ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : null} {presentation?.actionLabel ?? "Request appointment"}
       </Button>
       <p className="text-[14px] text-muted-foreground">
         No payment now — you'll get a confirmation before anything is charged.
       </p>
+      <ConsentNote orgName={site.org.name} />
     </form>
   );
 }
@@ -865,9 +909,7 @@ function EnquiryFormLive({ site, presentation }: { site: Site; presentation?: Wi
           <Label htmlFor={fid("email")}>{presentation?.fieldLabels?.email ?? "Email"}</Label>
           <Input id={fid("email")} name="email" type="email" autoComplete="email" inputMode="email" maxLength={160} aria-describedby={fid("reach")} />
         </div>
-        <p id={fid("reach")} className="-mt-2 text-[13px] text-muted-foreground sm:col-span-2">
-          Phone or email — at least one, so we can reply.
-        </p>
+        <ReachHint id={fid("reach")} />
         <div className="space-y-1.5 sm:col-span-2">
           <Label htmlFor={fid("city")}>{presentation?.fieldLabels?.location ?? "Your town or ZIP (optional)"}</Label>
           <Input id={fid("city")} name="city" autoComplete="address-level2" maxLength={120} />
@@ -881,16 +923,12 @@ function EnquiryFormLive({ site, presentation }: { site: Site; presentation?: Wi
         <Textarea id={fid("message")} name="message" rows={4} required aria-required="true" maxLength={2000} />
       </div>
 
-      {problem ? (
-        <p id={fid("problem")} role="alert" className="text-[14px] font-medium text-destructive">
-          {problem}
-        </p>
-      ) : null}
+      <FormProblem id={fid("problem")} problem={problem} />
 
       <Button type="submit" variant="signal" disabled={pending} aria-busy={pending} className="min-h-11 w-full sm:w-auto">
         {pending ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : null} {presentation?.actionLabel ?? "Send message"}
       </Button>
-      <p className="text-[13px] text-muted-foreground">Your details are only used to reply to this message.</p>
+      <ConsentNote orgName={site.org.name} />
     </form>
   );
 }
