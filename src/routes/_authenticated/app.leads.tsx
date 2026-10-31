@@ -47,6 +47,7 @@ import { useWorkspace } from "@/lib/use-tenant";
 import { CRM_STAGES, LEAD_STATUSES, crmStageOf, leadStatusMeta, sourceLabel, type CrmStageKey, type LeadStatus } from "@/lib/domain";
 import { groupByStage, leadsToCsv } from "@/lib/crm";
 import { DueTasksStrip, LeadTasks } from "@/components/app/LeadTasks";
+import { LeadReviewDraftPanel } from "@/components/app/LeadReviewDraftPanel";
 import { currency, relative } from "@/lib/format";
 import { filterLeadsByService, leadServiceId, type ServiceFilter } from "@/lib/service-catalog";
 import { QueryErrorNotice } from "@/components/app/QueryErrorNotice";
@@ -499,6 +500,10 @@ function LeadsPage() {
                 </div>
 
                 <LeadTasks organizationId={orgId} leadId={selected.id} />
+
+                {selected.status === "completed" ? (
+                  <LeadReviewDraftPanel key={selected.id} organizationId={orgId} leadId={selected.id} />
+                ) : null}
 
                 {selected.message ? (
                   <Panel className="p-3.5">
