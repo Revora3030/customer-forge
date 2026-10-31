@@ -1,0 +1,27 @@
+name: Revora IndexNow Ping
+# Tells Bing and the other IndexNow engines which pages are in the live
+# /sitemap.xml. Free; IndexNow keys are public by design (served at
+# /indexnow-key.txt and /<key>.txt), so no secret is used. Runs weekly and on
+# demand (run it after publishing). Never fails a deploy: it only reads the
+# live site and posts the URL list.
+on:
+  schedule:
+    - cron: "41 10 * * 2"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: revora-indexnow-${{ github.workflow }}
+  cancel-in-progress: true
+jobs:
+  ping:
+    name: Submit live sitemap URLs to IndexNow
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+      - name: Ping IndexNow
+        run: bun scripts/indexnow-ping.ts
