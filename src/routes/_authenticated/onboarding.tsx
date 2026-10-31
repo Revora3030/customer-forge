@@ -30,6 +30,7 @@ import { ErrorBoundary } from "@/components/app/ErrorBoundary";
 import { customerBusinessEmail, sanitizeServices } from "@/lib/builder/intake-sanitize";
 
 import { closedOnHolidays } from "@/lib/holidays";
+import { contactStepValid, continueHint } from "@/lib/onboarding-validation";
 import { AddressAutocomplete } from "@/components/ui/address-autocomplete";
 import {
   WEBSITE_GOALS,
@@ -190,6 +191,7 @@ function Onboarding() {
   // the tab) never loses progress — they sign back in and resume where they were.
   const [restored, setRestored] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(null);
+  const [saveFailed, setSaveFailed] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -350,7 +352,9 @@ function Onboarding() {
             .upsert({ user_id: user.id, step, data: draft as never }, { onConflict: "user_id" });
           if (saveError) throw saveError;
           setSavedAt(new Date().toISOString());
+          setSaveFailed(false);
         } catch (error) {
+          setSaveFailed(true);
           console.warn("[onboarding] autosave deferred", supabaseErrorMessage(error));
         }
       })();
@@ -527,9 +531,14 @@ function Onboarding() {
       }
 
       if (services.length) {
-        // Re-running onboarding must not duplicate the service list.
-        const { error: clearError } = await supabase.from("services").delete().eq("organization_id", org.id);
-        assertNoError(clearError, "Could not update your services");
+        // Re-running onboarding must not duplicate the service list. Add the new
+        // list first and remove the old rows afterwards, so a failed insert never
+        // leaves the customer with no services.
+        const { data: oldServices, error: oldServicesError } = await supabase
+          .from("services")
+          .select("id")
+          .eq("organization_id", org.id);
+        assertNoError(oldServicesError, "Could not update your services");
         const { error: servicesError } = await supabase.from("services").insert(
           services.map((s, index) => ({
             organization_id: org.id,
@@ -543,6 +552,15 @@ function Onboarding() {
           })) as never,
         );
         assertNoError(servicesError, "Could not save your services");
+        const oldServiceIds = (oldServices ?? []).map((row) => row.id);
+        if (oldServiceIds.length) {
+          const { error: clearError } = await supabase
+            .from("services")
+            .delete()
+            .eq("organization_id", org.id)
+            .in("id", oldServiceIds);
+          assertNoError(clearError, "Could not update your services");
+        }
       }
 
       const { error: settingsError } = await supabase.from("website_settings").upsert(
@@ -635,7 +653,7 @@ function Onboarding() {
               (s.name.trim().length >= 2 && (!String(s.price ?? "").trim() || Number(s.price) >= 0)),
           )
         : step === 3
-          ? draft.phone.trim().length > 5 || draft.email.trim().length > 4
+          ? contactStepValid(draft.phone, draft.email)
           : step === 5
             ? draft.goals.length > 0
             : true;
@@ -649,7 +667,11 @@ function Onboarding() {
       </header>
 
       <main className="mx-auto max-w-3xl px-4 py-12">
-        {savedAt ? (
+        {saveFailed ? (
+          <p role="alert" className="mb-4 text-[12px] text-destructive">
+            We couldn't save your progress just now. Keep this page open and we'll try again as you type.
+          </p>
+        ) : savedAt ? (
           <p className="mb-4 text-[12px] text-muted-foreground">
             Progress saved to your account — sign out any time and pick up where you left off.
           </p>
@@ -1149,6 +1171,9 @@ function Onboarding() {
           ) : null}
 
           {error ? <div className="mt-5">{<ErrorNote message={error} />}</div> : null}
+          {!canContinue && step !== 1 && continueHint(step, draft) ? (
+            <p className="mt-4 text-sm text-muted-foreground">{continueHint(step, draft)}</p>
+          ) : null}
           {step === 1 && !canContinue ? (
             <p className="mt-4 text-sm text-muted-foreground">
               Add at least one service name (for example "Full interior detail"). Price is optional. Your AI team builds your site from these.
