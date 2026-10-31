@@ -5,7 +5,7 @@ import { scrubPlaceholderContact, scrubPlaceholderText } from "./placeholder-con
 import { stickyActions } from "@/components/site/site-sections-utils";
 
 const FAKE_PHONES = ["(555) 123-4567", "555-1212", "555.123.4567", "+1 (555) 010-0199", "1-555-123-4567", "5551234567", "(512) 555-0142", "555 0142"];
-const FAKE_EMAILS = ["owner@example.com", "hello@elite.example", "a@biz.test", "x@mail.example.org", "me@site.invalid", "me@localhost"];
+const FAKE_EMAILS = ["owner@example.com", "hello@elite.example", "a@biz.test", "x@mail.example.org", "me@site.invalid", "me@localhost"]; // DevSkim: ignore DS162092 -- Test data: placeholder emails that must be withheld; no host is accessed.
 
 describe("placeholder contact details are withheld at render (audit P1-04)", () => {
   it("recognises 555 phones in any format and example/test emails", () => {

@@ -628,7 +628,7 @@ export function isPlaceholderEmail(value: unknown): boolean {
   if (!domain) return false;
   return (
     DISALLOWED_EMAIL_DOMAINS.has(domain) ||
-    /(?:^|\.)(?:example|test|invalid|localhost)$/.test(domain) ||
+    /(?:^|\.)(?:example|test|invalid|localhost)$/.test(domain) || // DevSkim: ignore DS162092 -- Matches reserved placeholder domains so they are withheld; no host is accessed.
     /(?:^|\.)example\.(?:com|org|net)$/.test(domain)
   );
 }
