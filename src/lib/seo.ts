@@ -49,6 +49,13 @@ export function canonicalLink(path: string) {
   return { rel: "canonical", href: absoluteUrl(path) } as const;
 }
 
+/**
+ * Real, owner-confirmed public profiles for Revora (LinkedIn, Facebook, X,
+ * Crunchbase, G2 ...). Empty on purpose: `sameAs` is only emitted for profile
+ * URLs that exist, so add a URL here only after the profile is live.
+ */
+export const ORGANIZATION_SAME_AS: readonly string[] = [];
+
 /** Sitewide publisher identity, referenced by page-level schemas. */
 export const ORGANIZATION_SCHEMA = {
   "@context": "https://schema.org",
@@ -56,7 +63,9 @@ export const ORGANIZATION_SCHEMA = {
   "@id": `${SITE_URL}/#organization`,
   name: BUSINESS.legalName,
   legalName: BUSINESS.legalName,
+  alternateName: "Revora",
   url: SITE_URL,
+  ...(ORGANIZATION_SAME_AS.length > 0 ? { sameAs: [...ORGANIZATION_SAME_AS] } : {}),
   // Google needs a crawlable, at least 112px square logo for the knowledge panel.
   logo: { "@type": "ImageObject", url: absoluteUrl("/apple-touch-icon.png"), width: 180, height: 180 },
   email: BUSINESS.email,
@@ -175,15 +184,20 @@ export const WEBSITE_SCHEMA = {
  * The single canonical offer, expressed for search engines.
  *
  * Revora sells a done-for-you service, not a retail product, so this is a
- * `Service` with real service offers — no Merchant Listing Product schema, no
+ * `Service` (also typed `SoftwareApplication`, since it is delivered as a web
+ * app) with real service offers — no Merchant Listing Product schema, no
  * invented SKU/GTIN, shipping, returns, inventory, reviews or ratings.
  */
 export const GROWTH_SYSTEM_SCHEMA = {
   "@context": "https://schema.org",
-  "@type": "Service",
+  // One entity, two types: a done-for-you service delivered as a web app. A
+  // single node keeps the three offers below from being declared twice.
+  "@type": ["Service", "SoftwareApplication"],
   name: GROWTH_SYSTEM.name,
   "@id": `${SITE_URL}/#growth-system`,
   serviceType: "Customer acquisition system for businesses",
+  applicationCategory: "BusinessApplication",
+  operatingSystem: "Web",
   provider: { "@id": `${SITE_URL}/#organization` },
   areaServed: BUSINESS.areasServed.map((name) => ({ "@type": "AdministrativeArea", name })),
   description:

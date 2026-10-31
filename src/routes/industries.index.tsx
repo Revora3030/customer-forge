@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { SiteFooter, SiteHeader } from "@/components/marketing/Chrome";
 import { Button } from "@/components/ui/button";
 import { INDUSTRIES, industrySlug } from "@/lib/domain";
-import { canonicalLink, ogUrl, OG_IMAGE_META } from "@/lib/seo";
+import { breadcrumbSchema, canonicalLink, jsonLdScript, ogUrl, OG_IMAGE_META } from "@/lib/seo";
 
 export const Route = createFileRoute("/industries/")({
   head: () => ({
@@ -24,6 +24,7 @@ export const Route = createFileRoute("/industries/")({
       ...OG_IMAGE_META,
     ],
     links: [canonicalLink("/industries")],
+    scripts: [jsonLdScript(breadcrumbSchema([{ name: "Revora", path: "/" }, { name: "Industries", path: "/industries" }]))],
   }),
   component: Industries,
 });
