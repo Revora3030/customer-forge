@@ -14,6 +14,7 @@ import {
   SectionHeading,
 } from "@/components/app/Bits";
 import { Button } from "@/components/ui/button";
+import { ConfirmAction, ConfirmDialog } from "@/components/app/ConfirmAction";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -68,6 +69,10 @@ function ClientDetail() {
 
   const [domain, setDomain] = useState<string | null>(null);
   const [reason, setReason] = useState("");
+  const [pendingPublish, setPendingPublish] = useState<string | null>(null);
+  const [pendingBilling, setPendingBilling] = useState<
+    { kind: "plan"; value: string | null } | { kind: "status"; value: string } | null
+  >(null);
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["admin"] });
 
@@ -181,14 +186,24 @@ function ClientDetail() {
                 View website <ExternalLink className="ml-1 size-3.5" />
               </Link>
             </Button>
-            <Button
-              size="sm"
-              variant={org.is_suspended ? "signal" : "outline"}
-              disabled={orgMutation.isPending}
-              onClick={() => orgMutation.mutate({ is_suspended: !org.is_suspended })}
+            <ConfirmAction
+              title={org.is_suspended ? `Reactivate ${org.name}?` : `Suspend ${org.name}?`}
+              description={
+                org.is_suspended
+                  ? "This turns their website and app back on."
+                  : `This takes ${org.name} offline: their website and app stop working until you reactivate them.`
+              }
+              confirmLabel={org.is_suspended ? "Reactivate" : "Suspend"}
+              onConfirm={() => orgMutation.mutate({ is_suspended: !org.is_suspended })}
             >
-              {org.is_suspended ? "Reactivate" : "Suspend"}
-            </Button>
+              <Button
+                size="sm"
+                variant={org.is_suspended ? "signal" : "outline"}
+                disabled={orgMutation.isPending}
+              >
+                {org.is_suspended ? "Reactivate" : "Suspend"}
+              </Button>
+            </ConfirmAction>
           </div>
         }
       />
@@ -310,7 +325,9 @@ function ClientDetail() {
               size="sm"
               variant={state === publishState ? "secondary" : "outline"}
               disabled={publishMutation.isPending}
-              onClick={() => publishMutation.mutate(state)}
+              onClick={() =>
+                state === "preview" ? publishMutation.mutate(state) : setPendingPublish(state)
+              }
             >
               {PUBLISH_STATES[state]?.label}
             </Button>
@@ -389,7 +406,9 @@ function ClientDetail() {
             <select
               className="h-9 w-full rounded-md border border-border bg-background px-2 text-[13px]"
               value={org.plan_id ?? ""}
-              onChange={(event) => orgMutation.mutate({ plan_id: event.target.value || null })}
+              onChange={(event) =>
+                setPendingBilling({ kind: "plan", value: event.target.value || null })
+              }
             >
               <option value="">No plan</option>
               {(plans ?? []).map((plan) => (
@@ -404,11 +423,13 @@ function ClientDetail() {
             <select
               className="h-9 w-full rounded-md border border-border bg-background px-2 text-[13px]"
               value={org.subscription_status}
-              onChange={(event) => orgMutation.mutate({ subscription_status: event.target.value })}
+              onChange={(event) =>
+                setPendingBilling({ kind: "status", value: event.target.value })
+              }
             >
               {["trialing", "active", "past_due", "canceled", "suspended"].map((status) => (
                 <option key={status} value={status}>
-                  {status.replace("_", " ")}
+                  {status.replaceAll("_", " ")}
                 </option>
               ))}
             </select>
@@ -420,6 +441,43 @@ function ClientDetail() {
           </p>
         ) : null}
       </Panel>
+
+      <ConfirmDialog
+        open={pendingPublish !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingPublish(null);
+        }}
+        title={`Set ${org.name} to "${PUBLISH_STATES[pendingPublish ?? ""]?.label ?? pendingPublish}"?`}
+        description={
+          pendingPublish === "published"
+            ? "This makes their website public now, without the customer's approval step. The change is recorded in the audit log."
+            : "This changes whether the public can see their website. The change is recorded in the audit log."
+        }
+        confirmLabel="Yes, change it"
+        onConfirm={() => {
+          if (pendingPublish) publishMutation.mutate(pendingPublish);
+          setPendingPublish(null);
+        }}
+      />
+      <ConfirmDialog
+        open={pendingBilling !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingBilling(null);
+        }}
+        title={
+          pendingBilling?.kind === "plan"
+            ? "Change this client's plan?"
+            : `Set subscription status to "${pendingBilling?.value?.replaceAll("_", " ")}"?`
+        }
+        description="This updates Revora's records for this client only. It does not change anything in Stripe, so the customer's real billing is unaffected."
+        confirmLabel="Yes, update"
+        onConfirm={() => {
+          if (pendingBilling?.kind === "plan") orgMutation.mutate({ plan_id: pendingBilling.value });
+          if (pendingBilling?.kind === "status")
+            orgMutation.mutate({ subscription_status: pendingBilling.value });
+          setPendingBilling(null);
+        }}
+      />
 
       {/* Support access */}
       <Panel className="space-y-3">

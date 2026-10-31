@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { Panel, Pill, SectionHeading } from "@/components/app/Bits";
 import { Button } from "@/components/ui/button";
+import { ConfirmAction } from "@/components/app/ConfirmAction";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { recheckDomain, saveOwnDomain } from "@/lib/domain.functions";
@@ -300,16 +301,19 @@ export function DomainCenter({
             </Button>
           ) : null}
           {connected ? (
-            <Button
-              variant="ghost"
-              disabled={!canManage || save.isPending}
-              onClick={() => {
+            <ConfirmAction
+              title="Remove this domain?"
+              description={`Visitors who type ${connected} will stop reaching your website. Your Revora address keeps working.`}
+              confirmLabel="Yes, remove it"
+              onConfirm={() => {
                 setInput("");
                 save.mutate("");
               }}
             >
-              Remove domain
-            </Button>
+              <Button variant="ghost" disabled={!canManage || save.isPending}>
+                Remove domain
+              </Button>
+            </ConfirmAction>
           ) : null}
         </div>
         {input && !looksLikeDomain(input) ? (

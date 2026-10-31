@@ -14,6 +14,7 @@ import {
   SectionHeading,
 } from "@/components/app/Bits";
 import { Button } from "@/components/ui/button";
+import { ConfirmAction } from "@/components/app/ConfirmAction";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useWorkspace } from "@/lib/use-tenant";
@@ -227,9 +228,9 @@ function Launch() {
         {manage ? (
           <div className="flex flex-wrap gap-2">
             {(["draft", "preview", "published", "unpublished"] as const).map((state) => (
-              <Button
+              <PublishStateButton
                 key={state}
-                size="sm"
+                state={state}
                 variant={
                   state === publishState
                     ? "secondary"
@@ -238,10 +239,9 @@ function Launch() {
                       : "outline"
                 }
                 disabled={saveSettings.isPending || launchFlow.isLaunching || (state === "published" && !approved)}
-                onClick={() => setPublish(state)}
-              >
-                {PUBLISH_STATES[state]?.label}
-              </Button>
+                needsConfirm={publishState === "published" && state !== "published"}
+                onSelect={() => setPublish(state)}
+              />
             ))}
           </div>
         ) : (
@@ -408,5 +408,41 @@ function Row({ label, value }: { label: string; value: string }) {
       <dt className="eyebrow">{label}</dt>
       <dd className="mt-0.5 break-words">{value}</dd>
     </div>
+  );
+}
+
+/** Moving a live site back to draft/unpublished takes it offline, so ask first. */
+function PublishStateButton({
+  state,
+  variant,
+  disabled,
+  needsConfirm,
+  onSelect,
+}: {
+  state: string;
+  variant: React.ComponentProps<typeof Button>["variant"];
+  disabled: boolean;
+  needsConfirm: boolean;
+  onSelect: () => void;
+}) {
+  const label = PUBLISH_STATES[state]?.label ?? state;
+  if (!needsConfirm) {
+    return (
+      <Button size="sm" variant={variant} disabled={disabled} onClick={onSelect}>
+        {label}
+      </Button>
+    );
+  }
+  return (
+    <ConfirmAction
+      title={`Set your website to "${label}"?`}
+      description="Your website is live right now. This takes it off the public internet until you publish it again."
+      confirmLabel="Yes, take it offline"
+      onConfirm={onSelect}
+    >
+      <Button size="sm" variant={variant} disabled={disabled}>
+        {label}
+      </Button>
+    </ConfirmAction>
   );
 }
