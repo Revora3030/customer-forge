@@ -1,0 +1,62 @@
+name: E2E customer journey
+
+# Playwright end-to-end tests: sign-up -> checkout -> dashboard.
+# Headless Chromium only, retries=1. Needs no secrets: the default run uses placeholder Supabase values and a
+# stubbed sign-up. Stripe is TEST mode only; the signed-in and checkout steps are skipped (with a reason in the
+# log) unless E2E_* values are provided, and the suite fails if a live Stripe key is ever seen.
+
+on:
+  pull_request:
+    branches: [lovable-sync]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-journey-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: E2E customer journey (Chromium)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Pin npm
+        run: npm install --global npm@11.6.0
+
+      - name: Install app dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Install Playwright and Chromium
+        working-directory: e2e
+        run: |
+          npm install --no-audit --no-fund
+          npx playwright install --with-deps chromium
+
+      - name: Run end-to-end tests
+        working-directory: e2e
+        env:
+          CI: "true"
+        run: npx playwright test
+
+      - name: Upload report
+        if: failure()
+        continue-on-error: true
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-report-${{ github.run_id }}
+          path: |
+            e2e/playwright-report
+            e2e/test-results
+          if-no-files-found: ignore
+          retention-days: 7
