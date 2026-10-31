@@ -1,12 +1,12 @@
 /**
- * Visible business details: name, email, hours and areas served.
+ * Visible business details: name, email and areas served.
  *
  * Search engines cross-check structured data against what a visitor can
  * actually see on the page, so these values are rendered from the same
  * `BUSINESS` constants that produce the LocalBusiness schema. Changing one
  * changes both — they can never drift apart.
  */
-import { Clock, Globe2, Mail, MapPin } from "lucide-react";
+import { Globe2, Mail, MapPin } from "lucide-react";
 
 import { BUSINESS } from "@/lib/business-identity";
 import { revoraMailto, MAIL_SUBJECTS } from "@/lib/brand";
@@ -19,13 +19,6 @@ const ROWS = [
     value: BUSINESS.email,
     href: revoraMailto(MAIL_SUBJECTS.inquiry),
     event: "email" as const,
-  },
-  {
-    icon: Clock,
-    label: "Hours",
-    value: BUSINESS.hours.display,
-    href: null,
-    event: null,
   },
   {
     icon: MapPin,

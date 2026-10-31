@@ -28,7 +28,7 @@ export const OG_IMAGE = {
   url: absoluteUrl("/og.jpg"),
   width: 1200,
   height: 630,
-  alt: "Revora — AI growth software that books local jobs 24/7",
+  alt: "Revora — AI growth software that books local jobs",
 } as const;
 
 /**
@@ -71,19 +71,13 @@ export const ORGANIZATION_SCHEMA = {
       email: BUSINESS.email,
       availableLanguage: BUSINESS.languages,
       areaServed: ["US", "Worldwide"],
-      hoursAvailable: {
-        "@type": "OpeningHoursSpecification",
-        dayOfWeek: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
-        opens: "00:00",
-        closes: "23:59",
-      },
     },
   ],
 };
 
 /**
  * The business entity Google uses for the knowledge panel and local results:
- * name, phone, email, 24/7 hours and the areas served.
+ * name, email and the areas served.
  *
  * Revora is a service-area business with no public street address, so no
  * `address.streetAddress` is emitted — only the region it is based in. Never

@@ -1,6 +1,6 @@
 /**
  * Revora's own verified business identity — the single source of truth for the
- * name, contact details, hours and areas Google shows in search results.
+ * name, contact details and areas Google shows in search results.
  *
  * These are the PLATFORM's details. Client business websites always use their
  * own tenant contact settings (`business_profiles`), never these constants.
@@ -21,12 +21,6 @@ export const BUSINESS = {
   region: { name: "North Carolina", code: "NC", country: "US" },
   /** Widest honest reach, most specific first. */
   areasServed: ["North Carolina", "United States", "Worldwide"],
-  hours: {
-    /** Always open — the growth system itself runs 24/7. */
-    allDay: true,
-    display: "Open 24 hours, 7 days a week",
-    short: "24/7",
-  },
   phone: REVORA.phone,
   phoneDisplay: REVORA.phoneDisplay,
   tel: `+1${REVORA.phone}`,
