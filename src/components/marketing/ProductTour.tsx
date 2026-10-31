@@ -8,6 +8,7 @@ import { Link } from "@tanstack/react-router";
 import { ArrowRight, CalendarCheck, Calculator, Globe, LineChart, Users, Zap } from "lucide-react";
 import { Panel, Pill } from "@/components/app/Bits";
 import { Button } from "@/components/ui/button";
+import { BeforeAfterSlider } from "@/components/marketing/BeforeAfterSlider";
 
 type ScreenKey = "site" | "crm" | "quote" | "booking" | "automation" | "analytics";
 
@@ -267,72 +268,92 @@ export function ProductTour() {
   if (!active) return null;
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[0.82fr_1.18fr] lg:gap-8">
-      <div>
-        <Pill tone="signal">Product tour</Pill>
-        <h2 className="mt-4 font-display text-[clamp(1.3rem,2.5vw,1.8rem)] leading-tight font-semibold">
-          Website to customer, in one workspace.
-        </h2>
-        <p className="mt-3 text-[13.5px] leading-relaxed text-muted-foreground">
-          Website, leads, quotes, booking and follow-up, brought together. The examples below use sample data.
-        </p>
-        <div
-          role="tablist"
-          aria-label="Revora product screens"
-          className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-1"
-        >
-          {TABS.map(({ key, label, icon: Icon, outcome }) => {
-            const selected = key === view;
-            return (
-              <Button
-                variant="outline"
-                key={key}
-                type="button"
-                role="tab"
-                id={`tour-tab-${key}`}
-                aria-controls="tour-panel"
-                aria-selected={selected}
-                onClick={() => setView(key)}
-                className={`flex min-h-11 cursor-pointer items-center gap-2.5 rounded-lg border px-3 py-2.5 text-left transition-colors ${
-                  selected
-                    ? "gold-glow border-primary/50 bg-primary/10"
-                    : "border-border bg-card hover:border-primary/30"
-                }`}
-              >
-                <Icon
-                  className={`size-4 shrink-0 ${selected ? "text-primary" : "text-muted-foreground"}`}
-                  aria-hidden="true"
-                />
-                <span className="min-w-0">
-                  <span
-                    className={`block text-[12.5px] font-medium ${selected ? "text-primary" : ""}`}
-                  >
-                    {label}
+    <>
+      <div className="grid gap-6 lg:grid-cols-[0.82fr_1.18fr] lg:gap-8">
+        <div>
+          <Pill tone="signal">Product tour</Pill>
+          <h2 className="mt-4 font-display text-[clamp(1.3rem,2.5vw,1.8rem)] leading-tight font-semibold">
+            Website to customer, in one workspace.
+          </h2>
+          <p className="mt-3 text-[13.5px] leading-relaxed text-muted-foreground">
+            Website, leads, quotes, booking and follow-up, brought together. The examples below use
+            sample data.
+          </p>
+          <div
+            role="tablist"
+            aria-label="Revora product screens"
+            className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-1"
+          >
+            {TABS.map(({ key, label, icon: Icon, outcome }) => {
+              const selected = key === view;
+              return (
+                <Button
+                  variant="outline"
+                  key={key}
+                  type="button"
+                  role="tab"
+                  id={`tour-tab-${key}`}
+                  aria-controls="tour-panel"
+                  aria-selected={selected}
+                  onClick={() => setView(key)}
+                  className={`flex min-h-11 cursor-pointer items-center gap-2.5 rounded-lg border px-3 py-2.5 text-left transition-colors ${
+                    selected
+                      ? "gold-glow border-primary/50 bg-primary/10"
+                      : "border-border bg-card hover:border-primary/30"
+                  }`}
+                >
+                  <Icon
+                    className={`size-4 shrink-0 ${selected ? "text-primary" : "text-muted-foreground"}`}
+                    aria-hidden="true"
+                  />
+                  <span className="min-w-0">
+                    <span
+                      className={`block text-[12.5px] font-medium ${selected ? "text-primary" : ""}`}
+                    >
+                      {label}
+                    </span>
+                    <span className="hidden text-[11px] text-muted-foreground lg:block">
+                      {outcome}
+                    </span>
                   </span>
-                  <span className="hidden text-[11px] text-muted-foreground lg:block">{outcome}</span>
-                </span>
-              </Button>
-            );
-          })}
+                </Button>
+              );
+            })}
+          </div>
+          <Button asChild variant="outline" size="sm" className="mt-5 min-h-11">
+            <Link to="/demo/dashboard">
+              Open the full live demo <ArrowRight className="size-4" aria-hidden="true" />
+            </Link>
+          </Button>
         </div>
-        <Button asChild variant="outline" size="sm" className="mt-5 min-h-11">
-          <Link to="/demo/dashboard">
-            Open the full live demo <ArrowRight className="size-4" aria-hidden="true" />
-          </Link>
-        </Button>
-      </div>
 
-      <Panel className="min-w-0 p-4 sm:p-5 lg:sticky lg:top-24 lg:self-start" id="tour-panel" role="tabpanel" aria-labelledby={`tour-tab-${view}`}>
-        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-b border-border pb-3">
-          <p className="font-display text-[13px] font-semibold">{active.label}</p>
-          <span className="rounded-full border border-primary/35 bg-primary/10 px-2.5 py-0.5 text-[10.5px] text-primary">
-            {active.outcome}
-          </span>
-        </div>
-        <div className="mt-4 min-w-0">
-          <Screen view={view} />
-        </div>
-      </Panel>
-    </div>
+        <Panel
+          className="min-w-0 p-4 sm:p-5 lg:sticky lg:top-24 lg:self-start"
+          id="tour-panel"
+          role="tabpanel"
+          aria-labelledby={`tour-tab-${view}`}
+        >
+          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-b border-border pb-3">
+            <p className="font-display text-[13px] font-semibold">{active.label}</p>
+            <span className="rounded-full border border-primary/35 bg-primary/10 px-2.5 py-0.5 text-[10.5px] text-primary">
+              {active.outcome}
+            </span>
+          </div>
+          <div className="mt-4 min-w-0">
+            <Screen view={view} />
+          </div>
+        </Panel>
+      </div>
+      <div className="mt-10 mx-auto max-w-3xl">
+        <h3 className="text-center font-display text-[clamp(1.1rem,2.2vw,1.5rem)] font-semibold">
+          From an out-of-date page to a site built to win leads
+        </h3>
+        <p className="mt-2 mb-4 text-center text-[13px] text-muted-foreground">
+          Already have a website? Paste its address at the top of this page and the AI team starts
+          from it.
+        </p>
+        <BeforeAfterSlider />
+      </div>
+    </>
   );
 }

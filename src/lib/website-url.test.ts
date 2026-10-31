@@ -1,0 +1,56 @@
+import { describe, expect, it } from "vitest";
+import { normalizeWebsiteUrl } from "./website-url";
+
+const ok = (input: string) => {
+  const result = normalizeWebsiteUrl(input);
+  return result.ok ? result.url : null;
+};
+
+describe("normalizeWebsiteUrl", () => {
+  it("adds https and tidies a bare domain", () => {
+    expect(ok("  YourBusiness.com ")).toBe("https://yourbusiness.com");
+    expect(ok("www.example.org/services?x=1")).toBe("https://www.example.org/services?x=1");
+  });
+
+  it("keeps an explicit http or https scheme and drops credentials and fragments", () => {
+    expect(ok("http://example.com/about#team")).toBe("http://example.com/about");
+    expect(ok("https://user:pw@example.com/")).toBe("https://example.com");
+  });
+
+  it("rejects empty, spaced or over-long input", () => {
+    expect(ok("")).toBeNull();
+    expect(ok("my site.com")).toBeNull();
+    expect(ok(`${"a".repeat(220)}.com`)).toBeNull();
+  });
+
+  it("rejects non-web schemes", () => {
+    for (const bad of [
+      "javascript:alert(1)",
+      "ftp://example.com",
+      "file:///etc/passwd",
+      "data:text/html,hi",
+      "mailto:a@b.co",
+    ]) {
+      expect(ok(bad), bad).toBeNull();
+    }
+  });
+
+  it("rejects private, loopback, metadata and IP-literal hosts", () => {
+    for (const bad of [
+      "localhost",
+      "http://127.0.0.1",
+      "http://10.0.0.5/admin",
+      "http://192.168.1.1",
+      "http://169.254.169.254/latest/meta-data",
+      "http://[::1]/",
+      "http://2130706433",
+      "http://0x7f000001",
+      "printer.local",
+      "db.internal",
+      "metadata.google.internal",
+      "intranet",
+    ]) {
+      expect(ok(bad), bad).toBeNull();
+    }
+  });
+});
