@@ -109,6 +109,7 @@ import { Route as LocalIndustryIndexRouteImport } from './routes/local.$industry
 import { Route as LocalIndustryStateRouteImport } from './routes/local.$industry.$state'
 import { Route as PTokenPageRouteImport } from './routes/p.$token_.$page'
 import { Route as SSlugPageRouteImport } from './routes/s.$slug.$page'
+import { Route as SSlugRobotsDottxtRouteImport } from './routes/s.$slug.robots[.]txt'
 import { Route as SSlugSitemapDotxmlRouteImport } from './routes/s.$slug.sitemap[.]xml'
 import { Route as UnsubscribeLifecycleTokenRouteImport } from './routes/unsubscribe.lifecycle.$token'
 import { Route as UnsubscribeOutreachTokenRouteImport } from './routes/unsubscribe.outreach.$token'
@@ -665,6 +666,11 @@ const SSlugPageRoute = SSlugPageRouteImport.update({
   path: '/$page',
   getParentRoute: () => SSlugRoute,
 } as any)
+const SSlugRobotsDottxtRoute = SSlugRobotsDottxtRouteImport.update({
+  id: '/robots.txt',
+  path: '/robots.txt',
+  getParentRoute: () => SSlugRoute,
+} as any)
 const SSlugSitemapDotxmlRoute = SSlugSitemapDotxmlRouteImport.update({
   id: '/sitemap.xml',
   path: '/sitemap.xml',
@@ -965,6 +971,7 @@ export interface FileRoutesByFullPath {
   '/local/$industry/$state': typeof LocalIndustryStateRoute
   '/p/$token/$page': typeof PTokenPageRoute
   '/s/$slug/$page': typeof SSlugPageRoute
+  '/s/$slug/robots.txt': typeof SSlugRobotsDottxtRoute
   '/s/$slug/sitemap.xml': typeof SSlugSitemapDotxmlRoute
   '/unsubscribe/lifecycle/$token': typeof UnsubscribeLifecycleTokenRoute
   '/unsubscribe/outreach/$token': typeof UnsubscribeOutreachTokenRoute
@@ -1097,6 +1104,7 @@ export interface FileRoutesByTo {
   '/local/$industry/$state': typeof LocalIndustryStateRoute
   '/p/$token/$page': typeof PTokenPageRoute
   '/s/$slug/$page': typeof SSlugPageRoute
+  '/s/$slug/robots.txt': typeof SSlugRobotsDottxtRoute
   '/s/$slug/sitemap.xml': typeof SSlugSitemapDotxmlRoute
   '/unsubscribe/lifecycle/$token': typeof UnsubscribeLifecycleTokenRoute
   '/unsubscribe/outreach/$token': typeof UnsubscribeOutreachTokenRoute
@@ -1236,6 +1244,7 @@ export interface FileRoutesById {
   '/local/$industry/$state': typeof LocalIndustryStateRoute
   '/p/$token_/$page': typeof PTokenPageRoute
   '/s/$slug/$page': typeof SSlugPageRoute
+  '/s/$slug/robots.txt': typeof SSlugRobotsDottxtRoute
   '/s/$slug/sitemap.xml': typeof SSlugSitemapDotxmlRoute
   '/unsubscribe/lifecycle/$token': typeof UnsubscribeLifecycleTokenRoute
   '/unsubscribe/outreach/$token': typeof UnsubscribeOutreachTokenRoute
@@ -1375,6 +1384,7 @@ export interface FileRouteTypes {
     | '/local/$industry/$state'
     | '/p/$token/$page'
     | '/s/$slug/$page'
+    | '/s/$slug/robots.txt'
     | '/s/$slug/sitemap.xml'
     | '/unsubscribe/lifecycle/$token'
     | '/unsubscribe/outreach/$token'
@@ -1507,6 +1517,7 @@ export interface FileRouteTypes {
     | '/local/$industry/$state'
     | '/p/$token/$page'
     | '/s/$slug/$page'
+    | '/s/$slug/robots.txt'
     | '/s/$slug/sitemap.xml'
     | '/unsubscribe/lifecycle/$token'
     | '/unsubscribe/outreach/$token'
@@ -1645,6 +1656,7 @@ export interface FileRouteTypes {
     | '/local/$industry/$state'
     | '/p/$token_/$page'
     | '/s/$slug/$page'
+    | '/s/$slug/robots.txt'
     | '/s/$slug/sitemap.xml'
     | '/unsubscribe/lifecycle/$token'
     | '/unsubscribe/outreach/$token'
@@ -2473,6 +2485,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SSlugPageRouteImport
       parentRoute: typeof SSlugRoute
     }
+    '/s/$slug/robots.txt': {
+      id: '/s/$slug/robots.txt'
+      path: '/robots.txt'
+      fullPath: '/s/$slug/robots.txt'
+      preLoaderRoute: typeof SSlugRobotsDottxtRouteImport
+      parentRoute: typeof SSlugRoute
+    }
     '/s/$slug/sitemap.xml': {
       id: '/s/$slug/sitemap.xml'
       path: '/sitemap.xml'
@@ -2909,11 +2928,13 @@ const IndustriesRouteWithChildren = IndustriesRoute._addFileChildren(
 
 interface SSlugRouteChildren {
   SSlugPageRoute: typeof SSlugPageRoute
+  SSlugRobotsDottxtRoute: typeof SSlugRobotsDottxtRoute
   SSlugSitemapDotxmlRoute: typeof SSlugSitemapDotxmlRoute
 }
 
 const SSlugRouteChildren: SSlugRouteChildren = {
   SSlugPageRoute: SSlugPageRoute,
+  SSlugRobotsDottxtRoute: SSlugRobotsDottxtRoute,
   SSlugSitemapDotxmlRoute: SSlugSitemapDotxmlRoute,
 }
 

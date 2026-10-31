@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import {
+  clientPageSearchText,
   hasPlaceholderContact,
   localBusinessSchema,
   openingHoursSpec,
@@ -91,13 +92,13 @@ describe("tenantSiteHead (one head for every client route)", () => {
       canonical: "https://acme.test/about",
       businessUrl: "https://acme.test/",
     });
-    expect(titleOf(head)).toBe("About — Test Business Co.");
+    expect(titleOf(head)).toBe("About — Test Business Co., Austin");
     expect(meta(head, "og:image")?.content).toBe("https://cdn.test/hero.jpg");
     expect(meta(head, "twitter:image")?.content).toBe("https://cdn.test/hero.jpg");
     expect(meta(head, "og:site_name")?.content).toBe("Test Business Co.");
     expect(meta(head, "twitter:card")?.content).toBe("summary_large_image");
     expect(meta(head, "og:url")?.content).toBe("https://acme.test/about");
-    expect(meta(head, "description")?.content).toBe("Detailing that comes to you.");
+    expect(meta(head, "description")?.content).toBe("About from Test Business Co. in Austin.");
     expect(head.links[0]).toEqual({ rel: "canonical", href: "https://acme.test/about" });
     expect(head.scripts.some((script) => script.children.includes('"LocalBusiness"'))).toBe(true);
     expect(meta(head, "robots")).toBeUndefined();
@@ -162,7 +163,7 @@ describe("tenantSiteHead (one head for every client route)", () => {
     expect(ld).not.toContain("\"review\"");
   });
 
-  it("indexes a home page that has sections and still shows its real reviews", () => {
+  it("indexes a home page that has sections and still omits ratings and reviews", () => {
     const head = tenantSiteHead({
       site: site(
         { kind: "home", slug: "home", title: "Home" },
@@ -176,7 +177,10 @@ describe("tenantSiteHead (one head for every client route)", () => {
       businessUrl: "https://acme.test",
     });
     expect(meta(head, "robots")).toBeUndefined();
-    expect(head.scripts.map((s) => s.children).join("")).toContain("aggregateRating");
+    const ld = head.scripts.map((s) => s.children).join("");
+    expect(ld).not.toContain("aggregateRating");
+    expect(ld).not.toContain("\"review\"");
+    expect(ld).not.toContain("award");
   });
 
   it("emits no JSON-LD and stays noindex for a demo workspace, even with sections and seeded reviews", () => {
@@ -237,6 +241,72 @@ describe("tenantSiteHead (one head for every client route)", () => {
   });
 });
 
+describe("client page search text", () => {
+  it("gives each page its own title and description, and does not reuse the homepage tagline", () => {
+    const home = clientPageSearchText({
+      isHome: true,
+      label: "Home",
+      name: "Acme Plumbing",
+      city: "Raleigh",
+      pageSlug: "home",
+      orgSlug: "acme-plumbing",
+      tagline: "Pipes fixed the same day.",
+    });
+    const about = clientPageSearchText({
+      isHome: false,
+      label: "About",
+      name: "Acme Plumbing",
+      city: "Raleigh",
+      pageSlug: "about",
+      orgSlug: "acme-plumbing",
+      tagline: "Pipes fixed the same day.",
+    });
+    const services = clientPageSearchText({
+      isHome: false,
+      label: "Services",
+      name: "Acme Plumbing",
+      city: "Raleigh",
+      pageSlug: "services",
+      orgSlug: "acme-plumbing",
+      tagline: "Pipes fixed the same day.",
+    });
+    expect(home.description).toBe("Pipes fixed the same day.");
+    expect(about.description).toBe("About from Acme Plumbing in Raleigh.");
+    expect(services.description).toBe("Services from Acme Plumbing in Raleigh.");
+    expect(new Set([home.title, about.title, services.title]).size).toBe(3);
+    expect(new Set([home.description, about.description, services.description]).size).toBe(3);
+  });
+
+  it("keeps two clients apart when they share a page label", () => {
+    const a = clientPageSearchText({ isHome: false, label: "About", name: "Acme Plumbing", city: "Raleigh", pageSlug: "about", orgSlug: "acme-plumbing" });
+    const b = clientPageSearchText({ isHome: false, label: "About", name: "Beacon Plumbing", city: "Durham", pageSlug: "about", orgSlug: "beacon-plumbing" });
+    expect(a.title).not.toBe(b.title);
+    expect(a.description).not.toBe(b.description);
+  });
+
+  it("uses the site slug when two clients share a name and the slug is not already in the copy", () => {
+    const a = clientPageSearchText({ isHome: true, label: "Home", name: "Acme", city: null, pageSlug: "home", orgSlug: "acme-north" });
+    const b = clientPageSearchText({ isHome: true, label: "Home", name: "Acme", city: null, pageSlug: "home", orgSlug: "acme-south" });
+    expect(a.title).not.toBe(b.title);
+    expect(a.description).not.toBe(b.description);
+    expect(a.description).toContain("acme north");
+    expect(b.description).toContain("acme south");
+  });
+
+  it("keeps an authored description and omits an empty city", () => {
+    const page = clientPageSearchText({
+      isHome: false,
+      label: "Pricing",
+      name: "Acme",
+      city: null,
+      seoDescription: "Published prices for Acme.",
+      orgSlug: "acme",
+    });
+    expect(page.description).toBe("Published prices for Acme.");
+    expect(page.title).toBe("Pricing — Acme");
+  });
+});
+
 describe("client site head", () => {
   it("adds customer FAQ data from that page's saved composition only", () => {
     const head = tenantSiteHead({
@@ -252,26 +322,32 @@ describe("client site head", () => {
     const other = tenantSiteHead({ site: site({ kind: "home", title: "Home" }), canonical: "https://other.test/", businessUrl: "https://other.test/" });
     expect(other.scripts.some((script) => script.children.includes('"FAQPage"'))).toBe(false);
   });
-  it("builds LocalBusiness data only from real facts", () => {
+  it("builds LocalBusiness data only from real facts and never from ratings or reviews", () => {
     const schema = localBusinessSchema({
       name: "Acme Roofing",
       url: "https://acme.test",
       profile: { phone: "(555) 010-0199", city: "Raleigh", state: "NC", hours: { monday: "9am-5pm", sunday: "Closed" } },
-      reviews: [{ rating: 5, author_name: "Jo", comment: "Great" }, { rating: 4 }],
       services: [{ name: "Roof repair", price: 250 }],
     });
     expect(schema["@type"]).toBe("LocalBusiness");
+    expect(schema["name"]).toBe("Acme Roofing");
+    expect(schema["url"]).toBe("https://acme.test");
     expect(schema["telephone"]).toBe("(555) 010-0199");
     expect((schema["address"] as Record<string, string>)["addressLocality"]).toBe("Raleigh");
-    expect((schema["aggregateRating"] as Record<string, number>)["ratingValue"]).toBe(4.5);
+    expect(schema["aggregateRating"]).toBeUndefined();
+    expect(schema["review"]).toBeUndefined();
+    expect(schema["award"]).toBeUndefined();
     expect(schema["openingHoursSpecification"]).toEqual([
       { "@type": "OpeningHoursSpecification", dayOfWeek: "Monday", opens: "09:00", closes: "17:00" },
     ]);
+    expect((schema["hasOfferCatalog"] as { itemListElement: { itemOffered: { name: string } }[] }).itemListElement[0]?.itemOffered.name).toBe("Roof repair");
     expect(schema["email"]).toBeUndefined();
   });
-  it("omits ratings when there are no reviews", () => {
+  it("omits ratings, reviews and awards even when no review rows exist", () => {
     const schema = localBusinessSchema({ name: "X", url: "https://x.test", profile: null });
     expect(schema["aggregateRating"]).toBeUndefined();
+    expect(schema["review"]).toBeUndefined();
+    expect(schema["award"]).toBeUndefined();
   });
   it("reads 9-5 as 09:00-17:00", () => {
     expect(openingHoursSpec({ tue: "9-5" })[0]).toMatchObject({ opens: "09:00", closes: "17:00" });

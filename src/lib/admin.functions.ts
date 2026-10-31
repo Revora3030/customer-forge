@@ -760,6 +760,11 @@ export const setClientPublishState = createServerFn({ method: "POST" })
       entity_id: data.organizationId,
       metadata: { publish_state: data.state, source: "admin" } as never,
     });
+    if (data.state === "published") {
+      await import("@/lib/indexnow-site.server")
+        .then(({ submitPublishedSiteToIndexNow }) => submitPublishedSiteToIndexNow(data.organizationId))
+        .catch(() => undefined);
+    }
     return { ok: true };
   });
 

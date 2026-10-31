@@ -52,10 +52,11 @@ describe("revert live site", () => {
 describe("edge cache purge", () => {
   it("builds purge URLs for https sites only, capped at 30", () => {
     expect(purgeUrls("https://acme.com", ["/", "/services"])).toEqual([
+      "https://acme.com/sitemap.xml",
+      "https://acme.com/robots.txt",
       "https://acme.com",
       "https://acme.com/",
       "https://acme.com/services",
-      "https://acme.com/sitemap.xml",
     ]);
     expect(purgeUrls("http://localhost:3000", ["/"])).toEqual([]);
     expect(purgeUrls("https://a.com", Array.from({ length: 50 }, (_, i) => `/p${i}`)).length).toBe(30);
@@ -98,6 +99,8 @@ describe("publish purge targets", () => {
     expect(route).toContain('createFileRoute("/s/$slug/sitemap.xml")');
     expect(route).toContain("platformTenantSitemapResponse(params.slug)");
     expect(readFileSync("src/routeTree.gen.ts", "utf8")).toContain("'/s/$slug/sitemap.xml'");
+    expect(readFileSync("src/routes/s.$slug.robots[.]txt.ts", "utf8")).toContain('createFileRoute("/s/$slug/robots.txt")');
+    expect(readFileSync("src/routeTree.gen.ts", "utf8")).toContain("'/s/$slug/robots.txt'");
   });
   it("skips an unverified custom domain", () => {
     const urls = purgeTargets({ slug: "acme", paths: ["/"], platformOrigin: "https://revoragrowthsystems.com/", customDomain: "acme.com", domainVerified: false });

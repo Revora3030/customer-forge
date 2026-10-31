@@ -35,6 +35,25 @@ describe("crawler inventories fail honestly", () => {
     expect(rules).not.toContain("/sitemaps/sites.xml");
   });
 
+  it("serves a client host its own crawler rules and sitemap only", async () => {
+    mocks.host.mockResolvedValue({ slug: "acme", origin: "https://acme.example", noindex: false, pages: [], publishedAt: null });
+    const rules = await (await run(robots)).text();
+    expect(rules).toContain("User-agent: GPTBot");
+    expect(rules).toContain("User-agent: ClaudeBot");
+    expect(rules).toContain("User-agent: PerplexityBot");
+    expect(rules).toContain("Sitemap: https://acme.example/sitemap.xml");
+    expect(rules).not.toContain("revoragrowthsystems.com");
+    expect(rules).not.toContain("Disallow: /app");
+  });
+
+  it("tells crawlers to stay out of an offline client host", async () => {
+    mocks.host.mockResolvedValue({ slug: "acme", origin: "https://acme.example", noindex: true, pages: [], publishedAt: null });
+    const rules = await (await run(robots)).text();
+    expect(rules).toContain("Disallow: /");
+    expect(rules).not.toContain("Sitemap:");
+    expect(rules).not.toMatch(/^Allow: \//m);
+  });
+
   it("preserves private route exclusions in crawler rules", async () => {
     const response = await run(robots);
     expect(response.status).toBe(200);

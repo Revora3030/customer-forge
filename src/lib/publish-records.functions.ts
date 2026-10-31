@@ -302,6 +302,10 @@ export const revertLiveSite = createServerFn({ method: "POST" })
       entity_id: data.organizationId,
       metadata: { from_version: current.version, to_version: target.version, new_version: nextVersion } as never,
     });
+    // The live pages changed. Tell IndexNow; a failed ping never undoes the revert.
+    await import("@/lib/indexnow-site.server")
+      .then(({ submitPublishedSiteToIndexNow }) => submitPublishedSiteToIndexNow(data.organizationId))
+      .catch(() => undefined);
     return { version: nextVersion, restoredFrom: target.version, replaced: current.version };
   });
 

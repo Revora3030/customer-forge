@@ -13,11 +13,13 @@ export function purgeUrls(base: string | null, paths: readonly string[]): string
   if (!base || !/^https:\/\//.test(base)) return [];
   const root = base.replace(/\/$/, "");
   const urls = new Set<string>();
+  // Sitemap and robots stay inside Cloudflare's 30-file cap even when a site has many pages.
+  urls.add(`${root}/sitemap.xml`);
+  urls.add(`${root}/robots.txt`);
   for (const path of paths) {
     urls.add(path === "/" ? root : `${root}${path}`);
     if (path === "/") urls.add(`${root}/`);
   }
-  urls.add(`${root}/sitemap.xml`);
   // Cloudflare accepts at most 30 files per purge call.
   return [...urls].slice(0, 30);
 }
