@@ -10,14 +10,35 @@ import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { SiteAddressProvider } from "@/components/site/site-links-context";
 import { getHostSite } from "@/lib/host-site.functions";
+import { SiteFontLinks } from "@/components/site/SiteFontLinks";
+import { businessFacts } from "@/lib/builder/facts";
+import { siteFontFor } from "@/lib/site-font-pairings";
+import { siteFontStyle } from "@/lib/site-theme";
 import { SitePageView } from "@/routes/s.$slug.$page";
 import { tenantSiteHead } from "@/lib/site-head";
+
+/** What the business's own 404 page may show: only facts the owner gave us, only when the lookup found the site. */
+type HostBusiness = { name: string; phone: string | null; phoneHref: string | null; font: string };
+type HostSiteResponse = Awaited<ReturnType<typeof getHostSite>>;
+const hostBusiness = (response: HostSiteResponse | undefined): HostBusiness | null => {
+  const site = response?.result?.site;
+  if (!site) return null;
+  const facts = businessFacts(site.profile ?? null, site.org?.name);
+  if (!facts.businessName) return null;
+  return {
+    name: facts.businessName,
+    phone: facts.phone,
+    phoneHref: facts.phoneHref,
+    font: siteFontFor(site.profile?.font_preference ?? null, site.org ?? {}),
+  };
+};
 
 export const Route = createFileRoute("/$")({
   loader: async ({ params }) => {
     const splat = String(params._splat ?? "").replace(/^\/+|\/+$/g, "");
     const pageSlug = splat.split("/")[0] ?? "";
-    if (!pageSlug || !/^[a-z0-9-]+$/.test(pageSlug)) throw notFound();
+    // Only one path segment is a page: /services is, /services/anything/else is not.
+    if (!pageSlug || splat.includes("/") || !/^[a-z0-9-]+$/.test(pageSlug)) throw notFound();
     // A failed host lookup must never become a 500: show "page not found".
     let response: Awaited<ReturnType<typeof getHostSite>>;
     try {
@@ -28,7 +49,7 @@ export const Route = createFileRoute("/$")({
     }
     // A page with no visible sections renders blank for a real visitor — treat
     // it as not published yet instead of serving an empty page.
-    if (!response?.result?.site?.content?.sections?.length) throw notFound();
+    if (!response?.result?.site?.content?.sections?.length) throw notFound({ data: hostBusiness(response) });
 
     return response.result;
   },
@@ -52,7 +73,7 @@ export const Route = createFileRoute("/$")({
   },
   component: HostPageRoute,
   notFoundComponent: NotFoundPage,
-  errorComponent: NotFoundPage,
+  errorComponent: ErrorPage,
 });
 
 function HostPageRoute() {
@@ -64,18 +85,45 @@ function HostPageRoute() {
   );
 }
 
-function NotFoundPage() {
+/** Same look as the business's site: its body face, its name and phone when we have them. */
+function HostMessagePage({ business, title, message }: { business: HostBusiness | null; title: string; message: string }) {
   return (
-    <div className="flex min-h-screen items-center justify-center px-4 text-center">
+    <div
+      className="flex min-h-screen items-center justify-center px-4 text-center"
+      style={{ ...(business ? siteFontStyle(business.font) : {}), fontFamily: business ? "var(--font-body, system-ui, sans-serif)" : "system-ui, sans-serif" }}
+    >
+      {business ? <SiteFontLinks font={business.font} /> : null}
       <div>
-        <h1 className="font-editorial text-balance text-[22px]">Page not found</h1>
-        <p className="mt-2 text-[13px] text-muted-foreground">
-          This address isn&apos;t in use. Check the link, or start from the home page.
-        </p>
+        {business ? <p className="mb-3 text-[14px] font-medium">{business.name}</p> : null}
+        <h1 className="text-balance text-[22px] font-semibold">{title}</h1>
+        <p className="mt-2 text-[13px] text-muted-foreground">{message}</p>
         <Button asChild variant="outline" size="sm" className="mt-4">
           <Link to="/">Go to the home page</Link>
         </Button>
+        {business?.phone && business.phoneHref ? (
+          <p className="mt-3 text-[14px]">
+            <a href={business.phoneHref} className="inline-block py-2 underline underline-offset-4">
+              Call {business.phone}
+            </a>
+          </p>
+        ) : null}
       </div>
     </div>
   );
+}
+
+function NotFoundPage({ data }: { data?: unknown }) {
+  const business = data && typeof data === "object" && "name" in data ? (data as HostBusiness) : null;
+  return (
+    <HostMessagePage
+      business={business}
+      title="Page not found"
+      message="This address isn't in use. Check the link, or start from the home page."
+    />
+  );
+}
+
+/** A real failure is not "page not found": say it couldn't load and ask for a refresh. */
+function ErrorPage() {
+  return <HostMessagePage business={null} title="This page couldn't load." message="Please refresh." />;
 }
