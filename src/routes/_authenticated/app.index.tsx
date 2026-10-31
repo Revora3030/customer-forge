@@ -39,6 +39,7 @@ import {
 import { currency, dateShort, relative, timeShort } from "@/lib/format";
 import { leadStatusMeta } from "@/lib/domain";
 import { RouteError } from "@/components/app/RouteStates";
+import { QueryErrorNotice } from "@/components/app/QueryErrorNotice";
 import { WorkspaceSkeleton } from "@/components/app/WorkspaceSkeleton";
 import { cn } from "@/lib/utils";
 import { useWebMCP } from "use-webmcp-tool";
@@ -260,11 +261,10 @@ function Dashboard() {
       .filter((a) => new Date(a.starts_at).getTime() > Date.now() && a.status !== "cancelled")
       .slice(0, 5);
 
+    // With no leads in the previous period there is no honest percentage to show.
     const delta =
       prevLeads.length === 0
-        ? rangeLeads.length > 0
-          ? 100
-          : 0
+        ? null
         : Math.round(((rangeLeads.length - prevLeads.length) / prevLeads.length) * 100);
 
     // Lead volume split into equal buckets across the selected range.
@@ -366,7 +366,13 @@ function Dashboard() {
         [
           `Business: ${org?.name ?? "Your business"}`,
           `Range: ${window.label}`,
-          `New leads: ${stats.leads} (${stats.delta >= 0 ? "+" : ""}${stats.delta}% vs previous period)`,
+          `New leads: ${stats.leads}${
+            stats.delta === null
+              ? stats.leads > 0
+                ? " (none in the previous period)"
+                : ""
+              : ` (${stats.delta >= 0 ? "+" : ""}${stats.delta}% vs previous period)`
+          }`,
           `Revenue won: ${currency(stats.revenueWon)}`,
           `Open pipeline: ${currency(stats.pipeline)}`,
           `Bookings: ${stats.bookings} (${stats.completed} completed)`,
@@ -453,6 +459,20 @@ function Dashboard() {
         </div>
       </div>
 
+      {leadsQuery.isError || apptsQuery.isError || analyticsQuery.isError ? (
+        <QueryErrorNotice
+          title="Some of your dashboard numbers couldn't be loaded, so the figures below may be incomplete."
+          retry={() =>
+            Promise.all([
+              leadsQuery.isError ? leadsQuery.refetch() : null,
+              apptsQuery.isError ? apptsQuery.refetch() : null,
+              analyticsQuery.isError ? analyticsQuery.refetch() : null,
+            ])
+          }
+          retrying={leadsQuery.isFetching || apptsQuery.isFetching || analyticsQuery.isFetching}
+        />
+      ) : null}
+
       <StatusCenter organizationId={orgId} />
       {/* New customers see their site being built, live, at the top of the
           dashboard — real server-recorded stages, hidden once nothing runs. */}
@@ -523,12 +543,20 @@ function Dashboard() {
             <p className="tnum mt-2 font-display text-[42px] leading-none font-semibold text-primary">
               {stats.leads}
             </p>
-            <p className={`mt-2 text-xs ${stats.delta >= 0 ? "text-primary" : "text-destructive"}`}>
-              {stats.delta >= 0 ? "▲" : "▼"} {Math.abs(stats.delta)}% vs previous {window.days} day
-              {window.days === 1 ? "" : "s"} ({stats.prevLeads})
-            </p>
+            {stats.delta === null ? (
+              stats.leads > 0 ? (
+                <p className="mt-2 text-xs text-primary">
+                  New: no leads in the previous {window.days} day{window.days === 1 ? "" : "s"}
+                </p>
+              ) : null
+            ) : (
+              <p className={`mt-2 text-xs ${stats.delta >= 0 ? "text-primary" : "text-destructive"}`}>
+                {stats.delta >= 0 ? "▲" : "▼"} {Math.abs(stats.delta)}% vs previous {window.days} day
+                {window.days === 1 ? "" : "s"} ({stats.prevLeads})
+              </p>
+            )}
             <p className="mt-2 text-[12px] text-muted-foreground">
-              Every lead here came from your Revora website, quote calculator or booking form.
+              Leads from your website, plus any you add yourself.
             </p>
           </div>
           <div className="grid gap-4 sm:text-right md:grid-cols-2">
@@ -537,7 +565,9 @@ function Dashboard() {
               <p className="tnum mt-1.5 font-display text-[22px] font-semibold">
                 <span className="gold-mark">{currency(stats.revenueWon)}</span>
               </p>
-              <p className="mt-1 text-[11px] text-muted-foreground">completed jobs in range</p>
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                completed jobs from leads created in range
+              </p>
             </div>
             <div>
               <p className="eyebrow">Open pipeline</p>
