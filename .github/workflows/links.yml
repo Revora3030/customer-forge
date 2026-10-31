@@ -1,6 +1,6 @@
 name: Revora Weekly Link Check
 # lychee (Apache-2.0/MIT, https://github.com/lycheeverse/lychee-action) against
-# every URL in the live platform sitemap and the client-site sitemap index.
+# every URL in the live platform sitemap (the single /sitemap.xml).
 # Report-only: never fails, never opens issues; the report is an artifact.
 on:
   schedule:
@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   lychee:
-    name: Broken link check (live sitemaps)
+    name: Broken link check (live sitemap)
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -21,7 +21,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Expand live sitemaps into a URL list
-        run: bash scripts/expand-sitemaps.sh https://revoragrowthsystems.com/sitemap.xml https://revoragrowthsystems.com/sitemaps/sites.xml > lychee-urls.txt
+        run: bash scripts/expand-sitemaps.sh https://revoragrowthsystems.com/sitemap.xml > lychee-urls.txt
       - name: Check links
         uses: lycheeverse/lychee-action@v2.9.0
         with:
