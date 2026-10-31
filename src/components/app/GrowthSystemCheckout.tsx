@@ -80,6 +80,31 @@ export function GrowthSystemCheckout({ organizationId, intake, returnUrl, onClos
         {usdExact(GROWTH_SYSTEM.monthlyPrice)}/month after your first {GROWTH_SYSTEM.trialDays}{" "}
         days.
       </p>
+      <p className="mt-2 text-[12px] leading-relaxed text-muted-foreground">
+        Want to look first? Open the{" "}
+        <a
+          className="text-primary hover:underline"
+          href="/demo"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          live demo
+        </a>{" "}
+        or a{" "}
+        <a
+          className="text-primary hover:underline"
+          href="/s/elite-mobile-detailing"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          sample client site
+        </a>
+        . Questions before you pay? Email{" "}
+        <a className="text-primary hover:underline" href={revoraMailto("Question before checkout")}>
+          {REVORA.email}
+        </a>
+        .
+      </p>
 
       {error ? (
         <div
