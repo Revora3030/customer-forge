@@ -13,7 +13,7 @@ import { shouldRefreshDraft } from "@/lib/builder/draft-refresh";
 import { PreviewModeContext } from "@/components/site/preview-mode-context";
 import { stepLabel } from "@/lib/site-engine";
 import { ErrorBoundary } from "@/components/app/ErrorBoundary";
-import { SitePageView } from "@/routes/s.$slug.$page";
+import { SitePageView } from "@/components/site/SitePageView";
 import { DraftMessage, DraftUpdatingBanner } from "@/routes/_authenticated/draft.$slug";
 import { DRAFT_PENDING_MS, draftHeadTitle } from "@/lib/builder/draft-route";
 

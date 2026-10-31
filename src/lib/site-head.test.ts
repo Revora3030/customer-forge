@@ -291,7 +291,7 @@ describe("client site head", () => {
 
 describe("client page shell", () => {
   it("adds no top gap above a first section that paints its own surface", () => {
-    const src = readFileSync("src/routes/s.$slug.$page.tsx", "utf8");
+    const src = readFileSync("src/components/site/SitePageView.tsx", "utf8");
     expect(src).not.toContain('<main className="scroll-mt-20 pt-2 sm:pt-4');
     expect(src).toContain('firstSectionHasSurface(sections[0]?.settings) ? "" : "pt-2 sm:pt-4 "');
     expect(src).toMatch(/readBlockStyle\(settings\)[\s\S]{0,80}style\.bgColor \|\| style\.bgImage/);

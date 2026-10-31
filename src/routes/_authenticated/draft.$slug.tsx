@@ -16,7 +16,7 @@ import { DRAFT_CHANNEL } from "@/lib/builder/preview-bridge";
 import { shouldRefreshDraft } from "@/lib/builder/draft-refresh";
 import { PreviewModeContext } from "@/components/site/preview-mode-context";
 import { stepLabel } from "@/lib/site-engine";
-import { PublicSiteView } from "@/routes/s.$slug";
+import { PublicSiteView } from "@/components/site/PublicSiteView";
 import { ErrorBoundary } from "@/components/app/ErrorBoundary";
 
 export const Route = createFileRoute("/_authenticated/draft/$slug")({
