@@ -44,6 +44,8 @@ import { PreviewLinkBridge } from "@/components/site/PreviewLinkBridge";
 import { readBlockStyle, styleSheet } from "@/lib/site-style";
 import { canonicalSiteUrl } from "@/lib/revora-address";
 import { CompositionRenderer } from "@/components/site/CompositionRenderer";
+import { normalizeHeadingOutline } from "@/lib/builder/heading-outline";
+import { legacySectionToComposition } from "@/lib/builder/legacy-composition";
 import { foldServicePages, knownPageSlugs, missingChromeLinks, readSiteChrome, repairStoredLinks, resolveSiteHref } from "@/lib/builder/site-chrome";
 import { AiSiteHeader } from "@/components/site/AiSiteHeader";
 import { useOwnAddress, useSiteBase } from "@/components/site/use-own-address";
@@ -177,6 +179,16 @@ export function SitePageView({
   // light canvas; WASH / Car Vault style trades stay dark-only.
   const studioLight = blueprint?.studioTransition === "dark-to-light" ? studioLightPalette(studioCanvas) : null;
   const studioPage = prepareStudioPage(sectionRoots, blueprint?.tone !== "light", blueprint?.studioTransition ?? "dark-only", studioLight);
+  // Audit P1-08: exactly one h1 across the whole page, and no skipped heading level.
+  // Older plain sections are translated here (with the same lead rule the section
+  // itself would use) so their headings count too.
+  const leadIndex = leadSectionIndex(sections as never);
+  const pageRoots = normalizeHeadingOutline(
+    studioPage.roots.map((root, index) => {
+      const section = sections[index];
+      return root ?? (section ? legacySectionToComposition(section as never, { lead: index === leadIndex })?.root ?? null : null);
+    }),
+  );
 
   useEffect(() => {
     if (preview) return;
@@ -277,7 +289,7 @@ export function SitePageView({
             gets the small top gap. */}
         <main className={`scroll-mt-20 ${firstSectionHasSurface(sections[0]?.settings) ? "" : "pt-2 sm:pt-4 "}pb-24 sm:pb-16`}>
           {(() => {
-            const lead = leadSectionIndex(sections as never);
+            const lead = leadIndex;
             let ready = 0;
             return slots.map((slot, slotIndex) => {
               if (!slot) {
@@ -294,7 +306,7 @@ export function SitePageView({
               const section = sections[index];
               if (!section) return null;
               return (
-                <SiteSection key={section.id} site={site} section={section} lead={index === lead} first={index === 0} studio={studioPage.studio} studioCanvas={studioCanvas?.canvas ?? STUDIO_CANVAS} preparedRoot={studioPage.roots[index] ?? null} light={studioPage.lightFrom !== null && index >= studioPage.lightFrom ? studioLight : null} seam={studioPage.lightFrom === index} />
+                <SiteSection key={section.id} site={site} section={section} lead={index === lead} first={index === 0} studio={studioPage.studio} studioCanvas={studioCanvas?.canvas ?? STUDIO_CANVAS} preparedRoot={pageRoots[index] ?? null} light={studioPage.lightFrom !== null && index >= studioPage.lightFrom ? studioLight : null} seam={studioPage.lightFrom === index} />
               );
             });
           })()}
