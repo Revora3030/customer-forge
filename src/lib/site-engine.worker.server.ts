@@ -2409,6 +2409,11 @@ async function runJob(
         `${composed.fallback} section${composed.fallback === 1 ? "" : "s"} could not be designed`,
       );
     }
+    // Every section layout is now saved and resumes instantly. The site menu,
+    // footer and the steps after it are not checkpointed, so when this run is
+    // nearly out of budget it hands back here instead of being cut off inside them.
+    if ((composed.composed ?? 0) > (composed.resumed ?? 0)) slice.progressed();
+    await slice.handBackIfDue("layout");
     await db.from("ai_generations").insert({
       organization_id: orgId,
       job_id: job.id,
@@ -2696,9 +2701,16 @@ async function runJob(
     // Every outcome is kept at generation.heroVideoStatus (and logged unless
     // a clip was added), so the builder shows why a site has no video.
     const { ensureHeroStockVideo, heroTradeText, recordHeroVideoStatus } = await import("@/lib/builder/hero-stock-video.server");
-    const tradeText = await heroTradeText(db as never, orgId);
-    const heroVideo = await ensureHeroStockVideo(db as never, orgId, { tradeText });
-    await recordHeroVideoStatus(db as never, orgId, heroVideo, "build");
+    // Optional: with too little of this run's budget left the clip is skipped
+    // (and said so) rather than risking the cut-off that stalls the build.
+    const { shouldSkipHeroVideo, HERO_VIDEO_SKIPPED_MESSAGE } = await import("@/lib/builder/time-budget");
+    if (shouldSkipHeroVideo(slice.deadline)) {
+      await recordHeroVideoStatus(db as never, orgId, { status: "no_clip", message: HERO_VIDEO_SKIPPED_MESSAGE }, "build");
+    } else {
+      const tradeText = await heroTradeText(db as never, orgId);
+      const heroVideo = await ensureHeroStockVideo(db as never, orgId, { tradeText });
+      await recordHeroVideoStatus(db as never, orgId, heroVideo, "build");
+    }
   } catch (error) {
     console.warn("[site-engine] hero video skipped", (error as Error)?.message);
     try {
