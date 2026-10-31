@@ -109,16 +109,15 @@ const emptyRecords = (): DomainRecords => ({
   servesThisSite: false,
 });
 
-/** What a client must add at their registrar. Shown verbatim in the app. */
+/**
+ * What a client must add at their registrar. Shown verbatim in the app, so it
+ * lists only records with real values. The ownership TXT record is not listed:
+ * its value is project-specific and we do not have it here, so a placeholder
+ * must never be shown to a customer.
+ */
 export const requiredDnsRecords = (domain: string) => [
   { type: "A", name: "@", value: DOMAIN_A_RECORD, purpose: `Points ${domain} at the platform` },
   { type: "A", name: "www", value: DOMAIN_A_RECORD, purpose: "Makes the www address work too" },
-  {
-    type: "TXT",
-    name: DOMAIN_TXT_NAME,
-    value: "lovable_verify=<value shown in project settings>",
-    purpose: "Proves you own the domain",
-  },
 ];
 
 /**
