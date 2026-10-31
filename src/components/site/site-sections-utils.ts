@@ -1,7 +1,7 @@
 import { premiumSurface } from "@/lib/site-theme";
 import type { PublicSite } from "@/lib/public-site.functions";
 import { readComposition } from "@/lib/builder/composition-tree";
-import { safeText } from "@/lib/builder/presentation";
+import { isPlaceholderPhone, safeText } from "@/lib/builder/presentation";
 
 type Site = NonNullable<PublicSite>;
 type Section = NonNullable<Site["content"]>["sections"][number];
@@ -87,7 +87,8 @@ export function stickyActions(input: {
 }): { label: string; href: string; kind: "call" | "book" | "quote" | "contact" }[] {
   const actions: { label: string; href: string; kind: "call" | "book" | "quote" | "contact" }[] = [];
   const digits = String(input.phone ?? "").replace(/[^\d+]/g, "");
-  if (digits.replace(/\D/g, "").length >= 7) actions.push({ label: "Call", href: `tel:${digits}`, kind: "call" });
+  // Never a one-tap Call to a placeholder (555 / example) number.
+  if (digits.replace(/\D/g, "").length >= 7 && !isPlaceholderPhone(digits)) actions.push({ label: "Call", href: `tel:${digits}`, kind: "call" });
   if (input.hasBookingPage && input.contactHref) actions.push({ label: "Book now", href: input.contactHref, kind: "book" });
   else if (input.hasQuote && input.contactHref) actions.push({ label: "Get a quote", href: input.contactHref, kind: "quote" });
   else if (input.contactHref) actions.push({ label: "Contact us", href: input.contactHref, kind: "contact" });
