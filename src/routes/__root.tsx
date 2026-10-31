@@ -12,6 +12,10 @@ import {
 import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
+import dmSans400 from "@fontsource/dm-sans/files/dm-sans-latin-400-normal.woff2?url";
+import dmSans600 from "@fontsource/dm-sans/files/dm-sans-latin-600-normal.woff2?url";
+import instrumentSerif400 from "@fontsource/instrument-serif/files/instrument-serif-latin-400-normal.woff2?url";
+import spaceGrotesk600 from "@fontsource/space-grotesk/files/space-grotesk-latin-600-normal.woff2?url";
 import { Toaster } from "@/components/ui/sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { ensureProfile, enforceSessionPolicy, resolvePostLoginPath } from "@/lib/auth-session";
@@ -123,7 +127,16 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     links: [
       { rel: "stylesheet", href: appCss },
       // DM Sans, Instrument Serif and Space Grotesk are self-hosted through
-      // Fontsource (imported in styles.css), so no Google Fonts links here.
+      // Fontsource (imported in styles.css), so no Google Fonts links here. The four faces
+      // the first screen uses are preloaded (marketing pages only) so the swap happens
+      // before first paint, with metric-matched fallbacks in styles.css as the safety net.
+      ...[dmSans400, dmSans600, instrumentSerif400, spaceGrotesk600].map((href) => ({
+        rel: "preload",
+        as: "font",
+        type: "font/woff2",
+        href,
+        crossOrigin: "anonymous" as const,
+      })),
       { rel: "icon", type: "image/png", sizes: "64x64", href: "/favicon.png" },
       { rel: "apple-touch-icon", sizes: "180x180", href: "/apple-touch-icon.png" },
       { rel: "manifest", href: "/manifest.webmanifest" },
