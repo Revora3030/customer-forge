@@ -29,7 +29,7 @@ Revora's current Texas page names San Antonio, Dallas, Austin and Fort Worth, am
 
 Roofing estimates are won by follow-up. Every form, quote and booking from your site lands in one pipeline, Revora replies immediately, and follow-up continues on a schedule you choose. After you mark a job complete, a ready-made review-request automation sends a text to customers who agreed to texts, then a follow-up email, in the same words every time.
 
-$350 one-time, first month free, then $100/month, cancel anytime, with 3 days of full access first. No one can promise a search ranking.
+$350 setup, first month free, then $100/month, cancel anytime, with 3 days of full access first. No one can promise a search ranking.
 
 ## Questions Texas owners ask
 
@@ -46,4 +46,4 @@ Only if you offer it, and describe it accurately. Say what you do and what the h
 Yes. You choose the factors and the ranges, and explain that final pricing follows an inspection.
 
 **What does it cost?**
-$350 one-time, first month free, then $100/month. Cancel anytime. 3 days of full access first.
+$350 setup, first month free, then $100/month. Cancel anytime. 3 days of full access first.

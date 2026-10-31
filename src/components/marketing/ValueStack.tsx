@@ -61,7 +61,7 @@ export function ValueStack() {
           Built separately, this is a <span className="gold-text">five-figure</span> project.
         </h3>
         <p className="mt-4 text-[14px] leading-relaxed text-muted-foreground">
-          Revora installs the whole system for {usd(GROWTH_SYSTEM.setupPrice)} one time, gives you
+          Revora installs the whole system for {usd(GROWTH_SYSTEM.setupPrice)} setup, gives you
           the first month free, then {usd(GROWTH_SYSTEM.monthlyPrice)}/month to run, host, automate,
           support and keep improving it.
         </p>
@@ -70,7 +70,7 @@ export function ValueStack() {
             <p className="tnum gold-text font-display text-[26px] leading-none font-semibold">
               {usd(GROWTH_SYSTEM.setupPrice)}
             </p>
-            <p className="mt-1.5 text-[12.5px]">One-time setup</p>
+            <p className="mt-1.5 text-[12.5px]">Setup</p>
             <p className="text-[11.5px] text-muted-foreground">
               Everything built, connected and launched for you.
             </p>

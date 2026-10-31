@@ -118,10 +118,10 @@ export const getProductionStatus = createServerFn({ method: "POST" })
       reason: org.is_suspended
         ? "This workspace is suspended."
         : access.reason === "trial"
-          ? `You can publish during your free trial. Your site goes offline when the trial ends${access.offlineAt ? ` (${new Date(access.offlineAt).toUTCString()})` : ""} unless the one-time ${usd(GROWTH_SYSTEM.setupPrice)} setup is paid. Nothing is deleted.`
+          ? `You can publish during your free trial. Your site goes offline when the trial ends${access.offlineAt ? ` (${new Date(access.offlineAt).toUTCString()})` : ""} unless the ${usd(GROWTH_SYSTEM.setupPrice)} setup is paid. Nothing is deleted.`
           : unlocked
             ? "Production is unlocked."
-            : `Your free trial has ended. Complete your one-time ${usd(GROWTH_SYSTEM.setupPrice)} setup to put your website back online. Everything you've built is saved.`,
+            : `Your free trial has ended. Complete your ${usd(GROWTH_SYSTEM.setupPrice)} setup to put your website back online. Everything you've built is saved.`,
       liveSince: settings?.last_published_at ?? null,
       publishState: settings?.publish_state ?? "draft",
     };
@@ -395,7 +395,7 @@ export async function publishSiteNow(
       await audit("PUBLISH_BLOCKED", { reason: "setup_payment_required", role });
       return {
         activated: false,
-        reason: `Your free trial has ended. Complete your one-time ${usd(GROWTH_SYSTEM.setupPrice)} setup to publish your website and connect your domain. Everything you've built stays saved.`,
+        reason: `Your free trial has ended. Complete your ${usd(GROWTH_SYSTEM.setupPrice)} setup to publish your website and connect your domain. Everything you've built stays saved.`,
         version: null,
         publishState: "draft",
         readiness,
@@ -483,7 +483,7 @@ export async function publishSiteNow(
       await audit("DEPLOYMENT_FAILED", { message: publishError.message });
       throw new Error(
         publishError.message.includes("PRODUCTION_LOCKED")
-          ? `Complete your one-time ${usd(GROWTH_SYSTEM.setupPrice)} setup to launch this website.`
+          ? `Complete your ${usd(GROWTH_SYSTEM.setupPrice)} setup to launch this website.`
           : "We couldn't take the website live. Nothing was lost — try again in a moment.",
       );
     }

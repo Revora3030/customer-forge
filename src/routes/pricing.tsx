@@ -58,7 +58,7 @@ export const Route = createFileRoute("/pricing")({
         jsonLdScript({
           ...GROWTH_SYSTEM_SCHEMA,
           offers: GROWTH_SYSTEM_SCHEMA.offers.map((offer) =>
-            offer.name === "One-time setup"
+            offer.name === "Setup"
               ? { ...offer, name: `${usd(GROWTH_SYSTEM.setupPrice)} setup` }
               : offer,
           ),
@@ -196,11 +196,11 @@ function Pricing() {
                 <FreeAccessBanner />
               </div>
               <p className="mt-2.5 text-[13px] text-muted-foreground">
-                {GROWTH_SYSTEM.ctaSecondary.replace("one-time setup", "setup")}
+                {GROWTH_SYSTEM.ctaSecondary}
               </p>
               <p className="mt-4 flex items-start gap-2 text-[13px] leading-relaxed text-muted-foreground">
                 <ShieldCheck className="mt-0.5 size-4 shrink-0 text-primary" />
-                {GROWTH_SYSTEM.explainer.replace("one-time setup", "setup")}
+                {GROWTH_SYSTEM.explainer}
               </p>
             </div>
 

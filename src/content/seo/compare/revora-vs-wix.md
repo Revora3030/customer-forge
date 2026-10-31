@@ -57,7 +57,7 @@ A Wix Core plan for a year is roughly 12 × $29 = $348, paid upfront. Revora's f
 
 **Does Wix have a CRM?** The plans page we reviewed does not list one. Check Wix's current feature pages and app market for what you need.
 
-**Try it before you pay.** Revora gives you 3 days of full access with no card. Setup is $350 one time, your first month is free, then it is $100 a month, and you can cancel anytime. [See pricing](/pricing) or [start your system](/get-started).
+**Try it before you pay.** Revora gives you 3 days of full access with no card. Setup is $350, your first month is free, then it is $100 a month, and you can cancel anytime. [See pricing](/pricing) or [start your system](/get-started).
 
 ## Where to go next
 

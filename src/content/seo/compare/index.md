@@ -41,5 +41,5 @@ A person brings judgment. A system handles the routine steps the same way each t
 - Where we could not verify something, the page says so instead of guessing.
 - Nobody, including Revora, can promise a specific Google position.
 
-**Try it before you pay.** Revora gives you 3 days of full access with no card. Setup is $350 one time, your first month is free, then it is $100 a month, and you can cancel anytime. [See pricing](/pricing) or [start your system](/get-started).
+**Try it before you pay.** Revora gives you 3 days of full access with no card. Setup is $350, your first month is free, then it is $100 a month, and you can cancel anytime. [See pricing](/pricing) or [start your system](/get-started).
 

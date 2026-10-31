@@ -220,7 +220,7 @@ function Landing() {
                     <p className="tnum gold-text font-display text-[34px] leading-none font-semibold">
                       {usd(GROWTH_SYSTEM.setupPrice)}
                     </p>
-                    <p className="mt-1.5 text-[13px] font-medium">One-time setup</p>
+                    <p className="mt-1.5 text-[13px] font-medium">Setup</p>
                     <p className="text-[13px] text-muted-foreground">{GROWTH_SYSTEM.setupLabel}</p>
                   </div>
                   <div>

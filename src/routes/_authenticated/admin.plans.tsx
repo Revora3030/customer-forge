@@ -53,7 +53,7 @@ function AdminPlans() {
             <p className="text-[12px] text-muted-foreground">{GROWTH_SYSTEM.positioning}</p>
             <p className="font-display text-[24px] font-semibold">
               {currency(GROWTH_SYSTEM.setupPrice)}
-              <span className="text-[12px] font-normal text-muted-foreground"> one-time setup</span>
+              <span className="text-[12px] font-normal text-muted-foreground"> setup</span>
             </p>
             <p className="font-display text-[20px] font-semibold">
               + {currency(GROWTH_SYSTEM.monthlyPrice)}
@@ -105,7 +105,7 @@ function PricingControls() {
           <p className="font-display text-[22px] font-semibold">
             {currency(GROWTH_SYSTEM.setupPrice)}
           </p>
-          <p className="text-[12px] text-muted-foreground">One-time setup, charged today</p>
+          <p className="text-[12px] text-muted-foreground">Setup, charged today</p>
         </div>
         <div className="product-tile">
           <p className="font-display text-[22px] font-semibold">

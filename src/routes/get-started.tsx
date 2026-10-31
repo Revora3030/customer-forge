@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { GrowthSystemCheckout } from "@/components/app/GrowthSystemCheckout";
-import { GROWTH_SYSTEM, usdExact } from "@/lib/offer";
+import { GROWTH_SYSTEM, usd } from "@/lib/offer";
 import type { GrowthSystemIntake } from "@/lib/stripe.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { isPaymentsConfigured } from "@/lib/stripe";
@@ -520,10 +520,10 @@ function GetStarted() {
           {GROWTH_SYSTEM.headline}
         </h1>
         <p className="mt-3 text-[14px] leading-relaxed text-muted-foreground">
-          <span className="gold-hl">{usdExact(GROWTH_SYSTEM.setupPrice)} setup</span>.
+          <span className="gold-hl">{usd(GROWTH_SYSTEM.setupPrice)} setup</span>.
           Platform{" "}
           <span className="gold-hl">{GROWTH_SYSTEM.firstMonthFree}</span>, then{" "}
-          {usdExact(GROWTH_SYSTEM.monthlyPrice)}/month unless canceled. One complete growth
+          {usd(GROWTH_SYSTEM.monthlyPrice)}/month unless canceled. One complete growth
           system — no packages to compare.
         </p>
         <p className="mt-2 text-[12.5px] text-muted-foreground">
@@ -663,7 +663,7 @@ function GetStarted() {
                         : `Create account: ${GROWTH_SYSTEM.fullAccessWindow} free, no card`}
                   </Button>
                   <Button variant="outline" size="lg" className="w-full sm:w-auto" onClick={() => setStep(STEP_SUMMARY)}>
-                    Or launch now: {usdExact(GROWTH_SYSTEM.setupPrice)} setup <ArrowRight className="size-4" />
+                    Or launch now: {usd(GROWTH_SYSTEM.setupPrice)} setup <ArrowRight className="size-4" />
                   </Button>
                 </div>
               </div>
@@ -680,7 +680,7 @@ function GetStarted() {
                     <p className="text-[13px] text-muted-foreground">Implementation and customization of your system.</p>
                   </div>
                   <p className="tnum text-[15px] font-semibold whitespace-nowrap">
-                    {usdExact(GROWTH_SYSTEM.setupPrice)}
+                    {usd(GROWTH_SYSTEM.setupPrice)}
                   </p>
                 </div>
                 <div className="flex items-baseline justify-between gap-3 border-b border-border px-4 py-3">
@@ -698,19 +698,19 @@ function GetStarted() {
                       {GROWTH_SYSTEM.trialDays} days after setup
                     </p>
                     <p className="tnum text-[13px] whitespace-nowrap text-muted-foreground">
-                      then {usdExact(GROWTH_SYSTEM.monthlyPrice)}/month
+                      then {usd(GROWTH_SYSTEM.monthlyPrice)}/month
                     </p>
                   </div>
                 </div>
                 <div className="flex items-baseline justify-between gap-3 px-4 py-3">
                   <p className="text-[13px] font-medium">Charged today</p>
                   <p className="tnum text-[17px] font-semibold">
-                    {usdExact(GROWTH_SYSTEM.setupPrice)}
+                    {usd(GROWTH_SYSTEM.setupPrice)}
                   </p>
                 </div>
               </div>
               <p className="mt-4 text-[13px] leading-relaxed text-muted-foreground">
-                {usdExact(GROWTH_SYSTEM.setupPrice)} setup, charged today. Your first month of the {usdExact(GROWTH_SYSTEM.monthlyPrice)}/month platform fee is free, and your first monthly payment is charged 30 days later unless canceled. Cancel anytime. No hidden fees.
+                {usd(GROWTH_SYSTEM.setupPrice)} setup, charged today. Your first month of the {usd(GROWTH_SYSTEM.monthlyPrice)}/month platform fee is free, and your first monthly payment is charged 30 days later unless canceled. Cancel anytime. No hidden fees.
               </p>
               <div className="mt-5 border-t border-border pt-4">
                 <h3 className="font-display text-[15px] font-semibold">Details for your order</h3>
@@ -801,9 +801,9 @@ function GetStarted() {
                     <h2 className="font-display text-[17px] font-semibold">Payment</h2>
                   </div>
                   <p className="mt-2 text-[13px] text-muted-foreground">
-                    {usdExact(GROWTH_SYSTEM.setupPrice)} setup, charged today. Platform{" "}
+                    {usd(GROWTH_SYSTEM.setupPrice)} setup, charged today. Platform{" "}
                     {GROWTH_SYSTEM.firstMonthFree}, then{" "}
-                    {usdExact(GROWTH_SYSTEM.monthlyPrice)}/month automatically unless canceled.
+                    {usd(GROWTH_SYSTEM.monthlyPrice)}/month automatically unless canceled.
                     Payments are processed securely by our payment provider — Revora never sees your
                     card details.
                   </p>
@@ -863,7 +863,7 @@ function GetStarted() {
                       <Lock className="size-4" />{" "}
                       {provisioning
                         ? "Preparing your workspace…"
-                        : `Pay ${usdExact(GROWTH_SYSTEM.setupPrice)} today`}
+                        : `Pay ${usd(GROWTH_SYSTEM.setupPrice)} today`}
                     </Button>
                   )}
 

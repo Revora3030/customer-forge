@@ -57,7 +57,7 @@ A year of Squarespace Core is 12 × $29 = $348. Revora's first year is $350 plus
 
 **Does Squarespace have booking?** Yes, through Acuity Scheduling. Squarespace describes it as a separate subscription from your website plan. Check Squarespace's current scheduling pricing for your needs.
 
-**Try it before you pay.** Revora gives you 3 days of full access with no card. Setup is $350 one time, your first month is free, then it is $100 a month, and you can cancel anytime. [See pricing](/pricing) or [start your system](/get-started).
+**Try it before you pay.** Revora gives you 3 days of full access with no card. Setup is $350, your first month is free, then it is $100 a month, and you can cancel anytime. [See pricing](/pricing) or [start your system](/get-started).
 
 ## Where to go next
 

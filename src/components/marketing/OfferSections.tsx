@@ -3,11 +3,11 @@ import { Check, ShieldCheck, Layers, Rocket, Target, Wrench } from "lucide-react
 import { Button } from "@/components/ui/button";
 import { GROWTH_SYSTEM, usdExact } from "@/lib/offer";
 
-/** Pricing-page offer summary. This page says "$350 setup", not "one-time setup". */
+/** Pricing-page offer summary. This page says "$350 setup". */
 export function OfferLine({ className = "" }: { className?: string }) {
   return (
     <p className={`text-[13px] leading-relaxed text-muted-foreground ${className}`}>
-      {GROWTH_SYSTEM.explainer.replace("one-time setup", "setup")}
+      {GROWTH_SYSTEM.explainer}
     </p>
   );
 }
@@ -21,7 +21,7 @@ export function TrialBadge() {
   );
 }
 
-/** Two visually distinct value blocks: one-time setup vs monthly management. */
+/** Two visually distinct value blocks: setup vs monthly management. */
 export function ValueSplit() {
   return (
     <section className="mt-16" id="whats-included" aria-labelledby="whats-included-heading">
@@ -33,7 +33,7 @@ export function ValueSplit() {
       </h2>
       <div className="mt-6 grid items-stretch gap-4 md:grid-cols-2">
         <div className="panel card-lift flex h-full flex-col border-primary/35 p-6">
-          <p className="eyebrow">One time</p>
+          <p className="eyebrow">Setup</p>
           <h3 className="mt-2 font-display text-[19px] font-semibold">
             {usdExact(GROWTH_SYSTEM.setupPrice)} Launch &amp; Implementation
           </h3>

@@ -152,7 +152,7 @@ async function handleEvent(event: StripeWebhookEvent, env: StripeEnv) {
       const { STRIPE_CATALOG } = await import("@/lib/stripe-catalog");
       const invoiceCatalog = STRIPE_CATALOG[env];
       // The recurring line, not whichever line Stripe listed first (the first
-      // invoice also carries the one-time setup line).
+      // invoice also carries the setup line).
       const recurringLine = (invoiceRecurringLine(object, invoiceCatalog.monthly.stripePriceId) ??
         line) as typeof line;
       const priceKey = recurringLine?.price ? resolvePriceLookupKey(recurringLine.price) : null;
@@ -241,7 +241,7 @@ async function handleEvent(event: StripeWebhookEvent, env: StripeEnv) {
       const md = (object?.metadata ?? {}) as Record<string, string | undefined>;
 
       // Revora Growth System: one subscription session that also carries the
-      // one-time setup line. Setup is only marked paid when Stripe confirms it.
+      // setup line. Setup is only marked paid when Stripe confirms it.
       if (md["kind"] === "growth_system" && md["organizationId"]) {
         if (object?.payment_status === "unpaid") break;
         const organizationId = md["organizationId"];

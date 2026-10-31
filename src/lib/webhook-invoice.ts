@@ -74,7 +74,7 @@ export function invoiceLinePriceId(line: unknown): string | null {
 }
 
 /**
- * Cents on a paid invoice that belong to the one-time setup Price. The first
+ * Cents on a paid invoice that belong to the setup Price. The first
  * Growth System invoice carries the $350 setup line (plus the $0 trial month),
  * and the setup is already recorded from the verified checkout session as
  * `setup:<session id>`. Recording the full invoice too would count the same
