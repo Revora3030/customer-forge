@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { publicLeadStatus } from "@/lib/public-lead-status";
 import { getRequest } from "@tanstack/react-start/server";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { createClient } from "@supabase/supabase-js";
@@ -780,7 +781,7 @@ export const submitPublicLead = createServerFn({ method: "POST" })
         city: data.city || null,
         source: data.source || "website",
         campaign: data.campaign ?? null,
-        status: data.kind === "booking" ? "booked" : data.kind === "quote" ? "quoted" : "new",
+        status: publicLeadStatus(data.kind),
         estimated_value: data.estimatedValue,
       } as never,
       _quote: data.quote
