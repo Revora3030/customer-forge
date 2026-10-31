@@ -67,7 +67,7 @@ export function bookingCalendarEvent(input: BookingCalendarInput): BookingCalend
   ];
   if (input.phone?.trim()) lines.push(`Questions: ${input.phone.trim()}`);
   return {
-    title: service ? `${service} — ${business} (requested)` : `${business} appointment (requested)`,
+    title: service ? `Requested: ${service} at ${business}` : `Requested: appointment at ${business}`,
     description: lines.join("\n"),
     location: input.location?.trim() || null,
     start,
