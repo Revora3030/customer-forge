@@ -10,6 +10,7 @@
  */
 import { publicClient, publicOrganization } from "@/lib/public-site.server";
 import { indexablePlatformEntries } from "@/lib/seo-intent";
+import { hasTestSlug } from "@/lib/site-head";
 import { fetchAllRows } from "@/lib/paginate";
 
 import {
@@ -122,7 +123,8 @@ export async function resolveHostSite(
   // period) lists nothing and asks not to be indexed.
   const { siteIsLive } = await import("@/lib/public-site.server");
   const scheme0 = /^(localhost|127\.0\.0\.1)(:|$)/.test(tenant.host) ? protocol : "https"; // DevSkim: ignore DS162092 -- Detects local development only, so real hosts always get https.
-  if (!(await siteIsLive(tenant.organizationId))) {
+  // Demo, test/sample and sample-contact workspaces are never advertised either.
+  if (!(await siteIsLive(tenant.organizationId)) || (await isNonIndexableTenant(tenant.organizationId, tenant.slug))) {
     return { slug: tenant.slug, origin: `${scheme0}://${tenant.host}`, noindex: true, publishedAt: null, pages: [] };
   }
 
@@ -137,6 +139,27 @@ export async function resolveHostSite(
     publishedAt,
     pages,
   };
+}
+
+/**
+ * True when a workspace is a demo, has a test/demo/sample slug or carries
+ * reserved sample contact data: it stays out of every sitemap (its pages are
+ * served noindex by the page head).
+ */
+export async function isNonIndexableTenant(organizationId: string, slug: string): Promise<boolean> {
+  const { isNonIndexableSite } = await import("@/lib/site-head");
+  if (isNonIndexableSite({ slug })) return true;
+  const org = await publicOrganization({ id: organizationId });
+  if (org?.is_demo) return true;
+  const { data, error } = await publicClient()
+    .from("public_business_profiles")
+    .select("phone, email")
+    .eq("organization_id", organizationId)
+    .maybeSingle();
+  // An unreadable profile must not make a real site look like a sample; the
+  // page head still applies its own noindex rule.
+  if (error) return false;
+  return isNonIndexableSite({ profile: data as { phone?: string | null; email?: string | null } | null });
 }
 
 /**
@@ -256,6 +279,8 @@ export async function platformTenantSitemapResponse(rawSlug: string): Promise<Re
   if (gateError) throw new Error("Publication status unavailable");
   if (!gate || gate.published !== true || gate.publish_state !== "published") return notFound();
   if (!(await siteIsLive(org.id))) return notFound();
+  // Demo / test / sample workspaces are noindex and never listed.
+  if (org.is_demo || (await isNonIndexableTenant(org.id, org.slug))) return notFound();
 
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data: address, error: addressError } = await supabaseAdmin
@@ -352,6 +377,8 @@ export async function platformSitemapSlugs(): Promise<string[]> {
   return ((orgs ?? []) as unknown as (Parameters<typeof siteAccess>[0] & { id: string; slug: string | null })[])
     .filter((org) => org && typeof org.slug === "string" && /^[a-z0-9-]{1,80}$/.test(org.slug))
     .filter((org) => !ownDomain.has(org.id))
+    // Demo workspaces and test/demo/sample slugs are never advertised.
+    .filter((org) => org.is_demo !== true && !hasTestSlug(org.slug))
     .filter((org) => withSections.has(org.id))
     .filter((org) => siteAccess({ ...org, hosting_offline_at: hostingEnded.has(org.id) ? "ended" : null }).live)
     .map((org) => org.slug as string)

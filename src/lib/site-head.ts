@@ -432,6 +432,30 @@ export function hasPlaceholderContact(profile: { phone?: string | null; email?: 
   return /(?:^|\.)(?:example|test|invalid|localhost)$/.test(domain) || /(?:^|\.)example\.(?:com|org|net)$/.test(domain); // DevSkim: ignore DS162092 -- Reserved "localhost" email domain marks placeholder data; no local connection is made.
 }
 
+/**
+ * A workspace slug that marks a test, demo or sample site (a whole hyphen-
+ * separated word: "oak-city-test-demo", "sample-bakery", not "contest-hub").
+ */
+export function hasTestSlug(slug: string | null | undefined): boolean {
+  return String(slug ?? "")
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .some((token) => token === "demo" || token === "test" || token === "sample" || token === "example" || token === "placeholder");
+}
+
+/**
+ * True for a site that must never be advertised to search engines: a demo
+ * workspace, a test/demo/sample slug, or reserved sample contact data. Shared by
+ * the page head (noindex) and the sitemaps so the two always agree.
+ */
+export function isNonIndexableSite(input: {
+  isDemo?: boolean | null | undefined;
+  slug?: string | null | undefined;
+  profile?: { phone?: string | null; email?: string | null } | null | undefined;
+}): boolean {
+  return input.isDemo === true || hasTestSlug(input.slug) || hasPlaceholderContact(input.profile);
+}
+
 type TenantHeadPage = {
   slug?: string | null;
   title?: string | null;
@@ -514,7 +538,7 @@ export function tenantSiteHead(input: {
   );
   // Demo workspaces and placeholder businesses (sample phone/email) carry made-up
   // facts: they are never indexed and never emit structured data of any kind.
-  const placeholder = site.isDemo === true || hasPlaceholderContact(site.profile);
+  const placeholder = isNonIndexableSite({ isDemo: site.isDemo, slug: site.org.slug, profile: site.profile });
   const noindex = input.noindex === true || page?.noindex === true || emptyHome || placeholder;
   const emitSchema = !placeholder && !emptyHome;
   const faqs = emitSchema ? compositionFaqItems(sections ?? []) : [];

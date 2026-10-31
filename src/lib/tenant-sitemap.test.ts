@@ -71,10 +71,10 @@ const org = (id: string, slug: string, over: Row = {}) => ({
   slug,
   name: slug,
   industry: null,
-  is_demo: true,
+  is_demo: false,
   is_suspended: false,
   setup_paid_at: null,
-  setup_payment_status: null,
+  setup_payment_status: "paid",
   trial_ends_at: null,
   created_at: "2026-01-01T00:00:00Z",
   subscription_status: null,
@@ -87,7 +87,7 @@ beforeEach(() => {
     organizations: [
       org(ORG, "acme"),
       // Trial ended without the setup payment: the site is offline.
-      org(TRIAL, "lapsed", { is_demo: false, trial_ends_at: "2026-02-01T00:00:00Z" }),
+      org(TRIAL, "lapsed", { setup_payment_status: null, trial_ends_at: "2026-02-01T00:00:00Z" }),
       org(DOMAIN, "owned"),
       org(DRAFT, "drafty"),
     ],
@@ -164,6 +164,21 @@ describe("/s/<slug>/sitemap.xml", () => {
     db.tables["website_pages"] = [{ id: "home-row", organization_id: ORG, slug: "home", kind: "home", noindex: false, is_visible: true }];
     db.tables["website_sections"] = [{ id: "sec-home", organization_id: ORG, page_id: "home-row", is_visible: true }];
     expect((await platformTenantSitemapResponse("acme")).status).toBe(200);
+  });
+
+  it("never lists a demo workspace or a test/demo/sample slug", async () => {
+    db.tables["organizations"]!.push(org("55555555-5555-4555-8555-555555555555", "showroom", { is_demo: true }));
+    db.tables["organizations"]!.push(org("66666666-6666-4666-8666-666666666666", "oak-city-test-demo"));
+    for (const id of ["55555555-5555-4555-8555-555555555555", "66666666-6666-4666-8666-666666666666"]) {
+      db.tables["public_website_settings"]!.push({ organization_id: id, published: true, publish_state: "published", last_published_at: PUBLISHED_AT });
+      db.tables["website_sections"]!.push({ id: `sec-${id}`, organization_id: id });
+    }
+    expect((await platformTenantSitemapResponse("showroom")).status).toBe(404);
+    expect((await platformTenantSitemapResponse("oak-city-test-demo")).status).toBe(404);
+    const slugs = await platformSitemapSlugs();
+    expect(slugs).not.toContain("showroom");
+    expect(slugs).not.toContain("oak-city-test-demo");
+    expect(slugs).toContain("acme");
   });
 
   it("dates the home entry with the publish time too", () => {
