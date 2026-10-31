@@ -61,14 +61,30 @@ export const setWebsiteReviewState = createServerFn({ method: "POST" })
       "manager",
     );
     const approved = data.state === "approved";
-    const { error } = await context.supabase
+    if (approved) {
+      // Nothing to approve until a site has actually been built.
+      const { data: current } = await context.supabase
+        .from("website_settings")
+        .select("generated_at, review_state")
+        .eq("organization_id", organizationId)
+        .maybeSingle();
+      if (!current?.generated_at) {
+        throw new Error("Your website hasn't been built yet. Approve it once your draft is ready.");
+      }
+      if (current.review_state === "generating") {
+        throw new Error("Your website is still being built. Approve it once the build finishes.");
+      }
+    }
+    const { data: updated, error } = await context.supabase
       .from("website_settings")
       .update({
         review_state: data.state,
         approved_at: approved ? new Date().toISOString() : null,
         approved_by: approved ? context.userId : null,
       })
-      .eq("organization_id", organizationId);
+      .eq("organization_id", organizationId)
+      .select("organization_id");
     if (error) throw new Error("The website review status could not be updated.");
+    if (!updated?.length) throw new Error("There is no website to update yet.");
     return { state: data.state };
   });

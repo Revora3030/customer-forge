@@ -10,6 +10,7 @@ import {
   useSetWebsiteReviewState,
   useWebsiteRequests,
 } from "@/lib/queries";
+import { ConfirmAction } from "@/components/app/ConfirmAction";
 import { runSiteGeneration } from "@/lib/site-engine.functions";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "@/lib/ui/notify";
@@ -61,6 +62,11 @@ export function WebsiteReview({ organizationId, slug, settings, canManage }: Pro
       ? `/s/${encodeURIComponent(slug)}`
       : previewPath(slug, "home")
     : null;
+  // Nothing to approve until a site exists and the build has finished.
+  const canApprove =
+    Boolean(settings?.generated_at) &&
+    settings?.review_state !== "generating" &&
+    settings?.review_state !== "approved";
   const frameWidth = DEVICES.find((d) => d.key === device)!.width;
 
   return (
@@ -79,9 +85,11 @@ export function WebsiteReview({ organizationId, slug, settings, canManage }: Pro
           <div className="flex flex-wrap items-center gap-2">
             <Pill tone={state.tone}>{state.label}</Pill>
             {canManage ? (
-              <Button
-                variant="outline"
-                onClick={async () => {
+              <ConfirmAction
+                title="Rebuild your website?"
+                description="This rebuilds your site from your business info. Manual edits may be replaced."
+                confirmLabel="Rebuild my website"
+                onConfirm={async () => {
                   if (!organizationId) return;
                   setGenerating(true);
                   try {
@@ -93,15 +101,16 @@ export function WebsiteReview({ organizationId, slug, settings, canManage }: Pro
                     setGenerating(false);
                   }
                 }}
-                disabled={generating}
               >
-                {generating ? (
-                  <Loader2 className="size-4 animate-spin" />
-                ) : (
-                  <RefreshCw className="size-4" />
-                )}
-                Regenerate from my info
-              </Button>
+                <Button variant="outline" disabled={generating}>
+                  {generating ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="size-4" />
+                  )}
+                  Regenerate from my info
+                </Button>
+              </ConfirmAction>
             ) : null}
           </div>
         </div>
@@ -110,7 +119,7 @@ export function WebsiteReview({ organizationId, slug, settings, canManage }: Pro
           <div className="mt-5 flex flex-wrap gap-2">
             <Button
               variant="signal"
-              disabled={setState.isPending || settings?.review_state === "approved"}
+              disabled={setState.isPending || !canApprove}
               onClick={() =>
                 setState.mutate({
                   state: "approved",
@@ -120,6 +129,11 @@ export function WebsiteReview({ organizationId, slug, settings, canManage }: Pro
             >
               <CheckCircle2 className="size-4" /> Approve website
             </Button>
+            {!canApprove && settings?.review_state !== "approved" ? (
+              <p className="basis-full text-[12px] text-muted-foreground">
+                You can approve your website once your draft has been built.
+              </p>
+            ) : null}
             <Button variant="outline" onClick={() => setShowRequest((s) => !s)}>
               Request changes
             </Button>
@@ -146,7 +160,8 @@ export function WebsiteReview({ organizationId, slug, settings, canManage }: Pro
                     setShowRequest(false);
                     setState.mutate({
                       state: "changes_requested",
-                      message: "Change request sent to the Revora team.",
+                      // createRequest already confirms "Request sent"; no second toast.
+                      message: null,
                     });
                   },
                 },
