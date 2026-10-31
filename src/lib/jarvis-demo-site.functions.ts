@@ -244,6 +244,10 @@ export const getProspectPipeline = createServerFn({ method: "GET" })
       db.from("prospect_preview_events").select("organization_id").limit(20000),
       claimedIds.length ? db.from("organizations").select("id", head).in("id", claimedIds).not("setup_paid_at", "is", null) : none,
     ]);
+    // A failed read must show the panel's error state, never a quiet 0 that reads as "nothing happened".
+    if (searches.error || jobs.error || sent.error || failed.error || optOuts.error || replies.error || views.error || paid.error) {
+      throw new Error("Couldn't read the prospect pipeline.");
+    }
     const jobRows = (jobs.data ?? []) as Array<{ organization_id: string; status: string }>;
     const withStatus = (s: string) => new Set(jobRows.filter((j) => j.status === s).map((j) => j.organization_id)).size;
     return {
