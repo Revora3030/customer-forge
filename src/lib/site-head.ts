@@ -2,13 +2,14 @@
  * Search and browser metadata every published client website carries.
  *
  * Top site builders ship this automatically: a LocalBusiness record so search
- * engines show the business's name, phone, address, hours and reviews; the
+ * engines show the business's name, phone, address, hours and services; the
  * business's own logo as the browser-tab icon; and a theme colour for mobile
  * browser chrome. Before this, client sites had none of it (and inherited
  * Revora's own icon and Organization record instead).
  *
  * Every value comes from the owner's verified profile. Nothing is invented;
- * an unknown field is simply left out.
+ * an unknown field is simply left out. Ratings, reviews and awards are never
+ * added, even when the workspace has review rows.
  */
 import { isPlaceholderEmail, isPlaceholderPhone, placeDisplay } from "@/lib/builder/presentation";
 import { weeklyHoursFromSummary } from "@/lib/booking-hours";
@@ -197,7 +198,6 @@ export function localBusinessSchema(input: {
   name: string;
   url: string;
   profile: Profile;
-  reviews?: Review[];
   services?: Service[];
   image?: string | null;
   /** The organisation's own industry text: picks the most specific schema.org type. */
@@ -261,9 +261,9 @@ export function localBusinessSchema(input: {
   const priceRange = priceRangeFrom(input.services);
   if (priceRange) schema["priceRange"] = priceRange;
 
-  // No aggregateRating or review[] here: Google ignores reviews a business marks
-  // up about itself in its own LocalBusiness data. The reviews stay visible on
-  // the page; they are just not self-served as structured data.
+  // Ratings, reviews and awards are never emitted. A stored review stays on the
+  // page and is not copied into this record, and no stand-in author, score or
+  // award is invented to fill one.
 
   const offers = (input.services ?? [])
     .map((service) => {
@@ -360,7 +360,6 @@ export function clientHeadExtrasSync(
             name: site.org.name,
             url: businessUrl,
             profile: site.profile,
-            reviews: site.reviews ?? [],
             services: site.services ?? [],
             image: shareImage && shareImage.startsWith("https://") ? shareImage : null,
             industry: site.org.industry ?? null,
@@ -440,6 +439,76 @@ export function isNonIndexableSite(input: {
   return input.isDemo === true || hasTestSlug(input.slug) || hasPlaceholderContact(input.profile);
 }
 
+function slugPhrase(slug: string | null | undefined): string | null {
+  const clean = String(slug ?? "").trim().toLowerCase();
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(clean)) return null;
+  return clean.replace(/-/g, " ");
+}
+
+/**
+ * Fallback search title. The site slug is added only when its words are not
+ * already in the title and the result still fits the result-line limit, so
+ * two clients that share a name do not share a title when the slug can say so.
+ */
+function titleFallback(base: string, orgSlug: string | null | undefined): string {
+  const words = slugPhrase(orgSlug);
+  if (!words || base.toLowerCase().includes(words)) return base;
+  const next = `${base} — ${words}`;
+  return next.length <= 60 ? next : base;
+}
+
+/** Same idea for the description, which has room for the slug when the name does not already contain it. */
+function descriptionFallback(sentence: string, orgSlug: string | null | undefined): string {
+  const words = slugPhrase(orgSlug);
+  if (!words || sentence.toLowerCase().includes(words)) return sentence;
+  return `${sentence.replace(/[.!?]\s*$/, "")} (${words}).`;
+}
+
+/**
+ * Title and description for one client page.
+ *
+ * Authored page SEO, the home page's saved meta copy and the profile tagline
+ * are used as stored. When those are missing, the fallback is built from this
+ * page's label, the business name and the city — never another page's wording.
+ * An inner page does not reuse the homepage tagline, so pages on one site do
+ * not share a description.
+ */
+export function clientPageSearchText(input: {
+  isHome: boolean;
+  label: string;
+  name: string;
+  city: string | null;
+  pageSlug?: string | null;
+  orgSlug?: string | null;
+  seoTitle?: string | null;
+  seoDescription?: string | null;
+  generatedTitle?: string | null;
+  generatedDescription?: string | null;
+  settingsDescription?: string | null;
+  tagline?: string | null;
+}): { title: string; description: string } {
+  const name = input.name.replace(/\s+/g, " ").trim();
+  const label = input.label.replace(/\s+/g, " ").trim() || "Page";
+  const city = input.city?.replace(/\s+/g, " ").trim() || null;
+  const place = city ? ` in ${city}` : "";
+  const pageWords = slugPhrase(input.pageSlug);
+  const pageDistinct =
+    !input.isHome && pageWords && !label.toLowerCase().includes(pageWords) ? ` (${pageWords})` : "";
+
+  const fallbackTitle = input.isHome
+    ? input.generatedTitle || titleFallback(`${name}${city ? ` — ${city}` : ""}`, input.orgSlug)
+    : titleFallback(`${label} — ${name}${city ? `, ${city}` : ""}`, input.orgSlug);
+  const title = metaTitle(input.seoTitle || fallbackTitle, name);
+
+  const authored = input.seoDescription?.replace(/\s+/g, " ").trim();
+  const raw = authored
+    ? authored
+    : input.isHome
+      ? input.generatedDescription || input.settingsDescription || input.tagline || descriptionFallback(`${name}${place}.`, input.orgSlug)
+      : descriptionFallback(`${label}${pageDistinct} from ${name}${place}.`, input.orgSlug);
+  return { title, description: metaDescription(raw) };
+}
+
 type TenantHeadPage = {
   slug?: string | null;
   title?: string | null;
@@ -492,16 +561,22 @@ export function tenantSiteHead(input: {
   const generated = readCopy((site.settings?.generation as { copy?: unknown } | null)?.copy);
   const label = pageNavLabel(page?.title, name, page?.slug ?? input.pageSlug ?? null);
 
-  const fallbackTitle = isHome
-    ? generated?.metaTitle || `${name}${city ? ` — ${city}` : ""}`
-    : `${label} — ${name}`;
-  const title = metaTitle(page?.seo_title || fallbackTitle, name);
-  const rawDescription =
-    page?.seo_description ||
-    (isHome ? generated?.metaDescription || readSeo(site.settings?.seo).meta_description : null) ||
-    site.profile?.tagline ||
-    (isHome ? `${name}${city ? ` in ${city}` : ""}.` : `${label} from ${name}.`);
-  const description = metaDescription(rawDescription);
+  const search = clientPageSearchText({
+    isHome,
+    label,
+    name,
+    city,
+    pageSlug: page?.slug ?? input.pageSlug ?? null,
+    orgSlug: site.org.slug ?? null,
+    seoTitle: page?.seo_title ?? null,
+    seoDescription: page?.seo_description ?? null,
+    generatedTitle: generated?.metaTitle ?? null,
+    generatedDescription: generated?.metaDescription ?? null,
+    settingsDescription: readSeo(site.settings?.seo).meta_description ?? null,
+    tagline: site.profile?.tagline ?? null,
+  });
+  const title = search.title;
+  const description = search.description;
   const sections = site.content?.sections;
   const shareImage = shareImageFor({
     ogImage: page?.og_image_url ?? null,

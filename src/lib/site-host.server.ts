@@ -10,6 +10,7 @@
  */
 import { publicClient, publicOrganization } from "@/lib/public-site.server";
 import { indexablePlatformEntries } from "@/lib/seo-intent";
+import { clientSiteRobotsTxt } from "@/lib/client-robots";
 import { hasTestSlug } from "@/lib/site-head";
 import { fetchAllRows } from "@/lib/paginate";
 
@@ -247,6 +248,11 @@ const SITEMAP_HEADERS = {
   "cache-control": "public, max-age=600",
 } as const;
 
+const ROBOTS_HEADERS = {
+  "content-type": "text/plain; charset=utf-8",
+  "cache-control": "public, max-age=600",
+} as const;
+
 type AddressRow = {
   organization_id: string | null;
   custom_domain: string | null;
@@ -254,21 +260,28 @@ type AddressRow = {
   ssl_ok: boolean | null;
 };
 
+const crawlNotFound = () =>
+  new Response("Not found", {
+    status: 404,
+    headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "public, max-age=600" },
+  });
+
+type PlatformTenantCrawl =
+  | { kind: "missing" }
+  | { kind: "redirect"; location: string }
+  | { kind: "site"; site: HostSite };
+
 /**
- * Response for /s/<slug>/sitemap.xml. Only a published site that is allowed
- * to be live right now is listed; a verified custom domain owns the canonical
- * URLs, so the request is sent to that domain's own sitemap instead.
+ * The published, indexable site behind /s/<slug>, or a redirect when a
+ * verified custom domain owns the canonical host. Shared by the per-client
+ * sitemap and robots.txt. Lookup failures throw so the route can answer 503
+ * instead of an empty success.
  */
-export async function platformTenantSitemapResponse(rawSlug: string): Promise<Response> {
-  const notFound = () =>
-    new Response("Not found", {
-      status: 404,
-      headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "public, max-age=600" },
-    });
+async function platformTenantCrawl(rawSlug: string, file: "sitemap.xml" | "robots.txt"): Promise<PlatformTenantCrawl> {
   const slug = String(rawSlug ?? "").trim().toLowerCase();
-  if (!/^[a-z0-9-]{1,80}$/.test(slug)) return notFound();
+  if (!/^[a-z0-9-]{1,80}$/.test(slug)) return { kind: "missing" };
   const org = await publicOrganization({ slug });
-  if (!org?.id) return notFound();
+  if (!org?.id) return { kind: "missing" };
 
   const { siteIsLive } = await import("@/lib/public-site.server");
   const { data: gate, error: gateError } = await publicClient()
@@ -277,10 +290,10 @@ export async function platformTenantSitemapResponse(rawSlug: string): Promise<Re
     .eq("organization_id", org.id)
     .maybeSingle();
   if (gateError) throw new Error("Publication status unavailable");
-  if (!gate || gate.published !== true || gate.publish_state !== "published") return notFound();
-  if (!(await siteIsLive(org.id))) return notFound();
+  if (!gate || gate.published !== true || gate.publish_state !== "published") return { kind: "missing" };
+  if (!(await siteIsLive(org.id))) return { kind: "missing" };
   // Demo / test / sample workspaces are noindex and never listed.
-  if (org.is_demo || (await isNonIndexableTenant(org.id, org.slug))) return notFound();
+  if (org.is_demo || (await isNonIndexableTenant(org.id, org.slug))) return { kind: "missing" };
 
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data: address, error: addressError } = await supabaseAdmin
@@ -290,26 +303,56 @@ export async function platformTenantSitemapResponse(rawSlug: string): Promise<Re
     .maybeSingle();
   if (addressError) throw new Error("Canonical address unavailable");
   const domain = address ? primaryAddress(address as AddressRow) : null;
-  if (domain) {
-    return new Response(null, {
-      status: 301,
-      headers: { location: `https://${domain}/sitemap.xml`, "cache-control": "public, max-age=600" },
-    });
-  }
+  if (domain) return { kind: "redirect", location: `https://${domain}/${file}` };
 
   const { pages, publishedAt, homeReady } = await tenantSitemapPages(org.id);
   // A published shell whose home is still empty serves a noindex placeholder,
-  // so its sitemap must not advertise it (the /sitemaps/sites.xml index leaves
-  // it out for the same reason).
-  if (!homeReady) return notFound();
-  const site: HostSite = {
-    slug: org.slug,
-    origin: `${PLATFORM_ORIGIN}/s/${org.slug}`,
-    noindex: false,
-    publishedAt,
-    pages,
+  // so its sitemap and robots.txt must not advertise it.
+  if (!homeReady) return { kind: "missing" };
+  return {
+    kind: "site",
+    site: {
+      slug: org.slug,
+      origin: `${PLATFORM_ORIGIN}/s/${org.slug}`,
+      noindex: false,
+      publishedAt,
+      pages,
+    },
   };
-  return new Response(xmlSitemap(sitemapUrls(site, site.origin)), { headers: SITEMAP_HEADERS });
+}
+
+/**
+ * Response for /s/<slug>/sitemap.xml. Only a published site that is allowed
+ * to be live right now is listed; a verified custom domain owns the canonical
+ * URLs, so the request is sent to that domain's own sitemap instead.
+ */
+export async function platformTenantSitemapResponse(rawSlug: string): Promise<Response> {
+  const crawl = await platformTenantCrawl(rawSlug, "sitemap.xml");
+  if (crawl.kind === "missing") return crawlNotFound();
+  if (crawl.kind === "redirect") {
+    return new Response(null, {
+      status: 301,
+      headers: { location: crawl.location, "cache-control": "public, max-age=600" },
+    });
+  }
+  return new Response(xmlSitemap(sitemapUrls(crawl.site, crawl.site.origin)), { headers: SITEMAP_HEADERS });
+}
+
+/**
+ * Response for /s/<slug>/robots.txt. Same publication gate as the sitemap.
+ * The body allows AI crawlers and names only this client's sitemap.
+ */
+export async function platformTenantRobotsResponse(rawSlug: string): Promise<Response> {
+  const crawl = await platformTenantCrawl(rawSlug, "robots.txt");
+  if (crawl.kind === "missing") return crawlNotFound();
+  if (crawl.kind === "redirect") {
+    return new Response(null, {
+      status: 301,
+      headers: { location: crawl.location, "cache-control": "public, max-age=600" },
+    });
+  }
+  const body = clientSiteRobotsTxt({ indexable: true, sitemapUrl: `${crawl.site.origin}/sitemap.xml` });
+  return new Response(body, { headers: ROBOTS_HEADERS });
 }
 
 /**

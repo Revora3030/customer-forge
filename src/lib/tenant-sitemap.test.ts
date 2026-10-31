@@ -47,7 +47,7 @@ function fakeClient() {
 vi.mock("@/integrations/supabase/client.server", () => ({ supabaseAdmin: fakeClient() }));
 vi.mock("@supabase/supabase-js", () => ({ createClient: () => fakeClient() }));
 
-import { platformSitemapSlugs, platformTenantSitemapResponse, sitemapUrls, xmlSitemapIndex } from "./site-host.server";
+import { platformSitemapSlugs, platformTenantRobotsResponse, platformTenantSitemapResponse, sitemapUrls, xmlSitemapIndex } from "./site-host.server";
 
 const ORG = "11111111-1111-4111-8111-111111111111";
 const TRIAL = "22222222-2222-4222-8222-222222222222";
@@ -143,6 +143,24 @@ describe("/s/<slug>/sitemap.xml", () => {
     const response = await platformTenantSitemapResponse("owned");
     expect(response.status).toBe(301);
     expect(response.headers.get("location")).toBe("https://owned.example/sitemap.xml");
+  });
+
+  it("serves per-client robots that allow AI crawlers and list only that sitemap", async () => {
+    const response = await platformTenantRobotsResponse("acme");
+    expect(response.status).toBe(200);
+    const rules = await response.text();
+    for (const agent of ["GPTBot", "OAI-SearchBot", "ChatGPT-User", "ClaudeBot", "PerplexityBot", "Google-Extended", "Applebot-Extended", "Bingbot"]) {
+      expect(rules).toContain(`User-agent: ${agent}`);
+    }
+    expect(rules).toContain("Allow: /");
+    expect(rules).toContain("Sitemap: https://revoragrowthsystems.com/s/acme/sitemap.xml");
+    expect(rules).not.toContain("revoragrowthsystems.com/sitemap.xml");
+    expect(rules).not.toContain("/pricing");
+    const redirect = await platformTenantRobotsResponse("owned");
+    expect(redirect.status).toBe(301);
+    expect(redirect.headers.get("location")).toBe("https://owned.example/robots.txt");
+    expect((await platformTenantRobotsResponse("lapsed")).status).toBe(404);
+    expect((await platformTenantRobotsResponse("drafty")).status).toBe(404);
   });
 
   it("returns 404 for an expired trial, an unpublished site and an unknown slug", async () => {
