@@ -37,13 +37,13 @@ export const Route = createFileRoute("/get-started")({
   }),
   head: () => ({
     meta: [
-      { title: "Start your Revora Growth System — $350 setup + $100/mo" },
+      { title: "Start with Revora Growth Systems — $350 setup + $100/mo" },
       {
         name: "description",
         content:
-          "Launch your Revora Growth System: $350 one-time setup, a first month free, then $100/month for website, CRM, booking, SEO and support.",
+          "Start with Revora Growth Systems: $350 one-time setup, a first month free, then $100/month for website, CRM, booking, SEO and support.",
       },
-      { property: "og:title", content: "Start your Revora Growth System" },
+      { property: "og:title", content: "Start with Revora Growth Systems" },
       {
         property: "og:description",
         content:

@@ -38,7 +38,7 @@ export const Route = createFileRoute("/crm-for-contractors")({
         children: JSON.stringify({
           "@context": "https://schema.org",
           "@type": "SoftwareApplication",
-          name: "Revora Growth System — CRM for Contractors",
+          name: "Revora Growth Systems — CRM for Contractors",
           applicationCategory: "BusinessApplication",
           operatingSystem: "Web",
           description: DESCRIPTION,

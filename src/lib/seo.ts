@@ -117,7 +117,7 @@ export const LOCAL_BUSINESS_SCHEMA = {
   // open 24/7 is misleading structured data.
   hasOfferCatalog: {
     "@type": "OfferCatalog",
-    name: "Revora Growth System",
+    name: "Revora Growth Systems",
     itemListElement: [
       {
         "@type": "Offer",
