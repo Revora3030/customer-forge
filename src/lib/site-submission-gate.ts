@@ -7,9 +7,11 @@
  *   organizations.is_suspended is not true
  *   AND ( organizations.is_demo
  *         OR website_settings.published
- *         OR website_settings.publish_state IN ('published', 'preview') )
+ *         OR website_settings.publish_state IN ('published', 'preview', 'draft') )
  *
- * A workspace with no website_settings row only passes as a demo. The database
+ * A workspace with no website_settings row only passes as a demo. 'unpublished'
+ * (taken offline by the owner) and suspended workspaces are still refused; the
+ * database's own rate limits and validation apply to draft sites too. The database
  * stays the authority; this copy exists so the site can say "not live yet"
  * up front instead of letting a visitor fill in a form that cannot be saved.
  */
@@ -31,7 +33,8 @@ export function siteAcceptsSubmissions(facts: SubmissionGateFacts): boolean {
     Boolean(facts.isDemo) ||
     Boolean(facts.published) ||
     facts.publishState === "published" ||
-    facts.publishState === "preview"
+    facts.publishState === "preview" ||
+    facts.publishState === "draft"
   );
 }
 
