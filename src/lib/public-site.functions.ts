@@ -8,6 +8,7 @@ import type { Database } from "@/integrations/supabase/types";
 import { publicSubmissionErrorMessage, SITE_NOT_LIVE_MESSAGE, siteAcceptsSubmissions } from "@/lib/site-submission-gate";
 // Type-only import: erased at build time, so nothing server-only ships to the client.
 import type { loadSite } from "@/lib/public-site.server";
+import { scrubPlaceholderPayload } from "@/lib/builder/placeholder-contact";
 
 /**
  * Public-safe organization lookup. Organization rows carry billing and
@@ -147,7 +148,10 @@ export const getPublicSite = createServerFn({ method: "GET" })
     // answer "not found" (404) instead of throwing, which served a 500.
     if (data.invalid) return null;
     const { loadSite } = await import("@/lib/public-site.server");
-    return loadSite(data.slug, data.pageSlug ? { pageSlug: data.pageSlug } : undefined);
+    const site = await loadSite(data.slug, data.pageSlug ? { pageSlug: data.pageSlug } : undefined);
+    // The router serialises this return value into the page's hydration script,
+    // so placeholder phones/emails are removed here, not only at render.
+    return site ? scrubPlaceholderPayload(site) : site;
   });
 
 export type PublicSite = Awaited<ReturnType<typeof loadSite>>;
