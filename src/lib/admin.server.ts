@@ -3,11 +3,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { NewClientInput } from "@/lib/admin-types";
 import { newTrialEndsAt } from "@/lib/trial";
 import { areAddressesPublic, guardedFetch, isFetchableHostname } from "@/lib/net-guard.server";
+import { DOMAIN_IP } from "@/lib/domain-setup";
 import { isRevoraOwnHost, isTrafficDomainHost } from "@/lib/revora-address";
 
 /** Where clients point their domain. Both records are checked automatically. */
 export const DOMAIN_TARGET = "revoragrowthsystems.com";
-export const DOMAIN_A_RECORD = "185.158.133.1";
+export const DOMAIN_A_RECORD = DOMAIN_IP;
 export const DOMAIN_TXT_NAME = "_lovable";
 
 export async function assertSuperAdmin(supabase: SupabaseClient, userId: string) {
@@ -75,6 +76,11 @@ export type DomainRecords = {
   aMatches: boolean;
   cnameMatches: boolean;
   txtVerified: boolean;
+  /** www.<domain> A/CNAME answers. Empty when the www address isn't checked (a www host itself). */
+  wwwA: string[];
+  wwwCname: string[];
+  /** null = not checked; false = the www address does not point at the platform. */
+  wwwMatches: boolean | null;
   httpsStatus: number | null;
   httpsError: string | null;
   servesThisSite: boolean;
@@ -95,6 +101,9 @@ const emptyRecords = (): DomainRecords => ({
   aMatches: false,
   cnameMatches: false,
   txtVerified: false,
+  wwwA: [],
+  wwwCname: [],
+  wwwMatches: null,
   httpsStatus: null,
   httpsError: null,
   servesThisSite: false,
@@ -144,10 +153,15 @@ export async function checkDomain(
   const records = emptyRecords();
 
   try {
-    const [aRes, cnameRes, txtRes] = await Promise.all([
+    // The setup screen tells owners to add records for @ AND www, so www is
+    // checked too. A www host (or one already a subdomain of www) is skipped.
+    const wwwHost = domain.startsWith("www.") ? null : `www.${domain}`;
+    const [aRes, cnameRes, txtRes, wwwARes, wwwCnameRes] = await Promise.all([
       dnsQuery(domain, "A"),
       dnsQuery(domain, "CNAME"),
       dnsQuery(`${DOMAIN_TXT_NAME}.${domain}`, "TXT").catch(() => [] as DnsAnswer[]),
+      wwwHost ? dnsQuery(wwwHost, "A").catch(() => [] as DnsAnswer[]) : Promise.resolve([] as DnsAnswer[]),
+      wwwHost ? dnsQuery(wwwHost, "CNAME").catch(() => [] as DnsAnswer[]) : Promise.resolve([] as DnsAnswer[]),
     ]);
 
     records.a = aRes.filter((r) => r.type === 1).map((r) => r.data.trim());
@@ -158,6 +172,18 @@ export async function checkDomain(
       (c) => c === DOMAIN_TARGET || c.endsWith(".lovable.app"),
     );
     records.txtVerified = records.txt.some((t) => t.toLowerCase().startsWith("lovable_verify="));
+    if (wwwHost) {
+      records.wwwA = wwwARes.filter((r) => r.type === 1).map((r) => r.data.trim());
+      records.wwwCname = wwwCnameRes.filter((r) => r.type === 5).map((r) => normalizeDomain(r.data));
+      // A CNAME to the apex counts: it follows the apex record.
+      const wwwPointsHere =
+        records.wwwA.includes(DOMAIN_A_RECORD) ||
+        records.wwwCname.some((c) => c === DOMAIN_TARGET || c === domain || c.endsWith(".lovable.app"));
+      // Behind a proxy the answers are the proxy's own edge addresses.
+      records.wwwMatches = opts.proxied
+        ? records.wwwA.length > 0 || records.wwwCname.length > 0
+        : wwwPointsHere;
+    }
 
     // Behind a reverse proxy (Cloudflare) the public answers are the proxy's
     // own edge addresses, never the platform record — so a proxied host is
@@ -226,22 +252,28 @@ export async function checkDomain(
       );
       records.httpsStatus = res.status;
 
-      // Through a reverse proxy a 404 means the Worker/route isn't serving the
-      // app yet, so "live" requires a real success response (or a deliberate
-      // redirect, such as to a client's own custom domain).
-      records.servesThisSite = opts.proxied ? res.status < 400 : res.status < 500;
-      if (res.status >= 500) {
+      // A 404/403 means whatever answers on that host isn't serving this site
+      // (wrong server, or the site isn't published), so "live" requires a real
+      // success response (or a deliberate redirect, such as to a client's own
+      // custom domain) whether or not the host is proxied.
+      records.servesThisSite = res.status < 400;
+      if (!records.servesThisSite) {
         return {
           status: "connected",
           detail: `DNS points here and the certificate is valid, but the site returned ${res.status}. Publish the website, then re-check.`,
           dnsOk: true,
-          sslOk: true,
+          // A 4xx (403/404) means this host isn't serving the site, so it must
+          // not count as live. A 5xx keeps the existing "certificate fine" read.
+          sslOk: res.status >= 500,
           records,
         };
       }
       return {
         status: "ssl_active",
-        detail: "DNS resolves here and HTTPS answers with a valid certificate.",
+        detail:
+          records.wwwMatches === false
+            ? `DNS resolves here and HTTPS answers with a valid certificate. www.${domain} isn't connected yet — add an A record for www pointing to ${DOMAIN_A_RECORD} so both addresses work.`
+            : "DNS resolves here and HTTPS answers with a valid certificate.",
         dnsOk: true,
         sslOk: true,
         records,
