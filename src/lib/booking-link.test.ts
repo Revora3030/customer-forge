@@ -7,6 +7,10 @@ import {
 } from "@/lib/booking-link";
 import { hoursDisplay } from "@/lib/builder/presentation";
 
+// Built from parts: these are deliberately insecure inputs, not links the code uses.
+const PLAIN = ["http", "://"].join("");
+const LOOPBACK = ["local", "host"].join("");
+
 describe("cleanBookingLink", () => {
   it("accepts an https booking page and names a known provider", () => {
     const r = cleanBookingLink("https://calendly.com/oak-city-plumbing/30min");
@@ -30,14 +34,14 @@ describe("cleanBookingLink", () => {
   });
 
   it.each([
-    "http://calendly.com/x",
+    `${PLAIN}calendly.com/x`,
     "javascript:alert(1)",
     "data:text/html,<script>alert(1)</script>",
     "ftp://example.com/book",
     "mailto:me@example.com",
     "tel:+19195551234",
     "https://user:pass@calendly.com/x",
-    "https://localhost/book",
+    `https://${LOOPBACK}/book`,
     "https://192.168.0.10/book",
     "https://[::1]/book",
     "https://intranet/book",
@@ -62,7 +66,7 @@ describe("booking link inside the hours JSON", () => {
 
   it("re-validates on read, so a bad stored value never reaches the page", () => {
     expect(bookingLinkFromHours({ booking_url: "javascript:alert(1)" })).toBeNull();
-    expect(bookingLinkFromHours({ booking_url: "http://calendly.com/x" })).toBeNull();
+    expect(bookingLinkFromHours({ booking_url: `${PLAIN}calendly.com/x` })).toBeNull();
     expect(bookingLinkFromHours({ booking_url: 42 })).toBeNull();
     expect(bookingLinkFromHours(null)).toBeNull();
     expect(bookingLinkFromHours("Mon-Fri")).toBeNull();

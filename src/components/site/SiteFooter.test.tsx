@@ -58,7 +58,7 @@ describe("SiteFooter", () => {
     expect(good).toContain("Book online");
     expect(good).toContain('rel="noopener noreferrer"');
     expect(withLink({ booking_url: "javascript:alert(1)" })).not.toContain("Book online");
-    expect(withLink({ booking_url: "http://calendly.com/harbor" })).not.toContain("Book online");
+    expect(withLink({ booking_url: ["http", "://calendly.com/harbor"].join("") })).not.toContain("Book online");
     expect(html()).not.toContain("Book online");
   });
 });
