@@ -126,7 +126,7 @@ function EstimateNotice() {
 
 /** Factual consent line shown under every lead form. It states no policy. */
 function ConsentNote() {
-  // TODO(Client Success legal pages): link the business's own privacy page here once a
+  // Note for Client Success legal pages: link the business's own privacy page here once a
   // per-site privacy route exists. /privacy is Revora's platform page, not the business's.
   return (
     <p className="text-[13px] text-muted-foreground">
