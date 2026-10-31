@@ -28,7 +28,8 @@ describe("parseReviewInput", () => {
   });
 
   it("refuses empty input, OSM ids, spaces, http, other schemes and embedded credentials", () => {
-    for (const bad of ["", "   ", "osm:node/123456789", "two words", "http://g.page/r/x/review", "javascript:alert(1)", "ftp://x.com/a", "https://user:pw@g.page/r/x", "not a link", "short"]) {
+    const insecure = "http://g.page/r/x/review"; // DevSkim: ignore DS137138 -- deliberate negative test: insecure links must be refused.
+    for (const bad of ["", "   ", "osm:node/123456789", "two words", insecure, "javascript:alert(1)", "ftp://x.com/a", "https://user:pw@g.page/r/x", "not a link", "short"]) {
       expect(parseReviewInput(bad).ok, bad).toBe(false);
     }
     expect(parseReviewInput(null).ok).toBe(false);
