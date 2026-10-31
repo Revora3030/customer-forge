@@ -34,6 +34,7 @@ function database(seed: Record<string, Row[]>) {
         update: (next: Row) => { mode = "update"; value = next; return query; },
         eq: (key: string, expected: unknown) => { predicates.push((row) => row[key] === expected); return query; },
         in: (key: string, expected: unknown[]) => { predicates.push((row) => expected.includes(row[key])); return query; },
+        order: () => query,
         limit: (count: number) => { limit = count; return query; },
         maybeSingle: async () => ({ ...run(), data: run().data[0] ?? null }),
         single: async () => { const r = run(); return { ...r, data: r.data[0] ?? null }; },
@@ -59,6 +60,27 @@ describe("startDeferredDemoBuild", () => {
   it.each(["processing", "running", "completed"])("does not restart a %s demo", async (status) => {
     const { db, tables } = database({ ...shell(), generation_jobs: [{ organization_id: "o1", status }] });
     expect(await startDeferredDemoBuild(db, "o1")).toBeNull();
+    expect(tables["generation_jobs"]).toHaveLength(1);
+  });
+  it("refuses placeholder business facts before queueing, and says why", async () => {
+    const { db, tables } = database({
+      ...shell(),
+      organizations: [{ id: "o1", name: "Your Business Name" }],
+      business_profiles: [{ organization_id: "o1", city: "Destin", service_area: "Destin", description: null }],
+      services: [{ organization_id: "o1", name: "Jet ski rentals", is_active: true }],
+    });
+    await expect(startDeferredDemoBuild(db, "o1")).rejects.toThrow(/business name/i);
+    expect(tables["generation_jobs"] ?? []).toHaveLength(0);
+    expect(tables["audit_logs"]?.[0]).toMatchObject({ action: "jarvis.prospect_pitch.build_refused" });
+  });
+  it("queues a real business whose city is also its service area", async () => {
+    const { db, tables } = database({
+      ...shell(),
+      organizations: [{ id: "o1", name: "Blue Harbor Jet Ski Rentals" }],
+      business_profiles: [{ organization_id: "o1", city: "Destin", service_area: "Destin", description: null }],
+      services: [{ organization_id: "o1", name: "Jet ski rentals", is_active: true }],
+    });
+    expect(await startDeferredDemoBuild(db, "o1")).toBeTruthy();
     expect(tables["generation_jobs"]).toHaveLength(1);
   });
   it("queues the build once for an unbuilt pitch shell and clears the flag", async () => {

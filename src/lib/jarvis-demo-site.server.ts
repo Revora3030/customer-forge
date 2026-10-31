@@ -27,6 +27,16 @@ export async function provisionProspectDemo(
   /** Autopilot demos record where they came from, so they are never built twice. */
   origin: { source: "autopilot"; placeId: string | null; enrichment?: ProspectEnrichment; pitchFirst?: boolean } | null = null,
 ): Promise<{ organizationId: string; jobId: string; previewToken: string; expiresAt: string }> {
+  // The worker's business-facts gate, run before anything is created or queued:
+  // a prospect whose listing facts look like test or placeholder data is refused
+  // here with the reason, instead of a demo that fails three attempts later.
+  // (Phone and email are not part of it; the worker withholds placeholders.)
+  {
+    const { precheckProspectDemoFacts } = await import("@/lib/builder/business-facts-precheck");
+    const refusal = precheckProspectDemoFacts(input).message;
+    if (refusal) throw new Error(refusal);
+  }
+
   const base = slugify(`${input.businessName} ${input.city}`) || "prospect";
   let slug = base;
   for (let attempt = 0; attempt < 25; attempt += 1) {
@@ -201,6 +211,37 @@ export async function startDeferredDemoBuild(admin: SupabaseClient, organization
   const actorId = typeof raw["createdBy"] === "string" ? raw["createdBy"] : null;
   const placeId = typeof raw["placeId"] === "string" ? raw["placeId"] : null;
   const { data: org } = await admin.from("organizations").select("name").eq("id", organizationId).maybeSingle();
+  // The same business-facts gate the worker runs, before a job is queued.
+  {
+    const [profile, serviceRows] = await Promise.all([
+      admin.from("business_profiles").select("description, city, service_area").eq("organization_id", organizationId).maybeSingle(),
+      admin.from("services").select("name, description").eq("organization_id", organizationId).eq("is_active", true).order("sort_order"),
+    ]);
+    // A read failure never blocks: the worker's gate still runs.
+    if (!profile.error && !serviceRows.error && org) {
+      const { precheckBusinessFacts } = await import("@/lib/builder/business-facts-precheck");
+      const p = (profile.data ?? {}) as Record<string, unknown>;
+      const text = (key: string) => (typeof p[key] === "string" ? (p[key] as string) : null);
+      const refusal = precheckBusinessFacts({
+        businessName: (org as { name?: string | null }).name ?? "",
+        description: text("description"),
+        city: text("city"),
+        serviceArea: text("service_area"),
+        services: (serviceRows.data ?? []) as { name: string; description?: string | null }[],
+      }).message;
+      if (refusal) {
+        await admin.from("audit_logs").insert({
+          organization_id: organizationId,
+          actor_id: actorId,
+          action: "jarvis.prospect_pitch.build_refused",
+          entity: "organization",
+          entity_id: organizationId,
+          metadata: { reason: "business_facts_precheck" },
+        });
+        throw new Error(refusal);
+      }
+    }
+  }
   if (placeId && !placeId.startsWith("osm:") && org?.name) {
     const { attachMapsPhotos } = await import("@/lib/maps-photos.server");
     await attachMapsPhotos(admin, organizationId, String(org.name), placeId);
