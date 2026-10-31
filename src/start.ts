@@ -7,7 +7,7 @@ import {
   isTrafficRedirectHost,
   trafficRedirectUrl,
 } from "@/lib/revora-address";
-import { withSecurityHeaders } from "@/lib/security-headers";
+import { generateCspNonce, withSecurityHeaders } from "@/lib/security-headers";
 import { createUnhandledErrorResponse } from "@/lib/api-error-response";
 import { httpsRedirect } from "@/lib/https-redirect";
 import { trailingSlashRedirect } from "@/lib/trailing-slash-redirect";
@@ -23,12 +23,15 @@ const securityHeadersMiddleware = createMiddleware().server(async ({ next, reque
     ? (request.headers.get("x-forwarded-proto") ??
         new URL(request.url).protocol.replace(":", "")) === "https"
     : true;
-  const result = (await next()) as unknown;
-  if (result instanceof Response) return withSecurityHeaders(result, { https }) as never;
+  // One nonce per request: the router reads it from the start context (see
+  // src/router.tsx) and the same value goes into the CSP header below.
+  const nonce = generateCspNonce();
+  const result = (await next({ context: { nonce } })) as unknown;
+  if (result instanceof Response) return withSecurityHeaders(result, { https, nonce }) as never;
   if (result && typeof result === "object" && "response" in result) {
     const holder = result as { response: unknown };
     if (holder.response instanceof Response) {
-      holder.response = withSecurityHeaders(holder.response, { https });
+      holder.response = withSecurityHeaders(holder.response, { https, nonce });
     }
   }
   return result as never;
