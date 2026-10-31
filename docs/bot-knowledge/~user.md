@@ -1,0 +1,2 @@
+- Always respond in English in chat.
+- Apply thorough, high-quality reasoning and available relevant skills to every build; do not reduce ambition to decorative demos.
