@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { SiteFooter, SiteHeader } from "@/components/marketing/Chrome";
 import { REVORA } from "@/lib/brand";
-import { GROWTH_SYSTEM, usd } from "@/lib/offer";
+import { GROWTH_SYSTEM, REFUND_POLICY, usd } from "@/lib/offer";
 import { canonicalLink, ogUrl, OG_IMAGE_META } from "@/lib/seo";
 
 export const Route = createFileRoute("/terms")({
@@ -54,8 +54,8 @@ function TermsPage() {
     {
       heading: "Cancellation and refunds",
       body: [
+        REFUND_POLICY,
         "You can cancel the monthly subscription at any time from billing settings; access continues to the end of the paid period and no further charges are made.",
-        "The setup fee covers work performed to build, configure and launch your system and is non-refundable once that work has begun. If we have not started, contact us and we will refund it.",
       ],
     },
     {

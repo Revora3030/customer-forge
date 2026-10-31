@@ -8,6 +8,8 @@ import { MetricCard, Panel, Pill, SectionHeading } from "@/components/app/Bits";
 import { BuildLiveSection } from "@/components/app/BuildLive";
 import { Button } from "@/components/ui/button";
 import { useBillingState } from "@/lib/stripe.hooks";
+import { useWebsiteSettings } from "@/lib/queries";
+import { revoraShareAddress } from "@/lib/website-plan";
 import { useWorkspace } from "@/lib/use-tenant";
 import { GROWTH_SYSTEM, usdExact } from "@/lib/offer";
 import { REVORA, revoraMailto, revoraTel } from "@/lib/brand";
@@ -37,7 +39,8 @@ function WelcomePage() {
   const { data: ws } = useWorkspace();
   const org = ws?.workspace?.organization;
   const orgId = ws?.workspace?.organizationId;
-  const { data: billing, error: billingError } = useBillingState(orgId);
+  const { data: billing, error: billingError, isLoading: billingLoading } = useBillingState(orgId);
+  const { data: websiteSettings } = useWebsiteSettings(orgId);
   const [confirmationTimedOut, setConfirmationTimedOut] = useState(false);
   const [confirmationAttempt, setConfirmationAttempt] = useState(0);
   // True once Stripe's embedded checkout has sent the owner back here. The
@@ -69,14 +72,21 @@ function WelcomePage() {
   const subActive = Boolean(billing?.active);
   const settled = setupPaid && subActive;
   const activating = !settled && returnedFromCheckout && !billingError;
+  // A workspace that never paid (no-card trial, or someone who opened this
+  // page directly) is not "confirming" anything. Say so and offer the way to pay.
+  const setupNotStarted = !setupPaid && !returnedFromCheckout && !billingError && !billingLoading;
+  // The website step is done once the customer approved the site or it is live.
+  const websiteDone =
+    websiteSettings?.publish_state === "published" ||
+    ["approved", "domain_setup", "publishing", "live"].includes(String(websiteSettings?.review_state ?? ""));
   useEffect(() => {
-    if (!orgId || (setupPaid && subActive)) return;
+    if (!orgId || (setupPaid && subActive) || !returnedFromCheckout) return;
     setConfirmationTimedOut(false);
     return startConfirmationPolling(() => {
       void queryClient.invalidateQueries({ queryKey: ["billing_state", orgId] });
       void queryClient.invalidateQueries({ queryKey: ["workspace"] });
     }, () => setConfirmationTimedOut(true));
-  }, [orgId, setupPaid, subActive, queryClient, confirmationAttempt]);
+  }, [orgId, setupPaid, subActive, returnedFromCheckout, queryClient, confirmationAttempt]);
   const steps = [
     { label: "Setup payment received", done: setupPaid },
     {
@@ -86,7 +96,7 @@ function WelcomePage() {
       done: subActive,
     },
     { label: "Business details completed", done: Boolean(org?.onboarding_completed) },
-    { label: "Website generated and reviewed", done: false, link: "/app/website" as const },
+    { label: "Website generated and reviewed", done: websiteDone, link: "/app/website" as const },
   ];
 
   return (
@@ -98,14 +108,18 @@ function WelcomePage() {
             ? "You're officially onboard with Revora."
             : activating
               ? "Payment received — we're activating your account"
-              : "We're confirming your payment"}
+              : setupNotStarted
+                ? "Your setup hasn't started yet"
+                : "We're confirming your payment"}
         </h1>
         <p className="mt-2 max-w-2xl text-[14px] leading-relaxed text-muted-foreground">
           {settled
             ? `Your ${usdExact(GROWTH_SYSTEM.setupPrice)} setup payment was received. Your platform is free for the first month (${GROWTH_SYSTEM.trialDays} days after setup); ${usdExact(GROWTH_SYSTEM.monthlyPrice)}/month begins after that unless canceled.`
             : activating
               ? "Checkout is complete. Our payment provider is confirming it with Revora now — this page updates on its own, and you don't need to pay again."
-              : "Payment confirmation comes directly from our payment provider. If you just paid, this page updates within a few seconds — nothing is activated until the payment is verified."}
+              : setupNotStarted
+                ? `We don't see a ${usdExact(GROWTH_SYSTEM.setupPrice)} setup payment for this workspace yet. Start setup from billing and we'll begin your build. If you just paid, check your payment status below.`
+                : "Payment confirmation comes directly from our payment provider. If you just paid, this page updates within a few seconds — nothing is activated until the payment is verified."}
         </p>
       </div>
 
@@ -113,6 +127,23 @@ function WelcomePage() {
         <div role="status" className="flex items-center gap-2 rounded-md border border-border/60 bg-muted/30 px-4 py-3 text-sm">
           <CheckCircle2 className="size-4 text-primary" aria-hidden="true" />
           <span>Payment received. Finishing your account setup…</span>
+        </div>
+      ) : null}
+
+      {setupNotStarted ? (
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant="signal">
+            <Link to="/app/billing">Go to billing to start setup</Link>
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => {
+              void queryClient.invalidateQueries({ queryKey: ["billing_state", orgId] });
+              void queryClient.invalidateQueries({ queryKey: ["workspace"] });
+            }}
+          >
+            Check payment status
+          </Button>
         </div>
       ) : null}
 
@@ -136,7 +167,7 @@ function WelcomePage() {
         />
         <MetricCard
           label="Subscription"
-          value={subscription ? subscription.status.replace("_", " ") : "Not active"}
+          value={subscription ? subscription.status.replaceAll("_", " ") : "Not active"}
           hint={`${usdExact(GROWTH_SYSTEM.monthlyPrice)}/month`}
         />
         <MetricCard
@@ -152,7 +183,7 @@ function WelcomePage() {
         <MetricCard
           label="Workspace"
           value={org?.name ?? "—"}
-          hint={org?.slug ? `${org.slug}.revora.app` : ""}
+          hint={org?.slug ? revoraShareAddress(org.slug) : ""}
         />
       </div>
 
