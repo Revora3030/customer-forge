@@ -1350,7 +1350,7 @@ export function useUpdateWebsiteRequest() {
 export function useSetWebsiteReviewState(organizationId: string | undefined) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ state, message }: { state: string; message?: string }) => {
+    mutationFn: async ({ state, message }: { state: string; message?: string | null }) => {
       if (state !== "approved" && state !== "changes_requested") {
         throw new Error("That review status is not supported.");
       }
@@ -1358,7 +1358,8 @@ export function useSetWebsiteReviewState(organizationId: string | undefined) {
       return message;
     },
     onSuccess: (message) => {
-      toast.success(message || "Website status updated.");
+      // `null` means the caller already told the user what happened.
+      if (message !== null) toast.success(message || "Website status updated.");
       void queryClient.invalidateQueries({ queryKey: ["website_settings"] });
     },
     onError: (error: Error) =>
