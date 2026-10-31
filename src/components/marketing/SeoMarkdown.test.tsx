@@ -7,7 +7,7 @@ import { COMPARISONS } from "@/lib/compare";
 import { SeoMarkdown } from "./SeoMarkdown";
 
 const render = (source: string, isLive?: (href: string) => boolean) =>
-  renderToStaticMarkup(createElement(SeoMarkdown, { source, isLive }));
+  renderToStaticMarkup(createElement(SeoMarkdown, isLive ? { source, isLive } : { source }));
 
 describe("SeoMarkdown", () => {
   it("renders headings, bold, links and nested lists", () => {
