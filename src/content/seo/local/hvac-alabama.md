@@ -35,7 +35,7 @@ Mobile and the rest of the state work the same way: a page per place you serve.
 - **Review requests** after a finished job, sent in the same words every time.
 - **A local SEO foundation**: fast mobile pages, real service and area content, structured data and a sitemap.
 
-Pricing: $350 one-time setup, your first month free, then $100/month, cancel anytime. You get 3 days of full access before paying anything. Nobody can promise a Google position, and we do not; we build the pages and tools that give you a fair shot.
+Pricing: $350 setup, your first month free, then $100/month, cancel anytime. You get 3 days of full access before paying anything. Nobody can promise a Google position, and we do not; we build the pages and tools that give you a fair shot.
 
 ## Questions Alabama owners ask
 
@@ -49,7 +49,7 @@ In the footer and on service pages. The Alabama Board of Heating, Air Conditioni
 Yes. You set services, durations and availability, and customers pick a slot. Emergency no-cool calls can go to a call or message path instead, whichever suits your shop.
 
 **What does it cost?**
-$350 one-time setup, first month free, then $100/month. Cancel anytime. Start with 3 days of free access.
+$350 setup, first month free, then $100/month. Cancel anytime. Start with 3 days of free access.
 
 **Will this get me to page one in Alabama?**
 No one can promise that. You get a fast site, real local content, structured data and a review process, which are the things search rewards over time.

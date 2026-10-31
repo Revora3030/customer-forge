@@ -30,7 +30,7 @@ Heat-wave days overload every shop. Revora can send a first reply right away thr
 
 The website, customer list and data are yours. Analytics tie each lead and booked job to the page, city and channel that produced it.
 
-$350 one-time, first month free, then $100/month, cancel anytime, with 3 days of full access first. No one can promise a specific Google position.
+$350 setup, first month free, then $100/month, cancel anytime, with 3 days of full access first. No one can promise a specific Google position.
 
 ## Questions Texas owners ask
 
@@ -47,4 +47,4 @@ Yes. You choose the questions and the ranges, and a visit confirms the final pri
 Your site gives them a separate path with your phone number and a message option. Revora does not put its own number on your pages.
 
 **How does billing work?**
-$350 one-time setup, first month free, then $100/month. Cancel anytime.
+$350 setup, first month free, then $100/month. Cancel anytime.

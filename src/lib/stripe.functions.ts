@@ -24,7 +24,7 @@ export type GrowthSystemIntake = {
 
 /**
  * Starts the single Revora Growth System checkout:
- *   • $350 one-time setup (charged on the first invoice)
+ *   • $350 setup (charged on the first invoice)
  *   • $100/month recurring subscription
  * Both live on ONE Stripe subscription session, so the recurring amount is
  * never $450 recurring — only the first invoice includes the setup line.

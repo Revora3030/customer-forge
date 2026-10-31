@@ -9,7 +9,7 @@ import { isPlatformOwnerOrg } from "@/lib/platform-owner";
  *
  * States and their rules:
  *   TRIAL                — inside the free full-access window. Full builder access.
- *   ACTIVE_SETUP         — one-time setup fee paid. Full builder access.
+ *   ACTIVE_SETUP         — setup fee paid. Full builder access.
  *   ACTIVE_SUBSCRIPTION  — monthly subscription active. Full builder access.
  *   PAST_DUE             — payment failed; grace access so work is never lost.
  *   CANCELED             — subscription canceled and no setup payment on file.
@@ -52,7 +52,7 @@ export type AccessDecision = {
   trialEndsAt: number | null;
 };
 
-const SETUP_CALL_TO_ACTION = `Complete the ${usd(GROWTH_SYSTEM.setupPrice)} one-time setup to restore full access. Your first month of the ${usd(
+const SETUP_CALL_TO_ACTION = `Complete the ${usd(GROWTH_SYSTEM.setupPrice)} setup to restore full access. Your first month of the ${usd(
   GROWTH_SYSTEM.monthlyPrice,
 )}/month platform fee is free.`;
 
@@ -125,7 +125,7 @@ export function resolveAccess(org: AccessOrgFields | null | undefined): AccessDe
     };
   }
   // Setup paid, monthly not yet canceled: access is active. This is checked
-  // AFTER the failed/canceled states so a one-time setup payment can never
+  // AFTER the failed/canceled states so a setup payment can never
   // grant permanent access once the monthly subscription stops paying.
   if (setupPaid && status !== "canceled" && status !== "cancelled") {
     return {

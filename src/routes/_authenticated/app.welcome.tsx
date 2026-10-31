@@ -164,7 +164,7 @@ function WelcomePage() {
         <MetricCard
           label="Setup payment"
           value={setupPaid ? "Paid" : "Pending"}
-          hint={`${usdExact(GROWTH_SYSTEM.setupPrice)} one-time`}
+          hint={`${usdExact(GROWTH_SYSTEM.setupPrice)} setup`}
         />
         <MetricCard
           label="Subscription"

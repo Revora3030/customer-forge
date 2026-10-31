@@ -44,7 +44,7 @@ export interface CrmSolution {
   faqs: readonly { q: string; a: string }[];
 }
 
-const PRICING_ANSWER = `${SETUP} one time to build and launch your system, your first month of the ${MONTHLY}/month platform fee free, then ${MONTHLY}/month from month two. Cancel anytime, and your website, customer list and job history stay yours and exportable.`;
+const PRICING_ANSWER = `${SETUP} setup to build and launch your system, your first month of the ${MONTHLY}/month platform fee free, then ${MONTHLY}/month from month two. Cancel anytime, and your website, customer list and job history stay yours and exportable.`;
 
 const OWNERSHIP_ANSWER =
   "Yes. The website, the customer records, the quote history and the lead data belong to your business, not to us, and you can export them whenever you want.";

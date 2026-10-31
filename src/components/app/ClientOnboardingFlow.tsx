@@ -23,7 +23,7 @@ type Props = {
   /** Real business phone + email are on file, so visitors can reach the client. */
   contactPhone?: string | null;
   contactEmail?: string | null;
-  /** "paid" once the one-time setup fee has cleared. */
+  /** "paid" once the setup fee has cleared. */
   setupPaid: boolean;
   publishState: string;
   buildReady: boolean;
@@ -152,7 +152,7 @@ export function ClientOnboardingFlow({
                         <span className="gold-text font-display text-[20px] font-semibold">
                           {usdExact(setupPrice)}
                         </span>{" "}
-                        one-time setup, then{" "}
+                        setup, then{" "}
                         <span className="gold-text font-medium">
                           {usdExact(monthlyPrice)}/month
                         </span>{" "}

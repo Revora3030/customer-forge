@@ -71,7 +71,7 @@ function About() {
             </p>
             <dl className="mt-10 grid gap-6 border-t border-border pt-6 sm:grid-cols-3">
               {[
-                [usd(GROWTH_SYSTEM.setupPrice), "One-time setup when you choose to launch"],
+                [usd(GROWTH_SYSTEM.setupPrice), "Setup when you choose to launch"],
                 [`${usd(GROWTH_SYSTEM.monthlyPrice)}/month`, "First month free; first monthly charge 30 days after setup"],
                 [GROWTH_SYSTEM.fullAccessWindow, "Free full access before you commit"],
               ].map(([value, label]) => (

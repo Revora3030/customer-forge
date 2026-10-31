@@ -32,7 +32,7 @@ After you mark a job complete, a ready-made review-request automation sends a te
 
 ## Cost
 
-$350 one-time setup, first month free, then $100/month, with cancel-anytime terms and 3 days of full access to try. Rankings can never be guaranteed. What you get is a fast mobile site, real content and a system that converts the visitors you earn.
+$350 setup, first month free, then $100/month, with cancel-anytime terms and 3 days of full access to try. Rankings can never be guaranteed. What you get is a fast mobile site, real content and a system that converts the visitors you earn.
 
 ## Questions North Carolina owners ask
 

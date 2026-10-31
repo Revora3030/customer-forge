@@ -44,7 +44,7 @@ describe("homepage structured data", () => {
     const service = byType("Service")!;
     expect(service["name"]).toBe(GROWTH_SYSTEM.name);
     const offers = service["offers"] as Schema[];
-    const setup = offers.find((offer) => offer["name"] === "One-time setup")!;
+    const setup = offers.find((offer) => offer["name"] === "Setup")!;
     expect(setup).toMatchObject({ price: GROWTH_SYSTEM.setupPrice, priceCurrency: "USD" });
     const monthly = offers.find((offer) => offer["name"] === "Platform subscription")!;
     expect(monthly["priceSpecification"]).toMatchObject({

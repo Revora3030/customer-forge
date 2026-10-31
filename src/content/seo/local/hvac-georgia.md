@@ -27,7 +27,7 @@ A ready-made automation can send the first reply right away. Every form, quote a
 
 ## Price and trial
 
-$350 one-time setup. First month free. Then $100/month, cancel anytime. You get 3 days of full access before you pay. Revora does not promise rankings or a number of customers. You get a fast mobile site, real service and area content, structured data and a sitemap, and you review everything before it goes live.
+$350 setup. First month free. Then $100/month, cancel anytime. You get 3 days of full access before you pay. Revora does not promise rankings or a number of customers. You get a fast mobile site, real service and area content, structured data and a sitemap, and you review everything before it goes live.
 
 ## Questions Georgia owners ask
 

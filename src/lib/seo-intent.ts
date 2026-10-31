@@ -150,7 +150,7 @@ export function seoInventory(): SeoPage[] {
       "/pricing",
       "small business growth software pricing",
       "Pricing — Revora growth system",
-      "What the Revora growth system costs: one-time setup, first month free, then a flat monthly platform fee. Cancel anytime.",
+      "What the Revora growth system costs: setup, first month free, then a flat monthly platform fee. Cancel anytime.",
       600,
     ),
     page(

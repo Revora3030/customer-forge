@@ -64,7 +64,7 @@ const AssessmentEmail = (p: AssessmentEmailProps) => (
           Start {GROWTH_SYSTEM.fullAccessWindow} of free full access
         </Link>
         <Text style={footer}>
-          ${GROWTH_SYSTEM.setupPrice} one-time setup, first month free, then ${GROWTH_SYSTEM.monthlyPrice}/month.
+          ${GROWTH_SYSTEM.setupPrice} setup, first month free, then ${GROWTH_SYSTEM.monthlyPrice}/month.
           Cancel anytime. Questions? Reply
           to this email or call (919) 622-6620.
         </Text>

@@ -112,7 +112,7 @@ function reasonOf(row: BuilderFunnelRow): string {
 
 /** Plain-language names for the reasons the builder records. */
 const REASON_LABELS: Record<string, string> = {
-  setup_unpaid: "One-time setup fee not paid yet",
+  setup_unpaid: "Setup fee not paid yet",
   locked: "Going live is still locked for this workspace",
   not_ready: "Website not finished enough to go live",
   suspended: "Workspace suspended",

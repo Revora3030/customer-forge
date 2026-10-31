@@ -1,7 +1,7 @@
 /**
  * Revora's single commercial offer. Every price shown or charged anywhere in
  * the application derives from this module — there is exactly one offer:
- * $350 one-time setup + $100/month.
+ * $350 setup + $100/month.
  */
 
 /**
@@ -35,7 +35,7 @@ export const GROWTH_SYSTEM = {
   headline: "Launch Your Revora Growth System",
   positioning:
     "A complete done-for-you customer acquisition and growth system for local businesses — built, launched and managed for you.",
-  setupLabel: "One-time implementation and customization.",
+  setupLabel: "Implementation and customization.",
   monthlyLabel:
     "Ongoing platform, automation, support, hosting/system management, and growth services.",
   /**
@@ -59,14 +59,14 @@ export const GROWTH_SYSTEM = {
   trialBadge: "FIRST MONTH FREE",
   ctaPrimary: "START MY REVORA SYSTEM — $350 SETUP",
   ctaSecondary:
-    "$350 one-time setup + first month free + $100/month from month two. Cancel anytime. No hidden fees.",
+    "$350 setup + first month free + $100/month from month two. Cancel anytime. No hidden fees.",
   ctaShort: "START MY REVORA SYSTEM",
   /** The single secondary CTA label used site-wide. */
   ctaDemo: "SEE REVORA IN ACTION",
 
   /** The single canonical offer sentence. Use this verbatim wherever the offer is explained. */
   explainer:
-    "$350 one-time setup, charged today. Your first month of the $100/month platform fee is FREE — your first monthly payment is charged 30 days later (month two) and continues at $100/month unless canceled.",
+    "$350 setup, charged today. Your first month of the $100/month platform fee is FREE — your first monthly payment is charged 30 days later (month two) and continues at $100/month unless canceled.",
   setupIncludes: [
     "Custom website",
     "Domain setup",
@@ -196,7 +196,7 @@ export function verifyGrowthPrices(
   };
 
   const reason =
-    check(setup, "The one-time setup", expected.setupPrice, false) ??
+    check(setup, "The setup", expected.setupPrice, false) ??
     check(monthly, "The monthly subscription", expected.monthlyPrice, true);
   return reason ? { ok: false, reason } : { ok: true };
 }

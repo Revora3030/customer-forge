@@ -29,7 +29,7 @@ You own the site, the customer list and the data. Analytics tie every lead and b
 
 ## Cost and trial
 
-$350 one-time setup, first month free, then $100/month, cancel anytime, with 3 days of full access before you pay. No one can promise a specific Google position, and we do not. You get fast pages, real content, structured business information and a review process.
+$350 setup, first month free, then $100/month, cancel anytime, with 3 days of full access before you pay. No one can promise a specific Google position, and we do not. You get fast pages, real content, structured business information and a review process.
 
 ## Questions North Carolina owners ask
 
