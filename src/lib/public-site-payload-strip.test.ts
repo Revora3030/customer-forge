@@ -80,21 +80,32 @@ describe("public site loader payload carries no placeholder contacts", () => {
   });
 });
 
-describe("getPublicSite returns the scrubbed payload", () => {
+describe("the public loader returns the scrubbed payload", () => {
   it("strips placeholder contacts from what loadSite returned", async () => {
     vi.resetModules();
     vi.doMock("@/lib/public-site.server", () => ({
       loadSite: async () => siteFixture(FAKE_PHONE, FAKE_EMAIL, "+15125550142", FAKE_EMAIL),
     }));
-    const { getPublicSite } = await import("@/lib/public-site.functions");
-    const out = (await (getPublicSite as unknown as (a: { data: { slug: string } }) => Promise<ReturnType<typeof siteFixture>>)({
-      data: { slug: "elite-mobile-detailing" },
-    })) as ReturnType<typeof siteFixture>;
+    const { loadPublicSitePayload } = await import("@/lib/public-site.functions");
+    const out = await loadPublicSitePayload({ slug: "elite-mobile-detailing" });
     const json = JSON.stringify(out);
     expect(json).not.toContain("555-0142");
     expect(json).not.toContain("5550142");
     expect(json).not.toContain(".example");
-    expect(out.org.slug).toBe("elite-mobile-detailing");
+    expect(out?.org.slug).toBe("elite-mobile-detailing");
+    vi.doUnmock("@/lib/public-site.server");
+  });
+
+  it("keeps real contacts and still answers not-found for an unknown site", async () => {
+    vi.resetModules();
+    vi.doMock("@/lib/public-site.server", () => ({
+      loadSite: async (slug: string) => (slug === "real" ? siteFixture(REAL_PHONE, REAL_EMAIL, "+19194827731", REAL_EMAIL) : null),
+    }));
+    const { loadPublicSitePayload } = await import("@/lib/public-site.functions");
+    const real = await loadPublicSitePayload({ slug: "real" });
+    expect(real?.profile?.phone).toBe(REAL_PHONE);
+    expect(real?.profile?.email).toBe(REAL_EMAIL);
+    expect(await loadPublicSitePayload({ slug: "missing" })).toBeNull();
     vi.doUnmock("@/lib/public-site.server");
   });
 });
