@@ -1931,18 +1931,40 @@ async function runJob(
     reusable: reusablePictures,
   });
   await touchLease(db, job);
+  // Graceful degrade (root cause #2): a site with no pictures at all used to
+  // fail the attempt, re-run the paid steps and could burn the spend cap with no
+  // site. Now the draft completes without pictures (none are invented), and a
+  // follow-up repair is recorded: failed picture records the existing
+  // "regenerate picture" action can retry, plus the owner's attention list.
+  const degradedSteps: import("@/lib/builder/graceful-degrade").FollowUpRepair[] = [];
+  const degradedAttention: string[] = [];
+  let degradedOwnerNote = "";
   {
-    // Finish-line rule: never complete a site with zero pictures when the
-    // owner supplied none; stop for retry instead of shipping text-only pages.
-    const { firstBuildPictureGap } = await import("@/lib/builder/first-build-picture-gate");
-    const gap = firstBuildPictureGap({
+    const { degradePictures } = await import("@/lib/builder/graceful-degrade");
+    const { firstBuildImageShots } = await import("@/lib/builder/first-build-images.server");
+    let shots: ReturnType<typeof firstBuildImageShots> = [];
+    try {
+      shots = firstBuildImageShots(creative, realMediaCount);
+    } catch {
+      shots = [];
+    }
+    const degrade = degradePictures({
       ownerPhotoCount: realMediaCount,
       generatedStatus: starterImages.evidence.status,
       keptPictures: starterImages.assets.length,
+      message: starterImages.evidence.message,
+      shots,
     });
-    if (gap) {
-      const { AiStepUnavailableError } = await import("@/lib/builder/ai-step-error");
-      throw new AiStepUnavailableError("pictures", starterImages.evidence.message || gap);
+    if (degrade) {
+      degradedSteps.push(degrade.followUp);
+      degradedAttention.push(degrade.attention);
+      degradedOwnerNote += degrade.ownerNote;
+      if (degrade.records.length) {
+        const { error: recordError } = await db
+          .from("image_records")
+          .upsert(degrade.records.map((r) => ({ ...r, organization_id: orgId })) as never, { onConflict: "organization_id,slot" });
+        if (recordError) console.warn("[site-engine] picture repair records skipped", recordError.message);
+      }
     }
   }
   await step("pictures");
@@ -2409,6 +2431,16 @@ async function runJob(
         `${composed.fallback} section${composed.fallback === 1 ? "" : "s"} could not be designed`,
       );
     }
+    {
+      // Optional polish rounds that were skipped or broke never fail the
+      // attempt; they are recorded as a follow-up repair instead.
+      const { degradeLayoutPolish } = await import("@/lib/builder/graceful-degrade");
+      const polish = degradeLayoutPolish({ optionalSkipped: composed.optionalSkipped ?? 0, optionalFailed: composed.optionalFailed ?? 0 });
+      if (polish) {
+        degradedSteps.push(polish.followUp);
+        degradedAttention.push(polish.attention);
+      }
+    }
     await db.from("ai_generations").insert({
       organization_id: orgId,
       job_id: job.id,
@@ -2581,7 +2613,10 @@ async function runJob(
     briefSource: brief.source,
     copyModel,
     checks: qa.checks,
+    // Steps that degraded instead of failing the attempt, each with its pending repair.
+    followUps: degradedSteps,
     attention: [
+      ...degradedAttention,
       ...(photoDescriptionNote ? [photoDescriptionNote] : []),
       ...qa.blockers.map((c) => c.fix),
       ...(usableQuoteForms.length || (bookable.data ?? []).length
@@ -2593,7 +2628,7 @@ async function runJob(
         : []),
       // Picture problems feed the same attention list the repair loop reads, so a
       // blocked or rejected starter picture is fixed rather than quietly ignored.
-      ...(starterImages.evidence.status === "owner_photos" || starterImages.assets.length > 0
+      ...(starterImages.evidence.status === "owner_photos" || starterImages.assets.length > 0 || degradedSteps.some((d) => d.kind === "pictures")
         ? []
         : [`Pictures: ${starterImages.evidence.message}`]),
       ...(starterImages.evidence.rejected ?? []).map(
@@ -2752,6 +2787,7 @@ async function runJob(
       (leadCapture
         ? "Revora built your site from your information and connected lead capture."
         : "Revora built your site. Turn on the quote calculator or online booking to capture leads.") +
+      degradedOwnerNote +
       (withheldFacts.includes("phone")
         ? " Your phone number looked like a placeholder, so it was left off the site — add your real number in Business details to show call buttons."
         : ""),
