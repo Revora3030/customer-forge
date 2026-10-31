@@ -12,6 +12,7 @@ import {
   PageHead,
 } from "@/components/app/Bits";
 import { OnboardingJourney } from "@/components/app/OnboardingJourney";
+import { ToolsYouCanCancelCard } from "@/components/app/ToolsYouCanCancelCard";
 import { ProductionSummaryCard } from "@/components/app/ProductionLaunch";
 import { StatusCenter } from "@/components/app/StatusCenter";
 import { BuildLive } from "@/components/app/BuildLive";
@@ -501,6 +502,8 @@ function Dashboard() {
       <ProductionSummaryCard status={production} />
 
       <OnboardingJourney />
+
+      <ToolsYouCanCancelCard organizationId={orgId} />
 
       {range === "custom" ? (
         <Panel className="p-4">
