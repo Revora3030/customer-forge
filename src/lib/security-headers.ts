@@ -43,7 +43,7 @@ const EMBED_FRAME_SOURCES = [
 const SUPABASE_WS = "wss://*.supabase.co";
 
 const SCRIPT_HOSTS =
-  "https://js.stripe.com https://maps.googleapis.com https://maps.gstatic.com https://www.googletagmanager.com https://pagead2.googlesyndication.com https://googleads.g.doubleclick.net";
+  "https://js.stripe.com https://maps.googleapis.com https://maps.gstatic.com https://www.googletagmanager.com https://pagead2.googlesyndication.com https://googleads.g.doubleclick.net https://www.clarity.ms https://scripts.clarity.ms";
 
 /** A fresh, unguessable value for one response (128 bits, base64). */
 export function generateCspNonce(): string {
@@ -114,6 +114,10 @@ const STATIC_DIRECTIVES = [
     "https://www.googleadservices.com",
     "https://www.google.com",
     "https://google.com",
+    // Microsoft Clarity (marketing pages only, after consent): tag + collector.
+    "https://www.clarity.ms",
+    "https://*.clarity.ms",
+    "https://c.bing.com",
   ].join(" "),
   `frame-src ${[...new Set(["'self'", "https://www.google.com", "https://maps.google.com", "https://js.stripe.com", "https://hooks.stripe.com", "https://googleads.g.doubleclick.net", "https://td.doubleclick.net", ...EMBED_FRAME_SOURCES.split(" ")])].join(" ")}`,
   "worker-src 'self' blob:",

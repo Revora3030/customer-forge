@@ -17,7 +17,7 @@ import { trackTrialStarted } from "@/lib/google-ads";
 import { provisionWorkspace, recordAccountCreated } from "@/lib/platform-funnel.functions";
 import { useStepScroll } from "@/lib/use-step-scroll";
 import { smartIntakeValue } from "@/lib/intake-smart";
-import { canonicalLink, ogUrl, OG_IMAGE_META } from "@/lib/seo";
+import { breadcrumbSchema, canonicalLink, jsonLdScript, ogUrl, OG_IMAGE_META } from "@/lib/seo";
 import { useServerFn } from "@tanstack/react-start";
 import { claimProspectDemo, getProspectClaim } from "@/lib/prospect-claim.functions";
 import {
@@ -55,6 +55,7 @@ export const Route = createFileRoute("/get-started")({
       ...OG_IMAGE_META,
     ],
     links: [canonicalLink("/get-started")],
+    scripts: [jsonLdScript(breadcrumbSchema([{ name: "Revora", path: "/" }, { name: "Get started", path: "/get-started" }]))],
   }),
   component: GetStarted,
 });

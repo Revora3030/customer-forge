@@ -51,6 +51,15 @@ describe("security headers", () => {
     expect(connect.split(/\s+/)).not.toContain("*");
   });
 
+  it("lets Microsoft Clarity load its tag and send data, without a blanket wildcard", () => {
+    const csp = documentSecurityHeaders({ https: true })["content-security-policy"] ?? "";
+    const directive = (name: string) =>
+      (csp.split(";").map((d) => d.trim()).find((d) => d.startsWith(name)) ?? "").split(/\s+/);
+    expect(directive("script-src")).toContain("https://www.clarity.ms");
+    expect(directive("connect-src")).toContain("https://*.clarity.ms");
+    expect(directive("script-src")).not.toContain("https:");
+  });
+
   it("allows Photon address suggestions but not Nominatim", () => {
     const csp = documentSecurityHeaders({ https: true })["content-security-policy"] ?? "";
     const connect =
@@ -74,6 +83,8 @@ describe("security headers", () => {
       "https://www.googletagmanager.com",
       "https://pagead2.googlesyndication.com",
       "https://googleads.g.doubleclick.net",
+      "https://www.clarity.ms",
+      "https://scripts.clarity.ms",
     ]) {
       expect(script).toContain(host);
     }
