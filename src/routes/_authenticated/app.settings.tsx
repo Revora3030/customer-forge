@@ -16,6 +16,7 @@ import { PortalAccess } from "@/components/app/PortalAccess";
 import { LeadNotifications } from "@/components/app/LeadNotifications";
 import { UpgradeFromWebsite } from "@/components/app/UpgradeFromWebsite";
 import { metaDescription } from "@/lib/seo";
+import { isValidWorkspaceSlug, WORKSPACE_SLUG_RULE } from "@/lib/workspace-slug";
 
 export const Route = createFileRoute("/_authenticated/app/settings")({
   head: () => ({
@@ -97,15 +98,29 @@ function SettingsPage() {
             e.preventDefault();
             if (!orgId) return;
             const form = new FormData(e.currentTarget);
-            updateOrg.mutate({
-              id: orgId,
-              patch: {
-                name: String(form.get("name") ?? "").trim(),
-                slug: String(form.get("slug") ?? "")
-                  .trim()
-                  .toLowerCase(),
+            const slug = String(form.get("slug") ?? "")
+              .trim()
+              .toLowerCase();
+            if (!isValidWorkspaceSlug(slug)) {
+              toast.error(WORKSPACE_SLUG_RULE);
+              return;
+            }
+            if (slug !== org?.slug) {
+              const ok = window.confirm(
+                "Changing your web address breaks links and QR codes that use the old one. Save anyway?",
+              );
+              if (!ok) return;
+            }
+            updateOrg.mutate(
+              {
+                id: orgId,
+                patch: {
+                  name: String(form.get("name") ?? "").trim(),
+                  slug,
+                },
               },
-            });
+              { onSuccess: () => toast.success("Workspace saved.") },
+            );
           }}
         >
           <div className="grid gap-4 sm:grid-cols-2">
@@ -117,6 +132,9 @@ function SettingsPage() {
               <Label htmlFor="o-slug">Web address</Label>
               <Input id="o-slug" name="slug" defaultValue={org?.slug ?? ""} disabled={!canManage} />
               <p className="text-[11px] text-muted-foreground">/s/{org?.slug}</p>
+              <p className="text-[11px] text-muted-foreground">
+                {WORKSPACE_SLUG_RULE} Changing it breaks links and QR codes that use the old address.
+              </p>
             </div>
           </div>
           {canManage ? (
