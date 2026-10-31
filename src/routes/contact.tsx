@@ -6,6 +6,7 @@ import { submitContactRequest } from "@/lib/contact.functions";
 import { AltchaField, altchaPayload } from "@/components/site/AltchaField";
 
 import { useState } from "react";
+import { ga4GenerateLead } from "@/lib/ga4-events";
 import { toast } from "@/lib/ui/notify";
 import { Mail } from "lucide-react";
 import { SiteFooter, SiteHeader } from "@/components/marketing/Chrome";
@@ -161,6 +162,7 @@ function Contact() {
                       },
                     });
                     setSent(true);
+                    ga4GenerateLead("contact_form");
                     toast.success("Message sent — the Revora team will be in touch.");
                   } catch (err) {
                     toast.error(
