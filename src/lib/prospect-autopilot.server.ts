@@ -478,6 +478,16 @@ async function buildPhase(
         skip({ reason: `invalid_facts: ${error instanceof Error ? error.message : "invalid"}`, name: prospect.name, target: query });
         continue;
       }
+      // The worker's business-facts gate, before a workspace is created: facts that
+      // look like test or placeholder data would only fail the build three attempts later.
+      {
+        const { precheckProspectDemoFacts } = await import("@/lib/builder/business-facts-precheck");
+        const refusal = precheckProspectDemoFacts(input).message;
+        if (refusal) {
+          skip({ reason: `invalid_facts: ${refusal}`.slice(0, 200), name: prospect.name, target: query });
+          continue;
+        }
+      }
       try {
         const demo = await provisionProspectDemo(db, input, owner, {
           source: "autopilot",

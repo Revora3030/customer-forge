@@ -124,7 +124,8 @@ describe("the build request and the worker share the gate and never requeue it",
     const insert = functions.indexOf('.from("generation_jobs")\n      .insert(');
     expect(precheck).toBeGreaterThan(0);
     expect(insert).toBeGreaterThan(precheck);
-    expect(functions).toContain("businessFactIntegrityFields(");
+    expect(functions).toContain("precheckBusinessFacts(");
+    expect(readFileSync("src/lib/builder/business-facts-precheck.ts", "utf8")).toContain("businessFactIntegrityFields(");
   });
 
   it("uses the same field list in the worker and skips capacity parking for intake failures", () => {

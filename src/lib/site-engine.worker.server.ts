@@ -1429,20 +1429,19 @@ async function runJob(
   // built site. Nothing is invented in their place — the build stops and asks
   // for the real information.
   {
-    const { assertContentIntegrity, businessFactIntegrityFields, inspectContentIntegrity } = await import(
+    const { assertContentIntegrity, businessFactIntegrityFields, withholdUnrealContacts } = await import(
       "@/lib/builder/content-integrity"
     );
-    // A placeholder phone number is not a reason to refuse the whole build.
-    // It is withheld from the site (never shown, never replaced by an invented
-    // number) and the owner is told to add the real one. Every other field
-    // keeps the hard gate.
-    const phoneProblems = inspectContentIntegrity([{ field: "phone", value: copyFacts.phone }]);
-    if (phoneProblems.length) {
-      console.warn(
-        `[site-engine] job ${job.id}: phone withheld from the site (${phoneProblems.map((v) => v.detail).join("; ")})`,
-      );
-      copyFacts.phone = null;
-      withheldFacts.push("phone");
+    // A placeholder phone number or email is not a reason to refuse the whole
+    // build. It is withheld from the site (never shown, never replaced by an
+    // invented one) and the owner is told to add the real one. Every other
+    // field keeps the hard gate.
+    const contacts = withholdUnrealContacts({ phone: copyFacts.phone, email: copyFacts.email });
+    if (contacts.withheld.length) {
+      console.warn(`[site-engine] job ${job.id}: ${contacts.withheld.join(" and ")} withheld from the site (${contacts.details.join("; ")})`);
+      copyFacts.phone = contacts.phone;
+      copyFacts.email = contacts.email;
+      withheldFacts.push(...contacts.withheld);
     }
     assertContentIntegrity(
       businessFactIntegrityFields({
@@ -1642,7 +1641,7 @@ async function runJob(
     state: (p["state"] as string) ?? null,
     serviceArea: (p["service_area"] as string) ?? null,
     phone: copyFacts.phone,
-    email: businessEmail,
+    email: copyFacts.email,
     yearsInBusiness: (p["years_in_business"] as number) ?? null,
     services: serviceRows,
     goals,
@@ -1854,7 +1853,7 @@ async function runJob(
           description: (p["description"] as string) ?? null,
           services: serviceRows.map((service) => String((service as { name?: unknown }).name ?? "")).filter(Boolean),
           serviceArea: (p["service_area"] as string) ?? null,
-          contact: { phone: Boolean(String(p["phone"] ?? "").trim()), email: Boolean(String(p["email"] ?? "").trim()) },
+          contact: { phone: Boolean(String(copyFacts.phone ?? "").trim()), email: Boolean(String(copyFacts.email ?? "").trim()) },
         };
         const resumedPlan = await stageStore.get<PageArchitectureOutcome>("architecture", architectureInputs);
         const outcome = resumedPlan ?? await proposePageArchitecture(architectureInputs);
@@ -2108,7 +2107,7 @@ async function runJob(
     state: (p["state"] as string) ?? null,
     serviceArea: (p["service_area"] as string) ?? null,
     phone: copyFacts.phone,
-    email: businessEmail,
+    email: copyFacts.email,
     yearsInBusiness: (p["years_in_business"] as number) ?? null,
     photoCount: realMediaCount,
     hasQuoteForm: usableQuoteForms.length > 0,
@@ -2754,6 +2753,9 @@ async function runJob(
         : "Revora built your site. Turn on the quote calculator or online booking to capture leads.") +
       (withheldFacts.includes("phone")
         ? " Your phone number looked like a placeholder, so it was left off the site — add your real number in Business details to show call buttons."
+        : "") +
+      (withheldFacts.includes("email")
+        ? " Your business email looked like a placeholder, so it was left off the site — add your real email in Business details to show it."
         : ""),
     kind: "website",
     link: "/app/website",

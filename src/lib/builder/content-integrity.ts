@@ -39,9 +39,7 @@ const PLACEHOLDER_TOKENS = [
   "insert text",
   "placeholder",
   "coming soon text",
-  "tbd",
   "to be determined",
-  "todo",
   "xxx",
   "xxxx",
   "asdf",
@@ -51,6 +49,18 @@ const PLACEHOLDER_TOKENS = [
   "dummy text",
   "n/a n/a",
 ];
+
+/**
+ * "tbd" and "todo" are placeholders only as whole words. As substrings they
+ * flagged real names ("Mastodon Mowing", "Todo's Pizza") and ordinary words.
+ * A possessive ("Todo's") is a name, not a to-do marker.
+ */
+const WHOLE_WORD_PLACEHOLDERS = [/(?<![\p{L}\p{N}_'\u2019])tbd(?![\p{L}\p{N}_'\u2019])/iu, /(?<![\p{L}\p{N}_'\u2019])todo(?![\p{L}\p{N}_'\u2019])/iu];
+
+function hasPlaceholderToken(value: string): boolean {
+  const lower = value.toLowerCase();
+  return PLACEHOLDER_TOKENS.some((token) => lower === token || lower.includes(token)) || WHOLE_WORD_PLACEHOLDERS.some((pattern) => pattern.test(value));
+}
 
 const FIXTURE_PATTERNS = [
   /\bexample\.(com|org|net)\b/i,
@@ -104,7 +114,17 @@ export function looksLikeFakePhone(raw: string): boolean {
   return false;
 }
 
-export type IntegrityField = { field: string; value: unknown; heading?: boolean };
+export type IntegrityField = {
+  field: string;
+  value: unknown;
+  heading?: boolean;
+  /**
+   * The same value may legitimately appear in other fields (a city that is also
+   * the service area). It is still checked on its own, but it is left out of the
+   * repeated-filler count.
+   */
+  allowDuplicate?: boolean;
+};
 
 /**
  * Inspects any set of named text values. Callers pass business facts, generated
@@ -145,7 +165,7 @@ export function inspectContentIntegrity(fields: IntegrityField[]): IntegrityViol
         kind: "lorem_ipsum",
         detail: "placeholder Latin filler cannot appear on a real website",
       });
-    else if (PLACEHOLDER_TOKENS.some((token) => lower === token || lower.includes(token)))
+    else if (hasPlaceholderToken(value))
       violations.push({
         field: entry.field,
         value,
@@ -181,7 +201,7 @@ export function inspectContentIntegrity(fields: IntegrityField[]): IntegrityViol
         detail: "this does not read as real business information",
       });
 
-    if (value.length >= 6) {
+    if (value.length >= 6 && !entry.allowDuplicate) {
       const list = seen.get(lower) ?? [];
       list.push(entry.field);
       seen.set(lower, list);
@@ -202,6 +222,33 @@ export function inspectContentIntegrity(fields: IntegrityField[]): IntegrityViol
 
 
   return violations;
+}
+
+/**
+ * Splits placeholder contact details from the real ones. A fixture or
+ * placeholder phone or email is never shown on the site and never replaced by an
+ * invented one, but it is not a reason to refuse the whole build either: it is
+ * withheld, and the owner is told to add the real one.
+ */
+export function withholdUnrealContacts(contacts: { phone?: string | null; email?: string | null }): {
+  phone: string | null;
+  email: string | null;
+  withheld: ("phone" | "email")[];
+  details: string[];
+} {
+  const withheld: ("phone" | "email")[] = [];
+  const details: string[] = [];
+  const check = (field: "phone" | "email", value: string | null | undefined): string | null => {
+    if (value === null || value === undefined || value === "") return null;
+    const problems = inspectContentIntegrity([{ field, value }]);
+    if (problems.length === 0) return value;
+    withheld.push(field);
+    for (const problem of problems) details.push(`${field}: ${problem.detail}`);
+    return null;
+  };
+  const phone = check("phone", contacts.phone);
+  const email = check("email", contacts.email);
+  return { phone, email, withheld, details };
 }
 
 /** Stable code on every ContentIntegrityError, read by the build failure classifier. */
@@ -259,8 +306,9 @@ export function businessFactIntegrityFields(facts: {
   return [
     { field: "business name", value: facts.businessName ?? "", heading: true },
     { field: "description", value: facts.description ?? null },
-    { field: "city", value: facts.city ?? null },
-    { field: "service area", value: facts.serviceArea ?? null },
+    // A business's city is very often its service area too; that is not filler.
+    { field: "city", value: facts.city ?? null, allowDuplicate: true },
+    { field: "service area", value: facts.serviceArea ?? null, allowDuplicate: true },
     { field: "phone", value: facts.phone ?? null },
     { field: "email", value: facts.email ?? null },
     ...services.map((service, index) => ({ field: `service ${index + 1} name`, value: service.name, heading: true })),
