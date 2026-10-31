@@ -209,12 +209,22 @@ describe("/sitemaps/sites.xml", () => {
 });
 
 describe("platform sitemap lastmod", () => {
-  it("gives every Revora page a real lastmod, in the sitemap's ISO format", async () => {
-    const { PLATFORM_CONTENT_LASTMOD, xmlSitemap } = await import("./site-host.server");
+  it("uses a real per-page date where one exists and leaves lastmod out elsewhere", async () => {
+    const { xmlSitemap } = await import("./site-host.server");
+    const { GUIDES } = await import("./guides");
     const urls = sitemapUrls(null, "https://revoragrowthsystems.com");
     expect(urls.length).toBeGreaterThan(50);
-    expect(urls.every((u) => u.lastmod === PLATFORM_CONTENT_LASTMOD)).toBe(true);
-    expect(PLATFORM_CONTENT_LASTMOD).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-    expect(xmlSitemap(urls)).toContain(`<lastmod>${new Date(PLATFORM_CONTENT_LASTMOD).toISOString()}</lastmod>`);
+    const dated = urls.filter((u) => u.lastmod);
+    expect(dated.length).toBe(GUIDES.length);
+    for (const guide of GUIDES) {
+      expect(guide.published).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      expect(guide.updated >= guide.published).toBe(true);
+      const url = urls.find((u) => u.loc.endsWith(`/guides/${guide.slug}`));
+      expect(url?.lastmod).toBe(guide.updated);
+    }
+    expect(new Set(dated.map((u) => u.lastmod)).size).toBeGreaterThan(1);
+    const xml = xmlSitemap(urls);
+    expect(xml.match(/<lastmod>/g)?.length).toBe(GUIDES.length);
+    expect(xml).toContain(`<lastmod>${new Date(GUIDES[0]!.updated).toISOString()}</lastmod>`);
   });
 });
