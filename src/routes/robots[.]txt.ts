@@ -47,9 +47,9 @@ export const Route = createFileRoute("/robots.txt")({
 
           "",
           `Sitemap: ${site ? site.origin : origin}/sitemap.xml`,
-          // Client sites on the platform address (/s/<slug>) are listed in
-          // their own index; only the platform host advertises it.
-          ...(site ? [] : [`Sitemap: ${origin}/sitemaps/sites.xml`]),
+          // One sitemap only. The former /sitemaps/sites.xml index of client
+          // sites was empty and has been removed; a client's own sitemap is
+          // /s/<slug>/sitemap.xml (or its custom domain's /sitemap.xml).
           ...(site ? [] : [`# AI crawler summary: ${origin}/llms.txt`]),
           "",
         ];
