@@ -8,11 +8,11 @@
 export type WebsiteUrlResult = { ok: true; url: string } | { ok: false; message: string };
 
 const MAX_LENGTH = 200;
-const BLOCKED_HOSTS = new Set(["localhost", "metadata", "instance-data"]);
+const BLOCKED_HOSTS = new Set(["localhost", "metadata", "instance-data"]); // DevSkim: ignore DS162092 -- blocklist entry: loopback names are rejected, never fetched.
 const BLOCKED_SUFFIXES = [
   ".local",
   ".internal",
-  ".localhost",
+  ".localhost", // DevSkim: ignore DS162092 -- blocklist entry: loopback names are rejected, never fetched.
   ".localdomain",
   ".home.arpa",
   ".onion",
