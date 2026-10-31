@@ -406,6 +406,23 @@ function isRepeatedDigits(
   );
 }
 
+/**
+ * True for digit strings that are fictional or directory placeholders, never a
+ * business line: 555-01xx in any area code, a 555 area code, or a bare 7-digit
+ * 555 number. A real area code with another 555 exchange is left alone.
+ */
+export function isPlaceholderPhoneDigits(digits: string): boolean {
+  const national = digits.length === 11 && digits.startsWith("1") ? digits.slice(1) : digits;
+  if (national.length === 7) return national.startsWith("555");
+  if (national.length !== 10) return false;
+  return national.startsWith("555") || /^\d{3}55501\d{2}$/.test(national);
+}
+
+/** True when a phone value (any formatting) is a fictional placeholder. */
+export function isPlaceholderPhone(value: unknown): boolean {
+  return typeof value === "string" && isPlaceholderPhoneDigits(value.replace(/\D/g, ""));
+}
+
 function isObviousFakePhone(
   digits: string,
 ): boolean {
@@ -422,13 +439,10 @@ function isObviousFakePhone(
   }
 
   /*
-   * NANP fictional 555-01xx range.
+   * NANP fictional numbers: 555-01xx, a 555 area code such as (555) 123-4567,
+   * and a bare 7-digit 555-xxxx such as 555-1212 (audit P1-04).
    */
-  if (
-    /^\d{3}55501\d{2}$/.test(
-      digits,
-    )
-  ) {
+  if (isPlaceholderPhoneDigits(digits)) {
     return true;
   }
 
@@ -604,6 +618,21 @@ function normalizedEmail(
   return email;
 }
 
+/**
+ * True for sample addresses: example.com/.org/.net, test/localhost, or any
+ * reserved example, test, invalid or localhost top-level domain (RFC 2606).
+ */
+export function isPlaceholderEmail(value: unknown): boolean {
+  if (typeof value !== "string") return false;
+  const domain = value.trim().toLowerCase().split("@")[1] ?? "";
+  if (!domain) return false;
+  return (
+    DISALLOWED_EMAIL_DOMAINS.has(domain) ||
+    /(?:^|\.)(?:example|test|invalid|localhost)$/.test(domain) ||
+    /(?:^|\.)example\.(?:com|org|net)$/.test(domain)
+  );
+}
+
 export function isUsableEmail(
   value: unknown,
 ): boolean {
@@ -641,11 +670,7 @@ export function isUsableEmail(
     return false;
   }
 
-  if (
-    DISALLOWED_EMAIL_DOMAINS.has(
-      domain,
-    )
-  ) {
+  if (isPlaceholderEmail(email)) {
     return false;
   }
 
