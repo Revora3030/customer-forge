@@ -6,6 +6,7 @@ import { Building2, Plus, Search } from "lucide-react";
 import { EmptyState, LoadingRows, Panel, Pill, SectionHeading } from "@/components/app/Bits";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { QueryErrorNotice } from "@/components/app/QueryErrorNotice";
 import { NewClientDialog } from "@/components/admin/NewClientDialog";
 import { listClients } from "@/lib/admin.functions";
 import { getClientHealth } from "@/lib/retention/client-health.functions";
@@ -24,6 +25,14 @@ export const Route = createFileRoute("/_authenticated/admin/clients")({
   }),
   component: AdminClientsRoute,
 });
+
+// Setup paid + Stripe "trialing" is a paying client in their free first month.
+function isPaidClient(client: { setup_paid_at?: string | null; subscription_state?: string | null }) {
+  return (
+    Boolean(client.setup_paid_at) &&
+    (client.subscription_state === "active" || client.subscription_state === "trialing")
+  );
+}
 
 const FILTERS = [
   { value: "all", label: "All" },
@@ -59,7 +68,7 @@ function AdminClients() {
         [client.name, client.owner_name, client.owner_email, client.city, client.custom_domain]
           .filter(Boolean)
           .some((value) => String(value).toLowerCase().includes(term));
-      const paid = Boolean(client.setup_paid_at) && client.subscription_state === "active";
+      const paid = isPaidClient(client);
       const state =
         filter === "all"
           ? true
@@ -100,7 +109,7 @@ function AdminClients() {
             onChange={(event) => setSearch(event.target.value)}
           />
         </div>
-        <div className="flex gap-1">
+        <div className="flex flex-wrap gap-1">
           {FILTERS.map((option) => (
             <Button
               key={option.value}
@@ -116,6 +125,12 @@ function AdminClients() {
 
       {clients.isLoading ? (
         <LoadingRows rows={4} />
+      ) : clients.isError ? (
+        <QueryErrorNotice
+          title="The client list couldn't be loaded. This is a loading problem, not an empty list."
+          retry={clients.refetch}
+          retrying={clients.isFetching}
+        />
       ) : rows.length === 0 ? (
         <EmptyState
           icon={<Building2 className="size-5" />}
@@ -163,7 +178,7 @@ function AdminClients() {
               <div className="flex flex-wrap items-center gap-2">
                 <Pill
                   tone={
-                    client.setup_paid_at && client.subscription_state === "active"
+                    isPaidClient(client)
                       ? "signal"
                       : client.subscription_state === "past_due"
                         ? "danger"
@@ -172,8 +187,10 @@ function AdminClients() {
                 >
                   {client.is_demo
                     ? "Demo — not a client"
-                    : client.setup_paid_at && client.subscription_state === "active"
-                    ? "Paid & active"
+                    : isPaidClient(client)
+                    ? client.subscription_state === "trialing"
+                      ? "Paid · first month free"
+                      : "Paid & active"
                     : client.subscription_state
                       ? `Subscription ${client.subscription_state}`
                       : "Awaiting payment"}
