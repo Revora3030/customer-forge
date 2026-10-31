@@ -2,6 +2,7 @@ import * as React from "react";
 import { render } from "@react-email/render";
 import { EmailAPIError, sendLovableEmail } from "@lovable.dev/email-js";
 import { TEMPLATES } from "./registry";
+import { REVORA } from "@/lib/brand";
 
 // Server-only: reads LOVABLE_API_KEY. Never import from client components.
 
@@ -13,6 +14,32 @@ const SENDER_DOMAIN = "notify.revoragrowthsystems.com";
 // FROM_DOMAIN is the domain shown in the From: header (e.g., "example.com").
 // Can be the root domain when display_from_root is enabled — this is cosmetic only.
 const FROM_DOMAIN = "notify.revoragrowthsystems.com";
+
+/**
+ * Revora's own customer-facing emails (billing and lifecycle) tell the reader to
+ * "reply to this email". They are sent from noreply@notify.…, which has no
+ * inbox, so without a Reply-To those replies go nowhere. Templates sent on
+ * behalf of a client business (lead alerts, confirmations, automations) are not
+ * in this list: their Reply-To must stay the client's or the visitor's address.
+ */
+const REVORA_SUPPORT_REPLY_TEMPLATES: ReadonlySet<string> = new Set([
+  "billing-welcome",
+  "billing-canceled",
+  "billing-plan-changed",
+  "billing-trial-ending",
+  "billing-payment-failed",
+  "billing-site-offline-warning",
+  "lifecycle-welcome",
+  "lifecycle-setup-reminder",
+  "lifecycle-booking-followup",
+  "lifecycle-winback",
+]);
+
+/** The Reply-To for a send: an explicit one wins, else Revora's support address for Revora-own templates. */
+export function resolveReplyTo(templateName: string, explicit?: string): string | undefined {
+  if (explicit) return explicit;
+  return REVORA_SUPPORT_REPLY_TEMPLATES.has(templateName) ? REVORA.email : undefined;
+}
 
 export type SendTemplateEmailResult =
   { sent: true } | { sent: false; reason: "recipient_suppressed" };
@@ -67,6 +94,8 @@ export async function sendTemplateEmail(
   const subject =
     typeof template.subject === "function" ? template.subject(templateData) : template.subject;
 
+  const replyTo = resolveReplyTo(templateName, options.replyTo);
+
   try {
     await sendLovableEmail(
       {
@@ -79,7 +108,7 @@ export async function sendTemplateEmail(
         purpose: "transactional",
         label: templateName,
         idempotency_key: options.idempotencyKey || crypto.randomUUID(),
-        ...(options.replyTo ? { reply_to: options.replyTo } : {}),
+        ...(replyTo ? { reply_to: replyTo } : {}),
       },
       { apiKey, sendUrl: process.env["LOVABLE_SEND_URL"] },
     );
