@@ -20,7 +20,7 @@ function body() {
   lines.push(
     `- ${GROWTH_SYSTEM.name}: ${usdExact(GROWTH_SYSTEM.setupPrice)} one-time setup, first month free, then ${usdExact(GROWTH_SYSTEM.monthlyPrice)}/month. Cancel anytime. ${GROWTH_SYSTEM.fullAccessWindow} of full access free at signup.`,
   );
-  lines.push(`- Contact: ${BUSINESS.email} · ${BUSINESS.hours.display}`);
+  lines.push(`- Contact: ${BUSINESS.email}`);
   lines.push("");
   lines.push("## Key pages");
   for (const [label, path] of [

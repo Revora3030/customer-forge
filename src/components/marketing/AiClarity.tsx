@@ -187,7 +187,6 @@ export function SleepEngine() {
         </p>
         <ul className="mt-5 space-y-2 text-[13px] text-muted-foreground">
           {[
-            "Quoting and booking available 24/7",
             "Instant replies at any hour",
             "Follow-up, reminders and review requests on a timer",
             "Morning summary of what happened overnight",

@@ -184,6 +184,14 @@ describe("noindex pages and publisher identity", () => {
     expect(LOCAL_BUSINESS_SCHEMA).not.toHaveProperty("openingHoursSpecification");
     expect(LOCAL_BUSINESS_SCHEMA).not.toHaveProperty("openingHours");
   });
+
+  it("has no 24/7 hours claim in the organization schema, OG alt text or business identity", async () => {
+    const { ORGANIZATION_SCHEMA, OG_IMAGE } = await import("@/lib/seo");
+    const { BUSINESS } = await import("@/lib/business-identity");
+    expect(JSON.stringify(ORGANIZATION_SCHEMA)).not.toMatch(/hoursAvailable|OpeningHoursSpecification/);
+    expect(OG_IMAGE.alt).not.toMatch(/24\/7|24 hours/i);
+    expect(BUSINESS).not.toHaveProperty("hours");
+  });
 });
 
 describe("search snippets are finished text within Google's limits", () => {
