@@ -29,23 +29,26 @@ export function AddToCalendar(props: BookingCalendarInput) {
     setTimeout(() => URL.revokeObjectURL(url), 1_000);
   };
   return (
-    <div className="mt-4 flex flex-wrap items-center gap-2 text-[14px]" data-testid="add-to-calendar">
-      <button
-        type="button"
-        onClick={() => void download()}
-        className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 font-medium hover:bg-muted"
-      >
-        <CalendarPlus className="h-4 w-4" aria-hidden="true" />
-        Add to calendar (.ics)
-      </button>
-      <a
-        href={googleCalendarUrl(event)}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 font-medium hover:bg-muted"
-      >
-        Google Calendar
-      </a>
+    <div className="mt-4" data-testid="add-to-calendar">
+      <div className="flex flex-wrap items-center gap-2 text-[14px]">
+        <button
+          type="button"
+          onClick={() => void download()}
+          className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 font-medium hover:bg-muted"
+        >
+          <CalendarPlus className="h-4 w-4" aria-hidden="true" />
+          Add to calendar (.ics)
+        </button>
+        <a
+          href={googleCalendarUrl(event)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 font-medium hover:bg-muted"
+        >
+          Google Calendar
+        </a>
+      </div>
+      <p className="mt-2 text-[13px] text-muted-foreground">Not confirmed until {props.businessName.trim() || "the business"} replies.</p>
     </div>
   );
 }

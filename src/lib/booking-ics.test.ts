@@ -15,7 +15,7 @@ describe("bookingCalendarEvent", () => {
     const event = bookingCalendarEvent(input)!;
     expect(event.start).toEqual([2026, 11, 3, 14, 30]);
     expect(event.end).toEqual([2026, 11, 3, 16, 0]);
-    expect(event.title).toBe("Water heater install — Oak City Plumbing (requested)");
+    expect(event.title).toBe("Requested: Water heater install at Oak City Plumbing");
     expect(event.description).toContain("will confirm");
   });
 
@@ -54,5 +54,16 @@ describe("bookingIcs", () => {
   it("names the file after the date", () => {
     expect(icsFileName("2026-11-03")).toBe("appointment-2026-11-03.ics");
     expect(icsFileName("../evil")).toBe("appointment-request.ics");
+  });
+});
+
+describe("requested, not confirmed (audit P2-03)", () => {
+  it("starts every calendar title with 'Requested:'", () => {
+    expect(bookingCalendarEvent(input)!.title.startsWith("Requested:")).toBe(true);
+    expect(bookingCalendarEvent({ ...input, serviceName: null })!.title).toBe("Requested: appointment at Oak City Plumbing");
+  });
+  it("puts the same title in the .ics file", async () => {
+    const ics = await bookingIcs(bookingCalendarEvent(input)!);
+    expect(ics).toContain("SUMMARY:Requested: Water heater install at Oak City Plumbing");
   });
 });
