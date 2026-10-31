@@ -207,3 +207,14 @@ describe("/sitemaps/sites.xml", () => {
     );
   });
 });
+
+describe("platform sitemap lastmod", () => {
+  it("gives every Revora page a real lastmod, in the sitemap's ISO format", async () => {
+    const { PLATFORM_CONTENT_LASTMOD, xmlSitemap } = await import("./site-host.server");
+    const urls = sitemapUrls(null, "https://revoragrowthsystems.com");
+    expect(urls.length).toBeGreaterThan(50);
+    expect(urls.every((u) => u.lastmod === PLATFORM_CONTENT_LASTMOD)).toBe(true);
+    expect(PLATFORM_CONTENT_LASTMOD).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(xmlSitemap(urls)).toContain(`<lastmod>${new Date(PLATFORM_CONTENT_LASTMOD).toISOString()}</lastmod>`);
+  });
+});

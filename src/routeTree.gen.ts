@@ -58,7 +58,6 @@ import { Route as LocationsIndexRouteImport } from './routes/locations.index'
 import { Route as LocationsCityRouteImport } from './routes/locations.$city'
 import { Route as PTokenRouteImport } from './routes/p.$token'
 import { Route as SSlugRouteImport } from './routes/s.$slug'
-import { Route as SitemapsSitesDotxmlRouteImport } from './routes/sitemaps.sites[.]xml'
 import { Route as StatesIndexRouteImport } from './routes/states.index'
 import { Route as StatesStateRouteImport } from './routes/states.$state'
 import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.oauth.consent'
@@ -390,11 +389,6 @@ const PTokenRoute = PTokenRouteImport.update({
 const SSlugRoute = SSlugRouteImport.update({
   id: '/s/$slug',
   path: '/s/$slug',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SitemapsSitesDotxmlRoute = SitemapsSitesDotxmlRouteImport.update({
-  id: '/sitemaps/sites.xml',
-  path: '/sitemaps/sites.xml',
   getParentRoute: () => rootRouteImport,
 } as any)
 const StatesIndexRoute = StatesIndexRouteImport.update({
@@ -917,7 +911,6 @@ export interface FileRoutesByFullPath {
   '/locations/$city': typeof LocationsCityRoute
   '/p/$token': typeof PTokenRoute
   '/s/$slug': typeof SSlugRouteWithChildren
-  '/sitemaps/sites.xml': typeof SitemapsSitesDotxmlRoute
   '/states/$state': typeof StatesStateRoute
   '/compare/': typeof CompareIndexRoute
   '/crm/': typeof CrmIndexRoute
@@ -1050,7 +1043,6 @@ export interface FileRoutesByTo {
   '/locations/$city': typeof LocationsCityRoute
   '/p/$token': typeof PTokenRoute
   '/s/$slug': typeof SSlugRouteWithChildren
-  '/sitemaps/sites.xml': typeof SitemapsSitesDotxmlRoute
   '/states/$state': typeof StatesStateRoute
   '/compare': typeof CompareIndexRoute
   '/crm': typeof CrmIndexRoute
@@ -1190,7 +1182,6 @@ export interface FileRoutesById {
   '/locations/$city': typeof LocationsCityRoute
   '/p/$token': typeof PTokenRoute
   '/s/$slug': typeof SSlugRouteWithChildren
-  '/sitemaps/sites.xml': typeof SitemapsSitesDotxmlRoute
   '/states/$state': typeof StatesStateRoute
   '/compare/': typeof CompareIndexRoute
   '/crm/': typeof CrmIndexRoute
@@ -1330,7 +1321,6 @@ export interface FileRouteTypes {
     | '/locations/$city'
     | '/p/$token'
     | '/s/$slug'
-    | '/sitemaps/sites.xml'
     | '/states/$state'
     | '/compare/'
     | '/crm/'
@@ -1463,7 +1453,6 @@ export interface FileRouteTypes {
     | '/locations/$city'
     | '/p/$token'
     | '/s/$slug'
-    | '/sitemaps/sites.xml'
     | '/states/$state'
     | '/compare'
     | '/crm'
@@ -1602,7 +1591,6 @@ export interface FileRouteTypes {
     | '/locations/$city'
     | '/p/$token'
     | '/s/$slug'
-    | '/sitemaps/sites.xml'
     | '/states/$state'
     | '/compare/'
     | '/crm/'
@@ -1736,7 +1724,6 @@ export interface RootRouteChildren {
   LocationsCityRoute: typeof LocationsCityRoute
   PTokenRoute: typeof PTokenRoute
   SSlugRoute: typeof SSlugRouteWithChildren
-  SitemapsSitesDotxmlRoute: typeof SitemapsSitesDotxmlRoute
   StatesStateRoute: typeof StatesStateRoute
   CompareIndexRoute: typeof CompareIndexRoute
   CrmIndexRoute: typeof CrmIndexRoute
@@ -2127,13 +2114,6 @@ declare module '@tanstack/react-router' {
       path: '/s/$slug'
       fullPath: '/s/$slug'
       preLoaderRoute: typeof SSlugRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/sitemaps/sites.xml': {
-      id: '/sitemaps/sites.xml'
-      path: '/sitemaps/sites.xml'
-      fullPath: '/sitemaps/sites.xml'
-      preLoaderRoute: typeof SitemapsSitesDotxmlRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/states/': {
@@ -3018,7 +2998,6 @@ const rootRouteChildren: RootRouteChildren = {
   LocationsCityRoute: LocationsCityRoute,
   PTokenRoute: PTokenRoute,
   SSlugRoute: SSlugRouteWithChildren,
-  SitemapsSitesDotxmlRoute: SitemapsSitesDotxmlRoute,
   StatesStateRoute: StatesStateRoute,
   CompareIndexRoute: CompareIndexRoute,
   CrmIndexRoute: CrmIndexRoute,
