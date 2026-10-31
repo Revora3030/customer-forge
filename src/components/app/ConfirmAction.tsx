@@ -49,3 +49,34 @@ export function ConfirmAction({
     </AlertDialog>
   );
 }
+
+type DialogProps = Omit<Props, "children"> & {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+};
+
+/** Controlled variant for actions that don't start from a button, such as a <select> change. */
+export function ConfirmDialog({
+  open,
+  onOpenChange,
+  title,
+  description,
+  confirmLabel = "Yes, continue",
+  cancelLabel = "Cancel",
+  onConfirm,
+}: DialogProps) {
+  return (
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{title}</AlertDialogTitle>
+          <AlertDialogDescription>{description}</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>{cancelLabel}</AlertDialogCancel>
+          <AlertDialogAction onClick={onConfirm}>{confirmLabel}</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}

@@ -418,6 +418,15 @@ export const createClientOrg = createServerFn({ method: "POST" })
   });
 
 /** Suspend, reactivate, rename or re-plan a client. */
+/** Statuses an admin may set by hand. This edits Revora's records only; it never calls Stripe. */
+export const ADMIN_SUBSCRIPTION_STATUSES: string[] = [
+  "trialing",
+  "active",
+  "past_due",
+  "canceled",
+  "suspended",
+];
+
 export const updateClientOrg = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator(
@@ -430,6 +439,12 @@ export const updateClientOrg = createServerFn({ method: "POST" })
       industry?: string | null;
     }) => {
       if (!input?.organizationId) throw new Error("Missing client.");
+      if (
+        input.subscription_status !== undefined &&
+        !ADMIN_SUBSCRIPTION_STATUSES.includes(input.subscription_status)
+      ) {
+        throw new Error("Unknown subscription status.");
+      }
       return input;
     },
   )
@@ -668,6 +683,15 @@ export const setClientPublishState = createServerFn({ method: "POST" })
       })
       .eq("organization_id", data.organizationId);
     if (error) throw new Error(error.message);
+
+    await supabaseAdmin.from("audit_logs").insert({
+      organization_id: data.organizationId,
+      actor_id: context.userId,
+      action: `website.${data.state}`,
+      entity: "website_settings",
+      entity_id: data.organizationId,
+      metadata: { publish_state: data.state, source: "admin" } as never,
+    });
     return { ok: true };
   });
 
