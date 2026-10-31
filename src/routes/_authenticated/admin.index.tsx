@@ -176,15 +176,18 @@ function AdminOverview() {
         ) : (
           <ul className="divide-y divide-border">
             {(clients.data ?? []).slice(0, 8).map((client) => (
-              <li key={client.id} className="flex items-center justify-between gap-3 px-4 py-3">
-                <div className="min-w-0">
-                  <p className="truncate text-[13px] font-medium">{client.name}</p>
-                  <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+              <li
+                key={client.id}
+                className="flex flex-col items-stretch gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
+              >
+                <div className="w-full min-w-0 sm:w-auto">
+                  <p className="text-[13px] font-medium break-words sm:truncate">{client.name}</p>
+                  <p className="mt-0.5 text-[11px] text-muted-foreground break-words sm:truncate">
                     {client.city ?? "No city"} · added {dateShort(client.created_at)} ·{" "}
                     {number(client.leads)} leads
                   </p>
                 </div>
-                <div className="flex shrink-0 items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2 sm:shrink-0 sm:flex-nowrap">
                   <Pill tone={PUBLISH_STATES[client.publish_state]?.tone ?? "neutral"}>
                     {PUBLISH_STATES[client.publish_state]?.label ?? client.publish_state}
                   </Pill>
