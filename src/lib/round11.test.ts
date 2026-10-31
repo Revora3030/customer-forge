@@ -22,7 +22,7 @@ describe("customer lead forms", () => {
   const forms = readFileSync("src/components/site/SiteForms.tsx", "utf8");
   it("refuse to send a request the business could never reply to", () => {
     expect(forms).toMatch(/function contactProblem/);
-    expect((forms.match(/const problem = contactProblem\(/g) ?? []).length).toBe(2);
+    expect((forms.match(/const found = contactProblem\(/g) ?? []).length).toBe(2);
   });
   it("fill name, phone and email from the visitor's phone autofill", () => {
     expect(forms).toMatch(/autoComplete="tel" inputMode="tel"/);
