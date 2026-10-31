@@ -170,27 +170,56 @@ export const listClients = createServerFn({ method: "GET" })
     if ([profiles, sites, services, media, forms, leads, appts, events, subs, pays].some((r) => r.error))
       throw new Error("Couldn't read every client's numbers just now. Refresh in a moment.");
 
-    const countBy = (rows: { organization_id: string }[] | null, id: string) =>
-      (rows ?? []).filter((r) => r.organization_id === id).length;
+    // One pass per table, grouped by workspace, instead of re-scanning every
+    // table for every client.
+    const group = <T extends { organization_id: string }>(rows: T[] | null) => {
+      const map = new Map<string, T[]>();
+      for (const row of rows ?? []) {
+        const list = map.get(row.organization_id);
+        if (list) list.push(row);
+        else map.set(row.organization_id, [row]);
+      }
+      return map;
+    };
+    const first = <T extends { organization_id: string }>(rows: T[] | null) => {
+      const map = new Map<string, T>();
+      for (const row of rows ?? []) if (!map.has(row.organization_id)) map.set(row.organization_id, row);
+      return map;
+    };
+    const profileByOrg = first(profiles.rows);
+    const settingsByOrg = first(sites.rows);
+    const subByOrg = first(subs.rows);
+    const servicesByOrg = group(services.rows);
+    const formsByOrg = group(forms.rows);
+    const paymentsByOrg = group(pays.rows);
+    const mediaCounts = new Map<string, number>();
+    const leadCounts = new Map<string, number>();
+    const apptCounts = new Map<string, number>();
+    const eventCounts = new Map<string, number>();
+    const tally = (rows: { organization_id: string }[] | null, into: Map<string, number>) => {
+      for (const row of rows ?? []) into.set(row.organization_id, (into.get(row.organization_id) ?? 0) + 1);
+    };
+    tally(media.rows, mediaCounts);
+    tally(leads.rows, leadCounts);
+    tally(appts.rows, apptCounts);
+    tally(events.rows, eventCounts);
 
     return (orgs ?? []).map((org) => {
-      const profile = profiles.rows.find((p) => p.organization_id === org.id) ?? null;
-      const settings = sites.rows.find((s) => s.organization_id === org.id) ?? null;
-      const orgServices = services.rows.filter((s) => s.organization_id === org.id);
+      const profile = profileByOrg.get(org.id) ?? null;
+      const settings = settingsByOrg.get(org.id) ?? null;
+      const orgServices = servicesByOrg.get(org.id) ?? [];
       const score = readiness({
         profile,
         settings,
         servicesCount: orgServices.filter((s) => s.is_active).length,
         bookableCount: orgServices.filter((s) => s.bookable && s.is_active).length,
-        mediaCount: countBy(media.rows, org.id),
-        quoteFormCount: forms.rows.filter(
-          (f) => f.organization_id === org.id && f.is_active,
-        ).length,
-        analyticsCount: countBy(events.rows, org.id),
+        mediaCount: mediaCounts.get(org.id) ?? 0,
+        quoteFormCount: (formsByOrg.get(org.id) ?? []).filter((f) => f.is_active).length,
+        analyticsCount: eventCounts.get(org.id) ?? 0,
       }).score;
 
-      const sub = subs.rows.find((s) => s.organization_id === org.id) ?? null;
-      const orgPayments = pays.rows.filter((p) => p.organization_id === org.id);
+      const sub = subByOrg.get(org.id) ?? null;
+      const orgPayments = paymentsByOrg.get(org.id) ?? [];
       // Money kept: collected payments minus refunds (partial ones too).
       const paidTotal = orgPayments.reduce((sum, p) => sum + netRevenue(p).net, 0);
 
@@ -225,8 +254,8 @@ export const listClients = createServerFn({ method: "GET" })
         paid_total: paidTotal,
         payment_count: orgPayments.length,
 
-        leads: countBy(leads.rows, org.id),
-        appointments: countBy(appts.rows, org.id),
+        leads: leadCounts.get(org.id) ?? 0,
+        appointments: apptCounts.get(org.id) ?? 0,
         readinessScore: score,
       };
     });
