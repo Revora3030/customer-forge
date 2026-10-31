@@ -11,7 +11,7 @@ import { STUB_SUPABASE_URL } from "./constants";
  *   sign-up test stubs the auth endpoint in the browser. Nothing is created anywhere.
  */
 
-const baseURL = process.env.E2E_BASE_URL ?? "http://localhost:8080";
+const baseURL = process.env.E2E_BASE_URL ?? "http://localhost:8080"; // DevSkim: ignore DS162092 -- local dev-server URL for the test runner, not debug code shipped to production.
 const useExternalApp = Boolean(process.env.E2E_BASE_URL);
 
 export default defineConfig({
