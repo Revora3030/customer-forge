@@ -15,9 +15,22 @@ describe("unpublished /s/:slug shows a preview notice (Phase A item 8)", () => {
   it("replaces 'Business not found' with a noindex preview page", () => {
     const route = readFileSync("src/routes/s.$slug.tsx", "utf8");
     expect(route).not.toContain("Business not found");
-    expect(route).toContain("This site is in preview");
+    expect(route).toContain("This website is being updated");
     expect(route).toContain('content: "noindex, nofollow"');
     expect(route).toContain("notFoundComponent: SitePreviewNotice");
-    expect(route).toContain("ownerPreviewSignInPath(slug)");
+  });
+
+  it("shows visitors no builder, template or sign-in wording (audit P1-02)", () => {
+    const home = readFileSync("src/routes/s.$slug.tsx", "utf8");
+    const inner = readFileSync("src/routes/s.$slug.$page.tsx", "utf8");
+    for (const text of [home, inner]) {
+      expect(text).not.toContain("AI-authored home page");
+      expect(text).not.toContain("replaced with a template");
+      expect(text).not.toContain("Sign in to see your preview");
+      expect(text).not.toContain("isn't ready yet");
+    }
+    expect(inner).toContain("This page is being updated");
+    const route = readFileSync("src/routes/s.$slug.tsx", "utf8");
+    expect(route).not.toContain("ownerPreviewSignInPath");
   });
 });

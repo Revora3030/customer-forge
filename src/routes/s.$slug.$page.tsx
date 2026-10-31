@@ -195,9 +195,9 @@ export function SitePageView({
     return (
       <div className="flex min-h-screen items-center justify-center px-4 text-center">
         <div>
-          <h1 className="font-display text-[20px] font-semibold">This page isn't ready yet</h1>
+          <h1 className="font-display text-[20px] font-semibold">This page is being updated</h1>
           <p className="mt-2 text-[13px] text-muted-foreground">
-            The page is still being prepared. Refresh in a moment.
+            Please check back soon.
           </p>
           {preview ? <BuilderReturnBar /> : null}
         </div>
@@ -237,7 +237,7 @@ export function SitePageView({
       <SiteScrollProgress label={meterLabel} />
       <div className="relative z-[1]">
         {/* Owner-only notice: a site still on the neutral placeholder palette
-            has no AI-authored design yet. Visitors never see this. */}
+            has no designed look yet. Visitors never see this. */}
         {preview &&
         !readDesignTokens(site.settings?.generation ?? null) &&
         isPlaceholderPalette({
