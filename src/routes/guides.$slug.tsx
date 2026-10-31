@@ -5,7 +5,7 @@ import { RelatedLinks } from "@/components/marketing/SeoLinks";
 import { Button } from "@/components/ui/button";
 import { findGuide, type Guide } from "@/lib/guides";
 import { BUSINESS } from "@/lib/business-identity";
-import { breadcrumbSchema, canonicalLink, ogUrl, SITE_URL, metaDescription, OG_IMAGE_META } from "@/lib/seo";
+import { absoluteUrl, breadcrumbSchema, canonicalLink, ogUrl, OG_IMAGE, SITE_URL, metaDescription, OG_IMAGE_META } from "@/lib/seo";
 import { safeJsonLd } from "@/lib/json-ld";
 
 export const Route = createFileRoute("/guides/$slug")({
@@ -52,8 +52,16 @@ export const Route = createFileRoute("/guides/$slug")({
             "@type": "Article",
             headline: guide.title,
             description: guide.description,
+            datePublished: guide.published,
+            dateModified: guide.updated,
+            image: OG_IMAGE.url,
             author: { "@type": "Organization", name: BUSINESS.legalName, url: SITE_URL },
-            publisher: { "@type": "Organization", name: BUSINESS.legalName, url: SITE_URL },
+            publisher: {
+              "@type": "Organization",
+              name: BUSINESS.legalName,
+              url: SITE_URL,
+              logo: { "@type": "ImageObject", url: absoluteUrl("/apple-touch-icon.png"), width: 180, height: 180 },
+            },
             mainEntityOfPage: `${SITE_URL}${path}`,
           }),
         },

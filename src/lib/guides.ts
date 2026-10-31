@@ -18,6 +18,10 @@ export interface GuideStep {
 
 export interface Guide {
   slug: string;
+  /** ISO date the guide first went live (from the repository history). */
+  published: string;
+  /** ISO date its content last changed (from the repository history). */
+  updated: string;
   title: string;
   /** Search-facing page title. */
   metaTitle: string;
@@ -33,6 +37,8 @@ export interface Guide {
 export const GUIDES: readonly Guide[] = [
   {
     slug: "boost-local-service-business-with-online-reviews",
+    published: "2026-09-07",
+    updated: "2026-10-21",
     title: "Boost Your Local Service Business with Online Reviews",
     metaTitle: "Harness Online Reviews for Local Service Business Success",
     description:
@@ -89,6 +95,8 @@ export const GUIDES: readonly Guide[] = [
   },
   {
     slug: "optimize-local-service-sales-process",
+    published: "2026-09-07",
+    updated: "2026-10-21",
     title: "Optimizing Your Local Service Business Sales Process",
     metaTitle: "Optimize Local Service Sales for More Bookings",
     description:
@@ -145,6 +153,8 @@ export const GUIDES: readonly Guide[] = [
   },
   {
     slug: "get-more-google-reviews",
+    published: "2026-09-03",
+    updated: "2026-10-31",
     title: "How to get more Google reviews (without being weird about it)",
     metaTitle: "How to Get More Google Reviews | Revora Guide",
     description:
@@ -198,6 +208,8 @@ export const GUIDES: readonly Guide[] = [
   },
   {
     slug: "show-up-in-google-map-pack",
+    published: "2026-09-03",
+    updated: "2026-10-21",
     title: "How to show up in the Google map pack for your city",
     metaTitle: "Google Map Pack: Local SEO Checklist | Revora",
     description:
@@ -255,6 +267,8 @@ export const GUIDES: readonly Guide[] = [
   },
   {
     slug: "respond-to-leads-faster",
+    published: "2026-09-03",
+    updated: "2026-10-21",
     title: "Automated lead follow-up: from enquiry to next step",
     metaTitle: "Automated Lead Follow-Up for Businesses | Revora Guide",
     description:
@@ -299,6 +313,8 @@ export const GUIDES: readonly Guide[] = [
   },
   {
     slug: "price-your-services",
+    published: "2026-09-03",
+    updated: "2026-10-31",
     title: "How to publish prices without losing money",
     metaTitle: "How to Price & Publish Your Services | Revora Guide",
     description:
@@ -367,6 +383,8 @@ export const GUIDES: readonly Guide[] = [
   },
   {
     slug: "local-business-website-checklist",
+    published: "2026-09-03",
+    updated: "2026-10-31",
     title: "The local business website checklist that actually converts",
     metaTitle: "Local Business Website Checklist | Revora Guide",
     description:

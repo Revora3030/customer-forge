@@ -42,6 +42,8 @@ export interface SeoPage {
   words: number;
   /** False when the page is deliberately kept out of search. */
   indexable: boolean;
+  /** ISO date the page content last really changed; omitted when unknown. */
+  lastmod?: string;
 }
 
 /**
@@ -360,15 +362,16 @@ export function seoInventory(): SeoPage[] {
       countWords(guide.takeaway) +
       guide.steps.reduce((sum, s) => sum + countWords(s.title) + countWords(s.body), 0) +
       guide.faqs.reduce((sum, f) => sum + countWords(f.q) + countWords(f.a), 0);
-    pages.push(
-      page(
+    pages.push({
+      ...page(
         `/guides/${guide.slug}`,
         guide.title.toLowerCase(),
         guide.metaTitle,
         guide.description,
         words,
       ),
-    );
+      lastmod: guide.updated,
+    });
   }
 
   for (const comparison of COMPARISONS) {
@@ -398,18 +401,27 @@ export function seoInventory(): SeoPage[] {
   return pages.filter((p) => !isPrivatePath(p.path));
 }
 
-/** Canonical, indexable, valuable URLs — exactly what belongs in the sitemap. */
-export function indexablePlatformPaths(): string[] {
+/**
+ * Canonical, indexable, valuable URLs — exactly what belongs in the sitemap —
+ * with the real last-changed date where the page has one. Pages without a
+ * known date carry `lastmod: null`, and the sitemap leaves the tag out.
+ */
+export function indexablePlatformEntries(): { path: string; lastmod: string | null }[] {
   const seen = new Set<string>();
-  const paths: string[] = [];
+  const entries: { path: string; lastmod: string | null }[] = [];
   for (const p of seoInventory()) {
     if (!p.indexable) continue;
     const path = p.path === "/" ? "" : p.path;
     if (seen.has(path)) continue;
     seen.add(path);
-    paths.push(path);
+    entries.push({ path, lastmod: p.lastmod ?? null });
   }
-  return paths;
+  return entries;
+}
+
+/** Canonical, indexable, valuable URLs — exactly what belongs in the sitemap. */
+export function indexablePlatformPaths(): string[] {
+  return indexablePlatformEntries().map((e) => e.path);
 }
 
 /** Paths that exist publicly but are intentionally kept out of search. */
