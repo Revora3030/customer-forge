@@ -1,8 +1,9 @@
 import { pageNavLabel } from "@/lib/website-content";
-import { Clock, Mail, MapPin, Phone } from "lucide-react";
+import { CalendarCheck, Clock, Mail, MapPin, Phone } from "lucide-react";
 import { SitePageLink } from "@/components/site/site-links";
 import { businessFacts, factsAddressLine } from "@/lib/builder/facts";
 import { safeLinkUrl } from "@/lib/website-content";
+import { bookingLinkFromHours } from "@/lib/booking-link";
 import type { PublicSite } from "@/lib/public-site.functions";
 
 type Site = NonNullable<PublicSite>;
@@ -16,6 +17,7 @@ export function SiteFooter({ site, year }: { site: Site; year?: number }) {
   const copyrightYear = year ?? new Date().getFullYear();
   const facts = businessFacts(site.profile as Record<string, unknown> | null, site.org.name);
   const address = factsAddressLine(facts);
+  const bookingHref = bookingLinkFromHours((site.profile as { hours?: unknown } | null)?.hours);
   const social = site.social;
   const socials = [
     ["Google", social?.google_business],
@@ -38,6 +40,7 @@ export function SiteFooter({ site, year }: { site: Site; year?: number }) {
             {address ? <p className="flex items-center gap-2"><MapPin className="size-3.5 shrink-0" />{address}</p> : null}
             {facts.serviceArea ? <p className="flex items-center gap-2"><MapPin className="size-3.5 shrink-0" />{facts.serviceArea}</p> : null}
             {facts.hours ? <p className="flex items-start gap-2"><Clock className="mt-0.5 size-3.5 shrink-0" /><span>{facts.hours}</span></p> : null}
+            {bookingHref ? <a className="flex items-center gap-2 min-h-11 py-2 text-foreground underline decoration-primary decoration-2 underline-offset-4" href={bookingHref} target="_blank" rel="noopener noreferrer" data-testid="book-online"><CalendarCheck className="size-3.5" />Book online</a> : null}
           </div>
         </div>
         <nav aria-label="Footer pages">

@@ -16,7 +16,8 @@ import { premiumSurface } from "@/lib/site-theme";
 import { lightSectionColor, studioLightVars, studioSectionColor, STUDIO_CANVAS, type StudioLight } from "@/lib/builder/studio-canvas";
 import { readSectionEffect, sectionFxClassName } from "@/lib/site-effects";
 import { SitePageLink } from "@/components/site/site-links";
-import { Mail, MapPin, Phone } from "lucide-react";
+import { CalendarCheck, Mail, MapPin, Phone } from "lucide-react";
+import { bookingLinkFromHours } from "@/lib/booking-link";
 import { BookingForm, EnquiryForm, QuoteCalculator } from "@/components/site/SiteForms";
 import { DirectContact } from "@/components/site/ContactDetails";
 import { ReviewWall, ServiceMenu } from "@/components/site/LiveBlocks";
@@ -365,13 +366,14 @@ function SiteSectionBody({ site, section, lead = false, first = false, surface =
 function ContactFacts({ site, presentation }: { site: Site; presentation?: WidgetPresentation }) {
   const facts = businessFacts(site.profile as Record<string, unknown> | null, site.org.name);
   const nextClosure = useNextHolidayClosure((site.profile as { hours?: unknown } | null)?.hours ?? null);
+  const bookingHref = bookingLinkFromHours((site.profile as { hours?: unknown } | null)?.hours);
   const rawAddress = factsAddressLine(facts);
   const rawArea = distinctServiceArea(facts.serviceArea ?? facts.city, rawAddress);
   // A city-only "address" that the service area already names is dropped.
   const addressLine = addressAddsDetail(rawAddress, rawArea) ? rawAddress : null;
   const area = serviceAreaPhrase(rawArea);
   // Nothing real to show → render nothing, never an empty styled box.
-  if (!(facts.phone && facts.phoneHref) && !(facts.email && facts.emailHref) && !area && !addressLine && !facts.hours) return null;
+  if (!(facts.phone && facts.phoneHref) && !(facts.email && facts.emailHref) && !area && !addressLine && !facts.hours && !bookingHref) return null;
   return (
           <div className="space-y-3 text-left">
             {presentation?.eyebrow ? <p className="eyebrow">{presentation.eyebrow}</p> : null}
@@ -416,6 +418,18 @@ function ContactFacts({ site, presentation }: { site: Site; presentation?: Widge
                   <MapPin className="size-3.5" aria-hidden="true" /> {presentation?.fieldLabels?.location ?? "Address"}
                 </dt>
                 <dd className="mt-1 text-[14px]">{addressLine}</dd>
+              </div>
+            ) : null}
+            {bookingHref ? (
+              <div>
+                <dt className="eyebrow flex items-center gap-1.5">
+                  <CalendarCheck className="size-3.5" aria-hidden="true" /> Bookings
+                </dt>
+                <dd className="mt-1 text-[14px]">
+                  <a href={bookingHref} target="_blank" rel="noopener noreferrer" data-testid="book-online" className="text-foreground underline decoration-primary decoration-2 underline-offset-4">
+                    Book online
+                  </a>
+                </dd>
               </div>
             ) : null}
             {facts.hours ? (
