@@ -128,7 +128,7 @@ export const CRM_SOLUTIONS: readonly CrmSolution[] = [
     slug: "plumbers",
     label: "Plumbers",
     trade: "plumbing companies",
-    metaTitle: `Plumbing CRM Software — Emergency Calls, Quotes & Follow-Up | ${MONTHLY}/mo`,
+    metaTitle: `Plumbing CRM — Emergency Calls & Quotes | ${MONTHLY}/mo`,
     description: `Plumbing CRM software that answers emergency enquiries instantly, quotes repairs and repipes, books jobs by real duration and collects reviews. ${SETUP} setup, first month free, then ${MONTHLY}/month.`,
     heading: "Plumbing CRM software",
     intro:
@@ -202,7 +202,7 @@ export const CRM_SOLUTIONS: readonly CrmSolution[] = [
     slug: "roofers",
     label: "Roofers",
     trade: "roofing contractors",
-    metaTitle: `Roofing CRM Software — Inspections, Estimates & Follow-Up | ${MONTHLY}/mo`,
+    metaTitle: `Roofing CRM — Inspections & Estimates | ${MONTHLY}/mo`,
     description: `Roofing CRM software that captures storm and replacement leads, tracks inspections, sends written estimates and follows up until a decision. ${SETUP} setup, first month free, then ${MONTHLY}/month.`,
     heading: "Roofing CRM software",
     intro:
@@ -276,7 +276,7 @@ export const CRM_SOLUTIONS: readonly CrmSolution[] = [
     slug: "hvac",
     label: "HVAC",
     trade: "HVAC companies",
-    metaTitle: `CRM for HVAC Contractors — Service, Installs & Maintenance | ${MONTHLY}/mo`,
+    metaTitle: `HVAC CRM — Service, Installs & Maintenance | ${MONTHLY}/mo`,
     description: `A CRM for HVAC contractors covering emergency service, system replacement quotes, seasonal demand and maintenance follow-up. ${SETUP} setup, first month free, then ${MONTHLY}/month.`,
     heading: "CRM for HVAC contractors",
     intro:
@@ -350,7 +350,7 @@ export const CRM_SOLUTIONS: readonly CrmSolution[] = [
     slug: "general-contractors",
     label: "General contractors",
     trade: "general contractors",
-    metaTitle: `CRM for General Contractors — Leads, Bids & Follow-Up | ${MONTHLY}/mo`,
+    metaTitle: `CRM for General Contractors — Leads & Bids | ${MONTHLY}/mo`,
     description: `A CRM for general contractors that qualifies enquiries, tracks bids through long decisions, follows up automatically and keeps every job's history in one place. ${SETUP} setup, first month free, then ${MONTHLY}/month.`,
     heading: "CRM for general contractors",
     intro:
@@ -424,7 +424,7 @@ export const CRM_SOLUTIONS: readonly CrmSolution[] = [
     slug: "landscapers",
     label: "Landscapers",
     trade: "landscaping and lawn care businesses",
-    metaTitle: `CRM for Landscaping Business — Quotes, Routes & Repeat Work | ${MONTHLY}/mo`,
+    metaTitle: `Landscaping CRM — Quotes, Routes & Repeat Work | ${MONTHLY}/mo`,
     description: `A CRM for a landscaping business: capture design and maintenance enquiries, quote by property, book recurring visits and keep customers year after year. ${SETUP} setup, first month free, then ${MONTHLY}/month.`,
     heading: "CRM for a landscaping business",
     intro:
@@ -498,7 +498,7 @@ export const CRM_SOLUTIONS: readonly CrmSolution[] = [
     slug: "construction",
     label: "Construction",
     trade: "construction companies",
-    metaTitle: `Construction CRM Software — Leads, Bids & Client Follow-Up | ${MONTHLY}/mo`,
+    metaTitle: `Construction CRM — Leads, Bids & Follow-Up | ${MONTHLY}/mo`,
     description: `Construction CRM software focused on winning work: qualified enquiries, written bids, automatic follow-up, one client record and reviews. ${SETUP} setup, first month free, then ${MONTHLY}/month.`,
     heading: "Construction CRM software",
     intro:
@@ -572,7 +572,7 @@ export const CRM_SOLUTIONS: readonly CrmSolution[] = [
     slug: "home-service-businesses",
     label: "Home services",
     trade: "home service businesses",
-    metaTitle: `CRM for Home Service Businesses — Leads to Booked Jobs | ${MONTHLY}/mo`,
+    metaTitle: `CRM for Home Service Businesses | ${MONTHLY}/mo`,
     description: `A CRM for home service businesses that turns website enquiries into booked jobs: instant replies, quotes, booking, follow-up and reviews in one system. ${SETUP} setup, first month free, then ${MONTHLY}/month.`,
     heading: "CRM for home service businesses",
     intro:

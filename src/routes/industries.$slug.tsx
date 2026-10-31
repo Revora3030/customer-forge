@@ -8,7 +8,8 @@ import { SectionHeading } from "@/components/app/Bits";
 import { Button } from "@/components/ui/button";
 import { INDUSTRIES, industrySlug } from "@/lib/domain";
 import { GROWTH_SYSTEM, usdExact } from "@/lib/offer";
-import { breadcrumbSchema, canonicalLink, ogUrl, metaDescription, OG_IMAGE_META } from "@/lib/seo";
+import { brandedTitle, breadcrumbSchema, canonicalLink, ogUrl, metaDescription, OG_IMAGE_META } from "@/lib/seo";
+import { lowerPhrase, withArticle } from "@/lib/grammar";
 
 const BENEFITS = [
   {
@@ -59,8 +60,8 @@ export const Route = createFileRoute("/industries/$slug")({
       };
     }
     const name = industry.name;
-    const title = `Websites & lead generation for ${name} — Revora`;
-    const description = `Revora builds ${name} businesses a website that captures leads, sends instant quotes, books jobs online and automates follow-up. ${usdExact(GROWTH_SYSTEM.setupPrice)} setup, then ${usdExact(GROWTH_SYSTEM.monthlyPrice)}/month.`;
+    const title = brandedTitle(`${name} Website Design & Lead Generation`);
+    const description = `Website design for ${name} businesses that captures leads, sends instant quotes, books jobs and follows up. ${usdExact(GROWTH_SYSTEM.setupPrice)} setup, then ${usdExact(GROWTH_SYSTEM.monthlyPrice)}/month.`;
     return {
       meta: [
         { title },
@@ -132,20 +133,20 @@ function IndustryPage() {
       <main className="hero-aura mx-auto max-w-6xl px-4 py-16">
         <p className="eyebrow">For {industry.name}</p>
         <h1 className="mt-2 max-w-3xl font-editorial text-balance text-[clamp(2rem,4.5vw,3rem)] leading-tight">
-          A website that turns {industry.name.toLowerCase()} searches into booked jobs
+          A website that turns {lowerPhrase(industry.name)} searches into booked jobs
         </h1>
         <p className="mt-4 max-w-xl text-[15px] leading-relaxed text-muted-foreground">
-          {industry.emphasis} Revora gives your {industry.name.toLowerCase()} business one system to
+          {industry.emphasis} Revora gives your {lowerPhrase(industry.name)} business one system to
           capture every lead, quote instantly, book customers online and follow up automatically —
           so no opportunity slips while you're working.
         </p>
         <AnswerFirst
-          question={`What does a ${industry.name.toLowerCase()} growth system include?`}
-          answer={`For a ${industry.name.toLowerCase()} business, Revora builds and runs one connected system: a fast local website, instant quotes based on the details you ask for, online booking on your real availability, a CRM holding every lead in one pipeline, automatic first replies and follow-up, review requests after completed jobs, local search content and analytics showing which pages and channels produce paying customers.`}
+          question={`What does ${withArticle(industry.name)} growth system include?`}
+          answer={`For ${withArticle(industry.name)} business, Revora builds and runs one connected system: a fast local website, instant quotes based on the details you ask for, online booking on your real availability, a CRM holding every lead in one pipeline, automatic first replies and follow-up, review requests after completed jobs, local search content and analytics showing which pages and channels produce paying customers.`}
         />
         <div className="mt-7 flex flex-wrap gap-3">
           <Button asChild variant="signal" size="lg">
-            <Link to="/get-started">Get my {industry.name.toLowerCase()} website</Link>
+            <Link to="/get-started">Get my {lowerPhrase(industry.name)} website</Link>
           </Button>
           <Button asChild variant="outline" size="lg">
             <Link to="/demo">See the live demo</Link>
@@ -155,7 +156,7 @@ function IndustryPage() {
         <section className="mt-16">
           <SectionHeading
             eyebrow="What you get"
-            title={`Everything a ${industry.name.toLowerCase()} business needs to grow`}
+            title={`Everything ${withArticle(industry.name)} business needs to grow`}
           />
           <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {BENEFITS.map((b) => (

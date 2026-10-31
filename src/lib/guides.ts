@@ -148,7 +148,7 @@ export const GUIDES: readonly Guide[] = [
     title: "How to get more Google reviews (without being weird about it)",
     metaTitle: "How to Get More Google Reviews | Revora Guide",
     description:
-      "A practical, policy-safe process for local businesses to earn more Google reviews: when to ask, exactly what to say, how to make it one tap, and how to handle a bad one.",
+      "A policy-safe process to earn more Google reviews: when to ask, what to say, how to make it one tap and how to handle a bad one.",
     intro:
       "Genuine reviews help potential customers understand other people's experiences. A consistent, neutral request makes feedback easier to share without incentives, pressure or screening for positive ratings.",
     readMinutes: 5,
@@ -300,10 +300,9 @@ export const GUIDES: readonly Guide[] = [
   {
     slug: "price-your-services",
     title: "How to publish prices without losing money",
-    metaTitle:
-      "How to price and publish local service prices — starting-at ranges that qualify buyers",
+    metaTitle: "How to Price & Publish Your Services | Revora Guide",
     description:
-      "A practical approach to showing prices on a local service website: starting-at ranges, factor-based quoting, what never to publish, and how pricing filters bad jobs.",
+      "How to show prices on a local service website: starting-at ranges, factor-based quoting, what never to publish and how pricing filters bad jobs.",
     intro:
       '"Call for a quote" costs you the customers who were ready to buy and only wanted to know if you were in range. Publishing something — not everything — is almost always more profitable than publishing nothing.',
     readMinutes: 5,
@@ -369,9 +368,9 @@ export const GUIDES: readonly Guide[] = [
   {
     slug: "local-business-website-checklist",
     title: "The local business website checklist that actually converts",
-    metaTitle: "Local business website checklist — what a service site needs to convert",
+    metaTitle: "Local Business Website Checklist | Revora Guide",
     description:
-      "Everything a local service website needs to turn visitors into booked jobs: above-the-fold clarity, tap-to-call, real service pages, proof, quoting, booking, speed and tracking.",
+      "What a local service website needs to turn visitors into booked jobs: clear first screen, tap-to-call, service pages, proof, quoting, booking and speed.",
     intro:
       "Most local websites fail for boring, fixable reasons. Work down this list and fix what is missing; it is worth more than any redesign.",
     readMinutes: 6,

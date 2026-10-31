@@ -10,7 +10,7 @@ import { BUSINESS } from "@/lib/business-identity";
 import { findState, type UsState } from "@/lib/us-states";
 import { INDUSTRIES, industrySlug } from "@/lib/domain";
 import { GROWTH_SYSTEM, usdExact } from "@/lib/offer";
-import { breadcrumbSchema, canonicalLink, ogUrl, metaDescription, OG_IMAGE_META } from "@/lib/seo";
+import { brandedTitle, breadcrumbSchema, canonicalLink, ogUrl, metaDescription, OG_IMAGE_META } from "@/lib/seo";
 import { trackConversion } from "@/lib/conversion";
 
 const PILLARS = [
@@ -60,8 +60,8 @@ export const Route = createFileRoute("/states/$state")({
         meta: [{ title: "Page not found — Revora" }, { name: "robots", content: "noindex" }],
       };
     }
-    const title = `${state.name} Websites, CRM & Lead Generation for Service Businesses | Revora`;
-    const description = `Revora builds ${state.name} service businesses a complete customer acquisition system — website, instant quotes, online booking, CRM and follow-up. Serving ${state.metros.slice(0, 3).join(", ")} and the whole state. ${usdExact(GROWTH_SYSTEM.setupPrice)} setup, first month free, then ${usdExact(GROWTH_SYSTEM.monthlyPrice)}/month.`;
+    const title = brandedTitle(`${state.name} Websites, CRM & Lead Generation`);
+    const description = `Website, instant quotes, booking and CRM for ${state.name} service businesses, from ${state.metros.slice(0, 2).join(" to ")} and beyond. ${usdExact(GROWTH_SYSTEM.setupPrice)} setup, first month free, then ${usdExact(GROWTH_SYSTEM.monthlyPrice)}/mo.`;
     const path = `/states/${state.slug}`;
     return {
       meta: [
