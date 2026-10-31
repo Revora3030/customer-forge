@@ -143,7 +143,7 @@ function ClientDetail() {
   });
 
   if (detail.isLoading) return <LoadingRows rows={5} />;
-  if (detail.error) return <ErrorNote message={(detail.error as Error).message} />;
+  if (detail.error) return <ErrorNote message={friendlyError(detail.error)} />;
   const data = detail.data!;
   const org = data.org;
   const settings = data.settings;
@@ -525,8 +525,13 @@ function ClientDetail() {
                   </p>
                 </div>
                 {!session.ended_at ? (
-                  <Button size="sm" variant="ghost" onClick={() => endMutation.mutate(session.id)}>
-                    End
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={endMutation.isPending}
+                    onClick={() => endMutation.mutate(session.id)}
+                  >
+                    {endMutation.isPending ? "Ending…" : "End"}
                   </Button>
                 ) : null}
               </li>
