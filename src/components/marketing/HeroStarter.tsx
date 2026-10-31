@@ -14,6 +14,7 @@ import {
 import { useSession } from "@/lib/auth-session";
 import { SIGN_UP_SEARCH } from "@/components/marketing/AuthButtons";
 import { saveStarter } from "@/components/marketing/hero-starter-utils";
+import { normalizeWebsiteUrl } from "@/lib/website-url";
 import { GROWTH_SYSTEM } from "@/lib/offer";
 
 const INDUSTRY_OPTIONS = [
@@ -52,13 +53,7 @@ const SERVICE_BY_INDUSTRY: Record<string, readonly string[]> = {
  * The name/industry reflect input; example services are clearly labeled.
  * Never invent credentials, insurance, ratings or reviews for the business.
  */
-function InstantPreview({
-  businessName,
-  industry,
-}: {
-  businessName: string;
-  industry: string;
-}) {
+function InstantPreview({ businessName, industry }: { businessName: string; industry: string }) {
   const name = businessName.trim() || "Your Business";
   const services = industry ? (SERVICE_BY_INDUSTRY[industry] ?? []) : [];
 
@@ -140,12 +135,24 @@ export function HeroStarter({ className = "" }: { className?: string }) {
   const [industry, setIndustry] = useState("");
   const [about, setAbout] = useState("");
   const [website, setWebsite] = useState("");
+  const [websiteError, setWebsiteError] = useState<string | null>(null);
 
   // The button always works: whatever the visitor typed is carried into
   // signup and onboarding, and nothing typed is required to start.
   const start = (e: React.FormEvent) => {
     e.preventDefault();
-    const site = website.trim();
+    // An optional current-website address is checked and tidied here; the
+    // server import re-checks it before anything is fetched.
+    let site = "";
+    if (website.trim()) {
+      const checked = normalizeWebsiteUrl(website);
+      if (!checked.ok) {
+        setWebsiteError(checked.message);
+        return;
+      }
+      site = checked.url;
+    }
+    setWebsiteError(null);
     saveStarter({
       businessName: businessName.trim(),
       about: about.trim(),
@@ -174,7 +181,9 @@ export function HeroStarter({ className = "" }: { className?: string }) {
       </p>
       <div className="mt-3 grid gap-2 sm:grid-cols-2">
         <div>
-          <label className="sr-only" htmlFor="starter-name">Business name</label>
+          <label className="sr-only" htmlFor="starter-name">
+            Business name
+          </label>
           <Input
             id="starter-name"
             value={businessName}
@@ -185,7 +194,9 @@ export function HeroStarter({ className = "" }: { className?: string }) {
           />
         </div>
         <div>
-          <label className="sr-only" htmlFor="starter-industry">Industry</label>
+          <label className="sr-only" htmlFor="starter-industry">
+            Industry
+          </label>
           <Select value={industry} onValueChange={setIndustry}>
             <SelectTrigger id="starter-industry" className="h-11 w-full">
               <SelectValue placeholder="Select an industry" />
@@ -201,25 +212,40 @@ export function HeroStarter({ className = "" }: { className?: string }) {
         </div>
       </div>
       <div className="mt-2">
-        <label className="sr-only" htmlFor="starter-website">Your current website (optional)</label>
+        <label className="sr-only" htmlFor="starter-website">
+          Your current website (optional)
+        </label>
         <Input
           id="starter-website"
           value={website}
-          onChange={(e) => setWebsite(e.target.value)}
+          onChange={(e) => {
+            setWebsite(e.target.value);
+            if (websiteError) setWebsiteError(null);
+          }}
           placeholder="Have a website? Paste it to upgrade it (optional)"
           maxLength={200}
           inputMode="url"
           autoComplete="url"
+          aria-invalid={websiteError ? true : undefined}
+          aria-describedby={websiteError ? "starter-website-error" : undefined}
         />
+        {websiteError ? (
+          <p id="starter-website-error" role="alert" className="mt-1 text-[12px] text-destructive">
+            {websiteError}
+          </p>
+        ) : null}
       </div>
       <Button type="submit" variant="signal" size="lg" className="mt-3 w-full">
-        {website.trim().length > 3 ? "Upgrade my website free" : "Start free"} — {GROWTH_SYSTEM.fullAccessWindow}, no card{" "}
+        {website.trim().length > 3 ? "Upgrade my website free" : "Start free"} —{" "}
+        {GROWTH_SYSTEM.fullAccessWindow}, no card{" "}
         <ArrowRight className="size-4" aria-hidden="true" />
       </Button>
       <p className="mt-2 text-center text-[11.5px] text-muted-foreground">
         No card to start · you review everything before it goes live
       </p>
-      <label className="sr-only" htmlFor="starter-about">What your business does</label>
+      <label className="sr-only" htmlFor="starter-about">
+        What your business does
+      </label>
       <Textarea
         id="starter-about"
         value={about}
