@@ -1,3 +1,4 @@
+import { Suspense, lazy } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   Sparkles,
@@ -24,8 +25,14 @@ import { VisualComposition } from "@/components/site/VisualComposition";
 import { HOMEPAGE_COMPOSITION } from "@/lib/homepage-concept";
 import { SiteAddressProvider } from "@/components/site/site-links-context";
 import { getHostSite } from "@/lib/host-site.functions";
-import { PublicSiteView } from "@/routes/s.$slug";
 import { tenantSiteHead } from "@/lib/site-head";
+
+// The client-website renderer (header, sections, builder bridges) is only needed
+// on a client's own custom domain. Loading it lazily keeps ~150 KB of JavaScript
+// off Revora's marketing home page, which is the one visitors actually see.
+const PublicSiteView = lazy(() =>
+  import("@/routes/s.$slug").then((module) => ({ default: module.PublicSiteView })),
+);
 
 export const Route = createFileRoute("/")({
   /**
@@ -96,7 +103,9 @@ function HomeRoute() {
   if (hostSite?.site)
     return (
       <SiteAddressProvider ownAddress>
-        <PublicSiteView site={hostSite.site} />
+        <Suspense fallback={null}>
+          <PublicSiteView site={hostSite.site} />
+        </Suspense>
       </SiteAddressProvider>
     );
   return <Landing />;
