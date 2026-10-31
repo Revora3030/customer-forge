@@ -94,7 +94,7 @@ function AdminAnalytics() {
     onSuccess: (result) => {
       toast.success(
         result.measurementId
-          ? `Also sending to ${result.measurementId} from the next page load. ${DEFAULT_GA_MEASUREMENT_ID} keeps reporting too.`
+          ? `Saved ${result.measurementId}. The site loads exactly one GA4 property, so it keeps reporting to ${DEFAULT_GA_MEASUREMENT_ID} until the one ID to keep is chosen.`
           : `Additional property removed. The site keeps reporting to ${DEFAULT_GA_MEASUREMENT_ID}.`,
       );
       void qc.invalidateQueries({ queryKey: ["admin", "platform-settings"] });
@@ -112,9 +112,9 @@ function AdminAnalytics() {
           <Pill tone="signal">Connected</Pill>
         </div>
         <p className="text-[12px] text-muted-foreground">
-          The live site always reports to Revora's GA4 property ({DEFAULT_GA_MEASUREMENT_ID}). To also
-          send traffic to a second property, paste its measurement ID below (GA4 Admin → Data streams →
-          Web). Visitors in regions that need consent are only tracked after they accept cookies.
+          The live site loads exactly one GA4 property: Revora's ({DEFAULT_GA_MEASUREMENT_ID}).
+          A second measurement ID saved below is stored but not loaded, so the page makes one Google
+          tag request. Visitors in regions that need consent are only tracked after they accept cookies.
           Revora's own tracking runs either way, so ad blockers can't hide your numbers.
         </p>
         <p className="text-[12px]" data-testid="ga4-effective-ids">
@@ -127,7 +127,7 @@ function AdminAnalytics() {
           ) : null}
         </p>
         <div className="space-y-2">
-          <Label htmlFor="ga-id">Additional measurement ID (optional)</Label>
+          <Label htmlFor="ga-id">Alternate measurement ID (optional, not loaded)</Label>
           <Input
             id="ga-id"
             value={gaId}
