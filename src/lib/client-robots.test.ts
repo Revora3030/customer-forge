@@ -20,7 +20,7 @@ describe("client site robots.txt", () => {
   });
 
   it("drops a sitemap value that is not an https URL", () => {
-    const rules = clientSiteRobotsTxt({ indexable: true, sitemapUrl: "http://acme.example/sitemap.xml" });
+    const rules = clientSiteRobotsTxt({ indexable: true, sitemapUrl: "http://acme.example/sitemap.xml" }); // DevSkim: ignore DS137138 -- Negative fixture: a plaintext sitemap URL must be omitted; nothing is fetched.
     expect(rules).not.toContain("Sitemap:");
   });
 });
