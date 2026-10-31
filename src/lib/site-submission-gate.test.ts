@@ -16,9 +16,12 @@ describe("public-submission publish gate (mirror of ORG_NOT_PUBLIC)", () => {
       false,
     );
   });
-  it("refuses draft and unpublished sites", () => {
-    expect(siteAcceptsSubmissions({ publishState: "draft", published: false })).toBe(false);
+  it("refuses sites the owner took offline", () => {
     expect(siteAcceptsSubmissions({ publishState: "unpublished", published: false })).toBe(false);
+  });
+  it("accepts draft and preview sites so a new workspace's forms work before it is published", () => {
+    expect(siteAcceptsSubmissions({ publishState: "draft", published: false })).toBe(true);
+    expect(siteAcceptsSubmissions({ publishState: "preview", published: false })).toBe(true);
   });
   it("accepts published, preview-state, published-flag and demo workspaces", () => {
     expect(siteAcceptsSubmissions({ publishState: "published" })).toBe(true);
@@ -45,7 +48,7 @@ describe("public-submission publish gate (mirror of ORG_NOT_PUBLIC)", () => {
     const sql = readFileSync(join(dir, files.sort().at(-1)!), "utf8").replace(/\s+/g, " ");
     expect(sql).toContain("coalesce(o.is_suspended, false) = false");
     expect(sql).toContain(
-      "coalesce(o.is_demo, false) or coalesce(w.published, false) or w.publish_state in ('published', 'preview')",
+      "coalesce(o.is_demo, false) or coalesce(w.published, false) or w.publish_state in ('published', 'preview', 'draft')",
     );
   });
 });

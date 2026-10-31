@@ -72,10 +72,15 @@ describe("submitPublicLead on a site that isn't live", () => {
     await expect(submit(LEAD)).rejects.toThrow(SITE_NOT_LIVE_MESSAGE);
     expect(db.rpc).not.toHaveBeenCalled();
   });
-  it("answers a draft site the same way", async () => {
-    db.settings = { published: false, publish_state: "draft" };
+  it("answers a site the owner took offline the same way", async () => {
+    db.settings = { published: false, publish_state: "unpublished" };
     await expect(submit(LEAD)).rejects.toThrow(SITE_NOT_LIVE_MESSAGE);
     expect(db.rpc).not.toHaveBeenCalled();
+  });
+  it("lets a draft site through to the abuse gate and the database (rate limits still apply)", async () => {
+    db.settings = { published: false, publish_state: "draft" };
+    await expect(submit(LEAD)).rejects.toThrow("We couldn't save your request");
+    expect(db.rpc).toHaveBeenCalledWith("register_public_submission_attempt", expect.anything());
   });
   it("maps the database's own ORG_NOT_PUBLIC refusal to the same message", async () => {
     db.settings = { published: true, publish_state: "published" };
