@@ -9,7 +9,9 @@ import { OFFER_FEATURES, REPLACED_TOOLS, REPLACES_HEADING } from "@/lib/what-rev
 const root = process.cwd();
 const html = renderToStaticMarkup(<WhatRevoraReplaces />);
 /** Rendered text, tags removed, so a pattern cannot hide in markup. */
-const text = html.replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/&#x27;/g, "'");
+const ENTITIES: Record<string, string> = { "&amp;": "&", "&#x27;": "'", "&quot;": '"' };
+/** One pass, so an escaped "&amp;lt;" is never decoded twice. */
+const text = html.replace(/<[^>]+>/g, " ").replace(/&amp;|&#x27;|&quot;/g, (entity) => ENTITIES[entity] ?? entity);
 const dataText = JSON.stringify(REPLACED_TOOLS);
 
 /** The only dollar amounts allowed are Revora's own, from the offer module. */
