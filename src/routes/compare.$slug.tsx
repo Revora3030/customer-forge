@@ -5,8 +5,9 @@ import { RelatedLinks } from "@/components/marketing/SeoLinks";
 import { Button } from "@/components/ui/button";
 import { findComparison, type Comparison } from "@/lib/compare";
 import { GROWTH_SYSTEM, usdExact } from "@/lib/offer";
+import { SeoMarkdown } from "@/components/marketing/SeoMarkdown";
+import { safeJsonLd } from "@/lib/json-ld";
 import { breadcrumbSchema, canonicalLink, ogUrl, metaDescription, OG_IMAGE_META } from "@/lib/seo";
-import { lowerPhrase } from "@/lib/grammar";
 
 export const Route = createFileRoute("/compare/$slug")({
   beforeLoad: ({ params }) => {
@@ -37,7 +38,7 @@ export const Route = createFileRoute("/compare/$slug")({
       scripts: [
         {
           type: "application/ld+json",
-          children: JSON.stringify(
+          children: safeJsonLd(
             breadcrumbSchema([
               { name: "Revora", path: "/" },
               { name: "Comparisons", path: "/compare" },
@@ -45,18 +46,22 @@ export const Route = createFileRoute("/compare/$slug")({
             ]),
           ),
         },
-        {
-          type: "application/ld+json",
-          children: JSON.stringify({
-            "@context": "https://schema.org",
-            "@type": "FAQPage",
-            mainEntity: comparison.faqs.map((f) => ({
-              "@type": "Question",
-              name: f.q,
-              acceptedAnswer: { "@type": "Answer", text: f.a },
-            })),
-          }),
-        },
+        ...(comparison.faqs.length > 0
+          ? [
+              {
+                type: "application/ld+json",
+                children: safeJsonLd({
+                  "@context": "https://schema.org",
+                  "@type": "FAQPage",
+                  mainEntity: comparison.faqs.map((f) => ({
+                    "@type": "Question",
+                    name: f.q,
+                    acceptedAnswer: { "@type": "Answer", text: f.a },
+                  })),
+                }),
+              },
+            ]
+          : []),
       ],
     };
   },
@@ -80,61 +85,7 @@ function ComparePage() {
         <h1 className="mt-4 font-editorial text-balance text-[clamp(1.7rem,4vw,2.4rem)] leading-tight">
           {comparison.heading}
         </h1>
-        <p className="mt-4 text-[15px] leading-relaxed text-muted-foreground">{comparison.intro}</p>
-
-        <div tabIndex={0} role="region" aria-label="Comparison table" className="mt-8 overflow-x-auto rounded-2xl border border-border/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-          <table className="w-full min-w-[560px] text-left text-[14px]">
-            <caption className="sr-only">Revora compared with {comparison.otherName}</caption>
-            <thead className="bg-card/60 text-[13px]">
-              <tr>
-                <th scope="col" className="px-4 py-3 font-semibold">
-                  Factor
-                </th>
-                <th scope="col" className="px-4 py-3 font-semibold text-primary">
-                  Revora
-                </th>
-                <th scope="col" className="px-4 py-3 font-semibold">
-                  {comparison.otherName}
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {comparison.rows.map((row) => (
-                <tr key={row.factor} className="border-t border-border/50 align-top">
-                  <th scope="row" className="px-4 py-3 font-medium">
-                    {row.factor}
-                  </th>
-                  <td className="px-4 py-3 text-muted-foreground">{row.revora}</td>
-                  <td className="px-4 py-3 text-muted-foreground">{row.other}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        <section className="mt-8 rounded-2xl border border-border/60 bg-card/40 p-5">
-          <h2 className="font-display text-[17px] font-semibold">
-            When {lowerPhrase(comparison.otherName)} is the better choice
-          </h2>
-          <p className="mt-2 text-[14px] leading-relaxed text-muted-foreground">
-            {comparison.whenOther}
-          </p>
-        </section>
-
-        <section className="mt-10">
-          <h2 className="font-display text-[19px] font-semibold">Common questions</h2>
-          <div className="mt-4 space-y-3">
-            {comparison.faqs.map((faq) => (
-              <details
-                key={faq.q}
-                className="rounded-xl border border-border/60 bg-card/40 p-4 [&_summary]:cursor-pointer"
-              >
-                <summary className="text-[14px] font-medium">{faq.q}</summary>
-                <p className="mt-2 text-[14px] leading-relaxed text-muted-foreground">{faq.a}</p>
-              </details>
-            ))}
-          </div>
-        </section>
+        <SeoMarkdown source={comparison.body} />
 
         <div className="mt-10 flex flex-wrap gap-3">
           <Button asChild size="lg">

@@ -378,7 +378,7 @@ export function seoInventory(): SeoPage[] {
         `revora vs ${comparison.slug.replace(/-/g, " ")}`,
         comparison.title,
         comparison.description,
-        520,
+        comparison.words,
       ),
     );
   }
