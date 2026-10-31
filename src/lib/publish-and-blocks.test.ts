@@ -74,8 +74,12 @@ describe("edge cache purge", () => {
 
 describe("phone sticky actions", () => {
   it("uses only verified facts", () => {
+    expect(stickyActions({ phone: "(919) 482-7731", hasBookingPage: true, contactHref: "/book" })).toEqual([
+      { label: "Call", href: "tel:9194827731", kind: "call" },
+      { label: "Book now", href: "/book", kind: "book" },
+    ]);
+    // A 555 number is a placeholder: no Call button for it.
     expect(stickyActions({ phone: "(919) 555-0100", hasBookingPage: true, contactHref: "/book" })).toEqual([
-      { label: "Call", href: "tel:9195550100", kind: "call" },
       { label: "Book now", href: "/book", kind: "book" },
     ]);
     expect(stickyActions({ phone: "123", hasQuote: true, contactHref: "/contact" })).toEqual([

@@ -19,6 +19,8 @@ export type ClientHealth = {
   name: string;
   /** Paid setup or has a subscription: a customer rather than a prospect or trial. */
   isCustomer: boolean;
+  /** Null when the onboarding flag is not readable. */
+  onboardingCompleted: boolean | null;
   health: HealthResult;
 };
 
@@ -123,6 +125,7 @@ export async function loadClientHealth(db: Db, now = Date.now(), onlyOrgIds?: re
       organizationId: id,
       name: String(org["name"] ?? "a workspace"),
       isCustomer: Boolean(org["setup_paid_at"]) || Boolean(sub),
+      onboardingCompleted: input.onboardingCompleted,
       health: scoreCustomerHealth(input),
     };
   });

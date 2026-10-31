@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { SiteFooter, SiteHeader } from "@/components/marketing/Chrome";
 import { GrowthAssessment } from "@/components/marketing/GrowthAssessment";
 import { Pill } from "@/components/app/Bits";
-import { canonicalLink, ogUrl, OG_IMAGE_META } from "@/lib/seo";
+import { breadcrumbSchema, canonicalLink, jsonLdScript, ogUrl, OG_IMAGE_META } from "@/lib/seo";
 
 export const Route = createFileRoute("/growth-assessment")({
   head: () => ({
@@ -25,6 +25,7 @@ export const Route = createFileRoute("/growth-assessment")({
       ...OG_IMAGE_META,
     ],
     links: [canonicalLink("/growth-assessment")],
+    scripts: [jsonLdScript(breadcrumbSchema([{ name: "Revora", path: "/" }, { name: "Free growth assessment", path: "/growth-assessment" }]))],
   }),
   component: GrowthAssessmentPage,
 });

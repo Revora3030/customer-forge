@@ -17,7 +17,7 @@ const merge = (props: NodeProps, extra: string) => `${props.className ?? ""} ${e
  * turns the loupe on so the page can still be scrolled past the picture.
  * Keyboard: focus the picture and use the arrow keys.
  */
-export function LensMagnifier({ props, src, alt, prompt }: { props: NodeProps; src: string; alt: string; prompt: string }) {
+export function LensMagnifier({ props, src, alt, prompt, eager = false }: { props: NodeProps; src: string; alt: string; prompt: string; /** The first picture on the page: load it now, not lazily (it is the likely LCP image). */ eager?: boolean }) {
   const stage = useRef<HTMLDivElement>(null);
   const [point, setPoint] = useState<{ fx: number; fy: number } | null>(null);
   const [touchOn, setTouchOn] = useState(false);
@@ -58,7 +58,7 @@ export function LensMagnifier({ props, src, alt, prompt }: { props: NodeProps; s
         onKeyDown={onKeyDown}
         onBlur={() => setPoint(null)}
       >
-        <img className="rv-lens-img" src={src} alt={alt} loading="lazy" decoding="async" draggable={false} />
+        <img className="rv-lens-img" src={src} alt={alt} loading={eager ? "eager" : "lazy"} {...(eager ? { fetchPriority: "high" as const } : {})} decoding="async" draggable={false} />
         {placement ? (
           <div
             aria-hidden="true"

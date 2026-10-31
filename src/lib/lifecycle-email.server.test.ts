@@ -143,6 +143,42 @@ describe("lifecycle email planning", () => {
   });
 });
 
+describe("site-ready email", () => {
+  const job = (orgId: string, over: Row = {}) => ({ organization_id: orgId, status: "completed", completed_at: ago(0.1), ...over });
+
+  it("plans one site_ready email for a build that finished in the last 2 days, with a link to the website page", async () => {
+    tables["generation_jobs"] = [job("a"), job("a", { completed_at: ago(0.2) })];
+    const planned = await planLifecycleEmails(fakeDb(tables));
+    const ready = planned.filter((p) => p.kind === "site_ready");
+    expect(ready).toHaveLength(1);
+    expect(ready[0]?.template).toBe("lifecycle-site-ready");
+    expect(ready[0]?.recipient).toBe("owner@example.com");
+    expect(ready[0]?.data["actionUrl"]).toBe("https://revoragrowthsystems.com/app/website");
+  });
+
+  it("ignores old, unfinished and failed builds", async () => {
+    tables["generation_jobs"] = [
+      job("a", { completed_at: ago(5) }),
+      job("a", { status: "processing", completed_at: null }),
+      job("a", { status: "failed" }),
+    ];
+    const planned = await planLifecycleEmails(fakeDb(tables));
+    expect(planned.some((p) => p.kind === "site_ready")).toBe(false);
+  });
+
+  it("never sends it twice to the same person, and respects unsubscribe, demo and QA rules", async () => {
+    tables["generation_jobs"] = [job("a"), job("b"), job("demo"), job("qa"), job("optout")];
+    const db = fakeDb(tables);
+    const first = await planLifecycleEmails(db);
+    expect(first.filter((p) => p.kind === "site_ready")).toHaveLength(1);
+    tables["lifecycle_email_log"] = [
+      { organization_id: "a", kind: "site_ready", window_key: "once", recipient: "owner@example.com" },
+    ];
+    const second = await planLifecycleEmails(fakeDb(tables));
+    expect(second.some((p) => p.kind === "site_ready")).toBe(false);
+  });
+});
+
 describe("lifecycle email run", () => {
   it("sends with a personal unsubscribe link, logs each send, and a second run sends nothing", async () => {
     const db = fakeDb(tables);

@@ -54,6 +54,18 @@ describe("scene renders a full-viewport, readable photographic chapter", () => {
     expect(eager).toContain('fetchPriority="high"');
   });
 
+  it("the first picture on the page may be a lens magnifier: it loads eagerly, a later one stays lazy (audit P2-07)", () => {
+    const lens = (n: number): CompositionNode => ({ type: "lens_magnifier", text: "Inspect", children: [pic(n, `Detail ${n}`)] });
+    const html = markup(render({ type: "stack", children: [lens(1), lens(2)] } as CompositionNode, { eagerFirstMedia: true }));
+    const tags = html.match(/<img[^>]*rv-lens-img[^>]*>/g) ?? [];
+    expect(tags).toHaveLength(2);
+    expect(tags[0]).toContain('loading="eager"');
+    expect(tags[0]).toContain('fetchPriority="high"');
+    expect(tags[1]).toContain('loading="lazy"');
+    const notFirst = markup(render({ type: "stack", children: [lens(1)] } as CompositionNode));
+    expect(notFirst).toContain('loading="lazy"');
+  });
+
   it("plays a backdrop video muted, without autoplay attributes or controls in the server HTML", () => {
     const html = render(scene(), { resolveMedia: (r) => ({ url: `https://img.example.test/${r}.mp4`, visual: { source: "customer" } as never }) });
     expect(html).toContain("<video");

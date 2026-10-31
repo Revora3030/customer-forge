@@ -3,11 +3,11 @@ import { Check, ShieldCheck, Layers, Rocket, Target, Wrench } from "lucide-react
 import { Button } from "@/components/ui/button";
 import { GROWTH_SYSTEM, usdExact } from "@/lib/offer";
 
-/** The single canonical offer summary line, used site-wide. */
+/** Pricing-page offer summary. This page says "$350 setup", not "one-time setup". */
 export function OfferLine({ className = "" }: { className?: string }) {
   return (
     <p className={`text-[13px] leading-relaxed text-muted-foreground ${className}`}>
-      {GROWTH_SYSTEM.explainer}
+      {GROWTH_SYSTEM.explainer.replace("one-time setup", "setup")}
     </p>
   );
 }

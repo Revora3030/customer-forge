@@ -17,5 +17,8 @@ export const getClientHealth = createServerFn({ method: "POST" })
       band: row.health.band,
       reasons: row.health.reasons.slice(0, 4),
       unknown: row.health.unknown,
+      leadsLast14: row.health.leadsLast14,
+      liveDays: row.health.liveDays,
+      onboardingCompleted: row.onboardingCompleted,
     }));
   });

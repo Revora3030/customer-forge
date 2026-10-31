@@ -41,12 +41,12 @@ export const Route = createFileRoute("/pricing")({
         },
         {
           name: "description",
-          content: `${usd(GROWTH_SYSTEM.setupPrice)} one-time setup + ${usd(GROWTH_SYSTEM.monthlyPrice)}/month, first month free. Website, lead capture, CRM, booking, quotes, follow-up, reviews, local SEO, analytics and support.`,
+          content: `${usd(GROWTH_SYSTEM.setupPrice)} setup, first month free, then ${usd(GROWTH_SYSTEM.monthlyPrice)}/month. Website, lead capture, CRM, booking, quotes, follow-up, reviews, local SEO, analytics and support.`,
         },
         { property: "og:title", content: "Pricing — Revora Growth Systems" },
         {
           property: "og:description",
-          content: `${usd(GROWTH_SYSTEM.setupPrice)} one-time setup + first month free + ${usd(GROWTH_SYSTEM.monthlyPrice)}/month afterward. One complete growth system.`,
+          content: `${usd(GROWTH_SYSTEM.setupPrice)} setup, first month free, then ${usd(GROWTH_SYSTEM.monthlyPrice)}/month. One complete growth system.`,
         },
         { property: "og:type", content: "website" },
         { name: "twitter:card", content: "summary_large_image" },
@@ -55,7 +55,14 @@ export const Route = createFileRoute("/pricing")({
       ],
       links: [canonicalLink("/pricing")],
       scripts: [
-        jsonLdScript(GROWTH_SYSTEM_SCHEMA),
+        jsonLdScript({
+          ...GROWTH_SYSTEM_SCHEMA,
+          offers: GROWTH_SYSTEM_SCHEMA.offers.map((offer) =>
+            offer.name === "One-time setup"
+              ? { ...offer, name: `${usd(GROWTH_SYSTEM.setupPrice)} setup` }
+              : offer,
+          ),
+        }),
         jsonLdScript(
           breadcrumbSchema([
             { name: "Revora", path: "/" },
@@ -130,6 +137,11 @@ function Pricing() {
         </p>
         <div className="mt-5">
           <TrialBadge />
+          <p className="mt-3 max-w-2xl text-[15px] leading-relaxed text-muted-foreground">
+            Start with a {GROWTH_SYSTEM.fullAccessWindowAdjective} free trial, no card needed. When
+            you launch, it's {usd(GROWTH_SYSTEM.setupPrice)} setup, your first month free, then{" "}
+            {usd(GROWTH_SYSTEM.monthlyPrice)}/month.
+          </p>
         </div>
 
         <section className="panel hairline-gold card-lift mt-10 overflow-hidden p-0">
@@ -184,11 +196,11 @@ function Pricing() {
                 <FreeAccessBanner />
               </div>
               <p className="mt-2.5 text-[13px] text-muted-foreground">
-                {GROWTH_SYSTEM.ctaSecondary}
+                {GROWTH_SYSTEM.ctaSecondary.replace("one-time setup", "setup")}
               </p>
               <p className="mt-4 flex items-start gap-2 text-[13px] leading-relaxed text-muted-foreground">
                 <ShieldCheck className="mt-0.5 size-4 shrink-0 text-primary" />
-                {GROWTH_SYSTEM.explainer}
+                {GROWTH_SYSTEM.explainer.replace("one-time setup", "setup")}
               </p>
             </div>
 

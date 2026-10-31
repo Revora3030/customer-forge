@@ -10,6 +10,7 @@ import { template as prospectDemoTemplate } from "./prospect-demo";
 import {
   lifecycleBookingFollowUpTemplate,
   lifecycleSetupReminderTemplate,
+  lifecycleSiteReadyTemplate,
   lifecycleWelcomeTemplate,
   lifecycleWinbackTemplate,
 } from "./lifecycle";
@@ -61,6 +62,7 @@ export const TEMPLATES: Record<string, TemplateEntry> = {
   "lifecycle-welcome": lifecycleWelcomeTemplate,
   "lifecycle-setup-reminder": lifecycleSetupReminderTemplate,
   "lifecycle-booking-followup": lifecycleBookingFollowUpTemplate,
+  "lifecycle-site-ready": lifecycleSiteReadyTemplate,
   "lifecycle-winback": lifecycleWinbackTemplate,
   "team-invite": {
     component: InviteEmail,

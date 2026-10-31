@@ -11,7 +11,7 @@
  * an unknown field is simply left out. Ratings, reviews and awards are never
  * added, even when the workspace has review rows.
  */
-import { hoursDisplay, placeDisplay } from "@/lib/builder/presentation";
+import { isPlaceholderEmail, isPlaceholderPhone, placeDisplay } from "@/lib/builder/presentation";
 import { weeklyHoursFromSummary } from "@/lib/booking-hours";
 import { readSiteChrome } from "@/lib/builder/site-chrome";
 import { readCopy } from "@/lib/site-engine";
@@ -222,9 +222,9 @@ export function localBusinessSchema(input: {
   const description = clean(p.description, 500) ?? clean(p.tagline, 300);
   if (description) schema["description"] = description;
   const phone = clean(p.phone, 40);
-  if (phone && /\d{3}/.test(phone)) schema["telephone"] = phone;
+  if (phone && /\d{3}/.test(phone) && !isPlaceholderPhone(phone)) schema["telephone"] = phone;
   const email = clean(p.email, 160);
-  if (email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) schema["email"] = email;
+  if (email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && !isPlaceholderEmail(email)) schema["email"] = email;
   const logo = clean(p.logo_url, 2000);
   if (logo?.startsWith("https://")) schema["logo"] = logo;
   const image = input.image ?? clean(p.hero_image_url, 2000);
@@ -251,11 +251,8 @@ export function localBusinessSchema(input: {
   const areaPlace = area ? area.replace(/\s*(?:\+|\bplus\b|&)\s*\d{1,3}\s*(?:mi|miles?|km|kilometres|kilometers)\b.*$/i, "").trim() : null;
   if (areaPlace) schema["areaServed"] = areaPlace;
   const hours = openingHoursSpec(p.hours);
+  // Only structured hours: a free-text openingHours string is not valid schema.org.
   if (hours.length) schema["openingHoursSpecification"] = hours;
-  else {
-    const display = hoursDisplay(p.hours);
-    if (display) schema["openingHours"] = display;
-  }
   const sameAs = [
     clean(p.review_link, 2000),
     ...["google_business", "facebook", "instagram", "linkedin", "tiktok", "youtube"].map((k) => clean((input.social as Record<string, unknown> | null | undefined)?.[k], 2000)),
@@ -264,14 +261,18 @@ export function localBusinessSchema(input: {
   const priceRange = priceRangeFrom(input.services);
   if (priceRange) schema["priceRange"] = priceRange;
 
-  // Ratings, reviews and awards are never emitted. A stored review is not
-  // copied in, and no stand-in author, score or award is invented to fill one.
+  // Ratings, reviews and awards are never emitted. A stored review stays on the
+  // page and is not copied into this record, and no stand-in author, score or
+  // award is invented to fill one.
 
   const offers = (input.services ?? [])
     .map((service) => {
       const name = clean(service.name, 120);
       if (!name) return null;
-      const price = Number(service.price ?? service.starting_price ?? NaN);
+      const exact = Number(service.price ?? NaN);
+      const startingAt = Number(service.starting_price ?? NaN);
+      const hasExact = Number.isFinite(exact) && exact > 0;
+      const hasStarting = !hasExact && Number.isFinite(startingAt) && startingAt > 0;
       return {
         "@type": "Offer",
         itemOffered: {
@@ -279,7 +280,12 @@ export function localBusinessSchema(input: {
           name,
           ...(clean(service.description, 300) ? { description: clean(service.description, 300) } : {}),
         },
-        ...(Number.isFinite(price) && price > 0 ? { price: price.toFixed(2), priceCurrency: "USD" } : {}),
+        // An exact price only when the owner set one; a "starting at" figure is a
+        // minimum, so it goes out as a PriceSpecification with minPrice.
+        ...(hasExact ? { price: exact.toFixed(2), priceCurrency: "USD" } : {}),
+        ...(hasStarting
+          ? { priceSpecification: { "@type": "PriceSpecification", minPrice: startingAt.toFixed(2), priceCurrency: "USD" } }
+          : {}),
       };
     })
     .filter(Boolean)
@@ -406,10 +412,7 @@ export function shareImageFor(input: {
  * example/test domain. Such a business is a placeholder, never a real listing.
  */
 export function hasPlaceholderContact(profile: { phone?: string | null; email?: string | null } | null | undefined): boolean {
-  const digits = String(profile?.phone ?? "").replace(/\D/g, "");
-  if (/55501\d\d$/.test(digits)) return true;
-  const domain = String(profile?.email ?? "").trim().toLowerCase().split("@")[1] ?? "";
-  return /(?:^|\.)(?:example|test|invalid|localhost)$/.test(domain) || /(?:^|\.)example\.(?:com|org|net)$/.test(domain); // DevSkim: ignore DS162092 -- Reserved "localhost" email domain marks placeholder data; no local connection is made.
+  return isPlaceholderPhone(profile?.phone ?? "") || isPlaceholderEmail(profile?.email ?? "");
 }
 
 /**

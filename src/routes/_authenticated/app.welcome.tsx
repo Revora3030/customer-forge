@@ -6,6 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, CheckCircle2, CircleDashed, Clock, Headphones } from "lucide-react";
 import { MetricCard, Panel, Pill, SectionHeading } from "@/components/app/Bits";
 import { BuildLiveSection } from "@/components/app/BuildLive";
+import { BuildProgressTracker } from "@/components/app/BuildProgressTracker";
 import { Button } from "@/components/ui/button";
 import { useBillingState } from "@/lib/stripe.hooks";
 import { useWebsiteSettings } from "@/lib/queries";
@@ -190,6 +191,10 @@ function WelcomePage() {
       {/* Live build: the moment a customer has paid, they watch Revora build
           their site here — real recorded stages, never a canned animation. */}
       <BuildLiveSection organizationId={orgId} />
+
+      {/* Stage-by-stage tracker of the same build job: done / current / pending,
+          real states only. */}
+      <BuildProgressTracker organizationId={orgId} />
 
       <Panel className="p-5">
         <SectionHeading eyebrow="Onboarding" title="Your next steps" />

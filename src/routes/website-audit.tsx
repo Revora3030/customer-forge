@@ -4,7 +4,7 @@ import { SiteFooter, SiteHeader } from "@/components/marketing/Chrome";
 import { GrowthAssessment } from "@/components/marketing/GrowthAssessment";
 import { Panel, Pill } from "@/components/app/Bits";
 import { Button } from "@/components/ui/button";
-import { canonicalLink, ogUrl, OG_IMAGE_META } from "@/lib/seo";
+import { breadcrumbSchema, canonicalLink, jsonLdScript, ogUrl, OG_IMAGE_META } from "@/lib/seo";
 import { GROWTH_SYSTEM } from "@/lib/offer";
 
 export const Route = createFileRoute("/website-audit")({
@@ -28,6 +28,7 @@ export const Route = createFileRoute("/website-audit")({
       ...OG_IMAGE_META,
     ],
     links: [canonicalLink("/website-audit")],
+    scripts: [jsonLdScript(breadcrumbSchema([{ name: "Revora", path: "/" }, { name: "Free website audit", path: "/website-audit" }]))],
   }),
   component: WebsiteAuditPage,
 });
