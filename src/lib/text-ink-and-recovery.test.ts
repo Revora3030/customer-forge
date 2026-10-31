@@ -29,6 +29,13 @@ describe("old code after a deploy", () => {
     expect(classifyClientError(new Error("Importing a module script failed."))).toBe("warn");
     expect(classifyClientError(new Error("Invalid server function ID"))).toBe("warn");
   });
+  it("recognises a missing server function and a lazy route that resolved to nothing", () => {
+    expect(isStaleDeployError("Server function info not found for abc123")).toBe(true);
+    expect(isStaleDeployError("undefined is not an object (evaluating 'e[t ?? `default`]')")).toBe(true);
+    expect(isStaleDeployError("undefined is not an object (evaluating 'e[t??\"default\"]')")).toBe(true);
+    expect(isStaleDeployError("undefined is not an object (evaluating 'a.b')")).toBe(false);
+    expect(classifyClientError(new Error("Server function info not found for abc123"))).toBe("warn");
+  });
   it("reloads only once per minute, never in a loop", () => {
     const store = new Map<string, string>();
     const storage = { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v) };
