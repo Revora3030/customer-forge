@@ -12,6 +12,7 @@
  */
 
 import { canTrackAds, pushConsentSignal } from "@/lib/consent";
+import { ensureGoogleTagScript, initGtag } from "@/lib/google-tag";
 import { isPublicMarketingPath } from "@/lib/marketing-paths";
 
 const GOOGLE_ADS_ID = "AW-18474339242";
@@ -32,23 +33,10 @@ export async function loadGoogleAds(_consentModeRoute = true): Promise<void> {
     // recording a choice the visitor never made.
     pushConsentSignal(allowed ? "granted" : "denied");
 
-    window.dataLayer ??= [];
-    window.gtag = window.gtag || function gtag(...args: [string, ...unknown[]]) {
-      window.dataLayer?.push(args);
-    };
-    if (document.querySelector("script[data-google-ads]")) return;
-    window.gtag("js", new Date());
-    window.gtag("config", GOOGLE_ADS_ID);
-    const script = document.createElement("script");
-    script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(GOOGLE_ADS_ID)}`;
-    script.async = true;
-    script.dataset["googleAds"] = "";
-    // Ad blockers and restricted networks block this tag. Handle the failure
-    // here so it stays a no-op instead of a page-level error.
-    script.onerror = () => {
-      script.remove();
-    };
-    document.head.appendChild(script);
+    initGtag();
+    window.gtag?.("config", GOOGLE_ADS_ID);
+    // Same single gtag.js as GA4 (loaded after load or first interaction).
+    ensureGoogleTagScript(GOOGLE_ADS_ID);
   })();
   return loadPromise;
 }

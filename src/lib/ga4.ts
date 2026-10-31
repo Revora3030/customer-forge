@@ -1,9 +1,9 @@
 /**
  * Google Analytics 4 bridge.
  *
- * Revora's own property (G-WC1X5HWN7W) is always configured on production; an
- * extra ID saved in Admin → Analytics (`platform_settings`) is configured
- * alongside it on the same gtag.js load. See `ga4-ids.ts`.
+ * Revora's own property (G-WC1X5HWN7W) is the one GA4 ID configured on
+ * production, on the single shared gtag.js load. See `ga4-ids.ts` and
+ * `google-tag.ts`.
  *
  * Revora's own first-party funnel (`marketing_conversions`) is always recorded
  * regardless of GA4, so reporting never depends on a third-party script that an
@@ -11,6 +11,7 @@
  */
 
 import { canTrackAds } from "./consent";
+import { ensureGoogleTagScript, initGtag } from "./google-tag";
 import { isPublicMarketingPath } from "./marketing-paths";
 import { REVORA_ROOT, normalizeHost } from "./revora-address";
 
@@ -53,33 +54,23 @@ export async function loadGa4(measurementIds: string | readonly string[]) {
   const ids = (typeof measurementIds === "string" ? [measurementIds] : [...measurementIds])
     .map((value) => (typeof value === "string" ? value.trim().toUpperCase() : ""))
     .filter((id, index, all) => isValidMeasurementId(id) && all.indexOf(id) === index)
-    .filter((id) => !configuredIds.has(id));
+    .filter((id) => !configuredIds.has(id))
+    // Exactly one GA4 property per page session.
+    .slice(0, configuredIds.size === 0 ? 1 : 0);
   const primaryId = ids[0];
   if (primaryId === undefined) return;
   const firstLoad = configuredIds.size === 0;
 
-  window.dataLayer = window.dataLayer ?? [];
-  if (!window.gtag) {
-    window.gtag = function gtag(...args: GtagArgs) {
-      window.dataLayer?.push(args);
-    };
-  }
-  if (firstLoad) window.gtag("js", new Date());
+  initGtag();
   for (const id of ids) {
     configuredIds.add(id);
     // Manual page_view so client-side route changes are counted exactly once.
-    window.gtag("config", id, { send_page_view: false, anonymize_ip: true });
+    window.gtag?.("config", id, { send_page_view: false, anonymize_ip: true });
   }
   if (!firstLoad) return;
 
-  const script = document.createElement("script");
-  script.async = true;
-  script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(primaryId)}`;
-  // Blocked analytics (ad blockers, strict networks) must fail silently.
-  script.onerror = () => {
-    script.remove();
-  };
-  document.head.appendChild(script);
+  // One shared gtag.js, injected after load or first interaction.
+  ensureGoogleTagScript(primaryId);
 }
 
 export function ga4IsActive() {

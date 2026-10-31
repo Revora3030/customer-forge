@@ -2,10 +2,8 @@
  * Which GA4 properties revoragrowthsystems.com reports to.
  *
  * Revora's own property (G-WC1X5HWN7W, the revoragrowthsystems.com web stream)
- * is ALWAYS included on production, so a stale or mistyped ID saved in
- * Admin → Analytics can never silently send all traffic somewhere else. A
- * different valid ID saved by an admin is configured as an additional
- * destination on the same gtag.js load.
+ * is the single GA4 ID on production, so a stale or mistyped ID saved in
+ * Admin → Analytics can never silently send all traffic somewhere else.
  *
  * Pure and shared by the server function and the browser loader.
  */
@@ -19,10 +17,11 @@ export function normalizeGaMeasurementId(value: unknown): string | null {
   return GA_MEASUREMENT_ID_PATTERN.test(id) ? id : null;
 }
 
-/** Default first, then the saved ID when it is valid and different. */
-export function resolveGaMeasurementIds(saved: unknown): string[] {
-  const extra = normalizeGaMeasurementId(saved);
-  return extra && extra !== DEFAULT_GA_MEASUREMENT_ID
-    ? [DEFAULT_GA_MEASUREMENT_ID, extra]
-    : [DEFAULT_GA_MEASUREMENT_ID];
+/**
+ * Exactly one GA4 property is loaded: Revora's own. A different ID saved in
+ * Admin → Analytics is not sent to (the founder picks the one ID to keep; the
+ * default stays until then), so the page never configures two properties.
+ */
+export function resolveGaMeasurementIds(_saved?: unknown): string[] {
+  return [DEFAULT_GA_MEASUREMENT_ID];
 }
