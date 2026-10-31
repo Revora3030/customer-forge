@@ -72,6 +72,21 @@ export type BuilderToPreviewMessage =
       selectedId?: string | null;
       /** The exact element being discussed, when one was picked. */
       selectedPath?: string | null;
+      /** One click (or Enter on a focused heading) edits its words in place. */
+      quickEdit?: boolean;
+    }
+  | {
+      /** Try a palette on the page live (CSS variables only; nothing is saved). */
+      source: typeof PREVIEW_BRIDGE_SOURCE;
+      type: "patch-theme";
+      primary: string;
+      secondary: string;
+      accent: string;
+    }
+  | {
+      /** Put the page's own saved colours back. */
+      source: typeof PREVIEW_BRIDGE_SOURCE;
+      type: "reset-theme";
     }
   | {
       /** Instant in-place patch of one element's text (no reload). */
@@ -106,6 +121,10 @@ const ELEMENT_PATTERN = /^[a-z_]{1,24}$/;
 
 function path(value: unknown): string | null {
   return typeof value === "string" && PATH_PATTERN.test(value) ? value : null;
+}
+
+function hexColor(value: unknown): string | null {
+  return typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value) ? value.toLowerCase() : null;
 }
 
 function text(value: unknown, max: number): string | null {
@@ -184,6 +203,13 @@ export function readBuilderMessage(data: unknown): BuilderToPreviewMessage | nul
     const id = typeof record["id"] === "string" && ID_PATTERN.test(record["id"]) ? record["id"] : null;
     return { source: PREVIEW_BRIDGE_SOURCE, type: "status", text: text(record["text"], 90), id };
   }
+  if (record["type"] === "reset-theme") return { source: PREVIEW_BRIDGE_SOURCE, type: "reset-theme" };
+  if (record["type"] === "patch-theme") {
+    const primary = hexColor(record["primary"]);
+    const secondary = hexColor(record["secondary"]);
+    const accent = hexColor(record["accent"]);
+    return primary && secondary && accent ? { source: PREVIEW_BRIDGE_SOURCE, type: "patch-theme", primary, secondary, accent } : null;
+  }
   if (record["type"] === "patch-text") {
     const id = typeof record["id"] === "string" ? record["id"] : "";
     const at = path(record["path"]);
@@ -197,6 +223,7 @@ export function readBuilderMessage(data: unknown): BuilderToPreviewMessage | nul
     source: PREVIEW_BRIDGE_SOURCE,
     type: "select-mode",
     on: record["on"] === true,
+    ...(record["quickEdit"] === true ? { quickEdit: true } : {}),
     selectedId: selectedId && ID_PATTERN.test(selectedId) ? selectedId : null,
     ...(path(record["selectedPath"]) ? { selectedPath: path(record["selectedPath"]) } : {}),
   };

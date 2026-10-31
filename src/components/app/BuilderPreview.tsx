@@ -2,6 +2,7 @@ import { forwardRef, useCallback, useEffect, useMemo, useRef, useState, type Ref
 import { nextPreviewLoadState, PREVIEW_LOAD_TIMEOUT_MS, type PreviewLoadState } from "@/lib/builder/preview-load";
 import {
   ExternalLink,
+  Pencil,
   Maximize2,
   Minimize2,
   Monitor,
@@ -51,6 +52,8 @@ import {
   type PreviewToBuilderMessage,
 } from "@/lib/builder/preview-bridge";
 import { saveInlineText } from "@/lib/builder/inline-edit.functions";
+import { PreviewThemeEditor } from "@/components/app/PreviewThemeEditor";
+import type { Palette } from "@/lib/builder/palette-edit";
 import { splitForKey, splitForPointer } from "@/lib/builder/compare-slider";
 import { useServerFn } from "@tanstack/react-start";
 import { createPortal } from "react-dom";
@@ -148,6 +151,8 @@ function BuilderPreviewFrame({
   const [refreshKey, setRefreshKey] = useState(0);
   const [fullscreen, setFullscreen] = useState(false);
   const [selectMode, setSelectMode] = useState(false);
+  // Quick edit: one click on a headline or paragraph edits the words in place.
+  const [quickEdit, setQuickEdit] = useState(false);
   // Compare: the published site (what visitors see now) next to the draft
   // (what Publish would put live), so every AI change can be checked first.
   const [compareMode, setCompareMode] = useState<CompareMode>("off");
@@ -272,12 +277,21 @@ function BuilderPreviewFrame({
     (on: boolean) => {
       const frame = frameRef.current?.contentWindow;
       if (!frame || typeof window === "undefined") return;
+      // Picking a block and quick-editing words are two different click meanings;
+      // picking wins when both are switched on.
       frame.postMessage(
-        { source: PREVIEW_BRIDGE_SOURCE, type: "select-mode", on, selectedId, selectedPath },
+        {
+          source: PREVIEW_BRIDGE_SOURCE,
+          type: "select-mode",
+          on: on || quickEdit,
+          selectedId,
+          selectedPath,
+          ...(quickEdit && !on ? { quickEdit: true } : {}),
+        },
         window.location.origin,
       );
     },
-    [selectedId, selectedPath],
+    [quickEdit, selectedId, selectedPath],
   );
 
   /** Sends a message to the preview frame; silently a no-op before it loads. */
@@ -286,6 +300,21 @@ function BuilderPreviewFrame({
     if (!frame || typeof window === "undefined") return;
     frame.postMessage({ source: PREVIEW_BRIDGE_SOURCE, ...message }, window.location.origin);
   }, []);
+
+  /** Tries a palette live in the preview; null puts the saved colours back. */
+  const previewPalette = useCallback(
+    (palette: Palette | null) => {
+      if (palette) tell({ type: "patch-theme", primary: palette.primary, secondary: palette.secondary, accent: palette.accent });
+      else tell({ type: "reset-theme" });
+    },
+    [tell],
+  );
+
+  const onPaletteSaved = useCallback(() => {
+    // Reload so the preview renders the saved colours for real, and tell other tabs.
+    setRefreshKey((value) => value + 1);
+    if (organizationId) announceDraftChange(organizationId, previewId.current);
+  }, [organizationId]);
 
   // A new page, device size or reload re-measures overflow and contrast.
   useEffect(() => {
@@ -433,6 +462,23 @@ function BuilderPreviewFrame({
             >
               <MousePointerClick className="size-4" aria-hidden />
             </Button>
+          ) : null}
+          {organizationId ? (
+            <>
+              <Button
+                type="button"
+                size="icon-sm"
+                variant={quickEdit ? "secondary" : "ghost"}
+                aria-pressed={quickEdit}
+                data-testid="builder-preview-quick-edit"
+                aria-label={quickEdit ? "Stop editing words in the preview" : "Edit words in the preview"}
+                title={quickEdit ? "Stop editing words" : "Click a headline or paragraph to edit it"}
+                onClick={() => setQuickEdit((value) => !value)}
+              >
+                <Pencil className="size-4" aria-hidden />
+              </Button>
+              <PreviewThemeEditor organizationId={organizationId} onPreview={previewPalette} onSaved={onPaletteSaved} />
+            </>
           ) : null}
           {/* Phones: one viewport menu instead of six icons in a row. */}
           <DropdownMenu>

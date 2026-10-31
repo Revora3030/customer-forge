@@ -11,6 +11,11 @@
  *  - Double-click a heading, paragraph, button or link inside an AI layout to
  *    edit its words in place. Enter or clicking away saves (sent to the
  *    builder, which persists it with no AI turn); Escape cancels.
+ *  - Quick edit (toggled by the builder): one click, or Enter on a focused
+ *    heading, edits a headline or paragraph in place, with the same save and
+ *    cancel keys as above.
+ *  - The builder can try a palette live (CSS variables on the site root only)
+ *    and put the saved colours back; nothing is persisted from here.
  *  - The builder can patch an element's text instantly and show a floating
  *    status badge ("Sol is restyling Hero…") without reloading the frame.
  *
@@ -24,8 +29,11 @@ import {
   type PreviewToBuilderMessage,
 } from "@/lib/builder/preview-bridge";
 import { contrast, over, parseColor, requiredRatio, type Rgba } from "@/lib/builder/contrast-scan";
+import { siteThemeStyle } from "@/lib/site-theme";
 
 const INLINE_TYPES = new Set(["heading", "text", "button", "link", "quote"]);
+/** Words an owner can click to edit directly (headlines and paragraphs). */
+const QUICK_TYPES = new Set(["heading", "text"]);
 const ACTIONS: { action: PreviewAction; label: string }[] = [
   { action: "restyle", label: "Restyle" },
   { action: "photo", label: "New photo" },
@@ -55,6 +63,9 @@ export function PreviewSelectBridge() {
     const post = (message: PreviewToBuilderMessage) => window.parent.postMessage(message, origin);
     const root = document.documentElement;
     let active = false;
+    let quick = false;
+    /** The site root's own inline style before a palette was tried, to put back exactly. */
+    let themeSnapshot: string | null = null;
     let editing: { node: HTMLElement; before: string; id: string; path: string } | null = null;
 
     /* ------------------------------ overlay UI ------------------------------ */
@@ -187,6 +198,47 @@ export function PreviewSelectBridge() {
       return true;
     };
 
+    /* ------------------------------ quick edit ------------------------------- */
+    const quickTargets = () =>
+      Array.from(document.querySelectorAll<HTMLElement>("[data-rvp-type]")).filter(
+        (node) => QUICK_TYPES.has(node.getAttribute("data-rvp-type") ?? "") && node.children.length === 0 && !layer.contains(node),
+      );
+    // Keyboard users reach each editable headline with Tab and press Enter.
+    const markQuick = (on: boolean) => {
+      for (const node of quickTargets()) {
+        if (on) {
+          if (!node.hasAttribute("tabindex")) {
+            node.setAttribute("tabindex", "0");
+            node.setAttribute("data-rv-quick", "");
+          }
+          node.setAttribute("title", "Click to edit, or press Enter");
+        } else if (node.hasAttribute("data-rv-quick")) {
+          node.removeAttribute("tabindex");
+          node.removeAttribute("data-rv-quick");
+          node.removeAttribute("title");
+        }
+      }
+    };
+
+    /* ------------------------------ live palette ------------------------------ */
+    const siteRoot = () => document.querySelector<HTMLElement>(".rv-site-root");
+    const resetTheme = () => {
+      const node = siteRoot();
+      if (node && themeSnapshot !== null) node.style.cssText = themeSnapshot;
+      themeSnapshot = null;
+    };
+    const patchTheme = (primary: string, secondary: string, accent: string) => {
+      const node = siteRoot();
+      // Studio pages carry their own theme layer; leave those to a reload.
+      if (!node || node.hasAttribute("data-studio")) return;
+      if (themeSnapshot === null) themeSnapshot = node.style.cssText;
+      const vars = (siteThemeStyle({ primaryColor: primary, secondaryColor: secondary, accentColor: accent }) ?? {}) as Record<string, string>;
+      for (const [key, value] of Object.entries(vars)) {
+        if (key.startsWith("--")) node.style.setProperty(key, value);
+        else (node.style as unknown as Record<string, string>)[key] = value;
+      }
+    };
+
     /* ------------------------- responsive overflow probe ------------------------ */
     const describe = (node: Element) => {
       const name = node.getAttribute("data-rvb-label") ?? node.getAttribute("data-rvp-type") ?? node.tagName.toLowerCase();
@@ -316,7 +368,17 @@ export function PreviewSelectBridge() {
         if (node && node !== editing?.node && node.children.length === 0) node.textContent = message.text;
         return;
       }
+      if (message.type === "patch-theme") {
+        patchTheme(message.primary, message.secondary, message.accent);
+        return;
+      }
+      if (message.type === "reset-theme") {
+        resetTheme();
+        return;
+      }
       active = message.on;
+      quick = message.on && message.quickEdit === true;
+      markQuick(quick);
       root.classList.toggle("rv-preview-select", active);
       if (!active) place(null, null);
       markSelected(message.selectedId, message.selectedPath);
@@ -345,6 +407,15 @@ export function PreviewSelectBridge() {
         post(selectionOf(picked, null, actionButton.dataset["action"] as PreviewAction));
         return;
       }
+      if (active && quick) {
+        // Quick edit: a click on a headline or paragraph edits it; nothing else
+        // in the page navigates or submits while editing words.
+        event.preventDefault();
+        event.stopPropagation();
+        const element = elementOf(target);
+        if (element && QUICK_TYPES.has(element.getAttribute("data-rvp-type") ?? "")) startEdit(element);
+        return;
+      }
       if (!active) return;
       const block = blockOf(target);
       if (!block) return;
@@ -366,7 +437,20 @@ export function PreviewSelectBridge() {
     };
 
     const onKey = (event: KeyboardEvent) => {
-      if (!editing) return;
+      if (!editing) {
+        const focused = event.target instanceof HTMLElement ? event.target : null;
+        if (
+          active &&
+          quick &&
+          focused?.hasAttribute("data-rv-quick") &&
+          (event.key === "Enter" || event.key === "F2") &&
+          startEdit(focused)
+        ) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+        return;
+      }
       if (event.key === "Escape") {
         event.preventDefault();
         finishEdit(false);
@@ -395,6 +479,8 @@ export function PreviewSelectBridge() {
       resizeObserver?.disconnect();
       window.removeEventListener("load", scheduleOverflow);
       finishEdit(false);
+      markQuick(false);
+      resetTheme();
       window.removeEventListener("message", onMessage);
       document.removeEventListener("mousemove", onMove, true);
       document.removeEventListener("click", onClick, true);
