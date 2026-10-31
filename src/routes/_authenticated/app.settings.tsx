@@ -15,6 +15,7 @@ import { MemberControls, TeamInvites } from "@/components/app/TeamInvites";
 import { PortalAccess } from "@/components/app/PortalAccess";
 import { LeadNotifications } from "@/components/app/LeadNotifications";
 import { UpgradeFromWebsite } from "@/components/app/UpgradeFromWebsite";
+import { BookingLinkCard } from "@/components/app/BookingLinkCard";
 import { metaDescription } from "@/lib/seo";
 import { isValidWorkspaceSlug, WORKSPACE_SLUG_RULE } from "@/lib/workspace-slug";
 
@@ -200,6 +201,8 @@ function SettingsPage() {
           <PortalAccess organizationId={orgId} canManage={canManage} />
         </div>
       </Panel>
+
+      <BookingLinkCard organizationId={orgId} canManage={canManage} />
 
       <LeadNotifications organizationId={orgId} canManage={canManage} />
     </div>

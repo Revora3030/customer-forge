@@ -45,4 +45,20 @@ describe("SiteFooter", () => {
     expect(html(2027)).toContain("2027");
     expect(html(2027)).not.toContain("2026");
   });
+
+  it("shows a Book online link only for a valid https booking link", () => {
+    const withLink = (hours: unknown) =>
+      renderToStaticMarkup(
+        <OwnAddressContext.Provider value={true}>
+          <SiteFooter site={{ ...(site as object), profile: { ...(site as { profile: object }).profile, hours } } as never} />
+        </OwnAddressContext.Provider>,
+      );
+    const good = withLink({ summary: "Mon-Fri 8am-5pm", booking_url: "https://calendly.com/harbor" });
+    expect(good).toContain('href="https://calendly.com/harbor"');
+    expect(good).toContain("Book online");
+    expect(good).toContain('rel="noopener noreferrer"');
+    expect(withLink({ booking_url: "javascript:alert(1)" })).not.toContain("Book online");
+    expect(withLink({ booking_url: "http://calendly.com/harbor" })).not.toContain("Book online");
+    expect(html()).not.toContain("Book online");
+  });
 });

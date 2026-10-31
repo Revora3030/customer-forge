@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useWorkspace } from "@/lib/use-tenant";
 import { useBillingState } from "@/lib/stripe.hooks";
 import { onboardingJourney, type JourneyFacts, type JourneyPlan } from "@/lib/onboarding-journey";
+import { hasOpeningHours } from "@/lib/booking-link";
 
 const has = (v: unknown) => typeof v === "string" && v.trim().length > 0;
 
@@ -83,7 +84,7 @@ function useJourneyFacts(organizationId: string | undefined) {
           city: has(p?.city),
           serviceArea: has(p?.service_area),
           hours: Boolean(
-            p?.hours && typeof p.hours === "object" && Object.keys(p.hours).length > 0,
+            hasOpeningHours(p?.hours),
           ),
           phone: has(p?.phone),
           description: has(p?.description),

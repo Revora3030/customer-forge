@@ -32,6 +32,7 @@ import { customerBusinessEmail, sanitizeServices } from "@/lib/builder/intake-sa
 import { closedOnHolidays } from "@/lib/holidays";
 import { contactStepValid, continueHint } from "@/lib/onboarding-validation";
 import { AddressAutocomplete } from "@/components/ui/address-autocomplete";
+import { bookingLinkFromHours } from "@/lib/booking-link";
 import {
   WEBSITE_GOALS,
   revoraShareAddress,
@@ -485,6 +486,14 @@ function Onboarding() {
       }
       setFinishStage("Saving your business details…");
 
+      // Re-running onboarding must keep the booking link the owner saved in Settings.
+      const { data: existingHours } = await supabase
+        .from("business_profiles")
+        .select("hours")
+        .eq("organization_id", org.id)
+        .maybeSingle();
+      const savedBookingLink = bookingLinkFromHours((existingHours as { hours?: unknown } | null)?.hours);
+
       const { error: profileError } = await supabase.from("business_profiles").upsert(
         {
           organization_id: org.id,
@@ -501,6 +510,7 @@ function Onboarding() {
           hours: {
             ...(draft.hours ? { summary: draft.hours } : {}),
             ...(draft.closedOnHolidays ? { closed_on_holidays: true } : {}),
+            ...(savedBookingLink ? { booking_url: savedBookingLink } : {}),
           } as never,
           website: draft.website || null,
           logo_url: logoPath || draft.logoUrl.trim() || null,

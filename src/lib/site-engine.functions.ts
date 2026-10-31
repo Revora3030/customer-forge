@@ -4,6 +4,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { normaliseRequestId } from "@/lib/builder/chat-thread";
+import { hasOpeningHours } from "@/lib/booking-link";
 import { parseFirstBuildInstruction, withFirstBuildInstruction } from "@/lib/builder/first-build-request";
 
 /**
@@ -509,7 +510,7 @@ export const aiEditSiteCopy = createServerFn({ method: "POST" })
         phone: (p["phone"] as string) ?? null,
         email: (p["email"] as string) ?? null,
         yearsInBusiness: (p["years_in_business"] as number) ?? null,
-        hasHours: Boolean(p["hours"] && Object.keys(p["hours"] as object).length),
+        hasHours: hasOpeningHours(p["hours"]),
         style: (p["font_preference"] as string) ?? null,
         goals: ((p["website_goals"] as string[]) ?? []).slice(0, 6),
         ctaLabel: "",
