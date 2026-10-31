@@ -98,6 +98,8 @@ export type CompositionPassResult = {
   designFindings?: number;
   /** Pages whose optional quality rounds were skipped to stay within the time budget. */
   optionalSkipped?: number;
+  /** Optional rounds that threw and were skipped; the validated designs were kept. */
+  optionalFailed?: number;
   /** Sections restored from this job's checkpoint instead of being designed again. */
   resumed?: number;
   /**
@@ -800,7 +802,13 @@ export async function composeFirstBuildSections(input: {
     // Optional craft rounds run only while the time budget allows; the
     // validated AI design above is always kept either way.
     if (withinBudget()) {
-      await repairDesignQuality({ organizationId, lookSummary: promptLook, sections: pageSections, parts, designed, screen, result, direction, home: isHome, serviceNames });
+      // Optional round: if it breaks, the validated AI design above is kept.
+      try {
+        await repairDesignQuality({ organizationId, lookSummary: promptLook, sections: pageSections, parts, designed, screen, result, direction, home: isHome, serviceNames });
+      } catch (error) {
+        result.optionalFailed = (result.optionalFailed ?? 0) + 1;
+        console.warn("design polish skipped", (error as Error).message);
+      }
     } else {
       result.optionalSkipped = (result.optionalSkipped ?? 0) + 1;
     }
@@ -812,9 +820,15 @@ export async function composeFirstBuildSections(input: {
       const tree = designed.get(section.id);
       if (tree) await saveTree(db, organizationId, section, tree);
     }
-    const best = withinBudget()
-      ? await improveWithTeam({ organizationId, lookSummary: promptLook, evidence, memory, sections: pageSections, parts, designed, screen, result, serviceNames })
-      : new Map(designed);
+    let best = new Map(designed);
+    if (withinBudget()) {
+      try {
+        best = await improveWithTeam({ organizationId, lookSummary: promptLook, evidence, memory, sections: pageSections, parts, designed, screen, result, serviceNames });
+      } catch (error) {
+        result.optionalFailed = (result.optionalFailed ?? 0) + 1;
+        console.warn("team improvement skipped", (error as Error).message);
+      }
+    }
     // The team round can only replace a tree with a validated one; if it made
     // the craft worse, the pre-team design is kept for that section.
     const before = auditPageDesign(pageSections.filter((s) => designed.has(s.id)).map((s) => ({ id: s.id, role: s.kind, tree: designed.get(s.id)!, mediaAvailable: mediaRefsFor(s, parts).size })), { direction, home: isHome });
