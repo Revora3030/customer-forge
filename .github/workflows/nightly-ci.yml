@@ -1,0 +1,202 @@
+name: Nightly CI
+# Free nightly run of tsc, eslint, vitest and the production build on the
+# default branch (lovable-sync). It exists to catch drift that no PR or push
+# triggers: new dependency releases (npm install resolves ranges), date-based
+# tests, and flaky or half-merged state. It does NOT repeat the per-PR gate
+# (quality-gate.yml), the push-time red-branch issue (base-branch-guard.yml),
+# the browser journey tests or the live-site checks (site-health.yml).
+#
+# On failure it opens, or updates, ONE issue titled `nightly-ci` (body = which
+# steps failed + log tails, plus a comment per run). When a later run is green
+# it comments and closes that issue. Uses only the built-in GITHUB_TOKEN
+# (contents: read, issues: write) and GitHub-owned actions (actions/*).
+on:
+  schedule:
+    - cron: "17 6 * * *" # daily, about 02:17 US Eastern
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: nightly-ci
+  cancel-in-progress: false
+jobs:
+  nightly:
+    name: Nightly typecheck, lint, test, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      issues: write
+    env:
+      LOGS: ${{ github.workspace }}/.nightly-logs
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: lovable-sync
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Pin npm
+        run: npm install --global npm@11.6.0
+
+      - name: Install dependencies
+        id: install
+        run: |
+          mkdir -p "$LOGS"
+          set -o pipefail
+          npm install --no-audit --no-fund 2>&1 | tee "$LOGS/install.log"
+
+      - name: Typecheck (tsc)
+        id: tsc
+        if: steps.install.outcome == 'success'
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          npm run typecheck 2>&1 | tee "$LOGS/tsc.log"
+
+      - name: Lint (eslint)
+        id: eslint
+        if: steps.install.outcome == 'success'
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          npm run lint 2>&1 | tee "$LOGS/eslint.log"
+
+      # flows.e2e.test.ts needs a running app and refuses to skip in CI, so the
+      # dev server is started exactly as quality-gate.yml does.
+      - name: Start test server
+        id: server
+        if: steps.install.outcome == 'success'
+        continue-on-error: true
+        run: |
+          npm run dev -- --host 127.0.0.1 --port 8080 > /tmp/revora-e2e.log 2>&1 & # DevSkim: ignore DS162092 -- CI-local dev server for the e2e suite
+          echo $! > /tmp/revora-e2e.pid
+          for attempt in $(seq 1 90); do
+            if curl --fail --silent --show-error http://127.0.0.1:8080/ >/dev/null; then # DevSkim: ignore DS162092,DS137138 -- CI-local dev server readiness probe
+              exit 0
+            fi
+            sleep 1
+          done
+          tail -n 60 /tmp/revora-e2e.log | tee "$LOGS/server.log"
+          exit 1
+
+      - name: Unit tests (vitest)
+        id: vitest
+        if: steps.install.outcome == 'success'
+        continue-on-error: true
+        env:
+          E2E_BASE_URL: http://127.0.0.1:8080 # DevSkim: ignore DS162092,DS137138 -- CI-local dev server for the e2e suite
+          # Non-secret placeholders so env-dependent unit tests run without real credentials.
+          NODE_ENV: test
+          LOVABLE_API_KEY: mock-lovable-key
+          STRIPE_SANDBOX_API_KEY: sk_test_mock
+          PAYMENTS_SANDBOX_WEBHOOK_SECRET: whsec_mock
+          REVORA_AGENT_API_KEY: mock-agent-key
+          LOVABLE_CRON_SECRET: mock-cron-secret
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee "$LOGS/vitest.log"
+
+      - name: Stop test server
+        if: always()
+        run: |
+          if [ -f /tmp/revora-e2e.pid ]; then
+            kill "$(cat /tmp/revora-e2e.pid)" 2>/dev/null || true
+          fi
+
+      - name: Production build
+        id: build
+        if: steps.install.outcome == 'success'
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          npm run build 2>&1 | tee "$LOGS/build.log"
+
+      - name: Summarise results
+        id: summary
+        if: always()
+        env:
+          INSTALL: ${{ steps.install.outcome }}
+          TSC: ${{ steps.tsc.outcome }}
+          ESLINT: ${{ steps.eslint.outcome }}
+          SERVER: ${{ steps.server.outcome }}
+          VITEST: ${{ steps.vitest.outcome }}
+          BUILD: ${{ steps.build.outcome }}
+          SHA: ${{ github.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          failed=0
+          report="$RUNNER_TEMP/nightly-report.md"
+          {
+            echo "Nightly CI on \`lovable-sync\` at \`$SHA\`."
+            echo
+            echo "| Step | Result |"
+            echo "|---|---|"
+          } > "$report"
+          for pair in "install:$INSTALL" "tsc:$TSC" "eslint:$ESLINT" "test server:$SERVER" "vitest:$VITEST" "build:$BUILD"; do
+            name="${pair%%:*}"; res="${pair##*:}"
+            [ "$res" = "" ] && res="skipped"
+            echo "| $name | $res |" >> "$report"
+            case "$res" in success|skipped) ;; *) failed=1 ;; esac
+          done
+          {
+            echo
+            echo "Run: $RUN_URL"
+            for f in install server tsc eslint vitest build; do
+              case "$f" in
+                install) r="$INSTALL" ;; server) r="$SERVER" ;; tsc) r="$TSC" ;;
+                eslint) r="$ESLINT" ;; vitest) r="$VITEST" ;; build) r="$BUILD" ;;
+              esac
+              if [ "$r" = "failure" ] && [ -f "$LOGS/$f.log" ]; then
+                echo
+                echo "<details><summary>$f (last 40 lines)</summary>"
+                echo
+                echo '```'
+                tail -n 40 "$LOGS/$f.log" | cut -c1-300
+                echo '```'
+                echo "</details>"
+              fi
+            done
+          } >> "$report"
+          # An issue body is capped at 65536 characters; stay well under it.
+          head -c 60000 "$report" > "$report.trim" && mv "$report.trim" "$report"
+          cat "$report" >> "$GITHUB_STEP_SUMMARY"
+          echo "failed=$failed" >> "$GITHUB_OUTPUT"
+
+      - name: Open or update the nightly-ci issue
+        if: always() && steps.summary.outputs.failed == '1'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          report="$RUNNER_TEMP/nightly-report.md"
+          existing="$(gh issue list --state open --search 'nightly-ci in:title' --limit 50 --json number,title --jq '[.[] | select(.title == "nightly-ci")][0].number // empty')"
+          if [ -n "$existing" ]; then
+            gh issue edit "$existing" --body-file "$report"
+            gh issue comment "$existing" --body "Still failing. Run: $RUN_URL"
+          else
+            gh issue create --title "nightly-ci" --body-file "$report"
+          fi
+
+      - name: Close the issue when green again
+        if: always() && steps.summary.outputs.failed == '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          existing="$(gh issue list --state open --search 'nightly-ci in:title' --limit 50 --json number,title --jq '[.[] | select(.title == "nightly-ci")][0].number // empty')"
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "Nightly CI is green again. Closing. Run: $RUN_URL"
+            gh issue close "$existing"
+          fi
+
+      - name: Fail the run when a step failed
+        if: always() && steps.summary.outputs.failed == '1'
+        run: exit 1

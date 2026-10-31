@@ -43,7 +43,8 @@ import { readBlockStyle, styleSheet } from "@/lib/site-style";
 import { CompositionRenderer } from "@/components/site/CompositionRenderer";
 import { normalizeHeadingOutline } from "@/lib/builder/heading-outline";
 import { legacySectionToComposition } from "@/lib/builder/legacy-composition";
-import { foldServicePages, knownPageSlugs, missingChromeLinks, readSiteChrome, repairStoredLinks, resolveSiteHref } from "@/lib/builder/site-chrome";
+import { foldServicePages, knownPageSlugs, missingChromeLinks, readSiteChrome, repairSiteHref, repairStoredLinks, resolveSiteHref } from "@/lib/builder/site-chrome";
+import { scrubPlaceholderContact } from "@/lib/builder/placeholder-contact";
 import { AiSiteHeader } from "@/components/site/AiSiteHeader";
 import { useOwnAddress, useSiteBase } from "@/components/site/use-own-address";
 
@@ -68,7 +69,7 @@ export function SitePageView({
   const storedSections = slots.filter((slot): slot is NonNullable<typeof slot> => slot !== null);
   const ownAddress = useOwnAddress();
   const previewBase = useSiteBase();
-  const chrome = readSiteChrome(site.settings?.generation ?? null);
+  const rawChrome = readSiteChrome(site.settings?.generation ?? null);
   // The site's real pages and this page's section anchors, so every button the
   // AI team authored is checked against what actually exists: a link to a page
   // the site does not have, or a "#contact" with no contact section here, is
@@ -90,7 +91,18 @@ export function SitePageView({
   if (addEnquiryForm || pageHasWidget(storedSections as never, "enquiry_form")) pageAnchors.add("contact-form");
   // Every button and link the AI team authored inside the page's sections
   // (layouts, custom blocks, calculators, booking pickers) gets the same repair.
-  const sections = repairStoredLinks(storedSections, knownPages, pageAnchors, (page as { slug?: string | null } | null)?.slug ?? null);
+  // Placeholder contact details (a 555 phone in any format, an example/test email)
+  // are withheld from every visible string and tel:/mailto: link the AI team
+  // authored: the page shows nothing rather than a made-up number (audit P1-04).
+  const placeholderFallback = repairSiteHref("", knownPages, pageAnchors);
+  const sections = scrubPlaceholderContact(
+    repairStoredLinks(storedSections, knownPages, pageAnchors, (page as { slug?: string | null } | null)?.slug ?? null),
+    placeholderFallback,
+  );
+  const chrome = {
+    header: rawChrome.header ? scrubPlaceholderContact(rawChrome.header, placeholderFallback) : null,
+    footer: rawChrome.footer ? scrubPlaceholderContact(rawChrome.footer, placeholderFallback) : null,
+  };
   const chromeHref = (href: string) => resolveSiteHref(href, org.slug, ownAddress, knownPages, pageAnchors, previewBase);
   // Pages the AI menu left out are still offered, so no page is orphaned.
   const missingNav = missingChromeLinks(chrome.header, navRows as never);

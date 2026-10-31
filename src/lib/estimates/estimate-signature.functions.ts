@@ -89,7 +89,8 @@ export const saveEstimateSignature = createServerFn({ method: "POST" })
     };
 
     const ip = edgeIp();
-    const salt = process.env["SUPABASE_SERVICE_ROLE_KEY"] ?? "";
+    const { estimateSignatureIpSalt } = await import("./signature-salt.server");
+    const salt = estimateSignatureIpSalt();
     const ipHash = ip && salt ? await sha256Hex(`estimate-signature-ip|${salt}|${ip}`) : null;
     const path = `${data.organizationId}/${crypto.randomUUID()}.png`;
 

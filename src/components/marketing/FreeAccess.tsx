@@ -69,7 +69,7 @@ export function FreeAccessBanner({ className = "" }: { className?: string }) {
         </p>
         <p className="mt-1 text-[13px] text-muted-foreground">
           When you're ready to launch:{" "}
-          <span className="gold-hl">{usd(GROWTH_SYSTEM.setupPrice)} one-time setup</span>, then your{" "}
+          <span className="gold-hl">{usd(GROWTH_SYSTEM.setupPrice)} setup</span>, then your{" "}
           <span className="gold-hl">first month is free</span> before{" "}
           {usd(GROWTH_SYSTEM.monthlyPrice)}/month. Cancel anytime.
         </p>

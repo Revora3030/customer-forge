@@ -23,6 +23,7 @@ import { ORGANIZATION_SCHEMA, WEBSITE_SCHEMA, isClientSiteMatch } from "@/lib/se
 import { RouteError, RouteNotFound } from "@/components/app/RouteStates";
 import { CookieConsent } from "@/components/marketing/CookieConsent";
 import { PlatformAnalytics } from "@/components/marketing/PlatformAnalytics";
+import { ClarityLoader } from "@/components/marketing/ClarityLoader";
 import { loadGoogleAds } from "@/lib/google-ads";
 import { reportRouteError } from "@/lib/route-error-reporting";
 import { BOOT_WATCHDOG } from "@/lib/boot-watchdog";
@@ -319,6 +320,7 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <PlatformAnalytics />
+      <ClarityLoader />
       <div className={clientSite ? "flex min-h-dvh flex-col" : "platform-shell flex min-h-dvh flex-col"}>
         <CookieConsent />
         {/* The phone notice occupies its own row, never the signup form. */}

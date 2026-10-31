@@ -17,7 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { MAIL_SUBJECTS, REVORA, revoraMailto } from "@/lib/brand";
-import { canonicalLink, ogUrl, OG_IMAGE_META } from "@/lib/seo";
+import { breadcrumbSchema, canonicalLink, jsonLdScript, ogUrl, OG_IMAGE_META } from "@/lib/seo";
 
 const INTERESTS = [
   "Website",
@@ -55,6 +55,7 @@ export const Route = createFileRoute("/contact")({
         ...OG_IMAGE_META,
       ],
       links: [canonicalLink("/contact")],
+      scripts: [jsonLdScript(breadcrumbSchema([{ name: "Revora", path: "/" }, { name: "Contact", path: "/contact" }]))],
     },
   component: ContactRoute,
 });

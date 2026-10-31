@@ -162,7 +162,7 @@ describe("tenantSiteHead (one head for every client route)", () => {
     expect(ld).not.toContain("\"review\"");
   });
 
-  it("indexes a home page that has sections and still shows its real reviews", () => {
+  it("indexes a home page that has sections, without self-serving review markup", () => {
     const head = tenantSiteHead({
       site: site(
         { kind: "home", slug: "home", title: "Home" },
@@ -176,7 +176,7 @@ describe("tenantSiteHead (one head for every client route)", () => {
       businessUrl: "https://acme.test",
     });
     expect(meta(head, "robots")).toBeUndefined();
-    expect(head.scripts.map((s) => s.children).join("")).toContain("aggregateRating");
+    expect(head.scripts.map((s) => s.children).join("")).not.toContain("aggregateRating");
   });
 
   it("emits no JSON-LD and stays noindex for a demo workspace, even with sections and seeded reviews", () => {
@@ -256,18 +256,44 @@ describe("client site head", () => {
     const schema = localBusinessSchema({
       name: "Acme Roofing",
       url: "https://acme.test",
-      profile: { phone: "(555) 010-0199", city: "Raleigh", state: "NC", hours: { monday: "9am-5pm", sunday: "Closed" } },
+      profile: { phone: "(919) 555-2368", city: "Raleigh", state: "NC", hours: { monday: "9am-5pm", sunday: "Closed" } },
       reviews: [{ rating: 5, author_name: "Jo", comment: "Great" }, { rating: 4 }],
       services: [{ name: "Roof repair", price: 250 }],
     });
     expect(schema["@type"]).toBe("LocalBusiness");
-    expect(schema["telephone"]).toBe("(555) 010-0199");
+    expect(schema["telephone"]).toBe("(919) 555-2368");
     expect((schema["address"] as Record<string, string>)["addressLocality"]).toBe("Raleigh");
-    expect((schema["aggregateRating"] as Record<string, number>)["ratingValue"]).toBe(4.5);
+    // Self-serving review markup is never emitted (audit P1-04).
+    expect(schema["aggregateRating"]).toBeUndefined();
+    expect(schema["review"]).toBeUndefined();
+    expect(schema["openingHours"]).toBeUndefined();
     expect(schema["openingHoursSpecification"]).toEqual([
       { "@type": "OpeningHoursSpecification", dayOfWeek: "Monday", opens: "09:00", closes: "17:00" },
     ]);
     expect(schema["email"]).toBeUndefined();
+  });
+  it("emits a starting-at price as a PriceSpecification minimum, never an exact price", () => {
+    const schema = localBusinessSchema({
+      name: "Acme",
+      url: "https://acme.test",
+      profile: null,
+      services: [{ name: "Tune-up", starting_price: 89 }, { name: "Repair", price: 250 }] as never,
+    });
+    const items = (schema["hasOfferCatalog"] as { itemListElement: Record<string, unknown>[] }).itemListElement;
+    expect(items[0]?.["price"]).toBeUndefined();
+    expect(items[0]?.["priceSpecification"]).toEqual({ "@type": "PriceSpecification", minPrice: "89.00", priceCurrency: "USD" });
+    expect(items[1]?.["price"]).toBe("250.00");
+    expect(items[1]?.["priceSpecification"]).toBeUndefined();
+  });
+  it("drops free-text opening hours and placeholder phone or email from the data", () => {
+    const schema = localBusinessSchema({
+      name: "Acme",
+      url: "https://acme.test",
+      profile: { phone: "(555) 123-4567", email: "hello@acme.example", hours: "Mon-Fri whenever" } as never,
+    });
+    expect(schema["telephone"]).toBeUndefined();
+    expect(schema["email"]).toBeUndefined();
+    expect(schema["openingHours"]).toBeUndefined();
   });
   it("omits ratings when there are no reviews", () => {
     const schema = localBusinessSchema({ name: "X", url: "https://x.test", profile: null });
@@ -330,6 +356,11 @@ describe("hasPlaceholderContact", () => {
     expect(hasPlaceholderContact({ phone: "+1 512-555-0199" })).toBe(true);
     expect(hasPlaceholderContact({ email: "a@biz.example" })).toBe(true);
     expect(hasPlaceholderContact({ email: "a@example.com" })).toBe(true);
+    // Audit P1-04: a 555 area code and a bare 7-digit 555 number are placeholders too.
+    expect(hasPlaceholderContact({ phone: "(555) 123-4567" })).toBe(true);
+    expect(hasPlaceholderContact({ phone: "555-1212" })).toBe(true);
+    expect(hasPlaceholderContact({ phone: "+1 555.123.4567" })).toBe(true);
+    expect(hasPlaceholderContact({ email: "owner@biz.test" })).toBe(true);
     expect(hasPlaceholderContact({ phone: "(919) 555-2368", email: "owner@realbiz.com" })).toBe(false);
     expect(hasPlaceholderContact(null)).toBe(false);
   });

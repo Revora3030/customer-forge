@@ -514,6 +514,8 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
       /(?:email|phone|mail|call|tel|@|☎|📞|✉)/i.test(child.text ?? "")
     );
   });
+  // Children render first and mark media as seen, so remember whether any came before this node.
+  const mediaSeenBefore = Boolean(ctx.counter.sawMedia);
   const kids = prunedChildren.map((child, i) => renderNode(child, ctx, `${key}.${i}`));
   // A box whose contents all resolved to nothing (missing facts, unavailable
   // widget or image) is dropped so visitors never see an empty styled frame.
@@ -834,7 +836,9 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
       if (!photo || isGeneratedMedia(resolved)) return null;
       const source = mediaUrl(resolved);
       if (!source) return null;
-      return <LensMagnifier key={key} props={props} src={source} alt={photo.alt ?? mediaVisual(resolved)?.alt ?? ""} prompt={node.text?.trim().slice(0, 60) || "Inspect the detail"} />;
+      const first = !mediaSeenBefore;
+      ctx.counter.sawMedia = true;
+      return <LensMagnifier key={key} props={props} src={source} eager={first && Boolean(ctx.eagerFirstMedia)} alt={photo.alt ?? mediaVisual(resolved)?.alt ?? ""} prompt={node.text?.trim().slice(0, 60) || "Inspect the detail"} />;
     }
     case "sticky_split_story": {
       const phases = kids.slice(1).filter((kid) => kid != null);

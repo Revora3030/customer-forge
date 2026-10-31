@@ -12,7 +12,7 @@ import { SiteFooter, SiteHeader } from "@/components/marketing/Chrome";
 import { Button } from "@/components/ui/button";
 import { CRM_SOLUTIONS } from "@/lib/crm-solutions";
 import { GROWTH_SYSTEM } from "@/lib/offer";
-import { metaDescription, OG_IMAGE_META } from "@/lib/seo";
+import { breadcrumbSchema, jsonLdScript, metaDescription, OG_IMAGE_META } from "@/lib/seo";
 
 const TITLE = "CRM for Contractors — Leads, Quotes & Follow-Up | Revora";
 const DESCRIPTION =
@@ -33,6 +33,7 @@ export const Route = createFileRoute("/crm-for-contractors")({
     ],
     links: [{ rel: "canonical", href: URL }],
     scripts: [
+      jsonLdScript(breadcrumbSchema([{ name: "Revora", path: "/" }, { name: "CRM for contractors", path: "/crm-for-contractors" }])),
       {
         type: "application/ld+json",
         children: JSON.stringify({

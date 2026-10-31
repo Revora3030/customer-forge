@@ -180,7 +180,7 @@ describe("domain claim blocklist", () => {
 // ---------------------------------------------------------------------------
 
 describe("LocalBusiness schema review honesty", () => {
-  it("emits aggregateRating only when at least one real rating exists", async () => {
+  it("never self-serves aggregateRating or review[] (Google ignores them; audit P1-04)", async () => {
     const { localBusinessSchema } = await import("@/lib/site-head");
     const base = {
       name: "Test Co",
@@ -194,24 +194,11 @@ describe("LocalBusiness schema review honesty", () => {
         { author_name: "A", rating: 5, comment: "Great", created_at: "2026-01-01" },
         { author_name: "B", rating: 4, comment: null, created_at: null },
       ] as never[],
-    } as never);
-    const rating = (withReviews as Record<string, Record<string, unknown> | undefined>)["aggregateRating"];
-    expect(rating).toBeDefined();
-    expect(rating?.["reviewCount"]).toBe(2);
-    expect(Number(rating?.["ratingValue"])).toBeCloseTo(4.5);
-
-    const withJunk = localBusinessSchema({
-      ...base,
-      reviews: [
-        { author_name: "X", rating: 0, comment: null, created_at: null },
-        { author_name: "Y", rating: 9, comment: null, created_at: null },
-        { author_name: "Z", rating: null, comment: null, created_at: null },
-      ] as never[],
-    } as never);
-    expect((withJunk as Record<string, unknown>)["aggregateRating"]).toBeUndefined();
-
-    const withNone = localBusinessSchema({ ...base, reviews: [] } as never);
-    expect((withNone as Record<string, unknown>)["aggregateRating"]).toBeUndefined();
+    } as never) as Record<string, unknown>;
+    expect(withReviews["aggregateRating"]).toBeUndefined();
+    expect(withReviews["review"]).toBeUndefined();
+    const withNone = localBusinessSchema({ ...base, reviews: [] } as never) as Record<string, unknown>;
+    expect(withNone["aggregateRating"]).toBeUndefined();
   });
 });
 
