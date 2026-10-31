@@ -42,7 +42,7 @@ export const GUIDES: readonly Guide[] = [
     title: "Boost Your Local Service Business with Online Reviews",
     metaTitle: "Harness Online Reviews for Local Service Business Success",
     description:
-      "Learn how to leverage online reviews to grow your local service business effectively.",
+      "How to ask for honest reviews, reply to good and bad ones, and use feedback to improve, so your local service business earns trust without shortcuts.",
     intro:
       "Online reviews are essential for local service businesses aiming to build trust and attract more customers. Learn how to effectively manage and utilize reviews to your advantage.",
     readMinutes: 6,
@@ -100,7 +100,7 @@ export const GUIDES: readonly Guide[] = [
     title: "Optimizing Your Local Service Business Sales Process",
     metaTitle: "Optimize Local Service Sales for More Bookings",
     description:
-      "Learn how to optimize your local service business sales process, from lead follow-up to booking.",
+      "Tighten your local service sales process: local SEO basics, honest review requests, clear quotes and fast lead follow-up that turns enquiries into booked jobs.",
     intro:
       "Local service businesses thrive on effective sales processes. By optimizing marketing, managing reviews, and streamlining quotes, you can improve your bookings.",
     readMinutes: 6,
