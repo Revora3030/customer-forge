@@ -151,6 +151,29 @@ const COMPARE_FILES = import.meta.glob("../content/seo/compare/*.md", {
 
 export const COMPARE_DOCS: readonly SeoDoc[] = load("compare", COMPARE_FILES);
 
+const LOCAL_FILES = import.meta.glob("../content/seo/local/*.md", {
+  query: "?raw",
+  import: "default",
+  eager: true,
+}) as Record<string, string>;
+
+/** The 20 hand-written local pages. Every other `/local/*` page is generated. */
+export const LOCAL_DOCS: readonly SeoDoc[] = load("local", LOCAL_FILES);
+
+const LOCAL_NOINDEX_RAW = import.meta.glob("../content/seo/local-noindex.txt", {
+  query: "?raw",
+  import: "default",
+  eager: true,
+}) as Record<string, string>;
+
+/** Generated local pages that carry `noindex,follow` (SEO plan: not in the top 50). */
+export const LOCAL_NOINDEX_PATHS: ReadonlySet<string> = new Set(
+  Object.values(LOCAL_NOINDEX_RAW)
+    .flatMap((raw) => raw.split("\n"))
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith("/local/")),
+);
+
 export function isLive(doc: Pick<SeoDoc, "publishAt">, now: Date = new Date()): boolean {
   return doc.publishAt === null || now.getTime() >= Date.parse(doc.publishAt);
 }

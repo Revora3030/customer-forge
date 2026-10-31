@@ -8,7 +8,9 @@ import { Button } from "@/components/ui/button";
 import { BUSINESS } from "@/lib/business-identity";
 import { GROWTH_SYSTEM, usd } from "@/lib/offer";
 import { breadcrumbSchema, canonicalLink, ogUrl, SITE_URL, metaDescription, OG_IMAGE_META } from "@/lib/seo";
-import { localPageContent, localPath, type LocalPageContent } from "@/lib/local-pages";
+import { isLocalNoindex, localPageContent, localPath, type LocalPageContent } from "@/lib/local-pages";
+import { SeoMarkdown } from "@/components/marketing/SeoMarkdown";
+import { safeJsonLd } from "@/lib/json-ld";
 import { trackConversion } from "@/lib/conversion";
 
 export const Route = createFileRoute("/local/$industry/$state")({
@@ -24,11 +26,13 @@ export const Route = createFileRoute("/local/$industry/$state")({
         meta: [{ title: "Page not found — Revora" }, { name: "robots", content: "noindex" }],
       };
     }
-    // Preserve existing crawl eligibility, including pages already earning Google impressions.
     // Self-reference the served page rather than attributing its city-specific copy to the hub.
+    // Generated pages the SEO plan does not promote carry `noindex,follow`: they stay live and
+    // crawlable (no redirects, no deletes) but are not offered to the index.
     return {
       meta: [
         { title: content.title },
+        ...(isLocalNoindex(content.path) ? [{ name: "robots", content: "noindex,follow" }] : []),
         { name: "description", content: metaDescription(content.description) },
         { property: "og:title", content: content.title },
         { property: "og:description", content: content.description },
@@ -42,7 +46,7 @@ export const Route = createFileRoute("/local/$industry/$state")({
       scripts: [
         {
           type: "application/ld+json",
-          children: JSON.stringify(
+          children: safeJsonLd(
             breadcrumbSchema([
               { name: "Revora", path: "/" },
               { name: "Local growth systems", path: "/local" },
@@ -53,7 +57,7 @@ export const Route = createFileRoute("/local/$industry/$state")({
         },
         {
           type: "application/ld+json",
-          children: JSON.stringify({
+          children: safeJsonLd({
             "@context": "https://schema.org",
             "@type": "Service",
             name: `${content.industry.name} customer acquisition system in ${content.state.name}`,
@@ -82,7 +86,7 @@ export const Route = createFileRoute("/local/$industry/$state")({
         },
         {
           type: "application/ld+json",
-          children: JSON.stringify({
+          children: safeJsonLd({
             "@context": "https://schema.org",
             "@type": "FAQPage",
             mainEntity: content.faqs.map((f) => ({
@@ -111,6 +115,7 @@ function LocalIndustryStatePage() {
   return (
     <div className="min-h-screen">
       <SiteHeader />
+      {content.doc ? <PublishedLocalMain content={content} /> : (
       <main>
         <section className="mx-auto max-w-5xl px-4 pt-14 pb-10 sm:px-6 sm:pt-20">
           <nav aria-label="Breadcrumb" className="text-xs text-muted-foreground">
@@ -243,7 +248,43 @@ function LocalIndustryStatePage() {
         </section>
         <RelatedLinks path={content.path} />
       </main>
+      )}
       <SiteFooter />
     </div>
+  );
+}
+
+/** A hand-written local page: its Markdown is the page; the rest is navigation and the offer. */
+function PublishedLocalMain({ content }: { content: LocalPageContent }) {
+  const { industry, state } = content;
+  return (
+    <main className="mx-auto max-w-4xl px-4 pt-14 pb-20 sm:px-6 sm:pt-20">
+      <nav aria-label="Breadcrumb" className="text-xs text-muted-foreground">
+        <Link to="/local" className="hover:text-primary">
+          Local growth systems
+        </Link>
+        <span aria-hidden> / </span>
+        <Link to="/local/$industry" params={{ industry: industry.slug }} className="hover:text-primary">
+          {industry.name}
+        </Link>
+        <span aria-hidden> / </span>
+        <span className="text-foreground">{state.name}</span>
+      </nav>
+      <h1 className="mt-4 font-editorial text-balance text-[clamp(1.7rem,4vw,2.4rem)] leading-tight">
+        {content.heading}
+      </h1>
+      <SeoMarkdown source={content.doc?.body ?? ""} />
+      <div className="mt-10 flex flex-wrap gap-3">
+        <Button asChild size="lg">
+          <Link to="/get-started">Start free for {GROWTH_SYSTEM.fullAccessWindow}</Link>
+        </Button>
+        <Button asChild size="lg" variant="outline">
+          <Link to="/pricing">
+            {usd(GROWTH_SYSTEM.setupPrice)} setup · first month free · {usd(GROWTH_SYSTEM.monthlyPrice)}/mo
+          </Link>
+        </Button>
+      </div>
+      <RelatedLinks path={content.path} />
+    </main>
   );
 }

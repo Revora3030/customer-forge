@@ -6,6 +6,7 @@ import { GROWTH_SYSTEM, usd } from "@/lib/offer";
 import { brandedTitle, breadcrumbSchema, canonicalLink, ogUrl, metaDescription, OG_IMAGE_META } from "@/lib/seo";
 import { findLocalIndustry, localPath, type LocalIndustry } from "@/lib/local-pages";
 import { US_STATES } from "@/lib/us-states";
+import { safeJsonLd } from "@/lib/json-ld";
 
 export const Route = createFileRoute("/local/$industry/")({
   beforeLoad: ({ params }) => {
@@ -38,7 +39,7 @@ export const Route = createFileRoute("/local/$industry/")({
       scripts: [
         {
           type: "application/ld+json",
-          children: JSON.stringify(
+          children: safeJsonLd(
             breadcrumbSchema([
               { name: "Revora", path: "/" },
               { name: "Local growth systems", path: "/local" },
