@@ -420,6 +420,18 @@ export function shareImageFor(input: {
   return null;
 }
 
+/**
+ * True when the profile carries reserved sample contact data: a 555-01xx
+ * phone (the numbers reserved for fiction) or an email on a reserved
+ * example/test domain. Such a business is a placeholder, never a real listing.
+ */
+export function hasPlaceholderContact(profile: { phone?: string | null; email?: string | null } | null | undefined): boolean {
+  const digits = String(profile?.phone ?? "").replace(/\D/g, "");
+  if (/55501\d\d$/.test(digits)) return true;
+  const domain = String(profile?.email ?? "").trim().toLowerCase().split("@")[1] ?? "";
+  return /(?:^|\.)(?:example|test|invalid|localhost)$/.test(domain) || /(?:^|\.)example\.(?:com|org|net)$/.test(domain); // DevSkim: ignore DS162092 -- Reserved "localhost" email domain marks placeholder data; no local connection is made.
+}
+
 type TenantHeadPage = {
   slug?: string | null;
   title?: string | null;
@@ -434,6 +446,8 @@ type TenantHeadPage = {
 
 export type TenantHeadSite = {
   org: { id?: string | null; slug?: string | null; name: string; industry?: string | null };
+  /** Demo workspace (organizations.is_demo): sample data, never real business facts. */
+  isDemo?: boolean | null;
   social?: Social;
   profile?: (Profile & { font_preference?: string | null }) | null;
   settings?: { generation?: unknown; seo?: unknown } | null;
@@ -498,8 +512,12 @@ export function tenantSiteHead(input: {
     siteFontsHref,
     readSiteChrome,
   );
-  const noindex = input.noindex === true || page?.noindex === true || emptyHome;
-  const faqs = compositionFaqItems(sections ?? []);
+  // Demo workspaces and placeholder businesses (sample phone/email) carry made-up
+  // facts: they are never indexed and never emit structured data of any kind.
+  const placeholder = site.isDemo === true || hasPlaceholderContact(site.profile);
+  const noindex = input.noindex === true || page?.noindex === true || emptyHome || placeholder;
+  const emitSchema = !placeholder && !emptyHome;
+  const faqs = emitSchema ? compositionFaqItems(sections ?? []) : [];
 
   return {
     meta: [
@@ -520,7 +538,7 @@ export function tenantSiteHead(input: {
       ...(noindex ? [{ name: "robots", content: "noindex" }] : []),
       ...extras.meta,
     ],
-    scripts: [...extras.scripts, ...(faqs.length ? [{ type: "application/ld+json", children: safeJsonLd(faqPageSchema(faqs)) }] : [])],
+    scripts: [...(emitSchema ? extras.scripts : []), ...(faqs.length ? [{ type: "application/ld+json", children: safeJsonLd(faqPageSchema(faqs)) }] : [])],
     links: [{ rel: "canonical", href: input.canonical }, ...extras.links],
   };
 }

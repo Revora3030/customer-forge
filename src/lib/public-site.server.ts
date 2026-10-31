@@ -602,6 +602,10 @@ export async function loadSite(
 
     pageFound: options?.pageSlug ? !!currentPage : true,
 
+    // Demo workspaces hold sample data; the head builder keeps them noindex
+    // and free of structured data.
+    isDemo: org.is_demo === true,
+
     publishState: gate?.publish_state ?? "draft",
     // Whether the database will accept this site's form submissions (the
     // ORG_NOT_PUBLIC gate). False on a shareable preview of an unpublished
