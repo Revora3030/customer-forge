@@ -35,6 +35,8 @@ import { DOMAIN_STATES, PUBLISH_STATES, readiness } from "@/lib/readiness";
 import { dateLong, number } from "@/lib/format";
 import { canManage } from "@/lib/domain";
 import { useLaunchFlow } from "@/lib/production.hooks";
+import { planLabel } from "@/lib/plan-label";
+import { REVORA } from "@/lib/brand";
 
 export const Route = createFileRoute("/_authenticated/app/launch")({
   head: () => ({
@@ -391,9 +393,9 @@ function Launch() {
           <Row label="Service area" value={profile?.service_area ?? "Not set"} />
           <Row
             label="Plan"
-            value={`${org?.plan_id ?? "No plan"} · ${org?.subscription_status ?? ""}`}
+            value={planLabel(org?.plan_id, org?.subscription_status)}
           />
-          <Row label="Support" value={profile?.support_email ?? "hello@revoragrowthsystems.com"} />
+          <Row label="Support" value={profile?.support_email ?? REVORA.email} />
           <Row label="Team members" value={number((team ?? []).length)} />
           <Row label="Setup complete" value={`${score.score}%`} />
         </dl>
