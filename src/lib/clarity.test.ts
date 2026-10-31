@@ -89,7 +89,7 @@ describe("loadClarity", () => {
     path = "/pricing";
     host = "some-client-site.com";
     expect(await loadClarity()).toBe(false);
-    host = "localhost";
+    host = "preview.example.com";
     expect(await loadClarity()).toBe(false);
     expect(appended).toHaveLength(0);
   });
