@@ -51,7 +51,7 @@ export const Route = createFileRoute("/auth")({
   head: ({ match }) => {
     const label = match.search.mode === "signup" ? "Create your account — Revora" : "Sign in — Revora";
     return {
-    links: [{ rel: "preload", as: "image", href: "/revora-mark-144.png" }],
+    links: [{ rel: "preload", as: "image", href: "/revora-mark-144.avif", type: "image/avif" }],
     meta: [
       { title: label },
       {

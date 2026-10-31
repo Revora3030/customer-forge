@@ -4,7 +4,12 @@ import { cn } from "@/lib/utils";
 // 1.2 MB 1312px PNG — shipping that for a 36px badge cost every page over a
 // megabyte of image bytes, which is the single biggest Core Web Vitals drag on
 // the marketing pages.
+//
+// The same 158x144 artwork is also published as AVIF (3 KB) and WebP (7 KB);
+// the PNG (28 KB) stays as the fallback for browsers that support neither.
 const MARK_SRC = "/revora-mark-144.png";
+const MARK_AVIF = "/revora-mark-144.avif";
+const MARK_WEBP = "/revora-mark-144.webp";
 
 /** Revora gold "R" mark — favicon / app icon / dashboard safe. */
 export function LogoMark({ className }: { className?: string }) {
@@ -23,16 +28,21 @@ export function LogoMark({ className }: { className?: string }) {
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 opacity-70 [background:radial-gradient(70%_70%_at_25%_15%,color-mix(in_oklab,var(--color-gold)_28%,transparent),transparent_70%),radial-gradient(60%_60%_at_85%_85%,color-mix(in_oklab,var(--color-info)_22%,transparent),transparent_70%)]"
       />
-      <img
-        src={MARK_SRC}
-        alt="Revora"
-        width={158}
-        height={144}
-        className="relative size-full object-contain drop-shadow-[0_2px_6px_color-mix(in_oklab,var(--color-gold)_35%,transparent)]"
-        loading="eager"
-        decoding="async"
-        fetchPriority="high"
-      />
+      {/* `contents` keeps <picture> out of layout so the <img> still fills the badge */}
+      <picture className="contents">
+        <source srcSet={MARK_AVIF} type="image/avif" />
+        <source srcSet={MARK_WEBP} type="image/webp" />
+        <img
+          src={MARK_SRC}
+          alt="Revora"
+          width={158}
+          height={144}
+          className="relative size-full object-contain drop-shadow-[0_2px_6px_color-mix(in_oklab,var(--color-gold)_35%,transparent)]"
+          loading="eager"
+          decoding="async"
+          fetchPriority="high"
+        />
+      </picture>
       {/* glass sheen */}
       <span
         aria-hidden="true"

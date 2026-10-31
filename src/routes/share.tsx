@@ -158,6 +158,7 @@ function SharePage() {
               width={160}
               height={160}
               loading="lazy"
+              decoding="async"
               className="rounded-lg border border-border bg-white p-2"
             />
             <p className="text-[13px] leading-relaxed text-muted-foreground">
