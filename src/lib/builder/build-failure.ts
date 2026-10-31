@@ -51,11 +51,65 @@ const OWNER_MESSAGES: Record<BuildFailureKind, string> = {
   budget: "This build used its spending limit before it finished, so Revora stopped it to protect your credits. Nothing was published. You can start it again when you are ready.",
 };
 
+/** Fields an owner can fix in Business details, with the name shown to them. */
+const FIELD_LABELS: Record<string, string> = {
+  email: "business email",
+  phone: "business phone",
+  website: "website address",
+  url: "website address",
+  domain: "website address",
+  business_name: "business name",
+  name: "business name",
+  city: "city",
+  service_area: "service area",
+  address: "business address",
+  zip: "ZIP code",
+  postal_code: "ZIP code",
+  description: "business description",
+  services: "services list",
+  category: "business type",
+};
+const FIELD_WORDS = Object.keys(FIELD_LABELS).join("|");
+
+/**
+ * A plain input-validation failure (a malformed email, a required column left
+ * empty, a value the database rejects) that names the field. The same input
+ * fails the same way on every retry, so it is an owner fix, never a worker
+ * fault. Returns the owner-facing field name, or null when the text names no
+ * Business-details field (an "invalid API key" is not one).
+ */
+export function validationFieldFromError(message: string | null | undefined): string | null {
+  const text = message ?? "";
+  if (!text) return null;
+  const patterns: RegExp[] = [
+    // Postgres: null value in column "city" ... / value too long for ... column "name"
+    new RegExp(`null value in column "(${FIELD_WORDS})"`, "i"),
+    new RegExp(`column "(${FIELD_WORDS})"[^\\n]{0,60}(?:violates|too long|invalid)`, "i"),
+    // Postgres check constraint named after the column, e.g. organizations_email_check
+    new RegExp(`violates check constraint "[a-z_]*?_(${FIELD_WORDS})_(?:check|format|valid)[a-z_]*"`, "i"),
+    // Zod / schema issues: "path":["email"] or email: Invalid email
+    new RegExp(`"path"\\s*:\\s*\\[\\s*"(${FIELD_WORDS})"`, "i"),
+    new RegExp(`\\b(${FIELD_WORDS})\\s*[:=-]\\s*(?:invalid|required|must be|is not a valid|not a valid)`, "i"),
+    // Prose: "invalid email address", "email is not valid", "bad phone number"
+    new RegExp(`\\b(?:invalid|malformed|bad|missing|empty)\\s+(?:business\\s+)?(${FIELD_WORDS})\\b`, "i"),
+    new RegExp(`\\b(${FIELD_WORDS})\\s+(?:is|looks|appears)?\\s*(?:not valid|invalid|malformed|required|missing)\\b`, "i"),
+  ];
+  for (const pattern of patterns) {
+    const key = pattern.exec(text)?.[1]?.toLowerCase();
+    if (key && FIELD_LABELS[key]) return FIELD_LABELS[key];
+  }
+  return null;
+}
+
+function fixThisMessage(field: string): string {
+  return `Fix this: ${field}. It is missing or not valid, so the build stopped instead of retrying. Update it in Business details, then press Build again.`;
+}
+
 /** The wording of a content integrity refusal (see contentIntegrityMessage and its details). */
 const INTEGRITY_MESSAGE = /not real information yet|test or demo data|fixture data|this is placeholder text|placeholder address/i;
 
 /** Ordered rules: the first match wins. Matched against the error text only. */
-const RULES: { kind: BuildFailureKind; test: RegExp }[] = [
+const RULES: { kind: BuildFailureKind; test: { test(text: string): boolean } }[] = [
   // The worker refused to spend more on this build (see build-spend.ts). Never retried.
   { kind: "budget", test: /reached its spending limit/i },
   // The business facts gate (content-integrity.ts) refused test, demo or
@@ -70,6 +124,8 @@ const RULES: { kind: BuildFailureKind; test: RegExp }[] = [
   // Without this rule it read "pictures" and told the owner their pictures
   // couldn't be generated, when the planning call had simply timed out.
   { kind: "provider", test: /AI design team did not (?:choose|name|plan) this site'?s|providers? did not answer in time/i },
+  // A malformed email/phone or empty required column: the owner's fix, never a retry.
+  { kind: "intake_validation", test: { test: (text: string) => validationFieldFromError(text) !== null } },
   { kind: "intake_validation", test: /still needs|missing (required )?(fact|detail)|invalid workspace|brief (isn'?t|is not) approved|fill in/i },
   { kind: "publish", test: /publish/i },
   { kind: "preview", test: /preview/i },
@@ -111,6 +167,8 @@ function intakeOwnerMessage(message: string | null | undefined): string {
   const violations = parseIntegrityViolations(message);
   if (violations.length) return integrityOwnerMessage(violations);
   if (INTEGRITY_MESSAGE.test(message ?? "")) return integrityOwnerMessage([]);
+  const field = validationFieldFromError(message);
+  if (field) return fixThisMessage(field);
   return OWNER_MESSAGES.intake_validation;
 }
 

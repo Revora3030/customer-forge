@@ -134,3 +134,28 @@ describe("the build request and the worker share the gate and never requeue it",
     expect(worker).toContain("attempts >= MAX_ATTEMPTS || !failure.retryable");
   });
 });
+
+describe("plain field validation errors name the field and never retry", () => {
+  const cases: [string, string][] = [
+    ["Invalid email address", "business email"],
+    ['[{"validation":"email","code":"invalid_string","message":"Invalid email","path":["email"]}]', "business email"],
+    ['null value in column "city" of relation "organization_profiles" violates not-null constraint', "city"],
+    ['new row for relation "organizations" violates check constraint "organizations_email_check"', "business email"],
+    ["phone: invalid", "business phone"],
+  ];
+  for (const [text, field] of cases) {
+    it(`"${text.slice(0, 40)}" -> ${field}`, () => {
+      const failure = classifyBuildFailure(new Error(text));
+      expect(failure.kind).toBe("intake_validation");
+      expect(failure.retryable).toBe(false);
+      expect(failure.ownerMessage).toContain(`Fix this: ${field}`);
+      const shown = describeBuildFailure({ status: "failed", error_message: tagFailureMessage(failure.kind, text) });
+      expect(shown?.message).toContain(`Fix this: ${field}`);
+      expect(shown?.message).not.toMatch(/interrupted/i);
+    });
+  }
+  it("an unrelated provider error is still transient", () => {
+    expect(classifyBuildFailure(new Error("Invalid API key for provider")).kind).not.toBe("intake_validation");
+    expect(classifyBuildFailure(new Error("fetch failed")).retryable).toBe(true);
+  });
+});
