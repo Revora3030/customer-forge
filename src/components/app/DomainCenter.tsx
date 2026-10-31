@@ -294,10 +294,15 @@ export function DomainCenter({
           {connected ? (
             <Button
               variant="outline"
-              disabled={!canManage || save.isPending}
-              onClick={() => save.mutate(connected)}
+              disabled={!canManage || save.isPending || recheck.isPending}
+              onClick={() => recheck.mutate()}
             >
-              <RefreshCw className="size-4" /> Re-check now
+              {recheck.isPending ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <RefreshCw className="size-4" />
+              )}{" "}
+              Re-check now
             </Button>
           ) : null}
           {connected ? (
