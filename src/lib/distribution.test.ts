@@ -4,7 +4,7 @@ import {
   DAILY_ROUTINE,
   FREE_LISTINGS,
   buildChannelAssets,
-  POSTAL_PLACEHOLDER,
+  REVORA_POSTAL_ADDRESS,
   qrDataUrl,
   routineMinutes,
   trackedLink,
@@ -107,9 +107,11 @@ describe("share templates", () => {
     expect(byId("whatsapp").message).not.toContain("utm_source=sms");
     expect(byId("sms").message).toContain("utm_source=sms");
   });
-  it("ends the email with a postal address line that is a placeholder until the sender supplies one", () => {
-    expect(byId("email").message.endsWith(POSTAL_PLACEHOLDER)).toBe(true);
-    expect(buildChannelAssets({ campaign: "x", postalAddress: "12 Pipe St, Austin, TX 78701" }).find((a) => a.id === "email")!.message).toContain("12 Pipe St, Austin, TX 78701");
+  it("ends the email with the supplied postal address and never ships a placeholder", () => {
+    const fake = "PO Box 1, Example, NC 00000";
+    const email = buildChannelAssets({ campaign: "x", postalAddress: fake }).find((a) => a.id === "email")!;
+    expect(email.message.endsWith(fake)).toBe(true);
+    expect(byId("email").message).not.toMatch(/\[[^\]]*address[^\]]*\]/i);
     expect(byId("email").note).toContain("postal address");
   });
   it("keeps the phone number off the public share copy and avoids ranking promises", () => {
