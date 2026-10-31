@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { TEST_LEAD_SOURCE } from "@/lib/test-lead";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { nextPublishState } from "@/lib/publish-state";
 import { toast } from "@/lib/ui/notify";
@@ -59,18 +60,27 @@ const CLIENT_TRIGGERS = new Set(["quote_requested", "booking_created", "appointm
 
 const DAY = 86_400_000;
 
-export function useLeads(organizationId: string | undefined) {
+/**
+ * The workspace's leads. Test leads (sent from the "Send a test lead" step) are
+ * left out so they never count in real numbers; only the Leads page asks for
+ * them, to show them labeled.
+ */
+export function useLeads(organizationId: string | undefined, options?: { includeTest?: boolean }) {
+  const includeTest = options?.includeTest === true;
   return useQuery({
-    queryKey: ["leads", organizationId],
+    queryKey: includeTest ? ["leads", organizationId, "with-test"] : ["leads", organizationId],
     enabled: !!organizationId,
     queryFn: async () => {
-      const { data, error } = await supabase
+      const base = supabase
         .from("leads")
         .select(
           "id, name, email, phone, status, source, campaign, city, message, service_interest, estimated_value, next_follow_up_at, last_contacted_at, created_at, service_id, customer_id, assigned_to",
         )
-        .eq("organization_id", organizationId!)
-        .order("created_at", { ascending: false });
+        .eq("organization_id", organizationId!);
+      const { data, error } = await (includeTest ? base : base.neq("source", TEST_LEAD_SOURCE)).order(
+        "created_at",
+        { ascending: false },
+      );
       if (error) throw error;
       return data;
     },

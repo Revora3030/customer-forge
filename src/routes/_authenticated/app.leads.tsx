@@ -96,7 +96,7 @@ function LeadsPage() {
     isError: leadsError,
     refetch: retryLeads,
     isFetching: leadsFetching,
-  } = useLeads(orgId);
+  } = useLeads(orgId, { includeTest: true });
   const { data: team } = useTeam(orgId);
   const { data: services } = useServices(orgId);
   const [serviceFilter, setServiceFilter] = useState<ServiceFilter>("all");

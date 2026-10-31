@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { TEST_LEAD_SOURCE } from "@/lib/test-lead";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { fetchAllRows } from "@/lib/paginate";
 
@@ -80,6 +81,7 @@ export const getTrafficReport = createServerFn({ method: "POST" })
         .from("leads")
         .select("id", { count: "exact", head: true })
         .eq("organization_id", data.organizationId)
+        .neq("source", TEST_LEAD_SOURCE)
         .gte("created_at", new Date(Date.now() - data.days * 86_400_000).toISOString()),
     ]);
 
