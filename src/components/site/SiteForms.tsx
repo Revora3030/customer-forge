@@ -98,27 +98,39 @@ function Honeypot() {
  * the browser before sending so the visitor is told what to fix right away
  * (the server enforces the same rule).
  */
+const CONTACT_PROBLEMS = {
+  missing: "Add an email or phone number so the business can reach you.",
+  email: "That email address doesn't look right.",
+  phone: "That phone number looks too short.",
+} as const;
+
 function contactProblem(email: string, phone: string): string | null {
-  if (!email && !phone) return "Add an email or phone number so the business can reach you.";
-  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return "That email address doesn't look right.";
-  if (phone && phone.replace(/\D/g, "").length < 7) return "That phone number looks too short.";
+  if (!email && !phone) return CONTACT_PROBLEMS.missing;
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return CONTACT_PROBLEMS.email;
+  if (phone && phone.replace(/\D/g, "").length < 7) return CONTACT_PROBLEMS.phone;
   return null;
 }
 
+/** Only a phone/email problem marks the phone and email fields invalid; a missing date or a server error does not. */
+const contactInvalid = (problem: string | null): true | undefined =>
+  problem && (Object.values(CONTACT_PROBLEMS) as string[]).includes(problem) ? true : undefined;
+
 /** Same wording as the printable estimate: a range is not a quote. */
-function EstimateNotice({ orgName }: { orgName: string }) {
+function EstimateNotice() {
   return (
     <p className="mt-1 text-[14px] text-muted-foreground">
-      Estimate only. {orgName} confirms the final price before any work starts.
+      This is an estimate, not a final quote. The owner will confirm the price.
     </p>
   );
 }
 
 /** Factual consent line shown under every lead form. It states no policy. */
-function ConsentNote({ orgName }: { orgName: string }) {
+function ConsentNote() {
+  // TODO(Client Success legal pages): link the business's own privacy page here once a
+  // per-site privacy route exists. /privacy is Revora's platform page, not the business's.
   return (
     <p className="text-[13px] text-muted-foreground">
-      By sending this you agree {orgName} may contact you about your request.
+      We'll only use your details to reply to your request.
     </p>
   );
 }
@@ -345,7 +357,7 @@ function QuoteCalculatorLive({ site, presentation }: { site: Site; presentation?
                   <p role="status" aria-live="polite" className="tnum mt-1 font-display text-[24px] font-semibold text-primary">
                     <RollingNumber value={min} format={currency} /> – <RollingNumber value={max} format={currency} />
                   </p>
-                  <EstimateNotice orgName={site.org.name} />
+                  <EstimateNotice />
                 </>
               ) : (
                 <>
@@ -424,7 +436,10 @@ function QuoteCalculatorLive({ site, presentation }: { site: Site; presentation?
                 },
               },
             })
-              .then(() => setDone(true))
+              .then(() => {
+                track("quote_submitted");
+                setDone(true);
+              })
               .catch((error: Error) => setProblem(friendlyError(error)))
               .finally(() => setPending(false));
           }}
@@ -437,7 +452,7 @@ function QuoteCalculatorLive({ site, presentation }: { site: Site; presentation?
               {currency(min)} – {currency(max)}
             </span>
           </p>
-          <EstimateNotice orgName={site.org.name} />
+          <EstimateNotice />
           <div className="space-y-1.5">
             <Label htmlFor={fid("name")}>{presentation?.fieldLabels?.name ?? "Your name"}</Label>
             <Input id={fid("name")} name="name" required autoComplete="name" />
@@ -445,11 +460,11 @@ function QuoteCalculatorLive({ site, presentation }: { site: Site; presentation?
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor={fid("phone")}>{presentation?.fieldLabels?.phone ?? "Phone"}</Label>
-              <Input id={fid("phone")} name="phone" type="tel" autoComplete="tel" inputMode="tel" aria-invalid={problem ? true : undefined} aria-describedby={fid("reach")} />
+              <Input id={fid("phone")} name="phone" type="tel" autoComplete="tel" inputMode="tel" aria-invalid={contactInvalid(problem)} aria-describedby={fid("reach")} />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor={fid("email")}>{presentation?.fieldLabels?.email ?? "Email"}</Label>
-              <Input id={fid("email")} name="email" type="email" autoComplete="email" inputMode="email" aria-invalid={problem ? true : undefined} aria-describedby={fid("reach")} />
+              <Input id={fid("email")} name="email" type="email" autoComplete="email" inputMode="email" aria-invalid={contactInvalid(problem)} aria-describedby={fid("reach")} />
             </div>
             <ReachHint id={fid("reach")} />
           </div>
@@ -466,7 +481,7 @@ function QuoteCalculatorLive({ site, presentation }: { site: Site; presentation?
               {presentation?.backLabel ?? "Back"}
             </Button>
           </div>
-          <ConsentNote orgName={site.org.name} />
+          <ConsentNote />
         </form>
       )}
     </div>
@@ -631,7 +646,7 @@ function BookingFormLive({ site, presentation }: { site: Site; presentation?: Wi
             sessionId: currentSessionId(),
             serviceId: serviceId || null,
             serviceInterest: service?.name ?? null,
-            estimatedValue: Number(service?.price ?? 0),
+            estimatedValue: 0,
             ...(() => {
               const attribution = readAttribution();
               return { source: attribution.source, campaign: attribution.campaign };
@@ -647,7 +662,10 @@ function BookingFormLive({ site, presentation }: { site: Site; presentation?: Wi
                 : null,
           },
         })
-          .then(() => setDone(true))
+          .then(() => {
+            if (bookable.length) track("booking_submitted");
+            setDone(true);
+          })
           .catch((error: Error) => setProblem(friendlyError(error)))
           .finally(() => setPending(false));
       }}
@@ -682,11 +700,11 @@ function BookingFormLive({ site, presentation }: { site: Site; presentation?: Wi
         </div>
         <div className="space-y-1.5">
           <Label htmlFor={fid("phone")}>{presentation?.fieldLabels?.phone ?? "Phone"}</Label>
-          <Input id={fid("phone")} name="phone" type="tel" autoComplete="tel" inputMode="tel" aria-invalid={problem ? true : undefined} aria-describedby={fid("reach")} />
+          <Input id={fid("phone")} name="phone" type="tel" autoComplete="tel" inputMode="tel" aria-invalid={contactInvalid(problem)} aria-describedby={fid("reach")} />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor={fid("email")}>{presentation?.fieldLabels?.email ?? "Email"}</Label>
-          <Input id={fid("email")} name="email" type="email" autoComplete="email" inputMode="email" aria-invalid={problem ? true : undefined} aria-describedby={fid("reach")} />
+          <Input id={fid("email")} name="email" type="email" autoComplete="email" inputMode="email" aria-invalid={contactInvalid(problem)} aria-describedby={fid("reach")} />
         </div>
         <ReachHint id={fid("reach")} />
         <div className="space-y-1.5">
@@ -769,7 +787,7 @@ function BookingFormLive({ site, presentation }: { site: Site; presentation?: Wi
       <p className="text-[14px] text-muted-foreground">
         No payment now — you'll get a confirmation before anything is charged.
       </p>
-      <ConsentNote orgName={site.org.name} />
+      <ConsentNote />
     </form>
   );
 }
@@ -855,7 +873,7 @@ function EnquiryFormLive({ site, presentation }: { site: Site; presentation?: Wi
             sessionId: currentSessionId(),
             serviceId: service?.id ?? null,
             serviceInterest: service?.name ?? null,
-            estimatedValue: Number(service?.price ?? 0),
+            estimatedValue: 0,
             ...(() => {
               const attribution = readAttribution();
               return { source: attribution.source, campaign: attribution.campaign };
@@ -928,7 +946,7 @@ function EnquiryFormLive({ site, presentation }: { site: Site; presentation?: Wi
       <Button type="submit" variant="signal" disabled={pending} aria-busy={pending} className="min-h-11 w-full sm:w-auto">
         {pending ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : null} {presentation?.actionLabel ?? "Send message"}
       </Button>
-      <ConsentNote orgName={site.org.name} />
+      <ConsentNote />
     </form>
   );
 }

@@ -88,9 +88,8 @@ describe("lead form trust copy and errors", () => {
 
   it("shows the consent line under the submit button", () => {
     mount();
-    expect(document.body.textContent).toContain(
-      "By sending this you agree Harbor Line Plumbing may contact you about your request.",
-    );
+    expect(document.body.textContent).toContain("We'll only use your details to reply to your request.");
+    expect(document.body.textContent).not.toMatch(/you agree/i);
   });
 
   it("explains that phone or email is needed", () => {
@@ -106,5 +105,16 @@ describe("lead form trust copy and errors", () => {
     });
     const alert = document.querySelector('[role="alert"]');
     expect(alert?.textContent).toContain("Choose a preferred date.");
+  });
+
+  it("does not mark phone and email invalid for a non-contact problem", () => {
+    mount();
+    const form = document.getElementById("book") as HTMLFormElement;
+    act(() => {
+      form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    });
+    expect(document.querySelector('[role="alert"]')?.textContent).toContain("Choose a preferred date.");
+    expect(document.querySelector('input[name="phone"]')?.hasAttribute("aria-invalid")).toBe(false);
+    expect(document.querySelector('input[name="email"]')?.hasAttribute("aria-invalid")).toBe(false);
   });
 });

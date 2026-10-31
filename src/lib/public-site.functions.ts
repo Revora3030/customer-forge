@@ -1158,6 +1158,9 @@ const ANALYTICS_EVENTS = [
   "quote_complete",
   "booking_start",
   "form_submit",
+  "quote_submitted",
+  "booking_submitted",
+  "enquiry_submitted",
 ] as const;
 
 /** Most a single visitor session can legitimately record in one minute. */
