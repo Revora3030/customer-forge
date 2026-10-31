@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { TEST_LEAD_SOURCE } from "@/lib/test-lead";
 import { EmailAPIError } from "@lovable.dev/email-js";
 import { sendTemplateEmail } from "@/lib/email-templates/send-email";
 import { alertRecipient } from "@/lib/lead-alert-recipient";
@@ -154,6 +155,7 @@ export async function runLeadReminders(db: Db, now = Date.now()): Promise<Report
     .from("leads")
     .select("organization_id, name, phone, email, service_interest, created_at")
     .eq("status", "new")
+    .neq("source", TEST_LEAD_SOURCE)
     .lt("created_at", new Date(now - DAY).toISOString())
     .gt("created_at", new Date(now - 14 * DAY).toISOString())
     .in("organization_id", workspaces.map((w) => w.id))
@@ -207,7 +209,7 @@ export async function runWeeklyReports(db: Db, now = Date.now()): Promise<Report
   const since = new Date(now - 7 * DAY).toISOString();
   const ids = workspaces.map((w) => w.id);
   const [leads, appointments] = await Promise.all([
-    db.from("leads").select("organization_id, status").gte("created_at", since).in("organization_id", ids).limit(10000),
+    db.from("leads").select("organization_id, status").neq("source", TEST_LEAD_SOURCE).gte("created_at", since).in("organization_id", ids).limit(10000),
     db.from("appointments").select("organization_id").gte("created_at", since).in("organization_id", ids).limit(10000),
   ]);
   if (leads.error) throw new Error(`leads: ${leads.error.message}`);

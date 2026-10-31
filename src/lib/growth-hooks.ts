@@ -5,6 +5,7 @@
  * Campaign performance is read from real `analytics_events` rows rather than a
  * cached counter, so the numbers shown always match tracked traffic.
  */
+import { TEST_LEAD_SOURCE } from "@/lib/test-lead";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/lib/ui/notify";
 import { friendlyError } from "@/lib/user-error";
@@ -65,7 +66,8 @@ export function useCampaignLeads(organizationId: string | undefined) {
       const { data, error } = await supabase
         .from("leads")
         .select("id, campaign, source, status, estimated_value")
-        .eq("organization_id", organizationId!);
+        .eq("organization_id", organizationId!)
+        .neq("source", TEST_LEAD_SOURCE);
       if (error) throw error;
       return data ?? [];
     },

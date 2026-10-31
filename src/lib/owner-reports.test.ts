@@ -19,7 +19,7 @@ function fakeDb(tables: Record<string, unknown[]>, opts: { claimFails?: boolean 
   const from = (table: string) => {
     const result = { data: tables[table] ?? [], error: null };
     const chain: Record<string, unknown> = {};
-    for (const m of ["select", "eq", "lt", "gt", "gte", "in", "order", "limit", "update", "delete"]) chain[m] = () => chain;
+    for (const m of ["select", "eq", "neq", "lt", "gt", "gte", "in", "order", "limit", "update", "delete"]) chain[m] = () => chain;
     chain["maybeSingle"] = async () => ({ data: (tables[table] ?? [])[0] ?? null, error: null });
     chain["then"] = (resolve: (v: unknown) => unknown) => resolve(result);
     chain["insert"] = async (row: unknown) => {
