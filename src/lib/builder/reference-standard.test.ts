@@ -47,7 +47,7 @@ describe("reference standard reaches every business category", () => {
     // A business with no category still gets the general reading in the first build.
     expect(referenceStandardNote(null)).toContain(referenceMomentsFor("general").tryIt);
   });
-  it("covers all 14 core trades with their own playbook, moments, blueprint and look", () => {
+  it("covers all 14 core trades and the three category playbooks with their own playbook, moments, blueprint and look", () => {
     const trades: [string, string][] = [
       ["Plumbing", "plumbing"],
       ["HVAC repair", "hvac"],
@@ -63,6 +63,10 @@ describe("reference standard reaches every business category", () => {
       ["Personal injury law firm", "law-firms"],
       ["Real estate agent", "real-estate"],
       ["CrossFit gym", "gyms-fitness"],
+      // Added with the category playbooks: these three no longer fall to a generic playbook.
+      ["Jet ski rental", "watersports-rentals"],
+      ["Golf course", "golf-course"],
+      ["Luxury home builder", "home-builder"],
     ];
     expect(TRADE_BLUEPRINTS.map((b) => b.key).sort()).toEqual(trades.map(([, k]) => k).sort());
     for (const [industry, key] of trades) {

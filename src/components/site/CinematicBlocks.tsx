@@ -48,17 +48,26 @@ export function SceneVideo({ src, alt, eager }: { src: string; alt: string; eage
  */
 type HeroLoop = { src: string; mobileSrc?: string | null; loopStart?: number; loopEnd?: number | null; eager: boolean };
 
-/** Attaches the loop when it nears the screen, pauses it off screen; never under reduced motion. */
+/**
+ * Attaches the loop when it nears the screen, pauses it off screen. Reduced-motion visitors never get autoplay:
+ * they see the poster frame and a play control, and the loop only starts when they press it. Everyone else
+ * gets a pause control once the loop is playing.
+ */
 function useHeroLoop({ src, mobileSrc, loopStart = 0, loopEnd = null, eager }: HeroLoop) {
   const ref = useRef<HTMLVideoElement>(null);
   const [playing, setPlaying] = useState(false);
+  const [reduced, setReduced] = useState(false);
+  const [optedIn, setOptedIn] = useState(false);
+  const pausedByUser = useRef(false);
+  const enabled = !reduced || optedIn;
+  useEffect(() => { setReduced(prefersReducedMotion()); }, []);
   useEffect(() => {
     const video = ref.current;
-    if (!video || prefersReducedMotion()) return;
+    if (!video || !enabled) return;
     const phone = typeof window.matchMedia === "function" && window.matchMedia("(max-width: 767px)").matches;
     const chosen = phone && mobileSrc ? mobileSrc : src;
     let attached = false;
-    const play = () => void video.play?.()?.catch?.(() => undefined);
+    const play = () => { if (!pausedByUser.current) void video.play?.()?.catch?.(() => undefined); };
     const attach = () => {
       if (attached) return;
       attached = true;
@@ -68,10 +77,12 @@ function useHeroLoop({ src, mobileSrc, loopStart = 0, loopEnd = null, eager }: H
       play();
     };
     const onPlaying = () => setPlaying(true);
+    const onPause = () => { if (pausedByUser.current) setPlaying(false); };
     const onTime = () => {
       if (loopEnd != null && video.currentTime >= loopEnd) video.currentTime = loopStart;
     };
     video.addEventListener("playing", onPlaying);
+    video.addEventListener("pause", onPause);
     video.addEventListener("timeupdate", onTime);
     let observer: IntersectionObserver | null = null;
     if (typeof IntersectionObserver === "undefined") attach();
@@ -92,30 +103,68 @@ function useHeroLoop({ src, mobileSrc, loopStart = 0, loopEnd = null, eager }: H
     return () => {
       observer?.disconnect();
       video.removeEventListener("playing", onPlaying);
+      video.removeEventListener("pause", onPause);
       video.removeEventListener("timeupdate", onTime);
     };
-  }, [src, mobileSrc, loopStart, loopEnd, eager]);
-  return { ref, playing };
+  }, [src, mobileSrc, loopStart, loopEnd, eager, enabled]);
+  /** Play or pause by the visitor's choice. The first press under reduced motion starts the loop. */
+  const toggle = () => {
+    const video = ref.current;
+    if (reduced && !optedIn) {
+      pausedByUser.current = false;
+      setOptedIn(true);
+      return;
+    }
+    if (!video) return;
+    if (pausedByUser.current || video.paused) {
+      pausedByUser.current = false;
+      void video.play?.()?.catch?.(() => undefined);
+    } else {
+      pausedByUser.current = true;
+      video.pause();
+      setPlaying(false);
+    }
+  };
+  return { ref, playing, reduced, toggle, showControl: reduced || playing || pausedByUser.current };
+}
+
+/** The visible play/pause button for the hero loop. Only rendered after hydration, when it can work. */
+function HeroLoopControl({ playing, toggle }: { playing: boolean; toggle: () => void }) {
+  return (
+    <button
+      type="button"
+      className="rv-hero-control"
+      data-hero-control=""
+      aria-label={playing ? "Pause background video" : "Play background video"}
+      onClick={toggle}
+    >
+      <span aria-hidden="true">{playing ? "❚❚" : "▶"}</span>
+    </button>
+  );
 }
 
 export function HeroVideo({ poster, ...loop }: HeroLoop & { poster?: string | null }) {
-  const { ref, playing } = useHeroLoop(loop);
+  const { ref, playing, reduced, toggle, showControl } = useHeroLoop(loop);
   return (
-    <video
-      ref={ref}
-      className="rv-scene-media rv-hero-video"
-      data-hero-video=""
-      {...(playing ? { "data-playing": "" } : {})}
-      poster={poster ?? undefined}
-      aria-hidden="true"
-      tabIndex={-1}
-      muted
-      playsInline
-      loop
-      preload="none"
-      disablePictureInPicture
-      disableRemotePlayback
-    />
+    <>
+      <video
+        ref={ref}
+        className="rv-scene-media rv-hero-video"
+        data-hero-video=""
+        {...(playing ? { "data-playing": "" } : {})}
+        {...(reduced ? { "data-reduced": "" } : {})}
+        poster={poster ?? undefined}
+        aria-hidden="true"
+        tabIndex={-1}
+        muted
+        playsInline
+        loop
+        preload="none"
+        disablePictureInPicture
+        disableRemotePlayback
+      />
+      {showControl ? <HeroLoopControl playing={playing} toggle={toggle} /> : null}
+    </>
   );
 }
 

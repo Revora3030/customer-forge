@@ -8,7 +8,8 @@
  * one), so no kind of business is left without guidance. Archetypes also carry a look suggestion, which stays a
  * suggestion: the designer chooses the palette and type.
  */
-import { referenceStandardNote } from "@/lib/builder/reference-standard";
+import { referenceStandardNote, tradeStructureNote } from "@/lib/builder/reference-standard";
+import { CATALOG_ARCHETYPE, CATALOG_NEW_PLAYBOOKS, CATALOG_PRIORITY_PLAYBOOKS, catalogEntryFor, catalogNote } from "@/lib/builder/playbook-catalog";
 import { blueprintForKey, blueprintLookNote, type TradeBlueprint } from "@/lib/builder/trade-blueprints";
 
 export type TradePlaybook = {
@@ -24,6 +25,8 @@ export type TradePlaybook = {
 };
 
 export const TRADE_PLAYBOOKS: readonly TradePlaybook[] = [
+  ...CATALOG_PRIORITY_PLAYBOOKS,
+  ...CATALOG_NEW_PLAYBOOKS,
   {
     key: "locksmith",
     label: "Locksmith and lockout service",
@@ -396,6 +399,7 @@ export const ARCHETYPES: readonly Archetype[] = [
 
 /** The archetype of each specific trade, so its note can carry the same look suggestion. */
 const PLAYBOOK_ARCHETYPE: Record<string, ArchetypeKey> = {
+  ...CATALOG_ARCHETYPE,
   locksmith: "emergency-dispatch",
   towing: "emergency-dispatch",
   hvac: "emergency-dispatch",
@@ -490,7 +494,9 @@ export function playbookNote(industry: string | null | undefined, hints: string 
       : `Look (a suggestion for type and accent; the canvas is the cinematic obsidian studio on every page — home, services, about, book and contact — unless the owner asked for a light editorial palette): ${guide.archetype.look}`,
     `A photographic page opens as a scene, scroll_chapters or scrub_sequence. Chapter labels follow the story arc above. Forms are ${blueprint?.tone === "light" ? "clean light panels" : "dark glass"}. The same call to action is not repeated under every section. Prices appear only when the owner supplied them.`,
     referenceStandardNote(guide.key, blueprint),
-  ].join("\n");
+    tradeStructureNote(guide.key, guide.archetype.key),
+    guide.specific ? catalogNote(catalogEntryFor(guide.key, industry)) : null,
+  ].filter((line): line is string => Boolean(line)).join("\n");
 }
 
 /**
