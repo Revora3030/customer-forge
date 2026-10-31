@@ -37,6 +37,8 @@ export function NewClientDialog({
 }) {
   const create = useServerFn(createClientOrg);
   const [result, setResult] = useState<Result | null>(null);
+  const [passwordCopied, setPasswordCopied] = useState(false);
+  const siteOrigin = typeof window === "undefined" ? "" : window.location.origin;
 
   const [form, setForm] = useState({
     business_name: "",
@@ -101,8 +103,16 @@ export function NewClientDialog({
   });
 
   const close = () => {
+    // The temporary password is shown once; don't lose it by accident.
+    if (result?.tempPassword && !passwordCopied) {
+      const leave = window.confirm(
+        "The temporary password won't be shown again and you haven't copied it. Close anyway?",
+      );
+      if (!leave) return;
+    }
     onOpenChange(false);
     setResult(null);
+    setPasswordCopied(false);
   };
 
   return (
@@ -122,11 +132,11 @@ export function NewClientDialog({
             <Panel className="space-y-3">
               <div>
                 <p className="eyebrow">Client website</p>
-                <p className="mt-1 text-[13px]">/s/{result.slug}</p>
+                <p className="mt-1 text-[13px]">{siteOrigin}/s/{result.slug}</p>
               </div>
               <div>
                 <p className="eyebrow">Client login</p>
-                <p className="mt-1 text-[13px]">/auth · {result.email}</p>
+                <p className="mt-1 text-[13px]">{siteOrigin}/auth · {result.email}</p>
               </div>
               {result.tempPassword ? (
                 <div>
@@ -139,8 +149,13 @@ export function NewClientDialog({
                       size="sm"
                       variant="ghost"
                       onClick={async () => {
-                        await navigator.clipboard.writeText(result.tempPassword ?? "");
-                        toast.success("Copied. Share it securely and ask them to change it.");
+                        try {
+                          await navigator.clipboard.writeText(result.tempPassword ?? "");
+                          setPasswordCopied(true);
+                          toast.success("Copied. Share it securely and ask them to change it.");
+                        } catch {
+                          toast.error("Couldn't copy automatically. Select the password and copy it by hand.");
+                        }
                       }}
                     >
                       <Copy className="size-3.5" />
