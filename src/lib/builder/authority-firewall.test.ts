@@ -156,7 +156,7 @@ describe("old design layer is fully removed", () => {
   });
 
   it("customer website routes do not install fixed fallback chrome or canned CTAs", () => {
-    const pageRoute = readFileSync("src/routes/s.$slug.$page.tsx", "utf8");
+    const pageRoute = readFileSync("src/components/site/SitePageView.tsx", "utf8");
     const homeRoute = readFileSync("src/routes/s.$slug.tsx", "utf8");
     const tree = readFileSync("src/lib/builder-tree.ts", "utf8");
     expect(pageRoute).not.toMatch(/<SiteFooter|<SiteNav|Get my price|Book now/);

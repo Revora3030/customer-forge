@@ -12,6 +12,34 @@
 @import "@fontsource/space-grotesk/latin-600.css";
 @import "@fontsource/space-grotesk/latin-700.css";
 
+/* Metric-matched system fallbacks (size-adjust and ascent/descent overrides measured against
+   Arial / Times New Roman) so text does not reflow when the web fonts swap in. This is what
+   keeps marketing-page layout shift near zero. */
+@font-face {
+  font-family: "DM Sans Fallback";
+  src: local("Arial"), local("Liberation Sans"), local("Helvetica Neue"), local("Helvetica");
+  size-adjust: 106%;
+  ascent-override: 93%;
+  descent-override: 29%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: "Space Grotesk Fallback";
+  src: local("Arial"), local("Liberation Sans"), local("Helvetica Neue"), local("Helvetica");
+  size-adjust: 111%;
+  ascent-override: 88%;
+  descent-override: 26%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: "Instrument Serif Fallback";
+  src: local("Times New Roman"), local("Liberation Serif"), local("Times");
+  size-adjust: 85%;
+  ascent-override: 117%;
+  descent-override: 37%;
+  line-gap-override: 0%;
+}
+
 /*
  * REVORA — design system
  * Direction: carbon surfaces, hairline borders, Revora metallic gold as the
@@ -95,8 +123,8 @@
   --city-danger: #e5645f;
   --radius: 0.625rem;
 
-  --font-heading: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
-  --font-body: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-heading: "Space Grotesk", "Space Grotesk Fallback", ui-sans-serif, system-ui, sans-serif;
+  --font-body: "DM Sans", "DM Sans Fallback", ui-sans-serif, system-ui, sans-serif;
 
   /* surfaces — obsidian canvas. Gold-on-dark button ink stays at 0.142 so
      labels on the metallic gold controls keep the same contrast. */
@@ -1253,9 +1281,19 @@ a[href*="lovable.app"][target="_blank"][class*="fixed"],
 
 /* Scroll-driven section reveals — pure CSS, progressive enhancement.
    Browsers without scroll timelines show content statically. */
+@keyframes revora-scroll-rise {
+  from {
+    transform: translateY(8px);
+  }
+  to {
+    transform: none;
+  }
+}
 @supports (animation-timeline: view()) {
   .scroll-reveal {
-    animation: revora-reveal 1ms linear both;
+    /* Transform only: fading the text in made contrast audits read it at partial opacity
+       (1.2:1 on /locations/charlotte-nc) and gives nothing visible a 1ms-scrubbed fade adds. */
+    animation: revora-scroll-rise 1ms linear both;
     animation-timeline: view();
     animation-range: entry 4% entry 40%;
   }
@@ -2785,7 +2823,7 @@ html.reveal-ready [data-reveal] {
 
 /* ---- Premium editorial layer (2026-10 redesign, phase 1) ---- */
 :root {
-  --font-editorial: "Instrument Serif", ui-serif, Georgia, serif;
+  --font-editorial: "Instrument Serif", "Instrument Serif Fallback", ui-serif, Georgia, serif;
   --champagne: oklch(0.93 0.045 88);
   --obsidian: oklch(0.105 0.003 286);
   --gradient-gold: linear-gradient(120deg, var(--gold-deep), var(--gold) 45%, var(--champagne) 70%, var(--gold) 100%);

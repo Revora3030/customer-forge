@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 vi.mock("@/lib/public-site.functions", () => ({ getPublicSite: vi.fn(), trackPublicEvent: vi.fn() }));
-vi.mock("@/routes/s.$slug.$page", () => ({ SitePageView: () => null }));
+vi.mock("@/components/site/SitePageView", () => ({ SitePageView: () => null }));
 vi.mock("@/lib/site-head", () => ({ tenantSiteHead: (input: { canonical: string }) => ({ canonical: input.canonical }) }));
 import { Route } from "@/routes/s.$slug";
 

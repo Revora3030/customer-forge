@@ -1,6 +1,6 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { getPreviewSite } from "@/lib/public-site.functions";
-import { PublicSiteView } from "@/routes/s.$slug";
+import { PublicSiteView } from "@/components/site/PublicSiteView";
 import { PreviewMessage } from "@/components/PreviewMessage";
 import { SiteBaseContext } from "@/components/site/site-address-context";
 import { ProspectClaimBar } from "@/components/site/ProspectClaimBar";

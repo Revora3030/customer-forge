@@ -31,7 +31,7 @@ import { tenantSiteHead } from "@/lib/site-head";
 // on a client's own custom domain. Loading it lazily keeps ~150 KB of JavaScript
 // off Revora's marketing home page, which is the one visitors actually see.
 const PublicSiteView = lazy(() =>
-  import("@/routes/s.$slug").then((module) => ({ default: module.PublicSiteView })),
+  import("@/components/site/PublicSiteView").then((module) => ({ default: module.PublicSiteView })),
 );
 
 export const Route = createFileRoute("/")({

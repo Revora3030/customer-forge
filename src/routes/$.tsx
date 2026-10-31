@@ -14,7 +14,7 @@ import { SiteFontLinks } from "@/components/site/SiteFontLinks";
 import { businessFacts } from "@/lib/builder/facts";
 import { siteFontFor } from "@/lib/site-font-pairings";
 import { siteFontStyle } from "@/lib/site-theme";
-import { SitePageView } from "@/routes/s.$slug.$page";
+import { SitePageView } from "@/components/site/SitePageView";
 import { tenantSiteHead } from "@/lib/site-head";
 
 /** What the business's own 404 page may show: only facts the owner gave us, only when the lookup found the site. */

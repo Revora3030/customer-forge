@@ -141,6 +141,6 @@ describe("the build no longer dies before the menu", () => {
   it("no built-in menu design is ever substituted", () => {
     const chrome = readFileSync("src/lib/builder/first-build-chrome.server.ts", "utf8");
     expect(chrome).not.toMatch(/writeSafeChromeFallback/);
-    expect(readFileSync("src/routes/s.$slug.$page.tsx", "utf8")).not.toMatch(/<SiteFooter|<SiteNav/);
+    expect(readFileSync("src/components/site/SitePageView.tsx", "utf8")).not.toMatch(/<SiteFooter|<SiteNav/);
   });
 });

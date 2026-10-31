@@ -133,7 +133,7 @@ describe("owner photos and logo from sign-up", () => {
   });
   it("shows the owner's logo in the site header", () => {
     expect(read("src/components/site/AiSiteHeader.tsx")).toMatch(/logoUrl\?: string \| null/);
-    expect(read("src/routes/s.$slug.$page.tsx")).toMatch(
+    expect(read("src/components/site/SitePageView.tsx")).toMatch(
       /logoUrl=\{profile\?\.logo_url \?\? null\}/,
     );
   });
