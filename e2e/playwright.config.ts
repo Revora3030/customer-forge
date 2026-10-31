@@ -11,7 +11,7 @@ import { STUB_SUPABASE_URL } from "./constants";
  *   sign-up test stubs the auth endpoint in the browser. Nothing is created anywhere.
  */
 
-const baseURL = process.env.E2E_BASE_URL ?? "http://127.0.0.1:8080";
+const baseURL = process.env.E2E_BASE_URL ?? "http://localhost:8080";
 const useExternalApp = Boolean(process.env.E2E_BASE_URL);
 
 export default defineConfig({
@@ -34,7 +34,7 @@ export default defineConfig({
   webServer: useExternalApp
     ? undefined
     : {
-        command: "npm run dev -- --host 127.0.0.1 --port 8080",
+        command: "npm run dev -- --host localhost --port 8080",
         cwd: "..",
         url: baseURL,
         reuseExistingServer: !process.env.CI,
