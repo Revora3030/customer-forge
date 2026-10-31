@@ -26,6 +26,7 @@ import {
   claimAwareRedirect,
   isClaimToken,
 } from "@/lib/prospect-claim";
+import { VoiceDictateButton } from "@/components/marketing/VoiceDictateButton";
 import { DraftSitePreview } from "@/components/marketing/DraftSitePreview";
 import { readStarter, starterFromMetadata } from "@/components/marketing/hero-starter-utils";
 import { applyImportedFacts, importExistingWebsite } from "@/lib/site-import.functions";
@@ -586,6 +587,7 @@ function GetStarted() {
                   onChange={set("businessType")}
                   placeholder="Mobile detailing, HVAC, landscaping…"
                   required
+                  dictate
                 />
                 <Field
                   label="City"
@@ -731,9 +733,16 @@ function GetStarted() {
                     />
                   </div>
                   <div className="sm:col-span-2">
-                    <Label htmlFor="services" className="text-[13px]">
-                      Primary services <span aria-hidden="true">*</span>
-                    </Label>
+                    <div className="flex items-start justify-between gap-2">
+                      <Label htmlFor="services" className="text-[13px]">
+                        Primary services <span aria-hidden="true">*</span>
+                      </Label>
+                      <VoiceDictateButton
+                        value={intake.services}
+                        onText={(text) => set("services")(text)}
+                        label="primary services"
+                      />
+                    </div>
                     <textarea
                       id="services"
                       value={intake.services}
@@ -942,6 +951,7 @@ function Field({
   placeholder,
   autoComplete,
   required,
+  dictate,
 }: {
   label: string;
   value: string;
@@ -950,13 +960,17 @@ function Field({
   placeholder?: string;
   autoComplete?: string;
   required?: boolean;
+  dictate?: boolean;
 }) {
   const id = label.toLowerCase().replace(/[^a-z]+/g, "-");
   return (
     <div>
-      <Label htmlFor={id} className="text-[13px]">
-        {label} {required ? <span aria-hidden="true">*</span> : null}
-      </Label>
+      <div className="flex items-start justify-between gap-2">
+        <Label htmlFor={id} className="text-[13px]">
+          {label} {required ? <span aria-hidden="true">*</span> : null}
+        </Label>
+        {dictate ? <VoiceDictateButton value={value} onText={onChange} label={label} /> : null}
+      </div>
       <Input
         id={id}
         className="mt-1.5"
