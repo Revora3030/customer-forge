@@ -18,20 +18,82 @@ function prefersReducedMotion(): boolean {
   return typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
-/** A muted, inline backdrop video. Paused (first frame only) for reduced-motion visitors; never has sound. */
-export function SceneVideo({ src, alt, eager }: { src: string; alt: string; eager: boolean }) {
+/**
+ * Follows the visitor's reduced-motion setting live: it is read after hydration
+ * and again whenever the OS setting changes, so toggling it pauses or resumes
+ * the video without a reload.
+ */
+function useReducedMotion(): boolean | null {
+  // null until the setting has been read, so a reduced-motion visitor's video is never started "just in case".
+  const [reduced, setReduced] = useState<boolean | null>(null);
+  useEffect(() => {
+    setReduced(prefersReducedMotion());
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
+    const query = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const onChange = (event: MediaQueryListEvent) => setReduced(event.matches);
+    query.addEventListener?.("change", onChange);
+    return () => query.removeEventListener?.("change", onChange);
+  }, []);
+  return reduced;
+}
+
+/** Shows the first frame even where a browser paints nothing from preload="metadata" (media fragment, no new content). */
+const withFirstFrame = (src: string) => (src.includes("#") ? src : `${src}#t=0.001`);
+
+/**
+ * A muted, inline backdrop video. It never has sound. Reduced-motion visitors
+ * keep the still (the poster, or the first frame) and get a play button;
+ * everyone else gets a pause button (WCAG 2.2.2), a 44px keyboard-operable
+ * control that appears after hydration, when it can work.
+ */
+export function SceneVideo({ src, alt, eager, poster }: { src: string; alt: string; eager: boolean; poster?: string | null }) {
   const ref = useRef<HTMLVideoElement>(null);
+  const reduced = useReducedMotion();
+  const [hydrated, setHydrated] = useState(false);
+  const [playing, setPlaying] = useState(false);
+  // The visitor's own choice wins over the system setting once they press the button.
+  const [choice, setChoice] = useState<"play" | "pause" | null>(null);
+  useEffect(() => setHydrated(true), []);
+  const shouldPlay = choice ? choice === "play" : reduced === false;
   useEffect(() => {
     const video = ref.current;
     if (!video) return;
-    // Never any sound; playback starts only after hydration and never for
-    // reduced-motion visitors (they keep the first frame as a still).
     video.muted = true;
-    if (prefersReducedMotion()) video.pause();
-    else void video.play?.()?.catch?.(() => undefined);
+    if (reduced === null && !choice) return;
+    if (shouldPlay) void video.play?.()?.catch?.(() => undefined);
+    else {
+      video.pause();
+      setPlaying(false);
+    }
+  }, [shouldPlay, reduced, choice]);
+  useEffect(() => {
+    const video = ref.current;
+    if (!video) return;
+    const onPlaying = () => setPlaying(true);
+    const onPause = () => setPlaying(false);
+    video.addEventListener("playing", onPlaying);
+    video.addEventListener("pause", onPause);
+    return () => {
+      video.removeEventListener("playing", onPlaying);
+      video.removeEventListener("pause", onPause);
+    };
   }, []);
   return (
-    <video ref={ref} className="rv-scene-media" src={src} aria-label={alt || undefined} muted playsInline loop preload={eager ? "auto" : "metadata"} disablePictureInPicture />
+    <>
+      <video
+        ref={ref}
+        className="rv-scene-media"
+        src={withFirstFrame(src)}
+        poster={poster ?? undefined}
+        aria-label={alt || undefined}
+        muted
+        playsInline
+        loop
+        preload={eager ? "auto" : "metadata"}
+        disablePictureInPicture
+      />
+      {hydrated ? <HeroLoopControl playing={playing} toggle={() => setChoice(shouldPlay ? "pause" : "play")} /> : null}
+    </>
   );
 }
 
