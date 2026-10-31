@@ -18,6 +18,12 @@
 /revora-mark-144.png
   Cache-Control: public, max-age=604800, stale-while-revalidate=2592000
 
+/revora-mark-144.webp
+  Cache-Control: public, max-age=604800, stale-while-revalidate=2592000
+
+/revora-mark-144.avif
+  Cache-Control: public, max-age=604800, stale-while-revalidate=2592000
+
 /.well-known/security.txt
   Cache-Control: public, max-age=86400
   Content-Type: text/plain; charset=utf-8

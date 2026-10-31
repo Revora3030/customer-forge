@@ -44,7 +44,7 @@ function link(label: string, href: string, isLive: LinkCheck, key: string): Reac
     <a
       key={key}
       href={href}
-      className="text-primary underline-offset-2 hover:underline"
+      className="text-primary underline decoration-primary/50 underline-offset-2 hover:decoration-primary"
       {...(external ? { rel: "noopener noreferrer", target: "_blank" } : {})}
     >
       {label}

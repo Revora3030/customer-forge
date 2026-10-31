@@ -8,7 +8,7 @@ import { useSignOut } from "@/lib/use-tenant";
 import { MAIL_SUBJECTS, REVORA, revoraMailto } from "@/lib/brand";
 import { GROWTH_SYSTEM } from "@/lib/offer";
 import { MarketingConversionKit } from "@/components/marketing/ConversionKit";
-import { VisitorJarvis } from "@/components/marketing/VisitorJarvis";
+import { VisitorJarvis } from "@/components/marketing/VisitorJarvisLazy";
 import { ScrollReveal } from "@/components/marketing/ScrollReveal";
 import { openCookieSettings } from "@/components/marketing/cookie-consent-utils";
 import { AuthActions, SIGN_IN_SEARCH, SIGN_UP_SEARCH } from "@/components/marketing/AuthButtons";
