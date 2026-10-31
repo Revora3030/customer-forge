@@ -429,7 +429,7 @@ export function hasPlaceholderContact(profile: { phone?: string | null; email?: 
   const digits = String(profile?.phone ?? "").replace(/\D/g, "");
   if (/55501\d\d$/.test(digits)) return true;
   const domain = String(profile?.email ?? "").trim().toLowerCase().split("@")[1] ?? "";
-  return /(?:^|\.)(?:example|test|invalid|localhost)$/.test(domain) || /(?:^|\.)example\.(?:com|org|net)$/.test(domain);
+  return /(?:^|\.)(?:example|test|invalid|localhost)$/.test(domain) || /(?:^|\.)example\.(?:com|org|net)$/.test(domain); // DevSkim: ignore DS162092 -- Reserved "localhost" email domain marks placeholder data; no local connection is made.
 }
 
 type TenantHeadPage = {
