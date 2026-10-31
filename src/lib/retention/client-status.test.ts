@@ -45,16 +45,16 @@ describe("clientStatus", () => {
     for (const state of ["past_due", "unpaid", "PAST_DUE"]) {
       const s = with_({ subscriptionState: state });
       expect(s.level).toBe("needs_attention");
-      expect(s.reasons[0].code).toBe("billing_failed");
+      expect(s.reasons[0]?.code).toBe("billing_failed");
     }
-    expect(with_({ subscriptionState: "past_due" }).reasons[0].text).toBe("Subscription is past due.");
+    expect(with_({ subscriptionState: "past_due" }).reasons[0]?.text).toBe("Subscription is past due.");
   });
 
   it("flags a trial ending within 3 days, with a day count", () => {
     const s = with_({ subscriptionState: "trialing", currentPeriodEnd: inDays(2) });
     expect(s.level).toBe("at_risk");
     expect(s.reasons[0]).toMatchObject({ code: "trial_ending", text: "Free trial ends in 2 days." });
-    expect(with_({ subscriptionState: "trialing", currentPeriodEnd: inDays(1) }).reasons[0].text).toBe("Free trial ends in 1 day.");
+    expect(with_({ subscriptionState: "trialing", currentPeriodEnd: inDays(1) }).reasons[0]?.text).toBe("Free trial ends in 1 day.");
   });
 
   it("does not flag a trial with more than 3 days left, a past trial end, or an active subscription", () => {
