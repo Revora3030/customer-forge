@@ -161,3 +161,65 @@ export function blocksAutoBuild(
   if (!Number.isFinite(ended)) return true;
   return now - ended < AUTO_BUILD_COOLDOWN_AFTER_FAILURE_MS;
 }
+
+/** A queued job untouched this long, with nothing waiting on it, is a leftover from a failed attempt. */
+export const STALE_QUEUED_AFTER_MS = 30 * 60_000;
+
+/** The message written when a leftover queued job is cleared for a new build request. */
+export const STALE_QUEUED_CLEARED_MESSAGE = "Stale job cleared for new build request";
+
+type StaleQueuedRow = {
+  status?: string | null;
+  updated_at?: string | null;
+  lease_expires_at?: string | null;
+  resumes_at?: string | null;
+};
+
+/**
+ * True when a queued row is a leftover that a new build request may clear.
+ *
+ * A build parked for AI capacity is queued on purpose: the deferral path sets
+ * `lease_expires_at` and `resumes_at` to the retry time, which can be well past
+ * the 30 minutes a row may sit untouched. It is waiting, not stale, until that
+ * retry time itself has been overdue for the whole stale window. (A fresh or
+ * normally retrying job has an empty lease and an empty resume time.)
+ */
+export function isStaleQueuedJob(job: StaleQueuedRow, now = Date.now()): boolean {
+  if (job.status !== "queued") return false;
+  const cutoff = now - STALE_QUEUED_AFTER_MS;
+  const updated = Date.parse(job.updated_at ?? "");
+  if (!Number.isFinite(updated) || updated >= cutoff) return false;
+  for (const parkedUntil of [job.resumes_at, job.lease_expires_at]) {
+    if (!parkedUntil) continue;
+    const at = Date.parse(parkedUntil);
+    if (Number.isFinite(at) && at >= cutoff) return false;
+  }
+  return true;
+}
+
+/**
+ * PostgREST `or()` filters that keep capacity-parked jobs out of the stale
+ * clear. Apply every entry with `.or(...)`; together they mirror isStaleQueuedJob.
+ */
+export function staleQueuedGuardFilters(now = Date.now()): string[] {
+  const cutoff = new Date(now - STALE_QUEUED_AFTER_MS).toISOString();
+  return [`resumes_at.is.null,resumes_at.lt.${cutoff}`, `lease_expires_at.is.null,lease_expires_at.lt.${cutoff}`];
+}
+
+/** The row update that closes a stale queued job: failed, tagged infrastructure, with no lease left behind. */
+export function staleQueuedClearUpdate(nowIso: string): {
+  status: "failed";
+  error_message: string;
+  failure_kind: "infrastructure";
+  completed_at: string;
+  lease_expires_at: null;
+} {
+  return {
+    status: "failed",
+    // Same "[kind] message" tag the worker writes, so the owner and admin views classify it.
+    error_message: `[infrastructure] ${STALE_QUEUED_CLEARED_MESSAGE}`,
+    failure_kind: "infrastructure",
+    completed_at: nowIso,
+    lease_expires_at: null,
+  };
+}

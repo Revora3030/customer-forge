@@ -1,4 +1,6 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { readFailureKind } from "@/lib/builder/build-failure";
 import {
   AUTO_BUILD_COOLDOWN_AFTER_FAILURE_MS,
   QUEUED_PICKUP_TIMEOUT_MS,
@@ -6,7 +8,10 @@ import {
   blocksAutoBuild,
   isRetryWait,
   jobIsActive,
+  isStaleQueuedJob,
   jobLiveness,
+  staleQueuedClearUpdate,
+  staleQueuedGuardFilters,
   stopWaiting,
   stopWaitingMessage,
 } from "@/lib/builder/job-liveness";
@@ -126,5 +131,51 @@ describe("when the builder may start a build on its own", () => {
     expect(blocksAutoBuild({ status: "failed" }, NOW)).toBe(true);
     expect(blocksAutoBuild(null, NOW)).toBe(false);
     expect(blocksAutoBuild({ status: "completed" }, NOW)).toBe(false);
+  });
+});
+
+describe("the stale queued clear leaves capacity-parked builds alone", () => {
+  const now = Date.parse("2026-10-31T18:00:00.000Z");
+  const ago = (minutes: number) => new Date(now - minutes * 60_000).toISOString();
+  const ahead = (minutes: number) => new Date(now + minutes * 60_000).toISOString();
+
+  it("clears a long-untouched queued leftover with no lease", () => {
+    expect(isStaleQueuedJob({ status: "queued", updated_at: ago(45) }, now)).toBe(true);
+  });
+
+  it("keeps a recently touched queued job and any job that is not queued", () => {
+    expect(isStaleQueuedJob({ status: "queued", updated_at: ago(5) }, now)).toBe(false);
+    expect(isStaleQueuedJob({ status: "processing", updated_at: ago(90) }, now)).toBe(false);
+  });
+
+  it("keeps a build parked for capacity, even when it was last written more than 30 minutes ago", () => {
+    expect(isStaleQueuedJob({ status: "queued", updated_at: ago(45), resumes_at: ahead(20), lease_expires_at: ahead(20) }, now)).toBe(false);
+    expect(isStaleQueuedJob({ status: "queued", updated_at: ago(45), lease_expires_at: ahead(5) }, now)).toBe(false);
+    // Its retry time passed only moments ago: it is about to be picked up.
+    expect(isStaleQueuedJob({ status: "queued", updated_at: ago(45), resumes_at: ago(2) }, now)).toBe(false);
+  });
+
+  it("clears a parked build whose retry time has itself been overdue for the whole window", () => {
+    expect(isStaleQueuedJob({ status: "queued", updated_at: ago(120), resumes_at: ago(60), lease_expires_at: ago(60) }, now)).toBe(true);
+  });
+
+  it("builds PostgREST guards that mirror the rule", () => {
+    const [resumes, lease] = staleQueuedGuardFilters(now);
+    expect(resumes).toBe(`resumes_at.is.null,resumes_at.lt.${ago(30)}`);
+    expect(lease).toBe(`lease_expires_at.is.null,lease_expires_at.lt.${ago(30)}`);
+  });
+
+  it("writes a failure kind and a tagged message, and releases the lease", () => {
+    const update = staleQueuedClearUpdate("2026-10-31T18:00:00.000Z");
+    expect(update).toMatchObject({ status: "failed", failure_kind: "infrastructure", lease_expires_at: null });
+    expect(update.error_message).toBe("[infrastructure] Stale job cleared for new build request");
+    expect(readFailureKind(update.error_message)).toBe("infrastructure");
+  });
+
+  it("is what the Build request uses before it looks for an active build", () => {
+    const source = readFileSync("src/lib/site-engine.functions.ts", "utf8");
+    expect(source).toContain("staleQueuedClearUpdate(now.toISOString())");
+    expect(source).toContain("staleQueuedGuardFilters(now.getTime())");
+    expect(source).not.toMatch(/error_message: "Stale job cleared/);
   });
 });
