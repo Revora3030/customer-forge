@@ -29,6 +29,7 @@ import {
 import { usePlans } from "@/lib/queries";
 import { DOMAIN_STATES, PUBLISH_STATES, readiness } from "@/lib/readiness";
 import { writeSupportMode } from "@/lib/support-mode";
+import { dnsRows } from "@/lib/domain-setup";
 import { currency, dateShort, dateLong, number } from "@/lib/format";
 import { Sparkline } from "@/components/demo/DemoCharts";
 
@@ -361,11 +362,13 @@ function ClientDetail() {
           </Button>
         </div>
         <div className="product-tile">
-          <p className="eyebrow">DNS record</p>
-          <p className="mt-1.5">
-            CNAME <span className="text-muted-foreground">@ or www</span> →{" "}
-            <code className="rounded bg-elevated px-1.5 py-0.5">{data.domainTarget}</code>
-          </p>
+          <p className="eyebrow">DNS records</p>
+          {dnsRows(settings?.custom_domain ?? "").map((row) => (
+            <p key={row.name} className="mt-1.5">
+              {row.type} <span className="text-muted-foreground">{row.name}</span> →{" "}
+              <code className="rounded bg-elevated px-1.5 py-0.5">{row.value}</code>
+            </p>
+          ))}
           {settings?.domain_error ? (
             <p className="mt-2 text-destructive">{settings.domain_error}</p>
           ) : null}
