@@ -23,7 +23,7 @@ export function EnvironmentBanner({ status }: { status: ProductionStatus | undef
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="eyebrow">{live ? "Production — live" : "Sandbox mode"}</p>
+          <p className="eyebrow">{live ? "Live" : "Test mode"}</p>
           <p className="mt-1 text-[13px] font-medium">
             {live
               ? "Your website is live and taking real enquiries."
@@ -81,7 +81,7 @@ export function ProductionLaunchModal({
             "Publish your website",
             "Deploy it live",
             "Connect your custom domain",
-            "Activate production",
+            "Switch from test mode to your real site",
             "Start receiving real customers and leads",
           ].map((item) => (
             <li key={item} className="flex gap-2">
@@ -142,7 +142,7 @@ export function ProductionReadinessPanel({
     <section className="panel p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="eyebrow">Production readiness</p>
+          <p className="eyebrow">Launch checklist</p>
           <h3 className="mt-1 font-display text-[17px] font-semibold">
             {readiness.passed ? "Pass — ready to launch" : "Needs attention"}
           </h3>
@@ -183,13 +183,13 @@ export function ProductionReadinessPanel({
             : live
               ? "Publish changes"
               : readiness.unlocked
-                ? "Activate production"
+                ? "Publish my site"
                 : "Launch my website"}
         </Button>
         <p className="text-[11.5px] text-muted-foreground">
           {readiness.unlocked
-            ? "Creates a permanent production version — earlier versions are kept."
-            : "Verified server-side. Sandbox testing never sends real customer messages."}
+            ? "Publishes your site. Earlier versions are kept."
+            : "Checked automatically before launch. Test mode never sends real messages to your customers."}
         </p>
       </div>
     </section>

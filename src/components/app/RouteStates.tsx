@@ -98,7 +98,7 @@ export function RoutePending() {
         <p className="text-sm text-muted-foreground">Loading…</p>
         {slow ? (
           <p className="mt-4 text-sm text-muted-foreground">
-            Taking longer than usual. <a className="underline underline-offset-4 text-foreground" href="">Reload the page</a>
+            Taking longer than usual. <button type="button" className="underline underline-offset-4 text-foreground" onClick={() => window.location.reload()}>Reload the page</button>
           </p>
         ) : null}
       </div>
