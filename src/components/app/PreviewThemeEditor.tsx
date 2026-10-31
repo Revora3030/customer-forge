@@ -220,6 +220,8 @@ export function PreviewThemeEditor({ organizationId, onPreview, onSaved }: Props
               </ul>
             ) : null}
 
+            <p data-testid="preview-theme-live-note" className="text-[11.5px] font-medium text-foreground">This updates your live site.</p>
+
             <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
               <Button type="button" size="sm" variant="ghost" onClick={discard} disabled={!changed || saving}>
                 <RotateCcw className="size-3.5" aria-hidden /> Reset
