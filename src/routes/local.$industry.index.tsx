@@ -3,7 +3,7 @@ import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { SiteFooter, SiteHeader } from "@/components/marketing/Chrome";
 import { Button } from "@/components/ui/button";
 import { GROWTH_SYSTEM, usd } from "@/lib/offer";
-import { breadcrumbSchema, canonicalLink, ogUrl, metaDescription, OG_IMAGE_META } from "@/lib/seo";
+import { brandedTitle, breadcrumbSchema, canonicalLink, ogUrl, metaDescription, OG_IMAGE_META } from "@/lib/seo";
 import { findLocalIndustry, localPath, type LocalIndustry } from "@/lib/local-pages";
 import { US_STATES } from "@/lib/us-states";
 
@@ -20,8 +20,8 @@ export const Route = createFileRoute("/local/$industry/")({
         meta: [{ title: "Page not found — Revora" }, { name: "robots", content: "noindex" }],
       };
     }
-    const title = `${industry.name} websites, quotes & lead generation — every US state | Revora`;
-    const description = `Revora builds ${(industry.name === industry.name.toUpperCase() ? industry.name : industry.name.toLowerCase())} businesses a complete customer acquisition system — website, instant quotes, booking, CRM, follow-up and reviews. Choose your state. ${usd(GROWTH_SYSTEM.setupPrice)} setup, first month free, then ${usd(GROWTH_SYSTEM.monthlyPrice)}/month.`;
+    const title = brandedTitle(`${industry.name} Website Design in Every US State`);
+    const description = `${industry.name} website design, instant quotes, booking and CRM for every US state. Pick your state. ${usd(GROWTH_SYSTEM.setupPrice)} setup, first month free, then ${usd(GROWTH_SYSTEM.monthlyPrice)}/mo.`;
     const path = localPath(industry.slug);
     return {
       meta: [

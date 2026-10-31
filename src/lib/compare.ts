@@ -38,8 +38,8 @@ export const COMPARISONS: readonly Comparison[] = [
   {
     slug: "revora-vs-marketing-agency",
     label: "Revora vs a marketing agency",
-    title: "Revora vs a marketing agency — what local businesses actually get",
-    description: `Comparing Revora's ${SETUP} setup and ${MONTHLY}/month growth system with hiring a marketing agency: what you own, what runs automatically, what you pay monthly and how fast you launch.`,
+    title: "Revora vs a Marketing Agency: What You Actually Get",
+    description: `Revora's ${SETUP} setup and ${MONTHLY}/month growth system vs a marketing agency: what you own, what runs automatically and what you pay.`,
     heading: "Revora vs a marketing agency",
     intro:
       "Agencies sell services delivered by people: strategy calls, campaign management, monthly reports. Revora sells a system your business runs on. The difference shows up in what you own, what keeps working when nobody is on the clock, and what happens to your leads.",
@@ -96,8 +96,8 @@ export const COMPARISONS: readonly Comparison[] = [
   {
     slug: "revora-vs-diy-website-builder",
     label: "Revora vs DIY website builders",
-    title: "Revora vs DIY website builders — website vs. customer acquisition system",
-    description: `A DIY builder gives you pages. Revora gives you the system that turns visitors into booked jobs: instant quotes, booking, CRM, follow-up and reviews for ${SETUP} setup and ${MONTHLY}/month.`,
+    title: "Revora vs DIY Website Builders: Website or System?",
+    description: `A DIY builder gives you pages. Revora gives you the system that turns visitors into booked jobs, for ${SETUP} setup and ${MONTHLY}/month.`,
     heading: "Revora vs DIY website builders",
     intro:
       "Drag-and-drop builders are good at producing pages. The problem is that a page is not a pipeline: a visitor still has to call you, you still have to reply, quote, schedule, follow up and ask for the review. That is where the revenue actually leaks.",
@@ -152,7 +152,7 @@ export const COMPARISONS: readonly Comparison[] = [
     slug: "revora-vs-buying-leads",
     label: "Revora vs buying leads",
     title: "Revora vs buying leads from lead marketplaces",
-    description: `Bought leads are rented, shared and priced per contact. Revora builds the asset that produces your own leads — website, quotes, booking, CRM and reviews — for ${SETUP} setup and ${MONTHLY}/month.`,
+    description: `Bought leads are rented, shared and priced per contact. Revora builds the asset that makes your own leads, for ${SETUP} setup and ${MONTHLY}/month.`,
     heading: "Revora vs buying leads",
     intro:
       "Lead marketplaces solve today's empty schedule. They do not build anything: the moment you stop paying, the leads stop, and the same enquiry is usually sold to several businesses at once. Owning the channel is the only version that compounds.",

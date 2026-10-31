@@ -274,16 +274,43 @@ export function breadcrumbSchema(trail: { name: string; path: string }[]) {
 }
 
 /**
- * Search results truncate descriptions at roughly 155–160 characters. Trim
- * long copy at a word boundary so the snippet ends cleanly instead of being
- * cut mid-word by Google. Open Graph descriptions can stay full-length.
+ * Search results truncate descriptions at roughly 155-160 characters. Copy
+ * that is longer is cut so it still reads as finished text, never as a
+ * dangling "…": at the last full sentence when that keeps most of the
+ * budget, otherwise at the last word boundary. Open Graph descriptions can
+ * stay full-length.
  */
-export function metaDescription(text: string, max = 155): string {
+export function metaDescription(text: string, max = 160): string {
   const clean = text.replace(/\s+/g, " ").trim();
   if (clean.length <= max) return clean;
-  const cut = clean.slice(0, max - 1);
-  const lastSpace = cut.lastIndexOf(" ");
-  return `${(lastSpace > max * 0.6 ? cut.slice(0, lastSpace) : cut).replace(/[\s,;:—-]+$/, "")}…`;
+  const window = clean.slice(0, max + 1);
+  // Last sentence that ends inside the budget ("... /mo." or "...!" or "...?").
+  const sentenceEnd = Math.max(
+    window.lastIndexOf(". "),
+    window.lastIndexOf("! "),
+    window.lastIndexOf("? "),
+  );
+  if (sentenceEnd >= max * 0.6) return window.slice(0, sentenceEnd + 1);
+  const lastSpace = window.lastIndexOf(" ");
+  const cut = lastSpace > max * 0.6 ? window.slice(0, lastSpace) : clean.slice(0, max);
+  return cut.replace(/[\s,;:—–-]+$/, "").replace(/\b(and|or|with|for|to|in|of|the|a|an|then)$/i, "").replace(/[\s,;:—–-]+$/, "");
+}
+
+export const BRAND_NAME = "Revora Growth Systems";
+
+/**
+ * "<core> | Revora Growth Systems", falling back to "| Revora" and finally to
+ * the bare core when the full brand would push the title past `max`
+ * characters (Google cuts titles at about 60). The core is never cut unless
+ * it is too long by itself, and then only at a word boundary.
+ */
+export function brandedTitle(core: string, max = 60): string {
+  const clean = core.replace(/\s+/g, " ").trim();
+  for (const brand of [BRAND_NAME, "Revora"]) {
+    const title = `${clean} | ${brand}`;
+    if (title.length <= max) return title;
+  }
+  return metaTitle(clean, "", max);
 }
 
 /**

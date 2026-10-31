@@ -9,8 +9,9 @@ import { BusinessDetails } from "@/components/marketing/BusinessDetails";
 import { BUSINESS, findLocation, type NcLocation } from "@/lib/business-identity";
 import { INDUSTRIES, industrySlug } from "@/lib/domain";
 import { GROWTH_SYSTEM, usdExact } from "@/lib/offer";
-import { breadcrumbSchema, canonicalLink, ogUrl, metaDescription, OG_IMAGE_META } from "@/lib/seo";
+import { brandedTitle, breadcrumbSchema, canonicalLink, ogUrl, metaDescription, OG_IMAGE_META } from "@/lib/seo";
 import { trackConversion } from "@/lib/conversion";
+import instrumentSerifUrl from "@fontsource/instrument-serif/files/instrument-serif-latin-400-normal.woff2?url";
 
 const PILLARS = [
   {
@@ -59,8 +60,8 @@ export const Route = createFileRoute("/locations/$city")({
         meta: [{ title: "Page not found — Revora" }, { name: "robots", content: "noindex" }],
       };
     }
-    const title = `${location.city}, NC website & lead generation for local businesses — Revora`;
-    const description = `Revora builds ${location.city} service businesses a complete customer acquisition system: website, instant quotes, online booking, CRM, follow-up and reviews. ${usdExact(GROWTH_SYSTEM.setupPrice)} setup, then ${usdExact(GROWTH_SYSTEM.monthlyPrice)}/month.`;
+    const title = brandedTitle(`${location.city}, NC Website & Lead Generation`);
+    const description = `Website, instant quotes, booking, CRM and review follow-up for ${location.city} service businesses. ${usdExact(GROWTH_SYSTEM.setupPrice)} setup, then ${usdExact(GROWTH_SYSTEM.monthlyPrice)}/month.`;
     const path = `/locations/${location.slug}`;
     return {
       meta: [
@@ -73,7 +74,14 @@ export const Route = createFileRoute("/locations/$city")({
         ogUrl(path),
         ...OG_IMAGE_META,
       ],
-      links: [canonicalLink(path)],
+      links: [
+        canonicalLink(path),
+        // The H1 uses Instrument Serif (font-display: swap). Fetching the font
+        // at the start of the page load, not after the CSS is parsed, shrinks
+        // the window in which the fallback face is shown and then swapped,
+        // which is the layout shift Lighthouse reported on this page (CLS 0.15).
+        { rel: "preload", as: "font", type: "font/woff2", href: instrumentSerifUrl, crossOrigin: "anonymous" as const },
+      ],
       scripts: [
         {
           type: "application/ld+json",
