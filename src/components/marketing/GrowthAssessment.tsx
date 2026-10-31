@@ -25,6 +25,7 @@ import {
   type AssessmentAnswers,
 } from "@/lib/assessment";
 import { submitAssessment } from "@/lib/assessment.functions";
+import { ga4GenerateLead } from "@/lib/ga4-events";
 import { GROWTH_SYSTEM } from "@/lib/offer";
 
 const SPEEDS: { value: AssessmentAnswers["replySpeed"]; label: string }[] = [
@@ -94,6 +95,7 @@ export function GrowthAssessment({ mode = "assessment" }: { mode?: "assessment" 
       });
       setEmailed(response.emailed);
       setStatus("done");
+      ga4GenerateLead(mode === "audit" ? "website_audit" : "growth_assessment");
       // The server already recorded this submission as its single authoritative event; recording it again
       // here would count one lead twice.
       document

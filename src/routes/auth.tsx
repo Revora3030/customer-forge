@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ErrorNote, Pill } from "@/components/app/Bits";
 import { RouteError } from "@/components/app/RouteStates";
+import { ga4SignUp } from "@/lib/ga4-events";
 import { reportRouteError } from "@/lib/route-error-reporting";
 import { GROWTH_SYSTEM, usd } from "@/lib/offer";
 import {
@@ -142,6 +143,7 @@ function AuthPage() {
           },
         });
         if (signUpError) throw signUpError;
+        ga4SignUp("email");
         if (!signUpData.session) {
           const message = "Check your email for a confirmation link before signing in. If you already have an account, sign in or reset your password.";
           toast.message("Check your email to continue.");
