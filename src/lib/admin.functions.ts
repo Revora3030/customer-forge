@@ -134,19 +134,38 @@ export const listClients = createServerFn({ method: "GET" })
       fetchAllRows<T>((from, to) =>
         filter((supabaseAdmin as LooseQuery).from(table).select(columns)).order("id").range(from, to),
       );
+    // Per-client counts come from one grouped database function. Until the
+    // migration that creates it is published, fall back to reading the tables.
+    const dbCounts = await fetchAllRows<{
+      organization_id: string;
+      active_services: number | string;
+      bookable_services: number | string;
+      media: number | string;
+      active_quote_forms: number | string;
+      leads: number | string;
+      appointments: number | string;
+      analytics_events: number | string;
+    }>((from, to) => (supabaseAdmin as LooseQuery).rpc("admin_client_counts").range(from, to));
+    const useDbCounts = !dbCounts.error;
+    const none = { rows: [] as never[], error: null, pages: 0 };
+
     const [profiles, sites, services, media, forms, leads, appts, events, subs, pays] =
       await Promise.all([
         all<LooseQuery>("business_profiles", "*"),
         all<LooseQuery>("website_settings", "*"),
-        all<{ organization_id: string; bookable: boolean; is_active: boolean }>(
-          "services",
-          "organization_id, bookable, is_active",
-        ),
-        all<{ organization_id: string }>("media", "organization_id"),
-        all<{ organization_id: string; is_active: boolean }>("quote_forms", "organization_id, is_active"),
-        all<{ organization_id: string }>("leads", "organization_id"),
-        all<{ organization_id: string }>("appointments", "organization_id"),
-        all<{ organization_id: string }>("analytics_events", "organization_id"),
+        useDbCounts
+          ? none
+          : all<{ organization_id: string; bookable: boolean; is_active: boolean }>(
+              "services",
+              "organization_id, bookable, is_active",
+            ),
+        useDbCounts ? none : all<{ organization_id: string }>("media", "organization_id"),
+        useDbCounts
+          ? none
+          : all<{ organization_id: string; is_active: boolean }>("quote_forms", "organization_id, is_active"),
+        useDbCounts ? none : all<{ organization_id: string }>("leads", "organization_id"),
+        useDbCounts ? none : all<{ organization_id: string }>("appointments", "organization_id"),
+        useDbCounts ? none : all<{ organization_id: string }>("analytics_events", "organization_id"),
         // Financial truth is LIVE Stripe only.
         all<{
           organization_id: string;
@@ -196,6 +215,9 @@ export const listClients = createServerFn({ method: "GET" })
     const leadCounts = new Map<string, number>();
     const apptCounts = new Map<string, number>();
     const eventCounts = new Map<string, number>();
+    const activeServiceCounts = new Map<string, number>();
+    const bookableCounts = new Map<string, number>();
+    const activeFormCounts = new Map<string, number>();
     const tally = (rows: { organization_id: string }[] | null, into: Map<string, number>) => {
       for (const row of rows ?? []) into.set(row.organization_id, (into.get(row.organization_id) ?? 0) + 1);
     };
@@ -203,18 +225,35 @@ export const listClients = createServerFn({ method: "GET" })
     tally(leads.rows, leadCounts);
     tally(appts.rows, apptCounts);
     tally(events.rows, eventCounts);
+    if (useDbCounts) {
+      for (const row of dbCounts.rows) {
+        const id = row.organization_id;
+        mediaCounts.set(id, Number(row.media));
+        leadCounts.set(id, Number(row.leads));
+        apptCounts.set(id, Number(row.appointments));
+        eventCounts.set(id, Number(row.analytics_events));
+        activeServiceCounts.set(id, Number(row.active_services));
+        bookableCounts.set(id, Number(row.bookable_services));
+        activeFormCounts.set(id, Number(row.active_quote_forms));
+      }
+    } else {
+      for (const [id, list] of servicesByOrg) {
+        activeServiceCounts.set(id, list.filter((s) => s.is_active).length);
+        bookableCounts.set(id, list.filter((s) => s.bookable && s.is_active).length);
+      }
+      for (const [id, list] of formsByOrg) activeFormCounts.set(id, list.filter((f) => f.is_active).length);
+    }
 
     return (orgs ?? []).map((org) => {
       const profile = profileByOrg.get(org.id) ?? null;
       const settings = settingsByOrg.get(org.id) ?? null;
-      const orgServices = servicesByOrg.get(org.id) ?? [];
       const score = readiness({
         profile,
         settings,
-        servicesCount: orgServices.filter((s) => s.is_active).length,
-        bookableCount: orgServices.filter((s) => s.bookable && s.is_active).length,
+        servicesCount: activeServiceCounts.get(org.id) ?? 0,
+        bookableCount: bookableCounts.get(org.id) ?? 0,
         mediaCount: mediaCounts.get(org.id) ?? 0,
-        quoteFormCount: (formsByOrg.get(org.id) ?? []).filter((f) => f.is_active).length,
+        quoteFormCount: activeFormCounts.get(org.id) ?? 0,
         analyticsCount: eventCounts.get(org.id) ?? 0,
       }).score;
 
