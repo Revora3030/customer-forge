@@ -37,13 +37,13 @@ export const Route = createFileRoute("/pricing")({
     tenantPageHead(loaderData ?? null) ?? {
       meta: [
         {
-          title: `Pricing — Revora Growth System | ${usd(GROWTH_SYSTEM.setupPrice)} setup + ${usd(GROWTH_SYSTEM.monthlyPrice)}/mo`,
+          title: `Pricing — Revora Growth Systems | ${usd(GROWTH_SYSTEM.setupPrice)} setup + ${usd(GROWTH_SYSTEM.monthlyPrice)}/mo`,
         },
         {
           name: "description",
           content: `${usd(GROWTH_SYSTEM.setupPrice)} one-time setup + ${usd(GROWTH_SYSTEM.monthlyPrice)}/month, first month free. Website, lead capture, CRM, booking, quotes, follow-up, reviews, local SEO, analytics and support.`,
         },
-        { property: "og:title", content: "Pricing — Revora Growth System" },
+        { property: "og:title", content: "Pricing — Revora Growth Systems" },
         {
           property: "og:description",
           content: `${usd(GROWTH_SYSTEM.setupPrice)} one-time setup + first month free + ${usd(GROWTH_SYSTEM.monthlyPrice)}/month afterward. One complete growth system.`,

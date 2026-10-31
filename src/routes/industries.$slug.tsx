@@ -90,7 +90,7 @@ export const Route = createFileRoute("/industries/$slug")({
           children: JSON.stringify({
             "@context": "https://schema.org",
             "@type": "Service",
-            name: `Revora Growth System for ${name}`,
+            name: `Revora Growth Systems for ${name}`,
             provider: { "@type": "Organization", name: "Revora Growth Systems" },
             serviceType: "Website design and lead generation",
             areaServed: "United States",

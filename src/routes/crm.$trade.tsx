@@ -49,7 +49,7 @@ export const Route = createFileRoute("/crm/$trade")({
           children: JSON.stringify({
             "@context": "https://schema.org",
             "@type": "SoftwareApplication",
-            name: `Revora Growth System — ${solution.heading}`,
+            name: `Revora Growth Systems — ${solution.heading}`,
             applicationCategory: "BusinessApplication",
             operatingSystem: "Web",
             description: solution.description,
