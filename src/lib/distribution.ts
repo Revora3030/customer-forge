@@ -247,12 +247,6 @@ export type ListingTarget = {
 /** Free places to list Revora itself so business owners find it in search. */
 export const FREE_LISTINGS: ListingTarget[] = [
   {
-    label: "Google Business Profile",
-    url: "https://business.google.com/create",
-    why: "The single highest-intent free listing. Service-area business, no address needed.",
-    free: true,
-  },
-  {
     label: "Bing Places",
     url: "https://www.bingplaces.com/",
     why: "Feeds Bing, Copilot and Windows search results.",

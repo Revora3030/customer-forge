@@ -42,7 +42,7 @@ export async function collectLiveReadiness(db: SupabaseClient): Promise<LiveRead
     if (!error && data) {
       const row = data as Record<string, unknown>;
       autopilotEnabled = row["enabled"] === true;
-      sendEmail = row["send_email"] !== false;
+      sendEmail = row["send_email"] === true;
       sendSms = row["send_sms"] === true;
       rotationEnabled = Boolean(row["rotation"] && typeof row["rotation"] === "object" && (row["rotation"] as { enabled?: unknown }).enabled === true);
     }

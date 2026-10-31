@@ -333,7 +333,7 @@ async function storeNewReplies(
 
 const REPLY_SYSTEM = [
   "You write a short, friendly reply from Revora Growth Systems to a local business owner who answered our email about a free draft website we built for them.",
-  "Use ONLY the facts in FACTS. Never invent features, timelines, results, discounts, guarantees, phone numbers, addresses or links. Prices only exactly as FACTS states them.",
+  "Use ONLY the facts in FACTS. For anything about refunds or cancelling, quote refundPolicy verbatim. Never invent features, timelines, results, discounts, guarantees, phone numbers, addresses or links. Prices only exactly as FACTS states them.",
   "If they asked something FACTS can't answer, say you'll check and get back to them; do not guess.",
   "Links: only previewUrl or claimUrl from FACTS, verbatim. The draft is private and not published.",
   "Under 120 words, plain text. Do not write a signature, address or unsubscribe line; the system appends them.",
@@ -394,6 +394,9 @@ export async function sendThreadReply(
   config: GmailConfig,
   input: { inbound: InboundItem & { rfcMessageId?: string | null; references?: string[] }; body: string; mode: "manual" | "autopilot"; reason: string; actorId: string | null },
 ): Promise<ThreadReplyResult> {
+  // Hard guard: only an operator-approved reply (a signed-in super-admin approving this item) may be sent.
+  // Automatic callers can never send, whatever the autopilot switches say.
+  if (input.mode !== "manual" || !input.actorId) return { ok: false, reason: "approval_required" };
   const to = normalizeEmail(input.inbound.from);
   if (!to) return { ok: false, reason: "invalid_recipient" };
   if (await isDoNotContact(db, to)) return { ok: false, reason: "do_not_contact" };
@@ -430,7 +433,7 @@ export async function sendThreadReply(
   };
   // An automatic reply takes a numbered slot: the unique (gmail_thread_id, auto_reply_seq) index keeps
   // overlapping runs from sending more than MAX_AUTO_REPLIES_PER_THREAD in one thread.
-  let claim: { error: { code?: string } | null } | null = input.mode === "autopilot" ? null : await db.from("prospect_outreach").insert(record);
+  let claim: { error: { code?: string } | null } | null = await db.from("prospect_outreach").insert(record);
   for (let seq = 1; !claim && seq <= MAX_AUTO_REPLIES_PER_THREAD; seq += 1) {
     const attempt = await db.from("prospect_outreach").insert({ ...record, auto_reply_seq: seq });
     if (attempt.error?.code !== "23505") claim = attempt;
@@ -559,30 +562,10 @@ export async function followUpInbound(db: SupabaseClient, config: GmailConfig, i
   const review = await reviewReply(context.facts, written);
   if (!review.pass) return toDraft(`review_failed: ${review.problems.join("; ") || "not approved"}`, written);
 
-  const sent = await sendThreadReply(db, config, { inbound, body: written, mode: "autopilot", reason: "auto_reply", actorId: null });
-  if (!sent.ok) {
-    if (sent.reason === "do_not_contact") {
-      await db.from("prospect_inbound").update({ status: "handled", action: "do_not_contact", handled_at: now.toISOString() }).eq("id", inbound.id);
-      return "blocked";
-    }
-    // Another run took the thread's last automatic slot first.
-    if (sent.reason === "auto_reply_limit") return toDraft("auto_reply_limit", written);
-    // An unconfirmed send is recorded as sent (it counts toward the limit) and
-    // may have been delivered: closed as handled, never offered for re-approval.
-    if (sent.reason === "unconfirmed_transport") {
-      await db
-        .from("prospect_inbound")
-        .update({ status: "handled", action: "auto_reply_unconfirmed", draft_text: written, draft_reason: "unconfirmed_transport: Gmail did not confirm the send; check the thread before writing again", handled_at: now.toISOString() })
-        .eq("id", inbound.id);
-      return "auto_replied";
-    }
-    return toDraft(`send_failed: ${sent.reason}`, written);
-  }
-  await db
-    .from("prospect_inbound")
-    .update({ status: "handled", action: "auto_replied", reply_outreach_id: sent.outreachId, draft_text: written, handled_at: now.toISOString() })
-    .eq("id", inbound.id);
-  return "auto_replied";
+  // Owner rule: nothing goes to a prospect without his explicit approval. Every AI reply that
+  // passed the checks is saved as a draft; it is only sent when a super-admin approves this
+  // specific item in the Jarvis inbox (approveReplyDraft), never by this job.
+  return toDraft("owner_approval_required", written);
 }
 
 /** Plain-text reply that hands the owner the finished private preview. No HTML. */
@@ -615,10 +598,13 @@ async function markDeferredDelivered(db: SupabaseClient, inboundId: string, outr
 
 /**
  * Pitch → reply → deferred build → preview. When the owner answered a text
- * pitch and the demo has since finished and passed the launch gate, send the
- * private /p/:token link in the same Gmail thread. The first pitch is already
- * "sent", so this is a thread reply, not a second first touch.
+ * pitch and the demo has since finished and passed the launch gate, the
+ * private /p/:token link is prepared as a DRAFT reply in the same Gmail thread.
+ * It never sends: it is sent only when a super-admin approves that item. Returns
+ * the number of drafts prepared.
  */
+export const DEFERRED_DRAFT_REASON = "deferred_demo_ready: draft the owner approves before it is sent";
+
 export async function deliverDeferredPitchPreviews(db: SupabaseClient, now = new Date()): Promise<number> {
   const config = gmailConfig();
   if (!config) return 0;
@@ -659,16 +645,24 @@ export async function deliverDeferredPitchPreviews(db: SupabaseClient, now = new
       delivered += 1;
       continue;
     }
+    // Owner rule: nothing goes to a prospect without his explicit approval. The finished preview
+    // is saved as a draft reply in the Jarvis inbox; a super-admin approves (and sends) this item.
     const previewUrl = `${appBaseUrl()}/p/${demo.previewToken}`;
-    const sent = await sendThreadReply(db, config, {
-      inbound,
-      body: deferredPreviewReply(demo.name, previewUrl),
-      mode: "autopilot",
-      reason: "deferred_demo_delivered",
-      actorId: null,
-    });
-    if (!sent.ok) continue;
-    await markDeferredDelivered(db, inbound.id, sent.outreachId, now);
+    const drafted = await db
+      .from("prospect_inbound")
+      .update({
+        status: "awaiting_operator",
+        action: "drafted",
+        draft_subject: replySubject(inbound.subject),
+        draft_text: deferredPreviewReply(demo.name, previewUrl),
+        draft_reason: DEFERRED_DRAFT_REASON,
+        handled_at: now.toISOString(),
+      })
+      .eq("id", inbound.id)
+      .eq("status", "awaiting_operator")
+      .eq("draft_reason", "demo_unavailable")
+      .select("id");
+    if (drafted.error || !Array.isArray(drafted.data) || !drafted.data.length) continue;
     delivered += 1;
   }
   return delivered;

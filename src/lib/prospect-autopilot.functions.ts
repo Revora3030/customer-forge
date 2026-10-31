@@ -69,3 +69,15 @@ export const listAutopilotRunsFn = createServerFn({ method: "GET" })
     const { listAutopilotRuns } = await import("./prospect-autopilot.server");
     return listAutopilotRuns(db, 10);
   });
+
+/**
+ * Super-admin only: the mailing address outreach emails must carry (the value of
+ * the REVORA_MAILING_ADDRESS env var), or null when it isn't set.
+ */
+export const getOutreachMailingAddressFn = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await guardedAdmin(context);
+    const { mailingAddress } = await import("./gmail/client.server");
+    return { address: mailingAddress() || null };
+  });

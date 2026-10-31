@@ -532,7 +532,7 @@ describe("single-flight run lock", () => {
     setGmail();
     threadMessages = [inbound("in1", "Yes, I like it! What next?")];
     const { db, tables, pollClaims } = fakeDb(demoSeed({ prospect_outreach: [sentOutreach()], prospect_reply_poll_state: [{ id: 1, last_result: {} }] }));
-    expect(await runProspectReplies(db)).toMatchObject({ status: "done", stored: 1, autoReplied: 1 });
+    expect(await runProspectReplies(db)).toMatchObject({ status: "done", stored: 1, autoReplied: 0, drafted: 1 });
     expect(pollClaims).toHaveLength(1);
     expect(pollClaims[0]!.p_seconds).toBe(15 * 60);
     // Released: the next run can claim again.
@@ -568,7 +568,7 @@ describe("single-flight run lock", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     onTestFinished(() => warn.mockRestore());
     const { db, pollClaims } = fakeDb(demoSeed({ prospect_outreach: [sentOutreach()] }), { missingPollLock: true });
-    expect(await runProspectReplies(db)).toMatchObject({ status: "done", stored: 1, autoReplied: 1 });
+    expect(await runProspectReplies(db)).toMatchObject({ status: "done", stored: 1, autoReplied: 0, drafted: 1 });
     expect(pollClaims).toHaveLength(0);
     expect(warn).toHaveBeenCalledWith(expect.stringContaining("claim_prospect_reply_poll is missing"));
   });
@@ -600,8 +600,10 @@ describe("reply polling and follow-up", () => {
     const seed: Record<string, Row[]> = demoSeed({ prospect_outreach: [sentOutreach()] });
     seed["business_profiles"]![0] = { ...seed["business_profiles"]![0]!, website: "https://www.trianglecomfort.com" };
     const { db, tables } = fakeDb(seed);
-    expect(await runProspectReplies(db)).toMatchObject({ status: "done", autoReplied: 1, drafted: 0 });
-    expect(tables["prospect_inbound"]![0]).toMatchObject({ action: "auto_replied" });
+    expect(await runProspectReplies(db)).toMatchObject({ status: "done", autoReplied: 0, drafted: 1 });
+    expect(sends).toHaveLength(0);
+    expect(tables["prospect_inbound"]![0]).toMatchObject({ status: "awaiting_operator", action: "drafted", draft_reason: "owner_approval_required" });
+    expect(String(tables["prospect_inbound"]![0]!["draft_text"])).toContain("TriangleComfort.com");
   });
 
   it("drafts instead when the reply names the business domain but the profile lists no website", async () => {
@@ -630,12 +632,26 @@ describe("reply polling and follow-up", () => {
     expect(inbox.missingSecrets).toHaveLength(4);
   });
 
-  it("auto-replies in-thread to a positive reply with the threading headers and unsubscribe link", async () => {
+  it("never sends a positive reply by itself: it saves a draft, and sends in-thread only when an operator approves that item", async () => {
     setGmail();
     threadMessages = [inbound("in1", "Yes, I like it! What next?")];
     const { db, tables } = fakeDb(demoSeed({ prospect_outreach: [sentOutreach()] }));
     const result = await runProspectReplies(db);
-    expect(result).toMatchObject({ status: "done", stored: 1, autoReplied: 1, drafted: 0 });
+    expect(result).toMatchObject({ status: "done", stored: 1, autoReplied: 0, drafted: 1 });
+    // Autopilot AND send-email are both ON in this seed, and still nothing is sent.
+    expect(sends).toHaveLength(0);
+    expect(tables["prospect_outreach"]!.filter((row) => row["kind"] === "reply")).toHaveLength(0);
+    const row = tables["prospect_inbound"]![0]!;
+    expect(row).toMatchObject({ intent: "positive", status: "awaiting_operator", action: "drafted", draft_reason: "owner_approval_required" });
+    expect(String(row["draft_text"])).toContain(PREVIEW);
+
+    // A later poll does not send it either.
+    expect(await runProspectReplies(db)).toMatchObject({ stored: 0, autoReplied: 0 });
+    expect(sends).toHaveLength(0);
+
+    // The operator approves this specific item: only now does it go out, in-thread.
+    const approved = await approveReplyDraft(db, { inboundId: String(row["id"]), body: String(row["draft_text"]), actorId: "admin" });
+    expect(approved.ok).toBe(true);
     expect(sends).toHaveLength(1);
     expect(sends[0]!.threadId).toBe(THREAD);
     const { head, text } = sentText();
@@ -645,20 +661,63 @@ describe("reply polling and follow-up", () => {
     expect(head).toContain("List-Unsubscribe-Post: List-Unsubscribe=One-Click");
     expect(text).toContain(PREVIEW);
     expect(text).toMatch(/Unsubscribe: https:\/\/revoragrowthsystems\.com\/unsubscribe\/outreach\/[a-f0-9]{48}/);
-    const reply = tables["prospect_outreach"]!.find((row) => row["kind"] === "reply")!;
-    expect(reply).toMatchObject({ mode: "autopilot", channel: "email", reason: "auto_reply", status: "sent", gmail_thread_id: THREAD });
-    expect(tables["prospect_inbound"]![0]).toMatchObject({ intent: "positive", status: "handled", action: "auto_replied" });
+    const reply = tables["prospect_outreach"]!.find((r) => r["kind"] === "reply")!;
+    expect(reply).toMatchObject({ mode: "manual", channel: "email", reason: "draft_approved", status: "sent", sent_by: "admin", gmail_thread_id: THREAD });
+    expect(tables["prospect_inbound"]![0]).toMatchObject({ status: "handled", action: "draft_sent" });
+  });
 
-    // The same message on the next poll is not stored or answered again.
-    expect(await runProspectReplies(db)).toMatchObject({ stored: 0, autoReplied: 0 });
-    expect(sends).toHaveLength(1);
+  it("drafts a positive reply even when the autopilot switches are off, and when they are on", async () => {
+    for (const settings of [{ enabled: false, send_email: false }, { enabled: true, send_email: true }, { enabled: true, send_email: false }]) {
+      vi.clearAllMocks();
+      sends.length = 0;
+      setGmail();
+      threadMessages = [inbound("in1", "How much does it cost?")];
+      const seed = demoSeed({ prospect_outreach: [sentOutreach()] });
+      seed.prospect_autopilot_settings = [{ id: 1, ...settings, send_sms: false }];
+      const { db, tables } = fakeDb(seed);
+      expect(await runProspectReplies(db)).toMatchObject({ autoReplied: 0, drafted: 1 });
+      expect(sends).toHaveLength(0);
+      expect(tables["prospect_outreach"]!.filter((row) => row["kind"] === "reply")).toHaveLength(0);
+    }
+  });
+
+  it("refuses to send from any automatic caller, whatever the settings", async () => {
+    setGmail();
+    const { db, tables } = fakeDb(demoSeed({ prospect_outreach: [sentOutreach()] }));
+    const item = {
+      id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", organizationId: ORG, businessName: null, threadId: THREAD, from: "owner@triangle.com",
+      subject: "Re: A free website draft for Triangle Comfort", snippet: null, body: "Sounds good", receivedAt: "2026-10-19T17:00:00.000Z",
+      intent: "positive" as const, confidence: 0.9, intentSource: "ai", flags: [], status: "processing", action: null, handledAt: null,
+      draftSubject: null, draftText: null, draftReason: null, rfcMessageId: "<in2@mail.test>", references: ["<revora.first@revora.test>"],
+    };
+    expect(await sendThreadReply(db, gmailConfig()!, { inbound: item, body: `Thanks! ${PREVIEW}`, mode: "autopilot", reason: "auto_reply", actorId: null })).toEqual({ ok: false, reason: "approval_required" });
+    expect(await sendThreadReply(db, gmailConfig()!, { inbound: item, body: `Thanks! ${PREVIEW}`, mode: "manual", reason: "x", actorId: null })).toEqual({ ok: false, reason: "approval_required" });
+    expect(sends).toHaveLength(0);
+    expect(tables["prospect_outreach"]!.filter((row) => row["kind"] === "reply")).toHaveLength(0);
+  });
+
+  it("a refund question is always a draft and the facts sheet carries the refund policy", async () => {
+    expect(riskFlags("Can I get a refund if I don't like it?")).toContain("refund");
+    expect(riskFlags("is there a money-back guarantee")).toContain("refund");
+    expect(autoReplyDecision({ intent: "question", flags: ["refund"], priorAutoReplies: 0, demoAvailable: true })).toEqual({ auto: false, reason: "refund_question" });
+    const facts = buildFactsSheet({ businessName: "Triangle Comfort", previewUrl: PREVIEW, claimUrl: CLAIM, senderEmail: "sam@revora.test" });
+    expect(facts.refundPolicy).toBe(
+      "Your $350 setup fee is fully refundable within 7 days if we haven't started your build. Your monthly plan is month-to-month, so cancel anytime and you won't be billed again. Charges already made aren't refunded.",
+    );
+    expect(factCheckReply(facts.refundPolicy, facts)).toEqual([]);
+    setGmail();
+    threadMessages = [inbound("in1", "Is this refundable? Can I get my money back?")];
+    const { db, tables } = fakeDb(demoSeed({ prospect_outreach: [sentOutreach()] }));
+    expect(await runProspectReplies(db)).toMatchObject({ autoReplied: 0, drafted: 1 });
+    expect(sends).toHaveLength(0);
+    expect(tables["prospect_inbound"]![0]).toMatchObject({ status: "awaiting_operator", draft_reason: "refund_question" });
   });
 
   it("classifies, writes and reviews on the shared router lane with no free-only flag", async () => {
     setGmail();
     threadMessages = [inbound("in1", "Yes, I like it! What next?")];
     const { db } = fakeDb(demoSeed({ prospect_outreach: [sentOutreach()] }));
-    expect(await runProspectReplies(db)).toMatchObject({ autoReplied: 1 });
+    expect(await runProspectReplies(db)).toMatchObject({ autoReplied: 0, drafted: 1 });
     const calls = vi.mocked(generateText).mock.calls;
     // Intent, reply and second-pass review all went through the router.
     expect(calls).toHaveLength(3);
@@ -860,7 +919,7 @@ describe("reply polling and follow-up", () => {
   const autoReplyRow = (seq: number): Row => sentOutreach({ id: crypto.randomUUID(), kind: "reply", reason: "auto_reply", gmail_id: `r${seq}`, auto_reply_seq: seq });
   const sentAutoReplies = (rows: Row[]) => rows.filter((row) => row["kind"] === "reply" && row["mode"] === "autopilot" && row["status"] === "sent");
 
-  it("drafts instead of sending when an overlapping run takes the thread's last automatic slot mid-reply", async () => {
+  it("still drafts (never sends) when an overlapping run takes the thread's last automatic slot mid-reply", async () => {
     setGmail();
     const { db, tables } = fakeDb(demoSeed({
       prospect_outreach: [sentOutreach(), autoReplyRow(1)],
@@ -879,27 +938,7 @@ describe("reply polling and follow-up", () => {
     expect(await runProspectReplies(db)).toMatchObject({ autoReplied: 0, drafted: 1 });
     expect(sends).toHaveLength(0);
     expect(sentAutoReplies(tables["prospect_outreach"]!)).toHaveLength(MAX_AUTO_REPLIES_PER_THREAD);
-    expect(tables["prospect_inbound"]![0]).toMatchObject({ status: "awaiting_operator", action: "drafted", draft_reason: "auto_reply_limit" });
-  });
-
-  it("lets only one of two concurrent automatic replies take the thread's last slot", async () => {
-    setGmail();
-    const { db, tables } = fakeDb(demoSeed({ prospect_outreach: [sentOutreach(), autoReplyRow(1)] }));
-    const item = {
-      id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", organizationId: ORG, businessName: null, threadId: THREAD, from: "owner@triangle.com",
-      subject: "Re: A free website draft for Triangle Comfort", snippet: null, body: "Sounds good", receivedAt: "2026-10-19T17:00:00.000Z",
-      intent: "positive" as const, confidence: 0.9, intentSource: "ai", flags: [], status: "processing", action: null, handledAt: null,
-      draftSubject: null, draftText: null, draftReason: null, rfcMessageId: "<in2@mail.test>", references: ["<revora.first@revora.test>"],
-    };
-    const send = () => sendThreadReply(db, gmailConfig()!, { inbound: item, body: `Thanks! ${PREVIEW}`, mode: "autopilot", reason: "auto_reply", actorId: null });
-    const results = await Promise.all([send(), send()]);
-    expect(results.filter((result) => result.ok)).toHaveLength(1);
-    expect(results.find((result) => !result.ok)).toEqual({ ok: false, reason: "auto_reply_limit" });
-    expect(sends).toHaveLength(1);
-    expect(sentAutoReplies(tables["prospect_outreach"]!).map((row) => row["auto_reply_seq"]).sort()).toEqual([1, 2]);
-    // With both slots taken, the next automatic reply is refused before Gmail.
-    expect(await send()).toEqual({ ok: false, reason: "auto_reply_limit" });
-    expect(sends).toHaveLength(1);
+    expect(tables["prospect_inbound"]![0]).toMatchObject({ status: "awaiting_operator", action: "drafted", draft_reason: "owner_approval_required" });
   });
 
   it("keeps an in-thread reply as an operator draft when the mailing address isn't set", async () => {
@@ -910,7 +949,7 @@ describe("reply polling and follow-up", () => {
     expect(await runProspectReplies(db)).toMatchObject({ autoReplied: 0, drafted: 1 });
     expect(sends).toHaveLength(0);
     const row = tables["prospect_inbound"]![0]!;
-    expect(row).toMatchObject({ status: "awaiting_operator", action: "drafted", draft_reason: "send_failed: mailing_address_missing" });
+    expect(row).toMatchObject({ status: "awaiting_operator", action: "drafted", draft_reason: "owner_approval_required" });
     expect(String(row["draft_text"])).toContain(PREVIEW);
     expect(tables["prospect_outreach"]!.filter((r) => r["kind"] === "reply")).toHaveLength(0);
 

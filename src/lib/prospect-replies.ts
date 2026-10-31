@@ -9,8 +9,10 @@ import { isPlatformEmailDomain } from "@/lib/prospect-email";
  * Safety rules:
  * - a stop/unsubscribe/remove-me reply is "stop" whatever the AI says, and is
  *   never answered;
- * - automatic replies only for positive, price and question intents, at most
- *   MAX_AUTO_REPLIES_PER_THREAD per thread, never with a legal or anger flag;
+ * - NOTHING is sent automatically: every AI reply is saved as a draft and goes
+ *   out only when a super-admin approves that specific item. autoReplyDecision
+ *   only says whether the AI may DRAFT a reply (positive, price and question
+ *   intents, never with a legal, anger or refund flag);
  * - an automatic reply may state only what the facts sheet holds; any other
  *   link, price, phone number, address or promise sends it to a draft.
  */
@@ -21,7 +23,11 @@ export const AUTO_REPLY_INTENTS: ReadonlySet<InboundIntent> = new Set(["positive
 export const MAX_AUTO_REPLIES_PER_THREAD = 2;
 export const MAX_REPLY_CHARS = 1200;
 
-export type InboundFlag = "legal" | "anger" | "auto_submitted";
+/** Canonical refund policy. The only refund wording a reply may use. */
+export const REFUND_POLICY =
+  "Your $350 setup fee is fully refundable within 7 days if we haven't started your build. Your monthly plan is month-to-month, so cancel anytime and you won't be billed again. Charges already made aren't refunded.";
+
+export type InboundFlag = "legal" | "anger" | "auto_submitted" | "refund";
 
 // Straight or curly apostrophes. "Don't stop" isn't a stop and "take us off-site" isn't "take us off".
 // "remove us" / "take us off" only count with a list-like object or at the end of a
@@ -42,7 +48,10 @@ export function keywordIntent(text: string, subject = ""): "stop" | null {
 const LEGAL_PATTERN = /\b(lawyer|attorney|lawsuit|sue|suing|legal\s+action|cease\s+and\s+desist|ftc|attorney\s+general|report(ing)?\s+you|can-?spam\s+violation|harass\w*|scam\w*|spam\w*)\b/i;
 const ANGER_PATTERN = /\b(f+u+c+k\w*|sh[i1]t\w*|wtf|bastard\w*|idiot\w*|stupid|screw\s+you|piss\w*\s+off|go\s+to\s+hell|hell\s+no)\b/i;
 
-/** Legal threats and anger: never answered automatically. */
+/** Refund, money-back or chargeback questions: always a draft the owner reviews. */
+const REFUND_PATTERN = /\b(refund\w*|money[\s-]?back|charge[\s-]?backs?|reimburs\w*|get\s+(?:my|our)\s+money|guarantee[ds]?)\b/i;
+
+/** Legal threats, anger and refund questions: never answered automatically. */
 export function riskFlags(text: string, subject = ""): InboundFlag[] {
   const haystack = `${subject}\n${text}`;
   const flags: InboundFlag[] = [];
@@ -50,6 +59,7 @@ export function riskFlags(text: string, subject = ""): InboundFlag[] {
   const letters = text.replace(/[^a-z]/gi, "");
   const shouting = letters.length >= 20 && letters.replace(/[^A-Z]/g, "").length / letters.length > 0.8;
   if (ANGER_PATTERN.test(haystack) || shouting || /!{3,}/.test(text)) flags.push("anger");
+  if (REFUND_PATTERN.test(haystack)) flags.push("refund");
   return flags;
 }
 
@@ -102,6 +112,7 @@ export function autoReplyDecision(input: {
   if (input.flags.includes("legal")) return { auto: false, reason: "legal_threat" };
   if (input.flags.includes("anger")) return { auto: false, reason: "anger" };
   if (input.flags.includes("auto_submitted")) return { auto: false, reason: "auto_submitted" };
+  if (input.flags.includes("refund")) return { auto: false, reason: "refund_question" };
   if (!AUTO_REPLY_INTENTS.has(input.intent)) return { auto: false, reason: `intent_${input.intent}` };
   if (input.priorAutoReplies >= MAX_AUTO_REPLIES_PER_THREAD) return { auto: false, reason: "auto_reply_limit" };
   if (!input.demoAvailable) return { auto: false, reason: "demo_unavailable" };
@@ -116,6 +127,8 @@ export type FactsSheet = {
   firstMonth: string;
   fullAccessTrial: string;
   cancel: string;
+  /** The one canonical refund/cancellation policy; a reply about refunds quotes only this. */
+  refundPolicy: string;
   setupIncludes: readonly string[];
   monthlyIncludes: readonly string[];
   previewUrl: string;
@@ -169,6 +182,7 @@ export function buildFactsSheet(input: {
     firstMonth: `The first month of the ${usd(GROWTH_SYSTEM.monthlyPrice)}/month platform fee is free; monthly billing starts in month two.`,
     fullAccessTrial: `Claiming the draft includes ${GROWTH_SYSTEM.fullAccessWindow} of free full access.`,
     cancel: "Cancel anytime. No hidden fees.",
+    refundPolicy: REFUND_POLICY,
     setupIncludes: GROWTH_SYSTEM.setupIncludes,
     monthlyIncludes: GROWTH_SYSTEM.monthlyIncludes,
     previewUrl: input.previewUrl,
