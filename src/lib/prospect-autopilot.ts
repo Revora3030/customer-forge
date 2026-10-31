@@ -40,7 +40,8 @@ export const DEFAULT_AUTOPILOT_SETTINGS: AutopilotSettings = {
   enabled: false,
   targets: [],
   dailyBuildCap: DEFAULT_DAILY_BUILD_CAP,
-  sendEmail: true,
+  // Off by default: nothing is emailed until the owner turns it on on purpose.
+  sendEmail: false,
   sendSms: false,
   pitchFirst: false,
   rotation: DEFAULT_ROTATION,
@@ -113,7 +114,7 @@ export function readAutopilotSettings(row: Record<string, unknown> | null | unde
     enabled: row["enabled"] === true,
     targets: targets.slice(0, MAX_AUTOPILOT_TARGETS),
     dailyBuildCap: Number.isInteger(cap) && cap >= 0 ? Math.min(cap, MAX_DAILY_BUILD_CAP) : DEFAULT_DAILY_BUILD_CAP,
-    sendEmail: row["send_email"] !== false,
+    sendEmail: row["send_email"] === true,
     sendSms: row["send_sms"] === true,
     pitchFirst: row["pitch_first"] === true,
     rotation: readRotation(row["rotation"]),

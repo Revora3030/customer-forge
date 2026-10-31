@@ -9,7 +9,7 @@ vi.mock("@/lib/demo-launch-gate.server", () => ({
 
 import { sendGmailOutreach } from "@/lib/gmail/outreach.server";
 import { gmailConfig } from "@/lib/gmail/client.server";
-import { deliverDeferredPitchPreviews } from "@/lib/prospect-replies.server";
+import { approveReplyDraft, deliverDeferredPitchPreviews, DEFERRED_DRAFT_REASON } from "@/lib/prospect-replies.server";
 
 type Row = Record<string, unknown>;
 
@@ -96,18 +96,33 @@ afterEach(() => {
 });
 
 describe("deferred pitch preview delivery", () => {
-  it("sends the finished preview in the same thread and closes the inbound row", async () => {
+  it("never sends the finished preview: it saves a draft reply for the owner to approve", async () => {
     const { db, tables } = seed("completed");
-    const sent = await deliverDeferredPitchPreviews(db);
-    expect(sent).toBe(1);
+    const prepared = await deliverDeferredPitchPreviews(db);
+    expect(prepared).toBe(1);
+    expect(sendGmailOutreach).not.toHaveBeenCalled();
+    expect(tables["prospect_outreach"]?.length ?? 0).toBe(0);
+    const row = tables["prospect_inbound"]?.[0];
+    expect(row).toMatchObject({ status: "awaiting_operator", action: "drafted", draft_reason: DEFERRED_DRAFT_REASON });
+    expect(String(row?.["draft_text"])).toContain(`/p/${TOKEN}`);
+    expect(String(row?.["draft_text"])).toContain("$350");
+    // Running again neither re-drafts nor sends.
+    expect(await deliverDeferredPitchPreviews(db)).toBe(0);
+    expect(sendGmailOutreach).not.toHaveBeenCalled();
+  });
+
+  it("sends the saved draft in the same thread only when an operator approves it", async () => {
+    const { db, tables } = seed("completed");
+    await deliverDeferredPitchPreviews(db);
+    const row = tables["prospect_inbound"]![0]!;
+    const approved = await approveReplyDraft(db, { inboundId: String(row["id"]), body: String(row["draft_text"]), actorId: "admin-1" });
+    expect(approved.ok).toBe(true);
     expect(sendGmailOutreach).toHaveBeenCalledTimes(1);
     const message = vi.mocked(sendGmailOutreach).mock.calls[0]?.[1];
     expect(message?.threadId).toBe("thread0001");
     expect(message?.inReplyTo).toBe("<owner@shop.test>");
     expect(message?.text).toContain(`/p/${TOKEN}`);
-    expect(message?.text).toContain("$350");
-    expect(tables["prospect_inbound"]?.[0]).toMatchObject({ status: "auto_replied", action: "auto_replied", draft_reason: "deferred_demo_delivered" });
-    expect(tables["prospect_outreach"]?.some((row) => row["reason"] === "deferred_demo_delivered" && row["kind"] === "reply" && row["status"] === "sent")).toBe(true);
+    expect(tables["prospect_outreach"]?.some((r) => r["reason"] === "draft_approved" && r["mode"] === "manual" && r["sent_by"] === "admin-1")).toBe(true);
   });
 
   it("waits while the deferred build is still queued", async () => {

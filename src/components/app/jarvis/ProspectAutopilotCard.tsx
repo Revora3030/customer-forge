@@ -3,6 +3,17 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { Bot, Play, Plus, X } from "lucide-react";
 import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -273,10 +284,28 @@ export function ProspectAutopilotCard({ className }: { className?: string }) {
             <Button type="submit" className="min-h-11 flex-1 sm:flex-none" disabled={save.isPending}>
               {save.isPending ? "Saving…" : "Save autopilot"}
             </Button>
-            <Button type="button" variant="outline" className="min-h-11 flex-1 sm:flex-none" disabled={run.isPending} onClick={() => run.mutate()}>
-              <Play className="mr-1 size-4" aria-hidden />
-              {run.isPending ? "Running…" : "Run now"}
-            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button type="button" variant="outline" className="min-h-11 flex-1 sm:flex-none" disabled={run.isPending}>
+                  <Play className="mr-1 size-4" aria-hidden />
+                  {run.isPending ? "Running…" : "Run now"}
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Run the autopilot now?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This runs one full pass immediately using the saved settings: it can find businesses, build demo sites
+                    {settings.data?.enabled && settings.data.sendEmail ? " and send real emails to prospects" : settings.data?.enabled && settings.data.sendSms ? " and send real texts to opted-in numbers" : " (email and text sending are off in the saved settings, so nothing will be sent)"}.
+                    Unsaved changes in this form are not used.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction disabled={run.isPending} onClick={() => run.mutate()}>Yes, run now</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
         </form>
       )}

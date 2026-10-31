@@ -1,7 +1,10 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { Check, Copy, ExternalLink } from "lucide-react";
 import { toast } from "@/lib/ui/notify";
+import { getOutreachMailingAddressFn } from "@/lib/prospect-autopilot.functions";
 
 import { Panel, Pill, SectionHeading } from "@/components/app/Bits";
 import { ProspectPipelinePanel } from "@/components/app/jarvis/ProspectPipelinePanel";
@@ -58,7 +61,16 @@ function AdminOutreach() {
     });
   }
 
-  const assets = useMemo(() => buildChannelAssets({ campaign, audience }), [campaign, audience]);
+  // The email asset must carry the real mailing address (REVORA_MAILING_ADDRESS). Until it is
+  // known, the email asset can't be copied or opened, so nothing goes out with a placeholder.
+  const addressFn = useServerFn(getOutreachMailingAddressFn);
+  const addressQuery = useQuery({ queryKey: ["admin", "outreach", "mailing-address"], queryFn: () => addressFn() });
+  const mailingAddress = addressQuery.data?.address ?? null;
+  const assets = useMemo(
+    () => buildChannelAssets({ campaign, audience, ...(mailingAddress ? { postalAddress: mailingAddress } : {}) }),
+    [campaign, audience, mailingAddress],
+  );
+  const emailBlocked = !mailingAddress;
   const homeLink = useMemo(
     () => trackedLink("/", { source: "outreach", medium: "direct", campaign }),
     [campaign],
@@ -132,9 +144,9 @@ function AdminOutreach() {
         </div>
         <p className="mt-3 text-[12px] text-muted-foreground">
           Results appear in{" "}
-          <a className="text-primary underline" href="/admin/analytics">
+          <Link className="text-primary underline" to="/admin/analytics">
             Analytics
-          </a>{" "}
+          </Link>{" "}
           by source and campaign as soon as the first visit lands.
         </p>
       </Panel>
@@ -215,6 +227,16 @@ function AdminOutreach() {
         </div>
       </div>
 
+      {emailBlocked ? (
+        <p role="alert" className="text-sm text-destructive">
+          {addressQuery.isLoading
+            ? "Checking the mailing address…"
+            : addressQuery.isError
+              ? "Couldn't read the mailing address, so the email asset is locked. Reload to retry."
+              : "REVORA_MAILING_ADDRESS isn't set in the server environment. Set it to a real street address or PO box; until then the email asset is locked so nothing goes out with a placeholder address."}
+        </p>
+      ) : null}
+
       <div>
         <SectionHeading
           title="Channel assets"
@@ -232,6 +254,7 @@ function AdminOutreach() {
                   <Button
                     size="sm"
                     variant="outline"
+                    disabled={asset.id === "email" && emailBlocked}
                     onClick={() => void copy(asset.id, asset.message)}
                   >
                     {copied === asset.id ? (
@@ -242,11 +265,17 @@ function AdminOutreach() {
                     Copy
                   </Button>
                   {asset.intentUrl ? (
-                    <Button size="sm" asChild>
-                      <a href={asset.intentUrl} target="_blank" rel="noopener noreferrer">
+                    asset.id === "email" && emailBlocked ? (
+                      <Button size="sm" disabled>
                         Open <ExternalLink className="ml-2 size-4" aria-hidden="true" />
-                      </a>
-                    </Button>
+                      </Button>
+                    ) : (
+                      <Button size="sm" asChild>
+                        <a href={asset.intentUrl} target="_blank" rel="noopener noreferrer">
+                          Open <ExternalLink className="ml-2 size-4" aria-hidden="true" />
+                        </a>
+                      </Button>
+                    )
                   ) : null}
                 </div>
               </div>

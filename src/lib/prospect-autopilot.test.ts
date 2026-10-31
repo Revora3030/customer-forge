@@ -172,7 +172,10 @@ beforeEach(() => {
 
 describe("autopilot settings contract", () => {
   it("ships off with safe defaults and drops malformed stored targets", () => {
-    expect(readAutopilotSettings(null)).toMatchObject({ enabled: false, sendSms: false, dailyBuildCap: 5, targets: [] });
+    expect(readAutopilotSettings(null)).toMatchObject({ enabled: false, sendEmail: false, sendSms: false, dailyBuildCap: 5, targets: [] });
+    // A missing value is never read as "email on".
+    expect(readAutopilotSettings({ enabled: true })).toMatchObject({ sendEmail: false });
+    expect(readAutopilotSettings({ enabled: true, send_email: true })).toMatchObject({ sendEmail: true });
     expect(readAutopilotSettings({ enabled: true, targets: [{ niche: "x" }, { niche: "plumbing", city: "Cary" }], daily_build_cap: 99 }))
       .toMatchObject({ enabled: true, targets: [{ niche: "plumbing", city: "Cary", state: null }], dailyBuildCap: 20 });
   });

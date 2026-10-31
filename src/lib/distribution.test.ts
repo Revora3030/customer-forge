@@ -85,6 +85,12 @@ describe("free channel catalogue", () => {
     }
   });
 
+  it("does not pitch Google Business Profile as something that needs no address", () => {
+    const text = JSON.stringify(FREE_LISTINGS);
+    expect(text).not.toMatch(/business\.google|google business profile/i);
+    expect(text).not.toMatch(/no (street )?address/i);
+  });
+
   it("reports a realistic daily time cost", () => {
     expect(DAILY_ROUTINE.length).toBeGreaterThan(4);
     expect(routineMinutes()).toBe(DAILY_ROUTINE.reduce((t, i) => t + i.minutes, 0));

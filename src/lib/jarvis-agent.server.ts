@@ -18,15 +18,22 @@ const bounded = (value: unknown, max = MAX_RESULT_CHARS) => {
 async function collectArtifacts(db: SupabaseClient, actorId: string) {
   const { listProspectDemos } = await import("./jarvis-demo-site.server");
   const { listJarvisRoutines } = await import("./jarvis-routines.server");
-  const readAudit = async (): Promise<{ action?: unknown; details?: unknown; created_at?: unknown }[]> => {
+  // audit_logs has no `details` column (the extra data is `metadata`), and only Jarvis's own entries belong here.
+  const readAudit = async (): Promise<{ rows: { action?: unknown; created_at?: unknown }[]; error: string | null }> => {
     try {
-      const res = await db.from("audit_logs").select("action, details, created_at").order("created_at", { ascending: false }).limit(40);
-      return res.error ? [] : (res.data ?? []);
-    } catch {
-      return [];
+      const res = await db.from("audit_logs").select("action, created_at").like("action", "jarvis.%").order("created_at", { ascending: false }).limit(40);
+      if (res.error) {
+        console.error("[jarvis artifacts] couldn't read the audit log:", res.error.message);
+        return { rows: [], error: res.error.message };
+      }
+      return { rows: res.data ?? [], error: null };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "audit log read failed";
+      console.error("[jarvis artifacts] couldn't read the audit log:", message);
+      return { rows: [], error: message };
     }
   };
-  const [demos, routines, audit] = await Promise.all([
+  const [demos, routines, auditRead] = await Promise.all([
     listProspectDemos(db, 50).catch((): Awaited<ReturnType<typeof listProspectDemos>> => []),
     listJarvisRoutines(db, actorId).catch((): Awaited<ReturnType<typeof listJarvisRoutines>> => []),
     readAudit(),
@@ -39,10 +46,12 @@ async function collectArtifacts(db: SupabaseClient, actorId: string) {
       preview: demo.previewUrl ?? null,
     })),
     routines: routines.map((routine) => ({ name: routine.name, enabled: routine.enabled, lastStatus: routine.last_status })),
-    approvals: (audit as { action?: string; details?: unknown; created_at?: string }[]).map((row) => ({
+    approvals: (auditRead.rows as { action?: string; created_at?: string }[]).map((row) => ({
       action: row.action ?? "unknown",
       at: row.created_at ?? null,
     })),
+    // Shown instead of an empty list that looks like "nothing was approved".
+    ...(auditRead.error ? { approvalsError: `Couldn't read the audit log: ${auditRead.error}` } : {}),
   };
 }
 
