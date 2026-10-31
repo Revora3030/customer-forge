@@ -101,3 +101,23 @@ describe("admin pages stay live", () => {
     }
   });
 });
+
+describe("client list database counts", () => {
+  const clients = slice("export const listClients", "export const getClientDetail");
+  const migration = read("supabase/migrations/20261031180000_admin_client_counts.sql");
+
+  it("uses the grouped function and falls back to reading tables when it is missing", () => {
+    expect(clients).toContain('.rpc("admin_client_counts")');
+    expect(clients).toContain("useDbCounts");
+    expect(clients).toContain('all<{ organization_id: string }>("leads", "organization_id")');
+  });
+
+  it("migration is additive, invoker-only and service-role-only", () => {
+    expect(migration).toContain("CREATE OR REPLACE FUNCTION public.admin_client_counts()");
+    expect(migration).toContain("SECURITY INVOKER");
+    expect(migration).toContain("FROM PUBLIC, anon, authenticated");
+    expect(migration).toContain("TO service_role");
+    expect(migration).not.toMatch(/\b(DROP|ALTER|DELETE|UPDATE|TRUNCATE|INSERT)\b\s/i);
+    expect(migration).not.toMatch(/SECURITY DEFINER/i);
+  });
+});
