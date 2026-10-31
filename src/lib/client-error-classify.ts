@@ -134,6 +134,11 @@ const STALE_DEPLOY = [
   /unexpected token ['"]?<['"]?/i,
   /chunkloaderror|loading chunk \S+ failed/i,
   /invalid server function id/i,
+  // TanStack Start: the page asks for a server function that the new build no longer has.
+  /server function info not found/i,
+  // Safari wording when a lazy route's import resolved to nothing (its chunk was replaced
+  // by a deploy): e[t ?? "default"] on undefined. The once-per-minute reload guard still applies.
+  /undefined is not an object \(evaluating '\w+\[\w+ ?\?\? ?[`"']default[`"']\]'\)/i,
 ];
 
 /**
