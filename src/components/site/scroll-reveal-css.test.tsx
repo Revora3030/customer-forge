@@ -25,8 +25,8 @@ describe("scroll-reveal fallback CSS", () => {
   });
 
   it("uses the shared motion tokens with fallbacks", () => {
-    expect(fallback).toContain("var(--motion-duration-base,500ms)");
-    expect(fallback).toContain("var(--motion-ease-out,cubic-bezier(.16,1,.3,1))");
+    expect(fallback).toContain("var(--motion-duration-slower,600ms)");
+    expect(fallback).toContain("var(--motion-ease-out,cubic-bezier(.22,1,.36,1))");
   });
 
   it("leaves server-rendered content untouched: no wait or hidden state in the markup", () => {
