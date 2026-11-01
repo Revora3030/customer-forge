@@ -30,6 +30,7 @@ import { VoiceDictateButton } from "@/components/marketing/VoiceDictateButton";
 import { DraftSitePreview } from "@/components/marketing/DraftSitePreview";
 import { readStarter, starterFromMetadata } from "@/components/marketing/hero-starter-utils";
 import { applyImportedFacts, importExistingWebsite } from "@/lib/site-import.functions";
+import { validateIntakeServices } from "@/lib/builder/intake-sanitize";
 
 export const Route = createFileRoute("/get-started")({
   validateSearch: (search: Record<string, unknown>): { claim?: string; pay?: "now" } => ({
@@ -309,6 +310,12 @@ function GetStarted() {
     if (!intake.city.trim()) problems.push("City");
     if (!intake.state.trim()) problems.push("State");
     if (!intake.services.trim()) problems.push("Primary services");
+    else {
+      // "Full" on its own is half a name: ask for the full service name instead of saving it.
+      const listed = intake.services.split(/[\n,;]/).map((name) => ({ name: name.trim() })).filter((row) => row.name);
+      const rejected = validateIntakeServices(listed).rejected;
+      if (rejected.length) problems.push(`The full name of the service "${rejected[0]!.name}"`);
+    }
     return problems;
   }, [intake]);
 
