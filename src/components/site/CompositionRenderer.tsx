@@ -467,9 +467,7 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
   // layout: that is how a visitor becomes a lead.
   const leadHolder = containsLeadWidget(node);
   for (const [bp, rawStyle] of Object.entries(node.responsive ?? {}) as [Breakpoint, NodeStyle][]) {
-    const style = actionable && rawStyle.hidden
-      ? { ...rawStyle, hidden: false }
-      : leadHolder && bp === "mobile" ? (showStyle(rawStyle) ?? rawStyle) : rawStyle;
+    const style = actionable && rawStyle.hidden ? { ...rawStyle, hidden: false } : leadHolder && bp === "mobile" ? (showStyle(rawStyle) ?? rawStyle) : rawStyle;
     const text = cssText(styleToCss(style, node.type));
     if (text) ctx.rules.push(`@media ${MEDIA[bp]}{[data-cn="${id}"]{${text}}}`);
   }
