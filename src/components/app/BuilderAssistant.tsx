@@ -61,6 +61,9 @@ import { CompositionPreviewCard } from "@/components/app/CompositionPreviewCard"
 import { ChatSearch, VoiceDictationButton } from "@/components/app/ChatThreadTools";
 import { ApplyResultCard } from "@/components/app/builder-chat/ApplyResultCard";
 import { MessageMenu } from "@/components/app/builder-chat/MessageMenu";
+import { useComposerMenu } from "@/components/app/builder-chat/ComposerMenu";
+import { useSendTestLead } from "@/components/app/builder-chat/use-test-lead";
+import { expandMentions } from "@/lib/builder/composer-commands";
 import { useChatTop } from "@/components/app/builder-chat/use-chat-top";
 import { useKeyboardInset } from "@/components/app/builder-chat/use-keyboard-inset";
 import { planIsSlow } from "@/lib/builder/plan-deadline";
@@ -113,6 +116,7 @@ export function BuilderAssistant({
   stoppingBuild = false,
   onClearSelection,
   onOpenHistory,
+  onLeadTest,
   onShowPreview,
   onFirstBuild,
   firstBuildBusy = false,
@@ -154,6 +158,8 @@ export function BuilderAssistant({
   onClearSelection?: () => void;
   /** Opens History, where the before-and-after comparison lives. */
   onOpenHistory?: () => void;
+  /** Runs the "/lead-test" command. Defaults to the labelled sample lead; a richer lead simulation can replace it. */
+  onLeadTest?: () => void;
   /** Switches phones to the Preview tab (the result card's Preview button). */
   onShowPreview?: () => void;
   /** Fresh workspaces use the full Sol → Terra first-build pipeline, not the edit planner. */
@@ -243,7 +249,8 @@ export function BuilderAssistant({
     // A picked block is more specific than the open page, and a first build has no page yet.
     else if (pageContext && !onFirstBuild) parts.push(pageContextPrefix(pageContext));
     if (answering) parts.push(`Answering your question "${answering}":`);
-    return parts.length ? `${parts.join(" ")} ${text}` : text;
+    const body = expandMentions(text);
+    return parts.length ? `${parts.join(" ")} ${body}` : body;
   };
 
   /** Phones: typing opens the keyboard, so only focus when the owner asks. */
@@ -353,6 +360,19 @@ export function BuilderAssistant({
   const empty = requests.tasks.length === 0 && !factQuestion && factLog.length === 0;
   const composerLocked = !requests.ready || accessBlocked;
   const canSend = !composerLocked && (value.trim().length > 0 || attachments.length > 0);
+  const testLead = useSendTestLead(organizationId);
+  const composer = useComposerMenu({
+    value,
+    setValue,
+    inputRef,
+    attachments,
+    setAttachments,
+    disabled: composerLocked || Boolean(factQuestion),
+    onAction: (id) => {
+      if (id === "revert") onOpenHistory?.();
+      else if (id === "lead-test") (onLeadTest ?? (() => testLead.mutate()))();
+    },
+  });
   const runSuggestion = (instruction: string) =>
     onFirstBuild ? void onFirstBuild(instruction) : requests.queue(instruction);
   const lastTask = requests.tasks[requests.tasks.length - 1];
@@ -691,7 +711,10 @@ export function BuilderAssistant({
             </div>
           ) : null}
 
+          {composer.menu}
           <PromptInput
+            onDropCapture={composer.onDropCapture}
+            onDragOverCapture={composer.onDragOverCapture}
             className={cn(
               "builder-prompt rounded-[22px] border border-border bg-card shadow-lift transition-all",
               busy && "is-thinking border-primary/35",
@@ -773,7 +796,8 @@ export function BuilderAssistant({
               aria-label="Tell Revora what to change"
               className="max-h-40 min-h-[48px] px-4 pt-3 text-[16px] leading-6"
               enterKeyHint="send"
-              onChange={(event) => setValue(event.target.value)}
+              onChange={composer.onChange}
+              onKeyDown={composer.onKeyDown}
             />
             <PromptInputFooter className="items-center justify-between gap-2 px-2 pb-2">
               <PromptInputTools className="gap-0.5">
