@@ -13,7 +13,7 @@
 import { BOOKING_FIELDS, ENQUIRY_FIELDS } from "@/lib/builder/content-completeness";
 
 /** Address of the generated notice on every client site (/privacy-notice). */
-export const PRIVACY_NOTICE_SLUG = "privacy-notice";
+export { PRIVACY_NOTICE_SLUG } from "@/lib/privacy-notice-slug";
 
 export const PLATFORM_PRIVACY_URL = "https://revoragrowthsystems.com/privacy";
 
@@ -83,9 +83,9 @@ export function clientPrivacyNotice(input: ClientNoticeInput): ClientNotice {
       ? "The page's fonts load from Google Fonts, so Google receives your IP address and browser details."
       : null,
     input.hasMap
-      ? "The contact section shows an embedded Google Map. Google receives your IP address and may set its own cookies under Google's privacy policy."
+      ? 'The contact section shows an embedded Google Map. Google receives your IP address and may set its own cookies under Google\'s privacy policy. For visitors in the EU/EEA, the UK, Switzerland or Canada (or when the website cannot tell where you are), and whenever your browser sends Global Privacy Control, the map only loads after you click "Show Google Maps".'
       : null,
-    "If the business adds a tool from another company to a page (for example a video, map, form or booking widget), that tool loads from that company, which receives your IP address and may set its own cookies under its own privacy policy.",
+    "If the business adds a tool from another company to a page (for example a video, map, form or booking widget), that tool loads from that company, which receives your IP address and may set its own cookies under its own privacy policy. For visitors in the EU/EEA, the UK, Switzerland or Canada (or when the website cannot tell where you are), and whenever your browser sends Global Privacy Control, it only loads after you click to show it.",
   ].filter((line): line is string => Boolean(line));
 
   return {

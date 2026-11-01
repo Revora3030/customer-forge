@@ -6,7 +6,7 @@
  * own address. Revora-owned subdomains are never client hosts. On Revora's own
  * marketing site the same path is simply a page that doesn't exist.
  */
-import { createFileRoute, Link, notFound } from "@tanstack/react-router";
+import { createFileRoute, Link, notFound, redirect } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { SiteAddressProvider } from "@/components/site/site-links-context";
 import { getHostSite } from "@/lib/host-site.functions";
@@ -17,6 +17,7 @@ import { siteFontStyle } from "@/lib/site-theme";
 import { SitePageView } from "@/components/site/SitePageView";
 import { ClientPrivacyNotice } from "@/components/site/ClientPrivacyNotice";
 import { PRIVACY_NOTICE_SLUG } from "@/lib/client-privacy-notice";
+import { isDuplicatePrivacySlug } from "@/lib/privacy-notice-slug";
 import { tenantSiteHead } from "@/lib/site-head";
 
 /** What the business's own 404 page may show: only facts the owner gave us, only when the lookup found the site. */
@@ -51,6 +52,8 @@ export const Route = createFileRoute("/$")({
     }
     // A page with no visible sections renders blank for a real visitor — treat
     // it as not published yet instead of serving an empty page.
+    // The generated notice replaces an AI-written /privacy-policy page (privacy-notice-slug.ts).
+    if (response?.result?.site && isDuplicatePrivacySlug(pageSlug)) throw redirect({ href: `/${PRIVACY_NOTICE_SLUG}`, statusCode: 302 });
     // Every client site has a generated privacy notice unless the owner built a page there.
     if (!response?.result?.site?.content?.sections?.length && response?.result?.site && pageSlug === PRIVACY_NOTICE_SLUG) {
       return response.result;

@@ -7,6 +7,7 @@
  * blocks with no data are simply left out.
  */
 
+import { siteServesPrivacyNotice } from "@/lib/privacy-notice-slug";
 import { localityLabel } from "./locality";
 
 export type PageKind =
@@ -598,7 +599,8 @@ export function leadEngineAudit(pages: ContentPage[]): {
       key: `page:${entry.kind}`,
       label: entry.label,
       why: entry.why,
-      ok: pageKinds.has(entry.kind),
+      // The privacy notice is always served (generated at /privacy-notice), so it never counts as missing.
+      ok: pageKinds.has(entry.kind) || (entry.kind === "privacy" && siteServesPrivacyNotice()),
       weight: entry.weight,
       fix: entry.fix,
     })),
