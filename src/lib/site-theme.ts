@@ -14,6 +14,7 @@
 
 import type { CSSProperties } from "react";
 import { readableOn } from "@/lib/readable-color";
+import { enforceThemeAa } from "@/lib/site-contrast";
 import { tintedNeutralRamp } from "@/lib/site-palette-ramp";
 
 const HEX = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
@@ -187,7 +188,9 @@ export function siteThemeStyle(input: {
   vars["backgroundColor"] = background;
   vars["colorScheme"] = light ? "light" : "dark";
 
-  return vars as CSSProperties;
+  // Final WCAG AA pass: every text colour is re-measured on every surface it
+  // is painted on, and nudged (same hue) when any pair falls under 4.5:1.
+  return enforceThemeAa(vars) as CSSProperties;
 }
 
 /**

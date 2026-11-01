@@ -16,6 +16,7 @@ import { PortalAccess } from "@/components/app/PortalAccess";
 import { LeadNotifications } from "@/components/app/LeadNotifications";
 import { UpgradeFromWebsite } from "@/components/app/UpgradeFromWebsite";
 import { BookingLinkCard } from "@/components/app/BookingLinkCard";
+import { DataPrivacy } from "@/components/app/DataPrivacy";
 import { metaDescription } from "@/lib/seo";
 import { isValidWorkspaceSlug, WORKSPACE_SLUG_RULE } from "@/lib/workspace-slug";
 
@@ -24,10 +25,16 @@ export const Route = createFileRoute("/_authenticated/app/settings")({
     meta: [
       { title: "Settings — Revora" },
       { property: "og:title", content: "Settings — Revora" },
-      { property: "og:description", content: metaDescription("Manage your account, business workspace and team.") },
+      {
+        property: "og:description",
+        content: metaDescription("Manage your account, business workspace and team."),
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
-      { name: "description", content: metaDescription("Manage your account, business workspace and team.") },
+      {
+        name: "description",
+        content: metaDescription("Manage your account, business workspace and team."),
+      },
       { name: "robots", content: "noindex" },
     ],
   }),
@@ -134,7 +141,8 @@ function SettingsPage() {
               <Input id="o-slug" name="slug" defaultValue={org?.slug ?? ""} disabled={!canManage} />
               <p className="text-[11px] text-muted-foreground">/s/{org?.slug}</p>
               <p className="text-[11px] text-muted-foreground">
-                {WORKSPACE_SLUG_RULE} Changing it breaks links and QR codes that use the old address.
+                {WORKSPACE_SLUG_RULE} Changing it breaks links and QR codes that use the old
+                address.
               </p>
             </div>
           </div>
@@ -205,6 +213,13 @@ function SettingsPage() {
       <BookingLinkCard organizationId={orgId} canManage={canManage} />
 
       <LeadNotifications organizationId={orgId} canManage={canManage} />
+
+      <DataPrivacy
+        email={session?.user.email}
+        businessName={org?.name}
+        organizationId={orgId}
+        canManage={canManage}
+      />
     </div>
   );
 }
