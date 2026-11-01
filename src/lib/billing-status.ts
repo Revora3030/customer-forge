@@ -8,6 +8,7 @@
  * shown as an upcoming renewal.
  */
 import type { Tone } from "@/lib/domain";
+import { isRealPaymentAmount } from "@/lib/payment-amount";
 
 export type BillingSubscriptionFields = {
   status: string;
@@ -167,7 +168,7 @@ export function deriveBillingStatus(input: BillingStatusInput): BillingStatus {
 }
 
 /**
- * Only real charges are payments. A $0.00 row (for example a setup fee fully
+ * Only real charges are payments (uses #537's isRealPaymentAmount). A $0.00 row (for example a setup fee fully
  * covered by a promotion code) is not a payment: it is never listed, counted or
  * summed as one, and it can never make anything count as paid.
  */
@@ -175,6 +176,6 @@ export function chargedPayments<T extends { amount: number | string | null }>(
   rows: readonly T[] | null | undefined,
 ): { charged: T[]; hadZeroEntry: boolean } {
   const all = rows ?? [];
-  const charged = all.filter((p) => Number(p.amount) > 0);
+  const charged = all.filter((p) => isRealPaymentAmount(p.amount));
   return { charged, hadZeroEntry: charged.length !== all.length };
 }
