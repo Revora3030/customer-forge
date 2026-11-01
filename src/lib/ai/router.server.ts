@@ -46,6 +46,7 @@ import { base64ByteLength } from "@/lib/ai/providers/shared";
 import { compactMessages } from "@/lib/ai/context-compaction";
 import { demoteDegradedPaid, noteProviderFailure, noteProviderSuccess } from "@/lib/ai/provider-backoff";
 import { checkAiLimits, recordAiEvent } from "@/lib/ai/telemetry.server";
+import { noteGatewayCreditsStop } from "@/lib/ai/gateway-credits-alert.server";
 import type {
   AiCaller,
   AiImageResult,
@@ -553,6 +554,9 @@ noteProviderSuccess(config.name);
           // A stopped build ends the whole walk: no next model, no retry.
           if (error.category === "cancelled") throw error;
           if (error.category === "unauthorized" || error.category === "quota") deadProviders.add(config.name);
+          // The gateway itself said the workspace is out of credits or at its
+          // spending cap: tell the super-admin by email (deduped, best effort).
+          noteGatewayCreditsStop(error);
           if (error.category === "invalid_request" && options?.nextProviderOnInvalidRequest) break;
           // Free models have very different context windows (Groq's free tier
           // is small; NVIDIA, Mistral and others are large), so one model
