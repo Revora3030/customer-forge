@@ -659,6 +659,49 @@ export const setClientDomain = createServerFn({ method: "POST" })
     return { ...check, domain, target: DOMAIN_TARGET, live: check.dnsOk && check.sslOk };
   });
 
+/**
+ * Stores the hosting platform's per-domain `_lovable` TXT verification values
+ * (apex and www) in website_settings.generation.domainVerification — no
+ * migration. Values are only kept for the domain they were issued for.
+ */
+export const setClientDomainVerification = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: { organizationId: string; apex?: string; www?: string }) => {
+    if (!input?.organizationId) throw new Error("Missing client.");
+    return {
+      organizationId: String(input.organizationId),
+      apex: String(input.apex ?? "").trim(),
+      www: String(input.www ?? "").trim(),
+    };
+  })
+  .handler(async ({ data, context }) => {
+    const { assertSuperAdmin } = await import("@/lib/admin.server");
+    const { normalizeLovableVerifyValue, writeLovableVerification } = await import("@/lib/domain-setup");
+    await assertSuperAdmin(context.supabase, context.userId);
+    for (const [label, raw] of [["apex", data.apex], ["www", data.www]] as const) {
+      if (raw && !normalizeLovableVerifyValue(raw))
+        throw new Error(`The ${label} value must look like lovable_verify=… (copy it from the hosting dashboard).`);
+    }
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: settings, error: readError } = await supabaseAdmin
+      .from("website_settings")
+      .select("custom_domain, generation")
+      .eq("organization_id", data.organizationId)
+      .maybeSingle();
+    if (readError) throw new Error(readError.message);
+    if (!settings?.custom_domain) throw new Error("Save the client's domain first.");
+    const generation = writeLovableVerification(settings.generation, settings.custom_domain, {
+      apex: data.apex,
+      www: data.www,
+    });
+    const { error } = await supabaseAdmin
+      .from("website_settings")
+      .update({ generation: generation as never })
+      .eq("organization_id", data.organizationId);
+    if (error) throw new Error(error.message);
+    return { ok: true, domain: settings.custom_domain };
+  });
+
 /** Re-checks DNS for the saved domain. Never optimistic. */
 export const verifyClientDomain = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
