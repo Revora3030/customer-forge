@@ -1,20 +1,21 @@
 import { describe, expect, it } from "vitest";
 import { composePitchEmail, pitchOfferTerms } from "./prospect-pitch";
-import { GROWTH_SYSTEM } from "./offer";
+import { GROWTH_SYSTEM, usd } from "./offer";
 import { typicalComparison } from "./software-savings";
 
 describe("composePitchEmail", () => {
-  it("uses only the typical tool total and the canonical offer, with no claims", () => {
+  it("uses only the sourced tool total and the canonical offer, with no claims", () => {
     const { subject, body } = composePitchEmail("Elite Mobile Detail");
     expect(subject).toBe("A quick question for Elite Mobile Detail");
-    expect(body).toContain(`$${typicalComparison().toolsMonthly} a month`);
+    expect(body).toContain(`${usd(typicalComparison().toolsMonthly)} a month`);
+    expect(body).toContain("Oct 31, 2026");
     expect(body).toContain(`$${GROWTH_SYSTEM.setupPrice} one time`);
     expect(body).toContain(`$${GROWTH_SYSTEM.monthlyPrice}/month`);
-    expect(body).toContain("typical list prices, not a quote");
+    expect(body).toContain("published list prices, not a quote");
     expect(body).not.toMatch(/guarantee|risk-free|free website|more jobs|booked|\bsave\b|ROI|rank/i);
     // Every dollar figure in the email comes from the offer or the typical total.
-    const allowed = new Set([`$${typicalComparison().toolsMonthly}`, `$${GROWTH_SYSTEM.setupPrice}`, `$${GROWTH_SYSTEM.monthlyPrice}`]);
-    for (const figure of body.match(/\$\d[\d,]*/g) ?? []) expect(allowed.has(figure), figure).toBe(true);
+    const allowed = new Set([usd(typicalComparison().toolsMonthly), `$${GROWTH_SYSTEM.setupPrice}`, `$${GROWTH_SYSTEM.monthlyPrice}`]);
+    for (const figure of body.match(/\$\d[\d,]*(?:\.\d+)?/g) ?? []) expect(allowed.has(figure), figure).toBe(true);
   });
 
   it("neutralises an untrusted business name", () => {

@@ -1,3 +1,4 @@
+import { containsLeadWidget, showStyle } from "@/lib/builder/lead-form-guard";
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import type { Breakpoint, CompositionFaqItem, CompositionNode, CompositionTab, CompositionTree, MotionEasing, NodeHover, NodeMotion, NodeStyle, WidgetPresentation } from "@/lib/builder/composition-tree";
@@ -392,6 +393,30 @@ export function readablePaint(node: Pick<CompositionNode, "type" | "style">, ctx
   return { ...(color ? { color } : {}), bg, bg2, fg: color ?? authored ?? ctx.fg };
 }
 
+const LEGIBLE_TYPES = new Set(["heading", "text", "list", "quote", "button", "link"]);
+
+/**
+ * Size and dimness floor for copy. The contrast scan reads a node's colour but
+ * not its `opacity` or a 9-11px size, so a dim, tiny caption could pass the
+ * scan and still be unreadable (audit item 3: tiny, dim text over the second
+ * photo). Over a photo scene copy is at least 14px and 90% opaque; elsewhere at
+ * least 12px and 80% opaque. Mutates `style` (the computed CSS), never the tree.
+ */
+// eslint-disable-next-line react-refresh/only-export-components -- renderer helper, exported for tests.
+export function legibleType(node: Pick<CompositionNode, "type">, style: CSSProperties, overPhoto: boolean): void {
+  if (!LEGIBLE_TYPES.has(node.type)) return;
+  const minSize = overPhoto ? 14 : 12;
+  if (typeof style.fontSize === "number" && style.fontSize < minSize) style.fontSize = minSize;
+  else if (typeof style.fontSize === "string") {
+    const size = style.fontSize;
+    const px = /^(\d+(?:\.\d+)?)px$/.exec(size);
+    const rem = /^(\d+(?:\.\d+)?)rem$/.exec(size);
+    if ((px && Number(px[1]) < minSize) || (rem && Number(rem[1]) * 16 < minSize)) style.fontSize = minSize;
+  }
+  const minOpacity = overPhoto ? 0.9 : 0.8;
+  if (typeof style.opacity === "number" && style.opacity < minOpacity) style.opacity = minOpacity;
+}
+
 /**
  * Big background areas (the section itself and full-width rows/grids/stacks)
  * get the same premium-surface correction as the page: a washed-out mid-grey
@@ -475,15 +500,22 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
   // Buttons and links are how visitors act: a design may restyle them per
   // screen size but never hide one, or a phone visitor loses the action.
   const actionable = node.type === "button" || node.type === "link";
+  // The enquiry form, booking form and quote calculator, and any container
+  // holding one, are never hidden on phones, whatever flag was stored with the
+  // layout: that is how a visitor becomes a lead.
+  const leadHolder = containsLeadWidget(node);
   for (const [bp, rawStyle] of Object.entries(node.responsive ?? {}) as [Breakpoint, NodeStyle][]) {
-    const style = actionable && rawStyle.hidden ? { ...rawStyle, hidden: false } : rawStyle;
+    const style = actionable && rawStyle.hidden ? { ...rawStyle, hidden: false } : leadHolder && bp === "mobile" ? (showStyle(rawStyle) ?? rawStyle) : rawStyle;
     const text = cssText(styleToCss(style, node.type));
     if (text) ctx.rules.push(`@media ${MEDIA[bp]}{[data-cn="${id}"]{${text}}}`);
   }
   if (node.hover) ctx.rules.push(hoverCss(id, node.hover));
   const style: CSSProperties = {
     ...baseLayout(node.type),
-    ...styleToCss(actionable && node.style?.hidden ? { ...node.style, hidden: false } : node.style, node.type),
+    ...styleToCss(
+      actionable && node.style?.hidden ? { ...node.style, hidden: false } : leadHolder ? (showStyle(node.style) ?? undefined) : node.style,
+      node.type,
+    ),
   };
   // An aspect ratio on a text-only grid or card becomes a hollow frame (two
   // short labels stacked in a tall bordered box). Pictures keep their crop.
@@ -495,6 +527,7 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
   // Text is re-paired with the surface it actually sits on, keeping its hue.
   const paint = readablePaint(node, ctx);
   if (paint.color) style.color = paint.color;
+  legibleType(node, style, Boolean(ctx.sceneScrim));
   ctx.bg = paint.bg; ctx.bg2 = paint.bg2; ctx.fg = paint.fg;
   ctx.depth = (ctx.depth ?? 0) + 1;
   const motion = premiumMotion(node, ctx);

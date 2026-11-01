@@ -237,7 +237,7 @@ function QuoteCalculatorLive({ site, presentation }: { site: Site; presentation?
 
   if (done) {
     return (
-      <div ref={stepRef}>
+      <div ref={stepRef} data-rv-quote="done">
         <Success
           title={presentation?.successTitle ?? "Request received"}
           body={
@@ -262,7 +262,7 @@ function QuoteCalculatorLive({ site, presentation }: { site: Site; presentation?
   }
 
   return (
-    <div ref={stepRef} className="panel overflow-hidden" style={widgetPresentationStyle(presentation)}>
+    <div ref={stepRef} data-rv-quote="open" className="panel overflow-hidden" style={widgetPresentationStyle(presentation)}>
       <div className="border-b border-border px-5 py-4">
         <p className="eyebrow">{presentation?.eyebrow ?? "Instant estimate"}</p>
         <h3 className="mt-1 font-display text-[19px] font-semibold">{presentation?.title ?? quote.form.name}</h3>

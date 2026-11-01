@@ -53,7 +53,7 @@ export type ProductionReadiness = {
   checks: ReadinessCheck[];
   blockers: string[];
   /** The video-bar result behind the `video-bar` check, for the owner message and the quality log. */
-  videoBar?: { score: number; bar: number; reason: string; mode: string; tradeSlug: string; blueprintSource?: string; failures: string[]; fixes: string[] };
+  videoBar?: { score: number; bar: number; reason: string; mode: string; tradeSlug: string; blueprintSource?: string; failures: string[]; blockers?: string[]; fixes: string[] };
 };
 
 export type ActivationResult = {
@@ -354,6 +354,7 @@ async function evaluateVideoBarCheck(
         tradeSlug: result.tradeSlug,
         blueprintSource: result.blueprintSource,
         failures: result.score.criteria.filter((c) => !c.met).map((c) => c.id),
+        blockers: result.score.blockers,
         fixes: ownerFixList(result.score),
       },
     };
@@ -459,7 +460,7 @@ export async function publishSiteNow(
           supabaseAdmin as never,
           publishCheckRow(
             { organizationId: orgId, tradeSlug: vb.tradeSlug, blueprintSource: vb.blueprintSource ?? null },
-            { score: vb.score, bar: vb.bar, passed: videoBarPassed, mode: vb.mode as "enforce" | "warn" | "off", failures: vb.failures },
+            { score: vb.score, bar: vb.bar, passed: videoBarPassed, mode: vb.mode as "enforce" | "warn" | "off", failures: vb.failures, blockers: vb.blockers },
           ),
         );
       } catch {

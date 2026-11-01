@@ -1908,7 +1908,21 @@ async function runJob(
   // already stored (only this job's own generated files, by creation time).
   // Checked on every attempt: a capacity-deferred rerun is attempt 1 again.
   let reusablePictures: { id: string; url: string; file_name: string | null; alt_text: string | null; attribution: string | null }[] = [];
-  {
+  // Only reuse them when the picture inputs are unchanged (same shot list,
+  // business and city). The marker is saved BEFORE the campaign starts, so
+  // pictures made by an interrupted attempt are still reused on the retry.
+  const pictureInputs = await (async () => {
+    let shotList: unknown = [];
+    try {
+      shotList = (await import("@/lib/builder/first-build-images.server")).firstBuildImageShots(creative, realMediaCount);
+    } catch {
+      shotList = [];
+    }
+    return { shots: shotList, name: org.data?.name ?? "", city: (p["city"] as string) ?? null, owned: realMediaCount };
+  })();
+  const picturesMayResume = (await stageStore.get<{ started: true }>("pictures", pictureInputs)) !== null;
+  if (!picturesMayResume) await stageStore.put("pictures", pictureInputs, { started: true });
+  if (picturesMayResume) {
     const jobRow = await db.from("generation_jobs").select("created_at").eq("id", job.id).maybeSingle();
     const since = (jobRow.data as { created_at?: string } | null)?.created_at;
     if (since) {
@@ -2745,16 +2759,31 @@ async function runJob(
   if (!built.skipped) {
     try {
       // Every button and menu link must lead to a real page of this site.
-      const { ensureLinkIntegrity } = await import("@/lib/builder/link-integrity.server");
-      await ensureLinkIntegrity(db as never, orgId);
+      // A retry skips both repairs when an earlier attempt finished them on the
+      // same saved sections; a partial failure is not saved, so it is retried.
+      const { resumeOrRunStage } = await import("@/lib/builder/resume-stage");
+      const qaInputs = { pages: built.pages, sections: built.sections, inventory: built.inventory };
+      const qa = await resumeOrRunStage(stageStore, "qa-repair", qaInputs, async () => {
+        let complete = true;
+        try {
+          const { ensureLinkIntegrity } = await import("@/lib/builder/link-integrity.server");
+          await ensureLinkIntegrity(db as never, orgId);
+        } catch (error) {
+          complete = false;
+          console.warn("[site-engine] first-build link check skipped", (error as Error)?.message);
+        }
+        try {
+          const { runQaRepairLoop } = await import("@/lib/builder/qa-loop.server");
+          await runQaRepairLoop(db as never, orgId, "first build", 12);
+        } catch (error) {
+          complete = false;
+          console.warn("[site-engine] first-build QA repair skipped", (error as Error)?.message);
+        }
+        return { value: { done: true }, complete };
+      });
+      if (qa.saved) saved(true);
     } catch (error) {
-      console.warn("[site-engine] first-build link check skipped", (error as Error)?.message);
-    }
-    try {
-      const { runQaRepairLoop } = await import("@/lib/builder/qa-loop.server");
-      await runQaRepairLoop(db as never, orgId, "first build", 12);
-    } catch (error) {
-      console.warn("[site-engine] first-build QA repair skipped", (error as Error)?.message);
+      console.warn("[site-engine] first-build checks skipped", (error as Error)?.message);
     }
   }
   // Every built site opens on a moving hero (quality bar #1/#10): a free,
