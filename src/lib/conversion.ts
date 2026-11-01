@@ -113,7 +113,6 @@ export function trackConversion(
     /* storage unavailable */
   }
   const landingPath = attribution?.landingPath ?? window.location.pathname;
-  const metadata = { ...variants, ...(extra?.metadata ?? {}) };
 
   // Mirror to GA4 when a measurement ID is configured; a no-op otherwise.
   if (event === "page_view") ga4PageView(window.location.pathname);
@@ -136,7 +135,8 @@ export function trackConversion(
         extra,
         attribution,
         landingPath,
-        metadata,
+        // Test variants are stored only with consent; never sent without it.
+        { ...(allowed ? variants : {}), ...(extra?.metadata ?? {}) },
         allowed ? getVisitorId() : null,
       ),
     );

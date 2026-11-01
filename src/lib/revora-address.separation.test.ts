@@ -25,8 +25,6 @@ describe("Revora / client website separation", () => {
       "/compare/tool",
       "/crm/plumbers",
       "/website-audit",
-      "/privacy",
-      "/terms",
       "/my/account",
       "/invite/abc",
       "/reset-password",
@@ -45,6 +43,10 @@ describe("Revora / client website separation", () => {
       "/book",
       "/gallery",
       "/emergency-callouts",
+      // These redirect on a client domain instead (tenant-page-utils.ts).
+      "/privacy",
+      "/terms",
+      "/privacy-notice",
     ]) {
       expect(isRevoraOnlyPath(path), path).toBe(false);
     }
