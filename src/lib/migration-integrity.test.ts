@@ -20,7 +20,7 @@ const files = readdirSync(DIR)
   .sort();
 
 function versionOf(file: string): string {
-  return file.split("_")[0];
+  return file.split("_")[0] ?? "";
 }
 
 function stripComments(sql: string): string {
