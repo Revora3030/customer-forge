@@ -12,14 +12,45 @@
  * - In consent regions (or an unknown region, or under GPC) the placeholder
  *   stays, with a "Show …" button and a plain link that opens the provider in a
  *   new tab, plus any text fallback (e.g. the street address).
- * - A click is remembered for the tab only (sessionStorage), per provider.
+ * - A click is the visitor's own choice to load that provider. It is
+ *   remembered in this browser (localStorage, so every tab of the visit shares
+ *   it) for 24 hours, per provider, and then the button comes back. The entry
+ *   holds only the provider name and the time of the click: no identifier.
+ *   Nothing is written before that click. If localStorage is blocked, the
+ *   choice falls back to this tab only (sessionStorage).
  */
 import { useEffect, useState, type ReactNode } from "react";
 import { hasGlobalPrivacyControl, isConsentRequiredRegion } from "@/lib/consent";
 
 export const FRAME_CONSENT_KEY = "revora.frames.allowed";
+/** How long a click to show a provider is remembered in this browser. */
+export const FRAME_CHOICE_TTL_MS = 24 * 60 * 60 * 1000;
 
-function allowedProviders(): string[] {
+/** localStorage entries: provider name -> time of the click (ms). */
+function readRemembered(now: number): Record<string, number> {
+  try {
+    const raw = window.localStorage.getItem(FRAME_CONSENT_KEY);
+    const parsed: unknown = raw ? JSON.parse(raw) : null;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+    const fresh: Record<string, number> = {};
+    for (const [provider, at] of Object.entries(parsed as Record<string, unknown>)) {
+      if (typeof at === "number" && at <= now && now - at < FRAME_CHOICE_TTL_MS) {
+        fresh[provider] = at;
+      }
+    }
+    // Expired choices are removed, not just ignored.
+    if (Object.keys(fresh).length === 0) window.localStorage.removeItem(FRAME_CONSENT_KEY);
+    else if (Object.keys(fresh).length !== Object.keys(parsed).length) {
+      window.localStorage.setItem(FRAME_CONSENT_KEY, JSON.stringify(fresh));
+    }
+    return fresh;
+  } catch {
+    return {};
+  }
+}
+
+/** Tab-only fallback (and the format used before choices were shared across tabs). */
+function readTabOnly(): string[] {
   try {
     const raw = window.sessionStorage.getItem(FRAME_CONSENT_KEY);
     const parsed: unknown = raw ? JSON.parse(raw) : [];
@@ -31,9 +62,21 @@ function allowedProviders(): string[] {
   }
 }
 
+function allowedProviders(): string[] {
+  return Array.from(new Set([...Object.keys(readRemembered(Date.now())), ...readTabOnly()]));
+}
+
 function rememberProvider(provider: string) {
+  const now = Date.now();
   try {
-    const next = Array.from(new Set([...allowedProviders(), provider]));
+    const next = { ...readRemembered(now), [provider]: now };
+    window.localStorage.setItem(FRAME_CONSENT_KEY, JSON.stringify(next));
+    return;
+  } catch {
+    // localStorage blocked: fall back to this tab.
+  }
+  try {
+    const next = Array.from(new Set([...readTabOnly(), provider]));
     window.sessionStorage.setItem(FRAME_CONSENT_KEY, JSON.stringify(next));
   } catch {
     // Storage blocked: the click still loads this frame.

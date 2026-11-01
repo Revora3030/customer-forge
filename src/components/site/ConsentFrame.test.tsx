@@ -10,7 +10,7 @@ vi.mock("@/lib/consent", () => ({
 }));
 
 import { ContactMap } from "@/components/site/ContactMap";
-import { FRAME_CONSENT_KEY } from "@/components/site/ConsentFrame";
+import { FRAME_CHOICE_TTL_MS, FRAME_CONSENT_KEY } from "@/components/site/ConsentFrame";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const mapsLink = "https://www.google.com/maps/place/Elite+Mobile+Detailing/@35.7796,-78.6382,17z";
@@ -34,6 +34,7 @@ beforeEach(() => {
   consent.region = true;
   consent.gpc = false;
   window.sessionStorage.clear();
+  window.localStorage.clear();
   host = document.createElement("div");
   document.body.append(host);
   root = createRoot(host);
@@ -52,7 +53,7 @@ describe("ConsentFrame (Google Map)", () => {
     expect(host.querySelector("a")?.getAttribute("href")).toBe(mapsLink);
   });
 
-  it("loads the map after a click and remembers it for the tab", async () => {
+  it("loads the map after a click and remembers it in this browser", async () => {
     await render();
     await act(async () => {
       host.querySelector("button")?.click();
@@ -60,6 +61,48 @@ describe("ConsentFrame (Google Map)", () => {
     const frame = host.querySelector("iframe");
     expect(frame?.getAttribute("src")).toContain("output=embed");
     expect(frame?.getAttribute("sandbox")).toBeTruthy();
+    const stored = JSON.parse(window.localStorage.getItem(FRAME_CONSENT_KEY) ?? "{}");
+    expect(Object.keys(stored)).toEqual(["Google Maps"]);
+    expect(typeof stored["Google Maps"]).toBe("number");
+  });
+
+  it("writes nothing before the click", async () => {
+    await render();
+    expect(window.localStorage.getItem(FRAME_CONSENT_KEY)).toBeNull();
+    expect(window.sessionStorage.getItem(FRAME_CONSENT_KEY)).toBeNull();
+  });
+
+  it("loads in another tab of the same browser after a recent click", async () => {
+    window.localStorage.setItem(FRAME_CONSENT_KEY, JSON.stringify({ "Google Maps": Date.now() }));
+    await render();
+    expect(host.querySelector("iframe")).not.toBeNull();
+  });
+
+  it("asks again and deletes the entry once the 24 hours are up", async () => {
+    window.localStorage.setItem(
+      FRAME_CONSENT_KEY,
+      JSON.stringify({ "Google Maps": Date.now() - FRAME_CHOICE_TTL_MS - 1 }),
+    );
+    await render();
+    expect(host.querySelector("iframe")).toBeNull();
+    expect(window.localStorage.getItem(FRAME_CONSENT_KEY)).toBeNull();
+  });
+
+  it("falls back to this tab when localStorage is blocked", async () => {
+    const setItem = vi.spyOn(Storage.prototype, "setItem").mockImplementation(function (
+      this: Storage,
+      key: string,
+      value: string,
+    ) {
+      if (this === window.localStorage) throw new Error("blocked");
+      setItem.mockRestore();
+      window.sessionStorage.setItem(key, value);
+    });
+    await render();
+    await act(async () => {
+      host.querySelector("button")?.click();
+    });
+    expect(host.querySelector("iframe")).not.toBeNull();
     expect(window.sessionStorage.getItem(FRAME_CONSENT_KEY)).toContain("Google Maps");
   });
 
