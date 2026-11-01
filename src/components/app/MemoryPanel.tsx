@@ -12,6 +12,7 @@ import { toast } from "@/lib/ui/notify";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { forgetSiteMemory, listSiteMemory, pinSiteMemory } from "@/lib/site-memory.functions";
+import { SiteRulesBox } from "@/components/app/SiteRulesBox";
 import type { MemoryEntry, MemoryKind } from "@/lib/builder/session-memory";
 
 const KIND_LABEL: Record<MemoryKind, string> = {
@@ -62,67 +63,66 @@ export function MemoryPanel({
   const entries = (memory.data ?? []) as MemoryEntry[];
 
   return (
-    <section className="panel space-y-3 p-5">
-      <div>
-        <h3 className="text-sm font-semibold">What Revora remembers</h3>
-        <p className="text-muted-foreground text-xs">
-          Standing instructions, what you asked for and what was done — kept between sessions so
-          you never have to repeat yourself. Your website itself is always checked before anything
-          changes.
-        </p>
-      </div>
+    <div className="space-y-3">
+      <SiteRulesBox organizationId={organizationId} canManage={canManage} />
+      <section className="panel space-y-3 p-5">
+        <div>
+          <h3 className="text-sm font-semibold">What Revora remembers</h3>
+          <p className="text-muted-foreground text-xs">
+            Standing instructions, what you asked for and what was done — kept between sessions so
+            you never have to repeat yourself. Your website itself is always checked before anything
+            changes.
+          </p>
+        </div>
 
-      {memory.isLoading ? (
-        <p className="text-muted-foreground text-xs">Loading…</p>
-      ) : entries.length === 0 ? (
-        <p className="text-muted-foreground text-xs">
-          Nothing remembered yet. As you make requests, the important parts are kept here.
-        </p>
-      ) : (
-        <ul className="space-y-2">
-          {entries.map((entry) => (
-            <li
-              key={entry.id}
-              className="bg-muted/40 flex items-start gap-2 rounded-lg border p-2.5"
-            >
-              <div className="min-w-0 flex-1 space-y-1">
-                <Badge variant="secondary" className="text-[11px]">
-                  {KIND_LABEL[entry.kind]}
-                </Badge>
-                <p className="text-sm break-words">{entry.text}</p>
-              </div>
-              {canManage && entry.id ? (
-                <div className="flex shrink-0 gap-1">
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="ghost"
-                    aria-label={entry.pinned ? "Stop keeping this always" : "Keep this always"}
-                    onClick={() =>
-                      pinOne.mutate({ entryId: entry.id as string, pinned: !entry.pinned })
-                    }
-                  >
-                    {entry.pinned ? (
-                      <PinOff className="size-4" />
-                    ) : (
-                      <Pin className="size-4" />
-                    )}
-                  </Button>
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="ghost"
-                    aria-label="Forget this"
-                    onClick={() => forgetOne.mutate(entry.id as string)}
-                  >
-                    <X className="size-4" />
-                  </Button>
+        {memory.isLoading ? (
+          <p className="text-muted-foreground text-xs">Loading…</p>
+        ) : entries.length === 0 ? (
+          <p className="text-muted-foreground text-xs">
+            Nothing remembered yet. As you make requests, the important parts are kept here.
+          </p>
+        ) : (
+          <ul className="space-y-2">
+            {entries.map((entry) => (
+              <li
+                key={entry.id}
+                className="bg-muted/40 flex items-start gap-2 rounded-lg border p-2.5"
+              >
+                <div className="min-w-0 flex-1 space-y-1">
+                  <Badge variant="secondary" className="text-[11px]">
+                    {KIND_LABEL[entry.kind]}
+                  </Badge>
+                  <p className="text-sm break-words">{entry.text}</p>
                 </div>
-              ) : null}
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
+                {canManage && entry.id ? (
+                  <div className="flex shrink-0 gap-1">
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      aria-label={entry.pinned ? "Stop keeping this always" : "Keep this always"}
+                      onClick={() =>
+                        pinOne.mutate({ entryId: entry.id as string, pinned: !entry.pinned })
+                      }
+                    >
+                      {entry.pinned ? <PinOff className="size-4" /> : <Pin className="size-4" />}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      aria-label="Forget this"
+                      onClick={() => forgetOne.mutate(entry.id as string)}
+                    >
+                      <X className="size-4" />
+                    </Button>
+                  </div>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    </div>
   );
 }

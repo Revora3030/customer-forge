@@ -621,6 +621,15 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
       data.history = [{ role: "user" as const, content: recall }, ...data.history];
       standingBriefs += 1;
     }
+    // OWNER'S RULES FOR THEIR SITE: the box the owner wrote themselves (words
+    // never to use, tone, service area). Always applied, on every build, and
+    // counted as a standing brief so trimming a long chat can never drop it.
+    const { siteRulesBriefFor } = await import("@/lib/builder/site-rules.server");
+    const ownerRules = await siteRulesBriefFor(supabase as never, orgId);
+    if (ownerRules) {
+      data.history = [{ role: "user" as const, content: ownerRules }, ...data.history];
+      standingBriefs += 1;
+    }
     const nextMemory = mergeDesignMemory(priorMemory, data.instruction);
 
     const storedGeneration = ((settingsRow.data as { generation?: unknown } | null)?.generation ??
