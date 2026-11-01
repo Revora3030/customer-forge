@@ -44,6 +44,7 @@ import {
   useTeam,
 } from "@/lib/queries";
 import { useWorkspace } from "@/lib/use-tenant";
+import { LeadDeliveryFlags } from "@/components/app/LeadDeliveryFlags";
 import { CRM_STAGES, LEAD_STATUSES, crmStageOf, leadStatusMeta, sourceLabel, type CrmStageKey, type LeadStatus } from "@/lib/domain";
 import { groupByStage, leadsToCsv } from "@/lib/crm";
 import { DueTasksStrip, LeadTasks } from "@/components/app/LeadTasks";
@@ -305,6 +306,8 @@ function LeadsPage() {
           <Download className="size-4" /> Export CSV
         </Button>
       </div>
+
+      <LeadDeliveryFlags organizationId={orgId} />
 
       <DueTasksStrip
         organizationId={orgId}
