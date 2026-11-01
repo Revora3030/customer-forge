@@ -113,7 +113,7 @@ const SECTIONS: { heading: string; body: string[] }[] = [
     body: [
       "On our own marketing pages we use Google Analytics 4, Google Ads conversion measurement and Microsoft Clarity. They do not run inside the app or admin area, or on websites we publish for clients.",
       "In the European Economic Area, the United Kingdom, Switzerland and Canada (and when we cannot tell where you are), these tools load only after you click Accept in the cookie banner. If you reject, they are not loaded.",
-      'Elsewhere they load by default. You can switch them off at any time with the "Cookie settings" link in the site footer. Your choice is stored in your browser until you change it.',
+      'Elsewhere they load by default, unless your browser sends a Global Privacy Control signal, which we treat as an opt-out. You can switch them off at any time with the "Cookie settings" link in the site footer. Your choice is stored in your browser until you change it.',
       "Separately, our site keeps a random visitor ID and the page you first landed on in your browser's storage so we can count visits and signups in our own reporting. It is not derived from your IP address or device details.",
     ],
   },
@@ -129,7 +129,7 @@ const SECTIONS: { heading: string; body: string[] }[] = [
     heading: "Your choices and rights",
     body: [
       "You can view and correct your workspace data in the app, and export your leads as a CSV file from the Leads page. You can unsubscribe from marketing email at any time.",
-      `To ask for a copy of your data or for deletion of your account and its data, email ${REVORA.email} from the address on your account. We confirm the request with that address before acting and tell you when it is done. Billing records we must keep by law are retained.`,
+      `To ask for a copy of your data or for deletion of your account and its data, email ${REVORA.email} from the address on your account, or use the request buttons under Settings → Your data in the app. We confirm the request with that address before acting and tell you when it is done. Billing records we must keep by law are retained.`,
       "Depending on where you live you may also have rights to object to or restrict processing, or to complain to your local data protection authority.",
     ],
   },
