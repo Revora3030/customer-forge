@@ -128,7 +128,10 @@ describe("submitPublishedSiteToIndexNow", () => {
     const ping = body.indexOf("submitPublishedSiteToIndexNow(orgId)");
     expect(ping).toBeGreaterThan(0);
     // Live edits use the same function; the ping is not inside the liveEdit message branch.
-    expect(ping).toBeLessThan(body.indexOf("options.liveEdit"));
+    // The video-bar gate reads options.liveEdit earlier, so anchor on the liveEdit message branch itself.
+    const liveEditMessage = body.indexOf("reason: options.liveEdit");
+    expect(liveEditMessage).toBeGreaterThan(0);
+    expect(ping).toBeLessThan(liveEditMessage);
     expect(readFileSync("src/lib/publish-records.functions.ts", "utf8")).toContain("submitPublishedSiteToIndexNow(data.organizationId)");
     const admin = readFileSync("src/lib/admin.functions.ts", "utf8");
     expect(admin).toContain('data.state === "published"');

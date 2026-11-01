@@ -27,7 +27,7 @@ import { analyzeSiteBrief, runSiteGeneration, saveSiteBrief } from "@/lib/site-e
 import { clearStarter, readStarter } from "@/components/marketing/hero-starter-utils";
 import { RouteError } from "@/components/app/RouteStates";
 import { ErrorBoundary } from "@/components/app/ErrorBoundary";
-import { customerBusinessEmail, sanitizeServices } from "@/lib/builder/intake-sanitize";
+import { customerBusinessEmail, sanitizeServices, validateIntakeServices } from "@/lib/builder/intake-sanitize";
 
 import { closedOnHolidays } from "@/lib/holidays";
 import { contactStepValid, continueHint } from "@/lib/onboarding-validation";
@@ -422,7 +422,11 @@ function Onboarding() {
 
       // Platform wording ("Build my site", "All", "Submit") is never saved as a
       // business service; it would otherwise render on the customer's site.
-      const services = sanitizeServices(draft.services.filter((s) => s.name.trim()));
+      const typedServices = draft.services.filter((s) => s.name.trim());
+      // A stub like "Full" is never saved: the owner is asked for the full name.
+      const serviceCheck = validateIntakeServices(typedServices);
+      if (serviceCheck.rejected.length) throw new Error(serviceCheck.rejected[0]!.message);
+      const services = sanitizeServices(serviceCheck.valid);
       const testimonials = draft.testimonials.filter((t) => t.text.trim());
       const goals: GoalKey[] = draft.goals;
       if (!goals.length) throw new Error("Choose at least one website goal before Revora builds your site.");
@@ -652,11 +656,13 @@ function Onboarding() {
     );
   }
 
+  const serviceNameProblems = validateIntakeServices(draft.services).rejected;
   const canContinue =
     step === 0
       ? draft.businessName.trim().length > 1 && draft.city.trim().length > 1
       : step === 1
         ? draft.services.some((s) => s.name.trim().length >= 2) &&
+          serviceNameProblems.length === 0 &&
           draft.services.every(
             (s) =>
               !s.name.trim() ||
@@ -882,6 +888,11 @@ function Onboarding() {
                   </div>
                 ))}
               </div>
+              {serviceNameProblems.length ? (
+                <p role="alert" data-testid="service-name-problem" className="text-[13px] text-destructive">
+                  {serviceNameProblems[0]!.message}
+                </p>
+              ) : null}
               <Button
                 variant="outline"
                 onClick={() => set("services", [...draft.services, emptyService()])}

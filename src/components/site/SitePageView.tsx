@@ -142,7 +142,7 @@ export function SitePageView({
     dedupePageMedia(
       studioPage.roots.map((root, index) => {
         const section = sections[index];
-        return root ?? (section ? legacySectionToComposition(section as never, { lead: index === leadIndex })?.root ?? null : null);
+        return root ?? (section ? legacySectionToComposition(section as never, { lead: index === leadIndex, seed: org.slug })?.root ?? null : null);
       }),
       {
         // One picture appears once per page: a repeat swaps to an unused picture from the site's own library.

@@ -52,6 +52,8 @@ export type ProductionReadiness = {
   unlocked: boolean;
   checks: ReadinessCheck[];
   blockers: string[];
+  /** The video-bar result behind the `video-bar` check, for the owner message and the quality log. */
+  videoBar?: { score: number; bar: number; reason: string; mode: string; tradeSlug: string; failures: string[]; fixes: string[] };
 };
 
 export type ActivationResult = {
@@ -132,6 +134,7 @@ export const getProductionStatus = createServerFn({ method: "POST" })
 async function gatherReadiness(
   supabase: import("@supabase/supabase-js").SupabaseClient,
   organizationId: string,
+  options: { liveEdit?: boolean } = {},
 ): Promise<ProductionReadiness> {
   const [org, profile, settings, pages, sections, services] = await Promise.all([
     supabase
@@ -188,6 +191,10 @@ async function gatherReadiness(
   const { auditWorkspaceWebsite } = await import("@/lib/builder/quality.server");
   const quality = await auditWorkspaceWebsite(supabase as never, organizationId);
   const { QUALITY_BAND_LABEL, weakestTeamArea } = await import("@/lib/builder/quality");
+
+  // Video bar: the site must reach the reference-video quality bar before it can go live (server-side, so the Publish
+  // button, the builder's straight-to-live apply and Jarvis live edits all meet it).
+  const videoBar = await evaluateVideoBarCheck(supabase, organizationId, options.liveEdit === true);
 
   const checks: ReadinessCheck[] = [
     {
@@ -301,6 +308,7 @@ async function gatherReadiness(
               "The browser check found launch blockers. Fix those findings and run it again.")
             : `Quality score ${quality.score}/100 (${QUALITY_BAND_LABEL[quality.band]}), verified in a real browser at phone and desktop sizes.`,
     },
+    videoBar.check,
     {
       key: "suspension",
       label: "No account holds",
@@ -314,7 +322,47 @@ async function gatherReadiness(
     unlocked,
     checks,
     blockers: checks.filter((c) => !c.ok).map((c) => `${c.label}: ${c.detail}`),
+    ...(videoBar.summary ? { videoBar: videoBar.summary } : {}),
   };
+}
+
+/**
+ * The `video-bar` readiness check. Fails closed when the score cannot be computed and the gate is enforcing.
+ * Never throws.
+ */
+async function evaluateVideoBarCheck(
+  supabase: import("@supabase/supabase-js").SupabaseClient,
+  organizationId: string,
+  liveEdit: boolean,
+): Promise<{ check: ReadinessCheck; summary: ProductionReadiness["videoBar"] | null }> {
+  const label = "Website meets the quality bar";
+  const { gateMode, decidePublish, readinessDetail, ownerBlockMessage } = await import("@/lib/builder/quality/video-publish-gate");
+  const mode = gateMode();
+  if (mode === "off") return { check: { key: "video-bar", label, ok: true, detail: "Quality bar check is switched off." }, summary: null };
+  try {
+    const { scoreWorkspaceVideoBar } = await import("@/lib/builder/quality/video-publish-gate.server");
+    const { ownerFixList } = await import("@/lib/builder/quality/video-score");
+    const result = await scoreWorkspaceVideoBar(supabase, organizationId, { withPrevious: liveEdit });
+    const decision = decidePublish({ score: result.score.score, bar: result.score.bar, mode, liveEdit, previousScore: result.previousScore });
+    return {
+      check: { key: "video-bar", label, ok: decision.ok, detail: decision.ok ? readinessDetail(result.score, decision, result.previousScore) : ownerBlockMessage(result.score) },
+      summary: {
+        score: result.score.score,
+        bar: result.score.bar,
+        reason: decision.reason,
+        mode,
+        tradeSlug: result.tradeSlug,
+        failures: result.score.criteria.filter((c) => !c.met).map((c) => c.id),
+        fixes: ownerFixList(result.score),
+      },
+    };
+  } catch {
+    const ok = mode !== "enforce";
+    return {
+      check: { key: "video-bar", label, ok, detail: ok ? "The quality bar could not be checked just now. Publishing is still allowed." : "The quality bar could not be checked just now, so the website was not published. Try again in a moment." },
+      summary: null,
+    };
+  }
 }
 
 export const checkProductionReadiness = createServerFn({ method: "POST" })
@@ -332,8 +380,14 @@ export const checkProductionReadiness = createServerFn({ method: "POST" })
  */
 export const activateProduction = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator(orgIdValidator)
-  .handler(({ data, context }) => publishSiteNow(context.supabase, context.userId, data.organizationId));
+  .validator((input: { organizationId: string; videoBarOverrideReason?: string }) => {
+    const { organizationId } = orgIdValidator(input);
+    const reason = typeof input?.videoBarOverrideReason === "string" ? input.videoBarOverrideReason.trim().slice(0, 500) : "";
+    return { organizationId, videoBarOverrideReason: reason };
+  })
+  .handler(({ data, context }) =>
+    publishSiteNow(context.supabase, context.userId, data.organizationId, data.videoBarOverrideReason ? { videoBarOverride: { reason: data.videoBarOverrideReason } } : {}),
+  );
 
 /**
  * The one publish path: role check, payment/readiness gates, a permanent
@@ -344,7 +398,7 @@ export async function publishSiteNow(
   supabase: Parameters<typeof gatherReadiness>[0],
   userId: string,
   orgId: string,
-  options: { liveEdit?: boolean } = {},
+  options: { liveEdit?: boolean; videoBarOverride?: { reason: string } } = {},
 ): Promise<ActivationResult> {
   {
     const context = { supabase };
@@ -360,7 +414,7 @@ export async function publishSiteNow(
     if (!role || !["owner", "admin", "manager"].includes(role))
       throw new Error("Only an owner, admin or manager can launch this website.");
 
-    const readiness = await gatherReadiness(supabase, orgId);
+    const readiness = await gatherReadiness(supabase, orgId, { liveEdit: options.liveEdit === true });
     const audit = async (action: string, metadata: Record<string, unknown>) => {
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       await supabaseAdmin.from("audit_logs").insert({
@@ -402,11 +456,33 @@ export async function publishSiteNow(
       };
     }
 
-    if (!readiness.passed) {
-      await audit("PUBLISH_BLOCKED", { reason: "readiness_failed", blockers: readiness.blockers });
+    // The video bar is the one check a platform admin may override, with a written reason, and only when nothing
+    // else is failing. Every override and every denied attempt is logged.
+    const videoCheck = readiness.checks.find((c) => c.key === "video-bar");
+    const videoFailed = !!videoCheck && !videoCheck.ok;
+    const otherFailed = readiness.checks.some((c) => !c.ok && c.key !== "video-bar");
+    let overridden = false;
+    if (!readiness.passed && videoFailed && !otherFailed && options.videoBarOverride?.reason) {
+      const { assertSuperAdmin } = await import("@/lib/admin.server");
+      const isAdmin = await assertSuperAdmin(supabase as never, userId).then(() => true, () => false);
+      if (isAdmin) {
+        overridden = true;
+        await audit("PUBLISH_VIDEO_BAR_OVERRIDE", { reason: options.videoBarOverride.reason, video_bar: readiness.videoBar ?? null, live_edit: options.liveEdit === true });
+      } else {
+        await audit("PUBLISH_VIDEO_BAR_OVERRIDE_DENIED", { video_bar: readiness.videoBar ?? null });
+      }
+    }
+
+    if (!readiness.passed && !overridden) {
+      await audit("PUBLISH_BLOCKED", {
+        reason: videoFailed && !otherFailed ? "video_bar_below_bar" : "readiness_failed",
+        blockers: readiness.blockers,
+        ...(readiness.videoBar ? { video_bar: readiness.videoBar } : {}),
+      });
       return {
         activated: false,
-        reason: "A few things need attention before this website can go live.",
+        // Owner-facing: when the quality bar is the only thing in the way, say exactly what to fix.
+        reason: videoFailed && !otherFailed && videoCheck ? videoCheck.detail : "A few things need attention before this website can go live.",
         version: null,
         publishState: "draft",
         readiness,

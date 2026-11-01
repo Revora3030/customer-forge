@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { CapacityWaitNotice } from "@/components/app/CapacityWaitNotice";
 import { jobLiveness } from "@/lib/builder/job-liveness";
 import { describeBuildFailure } from "@/lib/builder/build-failure";
-import { formatDuration, type WorkFeed as Feed } from "@/lib/builder/work-feed";
+import { formatDuration, quietNotice, stalledNotice, type WorkFeed as Feed } from "@/lib/builder/work-feed";
 import { useWorkFeed, type WorkFeedJobRow } from "@/lib/builder/work-feed.hooks";
 import { cn } from "@/lib/utils";
 
@@ -132,7 +132,7 @@ export function WorkFeedView({
         </span>
         {running && feed.elapsedMs != null ? (
           <span className="tnum shrink-0 text-xs text-muted-foreground" aria-hidden>
-            {feed.percent != null ? `${feed.percent}% · ` : ""}
+            {feed.percent != null ? `${feed.percent}%${feed.quietMs != null ? " (last reported)" : ""} · ` : ""}
             {formatDuration(feed.elapsedMs)}
           </span>
         ) : null}
@@ -258,7 +258,12 @@ export function WorkFeedView({
 
           {stalled ? (
             <p role="status" className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-600">
-              The build worker stopped responding. Revora is restarting it automatically.
+              {stalledNotice(job ?? {})}
+            </p>
+          ) : null}
+          {!stalled && quietNotice(feed) ? (
+            <p role="status" className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-600">
+              {quietNotice(feed)}
             </p>
           ) : null}
           {failure ? <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">{failure.message}</p> : null}

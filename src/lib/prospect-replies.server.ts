@@ -333,7 +333,7 @@ async function storeNewReplies(
 
 const REPLY_SYSTEM = [
   "You write a short, friendly reply from Revora Growth Systems to a local business owner who answered our email about a free draft website we built for them.",
-  "Use ONLY the facts in FACTS. For anything about refunds or cancelling, quote refundPolicy verbatim. Never invent features, timelines, results, discounts, guarantees, phone numbers, addresses or links. Prices only exactly as FACTS states them.",
+  "Use ONLY the facts in FACTS. For anything about refunds or cancelling, quote refundPolicy verbatim. For anything about price or the trial, state pricingSummary exactly. Never invent features, timelines, results, discounts, guarantees, phone numbers, addresses or links. Prices only exactly as FACTS states them.",
   "If they asked something FACTS can't answer, say you'll check and get back to them; do not guess.",
   "Links: only previewUrl or claimUrl from FACTS, verbatim. The draft is private and not published.",
   "Under 120 words, plain text. Do not write a signature, address or unsubscribe line; the system appends them.",

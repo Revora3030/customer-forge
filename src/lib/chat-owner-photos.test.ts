@@ -8,7 +8,8 @@ const plan = readFileSync("src/lib/builder/ai-agent-plan.server.ts", "utf8");
 describe("photos attached in the builder chat reach the site", () => {
   it("saves attached photos to the library as owner photos before planning", () => {
     expect(fns).toMatch(/const ownerUploads: \{ name: string; path: string \}\[\] = \[\];/);
-    expect(fns.indexOf("const ownerUploads")).toBeLessThan(fns.indexOf("await planWebsiteChangesWithAi({"));
+    expect(fns.indexOf("planWebsiteChangesWithAi(planInput)")).toBeGreaterThan(-1);
+    expect(fns.indexOf("const ownerUploads")).toBeLessThan(fns.indexOf("planWebsiteChangesWithAi(planInput)"));
     expect(fns).toMatch(/source: "owner",\n\s*\} as never\);\n\s*if \(row\.error\)/);
   });
 
