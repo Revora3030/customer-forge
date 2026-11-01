@@ -6,6 +6,29 @@
 -- and still blends lexical overlap and recency; without embeddings (no key,
 -- gateway error, memory saved before this) recall stays lexical.
 
+-- Fresh-database guard: public.jarvis_memories was created on the live
+-- database outside this migrations folder. Create the same shape ONLY when it
+-- is absent (a database built from migrations); a no-op on the live database.
+DO $guard$
+BEGIN
+  IF to_regclass('public.jarvis_memories') IS NULL THEN
+    CREATE TABLE public.jarvis_memories (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+      kind text NOT NULL DEFAULT 'fact',
+      source text NOT NULL DEFAULT 'user',
+      content text NOT NULL,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    );
+    ALTER TABLE public.jarvis_memories ENABLE ROW LEVEL SECURITY;
+    REVOKE ALL ON public.jarvis_memories FROM anon, authenticated;
+    GRANT ALL ON public.jarvis_memories TO service_role;
+  END IF;
+END
+$guard$;
+
+
 CREATE EXTENSION IF NOT EXISTS vector WITH SCHEMA extensions;
 
 CREATE TABLE IF NOT EXISTS public.jarvis_memory_embeddings (
