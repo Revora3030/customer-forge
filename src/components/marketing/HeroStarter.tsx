@@ -235,7 +235,7 @@ export function HeroStarter({ className = "" }: { className?: string }) {
           </p>
         ) : null}
       </div>
-      <Button type="submit" variant="signal" size="lg" className="mt-3 w-full">
+      <Button type="submit" variant="signal" size="lg" className="mt-3 w-full" data-hero-cta>
         {website.trim().length > 3 ? "Upgrade my website free" : "Start free"} —{" "}
         {GROWTH_SYSTEM.fullAccessWindow}, no card{" "}
         <ArrowRight className="size-4" aria-hidden="true" />
