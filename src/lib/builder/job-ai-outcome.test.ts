@@ -52,7 +52,7 @@ describe("job fallback recording", () => {
   });
 
   it("the migration is one additive column with a default", () => {
-    const sql = readFileSync("supabase/migrations/20261101040000_generation_jobs_fallback_used.sql", "utf8")
+    const sql = readFileSync("supabase/migrations/20261101060100_generation_jobs_fallback_used.sql", "utf8")
       .split("\n").filter((line) => !line.trim().startsWith("--")).join("\n");
     expect(sql).toContain("ADD COLUMN IF NOT EXISTS fallback_used boolean NOT NULL DEFAULT false");
     expect(sql).not.toMatch(/DROP|ALTER COLUMN|GRANT|POLICY|stripe|billing|price/i);

@@ -105,6 +105,9 @@ describe("no third-party AI gateway remains", () => {
       "ai/router.server.ts",
       "ai/provider-test-environment",
       "ai/lovable-provider.test.ts",
+      // B13-1 failover proof stubs the key with a fake value so the router
+      // takes the keyed lane; the provider fetch is mocked, no model runs.
+      "ai/failover-proof.test.ts",
       "ai/ai-platform.test.ts",
       "ai/paid-reservation-leak.test.ts",
       "ai/paid-video.server.ts",
