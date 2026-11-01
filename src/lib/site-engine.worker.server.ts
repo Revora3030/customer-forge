@@ -1894,7 +1894,7 @@ async function runJob(
     } catch {
       shotList = [];
     }
-    return { shots: shotList, name: org.data.name ?? "", city: (p["city"] as string) ?? null, owned: realMediaCount };
+    return { shots: shotList, name: org.data?.name ?? "", city: (p["city"] as string) ?? null, owned: realMediaCount };
   })();
   const picturesMayResume = (await stageStore.get<{ started: true }>("pictures", pictureInputs)) !== null;
   if (!picturesMayResume) await stageStore.put("pictures", pictureInputs, { started: true });
