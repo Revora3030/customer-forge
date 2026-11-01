@@ -24,6 +24,8 @@ import {
 } from "@/components/site/site-sections-utils";
 import { ReviewWall } from "@/components/site/LiveBlocks";
 import { EnquiryForm } from "@/components/site/SiteForms";
+import { SiteHelpDrawer } from "@/components/site/SiteHelpDrawer";
+import { readHelpDrawerEnabled } from "@/lib/site-help-drawer";
 import { PreviewSelectBridge } from "@/components/site/PreviewSelectBridge";
 import { SiteBackdrop } from "@/components/site/SiteBackdrop";
 import { SiteFontLinks } from "@/components/site/SiteFontLinks";
@@ -318,6 +320,8 @@ export function SitePageView({
           });
           if (!actions.length) return null;
           return (
+            <>
+            {readHelpDrawerEnabled(site.settings?.generation ?? null) && site.quote ? <SiteHelpDrawer actions={actions} /> : null}
             <nav
               aria-label="Quick actions"
               data-testid="site-sticky-actions"
@@ -336,6 +340,7 @@ export function SitePageView({
                 </a>
               ))}
             </nav>
+            </>
           );
         })()}
 
