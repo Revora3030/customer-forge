@@ -2784,6 +2784,17 @@ async function runJob(
       // Logged above; the build continues.
     }
   }
+  // Video-bar gate (VIDEO_BAR_GATE, default "warn"): score the generated site against the reference-video bar and
+  // store the result at generation.videoGate. Scoring only: it never changes the site and never blocks or fails the
+  // build; going live is decided by the publish gate.
+  if (!built.skipped) {
+    try {
+      const { gateGeneratedWorkspaceSite } = await import("@/lib/builder/quality/generated-site-gate.server");
+      await gateGeneratedWorkspaceSite(db as never, orgId, "first build");
+    } catch (error) {
+      console.warn("[site-engine] video-bar gate skipped", (error as Error)?.message);
+    }
+  }
   await step("checks");
   await step("leads");
 
