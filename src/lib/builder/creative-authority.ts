@@ -11,6 +11,7 @@
  */
 
 import type { CreativeBrief, ImageBriefSpec } from "@/lib/builder/first-build-contract";
+import type { OwnerStyleChoice } from "@/lib/builder/style-picks";
 import {
   CREATIVE_AUTHORITY,
   REQUIRED_RESPONSIVE_WIDTHS,
@@ -130,6 +131,8 @@ export function compileAiDesignContract(input: {
   primaryAction: string;
   secondaryAction?: string | null;
   differentiators?: string[];
+  /** The look the owner picked in the wizard. Their fonts and colours win over the AI's; the feel is recorded for the design team. */
+  ownerStyle?: OwnerStyleChoice | null;
 }): AiDesignContract {
   const pages: PageDesign[] = input.architecture.map((page) => {
     const sections: SectionDesign[] = page.sections.map((section, index) => ({
@@ -152,30 +155,34 @@ export function compileAiDesignContract(input: {
     };
   });
 
+  const owner = input.ownerStyle ?? null;
   return {
     authority: CREATIVE_AUTHORITY,
+    ...(owner ? { ownerStyle: { id: owner.id, name: owner.name, feel: owner.feel } } : {}),
     directedBy: input.directedBy,
     reviewedBy: input.reviewedBy ?? null,
     identity: {
       name: input.businessName,
       concept: briefText(input.brief.concept) || recoverVisualConcept(input.brief),
-      personality: briefText(input.brief.personality),
+      personality: owner
+        ? [briefText(input.brief.personality), `owner-chosen look "${owner.name}": ${owner.feel}`].filter(Boolean).join("; ")
+        : briefText(input.brief.personality),
       differentiators: input.differentiators ?? input.brief.industryConventions,
     },
     typography: {
-      display: briefText(input.brief.typography.display),
-      body: briefText(input.brief.typography.body),
+      display: owner ? owner.display : briefText(input.brief.typography.display),
+      body: owner ? owner.body : briefText(input.brief.typography.body),
       scaleRatio: input.brief.typography.scaleRatio,
       headlineCase: briefText(input.brief.typography.headlineCase),
       headlineWeight: briefText(input.brief.typography.headlineWeight),
       measureCh: input.brief.typography.measureCh,
     },
     color: {
-      background: briefText(input.brief.color.system),
+      background: owner ? owner.palette.secondary : briefText(input.brief.color.system),
       surface: briefText(input.brief.backgroundTreatment),
       text: briefText(input.brief.color.accentUse),
-      accent: briefText(input.brief.color.accentUse || input.brief.color.system),
-      extras: {},
+      accent: owner ? owner.palette.primary : briefText(input.brief.color.accentUse || input.brief.color.system),
+      extras: owner ? { structural: owner.palette.accent } : {},
       mode: briefText(input.brief.color.strategy),
     },
     backgrounds: [input.brief.backgroundTreatment].filter(Boolean),

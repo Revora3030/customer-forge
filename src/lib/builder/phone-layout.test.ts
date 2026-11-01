@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  guardPhoneLayout,
   hasPhoneChanges,
+  isLeadSection,
+  phoneMoveBlocked,
   phoneOrder,
   phoneState,
   planPhoneHidden,
@@ -116,5 +119,104 @@ describe("assistant 'on mobile…' requests use the same phone controls", () => 
     ]);
     expect(css).toContain('@media (max-width:639px){[data-rvb="sect-1"]{display:none !important}}');
     expect(css).toContain('@media (max-width:639px){[data-rvb="sect-2"]{order:1 !important}}');
+  });
+});
+
+describe("lead section guard (enquiry, quote and booking sections stay reachable on phones)", () => {
+  const withKinds = (kinds: string[]) =>
+    kinds.map((kind, i) => ({ id: `sect-${i + 1}`, kind, settings: {} as unknown, sort_order: i }));
+
+  it("recognises lead sections from kind, stored role and form widgets", () => {
+    for (const kind of ["contact", "quote", "booking"]) expect(isLeadSection({ kind, settings: {} })).toBe(true);
+    for (const kind of ["hero", "services", "faq", "cta", "composition", "policy"]) {
+      expect(isLeadSection({ kind, settings: {} })).toBe(false);
+    }
+    expect(isLeadSection({ kind: "composition", settings: { role: "contact" } })).toBe(true);
+    const tree = { type: "stack", children: [{ type: "widget", text: "enquiry_form" }] };
+    expect(isLeadSection({ kind: "composition", settings: { composition: { root: tree } } })).toBe(true);
+    const other = { type: "stack", children: [{ type: "widget", text: "review_wall" }] };
+    expect(isLeadSection({ kind: "composition", settings: { composition: { root: other } } })).toBe(false);
+  });
+
+  it("a hide request on the lead section keeps it shown", () => {
+    const [contact] = withKinds(["contact"]);
+    const patch = planPhoneHidden(contact!, true);
+    expect(phoneState({ ...contact!, settings: patch.settings }).hiddenOnPhone).toBe(false);
+    expect(blockRules("sect-1", patch.settings)).not.toContain("display:none");
+    // Other sections can still be hidden.
+    const [hero] = withKinds(["hero"]);
+    expect(blockRules("sect-1", planPhoneHidden(hero!, true).settings)).toContain("display:none");
+  });
+
+  it("a stored or chat-applied hidden flag on the lead section is ignored", () => {
+    const list = withKinds(["hero", "services", "contact"]).map((s) =>
+      s.kind === "contact" ? { ...s, settings: writeBlockStyle({}, { hidden: true }, "mobile") } : s,
+    );
+    const guarded = guardPhoneLayout(list);
+    expect(styleSheet(guarded)).not.toContain("display:none");
+    expect(phoneState(guarded[2]!).hiddenOnPhone).toBe(false);
+    // Hiding any other section is untouched.
+    const hidden = list.map((s) => (s.kind === "services" ? { ...s, settings: writeBlockStyle({}, { hidden: true }, "mobile") } : s));
+    expect(styleSheet(guardPhoneLayout(hidden))).toContain('[data-rvb="sect-2"]{display:none !important}');
+  });
+
+  it("a tablet-hidden lead section is shown again at phone width", () => {
+    const list = withKinds(["hero", "booking"]).map((s) =>
+      s.kind === "booking" ? { ...s, settings: writeBlockStyle({}, { hidden: true }, "tablet") } : s,
+    );
+    const css = styleSheet(guardPhoneLayout(list));
+    expect(css).toContain('@media (max-width:639px){[data-rvb="sect-2"]{display:revert !important}}');
+  });
+
+  it("the lead section can't be moved lower than it is on desktop", () => {
+    const list = withKinds(["hero", "services", "contact", "faq"]);
+    // Moving it down is refused, and so is pulling the section below it above it.
+    expect(phoneMoveBlocked(list, "sect-3", "down")).toMatch(/enquiry form/);
+    expect(planPhoneMove(list, "sect-3", "down")).toEqual([]);
+    expect(phoneMoveBlocked(list, "sect-4", "up")).not.toBeNull();
+    expect(planPhoneMove(list, "sect-4", "up")).toEqual([]);
+    // Moving the lead up, or a section from above it to below... is allowed (lead only gets earlier).
+    expect(phoneMoveBlocked(list, "sect-3", "up")).toBeNull();
+    expect(phoneMoveBlocked(list, "sect-2", "down")).toBeNull();
+    // Unrelated sections move freely.
+    expect(planPhoneMove(list, "sect-2", "up").length).toBeGreaterThan(0);
+  });
+
+  it("the lead section is never pushed below a section that follows it on desktop", () => {
+    // A lead that closes the page stays at the very end of what it can reach: it can't be pushed
+    // below a section that follows it on desktop (a policy page section, for example).
+    let list = withKinds(["hero", "services", "contact", "policy"]);
+    expect(planPhoneMove(list, "sect-4", "up")).toEqual([]);
+    expect(planPhoneMove(list, "sect-3", "down")).toEqual([]);
+    // Every reachable layout keeps the lead at or above its desktop position.
+    for (const step of [
+      ["sect-2", "up"], ["sect-1", "down"], ["sect-3", "up"], ["sect-4", "up"], ["sect-3", "down"], ["sect-2", "down"],
+    ] as const) {
+      list = apply(list, planPhoneMove(list, step[0], step[1]));
+      expect(phoneOrder(list).findIndex((s) => s.id === "sect-3")).toBeLessThanOrEqual(2);
+    }
+  });
+
+  it("a saved phone order that buries the lead section is ignored when the page renders", () => {
+    const list = withKinds(["hero", "services", "contact", "faq"]).map((s, i) => ({
+      ...s,
+      // contact (3rd on desktop) saved as last on phones
+      settings: writeBlockStyle({}, { order: [1, 2, 4, 3][i]! }, "mobile"),
+    }));
+    expect(phoneOrder(list).map((s) => s.id)).toEqual(["sect-1", "sect-2", "sect-4", "sect-3"]);
+    const guarded = guardPhoneLayout(list);
+    expect(phoneOrder(guarded).map((s) => s.id)).toEqual(["sect-1", "sect-2", "sect-3", "sect-4"]);
+    expect(mobileOrderRules(guarded)).toBe("");
+    // A harmless order (lead moved earlier) is kept.
+    const earlier = withKinds(["hero", "services", "contact", "faq"]).map((s, i) => ({
+      ...s,
+      settings: writeBlockStyle({}, { order: [1, 3, 2, 4][i]! }, "mobile"),
+    }));
+    expect(guardPhoneLayout(earlier)).toBe(earlier);
+  });
+
+  it("leaves a page with no lead section completely alone", () => {
+    const list = withKinds(["hero", "services", "faq"]);
+    expect(guardPhoneLayout(list)).toBe(list);
   });
 });

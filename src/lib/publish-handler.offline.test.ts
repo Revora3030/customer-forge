@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { scoreVideoBar } from "@/lib/builder/quality/video-score";
+import { badSite, blueprintFor, goodSite } from "@/lib/builder/quality/video-score.fixtures";
 
 vi.mock("@tanstack/react-start", () => ({
   createServerFn: () => {
@@ -7,17 +9,18 @@ vi.mock("@tanstack/react-start", () => ({
   },
 }));
 vi.mock("@/integrations/supabase/auth-middleware", () => ({ requireSupabaseAuth: {} }));
-const mock = vi.hoisted(() => ({ audit: vi.fn(), quality: vi.fn(), snapshot: vi.fn() }));
+const mock = vi.hoisted(() => ({ audit: vi.fn(), quality: vi.fn(), snapshot: vi.fn(), videoBar: vi.fn() }));
 vi.mock("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from: () => ({ insert: mock.audit }) } }));
 vi.mock("@/lib/builder/quality.server", () => ({ auditWorkspaceWebsite: mock.quality }));
 vi.mock("@/lib/site-restore.functions", () => ({ readWebsiteState: mock.snapshot }));
+vi.mock("@/lib/builder/quality/video-publish-gate.server", () => ({ scoreWorkspaceVideoBar: mock.videoBar }));
 const ORG = "11111111-1111-4111-8111-111111111111";
 const OTHER = "22222222-2222-4222-8222-222222222222";
 const USER = "33333333-3333-4333-8333-333333333333";
 type Row = Record<string, unknown>;
 type Write = { table: string; kind: string; row: Row; filters: [string, unknown][] };
 
-function fixture(options: { role?: string | null; unpaid?: boolean; suspended?: boolean; branch?: boolean; snapshotError?: boolean; publishError?: boolean; unapproved?: boolean } = {}) {
+function fixture(options: { role?: string | null; unpaid?: boolean; suspended?: boolean; branch?: boolean; snapshotError?: boolean; publishError?: boolean; unapproved?: boolean; admin?: boolean } = {}) {
   const writes: Write[] = [];
   const reads: { table: string; filters: [string, unknown][] }[] = [];
   const chrome = { root: { id: "root", type: "text", text: "Fixture" } };
@@ -29,6 +32,7 @@ function fixture(options: { role?: string | null; unpaid?: boolean; suspended?: 
     website_pages: [{ organization_id: ORG, id: "home", slug: "home", is_visible: true }],
     website_sections: ["hero", "services", "contact"].map((kind) => ({ organization_id: ORG, id: kind, kind, is_visible: true })),
     services: [{ organization_id: ORG, id: "service", is_active: true }],
+    user_roles: options.admin ? [{ user_id: USER, role: "super_admin" }] : [],
     website_branches: options.branch ? [{ organization_id: ORG, status: "open", label: "Pending changes" }] : [],
     website_versions: [{ organization_id: ORG, version: 2 }, { organization_id: OTHER, version: 99 }],
   };
@@ -58,20 +62,22 @@ function fixture(options: { role?: string | null; unpaid?: boolean; suspended?: 
   } };
   return { client, writes, reads, tables };
 }
-async function activate(db: ReturnType<typeof fixture>) {
+async function activate(db: ReturnType<typeof fixture>, extra: Row = {}) {
   const path = "./production.functions.ts?server-fn-module-lookup";
   const module = await import(/* @vite-ignore */ path);
   const handler = module["activateProduction"] as (input: unknown) => Promise<{ activated: boolean; version: number | null }>;
-  return handler({ data: { organizationId: ORG }, context: { supabase: db.client, userId: USER } });
+  return handler({ data: { organizationId: ORG, ...extra }, context: { supabase: db.client, userId: USER } });
 }
 beforeEach(() => {
   vi.clearAllMocks();
   mock.audit.mockResolvedValue({ error: null });
   mock.quality.mockResolvedValue({ ready: true, measured: true, productionReady: true, score: 95, blockers: [], issues: [] });
   mock.snapshot.mockResolvedValue({ pages: [{ id: "home", sections: [] }] });
+  // The existing cases below are about the other gates; the video bar has its own describe at the end.
+  vi.stubEnv("VIDEO_BAR_GATE", "off");
   vi.stubGlobal("fetch", vi.fn(() => { throw new Error("No network allowed in offline publish tests"); }));
 });
-afterEach(() => { expect(fetch).not.toHaveBeenCalled(); vi.unstubAllGlobals(); });
+afterEach(() => { expect(fetch).not.toHaveBeenCalled(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 
 describe("production publishing handler — offline fixtures, not live RLS proof", () => {
   it.each([null, "viewer", "member"])("denies role %s before snapshots or writes", async (role) => {
@@ -131,5 +137,82 @@ describe("production publishing handler — offline fixtures, not live RLS proof
     const db = fixture({ publishError: true });
     await expect(activate(db)).rejects.toThrow("setup");
     expect(mock.audit.mock.calls.some(([row]) => row.action === "PRODUCTION_ACTIVATED")).toBe(false);
+  });
+});
+describe("video-bar publish block (same offline fixtures)", () => {
+  const bp = blueprintFor("roofing");
+  const below = () => ({ score: scoreVideoBar(badSite(bp)), previousScore: null, tradeSlug: bp.slug, blueprintSource: bp.source });
+  const above = () => ({ score: scoreVideoBar(goodSite(bp)), previousScore: null, tradeSlug: bp.slug, blueprintSource: bp.source });
+  const actions = () => mock.audit.mock.calls.map(([row]) => row.action);
+  beforeEach(() => { vi.stubEnv("VIDEO_BAR_GATE", "enforce"); });
+
+  it("blocks a site under the bar, publishes nothing, tells the owner what to fix and logs why", async () => {
+    mock.videoBar.mockResolvedValue(below());
+    const db = fixture();
+    const result = (await activate(db)) as unknown as { activated: boolean; reason: string };
+    expect(result.activated).toBe(false);
+    expect(result.reason).toMatch(/not at our quality bar yet/);
+    expect(result.reason).toMatch(/Fix these, then publish again/);
+    expect(db.writes).toEqual([]);
+    const blocked = mock.audit.mock.calls.map(([row]) => row).find((row) => row.action === "PUBLISH_BLOCKED");
+    expect(blocked.metadata).toMatchObject({ reason: "video_bar_below_bar", video_bar: { bar: 85, tradeSlug: bp.slug } });
+    expect(blocked.metadata.video_bar.failures).toContain("truth_facts");
+  });
+
+  it("publishes a site that meets the bar", async () => {
+    mock.videoBar.mockResolvedValue(above());
+    const db = fixture();
+    expect(await activate(db)).toMatchObject({ activated: true, version: 3 });
+  });
+
+  it("fails closed when the score cannot be computed", async () => {
+    mock.videoBar.mockRejectedValue(new Error("db down"));
+    const db = fixture();
+    expect((await activate(db)).activated).toBe(false);
+    expect(db.writes).toEqual([]);
+  });
+
+  it("warn mode shows the score but does not block", async () => {
+    vi.stubEnv("VIDEO_BAR_GATE", "warn");
+    mock.videoBar.mockResolvedValue(below());
+    expect((await activate(fixture())).activated).toBe(true);
+  });
+
+  it("an ordinary owner cannot override, and the attempt is logged", async () => {
+    mock.videoBar.mockResolvedValue(below());
+    const db = fixture({ role: "owner" });
+    expect((await activate(db, { videoBarOverrideReason: "client is waiting" })).activated).toBe(false);
+    expect(actions()).toContain("PUBLISH_VIDEO_BAR_OVERRIDE_DENIED");
+    expect(actions()).not.toContain("PUBLISH_VIDEO_BAR_OVERRIDE");
+    expect(db.writes).toEqual([]);
+  });
+
+  it("a platform admin can override with a reason, and the override is logged", async () => {
+    mock.videoBar.mockResolvedValue(below());
+    const db = fixture({ role: "admin", admin: true });
+    expect(await activate(db, { videoBarOverrideReason: "Adam approved this build for the demo" })).toMatchObject({ activated: true });
+    const row = mock.audit.mock.calls.map(([r]) => r).find((r) => r.action === "PUBLISH_VIDEO_BAR_OVERRIDE");
+    expect(row.metadata).toMatchObject({ reason: "Adam approved this build for the demo", video_bar: { bar: 85 } });
+    expect(actions()).not.toContain("PUBLISH_BLOCKED");
+  });
+
+  it("an admin override never bypasses any other failing check", async () => {
+    mock.videoBar.mockResolvedValue(below());
+    const db = fixture({ admin: true, unapproved: true });
+    expect((await activate(db, { videoBarOverrideReason: "client is waiting" })).activated).toBe(false);
+    expect(db.writes).toEqual([]);
+  });
+
+  it("a live edit is only stopped when it makes the live site worse", async () => {
+    const { publishSiteNow } = await import("./production.functions");
+    const bad = below();
+    mock.videoBar.mockResolvedValue({ ...bad, previousScore: bad.score.score });
+    const same = await publishSiteNow(fixture().client as never, USER, ORG, { liveEdit: true });
+    expect(same.activated).toBe(true);
+    mock.videoBar.mockResolvedValue({ ...bad, previousScore: bad.score.score + 10 });
+    const worse = await publishSiteNow(fixture().client as never, USER, ORG, { liveEdit: true });
+    expect(worse.activated).toBe(false);
+    mock.videoBar.mockResolvedValue({ ...bad, previousScore: null });
+    expect((await publishSiteNow(fixture().client as never, USER, ORG, { liveEdit: true })).activated).toBe(false);
   });
 });
