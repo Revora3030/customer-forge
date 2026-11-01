@@ -31,6 +31,7 @@ import { CustomBlock } from "@/components/site/CustomBlock";
 import { safeLinkUrl, sectionLabel } from "@/lib/website-content";
 import { readEmbed } from "@/lib/site-embed";
 import { businessFacts, factsAddressLine } from "@/lib/builder/facts";
+import { faqFactsFor } from "@/lib/builder/faq-from-facts";
 import { safeParagraph, safeText } from "@/lib/builder/presentation";
 import { addressAddsDetail, distinctServiceArea, sectionSurface, serviceAreaPhrase, siteSurface } from "@/components/site/site-sections-utils";
 import { TradeCalculator } from "@/components/site/TradeCalculator";
@@ -190,6 +191,7 @@ function SiteSectionBody({ site, section, lead = false, first = false, surface =
           resolveMedia={(ref) => media.get(ref) ?? null}
           resolveHref={(href) => resolveSiteHref(href, org.slug, ownAddress, null, null, previewBase)}
           resolveOffer={(service) => offerFactsFor(site.services ?? [], service)}
+          faqFacts={faqFactsFor({ profile, businessName: org.name, services: site.services ?? [], quote: Boolean(site.quote), generation: site.settings?.generation })}
           resolveWidget={(name, presentation?: WidgetPresentation) => {
             if (name === "booking_form") return <BookingForm site={site} {...(presentation ? { presentation } : {})} />;
             if (name === "quote_calculator")

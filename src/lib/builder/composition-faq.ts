@@ -1,14 +1,17 @@
 import { readComposition, type CompositionNode } from "./composition-tree";
+import { faqItemsForDisplay, NO_FAQ_FACTS, type FaqFacts } from "./faq-from-facts";
 
 /** Only dedicated FAQ content that the composition actually renders. Hidden
- * nodes and inactive tab panels are excluded rather than advertised to crawlers. */
-export function compositionFaqItems(sections: readonly { settings?: unknown }[]) {
+ * nodes and inactive tab panels are excluded rather than advertised to crawlers.
+ * Answers are grounded in the business facts exactly as the published page
+ * shows them: an unanswered question is left out, never a placeholder. */
+export function compositionFaqItems(sections: readonly { settings?: unknown }[], facts: FaqFacts = NO_FAQ_FACTS) {
   const items: { q: string; a: string }[] = [];
   const seen = new Set<string>();
   const walk = (node: CompositionNode) => {
     if (node.style?.hidden || Object.values(node.responsive ?? {}).some((style) => style?.hidden)) return;
     if (node.type === "faq_accordion") {
-      for (const item of node.faqItems ?? []) {
+      for (const item of faqItemsForDisplay(node.faqItems ?? [], facts, "published")) {
         const key = JSON.stringify([item.question, item.answer]);
         if (!seen.has(key)) {
           seen.add(key);
