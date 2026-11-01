@@ -349,15 +349,15 @@ export const runSiteGeneration = createServerFn({ method: "POST" })
       const { isStallMessage, carryOverCheckpoints } = await import("@/lib/builder/no-progress");
       const { data: previous } = await supabase
         .from("generation_jobs")
-        .select("status, error_message, stage_checkpoints, section_checkpoints, completed_at")
+        .select("status, error_message, failure_kind, stage_checkpoints, section_checkpoints, completed_at")
         .eq("organization_id", orgId)
         .neq("id", job.id)
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
-      const prev = previous as { status?: string; error_message?: string | null; stage_checkpoints?: unknown; section_checkpoints?: unknown; completed_at?: string | null } | null;
+      const prev = previous as { status?: string; error_message?: string | null; failure_kind?: string | null; stage_checkpoints?: unknown; section_checkpoints?: unknown; completed_at?: string | null } | null;
       const fresh = prev?.completed_at && Date.now() - Date.parse(prev.completed_at) < 24 * 3_600_000;
-      if (prev && prev.status === "failed" && fresh && isStallMessage(prev.error_message)) {
+      if (prev && prev.status === "failed" && fresh && (isStallMessage(prev.error_message) || prev.failure_kind === "credits" || prev.failure_kind === "provider")) {
         const stage = carryOverCheckpoints(prev.stage_checkpoints, job.id);
         const section = carryOverCheckpoints(prev.section_checkpoints, job.id);
         if (stage || section)

@@ -14,6 +14,8 @@
  * Everything here is pure (no database, no timers) so it is unit-tested.
  */
 
+import { AI_CAUSE_OWNER_MESSAGE, type AiCause } from "./ai-cause";
+
 /** No stage, section or model answer for this long = the step is stuck. */
 export const NO_PROGRESS_LIMIT_MS = 4 * 60_000;
 /** How often the server watchdog and the owner's browser re-check. */
@@ -23,6 +25,7 @@ export const CLIENT_STALL_AFTER_MS = 5 * 60_000;
 /** The owner's draft page stops waiting for the site after this long. */
 export const DRAFT_LOAD_TIMEOUT_MS = 20_000;
 
+/** Older wording (still recognised on stored rows). */
 export const STALL_MESSAGE_BUSY = "AI service out of credits or busy, try again shortly.";
 export const STALL_MESSAGE_GENERIC =
   "This build stopped making progress and was ended safely. Nothing was published, and your finished sections were kept. Press Build again to continue.";
@@ -30,16 +33,24 @@ export const STALL_MESSAGE_GENERIC =
 /** True for the stored message of a build ended by the no-progress guard. */
 export function isStallMessage(message: string | null | undefined): boolean {
   const text = (message ?? "").replace(/^\[[a-z_]+\]\s*/, "").trim();
-  return text === STALL_MESSAGE_BUSY || text === STALL_MESSAGE_GENERIC;
+  return (
+    text === STALL_MESSAGE_BUSY ||
+    text === STALL_MESSAGE_GENERIC ||
+    (Object.values(AI_CAUSE_OWNER_MESSAGE) as string[]).includes(text)
+  );
 }
 
 export class NoProgressError extends Error {
   readonly busy: boolean;
   readonly idleMs: number;
-  constructor(readonly stage: string | null, idleMs: number, busy: boolean) {
-    super(busy ? STALL_MESSAGE_BUSY : STALL_MESSAGE_GENERIC);
+  /** Why the AI team went quiet (402 credits, 429 rate limit, timeout), when known. */
+  readonly cause: AiCause | null;
+  /** `cause` may be `true` for "the AI was busy, reason unknown" (older callers). */
+  constructor(readonly stage: string | null, idleMs: number, cause: AiCause | boolean | null) {
+    super(typeof cause === "string" ? AI_CAUSE_OWNER_MESSAGE[cause] : cause ? STALL_MESSAGE_BUSY : STALL_MESSAGE_GENERIC);
     this.name = "NoProgressError";
-    this.busy = busy;
+    this.cause = typeof cause === "string" ? cause : null;
+    this.busy = Boolean(cause);
     this.idleMs = idleMs;
   }
 }
@@ -84,7 +95,7 @@ export async function runWithNoProgressGuard<T>(
   watch: ProgressWatch,
   options: {
     checkEveryMs?: number;
-    onStall?: () => Promise<boolean> | boolean;
+    onStall?: () => Promise<AiCause | boolean | null> | AiCause | boolean | null;
   } = {},
 ): Promise<T> {
   let timer: ReturnType<typeof setInterval> | undefined;
@@ -94,9 +105,9 @@ export async function runWithNoProgressGuard<T>(
       if (firing || !watch.stalled()) return;
       firing = true;
       void (async () => {
-        let busy = false;
+        let busy: AiCause | boolean | null = false;
         try {
-          busy = Boolean(await options.onStall?.());
+          busy = (await options.onStall?.()) ?? false;
         } catch {
           /* the message just falls back to the generic wording */
         }

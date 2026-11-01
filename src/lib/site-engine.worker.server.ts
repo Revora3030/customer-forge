@@ -23,6 +23,7 @@ import {
   registerProgressWatch,
   runWithNoProgressGuard,
 } from "@/lib/builder/no-progress";
+import { aiCauseFromCalls, describeAiPressure, failureKindForAiCause, AI_CAUSE_OWNER_MESSAGE } from "@/lib/builder/ai-cause";
 import { menuNeedsHelp } from "@/lib/service-suggestions";
 import {
   INTERRUPTED_BUILD_MESSAGE,
@@ -171,6 +172,8 @@ class FreshRebuildRollbackError extends Error {
   constructor(
     message: string,
     public readonly backupId: string,
+    /** The error that ended the rebuild, so the owner is told the real cause, not "page assembly". */
+    public readonly rootCause: unknown = null,
   ) {
     super(message);
     this.name = "FreshRebuildRollbackError";
@@ -695,6 +698,7 @@ export async function settleFailedAttempt(
         ? `${message} The previous website was restored from backup ${input.backupId}.`
         : `${message} Rollback also failed: ${rollback.restoreError ?? "unknown error"}.`,
       input.backupId,
+      error,
     );
   }
   throw error;
@@ -3203,11 +3207,13 @@ export async function drainSiteEngineQueue(
             attemptAbort.abort();
             const { data: calls } = await db
               .from("ai_usage_events")
-              .select("ok, error_category")
+              .select("ok, error_category, created_at")
               .eq("organization_id", job.organization_id)
               .gte("created_at", attemptStartedAt)
               .limit(1000);
-            return aiPressureSeen((calls ?? []) as { ok: boolean | null; error_category: string | null }[]);
+            const rows = (calls ?? []) as { ok: boolean | null; error_category: string | null; created_at: string | null }[];
+            // 402 credits vs 429 rate limit vs timeout, so the owner is told which.
+            return aiCauseFromCalls(rows) ?? aiPressureSeen(rows);
           },
         },
       );
@@ -3273,19 +3279,47 @@ export async function drainSiteEngineQueue(
         } catch (endError) {
           console.warn(`[site-engine] attempt-end record for job ${job.id} skipped`, endError);
         }
+        // The rollback wrapper used to stamp EVERY cause "rendering" (shown to the
+        // owner as "Page assembly failed"). When the step that ended the build was
+        // an AI call, report the real reason: credits (402), rate limit (429),
+        // timeout, or at least "the AI service".
+        let storedMessage = message;
+        let storedKind: "rendering" | "credits" | "provider" = "rendering";
+        const root = error instanceof FreshRebuildRollbackError ? error.rootCause : null;
+        const { AiStepUnavailableError } = await import("@/lib/builder/ai-step-error");
+        if (root instanceof AiStepUnavailableError || root instanceof RevoraAiError) {
+          let cause = root instanceof RevoraAiError ? (status === 402 ? "credits" as const : status === 429 ? "rate_limited" as const : null) : null;
+          if (!cause) {
+            try {
+              const { data: calls } = await db
+                .from("ai_usage_events")
+                .select("ok, error_category, created_at")
+                .eq("organization_id", job.organization_id)
+                .gte("created_at", attemptStartedAt)
+                .limit(1000);
+              cause = aiCauseFromCalls((calls ?? []) as { ok: boolean | null; error_category: string | null; created_at: string | null }[]);
+            } catch (causeError) {
+              console.warn(`[site-engine] AI cause lookup for job ${job.id} skipped`, causeError);
+            }
+          }
+          storedKind = cause ? failureKindForAiCause(cause) : "provider";
+          if (cause) storedMessage = AI_CAUSE_OWNER_MESSAGE[cause];
+          console.warn(`[site-engine] job ${job.id} ended by an AI step (${cause ?? "cause unknown"}): ${message}`);
+        }
+        const { tagFailureMessage: tagRollback } = await import("@/lib/builder/build-failure");
         await db
           .from("generation_jobs")
           .update({
             status: "failed",
-            error_message: message,
-            failure_kind: "rendering",
+            error_message: storedKind === "rendering" ? message : tagRollback(storedKind, storedMessage),
+            failure_kind: storedKind,
             completed_at: new Date().toISOString(),
             lease_expires_at: null,
           } as never)
           .eq("id", job.id)
           .eq("attempts", job.attempts)
           .eq("status", "processing");
-        await writeQueueState(db, { last_error: message });
+        await writeQueueState(db, { last_error: storedMessage });
         continue;
       }
 
@@ -3296,7 +3330,7 @@ export async function drainSiteEngineQueue(
       if (error instanceof NoProgressError) {
         failed += 1;
         console.warn(
-          `[site-engine] job ${job.id} attempt ${job.attempts} made no progress for ${Math.round(error.idleMs / 1000)}s at "${error.stage ?? "unknown"}" (${error.busy ? "AI busy/credits" : "unknown cause"}); failing it.`,
+          `[site-engine] job ${job.id} attempt ${job.attempts} made no progress for ${Math.round(error.idleMs / 1000)}s at "${error.stage ?? "unknown"}" (${error.cause ?? (error.busy ? "AI busy" : "unknown cause")}); failing it.`,
         );
         try {
           await db.from("ai_generations").insert({
@@ -3312,7 +3346,7 @@ export async function drainSiteEngineQueue(
           console.warn(`[site-engine] attempt-end record for job ${job.id} skipped`, endError);
         }
         const { tagFailureMessage: tagStall } = await import("@/lib/builder/build-failure");
-        const kind = error.busy ? "provider" : "infrastructure";
+        const kind = error.cause ? failureKindForAiCause(error.cause) : error.busy ? "provider" : "infrastructure";
         const { data: stalled } = await db
           .from("generation_jobs")
           .update({
@@ -3487,7 +3521,10 @@ export function capacityVerdict(
     count,
     retryAt: new Date(retryAt),
     summary: pressured.length
-      ? `${pressured.length} of ${calls.length} AI calls were rate-limited or timed out`
+      ? pressured.some((call) => call.error_category === "quota")
+        // Credits (402) are a different problem from a rate limit (429): say so.
+        ? `${describeAiPressure(calls)}`
+        : `${pressured.length} of ${calls.length} AI calls were rate-limited or timed out`
       : "the AI team ran out of time to finish this step",
     pressure,
   };

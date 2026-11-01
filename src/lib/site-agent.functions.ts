@@ -714,9 +714,13 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
       });
 
       if (!authored.ok) {
+        const { assistantUnavailableReply } = await import("@/lib/builder/ai-cause");
+        const causeReply = assistantUnavailableReply(authored.reason);
         return settle({
           reply:
-            authored.reason === "review_rejected"
+            causeReply
+              ? causeReply.reply
+              : authored.reason === "review_rejected"
               ? `I left your website unchanged because this change would need details you haven't given me yet${authored.detail ? ` (${authored.detail.replace(/^the review removed every proposed change — ?/, "")})` : ""}. Tell me the real details — for example exactly what each service includes — and I'll add them.`
               : "I couldn't design this change right now, so I've left your website exactly as it is. Please try again in a moment — I'd rather wait than drop a stock layout onto your site.",
           summary: "",
@@ -730,7 +734,7 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
           ],
           unavailable: {
             reason: authored.reason,
-            retryable: true,
+            retryable: causeReply ? causeReply.retryable : true,
             instruction,
           } as { reason: string; retryable: boolean; instruction: string } | null,
           composition:
