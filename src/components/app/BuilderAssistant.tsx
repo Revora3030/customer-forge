@@ -27,6 +27,7 @@ import {
   SquarePen,
   Trash2,
   X,
+  Crosshair,
 } from "lucide-react";
 import {
   Conversation,
@@ -71,7 +72,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { getAiSuggestions } from "@/lib/ai-suggestions.functions";
 import { QUEUE_LABELS, timelineFor } from "@/lib/builder-queue";
 import { onAssistantPrompt } from "@/lib/assistant-bridge";
-import { pageContextPrefix, selectionPrefix, type PageContext } from "@/lib/builder/preview-bridge";
+import { pageContextPrefix, selectionChipLabel, selectionPrefix, type PageContext } from "@/lib/builder/preview-bridge";
 import { actionsForElement } from "@/lib/builder/element-actions";
 import { MAIN_BRANCH, normaliseRequestId } from "@/lib/builder/chat-thread";
 import { wantsFreshRebuild } from "@/lib/builder/rebuild-intent";
@@ -114,6 +115,7 @@ export function BuilderAssistant({
   onRetryBuild,
   stoppingBuild = false,
   onClearSelection,
+  onPickPart,
   onOpenHistory,
   onShowPreview,
   onFirstBuild,
@@ -135,7 +137,7 @@ export function BuilderAssistant({
   businessName?: string | null;
   compact?: boolean;
   /** The block the owner clicked in the preview, if any. */
-  selection?: { id: string; label: string | null; kind: string | null; text: string | null } | null;
+  selection?: { id: string; label: string | null; kind: string | null; text: string | null; element?: string | null } | null;
   /** The page open in the preview: shown as a chip and sent as soft context with each request. */
   pageContext?: PageContext | null;
   /** Shows a planned or applied change in the preview: opens its page, scrolls to it and outlines it. */
@@ -154,6 +156,8 @@ export function BuilderAssistant({
   onRetryBuild?: (instruction: string) => void;
   stoppingBuild?: boolean;
   onClearSelection?: () => void;
+  /** Composer crosshair: show the preview and let the owner click a block to tag it. */
+  onPickPart?: () => void;
   /** Opens History, where the before-and-after comparison lives. */
   onOpenHistory?: () => void;
   /** Switches phones to the Preview tab (the result card's Preview button). */
@@ -718,7 +722,7 @@ export function BuilderAssistant({
                 ) : null}
                 {selection ? (
                   <span className="inline-flex max-w-full items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 py-1 pr-1 pl-2.5 text-xs text-foreground">
-                    <span className="truncate">Editing: {selection.label ?? selection.kind ?? "the block you picked"}</span>
+                    <span className="truncate" data-testid="selection-chip" title="Your next request only changes this part of the page"><span aria-hidden>@</span><span className="sr-only">Editing </span>{selectionChipLabel(selection)}</span>
                     <button
                       type="button"
                       onClick={() => onClearSelection?.()}
@@ -793,6 +797,18 @@ export function BuilderAssistant({
                 >
                   {mediaOpen ? <X className="size-4" aria-hidden /> : <Plus className="size-[18px]" aria-hidden />}
                 </PromptInputButton>
+                {onPickPart ? (
+                  <PromptInputButton
+                    className={cn("size-9 rounded-full p-0 text-muted-foreground hover:text-foreground", selection && "bg-primary/10 text-foreground")}
+                    onClick={onPickPart}
+                    disabled={composerLocked}
+                    aria-label="Point at a part of your page to change it"
+                    data-testid="composer-pick-part"
+                    title="Click a part of your page, then say what to change"
+                  >
+                    <Crosshair className="size-[18px]" aria-hidden />
+                  </PromptInputButton>
+                ) : null}
                 <VoiceDictationButton
                   disabled={composerLocked}
                   onText={(text) => setValue((prior) => (prior ? `${prior.trim()} ${text}` : text).slice(0, INSTRUCTION_LIMIT))}

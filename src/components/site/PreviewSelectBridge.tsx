@@ -30,6 +30,7 @@ import {
 } from "@/lib/builder/preview-bridge";
 import { contrast, over, parseColor, requiredRatio, type Rgba } from "@/lib/builder/contrast-scan";
 import { siteThemeStyle } from "@/lib/site-theme";
+import { DOUBLE_TAP_MS, isDoubleTap, type Tap } from "@/lib/builder/inline-edit";
 
 const INLINE_TYPES = new Set(["heading", "text", "button", "link", "quote"]);
 /** Words an owner can click to edit directly (headlines and paragraphs). */
@@ -173,6 +174,27 @@ export function PreviewSelectBridge() {
       node.textContent = after;
       post({ source: PREVIEW_BRIDGE_SOURCE, type: "inline-edit", id, path, text: after });
     };
+    // Phones: a double-tap edits words like a desktop double-click. A touch pick is held back for one
+    // double-tap window so the first tap of a double-tap doesn't pick the block (and close the preview).
+    let lastTap: Tap | null = null;
+    let touchEditAt = 0;
+    let pendingPick: number | undefined;
+    const cancelPendingPick = () => {
+      if (pendingPick !== undefined) window.clearTimeout(pendingPick);
+      pendingPick = undefined;
+    };
+    const onPointerUp = (event: PointerEvent) => {
+      if (event.pointerType !== "touch" || !event.isPrimary || !active) return;
+      const element = elementOf(event.target instanceof Element ? event.target : null);
+      const tap: Tap = { t: event.timeStamp, x: event.clientX, y: event.clientY, target: element };
+      const double = element !== null && isDoubleTap(lastTap, tap);
+      lastTap = double ? null : tap;
+      if (double && element && startEdit(element)) {
+        cancelPendingPick();
+        touchEditAt = event.timeStamp;
+      }
+    };
+
     const startEdit = (element: HTMLElement) => {
       const type = element.getAttribute("data-rvp-type") ?? "";
       if (!INLINE_TYPES.has(type) || element.children.length > 0) return false;
@@ -423,11 +445,20 @@ export function PreviewSelectBridge() {
       event.preventDefault();
       event.stopPropagation();
       const element = elementOf(target);
-      post(selectionOf(block, element));
+      const message = selectionOf(block, element);
+      if (lastTap && event.timeStamp - lastTap.t < 80) {
+        // A finger tap: wait one double-tap window before picking.
+        cancelPendingPick();
+        pendingPick = window.setTimeout(() => { pendingPick = undefined; post(message); }, DOUBLE_TAP_MS);
+        return;
+      }
+      post(message);
     };
 
     const onDoubleClick = (event: MouseEvent) => {
       if (!active) return;
+      if (event.timeStamp - touchEditAt < 600) return;
+      cancelPendingPick();
       const element = elementOf(event.target instanceof Element ? event.target : null);
       if (!element) return;
       if (startEdit(element)) {
@@ -469,6 +500,7 @@ export function PreviewSelectBridge() {
     document.addEventListener("mousemove", onMove, true);
     document.addEventListener("click", onClick, true);
     document.addEventListener("dblclick", onDoubleClick, true);
+    document.addEventListener("pointerup", onPointerUp, true);
     document.addEventListener("keydown", onKey, true);
     window.addEventListener("scroll", onScroll, true);
     window.addEventListener("resize", placeMenu);
@@ -485,6 +517,8 @@ export function PreviewSelectBridge() {
       document.removeEventListener("mousemove", onMove, true);
       document.removeEventListener("click", onClick, true);
       document.removeEventListener("dblclick", onDoubleClick, true);
+      document.removeEventListener("pointerup", onPointerUp, true);
+      cancelPendingPick();
       document.removeEventListener("keydown", onKey, true);
       window.removeEventListener("scroll", onScroll, true);
       window.removeEventListener("resize", placeMenu);
