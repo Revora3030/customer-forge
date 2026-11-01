@@ -1,11 +1,27 @@
 import { QueryClient } from "@tanstack/react-query";
 import { createRouter } from "@tanstack/react-router";
+import { getGlobalStartContext } from "@tanstack/react-start";
 import { RouteError, RouteNotFound } from "./components/app/RouteStates";
 import { routeTree } from "./routeTree.gen";
 import { reportRouteError } from "@/lib/route-error-reporting";
 import { installBuilderResumeSync } from "@/lib/builder/resume-sync";
 
 let disposeResumeSync: (() => void) | undefined;
+
+function requestNonce(): string | undefined {
+  if (typeof window !== "undefined") return undefined;
+  try {
+    const context = getGlobalStartContext() as { nonce?: unknown } | undefined;
+    return typeof context?.nonce === "string" ? context.nonce : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function nonceOption(): { ssr?: { nonce: string } } {
+  const nonce = requestNonce();
+  return nonce ? { ssr: { nonce } } : {};
+}
 
 export const getRouter = () => {
   const queryClient = new QueryClient();
@@ -16,6 +32,9 @@ export const getRouter = () => {
 
   const router = createRouter({
     routeTree,
+    // Server render only: the per-request CSP nonce set by the security-headers
+    // middleware, stamped on every inline script the router writes.
+    ...nonceOption(),
     context: { queryClient },
     scrollRestoration: true,
     defaultPreloadStaleTime: 0,

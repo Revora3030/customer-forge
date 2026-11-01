@@ -19,9 +19,12 @@
  *   on any https host, so `img-src` stays broad while script/frame/connect
  *   sources stay locked down.
  *
- * `script-src` has to allow inline scripts: the server-rendered HTML carries
- * the router's hydration payload inline. Everything that actually executes
- * remote code is still restricted to the hosts above.
+ * `script-src` carries a per-request nonce instead of `'unsafe-inline'`: the
+ * server-rendered HTML holds the router's hydration payload and two small
+ * snippets inline, and the router stamps the nonce on each of them. Injected
+ * markup without the nonce does not run. Remote code is still restricted to
+ * the hosts above (no `'strict-dynamic'`, so GA4, Ads and Stripe keep loading
+ * from their allowlisted hosts).
  */
 
 import { EMBED_PROVIDERS } from "@/lib/site-embed";
@@ -39,7 +42,33 @@ const EMBED_FRAME_SOURCES = [
 ].join(" ");
 const SUPABASE_WS = "wss://*.supabase.co";
 
-export const CONTENT_SECURITY_POLICY = [
+const SCRIPT_HOSTS =
+  "https://js.stripe.com https://maps.googleapis.com https://maps.gstatic.com https://www.googletagmanager.com https://pagead2.googlesyndication.com https://googleads.g.doubleclick.net https://www.clarity.ms https://scripts.clarity.ms";
+
+/** A fresh, unguessable value for one response (128 bits, base64). */
+export function generateCspNonce(): string {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary);
+}
+
+/**
+ * The policy for one response. With a nonce, inline scripts run only when they
+ * carry that nonce (the router stamps it on its hydration payload and the
+ * consent/boot snippets). Without one it falls back to the old
+ * `'unsafe-inline'` so a document that was not rendered through the router
+ * is never left unable to run anything.
+ */
+export function buildContentSecurityPolicy(nonce?: string): string {
+  const inline = nonce ? `'nonce-${nonce}'` : "'unsafe-inline'";
+  return STATIC_DIRECTIVES.map((directive) =>
+    directive === "script-src" ? `script-src 'self' ${inline} ${SCRIPT_HOSTS}` : directive,
+  ).join("; ");
+}
+
+const STATIC_DIRECTIVES = [
   "default-src 'self'",
   "base-uri 'self'",
   "object-src 'none'",
@@ -49,7 +78,7 @@ export const CONTENT_SECURITY_POLICY = [
   // builder open a customer page in a same-origin frame to photograph what
   // actually rendered for the visual review.
   "frame-ancestors 'self'",
-  "script-src 'self' 'unsafe-inline' https://js.stripe.com https://maps.googleapis.com https://maps.gstatic.com https://www.googletagmanager.com https://pagead2.googlesyndication.com https://googleads.g.doubleclick.net https://www.clarity.ms https://scripts.clarity.ms",
+  "script-src",
   "script-src-attr 'none'",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' data: https://fonts.gstatic.com",
@@ -94,7 +123,9 @@ export const CONTENT_SECURITY_POLICY = [
   "worker-src 'self' blob:",
   "manifest-src 'self'",
   "upgrade-insecure-requests",
-].join("; ");
+];
+
+export const CONTENT_SECURITY_POLICY = buildContentSecurityPolicy();
 
 export const PERMISSIONS_POLICY = [
   "accelerometer=()",
@@ -134,10 +165,13 @@ export function baseSecurityHeaders(options: { https: boolean }): Record<string,
 }
 
 /** The full set for an HTML document response. */
-export function documentSecurityHeaders(options: { https: boolean }): Record<string, string> {
+export function documentSecurityHeaders(options: { https: boolean; nonce?: string }): Record<string, string> {
   return {
     ...baseSecurityHeaders(options),
-    "content-security-policy": CONTENT_SECURITY_POLICY,
+    "content-security-policy": buildContentSecurityPolicy(options.nonce),
+    // A document that carries a one-time nonce must never be served to someone
+    // else from a shared cache: the nonce in the HTML would not match their header.
+    ...(options.nonce ? { "cache-control": "private, no-cache" } : {}),
     "permissions-policy": PERMISSIONS_POLICY,
   };
 }
@@ -147,7 +181,7 @@ export function documentSecurityHeaders(options: { https: boolean }): Record<str
  * deliberately. Some runtimes hand back an immutable `Headers`, so a failed
  * mutation falls back to rebuilding the response around the same body.
  */
-export function withSecurityHeaders(response: Response, options: { https: boolean }): Response {
+export function withSecurityHeaders(response: Response, options: { https: boolean; nonce?: string }): Response {
   const contentType = response.headers.get("content-type") ?? "";
   const isDocument = contentType.includes("text/html");
   const headers = isDocument ? documentSecurityHeaders(options) : baseSecurityHeaders(options);
