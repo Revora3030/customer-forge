@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { ImportedFacts } from "./site-import";
+import { checkServiceName } from "./builder/intake-sanitize";
 
 export type SiteImportResponse =
   | { ok: true; url: string; pagesRead: string[]; facts: ImportedFacts }
@@ -93,7 +94,7 @@ export const applyImportedFacts = createServerFn({ method: "POST" })
       services: (Array.isArray(raw.services) ? raw.services : [])
         .slice(0, 12)
         .map((service) => ({ name: str(service?.name, 80), description: str(service?.description, 300) }))
-        .filter((service) => service.name.length >= 3),
+        .filter((service) => service.name.length >= 3 && checkServiceName(service.name).ok),
     };
     return { organizationId, url: url(input?.url) || str(input?.url, 200), facts };
   })

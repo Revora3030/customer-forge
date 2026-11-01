@@ -627,7 +627,7 @@ async function sendPhase(
           (Date.parse(String(row.created_at)) >= retrySince && !(row.status === "skipped" && RETRY_NEXT_RUN.has(String(row.reason))))),
     );
 
-  const { smsAllowedNow, nextEmailBusinessHour, isDoNotContact } = await import("@/lib/prospect-outreach.server");
+  const { smsAllowedNow, nextEmailBusinessHour, isDoNotContact, isUsOutreachState } = await import("@/lib/prospect-outreach.server");
   const { verifyProspectEmail } = await import("@/lib/prospect-enrichment.server");
   const { assessDemoForOutreach } = await import("@/lib/demo-launch-gate.server");
   let reverified = 0;
@@ -655,7 +655,20 @@ async function sendPhase(
     return false;
   };
 
+  // CAN-SPAM: no postal address configured means no email is queued at all.
+  const { mailingAddress } = await import("@/lib/gmail/client.server");
+  const addressMissing = !mailingAddress();
+
   for (const demo of demos) {
+    if (settings.sendEmail && addressMissing) {
+      skip({ reason: "mailing_address_missing", name: demo.name });
+      continue;
+    }
+    // US-only until legal review: a missing or non-US state is never contacted.
+    if (!isUsOutreachState(demo.state)) {
+      skip({ reason: "non_us", name: demo.name });
+      continue;
+    }
     const emailTo = settings.sendEmail && demo.email && !blocked(demo.organizationId, "email") ? demo.email : null;
     // A pitch is email-only: texting needs a link to a finished site, and no site exists yet.
     // Texts only reach numbers with recorded consent; the outreach backend
