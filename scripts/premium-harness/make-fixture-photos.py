@@ -14,7 +14,7 @@ def lerp(a, b, t):
     return tuple(int(a[i] + (b[i] - a[i]) * t) for i in range(3))
 
 def scene(w, h, seed, top, bottom, glow, car=True):
-    rnd = random.Random(seed)
+    rnd = random.Random(seed)  # DevSkim: ignore DS148264 -- seeded RNG for reproducible placeholder pixels, not security
     img = Image.new("RGB", (w, h))
     px = img.load()
     for y in range(h):
