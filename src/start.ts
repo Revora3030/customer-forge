@@ -8,7 +8,11 @@ import {
   trafficRedirectUrl,
 } from "@/lib/revora-address";
 import { withSecurityHeaders } from "@/lib/security-headers";
-import { createUnhandledErrorResponse } from "@/lib/api-error-response";
+import {
+  createUnhandledErrorResponse,
+  createUnresolvedServerFnResponse,
+  isUnresolvedServerFnError,
+} from "@/lib/api-error-response";
 import { httpsRedirect } from "@/lib/https-redirect";
 import { trailingSlashRedirect } from "@/lib/trailing-slash-redirect";
 
@@ -119,6 +123,27 @@ const errorMiddleware = createMiddleware().server(async ({ next, request }) => {
     // framework turn the abort into a false 500.
     if (request?.signal?.aborted || (error instanceof Error && error.message === "aborted")) {
       return new Response(null, { status: 499, headers: { "cache-control": "no-store" } }) as never;
+    }
+    // A browser asked for a server function ID this server cannot resolve (old
+    // tab after a deploy, or a preview dev server that restarted or failed one
+    // lazy compile). Not an application crash: record a warning instead of a
+    // FATAL, and answer in words the client's stale-build reload recognises.
+    if (isUnresolvedServerFnError(request, error)) {
+      console.warn(`[serverFn] ${(error as Error).message}`);
+      try {
+        const { captureError } = await import("./lib/monitoring.server");
+        await captureError(error, {
+          source: "server",
+          level: "warning",
+          statusCode: 404,
+          // One group for every stale ID, not one per hash.
+          route: "/_serverFn",
+          context: { mechanism: "unresolved_server_fn_id" },
+        });
+      } catch {
+        /* monitoring is best-effort */
+      }
+      return createUnresolvedServerFnResponse() as never;
     }
     console.error(error);
     // Record real production crashes so they are actionable instead of lost in

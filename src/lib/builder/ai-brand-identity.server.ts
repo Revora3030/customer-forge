@@ -16,6 +16,7 @@ import { isBackdropId, safeBackdropSpec, type BackdropId } from "@/lib/site-effe
 import { safeColor } from "@/lib/site-style";
 import { siteHeadingFont } from "@/lib/site-theme";
 import { callBestThinker } from "@/lib/ai/thinker.server";
+import { thinkerFailureRetryable } from "@/lib/ai/retry-policy";
 import { paletteProblems } from "@/lib/builder/palette-guard";
 import {
   BUTTON_STYLES,
@@ -213,6 +214,9 @@ export async function authorBrandIdentity(
       maxOutputTokens: 1400,
       ...(input.signal ? { signal: input.signal } : {}),
     });
+    // Credits, a spending cap or a rejected key won't change by asking again
+    // right away: stop and let the build report the cause.
+    if (!outcome.ok && !thinkerFailureRetryable(outcome.reason)) break;
     if (!outcome.ok || !outcome.text) continue;
     data = unwrapIdentity(readJson(outcome.text));
     primary = safeColor(colourField(data, "primary"));

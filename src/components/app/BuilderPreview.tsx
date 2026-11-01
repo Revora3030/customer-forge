@@ -517,15 +517,15 @@ function BuilderPreviewFrame({
               <Button
                 key={option.key}
                 type="button"
-                size="icon-sm"
+                size="sm"
                 variant={viewport === option.key ? "secondary" : "ghost"}
-                className="pointer-events-auto relative z-30 inline-flex min-h-11 min-w-11 px-2"
+                className="pointer-events-auto relative z-30 inline-flex min-h-11 min-w-11 shrink-0 whitespace-nowrap px-2 wrap-normal"
                 aria-label={`${option.label} preview, ${option.width} pixels`}
                 aria-pressed={viewport === option.key}
                 title={`${option.label} · ${option.width}px`}
                 onClick={() => setViewport(option.key)}
               >
-                <span className="text-xs tabular-nums">{option.width}</span>
+                <span className="whitespace-nowrap text-xs tabular-nums">{option.width}</span>
               </Button>
             );
           })}
