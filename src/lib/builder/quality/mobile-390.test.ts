@@ -40,9 +40,9 @@ describe("390px phone check", () => {
     ["empty_gaps", (i) => addTo(lead(i), { type: "spacer", style: { minHeight: 480 } }), false],
     ["hero_contrast", (i) => { hero(i).composition!.style = { ...hero(i).composition!.style, background: "#222222" }; addTo(hero(i), { type: "text", text: "Hello", style: { color: "#2a2a2a", size: 18 } }); }, false],
     ["repeated_contact", (i) => {
-      i.site.sections.push({ id: "foot", pageSlug: "home", kind: "footer", composition: { type: "stack", children: [
+      i.site.sections = [...i.site.sections, { id: "foot", pageSlug: "home", kind: "footer", composition: { type: "stack", children: [
         { type: "text", text: "Call (212) 555-0100" }, { type: "button", text: "Call us", href: "tel:+12125550100" }, { type: "text", text: "Or 212-555-0100 again" },
-      ] } });
+      ] } }];
     }, false],
     ["repeated_contact", (i) => addTo(lead(i), { type: "widget", text: "contact_details" }, { type: "widget", text: "direct_contact" }), false],
     ["covered_text", (i) => addTo(lead(i),
