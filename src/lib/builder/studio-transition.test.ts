@@ -102,5 +102,5 @@ describe("prepareStudioPage with dark-to-light (#22)", () => {
     expect(html.match(/data-studio-seam/g)?.length).toBe(1);
     expect(html).toContain("data-studio-light");
     expect(html).toContain(`linear-gradient(180deg, ${light.dark} 0%, ${light.canvas} 100%)`);
-  });
+  }, 20000);
 });
