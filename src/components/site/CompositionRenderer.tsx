@@ -598,7 +598,7 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
         const hero = first && source && !VIDEO_SOURCE.test(source) && (!visual?.width || visual.width >= 480) ? ctx.heroVideo ?? null : null;
         if (first) ctx.heroVideo = null;
         if (hero && source) return <InlineHeroVideo key={key} {...props} {...(box ? { width: box.width, height: box.height } : {})} src={hero.src} mobileSrc={hero.mobileSrc} poster={source} alt={node.alt ?? visual?.alt ?? ""} loopStart={hero.loopStart} loopEnd={hero.loopEnd} eager={Boolean(ctx.eagerFirstMedia)} style={{ ...pictureStyle, objectFit: pictureStyle.objectFit ?? "cover" }} />;
-        return source ? <img key={key} {...props} {...(box ? { width: box.width, height: box.height } : {})} src={source} {...responsiveImage(source, mediaSizes(visual))} onError={markBrokenImage} alt={node.alt ?? visual?.alt ?? ""} loading={first && ctx.eagerFirstMedia ? "eager" : "lazy"} decoding="async" {...(first && ctx.eagerFirstMedia ? { fetchPriority: "high" as const } : {})} style={{ width: "100%", height: style.aspectRatio || visual?.aspect_ratio ? "100%" : undefined, objectFit: style.objectFit ?? visual?.object_fit ?? (style.aspectRatio ? "cover" : undefined), ...knownFocalCss(source), ...mediaCss(visual), ...props.style }} /> : null; }
+        return source ? <img key={key} {...props} {...(box ? { width: box.width, height: box.height } : {})} {...responsiveImage(source, mediaSizes(visual))} onError={markBrokenImage} alt={node.alt ?? visual?.alt ?? ""} loading={first && ctx.eagerFirstMedia ? "eager" : "lazy"} decoding="async" {...(first && ctx.eagerFirstMedia ? { fetchPriority: "high" as const } : {})} style={{ width: "100%", height: style.aspectRatio || visual?.aspect_ratio ? "100%" : undefined, objectFit: style.objectFit ?? visual?.object_fit ?? (style.aspectRatio ? "cover" : undefined), ...knownFocalCss(source), ...mediaCss(visual), ...props.style }} /> : null; }
     case "widget":
       { const w = node.text ? ctx.widget(node.text, node.widgetPresentation) : null;
         return w ? <div key={key} {...props} data-widget={node.text} style={{ ...props.style, ...widgetThemeStyle(node.widgetPresentation?.theme) }}>{w}{kids}</div> : null; }
@@ -1003,7 +1003,7 @@ function renderScene(node: CompositionNode, ctx: Ctx, key: string, props: NodePr
   ) : framed ? (
     <img className="rv-scene-media" data-soft="" src={source} alt="" aria-hidden="true" loading={eager ? "eager" : "lazy"} decoding="async" />
   ) : (
-    <img className="rv-scene-media" {...(first ? { "data-kenburns": "" } : {})} src={source} {...responsiveImage(source, "100vw")} alt={alt} loading={eager ? "eager" : "lazy"} decoding="async" {...(eager ? { fetchPriority: "high" as const } : {})} style={objectPosition ? { objectPosition } : undefined} />
+    <img className="rv-scene-media" {...(first ? { "data-kenburns": "" } : {})} {...responsiveImage(source, "100vw")} alt={alt} loading={eager ? "eager" : "lazy"} decoding="async" {...(eager ? { fetchPriority: "high" as const } : {})} style={objectPosition ? { objectPosition } : undefined} />
   );
   const frame = framed && source ? (
     <img className="rv-scene-frame" src={source} alt={alt} {...(visual?.width && visual.height ? { width: visual.width, height: visual.height } : {})} loading={eager ? "eager" : "lazy"} decoding="async" {...(eager ? { fetchPriority: "high" as const } : {})} style={visual?.width ? ({ "--rv-native": `${visual.width}px` } as CSSProperties) : undefined} />

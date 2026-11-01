@@ -43,7 +43,7 @@ describe("image framing rules", () => {
     expect(responsiveImage("https://images.unsplash.com/photo-abc?w=1000", "50vw").srcSet).toContain("w=800 800w");
     expect(responsiveImage("https://example.com/a.jpg", "100vw")).toEqual({ src: "https://example.com/a.jpg" });
     expect(responsiveImage("not a url", "100vw")).toEqual({ src: "not a url" });
-    expect(responsiveImage("http://images.pexels.com/photos/1/a.jpg", "100vw").srcSet).toBeUndefined();
+    expect(responsiveImage("http://images.pexels.com/photos/1/a.jpg", "100vw").srcSet).toBeUndefined(); // DevSkim: ignore DS137138 -- Test input proving an insecure address is never given a srcset.
   });
 
   it("reads the id from a Pexels CDN address only", () => {
