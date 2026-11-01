@@ -11,6 +11,10 @@ import { previewHeadTitle } from "@/lib/builder/draft-route";
 import { metaDescription } from "@/lib/seo";
 import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
+import { privatePreviewHeaders } from "@/lib/page-cache";
+import { heroPreloadLinks } from "@/lib/site-head";
+import { isBuilderPreviewLabel } from "@/lib/builder/builder-preview-link";
+import { BuilderPreviewMode } from "@/components/site/BuilderPreviewMode";
 
 /** Sub-pages of a private draft preview link, checked on the server like the home page. */
 export const Route = createFileRoute("/p/$token_/$page")({
@@ -25,7 +29,10 @@ export const Route = createFileRoute("/p/$token_/$page")({
   },
   loader: async ({ params }) =>
     getPreviewSite({ data: { token: params.token, pageSlug: params.page } }),
+  // Never stored, indexed or sent on as a referrer (src/lib/page-cache.ts).
+  headers: () => privatePreviewHeaders(),
   head: ({ loaderData, params }) => ({
+    links: loaderData?.ok ? heroPreloadLinks(loaderData.site?.content?.sections) : [],
     meta: [
       { title: previewHeadTitle(loaderData, params.page) },
       { name: "description", content: metaDescription("A private, time-limited preview of a website draft page.") },
@@ -70,6 +77,15 @@ function PreviewPageRoute() {
           <Button asChild><Link to="/p/$token" params={{ token }}>Back to preview</Link></Button>
         </div>
       </div>
+    );
+  }
+  if (isBuilderPreviewLabel(result.label)) {
+    return (
+      <BuilderPreviewMode organizationId={result.site.org.id}>
+        <SiteBaseContext.Provider value={`/p/${encodeURIComponent(token)}`}>
+          <PublicSiteView site={result.site} preview />
+        </SiteBaseContext.Provider>
+      </BuilderPreviewMode>
     );
   }
   return (

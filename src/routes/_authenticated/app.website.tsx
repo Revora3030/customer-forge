@@ -29,6 +29,8 @@ import { GoogleSearchGrowth } from "@/components/app/GoogleSearchGrowth";
 import { BuilderWizard } from "@/components/app/BuilderWizard";
 import { BuilderShell } from "@/components/app/BuilderShell";
 import { MissingMenuBanner } from "@/components/app/MissingMenuBanner";
+import { AiUpgradeBanner } from "@/components/app/AiUpgradeBanner";
+import { readAiUpgradeFollowUps } from "@/lib/builder/ai-upgrade-followups";
 import { readSiteChrome } from "@/lib/builder/site-chrome";
 import { blocksAutoBuild, jobIsActive, stopWaiting, stopWaitingMessage } from "@/lib/builder/job-liveness";
 import { Disclosure, OverlayPanel } from "@/components/app/BuilderTools";
@@ -653,9 +655,14 @@ function WebsitePage() {
   const storedChrome = readSiteChrome(generation);
   const buildActive = jobIsActive(latestJob.data as never);
   const missingMenu = !firstRun && !buildActive && (!storedChrome.header || !storedChrome.footer);
+  // Facts-only fallbacks from a busy AI team wait for the owner's OK (they use credits).
+  const aiUpgrades = !firstRun && !buildActive ? readAiUpgradeFollowUps(generation) : [];
   const workspace = (
     <div className="min-w-0">
       {missingMenu && orgId ? <MissingMenuBanner organizationId={orgId} canManage={manage} hasHeader={Boolean(storedChrome.header)} hasFooter={Boolean(storedChrome.footer)} /> : null}
+      {aiUpgrades.length && orgId ? (
+        <AiUpgradeBanner organizationId={orgId} followUps={aiUpgrades} canManage={manage} busy={requests.busy} onApprove={(instruction) => requests.queue(instruction)} />
+      ) : null}
       {org?.slug ? (
         <div className="mb-2 lg:hidden">
           <div className="grid h-10 grid-cols-2 rounded-full bg-muted/40 p-1 text-sm" role="tablist" aria-label="Builder view">
@@ -797,6 +804,7 @@ function WebsitePage() {
               livePublished={publishState === "published"}
               pages={shownPages}
               firstRun={firstRun}
+              buildActive={buildActive}
               organizationId={orgId ?? null}
               refreshing={requests.refreshing}
               refreshRevision={requests.refreshRevision}

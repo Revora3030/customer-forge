@@ -5,6 +5,7 @@
  * there. This route shows the work in progress instead, to signed-in members
  * of that business only.
  */
+import { SiteSkeleton } from "@/components/site/SiteSkeleton";
 import { SiteBaseContext } from "@/components/site/site-address-context";
 import { createFileRoute, Link, Outlet, useChildMatches, useRouter } from "@tanstack/react-router";
 import { DRAFT_PENDING_MS, isDraftChildPath, draftHeadTitle } from "@/lib/builder/draft-route";
@@ -31,9 +32,7 @@ export const Route = createFileRoute("/_authenticated/draft/$slug")({
   // This route renders only in the browser (the signed-in area has no server
   // render), so without a pending screen a slow load was a blank black page.
   pendingMs: DRAFT_PENDING_MS,
-  pendingComponent: () => (
-    <DraftMessage title="Loading your draft…" body="Getting the latest version of your site." />
-  ),
+  pendingComponent: () => <SiteSkeleton className="min-h-screen" label="Loading your draft…" />,
   head: ({ loaderData }) => ({
     meta: [
       { title: draftHeadTitle(loaderData) },
@@ -234,7 +233,7 @@ function DraftHomeRouteContent() {
         }}
       />
     ) : (
-      <DraftMessage title="Loading your draft…" body="Getting the latest version of your site." />
+      <SiteSkeleton className="min-h-screen" label="Loading your draft…" />
     );
 
   // A draft that already has sections stays visible during rebuilds and AI

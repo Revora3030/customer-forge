@@ -24,6 +24,7 @@ import { faqFactsFor } from "@/lib/builder/faq-from-facts";
 import { pageNavLabel } from "@/lib/website-content";
 import { playbookFor } from "@/lib/builder/industry-playbook";
 import { scrubPlaceholderText } from "@/lib/builder/placeholder-contact";
+import { heroPreloadLink } from "@/lib/site-hero-preload";
 import { imageAltBase, mentionsWrongCity, normalizeCanonicalUrl } from "@/lib/client-seo-guard";
 
 type Profile = {
@@ -590,6 +591,11 @@ export function tenantSiteHead(input: {
   /** Absolute home URL of the business, used for LocalBusiness data. */
   businessUrl: string;
   noindex?: boolean;
+  /**
+   * Preload this page's opening picture. False on a parent route whose child
+   * page is the one rendering (the /s/:slug home under /s/:slug/:page).
+   */
+  preloadHero?: boolean;
 }) {
   const { site } = input;
   const name = site.org.name;
@@ -681,6 +687,16 @@ export function tenantSiteHead(input: {
     ],
     // One block per distinct JSON-LD payload: an identical Organization/LocalBusiness/FAQ block is never repeated.
     scripts: uniqueScripts([...(emitSchema ? extras.scripts : []), ...(faqs.length ? [{ type: "application/ld+json", children: safeJsonLd(faqPageSchema(faqs)) }] : [])]),
-    links: [{ rel: "canonical", href: canonical }, ...extras.links],
+    links: [
+      { rel: "canonical", href: canonical },
+      ...extras.links,
+      ...(input.preloadHero === false ? [] : heroPreloadLinks(site.content?.sections)),
+    ],
   };
+}
+
+/** The opening-picture preload as a head `links` list (empty when unknown). */
+export function heroPreloadLinks(sections: unknown) {
+  const link = heroPreloadLink(sections);
+  return link ? [link] : [];
 }
