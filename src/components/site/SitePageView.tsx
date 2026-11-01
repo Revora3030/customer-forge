@@ -218,6 +218,18 @@ export function SitePageView({
             resolveHref={chromeHref}
             surface={profile?.secondary_color ?? null}
             logoUrl={profile?.logo_url ?? null}
+            trade={org.industry ?? null}
+            phone={(profile as { phone?: string | null } | null)?.phone ?? null}
+            ctas={(() => {
+              const known = knownPages ?? new Set<string>();
+              const contactSlug = ["book", "booking", "contact", "quote", "contact-us"].find((slug) => known.has(slug));
+              return stickyActions({
+                phone: (profile as { phone?: string | null } | null)?.phone ?? null,
+                hasBookingPage: contactSlug === "book" || contactSlug === "booking",
+                hasQuote: Boolean(site.quote),
+                contactHref: contactSlug ? chromeHref(`/${contactSlug}`) : pageAnchors.has("contact") ? "#contact" : null,
+              });
+            })()}
             extraLinks={extraNav.map((link) => ({
               href: chromeHref(link.href),
               label: pageNavLabel(link.title, org.name, link.slug),
