@@ -46,9 +46,14 @@ export function BeforeAfterSlider({ className = "" }: { className?: string }) {
 
   return (
     <figure className={className}>
+      <p className="mb-2 text-center">
+        <span className="inline-block rounded-full border border-border bg-card px-2.5 py-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+          Illustrative example
+        </span>
+      </p>
       <div
         ref={track}
-        className="relative aspect-[16/11] w-full select-none overflow-hidden rounded-2xl border border-border sm:aspect-[16/9]"
+        className="relative aspect-[4/5] w-full select-none overflow-hidden rounded-2xl border border-border sm:aspect-[16/9]"
         style={{ touchAction: "pan-y" }}
         onPointerDown={(event) => {
           event.currentTarget.setPointerCapture(event.pointerId);
@@ -65,17 +70,14 @@ export function BeforeAfterSlider({ className = "" }: { className?: string }) {
           <OutdatedSide />
         </div>
 
-        <span className="pointer-events-none absolute left-3 top-3 rounded-full bg-black/70 px-2.5 py-1 text-[11px] font-medium text-white">
+        <span className="pointer-events-none absolute left-3 top-3 rounded-full bg-black/70 px-2.5 py-1 text-[11px] font-medium text-white max-sm:max-w-[42%] max-sm:rounded-xl max-sm:px-2 max-sm:text-center max-sm:text-[10px] max-sm:leading-tight">
           Before: typical outdated site
         </span>
         <span
-          className="pointer-events-none absolute right-3 top-3 rounded-full px-2.5 py-1 text-[11px] font-semibold"
+          className="pointer-events-none absolute right-3 top-3 rounded-full px-2.5 py-1 text-[11px] font-semibold max-sm:max-w-[42%] max-sm:rounded-xl max-sm:px-2 max-sm:text-center max-sm:text-[10px] max-sm:leading-tight"
           style={{ background: GOLD, color: INK }}
         >
           After: Revora-style design
-        </span>
-        <span className="pointer-events-none absolute bottom-3 left-3 rounded-full bg-black/70 px-2.5 py-1 text-[11px] font-medium uppercase tracking-wide text-white">
-          Illustrative example
         </span>
 
         <div
@@ -93,7 +95,7 @@ export function BeforeAfterSlider({ className = "" }: { className?: string }) {
           aria-valuenow={rounded}
           aria-valuetext={`${rounded}% of the outdated example shown, ${100 - rounded}% of the Revora-style example shown`}
           onKeyDown={onKeyDown}
-          className="absolute top-1/2 grid size-11 -translate-x-1/2 -translate-y-1/2 cursor-ew-resize place-items-center rounded-full border-2 shadow-lg outline-none focus-visible:ring-4 focus-visible:ring-white/70"
+          className="absolute top-1/2 grid size-11 -translate-x-1/2 -translate-y-1/2 max-sm:top-auto max-sm:bottom-3 max-sm:translate-y-0 cursor-ew-resize place-items-center rounded-full border-2 shadow-lg outline-none focus-visible:ring-4 focus-visible:ring-white/70"
           style={{ left: `${position}%`, background: INK, borderColor: GOLD, color: GOLD }}
         >
           <svg
@@ -130,12 +132,12 @@ function OutdatedSide() {
         fontFamily: '"Times New Roman", Times, serif',
       }}
     >
-      <div className="px-3 pb-1 pt-12 text-center" style={{ background: "#2b4a9b", color: "#fff" }}>
+      <div className="px-3 pb-1 pt-12 text-center max-sm:pr-[52%] max-sm:text-left" style={{ background: "#2b4a9b", color: "#fff" }}>
         <p className="text-[clamp(14px,3.2vw,22px)] font-bold">Welcome To Our Website!!!</p>
         <p className="text-[10px] italic">Your Business Name Here</p>
       </div>
       <div
-        className="flex flex-wrap justify-center gap-x-3 gap-y-0.5 border-y border-gray-400 bg-gray-300 px-2 py-1 text-[10px]"
+        className="flex flex-wrap justify-center gap-x-3 gap-y-0.5 border-y border-gray-400 bg-gray-300 px-2 py-1 text-[10px] max-sm:justify-start max-sm:pr-[52%]"
         style={{ color: "#0000ee" }}
       >
         {["Home", "About Us", "Services", "Products", "Links", "Guestbook", "Contact"].map(
@@ -146,7 +148,7 @@ function OutdatedSide() {
           ),
         )}
       </div>
-      <div className="grid grid-cols-[1fr_1.4fr_1fr] gap-1.5 p-2">
+      <div className="grid grid-cols-[1fr_1.4fr_1fr] gap-1.5 p-2 max-sm:grid-cols-[1fr_1.4fr] max-sm:pr-[52%]">
         <div className="space-y-1 border border-gray-400 bg-white p-1.5 text-[9px] leading-tight">
           <p className="font-bold" style={{ color: "#c00000" }}>
             NEWS
@@ -166,7 +168,7 @@ function OutdatedSide() {
           </p>
           <p>Call for a quote. Email us for a quote. Visit us for a quote.</p>
         </div>
-        <div className="space-y-1 border border-gray-400 bg-white p-1.5 text-[9px] leading-tight">
+        <div className="space-y-1 border border-gray-400 bg-white p-1.5 text-[9px] leading-tight max-sm:hidden">
           <p className="font-bold">Links</p>
           <p className="underline" style={{ color: "#0000ee" }}>
             Friend's page
@@ -179,7 +181,7 @@ function OutdatedSide() {
           </p>
         </div>
       </div>
-      <p className="px-2 text-center text-[8px] text-gray-500">
+      <p className="px-2 text-center text-[8px] text-gray-500 max-sm:pr-[52%] max-sm:text-left">
         Best viewed in an old browser. Not mobile friendly.
       </p>
     </div>
@@ -194,7 +196,7 @@ function RevoraStyleSide() {
       className="absolute inset-0 overflow-hidden font-sans"
       style={{ background: INK, color: "#f5f3ee" }}
     >
-      <div className="flex items-center justify-between px-4 pb-2 pt-12 sm:px-6">
+      <div className="flex items-center justify-between gap-2 px-4 pb-2 pt-12 max-sm:flex-col max-sm:items-start max-sm:pl-[52%] max-sm:pr-3 sm:px-6">
         <span className="font-display text-[13px] font-semibold tracking-tight">Your Business</span>
         <span className="hidden gap-4 text-[11px] opacity-70 sm:flex">
           <span>Services</span>
@@ -208,7 +210,7 @@ function RevoraStyleSide() {
           Get a quote
         </span>
       </div>
-      <div className="px-4 pt-4 sm:px-6 sm:pt-6">
+      <div className="px-4 pt-4 max-sm:pl-[52%] max-sm:pr-3 sm:px-6 sm:pt-6">
         <p className="font-display text-[clamp(16px,3.6vw,30px)] font-semibold leading-tight">
           Your service, <span style={{ color: GOLD }}>easy to book online.</span>
         </p>
@@ -222,16 +224,16 @@ function RevoraStyleSide() {
           Request a free quote
         </span>
       </div>
-      <div className="mt-4 grid grid-cols-3 gap-2 px-4 sm:px-6">
+      <div className="mt-4 grid grid-cols-3 gap-2 px-4 max-sm:grid-cols-1 max-sm:gap-1.5 max-sm:pl-[52%] max-sm:pr-3 sm:px-6">
         {["Service one", "Service two", "Service three"].map((label) => (
           <div
             key={label}
-            className="rounded-lg border p-2"
+            className="rounded-lg border p-2 max-sm:px-2 max-sm:py-1.5"
             style={{ borderColor: "rgba(218,169,50,.35)", background: "rgba(255,255,255,.04)" }}
           >
-            <div className="mb-1.5 h-1.5 w-6 rounded-full" style={{ background: GOLD }} />
+            <div className="mb-1.5 h-1.5 w-6 rounded-full max-sm:hidden" style={{ background: GOLD }} />
             <p className="font-display text-[11px] font-semibold">{label}</p>
-            <p className="mt-0.5 text-[9px] opacity-60">Short description of the service.</p>
+            <p className="mt-0.5 text-[9px] opacity-60 max-sm:hidden">Short description of the service.</p>
           </div>
         ))}
       </div>
