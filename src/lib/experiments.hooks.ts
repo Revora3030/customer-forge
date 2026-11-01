@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import {
-  EXPERIMENTS,
+  consentedVariantOf,
+  controlOf,
   trackExposure,
-  variantOf,
   type ExperimentKey,
   type Variant,
 } from "@/lib/experiments";
@@ -11,16 +11,30 @@ import {
  * Returns this visitor's sticky variant.
  *
  * The control renders on the server and on the first client paint (so hydration
- * always matches); the assigned variant applies right after hydration and the
- * exposure is recorded once per session.
+ * always matches). The test variant applies only once the visitor's analytics
+ * choice allows it (see `consentedVariantOf`): in consent regions, after
+ * Accept; never under Global Privacy Control or after Reject. Until then the
+ * control stays and no exposure is recorded. The choice is re-checked when the
+ * visitor changes it in the banner or Cookie settings.
  */
 export function useExperiment<K extends ExperimentKey>(key: K): Variant<K> {
-  const [variant, setVariant] = useState<Variant<K>>(EXPERIMENTS[key][0] as Variant<K>);
+  const [variant, setVariant] = useState<Variant<K>>(controlOf(key));
 
   useEffect(() => {
-    const assigned = variantOf(key);
-    setVariant(assigned);
-    trackExposure(key, assigned);
+    let live = true;
+    const apply = () => {
+      void consentedVariantOf(key).then(({ variant: next, assigned }) => {
+        if (!live) return;
+        setVariant(next);
+        if (assigned) trackExposure(key, next);
+      });
+    };
+    apply();
+    window.addEventListener("revora:consent-changed", apply);
+    return () => {
+      live = false;
+      window.removeEventListener("revora:consent-changed", apply);
+    };
   }, [key]);
 
   return variant;
