@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { MAX_MODEL_BYTES, MODEL_BUCKET, MODEL_MIME } from "./site-models";
 
 describe("3D model bucket limits", () => {
-  const sql = readFileSync("supabase/migrations/20261031180000_site_models_bucket_limits.sql", "utf8");
+  const sql = readFileSync("supabase/migrations/20261031180100_site_models_bucket_limits.sql", "utf8");
   it("is private, glb-only and capped at the app's size limit", () => {
     expect(sql).toContain(`'${MODEL_BUCKET}'`);
     expect(sql).toContain(`ARRAY['${MODEL_MIME}']`);
