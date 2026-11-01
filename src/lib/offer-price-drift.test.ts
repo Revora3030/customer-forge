@@ -51,13 +51,16 @@ describe("offer price text", () => {
   });
 
   it("billing prose builds prices from GROWTH_SYSTEM instead of hard-coding them", () => {
-    for (const file of [
-      "src/lib/email-templates/billing-lifecycle.tsx",
+    // billing-lifecycle.tsx is intentionally excluded: PR #616 shows the actual
+    // Stripe amount paid (promo codes, $0 trials, discounts) rather than always
+    // interpolating GROWTH_SYSTEM.setupPrice.
+    const filesRequiringLiteral = [
       "src/lib/email-templates/growth-assessment.tsx",
       "src/lib/builder/conversation.server.ts",
       "src/lib/analytics-taxonomy.ts",
       "src/lib/production.hooks.ts",
-    ]) {
+    ];
+    for (const file of filesRequiringLiteral) {
       const text = readFileSync(file, "utf8");
       expect(text, file).toContain("GROWTH_SYSTEM.setupPrice");
       expect(text, file).not.toMatch(/\$350\b/);
