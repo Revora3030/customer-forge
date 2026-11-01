@@ -33,6 +33,7 @@ import { readPremiumSettings } from "@/lib/builder/premium-effects";
 import { nicheEffects, resolveMeterLabel } from "@/lib/builder/premium-niche";
 import { isPlaceholderPalette, siteFontStyle, siteThemeStyle } from "@/lib/site-theme";
 import { siteFontFor } from "@/lib/site-font-pairings";
+import { designSystemCss, designSystemVars } from "@/lib/site-design-system";
 import { readComposition } from "@/lib/visual-composition";
 import { readBackdrop, readBackdropSpec } from "@/lib/site-effects";
 import { trackPublicEvent, type PublicSite } from "@/lib/public-site.functions";
@@ -179,6 +180,7 @@ export function SitePageView({
           accentColor: profile?.accent_color ?? null,
         }),
         ...siteFontStyle(siteFontFor(profile?.font_preference ?? null, org)),
+        ...designSystemVars(siteFontFor(profile?.font_preference ?? null, org)),
         // The vars alone do not change the face: body text inherited the app's
         // DM Sans from <body>. The site root sets its own pairing's body face.
         fontFamily: "var(--font-body)",
@@ -188,6 +190,9 @@ export function SitePageView({
       {...(studioPage.studio ? { "data-studio": "" } : {})}
     >
       <SiteFontLinks font={siteFontFor(profile?.font_preference ?? null, org)} />
+      {/* Premium design system: type ramp, spacing, rhythm and motion tokens.
+          Low-specificity, layered CSS, so any authored style still wins. */}
+      <style data-rv-design-system="">{designSystemCss()}</style>
       <SiteBackdrop
         backdrop={readBackdrop(site.settings?.generation ?? null)}
         composition={readComposition(site.settings?.generation ?? null)}
