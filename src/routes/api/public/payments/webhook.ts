@@ -76,12 +76,18 @@ async function handleEvent(event: StripeWebhookEvent, env: StripeEnv) {
           ? resolvePriceLookupKey(payload.items.data[0].price)
           : null;
         const mapped = planFromPriceLookupKey(priceKey);
+        // The welcome email states what was really charged (a 100%-off promo
+        // code makes the setup $0), read from the subscription's first invoice.
+        const { firstInvoiceSetupPaidLine } = await import("@/lib/billing-welcome-amount.server");
+        const setupPaidLine =
+          env === "live" ? await firstInvoiceSetupPaidLine(payload?.latest_invoice, env) : null;
         await lifecycle.handleSubscriptionActivated(admin, {
           organizationId,
           stripeSubscriptionId: String(object.id),
           planId: mapped?.planId ?? (payload?.metadata?.planId as string | undefined) ?? null,
           interval: mapped?.interval ?? null,
           environment: env,
+          setupPaidLine,
         });
       }
 

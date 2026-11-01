@@ -128,6 +128,8 @@ export async function handleSubscriptionActivated(
     amountCents?: number | null;
     currency?: string;
     environment: string;
+    /** Welcome email payment line from the actual Stripe charge (see setupPaidLine). */
+    setupPaidLine?: string | null;
   },
 ) {
   const marker = `activated:${input.stripeSubscriptionId}`;
@@ -145,6 +147,7 @@ export async function handleSubscriptionActivated(
     interval,
     amount,
     billingUrl: `${APP_URL}/app/billing`,
+    ...(input.setupPaidLine ? { setupPaidLine: input.setupPaidLine } : {}),
   };
 
   // Test-mode (sandbox) traffic must never email a customer or the founder,

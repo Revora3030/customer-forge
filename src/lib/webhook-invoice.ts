@@ -114,3 +114,45 @@ export function checkoutSetupPaidCents(
   const cents = Math.min(listCents, Math.max(0, subtotal - discount));
   return { cents, discountCents: listCents - cents };
 }
+
+/**
+ * What the customer actually paid on an invoice (the first invoice of a
+ * checkout subscription carries the one-time setup line), and how much a
+ * promotion code took off. Null when Stripe did not give a paid amount:
+ * callers must then say nothing about the amount rather than guess.
+ */
+export function invoicePaidSummary(
+  invoice: unknown,
+): { paidCents: number; discountCents: number; currency: string } | null {
+  if (!invoice || typeof invoice !== "object") return null;
+  const inv = invoice as {
+    amount_paid?: unknown;
+    currency?: unknown;
+    total_discount_amounts?: Array<{ amount?: unknown }> | null;
+  };
+  if (typeof inv.amount_paid !== "number" || inv.amount_paid < 0) return null;
+  let discountCents = 0;
+  for (const d of inv.total_discount_amounts ?? []) {
+    if (typeof d?.amount === "number" && d.amount > 0) discountCents += d.amount;
+  }
+  const currency = typeof inv.currency === "string" && inv.currency ? inv.currency : "usd";
+  return { paidCents: inv.amount_paid, discountCents, currency };
+}
+
+/**
+ * The welcome email's payment line, from the amount Stripe charged:
+ * "$350.00 setup payment received" or "$0.00 paid (promo code applied)".
+ * Null (no amount claimed) when the paid amount is unknown.
+ */
+export function setupPaidLine(
+  summary: { paidCents: number; discountCents: number; currency?: string } | null | undefined,
+): string | null {
+  if (!summary) return null;
+  const amount = new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: (summary.currency || "usd").toUpperCase(),
+  }).format(summary.paidCents / 100);
+  return summary.discountCents > 0
+    ? `${amount} paid (promo code applied)`
+    : `${amount} setup payment received`;
+}
