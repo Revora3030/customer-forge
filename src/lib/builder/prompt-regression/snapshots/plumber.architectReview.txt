@@ -1,0 +1,239 @@
+### SYSTEM
+You design real websites for real businesses. Never invent facts, services, prices, reviews, awards or results. Working features (quote forms, booking, contact, embeds) exist only where listed. You are Terra, the adversarial reviewer of website structure. Judge each page on whether it works for this business and its visitors; never demand a fixed page anatomy. Refuse a structure that is too thin to explain the business and its real services to a first-time visitor. NON-NEGOTIABLE RULES (safety and truth only — every creative choice is yours): Do not copy another brand's identity. Generated visuals must never pose as real reviews, completed work, staff, awards or results. Do not invent urgency, scarcity or claims the business has not supplied. Body text must stay readable and meet WCAG contrast; design must work from 320px phones to wide desktops.
+
+### USER
+SUPPLIED BUSINESS FACTS:
+{
+  "business": "Demo Plumbing & Drain",
+  "industry": "Plumber",
+  "conversionGoal": "Call now",
+  "description": "Demo Plumbing & Drain is a small plumbing crew that fixes leaks, clears blocked drains and replaces water heaters. We answer the phone ourselves and handle emergency repairs.",
+  "services": [
+    "Leak repair",
+    "Drain cleaning",
+    "Water heater replacement",
+    "Emergency repairs"
+  ],
+  "serviceArea": "Exampleville and nearby towns",
+  "realContact": {
+    "phone": true,
+    "email": true
+  }
+}
+
+AVAILABLE MATERIAL:
+[
+  {
+    "slug": "home",
+    "title": "Home",
+    "purpose": "home",
+    "availableSections": [
+      "hero",
+      "services",
+      "benefits",
+      "faq",
+      "quote",
+      "contact",
+      "cta"
+    ]
+  },
+  {
+    "slug": "services",
+    "title": "Services",
+    "purpose": "services",
+    "availableSections": [
+      "services",
+      "quote"
+    ]
+  },
+  {
+    "slug": "about",
+    "title": "About",
+    "purpose": "about",
+    "availableSections": [
+      "intro",
+      "cta"
+    ]
+  },
+  {
+    "slug": "contact",
+    "title": "Contact",
+    "purpose": "contact",
+    "availableSections": [
+      "contact"
+    ]
+  }
+]
+
+PROPOSED STRUCTURE:
+[
+  {
+    "slug": "home",
+    "title": "Home",
+    "purpose": "Get the visitor to call or request a quote",
+    "primaryAction": "Call (555) 010-0101",
+    "seoTitle": "Plumber in Exampleville, NC | Home",
+    "seoDescription": "Plumber serving Exampleville and nearby towns. Call (555) 010-0101 or send a request through the form and we will get back to you about your job in Example",
+    "sections": [
+      {
+        "role": "hero",
+        "heading": "Plumber in Exampleville",
+        "subheading": "Call (555) 010-0101 or send a request.",
+        "body": null,
+        "media": "optional",
+        "includes": [
+          "primary_action"
+        ]
+      },
+      {
+        "role": "services",
+        "heading": "Plumber services in Exampleville",
+        "subheading": "What we do",
+        "body": null,
+        "media": "none",
+        "includes": [
+          "service_cards"
+        ]
+      },
+      {
+        "role": "how_it_works",
+        "heading": "How to get started",
+        "subheading": null,
+        "body": "Call (555) 010-0101 or send a request, tell us what you need, and we get back to you.",
+        "custom": true,
+        "media": "none"
+      },
+      {
+        "role": "faq",
+        "heading": "Common questions",
+        "subheading": null,
+        "body": null,
+        "media": "none",
+        "includes": [
+          "faqs"
+        ]
+      },
+      {
+        "role": "quote",
+        "heading": "Send a request",
+        "subheading": null,
+        "body": null,
+        "media": "none"
+      },
+      {
+        "role": "contact",
+        "heading": "Contact us",
+        "subheading": "Call (555) 010-0101 or use the form.",
+        "body": null,
+        "media": "none"
+      }
+    ]
+  },
+  {
+    "slug": "services",
+    "title": "Services",
+    "purpose": "Show every service",
+    "primaryAction": "Call (555) 010-0101",
+    "seoTitle": "Plumber in Exampleville, NC | Services",
+    "seoDescription": "Plumber serving Exampleville and nearby towns. Call (555) 010-0101 or send a request through the form and we will get back to you about your job in Example",
+    "sections": [
+      {
+        "role": "services",
+        "heading": "All plumber services",
+        "subheading": null,
+        "body": null,
+        "media": "none",
+        "includes": [
+          "service_cards"
+        ]
+      },
+      {
+        "role": "quote",
+        "heading": "Ask about a service",
+        "subheading": null,
+        "body": null,
+        "media": "none"
+      }
+    ]
+  },
+  {
+    "slug": "about",
+    "title": "About",
+    "purpose": "Who we are",
+    "primaryAction": "Call (555) 010-0101",
+    "seoTitle": "Plumber in Exampleville, NC | About",
+    "seoDescription": "Plumber serving Exampleville and nearby towns. Call (555) 010-0101 or send a request through the form and we will get back to you about your job in Example",
+    "sections": [
+      {
+        "role": "intro",
+        "heading": "About us",
+        "subheading": null,
+        "body": "Demo Plumbing & Drain is a small plumbing crew that fixes leaks, clears blocked drains and replaces water heaters. We answer the phone ourselves and handle emergency repairs.",
+        "media": "none"
+      },
+      {
+        "role": "cta",
+        "heading": "Ready when you are",
+        "subheading": "Call (555) 010-0101 or send a request.",
+        "body": "Tell us what you need in Exampleville and we will get back to you.",
+        "media": "none",
+        "includes": [
+          "primary_action"
+        ]
+      }
+    ]
+  },
+  {
+    "slug": "contact",
+    "title": "Contact",
+    "purpose": "Reach us",
+    "primaryAction": "Call (555) 010-0101",
+    "seoTitle": "Plumber in Exampleville, NC | Contact",
+    "seoDescription": "Plumber serving Exampleville and nearby towns. Call (555) 010-0101 or send a request through the form and we will get back to you about your job in Example",
+    "sections": [
+      {
+        "role": "contact",
+        "heading": "Contact us",
+        "subheading": "Call (555) 010-0101 or use the form.",
+        "body": null,
+        "media": "none"
+      },
+      {
+        "role": "where_we_work",
+        "heading": "Where we work",
+        "subheading": null,
+        "body": "We serve Exampleville and nearby towns.",
+        "custom": true,
+        "media": "none"
+      }
+    ]
+  }
+]
+
+MEASURED PAGE DEPTH (visible characters, content beats beyond headings, closing action; input only, not a required anatomy):
+{
+  "home": {
+    "visibleChars": 282,
+    "beats": 5,
+    "hasClosingAction": true
+  },
+  "services": {
+    "visibleChars": 39,
+    "beats": 2,
+    "hasClosingAction": true
+  },
+  "about": {
+    "visibleChars": 304,
+    "beats": 2,
+    "hasClosingAction": true
+  },
+  "contact": {
+    "visibleChars": 98,
+    "beats": 2,
+    "hasClosingAction": true
+  }
+}
+
+Approve only if the proposed structure gives a first-time visitor enough factual coverage to understand what this business does, which supplied services matter, where it serves, and how to take a real available action. Refuse unsupported claims, omitted critical supplied facts, fake capabilities, or stub-like plans. Do not require any specific number of pages, sections, visual beats, or a house layout.
+
+{"approvedFields": ["structure"], "rejected": [{"field": "...", "reason": "..."}]}
