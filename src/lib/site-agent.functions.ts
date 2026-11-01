@@ -561,8 +561,8 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
       // not this mid-build picture.
       const { invalidateWorkspaceContext } = await import("@/lib/agent/workspace-context.server");
       invalidateWorkspaceContext(orgId);
-      const reply =
-        "Got it — your AI team is finishing the first website now. Keep this window open and I’ll apply this change as soon as the build finishes (usually a few minutes).";
+      const { QUEUED_FOLLOWUP_LABEL, QUEUED_FOLLOWUP_REPLY } = await import("@/lib/build-status-reply");
+      const reply = QUEUED_FOLLOWUP_REPLY;
       return settle({
         reply,
         summary: "",
@@ -576,6 +576,7 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
         composition: null as import("@/lib/builder/composition-preview").CompositionPreview | null,
         conversational: true,
         deferred: true,
+        queued: { label: QUEUED_FOLLOWUP_LABEL, appliesAt: "build finished" },
       }, "deferred");
     }
 
