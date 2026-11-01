@@ -5,6 +5,8 @@ ALTER TABLE public.website_settings
   ADD COLUMN IF NOT EXISTS lead_webhook_url text;
 
 ALTER TABLE public.website_settings
+  DROP CONSTRAINT IF EXISTS website_settings_lead_webhook_url_length;
+ALTER TABLE public.website_settings
   ADD CONSTRAINT website_settings_lead_webhook_url_length
   CHECK (lead_webhook_url IS NULL OR char_length(lead_webhook_url) <= 2048);
 

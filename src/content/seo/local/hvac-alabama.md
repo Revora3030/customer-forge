@@ -53,3 +53,8 @@ $350 setup, first month free, then $100/month. Cancel anytime. Start with 3 days
 
 **Will this get me to page one in Alabama?**
 No one can promise that. You get a fast site, real local content, structured data and a review process, which are the things search rewards over time.
+
+## Source (checked October 31, 2026)
+
+- Alabama HVAC Board, active status and $20,000 performance bond: https://hacr.alabama.gov/how-to-get-licensed/
+- Alabama Administrative Code 440-X-3-.04: https://admincode.legislature.state.al.us/administrative-code/440-X-3-.04

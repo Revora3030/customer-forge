@@ -1,7 +1,7 @@
 {
   "name": "customer-forge",
   "version": "1.0.0",
-  "description": "Revora Growth Systems — AI-powered website builder platform with 12-provider free AI orchestration, multi-tenant architecture, and production-grade quality gates.",
+  "description": "Revora Growth Systems — AI-powered website builder platform using the Lovable AI gateway, multi-tenant architecture, and production-grade quality gates.",
   "private": true,
   "sideEffects": false,
   "type": "module",
@@ -13,6 +13,8 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:prompts": "vitest run src/lib/builder/prompt-regression/prompt-regression.test.ts",
+    "test:prompts:live": "vitest run src/lib/builder/prompt-regression/prompt-regression.live.test.ts",
     "test:coverage": "vitest run --coverage",
     "format": "prettier --write .",
     "security:audit": "node scripts/security-audit.mjs",

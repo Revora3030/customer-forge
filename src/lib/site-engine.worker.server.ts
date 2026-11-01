@@ -1758,9 +1758,9 @@ async function runJob(
       .map((pass) => pass.model)
       .join("+") || copyModel;
   }
-  // No fact-scaffold fallback: when not one model could author or review this
-  // build's wording, the build stops (and is retried) instead of shipping a
-  // generic site.
+  // When not one model could author this build's wording for a reason other
+  // than capacity, the build stops (and is retried) instead of shipping a
+  // generic site. The capacity case is handled below with a facts-only scaffold.
   const existingPages = await db
     .from("website_pages")
     .select("id", { count: "exact", head: true })
@@ -1791,12 +1791,32 @@ async function runJob(
     const solPass = refined.passes.find((pass) => pass.purpose === "creative_direction");
     throw new AiStepUnavailableError("creative direction", solPass?.skipped ?? null);
   }
+  // FACTS-ONLY WORDING (owner decision 2026-11-01): when the creative
+  // direction was authored but the writing team was out of capacity or
+  // credits, only the blank required fields are filled from the owner's facts
+  // and an AI wording upgrade is queued (it runs only with the owner's OK).
+  // Wording the AI answered but the fact check refused still stops the build.
+  // A resumed slice of a scaffolded build keeps its wording and its upgrade flag.
+  let copyScaffoldFields: string[] = (resumedRefined as { scaffoldFields?: string[] } | null)?.scaffoldFields ?? [];
   if (firstBuild && (!refined.passes.some((pass) => pass.used) || !refined.changed || missingCopy.length)) {
-    const { AiStepUnavailableError } = await import("@/lib/builder/ai-step-error");
-    throw new AiStepUnavailableError(
-      "website wording",
-      missingCopy.length ? `missing: ${missingCopy.join(", ")}` : "no model returned usable wording",
-    );
+    const { scaffoldRequiredCopy, wordingCapacityHit } = await import("@/lib/builder/copy-scaffold");
+    const scaffold = refined.creativeChanged && wordingCapacityHit(refined.passes)
+      ? scaffoldRequiredCopy(copy, copyFacts)
+      : null;
+    if (scaffold && scaffold.filled.length && missingAiCopy(scaffold.copy).length === 0) {
+      copy = scaffold.copy;
+      copyScaffoldFields = scaffold.filled;
+      copyModel = copyModel === "pending-ai" ? "facts-scaffold" : `${copyModel}+facts-scaffold`;
+      // Checkpointed so a hand-back does not ask the busy AI team again.
+      if (!resumedRefined) saved(await stageStore.put("refined", refineInputs, { ...refined, changed: true, copy, scaffoldFields: scaffold.filled }));
+      console.warn(`[site-engine] wording at AI capacity; filled ${scaffold.filled.join(", ")} from the owner's facts and queued an AI upgrade.`);
+    } else {
+      const { AiStepUnavailableError } = await import("@/lib/builder/ai-step-error");
+      throw new AiStepUnavailableError(
+        "website wording",
+        missingCopy.length ? `missing: ${missingCopy.join(", ")}` : "no model returned usable wording",
+      );
+    }
   }
 
   await db.from("ai_generations").insert({
@@ -1908,7 +1928,21 @@ async function runJob(
   // already stored (only this job's own generated files, by creation time).
   // Checked on every attempt: a capacity-deferred rerun is attempt 1 again.
   let reusablePictures: { id: string; url: string; file_name: string | null; alt_text: string | null; attribution: string | null }[] = [];
-  {
+  // Only reuse them when the picture inputs are unchanged (same shot list,
+  // business and city). The marker is saved BEFORE the campaign starts, so
+  // pictures made by an interrupted attempt are still reused on the retry.
+  const pictureInputs = await (async () => {
+    let shotList: unknown = [];
+    try {
+      shotList = (await import("@/lib/builder/first-build-images.server")).firstBuildImageShots(creative, realMediaCount);
+    } catch {
+      shotList = [];
+    }
+    return { shots: shotList, name: org.data?.name ?? "", city: (p["city"] as string) ?? null, owned: realMediaCount };
+  })();
+  const picturesMayResume = (await stageStore.get<{ started: true }>("pictures", pictureInputs)) !== null;
+  if (!picturesMayResume) await stageStore.put("pictures", pictureInputs, { started: true });
+  if (picturesMayResume) {
     const jobRow = await db.from("generation_jobs").select("created_at").eq("id", job.id).maybeSingle();
     const since = (jobRow.data as { created_at?: string } | null)?.created_at;
     if (since) {
@@ -1962,6 +1996,14 @@ async function runJob(
   // "regenerate picture" action can retry, plus the owner's attention list.
   const degradedSteps: import("@/lib/builder/graceful-degrade").FollowUpRepair[] = [];
   const degradedAttention: string[] = [];
+  {
+    const { degradeCopyScaffold } = await import("@/lib/builder/graceful-degrade");
+    const wording = degradeCopyScaffold({ fields: copyScaffoldFields });
+    if (wording) {
+      degradedSteps.push(wording.followUp);
+      degradedAttention.push(wording.attention);
+    }
+  }
   let degradedOwnerNote = "";
   {
     const { degradePictures } = await import("@/lib/builder/graceful-degrade");
@@ -2437,8 +2479,19 @@ async function runJob(
         surfaceIs: effectivePalette?.secondary ? (isLightSurface(effectivePalette.secondary) ? "light" : "dark") : null,
       }),
     });
-    // Every section is designed by the AI team. A section left without its
-    // layout stops the build (it is retried) instead of shipping a default.
+    // Every section is designed by the AI team. When the team is out of
+    // capacity or credits after every retry, sections get a facts-only
+    // fallback layout (saved, validated, flagged) and an AI upgrade is queued
+    // for the owner to approve; it never runs on its own. A section left with
+    // no layout at all still stops the build (it is retried).
+    if ((composed.fallbackFilled ?? 0) > 0) {
+      const { degradeLayoutFallback } = await import("@/lib/builder/graceful-degrade");
+      const upgrade = degradeLayoutFallback({ sections: composed.fallbackSections ?? [] });
+      if (upgrade && !degradedSteps.some((step) => step.kind === "layout_upgrade")) {
+        degradedSteps.push(upgrade.followUp);
+        degradedAttention.push(upgrade.attention);
+      }
+    }
     if ((composed.fallback ?? 0) > 0) {
       // Stopped by this run's budget after designing new sections: hand back
       // so the next run designs the rest. Otherwise the existing rules apply
@@ -2649,6 +2702,9 @@ async function runJob(
     checks: qa.checks,
     // Steps that degraded instead of failing the attempt, each with its pending repair.
     followUps: degradedSteps,
+    // Flagged when a facts-only fallback layout or wording shipped; the queued
+    // upgrade spends AI credits, so it runs only after the owner approves it.
+    needsAiUpgrade: degradedSteps.some((step) => step.kind === "layout_upgrade" || step.kind === "copy_upgrade"),
     attention: [
       ...degradedAttention,
       ...(photoDescriptionNote ? [photoDescriptionNote] : []),
@@ -2745,16 +2801,31 @@ async function runJob(
   if (!built.skipped) {
     try {
       // Every button and menu link must lead to a real page of this site.
-      const { ensureLinkIntegrity } = await import("@/lib/builder/link-integrity.server");
-      await ensureLinkIntegrity(db as never, orgId);
+      // A retry skips both repairs when an earlier attempt finished them on the
+      // same saved sections; a partial failure is not saved, so it is retried.
+      const { resumeOrRunStage } = await import("@/lib/builder/resume-stage");
+      const qaInputs = { pages: built.pages, sections: built.sections, inventory: built.inventory };
+      const qa = await resumeOrRunStage(stageStore, "qa-repair", qaInputs, async () => {
+        let complete = true;
+        try {
+          const { ensureLinkIntegrity } = await import("@/lib/builder/link-integrity.server");
+          await ensureLinkIntegrity(db as never, orgId);
+        } catch (error) {
+          complete = false;
+          console.warn("[site-engine] first-build link check skipped", (error as Error)?.message);
+        }
+        try {
+          const { runQaRepairLoop } = await import("@/lib/builder/qa-loop.server");
+          await runQaRepairLoop(db as never, orgId, "first build", 12);
+        } catch (error) {
+          complete = false;
+          console.warn("[site-engine] first-build QA repair skipped", (error as Error)?.message);
+        }
+        return { value: { done: true }, complete };
+      });
+      if (qa.saved) saved(true);
     } catch (error) {
-      console.warn("[site-engine] first-build link check skipped", (error as Error)?.message);
-    }
-    try {
-      const { runQaRepairLoop } = await import("@/lib/builder/qa-loop.server");
-      await runQaRepairLoop(db as never, orgId, "first build", 12);
-    } catch (error) {
-      console.warn("[site-engine] first-build QA repair skipped", (error as Error)?.message);
+      console.warn("[site-engine] first-build checks skipped", (error as Error)?.message);
     }
   }
   // Every built site opens on a moving hero (quality bar #1/#10): a free,
@@ -2782,6 +2853,17 @@ async function runJob(
       await recordHeroVideoStatus(db as never, orgId, { status: "failed", message: `The stock video step stopped (${(error as Error)?.message ?? "unknown error"}); the top picture stays.` }, "build");
     } catch {
       // Logged above; the build continues.
+    }
+  }
+  // Video-bar gate (VIDEO_BAR_GATE, default "warn"): score the generated site against the reference-video bar and
+  // store the result at generation.videoGate. Scoring only: it never changes the site and never blocks or fails the
+  // build; going live is decided by the publish gate.
+  if (!built.skipped) {
+    try {
+      const { gateGeneratedWorkspaceSite } = await import("@/lib/builder/quality/generated-site-gate.server");
+      await gateGeneratedWorkspaceSite(db as never, orgId, "first build");
+    } catch (error) {
+      console.warn("[site-engine] video-bar gate skipped", (error as Error)?.message);
     }
   }
   await step("checks");

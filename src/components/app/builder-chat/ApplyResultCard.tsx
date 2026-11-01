@@ -6,6 +6,7 @@
  * wording. An apply only writes the draft: nothing here claims the change
  * reached the live website.
  */
+import type { ReactNode } from "react";
 import { Check, ChevronRight, Eye, RotateCw, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { applyHeadline, skippedLine, skippedReasons } from "@/lib/builder/apply-report";
@@ -25,6 +26,8 @@ export type ApplyResultCardProps = {
   onRetrySkipped?: (() => void) | undefined;
   onUndo?: (() => void) | undefined;
   onPreview?: (() => void) | undefined;
+  /** The "Inspect changes" drawer (owner roles only; the caller decides). */
+  inspect?: ReactNode;
 };
 
 export function ApplyResultCard({
@@ -38,6 +41,7 @@ export function ApplyResultCard({
   onRetrySkipped,
   onUndo,
   onPreview,
+  inspect,
 }: ApplyResultCardProps) {
   // Never a success line when nothing was written.
   if (applied <= 0) return null;
@@ -76,6 +80,8 @@ export function ApplyResultCard({
           </ul>
         </details>
       ) : null}
+
+      {inspect}
 
       <div className="mt-3 flex flex-wrap gap-2">
         {skipped > 0 && onRetrySkipped ? (

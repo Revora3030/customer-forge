@@ -49,6 +49,8 @@ import { CRM_STAGES, LEAD_STATUSES, crmStageOf, leadStatusMeta, sourceLabel, typ
 import { groupByStage, leadsToCsv } from "@/lib/crm";
 import { DueTasksStrip, LeadTasks } from "@/components/app/LeadTasks";
 import { LeadReviewDraftPanel } from "@/components/app/LeadReviewDraftPanel";
+import { LeadWhatsAppButton } from "@/components/app/LeadWhatsAppButton";
+import { LeadChimeToggle } from "@/components/app/LeadChimeToggle";
 import { currency, relative } from "@/lib/format";
 import { filterLeadsByService, leadServiceId, type ServiceFilter } from "@/lib/service-catalog";
 import { QueryErrorNotice } from "@/components/app/QueryErrorNotice";
@@ -169,6 +171,7 @@ function LeadsPage() {
         title="Leads"
         purpose="Everyone who enquired, and where each one stands."
       >
+        <LeadChimeToggle />
         <Dialog open={addOpen} onOpenChange={setAddOpen}>
           <DialogTrigger asChild>
             <Button variant="signal">
@@ -460,6 +463,18 @@ function LeadsPage() {
                           <MessageSquare className="size-4" /> Text
                         </a>
                       </Button>
+                      <LeadWhatsAppButton
+                        organizationId={orgId}
+                        leadId={selected.id}
+                        phone={selected.phone}
+                        onOpen={() =>
+                          action.mutate({
+                            lead: leadRef,
+                            patch: { last_contacted_at: new Date().toISOString() },
+                            activity: { kind: "text", body: `Opened WhatsApp for ${selected.phone}` },
+                          })
+                        }
+                      />
                     </>
                   ) : null}
                   {selected.email ? (

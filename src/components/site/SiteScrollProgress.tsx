@@ -23,7 +23,10 @@ export function SiteScrollProgress({ label = null }: { label?: string | null } =
     const paint = () => {
       frame = 0;
       const doc = document.documentElement;
-      pill.textContent = meterText(scrollShare(window.scrollY, doc.scrollHeight, window.innerHeight), label);
+      const share = scrollShare(window.scrollY, doc.scrollHeight, window.innerHeight);
+      // Never show a "0% ..." pill at the top of the page: it appears once the visitor scrolls.
+      pill.hidden = share <= 0;
+      pill.textContent = meterText(share, label);
     };
     const onScroll = () => {
       if (!frame) frame = requestAnimationFrame(paint);
@@ -69,7 +72,7 @@ export function SiteScrollProgress({ label = null }: { label?: string | null } =
     <>
       <style>{SCROLL_PROGRESS_CSS}</style>
       <div ref={ref} className="rv-progress" aria-hidden="true" data-testid="site-scroll-progress" />
-      {label ? <span ref={meter} className="rv-progress-meter" aria-hidden="true" data-testid="site-scroll-meter">{meterText(0, label)}</span> : null}
+      {label ? <span ref={meter} className="rv-progress-meter" aria-hidden="true" data-testid="site-scroll-meter" hidden></span> : null}
     </>
   );
 }

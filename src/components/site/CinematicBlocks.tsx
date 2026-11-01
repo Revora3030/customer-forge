@@ -6,6 +6,7 @@
  * that cannot work. No animation library: CSS scroll timelines plus one
  * IntersectionObserver for the chapter rail.
  */
+import { cleanFrameLabels } from "@/lib/builder/frame-labels";
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
 import { scrubFrame, scrubProgress, scrubTime, shouldSeek } from "@/lib/builder/scrub";
 import { MIN_SPIN_FRAMES, dialAngle, dialArcPath, dialOptionForKey, dialOptionForPoint, frameForDrag, frameForKey } from "@/lib/builder/cinematic-primitives";
@@ -522,7 +523,7 @@ export function ScrubStage({ src, alt, render }: { src: string; alt: string; ren
  */
 
 export function ScrubSequence({
-  props, frames, copy, prompt, scrim, ink,
+  props, frames: authored, copy, prompt, scrim, ink,
 }: {
   props: NodeProps;
   frames: { src: string; alt: string; label?: string }[];
@@ -531,6 +532,8 @@ export function ScrubSequence({
   scrim: string;
   ink: string;
 }) {
+  // AI production notes ("Resting frame", "Moving frame", "Shot 2") never render.
+  const { frames, showChips } = cleanFrameLabels(authored);
   const track = useRef<HTMLDivElement>(null);
   const [live, setLive] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -583,7 +586,7 @@ export function ScrubSequence({
           <div className="rv-seq-copy">
             {copy}
             {prompt ? <p className="rv-seq-prompt">{prompt}</p> : null}
-            {frames.length > 1 ? (
+            {showChips ? (
               <div role="group" aria-label="Sequence frames" className="mt-2 flex flex-wrap gap-2">
                 {frames.map((frame, index) => (
                   <button
