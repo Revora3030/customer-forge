@@ -3329,7 +3329,12 @@ export async function drainSiteEngineQueue(
           .select("id");
         if (stalled && stalled.length > 0) {
           try {
-            await settleAbandonedFreshRebuild(db, job as AbandonedJob);
+            await settleAbandonedFreshRebuild(db, {
+              id: String(job.id),
+              organization_id: String(job.organization_id),
+              created_by: (job.created_by as string | null | undefined) ?? null,
+              created_at: attemptStartedAt,
+            });
           } catch (settleError) {
             console.warn(`[site-engine] fresh rebuild settle for stalled job ${job.id} skipped`, settleError);
           }
