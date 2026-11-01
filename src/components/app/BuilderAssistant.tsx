@@ -60,6 +60,7 @@ import { AssistantMedia } from "@/components/app/AssistantMedia";
 import { CompositionPreviewCard } from "@/components/app/CompositionPreviewCard";
 import { ChatSearch, VoiceDictationButton } from "@/components/app/ChatThreadTools";
 import { ApplyResultCard } from "@/components/app/builder-chat/ApplyResultCard";
+import { InspectChanges } from "@/components/app/builder-chat/InspectChanges";
 import { MessageMenu } from "@/components/app/builder-chat/MessageMenu";
 import { useChatTop } from "@/components/app/builder-chat/use-chat-top";
 import { useKeyboardInset } from "@/components/app/builder-chat/use-keyboard-inset";
@@ -1155,6 +1156,7 @@ function TaskBody({
           onRetrySkipped={skipped > 0 ? () => onFollowUp(retrySkippedPrompt) : undefined}
           onUndo={onOpenHistory}
           onPreview={onShowPreview}
+          inspect={<InspectChanges organizationId={organizationId} snapshotVersion={task.snapshotVersion} />}
         />
       ) : null}
       {task.notice ? <p className="text-sm leading-6 text-muted-foreground">{task.notice}</p> : null}
