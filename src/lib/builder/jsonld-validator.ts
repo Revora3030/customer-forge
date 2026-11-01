@@ -65,8 +65,9 @@ type Obj = Record<string, unknown>;
 const isObj = (value: unknown): value is Obj => !!value && typeof value === "object" && !Array.isArray(value);
 const str = (value: unknown): string => (typeof value === "string" ? value : typeof value === "number" ? String(value) : "");
 const squash = (value: string): string => value.replace(/\s+/g, " ").trim();
+// Decode &amp; last so "&amp;nbsp;" stays the literal text "&nbsp;" (no double unescape).
 const words = (value: string): string =>
-  squash(value.replace(/<[^>]*>/g, " ").replace(/&amp;/gi, "&").replace(/&nbsp;/gi, " "))
+  squash(value.replace(/<[^>]*>/g, " ").replace(/&nbsp;/gi, " ").replace(/&amp;/gi, "&"))
     .toLowerCase()
     .replace(/[\u2018\u2019]/g, "'")
     .replace(/[\u201c\u201d]/g, '"');
