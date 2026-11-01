@@ -83,6 +83,7 @@ export function startScrollReveal(env: RevealEnv): boolean {
           observer.unobserve(el);
           el.setAttribute(GO_ATTR, "");
           el.removeAttribute(WAIT_ATTR);
+          // DevSkim: ignore DS172411 -- fixed callback and constant delay, no untrusted data
           env.setTimeout(() => {
             el.removeAttribute(GO_ATTR);
             el.setAttribute(SEEN_ATTR, "");
@@ -115,6 +116,7 @@ export function browserRevealEnv(): RevealEnv | null {
     ...(typeof win.IntersectionObserver === "function"
       ? { createObserver: (callback, options) => new win.IntersectionObserver((entries) => callback(entries), options) as ObserverLike }
       : {}),
+    // DevSkim: ignore DS172411 -- fixed callback and constant delay, no untrusted data
     setTimeout: (callback, ms) => win.setTimeout(callback, ms),
   };
 }
