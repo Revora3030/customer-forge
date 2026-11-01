@@ -269,3 +269,168 @@ export function settleRecoveredFailures(rows: readonly CityWork[]): CityWork[] {
     return ok !== undefined && Number.isFinite(failedAt) && ok >= failedAt ? { ...row, status: "recovered" } : row;
   });
 }
+
+
+/* ------------------- failure causes, recovery and acknowledgement ------------------- */
+
+/**
+ * Why a failed record failed, in owner words. A hundred failed AI steps with one
+ * cause (for example provider credits) is one problem to fix, not a hundred.
+ */
+export type FailureCause = "credits" | "budget" | "rate_limit" | "timeout" | "capacity" | "other";
+
+export const FAILURE_CAUSE_LABEL: Record<FailureCause, string> = {
+  credits: "Lovable AI credits or quota refused the call (HTTP 402)",
+  budget: "Revora's own daily AI budget or spend check stopped the call",
+  rate_limit: "The AI provider rate-limited the call (HTTP 429)",
+  timeout: "The AI provider took too long and the call timed out",
+  capacity: "The AI provider was unavailable or at capacity",
+  other: "Failed for a reason the record does not classify",
+};
+
+/** Plain next step per cause. Describes what the record shows; it never claims a fix was applied. */
+export const FAILURE_CAUSE_HINT: Record<FailureCause, string> = {
+  credits: "A provider refusal, not a code error. Check Lovable billing and credits; calls succeed again once they are restored.",
+  budget: "Revora held the call back on purpose. Check the monthly and daily AI limits in Luna's budget before raising anything.",
+  rate_limit: "Usually clears by itself. Check it is not still happening before retrying.",
+  timeout: "The model was too slow for that request. Retrying the identical request usually hits the same wall.",
+  capacity: "Usually temporary on the provider's side. Confirm it is still failing before acting.",
+  other: "Open the newest record for its saved reason.",
+};
+
+export function classifyFailure(text: string | null | undefined): FailureCause {
+  const value = (text ?? "").toLowerCase();
+  if (!value) return "other";
+  if (/budget_exhausted|cap_reached|cap_zero|free_only|ledger|daily (ai )?budget|monthly (ai )?(budget|limit)/.test(value)) return "budget";
+  if (/\b402\b|insufficient|out of credits?|credits? (are|is) (used up|exhausted)|payment required|quota|billing/.test(value)) return "credits";
+  if (/\b429\b|rate.?limit|too many requests/.test(value)) return "rate_limit";
+  if (/timeout|timed out|\b(504|522|524|408)\b/.test(value)) return "timeout";
+  if (/capacity|overload|unavailable|\b(500|502|503)\b|no_tier_available|bad_response/.test(value)) return "capacity";
+  return "other";
+}
+
+/** Two failures are "the same problem" when they share this key. */
+export function failureKey(row: CityWork): string {
+  if (row.source === "ai_team_trace") return `ai:${classifyFailure(row.detail)}`;
+  if (row.source === "error_events") return `err:${row.title.toLowerCase().replace(/[0-9a-f]{8}-[0-9a-f-]{27}|\b[0-9a-f]{12,}\b|\d+/g, "#").replace(/\s+/g, " ").slice(0, 80)}`;
+  return `${row.source}:${row.title.toLowerCase().slice(0, 80)}`;
+}
+
+export type FailureGroup = { key: string; label: string; cause: FailureCause | null; count: number; latest: CityWork; district: DistrictId; sources: string[]; ageMs: number };
+
+/** Failed records inside the attention window, grouped by cause, biggest group first. */
+export function failureGroups(rows: readonly CityWork[], now: number): FailureGroup[] {
+  return groupFailed(rows.filter((row) => isFailed(row.status) && recentEnough(row.at, now)), now);
+}
+
+/** Groups the failed items of an attention list; their age is already measured against one shared clock. */
+export function groupAttention(items: readonly AttentionItem[]): FailureGroup[] {
+  const failed = items.filter((item) => item.kind === "failed");
+  const first = failed[0];
+  if (!first) return [];
+  return groupFailed(failed.map((item) => item.row), Date.parse(first.row.at) + first.ageMs);
+}
+
+function groupFailed(rows: readonly CityWork[], now: number): FailureGroup[] {
+  const groups = new Map<string, FailureGroup>();
+  for (const row of rows) {
+    const key = failureKey(row);
+    const at = Date.parse(row.at);
+    const found = groups.get(key);
+    if (found) {
+      found.count += 1;
+      if (at > Date.parse(found.latest.at)) found.latest = row;
+      if (!found.sources.includes(row.source)) found.sources.push(row.source);
+      continue;
+    }
+    const cause = row.source === "ai_team_trace" ? classifyFailure(row.detail) : null;
+    groups.set(key, { key, cause, count: 1, latest: row, district: row.district, sources: [row.source], ageMs: 0, label: cause ? `AI model calls: ${FAILURE_CAUSE_LABEL[cause]}` : row.title });
+  }
+  return [...groups.values()]
+    .map((group) => ({ ...group, ageMs: Math.max(0, now - Date.parse(group.latest.at)) }))
+    .sort((a, b) => b.count - a.count || a.ageMs - b.ageMs);
+}
+
+/**
+ * True when a feed hit its row limit and its oldest row is still inside the
+ * attention window, so older failures may exist beyond what was read ("100+").
+ */
+export function windowCapped(source: CitySource | undefined, now: number): boolean {
+  if (!source || !source.truncated || !source.rows.length) return false;
+  const oldest = Math.min(...source.rows.map((row) => Date.parse(row.at)).filter(Number.isFinite));
+  return Number.isFinite(oldest) && now - oldest <= ATTENTION_WINDOW_MS;
+}
+
+export function districtFailureSummary(snapshot: CitySnapshot | undefined, id: DistrictId, now: number): { count: number; capped: boolean; groups: FailureGroup[] } | null {
+  if (!snapshot) return null;
+  const sources = Object.values(snapshot.sources).filter((source) => source.rows.some((row) => row.district === id));
+  const rows = sources.flatMap((source) => source.rows).filter((row) => row.district === id);
+  const groups = failureGroups(rows, now);
+  return { count: groups.reduce((sum, group) => sum + group.count, 0), capped: sources.some((source) => windowCapped(source, now)) && groups.length > 0, groups };
+}
+
+/** "100+ failed · 1 cause" for a district card; "0 failed" when clean. */
+export function failedLabel(summary: { count: number; capped: boolean; groups: readonly unknown[] } | null): string {
+  if (!summary) return "unknown";
+  if (!summary.count) return "0 failed";
+  const causes = summary.groups.length;
+  return `${summary.count}${summary.capped ? "+" : ""} failed${causes ? ` · ${causes} cause${causes === 1 ? "" : "s"}` : ""}`;
+}
+
+/** The one-tap Jarvis draft for a failure group. Read-only; nothing runs until the owner sends it. */
+export function triageDraft(group: FailureGroup, now: number): string {
+  const tool = group.sources.includes("ai_team_trace") ? "ai.providers.snapshot" : group.sources.includes("error_events") ? "platform.errors.summary" : "builder.health.summary";
+  const cause = group.cause ? ` Recorded cause: ${FAILURE_CAUSE_LABEL[group.cause]}.` : "";
+  return `[AI City · Triage] ${group.count} record${group.count === 1 ? "" : "s"} failed in the last 48 hours: ${group.label} (newest ${ageLabel(Math.max(0, now - Date.parse(group.latest.at)))} ago).${cause} Read ${tool}. Tell me whether it is still happening, the most likely cause from the evidence, and the smallest safe fix. ${GATE}`;
+}
+
+/**
+ * A failed AI step that the same workspace later repeated successfully (same
+ * stage) is history, like a recovered Jarvis step. Relabelled, never deleted.
+ */
+export function settleRecoveredTraces(rows: readonly CityWork[]): CityWork[] {
+  const okAt = new Map<string, number>();
+  const keyOf = (row: CityWork) => `${row.organizationId ?? ""}|${row.title}`;
+  for (const row of rows) {
+    if (row.status !== "ok") continue;
+    const at = Date.parse(row.at);
+    if (Number.isFinite(at) && at > (okAt.get(keyOf(row)) ?? -Infinity)) okAt.set(keyOf(row), at);
+  }
+  return rows.map((row) => {
+    if (!isFailed(row.status)) return row;
+    const ok = okAt.get(keyOf(row));
+    const failedAt = Date.parse(row.at);
+    return ok !== undefined && Number.isFinite(failedAt) && ok > failedAt ? { ...row, status: "recovered" } : row;
+  });
+}
+
+/** Failures the owner already looked at: everything up to `all`, and per-problem up to `groups[key]`. */
+export type CityAcks = { all: number; groups: Record<string, number> };
+export const NO_ACKS: CityAcks = { all: 0, groups: {} };
+
+/**
+ * Relabels failed records the owner dismissed as "acknowledged" so they stop
+ * counting. A new failure after the dismissal counts again. Nothing is deleted.
+ */
+export function applyAcknowledged(snapshot: CitySnapshot | undefined, acks: CityAcks): CitySnapshot | undefined {
+  if (!snapshot || (!acks.all && !Object.keys(acks.groups).length)) return snapshot;
+  const sources: Record<string, CitySource> = {};
+  for (const [name, source] of Object.entries(snapshot.sources)) {
+    sources[name] = { ...source, rows: source.rows.map((row) => {
+      if (!isFailed(row.status)) return row;
+      const at = Date.parse(row.at);
+      const limit = Math.max(acks.all, acks.groups[failureKey(row)] ?? 0);
+      return Number.isFinite(at) && at <= limit ? { ...row, status: "acknowledged" } : row;
+    }) };
+  }
+  return { ...snapshot, sources };
+}
+
+export function parseAcks(raw: string | null): CityAcks {
+  try {
+    const value = JSON.parse(raw ?? "null") as Partial<CityAcks> | null;
+    const groups: Record<string, number> = {};
+    for (const [key, at] of Object.entries(value?.groups ?? {})) if (typeof at === "number" && Number.isFinite(at)) groups[key.slice(0, 120)] = at;
+    return { all: typeof value?.all === "number" && Number.isFinite(value.all) ? value.all : 0, groups };
+  } catch { return NO_ACKS; }
+}

@@ -13,6 +13,8 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:prompts": "vitest run src/lib/builder/prompt-regression/prompt-regression.test.ts",
+    "test:prompts:live": "vitest run src/lib/builder/prompt-regression/prompt-regression.live.test.ts",
     "test:coverage": "vitest run --coverage",
     "format": "prettier --write .",
     "security:audit": "node scripts/security-audit.mjs",

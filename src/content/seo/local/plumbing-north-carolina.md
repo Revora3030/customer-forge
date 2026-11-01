@@ -46,3 +46,7 @@ Only the ranges you choose to publish. Many plumbers show a starting price for c
 
 **What if I serve only one metro?**
 Then your site covers only that metro and its nearby towns. A tighter, honest service area works better than a long list of places you do not serve.
+
+## Source (checked October 31, 2026)
+
+- North Carolina general contractor license threshold, G.S. 87-1: https://www.ncleg.gov/EnactedLegislation/Statutes/HTML/ByArticle/Chapter_87/Article_1.html

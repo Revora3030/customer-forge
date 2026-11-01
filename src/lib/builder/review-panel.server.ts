@@ -191,7 +191,7 @@ export async function runReviewPanel(
   // a reviewer still failing is reported in `failed`, never fails the panel.
   // No retry when the day's or month's paid budget is spent (or the ledger is
   // down): the second ask would be refused the same way.
-  const noRetry = new Set(["budget_exhausted", "ledger_unavailable", "free_only", "no_tier_available"]);
+  const noRetry = new Set(["budget_exhausted", "credits_exhausted", "ledger_unavailable", "free_only", "no_tier_available"]);
   await Promise.all(
     settled.map(async (entry, index) => {
       const reviewer = reviewers[index]!;
