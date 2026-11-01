@@ -129,9 +129,13 @@ describe("the bar is enforced in the build and in chat edits", () => {
   const plan = readFileSync("src/lib/builder/ai-agent-plan.server.ts", "utf8");
   it("sends first-build sections that miss the bar back to Sol before saving", () => {
     expect(first).toMatch(/await repairDesignQuality\(/);
+    // AI-designed sections are polished before they are saved. Facts-only
+    // fallback sections (AI at capacity) are saved earlier and skip the AI
+    // polish so no credits are spent; they are flagged for an AI upgrade.
     expect(first.indexOf("await repairDesignQuality(")).toBeLessThan(
-      first.indexOf("await saveTree("),
+      first.indexOf("await saveTree(db, organizationId, section, tree);"),
     );
+    expect(first).toMatch(/await saveTree\(db, organizationId, section, tree, \{ \.\.\.FALLBACK_SECTION_SETTINGS \}\)/);
     expect(first).toMatch(/Measurable craft bar, checked automatically/);
   });
   it("never lets the team round make craft worse", () => {

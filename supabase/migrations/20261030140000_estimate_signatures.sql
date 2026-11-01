@@ -43,7 +43,7 @@ alter table public.estimate_signatures enable row level security;
 -- Members can read their own workspace's signatures; only the service role writes.
 drop policy if exists "estimate_signatures member read" on public.estimate_signatures;
 create policy "estimate_signatures member read" on public.estimate_signatures
-  for select to authenticated using (public.is_org_member(organization_id));
+  for select to authenticated using (private.is_org_member(organization_id));
 
 revoke all on public.estimate_signatures from anon;
 revoke insert, update, delete on public.estimate_signatures from authenticated;
