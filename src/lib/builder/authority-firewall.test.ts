@@ -305,6 +305,12 @@ describe("no non-AI build fallback (Oct 3)", () => {
     expect(readFileSync("src/lib/site-engine.server.ts", "utf8")).not.toMatch(/safe fact-based brief|source: "safe-fallback"/);
     expect(readFileSync("src/lib/site-materialize.server.ts", "utf8")).not.toMatch(/fact inventory as a baseline|\|\| "Get in touch"/);
   });
+  it("the only facts-only path is the capacity fallback, which queues an AI upgrade (owner decision 2026-11-01)", () => {
+    expect(worker).toMatch(/wordingCapacityHit\(refined\.passes\)/);
+    expect(worker).toMatch(/degradeLayoutFallback\(/);
+    const first = readFileSync("src/lib/builder/first-build-compositions.server.ts", "utf8");
+    expect(first).toMatch(/rescueShouldPark\([^)]*\)[\s\S]{0,3000}fallbackSectionComposition/);
+  });
   it("an AI step that fails raises the shared retryable error", () => {
     expect(worker).toMatch(/AiStepUnavailableError/);
   });
