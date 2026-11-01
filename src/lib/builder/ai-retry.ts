@@ -83,7 +83,7 @@ export function describeAiUnavailable(
 ): UnavailableCopy {
   const r = String(reason ?? "");
   const tried = options.retried ? "I tried twice" : "I tried";
-  const safe = "Your website and draft are exactly as they were, so nothing is lost.";
+  const safe = "Your website and draft are exactly as they were, so nothing is lost. I'd rather wait than drop a stock layout onto your site.";
   if (NEEDS_SETUP_REASONS.has(r)) {
     return {
       retryable: false,
