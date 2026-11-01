@@ -47,6 +47,7 @@ import { compactMessages } from "@/lib/ai/context-compaction";
 import { demoteDegradedPaid, noteProviderFailure, noteProviderSuccess, providerAccountCooldown } from "@/lib/ai/provider-backoff";
 import { aiRetryDecision, clampAttempts, logAiCallFailure, type AiRetryAction } from "@/lib/ai/retry-policy";
 import { checkAiLimits, recordAiEvent } from "@/lib/ai/telemetry.server";
+import { noteGatewayCreditsStop } from "@/lib/ai/gateway-credits-alert.server";
 import type {
   AiCaller,
   AiImageResult,
@@ -635,6 +636,9 @@ noteProviderSuccess(config.name);
 
           // A stopped build ends the whole walk: no next model, no retry.
           if (error.category === "cancelled") throw error;
+          // The gateway itself said the workspace is out of credits or at its
+          // spending cap: tell the super-admin by email (deduped, best effort).
+          noteGatewayCreditsStop(error);
           if (action === "skip_provider") {
             deadProviders.add(config.name);
             break;

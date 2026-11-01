@@ -3377,10 +3377,12 @@ export async function drainSiteEngineQueue(
       heartbeat.stop();
       attemptAbort.abort();
       processed += 1;
+      await noteJobFallback(db, job, attemptStartedAt);
     } catch (error) {
       registerProgressWatch(job.id, null);
       heartbeat.stop();
       attemptAbort.abort();
+      await noteJobFallback(db, job, attemptStartedAt);
       // A superseded attempt must not requeue, fail or restore anything —
       // the newer attempt owns the job and the site now.
       if (error instanceof StaleAttemptError) continue;
@@ -3656,6 +3658,16 @@ export async function drainSiteEngineQueue(
 
 /** How many times one build may wait out an exhausted free AI pool. */
 export const MAX_CAPACITY_DEFERRALS = 6;
+
+/** B13-1: note on the job that a backup AI model answered during this attempt (best effort, never throws). */
+async function noteJobFallback(db: Db, job: { id: string; organization_id: string }, attemptStartedAt: string) {
+  try {
+    const { recordJobFallback } = await import("@/lib/builder/job-ai-outcome");
+    await recordJobFallback(db as never, job, attemptStartedAt);
+  } catch {
+    /* recording is additive; the build never depends on it */
+  }
+}
 
 /** 15 min, 30 min, 1 h, 2 h, then 3 h. */
 export function capacityDelayMs(deferral: number): number {
