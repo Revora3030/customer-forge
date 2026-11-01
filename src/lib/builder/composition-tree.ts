@@ -85,7 +85,8 @@ export const PRIMITIVE_GUIDE =
   "before_after_slider (beforeImage + afterImage, each {src or mediaRef, alt, label}, with a 0-100 split; use for genuine transformation work such as renovation, roofing or detailing; add revealMode:\"brush\" for a hands-on reveal where the visitor drags across the before picture to uncover the after, with text as its short prompt such as \"Clean this driveway\" and optional items as 1-3 tool chips the visitor switches between, widest first (e.g. \"Surface cleaner\", \"25° tip\", \"40° tip\" — each later tool paints a narrower path); a live percent and stopwatch sit over the picture; only ever with the owner's own real before and after photos). " +
   "faq_accordion (items are question/answer pairs; defaultOpen is optional and at most the supplied FAQ content may be used). " +
   "tab_group (tabs are labelled panels; each tab owns child nodes and only the active panel is rendered). " +
-  "mobile_sticky_bar (primaryCta and optional secondaryCta; conversion actions only, hidden above the mobile breakpoint). " +
+  "mobile_sticky_bar (primaryCta and optional secondaryCta and tertiaryCta; conversion actions only, hidden above the mobile breakpoint; barLayout:\"tabs\" draws a full-width icon tab bar secondary | primary (highlighted) | tertiary, e.g. Call | Get quote | Directions — Call only with the real phone (tel:), Directions only with the real address (a https://www.google.com/maps/dir/?api=1&destination=… link); leave out a slot whose fact is missing). " +
+  "accentText on a heading is a second line drawn in the accent colour for a bold two-tone headline (e.g. text \"Your home.\" + accentText \"Our craft.\"); only the same supplied wording, split, never a new claim. " +
   "Cinematic blocks — scene (a full-viewport photographic chapter: children[0] MUST be its media backdrop, a supplied picture or video by mediaRef with alt; the other children form the overlay copy slot, e.g. a short editorial heading — an italic accent line can be a second heading or text with style.italic — one line of body and one button; anchor places that slot: top-left|top-center|top-right|center-left|center|center-right|bottom-left|bottom-center|bottom-right; scrub:true makes a VIDEO backdrop play forward and back with the scroll while the scene stays pinned for about three screens (use for one short product, process or transformation film the owner supplied; ignored for a picture; never with sound; use at most once per page and not inside scroll_chapters); optional scrim {color #RRGGBB, opacity 0-95} and focal \"x% y%\" for the photo crop; the renderer raises the scrim until the text passes WCAG AA over any photo, so pick a scrim colour from the palette; an offer_card child floats over the photo at its own anchor on wide screens and flows below the copy on phones). " +
   "scroll_chapters (2-8 scene children shown as consecutive full-screen chapters with scroll-driven transitions and a chapter rail; without JavaScript or for reduced motion they are simply stacked scenes). " +
   "scrub_sequence (a pinned full-viewport sequence of 2-6 media frames of ONE subject, in scroll order, that wipes from frame to frame as the visitor scrolls — a camera move, a change of light, or frames the owner actually photographed; generated frames are atmosphere only and must never be shown as proof of a result; the other children are the overlay copy: one short display heading using style.uppercase, style.letterSpacing around 0.08-0.18 and a large style.size, one line of body and one button; text is an optional scroll prompt such as \"Scroll\"; each frame's own text is its short chapter label (max 30 characters, e.g. \"Driveway\", \"Roof soft wash\", \"House wash\" — the stages of the real service story) and, once the frames are labelled, a progress ring in the corner reads the percent scrolled with \"2/3 · label\"; optional scrim works like a scene; without JavaScript or for reduced motion the last frame and the copy are one still; use at most once per page, never inside scroll_chapters, and never as a before/after of work the owner did not photograph). " +
@@ -240,6 +241,15 @@ export type CompositionNode = {
   tabs?: CompositionTab[];
   primaryCta?: CompositionCta;
   secondaryCta?: CompositionCta;
+  /** mobile_sticky_bar only: a third action (e.g. Directions). */
+  tertiaryCta?: CompositionCta;
+  /**
+   * mobile_sticky_bar only. "split" (default): side-by-side buttons. "tabs": a
+   * full-width icon tab bar, secondary | primary (highlighted) | tertiary.
+   */
+  barLayout?: "split" | "tabs";
+  /** heading only: a second line drawn in the accent colour (two-tone headline). */
+  accentText?: string;
   /** scene: where its copy slot sits; offer_card: where it floats over its scene. */
   anchor?: SceneAnchor;
   /** scene only. */
@@ -982,6 +992,26 @@ export function validateComposition(input: unknown, options: ValidateOptions = {
     if (row["secondaryCta"] != null) {
       const cta = checkCta(row["secondaryCta"], `${path}.secondaryCta`);
       if (cta) node.secondaryCta = cta;
+    }
+    if (row["tertiaryCta"] != null) {
+      if (node.type !== "mobile_sticky_bar") issues.push({ path: `${path}.tertiaryCta`, problem: "tertiaryCta only applies to mobile_sticky_bar" });
+      else {
+        const cta = checkCta(row["tertiaryCta"], `${path}.tertiaryCta`);
+        if (cta) node.tertiaryCta = cta;
+      }
+    }
+    if (row["barLayout"] != null) {
+      if (node.type !== "mobile_sticky_bar") issues.push({ path: `${path}.barLayout`, problem: "barLayout only applies to mobile_sticky_bar" });
+      else if (row["barLayout"] !== "split" && row["barLayout"] !== "tabs") issues.push({ path: `${path}.barLayout`, problem: 'barLayout must be "split" or "tabs"' });
+      else node.barLayout = row["barLayout"];
+    }
+    if (row["accentText"] != null) {
+      if (node.type !== "heading") issues.push({ path: `${path}.accentText`, problem: "accentText only applies to heading" });
+      else {
+        const accent = checkText(row["accentText"], `${path}.accentText`, issues, options.screenText);
+        if (accent && accent.length > 120) issues.push({ path: `${path}.accentText`, problem: "accentText must be 120 characters or fewer" });
+        else if (accent) node.accentText = accent;
+      }
     }
 
     if (node.type === "before_after_slider" && (!node.beforeImage || !node.afterImage))
