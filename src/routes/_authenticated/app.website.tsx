@@ -75,6 +75,7 @@ import { friendlyError } from "@/lib/user-error";
 import type { BuilderAccessUiState } from "@/lib/builder-access-status";
 import { PreFlightPanel } from "@/components/app/PreFlight";
 import { preflight } from "@/lib/preflight";
+import { emittedJsonLd } from "@/lib/builder/jsonld-emitted";
 import { usePreflightFacts } from "@/lib/preflight.hooks";
 import { useSelfHeal } from "@/lib/self-heal.hooks";
 import { ClientOnboardingFlow } from "@/components/app/ClientOnboardingFlow";
@@ -502,6 +503,47 @@ function WebsitePage() {
 
   // REVORA PRE-FLIGHT™ — real pre-publish verification over the live workspace.
   const domainVerified = ["connected", "ssl_active"].includes(settings?.domain_status ?? "");
+  // The structured data this site would publish, checked against the owner's facts and the visible FAQ.
+  const jsonLdFacts = (() => {
+    if (!org?.name || !pages?.length) return null;
+    const activeServices = (services ?? []).filter((row) => row.is_active !== false);
+    const shownSections = pages
+      .filter((page) => page.is_visible)
+      .flatMap((page) => page.sections.filter((section) => section.is_visible));
+    const profileFacts = {
+      phone: (profile?.["phone"] as string) ?? null,
+      email: (profile?.["email"] as string) ?? null,
+      address: (profile?.["address"] as string) ?? null,
+      city: (profile?.["city"] as string) ?? null,
+      state: (profile?.["state"] as string) ?? null,
+      zip: (profile?.["zip"] as string) ?? null,
+      description: (profile?.["description"] as string) ?? null,
+      service_area: (profile?.["service_area"] as string) ?? null,
+    };
+    const emitted = emittedJsonLd({
+      name: org.name,
+      // The address is not compared, so a stand-in origin is fine.
+      url: "https://site.invalid",
+      profile: profileFacts,
+      services: activeServices,
+      sections: shownSections,
+    });
+    return {
+      docs: emitted.docs,
+      business: {
+        name: org.name,
+        phone: profileFacts.phone,
+        street: profileFacts.address,
+        city: profileFacts.city,
+        state: profileFacts.state,
+        zip: profileFacts.zip,
+      },
+      serviceNames: activeServices.map((row) => row.name),
+      visibleFaqs: emitted.visibleFaqs,
+      // Revora's emitter never writes reviews or ratings; no verified-review source is read on this page.
+      verifiedReviewCount: 0,
+    };
+  })();
   const preflightResult = preflight({
     pages: pages ?? [],
     businessName: org?.name ?? null,
@@ -527,6 +569,7 @@ function WebsitePage() {
     httpsVerified: domainVerified,
     canPublish: production?.unlocked !== false,
     canPublishReason: production?.unlocked === false ? (production?.reason ?? null) : null,
+    jsonLd: jsonLdFacts,
   });
 
   // Regression watch: compare this real check against the previous one for this
