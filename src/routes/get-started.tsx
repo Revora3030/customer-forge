@@ -68,6 +68,7 @@ const EMPTY: GrowthSystemIntake = {
   fullName: "",
   businessName: "",
   email: "",
+  businessEmail: "",
   phone: "",
   website: "",
   businessType: "",
@@ -380,6 +381,7 @@ function GetStarted() {
         name: intake.businessName.trim() || "My business",
         industry: intake.businessType.trim() || null,
         email: intake.email.trim() || null,
+        businessEmail: intake.businessEmail?.trim() || null,
         phone: intake.phone.trim() || null,
         city: intake.city.trim() || null,
         state: intake.state.trim() || null,
@@ -722,6 +724,19 @@ function GetStarted() {
                 <div className="mt-3 grid gap-4 sm:grid-cols-2">
                   <Field label="Full name" value={intake.fullName} onChange={set("fullName")} autoComplete="name" required />
                   <Field label="Email" type="email" value={intake.email} onChange={set("email")} autoComplete="email" required />
+                  <div className="sm:col-span-2">
+                    <Field
+                      label="Business email shown on your site"
+                      type="email"
+                      value={intake.businessEmail ?? ""}
+                      onChange={set("businessEmail")}
+                      autoComplete="off"
+                      placeholder="hello@yourbusiness.com (optional)"
+                    />
+                    <p className="mt-1 text-[12px] text-muted-foreground">
+                      Optional. Visitors see this address on your website. Leave it empty to use your account email above.
+                    </p>
+                  </div>
                   <Field label="Phone number" type="tel" value={intake.phone} onChange={set("phone")} autoComplete="tel" required />
                   <Field label="State" value={intake.state} onChange={set("state")} autoComplete="address-level1" required />
                   <div className="sm:col-span-2">

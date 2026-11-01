@@ -29,6 +29,7 @@ import {
 import { useExperiment } from "@/lib/experiments.hooks";
 import { trackConversion } from "@/lib/conversion";
 import { LocalPriceEstimate } from "@/components/marketing/LocalPriceEstimate";
+import { WhatRevoraReplaces } from "@/components/marketing/WhatRevoraReplaces";
 
 export const Route = createFileRoute("/pricing")({
   // On a client's own web address this path is THEIR page, not Revora's.
@@ -219,6 +220,7 @@ function Pricing() {
         </section>
 
         <ValueSplit />
+        <WhatRevoraReplaces className="mt-16" />
         <WhyRevora />
         <AfterYouStart />
 

@@ -1,3 +1,4 @@
+import { isEmailShape, publicContactEmail } from "@/lib/business-email";
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { StripeEnv } from "@/lib/stripe.server";
@@ -14,6 +15,8 @@ export type GrowthSystemIntake = {
   fullName: string;
   businessName: string;
   email: string;
+  /** Optional: the email shown publicly on the website. Empty means use `email`. */
+  businessEmail?: string;
   phone: string;
   website?: string;
   businessType: string;
@@ -44,6 +47,7 @@ export const createGrowthSystemCheckout = createServerFn({ method: "POST" })
         fullName: cleanText(raw.fullName, 120),
         businessName: cleanText(raw.businessName, 120),
         email: cleanText(raw.email, 160).toLowerCase(),
+        businessEmail: cleanText(raw.businessEmail, 160).toLowerCase(),
         phone: cleanText(raw.phone, 40),
         website: cleanText(raw.website, 200),
         businessType: cleanText(raw.businessType, 80),
@@ -55,6 +59,8 @@ export const createGrowthSystemCheckout = createServerFn({ method: "POST" })
         throw new Error("Add your name and business name");
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(intake.email))
         throw new Error("Add a valid email address");
+      if (intake.businessEmail && !isEmailShape(intake.businessEmail))
+        throw new Error("The business email shown on your site doesn't look right. Fix it or leave it empty");
       if (intake.phone.replace(/\D/g, "").length < 10) throw new Error("Add a valid phone number");
       if (!intake.businessType) throw new Error("Add your business type");
       if (!intake.city || !intake.state) throw new Error("Add your city and state");
@@ -127,13 +133,16 @@ export const createGrowthSystemCheckout = createServerFn({ method: "POST" })
       .eq("id", data.organizationId);
     const { data: profile } = await context.supabase
       .from("business_profiles")
-      .select("id")
+      .select("id, notification_email")
       .eq("organization_id", data.organizationId)
       .maybeSingle();
+    const publicEmail = publicContactEmail(intake.businessEmail, intake.email) ?? intake.email;
     const profileFields = {
       owner_name: intake.fullName,
       owner_email: intake.email,
-      email: intake.email,
+      email: publicEmail,
+      // Lead alerts keep going to the sign-in address unless the owner chose another.
+      ...(publicEmail !== intake.email && !profile?.notification_email ? { notification_email: intake.email } : {}),
       phone: intake.phone,
       ...(intake.website ? { website: intake.website } : {}),
       city: intake.city,

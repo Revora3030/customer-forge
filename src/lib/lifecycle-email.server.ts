@@ -27,6 +27,7 @@ import { FULL_ACCESS_TRIAL_DAYS } from "@/lib/offer";
 import { sendTemplateEmail } from "@/lib/email-templates/send-email";
 import { EmailAPIError } from "@lovable.dev/email-js";
 import { isPlatformOwnerOrg } from "@/lib/platform-owner";
+import { TEST_LEAD_SOURCE } from "@/lib/test-lead";
 
 type Db = {
   from: SupabaseClient["from"];
@@ -184,7 +185,10 @@ export async function planLifecycleEmails(db: Db, limit = 500): Promise<Lifecycl
     selectIn(db, "quote_forms", "organization_id, is_active", "organization_id", ids),
     selectIn(db, "automations", "organization_id, is_active", "organization_id", ids),
     selectIn(db, "reviews", "organization_id", "organization_id", ids),
-    selectIn(db, "leads", "organization_id, status, created_at", "organization_id", ids),
+    // A test lead the owner sent themselves is not a real lead or activity.
+    selectIn(db, "leads", "organization_id, status, created_at", "organization_id", ids, (q) =>
+      q.neq("source", TEST_LEAD_SOURCE),
+    ),
     selectIn(db, "appointments", "organization_id, id, name, starts_at, status, created_at", "organization_id", ids, (q) =>
       q.gte("created_at", new Date(Date.now() - 2 * DAY).toISOString()),
     ),
