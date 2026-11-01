@@ -207,8 +207,8 @@ const STAY_REASONS = [
   },
   {
     icon: Repeat,
-    title: "Follow-up never stops",
-    body: "Automations chase quiet leads, confirm bookings and ask for reviews while you're on the job — every day, without you remembering.",
+    title: "Follow-up runs on a schedule",
+    body: "Automations chase quiet leads, confirm bookings and ask for reviews while you're on the job — on a schedule, without you remembering.",
   },
   {
     icon: LineChart,
