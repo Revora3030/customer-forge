@@ -105,6 +105,8 @@ type BuilderPreviewProps = {
   onPageChange?: (page: { id: string; title: string; slug: string } | null) => void;
   /** Scroll a section into view and outline it ("Show in preview" from the chat). A new nonce asks again. */
   reveal?: { id: string; nonce: number } | null;
+  /** Bumped by the composer's crosshair: turns "pick a part of the page" on. */
+  pickRequest?: number;
   /** Owners and managers get the phone-only hide/reorder controls; others just preview. */
   canManage?: boolean;
 };
@@ -136,6 +138,7 @@ function BuilderPreviewFrame({
   livePublished = true,
   onPageChange,
   reveal = null,
+  pickRequest = 0,
   canManage = false,
 }: Omit<BuilderPreviewProps, "firstRun">) {
   const ordered = useMemo(() => [...pages].sort((a, b) => a.sort_order - b.sort_order), [pages]);
@@ -155,6 +158,9 @@ function BuilderPreviewFrame({
   const [refreshKey, setRefreshKey] = useState(0);
   const [fullscreen, setFullscreen] = useState(false);
   const [selectMode, setSelectMode] = useState(false);
+  useEffect(() => {
+    if (pickRequest > 0) setSelectMode(true);
+  }, [pickRequest]);
   // Quick edit: one click on a headline or paragraph edits the words in place.
   const [quickEdit, setQuickEdit] = useState(false);
   // Compare: the published site (what visitors see now) next to the draft

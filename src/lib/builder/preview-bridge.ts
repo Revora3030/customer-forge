@@ -313,3 +313,14 @@ export function pageContextPrefix(page: PageContext | null | undefined): string 
   const path = page.slug === "home" || page.slug === "" ? "/" : `/${page.slug}`;
   return `(The owner has the "${title}" page, ${path}, open in the preview. Treat that as context, not a limit.)`;
 }
+
+/** The composer's "@Section" chip text: the block's name, plus the element when one was picked. */
+export function selectionChipLabel(selection: {
+  label: string | null;
+  kind: string | null;
+  element?: string | null | undefined;
+}): string {
+  const name = (selection.label ?? selection.kind ?? "Section").trim() || "Section";
+  const element = selection.element?.replace(/_/g, " ").trim();
+  return element ? `${name} · ${element}` : name;
+}

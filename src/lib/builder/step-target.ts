@@ -47,3 +47,20 @@ export function sectionOfTarget(
 export function pageOfSection(pages: readonly { id: string; sections: readonly { id: string }[] }[], sectionId: string): string | null {
   return pages.find((page) => page.sections.some((section) => section.id === sectionId))?.id ?? null;
 }
+
+/**
+ * The section to scroll to and pulse once a request has landed: the first applied
+ * step that points at a real section, else the block the owner had tagged.
+ */
+export function changedSectionOf(
+  steps: readonly { included?: boolean; target?: StepTarget | null }[] | null | undefined,
+  pages: Parameters<typeof sectionOfTarget>[1],
+  taggedId: string | null,
+): string | null {
+  for (const step of steps ?? []) {
+    if (step.included === false) continue;
+    const id = sectionOfTarget(step.target ?? null, pages);
+    if (id) return id;
+  }
+  return taggedId;
+}
