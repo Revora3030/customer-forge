@@ -10,6 +10,7 @@
  * Blockers stop a publish. Warnings never do — they are real improvements.
  */
 
+import { securityCheck, type SecurityCheck } from "@/lib/preflight-security";
 import { safeLinkUrl, type ContentPage } from "@/lib/website-content";
 
 export type PreflightSeverity = "blocker" | "warning";
@@ -83,6 +84,8 @@ export type PreflightInput = {
   /** Whether billing/access currently allows publishing. */
   canPublish: boolean;
   canPublishReason?: string | null;
+  /** Response headers of the served page when they were read; omit when unknown (never guessed). */
+  servedHeaders?: Record<string, string> | null | undefined;
 };
 
 const GROUP_META: Record<PreflightGroupKey, { label: string; purpose: string }> = {
@@ -221,6 +224,8 @@ export type PreflightResult = {
   summary: string;
   /** The single most valuable next step, when something is outstanding. */
   nextStep: PreflightCheck | null;
+  /** The publish-time security check: "Security check: passed" / "N things to fix" (COMP-5 + LOV-10). */
+  securityCheck: SecurityCheck;
 };
 
 export function preflight(input: PreflightInput): PreflightResult {
@@ -247,6 +252,16 @@ export function preflight(input: PreflightInput): PreflightResult {
   const longText = input.pages.flatMap((p) =>
     p.sections.filter((s) => (s.body ?? "").length > 1400),
   );
+
+  const security = securityCheck(input.pages, {
+    publicHost: input.publicHost,
+    servedHeaders: input.servedHeaders ?? null,
+  });
+  const itemsOf = (severity: "blocker" | "warning") => security.items.filter((i) => i.severity === severity);
+  const listItems = (list: SecurityCheck["items"]) =>
+    list.slice(0, 3).map((i) => i.plainReason).join(" ") + (list.length > 3 ? ` And ${list.length - 3} more.` : "");
+  const securityBlockers = itemsOf("blocker");
+  const securityWarnings = itemsOf("warning");
 
   const groups: PreflightGroup[] = [];
   const add = (key: PreflightGroupKey, checks: PreflightCheck[]) => {
@@ -575,6 +590,28 @@ export function preflight(input: PreflightInput): PreflightResult {
       "/app/website",
       true,
     ),
+    decide(
+      securityBlockers.length === 0,
+      "exposed-keys",
+      "No exposed keys or insecure files",
+      "No secret keys, passwords or insecure (http://) files were found in your pages.",
+      listItems(securityBlockers),
+      "Delete it from that block. If it is a key, also replace it with a new one from the service that issued it, because anyone who saw this page could have copied it. Switch any http:// file to https://.",
+      "blocker",
+      "/app/website",
+    ),
+    decide(
+      securityWarnings.length === 0,
+      "risky-code",
+      "No risky scripts, off-site forms or unsafe settings",
+      security.headersChecked
+        ? "No pasted scripts, off-site forms or unknown embeds were found, and your live page sends its safety settings."
+        : "No pasted scripts, off-site forms or unknown embeds were found. Your live page's safety settings are checked once it is published.",
+      listItems(securityWarnings),
+      "Remove it, or use a Revora form or one of the supported embeds (maps, booking, video).",
+      "warning",
+      "/app/website",
+    ),
   ]);
 
   add("domain", [
@@ -643,6 +680,7 @@ export function preflight(input: PreflightInput): PreflightResult {
     publishSafe: blockers.length === 0,
     summary,
     nextStep: blockers[0] ?? warnings[0] ?? null,
+    securityCheck: security,
   };
 }
 
