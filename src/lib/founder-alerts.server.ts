@@ -24,7 +24,8 @@ export type FounderAlertKind =
   | "payment_needs_review"
   | "build_completed"
   | "build_failed"
-  | "ai_budget_reached";
+  | "ai_budget_reached"
+  | "ai_budget_ledger_unavailable";
 
 export type FounderAlert = {
   kind: FounderAlertKind;
@@ -77,7 +78,8 @@ export async function sendFounderAlert(db: Db, alert: FounderAlert): Promise<Fou
       entity_id: alert.marker,
       metadata: { kind: alert.kind },
     });
-    if (claimError) throw new Error(`founder alert marker could not be saved: ${claimError.message}`);
+    if (claimError)
+      throw new Error(`founder alert marker could not be saved: ${claimError.message}`);
     try {
       await sendTemplateEmail("founder-alert", "", {
         templateData: {
@@ -92,7 +94,11 @@ export async function sendFounderAlert(db: Db, alert: FounderAlert): Promise<Fou
       // Release the claim so the next sweep retries; the idempotency key keeps
       // a send that actually went out from arriving twice.
       try {
-        await db.from("audit_logs").delete().eq("entity", FOUNDER_ALERT_ENTITY).eq("entity_id", alert.marker);
+        await db
+          .from("audit_logs")
+          .delete()
+          .eq("entity", FOUNDER_ALERT_ENTITY)
+          .eq("entity_id", alert.marker);
       } catch {
         /* the alert stays marked; logged below */
       }
