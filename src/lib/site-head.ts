@@ -20,6 +20,7 @@ import { compositionFonts, siteFontsHref } from "@/lib/site-theme";
 import { siteFontFor } from "@/lib/site-font-pairings";
 import { faqPageSchema, metaDescription, metaTitle } from "@/lib/seo";
 import { compositionFaqItems } from "@/lib/builder/composition-faq";
+import { faqFactsFor } from "@/lib/builder/faq-from-facts";
 import { pageNavLabel } from "@/lib/website-content";
 import { playbookFor } from "@/lib/builder/industry-playbook";
 import { scrubPlaceholderText } from "@/lib/builder/placeholder-contact";
@@ -44,7 +45,7 @@ type Profile = {
 } | null | undefined;
 
 type Review = { rating?: number | null; author_name?: string | null; comment?: string | null; created_at?: string | null };
-type Service = { name?: string | null; description?: string | null; price?: number | string | null; starting_price?: number | string | null };
+type Service = { name?: string | null; description?: string | null; price?: number | string | null; starting_price?: number | string | null; bookable?: boolean | null };
 
 const DAY_SCHEMA: Record<string, string> = {
   mon: "Monday", monday: "Monday",
@@ -561,6 +562,8 @@ export type TenantHeadSite = {
   org: { id?: string | null; slug?: string | null; name: string; industry?: string | null };
   /** Demo workspace (organizations.is_demo): sample data, never real business facts. */
   isDemo?: boolean | null;
+  /** The site's quote form, when it has one (an FAQ may then point to it). */
+  quote?: unknown;
   social?: Social;
   profile?: (Profile & { font_preference?: string | null }) | null;
   settings?: { generation?: unknown; seo?: unknown } | null;
@@ -648,10 +651,14 @@ export function tenantSiteHead(input: {
   const placeholder = isNonIndexableSite({ isDemo: site.isDemo, slug: site.org.slug, profile: site.profile });
   const noindex = input.noindex === true || page?.noindex === true || emptyHome || placeholder;
   const emitSchema = !placeholder && !emptyHome;
-  // FAQ answers are owner/AI prose: a placeholder phone or email never reaches structured data,
-  // and an entry that would end up empty is dropped rather than advertised.
+  // FAQ answers are grounded in the business facts exactly as the published page shows them
+  // (faq-from-facts.ts); a placeholder phone or email never reaches structured data, and an
+  // entry that would end up empty is dropped rather than advertised.
   const faqs = emitSchema
-    ? compositionFaqItems(sections ?? [])
+    ? compositionFaqItems(
+        sections ?? [],
+        faqFactsFor({ profile: site.profile, businessName: name, services: site.services ?? [], quote: Boolean(site.quote), generation: site.settings?.generation }),
+      )
         .map((item) => ({ q: scrubPlaceholderText(item.q), a: scrubPlaceholderText(item.a) }))
         .filter((item) => item.q.trim() && item.a.trim())
     : [];

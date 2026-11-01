@@ -10,23 +10,34 @@
  * pictures (never with invented or borrowed ones), and a durable follow-up
  * repair is recorded so the gap is fixed afterwards instead of silently kept.
  *
- * What does NOT degrade: the creative direction, the wording, the page plan
- * and the REQUIRED section layouts. Those stay "designed by the AI team, never
- * a default". The $6 per-build spend cap (build-spend.ts) is untouched.
+ * Owner decision 2026-11-01: when the AI team is out of capacity or credits
+ * after every retry, REQUIRED section layouts and the required website wording
+ * also degrade, to a facts-only fallback built from the business's saved
+ * material (fallback-sections.ts, copy-scaffold.ts). The site is flagged with
+ * a pending "layout_upgrade" / "copy_upgrade" follow-up. Follow-ups are never
+ * run automatically: an upgrade spends AI credits and needs the owner's OK.
+ *
+ * What does NOT degrade: the creative direction, the page plan and the
+ * business analysis, and any layout or wording the AI answered but that
+ * failed the validator (that is not capacity). The $6 per-build spend cap
+ * (build-spend.ts) is untouched.
  *
  * Pure: no network, so the worker, the repair loop and the tests share it.
  */
 import { firstBuildPictureGap } from "@/lib/builder/first-build-picture-gate";
 import { normaliseSlot } from "@/lib/builder/image-records";
 
-export type DegradedStepKind = "pictures" | "layout_polish";
+export type DegradedStepKind = "pictures" | "layout_polish" | "layout_upgrade" | "copy_upgrade";
 
 export type FollowUpRepair = {
   kind: DegradedStepKind;
   status: "pending";
   /** Plain-language reason, safe to show the owner. */
   reason: string;
-  /** Picture slots (pictures) or page count (layout_polish) the repair covers. */
+  /**
+   * Picture slots (pictures), section ids (layout_upgrade), wording fields
+   * (copy_upgrade) or nothing (layout_polish) the repair covers.
+   */
   slots: string[];
   recordedAt: string;
 };
@@ -112,6 +123,48 @@ export function degradeLayoutPolish(input: { optionalSkipped: number; optionalFa
   return {
     followUp: { kind: "layout_polish", status: "pending", reason, slots: [], recordedAt: (input.now ?? new Date()).toISOString() },
     attention: "Design polish: some pages are saved without the optional polish round. Ask Revora to improve the design to run it.",
+  };
+}
+
+/**
+ * Sections saved with a facts-only fallback layout because the AI design team
+ * was at capacity. Queued for an AI upgrade that waits for the owner's OK.
+ */
+export function degradeLayoutFallback(input: { sections: readonly string[]; now?: Date }): {
+  followUp: FollowUpRepair;
+  attention: string;
+} | null {
+  const sections = [...new Set(input.sections.filter((id) => typeof id === "string" && id))];
+  if (!sections.length) return null;
+  const count = sections.length;
+  return {
+    followUp: {
+      kind: "layout_upgrade",
+      status: "pending",
+      reason: `${count} section${count === 1 ? " uses" : "s use"} a basic layout built from your saved details because the AI design team was at capacity. Nothing was made up. An AI design upgrade is queued and runs only when you approve it.`,
+      slots: sections,
+      recordedAt: (input.now ?? new Date()).toISOString(),
+    },
+    attention: `Basic layout: ${count} section${count === 1 ? " was" : "s were"} laid out from your saved details while the AI design team was busy. Approve the AI upgrade when you're ready; it uses AI credits.`,
+  };
+}
+
+/** Required wording filled from the owner's facts because the AI wording step was at capacity. */
+export function degradeCopyScaffold(input: { fields: readonly string[]; now?: Date }): {
+  followUp: FollowUpRepair;
+  attention: string;
+} | null {
+  const fields = [...new Set(input.fields.filter((field) => typeof field === "string" && field))];
+  if (!fields.length) return null;
+  return {
+    followUp: {
+      kind: "copy_upgrade",
+      status: "pending",
+      reason: "Some headline and search wording was filled in from your saved details because the AI writing team was at capacity. An AI wording upgrade is queued and runs only when you approve it.",
+      slots: fields,
+      recordedAt: (input.now ?? new Date()).toISOString(),
+    },
+    attention: "Basic wording: the headline and search text use your business name and saved details for now. Approve the AI wording upgrade when you're ready; it uses AI credits.",
   };
 }
 

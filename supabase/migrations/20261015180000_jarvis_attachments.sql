@@ -2,6 +2,44 @@
 -- Every table and function below is service-role only; browser roles have no direct access.
 -- Apply through the reviewed Supabase migration workflow. Video and PDF are intentionally unsupported here.
 
+-- Fresh-database guard: public.jarvis_conversations and public.jarvis_messages
+-- were created on the live database outside this migrations folder (they are
+-- in the generated types, but no migration creates them), so a database built
+-- from migrations failed below with 42P01. Create the same shape ONLY when the
+-- tables are absent; on the live database this block does nothing.
+DO $guard$
+BEGIN
+  IF to_regclass('public.jarvis_conversations') IS NULL THEN
+    CREATE TABLE public.jarvis_conversations (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+      title text NOT NULL DEFAULT '',
+      archived boolean NOT NULL DEFAULT false,
+      created_at timestamptz NOT NULL DEFAULT now(),
+      updated_at timestamptz NOT NULL DEFAULT now()
+    );
+    ALTER TABLE public.jarvis_conversations ENABLE ROW LEVEL SECURITY;
+    REVOKE ALL ON public.jarvis_conversations FROM anon, authenticated;
+    GRANT ALL ON public.jarvis_conversations TO service_role;
+  END IF;
+  IF to_regclass('public.jarvis_messages') IS NULL THEN
+    CREATE TABLE public.jarvis_messages (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id uuid NOT NULL DEFAULT auth.uid() REFERENCES auth.users(id) ON DELETE CASCADE,
+      conversation_id uuid REFERENCES public.jarvis_conversations(id) ON DELETE CASCADE,
+      run_id uuid,
+      role text NOT NULL,
+      content text NOT NULL,
+      created_at timestamptz NOT NULL DEFAULT now()
+    );
+    ALTER TABLE public.jarvis_messages ENABLE ROW LEVEL SECURITY;
+    REVOKE ALL ON public.jarvis_messages FROM anon, authenticated;
+    GRANT ALL ON public.jarvis_messages TO service_role;
+  END IF;
+END
+$guard$;
+
+
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values (
   'jarvis-attachments', 'jarvis-attachments', false, 4194304,
