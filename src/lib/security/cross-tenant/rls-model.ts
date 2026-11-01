@@ -561,7 +561,10 @@ function applyStatement(model: RlsModel, raw: string, file: string): void {
     for (const r of roles) {
       const byPriv = t.columnGrants.get(r) ?? new Map<string, Set<string>>();
       const set = byPriv.get(priv) ?? new Set<string>();
-      for (const c of cols) grant ? set.add(c) : set.delete(c);
+      for (const c of cols) {
+        if (grant) set.add(c);
+        else set.delete(c);
+      }
       byPriv.set(priv, set);
       t.columnGrants.set(r, byPriv);
     }
