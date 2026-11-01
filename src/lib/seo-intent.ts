@@ -20,6 +20,7 @@ import { GUIDES } from "@/lib/guides";
 import { COMPARISONS } from "@/lib/compare";
 import { CRM_SOLUTIONS } from "@/lib/crm-solutions";
 import { MARKETING_SEARCH } from "@/lib/marketing-seo";
+import { sitemapLastmodFor } from "@/lib/sitemap-lastmod";
 
 export type SearchIntent =
   | "commercial"
@@ -405,8 +406,8 @@ export function seoInventory(): SeoPage[] {
 
 /**
  * Canonical, indexable, valuable URLs — exactly what belongs in the sitemap —
- * with the real last-changed date where the page has one. Pages without a
- * known date carry `lastmod: null`, and the sitemap leaves the tag out.
+ * each with a real last-changed date: the guide's own `updated` field, else
+ * the git date of the files that render the page (sitemap-lastmod.ts).
  */
 export function indexablePlatformEntries(): { path: string; lastmod: string | null }[] {
   const seen = new Set<string>();
@@ -416,7 +417,7 @@ export function indexablePlatformEntries(): { path: string; lastmod: string | nu
     const path = p.path === "/" ? "" : p.path;
     if (seen.has(path)) continue;
     seen.add(path);
-    entries.push({ path, lastmod: p.lastmod ?? null });
+    entries.push({ path, lastmod: p.lastmod ?? sitemapLastmodFor(p.path) });
   }
   return entries;
 }

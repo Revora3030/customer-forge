@@ -89,7 +89,7 @@ describe("funnel paid stage", () => {
 describe("client detail", () => {
   it("reads every lead and booking for the client", () => {
     const detail = slice("export const getClientDetail", "\nexport const");
-    expect(detail).toContain('supabaseAdmin.from("leads").select("id, status, created_at").eq("organization_id", id).order("id").range(from, to)');
+    expect(detail).toContain('.eq("organization_id", id)\n          .neq("source", TEST_LEAD_SOURCE)\n          .order("id")');
     expect(detail).not.toContain(".limit(5000)");
   });
 });
@@ -109,7 +109,7 @@ describe("client list database counts", () => {
   it("uses the grouped function and falls back to reading tables when it is missing", () => {
     expect(clients).toContain('.rpc("admin_client_counts")');
     expect(clients).toContain("useDbCounts");
-    expect(clients).toContain('all<{ organization_id: string }>("leads", "organization_id")');
+    expect(clients).toContain('all<{ organization_id: string }>("leads", "organization_id", (q) => q.neq("source", TEST_LEAD_SOURCE))');
   });
 
   it("migration is additive, invoker-only and service-role-only", () => {
@@ -119,5 +119,39 @@ describe("client list database counts", () => {
     expect(migration).toContain("TO service_role");
     expect(migration).not.toMatch(/\b(DROP|ALTER|DELETE|UPDATE|TRUNCATE|INSERT)\b\s/i);
     expect(migration).not.toMatch(/SECURITY DEFINER/i);
+  });
+});
+
+describe("test leads stay out of admin numbers", () => {
+  const pieces: [string, string][] = [
+    ["platform metrics 30-day leads", slice("export const getPlatformMetrics", "\nexport const")],
+    ["client list fallback", slice("export const listClients", "export const getClientDetail")],
+    ["client detail", slice("export const getClientDetail", "\nexport const")],
+    ["activity feed", slice("export const getPlatformActivity", "\nexport const")],
+  ];
+  it.each(pieces)("%s excludes source test_lead", (_name, code) => {
+    expect(code).toContain("TEST_LEAD_SOURCE");
+  });
+  it("monthly report lead read excludes test leads", () => {
+    expect(admin).toContain('.select("id, organization_id, created_at").neq("source", TEST_LEAD_SOURCE)');
+  });
+  it("every leads read in admin.functions.ts filters them (no unfiltered leads read left)", () => {
+    const reads = admin.split(/from\("leads"\)|"leads", "organization_id"|windowCount\("leads"/).slice(1);
+    expect(reads.length).toBeGreaterThanOrEqual(6);
+    for (const after of reads) expect(after.slice(0, 260)).toContain("TEST_LEAD_SOURCE");
+  });
+
+  const fix = read("supabase/migrations/20261031200000_admin_client_counts_exclude_test_leads.sql");
+  it("database function version excludes test leads, additive and service-role-only", () => {
+    expect(fix).toContain("CREATE OR REPLACE FUNCTION public.admin_client_counts()");
+    expect(fix).toContain("WHERE l.source IS DISTINCT FROM 'test_lead'");
+    expect(fix).toContain("SECURITY INVOKER");
+    expect(fix).toContain("FROM PUBLIC, anon, authenticated");
+    expect(fix).toContain("TO service_role");
+    expect(fix).not.toMatch(/\b(DROP|ALTER|DELETE|UPDATE|TRUNCATE|INSERT)\b\s/i);
+    expect(fix).not.toMatch(/SECURITY DEFINER/i);
+  });
+  it("keeps the table-read fallback for when the function is missing", () => {
+    expect(slice("export const listClients", "export const getClientDetail")).toContain("useDbCounts");
   });
 });

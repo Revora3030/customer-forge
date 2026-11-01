@@ -1,3 +1,4 @@
+import { countFooterContact } from "@/lib/builder/footer-contact-tidy";
 import { pageNavLabel } from "@/lib/website-content";
 /**
  * FIRST-BUILD CHROME. Sol designs the menu bar and footer from scratch as
@@ -34,7 +35,7 @@ const RULES = [
   "The footer must link to every listed page. Use only the supplied business facts — never invent addresses, hours, awards or claims.",
   "Text contrast at least 4.5. Match the site's look — the same typography, button shape and colour language as the page sections.",
   "Header craft: one row on desktop with the business name/wordmark on the left, page links in the middle or right, and ONE primary call-to-action button (using the supplied ctaLabel and a real page, tel: or mailto: href) styled as the strongest element; 15-16px link text; a quiet background that keeps the bar readable over any hero.",
-  "Footer craft: a deliberate multi-column layout on desktop (brand + short line from supplied facts, page links, contact details) collapsing to one column on mobile via responsive.mobile.columns:1, generous padding (48-80px), muted-but-readable text, and a final row with the business name.",
+  "Footer craft: a deliberate multi-column layout on desktop (brand + short line from supplied facts, page links, contact details) collapsing to one column on mobile via responsive.mobile.columns:1, generous padding (48-80px), muted-but-readable text, and a final row with the business name. Show the phone number and the email address exactly once each (in the contact column, never repeated in the brand column or a button), use 2-3 columns, and no spacer blocks or gaps over 40.",
   "Write each menu label yourself: 1-3 words, max 24 characters, never the business name, city or a | separator. Each page's pageTitle is context only (often a long search title), not a label.",
   "Give every row of menu links an explicit gap. Use text or a link for the wordmark, never a level-1 heading: the page owns its h1. Set the action button's type size.",
   "Also write heroVideoBrief: one vivid 1-3 sentence art-direction brief (max 600 chars) for an optional silent, looping hero background video that fits this business and look. Show only real, generic scenes of the work — no text, logos, people's faces or invented claims.",
@@ -45,6 +46,7 @@ const CHROME_FEEDBACK = {
   label: "write short menu labels (1-3 words), never the business name, city or a | separator",
   h1: "use text or a link for the wordmark; the page owns its h1",
   size: "set the action's type size",
+  repeat: "show the phone number and the email address once each in the footer; remove the repeats and any spacer blocks",
 } as const;
 
 /**
@@ -74,6 +76,10 @@ export function chromeFeedback(kind: "header" | "footer", tree: CompositionTree,
     kids.forEach((child, index) => walk(child, `${path}.children[${index}]`));
   };
   walk(tree.root, "root");
+  if (kind === "footer") {
+    const shown = countFooterContact(tree);
+    if (shown.phone > 1 || shown.email > 1) issues.push({ path: "root", problem: CHROME_FEEDBACK.repeat });
+  }
   return issues;
 }
 

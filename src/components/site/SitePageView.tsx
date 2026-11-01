@@ -46,6 +46,7 @@ import { normalizeHeadingOutline } from "@/lib/builder/heading-outline";
 import { legacySectionToComposition } from "@/lib/builder/legacy-composition";
 import { foldServicePages, knownPageSlugs, missingChromeLinks, readSiteChrome, repairSiteHref, repairStoredLinks, resolveSiteHref } from "@/lib/builder/site-chrome";
 import { scrubPlaceholderContact } from "@/lib/builder/placeholder-contact";
+import { tidyFooterContact } from "@/lib/builder/footer-contact-tidy";
 import { AiSiteHeader } from "@/components/site/AiSiteHeader";
 import { useOwnAddress, useSiteBase } from "@/components/site/use-own-address";
 
@@ -102,7 +103,7 @@ export function SitePageView({
   );
   const chrome = {
     header: rawChrome.header ? scrubPlaceholderContact(rawChrome.header, placeholderFallback) : null,
-    footer: rawChrome.footer ? scrubPlaceholderContact(rawChrome.footer, placeholderFallback) : null,
+    footer: rawChrome.footer ? tidyFooterContact(scrubPlaceholderContact(rawChrome.footer, placeholderFallback)) : null,
   };
   const chromeHref = (href: string) => resolveSiteHref(href, org.slug, ownAddress, knownPages, pageAnchors, previewBase);
   // Pages the AI menu left out are still offered, so no page is orphaned.

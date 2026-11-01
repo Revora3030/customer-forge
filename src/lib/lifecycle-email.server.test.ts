@@ -35,6 +35,7 @@ function fakeDb(tables: Record<string, Row[]>) {
       eq: (c: string, v: unknown) => (preds.push((r) => r[c] === v), chain),
       in: (c: string, v: unknown[]) => (preds.push((r) => v.includes(r[c])), chain),
       gte: (c: string, v: string) => (preds.push((r) => String(r[c]) >= v), chain),
+      neq: (c: string, v: unknown) => (preds.push((r) => r[c] !== v), chain),
       not: (c: string, _op: string, v: unknown) => (preds.push((r) => (r[c] ?? null) !== v), chain),
       update: (p: Row) => ((op = "update"), (patch = p), chain),
       delete: () => ((op = "delete"), chain),
@@ -207,5 +208,20 @@ describe("lifecycle email run", () => {
     const after = await runLifecycleEmails(db);
     expect(after.sent).toBe(0);
     expect(sendTemplateEmail).not.toHaveBeenCalled();
+  });
+
+  it("does not count a test lead as a real lead or as recent activity", async () => {
+    tables["organizations"]!.push(org("wb", { created_at: ago(10) }));
+    tables["business_profiles"]!.push(profile("wb", "wb@example.com"));
+    tables["leads"] = [
+      { organization_id: "wb", status: "new", created_at: ago(9), source: "website" },
+      { organization_id: "wb", status: "new", created_at: ago(1), source: "test_lead" },
+    ];
+    const planned = await planLifecycleEmails(fakeDb(tables));
+    const winback = planned.filter((p) => p.kind === "winback" && p.organizationId === "wb");
+    // The only recent touch was the test lead, so the workspace still counts as quiet,
+    // and the win-back email reports one real new lead, not two.
+    expect(winback).toHaveLength(1);
+    expect(winback[0]?.data["leadCount"]).toBe(1);
   });
 });

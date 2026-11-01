@@ -3,6 +3,7 @@ import type { Database } from "@/integrations/supabase/types";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { NewClientInput } from "@/lib/admin-types";
 import { fetchAllRows } from "@/lib/paginate";
+import { TEST_LEAD_SOURCE } from "@/lib/test-lead";
 import { netRevenue } from "@/lib/monthly-report";
 
 type SubscriptionStatus = Database["public"]["Enums"]["subscription_status"];
@@ -49,7 +50,13 @@ export async function computePlatformMetrics() {
           .range(from, to),
       ),
       fetchAllRows<{ organization_id: string | null }>((from, to) =>
-        supabaseAdmin.from("leads").select("organization_id").gte("created_at", since).order("id").range(from, to),
+        supabaseAdmin
+          .from("leads")
+          .select("organization_id")
+          .neq("source", TEST_LEAD_SOURCE)
+          .gte("created_at", since)
+          .order("id")
+          .range(from, to),
       ),
       fetchAllRows<{ organization_id: string | null }>((from, to) =>
         supabaseAdmin.from("appointments").select("organization_id").gte("created_at", since).order("id").range(from, to),
@@ -163,7 +170,7 @@ export const listClients = createServerFn({ method: "GET" })
         useDbCounts
           ? none
           : all<{ organization_id: string; is_active: boolean }>("quote_forms", "organization_id, is_active"),
-        useDbCounts ? none : all<{ organization_id: string }>("leads", "organization_id"),
+        useDbCounts ? none : all<{ organization_id: string }>("leads", "organization_id", (q) => q.neq("source", TEST_LEAD_SOURCE)),
         useDbCounts ? none : all<{ organization_id: string }>("appointments", "organization_id"),
         useDbCounts ? none : all<{ organization_id: string }>("analytics_events", "organization_id"),
         // Financial truth is LIVE Stripe only.
@@ -359,7 +366,13 @@ export const getClientDetail = createServerFn({ method: "GET" })
       supabaseAdmin.from("quote_forms").select("id, is_active").eq("organization_id", id),
       // Every lead and booking: a client past 1,000 must not read "1000".
       fetchAllRows<{ id: string; status: string; created_at: string }>((from, to) =>
-        supabaseAdmin.from("leads").select("id, status, created_at").eq("organization_id", id).order("id").range(from, to),
+        supabaseAdmin
+          .from("leads")
+          .select("id, status, created_at")
+          .eq("organization_id", id)
+          .neq("source", TEST_LEAD_SOURCE)
+          .order("id")
+          .range(from, to),
       ),
       fetchAllRows<{ id: string; status: string; starts_at: string }>((from, to) =>
         supabaseAdmin.from("appointments").select("id, status, starts_at").eq("organization_id", id).order("id").range(from, to),
@@ -805,7 +818,7 @@ export const getMonthlyBusinessReport = createServerFn({ method: "GET" })
             .or(`created_at.gte.${since},completed_at.gte.${since}`),
       ),
       page<{ organization_id: string | null; created_at: string }>(() =>
-        supabaseAdmin.from("leads").select("id, organization_id, created_at").gte("created_at", since),
+        supabaseAdmin.from("leads").select("id, organization_id, created_at").neq("source", TEST_LEAD_SOURCE).gte("created_at", since),
       ),
       page<{ organization_id: string | null; created_at: string }>(() =>
         supabaseAdmin.from("appointments").select("id, organization_id, created_at").gte("created_at", since),
@@ -962,6 +975,7 @@ export const getPlatformActivity = createServerFn({ method: "GET" })
       supabaseAdmin
         .from("leads")
         .select("id, organization_id, name, created_at")
+        .neq("source", TEST_LEAD_SOURCE)
         .gte("created_at", since)
         .order("created_at", { ascending: false })
         .limit(cap),
@@ -1028,7 +1042,7 @@ export const getPlatformActivity = createServerFn({ method: "GET" })
       return extra ? extra(query) : query;
     };
     const [leadTotal, bookingTotal, paymentTotal, versionTotal, signupTotal] = await Promise.all([
-      windowCount("leads"),
+      windowCount("leads", (q) => q.neq("source", TEST_LEAD_SOURCE)),
       windowCount("appointments"),
       windowCount("payments", (q) => q.eq("status", "completed").eq("environment", "live")),
       windowCount("website_versions"),
