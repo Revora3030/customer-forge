@@ -8,6 +8,6 @@ export default defineConfig({
   plugins: [react()],
   resolve: { alias: { "@": path.resolve(__dirname, "../../src") } },
   build: { outDir: path.resolve(__dirname, "dist"), emptyOutDir: true },
-  server: { port: 4517, strictPort: true, host: "127.0.0.1" },
-  preview: { port: 4518, strictPort: true, host: "127.0.0.1" },
+  server: { port: 4517, strictPort: true, host: "127.0.0.1" }, // DevSkim: ignore DS162092 -- local-only harness dev server, never shipped.
+  preview: { port: 4518, strictPort: true, host: "127.0.0.1" }, // DevSkim: ignore DS162092 -- local-only harness preview server, never shipped.
 });

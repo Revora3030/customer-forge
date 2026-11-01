@@ -55,6 +55,7 @@ import { tidyContactSections, tidyFooterContact } from "@/lib/builder/footer-con
 import { AiSiteHeader } from "@/components/site/AiSiteHeader";
 import { PremiumSitePage } from "@/components/site/premium/PremiumSitePage";
 import { readPremiumTemplate } from "@/lib/builder/premium-mobile-template";
+import { ClientPrivacyLink } from "@/components/site/ClientPrivacyNotice";
 import { useOwnAddress, useSiteBase } from "@/components/site/use-own-address";
 
 export function SitePageView({
@@ -193,6 +194,9 @@ export function SitePageView({
         pageHasForm={pageHasWidget(sections as never, "enquiry_form")}
         footer={
           <>
+            <p className="rv-site-legal px-4 py-4 text-center text-[13px]">
+              <ClientPrivacyLink slug={org.slug} className="inline-flex min-h-11 items-center underline underline-offset-4" />
+            </p>
             <SiteVitals slug={org.slug} preview={preview} />
             {preview ? <PreviewSelectBridge /> : null}
             {preview ? <BuilderReturnBar organizationId={org.id} /> : null}
@@ -385,6 +389,10 @@ export function SitePageView({
             <CompositionRenderer as="div" scope="site-footer" tree={chrome.footer} resolveHref={chromeHref} surface={premiumSurface(profile?.secondary_color ?? null)} linkLabel={(text) => stripBusinessSuffix(text, org.name)} />
           </footer>
         ) : null}
+
+        <p className="rv-site-legal px-4 py-4 text-center text-[13px] text-muted-foreground">
+          <ClientPrivacyLink slug={org.slug} className="inline-flex min-h-11 items-center underline underline-offset-4" />
+        </p>
 
         <SiteVitals slug={org.slug} preview={preview} />
         {/* Lets the builder's preview frame pick a block by clicking it. Inert

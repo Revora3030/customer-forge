@@ -83,7 +83,7 @@ export const PRIMITIVE_GUIDE =
   "countUp:true on a heading or text whose text is one short real figure (\"500+\", \"4.9★\", \"$1,200\", \"98%\") makes it count up once as it scrolls into view — for a stats band; only figures the owner supplied, never a year or an invented number, " +
   "quote (text is the quoted words; items[0] optional attribution — only real, supplied quotes). " +
   "before_after_slider (beforeImage + afterImage, each {src or mediaRef, alt, label}, with a 0-100 split; use for genuine transformation work such as renovation, roofing or detailing; add revealMode:\"brush\" for a hands-on reveal where the visitor drags across the before picture to uncover the after, with text as its short prompt such as \"Clean this driveway\" and optional items as 1-3 tool chips the visitor switches between, widest first (e.g. \"Surface cleaner\", \"25° tip\", \"40° tip\" — each later tool paints a narrower path); a live percent and stopwatch sit over the picture; only ever with the owner's own real before and after photos). " +
-  "faq_accordion (items are question/answer pairs; defaultOpen is optional and at most the supplied FAQ content may be used). " +
+  "faq_accordion (items are question/answer pairs; defaultOpen is optional and at most the supplied FAQ content may be used; an answer may only state facts the business supplied — hours, area, contact, services and their prices, licences — never an invented price, figure, guarantee, rating or review; when the facts do not answer a question, leave its answer empty \"\" and the owner is asked to fill it). " +
   "tab_group (tabs are labelled panels; each tab owns child nodes and only the active panel is rendered). " +
   "mobile_sticky_bar (primaryCta and optional secondaryCta and tertiaryCta; conversion actions only, hidden above the mobile breakpoint; barLayout:\"tabs\" draws a full-width icon tab bar secondary | primary (highlighted) | tertiary, e.g. Call | Get quote | Directions — Call only with the real phone (tel:), Directions only with the real address (a https://www.google.com/maps/dir/?api=1&destination=… link); leave out a slot whose fact is missing). " +
   "accentText on a heading is a second line drawn in the accent colour for a bold two-tone headline (e.g. text \"Your home.\" + accentText \"Our craft.\"); only the same supplied wording, split, never a new claim. " +
@@ -936,11 +936,17 @@ export function validateComposition(input: unknown, options: ValidateOptions = {
           }
           const rawItem = item as Record<string, unknown>;
           const question = checkText(rawItem["question"], `${itemPath}.question`, issues, options.screenText);
-          const answer = checkText(rawItem["answer"], `${itemPath}.answer`, issues, options.screenText);
+          // An empty answer is kept (as "") rather than invented: the page fills it
+          // from the business's facts, drops it when published, or marks it for
+          // the owner in the draft preview (faq-from-facts.ts).
+          const rawAnswer = rawItem["answer"];
+          const answer = rawAnswer == null || (typeof rawAnswer === "string" && !rawAnswer.trim())
+            ? ""
+            : checkText(rawAnswer, `${itemPath}.answer`, issues, options.screenText);
           const defaultOpen = rawItem["defaultOpen"];
           if (defaultOpen != null && typeof defaultOpen !== "boolean")
             issues.push({ path: `${itemPath}.defaultOpen`, problem: "defaultOpen must be true or false" });
-          return question && answer ? { question, answer, ...(defaultOpen === true ? { defaultOpen: true } : {}) } : null;
+          return question && answer != null ? { question, answer, ...(defaultOpen === true ? { defaultOpen: true } : {}) } : null;
         }).filter((item): item is CompositionFaqItem => item != null);
       }
     }

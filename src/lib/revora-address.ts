@@ -244,8 +244,8 @@ const REVORA_ONLY_PREFIXES = [
   "/tools",
   "/website-audit",
   "/growth-assessment",
-  "/privacy",
-  "/terms",
+  // `/privacy` and `/terms` are not here: on a client's domain those routes
+  // redirect themselves (see clientDomainLegalRedirect in tenant-page-utils.ts).
 ];
 
 /** True when this path is Revora's own and must 404 on a client's domain. */
