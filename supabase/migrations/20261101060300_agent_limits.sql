@@ -61,13 +61,13 @@ GRANT ALL ON public.agent_settings, public.agent_limits, public.agent_run_admiss
 
 DROP POLICY IF EXISTS agent_settings_member_read ON public.agent_settings;
 CREATE POLICY agent_settings_member_read ON public.agent_settings
-  FOR SELECT TO authenticated USING (public.is_org_member(organization_id));
+  FOR SELECT TO authenticated USING (private.is_org_member(organization_id));
 DROP POLICY IF EXISTS agent_limits_member_read ON public.agent_limits;
 CREATE POLICY agent_limits_member_read ON public.agent_limits
-  FOR SELECT TO authenticated USING (public.is_org_member(organization_id));
+  FOR SELECT TO authenticated USING (private.is_org_member(organization_id));
 DROP POLICY IF EXISTS agent_run_admissions_member_read ON public.agent_run_admissions;
 CREATE POLICY agent_run_admissions_member_read ON public.agent_run_admissions
-  FOR SELECT TO authenticated USING (public.is_org_member(organization_id));
+  FOR SELECT TO authenticated USING (private.is_org_member(organization_id));
 
 -- Decide, atomically per workspace, whether one more run may start. A workspace
 -- advisory lock makes two simultaneous requests see each other, so the 11th run

@@ -318,7 +318,7 @@ describe("per-run budget (Luna reserveBudget)", () => {
 });
 
 describe("migration", () => {
-  const sql = readFileSync(join(process.cwd(), "supabase/migrations/20261101030000_agent_limits.sql"), "utf8")
+  const sql = readFileSync(join(process.cwd(), "supabase/migrations/20261101060300_agent_limits.sql"), "utf8")
     .split("\n")
     .filter((line) => !line.trimStart().startsWith("--"))
     .join("\n");
