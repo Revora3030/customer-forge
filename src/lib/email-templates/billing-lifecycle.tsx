@@ -29,6 +29,12 @@ interface BillingProps {
   declineReason?: string;
   /** Formatted date the public website goes offline after a cancellation (14-day grace). */
   siteOfflineDate?: string;
+  /**
+   * Welcome email payment line built from what Stripe actually charged, e.g.
+   * "$0.00 paid (promo code applied)". Omitted when unknown: the email then
+   * states no amount instead of assuming the list price.
+   */
+  setupPaidLine?: string;
 }
 
 const Shell = (props: { preview: string; heading: string; children: React.ReactNode }) => (
@@ -61,7 +67,7 @@ const WelcomeEmail = (p: BillingProps) => (
     heading={`Welcome aboard, ${p.businessName || "there"} — ${p.planName || "your plan"} is live`}
   >
     <Text style={text}>
-      <strong>${GROWTH_SYSTEM.setupPrice} setup payment received.</strong> Your {p.planName || "Revora Growth System"}{" "}
+      <strong>{p.setupPaidLine ? `${p.setupPaidLine}.` : "Your setup is confirmed."}</strong> Your {p.planName || "Revora Growth System"}{" "}
       workspace is ready — website builder, CRM, booking calendar, quote engine and automations are
       unlocked right now.
     </Text>
@@ -202,6 +208,7 @@ const data = {
   planName: "Revora Growth System",
   interval: "monthly",
   amount: "$100.00",
+  setupPaidLine: "$350.00 setup payment received",
   accessUntil: "September 28, 2026",
   chargeDate: "October 28, 2026",
   declineReason: "Your card does not support this type of purchase.",
