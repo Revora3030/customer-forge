@@ -69,6 +69,10 @@ function paidSkipReason(error: unknown): LunaSkipReason {
   const category = (error as { category?: string | null } | null)?.category ?? null;
   if (category === "unauthorized") return "unauthorized";
   if (category === "rate_limited") return "rate_limited";
+  // 402 (credits or spending cap) and timeouts used to collapse into
+  // "provider_unavailable", so nobody could tell credits from a busy gateway.
+  if (category === "quota") return "credits_exhausted";
+  if (category === "timeout") return "timeout";
   if (category === "not_configured") return "no_key";
   if (category === "bad_response" || category === "invalid_request" || category === "too_large")
     return "bad_response";

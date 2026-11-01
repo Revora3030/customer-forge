@@ -24,7 +24,7 @@ const HARD_MAX_RETRIES = 5;
 export const CRITERION_GROUP: Readonly<Record<CriterionId, "copy" | "layout">> = {
   truth_facts: "copy", anti_ai_lint: "copy",
   hero_cinematic: "layout", scroll_story: "layout", scroll_motion: "layout", signature_tool: "layout", lead_capture: "layout",
-  cta_bar: "layout", type_rules: "layout", palette_rules: "layout", images: "layout", section_rhythm: "layout", mobile_layout: "layout",
+  cta_bar: "layout", type_rules: "layout", palette_rules: "layout", images: "layout", section_rhythm: "layout", mobile_layout: "layout", mobile_390: "layout",
 };
 
 const GROUP_STEP: Record<"copy" | "layout", QualityStep> = { copy: "copy", layout: "layout" };
@@ -65,6 +65,8 @@ export type GateAttempt = {
   rawScore: number;
   passed: boolean;
   capped: VideoScore["capped"];
+  /** Hard phone-check failures that held the score under the bar (G-A5). Logged inside `failures`, so no schema change. */
+  blockers?: string[];
   failures: GateFailureRecord[];
   /** Section ids rewritten after this attempt (empty on the last one). */
   regenerated: string[];
@@ -161,7 +163,7 @@ export async function runVideoGate(input: GateInput): Promise<GateResult> {
       }
     }
     const record: GateAttempt = {
-      attempt, score: current.score.score, rawScore: current.score.rawScore, passed: current.score.passed, capped: current.score.capped,
+      attempt, score: current.score.score, rawScore: current.score.rawScore, passed: current.score.passed, capped: current.score.capped, blockers: current.score.blockers,
       failures: unmet(current.score),
       regenerated: willRetry && !error ? [...new Set(requests.flatMap((r) => r.sectionIds))] : [],
       roles: { check: checkRole, regenerate: willRetry ? requests.map((r) => r.role) : [] },

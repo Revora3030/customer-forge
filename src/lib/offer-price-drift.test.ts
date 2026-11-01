@@ -25,8 +25,8 @@ function sourceFiles(dir: string): string[] {
 const EXCLUDED = new Set([join("src", "lib", "offer.ts"), join("src", "integrations", "supabase", "types.ts")]);
 // A three-digit dollar amount followed closely by "setup", with no other
 // dollar amount in between (so "$100/month ($350 setup)" reads as $350). The
-// upper end of a range ("$300 – $800 setup", what other vendors charge in
-// ValueStack) is a comparison, not Revora's price, so it is skipped.
+// upper end of a range (a competitor price like "$300 – $800 setup" in
+// a comparison table) is a comparison, not Revora's price, so it is skipped.
 const PRICE_NEAR_SETUP = /(?<![–-]\s?)\$(\d{3})\b[^$\n]{0,24}?\bsetup\b/gi;
 
 describe("offer price text", () => {

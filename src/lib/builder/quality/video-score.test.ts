@@ -26,7 +26,7 @@ describe("video bar scorer", () => {
       expect(r.score).toBeGreaterThanOrEqual(VIDEO_BAR);
       expect(r.passed).toBe(true);
       expect(r.capped).toBeNull();
-      expect(r.criteria).toHaveLength(13);
+      expect(r.criteria).toHaveLength(14);
       expect(ownerFixList(r)).toEqual([]);
     });
 

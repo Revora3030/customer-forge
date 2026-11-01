@@ -1,3 +1,4 @@
+import { containsLeadWidget, showStyle } from "@/lib/builder/lead-form-guard";
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import type { Breakpoint, CompositionFaqItem, CompositionNode, CompositionTab, CompositionTree, MotionEasing, NodeHover, NodeMotion, NodeStyle, WidgetPresentation } from "@/lib/builder/composition-tree";
@@ -11,6 +12,8 @@ import { clampSplit, splitForKey, splitForPointer } from "@/lib/builder/compare-
 import { brushRadius, coverRect, formatElapsed, toolRadius, MAX_BRUSH_TOOLS, coveragePercent, isRevealDone, newGrid, paintAt, strokePoints, type RevealGrid } from "@/lib/builder/reveal-brush";
 import { DEFAULT_OFFER_ANCHOR, DEFAULT_SCENE_ANCHOR, sceneScrim, type SceneAnchor } from "@/lib/builder/cinematic-primitives";
 import { intrinsicSize } from "@/lib/builder/image-campaign";
+import { focalToObjectPosition, responsiveImage } from "@/lib/builder/image-framing";
+import { focalForKnownPhoto } from "@/lib/builder/trade-photo-picks";
 import { LensMagnifier, StickySplitStory, TierFader } from "@/components/site/MasterBlocks";
 import { CollectionRow, DialSelector, HeroVideo, InlineHeroVideo, SceneVideo, ScrubSequence, ScrubStage, ScrollChapters, SpinViewer, type SpinFrame } from "@/components/site/CinematicBlocks";
 import { CINEMATIC_CSS } from "@/components/site/cinematic-css";
@@ -217,6 +220,17 @@ function mediaCss(visual: PersistedComponentVisual | undefined): CSSProperties {
   return css;
 }
 
+/** Focal crop for a curated trade photo, so its subject stays in frame at any aspect. */
+function knownFocalCss(source: string | null | undefined): CSSProperties {
+  const focal = focalForKnownPhoto(source);
+  return focal ? { objectPosition: focalToObjectPosition(focal) } : {};
+}
+
+/** `sizes` hint for an inline picture: its own width when known, else the viewport. */
+function mediaSizes(visual: PersistedComponentVisual | undefined): string {
+  return visual?.width ? `(max-width: ${visual.width}px) 100vw, ${visual.width}px` : "100vw";
+}
+
 /** Panels that must fill the row. A centred parent otherwise shrinks them to their shortest label. */
 const STRETCH_PANEL = new Set<CompositionNode["type"]>([
   "accordion", "faq_accordion", "tab_group", "tabs", "toggle", "compare", "gallery", "widget",
@@ -379,6 +393,30 @@ export function readablePaint(node: Pick<CompositionNode, "type" | "style">, ctx
   return { ...(color ? { color } : {}), bg, bg2, fg: color ?? authored ?? ctx.fg };
 }
 
+const LEGIBLE_TYPES = new Set(["heading", "text", "list", "quote", "button", "link"]);
+
+/**
+ * Size and dimness floor for copy. The contrast scan reads a node's colour but
+ * not its `opacity` or a 9-11px size, so a dim, tiny caption could pass the
+ * scan and still be unreadable (audit item 3: tiny, dim text over the second
+ * photo). Over a photo scene copy is at least 14px and 90% opaque; elsewhere at
+ * least 12px and 80% opaque. Mutates `style` (the computed CSS), never the tree.
+ */
+// eslint-disable-next-line react-refresh/only-export-components -- renderer helper, exported for tests.
+export function legibleType(node: Pick<CompositionNode, "type">, style: CSSProperties, overPhoto: boolean): void {
+  if (!LEGIBLE_TYPES.has(node.type)) return;
+  const minSize = overPhoto ? 14 : 12;
+  if (typeof style.fontSize === "number" && style.fontSize < minSize) style.fontSize = minSize;
+  else if (typeof style.fontSize === "string") {
+    const size = style.fontSize;
+    const px = /^(\d+(?:\.\d+)?)px$/.exec(size);
+    const rem = /^(\d+(?:\.\d+)?)rem$/.exec(size);
+    if ((px && Number(px[1]) < minSize) || (rem && Number(rem[1]) * 16 < minSize)) style.fontSize = minSize;
+  }
+  const minOpacity = overPhoto ? 0.9 : 0.8;
+  if (typeof style.opacity === "number" && style.opacity < minOpacity) style.opacity = minOpacity;
+}
+
 /**
  * Big background areas (the section itself and full-width rows/grids/stacks)
  * get the same premium-surface correction as the page: a washed-out mid-grey
@@ -462,15 +500,22 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
   // Buttons and links are how visitors act: a design may restyle them per
   // screen size but never hide one, or a phone visitor loses the action.
   const actionable = node.type === "button" || node.type === "link";
+  // The enquiry form, booking form and quote calculator, and any container
+  // holding one, are never hidden on phones, whatever flag was stored with the
+  // layout: that is how a visitor becomes a lead.
+  const leadHolder = containsLeadWidget(node);
   for (const [bp, rawStyle] of Object.entries(node.responsive ?? {}) as [Breakpoint, NodeStyle][]) {
-    const style = actionable && rawStyle.hidden ? { ...rawStyle, hidden: false } : rawStyle;
+    const style = actionable && rawStyle.hidden ? { ...rawStyle, hidden: false } : leadHolder && bp === "mobile" ? (showStyle(rawStyle) ?? rawStyle) : rawStyle;
     const text = cssText(styleToCss(style, node.type));
     if (text) ctx.rules.push(`@media ${MEDIA[bp]}{[data-cn="${id}"]{${text}}}`);
   }
   if (node.hover) ctx.rules.push(hoverCss(id, node.hover));
   const style: CSSProperties = {
     ...baseLayout(node.type),
-    ...styleToCss(actionable && node.style?.hidden ? { ...node.style, hidden: false } : node.style, node.type),
+    ...styleToCss(
+      actionable && node.style?.hidden ? { ...node.style, hidden: false } : leadHolder ? (showStyle(node.style) ?? undefined) : node.style,
+      node.type,
+    ),
   };
   // An aspect ratio on a text-only grid or card becomes a hollow frame (two
   // short labels stacked in a tall bordered box). Pictures keep their crop.
@@ -482,6 +527,7 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
   // Text is re-paired with the surface it actually sits on, keeping its hue.
   const paint = readablePaint(node, ctx);
   if (paint.color) style.color = paint.color;
+  legibleType(node, style, Boolean(ctx.sceneScrim));
   ctx.bg = paint.bg; ctx.bg2 = paint.bg2; ctx.fg = paint.fg;
   ctx.depth = (ctx.depth ?? 0) + 1;
   const motion = premiumMotion(node, ctx);
@@ -593,7 +639,7 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
         const first = !ctx.counter.sawMedia;
         ctx.counter.sawMedia = true;
         const box = intrinsicSize(typeof style.aspectRatio === "string" ? style.aspectRatio : visual?.aspect_ratio ?? null);
-        const pictureStyle: CSSProperties = { width: "100%", height: style.aspectRatio || visual?.aspect_ratio ? "100%" : undefined, objectFit: style.objectFit ?? visual?.object_fit ?? (style.aspectRatio ? "cover" : undefined), ...mediaCss(visual), ...props.style };
+        const pictureStyle: CSSProperties = { width: "100%", height: style.aspectRatio || visual?.aspect_ratio ? "100%" : undefined, objectFit: style.objectFit ?? visual?.object_fit ?? (style.aspectRatio ? "cover" : undefined), ...knownFocalCss(source), ...mediaCss(visual), ...props.style };
         // The home page's hero loop also plays when the top section is not a
         // full-screen scene (a split hero): it takes the place of the section's
         // first large picture, which stays as its poster. Before, such a hero
@@ -601,7 +647,7 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
         const hero = first && source && !VIDEO_SOURCE.test(source) && (!visual?.width || visual.width >= 480) ? ctx.heroVideo ?? null : null;
         if (first) ctx.heroVideo = null;
         if (hero && source) return <InlineHeroVideo key={key} {...props} {...(box ? { width: box.width, height: box.height } : {})} src={hero.src} mobileSrc={hero.mobileSrc} poster={source} alt={altOf(node.alt, visual?.alt, ctx)} loopStart={hero.loopStart} loopEnd={hero.loopEnd} eager={Boolean(ctx.eagerFirstMedia)} style={{ ...pictureStyle, objectFit: pictureStyle.objectFit ?? "cover" }} />;
-        return source ? <img key={key} {...props} {...(box ? { width: box.width, height: box.height } : {})} src={source} onError={markBrokenImage} alt={altOf(node.alt, visual?.alt, ctx)} loading={first && ctx.eagerFirstMedia ? "eager" : "lazy"} decoding="async" {...(first && ctx.eagerFirstMedia ? { fetchPriority: "high" as const } : {})} style={{ width: "100%", height: style.aspectRatio || visual?.aspect_ratio ? "100%" : undefined, objectFit: style.objectFit ?? visual?.object_fit ?? (style.aspectRatio ? "cover" : undefined), ...mediaCss(visual), ...props.style }} /> : null; }
+        return source ? <img key={key} {...props} {...(box ? { width: box.width, height: box.height } : {})} {...responsiveImage(source, mediaSizes(visual))} onError={markBrokenImage} alt={altOf(node.alt, visual?.alt, ctx)} loading={first && ctx.eagerFirstMedia ? "eager" : "lazy"} decoding="async" {...(first && ctx.eagerFirstMedia ? { fetchPriority: "high" as const } : {})} style={{ width: "100%", height: style.aspectRatio || visual?.aspect_ratio ? "100%" : undefined, objectFit: style.objectFit ?? visual?.object_fit ?? (style.aspectRatio ? "cover" : undefined), ...knownFocalCss(source), ...mediaCss(visual), ...props.style }} /> : null; }
     case "widget":
       { const w = node.text ? ctx.widget(node.text, node.widgetPresentation) : null;
         return w ? <div key={key} {...props} data-widget={node.text} style={{ ...props.style, ...widgetThemeStyle(node.widgetPresentation?.theme) }}>{w}{kids}</div> : null; }
@@ -985,7 +1031,7 @@ function renderScene(node: CompositionNode, ctx: Ctx, key: string, props: NodePr
   if (source) ctx.counter.sawMedia = true;
   const eager = first && Boolean(ctx.eagerFirstMedia);
   const alt = backdrop?.alt ?? visual?.alt ?? "";
-  const objectPosition = node.focal ?? visual?.object_position ?? visual?.focal_point;
+  const objectPosition = node.focal ?? visual?.object_position ?? visual?.focal_point ?? knownFocalCss(source).objectPosition;
   const scrubbed = Boolean(node.scrub && source && VIDEO_SOURCE.test(source));
   // Quality bar #5: a picture too small to fill the screen is never stretched
   // edge to edge. It is shown sharp at no more than its own size, in a frame,
@@ -1006,7 +1052,7 @@ function renderScene(node: CompositionNode, ctx: Ctx, key: string, props: NodePr
   ) : framed ? (
     <img className="rv-scene-media" data-soft="" src={source} alt="" aria-hidden="true" loading={eager ? "eager" : "lazy"} decoding="async" />
   ) : (
-    <img className="rv-scene-media" {...(first ? { "data-kenburns": "" } : {})} src={source} alt={alt} loading={eager ? "eager" : "lazy"} decoding="async" {...(eager ? { fetchPriority: "high" as const } : {})} style={objectPosition ? { objectPosition } : undefined} />
+    <img className="rv-scene-media" {...(first ? { "data-kenburns": "" } : {})} {...responsiveImage(source, "100vw")} alt={alt} loading={eager ? "eager" : "lazy"} decoding="async" {...(eager ? { fetchPriority: "high" as const } : {})} style={objectPosition ? { objectPosition } : undefined} />
   );
   const frame = framed && source ? (
     <img className="rv-scene-frame" src={source} alt={alt} {...(visual?.width && visual.height ? { width: visual.width, height: visual.height } : {})} loading={eager ? "eager" : "lazy"} decoding="async" {...(eager ? { fetchPriority: "high" as const } : {})} style={visual?.width ? ({ "--rv-native": `${visual.width}px` } as CSSProperties) : undefined} />
