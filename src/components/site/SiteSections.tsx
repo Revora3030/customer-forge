@@ -22,6 +22,7 @@ import { bookingLinkFromHours } from "@/lib/booking-link";
 import { BookingForm, EnquiryForm, QuoteCalculator } from "@/components/site/SiteForms";
 import { DirectContact } from "@/components/site/ContactDetails";
 import { ContactMap } from "@/components/site/ContactMap";
+import { ConsentFrame } from "@/components/site/ConsentFrame";
 import { ReviewWall, ServiceMenu } from "@/components/site/LiveBlocks";
 import { ServiceEstimator } from "@/components/site/ServiceEstimator";
 import { offerFactsFor } from "@/components/site/live-blocks-utils";
@@ -29,7 +30,7 @@ import type { PublicSite } from "@/lib/public-site.functions";
 import { readCustomBlock } from "@/lib/builder/custom-block";
 import { CustomBlock } from "@/components/site/CustomBlock";
 import { safeLinkUrl, sectionLabel } from "@/lib/website-content";
-import { readEmbed } from "@/lib/site-embed";
+import { embedProviderLabel, readEmbed } from "@/lib/site-embed";
 import { businessFacts, factsAddressLine } from "@/lib/builder/facts";
 import { safeParagraph, safeText } from "@/lib/builder/presentation";
 import { addressAddsDetail, distinctServiceArea, sectionSurface, serviceAreaPhrase, siteSurface } from "@/components/site/site-sections-utils";
@@ -318,15 +319,21 @@ function SiteSectionBody({ site, section, lead = false, first = false, surface =
             className="rv-embed-frame mt-6 overflow-hidden rounded-lg border border-border bg-background"
             style={{ height: embed.height }}
           >
-            <iframe
-              src={embed.url}
-              title={embed.title}
-              loading="lazy"
-              referrerPolicy="strict-origin-when-cross-origin"
-              sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
-              allow="fullscreen; clipboard-write; payment"
-              className="size-full border-0"
-            />
+            <ConsentFrame
+              provider={embedProviderLabel(embed.url) ?? "another website"}
+              openHref={embed.url}
+              openLabel={`Open ${embed.title} in a new tab`}
+            >
+              <iframe
+                src={embed.url}
+                title={embed.title}
+                loading="lazy"
+                referrerPolicy="strict-origin-when-cross-origin"
+                sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
+                allow="fullscreen; clipboard-write; payment"
+                className="size-full border-0"
+              />
+            </ConsentFrame>
           </div>
         </Shell>
       );
