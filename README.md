@@ -1,78 +1,160 @@
-# Customer Forge
+# Revora Growth Systems
 
-**Revora Growth Systems** — AI-powered website builder platform with 12-provider free AI orchestration, multi-tenant architecture, and production-grade quality gates.
+An AI growth platform for businesses of any size, in any industry, worldwide. Each customer gets a workspace with a
+published website, a CRM for leads and quotes, bookings, reviews, analytics and billing —
+built and improved through a natural-language AI builder.
 
 ## Stack
 
-- **Framework**: TanStack Start v1, React 19
-- **Styling**: Tailwind CSS v4, shadcn/ui component library
-- **Backend**: Supabase (auth, PostgreSQL, RLS, real-time)
-- **AI**: 12-provider free model chain with live discovery, ensemble builds, and quality-first routing
-- **Payments**: Stripe (sandbox + live)
-- **CI/CD**: GitHub Actions quality/security gates, browser QA, AI authority validation, Trivy, Semgrep, OWASP ZAP passive DAST, repository audit, and provider/security scans
+| Layer     | Technology                                                                                                                    |
+| --------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Framework | TanStack Start v1 (React 19, Vite 7, SSR on Cloudflare Workers)                                                               |
+| Styling   | Tailwind CSS v4 (`src/styles.css`, CSS-first config)                                                                          |
+| Backend   | Supabase (Postgres, Auth, Storage, RLS)                                                                                       |
+| Payments  | Stripe (setup fee + monthly subscription, live/sandbox split)                                                                 |
+| AI        | Lovable AI Gateway (single provider path). Models from OpenAI, Anthropic and Google are routed under Luna’s budget reservation. There is no built-in non-AI engine. |
 
-## Quick Start
+## Getting started
 
-```bash
+```sh
 npm install
-npm run dev
+npm run dev        # http://localhost:8080
 ```
 
-## Quality Pipeline
+| Script              | Purpose             |
+| ------------------- | ------------------- |
+| `npm run dev`       | Local dev server    |
+| `npm run typecheck` | TypeScript, no emit |
+| `npm run lint`      | ESLint              |
+| `npx vitest run`    | Test suite          |
+| `npm run build`     | Production build    |
 
-```bash
-npm run quality          # typecheck + lint + security audit + repo audit + tests + build
-npm run production:readiness
-npm run production:controls
-npm run builder:ultimate-audit
+## Environment
+
+Client variables are `VITE_`-prefixed and public. Everything else is server-only and read
+inside a server function or route handler, never at module scope.
+
+| Variable                        | Scope  | Purpose                          |
+| ------------------------------- | ------ | -------------------------------- |
+| `VITE_SUPABASE_URL`             | client | Supabase project URL             |
+| `VITE_SUPABASE_PUBLISHABLE_KEY` | client | Publishable (anon) key           |
+| `SUPABASE_SERVICE_ROLE_KEY`     | server | Privileged server-only access    |
+| `STRIPE_SECRET_KEY`             | server | Live Stripe API access           |
+| `STRIPE_WEBHOOK_SECRET`         | server | Webhook signature verification   |
+| `LOVABLE_API_KEY`               | server | AI gateway and email             |
+
+### Revora AI
+
+All AI work — the builder, copy engine, image studio, voice notes, video chapters — runs through
+the Lovable AI Gateway. The gateway routes requests to OpenAI, Anthropic or Google models under
+Luna’s budget reservation and circuit-breaking. Nothing outside the gateway adapter holds a provider
+key.
+
+Usage is recorded in `ai_usage_events` and every attempted tool call in `ai_tool_audit`.
+Neither table stores prompts, generated content, keys or personal details.
+
+## Architecture
+
+```text
+src/routes/                 file-based routes
+  index.tsx, crm.*, ...     public marketing + SEO pages
+  _authenticated/app.*      customer workspace
+  _authenticated/admin.*    platform admin (super_admin only)
+  s.$slug.tsx, p.$token.tsx tenant site preview + signed draft link
+  api/public/*              webhooks and cron (auth bypassed — verify in handler)
+src/lib/                    server functions, agent, billing, SEO, tenancy
+src/components/             marketing, workspace, tenant-site rendering
+supabase/                   configuration; migrations are applied through Lovable
 ```
 
-## AI Provider Chain
+App-internal server logic uses `createServerFn` (`*.functions.ts`); privileged helpers live in
+`*.server.ts` and are never imported by client code. Raw HTTP endpoints — Stripe webhooks and
+scheduled jobs — are file routes under `src/routes/api/public/`.
 
-12 free-tier AI providers are wired with live model discovery, free-eligibility enforcement, and circuit breakers:
+## Domains
 
-| Provider | Endpoint | Role |
-|---|---|---|
-| OpenAI | api.openai.com | Shared-traffic daily allowance |
-| Cloudflare | api.cloudflare.com | Workers AI (text + image) |
-| Groq | api.groq.com | Ultra-fast inference |
-| NVIDIA | integrate.api.nvidia.com | NIM models |
-| LLM7 | api.llm7.io | Free chat models |
-| OpenRouter | openrouter.ai | Free model pool |
-| Google | generativelanguage.googleapis.com | Gemini free tier |
-| Mistral | api.mistral.ai | Experiment plan |
-| Hugging Face | router.huggingface.co | Serverless inference |
-| DeepSeek | api.deepseek.com | Free developer tier |
-| Cerebras | api.cerebras.ai | Ultra-fast Llama/Qwen |
-| Cohere | api.cohere.com | Trial API (Command, North, Aya) |
+- `revoragrowthsystems.com` — the only primary platform domain.
+- `revoraweb.site` — traffic only. Apex and `www` redirect to the platform preserving path and
+  query; nested subdomains return 404 and never resolve a tenant.
+- Customer websites are served **only** on a verified customer-owned custom domain, or through
+  the `/s/:slug` preview path. Unpublished work is private and reachable only via a signed
+  `/p/:token` link.
 
-Each provider supports both `PROVIDER_API_KEY` and proper-case (`Provider`) secret name variants.
+Cloudflare Worker configuration lives in `cloudflare/`.
 
-## Project Structure
+## The AI builder
 
-```
-src/
-  routes/          95 routes (admin, app, public, API)
-  components/      180 components (9 categories)
-  lib/             388 modules (AI, security, media, builder, quality, ops)
-  lib/ai/          AI orchestration (router, ensemble, 12 providers, free chain)
-  lib/security/    Authorization, browser policy, AI prompt security
-  lib/builder/     Site builder subsystem (tree, memory, history, preview)
-supabase/          147 database migrations
-scripts/           Audit and verification scripts
-.github/workflows/ 6 CI workflows
+The agent runs a staged pipeline in `src/lib/agent/`:
+
+```text
+UNDERSTAND → INSPECT → DESIGN → PLAN → REFLECT → CRITIQUE → AUTO-FIX → VERIFY → REPORT
 ```
 
-## Jarvis Toolbench
+Owners describe changes in ordinary language; no Revora vocabulary is required and requests are
+never rejected for being vague. The agent commits to a design direction, plans real content
+edits, grades its own plan out of 10 across design, UX, branding, hierarchy, conversion, mobile,
+accessibility, SEO, content and consistency, and improves the plan itself when it scores below
+the professional threshold. Anything outside website content is reported as an honest handoff
+rather than silently skipped.
 
-Jarvis's open-source tool integrations, read-only MCP server, AI-trace export, runtime configuration, security boundaries, and verification instructions are documented in [Jarvis Toolbench & Integrations](docs/JARVIS_TOOLBENCH_INTEGRATIONS.md).
+Every plan is shown for approval before it is applied. Applied changes are validated against
+real pages, sections, components, slugs and ownership, and are written under the owner's own
+session so RLS enforces tenant isolation.
 
-The .env.example file lists variable names only. Add real secret values only to the deployment's server-side secret manager. A configured endpoint is not the same as a verified live connection.
+## Billing
+
+- $350 one-time setup, first month of $100/month free, then $100/month (3-day trial).
+- Live and sandbox Stripe are fully isolated: sandbox events are bookkept separately and can
+  never change production entitlement, trials, access or revenue metrics.
+- Payment identity is `organization_id` + provider + environment. Refunds use the environment
+  stored on the payment.
+- Webhooks are signature-verified and idempotent; database errors are thrown so Stripe retries.
+
+## Security
+
+- RLS on every tenant table; anonymous reads go through narrow public projections such as
+  `public_business_profiles`, `public_reviews` and `public_website_settings`.
+- `SECURITY DEFINER` functions pin `search_path`, validate identity with `auth.uid()`, and check
+  tenant authorisation.
+- Platform admin access requires a `super_admin` row in `user_roles`; role writes are guarded and
+  client writes revoked.
+- Public link URLs are constrained on write and sanitised again at render time.
+- Domain verification probes reject unsafe schemes, credentials, non-standard ports, IP literals,
+  internal DNS targets and redirects.
+
+## Backups and restore
+
+Nightly backups run through `api/public/jobs/backup`. Website restore is transactional: a
+snapshot is captured before significant changes and `restore_website_state` puts the whole page,
+section and component tree back in a single database transaction, or not at all.
 
 ## Deployment
 
-This project is connected to [Lovable](https://lovable.dev). PRs should target the `lovable-sync` branch. Do not rewrite published git history.
+Publish from Lovable. Migrations are additive — never rewrite a deployed migration; add a new
+one and backfill safely. Before shipping, run typecheck, lint, tests and the production build.
 
-## License
+## Production quality contract
 
-Private. Revora Growth Systems.
+Customer Forge treats security, reliability, builder quality, accessibility, SEO, and conversion as
+release requirements rather than optional polish.
+
+Run the complete local gate with:
+
+```sh
+npm run quality
+```
+
+This runs TypeScript checks, linting, the repository secret/environment audit, the complete test suite,
+and the production build. CI also runs the security audit and CodeQL.
+
+### Credential safety
+
+Real environment files are intentionally excluded from Git. Use `.env.example` as the template and
+inject production secrets through the deployment platform. If a credential was ever committed, rotate
+or revoke it before deleting the file; repository deletion alone does not invalidate a copied secret.
+
+### Release discipline
+
+Every production change should pass the repository gates before merge. High-risk changes affecting
+authentication, tenancy, billing, publishing, database schema, or customer data require targeted
+tests and a documented rollback path. See `SECURITY.md` and `docs/PRODUCTION_READINESS.md`.
