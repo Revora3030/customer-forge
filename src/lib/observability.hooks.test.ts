@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { keepPreviousData } from "@tanstack/react-query";
 import {
   ACTIVITY_FEED_CACHE_POLICY,
+  ACTIVITY_FEED_VISIBILITY_POLICY,
   activityFeedRefetchInterval,
   activityFeedRetry,
   isStaleServerFnError,
@@ -24,6 +25,22 @@ describe("activity feed and stale server-function IDs", () => {
     expect(activityFeedRefetchInterval(null)).toBe(30_000);
     expect(activityFeedRefetchInterval(new Error("Invalid workspace"))).toBe(30_000);
     expect(activityFeedRefetchInterval(new Error("Invalid server function ID: x"))).toBe(false);
+  });
+
+  it("backs off after consecutive failures, capped at 5 minutes (T039)", () => {
+    const err = new Error("fetch failed");
+    expect(activityFeedRefetchInterval(err, 0)).toBe(30_000);
+    expect(activityFeedRefetchInterval(err, 1)).toBe(60_000);
+    expect(activityFeedRefetchInterval(err, 2)).toBe(120_000);
+    expect(activityFeedRefetchInterval(err, 3)).toBe(240_000);
+    expect(activityFeedRefetchInterval(err, 4)).toBe(300_000);
+    expect(activityFeedRefetchInterval(err, 50)).toBe(300_000);
+    expect(activityFeedRefetchInterval(new Error("Invalid server function ID: x"), 3)).toBe(false);
+  });
+
+  it("never polls from a hidden tab and refreshes on return (T039)", () => {
+    expect(ACTIVITY_FEED_VISIBILITY_POLICY.refetchIntervalInBackground).toBe(false);
+    expect(ACTIVITY_FEED_VISIBILITY_POLICY.refetchOnWindowFocus).toBe(true);
   });
 
   it("never retries a stale ID and retries ordinary failures once (T004)", () => {
