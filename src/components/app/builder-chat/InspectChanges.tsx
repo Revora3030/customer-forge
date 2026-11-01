@@ -101,7 +101,7 @@ export function InspectChanges({
   organizationId,
   snapshotVersion,
 }: {
-  organizationId: string | undefined;
+  organizationId: string | null | undefined;
   /** Version number of the restore point saved by this apply. */
   snapshotVersion: number | undefined;
 }) {
