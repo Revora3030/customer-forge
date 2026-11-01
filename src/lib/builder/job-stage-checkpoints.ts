@@ -12,6 +12,7 @@
  * digest of that stage's inputs matches exactly; otherwise it is regenerated.
  */
 import { inputDigest } from "./first-build-section-checkpoints";
+import { noteProgress } from "./no-progress";
 
 export const STAGE_CHECKPOINT_VERSION = 1;
 
@@ -85,6 +86,7 @@ export function jobStageCheckpointStore(db: Db, job: { jobId: string; organizati
           .eq("attempts", job.attempts)
           .eq("status", "processing");
         if (!error) {
+          noteProgress(job.jobId);
           cache = next;
           return true;
         }
