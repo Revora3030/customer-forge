@@ -84,6 +84,7 @@ import { VisualCheckPanel } from "@/components/app/VisualCheckPanel";
 import { VisionReviewPanel } from "@/components/app/VisionReviewPanel";
 import { ImageApprovalPanel } from "@/components/app/ImageApprovalPanel";
 import { PublishVersionPanel } from "@/components/app/PublishVersionPanel";
+import { SiteVersionList } from "@/components/app/SiteVersionList";
 import { LiveSyncPanel } from "@/components/app/LiveSyncPanel";
 import { PortalAccess } from "@/components/app/PortalAccess";
 import { PreviewLinks, PreviewSiteButton } from "@/components/app/PreviewLinks";
@@ -869,6 +870,7 @@ function WebsitePage() {
           <RestorePointPanel organizationId={orgId} canManage={manage} />
           <VersionHistory organizationId={orgId} canManage={manage} />
           <VersionDiff organizationId={orgId} />
+          <SiteVersionList organizationId={orgId} canManage={manage} />
           <PublishVersionPanel organizationId={orgId} canManage={manage} />
         </OverlayPanel>
 
