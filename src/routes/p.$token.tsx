@@ -8,6 +8,10 @@ import { PreviewBeacon } from "@/components/site/PreviewBeacon";
 import { prospectLinkState } from "@/lib/prospect-claim.functions";
 import { previewHeadTitle } from "@/lib/builder/draft-route";
 import { BUSINESS } from "@/lib/business-identity";
+import { privatePreviewHeaders } from "@/lib/page-cache";
+import { heroPreloadLinks } from "@/lib/site-head";
+import { isBuilderPreviewLabel } from "@/lib/builder/builder-preview-link";
+import { BuilderPreviewMode } from "@/components/site/BuilderPreviewMode";
 
 /**
  * Shareable, time-limited draft preview. The token is checked on the server;
@@ -26,7 +30,11 @@ export const Route = createFileRoute("/p/$token")({
         : false;
     return { result, isProspect };
   },
+  // Never stored by a browser or edge, never indexed, never sent on as a referrer.
+  headers: () => privatePreviewHeaders(),
   head: ({ loaderData }) => ({
+    // The opening picture starts downloading with the first HTML bytes.
+    links: loaderData?.result?.ok ? heroPreloadLinks(loaderData.result.site?.content?.sections) : [],
     meta: [
       { title: previewHeadTitle(loaderData?.result) },
       {
@@ -78,6 +86,18 @@ function PreviewRoute() {
               body: "Check the address, or ask for a new link.",
             };
     return <PreviewMessage {...copy} />;
+  }
+
+  // The builder's own link: the draft as the owner edits it, with no
+  // prospect bar and no view beacon (it is not a shared link).
+  if (isBuilderPreviewLabel(result.label)) {
+    return (
+      <BuilderPreviewMode organizationId={result.site.org.id}>
+        <SiteBaseContext.Provider value={`/p/${encodeURIComponent(token)}`}>
+          <PublicSiteView site={result.site} preview />
+        </SiteBaseContext.Provider>
+      </BuilderPreviewMode>
+    );
   }
 
   return (

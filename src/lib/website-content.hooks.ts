@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { createPreviewLink } from "@/lib/preview-links.functions";
+import { withoutBuilderLinks } from "@/lib/builder/builder-preview-link";
 import { MODEL_BUCKET, MODEL_COMPONENT_KIND, MODEL_MIME, buildModelPath, glbProblem } from "@/lib/site-models";
 import { toast } from "@/lib/ui/notify";
 import { friendlyError } from "@/lib/user-error";
@@ -407,7 +408,8 @@ export function usePreviewLinks(organizationId: string | undefined) {
         .eq("organization_id", organizationId!)
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return (data ?? []) as PreviewLink[];
+      // The builder's own live-preview link is not a shared link: never list it.
+      return withoutBuilderLinks((data ?? []) as PreviewLink[]);
     },
   });
 }

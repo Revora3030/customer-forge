@@ -3,6 +3,7 @@ import { getPublicSite } from "@/lib/public-site.functions";
 import { canonicalSiteUrl } from "@/lib/revora-address";
 import { PublicSiteView } from "@/components/site/PublicSiteView";
 import { tenantSiteHead } from "@/lib/site-head";
+import { isLeafMatch } from "@/lib/page-cache";
 
 export const Route = createFileRoute("/s/$slug")({
   loader: async ({ params }) => {
@@ -10,7 +11,7 @@ export const Route = createFileRoute("/s/$slug")({
     if (!site) throw notFound();
     return site;
   },
-  head: ({ loaderData, params }) => {
+  head: ({ loaderData, params, matches, match }) => {
     if (!loaderData) {
       return {
         // Unpublished drafts and unknown addresses look the same to the public
@@ -31,6 +32,8 @@ export const Route = createFileRoute("/s/$slug")({
       pageSlug: null,
       canonical: url,
       businessUrl: canonicalSiteUrl(loaderData.settings, params.slug) ?? url,
+      // Only the page actually shown preloads its opening picture.
+      preloadHero: isLeafMatch(matches, match),
     });
   },
   component: PublicSiteRoute,
