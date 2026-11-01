@@ -38,6 +38,7 @@ import { readBackdrop, readBackdropSpec } from "@/lib/site-effects";
 import { trackPublicEvent, type PublicSite } from "@/lib/public-site.functions";
 import { SiteVitals } from "@/components/site/SiteVitals";
 import { BuilderReturnBar } from "@/components/site/BuilderReturnBar";
+import { guardPhoneLayout } from "@/lib/builder/phone-layout";
 import { PreviewLinkBridge } from "@/components/site/PreviewLinkBridge";
 import { MOBILE_ORDER_ATTR, hasMobileOrder, mobileOrderRules, readBlockStyle, styleSheet } from "@/lib/site-style";
 import { CompositionRenderer } from "@/components/site/CompositionRenderer";
@@ -100,6 +101,9 @@ export function SitePageView({
     repairStoredLinks(storedSections, knownPages, pageAnchors, (page as { slug?: string | null } | null)?.slug ?? null),
     placeholderFallback,
   );
+  // Phone-only hide/order choices, minus anything that would take the enquiry
+  // form away from phone visitors (see guardPhoneLayout). Array order is the desktop order.
+  const phoneSections = guardPhoneLayout(sections.map((section, index) => ({ ...section, sort_order: index })));
   const chrome = {
     header: rawChrome.header ? scrubPlaceholderContact(rawChrome.header, placeholderFallback) : null,
     footer: rawChrome.footer ? tidyFooterContact(scrubPlaceholderContact(rawChrome.footer, placeholderFallback)) : null,
@@ -227,14 +231,14 @@ export function SitePageView({
 
         {/* Tablet and phone overrides the client set in the visual builder. */}
         <ResponsiveStyles
-          sections={sections}
+          sections={phoneSections}
           surface={profile?.secondary_color ?? null}
         />
 
         {/* A first section that paints its own surface (a full-bleed hero)
             sits directly under the header; only an unpainted first section
             gets the small top gap. */}
-        <main {...(hasMobileOrder(sections) ? { [MOBILE_ORDER_ATTR]: "" } : {})} className={`scroll-mt-20 ${firstSectionHasSurface(sections[0]?.settings) ? "" : "pt-2 sm:pt-4 "}pb-24 sm:pb-16`}>
+        <main {...(hasMobileOrder(phoneSections) ? { [MOBILE_ORDER_ATTR]: "" } : {})} className={`scroll-mt-20 ${firstSectionHasSurface(sections[0]?.settings) ? "" : "pt-2 sm:pt-4 "}pb-24 sm:pb-16`}>
           {(() => {
             const lead = leadIndex;
             let ready = 0;
