@@ -741,9 +741,13 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
       );
 
       if (!authored.ok) {
+        const { assistantUnavailableReply } = await import("@/lib/builder/ai-cause");
+        const causeReply = assistantUnavailableReply(authored.reason);
         return settle({
           reply:
-            authored.reason === "review_rejected"
+            causeReply
+              ? causeReply.reply
+              : authored.reason === "review_rejected"
               ? `I left your website unchanged because this change would need details you haven't given me yet${authored.detail ? ` (${authored.detail.replace(/^the review removed every proposed change — ?/, "")})` : ""}. Tell me the real details — for example exactly what each service includes — and I'll add them.`
               : describeAiUnavailable(authored.reason, { retried: report.retried, supportEmail: null }).reply,
           summary: "",
@@ -757,9 +761,12 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
           ],
           unavailable: {
             reason: authored.reason,
+            // Credits/rate-limit causes carry their own retry rule; otherwise
             // review_rejected / incomplete_site need different details or a
             // different request, and setup failures fail the same way again.
-            retryable: authored.reason !== "review_rejected" && describeAiUnavailable(authored.reason).retryable,
+            retryable: causeReply
+              ? causeReply.retryable
+              : authored.reason !== "review_rejected" && describeAiUnavailable(authored.reason).retryable,
             instruction,
           } as { reason: string; retryable: boolean; instruction: string } | null,
           composition:

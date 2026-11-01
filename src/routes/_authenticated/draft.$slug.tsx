@@ -8,7 +8,7 @@
 import { SiteBaseContext } from "@/components/site/site-address-context";
 import { createFileRoute, Link, Outlet, useChildMatches, useRouter } from "@tanstack/react-router";
 import { DRAFT_PENDING_MS, isDraftChildPath, draftHeadTitle } from "@/lib/builder/draft-route";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getOwnerDraftSite } from "@/lib/public-site.functions";
@@ -17,13 +17,17 @@ import { shouldRefreshDraft } from "@/lib/builder/draft-refresh";
 import { PreviewModeContext } from "@/components/site/preview-mode-context";
 import { stepLabel } from "@/lib/site-engine";
 import { PublicSiteView } from "@/components/site/PublicSiteView";
+import { DRAFT_LOAD_TIMEOUT_MS, withTimeout } from "@/lib/builder/no-progress";
 import { ErrorBoundary } from "@/components/app/ErrorBoundary";
 
 export const Route = createFileRoute("/_authenticated/draft/$slug")({
   // An inner page (/draft/<slug>/services) loads its own data; loading the
   // home draft as well only delayed it.
   loader: async ({ params, location }) =>
-    isDraftChildPath(location.pathname, params.slug) ? null : getOwnerDraftSite({ data: { slug: params.slug } }),
+    isDraftChildPath(location.pathname, params.slug)
+      ? null
+      : // Never "Loading…" forever: after the limit the error screen offers a retry.
+        withTimeout(getOwnerDraftSite({ data: { slug: params.slug } }), DRAFT_LOAD_TIMEOUT_MS, "The draft took too long to load."),
   // This route renders only in the browser (the signed-in area has no server
   // render), so without a pending screen a slow load was a blank black page.
   pendingMs: DRAFT_PENDING_MS,
@@ -45,13 +49,22 @@ export const Route = createFileRoute("/_authenticated/draft/$slug")({
     ],
   }),
   component: DraftHomeRoute,
-  errorComponent: () => (
+  errorComponent: DraftLoadError,
+});
+
+function DraftLoadError({ reset }: { error?: unknown; reset?: () => void }) {
+  const router = useRouter();
+  return (
     <DraftMessage
       title="This draft couldn't load"
-      body="Refresh the preview, or reload the builder and try again."
+      body="The preview took too long or hit a problem. Your website is safe. Try again, or go back to the builder."
+      onRetry={() => {
+        reset?.();
+        void router.invalidate().catch(() => undefined);
+      }}
     />
-  ),
-});
+  );
+}
 
 export function DraftMessage({
   title,
@@ -199,9 +212,30 @@ function DraftHomeRouteContent() {
   useEffect(() => {
     if (needsHome) void router.invalidate().catch(() => undefined);
   }, [needsHome, router]);
+  // Past the limit the loading screen becomes an error with a retry.
+  const [stuckLoading, setStuckLoading] = useState(false);
+  const [stuckAttempt, setStuckAttempt] = useState(0);
+  useEffect(() => {
+    setStuckLoading(false);
+    if (!needsHome) return;
+    const timer = window.setTimeout(() => setStuckLoading(true), DRAFT_LOAD_TIMEOUT_MS);
+    return () => window.clearTimeout(timer);
+  }, [needsHome, stuckAttempt]);
 
   if (children.length > 0) return <Outlet />;
-  if (needsHome) return <DraftMessage title="Loading your draft…" body="Getting the latest version of your site." />;
+  if (needsHome)
+    return stuckLoading ? (
+      <DraftMessage
+        title="This draft is taking too long"
+        body="The preview didn't load. Your website is safe. Try again, or go back to the builder."
+        onRetry={() => {
+          setStuckAttempt((n) => n + 1);
+          void router.invalidate().catch(() => undefined);
+        }}
+      />
+    ) : (
+      <DraftMessage title="Loading your draft…" body="Getting the latest version of your site." />
+    );
 
   // A draft that already has sections stays visible during rebuilds and AI
   // updates; only a brand-new empty first build gets the full-page message.
