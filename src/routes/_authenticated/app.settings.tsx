@@ -17,6 +17,7 @@ import { LeadNotifications } from "@/components/app/LeadNotifications";
 import { UpgradeFromWebsite } from "@/components/app/UpgradeFromWebsite";
 import { BookingLinkCard } from "@/components/app/BookingLinkCard";
 import { DataPrivacy } from "@/components/app/DataPrivacy";
+import { SiteBackupExport } from "@/components/app/SiteBackupExport";
 import { metaDescription } from "@/lib/seo";
 import { isValidWorkspaceSlug, WORKSPACE_SLUG_RULE } from "@/lib/workspace-slug";
 
@@ -213,6 +214,8 @@ function SettingsPage() {
       <BookingLinkCard organizationId={orgId} canManage={canManage} />
 
       <LeadNotifications organizationId={orgId} canManage={canManage} />
+
+      <SiteBackupExport organizationId={orgId} slug={org?.slug} canManage={canManage} />
 
       <DataPrivacy
         email={session?.user.email}
