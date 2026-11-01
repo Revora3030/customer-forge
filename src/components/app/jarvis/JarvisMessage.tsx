@@ -6,6 +6,8 @@ import { JarvisMarkdown } from "@/components/app/JarvisMarkdown";
 import { splitReplyMeta, type WriteProposal } from "@/lib/jarvis-actions";
 import { ProposalCard, type ProposalState } from "./ProposalCard";
 import { ModelTag } from "./ModelTag";
+import { EventNoticeCard } from "./EventNoticeCard";
+import { parseEventNotice } from "@/lib/jarvis-event-notice";
 import { RunTaskTree } from "./RunTaskTree";
 
 export type JarvisRow = { id: string; role: "user" | "assistant"; content: string; created_at: string; run_id?: string | null };
@@ -60,14 +62,25 @@ type AssistantProps = {
   renderAfterProposal?: ((key: string) => ReactNode) | undefined;
   /** Shows the recorded steps of this reply inline, when they exist. */
   showSteps?: boolean | undefined;
+  /** Sends a system notice's suggested question as the owner's next message. */
+  onAsk?: ((prompt: string) => void) | undefined;
 };
 
-export function AssistantMessage({ message, isLast, busy, regenerating, speakingThis, approvalState, approvalUrl, onApprove, onCopy, onListen, onStopListening, onRegenerate, renderAfterProposal, showSteps }: AssistantProps) {
+export function AssistantMessage({ message, isLast, busy, regenerating, speakingThis, approvalState, approvalUrl, onApprove, onCopy, onListen, onStopListening, onRegenerate, renderAfterProposal, showSteps, onAsk }: AssistantProps) {
+  const notice = parseEventNotice(message.content);
   const { body, meta } = splitReplyMeta(message.content);
   const [expanded, setExpanded] = useState(isLast);
   const [stepsOpen, setStepsOpen] = useState(false);
   const long = body.length > 900;
   const shown = long && !expanded ? `${body.slice(0, 700).trimEnd()}…` : body;
+  if (notice) {
+    return (
+      <article className="min-w-0">
+        <h2 className="sr-only">System notice</h2>
+        <EventNoticeCard id={message.id} notice={notice} time={clock(message.created_at)} busy={busy} onAsk={onAsk} />
+      </article>
+    );
+  }
   return (
     <article className={`group flex min-w-0 gap-3 transition-opacity ${regenerating ? "opacity-50" : ""}`}>
       <span className="mt-0.5 hidden size-6 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary sm:flex" aria-hidden><Bot className="size-3.5" /></span>

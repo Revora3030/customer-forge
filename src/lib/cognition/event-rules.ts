@@ -88,6 +88,12 @@ export const DEFAULT_EVENT_RULES: readonly EventRule[] = [
     prompt: (e) => `CI failed on ${e.subject}. Read the failing check and propose a fix; do not change anything.`,
   },
   {
+    // Dependabot's own version-update jobs are not release checks: one quiet, daily note instead of one alert per run.
+    id: "dependabot-failed-quiet", on: "ci.dependabot_failed", cooldownMs: 24 * 3_600_000,
+    summary: (e) => `Dependabot's dependency-update job failed: ${e.detail ?? "see the Actions tab"} These are version-update jobs, not the release checks, and they do not block the release. Nothing was changed.`,
+    prompt: () => "Dependabot's dependency-update runs failed. Read one failing run, say whether it is a one-off or a broken update, and tell me if anything needs doing; do not change anything.",
+  },
+  {
     id: "routine-failed", on: "routine.failed", cooldownMs: 24 * 3_600_000,
     summary: (e) => `Your scheduled routine "${e.subject}" didn't finish.${line(e)} Nothing was changed.`,
     prompt: (e) => `The scheduled routine "${e.subject}" ended in an error. Read its last result, explain what went wrong in plain words, and tell me whether to run it again now.`,

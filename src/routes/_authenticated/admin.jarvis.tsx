@@ -935,6 +935,7 @@ function Jarvis() {
                         onRegenerate={() => regen.mutate()}
                         renderAfterProposal={renderAfterProposal}
                         showSteps
+                        onAsk={(prompt) => submit(prompt)}
                       />
                     )}
                   </Fragment>
