@@ -171,6 +171,24 @@ export function aiLimits(): AiLimits {
   };
 }
 
+/**
+ * Role-specific per-attempt time limits (T010). Long design and wording answers
+ * (a page plan is ~4-8k tokens) ran past the single 90s AI_REQUEST_TIMEOUT_MS,
+ * while quick classification calls waited far longer than they ever need.
+ * Each role can be tuned with AI_ROLE_TIMEOUT_MS_<ROLE>; roles without a
+ * default here keep AI_REQUEST_TIMEOUT_MS.
+ */
+export const ROLE_TIMEOUT_DEFAULTS_MS: Partial<Record<ModelRole, number>> = {
+  primary: 180_000,
+  design: 180_000,
+  fast: 60_000,
+};
+
+export function roleTimeoutMs(role: ModelRole, limits: Pick<AiLimits, "requestTimeoutMs"> = aiLimits()): number {
+  const fallback = ROLE_TIMEOUT_DEFAULTS_MS[role] ?? limits.requestTimeoutMs;
+  return numberEnv(`AI_ROLE_TIMEOUT_MS_${role.toUpperCase()}`, fallback);
+}
+
 /** Rough per-million-token prices, used only for an estimate in admin reporting. */
 const PRICE_PER_MTOK: Record<string, { input: number; output: number }> = {
   "gemini-3.8-flash": { input: 0.3, output: 2.5 },
