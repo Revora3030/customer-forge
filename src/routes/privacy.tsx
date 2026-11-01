@@ -113,8 +113,8 @@ const SECTIONS: { heading: string; body: string[] }[] = [
     body: [
       "On our own marketing pages we use Google Analytics 4, Google Ads conversion measurement and Microsoft Clarity. They do not run inside the app or admin area, or on websites we publish for clients.",
       "In the European Economic Area, the United Kingdom, Switzerland and Canada (and when we cannot tell where you are), these tools load only after you click Accept in the cookie banner. If you reject, they are not loaded.",
-      'Elsewhere they load by default, unless your browser sends a Global Privacy Control signal, which we treat as an opt-out. You can switch them off at any time with the "Cookie settings" link in the site footer. Your choice is stored in your browser until you change it.',
-      "Separately, our site keeps a random visitor ID and the page you first landed on in your browser's storage so we can count visits and signups in our own reporting. It is not derived from your IP address or device details. In the regions where we ask first, the visitor ID is only created after you accept; it is never created if you reject or your browser sends Global Privacy Control, and rejecting deletes it.",
+      'Elsewhere they load by default, unless your browser sends a Global Privacy Control signal, which we treat as an opt-out until you click Accept yourself. You can switch them off at any time with the "Cookie settings" link in the site footer. Your choice is stored in your browser until you change it.',
+      "Separately, our site keeps a random visitor ID and the page you first landed on in your browser's storage so we can count visits and signups in our own reporting. It is not derived from your IP address or device details. It follows the same choice as the cookies above: in the regions where we ask first it is only created after you click Accept, and elsewhere it is created unless your browser sends Global Privacy Control. If your browser sends Global Privacy Control, it is not created unless you click Accept. Clicking Reject stops it and deletes an existing one.",
     ],
   },
   {
