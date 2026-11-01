@@ -6,14 +6,15 @@
  * platform's website code actually does (forms, page-view counting, the
  * per-tab speed token, fonts, maps, embeds). Anything the platform cannot know
  * (how long the business keeps enquiries, who else it shares them with) is
- * shown as a visible placeholder instead of being guessed.
+ * either the owner's own words (privacy-notice-details.ts) or a visible
+ * placeholder instead of being guessed.
  *
  * Review with a lawyer before relying on this.
  */
 import { BOOKING_FIELDS, ENQUIRY_FIELDS } from "@/lib/builder/content-completeness";
 
 /** Address of the generated notice on every client site (/privacy-notice). */
-export const PRIVACY_NOTICE_SLUG = "privacy-notice";
+export { PRIVACY_NOTICE_SLUG } from "@/lib/privacy-notice-slug";
 
 export const PLATFORM_PRIVACY_URL = "https://revoragrowthsystems.com/privacy";
 
@@ -28,6 +29,10 @@ export type ClientNoticeInput = {
   hasMap: boolean;
   /** The site's type pairing is requested from Google Fonts. */
   loadsWebFonts: boolean;
+  /** The owner's own description of how long enquiries are kept. */
+  retention?: string | null;
+  /** The owner's own description of who else receives visitors' details. */
+  sharing?: string | null;
 };
 
 export type NoticeSection = { heading: string; paragraphs: string[] };
@@ -46,6 +51,9 @@ const list = (items: string[]) =>
   items.length <= 1
     ? (items[0] ?? "")
     : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
+
+/** Owner text as a sentence: ends with punctuation exactly once. */
+const sentence = (text: string) => (/[.!?\]]$/.test(text) ? text : `${text}.`);
 
 export function clientPrivacyNotice(input: ClientNoticeInput): ClientNotice {
   const missing: string[] = [];
@@ -66,10 +74,11 @@ export function clientPrivacyNotice(input: ClientNoticeInput): ClientNotice {
     ? list(contactBits)
     : `use the contact form on this website ${placeholder("Privacy contact (email or phone)")}`;
   const address = need(input.address, "Business postal address");
-  const retention = placeholder("How long enquiries and bookings are kept");
-  missing.push("How long enquiries and bookings are kept");
-  const sharing = placeholder("Other companies the business shares your details with");
-  missing.push("Other companies the business shares your details with");
+  const retention = sentence(need(input.retention, "How long enquiries and bookings are kept"));
+  const sharing = need(
+    input.sharing,
+    "Other companies the business shares your details with",
+  ).replace(/[.!?\s]+$/, "");
 
   const fields = [...ENQUIRY_FIELDS, ...(input.hasBooking ? BOOKING_FIELDS : [])];
   const purposes = [
