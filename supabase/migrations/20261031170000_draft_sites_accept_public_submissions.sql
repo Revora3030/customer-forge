@@ -287,7 +287,7 @@ begin
     'duplicate', false
   );
 end;
-
+$$;
 
 revoke execute on function public.submit_public_conversion(uuid, jsonb, jsonb, jsonb, jsonb, jsonb) from public, anon, authenticated;
 grant execute on function public.submit_public_conversion(uuid, jsonb, jsonb, jsonb, jsonb, jsonb) to service_role;
