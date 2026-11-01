@@ -47,3 +47,7 @@ Yes, using your own photos. We do not use stock photos presented as your work.
 
 **Can the site handle storm-season rushes?**
 A first-reply automation, one pipeline for every lead and booking against real availability help when many requests arrive at once. They do not add crews, so set a reply window you can meet.
+
+## Source (checked October 31, 2026)
+
+- North Carolina general contractor license threshold, G.S. 87-1: https://www.ncleg.gov/EnactedLegislation/Statutes/HTML/ByArticle/Chapter_87/Article_1.html
