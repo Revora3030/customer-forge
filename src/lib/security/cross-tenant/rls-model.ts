@@ -464,6 +464,11 @@ function applyStatement(model: RlsModel, raw: string, file: string): void {
   }
 
   // functions
+  if ((m = new RegExp(`^drop function (?:if exists )?(${QNAME})\\s*(\\([^)]*\\))?`, "i").exec(s))) {
+    const fkey = functionKey(model, m[1] as string, m[2] as string | undefined);
+    if (fkey) model.functions.delete(fkey);
+    return;
+  }
   if (
     (m = new RegExp(`^create (?:or replace )?function (${QNAME})\\s*\\(`, "i").exec(s))
   ) {
