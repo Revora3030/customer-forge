@@ -10,6 +10,7 @@ import { pageNavLabel } from "@/lib/website-content";
  * is ever substituted.
  */
 import { callBestThinker } from "@/lib/ai/thinker.server";
+import { thinkerFailureRetryable } from "@/lib/ai/retry-policy";
 import { screenText } from "@/lib/builder/collective-copy";
 import { COMPOSITION_PRIMITIVES, PRIMITIVE_GUIDE, validateComposition, type CompositionIssue, type CompositionNode, type CompositionTree } from "@/lib/builder/composition-tree";
 import { collectHrefs, readSiteChrome, requiredChromeLinks, writeSiteChrome } from "@/lib/builder/site-chrome";
@@ -202,7 +203,8 @@ export async function composeSiteChrome(input: {
     input.signal?.throwIfAborted();
     if (!call.ok) {
       // A single failed or slow call is often transient: try again before giving up.
-      if (attempt < CHROME_ATTEMPTS - 1) {
+      // Credits, a spending cap or a rejected key won't change by asking again.
+      if (attempt < CHROME_ATTEMPTS - 1 && thinkerFailureRetryable(call.reason)) {
         const pause = Number(process.env["CHROME_RETRY_PAUSE_MS"] ?? 1500);
         await new Promise((resolve) => setTimeout(resolve, (Number.isFinite(pause) ? pause : 1500) * Math.min(attempt + 1, 3)));
         continue;

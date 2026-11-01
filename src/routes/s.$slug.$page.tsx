@@ -8,24 +8,53 @@
  * here only by the route component, which the router code-splits, so Revora's
  * marketing pages never download the builder renderer.
  */
-import { createFileRoute, Link, notFound, useParams } from "@tanstack/react-router";
+import { createFileRoute, Link, notFound, redirect, useParams } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { getPublicSite } from "@/lib/public-site.functions";
 import { canonicalSiteUrl } from "@/lib/revora-address";
 import { tenantSiteHead } from "@/lib/site-head";
 import { SitePageView } from "@/components/site/SitePageView";
+import { ClientPrivacyNotice } from "@/components/site/ClientPrivacyNotice";
+import { PRIVACY_NOTICE_SLUG } from "@/lib/client-privacy-notice";
+import { isDuplicatePrivacySlug } from "@/lib/privacy-notice-slug";
 
 export const Route = createFileRoute("/s/$slug/$page")({
   loader: async ({ params }) => {
+    // The generated notice replaces an AI-written /privacy page (privacy-notice-slug.ts).
+    if (isDuplicatePrivacySlug(params.page)) {
+      throw redirect({
+        to: "/s/$slug/$page",
+        params: { slug: params.slug, page: PRIVACY_NOTICE_SLUG },
+        statusCode: 302,
+      });
+    }
     const site = await getPublicSite({ data: { slug: params.slug, pageSlug: params.page } });
     // A page with no visible sections would render blank for a real visitor —
     // treat it as not published yet rather than serving an empty page.
-    if ((site?.content?.sections ?? []).length === 0) throw notFound();
+    if (!site) throw notFound();
+    if ((site.content?.sections ?? []).length === 0) {
+      // Every published site has a generated privacy notice at this address
+      // unless the owner built their own page there.
+      if (params.page === PRIVACY_NOTICE_SLUG) return site;
+      throw notFound();
+    }
     return site;
   },
 
   head: ({ loaderData, params }) => {
     // A draft can load before its page row exists; never read a missing page.
+    if (
+      loaderData &&
+      !loaderData.content?.sections?.length &&
+      params.page === PRIVACY_NOTICE_SLUG
+    ) {
+      return {
+        meta: [
+          { title: `Privacy and cookie notice | ${loaderData.org.name}` },
+          { name: "robots", content: "noindex" },
+        ],
+      };
+    }
     if (!loaderData?.content?.page) {
       return { meta: [{ title: "Page not found" }, { name: "robots", content: "noindex" }] };
     }
@@ -74,5 +103,9 @@ function PageNotFound() {
 }
 
 function SitePageRoute() {
-  return <SitePageView site={Route.useLoaderData()} />;
+  const site = Route.useLoaderData();
+  const { page } = Route.useParams();
+  if (!site.content?.sections?.length && page === PRIVACY_NOTICE_SLUG)
+    return <ClientPrivacyNotice site={site} />;
+  return <SitePageView site={site} />;
 }
