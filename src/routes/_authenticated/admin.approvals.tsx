@@ -9,6 +9,7 @@ import { AgentRequestCard } from "@/components/app/AgentRequestCard";
 import { QueryErrorNotice } from "@/components/app/QueryErrorNotice";
 import { decideAgentActionFn, listFounderApprovalsFn } from "@/lib/agent-actions.functions";
 import type { ActionRequestView } from "@/lib/agent-gateway";
+import { approvalsFocus } from "@/lib/approvals-focus";
 
 export const Route = createFileRoute("/_authenticated/admin/approvals")({
   validateSearch: (search: Record<string, unknown>): { request?: string } =>
@@ -55,6 +56,7 @@ function AdminApprovals() {
   const requests = query.data?.requests ?? [];
   const waiting = requests.filter((item) => item.state === "pending");
   const history = requests.filter((item) => item.state !== "pending");
+  const focusInHistory = approvalsFocus(requests, focusId).section === "history";
 
   return (
     <div className="mx-auto w-full max-w-xl space-y-4 pb-24">
@@ -91,7 +93,7 @@ function AdminApprovals() {
         </div>
       )}
       {history.length ? (
-        <details>
+        <details open={focusInHistory || undefined}>
           <summary className="min-h-11 cursor-pointer py-2 text-sm font-medium">History ({history.length})</summary>
           <div className="space-y-3 pt-2">
             {history.map((item) => (
