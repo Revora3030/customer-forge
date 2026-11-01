@@ -12,6 +12,7 @@ import { VisitorJarvis } from "@/components/marketing/VisitorJarvisLazy";
 import { ScrollReveal } from "@/components/marketing/ScrollReveal";
 import { openCookieSettings } from "@/components/marketing/cookie-consent-utils";
 import { AuthActions, SIGN_IN_SEARCH, SIGN_UP_SEARCH } from "@/components/marketing/AuthButtons";
+import { FOOTER_DISCOVERY_GROUPS } from "@/lib/footer-links";
 
 const NAV = [
   { to: "/demo", label: "Product" },
@@ -342,6 +343,26 @@ export function SiteFooter() {
               </ul>
             </nav>
           </div>
+        </div>
+
+        <div className="mt-10 grid gap-6 border-t border-border pt-8 md:grid-cols-3" data-footer-discovery>
+          {FOOTER_DISCOVERY_GROUPS.map((group) => (
+            <nav key={group.heading} aria-label={group.heading}>
+              <p className="eyebrow">{group.heading}</p>
+              <ul className="mt-1 text-[13px] sm:mt-3 sm:space-y-2">
+                {group.links.map((link) => (
+                  <li key={link.to}>
+                    <Link
+                      to={link.to}
+                      className="inline-flex min-h-11 min-w-11 items-center text-muted-foreground transition-colors hover:text-primary sm:min-h-0 sm:min-w-0"
+                    >
+                      {link.label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </nav>
+          ))}
         </div>
 
         <div className="mt-12 flex flex-col gap-2 border-t border-border pt-6 sm:flex-row sm:items-center sm:justify-between">

@@ -448,8 +448,9 @@ export function sitemapUrls(site: HostSite | null, origin: string) {
   if (!site) {
     return indexablePlatformEntries().map(({ path, lastmod }) => ({
       loc: `${origin}${path}`,
-      // Only a real last-changed date (guides carry theirs); otherwise omitted.
-      // Never the time of the request or the build, and never one shared date.
+      // Always a real last-changed date: the guide's own, else the git date of
+      // the files that render the page (sitemap-lastmod.ts). Never the time of
+      // the request or the build.
       lastmod,
     }));
   }
