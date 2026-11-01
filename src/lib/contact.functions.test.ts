@@ -20,3 +20,13 @@ describe("contact form abuse limits", () => {
     expect(isContactThrottled({ byEmail: 0, byIp: CONTACT_IP_LIMIT_PER_HOUR - 1 })).toBe(false);
   });
 });
+
+describe("contact founder alert (T015)", () => {
+  it("runs the email in the background so submit does not wait on it", async () => {
+    const { readFileSync } = await import("node:fs");
+    const source = readFileSync("src/lib/contact.functions.ts", "utf8");
+    const handler = source.slice(source.indexOf("export const submitContactRequest"), source.indexOf("type ContactAlert"));
+    expect(handler).toContain("runInBackground(() => sendContactAlert(data))");
+    expect(handler).not.toContain("await sendTemplateEmail");
+  });
+});
