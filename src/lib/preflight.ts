@@ -12,6 +12,7 @@
 
 import { securityCheck, type SecurityCheck } from "@/lib/preflight-security";
 import { safeLinkUrl, type ContentPage } from "@/lib/website-content";
+import { validateJsonLd, type JsonLdFacts } from "@/lib/builder/jsonld-validator";
 
 export type PreflightSeverity = "blocker" | "warning";
 export type PreflightStatus = "pass" | "warn" | "fail" | "skip";
@@ -84,6 +85,8 @@ export type PreflightInput = {
   /** Whether billing/access currently allows publishing. */
   canPublish: boolean;
   canPublishReason?: string | null;
+  /** What the generated site's structured data (JSON-LD) says, with the facts to compare it to. Omit when not built. */
+  jsonLd?: JsonLdFacts | null;
   /** Response headers of the served page when they were read; omit when unknown (never guessed). */
   servedHeaders?: Record<string, string> | null | undefined;
 };
@@ -149,6 +152,26 @@ const decide = (
   ok
     ? pass(key, label, okDetail, severity)
     : fail(key, label, badDetail, fix, severity, to, autoFixable);
+
+/** Publish warning: structured data that disagrees with the page or the owner's facts, each mismatch named. */
+function jsonLdCheck(facts: JsonLdFacts): PreflightCheck {
+  const findings = validateJsonLd(facts);
+  if (!findings.length)
+    return pass(
+      "structured-data",
+      "Structured data matches your site",
+      "Your business name, phone, address, services and FAQs in Google's structured data match what visitors see.",
+      "warning",
+    );
+  return fail(
+    "structured-data",
+    "Structured data matches your site",
+    `${findings.length} mismatch${findings.length === 1 ? "" : "es"}: ${findings.map((f) => f.message).join(" ")}`,
+    "Fix the detail named above in Business details or the FAQ, or ask Revora to rebuild the section.",
+    "warning",
+    "/app/website",
+  );
+}
 
 const text = (value: unknown) => typeof value === "string" && value.trim().length > 0;
 
@@ -518,6 +541,7 @@ export function preflight(input: PreflightInput): PreflightResult {
       "warning",
       "/app/settings",
     ),
+    ...(input.jsonLd ? [jsonLdCheck(input.jsonLd)] : []),
   ]);
 
   add("accessibility", [
