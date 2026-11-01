@@ -11,7 +11,9 @@
  * Additive and best effort: with the column missing (migration not applied),
  * or on any storage error, nothing is written and the build is unaffected.
  */
-type Db = { from: (table: string) => any };
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+type Db = { from: SupabaseClient["from"] };
 
 /** Whether a backup model answered for this workspace since the attempt began. */
 export async function backupModelAnswered(db: Db, organizationId: string, since: string): Promise<boolean> {
