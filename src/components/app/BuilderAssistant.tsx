@@ -17,7 +17,6 @@ import {
   ArrowDown,
   ArrowUp,
   Check,
-  ChevronDown,
   Eye,
   GitBranch,
   History,
@@ -43,7 +42,7 @@ import {
   PromptInputTextarea,
   PromptInputTools,
 } from "@/components/ai-elements/prompt-input";
-import { Shimmer, TypingDots } from "@/components/ai-elements/shimmer";
+import { Shimmer } from "@/components/ai-elements/shimmer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -85,7 +84,9 @@ import { cn } from "@/lib/utils";
 import { WebsiteBriefDialog } from "@/components/app/WebsiteBriefDialog";
 import type { StepTarget } from "@/lib/builder/step-target";
 import { WorkFeed } from "@/components/app/WorkFeed";
-import { formatDuration, modelsAsked, timedSteps } from "@/lib/builder/work-feed";
+import { TaskTree } from "@/components/app/TaskTree";
+import { nodesFromProgress } from "@/lib/builder/task-tree";
+import { modelsAsked } from "@/lib/builder/work-feed";
 
 /** How many suggestion chips sit above the composer before "More". */
 const CHIP_LIMIT = 3;
@@ -914,9 +915,10 @@ function AssistantTurn({ children }: { children: ReactNode }) {
 }
 
 /**
- * Live "what the AI is doing right now" card. Shows only steps the server has
- * genuinely recorded, plus a running timer so the owner sees it's alive.
- * Screen readers hear each new stage once (never the ticking timer).
+ * Live "what the AI is doing right now" task tree (CU-1). Shows only steps the
+ * server has genuinely recorded, each with how long it took, and the running
+ * step's real elapsed time. Screen readers hear each change once (never the
+ * ticking timer).
  */
 function LiveActivity({
   organizationId,
@@ -930,15 +932,13 @@ function LiveActivity({
   /** Planning only: after ~30s the card offers "Stop waiting" (nothing is applied). */
   onStopWaiting?: () => void;
 }) {
-  const { latest: rawLatest, steps: allSteps } = useBuildProgress(organizationId, true, requestId);
+  const { steps: allSteps } = useBuildProgress(organizationId, true, requestId);
   // "model at work" rows name the model that actually answered; they show as a
   // badge rather than as a step. Only genuinely recorded answers appear.
   const MODEL_STAGE = "model at work";
   const workingModel = allSteps.find((step) => step.stage === MODEL_STAGE)?.detail ?? null;
   const steps = allSteps.filter((step) => step.stage !== MODEL_STAGE);
   const askedModels = modelsAsked(allSteps);
-  const timed = new Map(timedSteps(steps).map((step) => [step.stage, step.durationMs]));
-  const latest = rawLatest?.stage === MODEL_STAGE ? (steps[0] ?? null) : rawLatest;
   const [startedAt] = useState(() => Date.now());
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -946,49 +946,13 @@ function LiveActivity({
     return () => window.clearInterval(id);
   }, []);
   const seconds = Math.max(0, Math.round((now - startedAt) / 1000));
-  // Consecutive repeats of the same stage (one per free-model attempt) collapse
-  // into a single line: the live detail under the shimmer already shows which
-  // model is being asked right now. We also collapse ALL duplicates — not just
-  // consecutive ones — so alternating stages like "reading your message" /
-  // "reading your business" from deferred retries don't fill the card.
-  const done = steps
-    .slice(1)
-    .reverse()
-    .filter((step, index, all) => index === 0 || all[index - 1]!.stage !== step.stage)
-    // Second pass: remove any stage that already appeared earlier in the list.
-    .filter((step, index, all) =>
-      index === all.findIndex((s) => s.stage === step.stage),
-    )
-    .slice(0, 20);
-  const [open, setOpen] = useState(true);
-  const elapsed = seconds < 60 ? `${seconds}s` : `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
-  const stageText = latest ? `${latest.stage}…` : fallback;
-  // One announcement per finished stage (the stage line itself is live too).
-  const lastDone = done[done.length - 1]?.stage ?? null;
+  // The steps recorded so far, oldest first, as an inline task tree (CU-1). The
+  // newest one is the step still running; each finished one shows how long it took.
+  const nodes = nodesFromProgress(steps, { running: true, model: workingModel });
   return (
-    <div className="overflow-hidden rounded-xl border border-border/70 bg-card/40">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        className="flex min-h-11 w-full cursor-pointer items-center gap-2.5 px-3.5 py-2 text-left transition-colors hover:bg-muted/40"
-      >
-        <span className="relative grid size-5 shrink-0 place-items-center">
-          <span className="absolute inset-0 animate-ping rounded-full bg-primary/25 motion-reduce:animate-none" aria-hidden />
-          <span className="relative size-2 rounded-full bg-primary" aria-hidden />
-        </span>
-        <span className="min-w-0 flex-1 truncate text-sm" aria-live="polite" aria-atomic="true">
-          <Shimmer as="span">{stageText}</Shimmer>
-        </span>
-        <span className="tnum shrink-0 text-xs text-muted-foreground" aria-hidden="true">{elapsed}</span>
-        <ChevronDown
-          className={cn("size-4 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")}
-          aria-hidden
-        />
-      </button>
-      {lastDone ? <span className="sr-only" role="status">{`Done: ${lastDone}`}</span> : null}
+    <TaskTree nodes={nodes} ariaLabel="Steps so far" testId="live-activity" {...(nodes.length ? {} : { headline: fallback })}>
       {onStopWaiting && planIsSlow(seconds * 1000) ? (
-        <div className="flex items-center gap-2 border-t border-border/60 px-3.5 py-2" data-testid="plan-slow-hint">
+        <div className="flex items-center gap-2 border-t border-border/60 pt-2" data-testid="plan-slow-hint">
           <p className="min-w-0 flex-1 text-[13px] leading-5 text-muted-foreground" role="status">
             Still working — bigger changes can take a minute or two. Nothing changes on your site until the plan is ready.
           </p>
@@ -1001,46 +965,8 @@ function LiveActivity({
           </button>
         </div>
       ) : null}
-      {open ? (
-        <div className="space-y-1.5 border-t border-border/60 px-3.5 py-2.5">
-          {done.length ? (
-            <ol className="space-y-1.5">
-              {done.map((step) => (
-                <li key={`${step.stage}-${step.at}`} className="chat-rise flex items-start gap-2 text-[13px] leading-5 text-muted-foreground">
-                  <Check className="mt-0.5 size-3.5 shrink-0 text-emerald-400" aria-hidden />
-                  <span className="min-w-0 flex-1 break-words">
-                    {step.stage}
-                    {step.stage === "plan ready" && step.detail ? (
-                      <span className="mt-0.5 block text-foreground/80">{step.detail}</span>
-                    ) : step.detail ? (
-                      <span className="mt-0.5 block text-xs text-muted-foreground/80">{step.detail}</span>
-                    ) : null}
-                  </span>
-                  {timed.get(step.stage) != null ? (
-                    <span className="tnum shrink-0 text-xs text-muted-foreground/70">{formatDuration(timed.get(step.stage))}</span>
-                  ) : null}
-                </li>
-              ))}
-            </ol>
-          ) : null}
-          {workingModel ? (
-            <p className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-              <span>Model answering:</span>
-              <span className="rounded-full border border-primary/40 bg-primary/10 px-2 py-0.5 font-medium text-foreground break-all">
-                {workingModel}
-              </span>
-            </p>
-          ) : null}
-          {askedModels.length > 1 ? (
-            <p className="text-xs text-muted-foreground">Asked so far: {askedModels.join(" → ")}</p>
-          ) : null}
-          {latest?.detail ? (
-            <p className="text-xs break-words text-muted-foreground">{latest.detail}</p>
-          ) : null}
-          {!latest && !done.length ? <TypingDots /> : null}
-        </div>
-      ) : null}
-    </div>
+      {askedModels.length > 1 ? <p className="text-xs text-muted-foreground">Asked so far: {askedModels.join(" → ")}</p> : null}
+    </TaskTree>
   );
 }
 
@@ -1134,7 +1060,14 @@ function TaskBody({
       {task.reply ? <ReplyText text={task.reply} className="text-[15px] leading-7" /> : null}
       {task.error ? <p className="text-sm leading-6">{task.error}</p> : null}
       {/* A build started here keeps its work log under its message once it has ended. */}
-      {task.isBuild && !working ? <WorkFeed organizationId={organizationId} runId={requests.progressRunId(task.id)} live={false} /> : null}
+      {task.isBuild && !working ? (
+        <WorkFeed
+          organizationId={organizationId}
+          runId={requests.progressRunId(task.id)}
+          live={false}
+          {...(task.state === "failed" && task.retryBuild && onRetryBuild ? { onRetry: () => onRetryBuild(task.instruction), retryDisabled: requests.busy } : {})}
+        />
+      ) : null}
 
       {working && isActive && !task.isBuild && !task.waitingOnBuild ? (
         <p className="text-xs text-muted-foreground">
