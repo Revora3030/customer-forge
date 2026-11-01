@@ -31,7 +31,7 @@ import { reviewStateMeta, revoraShareAddress } from "@/lib/website-plan";
 import { saveOwnDomain } from "@/lib/domain.functions";
 import { clientSiteUrl } from "@/lib/revora-address";
 
-import { DOMAIN_STATES, PUBLISH_STATES, readiness } from "@/lib/readiness";
+import { DOMAIN_STATES, PUBLISH_STATES, launchReadiness } from "@/lib/readiness";
 import { dateLong, number } from "@/lib/format";
 import { canManage } from "@/lib/domain";
 import { useLaunchFlow } from "@/lib/production.hooks";
@@ -93,14 +93,12 @@ function Launch() {
   if (loadingProfile || !orgId) return <LoadingRows rows={5} />;
 
   const active = (services ?? []).filter((s) => s.is_active);
-  const score = readiness({
+  const score = launchReadiness({
     profile,
     settings,
-    servicesCount: active.length,
-    bookableCount: active.filter((s) => s.bookable).length,
-    mediaCount: profile?.hero_image_url ? 1 : 0,
-    quoteFormCount: quoteBuilder?.form ? 1 : 0,
-    analyticsCount: (analytics ?? []).length,
+    services,
+    quoteForm: quoteBuilder?.form,
+    analytics,
   });
 
   const domainStatus = settings?.domain_status ?? "not_connected";
