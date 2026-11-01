@@ -55,8 +55,8 @@ DROP POLICY IF EXISTS agent_approvals_read ON public.agent_approvals;
 CREATE POLICY agent_approvals_read ON public.agent_approvals
   FOR SELECT TO authenticated
   USING (
-    (scope = 'owner' AND public.is_org_member(organization_id))
-    OR (scope = 'admin' AND public.is_super_admin())
+    (scope = 'owner' AND private.is_org_member(organization_id))
+    OR (scope = 'admin' AND private.is_super_admin())
   );
 
 -- Ask for approval. Idempotent for the same workspace + tool + arguments.

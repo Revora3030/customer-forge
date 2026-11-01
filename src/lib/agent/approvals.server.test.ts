@@ -23,7 +23,7 @@ const OUTSIDER = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
 const SUPER = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
 const RUN = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
 
-/** In-memory copy of the rules in 20261101040000_agent_approvals.sql. */
+/** In-memory copy of the rules in 20261101060200_agent_approvals.sql. */
 function memoryRepo(clock: { now: number }) {
   const rows: ApprovalRow[] = [];
   const members = new Map<string, "owner" | "admin" | "manager">([

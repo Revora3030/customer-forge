@@ -14,7 +14,7 @@
  *    refused. Approvals expire 24 hours after they were asked for.
  *
  * `ApprovalRepo` is the storage seam: `supabaseApprovalRepo` calls the SQL
- * functions in 20261101040000_agent_approvals.sql; tests use an in-memory copy
+ * functions in 20261101060200_agent_approvals.sql; tests use an in-memory copy
  * of the same rules. `createApprovalsConsumer` plugs straight into the tool
  * registry's `approvals` dependency (PAI-1), and a run that is waiting on an
  * approval is resumed through the optional `resumeRun` dependency (PAI-2).
