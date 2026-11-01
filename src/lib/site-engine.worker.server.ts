@@ -23,7 +23,7 @@ import {
   registerProgressWatch,
   runWithNoProgressGuard,
 } from "@/lib/builder/no-progress";
-import { aiCauseFromCalls, describeAiPressure, failureKindForAiCause, AI_CAUSE_OWNER_MESSAGE } from "@/lib/builder/ai-cause";
+import { aiCauseFromCalls, describeAiPressure, failureKindForAiCause, AI_CAUSE_OWNER_MESSAGE, type AiCause } from "@/lib/builder/ai-cause";
 import { menuNeedsHelp } from "@/lib/service-suggestions";
 import {
   INTERRUPTED_BUILD_MESSAGE,
@@ -3288,7 +3288,7 @@ export async function drainSiteEngineQueue(
         const root = error instanceof FreshRebuildRollbackError ? error.rootCause : null;
         const { AiStepUnavailableError } = await import("@/lib/builder/ai-step-error");
         if (root instanceof AiStepUnavailableError || root instanceof RevoraAiError) {
-          let cause = root instanceof RevoraAiError ? (status === 402 ? "credits" as const : status === 429 ? "rate_limited" as const : null) : null;
+          let cause: AiCause | null = root instanceof RevoraAiError ? (status === 402 ? "credits" : status === 429 ? "rate_limited" : null) : null;
           if (!cause) {
             try {
               const { data: calls } = await db
@@ -3330,7 +3330,7 @@ export async function drainSiteEngineQueue(
       if (error instanceof NoProgressError) {
         failed += 1;
         console.warn(
-          `[site-engine] job ${job.id} attempt ${job.attempts} made no progress for ${Math.round(error.idleMs / 1000)}s at "${error.stage ?? "unknown"}" (${error.cause ?? (error.busy ? "AI busy" : "unknown cause")}); failing it.`,
+          `[site-engine] job ${job.id} attempt ${job.attempts} made no progress for ${Math.round(error.idleMs / 1000)}s at "${error.stage ?? "unknown"}" (${error.aiCause ?? (error.busy ? "AI busy" : "unknown cause")}); failing it.`,
         );
         try {
           await db.from("ai_generations").insert({
@@ -3346,7 +3346,7 @@ export async function drainSiteEngineQueue(
           console.warn(`[site-engine] attempt-end record for job ${job.id} skipped`, endError);
         }
         const { tagFailureMessage: tagStall } = await import("@/lib/builder/build-failure");
-        const kind = error.cause ? failureKindForAiCause(error.cause) : error.busy ? "provider" : "infrastructure";
+        const kind = error.aiCause ? failureKindForAiCause(error.aiCause) : error.busy ? "provider" : "infrastructure";
         const { data: stalled } = await db
           .from("generation_jobs")
           .update({

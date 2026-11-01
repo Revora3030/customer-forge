@@ -46,7 +46,7 @@ describe("owner wording", () => {
   it("a build ended with a cause shows that cause, and every cause message is a stall message", () => {
     for (const cause of ["credits", "rate_limited", "timeout"] as const) {
       const error = new NoProgressError("layout", 1000, cause);
-      expect(error.cause).toBe(cause);
+      expect(error.aiCause).toBe(cause);
       expect(isStallMessage(error.message)).toBe(true);
       const kind = failureKindForAiCause(cause);
       const failure = describeBuildFailure({ status: "failed", failure_kind: kind, error_message: tagFailureMessage(kind, error.message) });
@@ -66,8 +66,8 @@ describe("the stall guard reports the cause its probe finds", () => {
   it("rejects with the credits cause", async () => {
     const watch = createProgressWatch(20, Date.now() - 1000);
     await expect(
-      runWithNoProgressGuard(() => new Promise<never>(() => undefined), watch, { checkEveryMs: 5, onStall: async () => "credits" }),
-    ).rejects.toMatchObject({ cause: "credits", busy: true, message: AI_CAUSE_OWNER_MESSAGE.credits });
+      runWithNoProgressGuard(() => new Promise<never>(() => undefined), watch, { checkEveryMs: 5, onStall: async () => "credits" as const }),
+    ).rejects.toMatchObject({ aiCause: "credits", busy: true, message: AI_CAUSE_OWNER_MESSAGE.credits });
   });
 });
 

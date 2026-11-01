@@ -44,12 +44,12 @@ export class NoProgressError extends Error {
   readonly busy: boolean;
   readonly idleMs: number;
   /** Why the AI team went quiet (402 credits, 429 rate limit, timeout), when known. */
-  readonly cause: AiCause | null;
+  readonly aiCause: AiCause | null;
   /** `cause` may be `true` for "the AI was busy, reason unknown" (older callers). */
   constructor(readonly stage: string | null, idleMs: number, cause: AiCause | boolean | null) {
     super(typeof cause === "string" ? AI_CAUSE_OWNER_MESSAGE[cause] : cause ? STALL_MESSAGE_BUSY : STALL_MESSAGE_GENERIC);
     this.name = "NoProgressError";
-    this.cause = typeof cause === "string" ? cause : null;
+    this.aiCause = typeof cause === "string" ? cause : null;
     this.busy = Boolean(cause);
     this.idleMs = idleMs;
   }
@@ -170,7 +170,7 @@ export class LoadTimeoutError extends Error {
 export function withTimeout<T>(work: Promise<T>, ms = DRAFT_LOAD_TIMEOUT_MS, message?: string): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new LoadTimeoutError(message)), ms);
+    timer = setTimeout(() => reject(new LoadTimeoutError(message)), ms); // DevSkim: ignore DS172411 -- Fixed callback and caller-supplied numeric delay; no untrusted data.
   });
   work.catch(() => undefined);
   return Promise.race([work, timeout]).finally(() => {
