@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Mic, Square } from "lucide-react";
 import { appendTranscript, getSpeechRecognition, type SpeechRecognitionLike } from "@/lib/speech-input";
 
@@ -16,6 +16,7 @@ export function VoiceDictateButton({
   onText: (next: string) => void;
   label: string;
 }) {
+  const hintId = useId();
   const [supported, setSupported] = useState(false);
   const [listening, setListening] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
@@ -70,12 +71,15 @@ export function VoiceDictateButton({
         type="button"
         onClick={toggle}
         aria-pressed={listening}
-        aria-label={listening ? `Stop dictating ${label}` : `Dictate ${label}`}
+        aria-describedby={hintId}
         className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[12px] text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
       >
         {listening ? <Square className="size-3" aria-hidden="true" /> : <Mic className="size-3" aria-hidden="true" />}
         {listening ? "Listening… tap to stop" : "Say it"}
       </button>
+      <span id={hintId} className="sr-only">
+        {listening ? `Stops dictating ${label}` : `Dictates ${label}`}
+      </span>
       <span className="text-[11px] text-muted-foreground">
         Your browser may send your voice to its speech service to turn it into text.
       </span>

@@ -210,6 +210,17 @@
     /* In-page CTAs ("See how it works", nav anchors) glide to their section
        instead of snapping, so people can see where they landed. */
     scroll-behavior: smooth;
+    /* The sticky header (and the desktop cookie notice) must never sit on top of
+       the control keyboard focus just moved to, or of an anchor jump target. */
+    scroll-padding-top: 6rem;
+    scroll-padding-bottom: 2rem;
+  }
+
+  @media (min-width: 640px) {
+    html {
+      /* the cookie notice floats bottom-left from the sm breakpoint up */
+      scroll-padding-bottom: 14rem;
+    }
   }
 
   body {

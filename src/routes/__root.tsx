@@ -22,6 +22,7 @@ import { ensureProfile, enforceSessionPolicy, resolvePostLoginPath } from "@/lib
 import { ORGANIZATION_SCHEMA, WEBSITE_SCHEMA, isClientSiteMatch } from "@/lib/seo";
 import { RouteError, RouteNotFound } from "@/components/app/RouteStates";
 import { CookieConsent } from "@/components/marketing/CookieConsent";
+import { SkipLink } from "@/components/marketing/SkipLink";
 import { PlatformAnalytics } from "@/components/marketing/PlatformAnalytics";
 import { ClarityLoader } from "@/components/marketing/ClarityLoader";
 import { loadGoogleAds } from "@/lib/google-ads";
@@ -322,6 +323,7 @@ function RootComponent() {
       <PlatformAnalytics />
       <ClarityLoader />
       <div className={clientSite ? "flex min-h-dvh flex-col" : "platform-shell flex min-h-dvh flex-col"}>
+        {!clientSite && <SkipLink />}
         <CookieConsent />
         {/* The phone notice occupies its own row, never the signup form. */}
         <div className="min-w-0 flex-1"><Outlet /></div>
