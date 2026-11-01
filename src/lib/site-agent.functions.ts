@@ -10,6 +10,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  * keeps one client's website out of another's.
  */
 
+import { guardLeadFormActions } from "@/lib/builder/lead-form-guard";
 import { linkGeneratedMedia } from "@/lib/builder/composition-media-link";
 import { readComposition, restyleCompositionTree, writeComposition, type CompositionNode, type CompositionTree } from "@/lib/builder/composition-tree";
 import { writeBackdrop, writeBackdropSpec, writeSectionEffect } from "@/lib/site-effects";
@@ -999,7 +1000,16 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
       },
       applyDropped,
     );
-    const preflight = preflightActions(planned, {
+    // Lead form guard: a chat edit may move or restyle the enquiry form, booking
+    // form or quote calculator, but not hide, bury or remove it, and not take
+    // away the site's only lead capture. Refused parts are explained to the owner
+    // in plain words; the rest of the edit goes ahead.
+    const leadGuard = guardLeadFormActions(planned, {
+      sections: site.sections,
+      components: site.components,
+    });
+    applyDropped.push(...leadGuard.refused);
+    const preflight = preflightActions(leadGuard.actions, {
       pageIds: new Set(site.pages.map((page) => page.id)),
       sectionIds: new Set(site.sections.map((section) => section.id)),
       componentIds: new Set(site.components.map((component) => component.id)),
@@ -1019,6 +1029,9 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
         throw new Error(
           "Your website already matches that, so there was nothing to change. Nothing was touched.",
         );
+      }
+      if (leadGuard.refused.length) {
+        throw new Error(`${leadGuard.refused.join(" ")} Nothing was changed.`);
       }
       throw new Error("Nothing to apply.");
     }

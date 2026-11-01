@@ -1,3 +1,4 @@
+import { containsLeadWidget, showStyle } from "@/lib/builder/lead-form-guard";
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import type { Breakpoint, CompositionFaqItem, CompositionNode, CompositionTab, CompositionTree, MotionEasing, NodeHover, NodeMotion, NodeStyle, WidgetPresentation } from "@/lib/builder/composition-tree";
@@ -461,15 +462,24 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
   // Buttons and links are how visitors act: a design may restyle them per
   // screen size but never hide one, or a phone visitor loses the action.
   const actionable = node.type === "button" || node.type === "link";
+  // The enquiry form, booking form and quote calculator, and any container
+  // holding one, are never hidden on phones, whatever flag was stored with the
+  // layout: that is how a visitor becomes a lead.
+  const leadHolder = containsLeadWidget(node);
   for (const [bp, rawStyle] of Object.entries(node.responsive ?? {}) as [Breakpoint, NodeStyle][]) {
-    const style = actionable && rawStyle.hidden ? { ...rawStyle, hidden: false } : rawStyle;
+    const style = actionable && rawStyle.hidden
+      ? { ...rawStyle, hidden: false }
+      : leadHolder && bp === "mobile" ? (showStyle(rawStyle) ?? rawStyle) : rawStyle;
     const text = cssText(styleToCss(style, node.type));
     if (text) ctx.rules.push(`@media ${MEDIA[bp]}{[data-cn="${id}"]{${text}}}`);
   }
   if (node.hover) ctx.rules.push(hoverCss(id, node.hover));
   const style: CSSProperties = {
     ...baseLayout(node.type),
-    ...styleToCss(actionable && node.style?.hidden ? { ...node.style, hidden: false } : node.style, node.type),
+    ...styleToCss(
+      actionable && node.style?.hidden ? { ...node.style, hidden: false } : leadHolder ? (showStyle(node.style) ?? undefined) : node.style,
+      node.type,
+    ),
   };
   // An aspect ratio on a text-only grid or card becomes a hollow frame (two
   // short labels stacked in a tall bordered box). Pictures keep their crop.
