@@ -10,6 +10,7 @@ import {
   SAVINGS_TOOLS,
   cleanPrice,
   computeSavings,
+  showsSaving,
   type SavingsToolId,
 } from "@/lib/software-savings";
 
@@ -34,7 +35,7 @@ export function SavingsCalculator() {
       return next;
     });
 
-  const saves = result.toolCount > 0 && !result.revoraCostsMore;
+  const saves = showsSaving(result);
 
   return (
     <div className="grid gap-4 lg:grid-cols-[1.05fr_0.95fr]">

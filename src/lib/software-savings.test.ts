@@ -7,6 +7,7 @@ import {
   SAVINGS_TOOLS,
   cleanPrice,
   computeSavings,
+  showsSaving,
   typicalComparison,
   type SavingsTool,
 } from "./software-savings";
@@ -97,5 +98,27 @@ describe("typicalComparison", () => {
     expect(r.currentMonthly).toBe(c.toolsMonthly);
     expect(r.firstYearDifference).toBe(c.toolsDifference);
     expect(r.firstYearDifference).toBeLessThan(0);
+  });
+});
+
+describe("showsSaving", () => {
+  it("never shows a saving, or a negative 'less' figure, when all six sourced tools cost less than Revora's first year", () => {
+    const all = Object.fromEntries(
+      (SAVINGS_TOOLS as readonly SavingsTool[]).filter((tool) => tool.typical !== null).map((tool) => [tool.id, tool.typical]),
+    );
+    const r = computeSavings(all);
+    expect(r.firstYearDifference).toBeLessThan(0);
+    expect(showsSaving(r)).toBe(false);
+  });
+
+  it("shows a saving only when tools are ticked and cost more than Revora over 12 months", () => {
+    expect(showsSaving(computeSavings({}))).toBe(false);
+    const big = computeSavings({ website: 400 });
+    expect(big.firstYearDifference).toBeGreaterThan(0);
+    expect(showsSaving(big)).toBe(true);
+    // Costs more per month than Revora's $100 but less over the first year (setup fee): still no saving.
+    const edge = computeSavings({ website: 110 });
+    expect(edge.firstYearDifference).toBeLessThan(0);
+    expect(showsSaving(edge)).toBe(false);
   });
 });

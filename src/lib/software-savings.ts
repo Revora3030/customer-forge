@@ -228,3 +228,8 @@ export function typicalComparison(): TypicalComparison {
     checked: PRICES_CHECKED_LABEL,
   };
 }
+
+/** A "less" headline is only honest when the tools really cost more than Revora over the first 12 months. */
+export function showsSaving(result: Pick<SavingsResult, "toolCount" | "firstYearDifference">): boolean {
+  return result.toolCount > 0 && result.firstYearDifference > 0;
+}
