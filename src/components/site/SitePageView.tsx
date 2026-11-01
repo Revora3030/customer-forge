@@ -12,6 +12,7 @@ import { premiumSurface } from "@/lib/site-theme";
  */
 import { useEffect } from "react";
 import { useServerFn } from "@tanstack/react-start";
+import { dedupePageMedia } from "@/lib/builder/dedupe-page-media";
 import { SiteSection } from "@/components/site/SiteSections";
 import {
   isRenderableSection,
@@ -132,10 +133,17 @@ export function SitePageView({
   // itself would use) so their headings count too.
   const leadIndex = leadSectionIndex(sections as never);
   const pageRoots = normalizeHeadingOutline(
-    studioPage.roots.map((root, index) => {
-      const section = sections[index];
-      return root ?? (section ? legacySectionToComposition(section as never, { lead: index === leadIndex })?.root ?? null : null);
-    }),
+    dedupePageMedia(
+      studioPage.roots.map((root, index) => {
+        const section = sections[index];
+        return root ?? (section ? legacySectionToComposition(section as never, { lead: index === leadIndex })?.root ?? null : null);
+      }),
+      {
+        // One picture appears once per page: a repeat swaps to an unused picture from the site's own library.
+        urlOf: (index, ref) => sections[index]?.components?.find((component) => component.id === ref)?.url ?? null,
+        pool: sections.flatMap((section) => (section.components ?? []).map((component) => component.url ?? "")),
+      },
+    ),
   );
 
   useEffect(() => {
@@ -168,7 +176,7 @@ export function SitePageView({
   // Premium effects: the owner's switch, the trade's effect tier and the meter label.
   const premium = readPremiumSettings(site.settings?.generation ?? null);
   const niche = nicheEffects(org.industry ?? null);
-  const meterLabel = resolveMeterLabel(premium, niche);
+  const meterLabel = resolveMeterLabel(premium, niche, { preview });
   return (
     <PremiumFxContext.Provider value={premiumFxValue(premium.enabled, niche.tier)}>
     <div
