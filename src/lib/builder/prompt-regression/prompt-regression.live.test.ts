@@ -2,7 +2,7 @@
  * OPTIONAL live mode: runs the builder's real prompts through a real model and
  * applies the same checks as the stubbed suite. Off by default and never in CI.
  *
- *   PROMPT_REGRESSION_LIVE=1 LOVABLE_API_KEY=... PROMPT_REGRESSION_MODEL=... \
+ *   PROMPT_REGRESSION_LIVE=1 PROMPT_REGRESSION_URL=... PROMPT_REGRESSION_API_KEY=... PROMPT_REGRESSION_MODEL=... \
  *     npm run test:prompts:live
  *
  * Without the flag, or with CI set, every case here is skipped. See
@@ -52,9 +52,9 @@ describe.skipIf(blocker !== null)("live builder prompts", () => {
 describe("live mode switch", () => {
   it("is off unless explicitly enabled", () => {
     expect(liveModeBlocker({})).not.toBeNull();
-    expect(liveModeBlocker({ PROMPT_REGRESSION_LIVE: "1", CI: "true", LOVABLE_API_KEY: "k", PROMPT_REGRESSION_MODEL: "m" })).toMatch(/never runs in CI/);
-    expect(liveModeBlocker({ PROMPT_REGRESSION_LIVE: "1", PROMPT_REGRESSION_MODEL: "m" })).toMatch(/LOVABLE_API_KEY/);
-    expect(liveModeBlocker({ PROMPT_REGRESSION_LIVE: "1", LOVABLE_API_KEY: "k", PROMPT_REGRESSION_MODEL: "m" })).toBeNull();
+    expect(liveModeBlocker({ PROMPT_REGRESSION_LIVE: "1", CI: "true", PROMPT_REGRESSION_URL: "u", PROMPT_REGRESSION_API_KEY: "k", PROMPT_REGRESSION_MODEL: "m" })).toMatch(/never runs in CI/);
+    expect(liveModeBlocker({ PROMPT_REGRESSION_LIVE: "1", PROMPT_REGRESSION_URL: "u", PROMPT_REGRESSION_MODEL: "m" })).toMatch(/PROMPT_REGRESSION_API_KEY/);
+    expect(liveModeBlocker({ PROMPT_REGRESSION_LIVE: "1", PROMPT_REGRESSION_URL: "u", PROMPT_REGRESSION_API_KEY: "k", PROMPT_REGRESSION_MODEL: "m" })).toBeNull();
     expect(() => liveModel({})).toThrow(/live mode is off/);
   });
 });

@@ -37,14 +37,14 @@ npm test                      # full suite also includes it (CI runs it this way
 ## Live mode (optional, off by default, never in CI)
 
 ```sh
-PROMPT_REGRESSION_LIVE=1 LOVABLE_API_KEY=<your own key> \
-PROMPT_REGRESSION_MODEL=<gateway model id, OpenAI-style> \
+PROMPT_REGRESSION_LIVE=1 PROMPT_REGRESSION_URL=<chat-completions endpoint> PROMPT_REGRESSION_API_KEY=<your own key> \
+PROMPT_REGRESSION_MODEL=<model id that endpoint accepts> \
 npm run test:prompts:live
 # limit to some fixtures:  PROMPT_REGRESSION_ONLY=plumber,roofer
 ```
 
 - It refuses to run unless all three variables are set, and refuses whenever `CI` is set. No CI secret is needed or used.
-- It calls the Lovable gateway directly, bypassing the budget ledger, so a full run is about 10-14 calls per fixture. Keep it small.
+- It calls the endpoint you name directly (the repo's router-only guard forbids naming a provider host in source), bypassing the budget ledger, so a full run is about 10-14 calls per fixture. Keep it small.
 - A live failure is information about that model's answer (real models vary), not a merge gate.
 - Anthropic-style model ids are not supported by this runner (they need the native messages endpoint).
 
