@@ -10,7 +10,10 @@ function browser(choice: string | null) {
   const gtag = vi.fn();
   vi.stubGlobal("window", {
     location: { hostname: "localhost" },
-    localStorage: { getItem: (key: string) => values.get(key) ?? null, setItem: (key: string, value: string) => values.set(key, value) },
+    localStorage: {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => values.set(key, value),
+    },
     gtag,
     dispatchEvent: vi.fn(),
   });
@@ -18,12 +21,24 @@ function browser(choice: string | null) {
 }
 
 describe("advertising consent", () => {
-  it.each(["/app", "/app/services", "/admin/jarvis", "/my/activity", "/onboarding", "/s/customer", "/p/token/about", "/draft/customer"])("does not interrupt workspace/customer pages: %s", (path) => {
+  it.each([
+    "/app",
+    "/app/services",
+    "/admin/jarvis",
+    "/my/activity",
+    "/onboarding",
+    "/s/customer",
+    "/p/token/about",
+    "/draft/customer",
+  ])("does not interrupt workspace/customer pages: %s", (path) => {
     expect(isMarketingConsentPath(path)).toBe(false);
   });
-  it.each(["/", "/pricing", "/auth", "/reset-password"])("keeps consent available on marketing and signup pages: %s", (path) => {
-    expect(isMarketingConsentPath(path)).toBe(true);
-  });
+  it.each(["/", "/pricing", "/auth", "/reset-password"])(
+    "keeps consent available on marketing and signup pages: %s",
+    (path) => {
+      expect(isMarketingConsentPath(path)).toBe(true);
+    },
+  );
   it("does not track before a decision in a consent region", async () => {
     browser(null);
     expect(await canTrackAds()).toBe(false);
@@ -33,11 +48,26 @@ describe("advertising consent", () => {
     updateConsent("denied");
     expect(await canTrackAds()).toBe(false);
     expect(values.get("cookie_consent")).toBe("denied");
-    expect(gtag).toHaveBeenCalledWith("consent", "update", { ad_storage: "denied", ad_user_data: "denied", ad_personalization: "denied", analytics_storage: "denied" });
+    expect(gtag).toHaveBeenCalledWith("consent", "update", {
+      ad_storage: "denied",
+      ad_user_data: "denied",
+      ad_personalization: "denied",
+      analytics_storage: "denied",
+    });
   });
   it("accepting persists consent and permits tracking", async () => {
     browser(null);
     updateConsent("granted");
+    expect(await canTrackAds()).toBe(true);
+  });
+  it("honors Global Privacy Control when no choice is stored", async () => {
+    browser(null);
+    vi.stubGlobal("navigator", { globalPrivacyControl: true });
+    expect(await canTrackAds()).toBe(false);
+  });
+  it("an explicit Accept still wins over Global Privacy Control", async () => {
+    browser("granted");
+    vi.stubGlobal("navigator", { globalPrivacyControl: true });
     expect(await canTrackAds()).toBe(true);
   });
 });

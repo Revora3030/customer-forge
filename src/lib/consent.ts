@@ -2,8 +2,10 @@
  * Advertising-consent state for Revora's own marketing site.
  *
  * Chosen route: regional banner. Visitors in regions that require consent
- * (EEA, UK, Switzerland, Quebec) are asked before ad cookies are set;
- * everywhere else tracking stays enabled with no banner, honoring opt-outs.
+ * (EEA, UK, Switzerland, Canada, or unknown) are asked before analytics,
+ * session-replay and ad tags load; everywhere else they stay enabled with no
+ * banner, honoring opt-outs: the footer "Cookie settings" choice and the
+ * browser's Global Privacy Control signal.
  *
  * Two records are kept:
  * - `cookie_consent` — the plain flag that gates execution (provider contract).
@@ -17,12 +19,45 @@
 export const STORAGE_KEY = "cookie_consent";
 const RECORD_KEY = "revora.consent.record.v1";
 /** Bumped whenever the notice text shown to visitors changes materially. */
-export const NOTICE_VERSION = "2026-09-25";
+export const NOTICE_VERSION = "2026-11-01";
+/** Text of the notice shown in the banner, recorded with each choice. */
+export const CONSENT_NOTICE =
+  "We use Google Analytics, Microsoft Clarity and Google Ads measurement to see how visitors use this site and whether our ads lead to signups. Accept or reject below.";
 
 const CONSENT_COUNTRIES = [
-  "AT", "BE", "BG", "HR", "CY", "CZ", "DK", "EE", "FI", "FR", "DE", "GR", "HU",
-  "IE", "IT", "LV", "LT", "LU", "MT", "NL", "PL", "PT", "RO", "SK", "SI", "ES",
-  "SE", "IS", "LI", "NO", "GB", "CH", "CA",
+  "AT",
+  "BE",
+  "BG",
+  "HR",
+  "CY",
+  "CZ",
+  "DK",
+  "EE",
+  "FI",
+  "FR",
+  "DE",
+  "GR",
+  "HU",
+  "IE",
+  "IT",
+  "LV",
+  "LT",
+  "LU",
+  "MT",
+  "NL",
+  "PL",
+  "PT",
+  "RO",
+  "SK",
+  "SI",
+  "ES",
+  "SE",
+  "IS",
+  "LI",
+  "NO",
+  "GB",
+  "CH",
+  "CA",
 ];
 
 let consentRegion: Promise<boolean> | undefined;
@@ -54,9 +89,20 @@ export async function canTrackAds(): Promise<boolean> {
   if (typeof window === "undefined") return false;
   const choice = window.localStorage.getItem(STORAGE_KEY);
   if (choice !== null) return choice === "granted";
+  // Global Privacy Control is an opt-out signal: with no explicit choice
+  // stored, respect it everywhere (an explicit Accept still wins).
+  if (hasGlobalPrivacyControl()) return false;
   const required = await isConsentRequiredRegion();
   const latest = window.localStorage.getItem(STORAGE_KEY);
   return latest !== null ? latest === "granted" : !required;
+}
+
+/** True when the browser sends the Global Privacy Control opt-out signal. */
+export function hasGlobalPrivacyControl(): boolean {
+  if (typeof navigator === "undefined") return false;
+  return (
+    (navigator as Navigator & { globalPrivacyControl?: boolean }).globalPrivacyControl === true
+  );
 }
 
 /** Persists the choice, its evidence, and pushes it to Google's consent signals. */
@@ -70,8 +116,7 @@ export function updateConsent(decision: "granted" | "denied") {
         choice: decision,
         updatedAt: new Date().toISOString(),
         noticeVersion: NOTICE_VERSION,
-        notice:
-          "Cookie notice: we use cookies to measure whether our advertising leads to trial signups. Accept or reject below.",
+        notice: CONSENT_NOTICE,
       }),
     );
   } catch {
@@ -80,7 +125,9 @@ export function updateConsent(decision: "granted" | "denied") {
   pushConsentSignal(decision);
   window.dispatchEvent(new Event("revora:consent-changed"));
   if (decision === "granted") {
-    void import("./google-ads").then(({ loadGoogleAds }) => loadGoogleAds(false)).catch(() => undefined);
+    void import("./google-ads")
+      .then(({ loadGoogleAds }) => loadGoogleAds(false))
+      .catch(() => undefined);
   }
 }
 
