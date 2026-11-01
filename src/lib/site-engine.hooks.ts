@@ -9,6 +9,7 @@ import { readWebsiteState, restoreWebsiteVersion } from "@/lib/site-restore.func
 import { insertVersionSnapshot, versionContent } from "@/lib/version-snapshot";
 import { jobLiveness, type JobLiveness } from "@/lib/builder/job-liveness";
 import { refreshGeneratedResult } from "@/lib/builder/generated-result-cache";
+import { buildAllowance, BUILD_WINDOW_MS, DAILY_BUILD_LIMIT } from "@/lib/builder/build-allowance";
 import {
   aiEditSiteCopy,
   extractScreenshotReference,
@@ -127,6 +128,27 @@ export function useJobLiveness(organizationId: string | undefined): {
   };
 }
 
+/** Builds used in the rolling 24 hours the database caps (see build-allowance.ts). */
+export function useBuildAllowance(organizationId: string | undefined) {
+  return useQuery({
+    queryKey: ["build_allowance", organizationId],
+    enabled: !!organizationId,
+    refetchInterval: 60_000,
+    queryFn: async () => {
+      const since = new Date(Date.now() - BUILD_WINDOW_MS).toISOString();
+      const { data, error } = await supabase
+        .from("generation_jobs")
+        .select("created_at")
+        .eq("organization_id", organizationId!)
+        .gt("created_at", since)
+        .order("created_at", { ascending: false })
+        .limit(DAILY_BUILD_LIMIT + 5);
+      if (error) throw error;
+      return buildAllowance((data ?? []).map((row) => row.created_at));
+    },
+  });
+}
+
 export function useRunSiteEngine(organizationId: string | undefined) {
   const queryClient = useQueryClient();
   const run = useServerFn(runSiteGeneration);
@@ -143,6 +165,7 @@ export function useRunSiteEngine(organizationId: string | undefined) {
           : "Revora is building your website — progress updates below.",
       });
       void queryClient.invalidateQueries({ queryKey: ["generation_job", organizationId] });
+      void queryClient.invalidateQueries({ queryKey: ["build_allowance", organizationId] });
       void queryClient.invalidateQueries({ queryKey: ["website_settings"] });
       void queryClient.invalidateQueries({ queryKey: ["notifications"] });
     },

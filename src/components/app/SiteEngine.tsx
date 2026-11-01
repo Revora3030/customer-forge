@@ -25,11 +25,13 @@ import {
   useLatestGenerationJob,
   useRestoreWebsiteVersion,
   useRunSiteEngine,
+  useBuildAllowance,
   useSnapshotWebsiteVersion,
   useWebsiteVersions,
 } from "@/lib/site-engine.hooks";
 import { dateShort } from "@/lib/format";
 import { describeBuildFailure } from "@/lib/builder/build-failure";
+import { buildAllowanceText } from "@/lib/builder/build-allowance";
 import { useCancelSiteEngine } from "@/lib/site-engine-cancel.hooks";
 import { cn } from "@/lib/utils";
 import { focusAndScrollToId } from "@/lib/use-step-scroll";
@@ -50,6 +52,8 @@ export function SiteEnginePanel({
   const { data: job } = useLatestGenerationJob(organizationId);
   const { data: readiness } = useBuildReadiness(organizationId);
   const run = useRunSiteEngine(organizationId);
+  const { data: allowance } = useBuildAllowance(organizationId);
+  const outOfBuilds = allowance?.left === 0;
   const [confirmRedesign, setConfirmRedesign] = useState(false);
   const cancel = useCancelSiteEngine(organizationId);
   const [freshConfirm, setFreshConfirm] = useState("");
@@ -99,13 +103,18 @@ export function SiteEnginePanel({
             structure for your industry, writes the copy, sets up your search settings and connects
             lead capture — in one run. It never invents reviews, awards, credentials or prices.
           </p>
+          {canManage && allowance && !running ? (
+            <p data-testid="build-allowance" className={`mt-1 text-[12px] ${outOfBuilds ? "text-foreground" : "text-muted-foreground"}`}>
+              {buildAllowanceText(allowance, (date) => date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }))}
+            </p>
+          ) : null}
         </div>
         {canManage ? (
           <Button
             variant={hasCopy ? "outline" : "signal"}
-            disabled={running || blocked}
+            disabled={running || blocked || outOfBuilds}
             onClick={() => run.mutate({ mode: "safe" })}
-            title={blockedReason ?? undefined}
+            title={blockedReason ?? (outOfBuilds ? "All builds for the last 24 hours are used." : undefined)}
           >
             {running ? (
               <Loader2 className="size-4 animate-spin" />
