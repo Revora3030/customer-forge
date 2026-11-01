@@ -622,10 +622,10 @@ export async function publishSiteNow(
 
     return {
       activated: true,
-      reason: restoreSource
-        ? `Version ${restoreSource.version} is live again.`
-        : options.liveEdit
+      reason: options.liveEdit
         ? "Your change is live."
+        : restoreSource
+        ? `Version ${restoreSource.version} is live again.`
         : "Your website is live. Changes Revora makes from now on go straight to the live site, with an undo point saved before each one.",
       version: nextVersion,
       publishState: "published",
