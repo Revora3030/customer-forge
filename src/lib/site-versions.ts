@@ -129,7 +129,7 @@ export type PublishedRow = {
   generation?: unknown;
   seo?: unknown;
   /**
-   * TODO(sf/post-publish-verify): Site Factory's item 25 will save a pass/fail
+   * Follow-up for sf/post-publish-verify: Site Factory's item 25 will save a pass/fail
    * result per publish. Until that field exists this is always null/absent.
    * Wire the real column/lookup here once that PR merges; do not add it here.
    */
@@ -196,7 +196,7 @@ export function buildVersionList(
 /**
  * Versions rollback may safely pick. A failed live check is never offered;
  * versions with no result (null) stay allowed until Site Factory's
- * verification field exists (TODO sf/post-publish-verify). With `passedOnly`
+ * verification field exists (follow-up: sf/post-publish-verify). With `passedOnly`
  * a missing result is excluded too, for when every publish carries one.
  */
 export function restorableVersions<T extends { verification: VersionVerification }>(
