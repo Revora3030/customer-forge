@@ -106,7 +106,7 @@ export function StockPhotoPanel({
 
       {tradePicks.length > 0 ? (
         <div className="space-y-2">
-          <p className="text-sm font-medium">Picked for your trade ({tradeKeyFor(industry)})</p>
+          <p className="text-sm font-medium">{tradeKeyFor(industry) ? `Picked for your trade (${tradeKeyFor(industry)})` : "Picked for local service businesses"}</p>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {tradePicks.map(({ photo, suitsHero }) => (
               <figure key={photo.id} className="overflow-hidden rounded-xl border border-white/10 bg-black/20">

@@ -19,7 +19,7 @@ import type { StockPhoto } from "@/lib/builder/stock-photos";
  * Verified 2026-10-31. These show the trade, not a customer: they must never be
  * captioned as the business's own work or its own team.
  */
-export type TradeKey = "plumbing" | "roofing" | "hvac" | "landscaping" | "cleaning" | "electrical" | "detailing";
+export type TradeKey = "generic" | "plumbing" | "roofing" | "hvac" | "landscaping" | "cleaning" | "electrical" | "detailing";
 
 export type TradePhotoPick = {
   trade: TradeKey;
@@ -34,6 +34,42 @@ export type TradePhotoPick = {
 };
 
 export const TRADE_PHOTO_PICKS: TradePhotoPick[] = [
+  {
+    trade: "generic",
+    id: "10827221",
+    photographer: "Curtis Adams",
+    alt: "Modern suburban house with a two-car garage and lush front yard",
+    framing: "wide",
+    focal: { x: 50, y: 55 },
+    stats: { aspect: 1.5, mean: 0.63, contrast: 0.19, darkShare: 0.03 },
+  },
+  {
+    trade: "generic",
+    id: "10486074",
+    photographer: "Curtis Adams",
+    alt: "Modern two-story suburban house with a garage under a blue sky",
+    framing: "wide",
+    focal: { x: 50, y: 55 },
+    stats: { aspect: 1.5, mean: 0.69, contrast: 0.14, darkShare: 0 },
+  },
+  {
+    trade: "generic",
+    id: "6422939",
+    photographer: "Get Lost Mike",
+    alt: "Bright modern suburban house with a landscaped front yard",
+    framing: "wide",
+    focal: { x: 50, y: 55 },
+    stats: { aspect: 1.5, mean: 0.5, contrast: 0.18, darkShare: 0.01 },
+  },
+  {
+    trade: "generic",
+    id: "10486204",
+    photographer: "Curtis Adams",
+    alt: "Two-story suburban home with a classic design and manicured lawn",
+    framing: "wide",
+    focal: { x: 50, y: 55 },
+    stats: { aspect: 1.536, mean: 0.63, contrast: 0.2, darkShare: 0.01 },
+  },
   {
     trade: "roofing",
     id: "33404248",
@@ -324,10 +360,10 @@ export function pexelsPageUrl(id: string): string {
   return `https://www.pexels.com/photo/${id}/`;
 }
 
-/** Curated picks that pass the exposure and framing rules for a slot. */
+/** Curated picks that pass the exposure and framing rules for a slot. Falls back to the generic set. */
 export function picksForTrade(industry: string | null | undefined, slot: PhotoSlot): TradePhotoPick[] {
-  const trade = tradeKeyFor(industry);
-  if (!trade) return [];
+  // An industry with no curated trade gets the neutral home-and-property set.
+  const trade = tradeKeyFor(industry) ?? "generic";
   return TRADE_PHOTO_PICKS.filter(
     (pick) => pick.trade === trade && gradePhotoForSlot({ ...pick.stats, framing: pick.framing }, slot).ok,
   );

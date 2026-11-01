@@ -13,7 +13,7 @@ import {
 } from "@/lib/builder/trade-photo-picks";
 import { licenceAllowsBusinessUse, requiresCredit } from "@/lib/builder/stock-photos";
 
-const TRADES: TradeKey[] = ["plumbing", "roofing", "hvac", "landscaping", "cleaning", "electrical", "detailing"];
+const TRADES: TradeKey[] = ["generic", "plumbing", "roofing", "hvac", "landscaping", "cleaning", "electrical", "detailing"];
 
 describe("curated trade photos", () => {
   it("covers every trade with at least one picture", () => {
@@ -64,7 +64,23 @@ describe("curated trade photos", () => {
     expect(tradeKeyFor("Commercial cleaning")).toBe("cleaning");
     expect(tradeKeyFor("Bakery")).toBeNull();
     expect(tradeKeyFor(null)).toBeNull();
-    expect(picksForTrade("Bakery", "card")).toEqual([]);
+    // No curated trade: the neutral property set, never an empty panel.
+    const fallback = picksForTrade("Bakery", "hero");
+    expect(fallback.length).toBeGreaterThan(0);
+    expect(fallback.every((pick) => pick.trade === "generic")).toBe(true);
+  });
+
+  it("records source, photographer, photo page and licence for every pick", () => {
+    for (const pick of TRADE_PHOTO_PICKS) {
+      const photo = pickToStockPhoto(pick);
+      expect(photo.provider, pick.id).toBe("pexels");
+      expect(photo.licenseCode, pick.id).toBe("pexels");
+      expect(photo.licenseUrl, pick.id).toBe("https://www.pexels.com/license/");
+      expect(photo.sourcePage, pick.id).toBe(`https://www.pexels.com/photo/${pick.id}/`);
+      expect(photo.creator?.trim().length, pick.id).toBeGreaterThan(1);
+      expect(photo.attribution, pick.id).toContain(pick.photographer);
+      expect(photo.url.startsWith("https://images.pexels.com/photos/"), pick.id).toBe(true);
+    }
   });
 
   it("converts a pick into a saveable free photo with its source and credit", () => {
