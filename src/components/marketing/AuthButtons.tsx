@@ -77,10 +77,10 @@ export function AuthActions({
             : `Sign up free — ${GROWTH_SYSTEM.fullAccessWindow} full access`}
         </Link>
       </Button>
-      <Button asChild variant={compact ? "ghost" : "outline"} size={size} className="min-h-11">
+      <Button asChild variant={compact ? "ghost" : "outline"} size={size} className="min-h-11 max-[400px]:min-w-11 max-[400px]:px-2">
         <Link to="/auth" search={SIGN_IN_SEARCH} onClick={onNavigate}>
           <LogIn className="size-4" aria-hidden="true" />
-          Sign in
+          <span className={compact ? "max-[400px]:sr-only" : undefined}>Sign in</span>
         </Link>
       </Button>
     </div>

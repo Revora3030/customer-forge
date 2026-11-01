@@ -344,7 +344,7 @@ export function ProductTour() {
           </div>
         </Panel>
       </div>
-      <div className="mt-10 mx-auto max-w-3xl">
+      <div className="mt-10 mx-auto max-w-3xl scroll-mt-20">
         <h3 className="text-center font-display text-[clamp(1.1rem,2.2vw,1.5rem)] font-semibold">
           From an out-of-date page to a site built to win leads
         </h3>

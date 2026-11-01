@@ -54,7 +54,7 @@ export function SiteHeader() {
 
   return (
     <header className="sticky top-0 z-40 pt-[env(safe-area-inset-top)] border-b border-border bg-background/90 backdrop-blur-sm">
-      <div className="mx-auto grid h-16 max-w-6xl grid-cols-[minmax(0,1fr)_auto] items-center gap-2 px-4 md:flex md:justify-between">
+      <div className="mx-auto grid h-16 max-w-6xl grid-cols-[minmax(0,1fr)_auto] items-center gap-2 px-4 max-[400px]:h-14 max-[400px]:px-3 md:flex md:justify-between">
         <Link to="/" aria-label="Revora home" className="inline-flex min-h-11 min-w-0 items-center">
           <Logo />
         </Link>

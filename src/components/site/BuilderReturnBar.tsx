@@ -8,9 +8,12 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, X } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
+import { canShowBuilderShortcut } from "@/components/site/builder-return-bar-rules";
 
-export function BuilderReturnBar() {
+export function BuilderReturnBar({ organizationId }: { organizationId?: string | undefined } = {}) {
   const [signedIn, setSignedIn] = useState(false);
+  const [role, setRole] = useState<string | null>(null);
+  const [width, setWidth] = useState(0);
   const [framed, setFramed] = useState(true);
   const [hidden, setHidden] = useState(false);
   // Height of the site's own bottom-pinned bars (a mobile "Book now" bar),
@@ -26,20 +29,39 @@ export function BuilderReturnBar() {
     } catch {
       /* storage unavailable — keep the control visible */
     }
+    const measureWidth = () => setWidth(window.innerWidth);
+    measureWidth();
+    window.addEventListener("resize", measureWidth);
     let active = true;
     void supabase.auth
       .getSession()
-      .then(({ data }) => {
-        if (active) setSignedIn(Boolean(data.session));
+      .then(async ({ data }) => {
+        if (!active) return;
+        const userId = data.session?.user.id;
+        setSignedIn(Boolean(userId));
+        if (!userId || !organizationId) return;
+        // Only a member of THIS site's workspace gets the shortcut.
+        const { data: membership } = await supabase
+          .from("memberships")
+          .select("role")
+          .eq("organization_id", organizationId)
+          .eq("user_id", userId)
+          .maybeSingle();
+        if (active) setRole(membership?.role ?? null);
       })
       .catch(() => undefined);
     return () => {
       active = false;
+      window.removeEventListener("resize", measureWidth);
     };
-  }, []);
+  }, [organizationId]);
+
+  const visible =
+    typeof window !== "undefined" &&
+    canShowBuilderShortcut({ signedIn, role, framed, dismissed: hidden, viewportWidth: width, pathname: window.location.pathname });
 
   useEffect(() => {
-    if (!signedIn || framed || hidden) return;
+    if (!visible) return;
     let frame = 0;
     const measure = () => {
       frame = 0;
@@ -63,24 +85,24 @@ export function BuilderReturnBar() {
       window.removeEventListener("scroll", schedule);
       window.visualViewport?.removeEventListener("resize", schedule);
     };
-  }, [signedIn, framed, hidden]);
+  }, [visible]);
 
-  if (!signedIn || framed || hidden) return null;
+  if (!visible) return null;
 
   return (
     // Compact, dismissible, and kept out of the site's own content: bottom-left
     // on every screen (at the top it sat over the site's menu and headlines on
     // phones), above the home-indicator safe area.
-    <div ref={self} className="fixed left-3 z-[60] inline-flex items-center rounded-full border border-foreground/15 bg-foreground text-background shadow-lg"
+    <div ref={self} className="fixed left-3 z-[60] inline-flex items-center rounded-full border border-foreground/15 bg-foreground text-background shadow-md"
          style={{ bottom: lift ? `${lift + 12}px` : "calc(env(safe-area-inset-bottom, 0px) + 0.75rem)" }}
     >
       {/* Client-side navigation: a full page reload here used to drop the
           builder's in-memory state (including unsaved chat) on the way back. */}
       <Link
         to="/app/website"
-        className="inline-flex min-h-11 items-center gap-1.5 pl-3 pr-1.5 font-display text-[12px] font-semibold transition-opacity hover:opacity-90"
+        className="inline-flex min-h-8 items-center gap-1 pl-2.5 pr-1 font-display text-[11px] font-semibold transition-opacity hover:opacity-90"
       >
-        <ArrowLeft className="size-3.5" aria-hidden="true" />
+        <ArrowLeft className="size-3" aria-hidden="true" />
         Builder
       </Link>
       <button
@@ -94,9 +116,9 @@ export function BuilderReturnBar() {
             /* ignore */
           }
         }}
-        className="inline-flex size-9 items-center justify-center rounded-full opacity-70 hover:opacity-100"
+        className="inline-flex size-7 items-center justify-center rounded-full opacity-70 hover:opacity-100"
       >
-        <X className="size-3.5" aria-hidden="true" />
+        <X className="size-3" aria-hidden="true" />
       </button>
     </div>
   );

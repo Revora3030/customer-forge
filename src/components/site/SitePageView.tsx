@@ -33,13 +33,14 @@ import { readPremiumSettings } from "@/lib/builder/premium-effects";
 import { nicheEffects, resolveMeterLabel } from "@/lib/builder/premium-niche";
 import { isPlaceholderPalette, siteFontStyle, siteThemeStyle } from "@/lib/site-theme";
 import { siteFontFor } from "@/lib/site-font-pairings";
+import { designSystemCss, designSystemVars } from "@/lib/site-design-system";
 import { readComposition } from "@/lib/visual-composition";
 import { readBackdrop, readBackdropSpec } from "@/lib/site-effects";
 import { trackPublicEvent, type PublicSite } from "@/lib/public-site.functions";
 import { SiteVitals } from "@/components/site/SiteVitals";
 import { BuilderReturnBar } from "@/components/site/BuilderReturnBar";
 import { PreviewLinkBridge } from "@/components/site/PreviewLinkBridge";
-import { readBlockStyle, styleSheet } from "@/lib/site-style";
+import { MOBILE_ORDER_ATTR, hasMobileOrder, mobileOrderRules, readBlockStyle, styleSheet } from "@/lib/site-style";
 import { CompositionRenderer } from "@/components/site/CompositionRenderer";
 import { normalizeHeadingOutline } from "@/lib/builder/heading-outline";
 import { legacySectionToComposition } from "@/lib/builder/legacy-composition";
@@ -158,7 +159,7 @@ export function SitePageView({
           <p className="mt-2 text-[13px] text-muted-foreground">
             Please check back soon.
           </p>
-          {preview ? <BuilderReturnBar /> : null}
+          {preview ? <BuilderReturnBar organizationId={org.id} /> : null}
         </div>
       </div>
     );
@@ -179,6 +180,7 @@ export function SitePageView({
           accentColor: profile?.accent_color ?? null,
         }),
         ...siteFontStyle(siteFontFor(profile?.font_preference ?? null, org)),
+        ...designSystemVars(siteFontFor(profile?.font_preference ?? null, org)),
         // The vars alone do not change the face: body text inherited the app's
         // DM Sans from <body>. The site root sets its own pairing's body face.
         fontFamily: "var(--font-body)",
@@ -188,6 +190,9 @@ export function SitePageView({
       {...(studioPage.studio ? { "data-studio": "" } : {})}
     >
       <SiteFontLinks font={siteFontFor(profile?.font_preference ?? null, org)} />
+      {/* Premium design system: type ramp, spacing, rhythm and motion tokens.
+          Low-specificity, layered CSS, so any authored style still wins. */}
+      <style data-rv-design-system="">{designSystemCss()}</style>
       <SiteBackdrop
         backdrop={readBackdrop(site.settings?.generation ?? null)}
         composition={readComposition(site.settings?.generation ?? null)}
@@ -234,7 +239,7 @@ export function SitePageView({
         {/* A first section that paints its own surface (a full-bleed hero)
             sits directly under the header; only an unpainted first section
             gets the small top gap. */}
-        <main className={`scroll-mt-20 ${firstSectionHasSurface(sections[0]?.settings) ? "" : "pt-2 sm:pt-4 "}pb-24 sm:pb-16`}>
+        <main {...(hasMobileOrder(sections) ? { [MOBILE_ORDER_ATTR]: "" } : {})} className={`scroll-mt-20 ${firstSectionHasSurface(sections[0]?.settings) ? "" : "pt-2 sm:pt-4 "}pb-24 sm:pb-16`}>
           {(() => {
             const lead = leadIndex;
             let ready = 0;
@@ -326,7 +331,7 @@ export function SitePageView({
         {/* Lets the builder's preview frame pick a block by clicking it. Inert
             for every ordinary visitor and for any frame from another origin. */}
         {preview ? <PreviewSelectBridge /> : null}
-        {preview ? <BuilderReturnBar /> : null}
+        {preview ? <BuilderReturnBar organizationId={org.id} /> : null}
         {preview ? <PreviewLinkBridge slug={org.slug} /> : null}
       </div>
     </div>
@@ -369,6 +374,7 @@ function ResponsiveStyles({
     ]),
     surface,
   );
-  if (!css) return null;
-  return <style>{css}</style>;
+  const sheet = [css, mobileOrderRules(sections)].filter(Boolean).join("\n");
+  if (!sheet) return null;
+  return <style>{sheet}</style>;
 }
