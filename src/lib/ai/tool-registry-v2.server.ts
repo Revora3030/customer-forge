@@ -298,15 +298,13 @@ export function createToolRegistryV2(definitions: ToolDefinitionV2<z.ZodType>[],
         }
 
         const timeoutMs = tool.timeoutMs ?? aiLimits().requestTimeoutMs;
-        let timer: ReturnType<typeof setTimeout> | undefined;
         try {
           const data = await Promise.race([
             tool.run(parsed.data, context),
             new Promise<never>((_resolve, reject) => {
-              timer = setTimeout(
-                () => reject(new RevoraAiError(408, "That step took too long.", { category: "timeout" })),
-                timeoutMs,
-              );
+              AbortSignal.timeout(timeoutMs).addEventListener("abort", () => {
+                reject(new RevoraAiError(408, "That step took too long.", { category: "timeout" }));
+              });
             }),
           ]);
           let inverse: ToolInverse | null = null;
@@ -339,8 +337,6 @@ export function createToolRegistryV2(definitions: ToolDefinitionV2<z.ZodType>[],
             timeout ? "timeout" : "failed",
             key,
           );
-        } finally {
-          if (timer) clearTimeout(timer);
         }
       } catch (error) {
         // Last resort: the loop gets a typed result, never an exception.
