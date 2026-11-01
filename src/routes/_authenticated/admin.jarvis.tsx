@@ -40,6 +40,7 @@ import { saveInstagramDraftFn } from "@/lib/instagram.functions";
 import { approvePerplexityResearch } from "@/lib/integrations/perplexity-agent.functions";
 import { readResearchResults, rememberResearchResult, type ResearchResults } from "@/components/app/jarvis/research-results";
 import { ResearchResultCard } from "@/components/app/jarvis/ResearchResultCard";
+import { formatUsPhone } from "@/lib/format";
 
 type RecognitionResult = ArrayLike<{ transcript: string }> & { isFinal?: boolean };
 type Recognition = {
@@ -455,7 +456,7 @@ function Jarvis() {
         ["Trade", result.prefill.industry],
         ["City", result.prefill.city],
         ["State", result.prefill.state],
-        ["Phone", result.prefill.phone],
+        ["Phone", formatUsPhone(result.prefill.phone)],
         ["Email", result.prefill.email],
         ["Website", result.website ?? ""],
         ["Services", result.prefill.services.replace(/\n/g, ", ")],
