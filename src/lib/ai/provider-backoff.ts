@@ -56,6 +56,23 @@ export function degradedProviders(now = Date.now()) {
 }
 
 /**
+ * Remaining cooldown for a provider whose last failure was an account fact
+ * (out of credits, or its key rejected), with the reason; null otherwise.
+ * When every model in a call belongs to such a provider, the router refuses
+ * the call before a request leaves: asking again only collects another 402.
+ * A rate limit or outage never short-circuits (those clear on their own).
+ */
+export function providerAccountCooldown(
+  provider: string,
+  now = Date.now(),
+): { remainingMs: number; reason: "quota" | "unauthorized" } | null {
+  const entry = state.get(provider);
+  if (!entry || entry.until <= now) return null;
+  if (entry.reason !== "quota" && entry.reason !== "unauthorized") return null;
+  return { remainingMs: entry.until - now, reason: entry.reason };
+}
+
+/**
  * Stable reorder: healthy paid → free → degraded paid. When paid credits run
  * out, generation runs 100% on the free team without first waiting on a
  * provider that is known to refuse; when the account is funded again the

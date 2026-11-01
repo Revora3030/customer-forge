@@ -23,7 +23,8 @@ import {
   registerProgressWatch,
   runWithNoProgressGuard,
 } from "@/lib/builder/no-progress";
-import { aiCauseFromCalls, describeAiPressure, failureKindForAiCause, AI_CAUSE_OWNER_MESSAGE, type AiCause } from "@/lib/builder/ai-cause";
+import { aiCauseFromCalls, describeAiPressure, failureKindForAiCause, AI_CAUSE_OWNER_MESSAGE, type AiCallOutcome, type AiCause } from "@/lib/builder/ai-cause";
+import { creditsExhaustedForAttempt, creditsFailLine } from "@/lib/builder/credit-fail-fast";
 import { menuNeedsHelp } from "@/lib/service-suggestions";
 import {
   INTERRUPTED_BUILD_MESSAGE,
@@ -1025,6 +1026,54 @@ type CutOffRow = {
   current_step?: string | null;
 };
 
+/** This attempt's AI calls; empty when they can't be read (the old path then runs). */
+async function attemptAiCalls(db: Db, organizationId: string, since: string): Promise<AiCallOutcome[]> {
+  try {
+    const { data } = await db
+      .from("ai_usage_events")
+      .select("ok, error_category, created_at")
+      .eq("organization_id", organizationId)
+      .gte("created_at", since)
+      .limit(1000);
+    return (data ?? []) as AiCallOutcome[];
+  } catch (error) {
+    console.warn("[site-engine] AI call lookup skipped", error);
+    return [];
+  }
+}
+
+/** See credit-fail-fast.ts. The call rows are only read when the error itself doesn't say. */
+async function attemptRanOutOfCredits(
+  db: Db,
+  input: { organizationId: string; since: string; status: number; failureKind: string; errorDetail: string | null },
+): Promise<boolean> {
+  const base = { status: input.status, failureKind: input.failureKind, errorDetail: input.errorDetail };
+  if (input.failureKind === "intake_validation" || input.errorDetail === "paid_daily_cap_reached") return false;
+  if (creditsExhaustedForAttempt({ ...base, calls: [] })) return true;
+  return creditsExhaustedForAttempt({ ...base, calls: await attemptAiCalls(db, input.organizationId, input.since) });
+}
+
+/** Whether the cut-off attempt's unresolved AI failures were credits (402). */
+async function cutOffRanOutOfCredits(db: Db, row: CutOffRow): Promise<boolean> {
+  try {
+    const { data: started } = await db
+      .from("ai_generations")
+      .select("created_at")
+      .eq("job_id", row.id)
+      .eq("kind", "build_attempt_started")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const since = (started as { created_at?: string | null } | null)?.created_at;
+    if (!since) return false;
+    const calls = await attemptAiCalls(db, String(row.organization_id), since);
+    return creditsExhaustedForAttempt({ status: 0, failureKind: "provider", calls });
+  } catch (error) {
+    console.warn(`[site-engine] credits check for cut-off job ${row.id} skipped`, error);
+    return false;
+  }
+}
+
 export async function deferCutOffJobs(db: Db, now: string, organizationId?: string) {
   let query = db
     .from("generation_jobs")
@@ -1039,6 +1088,27 @@ export async function deferCutOffJobs(db: Db, now: string, organizationId?: stri
   const { tagFailureMessage } = await import("@/lib/builder/build-failure");
   for (const row of data as CutOffRow[]) {
     if (typeof row.capacity_deferrals !== "number") continue;
+    // A build cut off while the AI credits were used up would only be parked
+    // into the same 402 again (the "capacity" loop): it fails now instead.
+    if (await cutOffRanOutOfCredits(db, row)) {
+      const { data: stopped } = await db
+        .from("generation_jobs")
+        .update({
+          status: "failed",
+          error_message: tagFailureMessage("credits", AI_CAUSE_OWNER_MESSAGE.credits),
+          failure_kind: "credits",
+          completed_at: now,
+          lease_expires_at: null,
+          updated_at: now,
+        } as never)
+        .eq("id", row.id)
+        .eq("attempts", row.attempts)
+        .eq("status", "processing")
+        .select("id")
+        .maybeSingle();
+      if (stopped) console.warn(creditsFailLine({ jobId: String(row.id), attempt: Number(row.attempts), source: "cutoff" }));
+      continue;
+    }
     const verdict = capacityVerdict([], row.capacity_deferrals, Date.now(), { forced: true });
     if (!verdict) continue;
     const reason = "The build was cut off before it could finish; it will pick up from its last saved step.";
@@ -3461,7 +3531,18 @@ export async function drainSiteEngineQueue(
       const { AiCapacityParkError } = await import("@/lib/builder/ai-step-error");
       // Business details the owner must fix are never parked or retried: the
       // same input fails the same way, so the job fails now with the field named.
-      const deferral = failure.kind === "intake_validation"
+      // Out of AI credits is not "busy": parking it only re-runs the build
+      // into the same 402 every 15 min .. 3 h. It fails now, tagged [credits]
+      // with the owner message; checkpoints stay so Retry build resumes.
+      const creditsOut = await attemptRanOutOfCredits(db, {
+        organizationId: String(job.organization_id),
+        since: attemptStartedAt,
+        status,
+        failureKind: failure.kind,
+        errorDetail: isGateway ? (error as InstanceType<typeof RevoraAiError>).detail : null,
+      });
+      if (creditsOut) console.warn(creditsFailLine({ jobId: String(job.id), attempt: Number(job.attempts), source: "attempt" }));
+      const deferral = failure.kind === "intake_validation" || creditsOut
         ? null
         : await capacityDeferral(db, String(job.organization_id), attemptStartedAt, job.id, {
             forced: error instanceof AiCapacityParkError,
@@ -3498,11 +3579,11 @@ export async function drainSiteEngineQueue(
       await db
         .from("generation_jobs")
         .update(
-          (attempts >= MAX_ATTEMPTS || !failure.retryable
+          (attempts >= MAX_ATTEMPTS || !failure.retryable || creditsOut
             ? {
                 status: "failed",
-                error_message: taggedMessage,
-                failure_kind: failure.kind,
+                error_message: creditsOut ? tagFailureMessage("credits", AI_CAUSE_OWNER_MESSAGE.credits) : taggedMessage,
+                failure_kind: creditsOut ? "credits" : failure.kind,
                 failed_stage: failedStage,
                 completed_at: new Date().toISOString(),
                 lease_expires_at: null,
