@@ -42,7 +42,8 @@ import { readBackdrop, readBackdropSpec } from "@/lib/site-effects";
 import { trackPublicEvent, type PublicSite } from "@/lib/public-site.functions";
 import { SiteVitals } from "@/components/site/SiteVitals";
 import { BuilderReturnBar } from "@/components/site/BuilderReturnBar";
-import { guardPhoneLayout } from "@/lib/builder/phone-layout";
+import { guardPhoneLayout, isLeadSection } from "@/lib/builder/phone-layout";
+import { isLeadFormComponent, unhideLeadComponent } from "@/lib/builder/lead-form-guard";
 import { PreviewLinkBridge } from "@/components/site/PreviewLinkBridge";
 import { MOBILE_ORDER_ATTR, hasMobileOrder, mobileOrderRules, readBlockStyle, styleSheet } from "@/lib/site-style";
 import { CompositionRenderer } from "@/components/site/CompositionRenderer";
@@ -394,14 +395,18 @@ function ResponsiveStyles({
   sections,
   surface = null,
 }: {
-  sections: { id: string; settings: unknown; components?: { id: string; settings: unknown }[] }[];
+  sections: { id: string; kind?: string | null; settings: unknown; components?: { id: string; kind?: string | null; settings: unknown }[] }[];
   /** The page's surface colour, used to keep per-device text colours readable. */
   surface?: string | null;
 }) {
   const css = styleSheet(
     sections.flatMap((section) => [
       { id: section.id, settings: section.settings },
-      ...(section.components ?? []).map((component) => ({ id: component.id, settings: component.settings })),
+      ...(section.components ?? []).map((component) => ({
+        id: component.id,
+        // A stored hide flag on the form itself never reaches a phone.
+        settings: isLeadSection(section) && isLeadFormComponent(component) ? unhideLeadComponent(component.settings) : component.settings,
+      })),
     ]),
     surface,
   );
