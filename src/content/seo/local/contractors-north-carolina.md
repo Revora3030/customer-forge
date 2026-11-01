@@ -50,3 +50,7 @@ Yes. Every lead, quote and booking lives in one pipeline, with follow-up schedul
 
 **Does Revora have a North Carolina office?**
 No. Revora works remotely, and we do not claim an address.
+
+## Source (checked October 31, 2026)
+
+- North Carolina general contractor license threshold, G.S. 87-1: https://www.ncleg.gov/EnactedLegislation/Statutes/HTML/ByArticle/Chapter_87/Article_1.html
