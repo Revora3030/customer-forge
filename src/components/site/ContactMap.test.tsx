@@ -6,15 +6,13 @@ import { CONTENT_SECURITY_POLICY } from "@/lib/security-headers";
 const site = (google_business: string | null) => ({ social: { google_business } }) as never;
 
 describe("ContactMap", () => {
-  it("frames the free Google Maps embed for a saved Maps link", () => {
+  it("server-renders a click-to-load placeholder with a plain Maps link, never the frame", () => {
     const html = renderToStaticMarkup(
       <ContactMap site={site("https://www.google.com/maps/place/Elite+Mobile+Detailing/@35.7796,-78.6382,17z")} />,
     );
-    expect(html).toContain("https://www.google.com/maps?q=");
-    expect(html).toContain("output=embed");
-    expect(html).toContain("Map showing Elite Mobile Detailing");
-    expect(html).toContain("sandbox=");
-    expect(html).not.toMatch(/key=/);
+    expect(html).toContain('data-testid="consent-frame"');
+    expect(html).toContain("Open in Google Maps");
+    expect(html).not.toContain("<iframe");
   });
 
   it("renders nothing without a readable Maps link", () => {

@@ -66,6 +66,7 @@ import { PublishRetryBar } from "@/components/app/PublishRetryBar";
 import { ImageStudio } from "@/components/app/ImageStudio";
 import { readBackdrop } from "@/lib/site-effects";
 import { BuilderAudit } from "@/components/app/BuilderAudit";
+import { PrivacyNoticeDetails } from "@/components/app/PrivacyNoticeDetails";
 import { BuilderPreview, type PreviewSelection } from "@/components/app/BuilderPreview";
 import { Eye, History, MessageSquare, MoreHorizontal, Redo2, Settings2, Undo2 } from "lucide-react";
 import { useBuilderHistory } from "@/lib/builder-history.hooks";
@@ -1190,6 +1191,17 @@ function WebsitePage() {
                           generation: { ...(generation ?? {}), copy: { ...(copy ?? {}), ...patch } },
                         })
                       }
+                    />
+                  </Disclosure>
+                  <Disclosure
+                    label="Privacy notice"
+                    hint="How long you keep enquiries and who you share them with"
+                  >
+                    <PrivacyNoticeDetails
+                      generation={generation}
+                      canManage={manage}
+                      saving={saveSettings.isPending}
+                      onSave={(nextGeneration) => saveSettings.mutate({ generation: nextGeneration })}
                     />
                   </Disclosure>
                 </>

@@ -11,6 +11,7 @@
 import { Link } from "@tanstack/react-router";
 import { type CSSProperties, type ReactNode } from "react";
 import { useOwnAddress, useSiteBase } from "@/components/site/use-own-address";
+import { isDuplicatePrivacySlug, PRIVACY_NOTICE_SLUG } from "@/lib/privacy-notice-slug";
 
 /** Link to a page of the same website. `page` empty/null means the home page. */
 export function SitePageLink({
@@ -28,6 +29,8 @@ export function SitePageLink({
   blockId?: string | undefined;
   children: ReactNode;
 }) {
+  // The generated notice replaces an AI-written /privacy page (privacy-notice-slug.ts).
+  if (isDuplicatePrivacySlug(page)) page = PRIVACY_NOTICE_SLUG;
   const ownAddress = useOwnAddress();
   const previewBase = useSiteBase();
   if (previewBase) {
