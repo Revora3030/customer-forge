@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Sparkline } from "./Sparkline";
 import { ApprovalReview } from "./ApprovalReview";
-import { CITY_DISTRICTS, ageLabel, districtState, hourlyBuckets, missionsFor, pipelineStages, runningFor, workIsActive, type CitySnapshot, type CityWork, type DistrictId, type SalesMission } from "@/lib/ai-city";
+import { CITY_DISTRICTS, FAILURE_CAUSE_HINT, ageLabel, districtFailureSummary, districtState, hourlyBuckets, missionsFor, pipelineStages, runningFor, workIsActive, type CitySnapshot, type CityWork, type DistrictId, type SalesMission } from "@/lib/ai-city";
 
 type Props = {
   open: boolean;
@@ -42,7 +42,8 @@ export function DistrictInspector({ open, onOpenChange, district, snapshot, now,
   const rows = Object.values(snapshot?.sources ?? {}).flatMap(s => s.rows).filter(r => r.district === district).sort((a, b) => b.at.localeCompare(a.at));
   const running = rows.filter(r => workIsActive(r, now));
   const queued = rows.filter(r => ["queued", "pending", "waiting", "retrying"].includes(r.status));
-  const errors = rows.filter(r => ["failed", "error"].includes(r.status));
+  // Same 48-hour window and dismissals as the district card, so the two numbers always agree.
+  const failures = districtFailureSummary(snapshot, district, now);
   const routines = district === "executive" ? snapshot?.sources["routines"]?.rows ?? [] : [];
   const models = new Map<string, { ok: number; total: number }>();
   for (const r of rows) if (r.model) { const m = models.get(r.model) ?? { ok: 0, total: 0 }; m.total += 1; if (r.status !== "failed" && r.status !== "error") m.ok += 1; models.set(r.model, m); }
@@ -73,8 +74,13 @@ export function DistrictInspector({ open, onOpenChange, district, snapshot, now,
       <div className="mt-4 grid grid-cols-3 gap-2 text-center">
         <Stat label="Running" value={snapshot ? running.length : null} />
         <Stat label="Queued" value={snapshot ? queued.length : null} />
-        <Stat label="Errors" value={snapshot ? errors.length : null} />
+        <Stat label="Failed · 48h" value={failures ? failures.count : null} suffix={failures?.capped ? "+" : ""} />
       </div>
+      {failures?.groups.length ? <section className="mt-4" aria-label="Why it failed">
+        <h3 className="text-xs font-semibold uppercase">Why it failed</h3>
+        <ul className="mt-2 space-y-2">{failures.groups.slice(0, 5).map((group) => <li key={group.key} className="rounded-md border border-border p-2"><button type="button" className="block min-h-11 w-full text-left" onClick={() => onRecord(group.latest)}><span className="block break-words text-xs font-medium">{group.count}× {group.label}</span><span className="mt-0.5 block text-[11px] text-muted-foreground">newest {ageLabel(group.ageMs)} ago{group.cause ? ` · ${FAILURE_CAUSE_HINT[group.cause]}` : ""}</span></button></li>)}</ul>
+        {failures.capped ? <p className="mt-2 text-[11px] text-muted-foreground">The feed shows the newest 100 records, so the true count may be higher.</p> : null}
+      </section> : null}
       <section className="mt-5" aria-label="Throughput"><h3 className="text-xs font-semibold uppercase">Records per hour · last 24 hours</h3><div className="mt-2">{snapshot ? <Sparkline values={hourlyBuckets(rows, now, 24)} label="Records per hour, last 24 hours" /> : <p className="text-[11px] text-muted-foreground">Unavailable.</p>}</div></section>
       <section className="mt-5" aria-label="Live workers">
         <h3 className="text-xs font-semibold uppercase">Live workers</h3>
@@ -128,8 +134,8 @@ export function DistrictInspector({ open, onOpenChange, district, snapshot, now,
   </Sheet>;
 }
 
-function Stat({ label, value }: { label: string; value: number | null }) {
-  return <div className="rounded-md border border-border p-2"><p className="font-display text-lg font-semibold">{value === null ? "—" : value}</p><p className="text-[11px] text-muted-foreground">{label}</p></div>;
+function Stat({ label, value, suffix = "" }: { label: string; value: number | null; suffix?: string }) {
+  return <div className="rounded-md border border-border p-2"><p className="font-display text-lg font-semibold">{value === null ? "—" : `${value}${suffix}`}</p><p className="text-[11px] text-muted-foreground">{label}</p></div>;
 }
 function Rows({ rows, onRecord }: { rows: CityWork[]; onRecord: (row: CityWork) => void }) {
   return <ul className="mt-2 divide-y divide-border">{rows.map(r => <li key={r.id}><Button variant="ghost" className="h-auto min-h-11 w-full justify-between gap-2 whitespace-normal px-1 py-2 text-left" onClick={() => onRecord(r)}><span className="min-w-0 break-words text-xs">{r.title}</span><span className="shrink-0 text-[11px] text-gold">{r.status}</span></Button></li>)}</ul>;
