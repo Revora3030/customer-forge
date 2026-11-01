@@ -94,7 +94,7 @@ const MONTHLY = usd(GROWTH_SYSTEM.monthlyPrice);
 const FAQ = [
   {
     q: `What does the ${SETUP} setup cover?`,
-    a: "The initial build, customization, configuration and launch of your system: website, domain setup, lead capture, CRM, booking, quote flow, follow-up automation, local SEO foundation and analytics. It is charged today.",
+    a: "The initial build, customization, configuration and launch of your system: website, domain setup, lead capture, CRM, booking, quote flow, follow-up automation, local SEO foundation and analytics. It is charged once, when you launch at checkout, not during your free access.",
   },
   {
     q: `What does the ${MONTHLY}/month cover?`,
@@ -139,8 +139,9 @@ function Pricing() {
         <div className="mt-5">
           <TrialBadge />
           <p className="mt-3 max-w-2xl text-[15px] leading-relaxed text-muted-foreground">
-            Start with a {GROWTH_SYSTEM.fullAccessWindowAdjective} free trial, no card needed. When
-            you launch, it's {usd(GROWTH_SYSTEM.setupPrice)} setup, your first month free, then{" "}
+            Start with {GROWTH_SYSTEM.fullAccessWindow} of free access, no card needed. Nothing is
+            charged during it. When you choose to launch, the {usd(GROWTH_SYSTEM.setupPrice)} setup is
+            charged at checkout, your first month is free, then{" "}
             {usd(GROWTH_SYSTEM.monthlyPrice)}/month.
           </p>
         </div>
