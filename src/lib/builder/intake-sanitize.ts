@@ -182,11 +182,12 @@ export function partitionServiceNames<T extends { name?: string | null }>(
  * Intake check for a typed list: two halves of one phrase ("Full", "Auto
  * detailing") are joined first, then anything that is still a stub is rejected.
  */
-export function validateIntakeServices<T extends { name?: string | null; description?: string | null; price?: unknown; starting_price?: unknown }>(
+export function validateIntakeServices<T extends { name?: string | null }>(
   services: readonly T[],
 ): { valid: T[]; rejected: { name: string; message: string }[] } {
   const filled = services.filter((service) => typeof service.name === "string" && service.name.trim());
-  return partitionServiceNames(mergeSplitServices(filled));
+  type Mergeable = { name?: string | null; description?: string | null; price?: unknown; starting_price?: unknown };
+  return partitionServiceNames(mergeSplitServices(filled as unknown as Mergeable[]) as unknown as T[]);
 }
 
 export function sanitizeServices<T extends { name?: unknown }>(services: readonly T[]): T[] {
