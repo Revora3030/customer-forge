@@ -8,7 +8,7 @@
  * here only by the route component, which the router code-splits, so Revora's
  * marketing pages never download the builder renderer.
  */
-import { createFileRoute, Link, notFound, useParams } from "@tanstack/react-router";
+import { createFileRoute, Link, notFound, redirect, useParams } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { getPublicSite } from "@/lib/public-site.functions";
 import { canonicalSiteUrl } from "@/lib/revora-address";
@@ -16,9 +16,18 @@ import { tenantSiteHead } from "@/lib/site-head";
 import { SitePageView } from "@/components/site/SitePageView";
 import { ClientPrivacyNotice } from "@/components/site/ClientPrivacyNotice";
 import { PRIVACY_NOTICE_SLUG } from "@/lib/client-privacy-notice";
+import { isDuplicatePrivacySlug } from "@/lib/privacy-notice-slug";
 
 export const Route = createFileRoute("/s/$slug/$page")({
   loader: async ({ params }) => {
+    // The generated notice replaces an AI-written /privacy page (privacy-notice-slug.ts).
+    if (isDuplicatePrivacySlug(params.page)) {
+      throw redirect({
+        to: "/s/$slug/$page",
+        params: { slug: params.slug, page: PRIVACY_NOTICE_SLUG },
+        statusCode: 302,
+      });
+    }
     const site = await getPublicSite({ data: { slug: params.slug, pageSlug: params.page } });
     // A page with no visible sections would render blank for a real visitor —
     // treat it as not published yet rather than serving an empty page.

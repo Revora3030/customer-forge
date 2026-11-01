@@ -13,7 +13,7 @@
 import { BOOKING_FIELDS, ENQUIRY_FIELDS } from "@/lib/builder/content-completeness";
 
 /** Address of the generated notice on every client site (/privacy-notice). */
-export const PRIVACY_NOTICE_SLUG = "privacy-notice";
+export { PRIVACY_NOTICE_SLUG } from "@/lib/privacy-notice-slug";
 
 export const PLATFORM_PRIVACY_URL = "https://revoragrowthsystems.com/privacy";
 
