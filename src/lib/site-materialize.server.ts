@@ -31,6 +31,7 @@ import { adaptMissingMedia, assertMediaIntegrity } from "@/lib/builder/media-int
 import type { DnaFacts } from "@/lib/business-dna";
 import { screenPageSeo } from "@/lib/builder/first-build-safety";
 import { auditSiteDepth, type PageDepth } from "@/lib/builder/page-depth";
+import type { OwnerStyleChoice } from "@/lib/builder/style-picks";
 import type { FirstBuildInventory } from "@/lib/builder/first-build-saved-coverage";
 
 type Db = SupabaseClient;
@@ -77,6 +78,8 @@ export type MaterializeInput = {
   /** The kind of website this business needs (restaurant, clinic, shop …). */
   /** Approved Sol/Terra presentation brief, compiled into a renderer contract. */
   creativeBrief?: CreativeBrief | null;
+  /** The look card the owner picked in the wizard (their fonts and colours win; null = the AI chose). */
+  ownerStyle?: OwnerStyleChoice | null;
   /** Safe generated starter pictures saved in tenant media for this first build. */
   generatedAssets?: FirstBuildImageAsset[];
   /** Explicit, guarded replacement mode. Default rebuilds remain non-destructive. */
@@ -744,6 +747,7 @@ export async function materializeSiteContent(
         primaryAction,
         secondaryAction: clean(input.copy.secondaryCta),
         architecture,
+        ownerStyle: input.ownerStyle ?? null,
       }),
       attempts: 1,
     });
