@@ -127,6 +127,7 @@ import { Route as ApiPublicJobsBackupRouteImport } from './routes/api/public/job
 import { Route as ApiPublicJobsGrowthDigestRouteImport } from './routes/api/public/jobs/growth-digest'
 import { Route as ApiPublicJobsJarvisRoutinesRouteImport } from './routes/api/public/jobs/jarvis-routines'
 import { Route as ApiPublicJobsLeadAlertRetryRouteImport } from './routes/api/public/jobs/lead-alert-retry'
+import { Route as ApiPublicJobsLeadDeliveryWatchdogRouteImport } from './routes/api/public/jobs/lead-delivery-watchdog'
 import { Route as ApiPublicJobsLeadReminderRouteImport } from './routes/api/public/jobs/lead-reminder'
 import { Route as ApiPublicJobsLifecycleEmailRouteImport } from './routes/api/public/jobs/lifecycle-email'
 import { Route as ApiPublicJobsMediaCleanupRouteImport } from './routes/api/public/jobs/media-cleanup'
@@ -766,6 +767,12 @@ const ApiPublicJobsLeadAlertRetryRoute =
     path: '/api/public/jobs/lead-alert-retry',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicJobsLeadDeliveryWatchdogRoute =
+  ApiPublicJobsLeadDeliveryWatchdogRouteImport.update({
+    id: '/api/public/jobs/lead-delivery-watchdog',
+    path: '/api/public/jobs/lead-delivery-watchdog',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicJobsLeadReminderRoute =
   ApiPublicJobsLeadReminderRouteImport.update({
     id: '/api/public/jobs/lead-reminder',
@@ -993,6 +1000,7 @@ export interface FileRoutesByFullPath {
   '/api/public/jobs/growth-digest': typeof ApiPublicJobsGrowthDigestRoute
   '/api/public/jobs/jarvis-routines': typeof ApiPublicJobsJarvisRoutinesRoute
   '/api/public/jobs/lead-alert-retry': typeof ApiPublicJobsLeadAlertRetryRoute
+  '/api/public/jobs/lead-delivery-watchdog': typeof ApiPublicJobsLeadDeliveryWatchdogRoute
   '/api/public/jobs/lead-reminder': typeof ApiPublicJobsLeadReminderRoute
   '/api/public/jobs/lifecycle-email': typeof ApiPublicJobsLifecycleEmailRoute
   '/api/public/jobs/media-cleanup': typeof ApiPublicJobsMediaCleanupRoute
@@ -1126,6 +1134,7 @@ export interface FileRoutesByTo {
   '/api/public/jobs/growth-digest': typeof ApiPublicJobsGrowthDigestRoute
   '/api/public/jobs/jarvis-routines': typeof ApiPublicJobsJarvisRoutinesRoute
   '/api/public/jobs/lead-alert-retry': typeof ApiPublicJobsLeadAlertRetryRoute
+  '/api/public/jobs/lead-delivery-watchdog': typeof ApiPublicJobsLeadDeliveryWatchdogRoute
   '/api/public/jobs/lead-reminder': typeof ApiPublicJobsLeadReminderRoute
   '/api/public/jobs/lifecycle-email': typeof ApiPublicJobsLifecycleEmailRoute
   '/api/public/jobs/media-cleanup': typeof ApiPublicJobsMediaCleanupRoute
@@ -1266,6 +1275,7 @@ export interface FileRoutesById {
   '/api/public/jobs/growth-digest': typeof ApiPublicJobsGrowthDigestRoute
   '/api/public/jobs/jarvis-routines': typeof ApiPublicJobsJarvisRoutinesRoute
   '/api/public/jobs/lead-alert-retry': typeof ApiPublicJobsLeadAlertRetryRoute
+  '/api/public/jobs/lead-delivery-watchdog': typeof ApiPublicJobsLeadDeliveryWatchdogRoute
   '/api/public/jobs/lead-reminder': typeof ApiPublicJobsLeadReminderRoute
   '/api/public/jobs/lifecycle-email': typeof ApiPublicJobsLifecycleEmailRoute
   '/api/public/jobs/media-cleanup': typeof ApiPublicJobsMediaCleanupRoute
@@ -1406,6 +1416,7 @@ export interface FileRouteTypes {
     | '/api/public/jobs/growth-digest'
     | '/api/public/jobs/jarvis-routines'
     | '/api/public/jobs/lead-alert-retry'
+    | '/api/public/jobs/lead-delivery-watchdog'
     | '/api/public/jobs/lead-reminder'
     | '/api/public/jobs/lifecycle-email'
     | '/api/public/jobs/media-cleanup'
@@ -1539,6 +1550,7 @@ export interface FileRouteTypes {
     | '/api/public/jobs/growth-digest'
     | '/api/public/jobs/jarvis-routines'
     | '/api/public/jobs/lead-alert-retry'
+    | '/api/public/jobs/lead-delivery-watchdog'
     | '/api/public/jobs/lead-reminder'
     | '/api/public/jobs/lifecycle-email'
     | '/api/public/jobs/media-cleanup'
@@ -1678,6 +1690,7 @@ export interface FileRouteTypes {
     | '/api/public/jobs/growth-digest'
     | '/api/public/jobs/jarvis-routines'
     | '/api/public/jobs/lead-alert-retry'
+    | '/api/public/jobs/lead-delivery-watchdog'
     | '/api/public/jobs/lead-reminder'
     | '/api/public/jobs/lifecycle-email'
     | '/api/public/jobs/media-cleanup'
@@ -1765,6 +1778,7 @@ export interface RootRouteChildren {
   ApiPublicJobsGrowthDigestRoute: typeof ApiPublicJobsGrowthDigestRoute
   ApiPublicJobsJarvisRoutinesRoute: typeof ApiPublicJobsJarvisRoutinesRoute
   ApiPublicJobsLeadAlertRetryRoute: typeof ApiPublicJobsLeadAlertRetryRoute
+  ApiPublicJobsLeadDeliveryWatchdogRoute: typeof ApiPublicJobsLeadDeliveryWatchdogRoute
   ApiPublicJobsLeadReminderRoute: typeof ApiPublicJobsLeadReminderRoute
   ApiPublicJobsLifecycleEmailRoute: typeof ApiPublicJobsLifecycleEmailRoute
   ApiPublicJobsMediaCleanupRoute: typeof ApiPublicJobsMediaCleanupRoute
@@ -2611,6 +2625,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicJobsLeadAlertRetryRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/jobs/lead-delivery-watchdog': {
+      id: '/api/public/jobs/lead-delivery-watchdog'
+      path: '/api/public/jobs/lead-delivery-watchdog'
+      fullPath: '/api/public/jobs/lead-delivery-watchdog'
+      preLoaderRoute: typeof ApiPublicJobsLeadDeliveryWatchdogRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/jobs/lead-reminder': {
       id: '/api/public/jobs/lead-reminder'
       path: '/api/public/jobs/lead-reminder'
@@ -3049,6 +3070,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicJobsGrowthDigestRoute: ApiPublicJobsGrowthDigestRoute,
   ApiPublicJobsJarvisRoutinesRoute: ApiPublicJobsJarvisRoutinesRoute,
   ApiPublicJobsLeadAlertRetryRoute: ApiPublicJobsLeadAlertRetryRoute,
+  ApiPublicJobsLeadDeliveryWatchdogRoute:
+    ApiPublicJobsLeadDeliveryWatchdogRoute,
   ApiPublicJobsLeadReminderRoute: ApiPublicJobsLeadReminderRoute,
   ApiPublicJobsLifecycleEmailRoute: ApiPublicJobsLifecycleEmailRoute,
   ApiPublicJobsMediaCleanupRoute: ApiPublicJobsMediaCleanupRoute,
