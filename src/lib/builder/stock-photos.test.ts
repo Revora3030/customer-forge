@@ -48,6 +48,8 @@ describe("licence safety", () => {
   it("knows which licences need a credit line", () => {
     expect(requiresCredit("by")).toBe(true);
     expect(requiresCredit("by-sa")).toBe(true);
+    expect(requiresCredit("pexels")).toBe(false);
+    expect(requiresCredit("unsplash")).toBe(false);
     expect(requiresCredit("cc0")).toBe(false);
     expect(requiresCredit("PDM")).toBe(false);
   });

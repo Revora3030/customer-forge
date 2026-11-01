@@ -23,6 +23,7 @@
  * meaning and is never used to pick or seed a look.
  */
 
+import { noteProgress } from "./no-progress";
 export const SECTION_CHECKPOINT_VERSION = 1;
 
 export type SectionCheckpointEntry = {
@@ -226,6 +227,7 @@ export function jobSectionCheckpointStore(
           .eq("attempts", job.attempts)
           .eq("status", "processing");
         if (error) warn("checkpoint save", String(error.message ?? error));
+        else noteProgress(job.jobId);
       } catch (error) {
         warn("checkpoint save", error instanceof Error ? error.message : "unknown error");
       }

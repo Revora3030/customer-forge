@@ -53,7 +53,7 @@ export type ProductionReadiness = {
   checks: ReadinessCheck[];
   blockers: string[];
   /** The video-bar result behind the `video-bar` check, for the owner message and the quality log. */
-  videoBar?: { score: number; bar: number; reason: string; mode: string; tradeSlug: string; failures: string[]; fixes: string[] };
+  videoBar?: { score: number; bar: number; reason: string; mode: string; tradeSlug: string; blueprintSource?: string; failures: string[]; fixes: string[] };
 };
 
 export type ActivationResult = {
@@ -352,6 +352,7 @@ async function evaluateVideoBarCheck(
         reason: decision.reason,
         mode,
         tradeSlug: result.tradeSlug,
+        blueprintSource: result.blueprintSource,
         failures: result.score.criteria.filter((c) => !c.met).map((c) => c.id),
         fixes: ownerFixList(result.score),
       },
@@ -415,6 +416,7 @@ export async function publishSiteNow(
       throw new Error("Only an owner, admin or manager can launch this website.");
 
     const readiness = await gatherReadiness(supabase, orgId, { liveEdit: options.liveEdit === true });
+    const videoBarPassed = readiness.checks.find((c) => c.key === "video-bar")?.ok !== false;
     const audit = async (action: string, metadata: Record<string, unknown>) => {
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       await supabaseAdmin.from("audit_logs").insert({
@@ -444,6 +446,25 @@ export async function publishSiteNow(
       if (!target || !target.published_at || !body || body["live_format"] !== 1 || !Array.isArray(body["pages"]))
         throw new Error("That version can't be restored: it isn't a saved copy of a published site.");
       restoreSource = { version: Number(target.version), generation: target.generation, seo: target.seo, pages: body };
+    }
+
+    // Quality log (never blocks, never throws): the video-bar decision for this publish attempt, per trade.
+    // Not logged for a restore: the draft's readiness doesn't describe the restored snapshot.
+    if (!restoring && readiness.videoBar) {
+      const vb = readiness.videoBar;
+      try {
+        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+        const { publishCheckRow, recordQualityEvent } = await import("@/lib/builder/quality/video-quality-log");
+        void recordQualityEvent(
+          supabaseAdmin as never,
+          publishCheckRow(
+            { organizationId: orgId, tradeSlug: vb.tradeSlug, blueprintSource: vb.blueprintSource ?? null },
+            { score: vb.score, bar: vb.bar, passed: videoBarPassed, mode: vb.mode as "enforce" | "warn" | "off", failures: vb.failures },
+          ),
+        );
+      } catch {
+        // logging is best effort
+      }
     }
 
     const { data: openDraft } = restoring

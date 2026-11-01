@@ -14,6 +14,16 @@ import { isHeroVideoCategory } from "@/lib/builder/hero-stock-video";
 import { summarizeCapacityPressure, type ProviderRuntime, type WaitProviders } from "@/lib/builder/capacity-wait";
 import type { PageArchitectureOutcome } from "@/lib/builder/ai-page-architecture.server";
 import { nextPublishState } from "@/lib/publish-state";
+import {
+  NO_PROGRESS_LIMIT_MS,
+  NoProgressError,
+  aiPressureSeen,
+  createProgressWatch,
+  noteProgress,
+  registerProgressWatch,
+  runWithNoProgressGuard,
+} from "@/lib/builder/no-progress";
+import { aiCauseFromCalls, describeAiPressure, failureKindForAiCause, AI_CAUSE_OWNER_MESSAGE, type AiCause } from "@/lib/builder/ai-cause";
 import { menuNeedsHelp } from "@/lib/service-suggestions";
 import {
   INTERRUPTED_BUILD_MESSAGE,
@@ -163,6 +173,8 @@ class FreshRebuildRollbackError extends Error {
   constructor(
     message: string,
     public readonly backupId: string,
+    /** The error that ended the rebuild, so the owner is told the real cause, not "page assembly". */
+    public readonly rootCause: unknown = null,
   ) {
     super(message);
     this.name = "FreshRebuildRollbackError";
@@ -687,6 +699,7 @@ export async function settleFailedAttempt(
         ? `${message} The previous website was restored from backup ${input.backupId}.`
         : `${message} Rollback also failed: ${rollback.restoreError ?? "unknown error"}.`,
       input.backupId,
+      error,
     );
   }
   throw error;
@@ -775,6 +788,12 @@ export function startLeaseHeartbeat(
   intervalMs = heartbeatIntervalMs(),
   /** Called once when this attempt no longer holds the job (cancelled by the owner, or taken over). */
   onLost?: () => void,
+  /**
+   * Progress source. While a step makes no progress the beat stops writing
+   * `updated_at` (so the owner's screen can tell), and past the no-progress
+   * limit it stops renewing the lease too (so any process can close the job).
+   */
+  progress?: { idleMs: () => number; limitMs: number },
 ): LeaseHeartbeat {
   let stopped = false;
   let lost = false;
@@ -782,13 +801,17 @@ export function startLeaseHeartbeat(
   let inFlight = false;
   const beat = async () => {
     if (stopped || inFlight) return;
+    const idle = progress ? progress.idleMs() : 0;
+    // A step that made no progress for the limit no longer earns a lease: the
+    // lease lapses and the dead-job sweep closes it instead of it looking alive.
+    if (progress && idle >= progress.limitMs) return;
     inFlight = true;
     try {
       const result = (await db
         .from("generation_jobs")
         .update({
           lease_expires_at: new Date(Date.now() + LEASE_SECONDS * 1000).toISOString(),
-          updated_at: new Date().toISOString(),
+          ...(progress && idle >= 60_000 ? {} : { updated_at: new Date().toISOString() }),
         } as never)
         .eq("id", job.id)
         .eq("attempts", job.attempts)
@@ -1257,6 +1280,7 @@ async function runJob(
   const stageTimings: Record<string, number> = {};
   let stageStartedAt = Date.now();
   const step = async (key: string) => {
+    noteProgress(job.id, key);
     done.push(key);
     stageTimings[key] = Date.now() - stageStartedAt;
     stageStartedAt = Date.now();
@@ -2760,6 +2784,17 @@ async function runJob(
       // Logged above; the build continues.
     }
   }
+  // Video-bar gate (VIDEO_BAR_GATE, default "warn"): score the generated site against the reference-video bar and
+  // store the result at generation.videoGate. Scoring only: it never changes the site and never blocks or fails the
+  // build; going live is decided by the publish gate.
+  if (!built.skipped) {
+    try {
+      const { gateGeneratedWorkspaceSite } = await import("@/lib/builder/quality/generated-site-gate.server");
+      await gateGeneratedWorkspaceSite(db as never, orgId, "first build");
+    } catch (error) {
+      console.warn("[site-engine] video-bar gate skipped", (error as Error)?.message);
+    }
+  }
   await step("checks");
   await step("leads");
 
@@ -3149,7 +3184,12 @@ export async function drainSiteEngineQueue(
     // and again when this attempt ends: every AI call in the attempt stops with
     // it, including work still running in the background after a failure.
     const attemptAbort = new AbortController();
-    const heartbeat = startLeaseHeartbeat(db, job, undefined, () => attemptAbort.abort());
+    const progressWatch = createProgressWatch();
+    registerProgressWatch(job.id, progressWatch);
+    const heartbeat = startLeaseHeartbeat(db, job, undefined, () => attemptAbort.abort(), {
+      idleMs: () => progressWatch.idleMs(),
+      limitMs: NO_PROGRESS_LIMIT_MS,
+    });
     try {
       // Demo (is_demo) workspaces build on the free pool only. The scope is
       // per job (AsyncLocalStorage), so a concurrent customer build in this
@@ -3162,16 +3202,42 @@ export async function drainSiteEngineQueue(
       const { withModelActivity } = await import("@/lib/ai/model-activity-scope.server");
       const { noteStage: noteModel } = await import("@/lib/builder/progress.server");
       const modelRunId = (await readJobRequestId(db, job.id)) ?? job.id;
-      await withAiSpendScope({ ...spendScope, signal: attemptAbort.signal }, () =>
-        withModelActivity(
-          (provider, model) => noteModel(job.organization_id, modelRunId, "model at work", `${provider} · ${model}`),
-          () => executeJob(db, job, { deadline, short: sliceBudgetMs < NEXT_STAGE_RESERVE_MS }),
-        ),
+      await runWithNoProgressGuard(
+        () =>
+          withAiSpendScope({ ...spendScope, signal: attemptAbort.signal }, () =>
+            withModelActivity(
+              (provider, model) => {
+                // A model answering is progress, even before a stage finishes.
+                progressWatch.touch();
+                return noteModel(job.organization_id, modelRunId, "model at work", `${provider} · ${model}`);
+              },
+              () => executeJob(db, job, { deadline, short: sliceBudgetMs < NEXT_STAGE_RESERVE_MS }),
+            ),
+          ),
+        progressWatch,
+        {
+          onStall: async () => {
+            // Stop every AI call of this attempt, then ask why: did the gateway
+            // answer 402/429/timeouts while the step sat still?
+            attemptAbort.abort();
+            const { data: calls } = await db
+              .from("ai_usage_events")
+              .select("ok, error_category, created_at")
+              .eq("organization_id", job.organization_id)
+              .gte("created_at", attemptStartedAt)
+              .limit(1000);
+            const rows = (calls ?? []) as { ok: boolean | null; error_category: string | null; created_at: string | null }[];
+            // 402 credits vs 429 rate limit vs timeout, so the owner is told which.
+            return aiCauseFromCalls(rows) ?? aiPressureSeen(rows);
+          },
+        },
       );
+      registerProgressWatch(job.id, null);
       heartbeat.stop();
       attemptAbort.abort();
       processed += 1;
     } catch (error) {
+      registerProgressWatch(job.id, null);
       heartbeat.stop();
       attemptAbort.abort();
       // A superseded attempt must not requeue, fail or restore anything —
@@ -3228,19 +3294,101 @@ export async function drainSiteEngineQueue(
         } catch (endError) {
           console.warn(`[site-engine] attempt-end record for job ${job.id} skipped`, endError);
         }
+        // The rollback wrapper used to stamp EVERY cause "rendering" (shown to the
+        // owner as "Page assembly failed"). When the step that ended the build was
+        // an AI call, report the real reason: credits (402), rate limit (429),
+        // timeout, or at least "the AI service".
+        let storedMessage = message;
+        let storedKind: "rendering" | "credits" | "provider" = "rendering";
+        const root = error instanceof FreshRebuildRollbackError ? error.rootCause : null;
+        const { AiStepUnavailableError } = await import("@/lib/builder/ai-step-error");
+        if (root instanceof AiStepUnavailableError || root instanceof RevoraAiError) {
+          let cause: AiCause | null = root instanceof RevoraAiError ? (status === 402 ? "credits" : status === 429 ? "rate_limited" : null) : null;
+          if (!cause) {
+            try {
+              const { data: calls } = await db
+                .from("ai_usage_events")
+                .select("ok, error_category, created_at")
+                .eq("organization_id", job.organization_id)
+                .gte("created_at", attemptStartedAt)
+                .limit(1000);
+              cause = aiCauseFromCalls((calls ?? []) as { ok: boolean | null; error_category: string | null; created_at: string | null }[]);
+            } catch (causeError) {
+              console.warn(`[site-engine] AI cause lookup for job ${job.id} skipped`, causeError);
+            }
+          }
+          storedKind = cause ? failureKindForAiCause(cause) : "provider";
+          if (cause) storedMessage = AI_CAUSE_OWNER_MESSAGE[cause];
+          console.warn(`[site-engine] job ${job.id} ended by an AI step (${cause ?? "cause unknown"}): ${message}`);
+        }
+        const { tagFailureMessage: tagRollback } = await import("@/lib/builder/build-failure");
         await db
           .from("generation_jobs")
           .update({
             status: "failed",
-            error_message: message,
-            failure_kind: "rendering",
+            error_message: storedKind === "rendering" ? message : tagRollback(storedKind, storedMessage),
+            failure_kind: storedKind,
             completed_at: new Date().toISOString(),
             lease_expires_at: null,
           } as never)
           .eq("id", job.id)
           .eq("attempts", job.attempts)
           .eq("status", "processing");
-        await writeQueueState(db, { last_error: message });
+        await writeQueueState(db, { last_error: storedMessage });
+        continue;
+      }
+
+      // The step stopped making progress. Fail the job now (no silent hang, no
+      // capacity parking) with a plain message; finished stage and section
+      // checkpoints stay on the row so the retry resumes. A fresh rebuild is
+      // rolled back to its backup so the owner's site is untouched.
+      if (error instanceof NoProgressError) {
+        failed += 1;
+        console.warn(
+          `[site-engine] job ${job.id} attempt ${job.attempts} made no progress for ${Math.round(error.idleMs / 1000)}s at "${error.stage ?? "unknown"}" (${error.aiCause ?? (error.busy ? "AI busy" : "unknown cause")}); failing it.`,
+        );
+        try {
+          await db.from("ai_generations").insert({
+            organization_id: job.organization_id,
+            job_id: job.id,
+            kind: "build_attempt_ended",
+            model: "none",
+            instruction: null,
+            result: { attempt: Number(job.attempts), outcome: "no_progress" } as unknown as never,
+            created_by: job.created_by ?? null,
+          } as never);
+        } catch (endError) {
+          console.warn(`[site-engine] attempt-end record for job ${job.id} skipped`, endError);
+        }
+        const { tagFailureMessage: tagStall } = await import("@/lib/builder/build-failure");
+        const kind = error.aiCause ? failureKindForAiCause(error.aiCause) : error.busy ? "provider" : "infrastructure";
+        const { data: stalled } = await db
+          .from("generation_jobs")
+          .update({
+            status: "failed",
+            error_message: tagStall(kind, error.message),
+            failure_kind: kind,
+            failed_stage: error.stage,
+            completed_at: new Date().toISOString(),
+            lease_expires_at: null,
+          } as never)
+          .eq("id", job.id)
+          .eq("attempts", job.attempts)
+          .eq("status", "processing")
+          .select("id");
+        if (stalled && stalled.length > 0) {
+          try {
+            await settleAbandonedFreshRebuild(db, {
+              id: String(job.id),
+              organization_id: String(job.organization_id),
+              created_by: (job.created_by as string | null | undefined) ?? null,
+              created_at: attemptStartedAt,
+            });
+          } catch (settleError) {
+            console.warn(`[site-engine] fresh rebuild settle for stalled job ${job.id} skipped`, settleError);
+          }
+        }
+        await writeQueueState(db, { last_error: error.message });
         continue;
       }
 
@@ -3388,7 +3536,10 @@ export function capacityVerdict(
     count,
     retryAt: new Date(retryAt),
     summary: pressured.length
-      ? `${pressured.length} of ${calls.length} AI calls were rate-limited or timed out`
+      ? pressured.some((call) => call.error_category === "quota")
+        // Credits (402) are a different problem from a rate limit (429): say so.
+        ? `${describeAiPressure(calls)}`
+        : `${pressured.length} of ${calls.length} AI calls were rate-limited or timed out`
       : "the AI team ran out of time to finish this step",
     pressure,
   };
