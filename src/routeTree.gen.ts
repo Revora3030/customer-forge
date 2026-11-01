@@ -134,6 +134,7 @@ import { Route as ApiPublicJobsLifecycleEmailRouteImport } from './routes/api/pu
 import { Route as ApiPublicJobsMediaCleanupRouteImport } from './routes/api/public/jobs/media-cleanup'
 import { Route as ApiPublicJobsProspectAutopilotRouteImport } from './routes/api/public/jobs/prospect-autopilot'
 import { Route as ApiPublicJobsProspectRepliesRouteImport } from './routes/api/public/jobs/prospect-replies'
+import { Route as ApiPublicJobsQaJobsRouteImport } from './routes/api/public/jobs/qa-jobs'
 import { Route as ApiPublicJobsSiteContentAuditRouteImport } from './routes/api/public/jobs/site-content-audit'
 import { Route as ApiPublicJobsSiteEngineRouteImport } from './routes/api/public/jobs/site-engine'
 import { Route as ApiPublicJobsSiteHealthRouteImport } from './routes/api/public/jobs/site-health'
@@ -809,6 +810,11 @@ const ApiPublicJobsProspectRepliesRoute =
     path: '/api/public/jobs/prospect-replies',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicJobsQaJobsRoute = ApiPublicJobsQaJobsRouteImport.update({
+  id: '/api/public/jobs/qa-jobs',
+  path: '/api/public/jobs/qa-jobs',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicJobsSiteContentAuditRoute =
   ApiPublicJobsSiteContentAuditRouteImport.update({
     id: '/api/public/jobs/site-content-audit',
@@ -1013,6 +1019,7 @@ export interface FileRoutesByFullPath {
   '/api/public/jobs/media-cleanup': typeof ApiPublicJobsMediaCleanupRoute
   '/api/public/jobs/prospect-autopilot': typeof ApiPublicJobsProspectAutopilotRoute
   '/api/public/jobs/prospect-replies': typeof ApiPublicJobsProspectRepliesRoute
+  '/api/public/jobs/qa-jobs': typeof ApiPublicJobsQaJobsRoute
   '/api/public/jobs/site-content-audit': typeof ApiPublicJobsSiteContentAuditRoute
   '/api/public/jobs/site-engine': typeof ApiPublicJobsSiteEngineRoute
   '/api/public/jobs/site-health': typeof ApiPublicJobsSiteHealthRoute
@@ -1148,6 +1155,7 @@ export interface FileRoutesByTo {
   '/api/public/jobs/media-cleanup': typeof ApiPublicJobsMediaCleanupRoute
   '/api/public/jobs/prospect-autopilot': typeof ApiPublicJobsProspectAutopilotRoute
   '/api/public/jobs/prospect-replies': typeof ApiPublicJobsProspectRepliesRoute
+  '/api/public/jobs/qa-jobs': typeof ApiPublicJobsQaJobsRoute
   '/api/public/jobs/site-content-audit': typeof ApiPublicJobsSiteContentAuditRoute
   '/api/public/jobs/site-engine': typeof ApiPublicJobsSiteEngineRoute
   '/api/public/jobs/site-health': typeof ApiPublicJobsSiteHealthRoute
@@ -1290,6 +1298,7 @@ export interface FileRoutesById {
   '/api/public/jobs/media-cleanup': typeof ApiPublicJobsMediaCleanupRoute
   '/api/public/jobs/prospect-autopilot': typeof ApiPublicJobsProspectAutopilotRoute
   '/api/public/jobs/prospect-replies': typeof ApiPublicJobsProspectRepliesRoute
+  '/api/public/jobs/qa-jobs': typeof ApiPublicJobsQaJobsRoute
   '/api/public/jobs/site-content-audit': typeof ApiPublicJobsSiteContentAuditRoute
   '/api/public/jobs/site-engine': typeof ApiPublicJobsSiteEngineRoute
   '/api/public/jobs/site-health': typeof ApiPublicJobsSiteHealthRoute
@@ -1432,6 +1441,7 @@ export interface FileRouteTypes {
     | '/api/public/jobs/media-cleanup'
     | '/api/public/jobs/prospect-autopilot'
     | '/api/public/jobs/prospect-replies'
+    | '/api/public/jobs/qa-jobs'
     | '/api/public/jobs/site-content-audit'
     | '/api/public/jobs/site-engine'
     | '/api/public/jobs/site-health'
@@ -1567,6 +1577,7 @@ export interface FileRouteTypes {
     | '/api/public/jobs/media-cleanup'
     | '/api/public/jobs/prospect-autopilot'
     | '/api/public/jobs/prospect-replies'
+    | '/api/public/jobs/qa-jobs'
     | '/api/public/jobs/site-content-audit'
     | '/api/public/jobs/site-engine'
     | '/api/public/jobs/site-health'
@@ -1708,6 +1719,7 @@ export interface FileRouteTypes {
     | '/api/public/jobs/media-cleanup'
     | '/api/public/jobs/prospect-autopilot'
     | '/api/public/jobs/prospect-replies'
+    | '/api/public/jobs/qa-jobs'
     | '/api/public/jobs/site-content-audit'
     | '/api/public/jobs/site-engine'
     | '/api/public/jobs/site-health'
@@ -1797,6 +1809,7 @@ export interface RootRouteChildren {
   ApiPublicJobsMediaCleanupRoute: typeof ApiPublicJobsMediaCleanupRoute
   ApiPublicJobsProspectAutopilotRoute: typeof ApiPublicJobsProspectAutopilotRoute
   ApiPublicJobsProspectRepliesRoute: typeof ApiPublicJobsProspectRepliesRoute
+  ApiPublicJobsQaJobsRoute: typeof ApiPublicJobsQaJobsRoute
   ApiPublicJobsSiteContentAuditRoute: typeof ApiPublicJobsSiteContentAuditRoute
   ApiPublicJobsSiteEngineRoute: typeof ApiPublicJobsSiteEngineRoute
   ApiPublicJobsSiteHealthRoute: typeof ApiPublicJobsSiteHealthRoute
@@ -2687,6 +2700,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicJobsProspectRepliesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/jobs/qa-jobs': {
+      id: '/api/public/jobs/qa-jobs'
+      path: '/api/public/jobs/qa-jobs'
+      fullPath: '/api/public/jobs/qa-jobs'
+      preLoaderRoute: typeof ApiPublicJobsQaJobsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/jobs/site-content-audit': {
       id: '/api/public/jobs/site-content-audit'
       path: '/api/public/jobs/site-content-audit'
@@ -3098,6 +3118,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicJobsMediaCleanupRoute: ApiPublicJobsMediaCleanupRoute,
   ApiPublicJobsProspectAutopilotRoute: ApiPublicJobsProspectAutopilotRoute,
   ApiPublicJobsProspectRepliesRoute: ApiPublicJobsProspectRepliesRoute,
+  ApiPublicJobsQaJobsRoute: ApiPublicJobsQaJobsRoute,
   ApiPublicJobsSiteContentAuditRoute: ApiPublicJobsSiteContentAuditRoute,
   ApiPublicJobsSiteEngineRoute: ApiPublicJobsSiteEngineRoute,
   ApiPublicJobsSiteHealthRoute: ApiPublicJobsSiteHealthRoute,
