@@ -10,6 +10,8 @@ import { clampSplit, splitForKey, splitForPointer } from "@/lib/builder/compare-
 import { brushRadius, coverRect, formatElapsed, toolRadius, MAX_BRUSH_TOOLS, coveragePercent, isRevealDone, newGrid, paintAt, strokePoints, type RevealGrid } from "@/lib/builder/reveal-brush";
 import { DEFAULT_OFFER_ANCHOR, DEFAULT_SCENE_ANCHOR, sceneScrim, type SceneAnchor } from "@/lib/builder/cinematic-primitives";
 import { intrinsicSize } from "@/lib/builder/image-campaign";
+import { focalToObjectPosition, responsiveImage } from "@/lib/builder/image-framing";
+import { focalForKnownPhoto } from "@/lib/builder/trade-photo-picks";
 import { LensMagnifier, StickySplitStory, TierFader } from "@/components/site/MasterBlocks";
 import { CollectionRow, DialSelector, HeroVideo, InlineHeroVideo, SceneVideo, ScrubSequence, ScrubStage, ScrollChapters, SpinViewer, type SpinFrame } from "@/components/site/CinematicBlocks";
 import { CINEMATIC_CSS } from "@/components/site/cinematic-css";
@@ -199,6 +201,17 @@ function mediaCss(visual: PersistedComponentVisual | undefined): CSSProperties {
   if (visual.shadow != null) css.boxShadow = visual.shadow <= 0 ? "none" : `0 ${Math.round(visual.shadow * .55)}px ${Math.round(visual.shadow * 1.4)}px -${Math.round(visual.shadow * .35)}px rgba(0,0,0,.45)`;
   if (visual.overlay != null) css.opacity = 1 - visual.overlay / 200;
   return css;
+}
+
+/** Focal crop for a curated trade photo, so its subject stays in frame at any aspect. */
+function knownFocalCss(source: string | null | undefined): CSSProperties {
+  const focal = focalForKnownPhoto(source);
+  return focal ? { objectPosition: focalToObjectPosition(focal) } : {};
+}
+
+/** `sizes` hint for an inline picture: its own width when known, else the viewport. */
+function mediaSizes(visual: PersistedComponentVisual | undefined): string {
+  return visual?.width ? `(max-width: ${visual.width}px) 100vw, ${visual.width}px` : "100vw";
 }
 
 /** Panels that must fill the row. A centred parent otherwise shrinks them to their shortest label. */
@@ -577,7 +590,7 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
         const first = !ctx.counter.sawMedia;
         ctx.counter.sawMedia = true;
         const box = intrinsicSize(typeof style.aspectRatio === "string" ? style.aspectRatio : visual?.aspect_ratio ?? null);
-        const pictureStyle: CSSProperties = { width: "100%", height: style.aspectRatio || visual?.aspect_ratio ? "100%" : undefined, objectFit: style.objectFit ?? visual?.object_fit ?? (style.aspectRatio ? "cover" : undefined), ...mediaCss(visual), ...props.style };
+        const pictureStyle: CSSProperties = { width: "100%", height: style.aspectRatio || visual?.aspect_ratio ? "100%" : undefined, objectFit: style.objectFit ?? visual?.object_fit ?? (style.aspectRatio ? "cover" : undefined), ...knownFocalCss(source), ...mediaCss(visual), ...props.style };
         // The home page's hero loop also plays when the top section is not a
         // full-screen scene (a split hero): it takes the place of the section's
         // first large picture, which stays as its poster. Before, such a hero
@@ -585,7 +598,7 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
         const hero = first && source && !VIDEO_SOURCE.test(source) && (!visual?.width || visual.width >= 480) ? ctx.heroVideo ?? null : null;
         if (first) ctx.heroVideo = null;
         if (hero && source) return <InlineHeroVideo key={key} {...props} {...(box ? { width: box.width, height: box.height } : {})} src={hero.src} mobileSrc={hero.mobileSrc} poster={source} alt={node.alt ?? visual?.alt ?? ""} loopStart={hero.loopStart} loopEnd={hero.loopEnd} eager={Boolean(ctx.eagerFirstMedia)} style={{ ...pictureStyle, objectFit: pictureStyle.objectFit ?? "cover" }} />;
-        return source ? <img key={key} {...props} {...(box ? { width: box.width, height: box.height } : {})} src={source} onError={markBrokenImage} alt={node.alt ?? visual?.alt ?? ""} loading={first && ctx.eagerFirstMedia ? "eager" : "lazy"} decoding="async" {...(first && ctx.eagerFirstMedia ? { fetchPriority: "high" as const } : {})} style={{ width: "100%", height: style.aspectRatio || visual?.aspect_ratio ? "100%" : undefined, objectFit: style.objectFit ?? visual?.object_fit ?? (style.aspectRatio ? "cover" : undefined), ...mediaCss(visual), ...props.style }} /> : null; }
+        return source ? <img key={key} {...props} {...(box ? { width: box.width, height: box.height } : {})} src={source} {...responsiveImage(source, mediaSizes(visual))} onError={markBrokenImage} alt={node.alt ?? visual?.alt ?? ""} loading={first && ctx.eagerFirstMedia ? "eager" : "lazy"} decoding="async" {...(first && ctx.eagerFirstMedia ? { fetchPriority: "high" as const } : {})} style={{ width: "100%", height: style.aspectRatio || visual?.aspect_ratio ? "100%" : undefined, objectFit: style.objectFit ?? visual?.object_fit ?? (style.aspectRatio ? "cover" : undefined), ...knownFocalCss(source), ...mediaCss(visual), ...props.style }} /> : null; }
     case "widget":
       { const w = node.text ? ctx.widget(node.text, node.widgetPresentation) : null;
         return w ? <div key={key} {...props} data-widget={node.text} style={{ ...props.style, ...widgetThemeStyle(node.widgetPresentation?.theme) }}>{w}{kids}</div> : null; }
@@ -969,7 +982,7 @@ function renderScene(node: CompositionNode, ctx: Ctx, key: string, props: NodePr
   if (source) ctx.counter.sawMedia = true;
   const eager = first && Boolean(ctx.eagerFirstMedia);
   const alt = backdrop?.alt ?? visual?.alt ?? "";
-  const objectPosition = node.focal ?? visual?.object_position ?? visual?.focal_point;
+  const objectPosition = node.focal ?? visual?.object_position ?? visual?.focal_point ?? knownFocalCss(source).objectPosition;
   const scrubbed = Boolean(node.scrub && source && VIDEO_SOURCE.test(source));
   // Quality bar #5: a picture too small to fill the screen is never stretched
   // edge to edge. It is shown sharp at no more than its own size, in a frame,
@@ -990,7 +1003,7 @@ function renderScene(node: CompositionNode, ctx: Ctx, key: string, props: NodePr
   ) : framed ? (
     <img className="rv-scene-media" data-soft="" src={source} alt="" aria-hidden="true" loading={eager ? "eager" : "lazy"} decoding="async" />
   ) : (
-    <img className="rv-scene-media" {...(first ? { "data-kenburns": "" } : {})} src={source} alt={alt} loading={eager ? "eager" : "lazy"} decoding="async" {...(eager ? { fetchPriority: "high" as const } : {})} style={objectPosition ? { objectPosition } : undefined} />
+    <img className="rv-scene-media" {...(first ? { "data-kenburns": "" } : {})} src={source} {...responsiveImage(source, "100vw")} alt={alt} loading={eager ? "eager" : "lazy"} decoding="async" {...(eager ? { fetchPriority: "high" as const } : {})} style={objectPosition ? { objectPosition } : undefined} />
   );
   const frame = framed && source ? (
     <img className="rv-scene-frame" src={source} alt={alt} {...(visual?.width && visual.height ? { width: visual.width, height: visual.height } : {})} loading={eager ? "eager" : "lazy"} decoding="async" {...(eager ? { fetchPriority: "high" as const } : {})} style={visual?.width ? ({ "--rv-native": `${visual.width}px` } as CSSProperties) : undefined} />
