@@ -45,7 +45,7 @@ import { normalizeHeadingOutline } from "@/lib/builder/heading-outline";
 import { legacySectionToComposition } from "@/lib/builder/legacy-composition";
 import { foldServicePages, knownPageSlugs, missingChromeLinks, readSiteChrome, repairSiteHref, repairStoredLinks, resolveSiteHref } from "@/lib/builder/site-chrome";
 import { scrubPlaceholderContact } from "@/lib/builder/placeholder-contact";
-import { tidyFooterContact } from "@/lib/builder/footer-contact-tidy";
+import { tidyContactSections, tidyFooterContact } from "@/lib/builder/footer-contact-tidy";
 import { AiSiteHeader } from "@/components/site/AiSiteHeader";
 import { useOwnAddress, useSiteBase } from "@/components/site/use-own-address";
 
@@ -96,9 +96,11 @@ export function SitePageView({
   // are withheld from every visible string and tel:/mailto: link the AI team
   // authored: the page shows nothing rather than a made-up number (audit P1-04).
   const placeholderFallback = repairSiteHref("", knownPages, pageAnchors);
-  const sections = scrubPlaceholderContact(
-    repairStoredLinks(storedSections, knownPages, pageAnchors, (page as { slug?: string | null } | null)?.slug ?? null),
-    placeholderFallback,
+  const sections = tidyContactSections(
+    scrubPlaceholderContact(
+      repairStoredLinks(storedSections, knownPages, pageAnchors, (page as { slug?: string | null } | null)?.slug ?? null),
+      placeholderFallback,
+    ),
   );
   const chrome = {
     header: rawChrome.header ? scrubPlaceholderContact(rawChrome.header, placeholderFallback) : null,
