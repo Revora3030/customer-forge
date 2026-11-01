@@ -19,6 +19,7 @@ import { pageArchitecture } from "./page-architecture";
 import { callBestThinker } from "@/lib/ai/thinker.server";
 import { readAll } from "@/lib/db/read-all";
 import { saveFirstBuildComposition as saveTree } from "./save-first-build-composition.server";
+import { FALLBACK_SECTION_SETTINGS, fallbackFloorComposition, fallbackSectionComposition, isFallbackLayout, type FallbackSection } from "./fallback-sections";
 import { craftBarPrompt } from "@/lib/builder/world-class-craft";
 import { screenText } from "@/lib/builder/collective-copy";
 import { repairContactDetails } from "@/lib/builder/chrome-repair";
@@ -91,8 +92,16 @@ export type CompositionPassResult = {
   costMicrocents: number;
   /** One entry per improvement round: whether the team's revision beat the prior version. */
   gateReports: GateReport[];
-  /** Content sections that never got an AI layout and kept the default one. */
+  /** Content sections left with no saved layout at all (the build cannot ship them). */
   fallback?: number;
+  /**
+   * Sections that got a facts-only fallback layout because the AI design team
+   * was out of capacity or credits after every retry. They are saved and
+   * flagged `needsAiUpgrade`; the upgrade runs only when the owner approves it.
+   */
+  fallbackFilled?: number;
+  /** Ids of the sections in `fallbackFilled`. */
+  fallbackSections?: string[];
   /** Craft findings sent back to Sol for revision, and how many remained. */
   designRepairs?: number;
   designFindings?: number;
@@ -436,6 +445,32 @@ export async function composeFirstBuildSections(input: {
     return { ok: true, tree: checked.tree };
   };
 
+  /**
+   * The acceptance rule for a facts-only fallback tree: the same safety
+   * validator as an AI tree (media, links, fact screen, every picture shown)
+   * and the working widget for its role. The AI-only widget presentation
+   * check is skipped: the widget's own default title and theme are used.
+   */
+  const acceptFallbackTree = (section: SectionRow, raw: CompositionTree): CompositionTree | null => {
+    const mediaRefs = mediaRefsFor(section, parts);
+    const checked = validateComposition(fixContacts(raw), {
+      firstBuild: true,
+      screenText: screen,
+      allowedMediaRefs: mediaRefs,
+      requiredMediaRefs: mediaRefs,
+      modelRefs: modelRefsFor(section, parts),
+      panoramaRefs: panoramaRefsFor(section, parts),
+      serviceNames,
+    });
+    if (!checked.ok) {
+      console.warn(`[first-build-compositions] fallback layout for ${section.kind} rejected: ${checked.issues[0]?.path}: ${checked.issues[0]?.problem}`);
+      return null;
+    }
+    const widgetName = requiredWidgetForRole(section.kind);
+    if (widgetName && !findWidget(checked.tree.root, widgetName)) return null;
+    return checked.tree;
+  };
+
   // CHECKPOINTS: accepted designs are stored on the job after every chunk, so
   // a retry, lease recovery or capacity deferral of the same job only asks
   // the AI team for the sections that are still missing. A checkpoint is only
@@ -614,6 +649,11 @@ export async function composeFirstBuildSections(input: {
       if (saved) {
         result.composed += 1;
         result.kept -= 1;
+        // A fallback saved by an earlier slice of this build keeps its upgrade flag.
+        if (isFallbackLayout(section.settings)) {
+          result.fallbackFilled = (result.fallbackFilled ?? 0) + 1;
+          result.fallbackSections = [...(result.fallbackSections ?? []), section.id];
+        }
       }
     }
     const designed = new Map<string, CompositionTree>();
@@ -758,9 +798,49 @@ export async function composeFirstBuildSections(input: {
       }
       pending = pending.filter((_, index) => !rescueResults[index]);
     }
+    if (pending.length && rescueShouldPark({ missing: pending.length, deadlineHit: rescueDeadlineHit, calls: rescueCalls, unavailable: rescueUnavailable, pageFailed })) {
+      // FACTS-ONLY FALLBACK (owner decision 2026-11-01): the AI design team is
+      // out of capacity or credits after every retry. Instead of stopping the
+      // build, these sections get a deterministic layout drawn only from their
+      // saved words, pictures and the owner's facts, checked by the same
+      // validator, and are flagged for an AI upgrade later. They skip the AI
+      // polish rounds below, so no further credits are spent on them.
+      const filled: string[] = [];
+      for (const section of pending) {
+        const material: FallbackSection = {
+          id: section.id,
+          kind: section.kind,
+          heading: section.heading,
+          subheading: section.subheading,
+          body: section.body,
+          components: parts.filter((part) => part.section_id === section.id),
+        };
+        const options = {
+          facts,
+          lead: allPageSections[0]?.id === section.id,
+          seed: organizationId,
+          enquiryHref: contactSlug ? `/${contactSlug}` : null,
+        };
+        const tree = [fallbackSectionComposition(material, options), fallbackFloorComposition(material, options)]
+          .map((candidate) => acceptFallbackTree(section, candidate))
+          .find((candidate): candidate is CompositionTree => candidate != null);
+        if (!tree) continue;
+        await saveTree(db, organizationId, section, tree, { ...FALLBACK_SECTION_SETTINGS });
+        result.composed += 1;
+        result.kept -= 1;
+        filled.push(section.id);
+      }
+      if (filled.length) {
+        console.warn(`[first-build-compositions] ${filled.length} section(s) got a facts-only fallback layout (AI capacity); flagged for an AI upgrade.`);
+        result.fallbackFilled = (result.fallbackFilled ?? 0) + filled.length;
+        result.fallbackSections = [...(result.fallbackSections ?? []), ...filled];
+        pending = pending.filter((section) => !filled.includes(section.id));
+      }
+    }
     if (pending.length) {
-      // Some sections could not get a safe AI layout after retries. The count
-      // is reported so callers stop rather than ship a default layout.
+      // Some sections could not get a safe layout after retries (and, when
+      // capacity ran out, not even a valid fallback). The count is reported so
+      // callers stop rather than ship a section with no layout.
       const first = Object.values(feedback).flat()[0];
       console.warn(
         `[first-build-compositions] ${pending.length} section(s) could not get an AI layout` +
