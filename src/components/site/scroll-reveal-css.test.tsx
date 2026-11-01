@@ -36,4 +36,8 @@ describe("scroll-reveal fallback CSS", () => {
     expect(body).toContain("One");
     expect(body).toContain("Two");
   });
+
+  it("keeps a card picture inside its card: its own aspect ratio sets the height, not 100% of a stretched grid row", () => {
+    expect(css).toContain('article[data-rv-card]>img[style*="aspect-ratio"]{height:auto!important}');
+  });
 });
