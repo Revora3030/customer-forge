@@ -15,6 +15,8 @@ import { businessFacts } from "@/lib/builder/facts";
 import { siteFontFor } from "@/lib/site-font-pairings";
 import { siteFontStyle } from "@/lib/site-theme";
 import { SitePageView } from "@/components/site/SitePageView";
+import { ClientPrivacyNotice } from "@/components/site/ClientPrivacyNotice";
+import { PRIVACY_NOTICE_SLUG } from "@/lib/client-privacy-notice";
 import { tenantSiteHead } from "@/lib/site-head";
 
 /** What the business's own 404 page may show: only facts the owner gave us, only when the lookup found the site. */
@@ -49,11 +51,18 @@ export const Route = createFileRoute("/$")({
     }
     // A page with no visible sections renders blank for a real visitor — treat
     // it as not published yet instead of serving an empty page.
+    // Every client site has a generated privacy notice unless the owner built a page there.
+    if (!response?.result?.site?.content?.sections?.length && response?.result?.site && pageSlug === PRIVACY_NOTICE_SLUG) {
+      return response.result;
+    }
     if (!response?.result?.site?.content?.sections?.length) throw notFound({ data: hostBusiness(response) });
 
     return response.result;
   },
   head: ({ loaderData }) => {
+    if (loaderData && !loaderData.site.content?.sections?.length) {
+      return { meta: [{ title: `Privacy and cookie notice | ${loaderData.site.org.name}` }, { name: "robots", content: "noindex" }] };
+    }
     const page = loaderData?.site.content?.page;
     if (!page || !loaderData) {
       return { meta: [{ title: "Page not found" }, { name: "robots", content: "noindex" }] };
@@ -80,7 +89,7 @@ function HostPageRoute() {
   const data = Route.useLoaderData();
   return (
     <SiteAddressProvider ownAddress>
-      <SitePageView site={data.site} />
+      {data.site.content?.sections?.length ? <SitePageView site={data.site} /> : <ClientPrivacyNotice site={data.site} />}
     </SiteAddressProvider>
   );
 }
