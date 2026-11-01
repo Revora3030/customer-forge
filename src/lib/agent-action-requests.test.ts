@@ -208,6 +208,8 @@ describe("gateway read shapes", () => {
     expect(view.progress).toBe(100);
     expect(view.checkpoints).toEqual(["copy", "layout"]);
     expect(Object.keys(view)).not.toContain("steps");
+    expect(view.buildSteps.length).toBeGreaterThan(5);
+    expect(view.failedStep).toBeNull();
   });
 
   it("says unknown, never zero, when a number can't be read", () => {
