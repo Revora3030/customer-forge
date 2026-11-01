@@ -32,13 +32,11 @@ describe("routes use the right headers", () => {
   // Source checks: the route files are TanStack file routes whose options are
   // only reachable through the generated tree, so assert the wiring directly.
   const read = async (path: string) => (await import("node:fs")).readFileSync(path, "utf8");
-  it("public site routes are edge-cacheable only when rendered", async () => {
+  it("public site routes are NOT edge-cached until the owner approves it (purge on publish is open)", async () => {
     for (const file of ["src/routes/s.$slug.tsx", "src/routes/s.$slug.$page.tsx", "src/routes/$.tsx", "src/routes/index.tsx"]) {
       const source = await read(file);
-      expect(source, file).toContain("publicSiteHeaders(");
-      expect(source, file).toMatch(/headers:\s*\(/);
+      expect(source, file).not.toContain("publicSiteHeaders(");
     }
-    expect(await read("src/routes/s.$slug.tsx")).toContain("isLeafMatch(matches, match)");
   });
   it("draft previews are private and no-store", async () => {
     for (const file of ["src/routes/p.$token.tsx", "src/routes/p.$token_.$page.tsx"]) {
