@@ -128,7 +128,7 @@ describe("map frame and saved link", () => {
     expect(mapsEmbedFromSavedLink(PLACE)?.url).toContain("output=embed");
     expect(mapsEmbedFromSavedLink("https://www.facebook.com/joesplumbing")).toBeNull();
     expect(mapsEmbedFromSavedLink("https://maps.app.goo.gl/AbC123")).toBeNull();
-    expect(mapsEmbedFromSavedLink("http://www.google.com/maps/place/Joe")).toBeNull();
+    expect(mapsEmbedFromSavedLink("http://www.google.com/maps/place/Joe")).toBeNull(); // DevSkim: ignore DS137138 -- test asserts insecure http links are rejected.
     expect(mapsEmbedFromSavedLink(null)).toBeNull();
     expect(mapsEmbedFromSavedLink("")).toBeNull();
   });
