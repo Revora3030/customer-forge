@@ -42,7 +42,7 @@ GRANT ALL ON public.qa_jobs TO service_role;
 
 DROP POLICY IF EXISTS qa_jobs_member_read ON public.qa_jobs;
 CREATE POLICY qa_jobs_member_read ON public.qa_jobs
-  FOR SELECT TO authenticated USING (public.is_org_member(organization_id));
+  FOR SELECT TO authenticated USING (private.is_org_member(organization_id));
 
 -- Private bucket for the screenshots. No storage policies: only the service
 -- role (the app's route) writes, and reads use short signed URLs.

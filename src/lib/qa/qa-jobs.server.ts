@@ -9,7 +9,7 @@
  *
  * Other code starts a check with `enqueueQaJob` (the post-publish verification
  * and the PAI-20 repair loop call it). `supabaseQaRepo` talks to the SQL functions
- * in 20261101030000_qa_jobs.sql.
+ * in 20261101060500_qa_jobs.sql.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isFetchableHostname } from "@/lib/net-guard.server";
