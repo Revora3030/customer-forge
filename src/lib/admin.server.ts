@@ -322,6 +322,13 @@ export async function provisionClient(admin: SupabaseClient, input: NewClientInp
 
   const email = input.owner_email.trim().toLowerCase();
 
+  // Checked before anything is created, so a bad service name leaves nothing half-made.
+  const typedServices = (input.services ?? []).filter((s) => s.name?.trim());
+  // A stub such as "Full" is never saved as a service: ask for the full name.
+  const { validateIntakeServices } = await import("@/lib/builder/intake-sanitize");
+  const serviceCheck = validateIntakeServices(typedServices);
+  if (serviceCheck.rejected.length) throw new Error(serviceCheck.rejected[0]!.message);
+
   // Owner account — reuse an existing user when that email already signed up.
   let ownerId: string | null = null;
   let tempPassword: string | null = null;
@@ -443,7 +450,7 @@ export async function provisionClient(admin: SupabaseClient, input: NewClientInp
     }),
   );
 
-  const services = (input.services ?? []).filter((s) => s.name?.trim());
+  const services = serviceCheck.valid;
   if (services.length) {
     await must(
       "services",
