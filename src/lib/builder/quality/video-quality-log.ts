@@ -73,7 +73,7 @@ export function buildScoreRow(common: LogCommon, result: GateResult): QualityLog
 /** The server-side publish decision on a publish, go-live or live edit. */
 export function publishCheckRow(
   common: LogCommon,
-  check: { score: number; bar: number; passed: boolean; mode: "enforce" | "warn" | "off"; failures: readonly (CriterionId | string)[]; blockers?: readonly string[] },
+  check: { score: number; bar: number; passed: boolean; mode: "enforce" | "warn" | "off"; failures: readonly (CriterionId | string)[]; blockers?: readonly string[] | undefined },
 ): QualityLogRow {
   return {
     ...base(common), event_kind: "publish_check", attempt: 0, score: Math.round(check.score), bar: check.bar, passed: check.passed,
