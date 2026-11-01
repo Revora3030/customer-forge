@@ -14,6 +14,7 @@ vi.mock("@/lib/builder-requests.hooks", () => ({ INSTRUCTION_LIMIT: 1200 }));
 vi.mock("@/lib/builder/progress.hooks", () => ({ useBuildProgress: () => ({ steps: [], latest: null }) }));
 vi.mock("@/components/app/AssistantMedia", () => ({ AssistantMedia: () => null }));
 vi.mock("@/components/app/CompositionPreviewCard", () => ({ CompositionPreviewCard: () => null }));
+vi.mock("@/components/app/builder-chat/ResultCards", () => ({ ResultCards: () => null }));
 vi.mock("@/components/app/SectionHistoryButton", () => ({ SectionHistoryButton: () => null }));
 
 import { BuilderAssistant, RebuildConfirm } from "@/components/app/BuilderAssistant";

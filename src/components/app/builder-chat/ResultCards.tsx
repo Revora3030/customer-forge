@@ -24,7 +24,7 @@ function Shell({ tier, title, children }: { tier: string; title: string; childre
   return (
     <div className="mt-2 rounded-lg border border-border bg-background p-3" data-result-card={tier.toLowerCase()}>
       <p className="text-[12.5px] font-medium">
-        <span className="mr-1.5 rounded bg-muted px-1.5 py-0.5 text-[10.5px] font-semibold tracking-wide uppercase">{tier}</span>
+        <span className="mr-1.5 rounded bg-muted px-1.5 py-0.5 text-[12px] font-semibold tracking-wide uppercase">{tier}</span>
         {title}
       </p>
       {children}
@@ -37,7 +37,7 @@ export function SolCard({ composition }: { composition: CompositionPreview }) {
   if (!brief) return null;
   return (
     <div data-result-card="sol">
-      <p className="mt-2 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">Sol · creative brief</p>
+      <p className="mt-2 text-[12px] font-medium tracking-wide text-muted-foreground uppercase">Sol · creative brief</p>
       <CompositionPreviewCard composition={composition} />
       <p className="mt-1.5 text-[12px] text-muted-foreground">
         {brief.mood} mood, {brief.tone} theme, set in {brief.font}. {brief.fontNote}
@@ -52,14 +52,14 @@ export function TerraCardView({ badge }: { badge: TerraBadge }) {
       <ul className="mt-2 space-y-1.5">
         {badge.checks.map((check) => (
           <li key={check.id} className="flex items-start gap-2 text-[12px]" data-check={check.id} data-state={check.state}>
-            <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10.5px] font-medium ${STATE_CLASS[check.state]}`}>{STATE_LABEL[check.state]}</span>
+            <span className={`shrink-0 rounded px-1.5 py-0.5 text-[12px] font-medium ${STATE_CLASS[check.state]}`}>{STATE_LABEL[check.state]}</span>
             <span className="min-w-0">
               <span className="font-medium">{check.label}.</span> <span className="text-muted-foreground">{check.detail}</span>
             </span>
           </li>
         ))}
       </ul>
-      {badge.measuredAt ? <p className="mt-1.5 text-[11px] text-muted-foreground">From the browser check run {new Date(badge.measuredAt).toLocaleString()}.</p> : null}
+      {badge.measuredAt ? <p className="mt-1.5 text-[12px] text-muted-foreground">From the browser check run {new Date(badge.measuredAt).toLocaleString()}.</p> : null}
     </Shell>
   );
 }
