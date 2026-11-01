@@ -464,6 +464,16 @@ function applyStatement(model: RlsModel, raw: string, file: string): void {
   }
 
   // functions
+  if ((m = new RegExp(`^alter function (${QNAME})\\s*(\\([^)]*\\))?\\s+set schema (\\w+)`, "i").exec(s))) {
+    const fkey = functionKey(model, m[1] as string, m[2] as string | undefined);
+    const fn = fkey ? model.functions.get(fkey) : undefined;
+    if (fkey && fn) {
+      model.functions.delete(fkey);
+      const moved = fkey.replace(/^[^.]+\./, `${(m[3] as string).toLowerCase()}.`);
+      model.functions.set(moved, { ...fn, key: moved });
+    }
+    return;
+  }
   if ((m = new RegExp(`^drop function (?:if exists )?(${QNAME})\\s*(\\([^)]*\\))?`, "i").exec(s))) {
     const fkey = functionKey(model, m[1] as string, m[2] as string | undefined);
     if (fkey) model.functions.delete(fkey);

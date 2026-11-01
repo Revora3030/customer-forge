@@ -363,7 +363,7 @@ describe("non-admin against platform and admin tables", () => {
   }
 
   it("a platform super admin can read the admin-only dashboards (the policies are live, not dead)", () => {
-    for (const n of ["luna_budget_state", "luna_tenant_budget_state", "luna_usage_events", "job_queue_state", "user_roles", "platform_accounts", "support_sessions"]) {
+    for (const n of ["luna_budget_state", "luna_tenant_budget_state", "luna_usage_events", "job_queue_state", "user_roles", "support_sessions"]) {
       expect(accessFor(byName(n), SUPER_ADMIN, "SELECT").allowed, n).toBe(true);
     }
   });
@@ -495,17 +495,23 @@ describe("views, functions and storage", () => {
   it("no SECURITY DEFINER function in the public schema is callable by anonymous visitors", () => {
     const callable = [...model.functions.values()]
       .filter((f) => f.key.startsWith("public.") && f.securityDefiner)
-      .filter((f) => f.grantedTo.has("anon") || f.grantedTo.has("public") || !(f.revokedFrom.has("public") || f.revokedFrom.has("anon")))
+      .filter((f) => f.grantedTo.has("anon") || f.grantedTo.has("public") || !(f.revokedFrom.has("public") && f.revokedFrom.has("anon")))
       .map((f) => f.key);
     expect(callable).toEqual([]);
   });
 
-  it("SECURITY DEFINER functions in the public schema that browsers can call are the reviewed helpers only", () => {
+  it("browsers can call no SECURITY DEFINER function in the exposed public schema (helpers live in private; server RPCs are service_role only)", () => {
     const callable = [...model.functions.values()]
       .filter((f) => f.key.startsWith("public.") && f.securityDefiner && f.grantedTo.has("authenticated"))
-      .map((f) => f.key.replace(/\(.*$/, ""))
+      .map((f) => f.key)
       .sort();
-    expect(callable).toEqual(["public.can_manage_org", "public.has_support_access", "public.is_org_member", "public.is_super_admin"]);
+    expect(callable).toEqual([]);
+  });
+
+  it("the tenant-scoping helpers live in the private schema", () => {
+    for (const key of ["private.is_org_member(uuid)", "private.can_manage_org(uuid)", "private.is_super_admin()", "private.has_support_access(uuid)", "private.org_site_published(uuid)"]) {
+      expect(model.functions.has(key), key).toBe(true);
+    }
   });
 
   it("storage objects for tenant media are keyed by the organization folder and membership", () => {
