@@ -6,7 +6,7 @@ import { ArrowUpRight, Box, Building2, CheckCircle2, List, Pause, Play, RefreshC
 import { BrandEmblem } from "@/components/brand/Logo";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { CITY_DISTRICTS, attentionItems, cityCommandDraft, districtCounts, districtForKey, districtFromParam, districtState, hourlyBuckets, salesMissionDraft, workIsActive, type CityWork, type DistrictId, type SalesMission } from "@/lib/ai-city";
+import { CITY_DISTRICTS, NO_ACKS, applyAcknowledged, attentionItems, cityCommandDraft, districtCounts, districtFailureSummary, districtForKey, failedLabel, parseAcks, triageDraft, type CityAcks, districtFromParam, districtState, hourlyBuckets, salesMissionDraft, workIsActive, type CityWork, type DistrictId, type SalesMission } from "@/lib/ai-city";
 import { CityActivity } from "./CityActivity";
 import { CityAttention } from "./CityAttention";
 import { DistrictCarousel } from "./DistrictCarousel";
@@ -59,8 +59,14 @@ export function AiCity() {
   const [diagnosticOpen, setDiagnosticOpen] = useState(false);
   const [now, setNow] = useState(0);
   const [inspectorOpen, setInspectorOpen] = useState(false);
-  const [clearedBefore, setClearedBefore] = useState(0);
+  // Failures the owner dismissed. Kept on this device so a reload does not bring a dismissed problem back;
+  // a failure recorded after the dismissal always counts again.
+  const [acks, setAcks] = useState<CityAcks>(NO_ACKS);
+  const saveAcks = (next: CityAcks) => { setAcks(next); try { localStorage.setItem("revora:city-acks", JSON.stringify(next)); } catch { /* storage unavailable */ } };
   const openDistrict = (id: DistrictId) => { setSelected(id); setInspectorOpen(true); };
+  useEffect(() => {
+    try { setAcks(parseAcks(localStorage.getItem("revora:city-acks"))); } catch { /* storage unavailable */ }
+  }, []);
   useEffect(() => {
     const style = getComputedStyle(document.documentElement);
     const token = (key: string) => style.getPropertyValue(`--city-${key}`).trim();
@@ -72,12 +78,12 @@ export function AiCity() {
     setNow(Date.now());
     return () => { clearInterval(timer); media.removeEventListener("change", sync); };
   }, []);
-  const snapshot = query.isError ? undefined : query.data;
+  const snapshot = query.isError ? undefined : applyAcknowledged(query.data, acks);
   const district = CITY_DISTRICTS.find(d => d.id === selected) ?? CITY_DISTRICTS[0];
   const rows = Object.values(snapshot?.sources ?? {}).flatMap(source => source.rows);
   const work = rows.filter(row => row.district === selected).sort((a, b) => b.at.localeCompare(a.at));
   const active = rows.filter(row => workIsActive(row, now)).length;
-  const attention = attentionItems(snapshot, now).filter((item) => Date.parse(item.row.at) > clearedBefore);
+  const attention = attentionItems(snapshot, now, 1000);
   const unavailable = Object.entries(snapshot?.sources ?? {}).filter(([, source]) => !source.available).map(([key]) => key);
   const inspect = useMutation({ mutationFn: () => diagnostic({ data: { toolId: district.tool } }), onSettled: () => setDiagnosticOpen(true) });
   const seedRoutines = useServerFn(seedDefaultRoutinesFn);
@@ -122,7 +128,7 @@ export function AiCity() {
         const state = districtState(d.id, snapshot, now);
         const counts = districtCounts(snapshot, d.id, now);
         const dot = state === "working" ? "bg-success" : state === "attention" ? "bg-gold" : state === "unavailable" ? "bg-destructive" : "bg-muted-foreground";
-        return <button key={d.id} type="button" onClick={() => openDistrict(d.id)} className={`min-h-16 rounded-md border px-3 py-2 text-left ${selected === d.id ? "border-gold bg-gold/10" : "border-border"}`}><span className={`mb-1 block size-2 rounded-full ${dot} ${state === "working" && motion ? "animate-pulse motion-reduce:animate-none" : ""}`} /><span className="block text-xs font-semibold">{d.role}</span><span className="block truncate text-[11px] text-muted-foreground">{d.name}</span><span className="block text-[11px] capitalize text-muted-foreground">{counts ? `${counts.running} running · ${counts.errors} failed` : state}</span></button>;
+        return <button key={d.id} type="button" onClick={() => openDistrict(d.id)} className={`min-h-16 rounded-md border px-3 py-2 text-left ${selected === d.id ? "border-gold bg-gold/10" : "border-border"}`}><span className={`mb-1 block size-2 rounded-full ${dot} ${state === "working" && motion ? "animate-pulse motion-reduce:animate-none" : ""}`} /><span className="block text-xs font-semibold">{d.role}</span><span className="block truncate text-[11px] text-muted-foreground">{d.name}</span><span className="block text-[11px] capitalize text-muted-foreground">{counts ? `${counts.running} running · ${failedLabel(districtFailureSummary(snapshot, d.id, now))}` : state}</span></button>;
       })}
     </section>
     {query.isError ? <div role="alert" className="flex flex-wrap items-center gap-3 text-sm text-destructive">City records could not be read. Activity is unavailable.<Button variant="outline" onClick={() => query.refetch()}>Retry</Button></div> : null}
@@ -147,7 +153,7 @@ export function AiCity() {
       </section>
     </div>
     {snapshot ? <Sparkline values={hourlyBuckets(Object.values(snapshot.sources).flatMap((source) => source.rows), now)} label="Recorded work per hour, last 24 hours" /> : null}
-    <CityAttention items={attention} available={!!snapshot} onOpen={row => { setSelected(row.district); setEvidence(row); }} onClear={() => setClearedBefore(Date.now())} />
+    <CityAttention items={attention} available={!!snapshot} onOpen={row => { setSelected(row.district); setEvidence(row); }} onTriage={(group) => sendDraft(triageDraft(group, now))} onDismiss={(key) => saveAcks({ ...acks, groups: { ...acks.groups, [key]: Date.now() } })} onClear={() => saveAcks({ ...acks, all: Date.now() })} />
     <section className="border-t border-border pt-5">
       <div className="flex flex-wrap gap-2" role="tablist" aria-label="Workforce records">{(["work", "activity", "models", "routines"] as const).map(key => <Button key={key} role="tab" aria-selected={tab === key} variant={tab === key ? "secondary" : "ghost"} onClick={() => setTab(key)}>{key === "work" ? "Work & evidence" : key === "activity" ? "All activity" : key === "models" ? "Lovable workforce" : "Saved routines"}</Button>)}</div>
       <div className="mt-4" role="tabpanel">

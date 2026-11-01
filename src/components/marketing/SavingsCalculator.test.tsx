@@ -12,7 +12,7 @@ describe("SavingsCalculator", () => {
   const html = renderToStaticMarkup(<SavingsCalculator />);
 
   it("pre-ticks nothing and invents no saving before the visitor chooses", () => {
-    expect(html).not.toMatch(/checked/);
+    expect(html).not.toMatch(/checked=/);
     expect(html).not.toContain("less</p>");
     expect(html).toContain("Tick the tools you pay for");
   });

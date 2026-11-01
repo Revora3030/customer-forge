@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { LeadDeliveryHealthPanel } from "@/components/app/LeadDeliveryHealthPanel";
 import { useServerFn } from "@tanstack/react-start";
 import { ArrowUpRight, Building2 } from "lucide-react";
 import {
@@ -103,6 +104,8 @@ function AdminOverview() {
           hint={`${metrics.data?.active ?? 0} paying · ${metrics.data?.trialing ?? 0} on trial · ${metrics.data?.suspended ?? 0} suspended`}
         />
       </div>
+
+      <LeadDeliveryHealthPanel />
 
       <Panel className="p-0">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">

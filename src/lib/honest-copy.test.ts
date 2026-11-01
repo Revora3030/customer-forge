@@ -44,6 +44,7 @@ const BANNED = [
   /round[- ]the[- ]clock/i,
   /day or night/i,
   /reach a real person/i,
+  /real person (on the [\w ]+ )?reads/i,
   /never stops working/i,
   /\b(reach|reply|replies|answer|answers|respond|responds|available|support)\b[^.\n]{0,40}\banytime\b/i,
 ];

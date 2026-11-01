@@ -90,4 +90,10 @@ describe("migration", () => {
     expect(code).toMatch(/revoke insert, update, delete on public\.builder_quality_log from authenticated/);
     expect(code).toMatch(/grant all on public\.builder_quality_log to service_role/);
   });
+
+  it("stores hard phone-check blockers as failure entries, with no schema change", () => {
+    const attempt = { attempt: 0, score: 40, rawScore: 90, passed: false, capped: null, blockers: ["debug_overlay"], failures: [], regenerated: [], roles: { check: "fast", regenerate: [] } };
+    expect(gateAttemptRow(common, attempt as never, 85).failures).toEqual([{ criterion: "blocker:debug_overlay", score: 0, sections: [] }]);
+    expect(publishCheckRow(common, { score: 40, bar: 85, passed: false, mode: "enforce", failures: ["mobile_390"], blockers: ["no_content"] }).failures.map((f) => f.criterion)).toEqual(["mobile_390", "blocker:no_content"]);
+  });
 });

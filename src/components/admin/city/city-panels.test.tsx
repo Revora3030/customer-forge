@@ -118,3 +118,17 @@ describe("ApprovalCard", () => {
     expect(html).toContain("This item changed after you opened it.");
   });
 });
+
+describe("CityAttention failure groups", () => {
+  const trace = (i: number): CityWork => ({ id: `t${i}`, district: "institute", status: "failed", title: `stage${i}`, source: "ai_team_trace", detail: "provider_unavailable: 402", at: new Date(NOW - (5 + i) * 60_000).toISOString() });
+  const snap: CitySnapshot = { checkedAt: "", sources: { traces: { available: true, total: 50, truncated: false, rows: Array.from({ length: 50 }, (_, i) => trace(i)) } } };
+
+  it("shows 50 failures with one cause as one problem with a triage and dismiss action", () => {
+    const html = renderToStaticMarkup(<CityAttention items={attentionItems(snap, NOW, 1000)} available onOpen={() => undefined} onTriage={() => undefined} onDismiss={() => undefined} onClear={() => undefined} />);
+    expect(html).toContain("50 failed (1 cause) · 0 waiting");
+    expect(html).toContain("50× AI model calls");
+    expect(html).toContain("Triage with Jarvis");
+    expect(html).toContain("Dismiss");
+    expect(html).not.toContain("Showing the");
+  });
+});
