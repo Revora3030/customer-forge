@@ -13,7 +13,8 @@
  */
 
 import type { CSSProperties } from "react";
-import { mutedOn, readableOn } from "@/lib/readable-color";
+import { readableOn } from "@/lib/readable-color";
+import { tintedNeutralRamp } from "@/lib/site-palette-ramp";
 
 const HEX = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
 
@@ -127,30 +128,37 @@ export function siteThemeStyle(input: {
   const surface = premiumSurface(input.secondaryColor);
   const accent = clean(input.accentColor) ?? primary;
   // Neutral blank state (no brand opinion): white surface, ink for actions.
-  const background = surface ?? "#ffffff";
-  const light = isLight(background);
-  const ink = light ? "#101114" : "#f7f7f8";
+  // With a brand colour the neutrals are a tinted ramp (site-palette-ramp.ts):
+  // the brand hue at a whisper of saturation instead of pure white/black and
+  // flat grey. An owner-chosen, non-pure surface is kept as the ramp's base.
+  const ramp = tintedNeutralRamp({ primary, surface });
+  const background = ramp.background;
+  const light = ramp.scheme === "light";
+  const ink = ramp.text;
   const onPrimary = primary && isLight(primary) ? "#101114" : "#ffffff";
   const onAccent = accent && isLight(accent) ? "#101114" : "#ffffff";
-  const step = (percent: number) => mix(light ? "#000000" : "#ffffff", background, percent);
 
   const vars: Record<string, string> = {
     "--background": background,
     "--foreground": ink,
-    "--card": step(light ? 3 : 5),
+    "--card": ramp.surface,
     "--card-foreground": ink,
-    "--elevated": step(light ? 5 : 8),
-    "--popover": step(light ? 4 : 7),
+    "--elevated": ramp.surfaceAlt,
+    "--popover": ramp.surface,
     "--popover-foreground": ink,
-    "--secondary": step(light ? 5 : 8),
+    "--secondary": ramp.surfaceAlt,
     "--secondary-foreground": ink,
-    "--muted": step(light ? 5 : 8),
-    // Supporting copy is softened, then re-measured: "muted" must never mean
-    // "unreadable" on a pale or mid-tone brand surface.
-    "--muted-foreground": mutedOn(ink, background),
-    "--border": step(light ? 12 : 14),
-    "--input": step(light ? 12 : 14),
-    "--sidebar": step(light ? 2 : 3),
+    "--muted": ramp.surfaceAlt,
+    // Supporting copy is softened, then re-measured on every neutral it can
+    // sit on: "muted" must never mean "unreadable" on a pale or mid-tone surface.
+    "--muted-foreground": ramp.textMuted,
+    "--border": ramp.border,
+    "--input": ramp.border,
+    "--sidebar": ramp.surfaceAlt,
+    // Premium design system hooks (site-design-system.ts reads these).
+    "--ds-surface-alt": ramp.surfaceAlt,
+    "--ds-border-strong": ramp.borderStrong,
+    "--ds-shadow-rgb": ramp.shadowRgb,
   };
 
   // Without an authored colour, actions use the page ink — never Revora gold.

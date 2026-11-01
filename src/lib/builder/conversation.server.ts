@@ -1,9 +1,14 @@
 import { generateStructuredOutput } from "@/lib/ai/router.server";
 import { inspectConversation } from "./conversation-inspection.server";
 import { GROWTH_SYSTEM } from "@/lib/offer";
+import { CONVERSATION_UNAVAILABLE_REPLY, RETRY_BACKOFF_MS } from "./ai-retry";
 
 type Turn = { role: "user" | "assistant"; content: string };
-export type ConversationDecision = { mode: "answer"; reply: string } | { mode: "change" };
+export type ConversationDecision =
+  | { mode: "answer"; reply: string }
+  | { mode: "change" }
+  /** The AI team could not answer a question even after one retry; the chat offers Retry. */
+  | { mode: "unavailable"; reply: string };
 
 export async function decideConversation(input: {
   organizationId: string;
@@ -43,8 +48,22 @@ export async function decideConversation(input: {
     const reply = typeof data["reply"] === "string" ? data["reply"].trim() : "";
     return data["mode"] === "answer" && reply ? { mode: "answer", reply: reply.slice(0, 20000) } : { mode: "change" };
   };
+  const ask = async () => await generateStructuredOutput({ organizationId: input.organizationId, userId: input.userId, task: "builder.converse" }, { role: "conversation", json: true, maxOutputTokens: 6000, messages: [{ role: "system", content: system }, ...turns] });
+  // One automatic retry after a short pause: a single busy or rate-limited
+  // answer should not turn into a dead end. Setup/credit failures fail the same
+  // way twice, so those are not retried.
+  const retryable = (error: unknown) => {
+    const category = (error as { category?: string } | null)?.category ?? null;
+    // An unclassified failure (e.g. an unreadable answer) is worth one more try.
+    return category === null || ["rate_limited", "provider_unavailable", "bad_response"].includes(category);
+  };
   try {
-    const result = await generateStructuredOutput({ organizationId: input.organizationId, userId: input.userId, task: "builder.converse" }, { role: "conversation", json: true, maxOutputTokens: 6000, messages: [{ role: "system", content: system }, ...turns] });
+    let result;
+    try { result = await ask(); } catch (first) {
+      if (!retryable(first)) throw first;
+      await new Promise((resolve) => setTimeout(resolve, RETRY_BACKOFF_MS));
+      result = await ask();
+    }
     return decide(result.data);
   } catch { return fallbackDecision(input.instruction); }
 }
@@ -54,5 +73,6 @@ export function fallbackDecision(instruction: string): ConversationDecision {
   const asksForChange = /\b(add|change|edit|update|replace|remove|delete|make|redesign|rewrite|restyle|fix|improve|move|swap|put|use|set|turn|apply|do it|go ahead|yes|generate|create|build)\b/.test(text);
   const smallTalk = /^(hi|hey|hello|yo|thanks|thank you|ok|okay|cool|great|good (morning|afternoon|evening))[!. ]*$/.test(text);
   if (asksForChange && !smallTalk) return { mode: "change" };
-  return { mode: "answer", reply: smallTalk ? "Hi! I'm here. Tell me what you'd like to change on your website — a section, the wording, photos or colours — and I'll do it." : "I couldn't reach the AI team to answer that just now. Please ask again in a moment — or tell me exactly what to change on the site and I'll start on it." };
+  if (smallTalk) return { mode: "answer", reply: "Hi! I'm here. Tell me what you'd like to change on your website — a section, the wording, photos or colours — and I'll do it." };
+  return { mode: "unavailable", reply: CONVERSATION_UNAVAILABLE_REPLY };
 }

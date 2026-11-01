@@ -22,6 +22,8 @@ import { faqPageSchema, metaDescription, metaTitle } from "@/lib/seo";
 import { compositionFaqItems } from "@/lib/builder/composition-faq";
 import { pageNavLabel } from "@/lib/website-content";
 import { playbookFor } from "@/lib/builder/industry-playbook";
+import { scrubPlaceholderText } from "@/lib/builder/placeholder-contact";
+import { imageAltBase, mentionsWrongCity, normalizeCanonicalUrl } from "@/lib/client-seo-guard";
 
 type Profile = {
   tagline?: string | null;
@@ -219,7 +221,7 @@ export function localBusinessSchema(input: {
     const cuisine = CUISINES.find((c) => new RegExp(`\\b${c}\\b`, "i").test(input.industry ?? ""));
     if (cuisine) schema["servesCuisine"] = cuisine;
   }
-  const description = clean(p.description, 500) ?? clean(p.tagline, 300);
+  const description = clean(scrubPlaceholderText(clean(p.description, 500) ?? ""), 500) ?? clean(scrubPlaceholderText(clean(p.tagline, 300) ?? ""), 300);
   if (description) schema["description"] = description;
   const phone = clean(p.phone, 40);
   if (phone && /\d{3}/.test(phone) && !isPlaceholderPhone(phone)) schema["telephone"] = phone;
@@ -394,6 +396,8 @@ export function shareImageFor(input: {
   ogImage?: string | null;
   heroImage?: string | null;
   sections?: { components?: unknown[] | null }[] | null;
+  /** Last resort: the owner's logo, so a shared link never falls back to the platform's picture. */
+  logo?: string | null;
 }): string | null {
   const https = (value: unknown): value is string => typeof value === "string" && value.startsWith("https://");
   if (https(input.ogImage)) return input.ogImage;
@@ -403,7 +407,7 @@ export function shareImageFor(input: {
       const url = (component as { url?: unknown } | null)?.url;
       if (https(url)) return url;
     }
-  return null;
+  return https(input.logo) ? input.logo : null;
 }
 
 /**
@@ -478,6 +482,12 @@ export function clientPageSearchText(input: {
   label: string;
   name: string;
   city: string | null;
+  /** The business's own place fields, used to reject wording that names a different city. */
+  state?: string | null;
+  serviceArea?: string | null;
+  address?: string | null;
+  /** The owner's own trade text (organizations.industry), used only in fallback wording. */
+  industry?: string | null;
   pageSlug?: string | null;
   orgSlug?: string | null;
   seoTitle?: string | null;
@@ -494,19 +504,44 @@ export function clientPageSearchText(input: {
   const pageWords = slugPhrase(input.pageSlug);
   const pageDistinct =
     !input.isHome && pageWords && !label.toLowerCase().includes(pageWords) ? ` (${pageWords})` : "";
+  const trade = input.industry?.replace(/\s+/g, " ").trim() || null;
+  const tradeShown = trade && !name.toLowerCase().includes(trade.toLowerCase()) ? trade : null;
 
+  // Wording is used only when it carries no placeholder phone/email and does not
+  // name a different well-known city than the business's own (a stale template
+  // or earlier-workspace city). Rejected wording falls through to the fallback
+  // built from this page's label, the business name, its trade and its city.
+  const own = { city, state: input.state ?? null, serviceArea: input.serviceArea ?? null, address: input.address ?? null };
+  const safe = (value: string | null | undefined): string => {
+    const text = scrubPlaceholderText((value ?? "").replace(/\s+/g, " ").trim());
+    return text && !mentionsWrongCity(text, own) ? text : "";
+  };
+
+  const homeTitle = `${name}${tradeShown && city ? ` — ${tradeShown} in ${city}` : city ? ` — ${city}` : tradeShown ? ` — ${tradeShown}` : ""}`;
+  const homeTitleFits = homeTitle.length <= 60 ? homeTitle : `${name}${city ? ` — ${city}` : ""}`;
   const fallbackTitle = input.isHome
-    ? input.generatedTitle || titleFallback(`${name}${city ? ` — ${city}` : ""}`, input.orgSlug)
+    ? safe(input.generatedTitle) || titleFallback(homeTitleFits, input.orgSlug)
     : titleFallback(`${label} — ${name}${city ? `, ${city}` : ""}`, input.orgSlug);
-  const title = metaTitle(input.seoTitle || fallbackTitle, name);
+  const title = metaTitle(safe(input.seoTitle) || fallbackTitle, name);
 
-  const authored = input.seoDescription?.replace(/\s+/g, " ").trim();
-  const raw = authored
-    ? authored
-    : input.isHome
-      ? input.generatedDescription || input.settingsDescription || input.tagline || descriptionFallback(`${name}${place}.`, input.orgSlug)
-      : descriptionFallback(`${label}${pageDistinct} from ${name}${place}.`, input.orgSlug);
+  const homeFallback = `${name}${tradeShown ? ` — ${tradeShown}` : ""}${place}.`;
+  const innerFallback = `${label}${pageDistinct} from ${name}${tradeShown ? `, ${tradeShown}` : ""}${place}.`;
+  const raw =
+    safe(input.seoDescription) ||
+    (input.isHome
+      ? safe(input.generatedDescription) || safe(input.settingsDescription) || safe(input.tagline) || descriptionFallback(homeFallback, input.orgSlug)
+      : descriptionFallback(innerFallback, input.orgSlug));
   return { title, description: metaDescription(raw) };
+}
+
+function uniqueScripts<T extends { type?: string; children?: string }>(scripts: T[]): T[] {
+  const seen = new Set<string>();
+  return scripts.filter((script) => {
+    const key = `${script.type ?? ""}\n${script.children ?? ""}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 type TenantHeadPage = {
@@ -566,6 +601,10 @@ export function tenantSiteHead(input: {
     label,
     name,
     city,
+    state: site.profile?.state ?? null,
+    serviceArea: site.profile?.service_area ?? null,
+    address: site.profile?.address ?? null,
+    industry: site.org.industry ?? null,
     pageSlug: page?.slug ?? input.pageSlug ?? null,
     orgSlug: site.org.slug ?? null,
     seoTitle: page?.seo_title ?? null,
@@ -582,7 +621,10 @@ export function tenantSiteHead(input: {
     ogImage: page?.og_image_url ?? null,
     heroImage: site.profile?.hero_image_url ?? null,
     sections: Array.isArray(sections) ? sections : [],
+    logo: site.profile?.logo_url ?? null,
   });
+  const canonical = normalizeCanonicalUrl(input.canonical);
+  const shareAlt = imageAltBase({ name, industry: site.org.industry ?? null, city });
   // A home page with nothing on it ("still being built") must not be indexed, and
   // must not hand search engines ratings or reviews, whatever rows exist behind it.
   // No content at all (no home page in the published copy, so `content` is
@@ -600,7 +642,13 @@ export function tenantSiteHead(input: {
   const placeholder = isNonIndexableSite({ isDemo: site.isDemo, slug: site.org.slug, profile: site.profile });
   const noindex = input.noindex === true || page?.noindex === true || emptyHome || placeholder;
   const emitSchema = !placeholder && !emptyHome;
-  const faqs = emitSchema ? compositionFaqItems(sections ?? []) : [];
+  // FAQ answers are owner/AI prose: a placeholder phone or email never reaches structured data,
+  // and an entry that would end up empty is dropped rather than advertised.
+  const faqs = emitSchema
+    ? compositionFaqItems(sections ?? [])
+        .map((item) => ({ q: scrubPlaceholderText(item.q), a: scrubPlaceholderText(item.a) }))
+        .filter((item) => item.q.trim() && item.a.trim())
+    : [];
 
   return {
     meta: [
@@ -609,19 +657,23 @@ export function tenantSiteHead(input: {
       { property: "og:title", content: page?.og_title || title },
       { property: "og:description", content: page?.og_description || description },
       { property: "og:type", content: "website" },
-      { property: "og:url", content: input.canonical },
+      { property: "og:url", content: canonical },
+      { property: "og:locale", content: "en_US" },
       { property: "og:site_name", content: name },
       { name: "twitter:card", content: "summary_large_image" },
       ...(shareImage
         ? [
             { property: "og:image", content: shareImage },
+            ...(shareAlt ? [{ property: "og:image:alt", content: shareAlt }] : []),
             { name: "twitter:image", content: shareImage },
+            ...(shareAlt ? [{ name: "twitter:image:alt", content: shareAlt }] : []),
           ]
         : []),
       ...(noindex ? [{ name: "robots", content: "noindex" }] : []),
       ...extras.meta,
     ],
-    scripts: [...(emitSchema ? extras.scripts : []), ...(faqs.length ? [{ type: "application/ld+json", children: safeJsonLd(faqPageSchema(faqs)) }] : [])],
-    links: [{ rel: "canonical", href: input.canonical }, ...extras.links],
+    // One block per distinct JSON-LD payload: an identical Organization/LocalBusiness/FAQ block is never repeated.
+    scripts: uniqueScripts([...(emitSchema ? extras.scripts : []), ...(faqs.length ? [{ type: "application/ld+json", children: safeJsonLd(faqPageSchema(faqs)) }] : [])]),
+    links: [{ rel: "canonical", href: canonical }, ...extras.links],
   };
 }

@@ -114,6 +114,18 @@ describe("tenantSiteHead (one head for every client route)", () => {
     expect(titleOf(head)).toBe("Test Business Co. — Austin");
   });
 
+  it("never puts a city in the home title or description when the business has none (no hardcoded or seed city)", () => {
+    const head = tenantSiteHead({
+      site: site({ kind: "home", slug: "home", title: "Home", seo_title: null }, { profile: { city: null, tagline: "Detailing that comes to you." } }),
+      pageSlug: null,
+      canonical: "https://acme.test",
+      businessUrl: "https://acme.test",
+    });
+    expect(titleOf(head)).toBe("Test Business Co.");
+    expect(titleOf(head)).not.toMatch(/austin/i);
+    expect(meta(head, "og:title")?.content).not.toMatch(/austin/i);
+  });
+
   it("propagates noindex from the page or the caller", () => {
     const fromPage = tenantSiteHead({
       site: site({ kind: "thanks", slug: "thanks", title: "Thanks", noindex: true }),

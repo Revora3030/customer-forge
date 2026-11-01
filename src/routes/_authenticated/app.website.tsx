@@ -343,7 +343,7 @@ function WebsitePage() {
     // tracking here; nothing is claimed about how it ended.
     const stop = stopWaiting(latestRow as never);
     if (stop) {
-      settleBuild(trackedBuild.taskId, { ok: false, message: stopWaitingMessage(stop) });
+      settleBuild(trackedBuild.taskId, { ok: false, message: stopWaitingMessage(stop), retryBuild: true });
       setTrackedBuild(null);
       return undefined;
     }
@@ -359,9 +359,10 @@ function WebsitePage() {
         ? { ok: false, message: "The build was stopped before it finished. Nothing was published." }
         : {
             ok: false,
+            retryBuild: true,
             message: friendlyError(
               new Error(latestRow.error_message ?? ""),
-              "The build didn't finish. Nothing was published — you can start it again.",
+              "The build didn't finish. Nothing was published. Press Retry build to start it again.",
             ),
           });
     setTrackedBuild(null);
@@ -398,7 +399,8 @@ function WebsitePage() {
     } catch (error) {
       requests.settleBuild(task.id, {
         ok: false,
-        message: friendlyError(error, "Revora couldn't start from that description. Your text is saved."),
+        retryBuild: true,
+        message: friendlyError(error, "Revora couldn't start from that description. Your text is saved. Press Retry build to try again."),
       });
     }
   };
@@ -704,6 +706,7 @@ function WebsitePage() {
               rebuildBusy: freshRebuildActive || jobIsActive(latestJob.data as never) || firstBuild.isPending,
             } : {})}
             {...(manage ? { onStopBuild: (jobId: string) => cancelBuild.mutate(jobId) } : {})}
+            {...(manage ? { onRetryBuild: (instruction: string) => { void startTrackedBuild(instruction, false); } } : {})}
             stoppingBuild={cancelBuild.isPending}
             starterIdeas={starterIdeasFor((org?.industry as string | undefined) ?? null)}
             onClearSelection={() => setSelected(null)}
@@ -783,6 +786,7 @@ function WebsitePage() {
               selectedId={selected?.id ?? null}
               selectedPath={selected?.path ?? null}
               onPageChange={setViewingPage}
+              canManage={manage}
               reveal={reveal}
               liveStatus={liveStatus ?? rebuildStatus}
               onInlineSaved={() => {

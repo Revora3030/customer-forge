@@ -10,6 +10,7 @@
  */
 
 import { decodeHtmlEntities, htmlToText } from "@/lib/html-text";
+import { checkServiceName } from "./builder/intake-sanitize";
 
 export type ImportedService ={ name: string; description: string };
 
@@ -252,6 +253,8 @@ export function extractFacts(html: string, pageUrl: string): ImportedFacts & { l
 function dedupeServices(services: ImportedService[]): ImportedService[] {
   const seen = new Map<string, ImportedService>();
   for (const service of services) {
+    // A stub such as "Full" is not a service the owner can confirm; the owner adds the full name instead.
+    if (!checkServiceName(service.name).ok) continue;
     const key = service.name.toLowerCase();
     const existing = seen.get(key);
     if (!existing) seen.set(key, service);
