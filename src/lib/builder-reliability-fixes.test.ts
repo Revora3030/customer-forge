@@ -53,10 +53,10 @@ describe("plans never use a stale picture of the site", () => {
 });
 
 describe("standing briefs survive long chats", () => {
-  it("passes design memory, recall and the creative brief ahead of the trimmed conversation", () => {
+  it("passes design memory, recall, the owner's site rules and the creative brief ahead of the trimmed conversation", () => {
     const fn = read("src/lib/site-agent.functions.ts");
     expect(fn).toContain("...data.history.slice(0, standingBriefs).map((turn) => turn.content),");
-    expect(fn.match(/standingBriefs \+= 1;/g)).toHaveLength(3);
+    expect(fn.match(/standingBriefs \+= 1;/g)).toHaveLength(4);
   });
 });
 
