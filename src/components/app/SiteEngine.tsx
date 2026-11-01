@@ -41,11 +41,14 @@ export function SiteEnginePanel({
   canManage,
   canFreshRebuild = false,
   hasCopy,
+  onFixDetails,
 }: {
   organizationId: string | undefined;
   canManage: boolean;
   canFreshRebuild?: boolean;
   hasCopy: boolean;
+  /** Opens Business details; shown inline when a build stopped on a field (T051). */
+  onFixDetails?: () => void;
 }) {
   const { data: job } = useLatestGenerationJob(organizationId);
   const { data: readiness } = useBuildReadiness(organizationId);
@@ -240,6 +243,25 @@ export function SiteEnginePanel({
           <div>
             <p className="text-[13px] font-medium">{failure.label}</p>
             <p className="mt-0.5 text-[12px] text-muted-foreground">{failure.message}</p>
+            {failure.fixFields?.length && canManage ? (
+              <div className="mt-2 rounded-md border border-border bg-background/60 p-2.5" data-testid="fix-this-field">
+                <p className="text-[12px] font-medium">
+                  Fix {failure.fixFields.length === 1 ? "this field" : "these fields"}:
+                </p>
+                <ul className="mt-1 grid gap-0.5">
+                  {failure.fixFields.map((field) => (
+                    <li key={field} className="text-[12px] text-muted-foreground">
+                      <span className="text-primary">•</span> {field}
+                    </li>
+                  ))}
+                </ul>
+                {onFixDetails ? (
+                  <Button size="sm" variant="outline" className="mt-2 min-h-11" onClick={onFixDetails}>
+                    Open Business details
+                  </Button>
+                ) : null}
+              </div>
+            ) : null}
             {failure.canRetry && canManage ? (
               <p className="mt-1 text-[12px] text-muted-foreground">Press “Retry build” to run the whole build again.</p>
             ) : null}
