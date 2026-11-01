@@ -7,6 +7,7 @@
  *
  * Review with a lawyer before relying on this.
  */
+import { readPrivacyNoticeDetails } from "@/lib/privacy-notice-details";
 import { SitePageLink } from "@/components/site/site-links";
 import { useOwnAddress, useSiteBase } from "@/components/site/use-own-address";
 import { SiteFontLinks } from "@/components/site/SiteFontLinks";
@@ -35,6 +36,7 @@ export function noticeInputFromSite(site: Site): ClientNoticeInput {
     hasBooking: (site.services ?? []).some((service) => service.bookable),
     hasMap: Boolean(mapsEmbedFromSavedLink(site.social?.google_business)),
     loadsWebFonts: Boolean(siteFontsHref(font, [])),
+    ...readPrivacyNoticeDetails(site.settings?.generation),
   };
 }
 
