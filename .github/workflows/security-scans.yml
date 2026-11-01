@@ -7,8 +7,8 @@ name: Revora Security Scans
 #   2. gitleaks          full-history secret scan, MIT binary run directly
 #                        (the gitleaks-action needs a paid license for orgs)
 #   3. rls-lint          static Supabase RLS / policy lint (scripts/rls-lint.mjs)
-# Complements (does not replace) osv-scanner.yml, secret-scan.yml (TruffleHog),
-# trivy.yml, semgrep.yml and security-gate.yml.
+# Complements (does not replace) osv-scanner.yml, trivy.yml and security-gate.yml.
+# gitleaks is the repo's secret scanner (TruffleHog was removed: AGPL-3.0).
 on:
   pull_request:
     branches: [lovable-sync]

@@ -2,6 +2,7 @@ import js from "@eslint/js";
 import globals from "globals";
 import reactHooks from "eslint-plugin-react-hooks";
 import reactRefresh from "eslint-plugin-react-refresh";
+import security from "eslint-plugin-security";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
@@ -35,6 +36,19 @@ export default tseslint.config(
       ],
       "react-refresh/only-export-components": ["warn", { allowConstantExport: true }],
       "@typescript-eslint/no-unused-vars": "off",
+    },
+  },
+  // eslint-plugin-security (Apache-2.0). Replaces Semgrep for JS/TS static analysis
+  // hints. Every rule in `recommended` is "warn" so it reports but never blocks.
+  // Test files are excluded: fixtures there intentionally build odd regexes and keys.
+  {
+    ...security.configs.recommended,
+    files: ["**/*.{ts,tsx}"],
+    ignores: ["**/*.test.{ts,tsx}", "**/*.spec.{ts,tsx}", "e2e/**"],
+    rules: {
+      ...security.configs.recommended.rules,
+      // ~820 hits on ordinary `obj[key]` access; a well-known false-positive generator.
+      "security/detect-object-injection": "off",
     },
   },
   // Narrow CI compatibility exceptions for intentional low-level builder code.

@@ -8,7 +8,7 @@ GitHub Actions evidence shows this repository's GitHub **default CodeQL setup is
 
 ## New tooling
 - **Trivy** scans dependencies, secrets, and configuration. Findings are published to GitHub code scanning and retained as an artifact; the first rollout is report-first because the initial scan found pre-existing critical findings. Triage those alerts, then switch the workflow to fail on critical findings.
-- **Semgrep** runs static analysis and uploads a JSON report. It starts report-first while the baseline is triaged.
+- **Static analysis** comes from CodeQL, DevSkim and `eslint-plugin-security` (warn level). Semgrep was removed because its license (LGPL-2.1, rules under the Semgrep Rules License) is outside the MIT/Apache/BSD/ISC filter.
 - **OWASP ZAP Baseline** passively scans the isolated CI app, replacing the placeholder StackHawk job whose startup and error suppression could produce a misleading green run.
 - **Playwright + agent-browser** inspect configured routes and produce independent snapshots/screenshots.
 - **MCP server** exposes read-only repository status, path listing, bounded file reads, code search and recent CI for the fixed public `Revora3030/customer-forge` repository / `lovable-sync` branch.

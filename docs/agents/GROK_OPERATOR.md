@@ -80,10 +80,10 @@ Rules the gateway enforces: Level 4 kinds only; a merge needs an evidence card; 
 | Tool | Where |
 |---|---|
 | Playwright journeys | `npm run browser:journey`, `.github/workflows/authenticated-browser-journey.yml`, `browser-qa.yml` |
-| axe-core WCAG 2.2 AA | `node scripts/page-sweep.mjs <url> --a11y --target=44 --all-viewports` (320, 390, 768, 1280 px) |
+| IBM Equal Access (`accessibility-checker-engine`) WCAG 2.2 | `node scripts/page-sweep.mjs <url> --a11y --target=44 --all-viewports` (320, 390, 768, 1280 px) |
 | Trivy | `.github/workflows/trivy.yml` |
 | Dependabot | `.github/dependabot.yml` (weekly npm, monthly Actions; PRs only) |
-| TruffleHog | `.github/workflows/secret-scan.yml` (verified secrets in new commits fail the check). Locally before a push: `trufflehog git file://. --since-commit origin/lovable-sync --results=verified` |
+| gitleaks (MIT) | `.github/workflows/security-scans.yml` (full-history secret scan, warn mode until `ENFORCE` is `true`). Locally before a push: `gitleaks git --log-opts="origin/lovable-sync..HEAD"` |
 
 ## Bot team (Phase 6)
 

@@ -9,7 +9,7 @@
 - **Backend**: Supabase (auth, PostgreSQL, RLS, real-time)
 - **AI**: 12-provider free model chain with live discovery, ensemble builds, and quality-first routing
 - **Payments**: Stripe (sandbox + live)
-- **CI/CD**: GitHub Actions quality/security gates, browser QA, AI authority validation, Trivy, Semgrep, OWASP ZAP passive DAST, repository audit, and provider/security scans
+- **CI/CD**: GitHub Actions quality/security gates, browser QA, AI authority validation, Trivy, gitleaks, CodeQL, DevSkim, eslint-plugin-security, OWASP ZAP passive DAST, repository audit, and provider/security scans
 
 ## Quick Start
 
