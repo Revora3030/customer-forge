@@ -42,7 +42,7 @@ jobs:
         run: bunx vitest run --reporter=default --reporter=json --outputFile=vitest.json
       - name: Open or update "lovable-sync is red" issue
         if: failure() && steps.tests.outcome == 'failure'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const fs = require("fs");
