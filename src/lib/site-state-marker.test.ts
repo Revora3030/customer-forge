@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { siteStateMarker } from "./SiteStateMarker";
+import { siteStateMarker } from "./site-state-marker";
 
 describe("siteStateMarker", () => {
   it("says Live only for a published site", () => {
