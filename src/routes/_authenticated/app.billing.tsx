@@ -28,6 +28,7 @@ import { canManage } from "@/lib/use-tenant";
 import { MAIL_SUBJECTS, REVORA, revoraMailto, revoraTel } from "@/lib/brand";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/lib/ui/notify";
+import { summarizePayments } from "@/lib/billing-state";
 
 export const Route = createFileRoute("/_authenticated/app/billing")({
   head: () => ({
@@ -95,7 +96,8 @@ function BillingPage() {
 
   const rows = payments ?? [];
   const paid = rows.filter((p) => p.status === "completed");
-  const paidTotal = paid.reduce((sum, p) => sum + Number(p.amount), 0);
+  // Integer cents: summing float dollars can drift by a cent.
+  const paidTotal = summarizePayments(rows).paidCents / 100;
   const pending = rows.filter((p) => p.status === "pending" || p.status === "approved").length;
 
   const services = (products ?? []).filter(

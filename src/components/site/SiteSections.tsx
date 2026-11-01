@@ -1,4 +1,5 @@
 import { resolveSiteHref } from "@/lib/builder/site-chrome";
+import { imageAltBase } from "@/lib/client-seo-guard";
 import { useOwnAddress, useSiteBase } from "@/components/site/use-own-address";
 /**
  * Renders the builder's structured sections on a public business website.
@@ -158,7 +159,7 @@ function SiteSectionBody({ site, section, lead = false, first = false, surface =
   // hard-coded template engine.
   const storedTree = preparedRoot
     ? { version: 1 as const, root: preparedRoot }
-    : readComposition(section.settings) ?? legacySectionToComposition(section, { lead });
+    : readComposition(section.settings) ?? legacySectionToComposition(section, { lead, seed: org.slug });
   const kind = storedTree ? "composition" : section.kind;
   // Owner-entered finance / ROI / price-range figures (quality bar #14). The
   // existing estimator stays the default view; extra views appear only when
@@ -179,6 +180,7 @@ function SiteSectionBody({ site, section, lead = false, first = false, surface =
       return tree ? (
         <CompositionRenderer
           tree={tree}
+          altBase={imageAltBase({ name: org.name, industry: org.industry ?? null, city: profile?.city ?? null })}
           scope={`s-${section.id}`}
           editable={editable}
           surface={sectionSurface(site, readBlockStyle(section.settings).bgColor)}

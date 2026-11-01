@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import type { Breakpoint, CompositionFaqItem, CompositionNode, CompositionTab, CompositionTree, MotionEasing, NodeHover, NodeMotion, NodeStyle, WidgetPresentation } from "@/lib/builder/composition-tree";
 import type { PersistedComponentVisual } from "@/lib/site-style";
 import { resolveImageSource } from "@/lib/brand-logos";
+import { fallbackImageAlt } from "@/lib/client-seo-guard";
 import { fitsFullBleed } from "@/lib/builder/first-build-image-qa";
 import { contrastRatio, readableOn, toRgb } from "@/lib/readable-color";
 import { pairingRoleFont, premiumSurface } from "@/lib/site-theme";
@@ -19,6 +20,7 @@ import { ShaderField } from "@/components/site/ShaderField";
 import { Tour360, type TourScene } from "@/components/site/Tour360";
 import { BuildingExplorer } from "@/components/site/BuildingExplorer";
 import { usePremiumFx } from "@/components/site/premium-fx";
+import { ScrollRevealFallback } from "@/components/site/ScrollRevealFallback";
 import { PREMIUM_CSS } from "@/components/site/premium-css";
 import { looksEquirect, splitWords, TOUR_LIMITS } from "@/lib/builder/premium-effects";
 import { isModelUrl } from "@/lib/site-models";
@@ -147,7 +149,21 @@ const CHROME_SCOPES = new Set(["site-header", "site-footer"]);
 /** Facts for an offer card, read from the owner's real Services tool. Never authored by the AI. */
 export type OfferFacts = { name: string; price: string | null; duration: string | null };
 
-type Ctx = { premiumOff?: boolean; parentType?: string | undefined; align?: NodeStyle["align"] | undefined; offer?: (service: string) => OfferFacts | null; sceneScrim?: string | undefined; chrome?: boolean; editable?: boolean; label?: (text: string) => string; depth?: number | undefined; bg?: string | undefined; bg2?: string | undefined; fg?: string | undefined; rules: string[]; counter: { n: number; sawMedia?: boolean }; eagerFirstMedia?: boolean; heroVideo?: HeroVideoMedia | null; scope: string; href: (h: string) => string; media: (ref: string) => ResolvedMedia | null; widget: (name: string, presentation?: WidgetPresentation) => ReactNode };
+type Ctx = { altBase?: string; premiumOff?: boolean; parentType?: string | undefined; align?: NodeStyle["align"] | undefined; offer?: (service: string) => OfferFacts | null; sceneScrim?: string | undefined; chrome?: boolean; editable?: boolean; label?: (text: string) => string; depth?: number | undefined; bg?: string | undefined; bg2?: string | undefined; fg?: string | undefined; rules: string[]; counter: { n: number; sawMedia?: boolean; alts?: number }; eagerFirstMedia?: boolean; heroVideo?: HeroVideoMedia | null; scope: string; href: (h: string) => string; media: (ref: string) => ResolvedMedia | null; widget: (name: string, presentation?: WidgetPresentation) => ReactNode };
+
+/**
+ * The description a picture is shown with: its own alt, else the stored
+ * visual's, else (public pages only) the business name, trade and city so a
+ * photo is never left undescribed for search and screen readers.
+ */
+const altOf = (own: string | undefined, visual: string | undefined, ctx: Ctx): string => {
+  // An explicit blank alt is a deliberate "decorative" mark and is kept.
+  if (own !== undefined) return own;
+  if (visual?.trim()) return visual;
+  if (!ctx.altBase || ctx.chrome || ctx.editable) return visual ?? "";
+  ctx.counter.alts = (ctx.counter.alts ?? 0) + 1;
+  return fallbackImageAlt(ctx.altBase, ctx.counter.alts);
+};
 
 const mediaUrl = (media: ResolvedMedia | null): string | null =>
   typeof media === "string" ? media : media?.url ?? null;
@@ -584,8 +600,8 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
         // silently dropped the clip and the page had no video at all.
         const hero = first && source && !VIDEO_SOURCE.test(source) && (!visual?.width || visual.width >= 480) ? ctx.heroVideo ?? null : null;
         if (first) ctx.heroVideo = null;
-        if (hero && source) return <InlineHeroVideo key={key} {...props} {...(box ? { width: box.width, height: box.height } : {})} src={hero.src} mobileSrc={hero.mobileSrc} poster={source} alt={node.alt ?? visual?.alt ?? ""} loopStart={hero.loopStart} loopEnd={hero.loopEnd} eager={Boolean(ctx.eagerFirstMedia)} style={{ ...pictureStyle, objectFit: pictureStyle.objectFit ?? "cover" }} />;
-        return source ? <img key={key} {...props} {...(box ? { width: box.width, height: box.height } : {})} src={source} onError={markBrokenImage} alt={node.alt ?? visual?.alt ?? ""} loading={first && ctx.eagerFirstMedia ? "eager" : "lazy"} decoding="async" {...(first && ctx.eagerFirstMedia ? { fetchPriority: "high" as const } : {})} style={{ width: "100%", height: style.aspectRatio || visual?.aspect_ratio ? "100%" : undefined, objectFit: style.objectFit ?? visual?.object_fit ?? (style.aspectRatio ? "cover" : undefined), ...mediaCss(visual), ...props.style }} /> : null; }
+        if (hero && source) return <InlineHeroVideo key={key} {...props} {...(box ? { width: box.width, height: box.height } : {})} src={hero.src} mobileSrc={hero.mobileSrc} poster={source} alt={altOf(node.alt, visual?.alt, ctx)} loopStart={hero.loopStart} loopEnd={hero.loopEnd} eager={Boolean(ctx.eagerFirstMedia)} style={{ ...pictureStyle, objectFit: pictureStyle.objectFit ?? "cover" }} />;
+        return source ? <img key={key} {...props} {...(box ? { width: box.width, height: box.height } : {})} src={source} onError={markBrokenImage} alt={altOf(node.alt, visual?.alt, ctx)} loading={first && ctx.eagerFirstMedia ? "eager" : "lazy"} decoding="async" {...(first && ctx.eagerFirstMedia ? { fetchPriority: "high" as const } : {})} style={{ width: "100%", height: style.aspectRatio || visual?.aspect_ratio ? "100%" : undefined, objectFit: style.objectFit ?? visual?.object_fit ?? (style.aspectRatio ? "cover" : undefined), ...mediaCss(visual), ...props.style }} /> : null; }
     case "widget":
       { const w = node.text ? ctx.widget(node.text, node.widgetPresentation) : null;
         return w ? <div key={key} {...props} data-widget={node.text} style={{ ...props.style, ...widgetThemeStyle(node.widgetPresentation?.theme) }}>{w}{kids}</div> : null; }
@@ -788,7 +804,7 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
         <div key={key} {...props} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))", ...props.style }}>
           {node.children?.map((c, i) => { const resolved = c.mediaRef ? ctx.media(c.mediaRef) : null; const visual = mediaVisual(resolved); const source = c.src ? resolveImageSource(c.src) : mediaUrl(resolved); return source ? (
             <a key={i} href={source} target="_blank" rel="noopener noreferrer">
-              <img src={source} alt={c.alt ?? visual?.alt ?? ""} loading="lazy" style={{ width: "100%", height: "100%", ...mediaCss(visual), ...styleToCss(c.style, "media") }} />
+              <img src={source} alt={altOf(c.alt, visual?.alt, ctx)} loading="lazy" style={{ width: "100%", height: "100%", ...mediaCss(visual), ...styleToCss(c.style, "media") }} />
             </a>
           ) : null; })}
         </div>
@@ -817,7 +833,7 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
       const Title = ctx.chrome ? "p" : (`h${node.level ?? 3}` as "h2" | "h3" | "h4");
       return (
         <article key={key} {...props} className={`${props.className ?? ""} rv-offer`.trim()} data-rv-card="" data-rv-overlay="offer">
-          {picture && pictureSource ? <img className="rv-offer-media" src={pictureSource} alt={picture.alt ?? mediaVisual(pictureResolved)?.alt ?? ""} loading="lazy" decoding="async" style={mediaCss(mediaVisual(pictureResolved))} /> : null}
+          {picture && pictureSource ? <img className="rv-offer-media" src={pictureSource} alt={altOf(picture.alt, mediaVisual(pictureResolved)?.alt, ctx)} loading="lazy" decoding="async" style={mediaCss(mediaVisual(pictureResolved))} /> : null}
           <Title className="rv-offer-title">{title}</Title>
           {facts?.price ? <p className="rv-offer-price">{facts.price}{facts.duration ? <span> · {facts.duration}</span> : null}</p> : null}
           {specs.length ? <ul className="rv-offer-specs">{specs.map((spec, i) => <li key={i}>{spec}</li>)}</ul> : null}
@@ -838,7 +854,7 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
       if (!source) return null;
       const first = !mediaSeenBefore;
       ctx.counter.sawMedia = true;
-      return <LensMagnifier key={key} props={props} src={source} eager={first && Boolean(ctx.eagerFirstMedia)} alt={photo.alt ?? mediaVisual(resolved)?.alt ?? ""} prompt={node.text?.trim().slice(0, 60) || "Inspect the detail"} />;
+      return <LensMagnifier key={key} props={props} src={source} eager={first && Boolean(ctx.eagerFirstMedia)} alt={altOf(photo.alt, mediaVisual(resolved)?.alt, ctx)} prompt={node.text?.trim().slice(0, 60) || "Inspect the detail"} />;
     }
     case "sticky_split_story": {
       const phases = kids.slice(1).filter((kid) => kid != null);
@@ -1539,16 +1555,16 @@ export const BROKEN_MEDIA_CSS = `[data-rv-card]:has(img[data-rv-broken]):not(:ha
 // of the animation. A view() timeline binds to the nearest scroll container,
 // and an overflow:hidden card or panel is one that never scrolls, so faded
 // from-states froze sections blank ("How working with us goes", FAQs).
-const MOTION_CSS = `@media (prefers-reduced-motion: no-preference){.rv-cn-motion{animation:rv-cn-in .7s ease both}.rv-cn-motion[data-motion=rise]{animation-name:rv-cn-rise}.rv-cn-motion[data-motion=scale]{animation-name:rv-cn-scale}.rv-cn-motion[data-motion=float]{animation:rv-cn-float 6s ease-in-out infinite}.rv-cn-motion[data-motion=slide-left]{animation-name:rv-cn-sl}.rv-cn-motion[data-motion=slide-right]{animation-name:rv-cn-sr}.rv-cn-motion[data-motion=blur]{animation-name:rv-cn-blur}.rv-cn-motion[data-motion=reveal]{animation-name:rv-cn-reveal}.rv-cn-motion[data-motion=custom]{animation-name:rv-cn-custom}}@keyframes rv-cn-custom{from{transform:translate(var(--rv-x,0),var(--rv-y,0)) scale(var(--rv-s,1)) rotate(var(--rv-r,0))}}@keyframes rv-cn-sl{from{transform:translateX(16px)}to{transform:none}}@keyframes rv-cn-sr{from{transform:translateX(-16px)}to{transform:none}}@keyframes rv-cn-blur{from{transform:scale(.98)}to{transform:none}}@keyframes rv-cn-reveal{from{transform:translateY(16px)}to{transform:none}}@keyframes rv-cn-in{from{transform:translateY(8px)}to{transform:none}}@keyframes rv-cn-rise{from{transform:translateY(16px)}to{transform:none}}@keyframes rv-cn-scale{from{transform:scale(.97)}to{transform:none}}@keyframes rv-cn-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}@media (prefers-reduced-motion:no-preference){img.rv-scene-media[data-kenburns]{animation:rv-kenburns 28s ease-in-out infinite alternate;transform-origin:60% 40%}}@keyframes rv-kenburns{from{transform:scale(1)}to{transform:scale(1.08) translate(-1%,-1%)}}@supports (animation-timeline:view()){@media (prefers-reduced-motion:no-preference){.rv-cn-auto{animation:rv-cn-rise linear both;animation-timeline:view();animation-range:entry calc(var(--rv-i,0)*16px) entry calc(180px + var(--rv-i,0)*16px)}}}`;
+const MOTION_CSS = `@media (prefers-reduced-motion: no-preference){.rv-cn-motion{animation:rv-cn-in .7s ease both}.rv-cn-motion[data-motion=rise]{animation-name:rv-cn-rise}.rv-cn-motion[data-motion=scale]{animation-name:rv-cn-scale}.rv-cn-motion[data-motion=float]{animation:rv-cn-float 6s ease-in-out infinite}.rv-cn-motion[data-motion=slide-left]{animation-name:rv-cn-sl}.rv-cn-motion[data-motion=slide-right]{animation-name:rv-cn-sr}.rv-cn-motion[data-motion=blur]{animation-name:rv-cn-blur}.rv-cn-motion[data-motion=reveal]{animation-name:rv-cn-reveal}.rv-cn-motion[data-motion=custom]{animation-name:rv-cn-custom}}@keyframes rv-cn-custom{from{transform:translate(var(--rv-x,0),var(--rv-y,0)) scale(var(--rv-s,1)) rotate(var(--rv-r,0))}}@keyframes rv-cn-sl{from{transform:translateX(16px)}to{transform:none}}@keyframes rv-cn-sr{from{transform:translateX(-16px)}to{transform:none}}@keyframes rv-cn-blur{from{transform:scale(.98)}to{transform:none}}@keyframes rv-cn-reveal{from{transform:translateY(16px)}to{transform:none}}@keyframes rv-cn-in{from{transform:translateY(8px)}to{transform:none}}@keyframes rv-cn-rise{from{transform:translateY(16px)}to{transform:none}}@keyframes rv-cn-scale{from{transform:scale(.97)}to{transform:none}}@keyframes rv-cn-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}@media (prefers-reduced-motion:no-preference){img.rv-scene-media[data-kenburns]{animation:rv-kenburns 28s ease-in-out infinite alternate;transform-origin:60% 40%}}@keyframes rv-kenburns{from{transform:scale(1)}to{transform:scale(1.08) translate(-1%,-1%)}}@supports (animation-timeline:view()){@media (prefers-reduced-motion:no-preference){.rv-cn-auto{animation:rv-cn-rise linear both;animation-timeline:view();animation-range:entry calc(var(--rv-i,0)*16px) entry calc(180px + var(--rv-i,0)*16px)}}}@supports not (animation-timeline:view()){@media (prefers-reduced-motion:no-preference){.rv-cn-auto[data-rv-wait]{transform:translateY(16px)}.rv-cn-auto[data-rv-go]{transition:transform var(--motion-duration-slower,600ms) var(--motion-ease-out,cubic-bezier(.22,1,.36,1)) calc(var(--rv-i,0)*60ms)}}}article[data-rv-card]>img[style*="aspect-ratio"]{height:auto!important}`;
 
 export function CompositionRenderer(args: Parameters<typeof RenderComposition>[0]) {
   const { enabled } = usePremiumFx();
   return <RenderComposition {...args} premiumOff={!enabled} />;
 }
 
-function RenderComposition({ premiumOff = false, tree, scope, as = "section", resolveHref, resolveMedia, resolveWidget, resolveOffer, eagerFirstMedia = false, heroVideo = null, surface = null, linkLabel, editable = false }: { premiumOff?: boolean; tree: CompositionTree; /** The home page's hero loop, for the first section only. */ heroVideo?: HeroVideoMedia | null; scope: string; editable?: boolean; surface?: string | null; linkLabel?: (text: string) => string; as?: "section" | "div"; resolveHref?: (href: string) => string; resolveMedia?: (ref: string) => ResolvedMedia | null; resolveWidget?: (name: string, presentation?: WidgetPresentation) => ReactNode; /** Real service facts for offer cards (Services tool); without it no price is shown. */ resolveOffer?: (service: string) => OfferFacts | null; eagerFirstMedia?: boolean }) {
+function RenderComposition({ premiumOff = false, altBase, tree, scope, as = "section", resolveHref, resolveMedia, resolveWidget, resolveOffer, eagerFirstMedia = false, heroVideo = null, surface = null, linkLabel, editable = false }: { premiumOff?: boolean; /** Business name, trade and city: the description for pictures that have none. */ altBase?: string; tree: CompositionTree; /** The home page's hero loop, for the first section only. */ heroVideo?: HeroVideoMedia | null; scope: string; editable?: boolean; surface?: string | null; linkLabel?: (text: string) => string; as?: "section" | "div"; resolveHref?: (href: string) => string; resolveMedia?: (ref: string) => ResolvedMedia | null; resolveWidget?: (name: string, presentation?: WidgetPresentation) => ReactNode; /** Real service facts for offer cards (Services tool); without it no price is shown. */ resolveOffer?: (service: string) => OfferFacts | null; eagerFirstMedia?: boolean }) {
   const page = surface && /^#[0-9a-f]{6}$/i.test(surface) ? surface : undefined;
-  const ctx: Ctx = { ...(premiumOff ? { premiumOff: true } : {}), ...(resolveOffer ? { offer: resolveOffer } : {}), ...(CHROME_SCOPES.has(scope) ? { chrome: true } : {}), ...(editable ? { editable: true } : {}), ...(linkLabel ? { label: linkLabel } : {}), ...(page ? { bg: page, fg: bestInk(page) } : {}), rules: [], counter: { n: 0 }, eagerFirstMedia, ...(heroVideo && !editable ? { heroVideo } : {}), scope: scope.replace(/[^\w-]/g, "") || "cn", href: resolveHref ?? ((h) => h), media: resolveMedia ?? (() => null), widget: resolveWidget ?? (() => null) };
+  const ctx: Ctx = { ...(altBase ? { altBase } : {}), ...(premiumOff ? { premiumOff: true } : {}), ...(resolveOffer ? { offer: resolveOffer } : {}), ...(CHROME_SCOPES.has(scope) ? { chrome: true } : {}), ...(editable ? { editable: true } : {}), ...(linkLabel ? { label: linkLabel } : {}), ...(page ? { bg: page, fg: bestInk(page) } : {}), rules: [], counter: { n: 0 }, eagerFirstMedia, ...(heroVideo && !editable ? { heroVideo } : {}), scope: scope.replace(/[^\w-]/g, "") || "cn", href: resolveHref ?? ((h) => h), media: resolveMedia ?? (() => null), widget: resolveWidget ?? (() => null) };
   const body = renderNode(tree.root, ctx, "root");
   // The shared rules are identical for every section. They used to be
   // repeated inline in each one (several KB per section, re-parsed by the
@@ -1570,12 +1586,14 @@ function RenderComposition({ premiumOff = false, tree, scope, as = "section", re
         {shared}
         {own}
         {body}
+        {editable ? null : <ScrollRevealFallback />}
       </div>
     ) : (
       <section data-composition={tree.label ?? "composition"} style={rootStyle}>
         {shared}
         {own}
         {body}
+        {editable ? null : <ScrollRevealFallback />}
       </section>
     )
   );
