@@ -23,6 +23,7 @@ import { SpeedToLeadCard } from "@/components/app/SpeedToLeadCard";
 import { WinbackCard } from "@/components/app/WinbackCard";
 import { LeadDeliveryFlags } from "@/components/app/LeadDeliveryFlags";
 import { WorkDoneCard } from "@/components/app/WorkDoneCard";
+import { GrowthSnapshot } from "@/components/app/GrowthSnapshot";
 
 import { useProductionStatus } from "@/lib/production.hooks";
 
@@ -52,7 +53,10 @@ export const Route = createFileRoute("/_authenticated/app/")({
     meta: [
       { title: "Growth Center — Revora" },
       { property: "og:title", content: "Growth Center — Revora" },
-      { property: "og:description", content: "Leads, bookings, revenue and conversion for any date range." },
+      {
+        property: "og:description",
+        content: "Leads, bookings, revenue and conversion for any date range.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       {
@@ -155,9 +159,7 @@ function Dashboard() {
   const org = ws?.workspace?.organization;
 
   const [range, setRange] = useState<RangeValue>("30");
-  const [customFrom, setCustomFrom] = useState(() =>
-    localDay(new Date(Date.now() - 14 * DAY)),
-  );
+  const [customFrom, setCustomFrom] = useState(() => localDay(new Date(Date.now() - 14 * DAY)));
   // The owner's own calendar day: a UTC date showed "tomorrow" every evening
   // in the Americas, so the default custom range ended in the future.
   const [customTo, setCustomTo] = useState(() => localDay(new Date()));
@@ -394,7 +396,8 @@ function Dashboard() {
         range: {
           type: "string",
           enum: ["1", "7", "30", "90", "custom"],
-          description: "Which range to show (\"1\" = today, \"custom\" keeps the current custom dates).",
+          description:
+            'Which range to show ("1" = today, "custom" keeps the current custom dates).',
         },
       },
       required: ["range"],
@@ -490,6 +493,8 @@ function Dashboard() {
         visits={events.filter((e) => e.event_type === "page_view").length}
       />
 
+      <GrowthSnapshot organizationId={orgId} businessName={org?.name ?? null} />
+
       <WorkDoneCard organizationId={orgId} />
 
       <SpeedToLeadCard
@@ -555,8 +560,11 @@ function Dashboard() {
                 </p>
               ) : null
             ) : (
-              <p className={`mt-2 text-xs ${stats.delta >= 0 ? "text-primary" : "text-destructive"}`}>
-                {stats.delta >= 0 ? "▲" : "▼"} {Math.abs(stats.delta)}% vs previous {window.days} day
+              <p
+                className={`mt-2 text-xs ${stats.delta >= 0 ? "text-primary" : "text-destructive"}`}
+              >
+                {stats.delta >= 0 ? "▲" : "▼"} {Math.abs(stats.delta)}% vs previous {window.days}{" "}
+                day
                 {window.days === 1 ? "" : "s"} ({stats.prevLeads})
               </p>
             )}
