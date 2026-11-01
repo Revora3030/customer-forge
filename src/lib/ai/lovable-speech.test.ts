@@ -13,15 +13,27 @@ vi.mock("@/lib/ai/luna.server", () => ({
 let key: string | null = "k";
 vi.mock("@/lib/ai/config", () => ({ providerConfig: () => (key ? { apiKey: key } : null) }));
 const post = vi.fn();
-vi.mock("@/lib/ai/router.server", () => ({ callLovableSpeech: (_m: string, ...a: unknown[]) => post(...a) }));
+vi.mock("@/lib/ai/router.server", () => ({
+  callLovableSpeech: (_m: string, ...a: unknown[]) => post(...a),
+}));
 
-import { lovableSpeechBody, synthesizeLovableSpeech, LOVABLE_SPEECH_MAX_BYTES } from "./lovable-speech.server";
-import { resolveVoiceProvider } from "@/lib/jarvis-voice.functions";
+import {
+  lovableSpeechBody,
+  synthesizeLovableSpeech,
+  LOVABLE_SPEECH_MAX_BYTES,
+} from "./lovable-speech.server";
+import { budgetFallbackLane, resolveVoiceProvider } from "@/lib/jarvis-voice.functions";
 
 const wav = () => {
   const b = new Uint8Array(100);
-  b.set([..."RIFF"].map((c) => c.charCodeAt(0)), 0);
-  b.set([..."WAVE"].map((c) => c.charCodeAt(0)), 8);
+  b.set(
+    [..."RIFF"].map((c) => c.charCodeAt(0)),
+    0,
+  );
+  b.set(
+    [..."WAVE"].map((c) => c.charCodeAt(0)),
+    8,
+  );
   return b;
 };
 
@@ -58,16 +70,18 @@ describe("Lovable speech", () => {
   });
 
   it("reports upstream failure and settles the reservation to zero", async () => {
-    post.mockResolvedValue((new Response("no", { status: 402 })));
+    post.mockResolvedValue(new Response("no", { status: 402 }));
     const r = await synthesizeLovableSpeech("Hi", { organizationId: null });
     expect(r.ok ? "" : r.code).toBe("provider_error");
     expect(settleBudget.mock.calls[0]![2]).toBe(0);
   });
 
   it("rejects non-audio bodies and oversize audio", async () => {
-    post.mockResolvedValue((new Response("{\"x\":1}".padEnd(200, " "), { status: 200 })));
+    post.mockResolvedValue(new Response('{"x":1}'.padEnd(200, " "), { status: 200 }));
     expect((await synthesizeLovableSpeech("Hi", { organizationId: null })).ok).toBe(false);
-    post.mockResolvedValue((new Response(new Uint8Array(LOVABLE_SPEECH_MAX_BYTES + 1), { status: 200 })));
+    post.mockResolvedValue(
+      new Response(new Uint8Array(LOVABLE_SPEECH_MAX_BYTES + 1), { status: 200 }),
+    );
     const r = await synthesizeLovableSpeech("Hi", { organizationId: null });
     expect(r.ok ? "" : r.code).toBe("too_large");
   });
@@ -86,6 +100,11 @@ describe("Lovable speech", () => {
 });
 
 describe("voice provider choice", () => {
+  it("Auto falls back to Lovable when the ElevenLabs budget is used up; explicit ElevenLabs still refuses", () => {
+    expect(budgetFallbackLane("auto", true)).toBe("lovable");
+    expect(budgetFallbackLane("auto", false)).toBeNull();
+    expect(budgetFallbackLane("elevenlabs", true)).toBeNull();
+  });
   it("Auto keeps ElevenLabs when configured, else Lovable", () => {
     expect(resolveVoiceProvider("auto", true, true)).toBe("elevenlabs");
     expect(resolveVoiceProvider("auto", false, true)).toBe("lovable");
