@@ -8,6 +8,7 @@ import { ProposalCard, type ProposalState } from "./ProposalCard";
 import { ModelTag } from "./ModelTag";
 import { EventNoticeCard } from "./EventNoticeCard";
 import { parseEventNotice } from "@/lib/jarvis-event-notice";
+import { RunTaskTree } from "./RunTaskTree";
 
 export type JarvisRow = { id: string; role: "user" | "assistant"; content: string; created_at: string; run_id?: string | null };
 
@@ -59,16 +60,17 @@ type AssistantProps = {
   onRegenerate: () => void;
   /** Live content under a proposal once it was approved, such as a demo build card. */
   renderAfterProposal?: ((key: string) => ReactNode) | undefined;
-  /** Opens the recorded steps of this reply, when they exist. */
-  onShowSteps?: ((runId: string) => void) | undefined;
+  /** Shows the recorded steps of this reply inline, when they exist. */
+  showSteps?: boolean | undefined;
   /** Sends a system notice's suggested question as the owner's next message. */
   onAsk?: ((prompt: string) => void) | undefined;
 };
 
-export function AssistantMessage({ message, isLast, busy, regenerating, speakingThis, approvalState, approvalUrl, onApprove, onCopy, onListen, onStopListening, onRegenerate, renderAfterProposal, onShowSteps, onAsk }: AssistantProps) {
+export function AssistantMessage({ message, isLast, busy, regenerating, speakingThis, approvalState, approvalUrl, onApprove, onCopy, onListen, onStopListening, onRegenerate, renderAfterProposal, showSteps, onAsk }: AssistantProps) {
   const notice = parseEventNotice(message.content);
   const { body, meta } = splitReplyMeta(message.content);
   const [expanded, setExpanded] = useState(isLast);
+  const [stepsOpen, setStepsOpen] = useState(false);
   const long = body.length > 900;
   const shown = long && !expanded ? `${body.slice(0, 700).trimEnd()}…` : body;
   if (notice) {
@@ -92,10 +94,14 @@ export function AssistantMessage({ message, isLast, busy, regenerating, speaking
         <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-3.5 py-2.5 text-[15px] leading-7 backdrop-blur-xl"><JarvisMarkdown>{shown}</JarvisMarkdown></div>
         {long ? <button type="button" className="mt-1 min-h-11 px-1 text-xs text-muted-foreground underline-offset-2 hover:underline" onClick={() => setExpanded((open) => !open)}>{expanded ? "Show less" : "Show full reply"}</button> : null}
         {message.run_id ? <div><ModelTag runId={message.run_id} /></div> : null}
-        {message.run_id && onShowSteps ? (
-          <button type="button" onClick={() => onShowSteps(message.run_id!)} className="mt-1 inline-flex min-h-11 items-center gap-1 rounded-md px-1 text-xs text-muted-foreground underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-ring">
-            See what Jarvis did
-          </button>
+        {message.run_id && showSteps ? (
+          stepsOpen ? (
+            <div className="mt-1.5"><RunTaskTree runId={message.run_id} live={false} defaultOpen {...(isLast ? { onRetry: onRegenerate, retryDisabled: busy } : {})} /></div>
+          ) : (
+            <button type="button" onClick={() => setStepsOpen(true)} className="mt-1 inline-flex min-h-11 items-center gap-1 rounded-md px-1 text-xs text-muted-foreground underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-ring">
+              See what Jarvis did
+            </button>
+          )
         ) : null}
         {meta.proposals.map((proposal, index) => {
           const key = `${message.id}:${index}`;

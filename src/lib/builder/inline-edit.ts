@@ -68,3 +68,17 @@ export function applyInlineText(tree: CompositionTree, path: string, value: unkn
   node.text = after;
   return { ok: true, tree: clone, before, after };
 }
+
+/** A finger tap in the preview, for double-tap detection (phones fire no reliable `dblclick`). */
+export type Tap = { t: number; x: number; y: number; target: unknown };
+export const DOUBLE_TAP_MS = 350;
+export const DOUBLE_TAP_SLOP_PX = 30;
+
+/** Two taps on the same element, close in time and place, make a double-tap. */
+export function isDoubleTap(previous: Tap | null, next: Tap): boolean {
+  if (!previous) return false;
+  const dt = next.t - previous.t;
+  if (dt <= 0 || dt > DOUBLE_TAP_MS) return false;
+  if (previous.target !== next.target) return false;
+  return Math.hypot(next.x - previous.x, next.y - previous.y) <= DOUBLE_TAP_SLOP_PX;
+}
