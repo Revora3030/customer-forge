@@ -159,11 +159,6 @@ ${S} .rv-scene:not(:has(img)):not(:has(video)){background:radial-gradient(48% 36
 .rv-site-root[data-studio] [data-rv-button]{width:fit-content;max-width:100%;border-radius:999px;align-self:flex-start}
 .rv-site-root[data-studio] .rv-offer [data-rv-button]{width:100%}
 ${S} .rv-chapter{min-height:85svh}
-${S} .rv-seq-hud{position:absolute;z-index:4;top:clamp(76px,10vw,104px);left:clamp(16px,4vw,48px);display:flex;align-items:center;gap:10px;padding:8px 14px 8px 8px;border-radius:14px;background:rgba(8,10,14,.55);border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);color:#fff;pointer-events:none}
-${S} .rv-seq-hud-text{display:flex;flex-direction:column;line-height:1.05}
-${S} .rv-seq-hud-text strong{font-size:20px;font-weight:800;font-variant-numeric:tabular-nums}
-${S} .rv-seq-hud-text small{font-size:11px;font-weight:700;margin-left:1px;opacity:.7}
-${S} .rv-seq-hud-text span{font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;opacity:.75}
 ${S} .rv-cn-brush-hud{position:absolute;z-index:3;top:12px;right:12px;display:flex;gap:2px;border-radius:12px;overflow:hidden;background:rgba(8,10,14,.62);border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);color:#fff;pointer-events:none}
 ${S} .rv-cn-brush-hud span{display:flex;flex-direction:column;padding:6px 12px;line-height:1.1}
 ${S} .rv-cn-brush-hud span + span{border-left:1px solid rgba(255,255,255,.14)}
