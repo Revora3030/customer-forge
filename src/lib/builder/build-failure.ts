@@ -12,6 +12,7 @@
  */
 
 import { integrityOwnerMessage, isContentIntegrityError, parseIntegrityViolations } from "./content-integrity";
+import { isStallMessage } from "./no-progress";
 
 export const BUILD_FAILURE_KINDS = [
   "intake_validation",
@@ -229,6 +230,8 @@ export function describeBuildFailure(row: {
   const stored = row.failure_kind as BuildFailureKind | null | undefined;
   const kind = stored && (BUILD_FAILURE_KINDS as readonly string[]).includes(stored) ? stored : readFailureKind(row.error_message);
   if (!kind) return { label: "Build didn't finish", message: untaggedMessage(row.error_message) || "The build didn't finish.", canRetry: true };
+  // A build ended by the no-progress guard carries its own plain message.
+  if (isStallMessage(row.error_message)) return { label: FAILURE_KIND_LABELS[kind], message: untaggedMessage(row.error_message), canRetry: true };
   const message =
     kind === "intake_validation" ? intakeOwnerMessage(untaggedMessage(row.error_message)) : (FINAL_OWNER_MESSAGES[kind] ?? OWNER_MESSAGES[kind]);
   return { label: FAILURE_KIND_LABELS[kind], message, canRetry: true };

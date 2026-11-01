@@ -14,6 +14,15 @@ import { isHeroVideoCategory } from "@/lib/builder/hero-stock-video";
 import { summarizeCapacityPressure, type ProviderRuntime, type WaitProviders } from "@/lib/builder/capacity-wait";
 import type { PageArchitectureOutcome } from "@/lib/builder/ai-page-architecture.server";
 import { nextPublishState } from "@/lib/publish-state";
+import {
+  NO_PROGRESS_LIMIT_MS,
+  NoProgressError,
+  aiPressureSeen,
+  createProgressWatch,
+  noteProgress,
+  registerProgressWatch,
+  runWithNoProgressGuard,
+} from "@/lib/builder/no-progress";
 import { menuNeedsHelp } from "@/lib/service-suggestions";
 import {
   INTERRUPTED_BUILD_MESSAGE,
@@ -774,6 +783,12 @@ export function startLeaseHeartbeat(
   intervalMs = heartbeatIntervalMs(),
   /** Called once when this attempt no longer holds the job (cancelled by the owner, or taken over). */
   onLost?: () => void,
+  /**
+   * Progress source. While a step makes no progress the beat stops writing
+   * `updated_at` (so the owner's screen can tell), and past the no-progress
+   * limit it stops renewing the lease too (so any process can close the job).
+   */
+  progress?: { idleMs: () => number; limitMs: number },
 ): LeaseHeartbeat {
   let stopped = false;
   let lost = false;
@@ -781,13 +796,17 @@ export function startLeaseHeartbeat(
   let inFlight = false;
   const beat = async () => {
     if (stopped || inFlight) return;
+    const idle = progress ? progress.idleMs() : 0;
+    // A step that made no progress for the limit no longer earns a lease: the
+    // lease lapses and the dead-job sweep closes it instead of it looking alive.
+    if (progress && idle >= progress.limitMs) return;
     inFlight = true;
     try {
       const result = (await db
         .from("generation_jobs")
         .update({
           lease_expires_at: new Date(Date.now() + LEASE_SECONDS * 1000).toISOString(),
-          updated_at: new Date().toISOString(),
+          ...(progress && idle >= 60_000 ? {} : { updated_at: new Date().toISOString() }),
         } as never)
         .eq("id", job.id)
         .eq("attempts", job.attempts)
@@ -1256,6 +1275,7 @@ async function runJob(
   const stageTimings: Record<string, number> = {};
   let stageStartedAt = Date.now();
   const step = async (key: string) => {
+    noteProgress(job.id, key);
     done.push(key);
     stageTimings[key] = Date.now() - stageStartedAt;
     stageStartedAt = Date.now();
@@ -3145,7 +3165,12 @@ export async function drainSiteEngineQueue(
     // and again when this attempt ends: every AI call in the attempt stops with
     // it, including work still running in the background after a failure.
     const attemptAbort = new AbortController();
-    const heartbeat = startLeaseHeartbeat(db, job, undefined, () => attemptAbort.abort());
+    const progressWatch = createProgressWatch();
+    registerProgressWatch(job.id, progressWatch);
+    const heartbeat = startLeaseHeartbeat(db, job, undefined, () => attemptAbort.abort(), {
+      idleMs: () => progressWatch.idleMs(),
+      limitMs: NO_PROGRESS_LIMIT_MS,
+    });
     try {
       // Demo (is_demo) workspaces build on the free pool only. The scope is
       // per job (AsyncLocalStorage), so a concurrent customer build in this
@@ -3158,16 +3183,40 @@ export async function drainSiteEngineQueue(
       const { withModelActivity } = await import("@/lib/ai/model-activity-scope.server");
       const { noteStage: noteModel } = await import("@/lib/builder/progress.server");
       const modelRunId = (await readJobRequestId(db, job.id)) ?? job.id;
-      await withAiSpendScope({ ...spendScope, signal: attemptAbort.signal }, () =>
-        withModelActivity(
-          (provider, model) => noteModel(job.organization_id, modelRunId, "model at work", `${provider} · ${model}`),
-          () => executeJob(db, job, { deadline, short: sliceBudgetMs < NEXT_STAGE_RESERVE_MS }),
-        ),
+      await runWithNoProgressGuard(
+        () =>
+          withAiSpendScope({ ...spendScope, signal: attemptAbort.signal }, () =>
+            withModelActivity(
+              (provider, model) => {
+                // A model answering is progress, even before a stage finishes.
+                progressWatch.touch();
+                return noteModel(job.organization_id, modelRunId, "model at work", `${provider} · ${model}`);
+              },
+              () => executeJob(db, job, { deadline, short: sliceBudgetMs < NEXT_STAGE_RESERVE_MS }),
+            ),
+          ),
+        progressWatch,
+        {
+          onStall: async () => {
+            // Stop every AI call of this attempt, then ask why: did the gateway
+            // answer 402/429/timeouts while the step sat still?
+            attemptAbort.abort();
+            const { data: calls } = await db
+              .from("ai_usage_events")
+              .select("ok, error_category")
+              .eq("organization_id", job.organization_id)
+              .gte("created_at", attemptStartedAt)
+              .limit(1000);
+            return aiPressureSeen((calls ?? []) as { ok: boolean | null; error_category: string | null }[]);
+          },
+        },
       );
+      registerProgressWatch(job.id, null);
       heartbeat.stop();
       attemptAbort.abort();
       processed += 1;
     } catch (error) {
+      registerProgressWatch(job.id, null);
       heartbeat.stop();
       attemptAbort.abort();
       // A superseded attempt must not requeue, fail or restore anything —
@@ -3237,6 +3286,55 @@ export async function drainSiteEngineQueue(
           .eq("attempts", job.attempts)
           .eq("status", "processing");
         await writeQueueState(db, { last_error: message });
+        continue;
+      }
+
+      // The step stopped making progress. Fail the job now (no silent hang, no
+      // capacity parking) with a plain message; finished stage and section
+      // checkpoints stay on the row so the retry resumes. A fresh rebuild is
+      // rolled back to its backup so the owner's site is untouched.
+      if (error instanceof NoProgressError) {
+        failed += 1;
+        console.warn(
+          `[site-engine] job ${job.id} attempt ${job.attempts} made no progress for ${Math.round(error.idleMs / 1000)}s at "${error.stage ?? "unknown"}" (${error.busy ? "AI busy/credits" : "unknown cause"}); failing it.`,
+        );
+        try {
+          await db.from("ai_generations").insert({
+            organization_id: job.organization_id,
+            job_id: job.id,
+            kind: "build_attempt_ended",
+            model: "none",
+            instruction: null,
+            result: { attempt: Number(job.attempts), outcome: "no_progress" } as unknown as never,
+            created_by: job.created_by ?? null,
+          } as never);
+        } catch (endError) {
+          console.warn(`[site-engine] attempt-end record for job ${job.id} skipped`, endError);
+        }
+        const { tagFailureMessage: tagStall } = await import("@/lib/builder/build-failure");
+        const kind = error.busy ? "provider" : "infrastructure";
+        const { data: stalled } = await db
+          .from("generation_jobs")
+          .update({
+            status: "failed",
+            error_message: tagStall(kind, error.message),
+            failure_kind: kind,
+            failed_stage: error.stage,
+            completed_at: new Date().toISOString(),
+            lease_expires_at: null,
+          } as never)
+          .eq("id", job.id)
+          .eq("attempts", job.attempts)
+          .eq("status", "processing")
+          .select("id");
+        if (stalled && stalled.length > 0) {
+          try {
+            await settleAbandonedFreshRebuild(db, job as AbandonedJob);
+          } catch (settleError) {
+            console.warn(`[site-engine] fresh rebuild settle for stalled job ${job.id} skipped`, settleError);
+          }
+        }
+        await writeQueueState(db, { last_error: error.message });
         continue;
       }
 

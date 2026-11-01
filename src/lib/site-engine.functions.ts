@@ -341,6 +341,35 @@ export const runSiteGeneration = createServerFn({ method: "POST" })
           .eq("organization_id", orgId);
     }
 
+    // A build ended by the no-progress guard kept its finished stage and
+    // section work. Hand it to this retry (re-stamped with the new job id;
+    // each entry still needs its input digest to match) so it resumes instead
+    // of starting over. Best-effort: any problem just means a full rebuild.
+    try {
+      const { isStallMessage, carryOverCheckpoints } = await import("@/lib/builder/no-progress");
+      const { data: previous } = await supabase
+        .from("generation_jobs")
+        .select("status, error_message, stage_checkpoints, section_checkpoints, completed_at")
+        .eq("organization_id", orgId)
+        .neq("id", job.id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const prev = previous as { status?: string; error_message?: string | null; stage_checkpoints?: unknown; section_checkpoints?: unknown; completed_at?: string | null } | null;
+      const fresh = prev?.completed_at && Date.now() - Date.parse(prev.completed_at) < 24 * 3_600_000;
+      if (prev && prev.status === "failed" && fresh && isStallMessage(prev.error_message)) {
+        const stage = carryOverCheckpoints(prev.stage_checkpoints, job.id);
+        const section = carryOverCheckpoints(prev.section_checkpoints, job.id);
+        if (stage || section)
+          await supabase
+            .from("generation_jobs")
+            .update({ ...(stage ? { stage_checkpoints: stage } : {}), ...(section ? { section_checkpoints: section } : {}) } as never)
+            .eq("id", job.id);
+      }
+    } catch (carryError) {
+      console.warn("[site-engine] checkpoint carry-over skipped", carryError);
+    }
+
     // Non-blocking kick so the worker usually starts immediately; the scheduled
     // run and the client's pump call are the fallbacks.
     {
