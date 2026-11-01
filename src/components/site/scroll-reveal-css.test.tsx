@@ -7,7 +7,9 @@ const card = (t: string): CompositionNode => ({ type: "card", children: [{ type:
 const root: CompositionNode = { type: "stack", children: [{ type: "grid", children: [card("One"), card("Two")] }] };
 const html = renderToStaticMarkup(<CompositionRenderer tree={{ version: 1, root } as CompositionTree} scope="s-test" />);
 const css = html.slice(html.indexOf("<style"), html.indexOf("</style>"));
-const fallback = css.slice(css.indexOf("@supports not (animation-timeline:view())"));
+const fallbackStart = css.indexOf("@supports not (animation-timeline:view())");
+const fallbackEndMarker = "calc(var(--rv-i,0)*60ms)}}}";
+const fallback = css.slice(fallbackStart, css.indexOf(fallbackEndMarker, fallbackStart) + fallbackEndMarker.length);
 
 describe("scroll-reveal fallback CSS", () => {
   it("only exists for browsers without view() timelines, and only when motion is allowed", () => {

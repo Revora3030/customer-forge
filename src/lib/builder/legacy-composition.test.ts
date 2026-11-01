@@ -103,7 +103,7 @@ const hero: LegacySection = {
 };
 const about: LegacySection = {
   id: id(4),
-  kind: "about",
+  kind: "story",
   heading: "About us",
   body: "We wash things.",
   components: [{ id: id(5), kind: "image", url: "https://example.com/b.jpg", label: "Our crew" }],
@@ -200,6 +200,6 @@ describe("section layout variants", () => {
 
   it("keeps ignoring section kinds the adapter does not draw", () => {
     expect(legacySectionToComposition({ id: id(20), kind: "contact", heading: "Contact" }, { seed: "acme" })).toBeNull();
-    expect(legacySectionToComposition({ id: id(21), kind: "faq", heading: "FAQ" }, { seed: "acme" })).toBeNull();
+    expect(legacySectionToComposition({ id: id(21), kind: "about", heading: "About" }, { seed: "acme" })).toBeNull();
   });
 });
