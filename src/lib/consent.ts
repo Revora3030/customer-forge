@@ -18,6 +18,8 @@
 
 export const STORAGE_KEY = "cookie_consent";
 const RECORD_KEY = "revora.consent.record.v1";
+/** First-party visitor id (see src/lib/conversion.ts); removed on Reject. */
+export const VISITOR_STORAGE_KEY = "revora.visitor.v1";
 /** Bumped whenever the notice text shown to visitors changes materially. */
 export const NOTICE_VERSION = "2026-11-01";
 /** Text of the notice shown in the banner, recorded with each choice. */
@@ -110,6 +112,7 @@ export function updateConsent(decision: "granted" | "denied") {
   if (typeof window === "undefined") return;
   try {
     window.localStorage.setItem(STORAGE_KEY, decision);
+    if (decision === "denied") window.localStorage.removeItem(VISITOR_STORAGE_KEY);
     window.localStorage.setItem(
       RECORD_KEY,
       JSON.stringify({
