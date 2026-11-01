@@ -63,24 +63,36 @@ function placeholderHref(href: string): boolean {
   return false;
 }
 
-/**
- * Deep-copies a stored tree (section settings, header or footer) with every
- * placeholder phone/email removed from visible text and every tel:/mailto:/sms:
- * link to one replaced by `fallbackHref`. A link or button left with no words
- * reads "Contact us".
- */
-export function scrubPlaceholderContact<T>(value: T, fallbackHref: string): T {
+type WalkExtras = {
+  /** Extra keys that hold link targets (tel:/mailto:/sms: placeholders become the fallback). */
+  hrefKeys: ReadonlySet<string>;
+  /** Extra keys that hold visible words. */
+  textKeys: ReadonlySet<string>;
+  /** Keys that hold a bare phone number or email address (placeholders become null). */
+  phoneKeys: ReadonlySet<string>;
+  emailKeys: ReadonlySet<string>;
+};
+
+const isPlainObject = (node: object): boolean => {
+  const proto = Object.getPrototypeOf(node);
+  return proto === Object.prototype || proto === null;
+};
+
+function walkScrub(value: unknown, fallbackHref: string, extras: WalkExtras | null): unknown {
   const walk = (node: unknown, depth: number): unknown => {
     if (depth > 40 || node == null || typeof node !== "object") return node;
     if (Array.isArray(node)) return node.map((item) => walk(item, depth + 1));
+    if (extras && !isPlainObject(node)) return node;
     const out: Record<string, unknown> = {};
     const source = node as Record<string, unknown>;
-    for (const [key, child] of Object.entries(node as Record<string, unknown>)) {
-      if (HREF_KEYS.has(key) && typeof child === "string") {
-        if (placeholderHref(child)) {
-          out[key] = fallbackHref;
-        } else out[key] = child;
-      } else if (TEXT_KEYS.has(key) && typeof child === "string") {
+    for (const [key, child] of Object.entries(source)) {
+      if (extras?.phoneKeys.has(key) && typeof child === "string" && isPlaceholderPhone(child)) {
+        out[key] = null;
+      } else if (extras?.emailKeys.has(key) && typeof child === "string" && isPlaceholderEmail(child.trim())) {
+        out[key] = null;
+      } else if ((HREF_KEYS.has(key) || extras?.hrefKeys.has(key)) && typeof child === "string") {
+        out[key] = placeholderHref(child) ? fallbackHref : child;
+      } else if ((TEXT_KEYS.has(key) || extras?.textKeys.has(key)) && typeof child === "string") {
         out[key] = scrubPlaceholderText(child);
       } else if (LIST_KEYS.has(key) && Array.isArray(child)) {
         out[key] = child
@@ -94,5 +106,36 @@ export function scrubPlaceholderContact<T>(value: T, fallbackHref: string): T {
     }
     return out;
   };
-  return walk(value, 0) as T;
+  return walk(value, 0);
+}
+
+/**
+ * Deep-copies a stored tree (section settings, header or footer) with every
+ * placeholder phone/email removed from visible text and every tel:/mailto:/sms:
+ * link to one replaced by `fallbackHref`. A link or button left with no words
+ * reads "Contact us".
+ */
+export function scrubPlaceholderContact<T>(value: T, fallbackHref: string): T {
+  return walkScrub(value, fallbackHref, null) as T;
+}
+
+const PAYLOAD_EXTRAS: WalkExtras = {
+  hrefKeys: new Set(["link_url", "ctaHref", "cta_href", "website"]),
+  textKeys: new Set(["tagline", "comment", "service_area", "address", "message", "content", "meta_description", "seo_description", "seo_title"]),
+  phoneKeys: new Set(["phone", "telephone", "tel", "mobile", "whatsapp", "sms", "phone_number", "contact_phone", "business_phone"]),
+  emailKeys: new Set(["email", "contact_email", "business_email", "owner_email"]),
+};
+
+/**
+ * The server-side guard for everything a public client site sends to the
+ * browser. The page is already rendered without placeholder contact details,
+ * but the router also serialises the raw loader data into the HTML
+ * (hydration payload), which still carried the sample phone, the sample email
+ * and the tel: link block. This removes them from the data itself: bare
+ * phone/email fields become null, visible text loses them, and tel:/mailto:/sms:
+ * links to them point at `fallbackHref` ("#contact" is repaired to the real
+ * contact anchor or page at render). Real contacts are untouched. Pure.
+ */
+export function scrubPlaceholderPayload<T>(value: T, fallbackHref = "#contact"): T {
+  return walkScrub(value, fallbackHref, PAYLOAD_EXTRAS) as T;
 }
