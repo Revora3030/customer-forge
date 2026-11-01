@@ -78,7 +78,7 @@ describe("clientPageSearchText", () => {
 
 describe("tenantSiteHead gen-site SEO", () => {
   it("normalizes the canonical and og:url, adds locale and image alt", () => {
-    const head = tenantSiteHead({ site: base(), canonical: "https://Elite.example.com/" });
+    const head = tenantSiteHead({ site: base(), canonical: "https://Elite.example.com/", businessUrl: "https://e.test" });
     expect(head.links[0]).toEqual({ rel: "canonical", href: "https://elite.example.com" });
     expect(meta(head, "og:url")).toBe("https://elite.example.com");
     expect(meta(head, "og:locale")).toBe("en_US");
@@ -89,19 +89,19 @@ describe("tenantSiteHead gen-site SEO", () => {
     expect(shareImageFor({ logo: "https://cdn.test/logo.png" })).toBe("https://cdn.test/logo.png");
     expect(shareImageFor({ ogImage: "https://cdn.test/og.png", logo: "https://cdn.test/logo.png" })).toBe("https://cdn.test/og.png");
     expect(shareImageFor({ logo: "http://cdn.test/logo.png" })).toBeNull(); // DevSkim: ignore DS137138 -- Negative fixture: plaintext share images must be rejected.
-    const head = tenantSiteHead({ site: base({ profile: { city: "Raleigh", logo_url: "https://cdn.test/logo.png" } }), canonical: "https://e.test" });
+    const head = tenantSiteHead({ site: base({ profile: { city: "Raleigh", logo_url: "https://cdn.test/logo.png" } }), canonical: "https://e.test", businessUrl: "https://e.test" });
     expect(meta(head, "og:image")).toBe("https://cdn.test/logo.png");
   });
   it("never puts another city in a Raleigh business's title", () => {
     const head = tenantSiteHead({
       site: base({}, { kind: "home", slug: "home", title: "Home", seo_title: "Auto Detailing in Austin — Elite" }),
-      canonical: "https://e.test",
+      canonical: "https://e.test", businessUrl: "https://e.test",
     });
     expect(titleOf(head)).not.toMatch(/Austin/);
     expect(titleOf(head)).toContain("Raleigh");
   });
   it("emits one JSON-LD block of each payload and no placeholder contact", () => {
-    const head = tenantSiteHead({ site: base({ profile: { city: "Raleigh", description: "Call (919) 555-0142 for detailing." } }), canonical: "https://e.test" });
+    const head = tenantSiteHead({ site: base({ profile: { city: "Raleigh", description: "Call (919) 555-0142 for detailing." } }), canonical: "https://e.test", businessUrl: "https://e.test" });
     const blocks = head.scripts.map((s) => s.children ?? "");
     expect(new Set(blocks).size).toBe(blocks.length);
     expect(blocks.join("")).not.toMatch(/555-01/);
