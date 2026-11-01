@@ -15,6 +15,7 @@ import { ProductTour } from "@/components/marketing/ProductTour";
 import { OfferIncludes } from "@/components/marketing/OfferIncludes";
 import { SavingsCalculator } from "@/components/marketing/SavingsCalculator";
 import { SoftwareComparison } from "@/components/marketing/SoftwareComparison";
+import { WhatRevoraReplaces } from "@/components/marketing/WhatRevoraReplaces";
 import { AiTeam } from "@/components/marketing/AiTeam";
 import { Pill, SectionHeading } from "@/components/app/Bits";
 import { RouteError } from "@/components/app/RouteStates";
@@ -251,6 +252,13 @@ function Landing() {
               </div>
               <OfferIncludes />
             </div>
+          </div>
+        </section>
+
+        {/* WHAT REVORA REPLACES: tool categories, no prices */}
+        <section className="border-b border-border">
+          <div className="mx-auto max-w-6xl px-4 py-10">
+            <WhatRevoraReplaces />
           </div>
         </section>
 
