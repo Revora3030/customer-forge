@@ -109,7 +109,7 @@ describe("routine safety", () => {
   });
 
   it("the migration only ever sets a safe send policy and never lets a client write", () => {
-    const sql = readFileSync("supabase/migrations/20261101030000_agent_routines.sql", "utf8");
+    const sql = readFileSync("supabase/migrations/20261101060400_agent_routines.sql", "utf8");
     expect(sql).toMatch(/'no_external_actions' ELSE 'approval_required'/);
     expect(sql).not.toMatch(/auto_send|'auto'|DROP TABLE|ALTER TABLE public\.(?!agent_routines ENABLE)/i);
     expect(sql).toMatch(/ENABLE ROW LEVEL SECURITY/);
@@ -118,7 +118,7 @@ describe("routine safety", () => {
 
   it("limits a workspace to 5 routines", () => {
     expect(MAX_ROUTINES_PER_ORG).toBe(5);
-    expect(readFileSync("supabase/migrations/20261101030000_agent_routines.sql", "utf8")).toMatch(/>= 5/);
+    expect(readFileSync("supabase/migrations/20261101060400_agent_routines.sql", "utf8")).toMatch(/>= 5/);
   });
 });
 

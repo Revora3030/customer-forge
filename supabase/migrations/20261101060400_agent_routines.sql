@@ -47,7 +47,7 @@ GRANT SELECT ON public.agent_routines TO authenticated;
 GRANT ALL ON public.agent_routines TO service_role;
 DROP POLICY IF EXISTS agent_routines_member_read ON public.agent_routines;
 CREATE POLICY agent_routines_member_read ON public.agent_routines
-  FOR SELECT TO authenticated USING (public.is_org_member(organization_id));
+  FOR SELECT TO authenticated USING (private.is_org_member(organization_id));
 
 -- At most 5 routines per workspace (serialised per workspace so two inserts cannot both pass).
 CREATE OR REPLACE FUNCTION public.agent_routines_limit() RETURNS trigger
