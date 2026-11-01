@@ -158,7 +158,7 @@ function SiteSectionBody({ site, section, lead = false, first = false, surface =
   // hard-coded template engine.
   const storedTree = preparedRoot
     ? { version: 1 as const, root: preparedRoot }
-    : readComposition(section.settings) ?? legacySectionToComposition(section, { lead });
+    : readComposition(section.settings) ?? legacySectionToComposition(section, { lead, seed: org.slug });
   const kind = storedTree ? "composition" : section.kind;
   // Owner-entered finance / ROI / price-range figures (quality bar #14). The
   // existing estimator stays the default view; extra views appear only when

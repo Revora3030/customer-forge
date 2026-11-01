@@ -19,6 +19,7 @@ import { ShaderField } from "@/components/site/ShaderField";
 import { Tour360, type TourScene } from "@/components/site/Tour360";
 import { BuildingExplorer } from "@/components/site/BuildingExplorer";
 import { usePremiumFx } from "@/components/site/premium-fx";
+import { ScrollRevealFallback } from "@/components/site/ScrollRevealFallback";
 import { PREMIUM_CSS } from "@/components/site/premium-css";
 import { looksEquirect, splitWords, TOUR_LIMITS } from "@/lib/builder/premium-effects";
 import { isModelUrl } from "@/lib/site-models";
@@ -1539,7 +1540,7 @@ export const BROKEN_MEDIA_CSS = `[data-rv-card]:has(img[data-rv-broken]):not(:ha
 // of the animation. A view() timeline binds to the nearest scroll container,
 // and an overflow:hidden card or panel is one that never scrolls, so faded
 // from-states froze sections blank ("How working with us goes", FAQs).
-const MOTION_CSS = `@media (prefers-reduced-motion: no-preference){.rv-cn-motion{animation:rv-cn-in .7s ease both}.rv-cn-motion[data-motion=rise]{animation-name:rv-cn-rise}.rv-cn-motion[data-motion=scale]{animation-name:rv-cn-scale}.rv-cn-motion[data-motion=float]{animation:rv-cn-float 6s ease-in-out infinite}.rv-cn-motion[data-motion=slide-left]{animation-name:rv-cn-sl}.rv-cn-motion[data-motion=slide-right]{animation-name:rv-cn-sr}.rv-cn-motion[data-motion=blur]{animation-name:rv-cn-blur}.rv-cn-motion[data-motion=reveal]{animation-name:rv-cn-reveal}.rv-cn-motion[data-motion=custom]{animation-name:rv-cn-custom}}@keyframes rv-cn-custom{from{transform:translate(var(--rv-x,0),var(--rv-y,0)) scale(var(--rv-s,1)) rotate(var(--rv-r,0))}}@keyframes rv-cn-sl{from{transform:translateX(16px)}to{transform:none}}@keyframes rv-cn-sr{from{transform:translateX(-16px)}to{transform:none}}@keyframes rv-cn-blur{from{transform:scale(.98)}to{transform:none}}@keyframes rv-cn-reveal{from{transform:translateY(16px)}to{transform:none}}@keyframes rv-cn-in{from{transform:translateY(8px)}to{transform:none}}@keyframes rv-cn-rise{from{transform:translateY(16px)}to{transform:none}}@keyframes rv-cn-scale{from{transform:scale(.97)}to{transform:none}}@keyframes rv-cn-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}@media (prefers-reduced-motion:no-preference){img.rv-scene-media[data-kenburns]{animation:rv-kenburns 28s ease-in-out infinite alternate;transform-origin:60% 40%}}@keyframes rv-kenburns{from{transform:scale(1)}to{transform:scale(1.08) translate(-1%,-1%)}}@supports (animation-timeline:view()){@media (prefers-reduced-motion:no-preference){.rv-cn-auto{animation:rv-cn-rise linear both;animation-timeline:view();animation-range:entry calc(var(--rv-i,0)*16px) entry calc(180px + var(--rv-i,0)*16px)}}}`;
+const MOTION_CSS = `@media (prefers-reduced-motion: no-preference){.rv-cn-motion{animation:rv-cn-in .7s ease both}.rv-cn-motion[data-motion=rise]{animation-name:rv-cn-rise}.rv-cn-motion[data-motion=scale]{animation-name:rv-cn-scale}.rv-cn-motion[data-motion=float]{animation:rv-cn-float 6s ease-in-out infinite}.rv-cn-motion[data-motion=slide-left]{animation-name:rv-cn-sl}.rv-cn-motion[data-motion=slide-right]{animation-name:rv-cn-sr}.rv-cn-motion[data-motion=blur]{animation-name:rv-cn-blur}.rv-cn-motion[data-motion=reveal]{animation-name:rv-cn-reveal}.rv-cn-motion[data-motion=custom]{animation-name:rv-cn-custom}}@keyframes rv-cn-custom{from{transform:translate(var(--rv-x,0),var(--rv-y,0)) scale(var(--rv-s,1)) rotate(var(--rv-r,0))}}@keyframes rv-cn-sl{from{transform:translateX(16px)}to{transform:none}}@keyframes rv-cn-sr{from{transform:translateX(-16px)}to{transform:none}}@keyframes rv-cn-blur{from{transform:scale(.98)}to{transform:none}}@keyframes rv-cn-reveal{from{transform:translateY(16px)}to{transform:none}}@keyframes rv-cn-in{from{transform:translateY(8px)}to{transform:none}}@keyframes rv-cn-rise{from{transform:translateY(16px)}to{transform:none}}@keyframes rv-cn-scale{from{transform:scale(.97)}to{transform:none}}@keyframes rv-cn-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}@media (prefers-reduced-motion:no-preference){img.rv-scene-media[data-kenburns]{animation:rv-kenburns 28s ease-in-out infinite alternate;transform-origin:60% 40%}}@keyframes rv-kenburns{from{transform:scale(1)}to{transform:scale(1.08) translate(-1%,-1%)}}@supports (animation-timeline:view()){@media (prefers-reduced-motion:no-preference){.rv-cn-auto{animation:rv-cn-rise linear both;animation-timeline:view();animation-range:entry calc(var(--rv-i,0)*16px) entry calc(180px + var(--rv-i,0)*16px)}}}@supports not (animation-timeline:view()){@media (prefers-reduced-motion:no-preference){.rv-cn-auto[data-rv-wait]{transform:translateY(16px)}.rv-cn-auto[data-rv-go]{transition:transform var(--motion-duration-base,500ms) var(--motion-ease-out,cubic-bezier(.16,1,.3,1)) calc(var(--rv-i,0)*60ms)}}}`;
 
 export function CompositionRenderer(args: Parameters<typeof RenderComposition>[0]) {
   const { enabled } = usePremiumFx();
@@ -1570,12 +1571,14 @@ function RenderComposition({ premiumOff = false, tree, scope, as = "section", re
         {shared}
         {own}
         {body}
+        {editable ? null : <ScrollRevealFallback />}
       </div>
     ) : (
       <section data-composition={tree.label ?? "composition"} style={rootStyle}>
         {shared}
         {own}
         {body}
+        {editable ? null : <ScrollRevealFallback />}
       </section>
     )
   );

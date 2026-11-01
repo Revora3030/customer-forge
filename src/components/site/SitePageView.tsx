@@ -132,7 +132,7 @@ export function SitePageView({
   const pageRoots = normalizeHeadingOutline(
     studioPage.roots.map((root, index) => {
       const section = sections[index];
-      return root ?? (section ? legacySectionToComposition(section as never, { lead: index === leadIndex })?.root ?? null : null);
+      return root ?? (section ? legacySectionToComposition(section as never, { lead: index === leadIndex, seed: org.slug })?.root ?? null : null);
     }),
   );
 
