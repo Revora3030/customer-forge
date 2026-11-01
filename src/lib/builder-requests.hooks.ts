@@ -730,12 +730,17 @@ export function useBuilderRequests({
           questions,
           unavailable: result.unavailable,
         });
-        planned.error = friendlyError(
-          new Error(
-            "Revora read your request but couldn't find a safe change to make yet. Try being more specific — for example “set my home page title”, “rewrite the services page”, or “add a booking section”.",
-          ),
-          "Couldn't make that change.",
-        );
+        // When the AI team was unavailable the server already said exactly why
+        // and what is safe (and whether Retry helps); never replace that with
+        // "try being more specific", which blamed the owner's wording.
+        planned.error = result.unavailable && result.reply
+          ? result.reply
+          : friendlyError(
+              new Error(
+                "Revora read your request but couldn't find a safe change to make yet. Try being more specific — for example “set my home page title”, “rewrite the services page”, or “add a booking section”.",
+              ),
+              "Couldn't make that change.",
+            );
       }
       setTasks((current) => updateTask(current, task.id, planned));
       const nextConversation = [
@@ -877,14 +882,14 @@ export function useBuilderRequests({
     setProgressRuns((current) => (current[taskId] === runId ? current : { ...current, [taskId]: runId }));
   }, []);
 
-  const settleBuild = (taskId: string, outcome: { ok: boolean; message: string }) => {
+  const settleBuild = (taskId: string, outcome: { ok: boolean; message: string; retryBuild?: boolean }) => {
     // Settled once; read from a ref because this is called right after
     // trackBuild, before a render has the new task in `tasks`.
     if (!trackedBuildsRef.current.delete(taskId)) return;
     // retryable: false — "Try again" would run the edit planner, not a build.
     patch(taskId, outcome.ok
       ? { state: "complete", reply: outcome.message, answered: true, tracking: false }
-      : { state: "failed", error: outcome.message, retryable: false, tracking: false });
+      : { state: "failed", error: outcome.message, retryable: false, tracking: false, ...(outcome.retryBuild ? { retryBuild: true } : {}) });
     remember([
       {
         role: "assistant",

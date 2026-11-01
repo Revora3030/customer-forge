@@ -33,6 +33,7 @@ import {
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isPlaceholderPalette } from "@/lib/site-theme";
+import { ownerStyleChoice, styleFromProfile } from "@/lib/builder/style-picks";
 
 const QUEUE_ID = "site_engine";
 export const LEASE_SECONDS = 300;
@@ -2160,6 +2161,7 @@ async function runJob(
     hasBooking: (bookable.data ?? []).length > 0,
     direction,
     creativeBrief: creative.brief,
+    ownerStyle: ownerStyleChoice(styleFromProfile(p as never)),
     generatedAssets: siteAssets,
     directedBy:
       refined.passes.find((pass) => pass.used && pass.model)?.model ?? "revora-collective",
@@ -2430,6 +2432,8 @@ async function runJob(
         // composed against a different palette than the theme clashed with it.
         ownerPalette: effectivePalette,
         ownerFont: effectiveFont,
+        // A look the owner picked in the wizard: its feel is a request, its fonts and colours are already applied above.
+        ownerStyle: ownerStyleChoice(styleFromProfile(p as never)),
         surfaceIs: effectivePalette?.secondary ? (isLightSurface(effectivePalette.secondary) ? "light" : "dark") : null,
       }),
     });

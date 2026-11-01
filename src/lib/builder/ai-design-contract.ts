@@ -98,6 +98,8 @@ export type AiDesignContract = {
   directedBy: string;
   /** Which specialist reviewed it adversarially, when review ran. */
   reviewedBy: string | null;
+  /** The look card the owner picked in the intake wizard, when they picked one. The AI otherwise chooses. */
+  ownerStyle?: { id: string; name: string; feel: string } | undefined;
   identity: {
     name: string;
     concept: string;

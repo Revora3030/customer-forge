@@ -7,6 +7,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { REVORA } from "@/lib/brand";
+import { isRealPaymentAmount } from "@/lib/payment-amount";
 
 type Admin = SupabaseClient<Database>;
 type PaymentRow = Database["public"]["Tables"]["payments"]["Row"];
@@ -170,6 +171,8 @@ export async function logPaymentActivity(
   payment: PaymentRow,
   kind: "completed" | "failed" | "cancelled" | "refunded",
 ) {
+  // A $0.00 completion is not a payment: nothing to announce or log as received.
+  if (kind === "completed" && !isRealPaymentAmount(payment.amount)) return;
   const label = payment.description ?? payment.product_id ?? "Revora service";
   const amount = money(Number(payment.amount), payment.currency);
   const providerLabel = "card";

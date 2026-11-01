@@ -803,10 +803,12 @@ export const saveMissingFacts = createServerFn({ method: "POST" })
       if (!value) continue; // an untouched box is not an answer, and never overwrites saved data
       const field = fieldByKey.get(key);
       if (field === "services_list") {
-        const { mergeSplitServices } = await import("@/lib/builder/intake-sanitize");
+        const { validateIntakeServices } = await import("@/lib/builder/intake-sanitize");
         const lines = value.split(/[\n,]/).map((l) => l.trim()).filter(Boolean);
-        for (const name of mergeSplitServices(lines.map((name) => ({ name }))).map((row) => row.name ?? "").filter(Boolean))
-          serviceNames.push(name);
+        // "Full" on its own is half a name: ask for the whole thing instead of saving a stub.
+        const checked = validateIntakeServices(lines.map((name) => ({ name })));
+        if (checked.rejected.length) throw new Error(checked.rejected[0]!.message);
+        for (const name of checked.valid.map((row) => row.name ?? "").filter(Boolean)) serviceNames.push(name);
       } else if (field) profilePatch[field] = value;
       else context_answers[key] = value;
     }
