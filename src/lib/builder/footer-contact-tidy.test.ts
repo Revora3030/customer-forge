@@ -61,11 +61,11 @@ describe("tidyContactSections", () => {
     ];
     const out = tidyContactSections(sections);
     expect(out[0]).toBe(sections[0]);
-    const tidied = (out[1].settings as { composition: CompositionTree }).composition;
+    const tidied = (out[1]!.settings as { composition: CompositionTree }).composition;
     expect(countFooterContact(tidied)).toEqual({ phone: 1, email: 1 });
   });
   it("matches an authored contact role", () => {
     const out = tidyContactSections([{ kind: "custom", settings: { role: "contact", composition: repeated } }]);
-    expect(countFooterContact((out[0].settings as { composition: CompositionTree }).composition)).toEqual({ phone: 1, email: 1 });
+    expect(countFooterContact((out[0]!.settings as { composition: CompositionTree }).composition)).toEqual({ phone: 1, email: 1 });
   });
 });
