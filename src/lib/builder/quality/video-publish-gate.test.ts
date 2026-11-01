@@ -6,11 +6,11 @@ import { badSite, blueprintFor, goodSite } from "@/lib/builder/quality/video-sco
 const bp = blueprintFor("dentist");
 
 describe("gate mode and decision", () => {
-  it("defaults to enforce, accepts warn and off, ignores junk", () => {
-    expect(gateMode({})).toBe("enforce");
+  it("defaults to warn, accepts warn and off, ignores junk", () => {
+    expect(gateMode({})).toBe("warn");
     expect(gateMode({ VIDEO_BAR_GATE: "warn" })).toBe("warn");
     expect(gateMode({ VIDEO_BAR_GATE: " OFF " })).toBe("off");
-    expect(gateMode({ VIDEO_BAR_GATE: "maybe" })).toBe("enforce");
+    expect(gateMode({ VIDEO_BAR_GATE: "maybe" })).toBe("warn");
   });
   it("blocks below the bar only when enforcing", () => {
     const base = { score: 70, bar: 85 };

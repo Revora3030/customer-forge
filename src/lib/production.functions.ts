@@ -359,7 +359,7 @@ async function evaluateVideoBarCheck(
   } catch {
     const ok = mode !== "enforce";
     return {
-      check: { key: "video-bar", label, ok, detail: "The quality bar could not be checked just now, so the website was not published. Try again in a moment." },
+      check: { key: "video-bar", label, ok, detail: ok ? "The quality bar could not be checked just now. Publishing is still allowed." : "The quality bar could not be checked just now, so the website was not published. Try again in a moment." },
       summary: null,
     };
   }

@@ -1,7 +1,7 @@
 /**
  * Publish block, pure part: what the video bar means for a publish, and what the owner is told.
  *
- * `VIDEO_BAR_GATE` = `enforce` (default) | `warn` | `off`.
+ * `VIDEO_BAR_GATE` = `enforce` | `warn` (default until the generator calls runVideoGate) | `off`.
  *  - enforce: a site under the bar cannot go live.
  *  - warn:    the score is shown and logged, nothing is blocked.
  *  - off:     the check is skipped.
@@ -17,7 +17,7 @@ export type GateMode = "enforce" | "warn" | "off";
 
 export const gateMode = (env: Record<string, string | undefined> = process.env): GateMode => {
   const v = (env["VIDEO_BAR_GATE"] ?? "").trim().toLowerCase();
-  return v === "warn" || v === "off" ? v : "enforce";
+  return v === "enforce" || v === "off" ? v : "warn";
 };
 
 export type PublishDecision = {
