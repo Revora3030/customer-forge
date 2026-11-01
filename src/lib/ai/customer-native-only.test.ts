@@ -6,6 +6,11 @@ const customerPlanner = readFileSync(
   "utf8",
 );
 
+const aiRetry = readFileSync(
+  new URL("../builder/ai-retry.ts", import.meta.url),
+  "utf8",
+);
+
 const aiPlanner = readFileSync(
   new URL("../builder/ai-agent-plan.server.ts", import.meta.url),
   "utf8",
@@ -25,7 +30,10 @@ describe("customer website planning is AI-authored", () => {
   });
 
   it("fails loudly instead of falling back to a stock layout", () => {
-    expect(customerPlanner).toContain("I'd rather wait than drop a stock layout onto your site.");
+    // The failure reply now comes from the shared retry helper (one automatic
+    // retry, then a Retry button); it must still refuse a stock-layout fallback.
+    expect(customerPlanner).toContain("describeAiUnavailable(authored.reason");
+    expect(aiRetry).toContain("I'd rather wait than drop a stock layout onto your site.");
     expect(aiPlanner).toContain("review_rejected");
     expect(aiPlanner).toContain("unusable_answer");
   });
