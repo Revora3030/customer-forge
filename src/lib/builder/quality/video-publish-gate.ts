@@ -1,7 +1,8 @@
 /**
  * Publish block, pure part: what the video bar means for a publish, and what the owner is told.
  *
- * `VIDEO_BAR_GATE` = `enforce` | `warn` (default until the generator calls runVideoGate) | `off`.
+ * `VIDEO_BAR_GATE` = `enforce` | `warn` (default) | `off`. The generator scores every new site with runVideoGate in the
+ * same mode (`generated-site-gate.ts`) and never blocks a build; this publish gate is the only place a site is held back.
  *  - enforce: a site under the bar cannot go live.
  *  - warn:    the score is shown and logged, nothing is blocked.
  *  - off:     the check is skipped.
