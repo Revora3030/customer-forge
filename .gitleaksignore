@@ -1,0 +1,5 @@
+# Known, reviewed findings (gitleaks fingerprint = commit:file:rule:line).
+# Removed from the tree on 2026-09-18 (qa/security-rls-deps-newbot.md finding 11).
+# Value is a Google Maps *browser* key (VITE_LOVABLE_CONNECTOR_GOOGLE_MAPS_BROWSER_KEY), public by design
+# but must be HTTP-referrer restricted in Google Cloud. TODO(Adam): confirm restriction, then this line stays.
+3191a7295a36937de5c56b96d1f7415ac50d6e61:.env:gcp-api-key:4
