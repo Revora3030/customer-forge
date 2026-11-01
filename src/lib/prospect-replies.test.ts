@@ -705,6 +705,7 @@ describe("reply polling and follow-up", () => {
       "Your $350 setup fee is fully refundable within 7 days if we haven't started your build. Your monthly plan is month-to-month, so cancel anytime and you won't be billed again. Charges already made aren't refunded.",
     );
     expect(factCheckReply(facts.refundPolicy, facts)).toEqual([]);
+    expect(facts.pricingSummary).toBe("$350 setup, first month free, then $100/month; 3-day trial, no card needed.");
     setGmail();
     threadMessages = [inbound("in1", "Is this refundable? Can I get my money back?")];
     const { db, tables } = fakeDb(demoSeed({ prospect_outreach: [sentOutreach()] }));
