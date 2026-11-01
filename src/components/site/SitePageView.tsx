@@ -157,7 +157,7 @@ export function SitePageView({
           <p className="mt-2 text-[13px] text-muted-foreground">
             Please check back soon.
           </p>
-          {preview ? <BuilderReturnBar /> : null}
+          {preview ? <BuilderReturnBar organizationId={org.id} /> : null}
         </div>
       </div>
     );
@@ -325,7 +325,7 @@ export function SitePageView({
         {/* Lets the builder's preview frame pick a block by clicking it. Inert
             for every ordinary visitor and for any frame from another origin. */}
         {preview ? <PreviewSelectBridge /> : null}
-        {preview ? <BuilderReturnBar /> : null}
+        {preview ? <BuilderReturnBar organizationId={org.id} /> : null}
         {preview ? <PreviewLinkBridge slug={org.slug} /> : null}
       </div>
     </div>

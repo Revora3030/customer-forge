@@ -7,7 +7,7 @@
  * IntersectionObserver for the chapter rail.
  */
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
-import { scrubFrame, scrubProgress, scrubReadout, scrubTime, shouldSeek } from "@/lib/builder/scrub";
+import { scrubFrame, scrubProgress, scrubTime, shouldSeek } from "@/lib/builder/scrub";
 import { MIN_SPIN_FRAMES, dialAngle, dialArcPath, dialOptionForKey, dialOptionForPoint, frameForDrag, frameForKey } from "@/lib/builder/cinematic-primitives";
 
 type NodeProps = { "data-cn": string; "data-motion": string | undefined; className: string | undefined; style: CSSProperties };
@@ -515,28 +515,11 @@ export function ScrubStage({ src, alt, render }: { src: string; alt: string; ren
  * with the copy, so the page is complete with JavaScript off. After hydration,
  * scrolling the track wipes from frame to frame. No canvas and no model file.
  */
-/**
- * The progress ring over a live scrub sequence: percent scrolled and the
- * labelled chapter ("2/3 · Roof soft wash"). Decorative for assistive tech —
- * the frame buttons below the copy already name every chapter.
+/*
+ * There is deliberately no progress readout ("0% · 1/2 · <chapter>") over the
+ * sequence. It was a debug-style HUD that printed on top of the hero for every
+ * visitor; the chapter buttons below the copy already name each frame.
  */
-function ScrubHud({ progress, labels }: { progress: number; labels: (string | undefined)[] }) {
-  const readout = scrubReadout(progress, labels);
-  const r = 15;
-  const length = 2 * Math.PI * r;
-  return (
-    <div className="rv-seq-hud" aria-hidden="true">
-      <svg viewBox="0 0 36 36" width="36" height="36">
-        <circle cx="18" cy="18" r={r} fill="none" stroke="currentColor" strokeOpacity=".25" strokeWidth="3" />
-        <circle cx="18" cy="18" r={r} fill="none" stroke="var(--primary, currentColor)" strokeWidth="3" strokeLinecap="round" strokeDasharray={`${(readout.percent / 100) * length} ${length}`} transform="rotate(-90 18 18)" />
-      </svg>
-      <div className="rv-seq-hud-text">
-        <strong>{readout.percent}<small>%</small></strong>
-        <span>{readout.step}/{readout.total}{readout.label ? ` · ${readout.label}` : ""}</span>
-      </div>
-    </div>
-  );
-}
 
 export function ScrubSequence({
   props, frames, copy, prompt, scrim, ink,
@@ -574,11 +557,10 @@ export function ScrubSequence({
   }, [frames.length]);
   const shown = pinned != null ? { index: pinned, mix: 0 } : live ? scrubFrame(progress, frames.length) : { index: Math.max(0, frames.length - 1), mix: 0 };
   const last = Math.max(0, frames.length - 1);
-  const labelled = frames.some((frame) => frame.label);
   return (
     <div ref={track} {...props} className={merge(props, "rv-seq")} data-live={live ? "" : undefined}>
       <div className="rv-seq-pin">
-        <div className="rv-seq-stage" style={{ color: ink }}>
+        <div className="rv-seq-stage" style={{ color: ink, backgroundColor: scrim }}>
           {frames.map((frame, index) => {
             const incoming = live && index === shown.index + 1;
             const current = live ? index === shown.index : index === last;
@@ -598,7 +580,6 @@ export function ScrubSequence({
             );
           })}
           <div className="rv-seq-scrim" aria-hidden="true" style={{ background: `linear-gradient(to top, ${scrim} 0%, ${scrim} 42%, transparent 100%)` }} />
-          {live && labelled ? <ScrubHud progress={pinned != null ? (pinned + 0.5) / frames.length : progress} labels={frames.map((frame) => frame.label)} /> : null}
           <div className="rv-seq-copy">
             {copy}
             {prompt ? <p className="rv-seq-prompt">{prompt}</p> : null}
