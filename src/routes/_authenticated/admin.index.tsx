@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { getPlatformActivity, getPlatformMetrics, listClients } from "@/lib/admin.functions";
 import { getConversionReport } from "@/lib/conversion.functions";
 import { DOMAIN_STATES, PUBLISH_STATES } from "@/lib/readiness";
-import { currency, dateShort, number } from "@/lib/format";
+import { currency, dateShort, formatUsPhone, number } from "@/lib/format";
 import { REVORA } from "@/lib/brand";
 
 const ACTIVITY_LABELS: Record<string, string> = {
@@ -220,7 +220,7 @@ function AdminOverview() {
             ["Company name", REVORA.name],
             ["Founder", REVORA.founder.name],
             ["Business email", REVORA.email],
-            ["Business phone", REVORA.phone],
+            ["Business phone", formatUsPhone(REVORA.phone)],
             ["Brand tagline", REVORA.tagline],
             ["Primary message", REVORA.primaryMessage],
           ].map(([label, value]) => (

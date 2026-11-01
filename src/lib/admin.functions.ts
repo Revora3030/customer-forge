@@ -5,6 +5,7 @@ import type { NewClientInput } from "@/lib/admin-types";
 import { fetchAllRows } from "@/lib/paginate";
 import { TEST_LEAD_SOURCE } from "@/lib/test-lead";
 import { netRevenue } from "@/lib/monthly-report";
+import { isRealPaymentAmount } from "@/lib/payment-amount";
 
 type SubscriptionStatus = Database["public"]["Enums"]["subscription_status"];
 type PublishState = Database["public"]["Enums"]["publish_state"];
@@ -990,6 +991,8 @@ export const getPlatformActivity = createServerFn({ method: "GET" })
         .select("id, organization_id, amount, status, environment, created_at")
         .eq("status", "completed")
         .eq("environment", "live")
+        // A $0.00 charge (free first month, 100%-off setup code) is not a payment.
+        .gt("amount", 0)
         .gte("created_at", since)
         .order("created_at", { ascending: false })
         .limit(cap),
@@ -1044,7 +1047,7 @@ export const getPlatformActivity = createServerFn({ method: "GET" })
     const [leadTotal, bookingTotal, paymentTotal, versionTotal, signupTotal] = await Promise.all([
       windowCount("leads", (q) => q.neq("source", TEST_LEAD_SOURCE)),
       windowCount("appointments"),
-      windowCount("payments", (q) => q.eq("status", "completed").eq("environment", "live")),
+      windowCount("payments", (q) => q.eq("status", "completed").eq("environment", "live").gt("amount", 0)),
       windowCount("website_versions"),
       supabaseAdmin.from("organizations").select("id", { count: "exact", head: true }).gte("created_at", since).eq("is_demo", false),
     ]);
@@ -1088,7 +1091,7 @@ export const getPlatformActivity = createServerFn({ method: "GET" })
           business: names.get(a.organization_id) ?? null,
         })),
       ...(payments.data ?? [])
-        .filter((p) => !demoIds.has(p.organization_id))
+        .filter((p) => !demoIds.has(p.organization_id) && isRealPaymentAmount(p.amount))
         .map<Item>((p) => ({
           id: `pay-${p.id}`,
           kind: "payment",
