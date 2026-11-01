@@ -24,7 +24,7 @@ const HARD_MAX_RETRIES = 5;
 export const CRITERION_GROUP: Readonly<Record<CriterionId, "copy" | "layout">> = {
   truth_facts: "copy", anti_ai_lint: "copy",
   hero_cinematic: "layout", scroll_story: "layout", scroll_motion: "layout", signature_tool: "layout", lead_capture: "layout",
-  cta_bar: "layout", type_rules: "layout", palette_rules: "layout", images: "layout", section_rhythm: "layout", mobile_layout: "layout",
+  cta_bar: "layout", type_rules: "layout", palette_rules: "layout", images: "layout", section_rhythm: "layout", mobile_layout: "layout", mobile_390: "layout",
 };
 
 const GROUP_STEP: Record<"copy" | "layout", QualityStep> = { copy: "copy", layout: "layout" };
