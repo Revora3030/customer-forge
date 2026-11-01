@@ -23,11 +23,11 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 /** Trimmed, single-spaced, length-capped text, or null when blank. */
 export function cleanPrivacyDetail(value: unknown): string | null {
   if (typeof value !== "string") return null;
-  // eslint-disable-next-line no-control-regex
-  const text = value
-    .replace(/[\u0000-\u001f\u007f]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  const printable = Array.from(value, (char) => {
+    const code = char.charCodeAt(0);
+    return code < 32 || code === 127 ? " " : char;
+  }).join("");
+  const text = printable.replace(/\s+/g, " ").trim();
   return text ? text.slice(0, PRIVACY_DETAIL_MAX_LENGTH) : null;
 }
 
