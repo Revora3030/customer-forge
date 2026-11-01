@@ -6,7 +6,7 @@ LH=${LH:-/workspace/tools/pr2/node_modules/.bin/lighthouse}
 RUNS=${RUNS:-5}
 OUT=${OUT:-/tmp/pr3-lh}
 mkdir -p "$OUT"
-for variant in "before|http://127.0.0.1:4528/" "after|http://127.0.0.1:4529/" "after-nopreload|http://127.0.0.1:4529/?nopre=1"; do
+for variant in "before|http://127.0.0.1:4528/" "after|http://127.0.0.1:4529/" "after-nopreload|http://127.0.0.1:4529/?nopre=1"; do # DevSkim: ignore DS162092,DS137138 -- local-only Lighthouse harness URLs, never shipped.
   name=${variant%%|*}; url=${variant#*|}
   for i in $(seq 1 "$RUNS"); do
     "$LH" "$url" --quiet --only-categories=performance --output=json --output-path="$OUT/$name-$i.json" \
