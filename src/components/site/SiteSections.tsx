@@ -1,4 +1,5 @@
 import { resolveSiteHref } from "@/lib/builder/site-chrome";
+import { imageAltBase } from "@/lib/client-seo-guard";
 import { useOwnAddress, useSiteBase } from "@/components/site/use-own-address";
 /**
  * Renders the builder's structured sections on a public business website.
@@ -20,6 +21,7 @@ import { CalendarCheck, Mail, MapPin, Phone } from "lucide-react";
 import { bookingLinkFromHours } from "@/lib/booking-link";
 import { BookingForm, EnquiryForm, QuoteCalculator } from "@/components/site/SiteForms";
 import { DirectContact } from "@/components/site/ContactDetails";
+import { ContactMap } from "@/components/site/ContactMap";
 import { ReviewWall, ServiceMenu } from "@/components/site/LiveBlocks";
 import { ServiceEstimator } from "@/components/site/ServiceEstimator";
 import { offerFactsFor } from "@/components/site/live-blocks-utils";
@@ -158,7 +160,7 @@ function SiteSectionBody({ site, section, lead = false, first = false, surface =
   // hard-coded template engine.
   const storedTree = preparedRoot
     ? { version: 1 as const, root: preparedRoot }
-    : readComposition(section.settings) ?? legacySectionToComposition(section, { lead });
+    : readComposition(section.settings) ?? legacySectionToComposition(section, { lead, seed: org.slug });
   const kind = storedTree ? "composition" : section.kind;
   // Owner-entered finance / ROI / price-range figures (quality bar #14). The
   // existing estimator stays the default view; extra views appear only when
@@ -179,6 +181,7 @@ function SiteSectionBody({ site, section, lead = false, first = false, surface =
       return tree ? (
         <CompositionRenderer
           tree={tree}
+          altBase={imageAltBase({ name: org.name, industry: org.industry ?? null, city: profile?.city ?? null })}
           scope={`s-${section.id}`}
           editable={editable}
           surface={sectionSurface(site, readBlockStyle(section.settings).bgColor)}
@@ -191,7 +194,13 @@ function SiteSectionBody({ site, section, lead = false, first = false, surface =
             if (name === "booking_form") return <BookingForm site={site} {...(presentation ? { presentation } : {})} />;
             if (name === "quote_calculator")
               return withOwnerCalculator(site.quote ? <QuoteCalculator site={site} {...(presentation ? { presentation } : {})} /> : null, presentation);
-            if (name === "contact_details") return <ContactFacts site={site} {...(presentation ? { presentation } : {})} />;
+            if (name === "contact_details")
+              return (
+                <>
+                  <ContactFacts site={site} {...(presentation ? { presentation } : {})} />
+                  <ContactMap site={site} />
+                </>
+              );
             if (name === "enquiry_form") return <EnquiryForm site={site} {...(presentation ? { presentation } : {})} />;
             if (name === "service_menu") return <ServiceMenu site={site} {...(presentation ? { presentation } : {})} />;
             if (name === "service_estimator")
@@ -232,6 +241,7 @@ function SiteSectionBody({ site, section, lead = false, first = false, surface =
         <Shell id="contact">
           <Heading section={section} lead={lead} />
           <div className="mt-7"><ContactFacts site={site} /></div>
+          <ContactMap site={site} />
           <div className="mt-6">
             <DirectContact
               profile={profile}

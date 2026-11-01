@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { customerBusinessEmail, isPlatformEmail, isPlatformLabel, mergeSplitServices, sanitizeServices } from "./intake-sanitize";
+import { checkServiceName, partitionServiceNames, validateIntakeServices, customerBusinessEmail, isPlatformEmail, isPlatformLabel, mergeSplitServices, sanitizeServices } from "./intake-sanitize";
 import { PLATFORM_OWNER_ORG_ID } from "@/lib/platform-owner";
 
 describe("sanitizeServices", () => {
@@ -70,5 +70,49 @@ describe("customerBusinessEmail", () => {
     expect(customerBusinessEmail("", "org")).toBeNull();
     expect(customerBusinessEmail(undefined, "org")).toBeNull();
     expect(isPlatformEmail("owner@notrevoragrowthsystems.com")).toBe(false);
+  });
+});
+
+describe("service name validation at intake", () => {
+  it("rejects the one-word stub 'Full' and asks for the full name", () => {
+    const check = checkServiceName("Full");
+    expect(check.ok).toBe(false);
+    if (!check.ok) {
+      expect(check.reason).toBe("vague");
+      expect(check.message).toMatch(/full name/i);
+    }
+  });
+
+  it("rejects other qualifiers, filler, platform wording, and names with no real letters", () => {
+    for (const name of ["", "  ", "Basic", "premium", "Stuff", "Package", "Build my site", "A", "12", "TBD"]) {
+      expect(checkServiceName(name).ok, name).toBe(false);
+    }
+  });
+
+  it("accepts full names and real one-word trades without changing them", () => {
+    expect(checkServiceName("Full auto detailing")).toEqual({ ok: true, name: "Full auto detailing" });
+    expect(checkServiceName("  Driveway   Cleaning ")).toEqual({ ok: true, name: "Driveway Cleaning" });
+    expect(checkServiceName("Plumbing").ok).toBe(true);
+    expect(checkServiceName("Landscaping").ok).toBe(true);
+  });
+
+  it("ignores untouched empty rows but reports stubs", () => {
+    const { valid, rejected } = partitionServiceNames([{ name: "" }, { name: "Full" }, { name: "Gutter cleaning" }]);
+    expect(valid.map((s) => s.name)).toEqual(["Gutter cleaning"]);
+    expect(rejected).toHaveLength(1);
+    expect(rejected[0]!.name).toBe("Full");
+  });
+
+  it("joins a split phrase first, so 'Full' + 'Auto detailing' is accepted as one service", () => {
+    const { valid, rejected } = validateIntakeServices([{ name: "Full" }, { name: "Auto detailing" }]);
+    expect(rejected).toEqual([]);
+    expect(valid.map((s) => s.name)).toEqual(["Full Auto detailing"]);
+  });
+
+  it("rejects a trailing stub and never invents a price", () => {
+    const { valid, rejected } = validateIntakeServices([{ name: "Pressure washing" }, { name: "Full" }]);
+    expect(rejected.map((r) => r.name)).toEqual(["Full"]);
+    expect(valid).toEqual([{ name: "Pressure washing" }]);
+    expect(valid.every((row) => !("price" in row))).toBe(true);
   });
 });

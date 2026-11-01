@@ -60,3 +60,25 @@ export const slugify = (value: string) =>
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 60);
+
+/**
+ * Display a US phone number as (919) 555-0123. Accepts 10 digits or 11 with a
+ * leading 1, with or without +1, spaces, dots or dashes. Anything that is not a
+ * US number (a +44 number, an extension, an incomplete number) is returned
+ * exactly as it was typed, and an empty value stays empty. Display only: the
+ * stored value is never changed.
+ */
+export const formatUsPhone = (value: string | null | undefined): string => {
+  const raw = value == null ? "" : String(value);
+  const text = raw.trim();
+  if (!text) return raw;
+  // Anything beyond digits and common separators ("ext", letters, a non-+1 prefix) is left alone.
+  if (/[^\d\s().+-]/.test(text)) return raw;
+  if (text.includes("+") && !/^\+\s*1\D*\d/.test(text)) return raw;
+  const digits = text.replace(/\D/g, "");
+  const national = digits.length === 11 && digits.startsWith("1") ? digits.slice(1) : digits;
+  if (national.length !== 10) return raw;
+  // North American area codes and exchanges never start with 0 or 1.
+  if (!/^[2-9]\d{2}[2-9]\d{2}\d{4}$/.test(national)) return raw;
+  return `(${national.slice(0, 3)}) ${national.slice(3, 6)}-${national.slice(6)}`;
+};

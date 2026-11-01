@@ -1,0 +1,19 @@
+# Gitleaks (MIT) config for Revora3030/customer-forge.
+# Extends the built-in ruleset; only adds narrow allowlists for values that are
+# public by design or obvious test fixtures. Never allowlist a real secret here.
+title = "Revora gitleaks config"
+
+[extend]
+useDefault = true
+
+# Public-by-design publishable keys (Stripe pk_*, Supabase sb_publishable_*).
+[[allowlists]]
+description = "Publishable (client-side) keys are public by design"
+regexes = ['''(pk_live_|pk_test_|sb_publishable_)[A-Za-z0-9_]+''']
+
+# Fake tokens used in unit tests (src/**/*.test.ts[x]). Only the noisy
+# generic rule is skipped there; vendor-specific rules (sk_live_, AKIA..., etc.) still fire.
+[[allowlists]]
+description = "Unit-test fixtures"
+targetRules = ["generic-api-key"]
+paths = ['''(^|/)[^/]+\.test\.(ts|tsx)$''']

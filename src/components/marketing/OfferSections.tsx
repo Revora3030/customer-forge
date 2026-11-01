@@ -38,7 +38,7 @@ export function ValueSplit() {
             {usdExact(GROWTH_SYSTEM.setupPrice)} Launch &amp; Implementation
           </h3>
           <p className="mt-2 text-[13px] text-muted-foreground">
-            Charged today. This is the build — we do the work, you review and approve.
+            Charged once, when you launch at checkout (not during the free access). This is the build — we do the work, you review and approve.
           </p>
           <ul className="mt-5 space-y-2.5">
             {GROWTH_SYSTEM.setupIncludes.map((item) => (

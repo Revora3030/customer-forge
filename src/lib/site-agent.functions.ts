@@ -481,6 +481,22 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
       firstBuildActive: agentContext.pages.length === 0,
       siteDetail: (await import("@/lib/site-agent.server")).siteMap(agentContext),
     });
+    if (decision.mode === "unavailable") {
+      // The AI team could not answer even after one retry. Say so plainly and
+      // offer Retry; nothing on the website was touched.
+      return settle({
+        reply: decision.reply,
+        summary: "",
+        steps: [] as AgentStep[],
+        questions: [] as string[],
+        notes: [] as string[],
+        dropped: [] as string[],
+        requirements: [] as { label: string; covered: boolean }[],
+        trace: ["Nothing changed.", "The AI team did not answer the question (retried once)."],
+        unavailable: { reason: "conversation_unavailable", retryable: true, instruction: data.instruction } as { reason: string; retryable: boolean; instruction: string } | null,
+        composition: null as import("@/lib/builder/composition-preview").CompositionPreview | null,
+      }, "unavailable");
+    }
     if (decision.mode === "answer") {
       return settle({
         reply: decision.reply,
@@ -690,7 +706,11 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
     // of a frozen "planning the change" while providers are tried in sequence.
     let planStage = "planning the change";
     {
-      const authored = await planWebsiteChangesWithAi({
+      // One automatic retry of the whole design step, after a short pause, for
+      // transient failures only (see ai-retry.ts). Validation, setup, budget and
+      // a reviewer's refusal are never retried.
+      const { retryOnceOnTransient, describeAiUnavailable } = await import("@/lib/builder/ai-retry");
+      const planInput = {
         organizationId: orgId,
         instruction: normalizeBuilderInstruction(instruction),
         history: [
@@ -706,19 +726,30 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
           const saved = ownerUploads.find((upload) => upload.name === attachment.name);
           return { kind: attachment.kind, name: attachment.name, ...(saved ? { path: saved.path } : {}) };
         }),
-        onStage: (stage, detail) => {
+        onStage: (stage: string, detail?: string) => {
           planStage = stage;
           noteStage(orgId, runId, stage, detail);
         },
-        onAttempt: (provider, model) => noteStage(orgId, runId, planStage, `asking ${provider} · ${model}`),
-      });
+        onAttempt: (provider: string, model: string) => noteStage(orgId, runId, planStage, `asking ${provider} · ${model}`),
+      };
+      const { result: authored, report } = await retryOnceOnTransient(
+        (attempt) => {
+          if (attempt === 2) noteStage(orgId, runId, "planning the change", "retrying once after a short pause");
+          return planWebsiteChangesWithAi(planInput);
+        },
+        { onRetry: (why) => console.warn("[site-agent] design step failed, retrying once", why) },
+      );
 
       if (!authored.ok) {
+        const { assistantUnavailableReply } = await import("@/lib/builder/ai-cause");
+        const causeReply = assistantUnavailableReply(authored.reason);
         return settle({
           reply:
-            authored.reason === "review_rejected"
+            causeReply
+              ? causeReply.reply
+              : authored.reason === "review_rejected"
               ? `I left your website unchanged because this change would need details you haven't given me yet${authored.detail ? ` (${authored.detail.replace(/^the review removed every proposed change — ?/, "")})` : ""}. Tell me the real details — for example exactly what each service includes — and I'll add them.`
-              : "I couldn't design this change right now, so I've left your website exactly as it is. Please try again in a moment — I'd rather wait than drop a stock layout onto your site.",
+              : describeAiUnavailable(authored.reason, { retried: report.retried, supportEmail: null }).reply,
           summary: "",
           steps: [] as AgentStep[],
           questions: [] as string[],
@@ -726,11 +757,16 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
           requirements: [] as { label: string; covered: boolean }[],
           trace: [
             "Nothing changed.",
-            `The design team was unavailable (${authored.reason}${authored.detail ? `: ${authored.detail}` : ""}).`,
+            `The design team was unavailable (${authored.reason}${authored.detail ? `: ${authored.detail}` : ""}${report.retried ? "; retried once" : ""}).`,
           ],
           unavailable: {
             reason: authored.reason,
-            retryable: true,
+            // Credits/rate-limit causes carry their own retry rule; otherwise
+            // review_rejected / incomplete_site need different details or a
+            // different request, and setup failures fail the same way again.
+            retryable: causeReply
+              ? causeReply.retryable
+              : authored.reason !== "review_rejected" && describeAiUnavailable(authored.reason).retryable,
             instruction,
           } as { reason: string; retryable: boolean; instruction: string } | null,
           composition:

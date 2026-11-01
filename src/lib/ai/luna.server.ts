@@ -69,6 +69,8 @@ export type LunaSkipReason =
   | "budget_exhausted"
   | "unauthorized"
   | "rate_limited"
+  | "credits_exhausted"
+  | "timeout"
   | "provider_unavailable"
   | "bad_response"
   | "ledger_unavailable";

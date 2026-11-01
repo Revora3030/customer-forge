@@ -122,11 +122,13 @@ import { Route as ApiPublicAgentBuildsRouteImport } from './routes/api/public/ag
 import { Route as ApiPublicAgentHealthRouteImport } from './routes/api/public/agent/health'
 import { Route as ApiPublicAgentProspectsRouteImport } from './routes/api/public/agent/prospects'
 import { Route as ApiPublicInstagramCallbackRouteImport } from './routes/api/public/instagram/callback'
+import { Route as ApiPublicJobsAgentRunsRouteImport } from './routes/api/public/jobs/agent-runs'
 import { Route as ApiPublicJobsAutomationRunsRouteImport } from './routes/api/public/jobs/automation-runs'
 import { Route as ApiPublicJobsBackupRouteImport } from './routes/api/public/jobs/backup'
 import { Route as ApiPublicJobsGrowthDigestRouteImport } from './routes/api/public/jobs/growth-digest'
 import { Route as ApiPublicJobsJarvisRoutinesRouteImport } from './routes/api/public/jobs/jarvis-routines'
 import { Route as ApiPublicJobsLeadAlertRetryRouteImport } from './routes/api/public/jobs/lead-alert-retry'
+import { Route as ApiPublicJobsLeadDeliveryWatchdogRouteImport } from './routes/api/public/jobs/lead-delivery-watchdog'
 import { Route as ApiPublicJobsLeadReminderRouteImport } from './routes/api/public/jobs/lead-reminder'
 import { Route as ApiPublicJobsLifecycleEmailRouteImport } from './routes/api/public/jobs/lifecycle-email'
 import { Route as ApiPublicJobsMediaCleanupRouteImport } from './routes/api/public/jobs/media-cleanup'
@@ -737,6 +739,11 @@ const ApiPublicInstagramCallbackRoute =
     path: '/api/public/instagram/callback',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicJobsAgentRunsRoute = ApiPublicJobsAgentRunsRouteImport.update({
+  id: '/api/public/jobs/agent-runs',
+  path: '/api/public/jobs/agent-runs',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicJobsAutomationRunsRoute =
   ApiPublicJobsAutomationRunsRouteImport.update({
     id: '/api/public/jobs/automation-runs',
@@ -764,6 +771,12 @@ const ApiPublicJobsLeadAlertRetryRoute =
   ApiPublicJobsLeadAlertRetryRouteImport.update({
     id: '/api/public/jobs/lead-alert-retry',
     path: '/api/public/jobs/lead-alert-retry',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicJobsLeadDeliveryWatchdogRoute =
+  ApiPublicJobsLeadDeliveryWatchdogRouteImport.update({
+    id: '/api/public/jobs/lead-delivery-watchdog',
+    path: '/api/public/jobs/lead-delivery-watchdog',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiPublicJobsLeadReminderRoute =
@@ -988,11 +1001,13 @@ export interface FileRoutesByFullPath {
   '/api/public/agent/health': typeof ApiPublicAgentHealthRoute
   '/api/public/agent/prospects': typeof ApiPublicAgentProspectsRoute
   '/api/public/instagram/callback': typeof ApiPublicInstagramCallbackRoute
+  '/api/public/jobs/agent-runs': typeof ApiPublicJobsAgentRunsRoute
   '/api/public/jobs/automation-runs': typeof ApiPublicJobsAutomationRunsRoute
   '/api/public/jobs/backup': typeof ApiPublicJobsBackupRoute
   '/api/public/jobs/growth-digest': typeof ApiPublicJobsGrowthDigestRoute
   '/api/public/jobs/jarvis-routines': typeof ApiPublicJobsJarvisRoutinesRoute
   '/api/public/jobs/lead-alert-retry': typeof ApiPublicJobsLeadAlertRetryRoute
+  '/api/public/jobs/lead-delivery-watchdog': typeof ApiPublicJobsLeadDeliveryWatchdogRoute
   '/api/public/jobs/lead-reminder': typeof ApiPublicJobsLeadReminderRoute
   '/api/public/jobs/lifecycle-email': typeof ApiPublicJobsLifecycleEmailRoute
   '/api/public/jobs/media-cleanup': typeof ApiPublicJobsMediaCleanupRoute
@@ -1121,11 +1136,13 @@ export interface FileRoutesByTo {
   '/api/public/agent/health': typeof ApiPublicAgentHealthRoute
   '/api/public/agent/prospects': typeof ApiPublicAgentProspectsRoute
   '/api/public/instagram/callback': typeof ApiPublicInstagramCallbackRoute
+  '/api/public/jobs/agent-runs': typeof ApiPublicJobsAgentRunsRoute
   '/api/public/jobs/automation-runs': typeof ApiPublicJobsAutomationRunsRoute
   '/api/public/jobs/backup': typeof ApiPublicJobsBackupRoute
   '/api/public/jobs/growth-digest': typeof ApiPublicJobsGrowthDigestRoute
   '/api/public/jobs/jarvis-routines': typeof ApiPublicJobsJarvisRoutinesRoute
   '/api/public/jobs/lead-alert-retry': typeof ApiPublicJobsLeadAlertRetryRoute
+  '/api/public/jobs/lead-delivery-watchdog': typeof ApiPublicJobsLeadDeliveryWatchdogRoute
   '/api/public/jobs/lead-reminder': typeof ApiPublicJobsLeadReminderRoute
   '/api/public/jobs/lifecycle-email': typeof ApiPublicJobsLifecycleEmailRoute
   '/api/public/jobs/media-cleanup': typeof ApiPublicJobsMediaCleanupRoute
@@ -1261,11 +1278,13 @@ export interface FileRoutesById {
   '/api/public/agent/health': typeof ApiPublicAgentHealthRoute
   '/api/public/agent/prospects': typeof ApiPublicAgentProspectsRoute
   '/api/public/instagram/callback': typeof ApiPublicInstagramCallbackRoute
+  '/api/public/jobs/agent-runs': typeof ApiPublicJobsAgentRunsRoute
   '/api/public/jobs/automation-runs': typeof ApiPublicJobsAutomationRunsRoute
   '/api/public/jobs/backup': typeof ApiPublicJobsBackupRoute
   '/api/public/jobs/growth-digest': typeof ApiPublicJobsGrowthDigestRoute
   '/api/public/jobs/jarvis-routines': typeof ApiPublicJobsJarvisRoutinesRoute
   '/api/public/jobs/lead-alert-retry': typeof ApiPublicJobsLeadAlertRetryRoute
+  '/api/public/jobs/lead-delivery-watchdog': typeof ApiPublicJobsLeadDeliveryWatchdogRoute
   '/api/public/jobs/lead-reminder': typeof ApiPublicJobsLeadReminderRoute
   '/api/public/jobs/lifecycle-email': typeof ApiPublicJobsLifecycleEmailRoute
   '/api/public/jobs/media-cleanup': typeof ApiPublicJobsMediaCleanupRoute
@@ -1401,11 +1420,13 @@ export interface FileRouteTypes {
     | '/api/public/agent/health'
     | '/api/public/agent/prospects'
     | '/api/public/instagram/callback'
+    | '/api/public/jobs/agent-runs'
     | '/api/public/jobs/automation-runs'
     | '/api/public/jobs/backup'
     | '/api/public/jobs/growth-digest'
     | '/api/public/jobs/jarvis-routines'
     | '/api/public/jobs/lead-alert-retry'
+    | '/api/public/jobs/lead-delivery-watchdog'
     | '/api/public/jobs/lead-reminder'
     | '/api/public/jobs/lifecycle-email'
     | '/api/public/jobs/media-cleanup'
@@ -1534,11 +1555,13 @@ export interface FileRouteTypes {
     | '/api/public/agent/health'
     | '/api/public/agent/prospects'
     | '/api/public/instagram/callback'
+    | '/api/public/jobs/agent-runs'
     | '/api/public/jobs/automation-runs'
     | '/api/public/jobs/backup'
     | '/api/public/jobs/growth-digest'
     | '/api/public/jobs/jarvis-routines'
     | '/api/public/jobs/lead-alert-retry'
+    | '/api/public/jobs/lead-delivery-watchdog'
     | '/api/public/jobs/lead-reminder'
     | '/api/public/jobs/lifecycle-email'
     | '/api/public/jobs/media-cleanup'
@@ -1673,11 +1696,13 @@ export interface FileRouteTypes {
     | '/api/public/agent/health'
     | '/api/public/agent/prospects'
     | '/api/public/instagram/callback'
+    | '/api/public/jobs/agent-runs'
     | '/api/public/jobs/automation-runs'
     | '/api/public/jobs/backup'
     | '/api/public/jobs/growth-digest'
     | '/api/public/jobs/jarvis-routines'
     | '/api/public/jobs/lead-alert-retry'
+    | '/api/public/jobs/lead-delivery-watchdog'
     | '/api/public/jobs/lead-reminder'
     | '/api/public/jobs/lifecycle-email'
     | '/api/public/jobs/media-cleanup'
@@ -1760,11 +1785,13 @@ export interface RootRouteChildren {
   ApiPublicAgentHealthRoute: typeof ApiPublicAgentHealthRoute
   ApiPublicAgentProspectsRoute: typeof ApiPublicAgentProspectsRoute
   ApiPublicInstagramCallbackRoute: typeof ApiPublicInstagramCallbackRoute
+  ApiPublicJobsAgentRunsRoute: typeof ApiPublicJobsAgentRunsRoute
   ApiPublicJobsAutomationRunsRoute: typeof ApiPublicJobsAutomationRunsRoute
   ApiPublicJobsBackupRoute: typeof ApiPublicJobsBackupRoute
   ApiPublicJobsGrowthDigestRoute: typeof ApiPublicJobsGrowthDigestRoute
   ApiPublicJobsJarvisRoutinesRoute: typeof ApiPublicJobsJarvisRoutinesRoute
   ApiPublicJobsLeadAlertRetryRoute: typeof ApiPublicJobsLeadAlertRetryRoute
+  ApiPublicJobsLeadDeliveryWatchdogRoute: typeof ApiPublicJobsLeadDeliveryWatchdogRoute
   ApiPublicJobsLeadReminderRoute: typeof ApiPublicJobsLeadReminderRoute
   ApiPublicJobsLifecycleEmailRoute: typeof ApiPublicJobsLifecycleEmailRoute
   ApiPublicJobsMediaCleanupRoute: typeof ApiPublicJobsMediaCleanupRoute
@@ -2576,6 +2603,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicInstagramCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/jobs/agent-runs': {
+      id: '/api/public/jobs/agent-runs'
+      path: '/api/public/jobs/agent-runs'
+      fullPath: '/api/public/jobs/agent-runs'
+      preLoaderRoute: typeof ApiPublicJobsAgentRunsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/jobs/automation-runs': {
       id: '/api/public/jobs/automation-runs'
       path: '/api/public/jobs/automation-runs'
@@ -2609,6 +2643,13 @@ declare module '@tanstack/react-router' {
       path: '/api/public/jobs/lead-alert-retry'
       fullPath: '/api/public/jobs/lead-alert-retry'
       preLoaderRoute: typeof ApiPublicJobsLeadAlertRetryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/jobs/lead-delivery-watchdog': {
+      id: '/api/public/jobs/lead-delivery-watchdog'
+      path: '/api/public/jobs/lead-delivery-watchdog'
+      fullPath: '/api/public/jobs/lead-delivery-watchdog'
+      preLoaderRoute: typeof ApiPublicJobsLeadDeliveryWatchdogRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/jobs/lead-reminder': {
@@ -3044,11 +3085,14 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicAgentHealthRoute: ApiPublicAgentHealthRoute,
   ApiPublicAgentProspectsRoute: ApiPublicAgentProspectsRoute,
   ApiPublicInstagramCallbackRoute: ApiPublicInstagramCallbackRoute,
+  ApiPublicJobsAgentRunsRoute: ApiPublicJobsAgentRunsRoute,
   ApiPublicJobsAutomationRunsRoute: ApiPublicJobsAutomationRunsRoute,
   ApiPublicJobsBackupRoute: ApiPublicJobsBackupRoute,
   ApiPublicJobsGrowthDigestRoute: ApiPublicJobsGrowthDigestRoute,
   ApiPublicJobsJarvisRoutinesRoute: ApiPublicJobsJarvisRoutinesRoute,
   ApiPublicJobsLeadAlertRetryRoute: ApiPublicJobsLeadAlertRetryRoute,
+  ApiPublicJobsLeadDeliveryWatchdogRoute:
+    ApiPublicJobsLeadDeliveryWatchdogRoute,
   ApiPublicJobsLeadReminderRoute: ApiPublicJobsLeadReminderRoute,
   ApiPublicJobsLifecycleEmailRoute: ApiPublicJobsLifecycleEmailRoute,
   ApiPublicJobsMediaCleanupRoute: ApiPublicJobsMediaCleanupRoute,

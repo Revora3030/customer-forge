@@ -15,6 +15,7 @@ import { useSession } from "@/lib/auth-session";
 import { SIGN_UP_SEARCH } from "@/components/marketing/AuthButtons";
 import { saveStarter } from "@/components/marketing/hero-starter-utils";
 import { normalizeWebsiteUrl } from "@/lib/website-url";
+import { canonicalMapsLink, looksLikeMapsLink, parseMapsLink } from "@/lib/maps-link";
 import { GROWTH_SYSTEM } from "@/lib/offer";
 
 const INDUSTRY_OPTIONS = [
@@ -144,7 +145,22 @@ export function HeroStarter({ className = "" }: { className?: string }) {
     // An optional current-website address is checked and tidied here; the
     // server import re-checks it before anything is fetched.
     let site = "";
-    if (website.trim()) {
+    const mapsLink = looksLikeMapsLink(website);
+    if (mapsLink) {
+      // A Google Maps link is kept as a short link for onboarding's Maps box,
+      // which shows the name and map pin for the owner to confirm. Nothing is
+      // fetched from Google here.
+      const parsed = parseMapsLink(website);
+      if (!parsed.ok) {
+        setWebsiteError(parsed.message);
+        return;
+      }
+      site = parsed.kind === "place" ? (canonicalMapsLink(parsed.fields) ?? "") : website.trim();
+      if (site.length > 200) {
+        setWebsiteError("That link is too long. Use the Share, Copy link option in Google Maps.");
+        return;
+      }
+    } else if (website.trim()) {
       const checked = normalizeWebsiteUrl(website);
       if (!checked.ok) {
         setWebsiteError(checked.message);
@@ -158,7 +174,7 @@ export function HeroStarter({ className = "" }: { className?: string }) {
       about: about.trim(),
       industry: industry === "Other" ? "" : industry,
       website: site,
-      wantsImport: site.length > 3,
+      wantsImport: site.length > 3 && !mapsLink,
     });
     if (user) void navigate({ to: "/get-started" });
     else void navigate({ to: "/auth", search: SIGN_UP_SEARCH });
@@ -222,8 +238,8 @@ export function HeroStarter({ className = "" }: { className?: string }) {
             setWebsite(e.target.value);
             if (websiteError) setWebsiteError(null);
           }}
-          placeholder="Have a website? Paste it to upgrade it (optional)"
-          maxLength={200}
+          placeholder="Have a website or Google Maps link? Paste it (optional)"
+          maxLength={2000}
           inputMode="url"
           autoComplete="url"
           aria-invalid={websiteError ? true : undefined}
@@ -236,7 +252,7 @@ export function HeroStarter({ className = "" }: { className?: string }) {
         ) : null}
       </div>
       <Button type="submit" variant="signal" size="lg" className="mt-3 w-full" data-hero-cta>
-        {website.trim().length > 3 ? "Upgrade my website free" : "Start free"} —{" "}
+        {website.trim().length > 3 && !looksLikeMapsLink(website) ? "Upgrade my website free" : "Start free"} —{" "}
         {GROWTH_SYSTEM.fullAccessWindow}, no card{" "}
         <ArrowRight className="size-4" aria-hidden="true" />
       </Button>

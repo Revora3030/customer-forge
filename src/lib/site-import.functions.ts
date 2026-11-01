@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { ImportedFacts } from "./site-import";
+import { checkServiceName } from "./builder/intake-sanitize";
 
 export type SiteImportResponse =
   | { ok: true; url: string; pagesRead: string[]; facts: ImportedFacts }
@@ -32,6 +33,10 @@ export const importExistingWebsite = createServerFn({ method: "POST" })
   .handler(async ({ context, data }): Promise<SiteImportResponse> => {
     if (!allowed(String(context.userId)))
       return { ok: false, message: "You've imported several sites in the last hour. Try again a little later." };
+    // A Google Maps link is read by the Maps link box (link text only); Google's own pages are never fetched here.
+    const { looksLikeMapsLink } = await import("./maps-link");
+    if (looksLikeMapsLink(data.url))
+      return { ok: false, message: "That's a Google Maps link. Paste it in the Google Maps box instead." };
     const { importSite, SiteImportError } = await import("./site-import.server");
     try {
       return { ok: true, ...(await importSite(data.url)) };
@@ -93,7 +98,7 @@ export const applyImportedFacts = createServerFn({ method: "POST" })
       services: (Array.isArray(raw.services) ? raw.services : [])
         .slice(0, 12)
         .map((service) => ({ name: str(service?.name, 80), description: str(service?.description, 300) }))
-        .filter((service) => service.name.length >= 3),
+        .filter((service) => service.name.length >= 3 && checkServiceName(service.name).ok),
     };
     return { organizationId, url: url(input?.url) || str(input?.url, 200), facts };
   })
