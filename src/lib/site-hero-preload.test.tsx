@@ -70,7 +70,7 @@ describe("hero image preload", () => {
     expect(heroPreloadLink([section({ type: "heading", level: 1, text: "No pictures" })])).toBeNull();
     expect(heroPreloadLink([section({ type: "media", mediaRef: M1, alt: "Fictional van" }, [{ id: M1, url: "https://cdn.example/clip.mp4" }])])).toBeNull();
     expect(heroPreloadLink([section({ type: "media", mediaRef: M1, alt: "Fictional van" }, [{ id: M1, url: CDN, visual: { media_kind: "video" } }])])).toBeNull();
-    expect(heroPreloadLink([section({ type: "media", mediaRef: M1, alt: "Fictional van" }, [{ id: M1, url: "http://insecure.example/a.jpg" }])])).toBeNull();
+    expect(heroPreloadLink([section({ type: "media", mediaRef: M1, alt: "Fictional van" }, [{ id: M1, url: "http://insecure.example/a.jpg" }])])).toBeNull();  // DevSkim: ignore DS137138 -- asserts an insecure URL is rejected
     expect(heroPreloadLink([section({ type: "media", mediaRef: M1, alt: "Fictional van" }, [{ id: M1, url: "//evil.example/a.jpg" }])])).toBeNull();
     expect(heroPreloadLink([section({ type: "media", mediaRef: M1, alt: "Fictional van" }, [{ id: M1, url: "javascript:alert(1)" }])])).toBeNull();
     // A legacy section without a stored layout is translated on the fly: unknown picture.
