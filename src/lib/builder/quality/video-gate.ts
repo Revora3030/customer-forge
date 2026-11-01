@@ -65,6 +65,8 @@ export type GateAttempt = {
   rawScore: number;
   passed: boolean;
   capped: VideoScore["capped"];
+  /** Hard phone-check failures that held the score under the bar (G-A5). Logged inside `failures`, so no schema change. */
+  blockers?: string[];
   failures: GateFailureRecord[];
   /** Section ids rewritten after this attempt (empty on the last one). */
   regenerated: string[];
@@ -161,7 +163,7 @@ export async function runVideoGate(input: GateInput): Promise<GateResult> {
       }
     }
     const record: GateAttempt = {
-      attempt, score: current.score.score, rawScore: current.score.rawScore, passed: current.score.passed, capped: current.score.capped,
+      attempt, score: current.score.score, rawScore: current.score.rawScore, passed: current.score.passed, capped: current.score.capped, blockers: current.score.blockers,
       failures: unmet(current.score),
       regenerated: willRetry && !error ? [...new Set(requests.flatMap((r) => r.sectionIds))] : [],
       roles: { check: checkRole, regenerate: willRetry ? requests.map((r) => r.role) : [] },

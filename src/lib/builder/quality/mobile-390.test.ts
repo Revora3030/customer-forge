@@ -49,7 +49,7 @@ describe("390px phone check", () => {
       { type: "stack", style: { position: "sticky", top: 0, zIndex: 20 }, children: [{ type: "text", text: "One" }] },
       { type: "stack", style: { position: "sticky", top: 0, zIndex: 21 }, children: [{ type: "text", text: "Two" }] }), false],
     ["no_content", (i) => { i.site.sections = []; }, true],
-    ["no_content", (i) => addTo(lead(i), { type: "text", text: "This website is being updated" }), true],
+    ["no_content", (i) => { hero(i).heading = "Coming soon"; }, true],
   ];
   it.each(cases)("catches %s", (id, mutate, hard) => {
     const input = structuredClone(goodSite(bp));
@@ -60,6 +60,41 @@ describe("390px phone check", () => {
     const finding = r.findings.find((f) => f.id === id)!;
     expect(finding.detail).toMatch(/^on phones/);
     expect(finding.fix.length).toBeGreaterThan(10);
+  });
+
+  it("does not treat a normal percentage stat as a loading overlay", () => {
+    const input = structuredClone(goodSite(bp));
+    addTo(lead(input), { type: "text", text: "98%", countUp: true }, { type: "text", text: "98%" }, { type: "text", text: "Join 100% of happy customers" }, { type: "text", text: "Building a better driveway since day one. 100% satisfaction." });
+    expect(ids(input)).toEqual([]);
+    expect(scoreVideoBar(input).blockers).toEqual([]);
+  });
+
+  it.each(["Loading 45%", "Building your site... 80%", "Generating 12%", "45% loading"])("still catches a percentage next to a loading word: %s", (text) => {
+    const input = structuredClone(goodSite(bp));
+    addTo(hero(input), { type: "text", text });
+    const r = run(input);
+    expect(r.findings.map((f) => f.id)).toContain("debug_overlay");
+    expect(r.hardFailure).toBe(true);
+  });
+
+  it("does not treat 'coming soon' in the middle of a real page as a holding page", () => {
+    const input = structuredClone(goodSite(bp));
+    addTo(lead(input), { type: "text", text: "New location coming soon" });
+    expect(ids(input)).toEqual([]);
+    expect(scoreVideoBar(input).blockers).toEqual([]);
+  });
+
+  it("counts 'coming soon' when it is the main hero heading, or when the page says almost nothing else", () => {
+    const heroHeading = structuredClone(goodSite(bp));
+    addTo(hero(heroHeading), { type: "heading", level: 1, text: "Coming soon" });
+    hero(heroHeading).composition!.children = [{ type: "heading", level: 1, text: "Coming soon" }];
+    expect(ids(heroHeading)).toContain("no_content");
+
+    const bare = structuredClone(goodSite(bp));
+    bare.site.sections = [{ id: "only", pageSlug: "home", kind: "hero", composition: { type: "stack", children: [{ type: "text", text: "Our new site is coming soon" }] } }];
+    const r = run(bare);
+    expect(r.findings.map((f) => f.id)).toContain("no_content");
+    expect(r.hardFailure).toBe(true);
   });
 
   it("lets a phone override fix what a desktop style would break", () => {
@@ -87,7 +122,8 @@ describe("390px phone check", () => {
     const msg = ownerBlockMessage(r, 5, { autoFixTried: true });
     expect(msg).toMatch(/^Your site isn't ready to publish yet: on phones, a loading or debug message/);
     expect(msg).toContain("We tried to fix it automatically.");
-    expect(msg).toContain("Rebuild this section");
+    expect(msg).toContain("Ask the builder chat to fix it");
+    expect(msg).not.toContain("Rebuild this section");
     expect(ownerBlockMessage(r)).not.toContain("tried to fix");
   });
 

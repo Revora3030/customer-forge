@@ -35,6 +35,10 @@ export type QualityLogRow = {
   step_roles: Record<string, string[] | string> | null;
 };
 
+/** Hard phone-check failures, stored as extra `failures` entries named `blocker:<check>`: the column is free-form JSON. */
+const blockerFailures = (blockers: readonly string[] | undefined): QualityFailure[] =>
+  (blockers ?? []).slice(0, 8).map((id) => ({ criterion: `blocker:${id}`, score: 0, sections: [] }));
+
 export type LogCommon = { organizationId: string; tradeSlug: string; blueprintSource?: string | null };
 
 const SOURCES: readonly string[] = ["trade", "alias", "archetype", "generic"];
@@ -51,7 +55,7 @@ export function gateAttemptRow(common: LogCommon, attempt: GateAttempt, bar: num
   return {
     ...base(common), event_kind: "gate_attempt", attempt: clampAttempt(attempt.attempt), score: attempt.score, bar, passed: attempt.passed,
     capped: attempt.capped, gate_mode: null,
-    failures: attempt.failures.slice(0, 20).map((f) => ({ criterion: f.criterion, score: f.score, sections: f.sections.slice(0, 20) })),
+    failures: [...attempt.failures.slice(0, 20).map((f) => ({ criterion: f.criterion, score: f.score, sections: f.sections.slice(0, 20) })), ...blockerFailures(attempt.blockers)],
     step_roles: { check: attempt.roles.check, regenerate: attempt.roles.regenerate },
   };
 }
@@ -61,7 +65,7 @@ export function buildScoreRow(common: LogCommon, result: GateResult): QualityLog
   return {
     ...base(common), event_kind: "build_score", attempt: clampAttempt(result.retriesUsed), score: result.score, bar: result.bar, passed: result.passed,
     capped: result.final.capped, gate_mode: null,
-    failures: result.needsHuman.slice(0, 20).map((f) => ({ criterion: f.criterion, score: f.score, sections: f.sections.slice(0, 20) })),
+    failures: [...result.needsHuman.slice(0, 20).map((f) => ({ criterion: f.criterion, score: f.score, sections: f.sections.slice(0, 20) })), ...(result.passed ? [] : blockerFailures(result.final.blockers))],
     step_roles: null,
   };
 }
@@ -69,12 +73,12 @@ export function buildScoreRow(common: LogCommon, result: GateResult): QualityLog
 /** The server-side publish decision on a publish, go-live or live edit. */
 export function publishCheckRow(
   common: LogCommon,
-  check: { score: number; bar: number; passed: boolean; mode: "enforce" | "warn" | "off"; failures: readonly (CriterionId | string)[] },
+  check: { score: number; bar: number; passed: boolean; mode: "enforce" | "warn" | "off"; failures: readonly (CriterionId | string)[]; blockers?: readonly string[] },
 ): QualityLogRow {
   return {
     ...base(common), event_kind: "publish_check", attempt: 0, score: Math.round(check.score), bar: check.bar, passed: check.passed,
     capped: null, gate_mode: check.mode,
-    failures: check.failures.slice(0, 20).map((criterion) => ({ criterion, score: null, sections: [] })), step_roles: null,
+    failures: [...check.failures.slice(0, 20).map((criterion) => ({ criterion, score: null, sections: [] })), ...blockerFailures(check.blockers)], step_roles: null,
   };
 }
 

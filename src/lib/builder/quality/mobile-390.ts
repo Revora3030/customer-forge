@@ -52,14 +52,17 @@ const hiddenOnPhone = (n: CompositionNode) => phoneStyle(n).hidden === true;
 const uniq = <T,>(list: readonly T[]) => [...new Set(list)];
 
 /** A visible build/loading counter or leaked placeholder. These must never reach a visitor. */
+const LOADING_WORD = "(?:loading|building|composing|generating|rendering|preparing|initializing|initialising|opening)";
 const DEBUG_TEXT: readonly RegExp[] = [
-  /\b\d{1,3}\s?%\s*[\u00b7\u2022|/-]\s*\d+\s*\/\s*\d+/,
+  // A build counter such as "0% \u00b7 1/2 \u00b7 ...": a percent, then a step count, each in its own segment.
+  /\b\d{1,3}\s?%\s*[\u00b7\u2022|]\s*\d+\s*\/\s*\d+\s*[\u00b7\u2022|]/,
   /\bopening surface study\b/i,
-  /\b(?:loading|building|composing|generating|rendering)\b[^.]{0,40}\b\d{1,3}\s?%/i,
-  /^\s*\d{1,3}\s?%\s*$/,
+  // A percent only counts when a loading word sits right next to it. A bare "98%" is a normal figure.
+  new RegExp(`\\b${LOADING_WORD}\\b(?:[^a-z0-9%]{0,6}[a-z]+){0,2}[^a-z0-9%]{0,6}\\d{1,3}\\s?%`, "i"),
+  /\b\d{1,3}\s?%\s*(?:loading|loaded)\b/i,
   /\[object Object\]|\bundefined\b|\bNaN\b/,
 ];
-/** Holding-page wording that means the visitor sees no real home page. */
+/** Wording of a holding page. It only counts as one when it is the main heading or nearly all the page says (see noContent). */
 const HOLDING_TEXT = /\b(this website is (?:being updated|still being built)|site (?:is )?under construction|coming soon)\b/i;
 /** The owner's floating "back to builder" control, which a visitor must never see. */
 const PILL_TEXT = /^[\s\u2190\u2039<-]*(?:back to )?(?:the )?(?:builder|editor)\b|\bedit (?:this |your )?site\b/i;
@@ -79,7 +82,9 @@ const sectionHasContent = (s: ModelSection, f: SiteFeatures) =>
 
 /* 1 ------------------------------------------------------------------------------------------------------------ */
 function debugOverlay(f: SiteFeatures): Mobile390Finding | null {
-  const hit = f.texts.filter((t) => DEBUG_TEXT.some((re) => re.test(t.text)));
+  // Count-up figures ("98%") are normal stats, never a loading message.
+  const figures = new Set(f.nodes.filter((x) => x.node.countUp).map((x) => (x.node.text ?? "").trim()));
+  const hit = f.texts.filter((t) => !figures.has(t.text.trim()) && DEBUG_TEXT.some((re) => re.test(t.text)));
   if (!hit.length) return null;
   return {
     id: "debug_overlay", hard: true,
@@ -130,7 +135,6 @@ function sidewaysScroll(f: SiteFeatures): Mobile390Finding | null {
       if (longest * s.size * em > room && !n.countUp) bad.push(x);
     }
     if (s.position === "absolute" && ((s.left ?? 0) > PHONE_WIDTH - 20 || (s.left ?? 0) < -40 || (s.right ?? 0) < -40 || (s.right ?? 0) > PHONE_WIDTH - 20)) bad.push(x);
-    if ((s.maxWidth ?? 0) > 0 && (n.type === "marquee" || n.type === "gallery")) continue;
   }
   if (!bad.length) return null;
   return {
@@ -150,7 +154,7 @@ const blankHeight = (flat: readonly FlatNode[]): number => {
     if (hiddenOnPhone(n)) continue;
     const empty = (n.type === "spacer" || n.type === "stack" || n.type === "divider") && !(n.children ?? []).length && !nodeStrings(n).length && !(n.src ?? n.mediaRef);
     if (empty) total += s.minHeight ?? (n.type === "spacer" ? s.size ?? 24 : 0);
-    if (x.depth === 0 && (n.children ?? []).length) total += 2 * (s.paddingY ?? s.padding ?? 0) + (s.overlap ? 0 : 0);
+    if (x.depth === 0 && (n.children ?? []).length) total += 2 * (s.paddingY ?? s.padding ?? 0);
   }
   return total;
 };
@@ -281,10 +285,25 @@ function coveredText(f: SiteFeatures): Mobile390Finding | null {
 }
 
 /* 8 ------------------------------------------------------------------------------------------------------------ */
+/** Fewer words than this besides the holding phrase means the page is a holding page. */
+const ALMOST_NO_CONTENT_WORDS = 20;
+const wordCount = (text: string) => text.split(/\s+/).filter(Boolean).length;
 function noContent(f: SiteFeatures): Mobile390Finding | null {
-  const holding = f.texts.filter((t) => HOLDING_TEXT.test(t.text));
+  const homeIds = new Set(f.homeId);
+  const homeTexts = f.texts.filter((t) => homeIds.has(t.id));
+  const holding = homeTexts.filter((t) => HOLDING_TEXT.test(t.text));
   const empty = f.home.length === 0 || f.home.every((s) => !sectionHasContent(s, f));
-  if (!empty && !holding.length) return null;
+  // "New location coming soon" in a real page is fine. A holding phrase only counts as the main heading of the page,
+  // or when the page says almost nothing else.
+  const hero = f.home[0];
+  const mainHeadings = new Set<string>();
+  if (hero?.heading) mainHeadings.add(hero.heading.trim());
+  const firstHeading = (f.nodesBySection.get(hero?.id ?? "") ?? []).find((x) => x.node.type === "heading" && !!x.node.text?.trim());
+  if (firstHeading?.node.text) mainHeadings.add(firstHeading.node.text.trim());
+  const isMain = holding.some((t) => mainHeadings.has(t.text.trim()));
+  const others = homeTexts.filter((t) => !HOLDING_TEXT.test(t.text)).reduce((n, t) => n + wordCount(t.text), 0);
+  const holdingPage = holding.length > 0 && (isMain || others < ALMOST_NO_CONTENT_WORDS);
+  if (!empty && !holdingPage) return null;
   return {
     id: "no_content", hard: true,
     detail: f.home.length === 0

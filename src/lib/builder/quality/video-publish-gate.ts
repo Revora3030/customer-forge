@@ -48,7 +48,7 @@ export function ownerBlockMessage(score: VideoScore, max = 5, opts: { autoFixTri
   // A phone problem is named first, in plain words (G-A5): it is what a visitor sees before anything else.
   const phone = score.criteria.find((c) => c.id === "mobile_390" && !c.met);
   const lead = phone
-    ? `Your site isn't ready to publish yet: ${phone.detail.charAt(0).toLowerCase()}${phone.detail.slice(1)}${opts.autoFixTried ? " We tried to fix it automatically." : ""} Try "Rebuild this section" or pick another photo. `
+    ? `Your site isn't ready to publish yet: ${phone.detail.charAt(0).toLowerCase()}${phone.detail.slice(1)}${opts.autoFixTried ? " We tried to fix it automatically." : ""} Ask the builder chat to fix it, then publish again. `
     : "";
   if (!fixes.length) return `${lead}${head} Ask Revora to improve the page and try again.`;
   return `${lead}${head} Fix these, then publish again: ${fixes.map((f, i) => `${i + 1}. ${f}`).join(" ")}`;
