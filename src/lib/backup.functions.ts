@@ -108,6 +108,20 @@ export const runBackup = createServerFn({ method: "POST" })
     return backup;
   });
 
+/** Site-only export (pages, settings, business details, services, media) for download. Read-only. */
+export const exportSiteBackup = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: { organizationId: string }) => ({
+    organizationId: uuid(input?.organizationId),
+  }))
+  .handler(async ({ data, context }) => {
+    await assertBackupAccess(context.supabase, context.userId, data.organizationId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { buildSiteExport } = await import("@/lib/backup.server");
+    const siteExport = await buildSiteExport(supabaseAdmin, data.organizationId);
+    return { takenAt: siteExport.taken_at, json: JSON.stringify(siteExport, null, 2) };
+  });
+
 /** Restores a snapshot after taking an automatic safety snapshot first. */
 export const restoreFromBackup = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
