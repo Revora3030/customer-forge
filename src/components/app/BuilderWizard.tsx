@@ -19,6 +19,7 @@ import {
 import { WIZARD_STEPS, type WizardStepKey } from "@/lib/website-content";
 import { WEBSITE_GOALS, type GoalKey } from "@/lib/website-plan";
 import { cn } from "@/lib/utils";
+import { StylePicker } from "@/components/app/StylePicker";
 import { focusAndScrollToId, useStepScroll } from "@/lib/use-step-scroll";
 
 type ProfileRow = Record<string, unknown> | null | undefined;
@@ -259,6 +260,11 @@ export function BuilderWizard({
 
           {step === "brand" ? (
             <>
+              <StylePicker
+                profile={profile}
+                disabled={!canManage}
+                onChoose={(patch) => saveProfile.mutate(patch)}
+              />
               <div className="grid gap-4 sm:grid-cols-3">
                 <AutoField
                   label="Main colour"
