@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { ArrowUpRight, Building2 } from "lucide-react";
@@ -15,6 +16,8 @@ import { getPlatformActivity, getPlatformMetrics, listClients } from "@/lib/admi
 import { getConversionReport } from "@/lib/conversion.functions";
 import { DOMAIN_STATES, PUBLISH_STATES } from "@/lib/readiness";
 import { currency, dateShort, formatUsPhone, number } from "@/lib/format";
+import { isTestRecord, visibleClients } from "@/lib/admin-client-records";
+import { ShowTestRecordsToggle } from "@/components/admin/ShowTestRecordsToggle";
 import { REVORA } from "@/lib/brand";
 
 const ACTIVITY_LABELS: Record<string, string> = {
@@ -43,6 +46,9 @@ function AdminOverview() {
   const clientsFn = useServerFn(listClients);
   const metrics = useQuery({ queryKey: ["admin", "metrics"], queryFn: () => metricsFn({}), refetchInterval: 60_000 });
   const clients = useQuery({ queryKey: ["admin", "clients"], queryFn: () => clientsFn({}), refetchInterval: 120_000 });
+  const [showTest, setShowTest] = useState(false);
+  // Same rule as the "Client businesses" number: no test/QA records, each business once.
+  const newestClients = useMemo(() => visibleClients(clients.data ?? [], showTest), [clients.data, showTest]);
   const activityFn = useServerFn(getPlatformActivity);
   const activity = useQuery({
     queryKey: ["admin", "activity"],
@@ -152,15 +158,23 @@ function AdminOverview() {
       <Panel className="p-0">
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
           <p className="eyebrow">Newest clients</p>
-          <Link to="/admin/clients" className="text-[12px] text-primary hover:underline">
-            All clients
-          </Link>
+          <div className="flex items-center gap-4">
+            <ShowTestRecordsToggle
+              id="show-test-records-overview"
+              checked={showTest}
+              onCheckedChange={setShowTest}
+              hiddenCount={(clients.data ?? []).filter((client) => isTestRecord(client)).length}
+            />
+            <Link to="/admin/clients" className="text-[12px] text-primary hover:underline">
+              All clients
+            </Link>
+          </div>
         </div>
         {clients.isLoading ? (
           <div className="p-4">
             <LoadingRows rows={3} />
           </div>
-        ) : (clients.data ?? []).length === 0 ? (
+        ) : newestClients.length === 0 ? (
           <div className="p-4">
             <EmptyState
               icon={<Building2 className="size-5" />}
@@ -175,7 +189,7 @@ function AdminOverview() {
           </div>
         ) : (
           <ul className="divide-y divide-border">
-            {(clients.data ?? []).slice(0, 8).map((client) => (
+            {newestClients.slice(0, 8).map((client) => (
               <li
                 key={client.id}
                 className="flex flex-col items-stretch gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3"

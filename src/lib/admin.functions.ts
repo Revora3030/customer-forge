@@ -6,6 +6,7 @@ import { fetchAllRows } from "@/lib/paginate";
 import { TEST_LEAD_SOURCE } from "@/lib/test-lead";
 import { netRevenue } from "@/lib/monthly-report";
 import { isRealPaymentAmount } from "@/lib/payment-amount";
+import { clientBusinessCount, isTestRecord, testReason } from "@/lib/admin-client-records";
 
 type SubscriptionStatus = Database["public"]["Enums"]["subscription_status"];
 type PublishState = Database["public"]["Enums"]["publish_state"];
@@ -34,14 +35,21 @@ export async function computePlatformMetrics() {
 
     // Every row is read (no silent 1,000-row cap), demo workspaces are left
     // out, and a failed read throws so the page says so instead of showing 0.
-    const [orgs, sites, leads, appts, plans, subs] = await Promise.all([
-      fetchAllRows<{ id: string; subscription_status: string; is_suspended: boolean; is_demo: boolean; plan_id: string | null }>(
+    const [orgs, owners, sites, leads, appts, plans, subs] = await Promise.all([
+      fetchAllRows<{ id: string; name: string; slug: string | null; created_at: string; subscription_status: string; is_suspended: boolean; is_demo: boolean; plan_id: string | null }>(
         (from, to) =>
           supabaseAdmin
             .from("organizations")
-            .select("id, subscription_status, is_suspended, is_demo, plan_id")
+            .select("id, name, slug, created_at, subscription_status, is_suspended, is_demo, plan_id")
             .order("id")
             .range(from, to),
+      ),
+      fetchAllRows<{ organization_id: string; owner_name: string | null; owner_email: string | null; email: string | null }>((from, to) =>
+        supabaseAdmin
+          .from("business_profiles")
+          .select("organization_id, owner_name, owner_email, email")
+          .order("organization_id")
+          .range(from, to),
       ),
       fetchAllRows<{ organization_id: string; publish_state: string; domain_status: string | null }>((from, to) =>
         supabaseAdmin
@@ -76,13 +84,23 @@ export async function computePlatformMetrics() {
             .range(from, to),
       ),
     ]);
-    const failed = [orgs.error, sites.error, leads.error, appts.error, plans.error, subs.error].find(Boolean);
+    const failed = [orgs.error, owners.error, sites.error, leads.error, appts.error, plans.error, subs.error].find(Boolean);
     if (failed) throw new Error("Couldn't read the platform numbers just now. Refresh in a moment.");
 
     // Demos, Revora's own workspace and staff-only test workspaces are not clients.
     const { loadCustomerOrgIds } = await import("@/lib/customer-orgs.server");
     const customers = await loadCustomerOrgIds(supabaseAdmin);
-    const orgRows = orgs.rows.filter((o) => customers.has(o.id));
+    // The count is exactly the rows the default client list shows: customers,
+    // no test/QA records, a business that exists twice counted once. The other
+    // figures are per workspace, so they skip test records but keep every row.
+    const ownerByOrg = new Map<string, { owner_name: string | null; owner_email: string | null }>();
+    for (const row of owners.rows) {
+      if (!ownerByOrg.has(row.organization_id)) ownerByOrg.set(row.organization_id, { owner_name: row.owner_name, owner_email: row.owner_email ?? row.email });
+    }
+    const records = orgs.rows
+      .filter((o) => customers.has(o.id))
+      .map((o) => ({ ...o, is_customer: true, owner_name: ownerByOrg.get(o.id)?.owner_name ?? null, owner_email: ownerByOrg.get(o.id)?.owner_email ?? null }));
+    const orgRows = records.filter((o) => !isTestRecord(o));
     const real = new Map(orgRows.map((o) => [o.id, o]));
     const siteRows = sites.rows.filter((s) => real.has(s.organization_id));
     const plan = (id: string | null) => (plans.data ?? []).find((p) => p.id === id);
@@ -101,7 +119,7 @@ export async function computePlatformMetrics() {
     }
 
     return {
-      clients: orgRows.length,
+      clients: clientBusinessCount(records),
       active: paying.size,
       suspended: orgRows.filter((o) => o.is_suspended).length,
       trialing: orgRows.filter((o) => o.subscription_status === "trialing").length,
@@ -134,6 +152,9 @@ export const listClients = createServerFn({ method: "GET" })
 
     const ids = (orgs ?? []).map((o) => o.id);
     if (!ids.length) return [];
+    // Workspaces only Revora staff belong to (internal builds, QA) are not customers.
+    const { loadCustomerOrgIds } = await import("@/lib/customer-orgs.server");
+    const customerIds = await loadCustomerOrgIds(supabaseAdmin);
 
     // `ids` is every workspace, so each table is read whole, page by page.
     // An unpaged read stops at 1,000 rows shared by ALL clients and quietly
@@ -284,6 +305,18 @@ export const listClients = createServerFn({ method: "GET" })
         owner_email: profile?.owner_email ?? profile?.email ?? null,
         owner_phone: profile?.phone ?? null,
         city: profile?.city ?? null,
+        // Display flags only: nothing is changed or deleted. The page leaves test
+        // records out unless "Show test records" is on.
+        is_customer: customerIds.has(org.id),
+        test_reason: testReason({
+          id: org.id,
+          name: org.name,
+          slug: org.slug,
+          is_demo: org.is_demo,
+          is_customer: customerIds.has(org.id),
+          owner_name: profile?.owner_name ?? null,
+          owner_email: profile?.owner_email ?? profile?.email ?? null,
+        }),
         custom_domain: settings?.custom_domain ?? null,
         domain_status: settings?.domain_status ?? "not_connected",
         domain_checked_at: settings?.domain_checked_at ?? null,
