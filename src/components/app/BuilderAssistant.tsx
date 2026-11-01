@@ -109,6 +109,7 @@ export function BuilderAssistant({
   canFreshRebuild = false,
   rebuildBusy = false,
   onStopBuild,
+  onRetryBuild,
   stoppingBuild = false,
   onClearSelection,
   onOpenHistory,
@@ -147,6 +148,8 @@ export function BuilderAssistant({
   rebuildBusy?: boolean;
   /** Stops the running build (managers and above; the server re-checks). Shown on the build's live card. */
   onStopBuild?: (jobId: string) => void;
+  /** Starts a failed first build again, from the same words. Only passed to people who can build. */
+  onRetryBuild?: (instruction: string) => void;
   stoppingBuild?: boolean;
   onClearSelection?: () => void;
   /** Opens History, where the before-and-after comparison lives. */
@@ -566,6 +569,7 @@ export function BuilderAssistant({
                     onAnswer={setAnswering}
                     {...(onReveal ? { onReveal } : {})}
                     {...(onStopBuild ? { onStopBuild } : {})}
+                    {...(onRetryBuild ? { onRetryBuild } : {})}
                     stoppingBuild={stoppingBuild}
                     {...(onOpenHistory ? { onOpenHistory } : {})}
                     {...(onShowPreview ? { onShowPreview } : {})}
@@ -1050,6 +1054,7 @@ function TaskBody({
   onShowPreview,
   onReveal,
   onStopBuild,
+  onRetryBuild,
   stoppingBuild = false,
   onFollowUp,
 }: {
@@ -1064,6 +1069,7 @@ function TaskBody({
   onShowPreview?: () => void;
   onReveal?: (target: StepTarget) => void;
   onStopBuild?: (jobId: string) => void;
+  onRetryBuild?: (instruction: string) => void;
   stoppingBuild?: boolean;
   onFollowUp: (prompt: string) => void;
 }) {
@@ -1311,7 +1317,7 @@ function TaskBody({
         ) : null}
         {/* retryable === false means a retry here would be the wrong thing
             (a first build would go to the edit planner; photos must be
-            re-attached; access is blocked), so no Try again is offered. */}
+            re-attached; access is blocked), so no Retry is offered. */}
         {(task.state === "failed" && task.retryable !== false) || task.retryable ? (
           <Button
             size="sm"
@@ -1320,7 +1326,20 @@ function TaskBody({
             disabled={requests.busy}
             onClick={() => requests.retry(task.id)}
           >
-            Try again
+            Retry
+          </Button>
+        ) : null}
+        {/* A first build that didn't finish: Retry starts it again from the same
+            words. The previous draft (if any) is untouched until a new one lands. */}
+        {task.state === "failed" && task.retryBuild && onRetryBuild ? (
+          <Button
+            size="sm"
+            variant="outline"
+            data-tap="primary"
+            disabled={requests.busy}
+            onClick={() => onRetryBuild(task.instruction)}
+          >
+            Retry build
           </Button>
         ) : null}
       </div>
