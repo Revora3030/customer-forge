@@ -17,6 +17,7 @@ import { ProductionSummaryCard } from "@/components/app/ProductionLaunch";
 import { StatusCenter } from "@/components/app/StatusCenter";
 import { BuildLive } from "@/components/app/BuildLive";
 import { ActivityFeed } from "@/components/app/ActivityFeed";
+import { WidgetErrorBoundary } from "@/components/app/WidgetErrorBoundary";
 import { RevoraCommandBar } from "@/components/app/RevoraCommandBar";
 import { ClientWebsiteSummary } from "@/components/app/ClientWebsiteSummary";
 import { SpeedToLeadCard } from "@/components/app/SpeedToLeadCard";
@@ -480,7 +481,9 @@ function Dashboard() {
       {/* New customers see their site being built, live, at the top of the
           dashboard — real server-recorded stages, hidden once nothing runs. */}
       <BuildLive organizationId={orgId} />
-      <ActivityFeed organizationId={orgId} />
+      <WidgetErrorBoundary name="System activity">
+        <ActivityFeed organizationId={orgId} />
+      </WidgetErrorBoundary>
 
       <ClientWebsiteSummary
         organizationId={orgId}
