@@ -61,6 +61,7 @@ import { toast } from "@/lib/ui/notify";
 import { pageNavLabel, type ContentPage } from "@/lib/website-content";
 import { pageOfSection } from "@/lib/builder/step-target";
 import { cn } from "@/lib/utils";
+import { PhoneLayoutPanel } from "@/components/app/PhoneLayoutPanel";
 import { LiveCanvasSkeleton } from "@/components/app/LiveCanvasSkeleton";
 import { settleStageSize, type StageSize } from "@/lib/builder/stage-size";
 
@@ -104,6 +105,8 @@ type BuilderPreviewProps = {
   onPageChange?: (page: { id: string; title: string; slug: string } | null) => void;
   /** Scroll a section into view and outline it ("Show in preview" from the chat). A new nonce asks again. */
   reveal?: { id: string; nonce: number } | null;
+  /** Owners and managers get the phone-only hide/reorder controls; others just preview. */
+  canManage?: boolean;
 };
 
 /**
@@ -133,6 +136,7 @@ function BuilderPreviewFrame({
   livePublished = true,
   onPageChange,
   reveal = null,
+  canManage = false,
 }: Omit<BuilderPreviewProps, "firstRun">) {
   const ordered = useMemo(() => [...pages].sort((a, b) => a.sort_order - b.sort_order), [pages]);
   const [pageId, setPageId] = useState<string | null>(null);
@@ -653,6 +657,14 @@ function BuilderPreviewFrame({
             </span>
           ) : null}
         </div>
+        {canManage && page && viewportWidth <= 430 ? (
+          <PhoneLayoutPanel
+            key={page.id}
+            organizationId={organizationId}
+            sections={page.sections}
+            onSaved={onPaletteSaved}
+          />
+        ) : null}
         {a11yOpen && a11y?.issueCount ? (
           <ul className="mx-auto mb-2 max-w-xl space-y-1 rounded-lg border border-border bg-background/95 p-2 text-[12px]" data-testid="builder-preview-a11y-list">
             {a11y.issues.slice(0, 8).map((issue, index) => (

@@ -783,6 +783,7 @@ function WebsitePage() {
               selectedId={selected?.id ?? null}
               selectedPath={selected?.path ?? null}
               onPageChange={setViewingPage}
+              canManage={manage}
               reveal={reveal}
               liveStatus={liveStatus ?? rebuildStatus}
               onInlineSaved={() => {

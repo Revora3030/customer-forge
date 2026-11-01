@@ -39,7 +39,7 @@ import { trackPublicEvent, type PublicSite } from "@/lib/public-site.functions";
 import { SiteVitals } from "@/components/site/SiteVitals";
 import { BuilderReturnBar } from "@/components/site/BuilderReturnBar";
 import { PreviewLinkBridge } from "@/components/site/PreviewLinkBridge";
-import { readBlockStyle, styleSheet } from "@/lib/site-style";
+import { MOBILE_ORDER_ATTR, hasMobileOrder, mobileOrderRules, readBlockStyle, styleSheet } from "@/lib/site-style";
 import { CompositionRenderer } from "@/components/site/CompositionRenderer";
 import { normalizeHeadingOutline } from "@/lib/builder/heading-outline";
 import { legacySectionToComposition } from "@/lib/builder/legacy-composition";
@@ -234,7 +234,7 @@ export function SitePageView({
         {/* A first section that paints its own surface (a full-bleed hero)
             sits directly under the header; only an unpainted first section
             gets the small top gap. */}
-        <main className={`scroll-mt-20 ${firstSectionHasSurface(sections[0]?.settings) ? "" : "pt-2 sm:pt-4 "}pb-24 sm:pb-16`}>
+        <main {...(hasMobileOrder(sections) ? { [MOBILE_ORDER_ATTR]: "" } : {})} className={`scroll-mt-20 ${firstSectionHasSurface(sections[0]?.settings) ? "" : "pt-2 sm:pt-4 "}pb-24 sm:pb-16`}>
           {(() => {
             const lead = leadIndex;
             let ready = 0;
@@ -369,6 +369,7 @@ function ResponsiveStyles({
     ]),
     surface,
   );
-  if (!css) return null;
-  return <style>{css}</style>;
+  const sheet = [css, mobileOrderRules(sections)].filter(Boolean).join("\n");
+  if (!sheet) return null;
+  return <style>{sheet}</style>;
 }
