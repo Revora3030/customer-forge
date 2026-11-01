@@ -5,6 +5,7 @@
  * decides what is visible. Real-browser evidence comes from the stored
  * website_visual_reports rows — never from anything the client claims now.
  */
+import { PRIVACY_NOTICE_SLUG, siteServesPrivacyNotice } from "@/lib/privacy-notice-slug";
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { readSeo } from "@/lib/site-seo";
@@ -22,7 +23,7 @@ const orgIdValidator = (input: { organizationId: string }) => {
   return { organizationId };
 };
 
-const LEGAL_SLUGS = ["privacy", "privacy-policy", "terms", "terms-of-service"];
+const LEGAL_SLUGS = ["privacy", "privacy-policy", PRIVACY_NOTICE_SLUG, "terms", "terms-of-service"];
 const CTA_KINDS = new Set(["cta", "sticky_cta", "quote", "booking", "contact"]);
 const CAPTURE_KINDS = new Set(["quote", "booking", "contact"]);
 
@@ -265,7 +266,9 @@ export const getLaunchReview = createServerFn({ method: "POST" })
       visualDirectionSet: !!generation["fingerprint"] || !!generation["creative"] || !!text(p["primary_color"]).trim(),
       ctaSectionCount: visibleSections.filter((section) => CTA_KINDS.has(String(section.kind))).length,
       captureSectionPresent: visibleSections.some((section) => CAPTURE_KINDS.has(String(section.kind))),
-      legalPagesPresent: pageRows.some((page) => LEGAL_SLUGS.includes(String(page.slug))),
+      // Every published site serves the generated privacy notice at /privacy-notice
+      // (src/lib/privacy-notice-slug.ts), so the privacy page is always present.
+      legalPagesPresent: siteServesPrivacyNotice() || pageRows.some((page) => LEGAL_SLUGS.includes(String(page.slug))),
       analyticsConfigured: settings.data?.traffic_alerts_enabled === true,
       contactRouteVerified: !!(text(p["phone"]).trim() || text(p["email"]).trim()),
       customDomainConnected: !!settings.data?.custom_domain && settings.data?.domain_verified === true,
