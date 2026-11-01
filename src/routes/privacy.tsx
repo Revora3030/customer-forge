@@ -1,10 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { clientDomainLegalRedirect } from "@/lib/tenant-page-utils";
 import { SiteFooter, SiteHeader } from "@/components/marketing/Chrome";
 import { REVORA } from "@/lib/brand";
 import { LEGAL, operatorStatement } from "@/lib/legal";
 import { breadcrumbSchema, canonicalLink, jsonLdScript, ogUrl, OG_IMAGE_META } from "@/lib/seo";
 
 export const Route = createFileRoute("/privacy")({
+  // On a client's own domain this is not Revora's policy page (tenant-page-utils.ts).
+  beforeLoad: () => clientDomainLegalRedirect("privacy"),
   head: () => ({
     meta: [
       { title: "Privacy Policy | Revora Growth Systems" },
