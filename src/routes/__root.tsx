@@ -15,7 +15,7 @@ import appCss from "../styles.css?url";
 import dmSans400 from "@fontsource/dm-sans/files/dm-sans-latin-400-normal.woff2?url";
 import dmSans600 from "@fontsource/dm-sans/files/dm-sans-latin-600-normal.woff2?url";
 import instrumentSerif400 from "@fontsource/instrument-serif/files/instrument-serif-latin-400-normal.woff2?url";
-import spaceGrotesk600 from "@fontsource/space-grotesk/files/space-grotesk-latin-600-normal.woff2?url";
+import spaceGrotesk700 from "@fontsource/space-grotesk/files/space-grotesk-latin-700-normal.woff2?url";
 import { Toaster } from "@/components/ui/sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { ensureProfile, enforceSessionPolicy, resolvePostLoginPath } from "@/lib/auth-session";
@@ -129,9 +129,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "stylesheet", href: appCss },
       // DM Sans, Instrument Serif and Space Grotesk are self-hosted through
       // Fontsource (imported in styles.css), so no Google Fonts links here. The four faces
-      // the first screen uses are preloaded (marketing pages only) so the swap happens
+      // the first screen draws (body 400, buttons and nav 600, the editorial headline, and the
+      // 700-weight REVORA wordmark in the header) are preloaded (marketing pages only) so the swap happens
       // before first paint, with metric-matched fallbacks in styles.css as the safety net.
-      ...[dmSans400, dmSans600, instrumentSerif400, spaceGrotesk600].map((href) => ({
+      ...[dmSans400, dmSans600, instrumentSerif400, spaceGrotesk700].map((href) => ({
         rel: "preload",
         as: "font",
         type: "font/woff2",
