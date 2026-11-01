@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowRight, CheckCircle2, Circle } from "lucide-react";
+import { ArrowRight, Circle } from "lucide-react";
 import {
   MetricCard,
   Panel,
@@ -35,8 +35,11 @@ import {
   useBusinessProfile,
   useCustomers,
   useLeads,
+  useQuoteBuilder,
   useServices,
+  useWebsiteSettings,
 } from "@/lib/queries";
+import { launchReadiness } from "@/lib/readiness";
 import { currency, dateShort, relative, timeShort } from "@/lib/format";
 import { leadStatusMeta } from "@/lib/domain";
 import { RouteError } from "@/components/app/RouteStates";
@@ -305,25 +308,29 @@ function Dashboard() {
     };
   }, [leads, appts, events, window]);
 
-  const checklist = [
-    { done: !!profileQuery.data?.phone, label: "Add your phone number", to: "/app/settings" },
-    {
-      done: (servicesQuery.data ?? []).length > 0,
-      label: "Add your services",
-      to: "/app/services",
-    },
-    {
-      done: !!profileQuery.data?.description,
-      label: "Write your About section",
-      to: "/app/website",
-    },
-    { done: !!org?.conversion_goal, label: "Pick your main conversion goal", to: "/app/settings" },
-  ];
+  // Same readiness the Launch checklist uses (one function, same rows), so the
+  // two pages always agree on the percentage and on what is still missing.
+  const readinessAnalytics = useAnalytics(orgId, 30);
+  const readinessSettings = useWebsiteSettings(orgId);
+  const readinessQuote = useQuoteBuilder(orgId);
+  const readinessLoaded =
+    profileQuery.isSuccess &&
+    servicesQuery.isSuccess &&
+    readinessSettings.isSuccess &&
+    readinessAnalytics.isSuccess &&
+    readinessQuote.isSuccess;
+  const launchScore = launchReadiness({
+    profile: profileQuery.data,
+    settings: readinessSettings.data,
+    services: servicesQuery.data,
+    quoteForm: readinessQuote.data?.form,
+    analytics: readinessAnalytics.data,
+  });
   const peak = stats.trend.reduce(
     (best, b) => (b.count > best.count ? b : best),
     stats.trend[0] ?? { start: Date.now(), count: 0 },
   );
-  const remaining = checklist.filter((c) => !c.done);
+  const remaining = readinessLoaded ? launchScore.missing : [];
 
   // Command-bar facts from data this page already loaded. A query that has not
   // succeeded passes null, so the suggestions never invent a count or service.
@@ -703,25 +710,27 @@ function Dashboard() {
 
       {remaining.length ? (
         <Panel className="p-5">
-          <SectionHeading eyebrow="Finish setup" title={`${remaining.length} steps left`} />
+          <SectionHeading
+            eyebrow="Finish setup"
+            title={`${remaining.length} ${remaining.length === 1 ? "step" : "steps"} left`}
+            action={
+              <Button asChild variant="ghost" size="sm">
+                <Link to="/app/launch">
+                  {launchScore.score}% ready · full checklist <ArrowRight className="size-4" />
+                </Link>
+              </Button>
+            }
+          />
           <ul className="mt-4 space-y-2">
-            {checklist.map((item) => (
-              <li key={item.label} className="flex items-center justify-between gap-3">
+            {remaining.slice(0, 5).map((item) => (
+              <li key={item.key} className="flex items-center justify-between gap-3">
                 <span className="flex items-center gap-2.5 text-[13px]">
-                  {item.done ? (
-                    <CheckCircle2 className="size-4 text-primary" aria-hidden="true" />
-                  ) : (
-                    <Circle className="size-4 text-muted-foreground" aria-hidden="true" />
-                  )}
-                  <span className={item.done ? "text-muted-foreground line-through" : ""}>
-                    {item.label}
-                  </span>
+                  <Circle className="size-4 text-muted-foreground" aria-hidden="true" />
+                  <span>{item.label}</span>
                 </span>
-                {item.done ? null : (
-                  <Button asChild variant="ghost" size="sm">
-                    <Link to={item.to}>Fix</Link>
-                  </Button>
-                )}
+                <Button asChild variant="ghost" size="sm">
+                  <Link to={item.to ?? "/app/launch"}>Fix</Link>
+                </Button>
               </li>
             ))}
           </ul>

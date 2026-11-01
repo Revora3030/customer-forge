@@ -151,6 +151,30 @@ export function readiness(input: ReadinessInput) {
   return { items, done, total: items.length, score, missing: items.filter((i) => !i.done) };
 }
 
+/**
+ * The ONE way the owner screens compute website readiness. /app (Finish setup)
+ * and /app/launch (checklist) both call this with the same raw rows, so the
+ * percentage and the list of missing steps can never differ between them.
+ */
+export function launchReadiness(rows: {
+  profile: ReadinessInput["profile"];
+  settings: ReadinessInput["settings"];
+  services: ReadonlyArray<{ is_active: boolean; bookable?: boolean | null }> | null | undefined;
+  quoteForm: unknown;
+  analytics: ReadonlyArray<unknown> | null | undefined;
+}) {
+  const active = (rows.services ?? []).filter((s) => s.is_active);
+  return readiness({
+    profile: rows.profile,
+    settings: rows.settings,
+    servicesCount: active.length,
+    bookableCount: active.filter((s) => s.bookable).length,
+    mediaCount: rows.profile?.hero_image_url ? 1 : 0,
+    quoteFormCount: rows.quoteForm ? 1 : 0,
+    analyticsCount: (rows.analytics ?? []).length,
+  });
+}
+
 export const DOMAIN_STATES: Record<
   string,
   { label: string; tone: "signal" | "attention" | "info" | "neutral" | "danger"; help: string }

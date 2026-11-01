@@ -1,5 +1,5 @@
 import { startConfirmationPolling } from "@/lib/checkout-confirmation";
-import { deriveBillingStatus } from "@/lib/billing-status";
+import { chargedPayments, deriveBillingStatus } from "@/lib/billing-status";
 import { trialEndsAtMs } from "@/lib/trial";
 import { useEffect, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
@@ -93,7 +93,9 @@ function BillingPage() {
   const queryClient = useQueryClient();
   const cardsReady = isPaymentsConfigured();
 
-  const rows = payments ?? [];
+  // A $0.00 row (for example a fully discounted setup fee) is not a charge: it
+  // is neither listed nor counted as a payment, and never makes anything "paid".
+  const { charged: rows, hadZeroEntry: hasZeroEntry } = chargedPayments(payments);
   const paid = rows.filter((p) => p.status === "completed");
   const paidTotal = paid.reduce((sum, p) => sum + Number(p.amount), 0);
   const pending = rows.filter((p) => p.status === "pending" || p.status === "approved").length;
@@ -215,11 +217,12 @@ function BillingPage() {
 
       {subscription?.cancel_at_period_end ? (
         <div className="rounded-md border border-border bg-muted/40 px-4 py-3 text-[13px] text-muted-foreground">
-          Cancellation is scheduled. You keep full access until{" "}
+          Your cancellation is scheduled. Everything keeps working until{" "}
           {subscription.current_period_end
             ? new Date(subscription.current_period_end).toLocaleDateString()
-            : "the end of the paid period"}
-          , then the workspace becomes read-only.
+            : "the end of your current period"}
+          , and you won't be billed again. After that your saved work stays available, and you can
+          come back whenever you're ready.
         </div>
       ) : null}
 
@@ -439,6 +442,12 @@ function BillingPage() {
 
       <Panel className="p-5">
         <SectionHeading eyebrow="History" title="Payment history" />
+        {hasZeroEntry ? (
+          <p className="mt-2 text-[12px] text-muted-foreground" data-testid="zero-entry-note">
+            A $0.00 entry, such as a setup fee covered by a promotion code, means nothing was
+            charged, so it isn't listed here or counted as a payment.
+          </p>
+        ) : null}
         {loadingPayments ? (
           <LoadingRows rows={3} />
         ) : rows.length === 0 ? (

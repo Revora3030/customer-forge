@@ -27,7 +27,8 @@ import {
 } from "lucide-react";
 import { Logo, LogoMark } from "@/components/brand/Logo";
 import { Button } from "@/components/ui/button";
-import { LiveDot, Pill } from "@/components/app/Bits";
+import { Pill } from "@/components/app/Bits";
+import { SiteStateMarker } from "@/components/app/SiteStateMarker";
 import { WorkspaceNav, type WorkspaceNavItem } from "@/components/app/WorkspaceNav";
 import { useNotifications, useWebsiteSettings, useWorkspaceRealtime } from "@/lib/queries";
 import { useSignOut, useWorkspace } from "@/lib/use-tenant";
@@ -446,7 +447,7 @@ function AppShell() {
               </p>
               <p className="hidden items-center gap-2 text-[11px] text-muted-foreground sm:flex">
                 {supporting ? "Support session" : (org?.name ?? "Your business")}
-                <LiveDot label="Live" />
+                <SiteStateMarker state={siteSettings ? (siteSettings.publish_state ?? "draft") : null} />
               </p>
             </div>
           </div>
