@@ -1,0 +1,116 @@
+name: Revora Security Scans
+# Item 15 (security hygiene in CI). WARN MODE: every job reports findings as
+# annotations plus a job summary and stays green, so existing PRs are not
+# blocked by old findings. To enforce, set the ENFORCE variable below to "true"
+# once the blockers in knowledge/security-scans.md are cleared.
+#   1. dependency-audit  bun audit (npm advisory data, free) on bun.lock
+#   2. gitleaks          full-history secret scan, MIT binary run directly
+#                        (the gitleaks-action needs a paid license for orgs)
+#   3. rls-lint          static Supabase RLS / policy lint (scripts/rls-lint.mjs)
+# Complements (does not replace) osv-scanner.yml, secret-scan.yml (TruffleHog),
+# trivy.yml, semgrep.yml and security-gate.yml.
+on:
+  pull_request:
+    branches: [lovable-sync]
+  push:
+    branches: [lovable-sync]
+  schedule:
+    - cron: "23 7 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: revora-security-scans-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  ENFORCE: "false"
+  GITLEAKS_VERSION: "8.30.1"
+  # sha256 of gitleaks_8.30.1_linux_x64.tar.gz from the official checksums file
+  GITLEAKS_SHA256: "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
+
+jobs:
+  dependency-audit:
+    name: Dependency audit (bun audit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+      - name: bun audit
+        run: |
+          set +e
+          bun audit > audit.txt 2>&1
+          status=$?
+          bun audit --audit-level=high > audit-high.txt 2>&1
+          high=$?
+          set -e
+          cat audit.txt
+          {
+            echo "## Dependency audit (bun audit)"
+            echo "All advisories exit code: $status. High/critical only exit code: $high."
+            echo '```'
+            tail -n 40 audit.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$high" -ne 0 ]; then
+            echo "::warning title=High/critical dependency advisories::bun audit found high or critical advisories (see summary)."
+            [ "$ENFORCE" = "true" ] && exit 1
+          elif [ "$status" -ne 0 ]; then
+            echo "::warning title=Dependency advisories::bun audit found moderate/low advisories (see summary)."
+          fi
+          exit 0
+
+  gitleaks:
+    name: Secret scan (gitleaks, full history)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Install gitleaks (pinned, checksum verified)
+        run: |
+          curl -sSfL -o gitleaks.tgz "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256}  gitleaks.tgz" | sha256sum -c -
+          tar -xzf gitleaks.tgz gitleaks
+          ./gitleaks version
+      - name: gitleaks detect
+        run: |
+          set +e
+          # --redact: secret values never appear in logs. Config: .gitleaks.toml, ignore list: .gitleaksignore
+          ./gitleaks detect --source . --config .gitleaks.toml --redact --no-banner --verbose --exit-code 7 2>&1 | tee gitleaks.log
+          status=${PIPESTATUS[0]}
+          set -e
+          if [ "$status" -eq 0 ]; then
+            echo "## gitleaks: no leaks found" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          grep -E "^(RuleID|File|Line|Commit):" gitleaks.log | paste - - - - >> "$GITHUB_STEP_SUMMARY" || true
+          echo "::warning title=gitleaks findings::gitleaks exited $status. Do not paste secret values anywhere; report file, line and rule to Manager."
+          [ "$ENFORCE" = "true" ] && exit 1
+          exit 0
+
+  rls-lint:
+    name: Supabase RLS and policy lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Lint contract test
+        run: node scripts/rls-lint.contract.mjs
+      - name: RLS lint (migrations)
+        run: |
+          flag=""
+          [ "$ENFORCE" = "true" ] && flag="--enforce"
+          node scripts/rls-lint.mjs $flag
