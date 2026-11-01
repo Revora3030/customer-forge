@@ -64,7 +64,7 @@ export function TaskTreeList({
               <span className="sr-only">{STATUS_WORD[n.status]}: </span>
               {n.label}
               {n.model ? <span className="ml-1.5 rounded-full border border-border/70 px-2 py-0.5 text-[11px] text-muted-foreground">{n.model}</span> : null}
-              {n.detail ? <span className="block text-xs text-muted-foreground">{n.detail}</span> : null}
+              {n.detail ? <span className={cn("mt-0.5 block", n.emphasizeDetail ? "text-[13px] text-foreground/80" : "text-xs text-muted-foreground/80")}>{n.detail}</span> : null}
               {n.status === "failed" && n.error ? <span className="block text-xs">{n.error}</span> : null}
               {n.status === "failed" && n.retryable && onRetry ? (
                 <button
@@ -165,6 +165,11 @@ export function TaskTree({
       {open ? (
         <div id={panelId} className="space-y-2 border-t border-border/60 px-3.5 py-2.5">
           {nodes.length ? <TaskTreeList nodes={nodes} ariaLabel={ariaLabel} {...(onRetry ? { onRetry } : {})} retryDisabled={retryDisabled} /> : <p className="text-xs text-muted-foreground">Waiting for the first step to be recorded…</p>}
+          {summary.elapsedMs != null ? (
+            <p className="tnum border-t border-border/60 pt-2 text-xs text-muted-foreground" data-testid="task-tree-total">
+              Total elapsed {formatDuration(summary.elapsedMs)}
+            </p>
+          ) : null}
           {children}
         </div>
       ) : null}

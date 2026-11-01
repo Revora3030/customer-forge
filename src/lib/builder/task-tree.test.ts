@@ -54,8 +54,8 @@ describe("nodesFromProgress / summary", () => {
   });
   it("has no total when a finished step has no recorded duration, and no fake percentages", () => {
     const nodes: TaskNode[] = [
-      { id: "1", label: "a", detail: null, status: "done", durationMs: 1000, startedAtMs: null, model: null, error: null, retryable: false },
-      { id: "2", label: "b", detail: null, status: "done", durationMs: null, startedAtMs: null, model: null, error: null, retryable: false },
+      { id: "1", label: "a", detail: null, status: "done", durationMs: 1000, startedAtMs: null, endedAtMs: null, model: null, error: null, emphasizeDetail: false, retryable: false },
+      { id: "2", label: "b", detail: null, status: "done", durationMs: null, startedAtMs: null, endedAtMs: null, model: null, error: null, emphasizeDetail: false, retryable: false },
     ];
     expect(summarizeTree(nodes).totalMs).toBeNull();
     expect(treeHeadline(nodes)).toBe("Done · 2 steps");
@@ -65,6 +65,33 @@ describe("nodesFromProgress / summary", () => {
     const nodes = nodesFromRunEvents([ev({ status: "failed", error: "x" })]);
     expect(treeHeadline(nodes)).toBe("Stopped at: Read the page");
     expect(treeAnnouncement(nodes)).toBe("Failed: Read the page");
+  });
+});
+
+describe("total elapsed for a finished run", () => {
+  const at = (sec: number) => new Date(Date.parse("2026-10-31T10:00:00.000Z") + sec * 1000).toISOString();
+  it("is first recorded start to last recorded end, not the sum of the steps", () => {
+    const nodes = nodesFromRunEvents([
+      ev({ id: "a", started_at: at(0), finished_at: at(2), duration_ms: 2000 }),
+      ev({ id: "b", step: 2, started_at: at(5), finished_at: at(14), duration_ms: 9000 }),
+    ]);
+    const s = summarizeTree(nodes);
+    expect(s.elapsedMs).toBe(14_000);
+    expect(s.totalMs).toBe(11_000);
+    expect(treeHeadline(nodes)).toBe("Done · 2 steps · 14s total");
+  });
+  it("uses start + recorded duration when no finish time was stored", () => {
+    const nodes = nodesFromRunEvents([ev({ started_at: at(0), finished_at: null, duration_ms: 3000 })]);
+    expect(summarizeTree(nodes).elapsedMs).toBe(3000);
+  });
+  it("is null while the run is still going, and when a step has no recorded end", () => {
+    expect(summarizeTree(nodesFromRunEvents([ev({ id: "a" }), ev({ id: "b", step: 2, status: "running", finished_at: null, duration_ms: null })])).elapsedMs).toBeNull();
+    expect(summarizeTree(nodesFromRunEvents([ev({ finished_at: null, duration_ms: null })])).elapsedMs).toBeNull();
+  });
+  it("is also given for a run that ended on a failed step", () => {
+    const s = summarizeTree(nodesFromRunEvents([ev({ id: "a" }), ev({ id: "b", step: 2, status: "failed", error: "x", started_at: at(2), finished_at: at(6), duration_ms: 4000 })]));
+    expect(s.state).toBe("failed");
+    expect(s.elapsedMs).toBe(6000);
   });
 });
 

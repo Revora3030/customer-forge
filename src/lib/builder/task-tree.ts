@@ -23,12 +23,16 @@ export type TaskNode = {
   status: TaskStatus;
   /** Recorded duration; null while running or when none was recorded. */
   durationMs: number | null;
-  /** When a running step began, so the view can show real elapsed time. */
+  /** When the step began (recorded), so the view can show real elapsed time. */
   startedAtMs: number | null;
+  /** When the step ended (recorded finish time, or start + recorded duration); null while running or unknown. */
+  endedAtMs: number | null;
   /** A model's display name, only when the step recorded one. */
   model: string | null;
   /** Plain-words reason for a failed step (already shortened and redacted by the writer). */
   error: string | null;
+  /** The detail is Revora's own plan reply, so it reads at full strength rather than as a muted note. */
+  emphasizeDetail: boolean;
   /** True when the owner can retry this step; the view shows Retry only then. */
   retryable: boolean;
 };
@@ -43,6 +47,11 @@ export type TaskTreeSummary = {
   state: "idle" | "running" | "done" | "failed";
   /** Sum of the recorded durations; null when any finished step has none (no guessing). */
   totalMs: number | null;
+  /**
+   * Wall-clock time of the whole run, first recorded start to last recorded end.
+   * Only once the run has finished and every step has both timestamps; else null.
+   */
+  elapsedMs: number | null;
 };
 
 const toMs = (iso: string | null | undefined): number | null => {
@@ -55,8 +64,10 @@ const node = (partial: Pick<TaskNode, "id" | "label" | "status"> & Partial<TaskN
   detail: null,
   durationMs: null,
   startedAtMs: null,
+  endedAtMs: null,
   model: null,
   error: null,
+  emphasizeDetail: false,
   retryable: false,
   ...partial,
 });
@@ -79,7 +90,8 @@ export function nodesFromRunEvents(events: readonly RunEvent[]): TaskNode[] {
       detail: e.input_summary,
       status,
       durationMs: status === "running" ? null : e.duration_ms,
-      startedAtMs: status === "running" ? toMs(e.started_at) : null,
+      startedAtMs: toMs(e.started_at),
+      endedAtMs: status === "running" ? null : (toMs(e.finished_at) ?? (toMs(e.started_at) != null && e.duration_ms != null ? (toMs(e.started_at) as number) + e.duration_ms : null)),
       model: e.kind === "model_call" ? formatModelLabel(e.model, e.provider) : null,
       error: status === "failed" ? error : null,
       retryable: e.status === "failed" && index === events.length - 1,
@@ -116,6 +128,7 @@ export function nodesFromProgress(rows: readonly FeedProgressRow[], options: { r
       id: `${step.stage}-${step.at}`,
       label: step.stage,
       detail: step.detail,
+      emphasizeDetail: step.stage === "plan ready" && Boolean(step.detail),
       status: isRunning ? "running" : "done",
       durationMs: isRunning ? null : step.durationMs,
       startedAtMs: isRunning ? toMs(step.at) : null,
@@ -132,13 +145,20 @@ export function summarizeTree(nodes: readonly TaskNode[]): TaskTreeSummary {
   const pending = count("pending");
   const finishedNodes = nodes.filter((n) => n.status === "done");
   const known = finishedNodes.filter((n) => n.durationMs != null);
+  const state: TaskTreeSummary["state"] = !nodes.length ? "idle" : failed ? "failed" : running || pending ? "running" : "done";
+  const finished = (state === "done" || state === "failed") && !running && !pending;
+  const starts = nodes.map((n) => n.startedAtMs);
+  const ends = nodes.map((n) => n.endedAtMs);
+  const stamped = finished && starts.every((v) => v != null) && ends.every((v) => v != null);
+  const elapsed = stamped ? Math.max(...(ends as number[])) - Math.min(...(starts as number[])) : null;
   return {
     total: nodes.length,
     done,
     running,
     failed,
     pending,
-    state: !nodes.length ? "idle" : failed ? "failed" : running || pending ? "running" : "done",
+    state,
+    elapsedMs: elapsed != null && elapsed >= 0 ? elapsed : null,
     totalMs: finishedNodes.length && known.length === finishedNodes.length ? known.reduce((sum, n) => sum + (n.durationMs ?? 0), 0) : null,
   };
 }
@@ -149,7 +169,7 @@ export function treeHeadline(nodes: readonly TaskNode[]): string {
   if (s.state === "idle") return "Getting started";
   if (s.state === "failed") return `Stopped at: ${nodes.find((n) => n.status === "failed")?.label ?? "a step"}`;
   if (s.state === "running") return nodes.find((n) => n.status === "running")?.label ?? "Working";
-  return `Done · ${s.done} step${s.done === 1 ? "" : "s"}${s.totalMs != null ? ` · ${formatDuration(s.totalMs)}` : ""}`;
+  return `Done · ${s.done} step${s.done === 1 ? "" : "s"}${s.elapsedMs != null ? ` · ${formatDuration(s.elapsedMs)} total` : s.totalMs != null ? ` · ${formatDuration(s.totalMs)}` : ""}`;
 }
 
 /**
