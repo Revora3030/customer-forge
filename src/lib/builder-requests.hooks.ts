@@ -34,7 +34,7 @@ import {
   updateTask,
   type QueueTask,
 } from "@/lib/builder-queue";
-import { applyWebsiteChanges, planWebsiteChanges } from "@/lib/site-agent.functions";
+import { applyWebsiteChanges, cancelWebsitePlan, planWebsiteChanges } from "@/lib/site-agent.functions";
 import type { AgentStep } from "@/lib/site-agent";
 import type { AgentAttachment } from "@/lib/site-agent";
 import { trackConversion } from "@/lib/conversion";
@@ -176,20 +176,68 @@ async function findSavedPlan(
   return found?.result ?? null;
 }
 
+/**
+ * The server-side job behind a plan or apply (it keeps running when the phone
+ * leaves the app). Finished → its result; failed/stopped → that error; still
+ * going or not found → null.
+ */
+async function readChatJobOutcome(
+  organizationId: string,
+  kind: "plan" | "apply",
+  requestKey: string,
+  since?: string,
+): Promise<{ result: unknown } | null> {
+  let query = supabase
+    .from("builder_chat_jobs")
+    .select("status, result, error, created_at")
+    .eq("organization_id", organizationId)
+    .eq("kind", kind)
+    .eq("request_key", requestKey);
+  if (since) query = query.gte("created_at", since);
+  const { data, error } = await query.maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  if (data.status === "done") return { result: data.result };
+  if (data.status === "failed") throw new ChatJobFailed(data.error || "That request couldn't be finished.");
+  if (data.status === "cancelled") throw new ChatJobFailed("That request was stopped.");
+  return null;
+}
+
+class ChatJobFailed extends Error {}
+
+/** Waits (up to ~15 minutes) for a server job the browser lost touch with. */
+async function recoverChatJob(organizationId: string, kind: "plan" | "apply", requestKey: string, since?: string): Promise<unknown | null> {
+  const deadline = Date.now() + 15 * 60 * 1000;
+  while (Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 4000));
+    try {
+      const outcome = await readChatJobOutcome(organizationId, kind, requestKey, since);
+      if (outcome) return outcome.result;
+    } catch (error) {
+      if (error instanceof ChatJobFailed) throw error;
+      // Still offline: keep waiting.
+    }
+  }
+  return null;
+}
+
 async function recoverPlan(
   organizationId: string,
   requestId: string,
   options: { skipDeferred?: boolean; since?: string } = {},
 ): Promise<unknown | null> {
-  // Top models on long whole-site plans can run past 4 minutes; keep waiting
-  // for the saved plan instead of showing "Load failed" mid-build.
-  const deadline = Date.now() + 12 * 60 * 1000;
+  // The plan keeps running on the server after the phone leaves the app;
+  // wait for the saved plan instead of showing "Load failed" mid-build.
+  const deadline = Date.now() + 15 * 60 * 1000;
   while (Date.now() < deadline) {
-    await new Promise((resolve) => setTimeout(resolve, 5000));
+    await new Promise((resolve) => setTimeout(resolve, 4000));
     try {
       const found = await findSavedPlan(organizationId, requestId, options);
       if (found) return found;
-    } catch {
+      const outcome = await readChatJobOutcome(organizationId, "plan", requestId, options.since);
+      if (outcome?.result) return outcome.result;
+    } catch (error) {
+      if (error instanceof ChatJobFailed) throw error;
       // Still offline: keep waiting.
     }
   }
@@ -241,6 +289,7 @@ export function useBuilderRequests({
 
   const planFn = useServerFn(planWebsiteChanges);
   const applyFn = useServerFn(applyWebsiteChanges);
+  const cancelPlanFn = useServerFn(cancelWebsitePlan);
 
   const ready = canManage && Boolean(organizationId);
 
@@ -429,14 +478,17 @@ export function useBuilderRequests({
       // Each apply carries a stable operation key, so the server writes it at
       // most once: a phone that drops the connection ("Load failed") simply
       // asks again and gets the same result back.
-      const applyOnce = async (input: Parameters<typeof applyFn>[0]) => {
-        for (let attempt = 0; ; attempt += 1) {
-          try {
-            return await applyFn(input);
-          } catch (error) {
-            if (attempt >= 3 || !isDroppedConnection(error)) throw error;
-            await new Promise((resolve) => setTimeout(resolve, 4000 * (attempt + 1)));
-          }
+      // The apply itself runs as a server job under that key, so leaving the
+      // app never stops it: a dropped connection waits for the saved outcome.
+      const applyOnce = async (input: Parameters<typeof applyFn>[0]): Promise<Awaited<ReturnType<typeof applyFn>>> => {
+        try {
+          return await applyFn(input);
+        } catch (error) {
+          if (!isDroppedConnection(error) || !input.data.operationKey) throw error;
+          const recovered = await recoverChatJob(organizationId!, "apply", input.data.operationKey);
+          if (recovered) return recovered as Awaited<ReturnType<typeof applyFn>>;
+          // Never found: ask once more under the same key (the server never writes it twice).
+          return await applyFn(input);
         }
       };
       let result = await applyOnce({
@@ -987,6 +1039,9 @@ export function useBuilderRequests({
       const task = tasks.find((item) => item.id === id);
       if (!task || task.tracking || task.state !== "planning" || task.waitingOnBuild) return;
       abandonedRef.current.add(id);
+      // The plan runs on the server even when the app is closed: tell it to stop
+      // so a late plan is never applied.
+      if (organizationId) void cancelPlanFn({ data: { organizationId, requestId: id } }).catch(() => undefined);
       if (runningIdRef.current === id) {
         runningIdRef.current = null;
         runningRef.current = false;
