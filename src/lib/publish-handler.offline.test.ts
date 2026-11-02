@@ -9,8 +9,8 @@ vi.mock("@tanstack/react-start", () => ({
   },
 }));
 vi.mock("@/integrations/supabase/auth-middleware", () => ({ requireSupabaseAuth: {} }));
-const mock = vi.hoisted(() => ({ audit: vi.fn(), quality: vi.fn(), snapshot: vi.fn(), videoBar: vi.fn() }));
-vi.mock("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from: () => ({ insert: mock.audit }) } }));
+const mock = vi.hoisted(() => ({ qlog: vi.fn(), audit: vi.fn(), quality: vi.fn(), snapshot: vi.fn(), videoBar: vi.fn() }));
+vi.mock("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from: (table: string) => ({ insert: table === "builder_quality_log" ? mock.qlog : mock.audit }) } }));
 vi.mock("@/lib/builder/quality.server", () => ({ auditWorkspaceWebsite: mock.quality }));
 vi.mock("@/lib/site-restore.functions", () => ({ readWebsiteState: mock.snapshot }));
 vi.mock("@/lib/builder/quality/video-publish-gate.server", () => ({ scoreWorkspaceVideoBar: mock.videoBar }));
@@ -71,6 +71,7 @@ async function activate(db: ReturnType<typeof fixture>, extra: Row = {}) {
 beforeEach(() => {
   vi.clearAllMocks();
   mock.audit.mockResolvedValue({ error: null });
+  mock.qlog.mockResolvedValue({ error: null });
   mock.quality.mockResolvedValue({ ready: true, measured: true, productionReady: true, score: 95, blockers: [], issues: [] });
   mock.snapshot.mockResolvedValue({ pages: [{ id: "home", sections: [] }] });
   // The existing cases below are about the other gates; the video bar has its own describe at the end.
@@ -157,6 +158,16 @@ describe("video-bar publish block (same offline fixtures)", () => {
     const blocked = mock.audit.mock.calls.map(([row]) => row).find((row) => row.action === "PUBLISH_BLOCKED");
     expect(blocked.metadata).toMatchObject({ reason: "video_bar_below_bar", video_bar: { bar: 85, tradeSlug: bp.slug } });
     expect(blocked.metadata.video_bar.failures).toContain("truth_facts");
+  });
+
+  it("logs the publish check per trade for super admins to read, and a log failure never blocks publishing", async () => {
+    mock.videoBar.mockResolvedValue(below());
+    await activate(fixture());
+    await vi.waitFor(() => expect(mock.qlog).toHaveBeenCalledTimes(1));
+    expect(mock.qlog.mock.calls[0]![0]).toMatchObject({ organization_id: ORG, trade_slug: bp.slug, event_kind: "publish_check", bar: 85, passed: false, gate_mode: "enforce" });
+    mock.qlog.mockRejectedValue(new Error("table missing"));
+    mock.videoBar.mockResolvedValue(above());
+    expect(await activate(fixture())).toMatchObject({ activated: true });
   });
 
   it("publishes a site that meets the bar", async () => {

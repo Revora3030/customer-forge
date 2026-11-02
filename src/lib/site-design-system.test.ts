@@ -181,3 +181,46 @@ describe("spacing, layering and motion", () => {
     expect(view).toContain("designSystemVars(");
   });
 });
+
+describe("authority: the design system never overrides authored styling", () => {
+  const css = designSystemCss();
+  const layer = css.slice(css.indexOf("@layer base{") + "@layer base{".length, css.indexOf("@media"));
+  // Every rule in the layer as [selector, body]; the tokens block is the only one that sets variables.
+  const rules = [...layer.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((m) => ({ selector: m[1]!.trim(), body: m[2]! }));
+  const PALETTE_VARS = ["--background", "--foreground", "--primary", "--primary-foreground", "--secondary", "--card", "--muted", "--muted-foreground", "--accent", "--border", "--input", "--ring", "--ds-surface-alt"];
+
+  it("parses every layered rule and each one is :where(.rv-site-root)-scoped", () => {
+    expect(rules.length).toBeGreaterThan(8);
+    for (const rule of rules) expect(rule.selector.startsWith(":where(.rv-site-root)"), rule.selector).toBe(true);
+  });
+
+  it("never sets a palette variable, a text colour or a border/outline colour (the owner's and the palette editor's colours stay theirs)", () => {
+    for (const rule of rules) {
+      for (const name of PALETTE_VARS) expect(rule.body, `${rule.selector} sets ${name}`).not.toMatch(new RegExp(`(^|;)${name}:`));
+      expect(rule.body, rule.selector).not.toMatch(/(^|;)(color|border-color|border|fill|stroke):/);
+    }
+  });
+
+  it("the only background rule is the quiet band, guarded against studio canvases and painted sections", () => {
+    const painting = rules.filter((rule) => /(^|;)background(-color)?:/.test(rule.body));
+    expect(painting).toHaveLength(1);
+    expect(painting[0]!.selector).toContain(":not([data-studio])");
+    expect(painting[0]!.selector).toContain(':not([style*="background"])');
+    expect(painting[0]!.selector).toContain("nth-child(even)");
+    expect(painting[0]!.body).toBe("background-color:var(--ds-surface-alt,transparent)");
+  });
+
+  it("the band reads a variable the palette editor re-sets inline, so an edit recolours it", () => {
+    const first = (siteThemeStyle({ primaryColor: "#1d4ed8" }) ?? {}) as Record<string, string>;
+    const edited = (siteThemeStyle({ primaryColor: "#7c3aed", secondaryColor: "#faf5ff", accentColor: "#db2777" }) ?? {}) as Record<string, string>;
+    expect(first["--ds-surface-alt"]).toBeTruthy();
+    expect(edited["--ds-surface-alt"]).toBeTruthy();
+    expect(edited["--ds-surface-alt"]).not.toBe(first["--ds-surface-alt"]);
+  });
+
+  it("the palette editor skips studio pages, which carry their own theme layer", () => {
+    const bridge = readFileSync("src/components/site/PreviewSelectBridge.tsx", "utf8");
+    expect(bridge).toMatch(/hasAttribute\("data-studio"\)\) return;/);
+    expect(bridge).toContain("siteThemeStyle(");
+  });
+});

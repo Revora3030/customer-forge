@@ -78,19 +78,22 @@ export function CookieConsent() {
       role="dialog"
       aria-modal="false"
       aria-label="Cookie preferences"
-      className="order-first border-b border-border bg-card p-3 sm:fixed sm:inset-x-auto sm:left-6 sm:bottom-6 sm:z-[100] sm:max-w-sm sm:rounded-lg sm:border sm:p-4 sm:shadow-lg"
+      className="fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-[100] rounded-lg border border-border bg-card p-3 shadow-lg sm:inset-x-auto sm:left-6 sm:bottom-6 sm:max-w-sm sm:p-4"
     >
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
-          <h2 className="text-[13.5px] font-semibold">Cookies for measurement</h2>
+          <h2 className="text-[13.5px] font-semibold">Analytics and ad cookies</h2>
           <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
-            We measure whether our ads lead to signups. It never changes how the site works. See our{" "}
-            <a href="/privacy" className="underline underline-offset-2 hover:text-primary">
+            We use Google Analytics, Microsoft Clarity (session replay) and Google Ads measurement to see how visitors use this site and whether our ads lead to signups. Rejecting never changes how the site works. See our{" "}
+            <a
+              href="/privacy"
+              className="relative underline underline-offset-2 after:absolute after:inset-x-0 after:-inset-y-3.5 after:content-[''] hover:text-primary"
+            >
               privacy policy
             </a>
             .
           </p>
-          <div className="mt-2.5 flex flex-wrap gap-2">
+          <div className="mt-4 flex flex-wrap gap-2">
             <Button
               size="sm"
               type="button"

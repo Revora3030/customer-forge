@@ -79,7 +79,7 @@ describe("scoreWorkspaceVideoBar (fake database)", () => {
     const { scoreWorkspaceVideoBar } = await import("@/lib/builder/quality/video-publish-gate.server");
     const r = await scoreWorkspaceVideoBar(db as never, "org", { withPrevious: true });
     expect(r.tradeSlug).toBe(bp.slug);
-    expect(r.score.criteria).toHaveLength(13);
+    expect(r.score.criteria).toHaveLength(14);
     expect(typeof r.previousScore).toBe("number");
     expect(r.previousScore!).toBeLessThan(r.score.score);
     const noPrev = await scoreWorkspaceVideoBar(db as never, "org");

@@ -1,0 +1,57 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`stubbed builder run: auto-detailer > makes the same set of model calls every time 1`] = `
+"content_strategy x4
+information_architecture x1
+plan_review x1
+specialist_review x4"
+`;
+
+exports[`stubbed builder run: cleaner > makes the same set of model calls every time 1`] = `
+"content_strategy x4
+information_architecture x1
+plan_review x1
+specialist_review x4"
+`;
+
+exports[`stubbed builder run: electrician > makes the same set of model calls every time 1`] = `
+"content_strategy x4
+information_architecture x1
+plan_review x1
+specialist_review x4"
+`;
+
+exports[`stubbed builder run: handyman-sparse > makes the same set of model calls every time 1`] = `
+"content_strategy x3
+information_architecture x1
+plan_review x1
+specialist_review x3"
+`;
+
+exports[`stubbed builder run: hvac > makes the same set of model calls every time 1`] = `
+"content_strategy x4
+information_architecture x1
+plan_review x1
+specialist_review x4"
+`;
+
+exports[`stubbed builder run: landscaper > makes the same set of model calls every time 1`] = `
+"content_strategy x4
+information_architecture x1
+plan_review x1
+specialist_review x4"
+`;
+
+exports[`stubbed builder run: plumber > makes the same set of model calls every time 1`] = `
+"content_strategy x4
+information_architecture x1
+plan_review x1
+specialist_review x4"
+`;
+
+exports[`stubbed builder run: roofer > makes the same set of model calls every time 1`] = `
+"content_strategy x4
+information_architecture x1
+plan_review x1
+specialist_review x4"
+`;

@@ -76,7 +76,7 @@ async function activeWorkspaces(db: Db): Promise<Workspace[]> {
 }
 
 /** Claims the (org, kind, window) slot, sends, and records the outcome. */
-async function sendOnce(
+export async function sendOnce(
   db: Db,
   run: ReportRun,
   input: { organizationId: string; kind: string; windowKey: string; recipient: string; heading: string; message: string; businessName: string },

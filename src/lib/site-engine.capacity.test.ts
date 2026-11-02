@@ -10,7 +10,7 @@ describe("free AI pool capacity deferral", () => {
     const verdict = capacityVerdict(calls, 0, Date.parse("2026-10-19T10:00:00Z"));
     expect(verdict?.count).toBe(1);
     expect(verdict?.retryAt.toISOString()).toBe("2026-10-19T10:15:00.000Z");
-    expect(verdict?.summary).toBe("11 of 14 AI calls were rate-limited or timed out");
+    expect(verdict?.summary).toBe("1 hit the AI credit limit, 9 were rate-limited, 1 timed out (of 14 AI calls)");
   });
 
   it("treats a few failures, or other errors, as an ordinary build failure", () => {

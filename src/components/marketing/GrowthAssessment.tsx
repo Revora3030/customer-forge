@@ -323,8 +323,9 @@ export function GrowthAssessment({ mode = "assessment" }: { mode?: "assessment" 
           <p className="mt-1.5 text-[13px] text-muted-foreground">
             About {currency(result.missedRevenueYearly)} a year — roughly{" "}
             <span className="text-foreground">{result.recoverableCustomers} customers/month</span>{" "}
-            at your own job value and booking rate, based on the {result.leakagePercent}% of leads
-            the gaps below tend to absorb.
+            at your own job value and booking rate, if the gaps below cost you{" "}
+            {result.leakagePercent}% of your leads. That share is this tool&apos;s planning
+            assumption, not a measured or published figure.
           </p>
           <p className="mt-3 text-[11.5px] leading-relaxed text-muted-foreground">
             Arithmetic on the numbers you entered. An estimate for planning — not a guarantee of

@@ -49,3 +49,8 @@ Yes. We build galleries from your photos. We do not present stock images as your
 
 **What does it cost?**
 $350 setup, first month free, then $100/month. Cancel anytime. Try 3 days of full access first.
+
+## Source (checked October 31, 2026)
+
+- G.S. 89D-13, exemptions (under $30,000 at one job site in 12 months): https://www.ncleg.gov/EnactedLegislation/Statutes/PDF/BySection/Chapter_89D/GS_89D-13.pdf
+- G.S. 89D-16, $10,000 surety bond: https://www.ncleg.gov/EnactedLegislation/Statutes/HTML/BySection/Chapter_89D/GS_89D-16.html

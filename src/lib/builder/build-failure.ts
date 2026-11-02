@@ -12,6 +12,7 @@
  */
 
 import { integrityOwnerMessage, isContentIntegrityError, parseIntegrityViolations } from "./content-integrity";
+import { isStallMessage } from "./no-progress";
 
 export const BUILD_FAILURE_KINDS = [
   "intake_validation",
@@ -47,7 +48,7 @@ const OWNER_MESSAGES: Record<BuildFailureKind, string> = {
   publish: "Publishing didn't complete. Your live site is unchanged.",
   validation: "The draft didn't pass Revora's quality checks (links, forms, mobile or SEO). It isn't marked ready.",
   infrastructure: "The build worker was interrupted. Revora resumes it automatically.",
-  credits: "Revora's AI credits ran out, so this build stopped before it finished. Nothing was published. Top up the AI credits in Lovable, then start the build again.",
+  credits: "Revora's AI credits ran out, so this build stopped before it finished. Nothing was published and your current website is unchanged. This is on Revora's side, not yours: press Retry build once the credits are topped up (finished sections are kept).",
   budget: "This build used its spending limit before it finished, so Revora stopped it to protect your credits. Nothing was published. You can start it again when you are ready.",
 };
 
@@ -229,6 +230,8 @@ export function describeBuildFailure(row: {
   const stored = row.failure_kind as BuildFailureKind | null | undefined;
   const kind = stored && (BUILD_FAILURE_KINDS as readonly string[]).includes(stored) ? stored : readFailureKind(row.error_message);
   if (!kind) return { label: "Build didn't finish", message: untaggedMessage(row.error_message) || "The build didn't finish.", canRetry: true };
+  // A build ended by the no-progress guard carries its own plain message.
+  if (isStallMessage(row.error_message)) return { label: FAILURE_KIND_LABELS[kind], message: untaggedMessage(row.error_message), canRetry: true };
   const message =
     kind === "intake_validation" ? intakeOwnerMessage(untaggedMessage(row.error_message)) : (FINAL_OWNER_MESSAGES[kind] ?? OWNER_MESSAGES[kind]);
   return { label: FAILURE_KIND_LABELS[kind], message, canRetry: true };
