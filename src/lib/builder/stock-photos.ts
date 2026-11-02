@@ -41,7 +41,7 @@ export type StockPhoto = {
 const BLOCKED_LICENCE_PARTS = ["nc", "nd"];
 
 /** Licences that need no credit line, though we still record one. */
-const NO_CREDIT_REQUIRED = new Set(["cc0", "pdm", "publicdomain"]);
+const NO_CREDIT_REQUIRED = new Set(["cc0", "pdm", "publicdomain", "pexels", "unsplash"]);
 
 export function licenceAllowsBusinessUse(code: unknown): boolean {
   if (typeof code !== "string") return false;
@@ -59,9 +59,13 @@ export function requiresCredit(code: string): boolean {
 export function licenceLine(photo: Pick<StockPhoto, "creator" | "licenseCode" | "provider">): string {
   const who = photo.creator?.trim() || "an unnamed photographer";
   const code = photo.licenseCode.trim().toUpperCase();
-  const label = NO_CREDIT_REQUIRED.has(photo.licenseCode.trim().toLowerCase())
-    ? `public domain (${code})`
-    : `Creative Commons ${code} — the credit line must stay on your site`;
+  const lower = photo.licenseCode.trim().toLowerCase();
+  const label =
+    lower === "pexels" || lower === "unsplash"
+      ? `${lower === "pexels" ? "Pexels" : "Unsplash"} licence — free for business use, credit appreciated`
+      : NO_CREDIT_REQUIRED.has(lower)
+        ? `public domain (${code})`
+        : `Creative Commons ${code} — the credit line must stay on your site`;
   return `By ${who} on ${photo.provider}, ${label}.`;
 }
 

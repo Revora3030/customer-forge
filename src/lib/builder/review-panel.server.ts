@@ -68,14 +68,18 @@ export const REVIEW_AREA_MODELS: Partial<Record<ReviewArea, string[]>> = {
   accessibility: ["anthropic/claude-haiku-4-5"],
   mobile: ["google/gemini-3.8-flash"],
   completeness: ["openai/gpt-6-astra"],
-  senior: ["anthropic/claude-opus-5-5"],
-  whole_site: ["anthropic/claude-fable-5-1"],
-  markup: ["anthropic/claude-opus-5"],
+  // Cost order 2026-11-02: Sonnet 5 leads senior review (~40% cheaper than
+  // Opus); the router still fails over to the rest of the team.
+  senior: ["anthropic/claude-sonnet-5"],
+  // Cost trim 2026-11-02: one premium Opus reviewer (senior) stays; the other
+  // flagship-priced seats moved to cheaper strong models.
+  whole_site: ["anthropic/claude-sonnet-5"],
+  markup: ["openai/gpt-6-astra"],
   funnel: ["google/gemini-3.1-pro-preview"],
   consistency: ["openai/gpt-5.5"],
   industry_fit: ["google/gemini-4-argon"],
   visual_craft: ["google/gemini-3.8-flash"],
-  distinctiveness: ["anthropic/claude-opus-5-5"],
+  distinctiveness: ["anthropic/claude-sonnet-5"],
 };
 
 export function panelFor(mode: "full" | "light"): Reviewer[] {
@@ -191,7 +195,7 @@ export async function runReviewPanel(
   // a reviewer still failing is reported in `failed`, never fails the panel.
   // No retry when the day's or month's paid budget is spent (or the ledger is
   // down): the second ask would be refused the same way.
-  const noRetry = new Set(["budget_exhausted", "ledger_unavailable", "free_only", "no_tier_available"]);
+  const noRetry = new Set(["budget_exhausted", "credits_exhausted", "ledger_unavailable", "free_only", "no_tier_available"]);
   await Promise.all(
     settled.map(async (entry, index) => {
       const reviewer = reviewers[index]!;

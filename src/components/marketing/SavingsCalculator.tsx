@@ -6,16 +6,18 @@ import { Panel, Pill } from "@/components/app/Bits";
 import { GROWTH_SYSTEM, usd } from "@/lib/offer";
 import {
   MAX_TOOL_PRICE,
+  PRICES_CHECKED_LABEL,
   SAVINGS_TOOLS,
   cleanPrice,
   computeSavings,
+  showsSaving,
   type SavingsToolId,
 } from "@/lib/software-savings";
 
 /**
  * Software-replacement estimator. The visitor ticks the tools they pay for and
  * enters their own bill; nothing is pre-ticked and the starting price shown when
- * a tool is ticked is a typical list price they are asked to correct.
+ * a tool is ticked is the cheapest published list price we checked (or empty where we found none), which they are asked to correct.
  */
 export function SavingsCalculator() {
   const [prices, setPrices] = useState<Partial<Record<SavingsToolId, string>>>({});
@@ -25,15 +27,15 @@ export function SavingsCalculator() {
     [prices],
   );
 
-  const toggle = (id: SavingsToolId, typical: number, on: boolean) =>
+  const toggle = (id: SavingsToolId, typical: number | null, on: boolean) =>
     setPrices((p) => {
       const next = { ...p };
-      if (on) next[id] = String(typical);
+      if (on) next[id] = typical === null ? "" : String(typical);
       else delete next[id];
       return next;
     });
 
-  const saves = result.toolCount > 0 && !result.revoraCostsMore;
+  const saves = showsSaving(result);
 
   return (
     <div className="grid gap-4 lg:grid-cols-[1.05fr_0.95fr]">
@@ -72,7 +74,7 @@ export function SavingsCalculator() {
                     inputMode="decimal"
                     min={0}
                     max={MAX_TOOL_PRICE}
-                    step="1"
+                    step="any"
                     disabled={!checked}
                     value={prices[tool.id] ?? ""}
                     placeholder="0"
@@ -148,8 +150,8 @@ export function SavingsCalculator() {
         </div>
 
         <p className="mt-4 text-[13px] leading-relaxed text-muted-foreground">
-          Illustrative arithmetic on the prices you enter. Starting prices are typical list prices, not
-          your bills. Only count tools you would stop paying for.
+          Illustrative arithmetic on the prices you enter. Any starting price is the cheapest published plan we
+          checked on {PRICES_CHECKED_LABEL}, not your bill; where we found no public price the field starts empty. Only count tools you would stop paying for.
         </p>
 
         <Button asChild variant="signal" size="lg" className="mt-5 w-full">

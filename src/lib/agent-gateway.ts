@@ -1,5 +1,7 @@
 import { z } from "zod";
 import { LEVEL4_ACTION_KINDS, type Level4Action } from "@/lib/agent-authority";
+import { buildStepStatuses } from "@/lib/builder/build-step-status";
+import { GENERATION_STEPS } from "@/lib/site-engine";
 
 /**
  * Agent gateway shapes, shared by the /api/public/agent/* routes and tests.
@@ -154,6 +156,10 @@ export function publicBuildStatus(row: Record<string, unknown>) {
   const str = (key: string) => (typeof row[key] === "string" ? (row[key] as string) : null);
   const status = str("status") ?? "unknown";
   const stages = row["stage_checkpoints"] && typeof row["stage_checkpoints"] === "object" ? Object.keys(row["stage_checkpoints"] as object) : [];
+  const stepView = buildStepStatuses(
+    GENERATION_STEPS.map((step) => step.key),
+    { status, currentStep: str("current_step"), failedStage: str("failed_stage"), checkpointKeys: stages },
+  );
   return {
     id: str("id"),
     organizationId: str("organization_id"),
@@ -168,6 +174,9 @@ export function publicBuildStatus(row: Record<string, unknown>) {
     attempts: typeof row["attempts"] === "number" ? row["attempts"] : null,
     capacityDeferrals: typeof row["capacity_deferrals"] === "number" ? row["capacity_deferrals"] : null,
     checkpoints: stages.slice(0, 40),
+    buildSteps: stepView.steps,
+    failedStep: stepView.failedStep,
+    resumable: stepView.resumable,
     createdAt: str("created_at"),
     startedAt: str("started_at"),
     updatedAt: str("updated_at"),

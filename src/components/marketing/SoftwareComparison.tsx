@@ -1,14 +1,17 @@
 import { GROWTH_SYSTEM, usd } from "@/lib/offer";
-import { typicalComparison } from "@/lib/software-savings";
+import { PRICES_CHECKED_LABEL, typicalComparison } from "@/lib/software-savings";
 
 /**
- * The typical bill for the tools Revora covers, next to Revora's own first year,
- * shown before the visitor types anything. The prices are typical entry-level
- * list prices, not anyone's bill: the calculator beside it takes the visitor's
- * real numbers.
+ * The published list price of the cheapest paid plan for the tools Revora
+ * covers, next to Revora's own first year, shown before the visitor types
+ * anything. Every price was read from the vendor's own public pricing page on
+ * the date shown and is linked below the table; a tool with no public price is
+ * left out of the totals. These are not anyone's bill: the calculator beside it
+ * takes the visitor's real numbers.
  */
 export function SoftwareComparison() {
   const c = typicalComparison();
+  const gap = Math.abs(Math.round(c.toolsDifference));
   return (
     <div className="rounded-xl border border-border bg-card p-5 sm:p-6">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -16,11 +19,13 @@ export function SoftwareComparison() {
         <p className="text-[12px] text-muted-foreground">Not your bill: enter yours in the calculator below.</p>
       </div>
       <table className="mt-4 w-full text-left text-[13px]">
-        <caption className="sr-only">Typical monthly list prices of tools a local business often pays for</caption>
+        <caption className="sr-only">
+          Published monthly list prices of the cheapest paid plan for tools a local business often pays for
+        </caption>
         <thead>
           <tr className="border-b border-border text-[11px] tracking-wide text-muted-foreground uppercase">
             <th scope="col" className="py-2 pr-3 font-medium">Tool</th>
-            <th scope="col" className="py-2 text-right font-medium">Typical per month</th>
+            <th scope="col" className="py-2 text-right font-medium">Cheapest paid plan, per month</th>
           </tr>
         </thead>
         <tbody>
@@ -28,7 +33,9 @@ export function SoftwareComparison() {
             <tr key={tool.id} className="border-b border-border/60">
               <th scope="row" className="py-2.5 pr-3 font-normal">
                 <span className="font-medium text-foreground">{tool.label}</span>
-                <span className="block text-muted-foreground">{tool.example}</span>
+                <span className="block text-muted-foreground">
+                  {tool.source.vendor} {tool.source.plan}
+                </span>
               </th>
               <td className="tnum py-2.5 text-right">{usd(tool.typical)}</td>
             </tr>
@@ -55,9 +62,30 @@ export function SoftwareComparison() {
         </div>
       </dl>
       <p className="mt-3 text-[12px] leading-relaxed text-muted-foreground">
-        If you also pay an agency or freelancer a monthly retainer, the same comparison is {usd(c.withAgencyFirstYear)} against{" "}
-        {usd(c.revoraFirstYear)}. Prices vary by provider and plan, and your needs may not use every tool listed.
+        {c.toolsCostLess
+          ? `At these entry-level prices the tools alone cost about ${usd(gap)} less over the first 12 months than Revora does. Revora puts the website, lead capture, follow-up and bookings in one account instead of separate subscriptions, and the calculator below uses your own bills.`
+          : `At these entry-level prices the tools alone cost about ${usd(gap)} more over the first 12 months than Revora does.`}{" "}
+        Prices vary by provider and plan, and your needs may not use every tool listed.
+        {c.unpriced.length > 0
+          ? ` ${c.unpriced.join(" and ")} are left out because we found no public price to check.`
+          : ""}
       </p>
+      <div className="mt-3 border-t border-border pt-3 text-[12px] leading-relaxed text-muted-foreground" data-testid="savings-sources">
+        <p>
+          Prices from public pricing pages, checked {PRICES_CHECKED_LABEL}. Each is the cheapest paid plan, for one user or seat:
+        </p>
+        <ul className="mt-1 space-y-0.5">
+          {c.tools.map((tool) => (
+            <li key={tool.id}>
+              <a href={tool.source.url} target="_blank" rel="noopener noreferrer nofollow" className="underline underline-offset-2">
+                {tool.source.vendor} {tool.source.plan}
+              </a>
+              : {usd(tool.typical)} {tool.source.basis}.
+            </li>
+          ))}
+        </ul>
+        <p className="mt-1">Vendors change prices; check their pages for today&apos;s figure.</p>
+      </div>
     </div>
   );
 }

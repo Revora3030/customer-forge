@@ -1,6 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { GROWTH_SYSTEM } from "@/lib/offer";
-import { MAX_TOOL_PRICE, SAVINGS_TOOLS, cleanPrice, computeSavings, typicalComparison } from "./software-savings";
+import {
+  MAX_TOOL_PRICE,
+  PRICES_CHECKED_ISO,
+  PRICES_CHECKED_LABEL,
+  SAVINGS_TOOLS,
+  cleanPrice,
+  computeSavings,
+  showsSaving,
+  typicalComparison,
+  type SavingsTool,
+} from "./software-savings";
 
 describe("computeSavings", () => {
   it("shows nothing when no tool is entered", () => {
@@ -22,7 +32,7 @@ describe("computeSavings", () => {
 
   it("says so when the tools cost less than Revora instead of inflating a saving", () => {
     const r = computeSavings({ scheduling: 30 });
-    expect(r.revoraCostsMore).toBe(true);
+    expect(r.firstYearDifference).toBeLessThan(0);
     expect(r.monthlyDifference).toBeLessThan(0);
     expect(r.firstYearDifference).toBeLessThan(0);
   });
@@ -42,24 +52,73 @@ describe("computeSavings", () => {
 });
 
 describe("typicalComparison", () => {
-  it("adds up the typical prices and compares them with the canonical first year", () => {
+  it("adds up only the prices read from public vendor pages and compares them with the canonical first year", () => {
     const c = typicalComparison();
-    expect(c.tools.map((tool) => tool.id)).not.toContain("agency");
-    expect(c.toolsMonthly).toBe(377);
-    expect(c.toolsFirstYear).toBe(4524);
-    expect(c.withAgencyMonthly).toBe(877);
-    expect(c.withAgencyFirstYear).toBe(10524);
+    expect(c.tools.map((tool) => tool.id)).toEqual(["website", "scheduling", "forms", "crm", "email", "automation"]);
+    expect(c.tools.map((tool) => tool.typical)).toEqual([19, 10, 34, 14, 10.2, 19.99]);
+    expect(c.toolsMonthly).toBe(107.19);
+    expect(c.toolsFirstYear).toBe(1286.28);
     expect(c.revoraFirstYear).toBe(GROWTH_SYSTEM.setupPrice + GROWTH_SYSTEM.monthlyPrice * 11);
     expect(c.revoraFirstYear).toBe(1450);
-    expect(c.toolsDifference).toBe(4524 - 1450);
-    expect(c.withAgencyDifference).toBe(10524 - 1450);
+    expect(c.toolsDifference).toBe(-163.72);
+    expect(c.toolsCostLess).toBe(true);
+    expect(c.unpriced).toEqual(["Review requests", "Web agency or freelancer retainer"]);
+    expect(c.checked).toBe(PRICES_CHECKED_LABEL);
   });
 
-  it("agrees with the calculator when every typical price is entered", () => {
-    const all = Object.fromEntries(SAVINGS_TOOLS.map((tool) => [tool.id, tool.typical]));
+  it("gives every counted price an https vendor URL and the date it was checked, and never counts an unsourced one", () => {
+    expect(PRICES_CHECKED_ISO).toBe("2026-10-31");
+    for (const tool of SAVINGS_TOOLS as readonly SavingsTool[]) {
+      if (tool.typical === null) {
+        expect(tool.source, tool.id).toBeUndefined();
+      } else {
+        expect(tool.source, tool.id).toBeDefined();
+        expect(tool.source?.url, tool.id).toMatch(/^https:\/\//);
+        expect(tool.typical, tool.id).toBeGreaterThan(0);
+      }
+    }
+    expect(typicalComparison().tools.every((tool) => tool.source.url.startsWith("https://"))).toBe(true);
+  });
+
+  it("names vendors only where a source exists and keeps category wording generic elsewhere", () => {
+    const vendors = ["Wix", "Squarespace", "Webflow", "Calendly", "Acuity", "Typeform", "Jotform", "HubSpot", "Pipedrive", "Mailchimp", "Constant Contact", "Zapier", "Podium", "Birdeye"];
+    for (const tool of SAVINGS_TOOLS as readonly SavingsTool[]) {
+      for (const vendor of vendors) {
+        expect(`${tool.label} ${tool.example}`.includes(vendor), `${tool.id} mentions ${vendor}`).toBe(false);
+      }
+    }
+  });
+
+  it("agrees with the calculator when every sourced price is entered", () => {
+    const all = Object.fromEntries(
+      (SAVINGS_TOOLS as readonly SavingsTool[]).filter((tool) => tool.typical !== null).map((tool) => [tool.id, tool.typical]),
+    );
     const r = computeSavings(all);
     const c = typicalComparison();
-    expect(r.currentMonthly).toBe(c.withAgencyMonthly);
-    expect(r.firstYearDifference).toBe(c.withAgencyDifference);
+    expect(r.currentMonthly).toBe(c.toolsMonthly);
+    expect(r.firstYearDifference).toBe(c.toolsDifference);
+    expect(r.firstYearDifference).toBeLessThan(0);
+  });
+});
+
+describe("showsSaving", () => {
+  it("never shows a saving, or a negative 'less' figure, when all six sourced tools cost less than Revora's first year", () => {
+    const all = Object.fromEntries(
+      (SAVINGS_TOOLS as readonly SavingsTool[]).filter((tool) => tool.typical !== null).map((tool) => [tool.id, tool.typical]),
+    );
+    const r = computeSavings(all);
+    expect(r.firstYearDifference).toBeLessThan(0);
+    expect(showsSaving(r)).toBe(false);
+  });
+
+  it("shows a saving only when tools are ticked and cost more than Revora over 12 months", () => {
+    expect(showsSaving(computeSavings({}))).toBe(false);
+    const big = computeSavings({ website: 400 });
+    expect(big.firstYearDifference).toBeGreaterThan(0);
+    expect(showsSaving(big)).toBe(true);
+    // Costs more per month than Revora's $100 but less over the first year (setup fee): still no saving.
+    const edge = computeSavings({ website: 110 });
+    expect(edge.firstYearDifference).toBeLessThan(0);
+    expect(showsSaving(edge)).toBe(false);
   });
 });

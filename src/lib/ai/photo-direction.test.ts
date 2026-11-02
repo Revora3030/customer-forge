@@ -38,4 +38,21 @@ describe("photo reviewer verdicts", () => {
     expect(verdict.defects).toHaveLength(6);
     expect(verdict.reviewed).toBe(true);
   });
+  it("rejects a dark or flat picture even when the reviewer ticked publishable", () => {
+    const dark = readVerdict({ publishable: true, exposure: "dark", framing: "wide" });
+    expect(dark.publishable).toBe(false);
+    expect(dark.contentRejected).toBe(true);
+    expect(dark.defects[0]).toMatch(/dark/);
+    expect(readVerdict({ publishable: true, exposure: "flat" }).publishable).toBe(false);
+    expect(readVerdict({ publishable: true, exposure: "blown" }).publishable).toBe(false);
+    expect(readVerdict({ publishable: true, exposure: "good" }).publishable).toBe(true);
+  });
+
+  it("rejects a close-up only for a hero-style placement", () => {
+    const answer = { publishable: true, exposure: "good", framing: "closeup" };
+    expect(readVerdict(answer, "homepage hero").publishable).toBe(false);
+    expect(readVerdict(answer, "opening scene").publishable).toBe(false);
+    expect(readVerdict(answer, "service card").publishable).toBe(true);
+    expect(readVerdict(answer).publishable).toBe(true);
+  });
 });
