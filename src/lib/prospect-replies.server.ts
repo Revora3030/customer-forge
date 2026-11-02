@@ -351,7 +351,7 @@ async function writeReply(facts: FactsSheet, inbound: InboundItem): Promise<stri
   try {
     const { generateText } = await import("@/lib/ai/router.server");
     const result = await generateText({ userId: null, task: "admin.jarvis" }, {
-      role: "conversation",
+      role: "fast",
       maxOutputTokens: 400,
       messages: [
         { role: "system", content: REPLY_SYSTEM },
