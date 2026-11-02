@@ -82,6 +82,7 @@ describe("router retry policy", () => {
     vi.stubGlobal("fetch", fetchStub);
     await expect(call()).rejects.toMatchObject({ status: 402, category: "quota" });
     const sentFirst = fetchStub.mock.calls.length;
+    console.log("URLS", JSON.stringify(fetchStub.mock.calls.map((c: unknown[]) => String(c[0]))));
     expect(sentFirst).toBe(1);
     await expect(call()).rejects.toMatchObject({ status: 402, category: "quota", detail: "credit_cooldown" });
     expect(fetchStub.mock.calls.length).toBe(sentFirst);
