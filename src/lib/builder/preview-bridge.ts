@@ -327,15 +327,16 @@ export function selectionChipLabel(selection: {
 
 /**
  * The owner's own words for display: drops the page/section context the
- * composer adds for the AI ("(The owner has the … page open …)", "[Selected
- * section …]"), which was showing up inside the owner's chat bubble.
+ * composer adds for the AI ("(The owner has the … page open …)", "(id
+ * … id …"), which was showing up inside the owner's chat bubble.
  */
 export function ownerWords(instruction: string): string {
   let text = instruction;
   for (;;) {
     const next = text
       .replace(/^\s*\(The owner has the "[^"]*" page, [^,]*, open in the preview\. Treat that as context, not a limit\.\)\s*/, "")
-      .replace(/^\s*\[Selected [^\]]*\]\s*/, "");
+      .replace(/ \(element [^)]*\)/, "")
+      .replace(/ block \(id [0-9a-z-]+\):/i, " block:");
     if (next === text) break;
     text = next;
   }
