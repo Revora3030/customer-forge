@@ -7,6 +7,7 @@
  * AI-authored chrome show no replacement chrome; the build/review pipeline must
  * repair or reject them instead of installing fixed copy.
  */
+import { preferPrivacyNoticeHref } from "@/lib/privacy-notice-slug";
 import { validateComposition, type CompositionNode, type CompositionTree, type NodeStyle } from "@/lib/builder/composition-tree";
 import { selfLinkTarget } from "@/lib/builder/link-integrity";
 
@@ -82,7 +83,8 @@ export function resolveSiteHref(
   previewBase?: string | null,
 ): string {
   // "/home" is the home page's slug; it is the same page as "/".
-  const repaired = repairSiteHref(rawHref, knownPages, pageAnchors);
+  // An AI-written /privacy page is replaced by the generated notice (src/lib/privacy-notice-slug.ts).
+  const repaired = preferPrivacyNoticeHref(repairSiteHref(rawHref, knownPages, pageAnchors));
   const href = repaired.replace(/^\/home\/?(?=[#?]|$)/, "/");
   const safeBase = previewBase && /^\/(?:p|draft)\/[A-Za-z0-9_-]+$/.test(previewBase) ? previewBase : null;
   const publicBase = `/s/${encodeURIComponent(slug)}`;

@@ -145,10 +145,15 @@ REVOKE ALL ON FUNCTION public.provision_workspace_server(uuid, text, text, jsonb
 GRANT EXECUTE ON FUNCTION public.provision_workspace_server(uuid, text, text, jsonb, integer) TO service_role;
 
 ALTER TABLE public.offer_config DROP CONSTRAINT IF EXISTS offer_config_revora_offer_locked;
+-- The locked offer is $350 setup + $100/month (GROWTH_SYSTEM, src/lib/offer-lock tests). No earlier
+-- migration moved offer_config off the old $750 setup, so on a database built
+-- from migrations the constraint below failed (23514). Align the row with the
+-- offer the code already enforces; a no-op where it already matches.
 UPDATE public.offer_config
-SET full_access_days = 3
+SET full_access_days = 3,
+    setup_price = 350
 WHERE id = 'growth_system'
-  AND full_access_days <> 3;
+  AND (full_access_days <> 3 OR setup_price <> 350);
 
 ALTER TABLE public.offer_config ADD CONSTRAINT offer_config_revora_offer_locked
   CHECK (
