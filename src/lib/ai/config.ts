@@ -73,9 +73,10 @@ const DEFAULT_MODELS: Record<ModelRole, string> = {
     "openai/gpt-6.1-sol", "google/gemini-4-argon", "openai/gpt-6-astra",
     "anthropic/claude-sonnet-5", "openai/gpt-5.5", "google/gemini-3.8-flash", "anthropic/claude-opus-5-5",
   ].join(","),
+  // Pictures: GPT Image 2.5 Flare leads (~60% cheaper than Sunburst, same family).
   image: [
-    "openai/gpt-image-2.5-sunburst", "google/gemini-3-pro-image", "openai/gpt-image-2",
-    "openai/gpt-image-2.5-flare", "google/gemini-3.1-flash-lite-image",
+    "openai/gpt-image-2.5-flare", "openai/gpt-image-2.5-sunburst", "google/gemini-3-pro-image",
+    "openai/gpt-image-2", "google/gemini-3.1-flash-lite-image",
   ].join(","),
   transcription: "openai/gpt-transcribe,google/gemini-3.5-transcribe",
   // Jarvis: strongest verified models first, then faster ones as failover.
