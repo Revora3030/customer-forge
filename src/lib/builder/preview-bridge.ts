@@ -324,3 +324,20 @@ export function selectionChipLabel(selection: {
   const element = selection.element?.replace(/_/g, " ").trim();
   return element ? `${name} · ${element}` : name;
 }
+
+/**
+ * The owner's own words for display: drops the page/section context the
+ * composer adds for the AI ("(The owner has the … page open …)", "[Selected
+ * section …]"), which was showing up inside the owner's chat bubble.
+ */
+export function ownerWords(instruction: string): string {
+  let text = instruction;
+  for (;;) {
+    const next = text
+      .replace(/^\s*\(The owner has the "[^"]*" page, [^,]*, open in the preview\. Treat that as context, not a limit\.\)\s*/, "")
+      .replace(/^\s*\[Selected [^\]]*\]\s*/, "");
+    if (next === text) break;
+    text = next;
+  }
+  return text.trim() || instruction.trim();
+}
