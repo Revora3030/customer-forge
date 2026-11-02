@@ -51,6 +51,22 @@ describe("WorkFeedView", () => {
   });
 });
 
+describe("Retry on the step a build stopped at", () => {
+  const failedFeed = () => buildWorkFeed({ job: job({ status: "failed", steps: ALL.slice(0, 11), completed_at: T(600) }), progress: [], generations: [], images: [], now: START + 999_000 });
+  it("opens a failed build with Retry on the stopped step, and only when a retry is wired", () => {
+    const html = renderToStaticMarkup(<WorkFeedView feed={failedFeed()} onRetry={() => undefined} />);
+    expect(html).toContain('aria-expanded="true"');
+    expect(html).toContain('aria-label="Build steps"');
+    expect(html).toMatch(/aria-label="Retry [^"]+"/);
+    expect(html.match(/aria-label="Retry /g)).toHaveLength(1);
+    expect(renderToStaticMarkup(<WorkFeedView feed={failedFeed()} />)).not.toContain("Retry");
+  });
+  it("offers no Retry on a running or finished build", () => {
+    const run = buildWorkFeed({ job: job({}), progress: [], generations: [], images: [], now: START + 215_000 });
+    expect(renderToStaticMarkup(<WorkFeedView feed={run} onRetry={() => undefined} />)).not.toContain("Retry");
+  });
+});
+
 describe("stopping a build from the chat", () => {
   const running = () => buildWorkFeed({ job: job({}), progress: [], generations: [], images: [], now: START + 215_000 });
   const withId = { id: "11111111-1111-4111-8111-111111111111" };

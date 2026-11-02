@@ -11,6 +11,7 @@ import { runDueAutomations } from "@/lib/automations.functions";
 import { queueAutomationEvent } from "@/lib/automation-queue.functions";
 import { setWebsiteReviewState } from "@/lib/website-review.functions";
 import { RESPONSE_KINDS } from "@/lib/speed-to-lead";
+import { announceNewLead, readChimeOn } from "@/lib/lead-chime";
 
 /**
  * Client code can only queue automation steps — actual email/SMS delivery runs
@@ -252,6 +253,21 @@ export function useNotifications(organizationId: string | undefined) {
   });
 }
 
+/** Toast + optional chime for one realtime lead INSERT. Sound is off unless the owner turned it on. */
+async function announceNewLeadFromRealtime(row: Record<string, unknown>) {
+  try {
+    await announceNewLead(row as { source?: string; created_at?: string; name?: string; service_interest?: string }, {
+      notifyInfo: (message, extra) => toast(message, extra),
+      chimeOn: async () => {
+        const { data } = await supabase.auth.getSession();
+        return readChimeOn(window.localStorage, data.session?.user.id ?? null);
+      },
+    });
+  } catch {
+    /* an alert must never break the live feed */
+  }
+}
+
 /** Keeps lead/review/notification counts fresh while the workspace is open. */
 export function useWorkspaceRealtime(organizationId: string | undefined) {
   const queryClient = useQueryClient();
@@ -264,7 +280,11 @@ export function useWorkspaceRealtime(organizationId: string | undefined) {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "leads", filter: `organization_id=eq.${organizationId}` },
-        () => {
+        (payload) => {
+          if (payload.eventType === "INSERT") {
+            // Toast (and the chime, only if the owner turned sound on) for a new real lead.
+            void announceNewLeadFromRealtime(payload.new as Record<string, unknown>);
+          }
           void queryClient.invalidateQueries({ queryKey: ["leads", organizationId] });
           void queryClient.invalidateQueries({ queryKey: ["score_facts", organizationId] });
           void queryClient.invalidateQueries({ queryKey: ["notifications", organizationId] });

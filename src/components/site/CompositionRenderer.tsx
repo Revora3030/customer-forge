@@ -1,6 +1,10 @@
+import { containsLeadWidget, showStyle } from "@/lib/builder/lead-form-guard";
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { visibleFrameLabel } from "@/lib/builder/frame-labels";
+import { faqItemsForDisplay, NO_FAQ_FACTS, OWNER_TO_ANSWER, type FaqDisplayItem, type FaqFacts } from "@/lib/builder/faq-from-facts";
+import { usePreviewMode } from "@/components/site/preview-mode-context";
 import { Button } from "@/components/ui/button";
-import type { Breakpoint, CompositionFaqItem, CompositionNode, CompositionTab, CompositionTree, MotionEasing, NodeHover, NodeMotion, NodeStyle, WidgetPresentation } from "@/lib/builder/composition-tree";
+import type { Breakpoint, CompositionNode, CompositionTab, CompositionTree, MotionEasing, NodeHover, NodeMotion, NodeStyle, WidgetPresentation } from "@/lib/builder/composition-tree";
 import type { PersistedComponentVisual } from "@/lib/site-style";
 import { resolveImageSource } from "@/lib/brand-logos";
 import { fallbackImageAlt } from "@/lib/client-seo-guard";
@@ -151,7 +155,7 @@ const CHROME_SCOPES = new Set(["site-header", "site-footer"]);
 /** Facts for an offer card, read from the owner's real Services tool. Never authored by the AI. */
 export type OfferFacts = { name: string; price: string | null; duration: string | null };
 
-type Ctx = { altBase?: string; premiumOff?: boolean; parentType?: string | undefined; align?: NodeStyle["align"] | undefined; offer?: (service: string) => OfferFacts | null; sceneScrim?: string | undefined; chrome?: boolean; editable?: boolean; label?: (text: string) => string; depth?: number | undefined; bg?: string | undefined; bg2?: string | undefined; fg?: string | undefined; rules: string[]; counter: { n: number; sawMedia?: boolean; alts?: number }; eagerFirstMedia?: boolean; heroVideo?: HeroVideoMedia | null; scope: string; href: (h: string) => string; media: (ref: string) => ResolvedMedia | null; widget: (name: string, presentation?: WidgetPresentation) => ReactNode };
+type Ctx = { altBase?: string; faq?: { facts: FaqFacts; mode: "published" | "draft" }; premiumOff?: boolean; parentType?: string | undefined; align?: NodeStyle["align"] | undefined; offer?: (service: string) => OfferFacts | null; sceneScrim?: string | undefined; chrome?: boolean; editable?: boolean; label?: (text: string) => string; depth?: number | undefined; bg?: string | undefined; bg2?: string | undefined; fg?: string | undefined; rules: string[]; counter: { n: number; sawMedia?: boolean; alts?: number }; eagerFirstMedia?: boolean; heroVideo?: HeroVideoMedia | null; scope: string; href: (h: string) => string; media: (ref: string) => ResolvedMedia | null; widget: (name: string, presentation?: WidgetPresentation) => ReactNode };
 
 /**
  * The description a picture is shown with: its own alt, else the stored
@@ -392,6 +396,30 @@ export function readablePaint(node: Pick<CompositionNode, "type" | "style">, ctx
   return { ...(color ? { color } : {}), bg, bg2, fg: color ?? authored ?? ctx.fg };
 }
 
+const LEGIBLE_TYPES = new Set(["heading", "text", "list", "quote", "button", "link"]);
+
+/**
+ * Size and dimness floor for copy. The contrast scan reads a node's colour but
+ * not its `opacity` or a 9-11px size, so a dim, tiny caption could pass the
+ * scan and still be unreadable (audit item 3: tiny, dim text over the second
+ * photo). Over a photo scene copy is at least 14px and 90% opaque; elsewhere at
+ * least 12px and 80% opaque. Mutates `style` (the computed CSS), never the tree.
+ */
+// eslint-disable-next-line react-refresh/only-export-components -- renderer helper, exported for tests.
+export function legibleType(node: Pick<CompositionNode, "type">, style: CSSProperties, overPhoto: boolean): void {
+  if (!LEGIBLE_TYPES.has(node.type)) return;
+  const minSize = overPhoto ? 14 : 12;
+  if (typeof style.fontSize === "number" && style.fontSize < minSize) style.fontSize = minSize;
+  else if (typeof style.fontSize === "string") {
+    const size = style.fontSize;
+    const px = /^(\d+(?:\.\d+)?)px$/.exec(size);
+    const rem = /^(\d+(?:\.\d+)?)rem$/.exec(size);
+    if ((px && Number(px[1]) < minSize) || (rem && Number(rem[1]) * 16 < minSize)) style.fontSize = minSize;
+  }
+  const minOpacity = overPhoto ? 0.9 : 0.8;
+  if (typeof style.opacity === "number" && style.opacity < minOpacity) style.opacity = minOpacity;
+}
+
 /**
  * Big background areas (the section itself and full-width rows/grids/stacks)
  * get the same premium-surface correction as the page: a washed-out mid-grey
@@ -475,15 +503,22 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
   // Buttons and links are how visitors act: a design may restyle them per
   // screen size but never hide one, or a phone visitor loses the action.
   const actionable = node.type === "button" || node.type === "link";
+  // The enquiry form, booking form and quote calculator, and any container
+  // holding one, are never hidden on phones, whatever flag was stored with the
+  // layout: that is how a visitor becomes a lead.
+  const leadHolder = containsLeadWidget(node);
   for (const [bp, rawStyle] of Object.entries(node.responsive ?? {}) as [Breakpoint, NodeStyle][]) {
-    const style = actionable && rawStyle.hidden ? { ...rawStyle, hidden: false } : rawStyle;
+    const style = actionable && rawStyle.hidden ? { ...rawStyle, hidden: false } : leadHolder && bp === "mobile" ? (showStyle(rawStyle) ?? rawStyle) : rawStyle;
     const text = cssText(styleToCss(style, node.type));
     if (text) ctx.rules.push(`@media ${MEDIA[bp]}{[data-cn="${id}"]{${text}}}`);
   }
   if (node.hover) ctx.rules.push(hoverCss(id, node.hover));
   const style: CSSProperties = {
     ...baseLayout(node.type),
-    ...styleToCss(actionable && node.style?.hidden ? { ...node.style, hidden: false } : node.style, node.type),
+    ...styleToCss(
+      actionable && node.style?.hidden ? { ...node.style, hidden: false } : leadHolder ? (showStyle(node.style) ?? undefined) : node.style,
+      node.type,
+    ),
   };
   // An aspect ratio on a text-only grid or card becomes a hollow frame (two
   // short labels stacked in a tall bordered box). Pictures keep their crop.
@@ -495,6 +530,7 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
   // Text is re-paired with the surface it actually sits on, keeping its hue.
   const paint = readablePaint(node, ctx);
   if (paint.color) style.color = paint.color;
+  legibleType(node, style, Boolean(ctx.sceneScrim));
   ctx.bg = paint.bg; ctx.bg2 = paint.bg2; ctx.fg = paint.fg;
   ctx.depth = (ctx.depth ?? 0) + 1;
   const motion = premiumMotion(node, ctx);
@@ -779,8 +815,13 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
       return (node.dialOptions?.length ?? 0) >= 2 ? (
         <DialSelector key={key} props={props} label={node.text?.trim().slice(0, 60) || "Choose an option"} options={node.dialOptions!.slice(0, 6)} unit={node.dialUnit} />
       ) : null;
-    case "faq_accordion":
-      return node.faqItems?.length ? <FaqAccordion key={key} props={props} items={node.faqItems} /> : null;
+    case "faq_accordion": {
+      // FAQ answers must come from the business's own facts. Published pages
+      // drop a question with no grounded answer; drafts show a marked placeholder.
+      const faq = ctx.faq ?? { facts: NO_FAQ_FACTS, mode: ctx.editable ? "draft" as const : "published" as const };
+      const items = faqItemsForDisplay(node.faqItems ?? [], faq.facts, faq.mode);
+      return items.length ? <FaqAccordion key={key} props={props} items={items} /> : null;
+    }
     case "tab_group":
       return node.tabs?.length ? (
         <TabGroup
@@ -909,7 +950,7 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
         const resolved = child.mediaRef ? ctx.media(child.mediaRef) : null;
         const source = child.src ? resolveImageSource(child.src) : mediaUrl(resolved);
         if (!source) return;
-        const label = child.text?.trim().slice(0, 30);
+        const label = visibleFrameLabel(child.text);
         frames.push({ src: source, alt: child.alt ?? mediaVisual(resolved)?.alt ?? "", ...(label ? { label } : {}) });
       });
       if (frames.length < 2 && copy.length === 0) return null;
@@ -1387,13 +1428,21 @@ function BeforeAfterSlider({ props, before, after, initialSplit }: {
 }
 
 
-function FaqAccordion({ props, items }: { props: NodeProps; items: CompositionFaqItem[] }) {
+function FaqAccordion({ props, items }: { props: NodeProps; items: FaqDisplayItem[] }) {
   return (
     <div {...props} className={`${props.className ?? ""} rv-cn-faq`.trim()}>
       {items.map((item, index) => (
         <details key={index} open={item.defaultOpen}>
           <summary><span>{item.question}</span><span aria-hidden="true" className="rv-cn-faq-chevron" /></summary>
-          <div className="rv-cn-faq-panel"><div className="rv-cn-faq-panel-inner">{item.answer}</div></div>
+          <div className="rv-cn-faq-panel">
+            {item.placeholder ? (
+              <div className="rv-cn-faq-panel-inner" data-faq-placeholder="">
+                <strong>{OWNER_TO_ANSWER}</strong> This answer isn&apos;t in your business details yet. Add it in the editor; until then this question is hidden on your live site.
+              </div>
+            ) : (
+              <div className="rv-cn-faq-panel-inner">{item.answer}</div>
+            )}
+          </div>
         </details>
       ))}
     </div>
@@ -1531,6 +1580,7 @@ const INTERACTIVE_CSS = `
 .rv-cn-faq-panel{display:grid;grid-template-rows:0fr;transition:grid-template-rows .24s ease}
 .rv-cn-faq details[open] .rv-cn-faq-panel{grid-template-rows:1fr}
 .rv-cn-faq-panel-inner{min-height:0;overflow:hidden;overflow:clip;padding:0 0 14px;white-space:pre-wrap}
+.rv-cn-faq-panel-inner[data-faq-placeholder]{font-style:italic;outline:2px dashed currentColor;outline-offset:-2px;padding:10px 12px;margin-bottom:14px;border-radius:8px}
 @supports (interpolate-size:allow-keywords){.rv-cn-faq details{interpolate-size:allow-keywords}.rv-cn-faq details::details-content{block-size:0;overflow:clip;transition:block-size .24s ease,content-visibility .24s;transition-behavior:allow-discrete}.rv-cn-faq details[open]::details-content{block-size:auto}}
 .rv-cn-tab-list{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;border-bottom:1px solid currentColor}
 .rv-cn-tab{position:relative;min-height:44px;padding:0 16px;border:0;border-radius:0;background:transparent;color:inherit;font:inherit;font-weight:650;cursor:pointer;opacity:.65}
@@ -1572,12 +1622,13 @@ const MOTION_CSS = `@media (prefers-reduced-motion: no-preference){.rv-cn-motion
 
 export function CompositionRenderer(args: Parameters<typeof RenderComposition>[0]) {
   const { enabled } = usePremiumFx();
-  return <RenderComposition {...args} premiumOff={!enabled} />;
+  const preview = usePreviewMode();
+  return <RenderComposition {...args} premiumOff={!enabled} faqDraft={preview || Boolean(args.editable)} />;
 }
 
-function RenderComposition({ premiumOff = false, altBase, tree, scope, as = "section", resolveHref, resolveMedia, resolveWidget, resolveOffer, eagerFirstMedia = false, heroVideo = null, surface = null, linkLabel, editable = false }: { premiumOff?: boolean; /** Business name, trade and city: the description for pictures that have none. */ altBase?: string; tree: CompositionTree; /** The home page's hero loop, for the first section only. */ heroVideo?: HeroVideoMedia | null; scope: string; editable?: boolean; surface?: string | null; linkLabel?: (text: string) => string; as?: "section" | "div"; resolveHref?: (href: string) => string; resolveMedia?: (ref: string) => ResolvedMedia | null; resolveWidget?: (name: string, presentation?: WidgetPresentation) => ReactNode; /** Real service facts for offer cards (Services tool); without it no price is shown. */ resolveOffer?: (service: string) => OfferFacts | null; eagerFirstMedia?: boolean }) {
+function RenderComposition({ premiumOff = false, faqDraft = false, faqFacts = null, altBase, tree, scope, as = "section", resolveHref, resolveMedia, resolveWidget, resolveOffer, eagerFirstMedia = false, heroVideo = null, surface = null, linkLabel, editable = false }: { premiumOff?: boolean; /** Owner draft preview: unanswered FAQ questions show a marked placeholder instead of being dropped. */ faqDraft?: boolean; /** The business facts FAQ answers must come from; without them only fact-free answers are shown. */ faqFacts?: FaqFacts | null; /** Business name, trade and city: the description for pictures that have none. */ altBase?: string; tree: CompositionTree; /** The home page's hero loop, for the first section only. */ heroVideo?: HeroVideoMedia | null; scope: string; editable?: boolean; surface?: string | null; linkLabel?: (text: string) => string; as?: "section" | "div"; resolveHref?: (href: string) => string; resolveMedia?: (ref: string) => ResolvedMedia | null; resolveWidget?: (name: string, presentation?: WidgetPresentation) => ReactNode; /** Real service facts for offer cards (Services tool); without it no price is shown. */ resolveOffer?: (service: string) => OfferFacts | null; eagerFirstMedia?: boolean }) {
   const page = surface && /^#[0-9a-f]{6}$/i.test(surface) ? surface : undefined;
-  const ctx: Ctx = { ...(altBase ? { altBase } : {}), ...(premiumOff ? { premiumOff: true } : {}), ...(resolveOffer ? { offer: resolveOffer } : {}), ...(CHROME_SCOPES.has(scope) ? { chrome: true } : {}), ...(editable ? { editable: true } : {}), ...(linkLabel ? { label: linkLabel } : {}), ...(page ? { bg: page, fg: bestInk(page) } : {}), rules: [], counter: { n: 0 }, eagerFirstMedia, ...(heroVideo && !editable ? { heroVideo } : {}), scope: scope.replace(/[^\w-]/g, "") || "cn", href: resolveHref ?? ((h) => h), media: resolveMedia ?? (() => null), widget: resolveWidget ?? (() => null) };
+  const ctx: Ctx = { faq: { facts: faqFacts ?? NO_FAQ_FACTS, mode: faqDraft ? "draft" : "published" }, ...(altBase ? { altBase } : {}), ...(premiumOff ? { premiumOff: true } : {}), ...(resolveOffer ? { offer: resolveOffer } : {}), ...(CHROME_SCOPES.has(scope) ? { chrome: true } : {}), ...(editable ? { editable: true } : {}), ...(linkLabel ? { label: linkLabel } : {}), ...(page ? { bg: page, fg: bestInk(page) } : {}), rules: [], counter: { n: 0 }, eagerFirstMedia, ...(heroVideo && !editable ? { heroVideo } : {}), scope: scope.replace(/[^\w-]/g, "") || "cn", href: resolveHref ?? ((h) => h), media: resolveMedia ?? (() => null), widget: resolveWidget ?? (() => null) };
   const body = renderNode(tree.root, ctx, "root");
   // The shared rules are identical for every section. They used to be
   // repeated inline in each one (several KB per section, re-parsed by the
