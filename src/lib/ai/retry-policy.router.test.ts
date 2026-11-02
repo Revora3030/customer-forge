@@ -44,6 +44,11 @@ describe("router retry policy", () => {
       catalogueFilterFor: async () => null,
       eligibleCatalogueModelsForRole: async () => [],
     }));
+    // Owner routing settings are a database read, not a model call.
+    vi.doMock("@/lib/ai/command-settings.server", async (orig) => {
+      const real = await orig<typeof import("@/lib/ai/command-settings.server")>();
+      return { ...real, loadCommandSettings: async () => real.toCommandSettings(null) };
+    });
     process.env["BUILDER_EXTERNAL_AI_ALLOWED"] = "true";
     process.env["FREE_AI_ENABLED"] = "false";
     process.env["FREE_AI_ONLY"] = "false";
