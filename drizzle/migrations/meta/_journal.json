@@ -169,6 +169,13 @@
       "when": 1793615710566,
       "tag": "0023_lifecycle_email_optouts_table",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1793662681205,
+      "tag": "0024_builder_chat_jobs",
+      "breakpoints": true
     }
   ]
 }

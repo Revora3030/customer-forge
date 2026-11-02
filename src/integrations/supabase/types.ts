@@ -1066,6 +1066,78 @@ export type Database = {
           },
         ]
       }
+      builder_chat_jobs: {
+        Row: {
+          attempts: number
+          created_at: string
+          error: string | null
+          fence: number
+          finished_at: string | null
+          id: string
+          input: Json
+          kind: string
+          lease_expires_at: string | null
+          organization_id: string
+          request_key: string
+          result: Json | null
+          status: string
+          updated_at: string
+          user_id: string
+          worker: string | null
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          error?: string | null
+          fence?: number
+          finished_at?: string | null
+          id?: string
+          input?: Json
+          kind: string
+          lease_expires_at?: string | null
+          organization_id: string
+          request_key: string
+          result?: Json | null
+          status?: string
+          updated_at?: string
+          user_id: string
+          worker?: string | null
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          error?: string | null
+          fence?: number
+          finished_at?: string | null
+          id?: string
+          input?: Json
+          kind?: string
+          lease_expires_at?: string | null
+          organization_id?: string
+          request_key?: string
+          result?: Json | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+          worker?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "builder_chat_jobs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "builder_chat_jobs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "public_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       builder_messages: {
         Row: {
           branch: string
@@ -7181,6 +7253,33 @@ export type Database = {
           p_status: Database["public"]["Enums"]["appointment_status"]
         }
         Returns: Json
+      }
+      builder_chat_job_claim: {
+        Args: { _id: string; _lease_seconds?: number; _worker: string }
+        Returns: {
+          attempts: number
+          created_at: string
+          error: string | null
+          fence: number
+          finished_at: string | null
+          id: string
+          input: Json
+          kind: string
+          lease_expires_at: string | null
+          organization_id: string
+          request_key: string
+          result: Json | null
+          status: string
+          updated_at: string
+          user_id: string
+          worker: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "builder_chat_jobs"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       call_revora_job: {
         Args: { path: string; timeout_ms?: number }
