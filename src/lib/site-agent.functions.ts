@@ -260,16 +260,128 @@ export const planWebsiteChanges = createServerFn({ method: "POST" })
 
   .handler(async ({ data, context }) => {
     const supabase = context.supabase as unknown as SupabaseLike;
-    const picked = await adminPickedModel(supabase, String(context.userId), data.model);
-    const { withModelPreference } = await import("@/lib/ai/model-preference-scope.server");
-    const { withModelActivity } = await import("@/lib/ai/model-activity-scope.server");
-    const { noteStage } = await import("@/lib/builder/progress.server");
+    const userId = String(context.userId);
+    const picked = await adminPickedModel(supabase, userId, data.model);
     const runId = data.requestId || crypto.randomUUID();
-    const scoped = { ...data, requestId: runId };
-    return withModelActivity(
-      (provider, model) => noteStage(data.organizationId, runId, "model at work", `${provider} · ${model}`),
-      () => withModelPreference(picked, () => planImpl(supabase, String(context.userId), scoped)),
+    const { model: _model, ...rest } = data;
+    const payload = { ...rest, requestId: runId, picked };
+    // Refuse unauthorised workspaces before anything is queued.
+    await assertBuilderAccess(supabase, userId, data.organizationId);
+    // The plan runs as a background job, so leaving the app never stops it.
+    const jobs = await import("@/lib/builder/chat-jobs.server");
+    const job = await jobs.startChatJob({
+      organizationId: data.organizationId,
+      userId,
+      kind: "plan",
+      requestKey: runId,
+      payload: payload as unknown as Record<string, unknown>,
+    });
+    return (await jobs.awaitChatJob(job, await callerOwner(context.supabase), executeBuilderChatJob)) as WebsitePlan;
+  });
+
+/** The caller's own session, for running a job inside their request. */
+async function callerOwner(client: unknown) {
+  const { getRequest } = await import("@tanstack/react-start/server");
+  return {
+    supabase: client as SupabaseClient,
+    authorization: getRequest()?.headers.get("authorization") ?? "",
+  };
+}
+
+/**
+ * Runs one saved builder chat job as its owner — in the background worker, or
+ * inside the owner's request when the worker is unreachable. A plan that the
+ * chat would apply straight away is applied here too (under the same
+ * operation key the browser uses), so the change lands even if the owner
+ * never comes back to the app.
+ */
+export async function executeBuilderChatJob(
+  job: import("@/lib/builder/chat-jobs.server").ChatJobRow,
+  owner: { supabase: SupabaseClient; authorization: string },
+): Promise<unknown> {
+  const { withActingAuthorization } = await import("@/lib/builder/acting-auth.server");
+  const { withModelActivity } = await import("@/lib/ai/model-activity-scope.server");
+  const { noteStage } = await import("@/lib/builder/progress.server");
+  const supabase = owner.supabase as unknown as SupabaseLike;
+  const input = job.input as Record<string, unknown>;
+  const orgId = job.organization_id;
+  if (job.kind === "apply") {
+    const data = input as unknown as ApplyInput;
+    const runId = data.operationKey?.split(":")[0] || job.request_key.split(":")[0]!;
+    return withActingAuthorization(owner.authorization, () =>
+      withModelActivity(
+        (provider, model) => noteStage(orgId, runId, "model at work", `${provider} · ${model}`),
+        () => applyImpl(supabase, job.user_id, { ...data, organizationId: orgId }),
+      ),
     );
+  }
+  const { withModelPreference } = await import("@/lib/ai/model-preference-scope.server");
+  const picked = typeof input["picked"] === "string" ? (input["picked"] as string) : null;
+  const planInput = { ...(input as unknown as PlanInput), organizationId: orgId, requestId: job.request_key };
+  const plan = await withActingAuthorization(owner.authorization, () =>
+    withModelActivity(
+      (provider, model) => noteStage(orgId, job.request_key, "model at work", `${provider} · ${model}`),
+      () => withModelPreference(picked, () => planImpl(supabase, job.user_id, planInput)),
+    ),
+  );
+  const actions = autoApplyActions(plan);
+  if (actions) {
+    const jobs = await import("@/lib/builder/chat-jobs.server");
+    if (!(await jobs.isChatJobCancelled(job.id))) {
+      try {
+        const applyJob = await jobs.startChatJob({
+          organizationId: orgId,
+          userId: job.user_id,
+          kind: "apply",
+          requestKey: job.request_key,
+          payload: {
+            organizationId: orgId,
+            actions,
+            label: (String((plan as { summary?: unknown }).summary ?? "") || planInput.instruction).slice(0, 110) || "Before Revora changes",
+            verify: true,
+            operationKey: job.request_key,
+          },
+          kick: false,
+        });
+        await jobs.awaitChatJob(applyJob, owner, executeBuilderChatJob, { fallbackAfterMs: 0 });
+      } catch (error) {
+        // The plan itself is still good; the browser shows the apply outcome
+        // when it asks for the same operation key.
+        console.warn("[builder-chat] background apply did not finish", error);
+      }
+    }
+  }
+  return plan;
+}
+
+/** Same rule as the chat's auto-apply: only reversible steps, no open questions, first batch. */
+export function autoApplyActions(plan: unknown): unknown[] | null {
+  const value = plan as {
+    steps?: { destructive?: boolean; action?: unknown }[];
+    questions?: unknown[];
+    unavailable?: unknown;
+    deferred?: unknown;
+    conversational?: unknown;
+  } | null;
+  if (!value || value.deferred || value.conversational || value.unavailable) return null;
+  const steps = Array.isArray(value.steps) ? value.steps : [];
+  if (!steps.length || (value.questions?.length ?? 0) > 0) return null;
+  if (steps.some((step) => step.destructive || !step.action)) return null;
+  return steps.slice(0, 400).map((step) => step.action);
+}
+
+/** "Stop waiting" in the chat: a plan still running is dropped and never applied. */
+export const cancelWebsitePlan = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: { organizationId: string; requestId: string }) => ({
+    organizationId: orgIdOf(input),
+    requestId: str(input?.requestId, 80),
+  }))
+  .handler(async ({ data, context }) => {
+    if (!data.requestId) return { cancelled: false };
+    const { cancelChatJob } = await import("@/lib/builder/chat-jobs.server");
+    await cancelChatJob(data.organizationId, String(context.userId), "plan", data.requestId);
+    return { cancelled: true };
   });
 
 /** Only a super admin's pick is honoured; everyone else always gets Auto. */
@@ -909,15 +1021,21 @@ export const applyWebsiteChanges = createServerFn({ method: "POST" })
     }),
   )
   .handler(async ({ data, context }) => {
-    const runId = data.operationKey?.split(":")[0];
-    const work = () => applyImpl(context.supabase as unknown as SupabaseLike, String(context.userId), data);
-    if (!runId) return work();
-    const { withModelActivity } = await import("@/lib/ai/model-activity-scope.server");
-    const { noteStage } = await import("@/lib/builder/progress.server");
-    return withModelActivity(
-      (provider, model) => noteStage(data.organizationId, runId, "model at work", `${provider} · ${model}`),
-      work,
-    );
+    const userId = String(context.userId);
+    const supabase = context.supabase as unknown as SupabaseLike;
+    if (!data.operationKey) return applyImpl(supabase, userId, data);
+    // Keyed applies run as a background job (same key = same job), so leaving
+    // the app mid-apply never cuts the write off half-way.
+    await assertBuilderAccess(supabase, userId, data.organizationId);
+    const jobs = await import("@/lib/builder/chat-jobs.server");
+    const job = await jobs.startChatJob({
+      organizationId: data.organizationId,
+      userId,
+      kind: "apply",
+      requestKey: data.operationKey,
+      payload: data as unknown as Record<string, unknown>,
+    });
+    return (await jobs.awaitChatJob(job, await callerOwner(context.supabase), executeBuilderChatJob)) as Awaited<ReturnType<typeof applyImpl>>;
   });
 
 type ApplyInput = {

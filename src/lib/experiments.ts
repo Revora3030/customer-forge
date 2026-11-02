@@ -6,9 +6,17 @@
  * as a marketing conversion event, and every later funnel event carries the
  * visitor's variants — so sign-up rate can be compared per variant without any
  * third-party script.
+ *
+ * Because the assignment persists in browser storage and is attached to
+ * analytics events, it follows the same analytics choice as the visitor id
+ * (`canTrackAds`): in consent regions it is only made after Accept, and never
+ * under Global Privacy Control or after a Reject. Until then the visitor sees
+ * the control (the first variant), nothing is stored and no exposure is
+ * recorded. A stored assignment is deleted when the choice no longer allows it.
  */
 
 import { trackConversion } from "@/lib/conversion";
+import { canTrackAds, EXPERIMENTS_STORAGE_KEY } from "@/lib/consent";
 import { GROWTH_SYSTEM } from "@/lib/offer";
 
 export const EXPERIMENTS = {
@@ -19,7 +27,7 @@ export const EXPERIMENTS = {
 export type ExperimentKey = keyof typeof EXPERIMENTS;
 export type Variant<K extends ExperimentKey> = (typeof EXPERIMENTS)[K][number];
 
-const STORE_KEY = "revora.experiments.v1";
+const STORE_KEY = EXPERIMENTS_STORAGE_KEY;
 const EXPOSED_KEY = "revora.experiments.exposed.v1";
 
 const isBrowser = () => typeof window !== "undefined";
@@ -51,7 +59,41 @@ function pick<K extends ExperimentKey>(key: K): Variant<K> {
   return (options[index] ?? options[0]) as Variant<K>;
 }
 
-/** Sticky variant for this visitor. Falls back to the control during SSR. */
+/** The variant every visitor sees until their analytics choice allows a test. */
+export function controlOf<K extends ExperimentKey>(key: K): Variant<K> {
+  return EXPERIMENTS[key][0] as Variant<K>;
+}
+
+/** Removes any stored assignment and the session's exposure record. */
+export function clearExperiments() {
+  if (!isBrowser()) return;
+  try {
+    window.localStorage.removeItem(STORE_KEY);
+    window.sessionStorage.removeItem(EXPOSED_KEY);
+  } catch {
+    /* storage unavailable */
+  }
+}
+
+/**
+ * The variant to show, once the visitor's analytics choice is known. Without
+ * permission it returns the control and clears any earlier assignment.
+ */
+export async function consentedVariantOf<K extends ExperimentKey>(
+  key: K,
+): Promise<{ variant: Variant<K>; assigned: boolean }> {
+  const allowed = await canTrackAds().catch(() => false);
+  if (!allowed) {
+    clearExperiments();
+    return { variant: controlOf(key), assigned: false };
+  }
+  return { variant: variantOf(key), assigned: true };
+}
+
+/**
+ * Sticky variant for this visitor; assigns and stores one if needed. Callers
+ * must check consent first (use `consentedVariantOf`). Control during SSR.
+ */
 export function variantOf<K extends ExperimentKey>(key: K): Variant<K> {
   const control = EXPERIMENTS[key][0] as Variant<K>;
   if (!isBrowser()) return control;
@@ -65,12 +107,9 @@ export function variantOf<K extends ExperimentKey>(key: K): Variant<K> {
   return assigned;
 }
 
-/** Every variant this visitor is in — attached to funnel events for analysis. */
+/** Every stored variant for this visitor. Read-only: never assigns. */
 export function activeVariants(): Record<string, string> {
-  if (!isBrowser()) return {};
-  const out: Record<string, string> = {};
-  for (const key of Object.keys(EXPERIMENTS) as ExperimentKey[]) out[key] = variantOf(key);
-  return out;
+  return readStore();
 }
 
 /** Records that the visitor actually saw a variant. Once per session per test. */
