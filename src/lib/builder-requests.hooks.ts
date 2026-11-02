@@ -34,7 +34,7 @@ import {
   updateTask,
   type QueueTask,
 } from "@/lib/builder-queue";
-import { applyWebsiteChanges, planWebsiteChanges } from "@/lib/site-agent.functions";
+import { applyWebsiteChanges, cancelWebsitePlan, planWebsiteChanges } from "@/lib/site-agent.functions";
 import type { AgentStep } from "@/lib/site-agent";
 import type { AgentAttachment } from "@/lib/site-agent";
 import { trackConversion } from "@/lib/conversion";
