@@ -327,8 +327,8 @@ export function selectionChipLabel(selection: {
 
 /**
  * The owner's own words for display: drops the page/section context the
- * composer adds for the AI ("(The owner has the … page open …)", "(id
- * … id …"), which was showing up inside the owner's chat bubble.
+ * composer adds for the AI (the open-page note and block/element ids),
+ * which was showing up inside the owner's chat bubble.
  */
 export function ownerWords(instruction: string): string {
   let text = instruction;
