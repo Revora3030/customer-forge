@@ -38,7 +38,7 @@ import { applyWebsiteChanges, cancelWebsitePlan, planWebsiteChanges } from "@/li
 import type { AgentStep } from "@/lib/site-agent";
 import type { AgentAttachment } from "@/lib/site-agent";
 import { trackConversion } from "@/lib/conversion";
-import { PLAN_STOPPED_MESSAGE, withDeadline } from "@/lib/builder/plan-deadline";
+import { PLAN_STOPPED_MESSAGE, recoveryLooksDead, withDeadline } from "@/lib/builder/plan-deadline";
 import { friendlyError } from "@/lib/user-error";
 import {
   clearTurns,
@@ -179,14 +179,14 @@ async function findSavedPlan(
 /**
  * The server-side job behind a plan or apply (it keeps running when the phone
  * leaves the app). Finished → its result; failed/stopped → that error; still
- * going or not found → null.
+ * queued or running → `{ alive: true }`; not found → null.
  */
 async function readChatJobOutcome(
   organizationId: string,
   kind: "plan" | "apply",
   requestKey: string,
   since?: string,
-): Promise<{ result: unknown } | null> {
+): Promise<{ result: unknown } | { alive: true } | null> {
   let query = supabase
     .from("builder_chat_jobs")
     .select("status, result, error, created_at")
@@ -200,25 +200,67 @@ async function readChatJobOutcome(
   if (data.status === "done") return { result: data.result };
   if (data.status === "failed") throw new ChatJobFailed(data.error || "That request couldn't be finished.");
   if (data.status === "cancelled") throw new ChatJobFailed("That request was stopped.");
-  return null;
+  return { alive: true };
 }
 
 class ChatJobFailed extends Error {}
 
-/** Waits (up to ~15 minutes) for a server job the browser lost touch with. */
-async function recoverChatJob(organizationId: string, kind: "plan" | "apply", requestKey: string, since?: string): Promise<unknown | null> {
+/** Newest progress line the server wrote for this request, as epoch ms (0 when none). */
+async function latestProgressAt(organizationId: string, runId: string): Promise<number> {
+  const { data, error } = await supabase
+    .from("builder_progress")
+    .select("created_at")
+    .eq("organization_id", organizationId)
+    .eq("run_id", runId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return data?.created_at ? Date.parse(data.created_at) : 0;
+}
+
+/**
+ * Waits (up to ~15 minutes) for a server job the browser lost touch with, but
+ * stops early once the server shows no sign of working on it (no running job,
+ * no new progress line) for a few minutes: that work died, and waiting longer
+ * only kept "Planning…" on screen with every later message stuck behind it.
+ * Reads that fail (still offline) are never taken as a sign the work died.
+ */
+async function waitForServerWork(
+  organizationId: string,
+  requestKey: string,
+  read: () => Promise<unknown | null>,
+  kind: "plan" | "apply",
+  since?: string,
+): Promise<unknown | null> {
   const deadline = Date.now() + 15 * 60 * 1000;
+  let lastSignOfLife = Date.now();
   while (Date.now() < deadline) {
     await new Promise((resolve) => setTimeout(resolve, 4000));
     try {
+      const found = await read();
+      if (found) return found;
       const outcome = await readChatJobOutcome(organizationId, kind, requestKey, since);
-      if (outcome) return outcome.result;
+      if (outcome && "result" in outcome) {
+        if (outcome.result) return outcome.result;
+      } else if (outcome && "alive" in outcome) {
+        lastSignOfLife = Date.now();
+        continue;
+      }
+      const progressAt = await latestProgressAt(organizationId, requestKey);
+      if (progressAt > lastSignOfLife) lastSignOfLife = progressAt;
+      if (recoveryLooksDead(lastSignOfLife)) return null;
     } catch (error) {
       if (error instanceof ChatJobFailed) throw error;
-      // Still offline: keep waiting.
+      // Still offline: keep waiting, and don't count this time against the work.
+      lastSignOfLife = Date.now();
     }
   }
   return null;
+}
+
+async function recoverChatJob(organizationId: string, kind: "plan" | "apply", requestKey: string, since?: string): Promise<unknown | null> {
+  return waitForServerWork(organizationId, requestKey, async () => null, kind, since);
 }
 
 async function recoverPlan(
@@ -228,20 +270,13 @@ async function recoverPlan(
 ): Promise<unknown | null> {
   // The plan keeps running on the server after the phone leaves the app;
   // wait for the saved plan instead of showing "Load failed" mid-build.
-  const deadline = Date.now() + 15 * 60 * 1000;
-  while (Date.now() < deadline) {
-    await new Promise((resolve) => setTimeout(resolve, 4000));
-    try {
-      const found = await findSavedPlan(organizationId, requestId, options);
-      if (found) return found;
-      const outcome = await readChatJobOutcome(organizationId, "plan", requestId, options.since);
-      if (outcome?.result) return outcome.result;
-    } catch (error) {
-      if (error instanceof ChatJobFailed) throw error;
-      // Still offline: keep waiting.
-    }
-  }
-  return null;
+  return waitForServerWork(
+    organizationId,
+    requestId,
+    () => findSavedPlan(organizationId, requestId, options),
+    "plan",
+    options.since,
+  );
 }
 
 export function useBuilderRequests({
