@@ -38,6 +38,12 @@ describe("router retry policy", () => {
       routerEstimate: () => 5_000,
       routerActual: () => 1,
     }));
+    // The live catalogue GET is not a model call; keep it out of the fetch count.
+    vi.doMock("@/lib/ai/catalogue.server", async (orig) => ({
+      ...(await orig<typeof import("@/lib/ai/catalogue.server")>()),
+      catalogueFilterFor: async () => null,
+      eligibleCatalogueModelsForRole: async () => [],
+    }));
     process.env["BUILDER_EXTERNAL_AI_ALLOWED"] = "true";
     process.env["FREE_AI_ENABLED"] = "false";
     process.env["FREE_AI_ONLY"] = "false";
