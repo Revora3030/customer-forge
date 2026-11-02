@@ -69,13 +69,15 @@ export const REVIEW_AREA_MODELS: Partial<Record<ReviewArea, string[]>> = {
   mobile: ["google/gemini-3.8-flash"],
   completeness: ["openai/gpt-6-astra"],
   senior: ["anthropic/claude-opus-5-5"],
-  whole_site: ["anthropic/claude-fable-5-1"],
-  markup: ["anthropic/claude-opus-5"],
+  // Cost trim 2026-11-02: one premium Opus reviewer (senior) stays; the other
+  // flagship-priced seats moved to cheaper strong models.
+  whole_site: ["anthropic/claude-sonnet-5"],
+  markup: ["openai/gpt-6-astra"],
   funnel: ["google/gemini-3.1-pro-preview"],
   consistency: ["openai/gpt-5.5"],
   industry_fit: ["google/gemini-4-argon"],
   visual_craft: ["google/gemini-3.8-flash"],
-  distinctiveness: ["anthropic/claude-opus-5-5"],
+  distinctiveness: ["anthropic/claude-sonnet-5"],
 };
 
 export function panelFor(mode: "full" | "light"): Reviewer[] {
