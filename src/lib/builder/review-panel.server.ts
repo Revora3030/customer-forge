@@ -68,7 +68,9 @@ export const REVIEW_AREA_MODELS: Partial<Record<ReviewArea, string[]>> = {
   accessibility: ["anthropic/claude-haiku-4-5"],
   mobile: ["google/gemini-3.8-flash"],
   completeness: ["openai/gpt-6-astra"],
-  senior: ["anthropic/claude-opus-5-5"],
+  // Cost order 2026-11-02: Sonnet 5 leads senior review (~40% cheaper than
+  // Opus); the router still fails over to the rest of the team.
+  senior: ["anthropic/claude-sonnet-5"],
   // Cost trim 2026-11-02: one premium Opus reviewer (senior) stays; the other
   // flagship-priced seats moved to cheaper strong models.
   whole_site: ["anthropic/claude-sonnet-5"],

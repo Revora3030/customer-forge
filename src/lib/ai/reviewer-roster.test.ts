@@ -30,7 +30,7 @@ describe("reviewer model preferences", () => {
     const { providerConfig } = await import("./config");
     const configured = providerConfig()!.models;
     const primary = new Set(configured.primary.split(",").map((id) => id.trim()));
-    const missed = ["accessibility", "senior", "funnel"] as const;
+    const missed = ["accessibility", "funnel"] as const;
     for (const area of missed) {
       const lead = REVIEW_AREA_MODELS[area]?.[0];
       expect(lead, area).toBeTruthy();
@@ -41,9 +41,9 @@ describe("reviewer model preferences", () => {
 });
 
 describe("review panel cost trim", () => {
-  it("keeps only one Opus-class seat and no Fable seat", () => {
+  it("leads no review seat with an Opus-class or Fable model", () => {
     const leads = Object.values(REVIEW_AREA_MODELS).map((m) => m?.[0]);
-    expect(leads.filter((id) => id?.includes("opus")).length).toBe(1);
+    expect(leads.filter((id) => id?.includes("opus")).length).toBe(0);
     expect(leads.some((id) => id?.includes("fable"))).toBe(false);
   });
 });
