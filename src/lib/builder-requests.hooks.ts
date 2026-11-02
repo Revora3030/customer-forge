@@ -247,6 +247,8 @@ async function waitForServerWork(
         lastSignOfLife = Date.now();
         continue;
       }
+      // An apply may already be writing the site: never give up on it early.
+      if (kind === "apply") continue;
       const progressAt = await latestProgressAt(organizationId, requestKey);
       if (progressAt > lastSignOfLife) lastSignOfLife = progressAt;
       if (recoveryLooksDead(lastSignOfLife)) return null;
