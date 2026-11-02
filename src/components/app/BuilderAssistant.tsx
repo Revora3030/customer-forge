@@ -75,7 +75,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { getAiSuggestions } from "@/lib/ai-suggestions.functions";
 import { QUEUE_LABELS, timelineFor } from "@/lib/builder-queue";
 import { onAssistantPrompt } from "@/lib/assistant-bridge";
-import { pageContextPrefix, selectionChipLabel, selectionPrefix, type PageContext } from "@/lib/builder/preview-bridge";
+import { ownerWords, pageContextPrefix, selectionChipLabel, selectionPrefix, type PageContext } from "@/lib/builder/preview-bridge";
 import { actionsForElement } from "@/lib/builder/element-actions";
 import { MAIN_BRANCH, normaliseRequestId } from "@/lib/builder/chat-thread";
 import { wantsFreshRebuild } from "@/lib/builder/rebuild-intent";
@@ -933,7 +933,7 @@ function UserTurn({ text, attachments = 0 }: { text: string; attachments?: numbe
   return (
     <div className="flex justify-end">
       <div className="ml-auto max-w-[85%] rounded-2xl rounded-br-md bg-[var(--chat-user-bg)] px-3.5 py-2.5 text-[15px] leading-6 whitespace-pre-wrap text-foreground [overflow-wrap:anywhere]">
-        {text}
+        {ownerWords(text)}
         {attachments ? (
           <span className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
             <ImagePlus className="size-3.5" aria-hidden /> {attachments} attachment{attachments === 1 ? "" : "s"}
