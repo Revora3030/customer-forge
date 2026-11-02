@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import type { CitySnapshot, CitySource, CityWork, PipelineCounts } from "./ai-city";
 import { summarize } from "./jarvis-events";
-import { settleRecoveredFailures, settleSupersededBuilds } from "./ai-city";
+import { settleRecoveredFailures, settleRecoveredTraces, settleSupersededBuilds } from "./ai-city";
 
 export async function collectCitySnapshot(db: SupabaseClient<Database>, userId: string): Promise<CitySnapshot> {
   const since = new Date(Date.now() - 7 * 86_400_000).toISOString();
@@ -20,7 +20,7 @@ export async function collectCitySnapshot(db: SupabaseClient<Database>, userId: 
     source(db.from("generation_jobs").select("id,organization_id,status,current_step,progress,updated_at,started_at,wait_reason,resumes_at", { count: "exact" }).in("status", ["queued", "running", "waiting", "retrying", "failed"]).order("updated_at", { ascending: false }).limit(limit), r => ({ ...base(r, "factory", "generation_jobs", text(r, "current_step") || "Website build"), progress: Number(r["progress"]) || 0, ...(typeof r["started_at"] === "string" ? { startedAt: r["started_at"] } : {}), detail: text(r, "wait_reason") || (r["resumes_at"] ? `Retry: ${text(r, "resumes_at")}` : null) })),
     source(db.from("jarvis_run_events").select("id,run_id,kind,status,label,model,provider,created_at,output_summary,tool_id").eq("user_id", userId).gte("created_at", since).order("created_at", { ascending: false }).limit(limit), r => ({ ...base(r, "executive", "jarvis_run_events", text(r, "label") || text(r, "tool_id") || "Jarvis work"), runId: text(r, "run_id"), kind: text(r, "kind"), model: r["provider"] === "lovable" ? text(r, "model") : null, detail: text(r, "output_summary") })),
     source(db.from("jarvis_routines").select("id,name,enabled,last_status,last_run_at,created_at,hour,minute,frequency").eq("user_id", userId).order("created_at").limit(limit), r => ({ ...base(r, "executive", "jarvis_routines", text(r, "name")), status: r["enabled"] ? text(r, "last_status") || "scheduled" : "paused", at: text(r, "last_run_at") || text(r, "created_at"), detail: `${text(r, "frequency")} · ${String(r["hour"]).padStart(2, "0")}:${String(r["minute"]).padStart(2, "0")} Eastern` })),
-    source(db.from("ai_team_trace").select("id,stage,model,ok,created_at,organization_id").eq("provider", "lovable").gte("created_at", since).order("created_at", { ascending: false }).limit(limit), r => ({ ...base(r, "institute", "ai_team_trace", text(r, "stage")), status: r["ok"] === true ? "ok" : "failed", model: text(r, "model") })),
+    source(db.from("ai_team_trace").select("id,stage,model,ok,reason,created_at,organization_id", { count: "exact" }).eq("provider", "lovable").gte("created_at", since).order("created_at", { ascending: false }).limit(limit), r => ({ ...base(r, "institute", "ai_team_trace", text(r, "stage")), status: r["ok"] === true ? "ok" : "failed", model: text(r, "model"), detail: text(r, "reason") || null })),
     source(db.from("image_records").select("id,organization_id,slot,status,updated_at,model,provider", { count: "exact" }).eq("status", "pending").order("updated_at", { ascending: false }).limit(limit), r => ({ ...base(r, "creative", "image_records", text(r, "slot") || "Image review"), model: r["provider"] === "lovable" ? text(r, "model") : null })),
     source(db.from("approval_queue").select("id,summary,status,created_at,module,executed_at", { count: "exact" }).eq("status", "pending").order("created_at", { ascending: false }).limit(limit), r => ({ ...base(r, "growth", "approval_queue", text(r, "summary")), detail: text(r, "module") })),
     source(db.from("automation_runs").select("id,organization_id,action_type,status,created_at,scheduled_for", { count: "exact" }).in("status", ["pending", "running", "failed"]).order("created_at", { ascending: false }).limit(limit), r => ({ ...base(r, "growth", "automation_runs", text(r, "action_type")), detail: `Scheduled: ${text(r, "scheduled_for")}` })),
@@ -43,6 +43,7 @@ export async function collectCitySnapshot(db: SupabaseClient<Database>, userId: 
     }
   }
   if (events.available) events.rows = settleRecoveredFailures(events.rows);
+  if (traces.available) traces.rows = settleRecoveredTraces(traces.rows);
   const pipeline = await collectSalesPipeline(db);
   return { checkedAt: new Date().toISOString(), sources: { jobs, events, routines, traces, images, approvals, automations, errors, memories }, pipeline };
 }

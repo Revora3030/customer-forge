@@ -125,6 +125,7 @@ import { Route as ApiPublicInstagramCallbackRouteImport } from './routes/api/pub
 import { Route as ApiPublicJobsAgentRunsRouteImport } from './routes/api/public/jobs/agent-runs'
 import { Route as ApiPublicJobsAutomationRunsRouteImport } from './routes/api/public/jobs/automation-runs'
 import { Route as ApiPublicJobsBackupRouteImport } from './routes/api/public/jobs/backup'
+import { Route as ApiPublicJobsBuilderChatRouteImport } from './routes/api/public/jobs/builder-chat'
 import { Route as ApiPublicJobsGrowthDigestRouteImport } from './routes/api/public/jobs/growth-digest'
 import { Route as ApiPublicJobsJarvisRoutinesRouteImport } from './routes/api/public/jobs/jarvis-routines'
 import { Route as ApiPublicJobsLeadAlertRetryRouteImport } from './routes/api/public/jobs/lead-alert-retry'
@@ -756,6 +757,12 @@ const ApiPublicJobsBackupRoute = ApiPublicJobsBackupRouteImport.update({
   path: '/api/public/jobs/backup',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicJobsBuilderChatRoute =
+  ApiPublicJobsBuilderChatRouteImport.update({
+    id: '/api/public/jobs/builder-chat',
+    path: '/api/public/jobs/builder-chat',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicJobsGrowthDigestRoute =
   ApiPublicJobsGrowthDigestRouteImport.update({
     id: '/api/public/jobs/growth-digest',
@@ -1010,6 +1017,7 @@ export interface FileRoutesByFullPath {
   '/api/public/jobs/agent-runs': typeof ApiPublicJobsAgentRunsRoute
   '/api/public/jobs/automation-runs': typeof ApiPublicJobsAutomationRunsRoute
   '/api/public/jobs/backup': typeof ApiPublicJobsBackupRoute
+  '/api/public/jobs/builder-chat': typeof ApiPublicJobsBuilderChatRoute
   '/api/public/jobs/growth-digest': typeof ApiPublicJobsGrowthDigestRoute
   '/api/public/jobs/jarvis-routines': typeof ApiPublicJobsJarvisRoutinesRoute
   '/api/public/jobs/lead-alert-retry': typeof ApiPublicJobsLeadAlertRetryRoute
@@ -1146,6 +1154,7 @@ export interface FileRoutesByTo {
   '/api/public/jobs/agent-runs': typeof ApiPublicJobsAgentRunsRoute
   '/api/public/jobs/automation-runs': typeof ApiPublicJobsAutomationRunsRoute
   '/api/public/jobs/backup': typeof ApiPublicJobsBackupRoute
+  '/api/public/jobs/builder-chat': typeof ApiPublicJobsBuilderChatRoute
   '/api/public/jobs/growth-digest': typeof ApiPublicJobsGrowthDigestRoute
   '/api/public/jobs/jarvis-routines': typeof ApiPublicJobsJarvisRoutinesRoute
   '/api/public/jobs/lead-alert-retry': typeof ApiPublicJobsLeadAlertRetryRoute
@@ -1289,6 +1298,7 @@ export interface FileRoutesById {
   '/api/public/jobs/agent-runs': typeof ApiPublicJobsAgentRunsRoute
   '/api/public/jobs/automation-runs': typeof ApiPublicJobsAutomationRunsRoute
   '/api/public/jobs/backup': typeof ApiPublicJobsBackupRoute
+  '/api/public/jobs/builder-chat': typeof ApiPublicJobsBuilderChatRoute
   '/api/public/jobs/growth-digest': typeof ApiPublicJobsGrowthDigestRoute
   '/api/public/jobs/jarvis-routines': typeof ApiPublicJobsJarvisRoutinesRoute
   '/api/public/jobs/lead-alert-retry': typeof ApiPublicJobsLeadAlertRetryRoute
@@ -1432,6 +1442,7 @@ export interface FileRouteTypes {
     | '/api/public/jobs/agent-runs'
     | '/api/public/jobs/automation-runs'
     | '/api/public/jobs/backup'
+    | '/api/public/jobs/builder-chat'
     | '/api/public/jobs/growth-digest'
     | '/api/public/jobs/jarvis-routines'
     | '/api/public/jobs/lead-alert-retry'
@@ -1568,6 +1579,7 @@ export interface FileRouteTypes {
     | '/api/public/jobs/agent-runs'
     | '/api/public/jobs/automation-runs'
     | '/api/public/jobs/backup'
+    | '/api/public/jobs/builder-chat'
     | '/api/public/jobs/growth-digest'
     | '/api/public/jobs/jarvis-routines'
     | '/api/public/jobs/lead-alert-retry'
@@ -1710,6 +1722,7 @@ export interface FileRouteTypes {
     | '/api/public/jobs/agent-runs'
     | '/api/public/jobs/automation-runs'
     | '/api/public/jobs/backup'
+    | '/api/public/jobs/builder-chat'
     | '/api/public/jobs/growth-digest'
     | '/api/public/jobs/jarvis-routines'
     | '/api/public/jobs/lead-alert-retry'
@@ -1800,6 +1813,7 @@ export interface RootRouteChildren {
   ApiPublicJobsAgentRunsRoute: typeof ApiPublicJobsAgentRunsRoute
   ApiPublicJobsAutomationRunsRoute: typeof ApiPublicJobsAutomationRunsRoute
   ApiPublicJobsBackupRoute: typeof ApiPublicJobsBackupRoute
+  ApiPublicJobsBuilderChatRoute: typeof ApiPublicJobsBuilderChatRoute
   ApiPublicJobsGrowthDigestRoute: typeof ApiPublicJobsGrowthDigestRoute
   ApiPublicJobsJarvisRoutinesRoute: typeof ApiPublicJobsJarvisRoutinesRoute
   ApiPublicJobsLeadAlertRetryRoute: typeof ApiPublicJobsLeadAlertRetryRoute
@@ -2637,6 +2651,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicJobsBackupRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/jobs/builder-chat': {
+      id: '/api/public/jobs/builder-chat'
+      path: '/api/public/jobs/builder-chat'
+      fullPath: '/api/public/jobs/builder-chat'
+      preLoaderRoute: typeof ApiPublicJobsBuilderChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/jobs/growth-digest': {
       id: '/api/public/jobs/growth-digest'
       path: '/api/public/jobs/growth-digest'
@@ -3108,6 +3129,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicJobsAgentRunsRoute: ApiPublicJobsAgentRunsRoute,
   ApiPublicJobsAutomationRunsRoute: ApiPublicJobsAutomationRunsRoute,
   ApiPublicJobsBackupRoute: ApiPublicJobsBackupRoute,
+  ApiPublicJobsBuilderChatRoute: ApiPublicJobsBuilderChatRoute,
   ApiPublicJobsGrowthDigestRoute: ApiPublicJobsGrowthDigestRoute,
   ApiPublicJobsJarvisRoutinesRoute: ApiPublicJobsJarvisRoutinesRoute,
   ApiPublicJobsLeadAlertRetryRoute: ApiPublicJobsLeadAlertRetryRoute,

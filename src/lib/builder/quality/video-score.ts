@@ -15,6 +15,7 @@ import type { CompositionNode } from "@/lib/builder/composition-tree";
 import { contrastRatio } from "@/lib/readable-color";
 import type { LoadedBlueprint } from "@/lib/builder/quality/blueprint-loader";
 import { findInventedFacts, type IntakeFacts } from "@/lib/builder/quality/facts-guard";
+import { checkMobile390 } from "@/lib/builder/quality/mobile-390";
 import { extractFeatures, type FlatNode, type ModelSection, type SiteFeatures, type SiteModel } from "@/lib/builder/quality/video-site-model";
 
 /** The spec sets no numeric pass mark. */
@@ -42,11 +43,11 @@ export const LIMITS = {
 
 export type CriterionId =
   | "hero_cinematic" | "scroll_story" | "scroll_motion" | "signature_tool" | "lead_capture" | "cta_bar"
-  | "type_rules" | "palette_rules" | "images" | "section_rhythm" | "mobile_layout" | "anti_ai_lint" | "truth_facts";
+  | "type_rules" | "palette_rules" | "images" | "section_rhythm" | "mobile_layout" | "mobile_390" | "anti_ai_lint" | "truth_facts";
 
 export const CRITERIA_WEIGHTS: Readonly<Record<CriterionId, number>> = {
-  hero_cinematic: 10, scroll_story: 10, scroll_motion: 7, signature_tool: 12, lead_capture: 10, cta_bar: 4,
-  type_rules: 7, palette_rules: 7, images: 8, section_rhythm: 6, mobile_layout: 6, anti_ai_lint: 8, truth_facts: 5,
+  hero_cinematic: 9, scroll_story: 9, scroll_motion: 6, signature_tool: 12, lead_capture: 10, cta_bar: 4,
+  type_rules: 6, palette_rules: 6, images: 7, section_rhythm: 6, mobile_layout: 6, mobile_390: 8, anti_ai_lint: 7, truth_facts: 4,
 };
 
 export const CRITERIA_LABELS: Readonly<Record<CriterionId, string>> = {
@@ -61,6 +62,7 @@ export const CRITERIA_LABELS: Readonly<Record<CriterionId, string>> = {
   images: "Real pictures: enough of them, described, none stock or placeholder",
   section_rhythm: "Section rhythm and order",
   mobile_layout: "Phone layout",
+  mobile_390: "Phone check at 390px: nothing broken, hidden or in the way",
   anti_ai_lint: "No template or AI-written look",
   truth_facts: "Only the owner's real facts",
 };
@@ -98,6 +100,11 @@ export type VideoScore = {
   passed: boolean;
   /** Why the score was capped under the bar, if it was. */
   capped: "invented_facts" | "no_lead_capture" | null;
+  /**
+   * Phone-check failures that keep the site under the bar whatever else it scores (a visible loading counter, or a
+   * home page with no content). Kept apart from `capped`, which is stored with a fixed set of values in the quality log.
+   */
+  blockers: string[];
   blueprint: string;
   criteria: CriterionResult[];
 };
@@ -614,10 +621,24 @@ function truthFacts(ctx: Ctx): Partial3 {
   };
 }
 
+/** The 390px phone check (G-A5). The eight checks live in mobile-390.ts; this is their one scored criterion. */
+function mobile390(ctx: Ctx): Partial3 {
+  const r = checkMobile390(ctx.input.site, ctx.f);
+  if (!r.findings.length) return { score: 1, detail: "At 390px wide: no loading overlay, no owner button, no sideways scroll, no big gaps, readable hero, one contact block, nothing covered, real content." };
+  const first = r.findings.slice().sort((a, b) => Number(b.hard) - Number(a.hard))[0]!;
+  const more = r.findings.length - 1;
+  return {
+    score: r.score,
+    detail: `${first.detail[0]!.toUpperCase()}${first.detail.slice(1)}${more > 0 ? ` ${more} more phone problem(s) found.` : ""}`,
+    fix: r.findings.map((x) => x.fix).join(" "),
+    sections: uniq(r.findings.flatMap((x) => x.sections)),
+  };
+}
+
 const CRITERIA: readonly [CriterionId, (ctx: Ctx) => Partial3][] = [
   ["hero_cinematic", heroCinematic], ["scroll_story", scrollStory], ["scroll_motion", scrollMotion], ["signature_tool", signatureTool],
   ["lead_capture", leadCapture], ["cta_bar", ctaBar], ["type_rules", typeRules], ["palette_rules", paletteRules], ["images", images],
-  ["section_rhythm", sectionRhythm], ["mobile_layout", mobileLayout], ["anti_ai_lint", antiAiLint], ["truth_facts", truthFacts],
+  ["section_rhythm", sectionRhythm], ["mobile_layout", mobileLayout], ["mobile_390", mobile390], ["anti_ai_lint", antiAiLint], ["truth_facts", truthFacts],
 ];
 
 /** Scores one generated site against the video bar. Pure and deterministic. */
@@ -636,14 +657,15 @@ export function scoreVideoBar(input: VideoScoreInput, bar: number = VIDEO_BAR): 
   const raw = Math.round(criteria.reduce((a, c) => a + c.weight * c.score, 0));
   const by = (id: CriterionId) => criteria.find((c) => c.id === id)!;
   const capped: VideoScore["capped"] = by("truth_facts").score < 1 ? "invented_facts" : by("lead_capture").score === 0 ? "no_lead_capture" : null;
-  const score = capped ? Math.min(raw, HARD_CAP) : raw;
-  return { score, rawScore: raw, bar, passed: score >= bar, capped, blueprint: input.blueprint.slug, criteria };
+  const blockers = checkMobile390(input.site, f).findings.filter((x) => x.hard).map((x) => x.id);
+  const score = capped || blockers.length ? Math.min(raw, HARD_CAP) : raw;
+  return { score, rawScore: raw, bar, passed: score >= bar, capped, blockers, blueprint: input.blueprint.slug, criteria };
 }
 
 /** The criteria worth repairing: biggest points lost first, until the lost points could close the gap to the bar. */
 export function repairTargets(result: VideoScore): CriterionResult[] {
   const lost = result.criteria.filter((c) => c.score < 1 && (c.fix || c.sections.length || c.missing.length)).map((c) => ({ c, lost: c.weight * (1 - c.score) })).sort((a, b) => b.lost - a.lost);
-  const must = result.criteria.filter((c) => (c.id === "truth_facts" && c.score < 1) || (c.id === "lead_capture" && c.score === 0));
+  const must = result.criteria.filter((c) => (c.id === "truth_facts" && c.score < 1) || (c.id === "lead_capture" && c.score === 0) || (c.id === "mobile_390" && c.score === 0));
   const gap = Math.max(1, result.bar - result.rawScore);
   const picked: CriterionResult[] = [...must];
   let covered = must.reduce((a, c) => a + c.weight * (1 - c.score), 0);

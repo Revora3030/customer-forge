@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Loader2, Search } from "lucide-react";
@@ -8,6 +8,8 @@ import { Panel, Pill, SectionHeading } from "@/components/app/Bits";
 import { friendlyError } from "@/lib/user-error";
 import { searchStockPhotos, saveStockPhoto } from "@/lib/stock-photos.functions";
 import { licenceLine, requiresCredit, type StockPhoto } from "@/lib/builder/stock-photos";
+import { picksForTrade, pickToStockPhoto, tradeKeyFor } from "@/lib/builder/trade-photo-picks";
+import { gradePhotoForSlot } from "@/lib/builder/image-framing";
 
 /**
  * Free, openly licensed photography for a site with no pictures of its own.
@@ -31,6 +33,16 @@ export function StockPhotoPanel({
   const [notice, setNotice] = useState<string | null>(null);
   const search = useServerFn(searchStockPhotos);
   const save = useServerFn(saveStockPhoto);
+  // Hand-picked, brightness-checked photos for the owner's trade. Close-up-only
+  // shots are kept but labelled, because they do not suit the top of a page.
+  const tradePicks = useMemo(
+    () =>
+      picksForTrade(industry, "card").map((pick) => ({
+        photo: pickToStockPhoto(pick),
+        suitsHero: gradePhotoForSlot({ ...pick.stats, framing: pick.framing }, "hero").ok,
+      })),
+    [industry],
+  );
 
   const searching = useMutation({
     mutationFn: async () => search({ data: { topic, industry } }),
@@ -91,6 +103,26 @@ export function StockPhotoPanel({
           Find photos
         </Button>
       </div>
+
+      {tradePicks.length > 0 ? (
+        <div className="space-y-2">
+          <p className="text-sm font-medium">{tradeKeyFor(industry) ? `Picked for your trade (${tradeKeyFor(industry)})` : "Picked for local service businesses"}</p>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            {tradePicks.map(({ photo, suitsHero }) => (
+              <figure key={photo.id} className="overflow-hidden rounded-xl border border-white/10 bg-black/20">
+                <img src={photo.thumbnail} alt={photo.title} loading="lazy" className="aspect-[4/3] w-full object-cover" />
+                <figcaption className="space-y-2 p-2">
+                  <p className="line-clamp-2 text-xs text-muted-foreground">{licenceLine(photo)}</p>
+                  <Pill>{suitsHero ? "Good for the top of a page" : "Best as a smaller photo"}</Pill>
+                  <Button size="sm" variant="secondary" className="w-full" disabled={saving.isPending} onClick={() => saving.mutate(photo)}>
+                    Use this photo
+                  </Button>
+                </figcaption>
+              </figure>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       {notice ? <p className="text-sm text-muted-foreground">{notice}</p> : null}
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CITY_DISTRICTS, districtState, workIsActive, type CitySnapshot, type CityWork } from "./ai-city";
+import { CITY_DISTRICTS, NO_ACKS, applyAcknowledged, classifyFailure, districtFailureSummary, districtState, failedLabel, failureGroups, parseAcks, settleRecoveredTraces, triageDraft, workIsActive, type CitySnapshot, type CityWork } from "./ai-city";
 import { collectCitySnapshot } from "./ai-city.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
@@ -234,5 +234,65 @@ describe("AI City failure counts ignore failures already fixed", () => {
     expect(rows.map((r) => r.status)).toEqual(["recovered", "ok", "failed"]);
     const snapshot: CitySnapshot = { checkedAt: "", sources: { events: { available: true, rows, total: 3, truncated: false } } };
     expect(districtCounts(snapshot, "executive", now)?.errors).toBe(1);
+  });
+});
+
+describe("AI City failure causes, recovery and dismissal", () => {
+  const T = Date.parse("2026-10-27T17:30:00Z");
+  const at = (minutesAgo: number) => new Date(T - minutesAgo * 60_000).toISOString();
+  const trace = (id: string, minutesAgo: number, status: string, detail: string | null, org = "o1", title = "thinker"): CityWork => ({ id, district: "institute", title, status, at: at(minutesAgo), source: "ai_team_trace", organizationId: org, detail });
+
+  it("classifies the recorded reasons in owner words", () => {
+    expect(classifyFailure("provider_unavailable: HTTP 402 payment required")).toBe("credits");
+    expect(classifyFailure("budget_exhausted")).toBe("budget");
+    expect(classifyFailure("provider_unavailable: 429 rate limit")).toBe("rate_limit");
+    expect(classifyFailure("provider_unavailable: request timed out")).toBe("timeout");
+    expect(classifyFailure("provider_unavailable")).toBe("capacity");
+    expect(classifyFailure(null)).toBe("other");
+    expect(classifyFailure("something odd")).toBe("other");
+  });
+
+  it("turns 100 failed AI steps with one cause into one problem and flags the capped read", () => {
+    const rows = Array.from({ length: 100 }, (_, i) => trace(`t${i}`, 1 + i, "failed", "provider_unavailable: 402", "o1", `stage${i % 5}`));
+    const snapshot: CitySnapshot = { checkedAt: "", sources: { traces: { available: true, rows, total: 4000, truncated: true } } };
+    const summary = districtFailureSummary(snapshot, "institute", T);
+    expect(summary?.count).toBe(100);
+    expect(summary?.groups).toHaveLength(1);
+    expect(summary?.groups[0]?.cause).toBe("credits");
+    expect(summary?.capped).toBe(true);
+    expect(failedLabel(summary)).toBe("100+ failed · 1 cause");
+    expect(failedLabel(districtFailureSummary({ checkedAt: "", sources: { traces: { available: true, rows: rows.slice(0, 3), total: 3, truncated: false } } }, "institute", T))).toBe("3 failed · 1 cause");
+    expect(failedLabel(null)).toBe("unknown");
+  });
+
+  it("separates different causes and keeps error messages with different ids together", () => {
+    const err = (id: string, message: string): CityWork => ({ id, district: "security", title: message, status: "failed", at: at(10), source: "error_events" });
+    const groups = failureGroups([err("1", "Row 123 not found"), err("2", "Row 456 not found"), err("3", "Other"), trace("4", 5, "failed", "budget_exhausted")], T);
+    expect(groups.map((g) => [g.count, g.cause])).toEqual([[2, null], [1, "budget"], [1, null]]);
+  });
+
+  it("relabels a failed AI step as recovered when the same workspace later repeated the stage successfully", () => {
+    const rows = settleRecoveredTraces([trace("a", 30, "failed", "x"), trace("b", 10, "ok", null), trace("c", 20, "failed", "x", "o2"), trace("d", 5, "failed", "x")]);
+    expect(rows.map((r) => r.status)).toEqual(["recovered", "ok", "failed", "failed"]);
+  });
+
+  it("dismissal hides only failures recorded so far, per problem or for everything, and never deletes", () => {
+    const rows = [trace("old", 60, "failed", "402"), trace("new", 1, "failed", "402"), { ...trace("w", 5, "pending", null) }];
+    const snapshot: CitySnapshot = { checkedAt: "", sources: { traces: { available: true, rows, total: 3, truncated: false } } };
+    const dismissed = applyAcknowledged(snapshot, { all: T - 30 * 60_000, groups: {} });
+    expect(dismissed?.sources["traces"]?.rows.map((r) => r.status)).toEqual(["acknowledged", "failed", "pending"]);
+    expect(districtCounts(dismissed, "institute", T)?.errors).toBe(1);
+    const group = applyAcknowledged(snapshot, { all: 0, groups: { "ai:credits": T } });
+    expect(group?.sources["traces"]?.rows.map((r) => r.status)).toEqual(["acknowledged", "acknowledged", "pending"]);
+    expect(applyAcknowledged(snapshot, NO_ACKS)).toBe(snapshot);
+    expect(parseAcks("not json")).toEqual(NO_ACKS);
+    expect(parseAcks(JSON.stringify({ all: 5, groups: { a: 2, b: "x" } }))).toEqual({ all: 5, groups: { a: 2 } });
+  });
+
+  it("drafts a read-only triage mission for a failure group", () => {
+    const [group] = failureGroups([trace("a", 3, "failed", "402")], T);
+    const draft = triageDraft(group!, T);
+    expect(draft).toContain("ai.providers.snapshot");
+    expect(draft).toContain("do not spend, send or publish");
   });
 });

@@ -41,57 +41,122 @@ function writeFlag(key: string) {
   }
 }
 
-/** Always-available offer bar, revealed once the visitor starts reading. */
+/** True while a modal dialog or a scroll-locking overlay is open. */
+function modalIsOpen() {
+  return (
+    document.body.hasAttribute("data-scroll-locked") ||
+    !!document.querySelector(
+      '[role="dialog"][aria-modal="true"], [role="alertdialog"], dialog[open]',
+    )
+  );
+}
+
+/** True while a form field has focus (phone keyboard up, visitor typing). */
+function fieldHasFocus() {
+  const el = document.activeElement;
+  return (
+    !!el &&
+    (el.matches("input, textarea, select, [contenteditable='true']") ||
+      (el as HTMLElement).isContentEditable)
+  );
+}
+
+/**
+ * Always-available offer bar, revealed once the visitor starts reading.
+ *
+ * On pages with a hero sign-up button (`data-hero-cta`, the home page) the bar
+ * waits until that button has scrolled out of view, so the same call to action
+ * never shows twice. It steps aside while a modal is open and while a form
+ * field has focus, so it can't cover what the visitor is typing into.
+ */
 function StickyCtaBar() {
   const { loading, user } = useSession();
   const [show, setShow] = useState(false);
+  const [blocked, setBlocked] = useState(false);
 
   useEffect(() => {
     if (readFlag(BAR_KEY)) return;
     // Reveal once the visitor has read past the opening screen, on any device.
-    const onScroll = () => setShow(window.scrollY > Math.max(420, window.innerHeight * 0.55));
+    const onScroll = () => {
+      const hero = document.querySelector("[data-hero-cta]");
+      setShow(
+        hero
+          ? hero.getBoundingClientRect().bottom < 0
+          : window.scrollY > Math.max(420, window.innerHeight * 0.55),
+      );
+    };
+    const sync = () => setBlocked(modalIsOpen() || fieldHasFocus());
 
     onScroll();
+    sync();
     window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
+    document.addEventListener("focusin", sync);
+    document.addEventListener("focusout", () => window.setTimeout(sync, 0));
+    const observer = new MutationObserver(sync);
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["data-scroll-locked", "open", "aria-modal"],
+    });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      document.removeEventListener("focusin", sync);
+      observer.disconnect();
+    };
   }, []);
 
   if (loading || user || !show) return null;
 
   return (
-    <div className="sticky-cta-bar animate-in fade-in slide-in-from-bottom-4 fixed inset-x-0 bottom-0 z-40 border-t border-primary/35 bg-background/95 px-3 py-2.5 pb-[calc(0.625rem+env(safe-area-inset-bottom))] backdrop-blur-sm duration-500 sm:px-4">
-      <div className="mx-auto flex max-w-6xl items-center gap-3">
-        <div className="min-w-0 flex-1">
-          <p className="text-[12.5px] leading-snug">
-            <span className="gold-hl">
-              {GROWTH_SYSTEM.fullAccessWindow} free — full access
-            </span>
-            <span className="text-muted-foreground"> · no card to start</span>
-          </p>
-          <p className="hidden text-[11px] text-muted-foreground sm:block">
-            Then {usd(GROWTH_SYSTEM.setupPrice)} setup, first month free,{" "}
-            {usd(GROWTH_SYSTEM.monthlyPrice)}/month. Cancel anytime.
-          </p>
+    <>
+      {/* Keeps the bar from covering the last lines of the page on phones. */}
+      <div className="h-20 md:hidden" aria-hidden="true" />
+      <div
+        data-blocked={blocked ? "true" : undefined}
+        className="sticky-cta-bar animate-in fade-in slide-in-from-bottom-4 fixed inset-x-0 bottom-0 z-40 border-t border-primary/35 bg-background/95 px-3 py-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] backdrop-blur-sm duration-500 data-[blocked=true]:hidden sm:px-4 sm:py-2.5 sm:pb-[calc(0.625rem+env(safe-area-inset-bottom))]"
+      >
+        <div className="mx-auto flex max-w-6xl items-center gap-3">
+          <div className="hidden min-w-0 flex-1 sm:block">
+            <p className="text-[12.5px] leading-snug">
+              <span className="gold-hl">
+                {GROWTH_SYSTEM.fullAccessWindow} free — full access
+              </span>
+              <span className="text-muted-foreground"> · no card to start</span>
+            </p>
+            <p className="hidden text-[11px] text-muted-foreground sm:block">
+              Then {usd(GROWTH_SYSTEM.setupPrice)} setup, first month free,{" "}
+              {usd(GROWTH_SYSTEM.monthlyPrice)}/month. Cancel anytime.
+            </p>
+          </div>
+          <Button
+            asChild
+            variant="signal"
+            size="sm"
+            className="min-h-11 min-w-0 flex-1 sm:min-h-0 sm:flex-none sm:shrink-0"
+          >
+            <Link to={FREE_ACCESS_TO} search={FREE_ACCESS_SEARCH}>
+              <Sparkles className="size-3.5" aria-hidden="true" />
+              <span className="sm:hidden">
+                Start free — {GROWTH_SYSTEM.fullAccessWindow}, no card
+              </span>
+              <span className="hidden sm:inline">Start free</span>
+            </Link>
+          </Button>
+          <button
+            type="button"
+            aria-label="Hide the free access bar"
+            className="grid size-11 shrink-0 cursor-pointer place-items-center rounded-md border border-border text-muted-foreground"
+            onClick={() => {
+              writeFlag(BAR_KEY);
+              setShow(false);
+            }}
+          >
+            <X className="size-3.5" aria-hidden="true" />
+          </button>
         </div>
-        <Button asChild variant="signal" size="sm" className="shrink-0">
-          <Link to={FREE_ACCESS_TO} search={FREE_ACCESS_SEARCH}>
-            <Sparkles className="size-3.5" aria-hidden="true" />
-            Start free
-          </Link>
-        </Button>
-        <button
-          type="button"
-          aria-label="Hide the free access bar"
-          className="grid size-11 shrink-0 cursor-pointer place-items-center rounded-md border border-border text-muted-foreground"
-          onClick={() => {
-            writeFlag(BAR_KEY);
-            setShow(false);
-          }}
-        >
-          <X className="size-3.5" aria-hidden="true" />
-        </button>
       </div>
-    </div>
+    </>
   );
 }
 

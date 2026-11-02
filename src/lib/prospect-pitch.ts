@@ -1,12 +1,12 @@
 /**
  * The text-only first email for pitch-first outreach: no demo site exists yet,
  * so it asks permission to build one. Deterministic on purpose (no AI call, no
- * invented figure): the only numbers are the typical entry-level tool prices in
- * software-savings.ts and the canonical offer. The sender footer and the
+ * invented figure): the only numbers are the sourced list prices in
+ * software-savings.ts (read from vendors' public pricing pages) and the canonical offer. The sender footer and the
  * unsubscribe line are appended by the outreach backend, never here.
  */
-import { GROWTH_SYSTEM } from "@/lib/offer";
-import { typicalComparison } from "@/lib/software-savings";
+import { GROWTH_SYSTEM, usd } from "@/lib/offer";
+import { PRICES_CHECKED_LABEL, typicalComparison } from "@/lib/software-savings";
 
 const cleanName = (value: string) => value.replace(/\s+/g, " ").trim().slice(0, 80);
 
@@ -22,9 +22,9 @@ export function composePitchEmail(businessName: string): { subject: string; body
     body: [
       "Hello,",
       "",
-      `Local service businesses often pay for several separate tools: a website, online scheduling, quote forms, lead tracking, email follow-up and review requests. At typical entry-level list prices those come to about $${toolsMonthly} a month, before any agency or freelancer.`,
+      `Local service businesses often pay for several separate tools: a website, online scheduling, quote forms, lead tracking, email follow-up and automation. The cheapest paid plans we checked on ${PRICES_CHECKED_LABEL} for one tool in each of those, billed annually, come to about ${usd(toolsMonthly)} a month, before any agency or freelancer, and the real cost depends on the plans you pick.`,
       "",
-      "Revora Growth Systems puts the website, lead capture, follow-up and bookings in one account. Those prices are typical list prices, not a quote for your business.",
+      "Revora Growth Systems puts the website, lead capture, follow-up and bookings in one account. Those are published list prices, not a quote for your business.",
       "",
       pitchOfferTerms(),
       "",
