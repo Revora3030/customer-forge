@@ -35,6 +35,7 @@ describe("live plan in the chat", () => {
     const fns = read("src/lib/site-agent.functions.ts");
     expect(fns).toContain('noteStage(orgId, runId, "plan ready"');
     expect(fns).toContain("`step ${i + 1}: ${step.title}`");
-    expect(read("src/components/app/BuilderAssistant.tsx")).toContain('step.stage === "plan ready" && step.detail');
+    // The chat's task tree shows the plan reply at full strength (see TaskTree emphasizeDetail).
+    expect(read("src/lib/builder/task-tree.ts")).toContain('step.stage === "plan ready" && Boolean(step.detail)');
   });
 });

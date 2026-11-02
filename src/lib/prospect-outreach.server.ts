@@ -223,6 +223,15 @@ function stateCode(state: string | null | undefined): string | null {
   return code && ZONES[code] ? code : null;
 }
 
+/**
+ * US-only guard: outreach goes only to businesses with a recognised US state
+ * (UK/CA/AU and other regions are on legal hold). A missing or non-US state is
+ * not cleared, so the send fails closed.
+ */
+export function isUsOutreachState(state: string | null | undefined): boolean {
+  return stateCode(state) !== null;
+}
+
 /** Approximate time zone for a US state (split states use their majority zone); null when unknown. */
 /** Two-letter US state code for a state name or code, or null. */
 export function usStateCode(state: string | null | undefined): string | null {
@@ -344,6 +353,7 @@ const MESSAGES: Record<string, string> = {
   demo_not_found: "That demo site wasn't found.",
   demo_claimed: "The business already claimed this demo, so outreach stopped.",
   build_not_finished: "Wait for the demo build to finish before sending it.",
+  non_us: "Outreach is US-only for now: this business has no recognised US state, so nothing was sent.",
   do_not_contact: "This contact is on the do-not-contact list (they unsubscribed or replied STOP), so nothing was sent.",
   outside_business_hours: "Automatic emails only go out between 8am and 6pm in the business's time zone (9am-5pm Eastern when the zone is unknown). It waits until then.",
   follow_up_not_due: "No follow-up is due: it goes once, 48 hours after the first email, and only if there was no reply.",
@@ -754,6 +764,7 @@ export async function sendDemoOutreach(db: SupabaseClient, input: SendDemoOutrea
   };
 
   if (demo.claimed) return skip("demo_claimed");
+  if (!isUsOutreachState(demo.state)) return skip("non_us");
   if (!pitch && demo.build?.status !== "completed") return skip("build_not_finished");
   if (await isDoNotContact(db, recipient)) return skip("do_not_contact");
   // Automatic emails (first touch and follow-up) wait for business hours in the

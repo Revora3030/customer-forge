@@ -462,24 +462,6 @@ export type ProspectSourceResult = {
   websiteRead?: { state: "read" | "failed" | "skipped"; message: string };
 };
 
-const MAX_SHORT_LINK_HOPS = 4;
-
-async function resolveShortLink(url: string): Promise<string> {
-  const { guardedFetch } = await import("@/lib/net-guard.server");
-  const { mapsRedirectTarget } = await import("@/lib/prospect-source");
-  let current = url;
-  for (let hop = 0; hop < MAX_SHORT_LINK_HOPS; hop += 1) {
-    const response = await guardedFetch(current, { signal: AbortSignal.timeout(8_000), headers: { "user-agent": "RevoraProspectLookup/1.0" } });
-    await response.body?.cancel().catch(() => undefined);
-    const next = mapsRedirectTarget(response.headers.get("location"), current);
-    if (!next) break;
-    const host = new URL(next).hostname.toLowerCase();
-    if (!["maps.app.goo.gl", "goo.gl", "g.co", "g.page", "consent.google.com"].includes(host)) return next;
-    current = next;
-  }
-  throw new Error("Couldn't open that share link. Open the business in Google Maps and paste the full address from the browser bar instead.");
-}
-
 async function assertSearchBudget(db: SupabaseClient) {
   const { MAX_SEARCHES_PER_DAY } = await import("@/lib/prospect-finder");
   const since = new Date();
@@ -500,6 +482,7 @@ async function assertSearchBudget(db: SupabaseClient) {
  */
 export async function prospectFromMaps(db: SupabaseClient, actorId: string, input: string): Promise<ProspectSourceResult> {
   const { mapsLookupFrom } = await import("@/lib/prospect-source");
+  const { resolveShortLink } = await import("@/lib/maps-link.server");
   let lookup = mapsLookupFrom(input);
   if (lookup.kind === "short_link") lookup = mapsLookupFrom(await resolveShortLink(lookup.url));
   if (lookup.kind === "short_link") throw new Error("Couldn't read the business from that link.");

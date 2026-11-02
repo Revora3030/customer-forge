@@ -66,7 +66,7 @@ export const GROWTH_SYSTEM = {
 
   /** The single canonical offer sentence. Use this verbatim wherever the offer is explained. */
   explainer:
-    "$350 setup, charged today. Your first month of the $100/month platform fee is FREE — your first monthly payment is charged 30 days later (month two) and continues at $100/month unless canceled.",
+    "$350 setup, charged once when you launch at checkout — never during the 3 days of free access, which needs no card. Your first month of the $100/month platform fee is FREE — your first monthly payment is charged 30 days after setup (month two) and continues at $100/month unless canceled.",
   setupIncludes: [
     "Custom website",
     "Domain setup",

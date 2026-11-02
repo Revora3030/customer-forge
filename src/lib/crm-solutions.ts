@@ -154,7 +154,7 @@ export const CRM_SOLUTIONS: readonly CrmSolution[] = [
     workflow: [
       {
         title: "Instant automatic reply to every enquiry",
-        body: "Each form or quote request triggers an immediate acknowledgement telling the customer they have reached a real business and what happens next, day or night.",
+        body: "Each form or quote request triggers an immediate acknowledgement telling the customer they have reached a real business and what happens next.",
       },
       {
         title: "One pipeline for emergency and planned work",
@@ -597,7 +597,7 @@ export const CRM_SOLUTIONS: readonly CrmSolution[] = [
     ],
     workflow: [
       {
-        title: "Instant reply to every enquiry, day or night",
+        title: "Instant reply to every enquiry",
         body: "Every form and quote request gets an immediate automatic acknowledgement with next steps, so you stay in the running while you are on a job.",
       },
       {

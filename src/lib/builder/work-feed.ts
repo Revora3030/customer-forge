@@ -44,6 +44,12 @@ export type WorkFeed = {
   /** What is happening now, or how it ended. */
   headline: string;
   percent: number | null;
+  /**
+   * How long the running build has gone without recording any new progress (its
+   * row's last update), once that passes QUIET_AFTER_MS. The percent above is
+   * the last real value the worker wrote; this says how old it is.
+   */
+  quietMs: number | null;
   elapsedMs: number | null;
   stages: WorkStage[];
   /** The AI calls recorded for this build, in the order they happened. */
@@ -202,6 +208,25 @@ const oneLine = (text: string | null | undefined, max: number) => {
  * between attempts, so the owner is told that, and why the last attempt
  * stopped in plain words (never the raw error).
  */
+/** A running build with no new progress for this long is reported as quiet, not as moving. */
+export const QUIET_AFTER_MS = 3 * 60_000;
+
+/** The truthful line for a build that is running but has recorded nothing new for a while. */
+export function quietNotice(feed: Pick<WorkFeed, "quietMs" | "stages">): string | null {
+  if (feed.quietMs == null) return null;
+  const step = feed.stages.find((stage) => stage.state === "running")?.label;
+  const minutes = Math.max(1, Math.round(feed.quietMs / 60_000));
+  return `No new progress for ${minutes} min${step ? ` on “${step}”` : ""}. The build hasn't reported a failure and is still holding this step, and nothing has been published. If it doesn't move, stop it and start again.`;
+}
+
+/** What the worker restart really does, given how many attempts the build has used. */
+export function stalledNotice(job: Pick<FeedJob, "attempts">): string {
+  const used = Math.max(0, Number(job.attempts ?? 0));
+  return used >= MAX_BUILD_ATTEMPTS
+    ? `The build worker stopped responding and this build has used all ${MAX_BUILD_ATTEMPTS} attempts, so it won't restart by itself. Nothing was published. Start the build again.`
+    : `The build worker stopped responding. The build is picked up again automatically (attempt ${Math.min(MAX_BUILD_ATTEMPTS, used + 1)} of ${MAX_BUILD_ATTEMPTS}); if it doesn't resume, start it again. Nothing has been published.`;
+}
+
 export function retryHeadline(job: Pick<FeedJob, "attempts" | "failure_kind" | "error_message">): string {
   const attempts = Math.max(0, Number(job.attempts ?? 0));
   const next = Math.min(MAX_BUILD_ATTEMPTS, attempts + 1);
@@ -223,7 +248,7 @@ export function buildWorkFeed(input: {
 }): WorkFeed {
   const { job } = input;
   if (!job) {
-    return { state: "none", headline: "", percent: null, elapsedMs: null, stages: [], ai: [], aiCalls: 0, pictures: [], sectionsDone: null, look: null, sections: [], summary: "" };
+    return { state: "none", headline: "", percent: null, quietMs: null, elapsedMs: null, stages: [], ai: [], aiCalls: 0, pictures: [], sectionsDone: null, look: null, sections: [], summary: "" };
   }
   const status = job.status ?? "";
   const active = status === "queued" || status === "processing";
@@ -281,6 +306,11 @@ export function buildWorkFeed(input: {
   return {
     state,
     headline,
+    quietMs: (() => {
+      if (state !== "running") return null;
+      const touched = job.updated_at ? Date.parse(job.updated_at) : Number.NaN;
+      return Number.isFinite(touched) && input.now - touched >= QUIET_AFTER_MS ? input.now - touched : null;
+    })(),
     percent: typeof job.progress === "number" ? Math.max(0, Math.min(100, Math.round(job.progress))) : null,
     elapsedMs,
     stages,

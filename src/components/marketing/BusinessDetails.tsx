@@ -44,8 +44,8 @@ export function BusinessDetails() {
           {BUSINESS.legalName}
         </h2>
         <p className="mt-2 max-w-2xl text-[13px] leading-relaxed text-muted-foreground sm:text-[14px]">
-          Built and run by {BUSINESS.founder} from {BUSINESS.region.name}. Reach a real person any
-          hour — the growth system itself never stops working.
+          Built and run by {BUSINESS.founder} from {BUSINESS.region.name}. Questions? Email{" "}
+          {BUSINESS.email} and a person on the Revora team will reply.
         </p>
 
         <dl className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

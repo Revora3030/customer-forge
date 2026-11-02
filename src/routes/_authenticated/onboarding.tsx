@@ -2,6 +2,8 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { GoogleListingImport } from "@/components/onboarding/GoogleListingImport";
 import { ExistingSiteImport } from "@/components/onboarding/ExistingSiteImport";
+import { MapsLinkImport, type ConfirmedMapsPlace } from "@/components/onboarding/MapsLinkImport";
+import { looksLikeMapsLink } from "@/lib/maps-link";
 import type { ImportedFacts } from "@/lib/site-import";
 import { OwnerPhotoUpload } from "@/components/onboarding/OwnerPhotoUpload";
 import { saveOwnerLogo, saveOwnerPhotos, type PendingPhoto } from "@/components/onboarding/owner-photos";
@@ -27,7 +29,7 @@ import { analyzeSiteBrief, runSiteGeneration, saveSiteBrief } from "@/lib/site-e
 import { clearStarter, readStarter } from "@/components/marketing/hero-starter-utils";
 import { RouteError } from "@/components/app/RouteStates";
 import { ErrorBoundary } from "@/components/app/ErrorBoundary";
-import { customerBusinessEmail, sanitizeServices } from "@/lib/builder/intake-sanitize";
+import { customerBusinessEmail, sanitizeServices, validateIntakeServices } from "@/lib/builder/intake-sanitize";
 
 import { closedOnHolidays } from "@/lib/holidays";
 import { contactStepValid, continueHint } from "@/lib/onboarding-validation";
@@ -175,16 +177,21 @@ function Onboarding() {
   // Words typed on the homepage starter fill empty fields only, then are cleared.
   // Arriving from "upgrade my existing website" imports that site straight away.
   const [importOnArrival, setImportOnArrival] = useState(false);
+  // A Google Maps link typed where a website goes is read by the Maps box, never
+  // saved as the business's website or fetched as one.
+  const [mapsLinkOnArrival, setMapsLinkOnArrival] = useState("");
   useEffect(() => {
     const starter = readStarter();
     if (!starter) return;
+    const mapsLink = looksLikeMapsLink(starter.website) ? starter.website : "";
     setDraft((prev) => ({
       ...prev,
       businessName: prev.businessName.trim() ? prev.businessName : starter.businessName,
       about: prev.about.trim() ? prev.about : starter.about,
-      website: prev.website.trim() ? prev.website : starter.website,
+      website: prev.website.trim() ? prev.website : mapsLink ? "" : starter.website,
     }));
-    if (starter.wantsImport) setImportOnArrival(true);
+    if (mapsLink) setMapsLinkOnArrival(mapsLink);
+    else if (starter.wantsImport) setImportOnArrival(true);
     clearStarter();
   }, []);
 
@@ -394,6 +401,17 @@ function Onboarding() {
       };
     });
 
+  // The owner confirmed these from their Google Maps link, so they replace what
+  // was there; empty values never erase anything.
+  const applyMapsPlace = (place: ConfirmedMapsPlace) =>
+    setDraft((prev) => ({
+      ...prev,
+      businessName: place.name || prev.businessName,
+      city: place.city || prev.city,
+      state: place.state || prev.state,
+      google: place.link || prev.google,
+    }));
+
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) =>
     setDraft((prev) => ({ ...prev, [key]: value }));
 
@@ -422,7 +440,11 @@ function Onboarding() {
 
       // Platform wording ("Build my site", "All", "Submit") is never saved as a
       // business service; it would otherwise render on the customer's site.
-      const services = sanitizeServices(draft.services.filter((s) => s.name.trim()));
+      const typedServices = draft.services.filter((s) => s.name.trim());
+      // A stub like "Full" is never saved: the owner is asked for the full name.
+      const serviceCheck = validateIntakeServices(typedServices);
+      if (serviceCheck.rejected.length) throw new Error(serviceCheck.rejected[0]!.message);
+      const services = sanitizeServices(serviceCheck.valid);
       const testimonials = draft.testimonials.filter((t) => t.text.trim());
       const goals: GoalKey[] = draft.goals;
       if (!goals.length) throw new Error("Choose at least one website goal before Revora builds your site.");
@@ -456,7 +478,7 @@ function Onboarding() {
               phone: draft.phone || null,
               city: draft.city || null,
               state: draft.state || null,
-              website: draft.website || null,
+              website: looksLikeMapsLink(draft.website) ? null : draft.website || null,
               description: draft.about || null,
             },
           })
@@ -512,7 +534,7 @@ function Onboarding() {
             ...(draft.closedOnHolidays ? { closed_on_holidays: true } : {}),
             ...(savedBookingLink ? { booking_url: savedBookingLink } : {}),
           } as never,
-          website: draft.website || null,
+          website: looksLikeMapsLink(draft.website) ? null : draft.website || null,
           logo_url: logoPath || draft.logoUrl.trim() || null,
           hero_image_url: draft.heroImageUrl || null,
           primary_color: draft.primaryColor || null,
@@ -652,11 +674,13 @@ function Onboarding() {
     );
   }
 
+  const serviceNameProblems = validateIntakeServices(draft.services).rejected;
   const canContinue =
     step === 0
       ? draft.businessName.trim().length > 1 && draft.city.trim().length > 1
       : step === 1
         ? draft.services.some((s) => s.name.trim().length >= 2) &&
+          serviceNameProblems.length === 0 &&
           draft.services.every(
             (s) =>
               !s.name.trim() ||
@@ -724,10 +748,11 @@ function Onboarding() {
                 </p>
               </div>
               <ExistingSiteImport
-                initialUrl={draft.website}
+                initialUrl={looksLikeMapsLink(draft.website) ? "" : draft.website}
                 autoStart={importOnArrival}
                 onImported={applyImportedFacts}
               />
+              <MapsLinkImport initialUrl={mapsLinkOnArrival} onUse={applyMapsPlace} />
               <div className="space-y-1.5">
                 <Label htmlFor="o-name">Business name</Label>
                 <Input
@@ -882,6 +907,11 @@ function Onboarding() {
                   </div>
                 ))}
               </div>
+              {serviceNameProblems.length ? (
+                <p role="alert" data-testid="service-name-problem" className="text-[13px] text-destructive">
+                  {serviceNameProblems[0]!.message}
+                </p>
+              ) : null}
               <Button
                 variant="outline"
                 onClick={() => set("services", [...draft.services, emptyService()])}
@@ -1047,6 +1077,9 @@ function Onboarding() {
                     value={draft.google}
                     onChange={(e) => set("google", e.target.value)}
                   />
+                  <p className="text-[11px] text-muted-foreground">
+                    A Google Maps link here also shows a map in your site's contact section.
+                  </p>
                 </div>
               </div>
             </div>

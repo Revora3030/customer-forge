@@ -7,9 +7,10 @@ describe("builder chat when the AI team can't decide", () => {
     expect(fallbackDecision("hi").mode).toBe("answer");
     expect(fallbackDecision("Thanks!").mode).toBe("answer");
   });
-  it("answers questions honestly", () => {
+  it("says plainly that a question could not be answered, with a way to retry", () => {
     const decision = fallbackDecision("how much does it cost per month?");
-    expect(decision.mode).toBe("answer");
+    expect(decision.mode).toBe("unavailable");
+    expect(decision).toMatchObject({ reply: expect.stringContaining("Press Retry") });
   });
   it("still sends clear edit requests to the planner", () => {
     expect(fallbackDecision("make the headline bigger").mode).toBe("change");

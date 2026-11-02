@@ -13,7 +13,9 @@ import { getClientHealth } from "@/lib/retention/client-health.functions";
 import { HEALTH_AT_RISK, HEALTH_CRITICAL } from "@/lib/retention/health-score";
 import { clientStatus, type ClientStatus } from "@/lib/retention/client-status";
 import { DOMAIN_STATES, PUBLISH_STATES } from "@/lib/readiness";
-import { currency, dateShort, number } from "@/lib/format";
+import { currency, dateShort, formatUsPhone, number } from "@/lib/format";
+import { isTestRecord, visibleClients } from "@/lib/admin-client-records";
+import { ShowTestRecordsToggle } from "@/components/admin/ShowTestRecordsToggle";
 
 export const Route = createFileRoute("/_authenticated/admin/clients")({
   head: () => ({
@@ -82,10 +84,14 @@ function AdminClients() {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<(typeof FILTERS)[number]["value"]>("all");
   const [creating, setCreating] = useState(false);
+  const [showTest, setShowTest] = useState(false);
+  // Test/QA records are out by default and a business that exists twice shows once.
+  const listed = useMemo(() => visibleClients(clients.data ?? [], showTest), [clients.data, showTest]);
+  const hiddenTestCount = useMemo(() => (clients.data ?? []).filter((client) => isTestRecord(client)).length, [clients.data]);
 
   const rows = useMemo(() => {
     const term = search.trim().toLowerCase();
-    return (clients.data ?? []).filter((client) => {
+    return listed.filter((client) => {
       const matches =
         !term ||
         [client.name, client.owner_name, client.owner_email, client.city, client.custom_domain]
@@ -110,7 +116,7 @@ function AdminClients() {
                       : client.is_suspended;
       return matches && state;
     });
-  }, [clients.data, search, filter, healthBy, statusBy]);
+  }, [listed, search, filter, healthBy, statusBy]);
 
   return (
     <div className="product-page">
@@ -134,6 +140,7 @@ function AdminClients() {
             onChange={(event) => setSearch(event.target.value)}
           />
         </div>
+        <ShowTestRecordsToggle checked={showTest} onCheckedChange={setShowTest} hiddenCount={hiddenTestCount} />
         <div className="flex flex-wrap gap-1">
           {FILTERS.map((option) => (
             <Button
@@ -159,9 +166,9 @@ function AdminClients() {
       ) : rows.length === 0 ? (
         <EmptyState
           icon={<Building2 className="size-5" />}
-          title={clients.data?.length ? "No clients match that" : "No client businesses yet"}
+          title={listed.length ? "No clients match that" : "No client businesses yet"}
           description={
-            clients.data?.length
+            listed.length
               ? "Try a different search or filter."
               : "Create a client and the platform provisions their isolated workspace in one step — no rebuilding."
           }
@@ -180,9 +187,11 @@ function AdminClients() {
                   <p className="truncate font-display text-[14px] font-semibold">{client.name}</p>
                   {client.is_suspended ? <Pill tone="danger">Suspended</Pill> : null}
                   {client.is_demo ? <Pill tone="info">Demo</Pill> : null}
+                  {!client.is_demo && isTestRecord(client) ? <Pill tone="info">Test record</Pill> : null}
                 </div>
                 <p className="mt-1 truncate text-[12px] text-muted-foreground">
                   {client.owner_name ?? "No owner name"} · {client.owner_email ?? "no email"} ·{" "}
+                  {client.owner_phone ? `${formatUsPhone(client.owner_phone)} · ` : ""}
                   {client.city ?? "no city"}
                 </p>
                 <p className="mt-0.5 truncate text-[11px] text-muted-foreground">

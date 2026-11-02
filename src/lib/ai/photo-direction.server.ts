@@ -201,8 +201,9 @@ const REVIEWER_SYSTEM = [
   "You are Terra, an adversarial photo editor reviewing one generated website picture before it goes live on a premium business website. The bar is a top design studio's commissioned photography: if you would not put it on a Lovable, Framer or Apple-grade site, reject it.",
   "Reject for ANY of these: warped or melted objects, extra or missing limbs or fingers, malformed hands, garbled or invented text, letters, numbers, badges, emblems, seals, stamps, licence plates or logos anywhere in the frame (including fake car badges and fake brand marks), real brand logos, duplicated edges, impossible geometry, heavy noise or blur, a subject that does not match the brief, a collage, split-screen, grid or multi-panel composition, visible borders or frames, a frame with no usable space for headline words, or a picture so busy or low-contrast that overlaid words would be unreadable.",
   "Also reject flat, dull, grey or washed-out pictures with no clear focal subject, generic stock-photo staging, and anything that reads as an illustration, cartoon, cel-shaded or painted art, clip art, flat vector, toy-like 3D render, or plastic CGI look.",
+  "Also judge exposure and framing. Reject a picture that is dark, murky or heavily underexposed (most of the frame near-black), or washed out with no contrast. For a hero, banner or opening scene also reject a close-up-only frame (a tight crop of hands, tools or a surface with no sense of the place or the person) and a frame that does not leave the subject clear of the area where words will sit.",
   "When in doubt, reject: a missing picture can be reshot, a bad picture damages the customer's brand.",
-  'Answer as JSON only: {"publishable": boolean, "defects": string[], "revisedPrompt": string}.',
+  'Answer as JSON only: {"publishable": boolean, "exposure": "good"|"dark"|"flat"|"blown", "framing": "wide"|"medium"|"closeup", "defects": string[], "revisedPrompt": string}.',
   "defects are short plain-English phrases a business owner would understand. revisedPrompt is a full corrected photography brief when publishable is false, otherwise an empty string.",
 ].join(" ");
 
@@ -289,7 +290,7 @@ export async function inspectPhoto(
     return reviewUnavailableVerdict();
   }
 
-  const verdict = readVerdict(result.data);
+  const verdict = readVerdict(result.data, brief.placement);
   if (!verdict.publishable) {
     // Terra's defects become one targeted Sol revision before the caller can
     // fall back to any other image source. This keeps the retry a true art-
@@ -348,22 +349,40 @@ async function reviewOnce(
     );
 }
 
+/** Heroes and banners must show the place or the person, not just a tight crop. */
+const LEADING_PLACEMENT = /\b(hero|banner|opening|cover|header)\b/i;
+
+function readExposureDefect(value: unknown): string | null {
+  if (value === "dark") return "the picture is too dark";
+  if (value === "flat") return "the picture is flat and low-contrast";
+  if (value === "blown") return "the picture is washed out";
+  return null;
+}
+
+function readFramingDefect(value: unknown, placement: string | undefined): string | null {
+  if (value !== "closeup" || !placement || !LEADING_PLACEMENT.test(placement)) return null;
+  return "the picture is a close-up with no sense of the place or person";
+}
+
 /** Pure reader for a reviewer answer; exported so the rules are unit-testable. */
-export function readVerdict(data: Record<string, unknown>): PhotoVerdict {
-  const publishable = data["publishable"];
+export function readVerdict(data: Record<string, unknown>, placement?: string): PhotoVerdict {
+  const exposureDefect = readExposureDefect(data["exposure"]);
+  const framingDefect = readFramingDefect(data["framing"], placement);
+  const approved = data["publishable"] === true && !exposureDefect && !framingDefect;
   const rawDefects = data["defects"];
   const revised = data["revisedPrompt"];
-  const defects = Array.isArray(rawDefects)
+  const reviewerDefects = Array.isArray(rawDefects)
     ? rawDefects
         .filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0)
         .map((entry) => entry.replace(/\s+/g, " ").trim().slice(0, 240))
         .slice(0, 6)
     : [];
+  const defects = [exposureDefect, framingDefect].filter((entry): entry is string => Boolean(entry)).concat(reviewerDefects).slice(0, 6);
   const revisedPrompt =
     typeof revised === "string" && revised.trim().length >= 40 ? revised.replace(/\s+/g, " ").trim().slice(0, 1800) : null;
   // Only an explicit `true` passes. An unclear or malformed answer is treated as
   // a rejection so an unchecked picture can never slip onto a live site.
-  if (publishable === true)
+  if (approved)
     return { publishable: true, defects, revisedPrompt: null, reviewed: true, contentRejected: false, reviewFailed: false };
   return {
     publishable: false,

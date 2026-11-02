@@ -127,6 +127,8 @@ export type FactsSheet = {
   firstMonth: string;
   fullAccessTrial: string;
   cancel: string;
+  /** The one canonical pricing line; a reply about price quotes only this. */
+  pricingSummary: string;
   /** The one canonical refund/cancellation policy; a reply about refunds quotes only this. */
   refundPolicy: string;
   setupIncludes: readonly string[];
@@ -182,6 +184,7 @@ export function buildFactsSheet(input: {
     firstMonth: `The first month of the ${usd(GROWTH_SYSTEM.monthlyPrice)}/month platform fee is free; monthly billing starts in month two.`,
     fullAccessTrial: `Claiming the draft includes ${GROWTH_SYSTEM.fullAccessWindow} of free full access.`,
     cancel: "Cancel anytime. No hidden fees.",
+    pricingSummary: `${usd(GROWTH_SYSTEM.setupPrice)} setup, first month free, then ${usd(GROWTH_SYSTEM.monthlyPrice)}/month; ${GROWTH_SYSTEM.fullAccessWindowAdjective} trial, no card needed.`,
     refundPolicy: REFUND_POLICY,
     setupIncludes: GROWTH_SYSTEM.setupIncludes,
     monthlyIncludes: GROWTH_SYSTEM.monthlyIncludes,

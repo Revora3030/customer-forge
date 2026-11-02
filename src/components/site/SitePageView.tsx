@@ -12,6 +12,7 @@ import { premiumSurface } from "@/lib/site-theme";
  */
 import { useEffect } from "react";
 import { useServerFn } from "@tanstack/react-start";
+import { dedupePageMedia } from "@/lib/builder/dedupe-page-media";
 import { SiteSection } from "@/components/site/SiteSections";
 import {
   isRenderableSection,
@@ -24,6 +25,8 @@ import {
 } from "@/components/site/site-sections-utils";
 import { ReviewWall } from "@/components/site/LiveBlocks";
 import { EnquiryForm } from "@/components/site/SiteForms";
+import { SiteHelpDrawer } from "@/components/site/SiteHelpDrawer";
+import { readHelpDrawerEnabled } from "@/lib/site-help-drawer";
 import { PreviewSelectBridge } from "@/components/site/PreviewSelectBridge";
 import { SiteBackdrop } from "@/components/site/SiteBackdrop";
 import { SiteFontLinks } from "@/components/site/SiteFontLinks";
@@ -39,6 +42,8 @@ import { readBackdrop, readBackdropSpec } from "@/lib/site-effects";
 import { trackPublicEvent, type PublicSite } from "@/lib/public-site.functions";
 import { SiteVitals } from "@/components/site/SiteVitals";
 import { BuilderReturnBar } from "@/components/site/BuilderReturnBar";
+import { guardPhoneLayout, isLeadSection } from "@/lib/builder/phone-layout";
+import { isLeadFormComponent, unhideLeadComponent } from "@/lib/builder/lead-form-guard";
 import { PreviewLinkBridge } from "@/components/site/PreviewLinkBridge";
 import { MOBILE_ORDER_ATTR, hasMobileOrder, mobileOrderRules, readBlockStyle, styleSheet } from "@/lib/site-style";
 import { CompositionRenderer } from "@/components/site/CompositionRenderer";
@@ -46,8 +51,9 @@ import { normalizeHeadingOutline } from "@/lib/builder/heading-outline";
 import { legacySectionToComposition } from "@/lib/builder/legacy-composition";
 import { foldServicePages, knownPageSlugs, missingChromeLinks, readSiteChrome, repairSiteHref, repairStoredLinks, resolveSiteHref } from "@/lib/builder/site-chrome";
 import { scrubPlaceholderContact } from "@/lib/builder/placeholder-contact";
-import { tidyFooterContact } from "@/lib/builder/footer-contact-tidy";
+import { tidyContactSections, tidyFooterContact } from "@/lib/builder/footer-contact-tidy";
 import { AiSiteHeader } from "@/components/site/AiSiteHeader";
+import { ClientPrivacyLink } from "@/components/site/ClientPrivacyNotice";
 import { useOwnAddress, useSiteBase } from "@/components/site/use-own-address";
 
 export function SitePageView({
@@ -97,10 +103,15 @@ export function SitePageView({
   // are withheld from every visible string and tel:/mailto: link the AI team
   // authored: the page shows nothing rather than a made-up number (audit P1-04).
   const placeholderFallback = repairSiteHref("", knownPages, pageAnchors);
-  const sections = scrubPlaceholderContact(
-    repairStoredLinks(storedSections, knownPages, pageAnchors, (page as { slug?: string | null } | null)?.slug ?? null),
-    placeholderFallback,
+  const sections = tidyContactSections(
+    scrubPlaceholderContact(
+      repairStoredLinks(storedSections, knownPages, pageAnchors, (page as { slug?: string | null } | null)?.slug ?? null),
+      placeholderFallback,
+    ),
   );
+  // Phone-only hide/order choices, minus anything that would take the enquiry
+  // form away from phone visitors (see guardPhoneLayout). Array order is the desktop order.
+  const phoneSections = guardPhoneLayout(sections.map((section, index) => ({ ...section, sort_order: index })));
   const chrome = {
     header: rawChrome.header ? scrubPlaceholderContact(rawChrome.header, placeholderFallback) : null,
     footer: rawChrome.footer ? tidyFooterContact(scrubPlaceholderContact(rawChrome.footer, placeholderFallback)) : null,
@@ -132,10 +143,17 @@ export function SitePageView({
   // itself would use) so their headings count too.
   const leadIndex = leadSectionIndex(sections as never);
   const pageRoots = normalizeHeadingOutline(
-    studioPage.roots.map((root, index) => {
-      const section = sections[index];
-      return root ?? (section ? legacySectionToComposition(section as never, { lead: index === leadIndex })?.root ?? null : null);
-    }),
+    dedupePageMedia(
+      studioPage.roots.map((root, index) => {
+        const section = sections[index];
+        return root ?? (section ? legacySectionToComposition(section as never, { lead: index === leadIndex, seed: org.slug })?.root ?? null : null);
+      }),
+      {
+        // One picture appears once per page: a repeat swaps to an unused picture from the site's own library.
+        urlOf: (index, ref) => sections[index]?.components?.find((component) => component.id === ref)?.url ?? null,
+        pool: sections.flatMap((section) => (section.components ?? []).map((component) => component.url ?? "")),
+      },
+    ),
   );
 
   useEffect(() => {
@@ -168,7 +186,7 @@ export function SitePageView({
   // Premium effects: the owner's switch, the trade's effect tier and the meter label.
   const premium = readPremiumSettings(site.settings?.generation ?? null);
   const niche = nicheEffects(org.industry ?? null);
-  const meterLabel = resolveMeterLabel(premium, niche);
+  const meterLabel = resolveMeterLabel(premium, niche, { preview });
   return (
     <PremiumFxContext.Provider value={premiumFxValue(premium.enabled, niche.tier)}>
     <div
@@ -223,6 +241,18 @@ export function SitePageView({
             resolveHref={chromeHref}
             surface={profile?.secondary_color ?? null}
             logoUrl={profile?.logo_url ?? null}
+            trade={org.industry ?? null}
+            phone={(profile as { phone?: string | null } | null)?.phone ?? null}
+            ctas={(() => {
+              const known = knownPages ?? new Set<string>();
+              const contactSlug = ["book", "booking", "contact", "quote", "contact-us"].find((slug) => known.has(slug));
+              return stickyActions({
+                phone: (profile as { phone?: string | null } | null)?.phone ?? null,
+                hasBookingPage: contactSlug === "book" || contactSlug === "booking",
+                hasQuote: Boolean(site.quote),
+                contactHref: contactSlug ? chromeHref(`/${contactSlug}`) : pageAnchors.has("contact") ? "#contact" : null,
+              });
+            })()}
             extraLinks={extraNav.map((link) => ({
               href: chromeHref(link.href),
               label: pageNavLabel(link.title, org.name, link.slug),
@@ -232,14 +262,14 @@ export function SitePageView({
 
         {/* Tablet and phone overrides the client set in the visual builder. */}
         <ResponsiveStyles
-          sections={sections}
+          sections={phoneSections}
           surface={profile?.secondary_color ?? null}
         />
 
         {/* A first section that paints its own surface (a full-bleed hero)
             sits directly under the header; only an unpainted first section
             gets the small top gap. */}
-        <main {...(hasMobileOrder(sections) ? { [MOBILE_ORDER_ATTR]: "" } : {})} className={`scroll-mt-20 ${firstSectionHasSurface(sections[0]?.settings) ? "" : "pt-2 sm:pt-4 "}pb-24 sm:pb-16`}>
+        <main {...(hasMobileOrder(phoneSections) ? { [MOBILE_ORDER_ATTR]: "" } : {})} className={`scroll-mt-20 ${firstSectionHasSurface(sections[0]?.settings) ? "" : "pt-2 sm:pt-4 "}pb-24 sm:pb-16`}>
           {(() => {
             const lead = leadIndex;
             let ready = 0;
@@ -300,6 +330,8 @@ export function SitePageView({
           });
           if (!actions.length) return null;
           return (
+            <>
+            {readHelpDrawerEnabled(site.settings?.generation ?? null) && site.quote ? <SiteHelpDrawer actions={actions} /> : null}
             <nav
               aria-label="Quick actions"
               data-testid="site-sticky-actions"
@@ -318,6 +350,7 @@ export function SitePageView({
                 </a>
               ))}
             </nav>
+            </>
           );
         })()}
 
@@ -326,6 +359,10 @@ export function SitePageView({
             <CompositionRenderer as="div" scope="site-footer" tree={chrome.footer} resolveHref={chromeHref} surface={premiumSurface(profile?.secondary_color ?? null)} linkLabel={(text) => stripBusinessSuffix(text, org.name)} />
           </footer>
         ) : null}
+
+        <p className="rv-site-legal px-4 py-4 text-center text-[13px] text-muted-foreground">
+          <ClientPrivacyLink slug={org.slug} className="inline-flex min-h-11 items-center underline underline-offset-4" />
+        </p>
 
         <SiteVitals slug={org.slug} preview={preview} />
         {/* Lets the builder's preview frame pick a block by clicking it. Inert
@@ -363,14 +400,18 @@ function ResponsiveStyles({
   sections,
   surface = null,
 }: {
-  sections: { id: string; settings: unknown; components?: { id: string; settings: unknown }[] }[];
+  sections: { id: string; kind?: string | null; settings: unknown; components?: { id: string; kind?: string | null; settings: unknown }[] }[];
   /** The page's surface colour, used to keep per-device text colours readable. */
   surface?: string | null;
 }) {
   const css = styleSheet(
     sections.flatMap((section) => [
       { id: section.id, settings: section.settings },
-      ...(section.components ?? []).map((component) => ({ id: component.id, settings: component.settings })),
+      ...(section.components ?? []).map((component) => ({
+        id: component.id,
+        // A stored hide flag on the form itself never reaches a phone.
+        settings: isLeadSection(section) && isLeadFormComponent(component) ? unhideLeadComponent(component.settings) : component.settings,
+      })),
     ]),
     surface,
   );

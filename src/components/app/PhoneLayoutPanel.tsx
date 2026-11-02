@@ -4,7 +4,11 @@ import { Button } from "@/components/ui/button";
 import { useSaveSection } from "@/lib/website-content.hooks";
 import { sectionLabel, type ContentSection } from "@/lib/website-content";
 import {
+  LEAD_HIDE_REASON,
+  guardPhoneLayout,
   hasPhoneChanges,
+  isLeadSection,
+  phoneMoveBlocked,
   phoneOrder,
   phoneState,
   planPhoneHidden,
@@ -33,7 +37,9 @@ export function PhoneLayoutPanel({
   const save = useSaveSection(organizationId ?? undefined);
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(true);
-  const visible = useMemo(() => sections.filter((section) => section.is_visible), [sections]);
+  // Guarded, so the list shows what phones really get: a saved "hide" on the
+  // enquiry form or a saved order that buries it is ignored by the site too.
+  const visible = useMemo(() => guardPhoneLayout(sections.filter((section) => section.is_visible)), [sections]);
   const ordered = useMemo(() => phoneOrder(visible), [visible]);
 
   if (!organizationId || visible.length < 1) return null;
@@ -86,6 +92,9 @@ export function PhoneLayoutPanel({
         <ol className="mt-2 space-y-1" aria-label="Sections in phone order">
           {ordered.map((section, index) => {
             const state = phoneState(section);
+            const lead = isLeadSection(section);
+            const upBlocked = index > 0 ? phoneMoveBlocked(visible, section.id, "up") : null;
+            const downBlocked = index < ordered.length - 1 ? phoneMoveBlocked(visible, section.id, "down") : null;
             return (
               <li
                 key={section.id}
@@ -102,7 +111,8 @@ export function PhoneLayoutPanel({
                   type="button"
                   size="icon-sm"
                   variant="ghost"
-                  disabled={busy || index === 0}
+                  disabled={busy || index === 0 || Boolean(upBlocked)}
+                  title={upBlocked ?? undefined}
                   aria-label={`Move ${label(section)} earlier on phones`}
                   onClick={() => void commit(planPhoneMove(visible, section.id, "up"))}
                 >
@@ -112,7 +122,8 @@ export function PhoneLayoutPanel({
                   type="button"
                   size="icon-sm"
                   variant="ghost"
-                  disabled={busy || index === ordered.length - 1}
+                  disabled={busy || index === ordered.length - 1 || Boolean(downBlocked)}
+                  title={downBlocked ?? undefined}
                   aria-label={`Move ${label(section)} later on phones`}
                   onClick={() => void commit(planPhoneMove(visible, section.id, "down"))}
                 >
@@ -122,10 +133,10 @@ export function PhoneLayoutPanel({
                   type="button"
                   size="icon-sm"
                   variant={state.hiddenOnPhone ? "secondary" : "ghost"}
-                  disabled={busy}
+                  disabled={busy || lead}
                   aria-pressed={state.hiddenOnPhone}
                   aria-label={state.hiddenOnPhone ? `Show ${label(section)} on phones` : `Hide ${label(section)} on phones`}
-                  title={state.hiddenOnPhone ? "Hidden on phones — tap to show" : "Hide on phones"}
+                  title={lead ? LEAD_HIDE_REASON : state.hiddenOnPhone ? "Hidden on phones — tap to show" : "Hide on phones"}
                   onClick={() => void commit([planPhoneHidden(section, !state.hiddenOnPhone)])}
                 >
                   {state.hiddenOnPhone ? <EyeOff className="size-3.5" aria-hidden /> : <Eye className="size-3.5" aria-hidden />}

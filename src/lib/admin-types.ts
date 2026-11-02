@@ -54,6 +54,11 @@ export type ClientSummary = {
   created_at: string;
   owner_name: string | null;
   owner_email: string | null;
+  owner_phone?: string | null;
+  /** False when only Revora staff belong to the workspace. */
+  is_customer?: boolean;
+  /** Why the record is test/QA data (null for a real client). Display only. */
+  test_reason?: "demo" | "staff_only" | "test_account" | "test_name" | "test_email" | null;
   city: string | null;
   custom_domain: string | null;
   domain_status: string;

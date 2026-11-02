@@ -168,9 +168,11 @@ async function handleEvent(event: StripeWebhookEvent, env: StripeEnv) {
       const setupCents = paid ? invoiceSetupCents(object, invoiceCatalog.setup.stripePriceId) : 0;
       const invoiceCents = Number(paid ? (object?.amount_paid ?? 0) : (object?.amount_due ?? 0));
       const recordCents = Math.max(0, invoiceCents - setupCents);
-      // A paid invoice that was only the setup (plus the $0 free month) adds
-      // nothing new: no $0 "Payment received" row or notification.
-      if (paid && setupCents > 0 && recordCents === 0) break;
+      // A paid invoice that was only the setup (plus the $0 free month), or a
+      // paid $0 invoice on its own, adds nothing new: no $0 "Payment received"
+      // row, notification or activity entry.
+      const { shouldRecordPaidInvoice } = await import("@/lib/payment-amount");
+      if (paid && !shouldRecordPaidInvoice(recordCents)) break;
       await recordStripeTransaction(admin, {
         organizationId,
         stripeId: String(object?.id ?? ""),

@@ -1,4 +1,5 @@
 import { resolveSiteHref } from "@/lib/builder/site-chrome";
+import { imageAltBase } from "@/lib/client-seo-guard";
 import { useOwnAddress, useSiteBase } from "@/components/site/use-own-address";
 /**
  * Renders the builder's structured sections on a public business website.
@@ -20,6 +21,8 @@ import { CalendarCheck, Mail, MapPin, Phone } from "lucide-react";
 import { bookingLinkFromHours } from "@/lib/booking-link";
 import { BookingForm, EnquiryForm, QuoteCalculator } from "@/components/site/SiteForms";
 import { DirectContact } from "@/components/site/ContactDetails";
+import { ContactMap } from "@/components/site/ContactMap";
+import { ConsentFrame } from "@/components/site/ConsentFrame";
 import { ReviewWall, ServiceMenu } from "@/components/site/LiveBlocks";
 import { ServiceEstimator } from "@/components/site/ServiceEstimator";
 import { offerFactsFor } from "@/components/site/live-blocks-utils";
@@ -27,8 +30,9 @@ import type { PublicSite } from "@/lib/public-site.functions";
 import { readCustomBlock } from "@/lib/builder/custom-block";
 import { CustomBlock } from "@/components/site/CustomBlock";
 import { safeLinkUrl, sectionLabel } from "@/lib/website-content";
-import { readEmbed } from "@/lib/site-embed";
+import { embedProviderLabel, readEmbed } from "@/lib/site-embed";
 import { businessFacts, factsAddressLine } from "@/lib/builder/facts";
+import { faqFactsFor } from "@/lib/builder/faq-from-facts";
 import { safeParagraph, safeText } from "@/lib/builder/presentation";
 import { addressAddsDetail, distinctServiceArea, sectionSurface, serviceAreaPhrase, siteSurface } from "@/components/site/site-sections-utils";
 import { TradeCalculator } from "@/components/site/TradeCalculator";
@@ -158,7 +162,7 @@ function SiteSectionBody({ site, section, lead = false, first = false, surface =
   // hard-coded template engine.
   const storedTree = preparedRoot
     ? { version: 1 as const, root: preparedRoot }
-    : readComposition(section.settings) ?? legacySectionToComposition(section, { lead });
+    : readComposition(section.settings) ?? legacySectionToComposition(section, { lead, seed: org.slug });
   const kind = storedTree ? "composition" : section.kind;
   // Owner-entered finance / ROI / price-range figures (quality bar #14). The
   // existing estimator stays the default view; extra views appear only when
@@ -179,6 +183,7 @@ function SiteSectionBody({ site, section, lead = false, first = false, surface =
       return tree ? (
         <CompositionRenderer
           tree={tree}
+          altBase={imageAltBase({ name: org.name, industry: org.industry ?? null, city: profile?.city ?? null })}
           scope={`s-${section.id}`}
           editable={editable}
           surface={sectionSurface(site, readBlockStyle(section.settings).bgColor)}
@@ -187,11 +192,18 @@ function SiteSectionBody({ site, section, lead = false, first = false, surface =
           resolveMedia={(ref) => media.get(ref) ?? null}
           resolveHref={(href) => resolveSiteHref(href, org.slug, ownAddress, null, null, previewBase)}
           resolveOffer={(service) => offerFactsFor(site.services ?? [], service)}
+          faqFacts={faqFactsFor({ profile, businessName: org.name, services: site.services ?? [], quote: Boolean(site.quote), generation: site.settings?.generation })}
           resolveWidget={(name, presentation?: WidgetPresentation) => {
             if (name === "booking_form") return <BookingForm site={site} {...(presentation ? { presentation } : {})} />;
             if (name === "quote_calculator")
               return withOwnerCalculator(site.quote ? <QuoteCalculator site={site} {...(presentation ? { presentation } : {})} /> : null, presentation);
-            if (name === "contact_details") return <ContactFacts site={site} {...(presentation ? { presentation } : {})} />;
+            if (name === "contact_details")
+              return (
+                <>
+                  <ContactFacts site={site} {...(presentation ? { presentation } : {})} />
+                  <ContactMap site={site} />
+                </>
+              );
             if (name === "enquiry_form") return <EnquiryForm site={site} {...(presentation ? { presentation } : {})} />;
             if (name === "service_menu") return <ServiceMenu site={site} {...(presentation ? { presentation } : {})} />;
             if (name === "service_estimator")
@@ -232,6 +244,7 @@ function SiteSectionBody({ site, section, lead = false, first = false, surface =
         <Shell id="contact">
           <Heading section={section} lead={lead} />
           <div className="mt-7"><ContactFacts site={site} /></div>
+          <ContactMap site={site} />
           <div className="mt-6">
             <DirectContact
               profile={profile}
@@ -308,15 +321,21 @@ function SiteSectionBody({ site, section, lead = false, first = false, surface =
             className="rv-embed-frame mt-6 overflow-hidden rounded-lg border border-border bg-background"
             style={{ height: embed.height }}
           >
-            <iframe
-              src={embed.url}
-              title={embed.title}
-              loading="lazy"
-              referrerPolicy="strict-origin-when-cross-origin"
-              sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
-              allow="fullscreen; clipboard-write; payment"
-              className="size-full border-0"
-            />
+            <ConsentFrame
+              provider={embedProviderLabel(embed.url) ?? "another website"}
+              openHref={embed.url}
+              openLabel={`Open ${embed.title} in a new tab`}
+            >
+              <iframe
+                src={embed.url}
+                title={embed.title}
+                loading="lazy"
+                referrerPolicy="strict-origin-when-cross-origin"
+                sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
+                allow="fullscreen; clipboard-write; payment"
+                className="size-full border-0"
+              />
+            </ConsentFrame>
           </div>
         </Shell>
       );

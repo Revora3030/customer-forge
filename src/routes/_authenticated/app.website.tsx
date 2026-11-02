@@ -40,7 +40,7 @@ import { useBuilderRequests } from "@/lib/builder-requests.hooks";
 import { actionPrompt, selectionPrefix, type PageContext } from "@/lib/builder/preview-bridge";
 import { starterIdeasFor } from "@/lib/builder/industry-playbook";
 import { isBareRebuildCommand } from "@/lib/builder/rebuild-intent";
-import { sectionOfTarget } from "@/lib/builder/step-target";
+import { sectionOfTarget, changedSectionOf } from "@/lib/builder/step-target";
 import { liveStatusLine } from "@/lib/builder/live-status";
 import { useBuildProgress } from "@/lib/builder/progress.hooks";
 import { ConversionOptimizer } from "@/components/app/ConversionOptimizer";
@@ -66,6 +66,7 @@ import { PublishRetryBar } from "@/components/app/PublishRetryBar";
 import { ImageStudio } from "@/components/app/ImageStudio";
 import { readBackdrop } from "@/lib/site-effects";
 import { BuilderAudit } from "@/components/app/BuilderAudit";
+import { PrivacyNoticeDetails } from "@/components/app/PrivacyNoticeDetails";
 import { BuilderPreview, type PreviewSelection } from "@/components/app/BuilderPreview";
 import { Eye, History, MessageSquare, MoreHorizontal, Redo2, Settings2, Undo2 } from "lucide-react";
 import { useBuilderHistory } from "@/lib/builder-history.hooks";
@@ -257,6 +258,7 @@ function WebsitePage() {
   const [viewingPage, setViewingPage] = useState<PageContext | null>(null);
   /** "Show in preview" from the chat: the section to scroll to and outline. */
   const [reveal, setReveal] = useState<{ id: string; nonce: number } | null>(null);
+  const [pickRequest, setPickRequest] = useState(0);
 
   /** One request engine for the whole workspace. */
   const superAdmin = useQuery({
@@ -318,6 +320,20 @@ function WebsitePage() {
   const lastNonEmptyPages = useRef<NonNullable<typeof pages>>([]);
   if (pages && pages.length > 0) lastNonEmptyPages.current = pages;
   const shownPages = freshRebuildActive && !(pages ?? []).length ? lastNonEmptyPages.current : (pages ?? []);
+  // After a change lands, scroll the preview to the part that changed and pulse it.
+  const liveTasks = requests.tasks;
+  const appliedTasks = appliedThisSession(liveTasks);
+  const seenApplied = useRef(appliedTasks.length);
+  useEffect(() => {
+    if (appliedTasks.length <= seenApplied.current) {
+      seenApplied.current = appliedTasks.length;
+      return;
+    }
+    seenApplied.current = appliedTasks.length;
+    const id = changedSectionOf(appliedTasks[appliedTasks.length - 1]?.steps as never, shownPages as never, selected?.id ?? null);
+    if (id) setReveal({ id, nonce: Date.now() });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fires once per newly applied request
+  }, [appliedTasks.length]);
 
   // A first build started from the chat is one request in the thread: the
   // build job reports its stages under that request's id (or the job id where
@@ -343,7 +359,7 @@ function WebsitePage() {
     // tracking here; nothing is claimed about how it ended.
     const stop = stopWaiting(latestRow as never);
     if (stop) {
-      settleBuild(trackedBuild.taskId, { ok: false, message: stopWaitingMessage(stop) });
+      settleBuild(trackedBuild.taskId, { ok: false, message: stopWaitingMessage(stop), retryBuild: true });
       setTrackedBuild(null);
       return undefined;
     }
@@ -359,9 +375,10 @@ function WebsitePage() {
         ? { ok: false, message: "The build was stopped before it finished. Nothing was published." }
         : {
             ok: false,
+            retryBuild: true,
             message: friendlyError(
               new Error(latestRow.error_message ?? ""),
-              "The build didn't finish. Nothing was published — you can start it again.",
+              "The build didn't finish. Nothing was published. Press Retry build to start it again.",
             ),
           });
     setTrackedBuild(null);
@@ -398,7 +415,8 @@ function WebsitePage() {
     } catch (error) {
       requests.settleBuild(task.id, {
         ok: false,
-        message: friendlyError(error, "Revora couldn't start from that description. Your text is saved."),
+        retryBuild: true,
+        message: friendlyError(error, "Revora couldn't start from that description. Your text is saved. Press Retry build to try again."),
       });
     }
   };
@@ -704,9 +722,11 @@ function WebsitePage() {
               rebuildBusy: freshRebuildActive || jobIsActive(latestJob.data as never) || firstBuild.isPending,
             } : {})}
             {...(manage ? { onStopBuild: (jobId: string) => cancelBuild.mutate(jobId) } : {})}
+            {...(manage ? { onRetryBuild: (instruction: string) => { void startTrackedBuild(instruction, false); } } : {})}
             stoppingBuild={cancelBuild.isPending}
             starterIdeas={starterIdeasFor((org?.industry as string | undefined) ?? null)}
             onClearSelection={() => setSelected(null)}
+            {...(manage ? { onPickPart: () => { setPickRequest((n) => n + 1); setPreviewOpen(true); } } : {})}
             onOpenHistory={() => setHistoryOpen(true)}
             onShowPreview={() => setPreviewOpen(true)}
             accessBlocked={accessState === "blocked"}
@@ -785,6 +805,7 @@ function WebsitePage() {
               onPageChange={setViewingPage}
               canManage={manage}
               reveal={reveal}
+              pickRequest={pickRequest}
               liveStatus={liveStatus ?? rebuildStatus}
               onInlineSaved={() => {
                 // The frame already shows the new words; refresh caches so
@@ -1127,6 +1148,17 @@ function WebsitePage() {
                           generation: { ...(generation ?? {}), copy: { ...(copy ?? {}), ...patch } },
                         })
                       }
+                    />
+                  </Disclosure>
+                  <Disclosure
+                    label="Privacy notice"
+                    hint="How long you keep enquiries and who you share them with"
+                  >
+                    <PrivacyNoticeDetails
+                      generation={generation}
+                      canManage={manage}
+                      saving={saveSettings.isPending}
+                      onSave={(nextGeneration) => saveSettings.mutate({ generation: nextGeneration })}
                     />
                   </Disclosure>
                 </>

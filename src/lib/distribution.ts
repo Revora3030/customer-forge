@@ -71,8 +71,13 @@ export async function qrDataUrl(target: string, size = 512): Promise<string> {
   return QRCode.toDataURL(target, { width: px, margin: 2 });
 }
 
-/** Shown in the email template until the sender types their real address. */
-export const POSTAL_PLACEHOLDER = "[Your business mailing address]";
+/**
+ * Revora's postal address comes from the environment, never from the repo.
+ * Empty by default: the email template then carries no address line and says so
+ * in its note, and every real outbound send refuses (mailing_address_missing).
+ */
+export const REVORA_POSTAL_ADDRESS =
+  (typeof process !== "undefined" && (process.env?.["REVORA_POSTAL_ADDRESS"] || process.env?.["REVORA_MAILING_ADDRESS"])?.trim()) || "";
 
 export type ChannelAsset = {
   id: ChannelId;
@@ -111,7 +116,8 @@ export function buildChannelAssets(input: {
 
   const whatsappBody = `Hey — I build complete customer-getting systems for ${audience}. Website, instant quotes, online booking, follow-up, all in one. First month free. Take a look: ${link("whatsapp", "chat")}`;
   const smsBody = `Hey — I build complete customer-getting systems for ${audience}. Website, instant quotes, online booking, follow-up, all in one. First month free. Take a look: ${link("sms", "text")}`;
-  const emailBody = `Hi,\n\n${pitch}\n\nYou can see exactly what it looks like here: ${link("email", "email")}\n\nIf it's not a fit, no hard feelings — reply "no" and I won't follow up.\n\n${REVORA.founder.name}\nRevora Growth Systems\n${input.postalAddress?.trim() || POSTAL_PLACEHOLDER}`;
+  const postal = input.postalAddress?.trim() || REVORA_POSTAL_ADDRESS;
+  const emailBody = `Hi,\n\n${pitch}\n\nYou can see exactly what it looks like here: ${link("email", "email")}\n\nIf it's not a fit, no hard feelings — reply "no" and I won't follow up.\n\n${REVORA.founder.name}\nRevora Growth Systems${postal ? `\n${postal}` : ""}`;
 
   const assets: ChannelAsset[] = [
     {
@@ -202,7 +208,7 @@ export function buildChannelAssets(input: {
       why: "Business email is legal to cold-send in the US with a real opt-out.",
       message: emailBody,
       intentUrl: `mailto:?subject=${encodeURIComponent("A customer system for your business")}&body=${encodeURIComponent(emailBody)}`,
-      note: 'CAN-SPAM requires a truthful subject, a real identity, a working opt-out and a valid postal address. Replace the bracketed address line with your real mailing address before sending, and keep the reply-"no" line in.',
+      note: 'CAN-SPAM requires a truthful subject, a real identity, a working opt-out and a valid postal address. Add your real mailing address (a street address or PO box) as the last line before sending, and keep the reply-"no" line in.',
     },
     {
       id: "youtube",

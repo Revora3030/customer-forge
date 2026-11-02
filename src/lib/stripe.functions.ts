@@ -8,6 +8,7 @@ import {
   parseStripeEnvironment,
   parseWorkspaceId,
 } from "@/lib/stripe-input";
+import { resolveSetupPaid, SETUP_FEE_DESCRIPTION_PREFIX } from "@/lib/billing-state";
 import { DEFAULT_OFFER_RATES, GROWTH_SYSTEM } from "@/lib/offer";
 import { isPlatformOwnerAccount, PLATFORM_OWNER_ORG_ID } from "@/lib/platform-owner";
 
@@ -580,17 +581,25 @@ export const getBillingState = createServerFn({ method: "POST" })
       .select("plan_id, feature_key, limit_value")
       .eq("plan_id", subscription?.plan_id ?? "");
 
-    const { data: setupPayment } = await context.supabase
+    // Single source of truth shared with the dashboard (see billing-state.ts):
+    // the webhook-written workspace columns AND the setup payment row, so a
+    // promotion-code setup (recorded with a different description and $0)
+    // can never read as "not paid" here while the dashboard says "paid".
+    const { data: orgRow } = await context.supabase
+      .from("organizations")
+      .select("setup_paid_at, setup_payment_status")
+      .eq("id", data.organizationId)
+      .maybeSingle();
+    const { data: setupCandidates } = await context.supabase
       .from("payments")
-      .select("id")
+      .select("status, amount, description, metadata")
       .eq("organization_id", data.organizationId)
       .eq("payment_provider", "stripe")
       .eq("environment", data.environment)
       .eq("status", "completed")
-      .eq("description", "Revora Growth System setup fee")
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      .like("description", `${SETUP_FEE_DESCRIPTION_PREFIX}%`)
+      .limit(20);
+    const setup = resolveSetupPaid({ org: orgRow, payments: setupCandidates ?? [] });
 
     const periodEnd = subscription?.current_period_end
       ? new Date(subscription.current_period_end)
@@ -605,7 +614,9 @@ export const getBillingState = createServerFn({ method: "POST" })
       entitlements: entitlements ?? [],
       features: (entitlements ?? []).map((row) => row.feature_key),
       active,
-      setupPaid: Boolean(setupPayment),
+      setupPaid: setup.setupPaid,
+      setupPaidSource: setup.source,
+      setupFullyDiscounted: setup.setupFullyDiscounted,
       environment: data.environment,
     };
   });

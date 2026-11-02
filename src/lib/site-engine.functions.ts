@@ -341,6 +341,35 @@ export const runSiteGeneration = createServerFn({ method: "POST" })
           .eq("organization_id", orgId);
     }
 
+    // A build ended by the no-progress guard kept its finished stage and
+    // section work. Hand it to this retry (re-stamped with the new job id;
+    // each entry still needs its input digest to match) so it resumes instead
+    // of starting over. Best-effort: any problem just means a full rebuild.
+    try {
+      const { isStallMessage, carryOverCheckpoints } = await import("@/lib/builder/no-progress");
+      const { data: previous } = await supabase
+        .from("generation_jobs")
+        .select("status, error_message, failure_kind, stage_checkpoints, section_checkpoints, completed_at")
+        .eq("organization_id", orgId)
+        .neq("id", job.id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const prev = previous as { status?: string; error_message?: string | null; failure_kind?: string | null; stage_checkpoints?: unknown; section_checkpoints?: unknown; completed_at?: string | null } | null;
+      const fresh = prev?.completed_at && Date.now() - Date.parse(prev.completed_at) < 24 * 3_600_000;
+      if (prev && prev.status === "failed" && fresh && (isStallMessage(prev.error_message) || prev.failure_kind === "credits" || prev.failure_kind === "provider")) {
+        const stage = carryOverCheckpoints(prev.stage_checkpoints, job.id);
+        const section = carryOverCheckpoints(prev.section_checkpoints, job.id);
+        if (stage || section)
+          await supabase
+            .from("generation_jobs")
+            .update({ ...(stage ? { stage_checkpoints: stage } : {}), ...(section ? { section_checkpoints: section } : {}) } as never)
+            .eq("id", job.id);
+      }
+    } catch (carryError) {
+      console.warn("[site-engine] checkpoint carry-over skipped", carryError);
+    }
+
     // Non-blocking kick so the worker usually starts immediately; the scheduled
     // run and the client's pump call are the fallbacks.
     {
@@ -774,10 +803,12 @@ export const saveMissingFacts = createServerFn({ method: "POST" })
       if (!value) continue; // an untouched box is not an answer, and never overwrites saved data
       const field = fieldByKey.get(key);
       if (field === "services_list") {
-        const { mergeSplitServices } = await import("@/lib/builder/intake-sanitize");
+        const { validateIntakeServices } = await import("@/lib/builder/intake-sanitize");
         const lines = value.split(/[\n,]/).map((l) => l.trim()).filter(Boolean);
-        for (const name of mergeSplitServices(lines.map((name) => ({ name }))).map((row) => row.name ?? "").filter(Boolean))
-          serviceNames.push(name);
+        // "Full" on its own is half a name: ask for the whole thing instead of saving a stub.
+        const checked = validateIntakeServices(lines.map((name) => ({ name })));
+        if (checked.rejected.length) throw new Error(checked.rejected[0]!.message);
+        for (const name of checked.valid.map((row) => row.name ?? "").filter(Boolean)) serviceNames.push(name);
       } else if (field) profilePatch[field] = value;
       else context_answers[key] = value;
     }

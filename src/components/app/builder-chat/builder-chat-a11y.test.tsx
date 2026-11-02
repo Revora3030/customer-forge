@@ -14,6 +14,7 @@ vi.mock("@/lib/builder-requests.hooks", () => ({ INSTRUCTION_LIMIT: 1200 }));
 vi.mock("@/lib/builder/progress.hooks", () => ({ useBuildProgress: () => ({ steps: [], latest: null }) }));
 vi.mock("@/components/app/AssistantMedia", () => ({ AssistantMedia: () => null }));
 vi.mock("@/components/app/CompositionPreviewCard", () => ({ CompositionPreviewCard: () => null }));
+vi.mock("@/components/app/builder-chat/use-test-lead", () => ({ useSendTestLead: () => ({ mutate: () => undefined }) }));
 vi.mock("@/components/app/SectionHistoryButton", () => ({ SectionHistoryButton: () => null }));
 
 import { BuilderAssistant, RebuildConfirm } from "@/components/app/BuilderAssistant";
@@ -147,7 +148,7 @@ describe("apply result card", () => {
     expect(renderToStaticMarkup(<ApplyResultCard applied={0} failedCount={3} />)).toBe("");
   });
 
-  it("offers Try again only where a retry is the right thing", () => {
+  it("offers Retry only where a retry is the right thing", () => {
     const failed = (id: string, retryable: boolean | undefined): ChatTask => ({
       id,
       instruction: "Build my website",
@@ -158,9 +159,9 @@ describe("apply result card", () => {
       ...(retryable === undefined ? {} : { retryable }),
     });
     // A first build that failed must not be "retried" through the edit planner.
-    expect(render([failed("t2", false)])).not.toContain("Try again");
-    expect(render([failed("t3", true)])).toContain("Try again");
-    expect(render([failed("t4", undefined)])).toContain("Try again");
+    expect(render([failed("t2", false)])).not.toContain("Retry");
+    expect(render([failed("t3", true)])).toContain("Retry");
+    expect(render([failed("t4", undefined)])).toContain("Retry");
   });
 
   it("a tracked build shows its live card without taking the queue's place", () => {

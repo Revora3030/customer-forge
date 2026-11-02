@@ -9,7 +9,7 @@
  * and prunes any container left empty. It never adds or changes a contact detail.
  * Pure, so it is unit tested.
  */
-import type { CompositionNode, CompositionTree } from "@/lib/builder/composition-tree";
+import { readComposition, writeComposition, type CompositionNode, type CompositionTree } from "@/lib/builder/composition-tree";
 
 const PHONE = /\+?\(?\d[\d\s().-]{5,}\d/;
 const EMAIL = /[\w.+-]+@[\w-]+(?:\.[\w-]+)+/;
@@ -23,9 +23,13 @@ function kinds(node: CompositionNode): { phone: boolean; email: boolean } {
   const href = (node.href ?? "").trim().toLowerCase();
   const text = node.text ?? "";
   const short = text.length <= 80;
+  // A labelled action ("Call now", "Email us") is a button, not a second copy of
+  // the number: it stays. Only a link or text that shows the number itself counts.
+  const showsPhone = short && hasPhone(text);
+  const showsEmail = short && EMAIL.test(text);
   return {
-    phone: href.startsWith("tel:") || (short && hasPhone(text)),
-    email: href.startsWith("mailto:") || (short && EMAIL.test(text)),
+    phone: showsPhone || (href.startsWith("tel:") && hasPhone(text)),
+    email: showsEmail || (href.startsWith("mailto:") && EMAIL.test(text)),
   };
 }
 
@@ -34,6 +38,8 @@ export function tidyFooterContact(tree: CompositionTree): CompositionTree {
 
   const walk = (node: CompositionNode): CompositionNode | null => {
     if (node.type === "spacer") return null;
+    // An empty text block only adds a blank gap.
+    if ((node.type === "text" || node.type === "heading") && !node.children?.length && !(node.text ?? "").trim() && !node.href) return null;
     const isLeaf = !(node.children && node.children.length);
     if (isLeaf && ["text", "link", "button"].includes(node.type)) {
       const k = kinds(node);
@@ -90,4 +96,21 @@ export function countFooterContact(tree: CompositionTree): { phone: number; emai
   };
   walk(tree.root);
   return count;
+}
+
+const CONTACT_ROLE = /contact|get[-_ ]?in[-_ ]?touch|reach[-_ ]?us|visit/i;
+
+/**
+ * Applies the same tidy to a page's own contact section(s): the section whose kind
+ * or authored role names contact. Other sections are returned untouched.
+ */
+export function tidyContactSections<T extends { kind?: string | null; settings?: unknown }>(sections: T[]): T[] {
+  return sections.map((section) => {
+    const settings = section.settings as Record<string, unknown> | null | undefined;
+    const role = typeof settings?.["role"] === "string" ? (settings["role"] as string) : "";
+    if (!CONTACT_ROLE.test(`${section.kind ?? ""} ${role}`)) return section;
+    const tree = readComposition(settings);
+    if (!tree) return section;
+    return { ...section, settings: writeComposition(settings, tidyFooterContact(tree)) };
+  });
 }

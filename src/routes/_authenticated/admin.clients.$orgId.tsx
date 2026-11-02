@@ -31,7 +31,7 @@ import { usePlans } from "@/lib/queries";
 import { DOMAIN_STATES, PUBLISH_STATES, readiness } from "@/lib/readiness";
 import { writeSupportMode } from "@/lib/support-mode";
 import { dnsRows } from "@/lib/domain-setup";
-import { currency, dateShort, dateLong, number } from "@/lib/format";
+import { currency, dateShort, dateLong, formatUsPhone, number } from "@/lib/format";
 import { Sparkline } from "@/components/demo/DemoCharts";
 
 export const Route = createFileRoute("/_authenticated/admin/clients/$orgId")({
@@ -555,7 +555,7 @@ function ClientDetail() {
             label="Business owner"
             value={`${profile?.owner_name ?? "—"} · ${profile?.owner_email ?? "—"}`}
           />
-          <Row label="Phone" value={profile?.phone ?? "—"} />
+          <Row label="Phone" value={profile?.phone ? formatUsPhone(profile.phone) : "—"} />
           <Row
             label="Address"
             value={

@@ -8,6 +8,7 @@ import type { Database } from "@/integrations/supabase/types";
 import { GROWTH_SYSTEM } from "@/lib/offer";
 import type { StripeEnv } from "@/lib/stripe.server";
 import { MONTHLY_PRICE_LOOKUP_KEY, SETUP_PRICE_LOOKUP_KEY } from "@/lib/stripe-catalog";
+import { shouldAnnouncePayment } from "@/lib/payment-amount";
 
 type Admin = SupabaseClient<Database>;
 type SubStatus = Database["public"]["Enums"]["subscription_status"];
@@ -234,7 +235,8 @@ export async function recordStripeTransaction(
 
   // Customer-facing billing notices come from real (live) money only — a test
   // charge must never reach a real customer's inbox or notification feed.
-  if (input.environment === "live") {
+  // A $0 charge (100%-off setup code) is recorded above but never announced as a payment.
+  if (input.environment === "live" && shouldAnnouncePayment(input.status, input.amount)) {
     const { error: notifyError } = await admin.from("notifications").insert({
       organization_id: input.organizationId,
       title: input.status === "completed" ? "Payment received" : "Payment failed",

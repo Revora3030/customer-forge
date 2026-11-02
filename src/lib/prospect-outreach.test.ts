@@ -355,10 +355,21 @@ describe("outreach compliance fixes", () => {
     expect(smsAllowedNow(new Date("2026-10-19T13:30:00Z"), "TN")).toBe(false); // split state: 9:30 EDT but 8:30 CDT
   });
 
+  it("never emails or texts a business without a recognised US state (UK/CA/AU on legal hold)", async () => {
+    for (const state of [null, "ON", "England", "NSW"]) {
+      const { db, tables } = fakeDb(demoSeed({ business_profiles: [{ organization_id: ORG, email: "owner@triangle.com", phone: "(919) 555-0100", city: "Toronto", state }] }));
+      expect(await sendDemoOutreach(db, email)).toMatchObject({ ok: false, reason: "non_us" });
+      expect(await sendDemoOutreach(db, { ...sms, to: "(919) 555-0100" })).toMatchObject({ ok: false, reason: "non_us" });
+      expect(tables["prospect_outreach"]!.every((row) => row["status"] === "skipped")).toBe(true);
+    }
+    expect(sendTemplateEmail).not.toHaveBeenCalled();
+    expect(twilioFetch).not.toHaveBeenCalled();
+  });
+
   it("never texts a West Coast number at 6am because the demo has no state", async () => {
     vi.setSystemTime(new Date("2026-10-19T13:05:00Z"));
     const { db } = fakeDb(demoSeed({ business_profiles: [{ organization_id: ORG, email: "owner@triangle.com", phone: "(213) 555-0100", city: "Los Angeles", state: null }] }));
-    expect(await sendDemoOutreach(db, { ...sms, to: "(213) 555-0100" })).toMatchObject({ ok: false, reason: "quiet_hours" });
+    expect(await sendDemoOutreach(db, { ...sms, to: "(213) 555-0100" })).toMatchObject({ ok: false, reason: "non_us" });
     expect(twilioFetch).not.toHaveBeenCalled();
   });
 
