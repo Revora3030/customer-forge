@@ -1021,15 +1021,21 @@ export const applyWebsiteChanges = createServerFn({ method: "POST" })
     }),
   )
   .handler(async ({ data, context }) => {
-    const runId = data.operationKey?.split(":")[0];
-    const work = () => applyImpl(context.supabase as unknown as SupabaseLike, String(context.userId), data);
-    if (!runId) return work();
-    const { withModelActivity } = await import("@/lib/ai/model-activity-scope.server");
-    const { noteStage } = await import("@/lib/builder/progress.server");
-    return withModelActivity(
-      (provider, model) => noteStage(data.organizationId, runId, "model at work", `${provider} · ${model}`),
-      work,
-    );
+    const userId = String(context.userId);
+    const supabase = context.supabase as unknown as SupabaseLike;
+    if (!data.operationKey) return applyImpl(supabase, userId, data);
+    // Keyed applies run as a background job (same key = same job), so leaving
+    // the app mid-apply never cuts the write off half-way.
+    await assertBuilderAccess(supabase, userId, data.organizationId);
+    const jobs = await import("@/lib/builder/chat-jobs.server");
+    const job = await jobs.startChatJob({
+      organizationId: data.organizationId,
+      userId,
+      kind: "apply",
+      requestKey: data.operationKey,
+      payload: data as unknown as Record<string, unknown>,
+    });
+    return (await jobs.awaitChatJob(job, await callerOwner(context.supabase), executeBuilderChatJob)) as Awaited<ReturnType<typeof applyImpl>>;
   });
 
 type ApplyInput = {

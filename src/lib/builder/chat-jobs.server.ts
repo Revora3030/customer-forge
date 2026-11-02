@@ -75,6 +75,8 @@ export async function startChatJob(input: {
   kind: ChatJobKind;
   requestKey: string;
   payload: Record<string, unknown>;
+  /** False when the caller runs the job itself straight away. */
+  kick?: boolean;
 }): Promise<ChatJobRow> {
   const db = await admin();
   const insert = await db
@@ -114,7 +116,7 @@ export async function startChatJob(input: {
     row = (reset.data as ChatJobRow | null) ?? row;
   }
   if (!row) throw new Error("Couldn't save the request.");
-  await kickChatJob(row.id);
+  if (input.kick !== false) await kickChatJob(row.id);
   return row;
 }
 
