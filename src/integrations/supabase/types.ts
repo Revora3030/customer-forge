@@ -3193,6 +3193,27 @@ export type Database = {
           },
         ]
       }
+      lifecycle_email_optouts: {
+        Row: {
+          created_at: string
+          email: string
+          opted_out_at: string | null
+          token: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          opted_out_at?: string | null
+          token: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          opted_out_at?: string | null
+          token?: string
+        }
+        Relationships: []
+      }
       local_events: {
         Row: {
           created_at: string
@@ -7036,6 +7057,19 @@ export type Database = {
       }
     }
     Functions: {
+      admin_client_counts: {
+        Args: never
+        Returns: {
+          active_quote_forms: number
+          active_services: number
+          analytics_events: number
+          appointments: number
+          bookable_services: number
+          leads: number
+          media: number
+          organization_id: string
+        }[]
+      }
       ai_note_free_tokens: {
         Args: { _amount: number; _provider: string }
         Returns: number
