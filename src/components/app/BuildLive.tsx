@@ -17,6 +17,7 @@ import { useLatestGenerationJob, useRunSiteEngine } from "@/lib/site-engine.hook
 import { MAX_BUILD_ATTEMPTS, RECOVERING_BUILD_MESSAGE, isRetryWait, jobLiveness } from "@/lib/builder/job-liveness";
 import { useBuildProgress } from "@/lib/builder/progress.hooks";
 import { describeBuildFailure } from "@/lib/builder/build-failure";
+import { clientStallVerdict } from "@/lib/builder/no-progress";
 import { CapacityWaitNotice } from "@/components/app/CapacityWaitNotice";
 import { cn } from "@/lib/utils";
 
@@ -58,6 +59,9 @@ export function BuildLive({ organizationId }: { organizationId: string | null | 
   const [open, setOpen] = useState(true);
   const [mountedAt] = useState(() => Date.now());
   const [now, setNow] = useState(() => Date.now());
+  // Nothing moved for minutes while the worker still claims the job: say so
+  // plainly instead of an endless shimmer. The server ends it on its own.
+  const noProgress = !stalled && active && clientStallVerdict(row, now);
   useEffect(() => {
     if (!active) return;
     const id = window.setInterval(() => setNow(Date.now()), 1000);
@@ -169,6 +173,12 @@ export function BuildLive({ organizationId }: { organizationId: string | null | 
               {isRetryWait(row)
                 ? `Retrying shortly (attempt ${Math.min(MAX_BUILD_ATTEMPTS, Number(row?.attempts ?? 0) + 1)} of ${MAX_BUILD_ATTEMPTS}). Your saved design work is kept.`
                 : "Queued — the builder picks up new jobs within a few seconds."}
+            </p>
+          ) : null}
+          {noProgress ? (
+            <p role="status" className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[12.5px] text-amber-600">
+              This step hasn’t moved for a few minutes. The AI service may be busy or out of credits. Revora will stop it
+              automatically, keep your finished sections, and let you press Retry build.
             </p>
           ) : null}
           {stalled ? (

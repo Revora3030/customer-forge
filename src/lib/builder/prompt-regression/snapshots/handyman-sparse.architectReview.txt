@@ -1,0 +1,169 @@
+### SYSTEM
+You design real websites for real businesses. Never invent facts, services, prices, reviews, awards or results. Working features (quote forms, booking, contact, embeds) exist only where listed. You are Terra, the adversarial reviewer of website structure. Judge each page on whether it works for this business and its visitors; never demand a fixed page anatomy. Refuse a structure that is too thin to explain the business and its real services to a first-time visitor. NON-NEGOTIABLE RULES (safety and truth only — every creative choice is yours): Do not copy another brand's identity. Generated visuals must never pose as real reviews, completed work, staff, awards or results. Do not invent urgency, scarcity or claims the business has not supplied. Body text must stay readable and meet WCAG contrast; design must work from 320px phones to wide desktops.
+
+### USER
+SUPPLIED BUSINESS FACTS:
+{
+  "business": "Dummy Handyman Services",
+  "industry": "Handyman",
+  "conversionGoal": "Call now",
+  "description": null,
+  "services": [],
+  "serviceArea": "Fakeham",
+  "realContact": {
+    "phone": true,
+    "email": true
+  }
+}
+
+AVAILABLE MATERIAL:
+[
+  {
+    "slug": "home",
+    "title": "Home",
+    "purpose": "home",
+    "availableSections": [
+      "hero",
+      "intro",
+      "quote",
+      "contact"
+    ]
+  },
+  {
+    "slug": "about",
+    "title": "About",
+    "purpose": "about",
+    "availableSections": [
+      "intro",
+      "cta"
+    ]
+  },
+  {
+    "slug": "contact",
+    "title": "Contact",
+    "purpose": "contact",
+    "availableSections": [
+      "contact"
+    ]
+  }
+]
+
+PROPOSED STRUCTURE:
+[
+  {
+    "slug": "home",
+    "title": "Home",
+    "purpose": "Get the visitor to call",
+    "primaryAction": "Call (555) 010-0108",
+    "seoTitle": "Handyman in Fakeham, VA | Home",
+    "seoDescription": "Handyman serving Fakeham. Call (555) 010-0108 or send a request through the form and we will get back to you about your job in Fakeham.",
+    "sections": [
+      {
+        "role": "hero",
+        "heading": "Handyman in Fakeham",
+        "subheading": "Call (555) 010-0108 or send a request.",
+        "body": null,
+        "media": "optional",
+        "includes": [
+          "primary_action"
+        ]
+      },
+      {
+        "role": "intro",
+        "heading": "Handyman serving Fakeham",
+        "subheading": null,
+        "body": "Dummy Handyman Services is a handyman in Fakeham, VA.",
+        "media": "none"
+      },
+      {
+        "role": "quote",
+        "heading": "Request a call back",
+        "subheading": null,
+        "body": null,
+        "media": "none"
+      },
+      {
+        "role": "contact",
+        "heading": "Contact us",
+        "subheading": "Call (555) 010-0108 or use the form.",
+        "body": null,
+        "media": "none"
+      }
+    ]
+  },
+  {
+    "slug": "about",
+    "title": "About",
+    "purpose": "Who we are",
+    "primaryAction": "Call (555) 010-0108",
+    "seoTitle": "Handyman in Fakeham, VA | About",
+    "seoDescription": "Handyman serving Fakeham. Call (555) 010-0108 or send a request through the form and we will get back to you about your job in Fakeham.",
+    "sections": [
+      {
+        "role": "intro",
+        "heading": "About us",
+        "subheading": null,
+        "body": "Dummy Handyman Services is a handyman in Fakeham, VA.",
+        "media": "none"
+      },
+      {
+        "role": "cta",
+        "heading": "Ready when you are",
+        "subheading": "Call (555) 010-0108 or send a request.",
+        "body": "Tell us what you need in Fakeham and we will get back to you.",
+        "media": "none",
+        "includes": [
+          "primary_action"
+        ]
+      }
+    ]
+  },
+  {
+    "slug": "contact",
+    "title": "Contact",
+    "purpose": "Reach us",
+    "primaryAction": "Call (555) 010-0108",
+    "seoTitle": "Handyman in Fakeham, VA | Contact",
+    "seoDescription": "Handyman serving Fakeham. Call (555) 010-0108 or send a request through the form and we will get back to you about your job in Fakeham.",
+    "sections": [
+      {
+        "role": "contact",
+        "heading": "Contact us",
+        "subheading": "Call (555) 010-0108 or use the form.",
+        "body": null,
+        "media": "none"
+      },
+      {
+        "role": "where_we_work",
+        "heading": "Where we work",
+        "subheading": null,
+        "body": "We serve Fakeham.",
+        "custom": true,
+        "media": "none"
+      }
+    ]
+  }
+]
+
+MEASURED PAGE DEPTH (visible characters, content beats beyond headings, closing action; input only, not a required anatomy):
+{
+  "home": {
+    "visibleChars": 199,
+    "beats": 3,
+    "hasClosingAction": true
+  },
+  "about": {
+    "visibleChars": 178,
+    "beats": 2,
+    "hasClosingAction": true
+  },
+  "contact": {
+    "visibleChars": 76,
+    "beats": 2,
+    "hasClosingAction": true
+  }
+}
+
+Approve only if the proposed structure gives a first-time visitor enough factual coverage to understand what this business does, which supplied services matter, where it serves, and how to take a real available action. Refuse unsupported claims, omitted critical supplied facts, fake capabilities, or stub-like plans. Do not require any specific number of pages, sections, visual beats, or a house layout.
+THE SUPPLIED FACTS ARE THIN (no service list). Judge coverage against those facts only: a complete small site (home, about, contact) is approvable when every business-specific statement restates a supplied fact and the remaining sections only explain the trade in general, neutral terms. Refuse invented prices, years, reviews, awards, licences, guarantees, staff, response times or specific services presented as offered. Do not refuse a plan only because it has several pages or sections.
+{"approvedFields": ["structure"], "rejected": [{"field": "...", "reason": "..."}]}

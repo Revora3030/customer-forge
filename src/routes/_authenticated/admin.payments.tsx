@@ -17,6 +17,7 @@ import { netRevenue } from "@/lib/monthly-report";
 import { useAllPayments, usePaymentEvents } from "@/lib/payments.hooks";
 import { refundPayment } from "@/lib/payments.functions";
 import { useWorkspace } from "@/lib/use-tenant";
+import { RevenueCard } from "@/components/admin/RevenueCard";
 
 export const Route = createFileRoute("/_authenticated/admin/payments")({
   head: () => ({
@@ -123,6 +124,8 @@ function AdminPayments() {
           tone={stats.failed ? "attention" : "neutral"}
         />
       </div>
+
+      <RevenueCard enabled={isSuperAdmin} />
 
       <Panel className="p-5">
         <SectionHeading eyebrow="Ledger" title="All payments" />

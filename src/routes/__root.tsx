@@ -15,7 +15,7 @@ import appCss from "../styles.css?url";
 import dmSans400 from "@fontsource/dm-sans/files/dm-sans-latin-400-normal.woff2?url";
 import dmSans600 from "@fontsource/dm-sans/files/dm-sans-latin-600-normal.woff2?url";
 import instrumentSerif400 from "@fontsource/instrument-serif/files/instrument-serif-latin-400-normal.woff2?url";
-import spaceGrotesk600 from "@fontsource/space-grotesk/files/space-grotesk-latin-600-normal.woff2?url";
+import spaceGrotesk700 from "@fontsource/space-grotesk/files/space-grotesk-latin-700-normal.woff2?url";
 import { Toaster } from "@/components/ui/sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { ensureProfile, enforceSessionPolicy, resolvePostLoginPath } from "@/lib/auth-session";
@@ -111,10 +111,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     scripts: [
       // Consent Mode defaults must exist before the Google Ads tag loads.
       // Granted globally, denied in regions that require consent until the
-      // visitor answers the cookie banner.
+      // visitor answers the cookie banner. Keep the region list in step with
+      // CONSENT_COUNTRIES in src/lib/consent.ts.
       {
         children:
-          "window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('consent','default',{ad_storage:'granted',ad_user_data:'granted',ad_personalization:'granted'});gtag('consent','default',{ad_storage:'denied',ad_user_data:'denied',ad_personalization:'denied',wait_for_update:500,region:['AT','BE','BG','HR','CY','CZ','DK','EE','FI','FR','DE','GR','HU','IE','IT','LV','LT','LU','MT','NL','PL','PT','RO','SK','SI','ES','SE','IS','LI','NO','GB','CH','CA-QC']});",
+          "window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('consent','default',{ad_storage:'granted',ad_user_data:'granted',ad_personalization:'granted',analytics_storage:'granted'});gtag('consent','default',{ad_storage:'denied',ad_user_data:'denied',ad_personalization:'denied',analytics_storage:'denied',wait_for_update:500,region:['AT','BE','BG','HR','CY','CZ','DK','EE','FI','FR','DE','GR','HU','IE','IT','LV','LT','LU','MT','NL','PL','PT','RO','SK','SI','ES','SE','IS','LI','NO','GB','CH','CA']});",
       },
       // Boot watchdog: the app's own stale-build guard only runs once the app
       // has started, so a page whose code bundle failed to load (a cached or
@@ -129,9 +130,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "stylesheet", href: appCss },
       // DM Sans, Instrument Serif and Space Grotesk are self-hosted through
       // Fontsource (imported in styles.css), so no Google Fonts links here. The four faces
-      // the first screen uses are preloaded (marketing pages only) so the swap happens
+      // the first screen draws (body 400, buttons and nav 600, the editorial headline, and the
+      // 700-weight REVORA wordmark in the header) are preloaded (marketing pages only) so the swap happens
       // before first paint, with metric-matched fallbacks in styles.css as the safety net.
-      ...[dmSans400, dmSans600, instrumentSerif400, spaceGrotesk600].map((href) => ({
+      ...[dmSans400, dmSans600, instrumentSerif400, spaceGrotesk700].map((href) => ({
         rel: "preload",
         as: "font",
         type: "font/woff2",

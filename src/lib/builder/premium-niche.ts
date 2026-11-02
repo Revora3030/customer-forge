@@ -43,7 +43,7 @@ const NICHE: Record<string, Partial<Omit<NicheEffects, "key">>> = {
   "emergency-dispatch": { tier: 0, shader: null, split: false, depth: false },
   hvac: { tier: 1, shader: "grain", split: false },
   electrical: { tier: 1, shader: "neuro-noise" },
-  cleaning: { tier: 1, shader: "mesh", meterLabel: "clean" },
+  cleaning: { tier: 1, shader: "mesh" },
   "home-services": { tier: 1, shader: "mesh" },
   dentist: { tier: 1, shader: "grain", tour360: true },
   "law-firms": { tier: 1, shader: "mesh", depth: false },
@@ -52,11 +52,11 @@ const NICHE: Record<string, Partial<Omit<NicheEffects, "key">>> = {
   "hospitality-lifestyle": { tier: 1, shader: "grain", tour360: true },
   roofing: { tier: 2, shader: "grain", building: false },
   landscaping: { tier: 2, shader: "grain", tour360: true },
-  "pressure-washing": { tier: 2, shader: "swirl", meterLabel: "clean" },
-  "exterior-cleaning": { tier: 2, shader: "swirl", meterLabel: "clean" },
+  "pressure-washing": { tier: 2, shader: "swirl" },
+  "exterior-cleaning": { tier: 2, shader: "swirl" },
   painting: { tier: 2, shader: "swirl", tour360: true },
   "med-spa": { tier: 2, shader: "mesh", tour360: true },
-  "auto-detailing": { tier: 2, shader: "warp", meterLabel: "detailed", tour360: true },
+  "auto-detailing": { tier: 2, shader: "warp", tour360: true },
   "gyms-fitness": { tier: 2, shader: "warp", tour360: true },
   "salons-barbers": { tier: 2, shader: "warp", tour360: true },
   "precision-craft": { tier: 2, shader: "grain" },
@@ -93,13 +93,14 @@ export function premiumEffectsNote(industry: string | null | undefined, hints: s
 }
 
 /**
- * The meter label a page shows: the owner's own choice when they set one
- * (an empty choice hides it), else the niche default, else none. Nothing when
- * the owner switched premium effects off.
+ * The meter label a page shows: only the owner's own explicit choice (an empty
+ * choice hides it). There is NO trade default: a "0% detailed" pill used to
+ * appear on every auto-detailing site nobody asked it on (audit item 3).
+ * Nothing when the owner switched premium effects off, and never in the
+ * owner's draft preview (`preview`), where it reads as a stuck progress badge.
  */
-export function resolveMeterLabel(site: PremiumSiteSettings & { meterSet?: boolean }, niche: NicheEffects): string | null {
-  if (!site.enabled) return null;
-  if (site.meterSet) return site.meterLabel;
-  return niche.meterLabel;
+export function resolveMeterLabel(site: PremiumSiteSettings & { meterSet?: boolean }, _niche?: NicheEffects, options: { preview?: boolean } = {}): string | null {
+  if (!site.enabled || options.preview) return null;
+  return site.meterSet ? site.meterLabel : null;
 }
 

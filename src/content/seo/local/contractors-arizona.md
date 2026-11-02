@@ -50,3 +50,8 @@ Yes. Leads, quotes and bookings live in one pipeline with scheduled follow-up.
 
 **What does it cost?**
 $350 setup, first month free, then $100/month.
+
+## Source (checked October 31, 2026)
+
+- Arizona Registrar of Contractors, who needs a license (labor and materials over $1,000, or a permit): https://roc.az.gov/license-classifications-page
+- A.R.S. 32-1121: https://www.azleg.gov/ars/32/01121.htm

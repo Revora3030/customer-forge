@@ -7,10 +7,12 @@
  * ("Worked for 7m 10s · 14 steps · 9 AI calls") that opens to the full log.
  */
 import { useState } from "react";
-import { Check, ChevronDown, Circle, Loader2, TriangleAlert } from "lucide-react";
+import { Check, ChevronDown, TriangleAlert } from "lucide-react";
 import { Shimmer } from "@/components/ai-elements/shimmer";
 import { Button } from "@/components/ui/button";
 import { CapacityWaitNotice } from "@/components/app/CapacityWaitNotice";
+import { TaskTreeList } from "@/components/app/TaskTree";
+import { nodesFromStages } from "@/lib/builder/task-tree";
 import { jobLiveness } from "@/lib/builder/job-liveness";
 import { describeBuildFailure } from "@/lib/builder/build-failure";
 import { formatDuration, quietNotice, stalledNotice, type WorkFeed as Feed } from "@/lib/builder/work-feed";
@@ -24,6 +26,8 @@ export function WorkFeed({
   live = true,
   onStop,
   stopping = false,
+  onRetry,
+  retryDisabled = false,
 }: {
   organizationId: string | null | undefined;
   runId?: string | null;
@@ -31,10 +35,13 @@ export function WorkFeed({
   /** Stops the build (managers and above). Offered only while it is running. */
   onStop?: (jobId: string) => void;
   stopping?: boolean;
+  /** Starts a stopped build again; offered as Retry on the step it stopped at. */
+  onRetry?: () => void;
+  retryDisabled?: boolean;
 }) {
   const { feed, job, loading } = useWorkFeed(organizationId, { runId, live });
   if (loading || feed.state === "none") return null;
-  return <WorkFeedView feed={feed} job={job} {...(onStop ? { onStop } : {})} stopping={stopping} />;
+  return <WorkFeedView feed={feed} job={job} {...(onStop ? { onStop } : {})} stopping={stopping} {...(onRetry ? { onRetry } : {})} retryDisabled={retryDisabled} />;
 }
 
 /**
@@ -86,14 +93,19 @@ export function WorkFeedView({
   job = null,
   onStop,
   stopping = false,
+  onRetry,
+  retryDisabled = false,
 }: {
   feed: Feed;
   job?: WorkFeedJobRow | null;
   onStop?: (jobId: string) => void;
   stopping?: boolean;
+  onRetry?: () => void;
+  retryDisabled?: boolean;
 }) {
   const ended = feed.state === "done" || feed.state === "failed" || feed.state === "cancelled";
-  const [open, setOpen] = useState(!ended);
+  // Open while running, and open when it failed so the Retry on the stopped step is in view.
+  const [open, setOpen] = useState(!ended || feed.state === "failed");
   const [showPending, setShowPending] = useState(false);
   const stalled = jobLiveness(job, Date.now()) === "stalled";
   const failure = feed.state === "failed" ? describeBuildFailure((job ?? {}) as never) : null;
@@ -156,30 +168,16 @@ export function WorkFeedView({
 
       {open ? (
         <div className="space-y-3 border-t border-border/60 px-3.5 py-3">
-          <ol className="space-y-1.5" aria-label="Build steps">
-            {shown.map((stage) => (
-              <li key={stage.key} className="flex items-start gap-2 text-[13px] leading-5">
-                <span className="mt-0.5 grid size-3.5 shrink-0 place-items-center" aria-hidden>
-                  {stage.state === "done" ? (
-                    <Check className="size-3.5 text-emerald-400" />
-                  ) : stage.state === "running" ? (
-                    <Loader2 className="size-3.5 animate-spin text-primary motion-reduce:animate-none" />
-                  ) : stage.state === "failed" ? (
-                    <TriangleAlert className="size-3.5 text-destructive" />
-                  ) : (
-                    <Circle className="size-3 text-muted-foreground/50" />
-                  )}
-                </span>
-                <span className={cn("min-w-0 flex-1 break-words", stage.state === "pending" || stage.state === "cancelled" ? "text-muted-foreground/70" : stage.state === "done" ? "text-muted-foreground" : "text-foreground")}>
-                  {stage.label}
-                  {stage.state === "running" && stage.key === "layout" && feed.sectionsDone != null ? (
-                    <span className="block text-xs text-muted-foreground">{feed.sectionsDone} section{feed.sectionsDone === 1 ? "" : "s"} laid out so far</span>
-                  ) : null}
-                </span>
-                {stage.state === "done" && stage.durationMs != null ? <span className="tnum shrink-0 text-xs text-muted-foreground/70">{formatDuration(stage.durationMs)}</span> : null}
-              </li>
-            ))}
-          </ol>
+          <TaskTreeList
+            ariaLabel="Build steps"
+            nodes={nodesFromStages(shown).map((n) => {
+              // The layout stage says how many sections are already laid out (a recorded count).
+              if (n.status === "running" && n.id === "layout" && feed.sectionsDone != null) return { ...n, detail: `${feed.sectionsDone} section${feed.sectionsDone === 1 ? "" : "s"} laid out so far` };
+              return n;
+            })}
+            {...(onRetry ? { onRetry: () => onRetry() } : {})}
+            retryDisabled={retryDisabled}
+          />
           {pending.length ? (
             <button type="button" onClick={() => setShowPending((v) => !v)} className="min-h-9 cursor-pointer text-xs text-muted-foreground underline-offset-2 hover:underline">
               {showPending ? "Hide the remaining steps" : `${pending.length} more step${pending.length === 1 ? "" : "s"} to come`}

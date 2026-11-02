@@ -140,7 +140,7 @@ describe("site settings and the scroll meter", () => {
   });
   it("owner choice beats the niche default; off hides it", () => {
     const niche = nicheEffects("auto detailing");
-    expect(resolveMeterLabel({ enabled: true, meterLabel: null, meterSet: false }, niche)).toBe("detailed");
+    expect(resolveMeterLabel({ enabled: true, meterLabel: null, meterSet: false }, niche)).toBeNull();
     expect(resolveMeterLabel({ enabled: true, meterLabel: null, meterSet: true }, niche)).toBeNull();
     expect(resolveMeterLabel({ enabled: true, meterLabel: "shiny", meterSet: true }, niche)).toBe("shiny");
     expect(resolveMeterLabel({ enabled: false, meterLabel: "shiny", meterSet: true }, niche)).toBeNull();
@@ -169,5 +169,20 @@ describe("niche tiers", () => {
     const note = premiumEffectsNote("roofing");
     expect(note).toMatch(/at most one shader_field/);
     expect(note).toMatch(/opens on a tap/);
+  });
+});
+
+describe("scroll meter never leaks a default badge (audit item 3: '0% detailed')", () => {
+  it("no trade has a default meter word, so nothing shows unless the owner asked", () => {
+    for (const industry of ["auto detailing", "pressure washing", "cleaning", "roofing", "plumbing", "dentist", "real estate"])
+      expect(nicheEffects(industry).meterLabel).toBeNull();
+    const niche = nicheEffects("auto detailing");
+    expect(resolveMeterLabel({ enabled: true, meterLabel: null, meterSet: false }, niche)).toBeNull();
+  });
+  it("an owner's explicit word still works on the live site but never in the draft preview", () => {
+    const niche = nicheEffects("auto detailing");
+    const own = { enabled: true, meterLabel: "shiny", meterSet: true };
+    expect(resolveMeterLabel(own, niche)).toBe("shiny");
+    expect(resolveMeterLabel(own, niche, { preview: true })).toBeNull();
   });
 });

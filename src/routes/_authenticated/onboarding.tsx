@@ -2,6 +2,8 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { GoogleListingImport } from "@/components/onboarding/GoogleListingImport";
 import { ExistingSiteImport } from "@/components/onboarding/ExistingSiteImport";
+import { MapsLinkImport, type ConfirmedMapsPlace } from "@/components/onboarding/MapsLinkImport";
+import { looksLikeMapsLink } from "@/lib/maps-link";
 import type { ImportedFacts } from "@/lib/site-import";
 import { OwnerPhotoUpload } from "@/components/onboarding/OwnerPhotoUpload";
 import { saveOwnerLogo, saveOwnerPhotos, type PendingPhoto } from "@/components/onboarding/owner-photos";
@@ -175,16 +177,21 @@ function Onboarding() {
   // Words typed on the homepage starter fill empty fields only, then are cleared.
   // Arriving from "upgrade my existing website" imports that site straight away.
   const [importOnArrival, setImportOnArrival] = useState(false);
+  // A Google Maps link typed where a website goes is read by the Maps box, never
+  // saved as the business's website or fetched as one.
+  const [mapsLinkOnArrival, setMapsLinkOnArrival] = useState("");
   useEffect(() => {
     const starter = readStarter();
     if (!starter) return;
+    const mapsLink = looksLikeMapsLink(starter.website) ? starter.website : "";
     setDraft((prev) => ({
       ...prev,
       businessName: prev.businessName.trim() ? prev.businessName : starter.businessName,
       about: prev.about.trim() ? prev.about : starter.about,
-      website: prev.website.trim() ? prev.website : starter.website,
+      website: prev.website.trim() ? prev.website : mapsLink ? "" : starter.website,
     }));
-    if (starter.wantsImport) setImportOnArrival(true);
+    if (mapsLink) setMapsLinkOnArrival(mapsLink);
+    else if (starter.wantsImport) setImportOnArrival(true);
     clearStarter();
   }, []);
 
@@ -394,6 +401,17 @@ function Onboarding() {
       };
     });
 
+  // The owner confirmed these from their Google Maps link, so they replace what
+  // was there; empty values never erase anything.
+  const applyMapsPlace = (place: ConfirmedMapsPlace) =>
+    setDraft((prev) => ({
+      ...prev,
+      businessName: place.name || prev.businessName,
+      city: place.city || prev.city,
+      state: place.state || prev.state,
+      google: place.link || prev.google,
+    }));
+
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) =>
     setDraft((prev) => ({ ...prev, [key]: value }));
 
@@ -460,7 +478,7 @@ function Onboarding() {
               phone: draft.phone || null,
               city: draft.city || null,
               state: draft.state || null,
-              website: draft.website || null,
+              website: looksLikeMapsLink(draft.website) ? null : draft.website || null,
               description: draft.about || null,
             },
           })
@@ -516,7 +534,7 @@ function Onboarding() {
             ...(draft.closedOnHolidays ? { closed_on_holidays: true } : {}),
             ...(savedBookingLink ? { booking_url: savedBookingLink } : {}),
           } as never,
-          website: draft.website || null,
+          website: looksLikeMapsLink(draft.website) ? null : draft.website || null,
           logo_url: logoPath || draft.logoUrl.trim() || null,
           hero_image_url: draft.heroImageUrl || null,
           primary_color: draft.primaryColor || null,
@@ -730,10 +748,11 @@ function Onboarding() {
                 </p>
               </div>
               <ExistingSiteImport
-                initialUrl={draft.website}
+                initialUrl={looksLikeMapsLink(draft.website) ? "" : draft.website}
                 autoStart={importOnArrival}
                 onImported={applyImportedFacts}
               />
+              <MapsLinkImport initialUrl={mapsLinkOnArrival} onUse={applyMapsPlace} />
               <div className="space-y-1.5">
                 <Label htmlFor="o-name">Business name</Label>
                 <Input
@@ -1058,6 +1077,9 @@ function Onboarding() {
                     value={draft.google}
                     onChange={(e) => set("google", e.target.value)}
                   />
+                  <p className="text-[11px] text-muted-foreground">
+                    A Google Maps link here also shows a map in your site's contact section.
+                  </p>
                 </div>
               </div>
             </div>

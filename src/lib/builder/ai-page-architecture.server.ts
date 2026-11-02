@@ -220,6 +220,9 @@ export async function proposePageArchitecture(input: {
       JSON.stringify(depthNumbers(depth), null, 2),
       "",
       "Approve only if the proposed structure gives a first-time visitor enough factual coverage to understand what this business does, which supplied services matter, where it serves, and how to take a real available action. Refuse unsupported claims, omitted critical supplied facts, fake capabilities, or stub-like plans. Do not require any specific number of pages, sections, visual beats, or a house layout.",
+      // Booking/quote/contact sections listed in AVAILABLE MATERIAL are the
+      // platform's own working forms; without this Terra refused real features.
+      "Every section role listed in AVAILABLE MATERIAL (including booking, quote and contact) is a working platform feature: those forms send real requests to the business owner. Do not refuse them as unsupported or fake capabilities; judge only whether their page explains enough for a visitor to act.",
       thinFacts
         ? "THE SUPPLIED FACTS ARE THIN (no service list). Judge coverage against those facts only: a complete small site (home, about, contact) is approvable when every business-specific statement restates a supplied fact and the remaining sections only explain the trade in general, neutral terms. Refuse invented prices, years, reviews, awards, licences, guarantees, staff, response times or specific services presented as offered. Do not refuse a plan only because it has several pages or sections."
         : "",

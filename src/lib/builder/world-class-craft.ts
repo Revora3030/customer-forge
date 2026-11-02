@@ -22,7 +22,7 @@
  * Pure module: no environment, network, provider or template dependency.
  */
 
-export const WORLD_CLASS_CRAFT_VERSION = 2 as const;
+export const WORLD_CLASS_CRAFT_VERSION = 3 as const;
 
 /** Which teammate is being briefed. Each gets the part of the bar it owns. */
 export type CraftRole =
@@ -56,6 +56,25 @@ const EXECUTION = [
   "Motion: few, purposeful, quick transitions that clarify structure or reward attention; it must respect reduced-motion preferences and never delay content.",
   "Mobile: the phone layout is designed, not just stacked — the order, sizes and crops are chosen for a thumb and a small screen.",
   "Performance: lean pages that feel instant; heavy media only where it earns its weight.",
+].join(" ");
+
+
+/**
+ * STATE & MOTION DETAIL (v3)
+ * Style-neutral execution numbers distilled and paraphrased from research into
+ * public design-prompt guidance (Lovable's Prompt Library, see
+ * docs/bot-knowledge/features/lovable-prompt-library.md). Like the rest of this
+ * module it never picks a look: it only says what "finished" means for loading,
+ * empty, error, overlay and motion states so the AI can hold its own choices to it.
+ */
+const STATE_AND_MOTION_DETAIL = [
+  "FINISHED STATES (detail bar, still your style): treat every state as designed, not default.",
+  "Loading: show nothing under ~300ms, a light spinner for ~300ms–1s, content-shaped placeholders beyond that (same dimensions and radius as the real content, one gentle shimmer), and a short reassurance line if it passes ~3s; fade placeholders out as content fades in.",
+  "Empty: say what belongs here and why it is empty, and give exactly one clear next action; never leave a blank panel or a bare 'No data'.",
+  "Errors and forms: validate on blur or submit rather than on every keystroke, say what to do next in plain words beside the field, mark invalid fields with aria-invalid and aria-describedby, move focus to the first problem, and confirm success visibly but briefly.",
+  "Overlays (menus, dialogs, drawers, tooltips): open and close quickly, trap and restore focus, close on Escape and outside tap, keep a 44px touch target, and never let them cover the only way to act or leave.",
+  "Motion budget: hover and press feedback roughly 150–250ms, reveals roughly 300–600ms, one entrance per element, staggers short enough that the whole group lands inside about a second and are skipped beyond roughly a dozen items; animate transform and opacity only, never block reading or tapping behind an animation, and give prefers-reduced-motion users the finished state instantly.",
+  "Translucent or layered surfaces are used sparingly: keep body copy on solid or sufficiently opaque backing so text contrast holds over any photo or background.",
 ].join(" ");
 
 /** The recognisable defaults that make generated sites look alike. */
@@ -118,6 +137,7 @@ const ROLE_FOCUS: Record<CraftRole, string> = {
 export function craftBarPrompt(role: CraftRole): string {
   const parts = [CORE_BAR, ROLE_FOCUS[role]];
   if (role !== "copy" && role !== "page_architecture") parts.push(EXECUTION);
+  if (role === "layout" || role === "polish") parts.push(STATE_AND_MOTION_DETAIL);
   if (role !== "page_architecture") parts.push(DEFAULTS_QUESTION);
   if (role !== "copy") parts.push(SECTION_RHYTHM);
   parts.push(SELF_CRITIQUE);
@@ -131,7 +151,7 @@ export function craftBarPrompt(role: CraftRole): string {
 export const VISUAL_CRAFT_REVIEW_BRIEF = [
   "Critique execution quality the way a senior art director reviews a junior's work before it goes to a client.",
   "Judge hierarchy, typographic scale and line breaks, spacing rhythm, grid alignment, colour discipline, image art direction and cropping, consistency of detail, and whether the mobile layout was designed rather than merely stacked.",
-  "Name the specific section id and the specific fix (for example: which element should lead, what should get more space, which crop is wrong). Never prescribe a font, colour or layout from a fixed list; never ask it to match another site.",
+  "Name the specific section id and the specific fix (for example: which element should lead, what should get more space, which crop is wrong). Also check that loading, empty, error and overlay states and motion timing look finished and respect reduced motion. Never prescribe a font, colour or layout from a fixed list; never ask it to match another site.",
 ].join(" ");
 
 /**
