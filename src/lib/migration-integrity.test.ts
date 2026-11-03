@@ -110,8 +110,21 @@ describe("supabase migrations integrity", () => {
     expect(sql).not.toMatch(/\b(drop\s+table|drop\s+column|truncate\s+(?:table\s+)?(?:only\s+)?public\.|delete\s+from|insert\s+into|update\s+public\.)/i);
     // Embedding FK follows its parent: dropped only when jarvis_memories has no auth.users FK (live drizzle 0010).
     expect(sql).toMatch(/if\s+not\s+exists\s*\([\s\S]*conrelid\s*=\s*'public\.jarvis_memories'::regclass[\s\S]*confrelid\s*=\s*'auth\.users'::regclass[\s\S]*\)\s*then\s*alter\s+table\s+public\.jarvis_memory_embeddings\s+drop\s+constraint\s+if\s+exists\s+jarvis_memory_embeddings_user_id_fkey/i);
-    for (const t of ["site_hosting_grace", "agent_runs", "agent_run_steps", "agent_run_events", "estimate_signatures", "builder_quality_log"]) {
+    for (const t of ["site_hosting_grace", "agent_runs", "agent_run_steps", "agent_run_events", "estimate_signatures", "builder_quality_log", "lead_delivery_watch", "lead_watchdog_events"]) {
       expect(sql).toMatch(new RegExp(String.raw`revoke\s+insert,\s*update,\s*delete,\s*truncate[^;]*public\.${t}\s+from\s+authenticated`, "i"));
+      expect(sql).toMatch(new RegExp(String.raw`revoke\s+all\s+on\s+public\.${t}\s+from\s+public,\s*anon`, "i"));
+    }
+    // The follow-up must sort after every migration it hardens.
+    for (const reviewed of [
+      "20261029151000_jarvis_memory_vectors.sql",
+      "20261030140000_estimate_signatures.sql",
+      "20261030141000_canceled_site_grace.sql",
+      "20261031190000_builder_quality_log.sql",
+      "20261101010000_lead_delivery_watchdog.sql",
+      "20261101020000_agent_runs.sql",
+    ]) {
+      expect(files).toContain(reviewed);
+      expect(files.indexOf(followUp)).toBeGreaterThan(files.indexOf(reviewed));
     }
   });
 

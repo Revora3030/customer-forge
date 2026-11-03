@@ -1,11 +1,13 @@
--- Follow-up to the pre-apply review (2026-11-03) of six migrations that were
+-- Follow-up to the pre-apply review (2026-11-03) of migrations that were
 -- merged but not yet applied to the live database:
 --   20261029151000_jarvis_memory_vectors, 20261030130000_preview_links_support_and_hero_video_bucket,
 --   20261030140000_estimate_signatures, 20261030141000_canceled_site_grace,
---   20261031190000_builder_quality_log, 20261101020000_agent_runs.
+--   20261031190000_builder_quality_log, 20261101010000_lead_delivery_watchdog,
+--   20261101020000_agent_runs.
 --
--- Apply this AFTER those six. Every block is guarded by to_regclass, so it is a
--- no-op for a table that does not exist yet and a re-run changes nothing.
+-- Apply this AFTER all of those. Every block is guarded by to_regclass, so it
+-- is a no-op for a table that does not exist yet (its gap then stays open until
+-- this file is re-run) and a re-run changes nothing.
 -- No rows are inserted, updated or deleted; no table or column is dropped.
 --
 -- 1) site_hosting_grace: the member-read policy queried public.memberships
@@ -15,10 +17,15 @@
 --    ALL on new public tables (including TRUNCATE, which RLS does not cover).
 --    RLS already denies row access, but these tables are written only by the
 --    service role, so remove the write grants too (defense in depth). Covers
---    the four new tables above plus estimate_signatures / builder_quality_log
---    (which revoked only INSERT/UPDATE/DELETE) and three already-live tables
---    from the same week (lifecycle_email_optouts, lead_delivery_watch,
---    lead_watchdog_events). Existing browser SELECT through RLS is unchanged.
+--    site_hosting_grace and the three agent_run* tables, estimate_signatures /
+--    builder_quality_log (which revoked only INSERT/UPDATE/DELETE), the two
+--    lead-watchdog tables (lead_delivery_watch, lead_watchdog_events) from
+--    20261101010000_lead_delivery_watchdog, and lifecycle_email_optouts
+--    (20261030150000). The lead-watchdog tables are NOT live yet: they are
+--    absent from the generated src/integrations/supabase/types.ts, so
+--    20261101010000 must be applied before this file or their hardening is
+--    skipped. lifecycle_email_optouts is in the generated types (live).
+--    Existing browser SELECT through RLS is unchanged.
 -- 3) jarvis_memory_embeddings.user_id referenced auth.users, but the live
 --    parent table public.jarvis_memories had that same foreign key removed
 --    (drizzle 0010_jarvis_memory_routines_plain_user_ids). An embedding for a
