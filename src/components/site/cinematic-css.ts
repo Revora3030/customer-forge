@@ -10,8 +10,13 @@
  *  - phones: floating offer cards flow below the copy so nothing covers a
  *    control, and scenes leave room for a mobile sticky bar,
  *  - reduced motion: no scroll-driven or smooth motion at all,
- *  - every control is at least 44×44px with a visible focus ring.
+ *  - every control is at least 44×44px with a visible focus ring,
+ *  - photographic scenes carry a static feTurbulence grain (above the scrim,
+ *    below the copy; hidden in print and forced-colours),
+ *  - reveals are clip-path inset() wipes, not opacity fades, and are off for
+ *    reduced motion.
  */
+import { GRAIN_LAYER_CSS } from "./film-grain";
 import { SCENE_HEADLINE_CLAMP, fluidClamp } from "@/lib/type-scale";
 
 const S = "[data-composition][data-composition]";
@@ -23,6 +28,9 @@ ${S} .rv-scene-scrim{position:absolute;inset:0;z-index:-1;pointer-events:none}
 ${S} .rv-scene-media.rv-hero-video{opacity:0;transition:opacity .9s ease;background:transparent}
 ${S} .rv-scene-media.rv-hero-video[data-playing]{opacity:1}
 @media (prefers-reduced-motion: reduce){${S} .rv-scene-media.rv-hero-video{opacity:1;transition:none}}
+${S} .rv-scene:has(> .rv-scene-scrim)::after{${GRAIN_LAYER_CSS};z-index:-1}
+${S} .rv-seq-stage::after{${GRAIN_LAYER_CSS};z-index:2}
+@media print,(forced-colors:active){${S} .rv-scene::after,${S} .rv-seq-stage::after{display:none}}
 ${S} .rv-hero-control{position:absolute;z-index:3;right:16px;bottom:16px;display:inline-flex;align-items:center;justify-content:center;min-width:44px;min-height:44px;padding:0 14px;border:1px solid rgb(255 255 255 / .35);border-radius:999px;background:rgb(8 12 18 / .55);color:#fff;font:600 13px/1 system-ui,sans-serif;letter-spacing:.04em;cursor:pointer;backdrop-filter:blur(10px)}
 ${S} .rv-hero-control:focus-visible{outline:2px solid #fff;outline-offset:3px}
 ${S} .rv-scene[data-framed] .rv-scene-media[data-soft]{filter:blur(28px) saturate(1.05);transform:scale(1.15)}
@@ -63,12 +71,14 @@ ${S} .rv-chapter-rail a[aria-current="true"] span{background:currentColor;opacit
 @supports (animation-timeline: view()){
 ${S} .rv-chapter .rv-scene-media{animation:rv-scene-settle linear both;animation-timeline:view();animation-range:entry 0% exit 100%}
 ${S} .rv-chapter .rv-scene-slot,${S} .rv-chapter .rv-scene-offers{animation:rv-scene-rise linear both;animation-timeline:view();animation-range:entry 0px entry 220px}
+${S} .rv-chapter .rv-scene-frame,${S} .rv-split-pin > :is(img,video){animation:rv-wipe-up 1ms linear both;animation-timeline:view();animation-range:entry 0% entry 60%}
 }
 ${S} .rv-collection-viewport{scroll-behavior:smooth}
 }
 @keyframes rv-scene-settle{from{transform:scale(1.1)}to{transform:scale(1)}}
 @media (prefers-reduced-motion: no-preference){@supports (animation-timeline: view()){${S} .rv-hero-video[data-playing]{animation:rv-hero-drift linear both;animation-timeline:view();animation-range:exit 0% exit 100%}}}
 @keyframes rv-hero-drift{from{transform:scale(1)}to{transform:scale(1.12)}}
+@keyframes rv-wipe-up{from{clip-path:inset(18% 0 0 0)}to{clip-path:inset(0 0 0 0)}}
 @keyframes rv-scene-rise{from{translate:0 16px}to{translate:0 0}}
 ${S} .rv-spin{display:grid;gap:16px;justify-items:center;margin:0;width:100%}
 ${S} .rv-spin-stage{position:relative;width:100%;max-width:960px;aspect-ratio:16 / 10;display:grid;place-items:center;border-radius:24px;overflow:hidden;cursor:grab;user-select:none;touch-action:pan-y}
@@ -135,7 +145,7 @@ ${S} .rv-tier-cards{display:grid;gap:16px}
 ${S} .rv-tier-card[data-hidden]{display:none}
 @media (min-width:768px){${S} .rv-tier-cards{grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}}
 ${S} .rv-tier[data-live] .rv-tier-card[data-on]{animation:rv-tier-in .28s ease both}
-@keyframes rv-tier-in{from{opacity:0}to{opacity:1}}
+@keyframes rv-tier-in{from{clip-path:inset(0 100% 0 0 round 16px)}to{clip-path:inset(0 0 0 0 round 16px)}}
 @media (prefers-reduced-motion:reduce){${S} .rv-tier[data-live] .rv-tier-card[data-on]{animation:none}}
 ${S} .rv-scrub[data-live]{height:300vh;height:300svh}
 ${S} .rv-scrub[data-live] > .rv-scene{position:sticky;top:0}

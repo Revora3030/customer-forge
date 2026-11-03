@@ -23,6 +23,7 @@ import { LensMagnifier, LongDocument, StickySplitStory, TierFader } from "@/comp
 import { capScrubFrames } from "@/lib/builder/scrub";
 import { CollectionRow, DialSelector, HeroVideo, InlineHeroVideo, SceneVideo, ScrubSequence, ScrubStage, ScrollChapters, SpinViewer, type SpinFrame } from "@/components/site/CinematicBlocks";
 import { CINEMATIC_CSS } from "@/components/site/cinematic-css";
+import { CRAFT_ENGINE_CSS } from "@/components/site/craft-engine-css";
 import { headingClamp } from "@/lib/type-scale";
 import { CountUpText } from "@/components/site/CountUp";
 import { ModelViewer } from "@/components/site/ModelViewer";
@@ -1722,7 +1723,7 @@ function RenderComposition({ premiumOff = false, faqDraft = false, faqFacts = nu
   // section's own responsive/hover rules stay inline, after the shared ones.
   const shared = (
     <style href="rv-cn-shared" precedence="rv-cn">
-      {MOTION_CSS + MARQUEE_CSS + INTERACTIVE_CSS + PHONE_SAFETY_CSS + CINEMATIC_CSS + BROKEN_MEDIA_CSS + PREMIUM_CSS}
+      {CRAFT_ENGINE_CSS + MOTION_CSS + MARQUEE_CSS + INTERACTIVE_CSS + PHONE_SAFETY_CSS + CINEMATIC_CSS + BROKEN_MEDIA_CSS + PREMIUM_CSS}
     </style>
   );
   const own = ctx.rules.length ? <style>{ctx.rules.join("")}</style> : null;
