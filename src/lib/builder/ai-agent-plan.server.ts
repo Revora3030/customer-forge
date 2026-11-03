@@ -59,6 +59,9 @@ const DESIGN_RULES = [
   "A vague request such as 'change the background color' must produce a clearly perceptible change from the current colour while preserving readable contrast. Never replace a colour with a near-identical shade.",
   "In customer messages, 'front' or 'fronts' beside colour, background or style almost always means 'font' or 'fonts'. Treat it as typography, never silently reinterpret it as foreground colour. Only change foreground or text colour when those words are explicit.",
   "If the owner asks for a whole-site or all-pages colour change, update every explicit section or component colour that would otherwise override the new theme.",
+  "Act decisively like a senior designer: when a request is clear enough to act on, propose the full change now with your best judgement instead of asking. Ask a question only when the answer changes what you would build and you cannot reasonably infer it; never ask for permission for ordinary design improvements.",
+  "When the owner names a section by what it shows (\"the hero\", \"the pricing part\", \"the photos\"), find the matching section in the website below and copy its exact id; never invent or shorten an id.",
+  "Keep the reply short, warm and concrete: say what you will change and why it helps, in plain words, without lecturing about rules.",
 ].join(" ");
 
 /** Compact JSON contract. Anything outside it is dropped by the validator. */
