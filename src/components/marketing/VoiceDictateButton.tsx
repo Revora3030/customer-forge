@@ -70,7 +70,8 @@ export function VoiceDictateButton({
         type="button"
         onClick={toggle}
         aria-pressed={listening}
-        aria-label={listening ? `Stop dictating ${label}` : `Dictate ${label}`}
+        // WCAG 2.5.3 Label in Name: the accessible name starts with the visible text.
+        aria-label={listening ? `Listening… tap to stop dictating ${label}` : `Say it: dictate ${label}`}
         className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[12px] text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
       >
         {listening ? <Square className="size-3" aria-hidden="true" /> : <Mic className="size-3" aria-hidden="true" />}
