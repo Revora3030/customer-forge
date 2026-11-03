@@ -8,7 +8,7 @@ export type JarvisMemory = {
   source: string;
   created_at: string;
   updated_at: string;
-  /** Filled from listMemoryExtras once migration 20261103050000 is applied. */
+  /** Filled from listMemoryExtras once migration 20261103200000 is applied. */
   due_at?: string | null;
   completed_at?: string | null;
   superseded_by?: string | null;
@@ -52,7 +52,7 @@ const PROMPT_OBLIGATIONS = 10;
 
 /**
  * The owner's memories that carry obligation, supersession or half-life data
- * (migration 20261103050000). Fails soft: before that migration is applied, or
+ * (migration 20261103200000). Fails soft: before that migration is applied, or
  * on any error, it returns nothing and recall behaves exactly as before.
  */
 export async function listMemoryExtras(db: SupabaseClient, userId: string): Promise<MemoryExtras[]> {
