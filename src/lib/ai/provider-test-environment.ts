@@ -11,3 +11,8 @@ export function isolateProviderEnvironment(): void {
     throw new Error("Unexpected HTTP request in AI unit test; configure a response stub first.");
   }));
 }
+
+/** A fake paid-lane key for router tests that script every HTTP response. Call after isolateProviderEnvironment(). */
+export function useFakeProviderKey(): void {
+  vi.stubEnv("LOVABLE_API_KEY", "test-lovable");
+}

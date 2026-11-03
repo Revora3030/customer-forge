@@ -141,8 +141,8 @@ export function auditContentCompleteness(input: {
 }
 
 /** Fields the platform's own site forms ask for (SiteForms.tsx). */
-const ENQUIRY_FIELDS = ["name", "phone", "email", "city", "service wanted", "message"];
-const BOOKING_FIELDS = ["preferred date", "preferred time"];
+export const ENQUIRY_FIELDS = ["name", "phone", "email", "city", "service wanted", "message"];
+export const BOOKING_FIELDS = ["preferred date", "preferred time"];
 
 /**
  * The verified facts the AI author of a privacy, terms or other legal page
