@@ -59,7 +59,6 @@ BEGIN
   RETURN NEW;
 END $$;
 
-DROP TRIGGER IF EXISTS agent_routines_limit_trg ON public.agent_routines;
 CREATE TRIGGER agent_routines_limit_trg BEFORE INSERT ON public.agent_routines
   FOR EACH ROW EXECUTE FUNCTION public.agent_routines_limit();
 
