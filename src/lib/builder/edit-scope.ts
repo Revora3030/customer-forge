@@ -157,18 +157,8 @@ function actionTargets(action: unknown, sectionOfComponent: Map<string, string>,
   return { sections, orgWide: false };
 }
 
-/**
- * Drops actions that provably write outside the scope. Returns the surviving
- * actions plus owner-facing notes for everything removed. Fail-safe: if
- * enforcement would remove every action, the scope is ignored entirely — a
- * plan the model scoped wrong must still reach the owner unchanged rather
- * than silently becoming a no-op.
- */
-export function applyEditScope(
-  actions: unknown[],
-  context: EditScopeContext,
-  scope: { sectionIds: string[] } | { pageIds: string[] },
-): { actions: unknown[]; notes: string[] } {
+/** Pre-computed lookups the scope predicate reads. */
+function scopeIndex(context: EditScopeContext, scope: { sectionIds: string[] } | { pageIds: string[] }) {
   const allowedSections = new Set<string>();
   const allowedPages = new Set<string>();
   if ("sectionIds" in scope) {
@@ -182,7 +172,6 @@ export function applyEditScope(
       }
     }
   }
-
   const sectionOfComponent = new Map<string, string>();
   const sectionsOfPage = new Map<string, Set<string>>();
   for (const page of context.pages) {
@@ -193,18 +182,50 @@ export function applyEditScope(
     }
     sectionsOfPage.set(page.id.toLowerCase(), sectionIds);
   }
+  return { allowedSections, allowedPages, sectionOfComponent, sectionsOfPage };
+}
 
+/**
+ * True when one action provably stays inside the scope. This is the per-action
+ * predicate `applyEditScope` enforces (without its whole-plan fail-open rule),
+ * so the repair turn can re-check a repaired step against the same boundary.
+ */
+export function actionWithinEditScope(
+  action: unknown,
+  context: EditScopeContext,
+  scope: { sectionIds: string[] } | { pageIds: string[] },
+): boolean {
+  const index = scopeIndex(context, scope);
+  return !outsideScope(action, index);
+}
+
+function outsideScope(action: unknown, index: ReturnType<typeof scopeIndex>): boolean {
+  const target = actionTargets(action, index.sectionOfComponent, index.sectionsOfPage);
+  return target.orgWide
+    ? true
+    : [...target.sections].some((section) =>
+        section.startsWith("page:") ? !index.allowedPages.has(section.slice(5)) : !index.allowedSections.has(section),
+      );
+}
+
+/**
+ * Drops actions that provably write outside the scope. Returns the surviving
+ * actions plus owner-facing notes for everything removed. Fail-safe: if
+ * enforcement would remove every action, the scope is ignored entirely — a
+ * plan the model scoped wrong must still reach the owner unchanged rather
+ * than silently becoming a no-op.
+ */
+export function applyEditScope(
+  actions: unknown[],
+  context: EditScopeContext,
+  scope: { sectionIds: string[] } | { pageIds: string[] },
+): { actions: unknown[]; notes: string[] } {
+  const index = scopeIndex(context, scope);
   const kept: unknown[] = [];
   const notes: string[] = [];
   let dropped = 0;
   for (const action of actions) {
-    const target = actionTargets(action, sectionOfComponent, sectionsOfPage);
-    const outOfScope = target.orgWide
-      ? true
-      : [...target.sections].some((section) =>
-          section.startsWith("page:") ? !allowedPages.has(section.slice(5)) : !allowedSections.has(section),
-        );
-    if (outOfScope) {
+    if (outsideScope(action, index)) {
       dropped += 1;
       continue;
     }

@@ -630,22 +630,70 @@ export async function planWebsiteChangesWithAi(input: {
     }
   }
 
-  // EDIT SCOPE. Point-and-edit instructions name one block; typed requests get
-  // the planner's own declared scope. Actions provably outside that boundary
-  // are dropped before apply, so a narrow request can never rewrite the rest
-  // of the site. Fail-open: an unusable scope enforces nothing.
-  {
-    const { selectionScopeFromInstruction, declaredScopeFromProposal, applyEditScope } = await import("@/lib/builder/edit-scope");
-    const selected = selectionScopeFromInstruction(input.instruction, context);
-    const declared = selected ? null : declaredScopeFromProposal(proposal, context);
-    const boundary = selected ? { sectionIds: [selected] } : declared && declared.breadth !== "site"
-      ? declared.sectionIds.length ? { sectionIds: declared.sectionIds } : { pageIds: declared.pageIds }
+  // EDIT SCOPE boundary. Point-and-edit instructions name one block; typed
+  // requests get the planner's own declared scope.
+  const { selectionScopeFromInstruction, declaredScopeFromProposal, applyEditScope } = await import("@/lib/builder/edit-scope");
+  const selectedScope = selectionScopeFromInstruction(input.instruction, context);
+  const declaredScope = selectedScope ? null : declaredScopeFromProposal(proposal, context);
+  const boundary: { sectionIds: string[] } | { pageIds: string[] } | null = selectedScope
+    ? { sectionIds: [selectedScope] }
+    : declaredScope && declaredScope.breadth !== "site"
+      ? declaredScope.sectionIds.length ? { sectionIds: declaredScope.sectionIds } : { pageIds: declaredScope.pageIds }
       : null;
-    if (boundary) {
-      const scoped = applyEditScope(actions, context, boundary);
-      actions = scoped.actions;
-      notes = [...notes, ...scoped.notes].slice(0, 8);
-    }
+
+  // BATCHED REPAIR TURN. Validator rejections (action reader, edit scope,
+  // content integrity, business-facts precheck) become structured violations:
+  // deterministic fixes first, then at most two batched repair calls under a
+  // hard timeout and spend budget. Model-repaired steps go back through the
+  // fact and safety review; if it cannot run, the model's repairs are not
+  // used. Fail-open: any problem leaves the plan exactly as it was, and the
+  // existing drop/keep rules below still apply to whatever is left.
+  {
+    const { repairPlanActions } = await import("@/lib/builder/repair/plan-repair.server");
+    const repaired = await repairPlanActions({
+      actions,
+      context,
+      boundary,
+      system,
+      instruction: input.instruction,
+      organizationId: input.organizationId,
+      review: async (list) => {
+        const recheck = await callBestThinker({
+          json: true,
+          purpose: "adversarial_review",
+          complexity: "high",
+          system: [
+            "You are an independent safety reviewer. Check proposed website changes only against supplied facts, accessibility, renderer support, security, and resource limits.",
+            TRUTH_RULES,
+            'Reply with ONE JSON object: {"reject":number[],"notes":string[]}. `reject` holds only zero-based indexes of actions that invent facts, fabricate claims, violate accessibility or safety, target missing data, or cannot render. Never reject for taste.',
+          ].join("\n\n"),
+          user: [
+            "BUSINESS FACTS:", businessBlock(context), "",
+            "THE OWNER'S REQUEST:", input.instruction, "",
+            "PROPOSED ACTIONS (index: action):",
+            list.map((action, index) => `${index}: ${JSON.stringify(action)}`).join("\n"),
+          ].join("\n"),
+          organizationId: input.organizationId,
+          maxOutputTokens: 4000,
+        });
+        if (!recheck.ok) return null;
+        costMicrocents += recheck.costMicrocents;
+        return parseJsonObject(recheck.text);
+      },
+      ...(input.onStage ? { onStage: input.onStage } : {}),
+    });
+    costMicrocents += repaired.costMicrocents;
+    actions = repaired.actions as typeof actions;
+    if (repaired.note) notes = [...notes, repaired.note].slice(0, 8);
+  }
+
+  // EDIT SCOPE enforcement. Actions provably outside that boundary are dropped
+  // before apply, so a narrow request can never rewrite the rest of the site.
+  // Fail-open: an unusable scope enforces nothing.
+  if (boundary) {
+    const scoped = applyEditScope(actions, context, boundary);
+    actions = scoped.actions as typeof actions;
+    notes = [...notes, ...scoped.notes].slice(0, 8);
   }
 
   // Validate the exact actions the writer can consume, after polish and scope.
