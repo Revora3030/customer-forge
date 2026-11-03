@@ -26,7 +26,11 @@ export const listSiteVersions = createServerFn({ method: "POST" })
     return { organizationId };
   })
   .handler(async ({ data, context }): Promise<{ versions: VersionEntry[] }> => {
-    // RLS: only members of this workspace can read its versions.
+    // Verify membership on the server before anything else: the author names
+    // below are read with the service role, which bypasses RLS.
+    const { requireOrgRole } = await import("@/lib/org-authz.server");
+    await requireOrgRole(context.supabase as never, data.organizationId, String(context.userId), "viewer");
+    // RLS also limits the version rows to members of this workspace.
     const { data: rows, error } = await context.supabase
       .from("website_versions")
       .select("id, version, label, created_at, published_at, created_by, pages, generation, seo")
