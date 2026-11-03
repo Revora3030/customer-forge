@@ -13,8 +13,9 @@
 --             SHA-256 of the exact arguments, unexpired. A changed argument, an
 --             expired, rejected or already-consumed approval never matches.
 --
--- Rows are read by workspace members (owner scope) or super admins (admin
--- scope); every write goes through the service role and these functions.
+-- Rows are read by members of the row's workspace (owner scope; admin-scope
+-- rows carry no workspace) or super admins; every write goes through the
+-- service role and these functions.
 
 CREATE TABLE IF NOT EXISTS public.agent_approvals (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -34,7 +35,11 @@ CREATE TABLE IF NOT EXISTS public.agent_approvals (
   decided_by uuid REFERENCES auth.users(id) ON DELETE SET NULL,
   decided_at timestamptz,
   consumed_at timestamptz,
-  CONSTRAINT agent_approvals_scope_org CHECK (scope = 'admin' OR organization_id IS NOT NULL)
+  -- Owner-scope rows belong to one workspace; admin-scope rows to none, so the
+  -- org-membership read policy below never shows an admin approval to a member.
+  CONSTRAINT agent_approvals_scope_org CHECK (
+    (scope = 'owner' AND organization_id IS NOT NULL) OR (scope = 'admin' AND organization_id IS NULL)
+  )
 );
 
 CREATE INDEX IF NOT EXISTS agent_approvals_org_idx
@@ -51,13 +56,11 @@ REVOKE ALL ON public.agent_approvals FROM PUBLIC, anon, authenticated;
 GRANT SELECT ON public.agent_approvals TO authenticated;
 GRANT ALL ON public.agent_approvals TO service_role;
 
-DROP POLICY IF EXISTS agent_approvals_read ON public.agent_approvals;
+-- Same org-membership read as the other tenant tables. Admin-scope rows have no
+-- organization_id (constraint above), so only a super admin reads them.
 CREATE POLICY agent_approvals_read ON public.agent_approvals
   FOR SELECT TO authenticated
-  USING (
-    (scope = 'owner' AND private.is_org_member(organization_id))
-    OR (scope = 'admin' AND private.is_super_admin())
-  );
+  USING (private.is_org_member(organization_id) OR private.is_super_admin());
 
 -- Ask for approval. Idempotent for the same workspace + tool + arguments.
 -- Returns {created, approval}; created is false when a live one already existed.
