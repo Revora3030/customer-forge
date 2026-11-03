@@ -7,12 +7,12 @@ import { createFileRoute } from "@tanstack/react-router";
 
 import { createTanStackOAuthProtectedResourceMetadataHandler } from "@lovable.dev/mcp-js/stacks/tanstack";
 
-const loadMcp = () => import("../../lib/mcp/index");
+import mcp from "../../lib/mcp/index";
 
 export const Route = createFileRoute("/.well-known/oauth-protected-resource")({
   server: {
     handlers: {
-      ANY: createTanStackOAuthProtectedResourceMetadataHandler(loadMcp, {
+      ANY: createTanStackOAuthProtectedResourceMetadataHandler(mcp, {
         resourcePath: "/mcp",
         metadataPath: "/.well-known/oauth-protected-resource",
         // Trusting X-Forwarded-Host/-Proto is safe on Lovable hosting only (its
