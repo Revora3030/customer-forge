@@ -21,6 +21,8 @@
     "seo:indexnow": "bun scripts/indexnow-ping.ts",
     "seo:indexnow:dry": "bun scripts/indexnow-ping.ts --dry-run",
     "security:audit:test": "node scripts/security-audit.contract.mjs",
+    "db:grants-lint": "node scripts/grants-lint.mjs",
+    "db:grants-lint:test": "node scripts/grants-lint.contract.mjs",
     "stripe:catalog:contract": "bun scripts/stripe-catalog-contract.mjs",
     "stripe:catalog:contract:sandbox": "bun scripts/stripe-catalog-contract.mjs --env=sandbox",
     "integrations:preflight": "node scripts/integration-preflight.mjs",
