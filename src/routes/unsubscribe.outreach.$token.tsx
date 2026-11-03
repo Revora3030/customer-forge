@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { isOneClickUnsubscribe, unsubscribeResponse } from "@/lib/one-click-unsubscribe";
 
 /**
  * Unsubscribe from Revora's demo-website outreach. GET shows a confirmation
@@ -16,14 +17,7 @@ async function unsubscribe(request: Request, token: string): Promise<Response> {
     console.error("[outreach unsubscribe]", error instanceof Error ? error.message : error);
     return new Response("Couldn't unsubscribe right now. Please try again.", { status: 500 });
   }
-  const form = (request.headers.get("content-type") ?? "").includes("application/x-www-form-urlencoded")
-    ? await request.formData().catch(() => null)
-    : null;
-  // RFC 8058 one-click posts "List-Unsubscribe=One-Click" and reads only the status.
-  if (form?.get("List-Unsubscribe") === "One-Click") return new Response(null, { status: done ? 200 : 404 });
-  const url = new URL(request.url);
-  url.search = done ? "?done=1" : "?invalid=1";
-  return Response.redirect(url.toString(), 303);
+  return unsubscribeResponse(request, await isOneClickUnsubscribe(request), done);
 }
 
 export const Route = createFileRoute("/unsubscribe/outreach/$token")({
