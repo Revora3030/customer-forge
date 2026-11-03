@@ -9,7 +9,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: revora-links-${{ github.workflow }}
+  group: revora-links-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 jobs:
   lychee:

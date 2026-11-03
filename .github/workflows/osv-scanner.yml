@@ -18,7 +18,7 @@ permissions:
   security-events: write
 concurrency:
   group: revora-osv-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   scan:
     name: OSV-Scanner (bun.lock)
