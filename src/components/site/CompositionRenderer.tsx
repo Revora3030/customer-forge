@@ -17,7 +17,7 @@ import { DEFAULT_OFFER_ANCHOR, DEFAULT_SCENE_ANCHOR, sceneScrim, type SceneAncho
 import { intrinsicSize } from "@/lib/builder/image-campaign";
 import { focalToObjectPosition, responsiveImage } from "@/lib/builder/image-framing";
 import { focalForKnownPhoto } from "@/lib/builder/trade-photo-picks";
-import { LensMagnifier, StickySplitStory, TierFader } from "@/components/site/MasterBlocks";
+import { LensMagnifier, LongDocument, StickySplitStory, TierFader } from "@/components/site/MasterBlocks";
 import { CollectionRow, DialSelector, HeroVideo, InlineHeroVideo, SceneVideo, ScrubSequence, ScrubStage, ScrollChapters, SpinViewer, type SpinFrame } from "@/components/site/CinematicBlocks";
 import { CINEMATIC_CSS } from "@/components/site/cinematic-css";
 import { CountUpText } from "@/components/site/CountUp";
@@ -51,7 +51,7 @@ const FILL_WHEN_CAPPED = new Set<CompositionNode["type"]>([
   "stack", "grid", "row", "card", "list", "tabs", "toggle", "accordion", "compare", "gallery", "widget",
   "before_after_slider", "faq_accordion", "tab_group", "offer_card", "spin_viewer", "collection_row",
   "lens_magnifier", "sticky_split_story", "service_tier_fader", "parallax_layers", "scrub_sequence", "dial_selector", "model_3d_viewer", "divider", "marquee",
-  "shader_field", "tour_360", "building_explorer",
+  "shader_field", "tour_360", "building_explorer", "long_document",
 ]);
 // eslint-disable-next-line react-refresh/only-export-components -- renderer helpers are intentionally co-located with their composition types.
 export function styleToCss(style: NodeStyle | undefined, type: CompositionNode["type"]): CSSProperties {
@@ -239,7 +239,7 @@ const STRETCH_PANEL = new Set<CompositionNode["type"]>([
   "accordion", "faq_accordion", "tab_group", "tabs", "toggle", "compare", "gallery", "widget",
   "before_after_slider", "scroll_chapters", "scrub_sequence", "sticky_split_story", "service_tier_fader",
   "collection_row", "parallax_layers", "lens_magnifier", "spin_viewer", "offer_card", "dial_selector", "model_3d_viewer",
-  "tour_360", "building_explorer",
+  "tour_360", "building_explorer", "long_document",
 ]);
 
 function baseLayout(type: CompositionNode["type"]): CSSProperties {
@@ -913,6 +913,14 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
     case "sticky_split_story": {
       const phases = kids.slice(1).filter((kid) => kid != null);
       return kids[0] && phases.length ? <StickySplitStory key={key} props={props} picture={kids[0]} phases={phases} /> : null;
+    }
+    case "long_document": {
+      const chapters = prunedChildren.flatMap((child, i) => {
+        const title = child.children?.[0]?.type === "heading" ? child.children[0].text?.trim() : "";
+        return title && kids[i] != null ? [{ title: title.slice(0, 80), body: kids[i] }] : [];
+      });
+      if (chapters.length < 2) return chapters.length ? <div key={key} {...props}>{chapters[0]!.body}</div> : null;
+      return <LongDocument key={key} props={props} label={node.text?.trim().slice(0, 40) || "Contents"} chapters={chapters} />;
     }
     case "parallax_layers": {
       // Atmosphere, like a scene backdrop: layers are never presented as proof of work.

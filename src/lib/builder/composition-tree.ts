@@ -26,7 +26,7 @@ export const COMPOSITION_PRIMITIVES = [
   "scene", "scroll_chapters", "offer_card", "spin_viewer", "collection_row",
   "lens_magnifier", "sticky_split_story", "service_tier_fader", "parallax_layers",
   "scrub_sequence", "dial_selector", "model_3d_viewer",
-  "shader_field", "tour_360", "building_explorer",
+  "shader_field", "tour_360", "building_explorer", "long_document",
 ] as const;
 
 /** Primitives a visitor operates (a site's interactive centrepiece). Working form widgets are counted separately. */
@@ -100,6 +100,7 @@ export const PRIMITIVE_GUIDE =
   "shader_field (an animated WebGL colour field behind its children, for a text-led hero or closing band with no supplied picture: shader is \"mesh\" (soft flowing gradient), \"grain\" (grainy light bloom), \"warp\" (bold flowing bands), \"swirl\" (paint-like swirl), \"god-rays\" (light beams from above) or \"neuro-noise\" (fine glowing filaments); style.background is the dark base colour and style.gradientTo the accent it glows with, both from the palette; children are the copy over it (heading, text, buttons) and every text colour must read on both colours; with no WebGL, reduced motion or data saver it is the same palette as a still gradient; one per page, never in place of the owner's real pictures). " +
   "tour_360 (a 360° panorama tour the visitor drags around: children are 1-8 media scenes, each with mediaRef pointing at a supplied part marked panorama360 — the owner's own equirectangular photo of a real room, venue or property — with alt, and each child's text is its short scene label (max 30, e.g. \"Lobby\", \"Rooftop\"); text is the tour's label such as \"Walk through the …\"; until the visitor taps start, and without WebGL, the first panorama shows as a picture with the scene list; only use it when panorama360 parts are supplied). " +
   "building_explorer (a 3D stack of floors the visitor clicks to read about each level, for a real building, development, venue or office: floors holds 2-12 rows {label (max 40, e.g. \"Level 12 · Penthouse\"), body (max 160, one line the owner supplied)} from the lowest floor up; text is its label such as \"Explore the building\"; an optional single media child is the building's photo; never type prices, availability or sizes the owner did not give; without WebGL the floors are a plain list). " +
+  "long_document (long-form reading for a story, explainer or case the owner actually told: 2-8 chapter children, each a stack or card whose FIRST child is a heading (level 2 or 3, max 80) naming the chapter, followed by its prose; text is the contents label such as \"In this guide\"; on wide screens the chapter list stays pinned beside the prose with a reading-progress rail and the current chapter marked, on phones the list sits above the prose; chapters are prose, pictures and quotes, never another scene, sequence or long_document; every claim in the prose must be a fact the owner gave). " +
   "collection_row (a horizontally scrolling, snap-aligned row of offer_card children, each with its picture, name, optional real-service price and an accent button; keyboard and swipe friendly). " +
   "widget (text is one of booking_form|quote_calculator|enquiry_form|contact_details|direct_contact|service_menu|review_wall|service_estimator — service_estimator is a zero-token price/time estimator built only from the owner's listed service prices and durations (it renders nothing when fewer than two services carry them); enquiry_form is the site's working message form (name, phone/email, message; saved to the owner's leads); booking_form/quote_calculator drop the site's real working form, verified phone/email/hours/area, the live service menu (names, prices, durations straight from the owner's Services tool) or the live published reviews into your layout; style its wrapper freely, never retype those facts yourself; service_menu and review_wall stay in sync when the owner edits services or publishes reviews; monthly-payment/finance, ROI/yield and price-range views appear inside quote_calculator or service_estimator ONLY from figures the owner typed into the section's calculator settings — never write an APR, interest rate, finance term, deposit, monthly payment, price range, occupancy, yield, ROI or payback figure anywhere in your layout or widgetPresentation, and never promise financing or returns the owner did not supply). For working widgets, widgetPresentation may author visible labels, helper/success copy and a bounded local theme (surface, text, muted, border, action, actionText, selected, selectedText); never put business data or pricing into widgetPresentation — the application supplies those facts. " +
   "Real company logos: a media src of https://img.logo.dev/<domain> (e.g. img.logo.dev/stripe.com) renders that company's real logo — use ONLY for companies the customer actually named as partners, clients or platforms they use; never invent an affiliation. " +
@@ -613,6 +614,12 @@ export type ValidateOptions = {
 
 const SOFT_PROBLEM = /submitLabel must be 40|quote gives an estimate range|contrast|unknown style property|button text below 14px|text is too long|label must be 120|must be one of|must be a number between|must be true or false|font name contains|aspect must look like|area must be a simple name|gridAreas must look like|must be 0-3000|must be 150-4000|unknown motion|unknown hover property|must be none, subtle|from is only used|custom motion needs|ariaLabel must be text|shows at most 3 specs|focal must look like|scrim opacity must be|initialFrame must be|split motion only/;
 
+/** long_document: chapter count and label sizes (layout safety, not a creative limit). */
+export const LONG_DOCUMENT_LIMITS = { minChapters: 2, maxChapters: 8, title: 80, label: 40 } as const;
+const LONG_DOCUMENT_FORBIDDEN: ReadonlySet<string> = new Set(["scene", "scroll_chapters", "scrub_sequence", "mobile_sticky_bar", "long_document", "tour_360", "building_explorer", "shader_field"]);
+const containsType = (node: CompositionNode, types: ReadonlySet<string>): boolean =>
+  (node.children ?? []).some((child) => types.has(child.type) || containsType(child, types));
+
 const hasPictureSource = (node: CompositionNode) => node.type === "media" && Boolean(node.src || node.mediaRef);
 
 /**
@@ -689,6 +696,22 @@ function checkCinematic(node: CompositionNode, path: string, issues: Composition
           issues.push({ path: `${at}[${i}].mediaRef`, problem: "tour_360 scenes must be supplied 360° panoramas (parts marked panorama360), not ordinary pictures" });
       });
       break;
+    case "long_document": {
+      if (kids.length < LONG_DOCUMENT_LIMITS.minChapters || kids.length > LONG_DOCUMENT_LIMITS.maxChapters)
+        issues.push({ path: at, problem: `long_document needs ${LONG_DOCUMENT_LIMITS.minChapters}-${LONG_DOCUMENT_LIMITS.maxChapters} chapter children (stack or card, each opening with a heading)` });
+      kids.forEach((chapter, i) => {
+        const title = chapter.children?.[0];
+        if ((chapter.type !== "stack" && chapter.type !== "card") || title?.type !== "heading" || !title.text?.trim())
+          issues.push({ path: `${at}[${i}]`, problem: "each long_document chapter is a stack or card whose first child is a heading with the chapter title" });
+        else if (title.text.trim().length > LONG_DOCUMENT_LIMITS.title)
+          issues.push({ path: `${at}[${i}].children[0].text`, problem: `a long_document chapter title must be ${LONG_DOCUMENT_LIMITS.title} characters or fewer` });
+        if (containsType(chapter, LONG_DOCUMENT_FORBIDDEN))
+          issues.push({ path: `${at}[${i}]`, problem: "long_document chapters are prose, pictures and quotes, not a scene, sequence, hero stage or another long_document" });
+      });
+      if ((node.text?.trim().length ?? 0) > LONG_DOCUMENT_LIMITS.label)
+        issues.push({ path: `${path}.text`, problem: `the long_document contents label must be ${LONG_DOCUMENT_LIMITS.label} characters or fewer` });
+      break;
+    }
     case "building_explorer": {
       if (!node.floors) issues.push({ path: `${path}.floors`, problem: "building_explorer needs floors: 2-12 {label, body} rows from the owner's facts" });
       if (kids.length > 1 || kids.some((child) => !hasPictureSource(child)))
