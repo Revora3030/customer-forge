@@ -62,7 +62,7 @@ analyze_html() {
     fi
     WARNINGS+=("$file:$ln: Non-HTTPS URL")
     http_count=$((http_count + 1))
-  done < <(grep -noE 'http://[^"'\''[:space:]>]*' "$file" || true)
+  done < <(grep -noE 'http://[^"'\''[:space:]>]*' "$file" || true) # DevSkim: ignore DS137138 -- detector pattern that finds insecure URLs; not a URL itself.
 }
 
 # Process substitution keeps arrays in main shell (fixes v1 subshell bug)
