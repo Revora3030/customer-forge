@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { LegalAgreementNote } from "@/components/marketing/LegalAgreementNote";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, ArrowRight, Check, Lock, ShieldCheck, Sparkles } from "lucide-react";
@@ -7,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { GrowthSystemCheckout } from "@/components/app/GrowthSystemCheckout";
-import { GROWTH_SYSTEM, usd } from "@/lib/offer";
+import { GROWTH_SYSTEM, REFUND_POLICY, usd } from "@/lib/offer";
 import type { GrowthSystemIntake } from "@/lib/stripe.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { isPaymentsConfigured } from "@/lib/stripe";
@@ -835,9 +836,15 @@ function GetStarted() {
                     {usd(GROWTH_SYSTEM.setupPrice)} setup, charged today. Platform{" "}
                     {GROWTH_SYSTEM.firstMonthFree}, then{" "}
                     {usd(GROWTH_SYSTEM.monthlyPrice)}/month automatically unless canceled.
-                    Payments are processed securely by our payment provider — Revora never sees your
-                    card details.
+                    Cancel anytime from Billing → Manage subscription in your dashboard, or by
+                    emailing {REVORA.email}; you won't be billed again. Payments are processed
+                    securely by our payment provider — Revora never sees your card details.
                   </p>
+                  <p className="mt-2 text-[12px] text-muted-foreground">{REFUND_POLICY}</p>
+                  <LegalAgreementNote
+                    action="paying"
+                    className="mt-2 text-[12px] leading-relaxed text-muted-foreground"
+                  />
 
                   {session.isLoading ? (
                     <p className="mt-4 text-[13px] text-muted-foreground">Checking your account…</p>

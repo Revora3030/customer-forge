@@ -82,9 +82,9 @@ export function CookieConsent() {
     >
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
-          <h2 className="text-[13.5px] font-semibold">Cookies for measurement</h2>
+          <h2 className="text-[13.5px] font-semibold">Analytics and ad cookies</h2>
           <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">
-            We measure whether our ads lead to signups. It never changes how the site works. See our{" "}
+            We use Google Analytics, Microsoft Clarity (session replay) and Google Ads measurement to see how visitors use this site and whether our ads lead to signups. Rejecting never changes how the site works. See our{" "}
             <a
               href="/privacy"
               className="relative underline underline-offset-2 after:absolute after:inset-x-0 after:-inset-y-3.5 after:content-[''] hover:text-primary"

@@ -1,6 +1,8 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { getPreviewSite } from "@/lib/public-site.functions";
 import { PublicSiteView } from "@/components/site/PublicSiteView";
+import { ClientPrivacyNotice } from "@/components/site/ClientPrivacyNotice";
+import { PRIVACY_NOTICE_SLUG } from "@/lib/client-privacy-notice";
 import { PreviewMessage } from "@/components/PreviewMessage";
 import { SiteBaseContext } from "@/components/site/site-address-context";
 import { ProspectClaimBar } from "@/components/site/ProspectClaimBar";
@@ -50,6 +52,13 @@ function PreviewPageRoute() {
         title={reason === "expired" ? "This preview link has expired" : reason === "revoked" ? "This preview link was switched off" : "This preview link isn't valid"}
         body={reason === "expired" || reason === "revoked" ? "Ask for a fresh preview link." : "Check the address, or ask for a new link."}
       />
+    );
+  }
+  if (!result.site.content?.sections.length && page === PRIVACY_NOTICE_SLUG) {
+    return (
+      <SiteBaseContext.Provider value={`/p/${encodeURIComponent(token)}`}>
+        <ClientPrivacyNotice site={result.site} />
+      </SiteBaseContext.Provider>
     );
   }
   if (!result.site.pageFound || !result.site.content?.sections.length) {
