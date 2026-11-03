@@ -342,3 +342,10 @@ SOFTWARE.
 The package declares the MIT licence in its package.json and ships no
 LICENSE file; the standard MIT terms apply (see the three.js text above for
 the wording).
+
+## Claude Code developer tooling (not shipped to users)
+
+`.claude/skills/` and `.claude/references/` hold agent skills vendored unmodified from
+anthropics/skills (Apache-2.0), obra/superpowers (MIT), addyosmani/agent-skills (MIT) and
+supabase/agent-skills (MIT). Each folder keeps its upstream `LICENSE` and an `ATTRIBUTION.md`
+with the source URL and commit. None of it is bundled into the app. Full list: `.claude/README.md`.

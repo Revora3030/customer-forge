@@ -52,3 +52,9 @@ lhci-reports/
 .lighthouseci/
 lychee-urls.txt
 lychee-report.md
+
+# Claude Code: personal settings, local worktrees and MCP caches stay local
+.claude/settings.local.json
+.claude/worktrees/
+.serena/cache/
+.playwright-mcp/
