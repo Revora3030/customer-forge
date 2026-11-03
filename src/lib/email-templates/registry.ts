@@ -1,6 +1,7 @@
 import type { ComponentType } from "react";
 import InviteEmail from "./invite";
 import { template as automationMessageTemplate } from "./automation-message";
+import { template as reviewRequestTemplate } from "./review-request";
 import { template as leadAlertTemplate } from "./lead-alert";
 import { template as leadConfirmationTemplate } from "./lead-confirmation";
 import { template as newSignupAlertTemplate } from "./new-signup-alert";
@@ -46,6 +47,7 @@ export interface TemplateEntry {
  */
 export const TEMPLATES: Record<string, TemplateEntry> = {
   "automation-message": automationMessageTemplate,
+  "review-request": reviewRequestTemplate,
   "lead-alert": leadAlertTemplate,
   "lead-confirmation": leadConfirmationTemplate,
   "new-signup-alert": newSignupAlertTemplate,
