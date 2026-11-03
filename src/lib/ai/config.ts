@@ -46,17 +46,18 @@ export type ProviderConfig = {
  * with AI_LOVABLE_MODEL_<ROLE>.
  */
 const DEFAULT_MODELS: Record<ModelRole, string> = {
-  // Wording and review: Claude Sonnet 5 leads, then GPT-6.1 Sol.
+  // Cost order (owner 2026-11-02: least credits that still do good work):
+  // strong mid-price models lead; flagship-priced Sonnet/Opus/Fable are failover.
+  // Wording and review: GPT-6.1 Sol leads (about half Sonnet's price).
   primary: [
-    "anthropic/claude-sonnet-5", "openai/gpt-6.1-sol", "google/gemini-4-argon", "openai/gpt-6-astra",
-    "anthropic/claude-opus-5", "openai/gpt-6-sol", "google/gemini-3.8-flash", "openai/gpt-5.6-sol",
-    "openai/gpt-5.5", "openai/gpt-5.6-terra",
+    "openai/gpt-6.1-sol", "google/gemini-4-argon", "openai/gpt-6-astra", "anthropic/claude-sonnet-5",
+    "openai/gpt-6-sol", "google/gemini-3.8-flash", "openai/gpt-5.6-sol",
+    "openai/gpt-5.5", "openai/gpt-5.6-terra", "anthropic/claude-opus-5",
   ].join(","),
-  // Identity, design and layout: GPT-6.1 Sol leads for speed (long Opus 5.5
-  // design answers ran past the request time limit), then Sonnet 5, then Opus.
+  // Identity, design and layout: GPT-6.1 Sol, then Gemini 4 Argon; Opus/Fable last.
   design: [
-    "openai/gpt-6.1-sol", "anthropic/claude-sonnet-5", "google/gemini-4-argon", "anthropic/claude-opus-5-5",
-    "openai/gpt-6-astra", "anthropic/claude-fable-5-1", "openai/gpt-6-sol", "google/gemini-3.1-pro-preview",
+    "openai/gpt-6.1-sol", "google/gemini-4-argon", "anthropic/claude-sonnet-5", "openai/gpt-6-astra",
+    "openai/gpt-6-sol", "google/gemini-3.1-pro-preview", "anthropic/claude-opus-5-5", "anthropic/claude-fable-5-1",
   ].join(","),
   fast: [
     "google/gemini-3.1-flash-lite", "openai/gpt-5.4-mini", "anthropic/claude-haiku-4-5", "openai/gpt-6-luna",
@@ -67,14 +68,15 @@ const DEFAULT_MODELS: Record<ModelRole, string> = {
     "google/gemini-3.8-flash", "google/gemini-4-argon", "anthropic/claude-sonnet-5", "openai/gpt-6.1-sol",
     "google/gemini-3.1-pro-preview",
   ].join(","),
-  // Plan checking and layout repair: GPT-6.1 Sol, then Gemini 4 Argon.
+  // Plan checking and layout repair: GPT-6.1 Sol, then Gemini 4 Argon; Opus last.
   coding: [
-    "openai/gpt-6.1-sol", "google/gemini-4-argon", "anthropic/claude-opus-5-5", "openai/gpt-6-astra",
-    "anthropic/claude-sonnet-5", "openai/gpt-5.5", "google/gemini-3.8-flash",
+    "openai/gpt-6.1-sol", "google/gemini-4-argon", "openai/gpt-6-astra",
+    "anthropic/claude-sonnet-5", "openai/gpt-5.5", "google/gemini-3.8-flash", "anthropic/claude-opus-5-5",
   ].join(","),
+  // Pictures: GPT Image 2.5 Flare leads (~60% cheaper than Sunburst, same family).
   image: [
-    "openai/gpt-image-2.5-sunburst", "google/gemini-3-pro-image", "openai/gpt-image-2",
-    "openai/gpt-image-2.5-flare", "google/gemini-3.1-flash-lite-image",
+    "openai/gpt-image-2.5-flare", "openai/gpt-image-2.5-sunburst", "google/gemini-3-pro-image",
+    "openai/gpt-image-2", "google/gemini-3.1-flash-lite-image",
   ].join(","),
   transcription: "openai/gpt-transcribe,google/gemini-3.5-transcribe",
   // Jarvis: strongest verified models first, then faster ones as failover.

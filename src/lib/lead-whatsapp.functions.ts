@@ -18,12 +18,13 @@ export const getLeadWhatsAppAllowed = createServerFn({ method: "POST" })
     return { organizationId, leadId };
   })
   .handler(async ({ data, context }) => {
-    const [{ requireOrgRole }, { supabaseAdmin }, { isDoNotContact }] = await Promise.all([
-      import("@/lib/org-authz.server"),
+    const { requireOrgRole } = await import("@/lib/org-authz.server");
+    // Ownership first: the service role is only loaded after the caller is proven staff of this org.
+    const organizationId = await requireOrgRole(context.supabase, data.organizationId, context.userId, "staff");
+    const [{ supabaseAdmin }, { isDoNotContact }] = await Promise.all([
       import("@/integrations/supabase/client.server"),
       import("@/lib/prospect-outreach.server"),
     ]);
-    const organizationId = await requireOrgRole(context.supabase, data.organizationId, context.userId, "staff");
     const { data: lead, error } = await context.supabase
       .from("leads")
       .select("phone")
