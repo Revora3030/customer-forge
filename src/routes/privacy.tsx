@@ -1,10 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { clientDomainLegalRedirect } from "@/lib/tenant-page-utils";
 import { SiteFooter, SiteHeader } from "@/components/marketing/Chrome";
 import { REVORA } from "@/lib/brand";
 import { LEGAL, operatorStatement } from "@/lib/legal";
 import { breadcrumbSchema, canonicalLink, jsonLdScript, ogUrl, OG_IMAGE_META } from "@/lib/seo";
 
 export const Route = createFileRoute("/privacy")({
+  // On a client's own domain this is not Revora's policy page (tenant-page-utils.ts).
+  beforeLoad: () => clientDomainLegalRedirect("privacy"),
   head: () => ({
     meta: [
       { title: "Privacy Policy | Revora Growth Systems" },
@@ -113,8 +116,8 @@ const SECTIONS: { heading: string; body: string[] }[] = [
     body: [
       "On our own marketing pages we use Google Analytics 4, Google Ads conversion measurement and Microsoft Clarity. They do not run inside the app or admin area, or on websites we publish for clients.",
       "In the European Economic Area, the United Kingdom, Switzerland and Canada (and when we cannot tell where you are), these tools load only after you click Accept in the cookie banner. If you reject, they are not loaded.",
-      'Elsewhere they load by default. You can switch them off at any time with the "Cookie settings" link in the site footer. Your choice is stored in your browser until you change it.',
-      "Separately, our site keeps a random visitor ID and the page you first landed on in your browser's storage so we can count visits and signups in our own reporting. It is not derived from your IP address or device details.",
+      'Elsewhere they load by default, unless your browser sends a Global Privacy Control signal, which we treat as an opt-out until you click Accept yourself. You can switch them off at any time with the "Cookie settings" link in the site footer. Your choice is stored in your browser until you change it.',
+      "Separately, our site keeps a random visitor ID and the page you first landed on in your browser's storage so we can count visits and signups in our own reporting. It is not derived from your IP address or device details. It follows the same choice as the cookies above: in the regions where we ask first it is only created after you click Accept, and elsewhere it is created unless your browser sends Global Privacy Control. If your browser sends Global Privacy Control, it is not created unless you click Accept. Clicking Reject stops it and deletes an existing one.",
     ],
   },
   {
@@ -129,7 +132,7 @@ const SECTIONS: { heading: string; body: string[] }[] = [
     heading: "Your choices and rights",
     body: [
       "You can view and correct your workspace data in the app, and export your leads as a CSV file from the Leads page. You can unsubscribe from marketing email at any time.",
-      `To ask for a copy of your data or for deletion of your account and its data, email ${REVORA.email} from the address on your account. We confirm the request with that address before acting and tell you when it is done. Billing records we must keep by law are retained.`,
+      `To ask for a copy of your data or for deletion of your account and its data, email ${REVORA.email} from the address on your account, or use the request buttons under Settings → Your data in the app. We confirm the request with that address before acting and tell you when it is done. Billing records we must keep by law are retained.`,
       "Depending on where you live you may also have rights to object to or restrict processing, or to complain to your local data protection authority.",
     ],
   },

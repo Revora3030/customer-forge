@@ -2,6 +2,7 @@ import { recordConversion, type ConversionEvent } from "@/lib/conversion.functio
 import { isNonProductionTraffic } from "@/lib/analytics-taxonomy";
 import { isStaffBrowser } from "@/lib/staff-browser";
 import { ga4Event, ga4PageView } from "@/lib/ga4";
+import { canTrackAds, VISITOR_STORAGE_KEY } from "@/lib/consent";
 
 const KEY = "revora.attribution.v1";
 
@@ -34,8 +35,13 @@ function newSessionId() {
  * browser be counted once instead of as several separate sessions. If storage
  * is unavailable (private mode, blocked cookies) the visit is simply counted as
  * a session with no visitor id, never fingerprinted as a fallback.
+ *
+ * Because it persists in browser storage it is only created or read once the
+ * visitor's analytics choice allows it (see `canTrackAds`): in consent regions
+ * that means after Accept, and never under Global Privacy Control or a Reject.
+ * Without consent the event is still counted, just with `visitorId: null`.
  */
-const VISITOR_KEY = "revora.visitor.v1";
+const VISITOR_KEY = VISITOR_STORAGE_KEY;
 
 export function getVisitorId(): string | null {
   if (!isBrowser()) return null;
@@ -107,7 +113,6 @@ export function trackConversion(
     /* storage unavailable */
   }
   const landingPath = attribution?.landingPath ?? window.location.pathname;
-  const metadata = { ...variants, ...(extra?.metadata ?? {}) };
 
   // Mirror to GA4 when a measurement ID is configured; a no-op otherwise.
   if (event === "page_view") ga4PageView(window.location.pathname);
@@ -122,6 +127,29 @@ export function trackConversion(
     });
   }
 
+  void canTrackAds()
+    .catch(() => false)
+    .then((allowed) =>
+      sendConversion(
+        event,
+        extra,
+        attribution,
+        landingPath,
+        // Test variants are stored only with consent; never sent without it.
+        { ...(allowed ? variants : {}), ...(extra?.metadata ?? {}) },
+        allowed ? getVisitorId() : null,
+      ),
+    );
+}
+
+function sendConversion(
+  event: ConversionEvent,
+  extra: { email?: string | null; amountCents?: number | null } | undefined,
+  attribution: Attribution | null,
+  landingPath: string,
+  metadata: Record<string, unknown>,
+  visitorId: string | null,
+) {
   void recordConversion({
     data: {
       event,
@@ -132,7 +160,7 @@ export function trackConversion(
       utmMedium: attribution?.utmMedium ?? null,
       utmCampaign: attribution?.utmCampaign ?? null,
       sessionId: attribution?.sessionId ?? null,
-      visitorId: getVisitorId(),
+      visitorId,
       email: extra?.email ?? null,
       amountCents: extra?.amountCents ?? null,
       metadata,
