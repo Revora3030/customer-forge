@@ -2,61 +2,7 @@
   "mcpServers": {
     "revora-jarvis-readonly": {
       "command": "node",
-      "args": [
-        "scripts/jarvis-mcp-server.mjs"
-      ]
-    },
-    "serena": {
-      "command": "uvx",
-      "args": [
-        "--from",
-        "git+https://github.com/oraios/serena@v2.1.0",
-        "serena",
-        "start-mcp-server",
-        "--context",
-        "claude-code",
-        "--project-from-cwd",
-        "--agent-interface",
-        "tools",
-        "--open-web-dashboard",
-        "False"
-      ]
-    },
-    "context7": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@upstash/context7-mcp@4.4.4"
-      ]
-    },
-    "playwright": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@playwright/mcp@0.0.83",
-        "--headless",
-        "--isolated"
-      ]
-    },
-    "sequential-thinking": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@modelcontextprotocol/server-sequential-thinking@2.0.0"
-      ]
-    },
-    "chrome-devtools": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "chrome-devtools-mcp@1.11.0",
-        "--headless",
-        "--isolated",
-        "--no-usage-statistics"
-      ],
-      "env": {
-        "CHROME_DEVTOOLS_MCP_NO_UPDATE_CHECKS": "1"
-      }
+      "args": ["scripts/jarvis-mcp-server.mjs"]
     }
   }
 }
