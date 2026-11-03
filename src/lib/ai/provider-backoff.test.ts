@@ -68,3 +68,22 @@ describe("paid provider backoff (free-first auto-switch)", () => {
     expect(busy.category).toBe("rate_limited");
   });
 });
+
+describe("providerAccountCooldown", () => {
+  it("reports credit and key cooldowns only, and lets them lapse", async () => {
+    const { noteProviderFailure, noteProviderSuccess, providerAccountCooldown, resetProviderBackoff } = await import("@/lib/ai/provider-backoff");
+    resetProviderBackoff();
+    const now = 1_000_000;
+    expect(providerAccountCooldown("lovable", now)).toBeNull();
+    noteProviderFailure("lovable", "quota", now);
+    expect(providerAccountCooldown("lovable", now + 1_000)).toEqual({ remainingMs: 2 * 60_000 - 1_000, reason: "quota" });
+    expect(providerAccountCooldown("lovable", now + 2 * 60_000)).toBeNull();
+    noteProviderFailure("lovable", "rate_limited", now);
+    expect(providerAccountCooldown("lovable", now + 1_000)).toBeNull();
+    noteProviderFailure("lovable", "unauthorized", now);
+    expect(providerAccountCooldown("lovable", now + 1_000)?.reason).toBe("unauthorized");
+    noteProviderSuccess("lovable");
+    expect(providerAccountCooldown("lovable", now + 1_000)).toBeNull();
+    resetProviderBackoff();
+  });
+});
