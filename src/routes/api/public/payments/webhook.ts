@@ -9,11 +9,40 @@ import { completedWebhookDuplicate, finishClaimedWebhook } from "@/lib/webhook-l
 type StripeWebhookEvent = {
   id?: string;
   type: string;
+  /** Seconds since epoch; the ordering fence's input (whole seconds, so ties happen). */
+  created?: number;
   // Stripe delivers arbitrary JSON per event type; the shape is narrowed by
   // the individual handlers, so the raw envelope stays permissive here.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   data: { object: any };
 };
+
+/**
+ * Layer 3 of the subscription fence: a status-less invoice event re-fetches
+ * its subscription from Stripe and projects the fresh state (never inferring a
+ * status from the invoice). Best-effort: the invoice bookkeeping must not fail
+ * because the re-read did, and the subscription events still arrive.
+ */
+async function reconcileInvoiceSubscription(
+  admin: Awaited<ReturnType<typeof import("@/lib/payments.server")["adminClient"]>>,
+  invoice: unknown,
+  env: StripeEnv,
+  event: StripeWebhookEvent,
+) {
+  const { invoiceSubscriptionId } = await import("@/lib/webhook-invoice");
+  const subscriptionId = invoiceSubscriptionId(invoice);
+  if (!subscriptionId) return;
+  try {
+    const { createStripeClient } = await import("@/lib/stripe.server");
+    const { syncStripeSubscription } = await import("@/lib/stripe-billing.server");
+    const { stripeEventCreated } = await import("@/lib/stripe-subscription-fence");
+    const fresh = await createStripeClient(env).subscriptions.retrieve(subscriptionId);
+    const result = await syncStripeSubscription(admin, fresh as never, env, { eventCreated: stripeEventCreated(event) });
+    if (result.applied === false) console.warn("[payments:webhook] invoice reconcile fenced", event.type, result.fence);
+  } catch (error) {
+    console.error("[payments:webhook] invoice subscription re-read failed", (error as Error).message);
+  }
+}
 
 async function handleEvent(event: StripeWebhookEvent, env: StripeEnv) {
   const { adminClient } = await import("@/lib/payments.server");
@@ -46,9 +75,18 @@ async function handleEvent(event: StripeWebhookEvent, env: StripeEnv) {
         : { data: null, error: null };
       if (previousError) throw new Error(`subscription_snapshot_failed:${previousError.code ?? "database error"}`);
 
-      const result = await syncStripeSubscription(admin, payload, env);
+      const { stripeEventCreated } = await import("@/lib/stripe-subscription-fence");
+      const result = await syncStripeSubscription(admin, payload, env, {
+        eventCreated: stripeEventCreated(event),
+      });
       if (!result.ok || !result.organizationId) {
         console.error("[payments:webhook] subscription not linked", result.reason);
+        break;
+      }
+      // A late, older or resurrecting event changed nothing, so it must not
+      // restore hosting or send lifecycle email either.
+      if (result.applied === false) {
+        console.warn("[payments:webhook] subscription event fenced", event.type, result.fence);
         break;
       }
       const organizationId = result.organizationId;
@@ -146,6 +184,9 @@ async function handleEvent(event: StripeWebhookEvent, env: StripeEnv) {
         console.error("[payments:webhook] invoice without organization metadata", object?.id);
         break;
       }
+      // Invoices carry no subscription status and never write one. Re-read the
+      // subscription from Stripe and project that through the same fence.
+      await reconcileInvoiceSubscription(admin, object, env, event);
       const { invoiceRecurringLine, invoiceSetupCents, invoiceLinePriceId } = await import(
         "@/lib/webhook-invoice"
       );

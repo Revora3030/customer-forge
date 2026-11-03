@@ -9,7 +9,9 @@
  * Covered: subscription start (trial month), the first invoice that carries
  * the $350 setup, checkout completion (setup unlock), the workspace provision
  * trigger, the build-start gate, a renewal on the current Stripe API shape, a
- * failed payment, duplicate delivery, forged events, and sandbox isolation.
+ * failed payment, duplicate delivery, forged events, sandbox isolation, and
+ * the subscription ordering fence (out-of-order, same-second and duplicate
+ * subscription events; invoices re-reading the subscription from Stripe).
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -17,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   db: null as unknown as FakeDb,
   sendEmail: vi.fn(),
   retrieveSession: vi.fn(),
+  retrieveSubscription: vi.fn(),
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -32,7 +35,10 @@ vi.mock("@/lib/stripe.server", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/stripe.server")>();
   return {
     ...actual,
-    createStripeClient: () => ({ checkout: { sessions: { retrieve: mocks.retrieveSession } } }),
+    createStripeClient: () => ({
+      checkout: { sessions: { retrieve: mocks.retrieveSession } },
+      subscriptions: { retrieve: mocks.retrieveSubscription },
+    }),
   };
 });
 
@@ -129,6 +135,7 @@ class Query {
     if (this.op === "insert") {
       for (const input of this.payload) {
         const row: Row = { id: newId(), created_at: new Date().toISOString(), ...input };
+        if (this.table === "subscriptions") row["updated_at"] = `v${++this.db.clock}`;
         if (this.violates(row)) {
           return { data: null, error: { code: "23505", message: "duplicate key value violates unique constraint" } };
         }
@@ -143,7 +150,11 @@ class Query {
       }
     } else if (this.op === "update") {
       out = table.filter((r) => this.matches(r));
-      for (const row of out) Object.assign(row, this.patch);
+      for (const row of out) {
+        Object.assign(row, this.patch);
+        // Emulates the touch_updated_at trigger (the compare-and-set version).
+        if (this.table === "subscriptions") row["updated_at"] = `v${++this.db.clock}`;
+      }
     } else if (this.op === "delete") {
       out = table.filter((r) => this.matches(r));
       this.db.tables[this.table] = table.filter((r) => !out.includes(r));
@@ -170,6 +181,7 @@ class Query {
 
 class FakeDb {
   tables: Record<string, Row[]> = {};
+  clock = 0;
   users: Record<string, string> = {};
   from(table: string) { return new Query(this, table); }
   async rpc() { return { data: null, error: null }; }
@@ -202,8 +214,10 @@ type Handlers = { server: { handlers: { POST: (i: { request: Request }) => Promi
 const route = webhookRoute as unknown as Handlers;
 const WEBHOOK_URL = (env: string) => `https://revora.test/api/public/payments/webhook?env=${env}`;
 
-async function deliver(env: Env, type: string, object: Row, opts: { id?: string; secret?: string } = {}) {
-  const body = JSON.stringify({ id: opts.id ?? `evt_e2e_${++eventSeq}`, type, data: { object } });
+async function deliver(env: Env, type: string, object: Row, opts: { id?: string; secret?: string; created?: number } = {}) {
+  const envelope: Row = { id: opts.id ?? `evt_e2e_${++eventSeq}`, type, data: { object } };
+  if (opts.created !== undefined) envelope["created"] = opts.created;
+  const body = JSON.stringify(envelope);
   const t = Math.floor(Date.now() / 1000);
   const request = new Request(WEBHOOK_URL(env), {
     method: "POST",
@@ -322,6 +336,7 @@ beforeEach(() => {
   mocks.db = new FakeDb();
   mocks.sendEmail.mockReset().mockResolvedValue({ ok: true });
   mocks.retrieveSession.mockReset();
+  mocks.retrieveSubscription.mockReset();
   process.env["PAYMENTS_SANDBOX_WEBHOOK_SECRET"] = SECRETS.sandbox;
   process.env["PAYMENTS_LIVE_WEBHOOK_SECRET"] = SECRETS.live;
   vi.spyOn(console, "error").mockImplementation(() => undefined);
@@ -496,5 +511,127 @@ describe("sandbox (test-mode) events stay out of production", () => {
     expect(payments(db).every((p) => p["environment"] === "sandbox")).toBe(true);
     expect(mocks.sendEmail).not.toHaveBeenCalled();
     expect(db.rowsOf("notifications").filter((n) => n["organization_id"] === ORG)).toHaveLength(0);
+  });
+});
+
+describe("subscription ordering fence (out-of-order and duplicate Stripe events)", () => {
+  const T = 1_800_000_000;
+  /** A canceled subscription whose paid period is already over. */
+  const ended = (env: Env = "live") => {
+    const sub = subscription(env, "canceled");
+    sub.items.data[0]!.current_period_end = nowSec() - 86_400;
+    return sub;
+  };
+  const subRow = (db: FakeDb) => db.rowsOf("subscriptions").find((r) => r["organization_id"] === ORG)!;
+
+  it("a late, older customer.subscription.updated(active) never revives a deleted subscription", async () => {
+    const db = mocks.db;
+    seed(db);
+    await deliver("live", "customer.subscription.created", subscription("live", "active"), { created: T });
+    await deliver("live", "customer.subscription.deleted", ended(), { created: T + 20 });
+    expect(subRow(db)).toMatchObject({ status: "canceled", last_stripe_event_created: T + 20 });
+    expect(db.org(ORG)["subscription_status"]).toBe("canceled");
+    const emailsBefore = mocks.sendEmail.mock.calls.length;
+
+    const late = await deliver("live", "customer.subscription.updated", subscription("live", "active"), { created: T + 10 });
+    expect(late.status).toBe(200);
+    expect(subRow(db)).toMatchObject({ status: "canceled", last_stripe_event_created: T + 20 });
+    expect(db.org(ORG)["subscription_status"]).toBe("canceled");
+    // A fenced event has no side effects (no lifecycle email, no hosting restore).
+    expect(mocks.sendEmail.mock.calls.length).toBe(emailsBefore);
+  });
+
+  it("a same-second tie never moves canceled back to live, in either delivery order", async () => {
+    const db = mocks.db;
+    seed(db);
+    await deliver("live", "customer.subscription.created", subscription("live", "active"), { created: T });
+    await deliver("live", "customer.subscription.deleted", ended(), { created: T + 5 });
+    await deliver("live", "customer.subscription.updated", subscription("live", "active"), { created: T + 5 });
+    expect(subRow(db)["status"]).toBe("canceled");
+    expect(db.org(ORG)["subscription_status"]).toBe("canceled");
+
+    // A newer "live" event for the same canceled id is still refused (terminal).
+    await deliver("live", "customer.subscription.updated", subscription("live", "active"), { created: T + 60 });
+    expect(subRow(db)["status"]).toBe("canceled");
+  });
+
+  it("applies in-order events and drops an older past_due arriving after active", async () => {
+    const db = mocks.db;
+    seed(db);
+    await deliver("live", "customer.subscription.created", subscription("live", "trialing"), { created: T });
+    await deliver("live", "customer.subscription.updated", subscription("live", "active"), { created: T + 30 });
+    await deliver("live", "customer.subscription.updated", subscription("live", "past_due"), { created: T + 15 });
+    expect(subRow(db)).toMatchObject({ status: "active", last_stripe_event_created: T + 30 });
+    expect(db.org(ORG)["subscription_status"]).toBe("active");
+  });
+
+  it("a duplicate event id is claimed once and projected once", async () => {
+    const db = mocks.db;
+    seed(db);
+    await deliver("live", "customer.subscription.created", subscription("live", "trialing"), { created: T, id: "evt_sub_dup" });
+    const again = await deliver("live", "customer.subscription.created", subscription("live", "trialing"), { created: T, id: "evt_sub_dup" });
+    expect(JSON.parse(again.body)).toMatchObject({ duplicate: true });
+    expect(db.rowsOf("subscriptions")).toHaveLength(1);
+    expect(emailsTo("billing-welcome")).toHaveLength(1);
+  });
+
+  it("invoice.paid never writes a status: it re-reads the subscription from Stripe and projects that", async () => {
+    const db = mocks.db;
+    seed(db);
+    await deliver("live", "customer.subscription.created", subscription("live", "active"), { created: T });
+    await deliver("live", "customer.subscription.deleted", ended(), { created: T + 20 });
+
+    // Stripe says the subscription is canceled; the late invoice must not flip it.
+    mocks.retrieveSubscription.mockResolvedValue(ended());
+    await deliver("live", "invoice.paid", invoice("live", "in_fence_1", { reason: "subscription_cycle", paid: 10_000, monthly: 10_000 }), { created: T + 25 });
+    expect(mocks.retrieveSubscription).toHaveBeenCalledWith("sub_E2Etest1");
+    expect(subRow(db)["status"]).toBe("canceled");
+    expect(db.org(ORG)["subscription_status"]).toBe("canceled");
+    // The payment itself is still recorded.
+    expect(payments(db).some((p) => (p["metadata"] as Row)["stripe_id"] === "in_fence_1")).toBe(true);
+  });
+
+  it("invoice.payment_failed projects the fresh Stripe state before the subscription event arrives", async () => {
+    const db = mocks.db;
+    seed(db);
+    await deliver("live", "customer.subscription.created", subscription("live", "active"), { created: T });
+    mocks.retrieveSubscription.mockResolvedValue(subscription("live", "past_due"));
+    await deliver("live", "invoice.payment_failed", invoice("live", "in_fence_2", { reason: "subscription_cycle", paid: 0, due: 10_000, monthly: 10_000 }), { created: T + 40 });
+    expect(subRow(db)).toMatchObject({ status: "past_due", last_stripe_event_created: T + 40 });
+    expect(db.org(ORG)["subscription_status"]).toBe("past_due");
+
+    // The older subscription.updated(active) that Stripe sent before the failure is now stale.
+    await deliver("live", "customer.subscription.updated", subscription("live", "active"), { created: T + 30 });
+    expect(subRow(db)["status"]).toBe("past_due");
+  });
+
+  it("a failed Stripe re-read never fails the invoice event", async () => {
+    const db = mocks.db;
+    seed(db);
+    await deliver("live", "customer.subscription.created", subscription("live", "active"), { created: T });
+    mocks.retrieveSubscription.mockRejectedValue(new Error("stripe unavailable"));
+    const res = await deliver("live", "invoice.paid", invoice("live", "in_fence_3", { reason: "subscription_cycle", paid: 10_000, monthly: 10_000 }), { created: T + 5 });
+    expect(res.status).toBe(200);
+    expect(subRow(db)["status"]).toBe("active");
+    expect(payments(db).some((p) => (p["metadata"] as Row)["stripe_id"] === "in_fence_3")).toBe(true);
+  });
+
+  it("another subscription ending never replaces the workspace's live subscription", async () => {
+    const db = mocks.db;
+    seed(db);
+    await deliver("live", "customer.subscription.created", subscription("live", "active", ORG, "sub_NEW"), { created: T + 100 });
+    const old = { ...ended(), id: "sub_OLD" };
+    await deliver("live", "customer.subscription.deleted", old, { created: T + 200 });
+    expect(subRow(db)).toMatchObject({ status: "active", provider_subscription_id: "sub_NEW" });
+    expect(db.org(ORG)["subscription_status"]).toBe("active");
+  });
+
+  it("events without created (legacy payloads) still apply, but canceled stays terminal", async () => {
+    const db = mocks.db;
+    seed(db);
+    await deliver("live", "customer.subscription.created", subscription("live", "active"));
+    await deliver("live", "customer.subscription.deleted", ended());
+    await deliver("live", "customer.subscription.updated", subscription("live", "active"));
+    expect(subRow(db)["status"]).toBe("canceled");
   });
 });
