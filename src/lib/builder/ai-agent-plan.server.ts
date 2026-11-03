@@ -12,6 +12,7 @@
  * ships a stock layout or filler wording.
  */
 
+import { partialJsonStringField, withTextDeltas } from "@/lib/ai/text-delta-scope.server";
 import { callBestThinker } from "@/lib/ai/thinker.server";
 import type { AgentContext } from "@/lib/site-agent.server";
 import { MAX_ACTIONS } from "@/lib/site-agent";
@@ -58,6 +59,9 @@ const DESIGN_RULES = [
   "A vague request such as 'change the background color' must produce a clearly perceptible change from the current colour while preserving readable contrast. Never replace a colour with a near-identical shade.",
   "In customer messages, 'front' or 'fronts' beside colour, background or style almost always means 'font' or 'fonts'. Treat it as typography, never silently reinterpret it as foreground colour. Only change foreground or text colour when those words are explicit.",
   "If the owner asks for a whole-site or all-pages colour change, update every explicit section or component colour that would otherwise override the new theme.",
+  "Act decisively like a senior designer: when a request is clear enough to act on, propose the full change now with your best judgement instead of asking. Ask a question only when the answer changes what you would build and you cannot reasonably infer it; never ask for permission for ordinary design improvements.",
+  "When the owner names a section by what it shows (\"the hero\", \"the pricing part\", \"the photos\"), find the matching section in the website below and copy its exact id; never invent or shorten an id.",
+  "Keep the reply short, warm and concrete: say what you will change and why it helps, in plain words, without lecturing about rules.",
 ].join(" ");
 
 /** Compact JSON contract. Anything outside it is dropped by the validator. */
@@ -250,6 +254,8 @@ export async function planWebsiteChangesWithAi(input: {
   onStage?: (stage: string, detail?: string) => void;
   /** Live progress hook: fired as each free model is tried. */
   onAttempt?: (provider: string, model: string) => void;
+  /** Receives the reply as the model writes it (live chat text). */
+  onReplyDraft?: (reply: string) => void;
 }): Promise<AiPlanOutcome> {
   const { context } = input;
   const designGuidance = designGuidancePrompt(
@@ -293,17 +299,29 @@ export async function planWebsiteChangesWithAi(input: {
     .join("\n");
 
   input.onStage?.("designing your change", "the AI team is composing your layout, copy and styling");
-  const direction = await callBestThinker({
-    json: true,
-    purpose: "creative_direction",
-    complexity: "high",
-    system,
-    user,
-    organizationId: input.organizationId,
-    // A full-site redesign is a long JSON plan; 6000 tokens cut it off mid-way.
-    maxOutputTokens: 32000,
-    ...(input.onAttempt ? { onAttempt: input.onAttempt } : {}),
-  });
+  const askThinker = () =>
+    callBestThinker({
+      json: true,
+      purpose: "creative_direction",
+      complexity: "high",
+      system,
+      user,
+      organizationId: input.organizationId,
+      // A full-site redesign is a long JSON plan; 6000 tokens cut it off mid-way.
+      maxOutputTokens: 32000,
+      ...(input.onAttempt ? { onAttempt: input.onAttempt } : {}),
+    });
+  const onReplyDraft = input.onReplyDraft;
+  let lastDraft = "";
+  const direction = onReplyDraft
+    ? await withTextDeltas((text) => {
+        const reply = partialJsonStringField(text, "reply");
+        if (reply !== null && reply !== lastDraft) {
+          lastDraft = reply;
+          onReplyDraft(reply);
+        }
+      }, askThinker)
+    : await askThinker();
   if (!direction.ok) {
     return { ok: false, reason: direction.reason, detail: direction.detail };
   }
