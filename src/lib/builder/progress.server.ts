@@ -104,3 +104,36 @@ export function noteStage(
 ): void {
   void recordStage(organizationId, runId, stage, detail);
 }
+
+/**
+ * Live reply text for one request, written at most every ~600ms (plus a final
+ * flush) so the owner sees the answer being written without a write per token.
+ * Cosmetic: failures are ignored and never affect the plan.
+ */
+export function replyDraftWriter(organizationId: string, runId: string): (text: string) => void {
+  const cleanRun = String(runId ?? "").trim().slice(0, 80);
+  if (!organizationId || !cleanRun) return () => undefined;
+  let pending: string | null = null;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let lastAt = 0;
+  const flush = async () => {
+    timer = null;
+    if (pending === null) return;
+    const text = pending.slice(0, 4000);
+    pending = null;
+    lastAt = Date.now();
+    try {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      await supabaseAdmin
+        .from("builder_reply_drafts")
+        .upsert({ organization_id: organizationId, run_id: cleanRun, text, updated_at: new Date().toISOString() });
+    } catch {
+      /* cosmetic */
+    }
+  };
+  return (text: string) => {
+    pending = text;
+    if (timer) return;
+    timer = setTimeout(() => void flush(), Math.max(0, 600 - (Date.now() - lastAt)));
+  };
+}
