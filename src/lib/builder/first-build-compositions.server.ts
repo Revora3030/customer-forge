@@ -1177,3 +1177,4 @@ export function rescueShouldPark(input: {
   if (input.deadlineHit || input.pageFailed) return true;
   return input.calls > 0 && input.unavailable / input.calls >= 0.5;
 }
+export { RULES as FIRST_BUILD_RULES };
