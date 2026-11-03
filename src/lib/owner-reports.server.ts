@@ -6,6 +6,19 @@ import { alertRecipient } from "@/lib/lead-alert-recipient";
 import { sendLeadAlert } from "@/lib/messaging.server";
 import { REVORA } from "@/lib/brand";
 import { PLATFORM_OWNER_ORG_ID } from "@/lib/platform-owner";
+import type { PaymentRow } from "@/lib/monthly-report";
+import {
+  MONTHLY_VALUE_KIND,
+  buildMonthlyValue,
+  inSendWindow,
+  leadTrend,
+  monthlyValueSubject,
+  previousMonthWindow,
+  roiLine,
+  usd,
+  type ValueEventRow,
+  type ValueLeadRow,
+} from "@/lib/monthly-value";
 
 /**
  * Owner reports and monitors that run inside the app, called on a schedule
@@ -16,6 +29,7 @@ import { PLATFORM_OWNER_ORG_ID } from "@/lib/platform-owner";
  *   weekly-report   — weekly: last 7 days of leads and appointments, per workspace
  *   site-health     — hourly: every published custom domain plus the main site
  *   lead-alert-retry — hourly: re-sends new-lead alerts that failed for a transient reason
+ *   monthly-report  — the 1st of each month: last month's value (ROI) report, per workspace
  *
  * Each workspace's report goes to that workspace's own alert inbox (the same
  * one new-lead alerts use). Every send claims a row in lifecycle_email_log
@@ -48,12 +62,12 @@ export function isoWeekKey(date: Date): string {
   return `${d.getUTCFullYear()}-W${String(week).padStart(2, "0")}`;
 }
 
-type Workspace = { id: string; name: string; recipient: string };
+type Workspace = { id: string; name: string; recipient: string; createdAt: string | null };
 
 async function activeWorkspaces(db: Db): Promise<Workspace[]> {
   const { data: orgs, error } = await db
     .from("organizations")
-    .select("id, name")
+    .select("id, name, created_at")
     .eq("is_demo", false)
     .eq("is_suspended", false)
     .limit(1000);
@@ -70,7 +84,9 @@ async function activeWorkspaces(db: Db): Promise<Workspace[]> {
     .map((o) => {
       const profile = byOrg.get(o.id as string);
       const recipient = profile ? alertRecipient(profile as never) : null;
-      return recipient ? { id: o.id as string, name: String(o.name ?? ""), recipient } : null;
+      return recipient
+        ? { id: o.id as string, name: String(o.name ?? ""), recipient, createdAt: (o.created_at as string | null) ?? null }
+        : null;
     })
     .filter((w): w is Workspace => w !== null);
 }
@@ -79,7 +95,18 @@ async function activeWorkspaces(db: Db): Promise<Workspace[]> {
 export async function sendOnce(
   db: Db,
   run: ReportRun,
-  input: { organizationId: string; kind: string; windowKey: string; recipient: string; heading: string; message: string; businessName: string },
+  input: {
+    organizationId: string;
+    kind: string;
+    windowKey: string;
+    recipient: string;
+    heading: string;
+    message: string;
+    businessName: string;
+    /** Defaults to the plain "automation-message" template. */
+    template?: string;
+    templateData?: Record<string, unknown>;
+  },
 ): Promise<void> {
   const { error: claimError } = await db.from("lifecycle_email_log").insert({
     organization_id: input.organizationId,
@@ -101,9 +128,14 @@ export async function sendOnce(
       .eq("kind", input.kind)
       .eq("window_key", input.windowKey);
   try {
-    const outcome = await sendTemplateEmail("automation-message", input.recipient, {
+    const outcome = await sendTemplateEmail(input.template ?? "automation-message", input.recipient, {
       idempotencyKey: `${input.kind}-${input.organizationId}-${input.windowKey}`,
-      templateData: { businessName: input.businessName, heading: input.heading, message: input.message, signoff: "— Revora" },
+      templateData: input.templateData ?? {
+        businessName: input.businessName,
+        heading: input.heading,
+        message: input.message,
+        signoff: "— Revora",
+      },
     });
     if (outcome.sent) {
       run.sent += 1;
@@ -233,6 +265,121 @@ export async function runWeeklyReports(db: Db, now = Date.now()): Promise<Report
       heading: `Weekly report: ${counts.leads} lead${counts.leads === 1 ? "" : "s"}, ${counts.appointments} appointment${counts.appointments === 1 ? "" : "s"}`,
       message: weeklyReportMessage(workspace.name, counts),
     });
+  }
+  return run;
+}
+
+/* ----------------------------- monthly value ------------------------------ */
+
+/**
+ * The 1st-of-month value report: last calendar month's leads, booked work,
+ * appointments and site activity, and what Revora cost, from the workspace's
+ * own records. One per workspace per month (lifecycle_email_log claim on
+ * kind "monthly_value" + "YYYY-MM"), with the same unsubscribe link as the
+ * other lifecycle emails. Runs only in the first MONTHLY_VALUE_SEND_DAYS days
+ * of a month, and skips workspaces created after the month ended.
+ */
+export async function runMonthlyValueReports(db: Db, now = Date.now()): Promise<ReportRun> {
+  const run: ReportRun = { job: "monthly-report", scanned: 0, sent: 0, skipped: 0, failed: 0, details: [] };
+  const at = new Date(now);
+  if (!inSendWindow(at)) {
+    run.details.push({ status: "skipped", reason: "outside_send_window" });
+    return run;
+  }
+  const window = previousMonthWindow(at);
+  const previousLabel = previousMonthWindow(new Date(window.start)).label;
+  const workspaces = (await activeWorkspaces(db)).filter(
+    (w) => w.id !== PLATFORM_OWNER_ORG_ID && (!w.createdAt || w.createdAt < window.end),
+  );
+  const { lifecycleUnsubscribeToken, lifecycleUnsubscribeUrl } = await import("@/lib/lifecycle-email.server");
+  for (const workspace of workspaces) {
+    run.scanned += 1;
+    try {
+      const [leads, appointments, events, payments] = await Promise.all([
+        db
+          .from("leads")
+          .select("status, estimated_value, created_at")
+          .eq("organization_id", workspace.id)
+          .neq("source", TEST_LEAD_SOURCE)
+          .gte("created_at", window.previousStart)
+          .lt("created_at", window.end)
+          .limit(10000),
+        db
+          .from("appointments")
+          .select("id")
+          .eq("organization_id", workspace.id)
+          .gte("created_at", window.start)
+          .lt("created_at", window.end)
+          .limit(10000),
+        db
+          .from("analytics_events")
+          .select("event_type, session_id")
+          .eq("organization_id", workspace.id)
+          .in("event_type", ["page_view", "cta_click"])
+          .gte("created_at", window.start)
+          .lt("created_at", window.end)
+          .limit(50000),
+        db
+          .from("payments")
+          .select("organization_id, amount, status, refunded_amount, completed_at, created_at")
+          .eq("organization_id", workspace.id)
+          .eq("environment", "live")
+          .gte("created_at", window.previousStart)
+          .lt("created_at", window.end)
+          .limit(1000),
+      ]);
+      const failed = [leads, appointments, events, payments].find((r) => r.error);
+      if (failed?.error) throw new Error(failed.error.message);
+      const value = buildMonthlyValue({
+        window,
+        leads: (leads.data ?? []) as ValueLeadRow[],
+        appointments: (appointments.data ?? []).length,
+        events: (events.data ?? []) as ValueEventRow[],
+        payments: (payments.data ?? []) as PaymentRow[],
+      });
+      const token = await lifecycleUnsubscribeToken(db as never, workspace.recipient);
+      if (token === null || token === "opted_out") {
+        run.skipped += 1;
+        run.details.push({
+          organizationId: workspace.id,
+          status: "skipped",
+          reason: token === "opted_out" ? "unsubscribed" : "unsubscribe_link_unavailable",
+        });
+        continue;
+      }
+      const subject = monthlyValueSubject(workspace.name, value);
+      await sendOnce(db, run, {
+        organizationId: workspace.id,
+        kind: MONTHLY_VALUE_KIND,
+        windowKey: window.key,
+        recipient: workspace.recipient,
+        businessName: workspace.name,
+        heading: subject,
+        message: "",
+        template: "monthly-value",
+        templateData: {
+          subject,
+          businessName: workspace.name,
+          monthLabel: value.label,
+          leads: value.leads,
+          leadTrend: leadTrend(value, previousLabel),
+          won: value.won,
+          wonValue: value.wonValue > 0 ? usd(value.wonValue) : null,
+          appointments: value.appointments,
+          visitors: value.visitors,
+          ctaClicks: value.ctaClicks,
+          roiLine: roiLine(value),
+          unsubscribeUrl: lifecycleUnsubscribeUrl(token),
+        },
+      });
+    } catch (error) {
+      run.failed += 1;
+      run.details.push({
+        organizationId: workspace.id,
+        status: "failed",
+        reason: error instanceof Error ? error.message.slice(0, 200) : "unknown_error",
+      });
+    }
   }
   return run;
 }
