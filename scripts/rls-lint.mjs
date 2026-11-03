@@ -3,7 +3,9 @@
  * SUPABASE RLS / POLICY LINT (static, no database needed)
  * =======================================================
  * Replays supabase/migrations/*.sql in filename order (the order Supabase
- * applies them) and reports what the repo says the final state is:
+ * applies them), then drizzle/migrations/*.sql (builder-track migrations that
+ * are applied to the same database), and reports what the repo says the final
+ * state is:
  *
  *  ERROR  table in schema public without ROW LEVEL SECURITY enabled
  *  ERROR  permissive write/ALL policy with USING (true) / WITH CHECK (true)
@@ -28,7 +30,8 @@
  *   node scripts/rls-lint.mjs                 exit 1 only on ERROR with --enforce
  *   node scripts/rls-lint.mjs --enforce       exit 1 on any non-accepted ERROR
  *   node scripts/rls-lint.mjs --json          machine-readable output
- *   node scripts/rls-lint.mjs --dir <path>    lint another migrations dir (tests)
+ *   node scripts/rls-lint.mjs --dir <path>    lint only this migrations dir
+ *                                             (repeatable, replayed in order; tests)
  */
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
@@ -36,8 +39,9 @@ import { join } from "node:path";
 const args = process.argv.slice(2);
 const enforce = args.includes("--enforce");
 const asJson = args.includes("--json");
-const dirIdx = args.indexOf("--dir");
-const dir = dirIdx >= 0 ? args[dirIdx + 1] : "supabase/migrations";
+const dirs = [];
+for (let i = 0; i < args.length; i++) if (args[i] === "--dir") dirs.push(args[i + 1]);
+if (dirs.length === 0) dirs.push(...["supabase/migrations", "drizzle/migrations"].filter((d) => existsSync(d)));
 const allowPath = join("scripts", "rls-lint.allowlist.json");
 const allow = new Map();
 if (existsSync(allowPath)) {
@@ -84,9 +88,13 @@ const views = new Map(); // name -> {file, invoker}
 const functions = new Map(); // key -> {file, definer, searchPath}
 const policies = []; // {table, name, cmd, roles, using, check, file}
 
-const files = readdirSync(dir).filter((f) => f.endsWith(".sql")).sort();
-for (const file of files) {
-  const stmts = splitStatements(readFileSync(join(dir, file), "utf8"));
+// Supabase filenames stay bare (as before); later dirs are prefixed so a
+// finding points at the right tree.
+const files = dirs.flatMap((dir, i) =>
+  readdirSync(dir).filter((f) => f.endsWith(".sql")).sort().map((f) => ({ path: join(dir, f), label: i === 0 ? f : `${dir}/${f}` })),
+);
+for (const { path, label: file } of files) {
+  const stmts = splitStatements(readFileSync(path, "utf8"));
   for (let si = 0; si < stmts.length; si++) {
     const s = stmts[si];
     // Idempotent guard inside a DO block: `IF NOT EXISTS (... pg_policies ...) THEN CREATE POLICY ...`.
@@ -197,13 +205,13 @@ const live = findings.filter((f) => !f.accepted);
 const errors = live.filter((f) => f.level === "ERROR");
 const warns = live.filter((f) => f.level === "WARN");
 const summary = {
-  migrations: files.length, tables: tables.size, policies: policies.length, views: views.size,
+  dirs, migrations: files.length, tables: tables.size, policies: policies.length, views: views.size,
   errors: errors.length, warnings: warns.length, accepted: findings.length - live.length,
 };
 if (asJson) {
   console.log(JSON.stringify({ summary, findings }, null, 2));
 } else {
-  console.log(`RLS lint: ${summary.migrations} migrations, ${summary.tables} tables, ${summary.policies} policies, ${summary.views} views`);
+  console.log(`RLS lint: ${summary.migrations} migrations (${dirs.join(", ")}), ${summary.tables} tables, ${summary.policies} policies, ${summary.views} views`);
   for (const f of findings) {
     console.log(`${f.accepted ? "ACCEPTED" : f.level.padEnd(8)} ${f.rule} ${f.object} (${f.file}) ${f.detail}${f.accepted ? ` [accepted: ${f.reason}]` : ""}`);
   }

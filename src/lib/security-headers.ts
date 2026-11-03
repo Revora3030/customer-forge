@@ -15,6 +15,8 @@
  *   measurement (same tag family) beacons to Google's Ads endpoints and is
  *   consent-gated by the cookie banner.
 
+ * - Cloudflare Turnstile (public lead forms, Revora-owned hosts only) loads
+ *   its script and challenge frame from `challenges.cloudflare.com`.
  * - Client websites show images the business uploaded or linked, which can live
  *   on any https host, so `img-src` stays broad while script/frame/connect
  *   sources stay locked down.
@@ -49,7 +51,7 @@ export const CONTENT_SECURITY_POLICY = [
   // builder open a customer page in a same-origin frame to photograph what
   // actually rendered for the visual review.
   "frame-ancestors 'self'",
-  "script-src 'self' 'unsafe-inline' https://js.stripe.com https://maps.googleapis.com https://maps.gstatic.com https://www.googletagmanager.com https://pagead2.googlesyndication.com https://googleads.g.doubleclick.net https://www.clarity.ms https://scripts.clarity.ms",
+  "script-src 'self' 'unsafe-inline' https://js.stripe.com https://maps.googleapis.com https://maps.gstatic.com https://www.googletagmanager.com https://pagead2.googlesyndication.com https://googleads.g.doubleclick.net https://www.clarity.ms https://scripts.clarity.ms https://challenges.cloudflare.com",
   "script-src-attr 'none'",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' data: https://fonts.gstatic.com",
@@ -90,7 +92,7 @@ export const CONTENT_SECURITY_POLICY = [
     "https://*.clarity.ms",
     "https://c.bing.com",
   ].join(" "),
-  `frame-src ${[...new Set(["'self'", "https://www.google.com", "https://maps.google.com", "https://js.stripe.com", "https://hooks.stripe.com", "https://googleads.g.doubleclick.net", "https://td.doubleclick.net", ...EMBED_FRAME_SOURCES.split(" ")])].join(" ")}`,
+  `frame-src ${[...new Set(["'self'", "https://www.google.com", "https://maps.google.com", "https://js.stripe.com", "https://hooks.stripe.com", "https://googleads.g.doubleclick.net", "https://td.doubleclick.net", "https://challenges.cloudflare.com", ...EMBED_FRAME_SOURCES.split(" ")])].join(" ")}`,
   "worker-src 'self' blob:",
   "manifest-src 'self'",
   "upgrade-insecure-requests",

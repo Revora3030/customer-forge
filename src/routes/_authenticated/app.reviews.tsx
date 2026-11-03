@@ -32,6 +32,7 @@ import { relative } from "@/lib/format";
 import { REVIEWS_META } from "@/lib/app-meta";
 import { MetaPreview } from "@/components/app/MetaPreview";
 import { ReviewKitCard } from "@/components/app/ReviewKitCard";
+import { ReviewSequenceCard } from "@/components/app/ReviewSequenceCard";
 
 export const Route = createFileRoute("/_authenticated/app/reviews")({
   head: () => ({
@@ -163,6 +164,13 @@ function ReviewsPage() {
         organizationId={orgId}
         businessName={data?.workspace?.organization?.name ?? ""}
         savedLink={reviewLink}
+        canManage={data?.workspace?.role === "owner" || data?.workspace?.role === "admin"}
+      />
+
+      <ReviewSequenceCard
+        organizationId={orgId}
+        enabled={profile.data?.review_sequence_enabled === true}
+        hasReviewLink={Boolean(reviewLink)}
         canManage={data?.workspace?.role === "owner" || data?.workspace?.role === "admin"}
       />
 

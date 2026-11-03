@@ -49,6 +49,8 @@ import { CRM_STAGES, LEAD_STATUSES, crmStageOf, leadStatusMeta, sourceLabel, typ
 import { groupByStage, leadsToCsv } from "@/lib/crm";
 import { DueTasksStrip, LeadTasks } from "@/components/app/LeadTasks";
 import { LeadReviewDraftPanel } from "@/components/app/LeadReviewDraftPanel";
+import { LeadReplyDraftPanel } from "@/components/app/LeadReplyDraftPanel";
+import { LeadResponseChip } from "@/components/app/LeadResponseChip";
 import { LeadWhatsAppButton } from "@/components/app/LeadWhatsAppButton";
 import { LeadChimeToggle } from "@/components/app/LeadChimeToggle";
 import { currency, relative } from "@/lib/format";
@@ -373,6 +375,9 @@ function LeadsPage() {
                             Follow up {relative(lead.next_follow_up_at)}
                           </p>
                         ) : null}
+                        {lead.status === "new" || lead.first_response_at ? (
+                          <LeadResponseChip lead={lead} className="mt-1 block" />
+                        ) : null}
                       </button>
                     ))}
                     {column.length === 0 ? (
@@ -421,6 +426,12 @@ function LeadsPage() {
                   {[serviceLabel(selected), sourceLabel(selected.source), selected.city, relative(selected.created_at)]
                     .filter(Boolean)
                     .join(" · ")}
+                  {selected.status === "new" || selected.first_response_at ? (
+                    <>
+                      {" · "}
+                      <LeadResponseChip lead={selected} />
+                    </>
+                  ) : null}
                 </DialogDescription>
               </DialogHeader>
 
@@ -518,6 +529,10 @@ function LeadsPage() {
                 </div>
 
                 <LeadTasks organizationId={orgId} leadId={selected.id} />
+
+                {selected.status === "new" || selected.status === "contacted" ? (
+                  <LeadReplyDraftPanel key={`reply-${selected.id}`} organizationId={orgId} leadId={selected.id} />
+                ) : null}
 
                 {selected.status === "completed" ? (
                   <LeadReviewDraftPanel key={selected.id} organizationId={orgId} leadId={selected.id} />

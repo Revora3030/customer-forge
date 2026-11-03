@@ -5,8 +5,9 @@
  * only gain their controls after hydration, so nothing depends on JavaScript.
  * No library, no network call, no sound.
  */
-import { useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
 import { lensKeyMove, lensPlacement, LENS_SIZE } from "@/lib/builder/lens";
+import { activeChapter, readingProgress } from "@/lib/builder/long-document";
 
 type NodeProps = { "data-cn": string; "data-motion": string | undefined; className: string | undefined; style: CSSProperties };
 
@@ -140,5 +141,61 @@ export function TierFader({ props, label, labels, cards }: { props: NodeProps; l
         ))}
       </div>
     </section>
+  );
+}
+
+/**
+ * Long-form reading: the chapter list stays pinned beside the prose on wide
+ * screens with a reading-progress rail and the current chapter marked; on
+ * phones the list sits above the prose. The server renders every chapter and
+ * a working list of in-page links, so nothing depends on JavaScript. The rail
+ * only tracks the scroll (no animation), so it also runs with reduced motion.
+ */
+export function LongDocument({ props, label, chapters }: { props: NodeProps; label: string; chapters: { title: string; body: ReactNode }[] }) {
+  const body = useRef<HTMLDivElement>(null);
+  const [progress, setProgress] = useState(0);
+  const [active, setActive] = useState<number | null>(null);
+  const base = (props["data-cn"] || "doc").replace(/[^\w-]/g, "-");
+  useEffect(() => {
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      const el = body.current;
+      if (!el) return;
+      const box = el.getBoundingClientRect();
+      const vh = window.innerHeight || 1;
+      setProgress(readingProgress(box.top, box.height, vh));
+      const tops = Array.from(el.querySelectorAll<HTMLElement>("[data-doc-chapter]"), (node) => node.getBoundingClientRect().top);
+      setActive(activeChapter(tops, vh));
+    };
+    const onScroll = () => { if (!frame) frame = window.requestAnimationFrame(update); };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    update();
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+      if (frame) window.cancelAnimationFrame(frame);
+    };
+  }, [chapters.length]);
+  return (
+    <div {...props} className={merge(props, "rv-doc")}>
+      <nav className="rv-doc-toc" aria-label={label}>
+        <p className="rv-doc-toc-label">{label}</p>
+        <ol className="rv-doc-toc-list">
+          {chapters.map((chapter, index) => (
+            <li key={index}>
+              <a href={`#${base}-ch-${index}`} aria-current={active === index ? "location" : undefined}>{chapter.title}</a>
+            </li>
+          ))}
+        </ol>
+        <div className="rv-doc-rail" aria-hidden="true"><span style={{ transform: `scaleY(${progress})` }} /></div>
+      </nav>
+      <div ref={body} className="rv-doc-body">
+        {chapters.map((chapter, index) => (
+          <section key={index} id={`${base}-ch-${index}`} data-doc-chapter="" className="rv-doc-chapter">{chapter.body}</section>
+        ))}
+      </div>
+    </div>
   );
 }
