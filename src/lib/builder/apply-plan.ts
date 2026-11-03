@@ -390,14 +390,14 @@ function editDistanceWithin(a: string, b: string, max: number): boolean {
     const cur = [i];
     let rowMin = i;
     for (let j = 1; j <= b.length; j++) {
-      const v = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      const v = Math.min((prev[j] ?? 0) + 1, (cur[j - 1] ?? 0) + 1, (prev[j - 1] ?? 0) + (a[i - 1] === b[j - 1] ? 0 : 1));
       cur.push(v);
       if (v < rowMin) rowMin = v;
     }
     if (rowMin > max) return false;
     prev = cur;
   }
-  return prev[b.length] <= max;
+  return (prev[b.length] ?? max + 1) <= max;
 }
 
 /**
@@ -411,14 +411,14 @@ export function repairId(value: string, pool: Set<string>): string {
   const lower = value.toLowerCase();
   const ids = [...pool].filter(isStableId);
   const caseHit = ids.filter((id) => id.toLowerCase() === lower);
-  if (caseHit.length === 1) return caseHit[0];
+  if (caseHit.length === 1 && caseHit[0]) return caseHit[0];
   if (lower.length >= 8) {
     const prefix = ids.filter((id) => id.toLowerCase().startsWith(lower));
-    if (prefix.length === 1) return prefix[0];
+    if (prefix.length === 1 && prefix[0]) return prefix[0];
   }
   if (lower.length >= 30) {
     const near = ids.filter((id) => editDistanceWithin(lower, id.toLowerCase(), 2));
-    if (near.length === 1) return near[0];
+    if (near.length === 1 && near[0]) return near[0];
   }
   return value;
 }
