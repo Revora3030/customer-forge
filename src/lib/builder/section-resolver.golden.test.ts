@@ -45,6 +45,31 @@ const SITE: ResolverSite = {
 
 const homeHint = (extra: Record<string, unknown>) => ({ pageId: HOME, pageSlug: "/", pageSectionCount: 6, ...extra });
 
+/** Realistic, distinct UUIDs: a one-character slip points at exactly one section. */
+const DISTINCT: ResolverSite = {
+  pages: [{ id: "7c1f2a9e-3b4d-4e8f-9a01-5d6c7b8e9f10", slug: "/" }],
+  sections: [
+    { id: "a3e9c4d1-58b2-4f7a-9c3e-1b2d4f6a8c0e", pageId: "7c1f2a9e-3b4d-4e8f-9a01-5d6c7b8e9f10", kind: "hero", heading: "Hero", sortOrder: 0 },
+    { id: "f0b7d2e6-91c3-4a85-b7d4-6e8f0a2c4b19", pageId: "7c1f2a9e-3b4d-4e8f-9a01-5d6c7b8e9f10", kind: "faq", heading: "FAQ", sortOrder: 1 },
+  ],
+};
+
+describe("golden master: near-miss id repair on distinct ids", () => {
+  it("repairs a uuid with one character dropped to the single close section", () => {
+    const real = "f0b7d2e6-91c3-4a85-b7d4-6e8f0a2c4b19";
+    const slipped = real.slice(0, 20) + real.slice(21);
+    const result = resolveSectionTarget(slipped, undefined, DISTINCT);
+    expect({ strategy: result.strategy, id: result.id }).toEqual({ strategy: "exact", id: real });
+  });
+
+  it("repairs a uuid with one character changed", () => {
+    const real = "a3e9c4d1-58b2-4f7a-9c3e-1b2d4f6a8c0e";
+    const slipped = real.slice(0, -1) + "f";
+    const result = resolveSectionTarget(slipped, undefined, DISTINCT);
+    expect({ strategy: result.strategy, id: result.id }).toEqual({ strategy: "exact", id: real });
+  });
+});
+
 /* ------------------------- per-step golden outcomes ------------------------ */
 
 type Case = {
@@ -56,7 +81,14 @@ type Case = {
 
 const CASES: Case[] = [
   { name: "exact id", id: u(105), expect: { strategy: "exact", id: u(105) } },
-  { name: "near-miss id (one character dropped) repaired", id: u(105).slice(0, -1), expect: { strategy: "exact", id: u(105) } },
+  // The fixture ids differ only in their last digits, so a truncated id is a
+  // near miss for several live sections at once: it must NOT be "repaired" to
+  // one of them, and with no hint it is skipped rather than guessed.
+  {
+    name: "ambiguous near-miss id (matches several sections) is not repaired",
+    id: u(105).slice(0, -1),
+    expect: { strategy: null, id: null, reason: "no matching section and nothing to identify it by" },
+  },
   { name: "id mismatch → role (only faq on the page)", id: GONE, hint: homeHint({ kind: "faq", position: 4 }), expect: { strategy: "role", id: u(105) } },
   { name: "descriptive id → role (team is unique site-wide)", id: "team-section", expect: { strategy: "role", id: u(202) } },
   { name: "stale page id, page found by slug → role", id: GONE, hint: { pageId: u(998), pageSlug: "about", kind: "hero" }, expect: { strategy: "role", id: u(201) } },
@@ -106,6 +138,28 @@ const CASES: Case[] = [
     id: GONE,
     hint: { pageId: HOME, position: 2, pageSectionCount: 9 },
     expect: { strategy: null, id: null, reason: "the page's layout changed since the plan, so its position alone isn't safe to go by" },
+  },
+  {
+    name: "low confidence: the page the section was on is gone (no site-wide fallback)",
+    id: GONE,
+    hint: { pageId: u(998), pageSlug: "pricing", kind: "team" },
+    expect: { strategy: null, id: null, reason: "the page that section was on is no longer on the site" },
+  },
+  {
+    name: "kind was not unique at plan time: lone survivor needs the heading to confirm",
+    id: GONE,
+    hint: { pageId: ABOUT, pageSlug: "about", kind: "team", kindCount: 2, heading: "Meet the crew", position: 1, pageSectionCount: 2 },
+    expect: { strategy: "headline", id: u(202) },
+  },
+  {
+    name: "low confidence: kind was not unique at plan time and the survivor's heading differs",
+    id: GONE,
+    hint: { pageId: ABOUT, pageSlug: "about", kind: "team", kindCount: 2, heading: "Our partners and suppliers", position: 1, pageSectionCount: 2 },
+    expect: {
+      strategy: null,
+      id: null,
+      reason: "the page had several team sections and only one is left, and its heading doesn't confirm it's the one meant",
+    },
   },
   {
     name: "low confidence: nothing to identify it by",

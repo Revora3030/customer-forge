@@ -38,6 +38,8 @@ export type SectionTargetHint = {
   position?: number | null;
   /** How many sections that page had when the plan was made. */
   pageSectionCount?: number | null;
+  /** How many sections of the hinted kind that page had when the plan was made. */
+  kindCount?: number | null;
 };
 
 /** The live site, reduced to what resolution needs. */
@@ -110,6 +112,7 @@ const cleanHint = (hint: unknown): SectionTargetHint => {
     pageSlug: str("pageSlug"),
     position: num("position"),
     pageSectionCount: num("pageSectionCount"),
+    kindCount: num("kindCount"),
   };
 };
 
@@ -131,6 +134,12 @@ export function resolveSectionTarget(id: string, rawHint: unknown, site: Resolve
     (hint.pageSlug != null && site.pages.find((p) => normSlug(p.slug) === normSlug(hint.pageSlug!))) ||
     null;
 
+  // The step names a page that no longer exists (by id or slug): its section
+  // went with it. Never fall back to a site-wide search, which could land the
+  // edit on another page's section of the same kind.
+  if ((hint.pageId || hint.pageSlug != null) && !page)
+    return { id: null, strategy: null, reason: "the page that section was on is no longer on the site" };
+
   const ordered = (pageId: string) =>
     site.sections.filter((s) => s.pageId === pageId).sort((a, b) => a.sortOrder - b.sortOrder);
   const scope = page ? ordered(page.id) : site.sections;
@@ -141,11 +150,19 @@ export function resolveSectionTarget(id: string, rawHint: unknown, site: Resolve
   // 2. Role/type.
   let pool = scope;
   let kindMissing = false;
+  let kindShrunk = false;
   if (kind) {
     const byRole = scope.filter((s) => s.kind === kind);
-    if (byRole.length === 1) return { id: byRole[0]!.id, strategy: "role", detail: `only ${kind} section${page ? " on the page" : ""}` };
-    if (byRole.length > 1) pool = byRole;
-    else kindMissing = true;
+    // A lone section of the kind only identifies the target when the kind was
+    // unique when the plan was made too; if there were several and only one
+    // is left, the meant one may be the one that was removed, so the heading
+    // has to confirm it instead.
+    const wasUnique = hint.kindCount == null || hint.kindCount <= 1;
+    if (byRole.length === 1 && wasUnique) return { id: byRole[0]!.id, strategy: "role", detail: `only ${kind} section${page ? " on the page" : ""}` };
+    if (byRole.length >= 1) {
+      pool = byRole;
+      kindShrunk = byRole.length === 1;
+    } else kindMissing = true;
   }
 
   // 3. Heading similarity.
@@ -162,7 +179,7 @@ export function resolveSectionTarget(id: string, rawHint: unknown, site: Resolve
 
   // 4. Nearest position on the same page. Never across a kind contradiction.
   let layoutChanged = false;
-  if (page && hint.position != null && !kindMissing) {
+  if (page && hint.position != null && !kindMissing && !kindShrunk) {
     const onPage = ordered(page.id);
     const indexOf = new Map(onPage.map((s, index) => [s.id, index]));
     const narrowed = pool !== scope; // role already narrowed to several of the same kind
@@ -182,6 +199,8 @@ export function resolveSectionTarget(id: string, rawHint: unknown, site: Resolve
 
   const why = kindMissing
     ? `no ${kind} section is on the ${page ? "page" : "site"} any more`
+    : kindShrunk
+      ? `the page had several ${kind} sections and only one is left, and its heading doesn't confirm it's the one meant`
     : layoutChanged
       ? "the page's layout changed since the plan, so its position alone isn't safe to go by"
       : pool.length > 1
@@ -261,6 +280,7 @@ export function hintForSection(sectionId: string, site: ResolverSite): SectionTa
     pageSlug: page?.slug ?? null,
     position: onPage.findIndex((s) => s.id === section.id),
     pageSectionCount: onPage.length,
+    kindCount: onPage.filter((s) => s.kind === section.kind).length,
   };
 }
 
