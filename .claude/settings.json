@@ -72,7 +72,8 @@
     "serena",
     "context7",
     "playwright",
-    "sequential-thinking"
+    "sequential-thinking",
+    "chrome-devtools"
   ],
   "extraKnownMarketplaces": {
     "chrome-devtools-plugins": {
@@ -95,7 +96,7 @@
     }
   },
   "enabledPlugins": {
-    "chrome-devtools-mcp@chrome-devtools-plugins": true,
+    "chrome-devtools-mcp@chrome-devtools-plugins": false,
     "ponytail@ponytail": true,
     "agent-skills@addy-agent-skills": false
   }

@@ -45,5 +45,5 @@ Read `AGENTS.md` first: it holds the invariants (Lovable sync, single AI provide
 ## Working cheaply
 - Search narrowly (`rg -n -m 10 pattern path/`), read ranges, not whole files.
 - Delegate wide searches to the `explorer` subagent and test runs to `test-runner` (both on a cheaper model; see `.claude/agents/`).
-- MCP: `serena` for symbol-level reads/edits and project memories (`.serena/memories/`), `context7` for library docs, `playwright` for browser checks, `revora-jarvis-readonly` for bounded repo reads and CI status.
+- MCP: `serena` for symbol-level reads/edits and project memories (`.serena/memories/`), `context7` for library docs, `playwright` and `chrome-devtools` (Lighthouse, performance traces, Core Web Vitals) for browser checks, `revora-jarvis-readonly` for bounded repo reads and CI status.
 - Skills live in `.claude/skills/` (vendored ones carry `LICENSE` + `ATTRIBUTION.md`).
