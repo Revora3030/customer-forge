@@ -187,7 +187,7 @@ export function stageCss(stage: CinematicHeroStage): string {
 
 /** A static fractal-noise tile (never animated: animated grain repaints the viewport every frame). */
 const GRAIN_SVG =
-  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E";
+  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"; // DevSkim: ignore DS137138 -- SVG namespace identifier inside a data URI; nothing is fetched.
 
 /** Shared, stage-independent rules (one copy per page). */
 export const HERO_STAGE_CSS = [
