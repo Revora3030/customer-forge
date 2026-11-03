@@ -12,6 +12,8 @@
  *  - reduced motion: no scroll-driven or smooth motion at all,
  *  - every control is at least 44×44px with a visible focus ring.
  */
+import { SCENE_HEADLINE_CLAMP, fluidClamp } from "@/lib/type-scale";
+
 const S = "[data-composition][data-composition]";
 
 export const CINEMATIC_CSS = `
@@ -149,7 +151,9 @@ ${S} .rv-px-layer[data-depth="2"]{--px:4%}
 ${S} .rv-px-layer[data-depth="3"]{--px:6%}
 @keyframes rv-px-drift{from{transform:translateY(var(--px,0%))}to{transform:translateY(calc(var(--px,0%) * -1))}}
 }}
-${S} .rv-scene :is(h1,h2),${S} .rv-seq-copy :is(h1,h2){font-size:clamp(3.2rem,7vw,6.5rem)!important;line-height:.95!important;letter-spacing:-.03em;text-wrap:balance}
+${S} .rv-scene :is(h1,h2),${S} .rv-seq-copy :is(h1,h2){font-size:${SCENE_HEADLINE_CLAMP}!important;line-height:.95!important;letter-spacing:-.03em;text-wrap:balance}
+@media (max-width:47.99rem){${S} .rv-scene :is(h1,h2),${S} .rv-seq-copy :is(h1,h2){line-height:1.02!important;letter-spacing:-.028em;overflow-wrap:break-word}}
+@media (max-width:22.49rem){${S} .rv-scene :is(h1,h2),${S} .rv-seq-copy :is(h1,h2){font-weight:min(var(--ds-heading-weight,700),650)!important;letter-spacing:-.035em;line-height:1.04!important}}
 ${S} .rv-scene:not(:has(img)):not(:has(video)){background:radial-gradient(48% 36% at 50% 12%,rgba(255,255,255,.07),transparent 70%),#0a0d10}
 .rv-site-root[data-studio]{background:#0a0d10;color:#f4f1ea}
 .rv-site-root[data-studio]::before{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;background:radial-gradient(42% 32% at 50% -4%,rgba(255,255,255,.07),transparent 68%),radial-gradient(28% 22% at 88% 18%,rgba(255,255,255,.04),transparent 70%)}
@@ -173,7 +177,7 @@ ${S} .rv-dial-gauge svg{width:min(240px,70%);height:auto;overflow:visible}
 ${S} .rv-dial-gauge svg[data-draggable]{cursor:grab;touch-action:none;-webkit-user-select:none;user-select:none}${S} .rv-dial-gauge svg[data-draggable]:active{cursor:grabbing}
 ${S} .rv-dial-fill,${S} .rv-dial-needle{transition:all 520ms cubic-bezier(.2,.8,.2,1)}
 ${S} .rv-dial-reading{display:flex;align-items:baseline;gap:6px;margin-top:-28px}
-${S} .rv-dial-reading strong{font-size:clamp(24px,3.4vw,34px);font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+${S} .rv-dial-reading strong{font-size:${fluidClamp(24, 34, 320, 1000)};font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
 ${S} .rv-dial-reading span{font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;opacity:.7}
 ${S} .rv-dial-option{margin:6px 0 0;font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--primary-ink,var(--primary,currentColor))}
 ${S} .rv-dial-note{margin:0;max-width:34ch;font-size:14px;line-height:1.5;opacity:.8}
@@ -186,7 +190,7 @@ ${S} .rv-model{margin:0;display:flex;flex-direction:column;gap:10px}
 ${S} .rv-model-stage{position:relative;aspect-ratio:4/3;width:100%;border-radius:18px;overflow:hidden;background:radial-gradient(120% 90% at 50% 20%,rgba(127,127,127,.18),rgba(127,127,127,.04));touch-action:none}
 ${S} .rv-model-poster,${S} .rv-model-canvas,${S} .rv-model-placeholder{position:absolute;inset:0;width:100%;height:100%}
 ${S} .rv-model-poster{object-fit:cover}
-${S} .rv-model-placeholder{display:grid;place-items:center;font-size:clamp(28px,6vw,56px);font-weight:800;letter-spacing:.08em;opacity:.35}
+${S} .rv-model-placeholder{display:grid;place-items:center;font-size:${fluidClamp(28, 56, 320, 933)};font-weight:800;letter-spacing:.08em;opacity:.35}
 ${S} .rv-model-open{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);min-height:44px;padding:0 20px;border-radius:999px;border:0;background:var(--primary,#111);color:var(--primary-foreground,#fff);font-weight:700;font-size:14px;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.25)}
 ${S} .rv-model-status{position:absolute;inset:auto 0 16px;text-align:center;font-size:14px;margin:0}
 ${S} .rv-model-caption{display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px;font-size:14px;font-weight:600}
