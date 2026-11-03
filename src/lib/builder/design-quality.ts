@@ -217,7 +217,7 @@ export function auditSectionDesign(
       code: "lead_not_cinematic",
       severity: "major",
       path: "root",
-      fix: "This opening was given more than one picture and still reads as a stacked template. When the pictures are one subject, open with a scrub_sequence (2-6 media frames in order, display heading in the overlay). Otherwise open with a full-viewport scene or scroll_chapters. Generated frames stay atmosphere — never a before/after of work the owner did not photograph.",
+      fix: "This opening was given more than one picture and still reads as a stacked template. When the pictures are one subject, open with a scrub_sequence (2-18 media frames in order, display heading in the overlay). Otherwise open with a full-viewport scene or scroll_chapters. Generated frames stay atmosphere — never a before/after of work the owner did not photograph.",
     });
 
   // 1c. Text over a scene's photo passes AA against the computed scrim.

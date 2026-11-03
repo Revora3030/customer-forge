@@ -18,6 +18,7 @@ import { intrinsicSize } from "@/lib/builder/image-campaign";
 import { focalToObjectPosition, responsiveImage } from "@/lib/builder/image-framing";
 import { focalForKnownPhoto } from "@/lib/builder/trade-photo-picks";
 import { LensMagnifier, StickySplitStory, TierFader } from "@/components/site/MasterBlocks";
+import { capScrubFrames } from "@/lib/builder/scrub";
 import { CollectionRow, DialSelector, HeroVideo, InlineHeroVideo, SceneVideo, ScrubSequence, ScrubStage, ScrollChapters, SpinViewer, type SpinFrame } from "@/components/site/CinematicBlocks";
 import { CINEMATIC_CSS } from "@/components/site/cinematic-css";
 import { CountUpText } from "@/components/site/CountUp";
@@ -940,7 +941,7 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
       return items.length ? <CollectionRow key={key} props={props} label={node.text?.trim() || "Collection"} items={items} /> : null;
     }
     case "scrub_sequence": {
-      const frames: { src: string; alt: string; label?: string }[] = [];
+      const authored: { src: string; alt: string; label?: string; generated: boolean }[] = [];
       const copy: ReactNode[] = [];
       children.forEach((child, i) => {
         if (child.type !== "media") {
@@ -951,8 +952,10 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
         const source = child.src ? resolveImageSource(child.src) : mediaUrl(resolved);
         if (!source) return;
         const label = visibleFrameLabel(child.text);
-        frames.push({ src: source, alt: child.alt ?? mediaVisual(resolved)?.alt ?? "", ...(label ? { label } : {}) });
+        authored.push({ src: source, alt: child.alt ?? mediaVisual(resolved)?.alt ?? "", ...(label ? { label } : {}), generated: isGeneratedMedia(resolved) });
       });
+      // Beyond six frames only the owner's real photographs show, at most 18.
+      const frames = capScrubFrames(authored).map(({ generated: _generated, ...frame }) => frame);
       if (frames.length < 2 && copy.length === 0) return null;
       if (frames.length) ctx.counter.sawMedia = true;
       const scrim = sceneScrim({ ink: node.style?.color ?? "#ffffff", scrim: node.scrim?.color ?? "#0c0e12", opacity: node.scrim?.opacity ?? 46 });

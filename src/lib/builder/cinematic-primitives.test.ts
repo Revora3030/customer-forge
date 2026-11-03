@@ -178,10 +178,12 @@ describe("scrub_sequence", () => {
     children: [...Array.from({ length: frames }, (_, i) => pic(i + 1, `Frame ${i + 1}`)), ...extra],
   });
 
-  it("accepts 2-6 frames plus overlay copy", () => {
+  it("accepts 2-18 frames plus overlay copy", () => {
     expect(validateComposition(tree(sequence(3, [{ type: "heading", level: 1, text: "Bring it dirty" }, button()]))).ok).toBe(true);
-    expect(problems(validateComposition(tree(sequence(1))))).toContain("scrub_sequence needs 2-6 media frames of one subject, in order");
-    expect(problems(validateComposition(tree(sequence(7))))).toContain("scrub_sequence needs 2-6 media frames of one subject, in order");
+    expect(validateComposition(tree(sequence(7))).ok).toBe(true);
+    expect(validateComposition(tree(sequence(18))).ok).toBe(true);
+    expect(problems(validateComposition(tree(sequence(1))))).toContain("scrub_sequence needs 2-18 media frames of one subject, in order");
+    expect(problems(validateComposition(tree(sequence(19))))).toContain("scrub_sequence needs 2-18 media frames of one subject, in order");
   });
 
   it("refuses a frame without alt text and a nested scene", () => {
