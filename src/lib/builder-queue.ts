@@ -114,9 +114,12 @@ export function queueSummary(tasks: ReadonlyArray<QueueTask & { isBuild?: boolea
   ).length;
   const waiting = tasks.filter((task) => task.state === "queued" || task.state === "waiting_for_approval").length;
   if (!done && !waiting && !failed) return "";
-  const parts = [`${done} done`];
+  // Never lead with "0 done": show only counts that exist, and word failures
+  // as something to retry rather than a scoreboard of mistakes.
+  const parts: string[] = [];
+  if (done) parts.push(`${done} done`);
   if (waiting) parts.push(`${waiting} waiting`);
-  if (failed) parts.push(`${failed} didn't work`);
+  if (failed) parts.push(`${failed} to try again`);
   return parts.join(" · ");
 }
 export function timelineFor(task: QueueTask): { stages: string[]; current: number } {
