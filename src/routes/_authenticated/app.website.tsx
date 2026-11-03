@@ -975,6 +975,7 @@ function WebsitePage() {
                     canManage={manage}
                     canFreshRebuild={canFreshRebuild}
                     hasCopy={!!copy}
+                    onFixDetails={() => setSetupOpen(true)}
                   />
                 </>
               ),
