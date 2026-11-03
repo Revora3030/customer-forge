@@ -494,6 +494,22 @@
   }
 }
 
+/* Cross-document View Transitions ------------------------------------------
+   Full page loads between same-origin pages (Chromium 126+, Safari 18.2+)
+   cross-fade instead of flashing. Only enabled when the visitor has not asked
+   for reduced motion; browsers without support ignore the rule entirely.
+   Client-side (router) navigations are unaffected. */
+@media (prefers-reduced-motion: no-preference) {
+  @view-transition {
+    navigation: auto;
+  }
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: 200ms;
+    animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+}
+
 /* First-build composition identity ----------------------------------------- */
 .rv-site {
   --rv-gutter: clamp(1rem, 3vw, 2.5rem);
