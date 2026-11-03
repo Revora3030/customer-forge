@@ -186,7 +186,9 @@ export async function pruneBackups(admin: Admin, organizationId: string, keep = 
     .eq("organization_id", organizationId)
     .in("id", ids);
   if (deleteError) {
-    console.warn(`[backup] couldn't prune old backups for ${organizationId}: ${deleteError.message}`);
+    console.warn(
+      `[backup] couldn't prune old backups for ${organizationId}: ${deleteError.message}`,
+    );
     return 0;
   }
   return ids.length;
@@ -257,7 +259,12 @@ async function applyTenantSnapshot(
 /** website_settings columns a website-only restore may write. Never publish or domain fields. */
 const WEBSITE_SETTINGS_RESTORE_COLUMNS = ["generation", "seo", "template"] as const;
 /** business_profiles columns that are part of the website's look. Nothing else is touched. */
-const BRAND_RESTORE_COLUMNS = ["primary_color", "secondary_color", "accent_color", "font_preference"] as const;
+const BRAND_RESTORE_COLUMNS = [
+  "primary_color",
+  "secondary_color",
+  "accent_color",
+  "font_preference",
+] as const;
 
 function pickColumns(
   row: Record<string, unknown> | undefined,
@@ -296,9 +303,7 @@ export async function restoreWebsiteFromBackup(
   if (!backup) return { restored: false, reason: "That backup no longer exists." };
 
   const snapshot = (backup as { snapshot?: unknown }).snapshot as
-    | (Partial<TenantSnapshot> & { organizationId?: unknown })
-    | null
-    | undefined;
+    (Partial<TenantSnapshot> & { organizationId?: unknown }) | null | undefined;
   const snapshotOrg = snapshot?.organization_id ?? snapshot?.organizationId;
   if (
     !snapshot ||
@@ -316,13 +321,25 @@ export async function restoreWebsiteFromBackup(
   });
   if (siteError) return { restored: false, reason: `Website restore failed: ${siteError.message}` };
 
-  const settings = pickColumns(snapshot.tables?.["website_settings"]?.[0], WEBSITE_SETTINGS_RESTORE_COLUMNS);
+  const settings = pickColumns(
+    snapshot.tables?.["website_settings"]?.[0],
+    WEBSITE_SETTINGS_RESTORE_COLUMNS,
+  );
   const restoredGeneration = settings?.["generation"];
-  if (settings && restoredGeneration && typeof restoredGeneration === "object" && !Array.isArray(restoredGeneration)) {
+  if (
+    settings &&
+    restoredGeneration &&
+    typeof restoredGeneration === "object" &&
+    !Array.isArray(restoredGeneration)
+  ) {
     // Build bookkeeping from the moment of the backup is never brought back:
     // it would point a later build at a rebuild that has already settled.
-    const { pendingBuild: _pending, buildState: _state, buildStartedAt: _started, ...rest } =
-      restoredGeneration as Record<string, unknown>;
+    const {
+      pendingBuild: _pending,
+      buildState: _state,
+      buildStartedAt: _started,
+      ...rest
+    } = restoredGeneration as Record<string, unknown>;
     void _pending;
     void _state;
     void _started;
@@ -334,7 +351,10 @@ export async function restoreWebsiteFromBackup(
       .update(settings as never)
       .eq("organization_id", orgId);
     if (settingsError)
-      return { restored: false, reason: `Website settings restore failed: ${settingsError.message}` };
+      return {
+        restored: false,
+        reason: `Website settings restore failed: ${settingsError.message}`,
+      };
   }
 
   const brand = pickColumns(snapshot.tables?.["business_profiles"]?.[0], BRAND_RESTORE_COLUMNS);
@@ -343,7 +363,8 @@ export async function restoreWebsiteFromBackup(
       .from("business_profiles")
       .update(brand as never)
       .eq("organization_id", orgId);
-    if (brandError) return { restored: false, reason: `Brand restore failed: ${brandError.message}` };
+    if (brandError)
+      return { restored: false, reason: `Brand restore failed: ${brandError.message}` };
   }
 
   const { error: markError } = await admin
@@ -352,7 +373,9 @@ export async function restoreWebsiteFromBackup(
     .eq("id", backupId)
     .eq("organization_id", orgId);
   if (markError) {
-    console.warn(`[backup] website restore of ${backupId} finished but couldn't be stamped: ${markError.message}`);
+    console.warn(
+      `[backup] website restore of ${backupId} finished but couldn't be stamped: ${markError.message}`,
+    );
   }
   return { restored: true };
 }
@@ -410,7 +433,9 @@ export async function restoreBackup(
     .eq("organization_id", organizationId);
   if (markError) {
     // The restore itself succeeded; only the "last restored" stamp is missing.
-    console.warn(`[backup] restore of ${backupId} finished but couldn't be stamped: ${markError.message}`);
+    console.warn(
+      `[backup] restore of ${backupId} finished but couldn't be stamped: ${markError.message}`,
+    );
   }
 
   const site = (siteResult ?? {}) as { pages?: number; sections?: number; components?: number };
@@ -423,5 +448,38 @@ export async function restoreBackup(
       sections: Number(site.sections ?? 0),
       components: Number(site.components ?? 0),
     },
+  };
+}
+
+/** Tables in a downloadable site export: the website and what it draws from. No leads or customers. */
+export const SITE_EXPORT_TABLES = [
+  "business_profiles",
+  "website_settings",
+  "services",
+  "media",
+] as const;
+
+export type SiteExport = {
+  format: 1;
+  kind: "site_export";
+  organization_id: string;
+  taken_at: string;
+  tables: Record<string, Record<string, unknown>[]>;
+  website: WebsiteSnapshot;
+};
+
+/** Builds the site-only export an owner downloads from Settings. Read-only. */
+export async function buildSiteExport(admin: Admin, organizationId: string): Promise<SiteExport> {
+  const tables: Record<string, Record<string, unknown>[]> = {};
+  for (const table of SITE_EXPORT_TABLES) {
+    tables[table] = await readAll(admin, table, organizationId);
+  }
+  return {
+    format: 1,
+    kind: "site_export",
+    organization_id: organizationId,
+    taken_at: new Date().toISOString(),
+    tables,
+    website: await readWebsite(admin, organizationId),
   };
 }

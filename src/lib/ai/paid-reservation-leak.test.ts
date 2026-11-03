@@ -361,6 +361,8 @@ describe("router settles every paid reservation", () => {
 
   it("settles a timed-out (aborted) call at the estimate, never as free", async () => {
     process.env["AI_REQUEST_TIMEOUT_MS"] = "30";
+    // Role-specific ceilings (T010) take precedence for these roles.
+    for (const role of ["PRIMARY", "DESIGN", "FAST"]) process.env[`AI_ROLE_TIMEOUT_MS_${role}`] = "30";
     vi.stubGlobal(
       "fetch",
       vi.fn(

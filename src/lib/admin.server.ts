@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { NewClientInput } from "@/lib/admin-types";
 import { newTrialEndsAt } from "@/lib/trial";
 import { areAddressesPublic, guardedFetch, isFetchableHostname } from "@/lib/net-guard.server";
-import { DOMAIN_IP } from "@/lib/domain-setup";
+import { caaAllowsCertificates, DOMAIN_IP } from "@/lib/domain-setup";
 import { isRevoraOwnHost, isTrafficDomainHost } from "@/lib/revora-address";
 
 /** Where clients point their domain. Both records are checked automatically. */
@@ -59,7 +59,7 @@ export function isValidDomain(value: string) {
 
 type DnsAnswer = { name: string; type: number; data: string };
 
-async function dnsQuery(name: string, type: "A" | "AAAA" | "CNAME" | "TXT"): Promise<DnsAnswer[]> {
+async function dnsQuery(name: string, type: "A" | "AAAA" | "CNAME" | "TXT" | "CAA"): Promise<DnsAnswer[]> {
   const res = await fetch(
     `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(name)}&type=${type}`,
     { headers: { accept: "application/dns-json" } },
@@ -76,6 +76,13 @@ export type DomainRecords = {
   aMatches: boolean;
   cnameMatches: boolean;
   txtVerified: boolean;
+  /** _lovable.www.<domain> TXT answers (www is verified as its own domain). */
+  wwwTxt: string[];
+  wwwTxtVerified: boolean | null;
+  /** Raw CAA answers for the domain; caaOk is false when they block both allowed CAs. */
+  caa: string[];
+  caaOk: boolean;
+  caaWarning: string | null;
   /** www.<domain> A/CNAME answers. Empty when the www address isn't checked (a www host itself). */
   wwwA: string[];
   wwwCname: string[];
@@ -101,6 +108,11 @@ const emptyRecords = (): DomainRecords => ({
   aMatches: false,
   cnameMatches: false,
   txtVerified: false,
+  wwwTxt: [],
+  wwwTxtVerified: null,
+  caa: [],
+  caaOk: true,
+  caaWarning: null,
   wwwA: [],
   wwwCname: [],
   wwwMatches: null,
@@ -111,9 +123,10 @@ const emptyRecords = (): DomainRecords => ({
 
 /**
  * What a client must add at their registrar. Shown verbatim in the app, so it
- * lists only records with real values. The ownership TXT record is not listed:
- * its value is project-specific and we do not have it here, so a placeholder
- * must never be shown to a customer.
+ * lists only records with real values. The ownership TXT records (_lovable and
+ * _lovable.www) are issued per domain; the UI shows them from
+ * generation.domainVerification via dnsRows(), with a "pending" note until set —
+ * a placeholder value must never be shown to a customer.
  */
 export const requiredDnsRecords = (domain: string) => [
   { type: "A", name: "@", value: DOMAIN_A_RECORD, purpose: `Points ${domain} at the platform` },
@@ -125,10 +138,23 @@ export const requiredDnsRecords = (domain: string) => [
  * DNS must actually resolve to the platform, and HTTPS must complete a TLS
  * handshake and return a real response from that hostname.
  */
-export async function checkDomain(
-  rawDomain: string,
-  opts: { proxied?: boolean } = {},
-): Promise<DomainCheck> {
+export async function checkDomain(rawDomain: string): Promise<DomainCheck> {
+  const check = await checkDomainCore(rawDomain);
+  if (check.status === "error" || check.status === "not_connected") return check;
+  // CAA: if the domain restricts which CAs may issue and excludes both of the
+  // platform's CAs, HTTPS can never be issued. Warn; never block the check.
+  const domain = normalizeDomain(rawDomain ?? "");
+  const caaRes = await dnsQuery(domain, "CAA").catch(() => [] as DnsAnswer[]);
+  const caa = caaRes.filter((r) => r.type === 257).map((r) => r.data.trim());
+  const verdict = caaAllowsCertificates(caa);
+  check.records.caa = caa;
+  check.records.caaOk = verdict.ok;
+  check.records.caaWarning = verdict.warning;
+  if (verdict.warning) check.detail = `${check.detail} ${verdict.warning}`;
+  return check;
+}
+
+async function checkDomainCore(rawDomain: string): Promise<DomainCheck> {
   // Work from the normalized hostname everywhere below, so the value that is
   // validated is the exact value that is later resolved and fetched.
   const domain = normalizeDomain(rawDomain ?? "");
@@ -155,12 +181,15 @@ export async function checkDomain(
     // The setup screen tells owners to add records for @ AND www, so www is
     // checked too. A www host (or one already a subdomain of www) is skipped.
     const wwwHost = domain.startsWith("www.") ? null : `www.${domain}`;
-    const [aRes, cnameRes, txtRes, wwwARes, wwwCnameRes] = await Promise.all([
+    const [aRes, cnameRes, txtRes, wwwARes, wwwCnameRes, wwwTxtRes] = await Promise.all([
       dnsQuery(domain, "A"),
       dnsQuery(domain, "CNAME"),
       dnsQuery(`${DOMAIN_TXT_NAME}.${domain}`, "TXT").catch(() => [] as DnsAnswer[]),
       wwwHost ? dnsQuery(wwwHost, "A").catch(() => [] as DnsAnswer[]) : Promise.resolve([] as DnsAnswer[]),
       wwwHost ? dnsQuery(wwwHost, "CNAME").catch(() => [] as DnsAnswer[]) : Promise.resolve([] as DnsAnswer[]),
+      wwwHost
+        ? dnsQuery(`${DOMAIN_TXT_NAME}.${wwwHost}`, "TXT").catch(() => [] as DnsAnswer[])
+        : Promise.resolve([] as DnsAnswer[]),
     ]);
 
     records.a = aRes.filter((r) => r.type === 1).map((r) => r.data.trim());
@@ -172,36 +201,28 @@ export async function checkDomain(
     );
     records.txtVerified = records.txt.some((t) => t.toLowerCase().startsWith("lovable_verify="));
     if (wwwHost) {
+      records.wwwTxt = wwwTxtRes.filter((r) => r.type === 16).map((r) => r.data.replace(/"/g, "").trim());
+      records.wwwTxtVerified = records.wwwTxt.some((t) => t.toLowerCase().startsWith("lovable_verify="));
       records.wwwA = wwwARes.filter((r) => r.type === 1).map((r) => r.data.trim());
       records.wwwCname = wwwCnameRes.filter((r) => r.type === 5).map((r) => normalizeDomain(r.data));
       // A CNAME to the apex counts: it follows the apex record.
       const wwwPointsHere =
         records.wwwA.includes(DOMAIN_A_RECORD) ||
         records.wwwCname.some((c) => c === DOMAIN_TARGET || c === domain || c.endsWith(".lovable.app"));
-      // Behind a proxy the answers are the proxy's own edge addresses.
-      records.wwwMatches = opts.proxied
-        ? records.wwwA.length > 0 || records.wwwCname.length > 0
-        : wwwPointsHere;
+      records.wwwMatches = wwwPointsHere;
     }
 
-    // Behind a reverse proxy (Cloudflare) the public answers are the proxy's
-    // own edge addresses, never the platform record — so a proxied host is
-    // judged by "does DNS answer with public addresses at all", and the HTTPS
-    // probe below is what actually proves the site is served.
-    const dnsOk = opts.proxied
-      ? records.a.length > 0 || records.cname.length > 0
-      : records.aMatches || records.cnameMatches;
+    // Records must point straight at the platform. A Cloudflare-proxied
+    // (orange cloud) record answers with Cloudflare edge addresses, which
+    // blocks certificate issuance — so it is reported as "doesn't point here".
+    const dnsOk = records.aMatches || records.cnameMatches;
 
     if (!dnsOk) {
       const found = [...records.a, ...records.cname].slice(0, 3).join(", ");
       const none = records.a.length === 0 && records.cname.length === 0;
-      const detail = opts.proxied
-        ? none
-          ? `No DNS records found for ${domain} yet. Add proxied A records for @ and * inside Cloudflare.`
-          : `DNS exists but isn't resolving through Cloudflare yet. ${domain} currently resolves to ${found}.`
-        : none
-          ? `No DNS records found for ${domain} yet. Add an A record pointing to ${DOMAIN_A_RECORD}.`
-          : `DNS exists but doesn't point here. ${domain} currently resolves to ${found}. Point it to ${DOMAIN_A_RECORD} instead.`;
+      const detail = none
+        ? `No DNS records found for ${domain} yet. Add an A record pointing to ${DOMAIN_A_RECORD}.`
+        : `DNS exists but doesn't point here. ${domain} currently resolves to ${found}. Point it to ${DOMAIN_A_RECORD} instead. If your DNS is on Cloudflare, set both A records to DNS only (grey cloud) — proxied (orange cloud) records won't work.`;
       return {
         status: records.txtVerified ? "verifying" : "dns_pending",
         detail,
@@ -254,7 +275,7 @@ export async function checkDomain(
       // A 404/403 means whatever answers on that host isn't serving this site
       // (wrong server, or the site isn't published), so "live" requires a real
       // success response (or a deliberate redirect, such as to a client's own
-      // custom domain) whether or not the host is proxied.
+      // custom domain).
       records.servesThisSite = res.status < 400;
       if (!records.servesThisSite) {
         return {

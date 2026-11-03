@@ -53,6 +53,8 @@ import { foldServicePages, knownPageSlugs, missingChromeLinks, readSiteChrome, r
 import { scrubPlaceholderContact } from "@/lib/builder/placeholder-contact";
 import { tidyContactSections, tidyFooterContact } from "@/lib/builder/footer-contact-tidy";
 import { AiSiteHeader } from "@/components/site/AiSiteHeader";
+import { PremiumSitePage } from "@/components/site/premium/PremiumSitePage";
+import { readPremiumTemplate } from "@/lib/builder/premium-mobile-template";
 import { ClientPrivacyLink } from "@/components/site/ClientPrivacyNotice";
 import { useOwnAddress, useSiteBase } from "@/components/site/use-own-address";
 
@@ -180,6 +182,34 @@ export function SitePageView({
           {preview ? <BuilderReturnBar organizationId={org.id} /> : null}
         </div>
       </div>
+    );
+  }
+
+  // PR2: owner-opted premium mobile template (dark, photo-led, 3-slot phone bar).
+  if (readPremiumTemplate(site.settings?.generation ?? null)) {
+    return (
+      <PremiumSitePage
+        site={site}
+        href={chromeHref}
+        pageHasForm={pageHasWidget(sections as never, "enquiry_form")}
+        footer={
+          <>
+            <p className="rv-site-legal px-4 py-4 text-center text-[13px]">
+              <ClientPrivacyLink slug={org.slug} className="inline-flex min-h-11 items-center underline underline-offset-4" />
+            </p>
+            <SiteVitals slug={org.slug} preview={preview} />
+            {preview ? <PreviewSelectBridge /> : null}
+            {preview ? <BuilderReturnBar organizationId={org.id} /> : null}
+            {preview ? <PreviewLinkBridge slug={org.slug} /> : null}
+          </>
+        }
+      >
+        {sections.length ? <div className="pm-page-sections">
+          {sections.map((section, index) => (
+            <SiteSection key={section.id} site={site} section={section} lead={false} first={index === 0} studio={false} studioCanvas={STUDIO_CANVAS} preparedRoot={pageRoots[index] ?? null} light={null} seam={false} />
+          ))}
+        </div> : null}
+      </PremiumSitePage>
     );
   }
 
