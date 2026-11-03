@@ -45,7 +45,6 @@ CREATE INDEX IF NOT EXISTS agent_routines_due_idx ON public.agent_routines (next
 ALTER TABLE public.agent_routines ENABLE ROW LEVEL SECURITY;
 GRANT SELECT ON public.agent_routines TO authenticated;
 GRANT ALL ON public.agent_routines TO service_role;
-DROP POLICY IF EXISTS agent_routines_member_read ON public.agent_routines;
 CREATE POLICY agent_routines_member_read ON public.agent_routines
   FOR SELECT TO authenticated USING (private.is_org_member(organization_id));
 
