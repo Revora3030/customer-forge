@@ -46,7 +46,7 @@ describe("on-demand lead reply draft", () => {
   });
 
   it("asks Lovable AI for gemini-2.5-flash first, checks the role, and returns links to the owner's own apps", async () => {
-    const generate = vi.fn(async () => ({ text: "Hi Jordan, thanks for reaching out about detailing. Could I call you today?", model: LEAD_REPLY_MODEL }));
+    const generate = vi.fn(async (_caller: unknown, _request: unknown) => ({ text: "Hi Jordan, thanks for reaching out about detailing. Could I call you today?", model: LEAD_REPLY_MODEL }));
     const draft = await buildLeadReplyDraft(
       userDb({ id: LEAD, name: "Jordan", email: "jordan@visitor.test", phone: "(919) 555-0134", city: "Raleigh", service_interest: "Detailing", message: "Quote please" }),
       "user-1",
@@ -63,7 +63,7 @@ describe("on-demand lead reply draft", () => {
   });
 
   it("refuses a lead outside the workspace and an empty draft", async () => {
-    const generate = vi.fn(async () => ({ text: "   ", model: LEAD_REPLY_MODEL }));
+    const generate = vi.fn(async (_caller: unknown, _request: unknown) => ({ text: "   ", model: LEAD_REPLY_MODEL }));
     await expect(buildLeadReplyDraft(userDb(null), "u", { organizationId: ORG, leadId: LEAD }, { generate })).rejects.toThrow(/not found/);
     expect(generate).not.toHaveBeenCalled();
     await expect(
