@@ -226,6 +226,16 @@ describe("hard limits: timeout, budget, failures fail open", () => {
     expect(out.stopped).toBe("budget");
   });
 
+  it("stops at the call cap when the last call improved but left violations", async () => {
+    const twoProblems = [text(HERO, "body", "Lorem ipsum dolor sit amet, consectetur adipiscing elit."), { type: "set_section_text", sectionId: FAQ, field: "heading" }];
+    const { fn } = scripted(JSON.stringify({ "/actions/1": text(FAQ, "heading", "Questions homeowners ask") }));
+    const out = await runRepairTurn({ actions: twoProblems, validate, known: KNOWN, callModel: fn, budget: { maxCalls: 1 } });
+    expect(fn).toHaveBeenCalledTimes(1);
+    expect(out.actions[1]).toEqual(text(FAQ, "heading", "Questions homeowners ask"));
+    expect(out.after.map((v) => v.rule)).toEqual(["content-integrity.lorem_ipsum"]);
+    expect(out.stopped).toBe("max_calls");
+  });
+
   it("a throwing model fails open", async () => {
     const { fn } = scripted(new Error("provider down"));
     const out = await runRepairTurn({ actions: plan, validate, known: KNOWN, callModel: fn });

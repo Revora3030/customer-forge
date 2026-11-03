@@ -320,7 +320,8 @@ export async function runRepairTurn(input: {
   let costMicrocents = 0;
   const unfixable = new Set<string>();
   let failedBefore: Violation[] = [];
-  let stopped: RepairOutcome["stopped"] = "clean";
+  // Assigned on every exit from the loop below (the loop only ends by break).
+  let stopped: RepairOutcome["stopped"];
 
   for (;;) {
     const open = violations.filter((v) => v.fixable === "model" && !unfixable.has(v.path));
