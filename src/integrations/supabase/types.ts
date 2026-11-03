@@ -1237,6 +1237,27 @@ export type Database = {
           },
         ]
       }
+      builder_reply_drafts: {
+        Row: {
+          organization_id: string
+          run_id: string
+          text: string
+          updated_at: string
+        }
+        Insert: {
+          organization_id: string
+          run_id: string
+          text?: string
+          updated_at?: string
+        }
+        Update: {
+          organization_id?: string
+          run_id?: string
+          text?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       business_profiles: {
         Row: {
           accent_color: string | null
