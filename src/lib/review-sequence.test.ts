@@ -314,7 +314,7 @@ describe("feedback page safety", () => {
 });
 
 describe("review sequence migration", () => {
-  const FILE = "supabase/migrations/20261103120000_review_feedback_sequence.sql";
+  const FILE = "supabase/migrations/20261103220000_review_feedback_sequence.sql";
   const code = readFileSync(FILE, "utf8").replace(/--.*$/gm, "");
 
   it("is newer than the base branch and destroys nothing", () => {
