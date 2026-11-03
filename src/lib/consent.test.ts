@@ -13,6 +13,7 @@ function browser(choice: string | null) {
     localStorage: {
       getItem: (key: string) => values.get(key) ?? null,
       setItem: (key: string, value: string) => values.set(key, value),
+      removeItem: (key: string) => values.delete(key),
     },
     gtag,
     dispatchEvent: vi.fn(),
@@ -69,5 +70,11 @@ describe("advertising consent", () => {
     browser("granted");
     vi.stubGlobal("navigator", { globalPrivacyControl: true });
     expect(await canTrackAds()).toBe(true);
+  });
+  it("removes the first-party visitor id when the visitor rejects", () => {
+    const { values } = browser(null);
+    values.set("revora.visitor.v1", "abc12345-visitor");
+    updateConsent("denied");
+    expect(values.has("revora.visitor.v1")).toBe(false);
   });
 });

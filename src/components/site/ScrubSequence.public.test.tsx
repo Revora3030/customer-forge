@@ -29,12 +29,12 @@ const frames = [
   { src: "/b.jpg", alt: "Close shot", label: "Detail" },
 ];
 
-function mount() {
+function mount(list: { src: string; alt: string; label?: string }[] = frames) {
   host = document.createElement("div");
   document.body.appendChild(host);
   root = createRoot(host);
   act(() => {
-    root!.render(<ScrubSequence props={{ "data-cn": "", "data-motion": "", className: "", style: {} } as never} frames={frames} copy={<h1>Hello customers</h1>} prompt="Scroll" scrim="#101216" ink="#fff" />);
+    root!.render(<ScrubSequence props={{ "data-cn": "", "data-motion": "", className: "", style: {} } as never} frames={list} copy={<h1>Hello customers</h1>} prompt="Scroll" scrim="#101216" ink="#fff" />);
   });
   return host;
 }
@@ -59,6 +59,26 @@ describe("ScrubSequence for a public visitor", () => {
     expect(el.textContent).toContain("Hello customers");
     const stage = el.querySelector<HTMLElement>(".rv-seq-stage")!;
     expect(stage.style.backgroundColor).not.toBe("");
+  });
+
+  it("never prints AI frame labels such as \"Resting frame\" or \"Moving frame\"", () => {
+    const el = mount([
+      { src: "/a.jpg", alt: "Car at rest", label: "Resting frame" },
+      { src: "/b.jpg", alt: "Car rolling", label: "Moving frame" },
+    ]);
+    expect(el.textContent ?? "").not.toMatch(/resting|moving|frame/i);
+    // With no real chapter names left, the chip row is not drawn at all.
+    expect(el.querySelector('[aria-label="Sequence frames"]')).toBeNull();
+    expect(el.textContent).toContain("Hello customers");
+  });
+
+  it("keeps real chapter chips and drops only the production notes", () => {
+    const el = mount([
+      { src: "/a.jpg", alt: "Driveway", label: "Driveway" },
+      { src: "/b.jpg", alt: "Car rolling", label: "Moving frame" },
+    ]);
+    const chips = [...el.querySelectorAll('[aria-label="Sequence frames"] button')].map((b) => b.textContent);
+    expect(chips).toEqual(["Driveway", "2"]);
   });
 
   it("has no HUD styles shipped to visitors", () => {

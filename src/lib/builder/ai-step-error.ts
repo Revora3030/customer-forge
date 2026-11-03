@@ -1,10 +1,16 @@
 /**
  * Raised when an AI design step could not produce its part of a website.
  *
- * Revora never substitutes a non-AI baseline (stock brand, fact-scaffold copy,
- * default layouts or a generic menu) for the AI team's work. The build job is
- * retried automatically; when every attempt fails the owner is told plainly to
- * try again, and nothing half-designed is shipped.
+ * Revora never substitutes a non-AI baseline (stock brand, default layouts or a
+ * generic menu) for work the AI team produced and the checks refused. The build
+ * job is retried automatically; when every attempt fails the owner is told
+ * plainly to try again, and nothing half-designed is shipped.
+ *
+ * One exception (owner decision 2026-11-01): when the AI team is out of
+ * capacity or credits after the retries, required section layouts and the
+ * required wording ship as a facts-only version built from the owner's saved
+ * details (fallback-sections.ts, copy-scaffold.ts), and the site is flagged
+ * for an AI upgrade that runs only with the owner's OK.
  */
 export class AiStepUnavailableError extends Error {
   readonly step: string;

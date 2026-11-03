@@ -1,10 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { clientDomainLegalRedirect } from "@/lib/tenant-page-utils";
 import { SiteFooter, SiteHeader } from "@/components/marketing/Chrome";
 import { REVORA } from "@/lib/brand";
 import { LEGAL, operatorStatement } from "@/lib/legal";
 import { breadcrumbSchema, canonicalLink, jsonLdScript, ogUrl, OG_IMAGE_META } from "@/lib/seo";
 
 export const Route = createFileRoute("/privacy")({
+  // On a client's own domain this is not Revora's policy page (tenant-page-utils.ts).
+  beforeLoad: () => clientDomainLegalRedirect("privacy"),
   head: () => ({
     meta: [
       { title: "Privacy Policy | Revora Growth Systems" },
@@ -113,8 +116,8 @@ const SECTIONS: { heading: string; body: string[] }[] = [
     body: [
       "On our own marketing pages we use Google Analytics 4, Google Ads conversion measurement and Microsoft Clarity. They do not run inside the app or admin area, or on websites we publish for clients.",
       "In the European Economic Area, the United Kingdom, Switzerland and Canada (and when we cannot tell where you are), these tools load only after you click Accept in the cookie banner. If you reject, they are not loaded.",
-      'Elsewhere they load by default, unless your browser sends a Global Privacy Control signal, which we treat as an opt-out. You can switch them off at any time with the "Cookie settings" link in the site footer. Your choice is stored in your browser until you change it.',
-      "Separately, our site keeps a random visitor ID and the page you first landed on in your browser's storage so we can count visits and signups in our own reporting. It is not derived from your IP address or device details.",
+      'Elsewhere they load by default, unless your browser sends a Global Privacy Control signal, which we treat as an opt-out until you click Accept yourself. You can switch them off at any time with the "Cookie settings" link in the site footer. Your choice is stored in your browser until you change it.',
+      "Separately, our site keeps a random visitor ID and the page you first landed on in your browser's storage so we can count visits and signups in our own reporting. It is not derived from your IP address or device details. It follows the same choice as the cookies above: in the regions where we ask first it is only created after you click Accept, and elsewhere it is created unless your browser sends Global Privacy Control. If your browser sends Global Privacy Control, it is not created unless you click Accept. Clicking Reject stops it and deletes an existing one.",
     ],
   },
   {

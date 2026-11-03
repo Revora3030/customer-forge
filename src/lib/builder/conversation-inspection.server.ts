@@ -13,7 +13,8 @@ export async function inspectConversation(input: { organizationId: string; userI
   if (!needsConversationInspection(input.instruction)) return { status: "not_requested" };
   try {
     if (!/^[0-9a-f-]{36}$/i.test(input.organizationId)) throw new Error("Invalid workspace.");
-    const authorization = getRequest().headers.get("authorization") ?? "";
+    const { actingAuthorization } = await import("./acting-auth.server");
+    const authorization = actingAuthorization() ?? getRequest().headers.get("authorization") ?? "";
     const url = process.env["SUPABASE_URL"];
     const key = process.env["SUPABASE_PUBLISHABLE_KEY"];
     if (!authorization.startsWith("Bearer ") || !url || !key) throw new Error("Authentication unavailable.");
