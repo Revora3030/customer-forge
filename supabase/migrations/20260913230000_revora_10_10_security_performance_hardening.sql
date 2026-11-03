@@ -37,8 +37,16 @@ GRANT ALL ON TABLE public.platform_trials TO service_role;
 
 -- The public conversion endpoint must be mediated by the application server so
 -- callers cannot invoke the SECURITY DEFINER function directly from the browser.
-REVOKE EXECUTE ON FUNCTION public.submit_public_conversion(text, text, jsonb) FROM anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.submit_public_conversion(text, text, jsonb) TO service_role;
+-- Guarded: this (text, text, jsonb) overload never existed in this repo's history
+-- (the function is (uuid, jsonb, jsonb, jsonb, jsonb, jsonb), locked down in
+-- 20260925055303), so a fresh database failed here with 42883.
+DO $$
+BEGIN
+  IF to_regprocedure('public.submit_public_conversion(text, text, jsonb)') IS NOT NULL THEN
+    REVOKE EXECUTE ON FUNCTION public.submit_public_conversion(text, text, jsonb) FROM anon, authenticated;
+    GRANT EXECUTE ON FUNCTION public.submit_public_conversion(text, text, jsonb) TO service_role;
+  END IF;
+END $$;
 
 -- -----------------------------------------------------------------------------
 -- Foreign-key indexing
@@ -79,18 +87,19 @@ BEGIN
       WHERE i.indrelid = format('%I.%I', fk.schema_name, fk.table_name)::regclass
         AND i.indisvalid
         AND i.indisready
-        AND NOT i.indispartial
+        AND i.indpred IS NULL -- non-partial (pg_index has no indispartial column)
         AND i.indnkeyatts >= array_length(string_to_array(fk.raw_cols, ', '), 1)
         AND (
           SELECT array_agg(a.attname ORDER BY u.ord)
           FROM unnest(i.indkey[0:i.indnkeyatts-1]) WITH ORDINALITY AS u(attnum, ord)
           JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = u.attnum
         )::text[] @> string_to_array(fk.raw_cols, ', ')::text[]
-        AND (
+        -- A cast result must be parenthesised before it can be sliced (was a syntax error).
+        AND ((
           SELECT array_agg(a.attname ORDER BY u.ord)
           FROM unnest(i.indkey[0:i.indnkeyatts-1]) WITH ORDINALITY AS u(attnum, ord)
           JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = u.attnum
-        )::text[] [1:array_length(string_to_array(fk.raw_cols, ', '), 1)] = string_to_array(fk.raw_cols, ', ')::text[]
+        )::text[])[1:array_length(string_to_array(fk.raw_cols, ', '), 1)] = string_to_array(fk.raw_cols, ', ')::text[]
     );
 
     IF NOT covered THEN

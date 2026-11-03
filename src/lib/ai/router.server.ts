@@ -44,7 +44,8 @@ import { lovableAdapter, lovableEmbeddings, lovableVideo, postLovableSpeech, typ
 
 import { base64ByteLength } from "@/lib/ai/providers/shared";
 import { compactMessages } from "@/lib/ai/context-compaction";
-import { demoteDegradedPaid, noteProviderFailure, noteProviderSuccess } from "@/lib/ai/provider-backoff";
+import { demoteDegradedPaid, noteProviderFailure, noteProviderSuccess, providerAccountCooldown } from "@/lib/ai/provider-backoff";
+import { aiRetryDecision, clampAttempts, logAiCallFailure, type AiRetryAction } from "@/lib/ai/retry-policy";
 import { checkAiLimits, recordAiEvent } from "@/lib/ai/telemetry.server";
 import type {
   AiCaller,
@@ -285,6 +286,24 @@ function guardRequest(messages: AiMessage[]) {
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
+ * The credit/key cooldown that covers EVERY candidate of a call, if any (the
+ * shortest remaining one). A call with at least one model outside the
+ * cooldown is sent as usual.
+ */
+function accountCooldownFor(
+  chain: { config: { name: ProviderName }; model: string }[],
+): { provider: ProviderName; model: string; remainingMs: number; reason: "quota" | "unauthorized" } | null {
+  let shortest: { provider: ProviderName; model: string; remainingMs: number; reason: "quota" | "unauthorized" } | null = null;
+  for (const entry of chain) {
+    const cooldown = providerAccountCooldown(entry.config.name);
+    if (!cooldown) return null;
+    if (!shortest || cooldown.remainingMs < shortest.remainingMs)
+      shortest = { provider: entry.config.name, model: entry.model, ...cooldown };
+  }
+  return shortest;
+}
+
+/**
  * Runs one logical AI call: model routing, provider order, retries on
  * retryable failures only, fallback to the next configured provider, telemetry
  * for every attempt. Never falls back to anything Revora doesn't own.
@@ -370,6 +389,43 @@ async function run<T>(
   const verdict = await checkAiLimits(caller);
   if (!verdict.allowed) throw new RevoraAiError(429, verdict.reason, { category: "rate_limited" });
 
+  // CREDIT COOLDOWN. When every model in this call belongs to a provider that
+  // just answered "out of credits" (or rejected the key), the call is refused
+  // here, before a slot is taken or a request leaves. Without this, each of a
+  // build's dozens of AI steps re-sent its request and collected another 402.
+  // The cooldown (2m doubling to 30m) lapses on its own, so topped-up credits
+  // are picked up without a restart. One row is still written (sent: false in
+  // the log) so the build can tell the owner the cause is credits.
+  const accountCooldown = accountCooldownFor(chain);
+  if (accountCooldown) {
+    const { provider, model, remainingMs, reason } = accountCooldown;
+    const quota = reason === "quota";
+    const refused = new RevoraAiError(
+      quota ? 402 : 401,
+      quota
+        ? "Revora's AI provider is out of credits right now. Waiting work resumes once credits are topped up."
+        : "Revora's AI provider rejected its key. AI work resumes once the key is fixed.",
+      {
+        category: quota ? "quota" : "unauthorized",
+        provider,
+        detail: quota ? "credit_cooldown" : "key_cooldown",
+        retryAfterSeconds: Math.ceil(remainingMs / 1000),
+      },
+    );
+    logAiCallFailure({
+      requestId, task: caller.task, provider, model, status: refused.status, category: refused.category,
+      errorClass: quota ? "credits" : "client", attempt: 0, maxAttempts: 0, action: "skip_provider",
+      retryInMs: null, latencyMs: 0, fallbackUsed: false, sent: false,
+    });
+    void recordAiEvent({
+      requestId, provider, model, task: caller.task,
+      organizationId: caller.organizationId ?? null, userId: caller.userId ?? null,
+      latencyMs: 0, ok: false, errorCategory: refused.category, errorDetail: refused.detail,
+      inputTokens: null, outputTokens: null, fallbackUsed: false, toolCalls: 0,
+    });
+    throw refused;
+  }
+
   const concurrencyKey = caller.organizationId ?? caller.userId ?? "platform";
   if (!(await acquireWaiting(concurrencyKey, limits.maxConcurrentPerWorkspace)))
     throw new RevoraAiError(429, "Revora AI is already working on this workspace's requests.", {
@@ -438,8 +494,10 @@ async function run<T>(
         }
       }
 
+      // Clamped so a misconfigured AI_MAX_ATTEMPTS_PER_PROVIDER can't loop.
+      const maxAttempts = clampAttempts(limits.maxAttemptsPerProvider);
       try {
-      for (let attempt = 1; attempt <= limits.maxAttemptsPerProvider; attempt += 1) {
+      for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
         if (attempt > 1 && Date.now() >= chainDeadline) break;
         const started = Date.now();
         const controller = new AbortController();
@@ -545,44 +603,56 @@ noteProviderSuccess(config.name);
             toolCalls: 0,
           });
 
-          // A bad request or a rejected key is normally the same on every attempt
-          // and every provider key of the same kind: stop instead of burning
-          // calls. The exception is a request carrying an attachment: providers
-          // differ in what they accept, so one refusing a picture says nothing
-          // about the next free provider. Move on instead of giving up.
+          // ONE decision per failure (src/lib/ai/retry-policy.ts): credits and
+          // a rejected key skip the provider; other 4xx and timeouts move to
+          // the next model; 429 / 5xx / network retry the same model with
+          // capped exponential backoff and jitter, never past the chain
+          // deadline. The retry wait happens inside this call's workspace
+          // slot, so retries never exceed AI_MAX_CONCURRENT_PER_WORKSPACE.
+          const decision = aiRetryDecision(error, attempt, maxAttempts, {
+            remainingMs: chainDeadline - Date.now(),
+          });
+          let action: AiRetryAction = decision.action;
+          // A bad request is normally the same on every attempt and every
+          // provider key of the same kind: stop instead of burning calls. The
+          // exception is a request carrying an attachment: providers differ in
+          // what they accept. Free models have very different context windows,
+          // so one refusing a long conversation moves on with a shorter one.
+          if (error.category === "too_large") action = tooLargeBy.size + 1 >= 6 ? "stop" : "next_model";
+          else if (error.category === "invalid_request" && !options?.nextProviderOnInvalidRequest)
+            action = invalidBy.size + 1 >= 3 ? "stop" : "next_model";
+          // A 429 whose Retry-After is longer than the in-call cap: the
+          // provider asked us to stand off, and its other models share the
+          // same account limit. The job layer waits it out instead.
+          if (error.category === "rate_limited" && decision.action === "next_model" && (error.retryAfterSeconds ?? 0) * 1000 > 10_000)
+            action = "skip_provider";
+          logAiCallFailure({
+            requestId, task: caller.task, provider: config.name, model, status: error.status,
+            category: error.category, errorClass: decision.errorClass, attempt, maxAttempts, action,
+            retryInMs: action === "retry" ? decision.delayMs : null,
+            latencyMs: Date.now() - started, fallbackUsed, sent: true,
+          });
+
           // A stopped build ends the whole walk: no next model, no retry.
           if (error.category === "cancelled") throw error;
-          if (error.category === "unauthorized" || error.category === "quota") deadProviders.add(config.name);
-          if (error.category === "invalid_request" && options?.nextProviderOnInvalidRequest) break;
-          // Free models have very different context windows (Groq's free tier
-          // is small; NVIDIA, Mistral and others are large), so one model
-          // refusing a long conversation moves on to the next free model.
+          if (action === "skip_provider") {
+            deadProviders.add(config.name);
+            break;
+          }
           if (error.category === "too_large") {
             tooLargeBy.add(config.name);
             if (tooLargeBy.size >= 6) throw error;
             compaction += 1;
             break;
           }
+          if (error.category === "invalid_request" && options?.nextProviderOnInvalidRequest) break;
           if (error.category === "invalid_request") {
             invalidBy.add(config.name);
             if (invalidBy.size >= 3) throw error;
             break;
           }
-          if (!error.retryable) break;
-          // A model that used its whole time budget (or hit the gateway's own
-          // edge limit, a 524) will do exactly the same with the same request.
-          // Repeating it only burns the chain's wall-clock and leaves the next
-          // model with minutes it no longer has, so hand over now.
-          if (error.category === "timeout") break;
-          // In the free pool the next model is usually faster than waiting out
-          // a rate limit or a slow model: only a transient 5xx is worth a retry
-          // of the same model.
-          if (attempt < limits.maxAttemptsPerProvider) {
-            const backoff = error.retryAfterSeconds
-              ? Math.min(error.retryAfterSeconds * 1000, 10_000)
-              : 400 * attempt ** 2 + Math.floor(Math.random() * 250);
-            await wait(backoff);
-          }
+          if (action !== "retry" || decision.delayMs === null) break;
+          await wait(decision.delayMs);
         } finally {
           clearTimeout(timer);
           external?.removeEventListener("abort", onExternalAbort);
