@@ -1,4 +1,80 @@
 {
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(npx vitest run:*)",
+      "Bash(bunx vitest run:*)",
+      "Bash(npm test)",
+      "Bash(npm run test:prompts)",
+      "Bash(npm run test:coverage)",
+      "Bash(npx tsc --noEmit:*)",
+      "Bash(NODE_OPTIONS=--max-old-space-size=6144 npx tsc --noEmit:*)",
+      "Bash(npm run typecheck)",
+      "Bash(npx eslint:*)",
+      "Bash(npm run lint)",
+      "Bash(npm run security:audit)",
+      "Bash(npm run security:audit:test)",
+      "Bash(npm run repo:audit)",
+      "Bash(npm run repo:audit:test)",
+      "Bash(npm run repo:visual-output)",
+      "Bash(npm run builder:ultimate-audit)",
+      "Bash(npm run production:readiness)",
+      "Bash(npm run production:readiness:max)",
+      "Bash(npm run production:controls)",
+      "Bash(npm run browser:journey:test)",
+      "Bash(npm run jarvis:mcp:contract)",
+      "Bash(node scripts/website-rpc-security.contract.mjs)",
+      "Bash(node scripts/apply-pending-migrations.contract.mjs)",
+      "Bash(node scripts/client-bundle-guard.mjs)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git branch --show-current)",
+      "Bash(git rev-parse:*)",
+      "mcp__revora-jarvis-readonly"
+    ],
+    "deny": [
+      "Read(**/.env)",
+      "Read(**/.env.*)",
+      "Read(**/*.generated.ts)",
+      "Read(./src/routeTree.gen.ts)",
+      "Read(**/bun.lock)",
+      "Read(**/package-lock.json)",
+      "Read(**/node_modules/**)",
+      "Read(./dist/**)",
+      "Read(./.output/**)",
+      "Read(./coverage/**)",
+      "Edit(./src/routeTree.gen.ts)",
+      "Edit(./src/integrations/supabase/types.ts)",
+      "Edit(**/*.generated.ts)",
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)",
+      "Bash(git push --force-with-lease:*)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-bash.mjs\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  },
+  "enabledMcpjsonServers": [
+    "revora-jarvis-readonly",
+    "serena",
+    "context7",
+    "playwright",
+    "sequential-thinking",
+    "chrome-devtools"
+  ],
   "extraKnownMarketplaces": {
     "chrome-devtools-plugins": {
       "source": {
@@ -20,8 +96,8 @@
     }
   },
   "enabledPlugins": {
-    "chrome-devtools-mcp@chrome-devtools-plugins": true,
+    "chrome-devtools-mcp@chrome-devtools-plugins": false,
     "ponytail@ponytail": true,
-    "agent-skills@addy-agent-skills": true
+    "agent-skills@addy-agent-skills": false
   }
 }
