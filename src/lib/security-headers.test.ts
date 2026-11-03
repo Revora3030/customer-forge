@@ -54,6 +54,16 @@ describe("security headers", () => {
     expect(directive("script-src")).not.toContain("https:");
   });
 
+  it("lets Cloudflare Turnstile load its script and challenge frame, nothing broader", () => {
+    const csp = documentSecurityHeaders({ https: true })["content-security-policy"] ?? "";
+    const directive = (name: string) =>
+      (csp.split(";").map((d) => d.trim()).find((d) => d.startsWith(`${name} `)) ?? "").split(/\s+/);
+    expect(directive("script-src")).toContain("https://challenges.cloudflare.com");
+    expect(directive("frame-src")).toContain("https://challenges.cloudflare.com");
+    expect(directive("script-src")).not.toContain("https://*.cloudflare.com");
+    expect(directive("frame-src")).not.toContain("https:");
+  });
+
   it("allows Photon address suggestions but not Nominatim", () => {
     const csp = documentSecurityHeaders({ https: true })["content-security-policy"] ?? "";
     const connect =

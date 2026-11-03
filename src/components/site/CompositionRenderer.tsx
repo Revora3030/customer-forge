@@ -1,4 +1,6 @@
 import { containsLeadWidget, showStyle } from "@/lib/builder/lead-form-guard";
+import { stickyIconFor, stickyTabSlots, type StickyAction } from "@/components/site/sticky-tabs";
+import { StickyIcon } from "@/components/site/StickyIcon";
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { visibleFrameLabel } from "@/lib/builder/frame-labels";
 import { faqItemsForDisplay, NO_FAQ_FACTS, OWNER_TO_ANSWER, type FaqDisplayItem, type FaqFacts } from "@/lib/builder/faq-from-facts";
@@ -18,13 +20,16 @@ import { intrinsicSize } from "@/lib/builder/image-campaign";
 import { focalToObjectPosition, responsiveImage } from "@/lib/builder/image-framing";
 import { focalForKnownPhoto } from "@/lib/builder/trade-photo-picks";
 import { LensMagnifier, StickySplitStory, TierFader } from "@/components/site/MasterBlocks";
+import { capScrubFrames } from "@/lib/builder/scrub";
 import { CollectionRow, DialSelector, HeroVideo, InlineHeroVideo, SceneVideo, ScrubSequence, ScrubStage, ScrollChapters, SpinViewer, type SpinFrame } from "@/components/site/CinematicBlocks";
 import { CINEMATIC_CSS } from "@/components/site/cinematic-css";
+import { headingClamp } from "@/lib/type-scale";
 import { CountUpText } from "@/components/site/CountUp";
 import { ModelViewer } from "@/components/site/ModelViewer";
 import { ShaderField } from "@/components/site/ShaderField";
 import { Tour360, type TourScene } from "@/components/site/Tour360";
 import { BuildingExplorer } from "@/components/site/BuildingExplorer";
+import { CinematicHeroStage, type HeroStagePicture } from "@/components/site/CinematicHeroStage";
 import { usePremiumFx } from "@/components/site/premium-fx";
 import { ScrollRevealFallback } from "@/components/site/ScrollRevealFallback";
 import { PREMIUM_CSS } from "@/components/site/premium-css";
@@ -51,7 +56,7 @@ const FILL_WHEN_CAPPED = new Set<CompositionNode["type"]>([
   "stack", "grid", "row", "card", "list", "tabs", "toggle", "accordion", "compare", "gallery", "widget",
   "before_after_slider", "faq_accordion", "tab_group", "offer_card", "spin_viewer", "collection_row",
   "lens_magnifier", "sticky_split_story", "service_tier_fader", "parallax_layers", "scrub_sequence", "dial_selector", "model_3d_viewer", "divider", "marquee",
-  "shader_field", "tour_360", "building_explorer",
+  "shader_field", "tour_360", "building_explorer", "cinematic_hero_stage",
 ]);
 // eslint-disable-next-line react-refresh/only-export-components -- renderer helpers are intentionally co-located with their composition types.
 export function styleToCss(style: NodeStyle | undefined, type: CompositionNode["type"]): CSSProperties {
@@ -76,12 +81,8 @@ export function styleToCss(style: NodeStyle | undefined, type: CompositionNode["
   if (style.items) css.alignItems = ITEMS[style.items];
   if (style.size != null) {
     if (type === "heading") {
-      const max = Math.round(style.size);
-      // Never let the floor exceed the authored size (clamp() with min > max
-      // is invalid and the browser dropped the size entirely).
-      const min = Math.min(max, Math.max(18, Math.round(max * 0.72)));
-      const vw = Math.max(2.5, Math.min(8, Math.round((max / 16) * 10) / 10));
-      css.fontSize = `clamp(${min}px, ${vw}vw, ${max}px)`;
+      // rem-anchored fluid size (zoom-safe), max ≤ 2.5× min; see type-scale.ts.
+      css.fontSize = headingClamp(style.size);
     } else {
       css.fontSize = style.size;
     }
@@ -239,7 +240,7 @@ const STRETCH_PANEL = new Set<CompositionNode["type"]>([
   "accordion", "faq_accordion", "tab_group", "tabs", "toggle", "compare", "gallery", "widget",
   "before_after_slider", "scroll_chapters", "scrub_sequence", "sticky_split_story", "service_tier_fader",
   "collection_row", "parallax_layers", "lens_magnifier", "spin_viewer", "offer_card", "dial_selector", "model_3d_viewer",
-  "tour_360", "building_explorer",
+  "tour_360", "building_explorer", "cinematic_hero_stage",
 ]);
 
 function baseLayout(type: CompositionNode["type"]): CSSProperties {
@@ -257,7 +258,7 @@ function baseLayout(type: CompositionNode["type"]): CSSProperties {
 
 /** A text-only frame with an aspect ratio paints as a tall empty box. Pictures keep theirs. */
 function containsVisual(node: CompositionNode): boolean {
-  if (node.type === "media" || node.type === "scene" || node.type === "scroll_chapters" || node.type === "scrub_sequence" || node.type === "gallery" || node.type === "widget" || node.type === "parallax_layers" || node.type === "spin_viewer" || node.src || node.mediaRef) return true;
+  if (node.type === "media" || node.type === "scene" || node.type === "scroll_chapters" || node.type === "scrub_sequence" || node.type === "gallery" || node.type === "widget" || node.type === "parallax_layers" || node.type === "spin_viewer" || node.type === "cinematic_hero_stage" || node.src || node.mediaRef) return true;
   return (node.children ?? []).some(containsVisual);
 }
 
@@ -620,7 +621,15 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
       } as CSSProperties;
       // Site header/footer: same look, but not a document heading, so the
       // page keeps its one h1 and a clean outline.
-      const headingText = splitText(node, ctx, motion) ?? countUpText(node, ctx);
+      const baseText = splitText(node, ctx, motion) ?? countUpText(node, ctx);
+      // Two-tone headline: the accent line sits on its own line in the brand
+      // ink, which the theme keeps at WCAG AA on the page surface.
+      const headingText = node.accentText ? (
+        <>
+          {baseText}
+          <span className="rv-cn-accent-line" style={{ display: "block", color: "var(--primary-ink, var(--primary))" }}>{node.accentText}</span>
+        </>
+      ) : baseText;
       if (!childrenArePhrasing(node)) return <div key={key} {...props} style={headingStyle}>{headingText}{kids}</div>;
       if (ctx.chrome) return <p key={key} {...props} style={headingStyle}>{headingText}{kids}</p>;
       const Tag = (`h${node.level ?? 2}`) as "h1" | "h2" | "h3" | "h4";
@@ -811,6 +820,34 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
           photo={photoSrc && !isModelUrl(photoSrc) ? { src: photoSrc, alt: photoNode?.alt ?? mediaVisual(photoResolved)?.alt ?? "The building" } : null} />
       );
     }
+    case "cinematic_hero_stage": {
+      const stage = node.heroStage;
+      if (!stage) return null;
+      const pictures: Record<string, HeroStagePicture[]> = {};
+      const picture = (src: string | undefined, mediaRef: string | undefined, alt: string, focal?: readonly [number, number]): (HeroStagePicture & { generated: boolean }) | null => {
+        const resolved = mediaRef ? ctx.media(mediaRef) : null;
+        const source = src ? resolveImageSource(src) : mediaUrl(resolved);
+        if (!source || isModelUrl(source)) return null;
+        return { src: source, alt, generated: isGeneratedMedia(resolved), ...(focal ? { objectPosition: `${Math.round(focal[0] * 100)}% ${Math.round(focal[1] * 100)}%` } : {}) };
+      };
+      for (const layer of stage.layers) {
+        if (layer.type === "media_stack") {
+          // productPixels "real": a generated or stock picture never stands in
+          // for the business's own product. Too few real frames drops the layer.
+          const frames = layer.frames
+            .map((f) => picture(f.src, f.mediaRef, f.alt, f.focal))
+            .filter((f): f is HeroStagePicture & { generated: boolean } => Boolean(f) && !(layer.productPixels === "real" && f!.generated));
+          if (frames.length >= 4) pictures[layer.id] = frames.slice(0, 18).map(({ generated: _g, ...rest }) => rest);
+        }
+        if (layer.type === "media_single") {
+          const main = picture(layer.src, layer.mediaRef, layer.alt);
+          const poster = layer.poster ? picture(layer.poster, undefined, layer.alt) : null;
+          if (main) pictures[layer.id] = [main, ...(poster ? [poster] : [])].map(({ generated: _g, ...rest }) => rest);
+        }
+      }
+      if (Object.keys(pictures).length) ctx.counter.sawMedia = true;
+      return <CinematicHeroStage key={key} props={props} stage={stage} pictures={pictures} href={ctx.href} headingLevel={ctx.chrome ? 2 : node.level ?? 1} />;
+    }
     case "dial_selector":
       return (node.dialOptions?.length ?? 0) >= 2 ? (
         <DialSelector key={key} props={props} label={node.text?.trim().slice(0, 60) || "Choose an option"} options={node.dialOptions!.slice(0, 6)} unit={node.dialUnit} />
@@ -850,6 +887,14 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
               ariaLabel: node.secondaryCta.ariaLabel ?? node.secondaryCta.label,
             },
           } : {})}
+          {...(node.tertiaryCta ? {
+            tertiary: {
+              label: node.tertiaryCta.label,
+              href: ctx.href(node.tertiaryCta.href),
+              ariaLabel: node.tertiaryCta.ariaLabel ?? node.tertiaryCta.label,
+            },
+          } : {})}
+          layout={node.barLayout ?? "split"}
         />
       ) : null;
     case "gallery":
@@ -940,7 +985,7 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
       return items.length ? <CollectionRow key={key} props={props} label={node.text?.trim() || "Collection"} items={items} /> : null;
     }
     case "scrub_sequence": {
-      const frames: { src: string; alt: string; label?: string }[] = [];
+      const authored: { src: string; alt: string; label?: string; generated: boolean }[] = [];
       const copy: ReactNode[] = [];
       children.forEach((child, i) => {
         if (child.type !== "media") {
@@ -951,8 +996,10 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
         const source = child.src ? resolveImageSource(child.src) : mediaUrl(resolved);
         if (!source) return;
         const label = visibleFrameLabel(child.text);
-        frames.push({ src: source, alt: child.alt ?? mediaVisual(resolved)?.alt ?? "", ...(label ? { label } : {}) });
+        authored.push({ src: source, alt: child.alt ?? mediaVisual(resolved)?.alt ?? "", ...(label ? { label } : {}), generated: isGeneratedMedia(resolved) });
       });
+      // Beyond six frames only the owner's real photographs show, at most 18.
+      const frames = capScrubFrames(authored).map(({ generated: _generated, ...frame }) => frame);
       if (frames.length < 2 && copy.length === 0) return null;
       if (frames.length) ctx.counter.sawMedia = true;
       const scrim = sceneScrim({ ink: node.style?.color ?? "#ffffff", scrim: node.scrim?.color ?? "#0c0e12", opacity: node.scrim?.opacity ?? 46 });
@@ -1171,7 +1218,7 @@ export function hoverCss(id: string, h: NodeHover): string {
   return `@media (prefers-reduced-motion: no-preference){${sel}{transition:transform ${h.durationMs ?? 240}ms ease,opacity ${h.durationMs ?? 240}ms ease,box-shadow ${h.durationMs ?? 240}ms ease}${sel}:hover,${sel}:focus-visible,${sel}:active{${decl}}}`;
 }
 
-type NodeProps = { "data-cn": string; "data-motion": string | undefined; className: string | undefined; style: CSSProperties };
+export type NodeProps = { "data-cn": string; "data-motion": string | undefined; className: string | undefined; style: CSSProperties };
 
 function Tabs({ props, labels, panels }: { props: NodeProps; labels: string[]; panels: ReactNode[] }) {
   const [active, setActive] = useState(0);
@@ -1487,10 +1534,12 @@ function TabGroup({ props, tabs, renderPanel }: {
   );
 }
 
-function MobileStickyBar({ props, primary, secondary }: {
+export function MobileStickyBar({ props, primary, secondary, tertiary, layout = "split" }: {
   props: NodeProps;
-  primary: { label: string; href: string; ariaLabel: string };
-  secondary?: { label: string; href: string; ariaLabel: string };
+  primary: StickyAction;
+  secondary?: StickyAction;
+  tertiary?: StickyAction;
+  layout?: "split" | "tabs";
 }) {
   const bar = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -1510,6 +1559,34 @@ function MobileStickyBar({ props, primary, secondary }: {
       document.documentElement.style.removeProperty("--rv-sticky-height");
     };
   }, []);
+  if (layout === "tabs") {
+    const slots = stickyTabSlots({ primary, secondary, tertiary });
+    if (!slots.length) return null;
+    return (
+      <div ref={bar} {...props} role="navigation" aria-label="Quick actions" data-rv-overlay="sticky" data-rv-bar="tabs" className={`${props.className ?? ""} rv-cn-mobile-sticky-bar rv-cn-sticky-tabs`.trim()} style={{
+        ...props.style,
+        position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 50, display: "grid",
+        gridTemplateColumns: `repeat(${slots.length}, minmax(0, 1fr))`, alignItems: "stretch",
+        paddingBottom: "env(safe-area-inset-bottom, 0px)",
+        background: props.style.background ?? "var(--background)", color: props.style.color ?? "var(--foreground)",
+        borderTop: "1px solid var(--border)",
+      }}>
+        {slots.map((slot) => (
+          <a key={slot.role} href={slot.action.href} aria-label={slot.action.ariaLabel} data-rv-slot={slot.role} className="rv-cn-sticky-tab" style={{
+            display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6,
+            minHeight: 64, padding: "10px 6px", textDecoration: "none", touchAction: "manipulation",
+            fontSize: 13, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", lineHeight: 1.1, textAlign: "center",
+            ...(slot.highlight
+              ? { background: "var(--primary)", color: "var(--primary-foreground)" }
+              : { background: "transparent", color: "inherit" }),
+          }}>
+            <StickyIcon kind={stickyIconFor(slot.action.href, slot.role)} highlight={slot.highlight} />
+            <span>{slot.action.label}</span>
+          </a>
+        ))}
+      </div>
+    );
+  }
   return (
     <div ref={bar} {...props} role="navigation" aria-label="Quick actions" data-rv-overlay="sticky" className={`${props.className ?? ""} rv-cn-mobile-sticky-bar`.trim()} style={{
       ...props.style,
@@ -1593,6 +1670,7 @@ const INTERACTIVE_CSS = `
 .rv-cn-acc-item summary::-webkit-details-marker{display:none}
 .rv-cn-mobile-sticky-bar{display:none}
 @media (max-width:767px){.rv-cn-mobile-sticky-bar{display:flex!important;position:fixed!important;left:0!important;right:0!important;bottom:0!important;z-index:50!important;padding-bottom:max(10px,env(safe-area-inset-bottom,0px))!important}.rv-cn-mobile-sticky-bar a{min-height:44px;min-width:44px}}
+@media (max-width:767px){.rv-cn-mobile-sticky-bar.rv-cn-sticky-tabs{display:grid!important;gap:0;padding:0 0 env(safe-area-inset-bottom,0px)!important;box-shadow:0 -8px 24px rgb(0 0 0 / .28)}.rv-cn-sticky-tab:focus-visible{outline-offset:-4px}}
 @media (min-width:768px){.rv-cn-mobile-sticky-bar{display:none!important}}
 @media (max-width:767px){html:has(input:focus,textarea:focus,select:focus) .rv-cn-mobile-sticky-bar{display:none!important}}
 @media (prefers-reduced-motion: reduce){.rv-cn-faq details::details-content{transition:none!important}}

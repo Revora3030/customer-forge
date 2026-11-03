@@ -3138,6 +3138,7 @@ export type Database = {
           customer_id: string | null
           email: string | null
           estimated_value: number
+          first_response_at: string | null
           id: string
           last_contacted_at: string | null
           message: string | null
@@ -3146,6 +3147,7 @@ export type Database = {
           notes: string | null
           organization_id: string
           phone: string | null
+          response_escalated_at: string | null
           service_id: string | null
           service_interest: string | null
           source: string
@@ -3160,6 +3162,7 @@ export type Database = {
           customer_id?: string | null
           email?: string | null
           estimated_value?: number
+          first_response_at?: string | null
           id?: string
           last_contacted_at?: string | null
           message?: string | null
@@ -3168,6 +3171,7 @@ export type Database = {
           notes?: string | null
           organization_id: string
           phone?: string | null
+          response_escalated_at?: string | null
           service_id?: string | null
           service_interest?: string | null
           source?: string
@@ -3182,6 +3186,7 @@ export type Database = {
           customer_id?: string | null
           email?: string | null
           estimated_value?: number
+          first_response_at?: string | null
           id?: string
           last_contacted_at?: string | null
           message?: string | null
@@ -3190,6 +3195,7 @@ export type Database = {
           notes?: string | null
           organization_id?: string
           phone?: string | null
+          response_escalated_at?: string | null
           service_id?: string | null
           service_interest?: string | null
           source?: string

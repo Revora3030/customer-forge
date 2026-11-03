@@ -52,3 +52,29 @@ export function scrubReadout(progress: number, labels: readonly (string | null |
   const step = Math.min(total, Math.floor(t * total) + 1);
   return { percent: Math.round(t * 100), step, total, label: (labels[step - 1] ?? "").trim() };
 }
+
+/**
+ * How many stills a scroll-scrubbed sequence may hold. Up to six frames may
+ * include generated atmosphere; a longer sequence is the owner's own
+ * photographs only (a real camera move), capped at 18 so phones are not asked
+ * to decode a film's worth of stills. From ten real frames the sequence
+ * cross-fades instead of wiping, so the move reads as smooth motion.
+ */
+export const SCRUB_FRAME_LIMITS = { min: 2, max: 18, atmosphereMax: 6, smoothMin: 10 } as const;
+
+/**
+ * The frames a sequence actually shows: unchanged up to six; beyond that only
+ * real (non-generated) frames, at most 18. If fewer than two real frames are
+ * left, the first six authored frames show, as before.
+ */
+export function capScrubFrames<T extends { generated?: boolean }>(frames: readonly T[]): T[] {
+  if (frames.length <= SCRUB_FRAME_LIMITS.atmosphereMax) return [...frames];
+  const real = frames.filter((frame) => !frame.generated);
+  if (real.length < SCRUB_FRAME_LIMITS.min) return frames.slice(0, SCRUB_FRAME_LIMITS.atmosphereMax);
+  return real.slice(0, SCRUB_FRAME_LIMITS.max);
+}
+
+/** A wipe for short sequences; a cross-fade once there are enough real frames to read as motion. */
+export function scrubTransition(count: number): "wipe" | "crossfade" {
+  return count >= SCRUB_FRAME_LIMITS.smoothMin ? "crossfade" : "wipe";
+}

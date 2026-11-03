@@ -134,6 +134,7 @@ import { Route as ApiPublicJobsLeadDeliveryWatchdogRouteImport } from './routes/
 import { Route as ApiPublicJobsLeadReminderRouteImport } from './routes/api/public/jobs/lead-reminder'
 import { Route as ApiPublicJobsLifecycleEmailRouteImport } from './routes/api/public/jobs/lifecycle-email'
 import { Route as ApiPublicJobsMediaCleanupRouteImport } from './routes/api/public/jobs/media-cleanup'
+import { Route as ApiPublicJobsMonthlyReportRouteImport } from './routes/api/public/jobs/monthly-report'
 import { Route as ApiPublicJobsProspectAutopilotRouteImport } from './routes/api/public/jobs/prospect-autopilot'
 import { Route as ApiPublicJobsProspectRepliesRouteImport } from './routes/api/public/jobs/prospect-replies'
 import { Route as ApiPublicJobsSiteContentAuditRouteImport } from './routes/api/public/jobs/site-content-audit'
@@ -142,7 +143,9 @@ import { Route as ApiPublicJobsSiteHealthRouteImport } from './routes/api/public
 import { Route as ApiPublicJobsSiteHostingRouteImport } from './routes/api/public/jobs/site-hosting'
 import { Route as ApiPublicJobsWeeklyReportRouteImport } from './routes/api/public/jobs/weekly-report'
 import { Route as ApiPublicPaymentsWebhookRouteImport } from './routes/api/public/payments/webhook'
+import { Route as ApiPublicTwilioCallStatusRouteImport } from './routes/api/public/twilio/call-status'
 import { Route as ApiPublicTwilioInboundRouteImport } from './routes/api/public/twilio/inbound'
+import { Route as ApiPublicTwilioVoiceRouteImport } from './routes/api/public/twilio/voice'
 import { Route as LovableEmailAuthPreviewRouteImport } from './routes/lovable/email/auth/preview'
 import { Route as LovableEmailAuthWebhookRouteImport } from './routes/lovable/email/auth/webhook'
 import { Route as LovableEmailTransactionalPreviewRouteImport } from './routes/lovable/email/transactional/preview'
@@ -810,6 +813,12 @@ const ApiPublicJobsMediaCleanupRoute =
     path: '/api/public/jobs/media-cleanup',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicJobsMonthlyReportRoute =
+  ApiPublicJobsMonthlyReportRouteImport.update({
+    id: '/api/public/jobs/monthly-report',
+    path: '/api/public/jobs/monthly-report',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicJobsProspectAutopilotRoute =
   ApiPublicJobsProspectAutopilotRouteImport.update({
     id: '/api/public/jobs/prospect-autopilot',
@@ -856,9 +865,20 @@ const ApiPublicPaymentsWebhookRoute =
     path: '/api/public/payments/webhook',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicTwilioCallStatusRoute =
+  ApiPublicTwilioCallStatusRouteImport.update({
+    id: '/api/public/twilio/call-status',
+    path: '/api/public/twilio/call-status',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicTwilioInboundRoute = ApiPublicTwilioInboundRouteImport.update({
   id: '/api/public/twilio/inbound',
   path: '/api/public/twilio/inbound',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicTwilioVoiceRoute = ApiPublicTwilioVoiceRouteImport.update({
+  id: '/api/public/twilio/voice',
+  path: '/api/public/twilio/voice',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LovableEmailAuthPreviewRoute = LovableEmailAuthPreviewRouteImport.update({
@@ -1026,6 +1046,7 @@ export interface FileRoutesByFullPath {
   '/api/public/jobs/lead-reminder': typeof ApiPublicJobsLeadReminderRoute
   '/api/public/jobs/lifecycle-email': typeof ApiPublicJobsLifecycleEmailRoute
   '/api/public/jobs/media-cleanup': typeof ApiPublicJobsMediaCleanupRoute
+  '/api/public/jobs/monthly-report': typeof ApiPublicJobsMonthlyReportRoute
   '/api/public/jobs/prospect-autopilot': typeof ApiPublicJobsProspectAutopilotRoute
   '/api/public/jobs/prospect-replies': typeof ApiPublicJobsProspectRepliesRoute
   '/api/public/jobs/site-content-audit': typeof ApiPublicJobsSiteContentAuditRoute
@@ -1034,7 +1055,9 @@ export interface FileRoutesByFullPath {
   '/api/public/jobs/site-hosting': typeof ApiPublicJobsSiteHostingRoute
   '/api/public/jobs/weekly-report': typeof ApiPublicJobsWeeklyReportRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
+  '/api/public/twilio/call-status': typeof ApiPublicTwilioCallStatusRoute
   '/api/public/twilio/inbound': typeof ApiPublicTwilioInboundRoute
+  '/api/public/twilio/voice': typeof ApiPublicTwilioVoiceRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
   '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
@@ -1163,6 +1186,7 @@ export interface FileRoutesByTo {
   '/api/public/jobs/lead-reminder': typeof ApiPublicJobsLeadReminderRoute
   '/api/public/jobs/lifecycle-email': typeof ApiPublicJobsLifecycleEmailRoute
   '/api/public/jobs/media-cleanup': typeof ApiPublicJobsMediaCleanupRoute
+  '/api/public/jobs/monthly-report': typeof ApiPublicJobsMonthlyReportRoute
   '/api/public/jobs/prospect-autopilot': typeof ApiPublicJobsProspectAutopilotRoute
   '/api/public/jobs/prospect-replies': typeof ApiPublicJobsProspectRepliesRoute
   '/api/public/jobs/site-content-audit': typeof ApiPublicJobsSiteContentAuditRoute
@@ -1171,7 +1195,9 @@ export interface FileRoutesByTo {
   '/api/public/jobs/site-hosting': typeof ApiPublicJobsSiteHostingRoute
   '/api/public/jobs/weekly-report': typeof ApiPublicJobsWeeklyReportRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
+  '/api/public/twilio/call-status': typeof ApiPublicTwilioCallStatusRoute
   '/api/public/twilio/inbound': typeof ApiPublicTwilioInboundRoute
+  '/api/public/twilio/voice': typeof ApiPublicTwilioVoiceRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
   '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
@@ -1307,6 +1333,7 @@ export interface FileRoutesById {
   '/api/public/jobs/lead-reminder': typeof ApiPublicJobsLeadReminderRoute
   '/api/public/jobs/lifecycle-email': typeof ApiPublicJobsLifecycleEmailRoute
   '/api/public/jobs/media-cleanup': typeof ApiPublicJobsMediaCleanupRoute
+  '/api/public/jobs/monthly-report': typeof ApiPublicJobsMonthlyReportRoute
   '/api/public/jobs/prospect-autopilot': typeof ApiPublicJobsProspectAutopilotRoute
   '/api/public/jobs/prospect-replies': typeof ApiPublicJobsProspectRepliesRoute
   '/api/public/jobs/site-content-audit': typeof ApiPublicJobsSiteContentAuditRoute
@@ -1315,7 +1342,9 @@ export interface FileRoutesById {
   '/api/public/jobs/site-hosting': typeof ApiPublicJobsSiteHostingRoute
   '/api/public/jobs/weekly-report': typeof ApiPublicJobsWeeklyReportRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
+  '/api/public/twilio/call-status': typeof ApiPublicTwilioCallStatusRoute
   '/api/public/twilio/inbound': typeof ApiPublicTwilioInboundRoute
+  '/api/public/twilio/voice': typeof ApiPublicTwilioVoiceRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
   '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
@@ -1451,6 +1480,7 @@ export interface FileRouteTypes {
     | '/api/public/jobs/lead-reminder'
     | '/api/public/jobs/lifecycle-email'
     | '/api/public/jobs/media-cleanup'
+    | '/api/public/jobs/monthly-report'
     | '/api/public/jobs/prospect-autopilot'
     | '/api/public/jobs/prospect-replies'
     | '/api/public/jobs/site-content-audit'
@@ -1459,7 +1489,9 @@ export interface FileRouteTypes {
     | '/api/public/jobs/site-hosting'
     | '/api/public/jobs/weekly-report'
     | '/api/public/payments/webhook'
+    | '/api/public/twilio/call-status'
     | '/api/public/twilio/inbound'
+    | '/api/public/twilio/voice'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
     | '/lovable/email/transactional/preview'
@@ -1588,6 +1620,7 @@ export interface FileRouteTypes {
     | '/api/public/jobs/lead-reminder'
     | '/api/public/jobs/lifecycle-email'
     | '/api/public/jobs/media-cleanup'
+    | '/api/public/jobs/monthly-report'
     | '/api/public/jobs/prospect-autopilot'
     | '/api/public/jobs/prospect-replies'
     | '/api/public/jobs/site-content-audit'
@@ -1596,7 +1629,9 @@ export interface FileRouteTypes {
     | '/api/public/jobs/site-hosting'
     | '/api/public/jobs/weekly-report'
     | '/api/public/payments/webhook'
+    | '/api/public/twilio/call-status'
     | '/api/public/twilio/inbound'
+    | '/api/public/twilio/voice'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
     | '/lovable/email/transactional/preview'
@@ -1731,6 +1766,7 @@ export interface FileRouteTypes {
     | '/api/public/jobs/lead-reminder'
     | '/api/public/jobs/lifecycle-email'
     | '/api/public/jobs/media-cleanup'
+    | '/api/public/jobs/monthly-report'
     | '/api/public/jobs/prospect-autopilot'
     | '/api/public/jobs/prospect-replies'
     | '/api/public/jobs/site-content-audit'
@@ -1739,7 +1775,9 @@ export interface FileRouteTypes {
     | '/api/public/jobs/site-hosting'
     | '/api/public/jobs/weekly-report'
     | '/api/public/payments/webhook'
+    | '/api/public/twilio/call-status'
     | '/api/public/twilio/inbound'
+    | '/api/public/twilio/voice'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
     | '/lovable/email/transactional/preview'
@@ -1822,6 +1860,7 @@ export interface RootRouteChildren {
   ApiPublicJobsLeadReminderRoute: typeof ApiPublicJobsLeadReminderRoute
   ApiPublicJobsLifecycleEmailRoute: typeof ApiPublicJobsLifecycleEmailRoute
   ApiPublicJobsMediaCleanupRoute: typeof ApiPublicJobsMediaCleanupRoute
+  ApiPublicJobsMonthlyReportRoute: typeof ApiPublicJobsMonthlyReportRoute
   ApiPublicJobsProspectAutopilotRoute: typeof ApiPublicJobsProspectAutopilotRoute
   ApiPublicJobsProspectRepliesRoute: typeof ApiPublicJobsProspectRepliesRoute
   ApiPublicJobsSiteContentAuditRoute: typeof ApiPublicJobsSiteContentAuditRoute
@@ -1830,7 +1869,9 @@ export interface RootRouteChildren {
   ApiPublicJobsSiteHostingRoute: typeof ApiPublicJobsSiteHostingRoute
   ApiPublicJobsWeeklyReportRoute: typeof ApiPublicJobsWeeklyReportRoute
   ApiPublicPaymentsWebhookRoute: typeof ApiPublicPaymentsWebhookRoute
+  ApiPublicTwilioCallStatusRoute: typeof ApiPublicTwilioCallStatusRoute
   ApiPublicTwilioInboundRoute: typeof ApiPublicTwilioInboundRoute
+  ApiPublicTwilioVoiceRoute: typeof ApiPublicTwilioVoiceRoute
   LovableEmailAuthPreviewRoute: typeof LovableEmailAuthPreviewRoute
   LovableEmailAuthWebhookRoute: typeof LovableEmailAuthWebhookRoute
   LovableEmailTransactionalPreviewRoute: typeof LovableEmailTransactionalPreviewRoute
@@ -2714,6 +2755,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicJobsMediaCleanupRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/jobs/monthly-report': {
+      id: '/api/public/jobs/monthly-report'
+      path: '/api/public/jobs/monthly-report'
+      fullPath: '/api/public/jobs/monthly-report'
+      preLoaderRoute: typeof ApiPublicJobsMonthlyReportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/jobs/prospect-autopilot': {
       id: '/api/public/jobs/prospect-autopilot'
       path: '/api/public/jobs/prospect-autopilot'
@@ -2770,11 +2818,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicPaymentsWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/twilio/call-status': {
+      id: '/api/public/twilio/call-status'
+      path: '/api/public/twilio/call-status'
+      fullPath: '/api/public/twilio/call-status'
+      preLoaderRoute: typeof ApiPublicTwilioCallStatusRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/twilio/inbound': {
       id: '/api/public/twilio/inbound'
       path: '/api/public/twilio/inbound'
       fullPath: '/api/public/twilio/inbound'
       preLoaderRoute: typeof ApiPublicTwilioInboundRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/twilio/voice': {
+      id: '/api/public/twilio/voice'
+      path: '/api/public/twilio/voice'
+      fullPath: '/api/public/twilio/voice'
+      preLoaderRoute: typeof ApiPublicTwilioVoiceRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/lovable/email/auth/preview': {
@@ -3139,6 +3201,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicJobsLeadReminderRoute: ApiPublicJobsLeadReminderRoute,
   ApiPublicJobsLifecycleEmailRoute: ApiPublicJobsLifecycleEmailRoute,
   ApiPublicJobsMediaCleanupRoute: ApiPublicJobsMediaCleanupRoute,
+  ApiPublicJobsMonthlyReportRoute: ApiPublicJobsMonthlyReportRoute,
   ApiPublicJobsProspectAutopilotRoute: ApiPublicJobsProspectAutopilotRoute,
   ApiPublicJobsProspectRepliesRoute: ApiPublicJobsProspectRepliesRoute,
   ApiPublicJobsSiteContentAuditRoute: ApiPublicJobsSiteContentAuditRoute,
@@ -3147,7 +3210,9 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicJobsSiteHostingRoute: ApiPublicJobsSiteHostingRoute,
   ApiPublicJobsWeeklyReportRoute: ApiPublicJobsWeeklyReportRoute,
   ApiPublicPaymentsWebhookRoute: ApiPublicPaymentsWebhookRoute,
+  ApiPublicTwilioCallStatusRoute: ApiPublicTwilioCallStatusRoute,
   ApiPublicTwilioInboundRoute: ApiPublicTwilioInboundRoute,
+  ApiPublicTwilioVoiceRoute: ApiPublicTwilioVoiceRoute,
   LovableEmailAuthPreviewRoute: LovableEmailAuthPreviewRoute,
   LovableEmailAuthWebhookRoute: LovableEmailAuthWebhookRoute,
   LovableEmailTransactionalPreviewRoute: LovableEmailTransactionalPreviewRoute,

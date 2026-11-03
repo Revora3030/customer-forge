@@ -31,6 +31,7 @@ import { paidDailyCapUsd, reservePaidSpendDetailed, routerActual, secondsUntilPa
 import { scopedAbortSignal, scopedFreeOnly } from "@/lib/ai/spend-scope.server";
 import {
   aiLimits,
+  roleTimeoutMs,
   providerChain,
   providerConfig,
   type ModelRole,
@@ -381,7 +382,8 @@ async function run<T>(
     }
   }
   const chain = applyModelPreference(candidates, scopedPreferredModels(prefer), options?.avoidModels);
-  const attemptTimeoutMs = attemptTimeoutFor(clampPositive(options?.timeoutMs, limits.requestTimeoutMs), options?.longAttemptMs);
+  // Per-role ceiling (T010): design/primary get longer, fast calls shorter.
+  const attemptTimeoutMs = attemptTimeoutFor(clampPositive(options?.timeoutMs, roleTimeoutMs(role, limits)), options?.longAttemptMs);
   const chainBudgetMs = clampPositive(options?.chainDeadlineMs, chainDeadlineMs());
   if (chain.length === 0)
     throw notConfigured();

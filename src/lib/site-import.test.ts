@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { extractFacts, foundLabels, formatPhone, mergeFacts, nextPages } from "@/lib/site-import";
+import { businessRank, extractFacts, extractJsonLdFacts, foundLabels, formatPhone, isThirdPartySource, mergeFacts, nextPages } from "@/lib/site-import";
 
 const HOME = `<html><head><title>Triangle Comfort HVAC | Raleigh AC Repair</title>
 <meta name="description" content="Family-owned heating &amp; cooling in Raleigh since 2009.">
@@ -84,5 +84,64 @@ describe("site import visible text", () => {
     expect(hidden.businessName).toBe("Acme &lt;b&gt; Co");
     const shown = extractFacts("<html><body><p>Call (919)&nbsp;555-0100 today</p></body></html>", "https://acme.test/");
     expect(shown.phone).not.toBe("");
+  });
+});
+
+describe("Schema.org JSON-LD facts from the owner's own site", () => {
+  const fixture = (name: string) => readFileSync(`src/lib/__fixtures__/site-import/${name}`, "utf8");
+
+  it("reads a LocalBusiness subtype from an @graph, past a WebSite node and HTML comment wrapper", () => {
+    const facts = extractJsonLdFacts(fixture("graph-dentist.html"), "https://oakstreetdental.test/");
+    expect(facts).toMatchObject({
+      businessName: "Oak Street Dental",
+      about: "Gentle family dentistry in Asheville.",
+      phone: "(828) 555-0177",
+      email: "frontdesk@oakstreetdental.test",
+      address: "40 Oak St, Asheville, NC 28801",
+      city: "Asheville",
+      state: "NC",
+      hours: "Mo-Th 08:00-17:00; Fr 08:00-12:00",
+      heroImageUrl: "https://oakstreetdental.test/img/office.jpg",
+      logoUrl: "https://oakstreetdental.test/logo.svg",
+      instagram: "https://www.instagram.com/oakstreetdental",
+    });
+  });
+
+  it("takes services from nested catalogs and standalone Service nodes, never products, ratings or reviews", () => {
+    const facts = extractJsonLdFacts(fixture("graph-dentist.html"), "https://oakstreetdental.test/");
+    expect(facts.services.map((service) => service.name)).toEqual(["Dental Cleanings", "Dental Implants", "Teeth Whitening"]);
+    expect(facts.services[0]?.description).toBe("Twice-yearly hygiene visits.");
+    expect(JSON.stringify(facts)).not.toMatch(/4\.9|212|Best dentist|Toothbrush/);
+  });
+
+  it("feeds extractFacts, so the existing apply path receives the same facts", () => {
+    const facts = extractFacts(fixture("graph-dentist.html"), "https://oakstreetdental.test/");
+    expect(facts.businessName).toBe("Oak Street Dental");
+    expect(facts.services.map((service) => service.name)).toContain("Dental Implants");
+    expect(foundLabels(facts)).toEqual(expect.arrayContaining(["business name", "phone", "address", "hours"]));
+  });
+
+  it("never mistakes a Service node for the business, and skips broken JSON-LD", () => {
+    const facts = extractFacts(fixture("service-only.html"), "https://gutterguys.test/");
+    expect(facts.businessName).toBe("Gutter Guys");
+    expect(facts.services.map((service) => service.name)).toEqual(["Seamless Gutter Installation"]);
+  });
+
+  it("falls back to an Organization with a string address and rejects a malformed email", () => {
+    const facts = extractJsonLdFacts(fixture("organization-string-address.html"), "https://brightline.test/");
+    expect(facts).toMatchObject({ businessName: "Brightline Painting", phone: "(704) 555-0123", address: "88 Elm Ave, Charlotte, NC 28202", email: "" });
+    expect(businessRank({ "@type": "Service", name: "x" })).toBe(0);
+    expect(businessRank({ "@type": "Organization", name: "x" })).toBe(1);
+    expect(businessRank({ "@type": "https://schema.org/Plumber", name: "x" })).toBe(2);
+    expect(businessRank({ "@type": "Plumber" })).toBe(0);
+  });
+
+  it("refuses maps, review, directory and social pages, before and after a redirect", () => {
+    for (const url of ["https://www.google.com/maps/place/x", "https://maps.app.goo.gl/abc", "https://www.yelp.com/biz/x", "https://m.facebook.com/x", "https://www.bbb.org/us/x", "https://www.angi.com/x"])
+      expect(isThirdPartySource(url)).toBe(true);
+    for (const url of ["https://oakstreetdental.test/", "https://www.mygoogleplumbing.com/", "https://yelpless.example/"]) expect(isThirdPartySource(url)).toBe(false);
+    const server = readFileSync("src/lib/site-import.server.ts", "utf8");
+    expect(server).toContain("if (isThirdPartySource(start)) throw new SiteImportError(THIRD_PARTY_MESSAGE);");
+    expect(server).toContain("if (isThirdPartySource(url)) return null;");
   });
 });
