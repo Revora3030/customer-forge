@@ -26,6 +26,7 @@ import { ModelViewer } from "@/components/site/ModelViewer";
 import { ShaderField } from "@/components/site/ShaderField";
 import { Tour360, type TourScene } from "@/components/site/Tour360";
 import { BuildingExplorer } from "@/components/site/BuildingExplorer";
+import { CinematicHeroStage, type HeroStagePicture } from "@/components/site/CinematicHeroStage";
 import { usePremiumFx } from "@/components/site/premium-fx";
 import { ScrollRevealFallback } from "@/components/site/ScrollRevealFallback";
 import { PREMIUM_CSS } from "@/components/site/premium-css";
@@ -52,7 +53,7 @@ const FILL_WHEN_CAPPED = new Set<CompositionNode["type"]>([
   "stack", "grid", "row", "card", "list", "tabs", "toggle", "accordion", "compare", "gallery", "widget",
   "before_after_slider", "faq_accordion", "tab_group", "offer_card", "spin_viewer", "collection_row",
   "lens_magnifier", "sticky_split_story", "service_tier_fader", "parallax_layers", "scrub_sequence", "dial_selector", "model_3d_viewer", "divider", "marquee",
-  "shader_field", "tour_360", "building_explorer",
+  "shader_field", "tour_360", "building_explorer", "cinematic_hero_stage",
 ]);
 // eslint-disable-next-line react-refresh/only-export-components -- renderer helpers are intentionally co-located with their composition types.
 export function styleToCss(style: NodeStyle | undefined, type: CompositionNode["type"]): CSSProperties {
@@ -240,7 +241,7 @@ const STRETCH_PANEL = new Set<CompositionNode["type"]>([
   "accordion", "faq_accordion", "tab_group", "tabs", "toggle", "compare", "gallery", "widget",
   "before_after_slider", "scroll_chapters", "scrub_sequence", "sticky_split_story", "service_tier_fader",
   "collection_row", "parallax_layers", "lens_magnifier", "spin_viewer", "offer_card", "dial_selector", "model_3d_viewer",
-  "tour_360", "building_explorer",
+  "tour_360", "building_explorer", "cinematic_hero_stage",
 ]);
 
 function baseLayout(type: CompositionNode["type"]): CSSProperties {
@@ -258,7 +259,7 @@ function baseLayout(type: CompositionNode["type"]): CSSProperties {
 
 /** A text-only frame with an aspect ratio paints as a tall empty box. Pictures keep theirs. */
 function containsVisual(node: CompositionNode): boolean {
-  if (node.type === "media" || node.type === "scene" || node.type === "scroll_chapters" || node.type === "scrub_sequence" || node.type === "gallery" || node.type === "widget" || node.type === "parallax_layers" || node.type === "spin_viewer" || node.src || node.mediaRef) return true;
+  if (node.type === "media" || node.type === "scene" || node.type === "scroll_chapters" || node.type === "scrub_sequence" || node.type === "gallery" || node.type === "widget" || node.type === "parallax_layers" || node.type === "spin_viewer" || node.type === "cinematic_hero_stage" || node.src || node.mediaRef) return true;
   return (node.children ?? []).some(containsVisual);
 }
 
@@ -811,6 +812,34 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
           accent={node.style?.gradientTo ?? node.style?.color}
           photo={photoSrc && !isModelUrl(photoSrc) ? { src: photoSrc, alt: photoNode?.alt ?? mediaVisual(photoResolved)?.alt ?? "The building" } : null} />
       );
+    }
+    case "cinematic_hero_stage": {
+      const stage = node.heroStage;
+      if (!stage) return null;
+      const pictures: Record<string, HeroStagePicture[]> = {};
+      const picture = (src: string | undefined, mediaRef: string | undefined, alt: string, focal?: readonly [number, number]): (HeroStagePicture & { generated: boolean }) | null => {
+        const resolved = mediaRef ? ctx.media(mediaRef) : null;
+        const source = src ? resolveImageSource(src) : mediaUrl(resolved);
+        if (!source || isModelUrl(source)) return null;
+        return { src: source, alt, generated: isGeneratedMedia(resolved), ...(focal ? { objectPosition: `${Math.round(focal[0] * 100)}% ${Math.round(focal[1] * 100)}%` } : {}) };
+      };
+      for (const layer of stage.layers) {
+        if (layer.type === "media_stack") {
+          // productPixels "real": a generated or stock picture never stands in
+          // for the business's own product. Too few real frames drops the layer.
+          const frames = layer.frames
+            .map((f) => picture(f.src, f.mediaRef, f.alt, f.focal))
+            .filter((f): f is HeroStagePicture & { generated: boolean } => Boolean(f) && !(layer.productPixels === "real" && f!.generated));
+          if (frames.length >= 4) pictures[layer.id] = frames.slice(0, 18).map(({ generated: _g, ...rest }) => rest);
+        }
+        if (layer.type === "media_single") {
+          const main = picture(layer.src, layer.mediaRef, layer.alt);
+          const poster = layer.poster ? picture(layer.poster, undefined, layer.alt) : null;
+          if (main) pictures[layer.id] = [main, ...(poster ? [poster] : [])].map(({ generated: _g, ...rest }) => rest);
+        }
+      }
+      if (Object.keys(pictures).length) ctx.counter.sawMedia = true;
+      return <CinematicHeroStage key={key} props={props} stage={stage} pictures={pictures} href={ctx.href} headingLevel={ctx.chrome ? 2 : node.level ?? 1} />;
     }
     case "dial_selector":
       return (node.dialOptions?.length ?? 0) >= 2 ? (
