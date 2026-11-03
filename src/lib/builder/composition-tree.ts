@@ -17,6 +17,7 @@ import {
 import { MAX_BRUSH_TOOLS } from "@/lib/builder/reveal-brush";
 import { parseCountUp } from "@/lib/builder/count-up";
 import { checkFloors, isShaderKind, SHADER_KINDS, TOUR_LIMITS, type BuildingFloor, type ShaderKind } from "@/lib/builder/premium-effects";
+import { heroStageSources, heroStageTexts, parseHeroStage, type CinematicHeroStage } from "@/lib/builder/cinematic-hero-stage";
 
 export const COMPOSITION_PRIMITIVES = [
   "stack", "grid", "row", "scene3d", "text", "heading", "media", "button", "link",
@@ -26,14 +27,14 @@ export const COMPOSITION_PRIMITIVES = [
   "scene", "scroll_chapters", "offer_card", "spin_viewer", "collection_row",
   "lens_magnifier", "sticky_split_story", "service_tier_fader", "parallax_layers",
   "scrub_sequence", "dial_selector", "model_3d_viewer",
-  "shader_field", "tour_360", "building_explorer",
+  "shader_field", "tour_360", "building_explorer", "cinematic_hero_stage",
 ] as const;
 
 /** Primitives a visitor operates (a site's interactive centrepiece). Working form widgets are counted separately. */
 export const INTERACTIVE_PRIMITIVES: ReadonlySet<string> = new Set([
   "tabs", "toggle", "accordion", "compare", "before_after_slider", "faq_accordion", "tab_group",
   "scroll_chapters", "spin_viewer", "collection_row", "lens_magnifier", "sticky_split_story", "service_tier_fader",
-  "scrub_sequence", "dial_selector", "model_3d_viewer", "tour_360", "building_explorer",
+  "scrub_sequence", "dial_selector", "model_3d_viewer", "tour_360", "building_explorer", "cinematic_hero_stage",
 ]);
 
 /** Working features an AI layout may place anywhere. Their data (prices, phone, email, hours) always comes from verified business facts. */
@@ -100,6 +101,7 @@ export const PRIMITIVE_GUIDE =
   "shader_field (an animated WebGL colour field behind its children, for a text-led hero or closing band with no supplied picture: shader is \"mesh\" (soft flowing gradient), \"grain\" (grainy light bloom), \"warp\" (bold flowing bands), \"swirl\" (paint-like swirl), \"god-rays\" (light beams from above) or \"neuro-noise\" (fine glowing filaments); style.background is the dark base colour and style.gradientTo the accent it glows with, both from the palette; children are the copy over it (heading, text, buttons) and every text colour must read on both colours; with no WebGL, reduced motion or data saver it is the same palette as a still gradient; one per page, never in place of the owner's real pictures). " +
   "tour_360 (a 360° panorama tour the visitor drags around: children are 1-8 media scenes, each with mediaRef pointing at a supplied part marked panorama360 — the owner's own equirectangular photo of a real room, venue or property — with alt, and each child's text is its short scene label (max 30, e.g. \"Lobby\", \"Rooftop\"); text is the tour's label such as \"Walk through the …\"; until the visitor taps start, and without WebGL, the first panorama shows as a picture with the scene list; only use it when panorama360 parts are supplied). " +
   "building_explorer (a 3D stack of floors the visitor clicks to read about each level, for a real building, development, venue or office: floors holds 2-12 rows {label (max 40, e.g. \"Level 12 · Penthouse\"), body (max 160, one line the owner supplied)} from the lowest floor up; text is its label such as \"Explore the building\"; an optional single media child is the building's photo; never type prices, availability or sizes the owner did not give; without WebGL the floors are a plain list). " +
+  "cinematic_hero_stage (one declarative layered hero, at most one per page and usually the home page's first section: no children; heroStage holds {kind:\"cinematic_hero_stage\", id, signature {verb, oneLiner ≤90, bespokeTestPassed:true, mediumArbitration}, stage {height, pin {enabled, distance}}, layers (2-7 of media_stack {frames: 4-18 real pictures each {mediaRef, alt}, source, productPixels real|none — never generated}, media_single {mediaRef, alt}, ambient {washes ≤2 with color var(--token) and opacity ≤0.14}, light_sweep, rule_path {d: SVG path data in a 0-100 box}, grain {opacity 0.10-0.25}, scrim {strength 0.72-0.9}), lockup {eyebrow, headline ≤72 chars and ≤9 words, sub, cta {label, href}, placement}, motion {reveals ≤5, scrubs ≤8 targeting layer ids}, responsive {typeScale {min:\"320px\", max:\"2560px\"}, narrow, mid, wide registers, disableOnMobile}, a11y {reducedMotion}, guardrails {maxPromotedLayers ≤4}, stamp}; colours are design tokens only; media over copy needs a scrim; reduced motion shows a still poster). " +
   "collection_row (a horizontally scrolling, snap-aligned row of offer_card children, each with its picture, name, optional real-service price and an accent button; keyboard and swipe friendly). " +
   "widget (text is one of booking_form|quote_calculator|enquiry_form|contact_details|direct_contact|service_menu|review_wall|service_estimator — service_estimator is a zero-token price/time estimator built only from the owner's listed service prices and durations (it renders nothing when fewer than two services carry them); enquiry_form is the site's working message form (name, phone/email, message; saved to the owner's leads); booking_form/quote_calculator drop the site's real working form, verified phone/email/hours/area, the live service menu (names, prices, durations straight from the owner's Services tool) or the live published reviews into your layout; style its wrapper freely, never retype those facts yourself; service_menu and review_wall stay in sync when the owner edits services or publishes reviews; monthly-payment/finance, ROI/yield and price-range views appear inside quote_calculator or service_estimator ONLY from figures the owner typed into the section's calculator settings — never write an APR, interest rate, finance term, deposit, monthly payment, price range, occupancy, yield, ROI or payback figure anywhere in your layout or widgetPresentation, and never promise financing or returns the owner did not supply). For working widgets, widgetPresentation may author visible labels, helper/success copy and a bounded local theme (surface, text, muted, border, action, actionText, selected, selectedText); never put business data or pricing into widgetPresentation — the application supplies those facts. " +
   "Real company logos: a media src of https://img.logo.dev/<domain> (e.g. img.logo.dev/stripe.com) renders that company's real logo — use ONLY for companies the customer actually named as partners, clients or platforms they use; never invent an affiliation. " +
@@ -260,6 +262,8 @@ export type CompositionNode = {
   shader?: ShaderKind;
   /** building_explorer only: the floors from the lowest up, owner facts. */
   floors?: BuildingFloor[];
+  /** cinematic_hero_stage only: the declarative layered hero (see cinematic-hero-stage.ts). */
+  heroStage?: CinematicHeroStage;
   style?: NodeStyle;
   responsive?: Partial<Record<Breakpoint, NodeStyle>>;
   motion?: NodeMotion;
@@ -689,6 +693,10 @@ function checkCinematic(node: CompositionNode, path: string, issues: Composition
           issues.push({ path: `${at}[${i}].mediaRef`, problem: "tour_360 scenes must be supplied 360° panoramas (parts marked panorama360), not ordinary pictures" });
       });
       break;
+    case "cinematic_hero_stage":
+      if (!node.heroStage) issues.push({ path: `${path}.heroStage`, problem: "cinematic_hero_stage needs heroStage: the layered hero spec (layers, lockup, motion, responsive, a11y, guardrails)" });
+      if (kids.length) issues.push({ path: at, problem: "cinematic_hero_stage carries its copy in heroStage.lockup, not child nodes" });
+      break;
     case "building_explorer": {
       if (!node.floors) issues.push({ path: `${path}.floors`, problem: "building_explorer needs floors: 2-12 {label, body} rows from the owner's facts" });
       if (kids.length > 1 || kids.some((child) => !hasPictureSource(child)))
@@ -741,6 +749,7 @@ export function validateComposition(input: unknown, options: ValidateOptions = {
   const issues: CompositionIssue[] = [];
   let count = 0;
   const usedMediaRefs = new Set<string>();
+  let heroStages = 0;
 
   const walk = (raw: unknown, path: string, depth: number): CompositionNode | null => {
     count += 1;
@@ -1069,6 +1078,39 @@ export function validateComposition(input: unknown, options: ValidateOptions = {
             }
           }
           node.floors = checked.floors;
+        }
+      }
+    }
+    if (node.type === "cinematic_hero_stage" && ++heroStages > 1) issues.push({ path, problem: "a page has at most one cinematic_hero_stage" });
+    if (row["heroStage"] != null) {
+      if (node.type !== "cinematic_hero_stage") issues.push({ path: `${path}.heroStage`, problem: "heroStage only applies to cinematic_hero_stage" });
+      else {
+        const parsed = parseHeroStage(row["heroStage"]);
+        if (!parsed.ok) for (const issue of parsed.issues) issues.push({ path: `${path}.heroStage.${issue.path}`, problem: issue.problem });
+        else {
+          let safe = true;
+          for (const { path: textPath, text } of heroStageTexts(parsed.stage)) {
+            if (UNSAFE_TEXT.test(text)) { safe = false; issues.push({ path: `${path}.heroStage.${textPath}`, problem: "text contains markup or script" }); }
+            const truth = options.screenText?.(text);
+            if (truth) issues.push({ path: `${path}.heroStage.${textPath}`, problem: truth });
+          }
+          const cta = parsed.stage.lockup.cta;
+          if (cta && !isSafeHref(cta.href)) { safe = false; issues.push({ path: `${path}.heroStage.lockup.cta.href`, problem: "buttons and links need a safe destination" }); }
+          for (const source of heroStageSources(parsed.stage)) {
+            const at = `${path}.heroStage.${source.path}`;
+            if (source.src != null) {
+              if (!isSafeHref(source.src)) { safe = false; issues.push({ path: `${at}.src`, problem: "image source must be a safe https address" }); }
+              else if (options.firstBuild) issues.push({ path: `${at}.src`, problem: FIRST_BUILD_SRC_PROBLEM });
+            }
+            if (source.mediaRef != null) {
+              if (options.allowedMediaRefs && !options.allowedMediaRefs.has(source.mediaRef))
+                issues.push({ path: `${at}.mediaRef`, problem: "website picture reference does not belong to this section" });
+              else if (options.modelRefs?.has(source.mediaRef))
+                issues.push({ path: `${at}.mediaRef`, problem: `${source.mediaRef} is a 3D model; show it only in a model_3d_viewer` });
+              else usedMediaRefs.add(source.mediaRef);
+            }
+          }
+          if (safe) node.heroStage = parsed.stage;
         }
       }
     }
