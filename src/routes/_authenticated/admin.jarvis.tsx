@@ -305,7 +305,8 @@ function Jarvis() {
     mutationFn: (message: string) => {
       const runId = crypto.randomUUID();
       setLiveRun(runId);
-      return send({ data: { message, mode, conversationId, runId, model: pickedModel } });
+      // Live mode or the voice toggle: the reply will be read aloud, so ask for a short spoken core.
+      return send({ data: { message, mode, conversationId, runId, model: pickedModel, voice: voice || liveRef.current } });
     },
     onSuccess: finish,
     onError: async (error: Error, message: string) => {
