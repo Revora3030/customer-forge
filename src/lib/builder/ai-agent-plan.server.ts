@@ -64,47 +64,79 @@ const DESIGN_RULES = [
   "Keep the reply short, warm and concrete: say what you will change and why it helps, in plain words, without lecturing about rules.",
 ].join(" ");
 
+
 /** Compact JSON contract. Anything outside it is dropped by the validator. */
+const FONT_CHOICE = "any Google Fonts family name";
+
+/**
+ * Everything in the action contract that does not depend on the site. It is
+ * part of the frozen system prefix (see PLANNER_STATIC_PREFIX), so it must not
+ * read the context, the date or anything per-request.
+ */
+const STATIC_ACTION_CONTRACT = [
+  "Reply with ONE JSON object and nothing else:",
+  '{"reply":string,"summary":string,"requirements":string[],"questions":string[],"notes":string[],"scope":{"breadth":"style|section|page|site","operation":"edit|redesign","sectionIds":[id,...],"pageIds":[id,...]},"actions":Action[]}',
+  'For a whole-website rebuild/redesign declare scope breadth "site" and operation "redesign". Author set_composition for EVERY retained existing section on EVERY page, not just home, and fill any new pages. For a site-wide property tweak declare operation "edit". Never claim work is completed before apply: reply describes the proposal in future tense.',
+  'scope declares the smallest part of the site your plan touches: "style" or "section" when only the listed sections change, "page" when whole listed pages change, "site" only for genuinely site-wide changes. sectionIds and pageIds must be real ids copied from the website below. Changes outside your declared scope are dropped before anything is applied, so declare honestly.',
+  "",
+  "Action is one of:",
+  '{"type":"set_section_text","sectionId":id,"field":"heading"|"subheading"|"body","value":string}',
+  '{"type":"set_section_visibility","sectionId":id,"visible":boolean}',
+  '{"type":"set_block_style","target":"section|component","targetId":id,"device":"desktop|tablet|mobile","patch":{"font":"display|body|serif|mono","size":"10..160","weight":"100..900","align":"left|center|right","lineHeight":"0.75..3","letterSpacing":"-0.1..0.3","textTransform":"none|uppercase|capitalize","italic":boolean,"textColor":"#RRGGBB or common named colour","columns":"1..6","gap":"0..240","maxWidth":"240..1920","contentAlign":"left|center|right","padTop":"0..240","padRight":"0..240","padBottom":"0..240","padLeft":"0..240","marginTop":"-240..240","marginBottom":"-240..240","bgColor":"#RRGGBB or common named colour","bgGradient":"#RRGGBB or common named colour (second gradient stop)","bgGradientAngle":"0..360","bgImage":"safe https URL or internal path","overlay":"0..100","radius":"0..999","borderWidth":"0..12","borderColor":"#RRGGBB or common named colour","shadow":"none|subtle|medium|strong","opacity":"0..100","objectFit":"cover|contain|fill","buttonStyle":"solid|outline|ghost|link","buttonSize":"sm|md|lg","buttonTextColor":"#RRGGBB or common named colour","buttonBgColor":"#RRGGBB or common named colour","hidden":boolean,"order":"1..200, phone position, device mobile only"}}',
+  '{"type":"add_section","pageId":id,"ref":"temp_section_1","kind":kind,"heading":string,"subheading":string,"body":string,"position":number}',
+  '{"type":"delete_section","sectionId":id}',
+  '{"type":"reorder_sections","pageId":id,"sectionIds":[id,...]}',
+  '{"type":"set_composition","sectionId":id,"tree":{"version":1,"label":string,"root":Node}}',
+  `Node = {"type":"${COMPOSITION_PRIMITIVES.join("|")}","text"?:string,"href"?:string,"src"?:string,"mediaRef"?:componentId,"alt"?:string,"level"?:1|2|3|4,"items"?:string[],"anchor"?:"top-left|top-center|top-right|center-left|center|center-right|bottom-left|bottom-center|bottom-right","scrim"?:{"color"?:"#RRGGBB","opacity"?:number},"focal"?:"x% y%","service"?:realServiceName,"initialFrame"?:number,"style"?:Style,"responsive"?:{"mobile"?:Style,"tablet"?:Style,"desktop"?:Style},"widgetPresentation"?:{"eyebrow"?:string,"title"?:string,"description"?:string,"optionPrompt"?:string,"estimateLabel"?:string,"extraLabel"?:string,"actionLabel"?:string,"backLabel"?:string,"successTitle"?:string,"successBody"?:string,"contactLabel"?:string,"fieldLabels"?:object,"theme"?:object},"motion"?:{"kind":"${MOTION_KINDS.join("|")}","delayMs"?:number,"durationMs"?:number,"easing"?:"${MOTION_EASINGS.join("|")}","repeat"?:1|2|3|"loop","trigger"?:"load|view","from"?:{"opacity"?:number,"x"?:number,"y"?:number,"scale"?:number,"rotate"?:number,"blur"?:number}},"hover"?:{"scale"?:number,"x"?:number,"y"?:number,"rotate"?:number,"opacity"?:number,"shadow"?:"none|subtle|medium|strong","durationMs"?:number},"children"?:Node[]}`,
+  PRIMITIVE_GUIDE,
+  'Style keys: columns 1..12, gap 0..240, padding/paddingX/paddingY 0..320, maxWidth 200..2400, align left|center|right, justify start|center|end|between, items start|center|end|stretch, span 1..12, size 8..200, weight 100..900, lineHeight, letterSpacing, italic, uppercase, font, color, background, gradientTo, gradientAngle, radius, borderWidth, borderColor, shadow none|subtle|medium|strong, opacity 0..100, aspect, minHeight, hidden. Layering: position relative|sticky|absolute, top/left/right/bottom -400..1600, zIndex 0..50, overlap 0..400, blur 0..40, rotate -45..45, gridAreas (quoted rows like "media copy"), area (name). Reset overlap/position/rotate on mobile.',
+  "DEFAULT LAYOUT RULE: for every section you add, restructure or redesign (first builds, redesigns and edits alike), author its layout with set_composition — invent the structure yourself. Use add_section only to create the section container, then compose it in the same list using its temp ref. Use set_block_style for literal styling tweaks that do not need a new composition.",
+  '{"type":"set_component","componentId":id,"patch":{"label":string,"body":string,"link_label":string,"link_url":string}}',
+  '{"type":"set_component_visual","componentId":id,"patch":{"media_url":"saved owner photo path (only when given above)","alt":string,"object_fit":"cover|contain","object_position":string,"overlay":"none|soft|dark|brand|gradient","radius":"none|small|medium|large|pill","shadow":"none|soft|medium|strong","aspect_ratio":"1:1|4:3|3:2|16:9|21:9","focal_point":string}}',
+  '{"type":"add_component","sectionId":id,"ref":"temp_component_1","kind":kind,"label":string,"body":string,"link_label":string,"link_url":string}',
+  '{"type":"delete_component","componentId":id}',
+  '{"type":"generate_component_image","componentId":id,"prompt":string,"alt":string,"mode":"replace"|"create"}',
+  '{"type":"add_page","ref":"temp_page_1","kind":kind,"title":string,"slug":string}',
+  '{"type":"set_page","pageId":id,"patch":{"title":string,"seo_title":string,"seo_description":string}}',
+  `{"type":"set_theme","patch":{"primary_color":"#RRGGBB","secondary_color":"#RRGGBB","accent_color":"#RRGGBB","heading_font":"${FONT_CHOICE}","body_font":"${FONT_CHOICE}"}}`,
+  '{"type":"set_business_fact","field":"tagline"|"description","value":string}',
+  "",
+  `Use as many actions as the work genuinely needs — there is no target or budget. Every id must be copied exactly from the website below, or be a temp ref you created earlier in the same list.`,
+  "For every existing component marked [has picture], place it visibly in that section's composition using a media node whose mediaRef is that exact component id.",
+  "When a section should show new photography, add the image component, add generate_component_image for it, AND place a media node with that same component id or temp ref inside the section's set_composition tree. A generated picture not referenced by the composition is invisible and is a failed plan.",
+  "When the owner asks to improve, replace or rebuild pictures, include generate_component_image actions for the sections whose photography should change, placed in the composition as above.",
+  "Image prompts describe a real, specific scene for this business: no text, logos, watermarks, awards, reviews or identifiable customers in the picture.",
+].join("\n");
+
+/** The per-site part of the contract: real page links and allowed kinds. Sent at the tail of the user message. */
 function actionContract(context: AgentContext): string {
-  const fonts = "any Google Fonts family name";
   return [
-    "Reply with ONE JSON object and nothing else:",
-    '{"reply":string,"summary":string,"requirements":string[],"questions":string[],"notes":string[],"scope":{"breadth":"style|section|page|site","operation":"edit|redesign","sectionIds":[id,...],"pageIds":[id,...]},"actions":Action[]}',
-    'For a whole-website rebuild/redesign declare scope breadth "site" and operation "redesign". Author set_composition for EVERY retained existing section on EVERY page, not just home, and fill any new pages. For a site-wide property tweak declare operation "edit". Never claim work is completed before apply: reply describes the proposal in future tense.',
-    'scope declares the smallest part of the site your plan touches: "style" or "section" when only the listed sections change, "page" when whole listed pages change, "site" only for genuinely site-wide changes. sectionIds and pageIds must be real ids copied from the website below. Changes outside your declared scope are dropped before anything is applied, so declare honestly.',
-    "",
-    "Action is one of:",
-    '{"type":"set_section_text","sectionId":id,"field":"heading"|"subheading"|"body","value":string}',
-    '{"type":"set_section_visibility","sectionId":id,"visible":boolean}',
-    '{"type":"set_block_style","target":"section|component","targetId":id,"device":"desktop|tablet|mobile","patch":{"font":"display|body|serif|mono","size":"10..160","weight":"100..900","align":"left|center|right","lineHeight":"0.75..3","letterSpacing":"-0.1..0.3","textTransform":"none|uppercase|capitalize","italic":boolean,"textColor":"#RRGGBB or common named colour","columns":"1..6","gap":"0..240","maxWidth":"240..1920","contentAlign":"left|center|right","padTop":"0..240","padRight":"0..240","padBottom":"0..240","padLeft":"0..240","marginTop":"-240..240","marginBottom":"-240..240","bgColor":"#RRGGBB or common named colour","bgGradient":"#RRGGBB or common named colour (second gradient stop)","bgGradientAngle":"0..360","bgImage":"safe https URL or internal path","overlay":"0..100","radius":"0..999","borderWidth":"0..12","borderColor":"#RRGGBB or common named colour","shadow":"none|subtle|medium|strong","opacity":"0..100","objectFit":"cover|contain|fill","buttonStyle":"solid|outline|ghost|link","buttonSize":"sm|md|lg","buttonTextColor":"#RRGGBB or common named colour","buttonBgColor":"#RRGGBB or common named colour","hidden":boolean,"order":"1..200, phone position, device mobile only"}}',
-    '{"type":"add_section","pageId":id,"ref":"temp_section_1","kind":kind,"heading":string,"subheading":string,"body":string,"position":number}',
-    '{"type":"delete_section","sectionId":id}',
-    '{"type":"reorder_sections","pageId":id,"sectionIds":[id,...]}',
-    '{"type":"set_composition","sectionId":id,"tree":{"version":1,"label":string,"root":Node}}',
-    `Node = {"type":"${COMPOSITION_PRIMITIVES.join("|")}","text"?:string,"href"?:string,"src"?:string,"mediaRef"?:componentId,"alt"?:string,"level"?:1|2|3|4,"items"?:string[],"anchor"?:"top-left|top-center|top-right|center-left|center|center-right|bottom-left|bottom-center|bottom-right","scrim"?:{"color"?:"#RRGGBB","opacity"?:number},"focal"?:"x% y%","service"?:realServiceName,"initialFrame"?:number,"style"?:Style,"responsive"?:{"mobile"?:Style,"tablet"?:Style,"desktop"?:Style},"widgetPresentation"?:{"eyebrow"?:string,"title"?:string,"description"?:string,"optionPrompt"?:string,"estimateLabel"?:string,"extraLabel"?:string,"actionLabel"?:string,"backLabel"?:string,"successTitle"?:string,"successBody"?:string,"contactLabel"?:string,"fieldLabels"?:object,"theme"?:object},"motion"?:{"kind":"${MOTION_KINDS.join("|")}","delayMs"?:number,"durationMs"?:number,"easing"?:"${MOTION_EASINGS.join("|")}","repeat"?:1|2|3|"loop","trigger"?:"load|view","from"?:{"opacity"?:number,"x"?:number,"y"?:number,"scale"?:number,"rotate"?:number,"blur"?:number}},"hover"?:{"scale"?:number,"x"?:number,"y"?:number,"rotate"?:number,"opacity"?:number,"shadow"?:"none|subtle|medium|strong","durationMs"?:number},"children"?:Node[]}`,
-    PRIMITIVE_GUIDE,
-    'Style keys: columns 1..12, gap 0..240, padding/paddingX/paddingY 0..320, maxWidth 200..2400, align left|center|right, justify start|center|end|between, items start|center|end|stretch, span 1..12, size 8..200, weight 100..900, lineHeight, letterSpacing, italic, uppercase, font, color, background, gradientTo, gradientAngle, radius, borderWidth, borderColor, shadow none|subtle|medium|strong, opacity 0..100, aspect, minHeight, hidden. Layering: position relative|sticky|absolute, top/left/right/bottom -400..1600, zIndex 0..50, overlap 0..400, blur 0..40, rotate -45..45, gridAreas (quoted rows like "media copy"), area (name). Reset overlap/position/rotate on mobile.',
-    "DEFAULT LAYOUT RULE: for every section you add, restructure or redesign (first builds, redesigns and edits alike), author its layout with set_composition — invent the structure yourself. Use add_section only to create the section container, then compose it in the same list using its temp ref. Use set_block_style for literal styling tweaks that do not need a new composition.",
+    "Reply with ONE JSON object that follows the action contract in your instructions, using these site-specific limits:",
     `BUTTONS AND LINKS: every button/link href must be a real destination — "/" for home, "/<slug>" for one of these existing pages (${context.pages.map((page) => `/${page.slug}`).join(", ") || "/"}) or a page you add in this same plan, a section anchor like "#contact" only when that section exists, or the business's own tel:/mailto:. Never use "#", empty or invented URLs. Every services, offer and closing section ends in one clear action button. When you add a page, it is added to the menu and footer automatically.`,
-    '{"type":"set_component","componentId":id,"patch":{"label":string,"body":string,"link_label":string,"link_url":string}}',
-    '{"type":"set_component_visual","componentId":id,"patch":{"media_url":"saved owner photo path (only when given above)","alt":string,"object_fit":"cover|contain","object_position":string,"overlay":"none|soft|dark|brand|gradient","radius":"none|small|medium|large|pill","shadow":"none|soft|medium|strong","aspect_ratio":"1:1|4:3|3:2|16:9|21:9","focal_point":string}}',
-    '{"type":"add_component","sectionId":id,"ref":"temp_component_1","kind":kind,"label":string,"body":string,"link_label":string,"link_url":string}',
-    '{"type":"delete_component","componentId":id}',
-    '{"type":"generate_component_image","componentId":id,"prompt":string,"alt":string,"mode":"replace"|"create"}',
-    '{"type":"add_page","ref":"temp_page_1","kind":kind,"title":string,"slug":string}',
-    '{"type":"set_page","pageId":id,"patch":{"title":string,"seo_title":string,"seo_description":string}}',
-    `{"type":"set_theme","patch":{"primary_color":"#RRGGBB","secondary_color":"#RRGGBB","accent_color":"#RRGGBB","heading_font":"${fonts}","body_font":"${fonts}"}}`,
-    '{"type":"set_business_fact","field":"tagline"|"description","value":string}',
-    "",
-    `Use as many actions as the work genuinely needs — there is no target or budget. Every id must be copied exactly from the website below, or be a temp ref you created earlier in the same list.`,
     `Allowed section kinds: ${context.sectionKinds.join(", ")}.`,
     `Allowed page kinds: ${context.pageKinds.join(", ")}.`,
     `Allowed component kinds: ${context.componentKinds.join(", ")}, image, hero_image.`,
-    "For every existing component marked [has picture], place it visibly in that section's composition using a media node whose mediaRef is that exact component id.",
-    "When a section should show new photography, add the image component, add generate_component_image for it, AND place a media node with that same component id or temp ref inside the section's set_composition tree. A generated picture not referenced by the composition is invisible and is a failed plan.",
-    "When the owner asks to improve, replace or rebuild pictures, include generate_component_image actions for the sections whose photography should change, placed in the composition as above.",
-    "Image prompts describe a real, specific scene for this business: no text, logos, watermarks, awards, reviews or identifiable customers in the picture.",
   ].join("\n");
+}
+
+/**
+ * The planner's static system prefix. It must be byte-identical on every call
+ * and at least 1,024 tokens long: OpenAI-family models on the gateway cache a
+ * prompt prefix automatically from that length, so everything that varies
+ * (the business's design guidance, then the user message) comes after it.
+ * Nothing in here may depend on the business, the site, the date or a request.
+ */
+export const PLANNER_STATIC_PREFIX = [
+  DESIGN_RULES,
+  TRUTH_RULES,
+  mobileFirstChecklist(),
+  STATIC_ACTION_CONTRACT,
+  "You work only through the action contract you are given. You never return prose outside the JSON object.",
+].join("\n\n");
+
+/** Static prefix first, the per-business guidance last. */
+export function plannerSystemPrompt(designGuidance: string): string {
+  return `${PLANNER_STATIC_PREFIX}\n\n${designGuidance}`;
 }
 
 function businessBlock(context: AgentContext): string {
@@ -263,13 +295,7 @@ export async function planWebsiteChangesWithAi(input: {
     context.business.name,
     context.business.description ?? null,
   );
-  const system = [
-    DESIGN_RULES,
-    TRUTH_RULES,
-    designGuidance,
-    mobileFirstChecklist(),
-    "You work only through the action contract you are given. You never return prose outside the JSON object.",
-  ].join("\n\n");
+  const system = plannerSystemPrompt(designGuidance);
 
   const user = [
     "BUSINESS FACTS (the only facts you may state):",

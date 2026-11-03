@@ -32,9 +32,11 @@ export function ActivityFeed({ organizationId }: { organizationId: string | unde
           <p className="text-[12px] text-muted-foreground">
             {isLoading
               ? "Reading your workspace…"
-              : isError
-                ? "Revora couldn't read your activity just now. Nothing is wrong with your website — try again shortly."
-                : (data?.health.summary ?? "")}
+              : isError && !data
+                ? "Activity unavailable right now. Revora couldn't read it — this doesn't mean anything is wrong with your website. It will retry shortly."
+                : isError
+                  ? "Activity unavailable right now — showing the last activity Revora read, which may be out of date."
+                  : (data?.health.summary ?? "")}
           </p>
         </div>
       </header>

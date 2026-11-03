@@ -11,7 +11,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: revora-indexnow-${{ github.workflow }}
+  group: revora-indexnow-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 jobs:
   ping:

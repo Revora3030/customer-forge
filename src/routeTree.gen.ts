@@ -133,6 +133,7 @@ import { Route as ApiPublicJobsLeadDeliveryWatchdogRouteImport } from './routes/
 import { Route as ApiPublicJobsLeadReminderRouteImport } from './routes/api/public/jobs/lead-reminder'
 import { Route as ApiPublicJobsLifecycleEmailRouteImport } from './routes/api/public/jobs/lifecycle-email'
 import { Route as ApiPublicJobsMediaCleanupRouteImport } from './routes/api/public/jobs/media-cleanup'
+import { Route as ApiPublicJobsMonthlyReportRouteImport } from './routes/api/public/jobs/monthly-report'
 import { Route as ApiPublicJobsProspectAutopilotRouteImport } from './routes/api/public/jobs/prospect-autopilot'
 import { Route as ApiPublicJobsProspectRepliesRouteImport } from './routes/api/public/jobs/prospect-replies'
 import { Route as ApiPublicJobsSiteContentAuditRouteImport } from './routes/api/public/jobs/site-content-audit'
@@ -804,6 +805,12 @@ const ApiPublicJobsMediaCleanupRoute =
     path: '/api/public/jobs/media-cleanup',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicJobsMonthlyReportRoute =
+  ApiPublicJobsMonthlyReportRouteImport.update({
+    id: '/api/public/jobs/monthly-report',
+    path: '/api/public/jobs/monthly-report',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicJobsProspectAutopilotRoute =
   ApiPublicJobsProspectAutopilotRouteImport.update({
     id: '/api/public/jobs/prospect-autopilot',
@@ -1019,6 +1026,7 @@ export interface FileRoutesByFullPath {
   '/api/public/jobs/lead-reminder': typeof ApiPublicJobsLeadReminderRoute
   '/api/public/jobs/lifecycle-email': typeof ApiPublicJobsLifecycleEmailRoute
   '/api/public/jobs/media-cleanup': typeof ApiPublicJobsMediaCleanupRoute
+  '/api/public/jobs/monthly-report': typeof ApiPublicJobsMonthlyReportRoute
   '/api/public/jobs/prospect-autopilot': typeof ApiPublicJobsProspectAutopilotRoute
   '/api/public/jobs/prospect-replies': typeof ApiPublicJobsProspectRepliesRoute
   '/api/public/jobs/site-content-audit': typeof ApiPublicJobsSiteContentAuditRoute
@@ -1155,6 +1163,7 @@ export interface FileRoutesByTo {
   '/api/public/jobs/lead-reminder': typeof ApiPublicJobsLeadReminderRoute
   '/api/public/jobs/lifecycle-email': typeof ApiPublicJobsLifecycleEmailRoute
   '/api/public/jobs/media-cleanup': typeof ApiPublicJobsMediaCleanupRoute
+  '/api/public/jobs/monthly-report': typeof ApiPublicJobsMonthlyReportRoute
   '/api/public/jobs/prospect-autopilot': typeof ApiPublicJobsProspectAutopilotRoute
   '/api/public/jobs/prospect-replies': typeof ApiPublicJobsProspectRepliesRoute
   '/api/public/jobs/site-content-audit': typeof ApiPublicJobsSiteContentAuditRoute
@@ -1298,6 +1307,7 @@ export interface FileRoutesById {
   '/api/public/jobs/lead-reminder': typeof ApiPublicJobsLeadReminderRoute
   '/api/public/jobs/lifecycle-email': typeof ApiPublicJobsLifecycleEmailRoute
   '/api/public/jobs/media-cleanup': typeof ApiPublicJobsMediaCleanupRoute
+  '/api/public/jobs/monthly-report': typeof ApiPublicJobsMonthlyReportRoute
   '/api/public/jobs/prospect-autopilot': typeof ApiPublicJobsProspectAutopilotRoute
   '/api/public/jobs/prospect-replies': typeof ApiPublicJobsProspectRepliesRoute
   '/api/public/jobs/site-content-audit': typeof ApiPublicJobsSiteContentAuditRoute
@@ -1441,6 +1451,7 @@ export interface FileRouteTypes {
     | '/api/public/jobs/lead-reminder'
     | '/api/public/jobs/lifecycle-email'
     | '/api/public/jobs/media-cleanup'
+    | '/api/public/jobs/monthly-report'
     | '/api/public/jobs/prospect-autopilot'
     | '/api/public/jobs/prospect-replies'
     | '/api/public/jobs/site-content-audit'
@@ -1577,6 +1588,7 @@ export interface FileRouteTypes {
     | '/api/public/jobs/lead-reminder'
     | '/api/public/jobs/lifecycle-email'
     | '/api/public/jobs/media-cleanup'
+    | '/api/public/jobs/monthly-report'
     | '/api/public/jobs/prospect-autopilot'
     | '/api/public/jobs/prospect-replies'
     | '/api/public/jobs/site-content-audit'
@@ -1719,6 +1731,7 @@ export interface FileRouteTypes {
     | '/api/public/jobs/lead-reminder'
     | '/api/public/jobs/lifecycle-email'
     | '/api/public/jobs/media-cleanup'
+    | '/api/public/jobs/monthly-report'
     | '/api/public/jobs/prospect-autopilot'
     | '/api/public/jobs/prospect-replies'
     | '/api/public/jobs/site-content-audit'
@@ -1809,6 +1822,7 @@ export interface RootRouteChildren {
   ApiPublicJobsLeadReminderRoute: typeof ApiPublicJobsLeadReminderRoute
   ApiPublicJobsLifecycleEmailRoute: typeof ApiPublicJobsLifecycleEmailRoute
   ApiPublicJobsMediaCleanupRoute: typeof ApiPublicJobsMediaCleanupRoute
+  ApiPublicJobsMonthlyReportRoute: typeof ApiPublicJobsMonthlyReportRoute
   ApiPublicJobsProspectAutopilotRoute: typeof ApiPublicJobsProspectAutopilotRoute
   ApiPublicJobsProspectRepliesRoute: typeof ApiPublicJobsProspectRepliesRoute
   ApiPublicJobsSiteContentAuditRoute: typeof ApiPublicJobsSiteContentAuditRoute
@@ -2694,6 +2708,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicJobsMediaCleanupRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/jobs/monthly-report': {
+      id: '/api/public/jobs/monthly-report'
+      path: '/api/public/jobs/monthly-report'
+      fullPath: '/api/public/jobs/monthly-report'
+      preLoaderRoute: typeof ApiPublicJobsMonthlyReportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/jobs/prospect-autopilot': {
       id: '/api/public/jobs/prospect-autopilot'
       path: '/api/public/jobs/prospect-autopilot'
@@ -3118,6 +3139,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicJobsLeadReminderRoute: ApiPublicJobsLeadReminderRoute,
   ApiPublicJobsLifecycleEmailRoute: ApiPublicJobsLifecycleEmailRoute,
   ApiPublicJobsMediaCleanupRoute: ApiPublicJobsMediaCleanupRoute,
+  ApiPublicJobsMonthlyReportRoute: ApiPublicJobsMonthlyReportRoute,
   ApiPublicJobsProspectAutopilotRoute: ApiPublicJobsProspectAutopilotRoute,
   ApiPublicJobsProspectRepliesRoute: ApiPublicJobsProspectRepliesRoute,
   ApiPublicJobsSiteContentAuditRoute: ApiPublicJobsSiteContentAuditRoute,

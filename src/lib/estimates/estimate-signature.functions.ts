@@ -72,6 +72,10 @@ export const saveEstimateSignature = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<SaveSignatureResult> => {
     const { requireOrgRole } = await import("@/lib/org-authz.server");
     await requireOrgRole(context.supabase, data.organizationId, context.userId, "staff");
+    // A leadId from the browser must belong to this workspace before it is
+    // stored with the service role below.
+    const { assertLeadInOrg } = await import("./estimate-lead-scope.server");
+    await assertLeadInOrg(context.supabase, data.organizationId, data.leadId);
     const documentSha256 = await sha256Hex(data.documentJson);
     const png = signaturePngBytes(data.signaturePng)!;
 

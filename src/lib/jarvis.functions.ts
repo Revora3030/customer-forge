@@ -7,6 +7,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { JarvisDiagnostics } from "./jarvis-diagnostics.server";
 import { parsePullRequestProposal, parseRoutineDraft } from "./jarvis-actions";
 import { adminPath } from "./jarvis-page-context";
+import { parseVoiceFlag, voiceBrevityLines } from "./jarvis-voice-brevity";
 
 type Turn = { role: "user" | "assistant"; content: string };
 type Mode = "brief" | "balanced" | "deep";
@@ -172,7 +173,7 @@ function splitFollowups(raw: string): { body: string; followups: string[] } {
 }
 
 /** Server-only: its body (dynamic imports of jarvis *.server modules, Node built-ins) must never reach the browser bundle. */
-export const runJarvis = createServerOnlyFn(async (db: SupabaseClient, userId: string, mode: Mode, page: string | null = null, conversationId: string | null = null, liveRunId: string | null = null, pickedModel: string | null = null) => {
+export const runJarvis = createServerOnlyFn(async (db: SupabaseClient, userId: string, mode: Mode, page: string | null = null, conversationId: string | null = null, liveRunId: string | null = null, pickedModel: string | null = null, voice = false) => {
   // Without an explicit conversation, continue the one the latest message joined.
   if (!conversationId) {
     const latest = await db.from("jarvis_messages").select("conversation_id").eq("user_id", userId).order("created_at", { ascending: false }).limit(1).maybeSingle();
@@ -207,6 +208,7 @@ export const runJarvis = createServerOnlyFn(async (db: SupabaseClient, userId: s
     "You are Jarvis, Revora's private super-admin chief of staff: part diagnostician, part growth strategist, part writer, part senior engineer.",
     `Current time (Eastern): ${now}.`,
     MODE_CONFIG[mode].rule,
+    ...voiceBrevityLines(voice),
     "The owner builds websites, lead generation, CRM, and email/SMS automation for local service businesses, starting around Raleigh and Chapel Hill, NC. He is direct, informal, and action-oriented.",
     "Talk like a sharp partner, not a report generator: lead with the bottom line in one or two sentences, then the evidence, then a short numbered list of next actions ordered by impact. Skip filler, apologies, and generic disclaimers.",
     "Formatting: the owner reads on a phone. Never use markdown tables. Use short paragraphs, bullets, and numbered steps. Bold only key terms. Put code, SQL, and copy-paste prompts in fenced blocks.",
@@ -345,13 +347,13 @@ export const runJarvis = createServerOnlyFn(async (db: SupabaseClient, userId: s
 
 export const sendJarvisMessage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((input: { message: string; mode?: Mode; page?: string; conversationId?: string | null; runId?: string | null; model?: string | null }) => {
+  .validator((input: { message: string; mode?: Mode; page?: string; conversationId?: string | null; runId?: string | null; model?: string | null; voice?: boolean }) => {
     if (typeof input?.message !== "string") throw new Error("Type a message first.");
     const message = input.message.trim();
     if (!message) throw new Error("Type a message first.");
     if (message.length > 4000) throw new Error("Keep your message under 4,000 characters.");
     const runId = typeof input.runId === "string" && /^[0-9a-f-]{36}$/i.test(input.runId) ? input.runId : null;
-    return { message, mode: parseMode(input.mode), page: adminPath(input.page), conversationId: parseConversationId(input.conversationId), runId, model: parsePickedModel(input.model) };
+    return { message, mode: parseMode(input.mode), page: adminPath(input.page), conversationId: parseConversationId(input.conversationId), runId, model: parsePickedModel(input.model), voice: parseVoiceFlag(input.voice) };
   })
   .handler(async ({ context, data }) => {
     const db = await guardedAdmin(context);
@@ -363,7 +365,7 @@ export const sendJarvisMessage = createServerFn({ method: "POST" })
     if (conversationId) {
       await db.from("jarvis_conversations").update({ title: conversationTitle(data.message) }).eq("id", conversationId).eq("user_id", userId).eq("title", "New conversation");
     }
-    return runJarvis(db, userId, data.mode, data.page, conversationId, data.runId, data.model);
+    return runJarvis(db, userId, data.mode, data.page, conversationId, data.runId, data.model, data.voice);
   });
 
 export const regenerateJarvisReply = createServerFn({ method: "POST" })
