@@ -84,3 +84,23 @@ export function useBuildProgress(
     latest: (query.data ?? []).find((step) => step.stage !== MODEL_AT_WORK) ?? null,
   };
 }
+
+/** The reply Revora is writing right now for this request (live chat text), or "". */
+export function useReplyDraft(organizationId: string | null | undefined, requestId: string | null | undefined, active: boolean): string {
+  const query = useQuery({
+    queryKey: ["builder-reply-draft", organizationId, requestId],
+    enabled: Boolean(organizationId && requestId) && active,
+    refetchInterval: active ? 700 : false,
+    queryFn: async (): Promise<string> => {
+      const { data, error } = await supabase
+        .from("builder_reply_drafts")
+        .select("text")
+        .eq("organization_id", organizationId as string)
+        .eq("run_id", requestId as string)
+        .maybeSingle();
+      if (error) throw error;
+      return data?.text ?? "";
+    },
+  });
+  return query.data ?? "";
+}

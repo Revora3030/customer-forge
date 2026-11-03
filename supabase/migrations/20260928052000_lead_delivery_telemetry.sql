@@ -26,6 +26,7 @@ create index if not exists lead_delivery_logs_lead_attempted_idx
 alter table public.lead_delivery_logs enable row level security;
 
 -- Workspace members can inspect delivery history for their own tenant.
+drop policy if exists lead_delivery_logs_member_select on public.lead_delivery_logs;
 create policy lead_delivery_logs_member_select
   on public.lead_delivery_logs
   for select to authenticated

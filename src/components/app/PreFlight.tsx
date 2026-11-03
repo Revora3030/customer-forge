@@ -13,6 +13,7 @@ import type { PreflightCheck, PreflightGroup, PreflightResult } from "@/lib/pref
 import type { Regression } from "@/lib/site-regression";
 import { autoFixable } from "@/lib/preflight";
 import type { ClaimState } from "@/lib/claim-registry";
+import { SecurityCheckLine, type RenderFix } from "@/components/app/SecurityCheckLine";
 
 const groupIcon = (group: PreflightGroup) => {
   if (group.status === "fail") return <X className="size-3.5 text-destructive" aria-hidden />;
@@ -59,6 +60,7 @@ export function PreFlightPanel({
   isHealing = false,
   healSummary,
   regressions = [],
+  renderSecurityFix,
 }: {
   result: PreflightResult;
   isChecking?: boolean;
@@ -72,6 +74,8 @@ export function PreFlightPanel({
   healSummary?: string | null;
   /** Anything that got worse since this workspace's previous check. */
   regressions?: Regression[];
+  /** Hook for the shared LOV-5 "Fix it with AI" card; a plain Fix link is used when omitted. */
+  renderSecurityFix?: RenderFix | undefined;
 }) {
   const fixable = autoFixable(result);
 
@@ -105,6 +109,8 @@ export function PreFlightPanel({
           </li>
         ))}
       </ul>
+
+      <SecurityCheckLine check={result.securityCheck} renderFix={renderSecurityFix} />
 
       {result.blockers.length > 0 ? (
         <div className="mt-4">

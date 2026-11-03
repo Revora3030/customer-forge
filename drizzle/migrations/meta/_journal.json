@@ -162,6 +162,27 @@
       "when": 1793347885332,
       "tag": "0022_customer_jobs_schedule",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1793615710566,
+      "tag": "0023_lifecycle_email_optouts_table",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1793662681205,
+      "tag": "0024_builder_chat_jobs",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1793664431032,
+      "tag": "0025_builder_reply_drafts",
+      "breakpoints": true
     }
   ]
 }

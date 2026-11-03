@@ -26,14 +26,14 @@ describe("decideConversation retry", () => {
   it("reports unavailable (not a fake answer) when both attempts fail", async () => {
     generate.mockImplementation(async () => { throw new ProviderError("busy"); });
     const decision = await decideConversation(input);
-    expect(generate).toHaveBeenCalledTimes(2);
+    expect(generate).toHaveBeenCalledTimes(3); // quick sort step + two full attempts;
     expect(decision.mode).toBe("unavailable");
   });
 
   it("does not retry a failure that cannot succeed", async () => {
     generate.mockImplementation(async () => { throw Object.assign(new Error("no key"), { category: "unauthorized" }); });
     const decision = await decideConversation(input);
-    expect(generate).toHaveBeenCalledTimes(1);
+    expect(generate).toHaveBeenCalledTimes(2); // quick sort step + one full attempt;
     expect(decision.mode).toBe("unavailable");
   });
 });

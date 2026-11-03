@@ -4,9 +4,11 @@
  * live catalogue, not deprecated, and zero-retention (or an allowed anthropic id).
  */
 export const LOVABLE_CONVERSATION_MODELS = [
+  // Cost order (owner 2026-11-02): Gemini 3.8 Flash answers first on Auto;
+  // the owner can still pick any stronger model in the picker.
+  "google/gemini-3.8-flash",
   "openai/gpt-6.1-sol",
   "anthropic/claude-sonnet-5",
-  "google/gemini-3.8-flash",
   "google/gemini-3.1-flash-lite",
   "anthropic/claude-opus-5-5",
   "openai/gpt-6-sol",

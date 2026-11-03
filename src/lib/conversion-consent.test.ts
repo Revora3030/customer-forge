@@ -61,4 +61,15 @@ describe("first-party visitor id consent gate", () => {
     )[0];
     expect(arg.data.visitorId).toBe(id);
   });
+
+  it("never sends stored test variants without analytics consent", async () => {
+    const local = browser();
+    local.set("revora.experiments.v1", JSON.stringify({ pricing_layout: "split" }));
+    canTrackAds.mockResolvedValue(false);
+    const { trackConversion } = await import("./conversion");
+    trackConversion("page_view");
+    await flush();
+    const arg = (recordConversion.mock.calls[0] as unknown as [{ data: { metadata: unknown } }])[0];
+    expect(arg.data.metadata).toEqual({});
+  });
 });
