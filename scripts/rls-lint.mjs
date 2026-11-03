@@ -87,7 +87,17 @@ const policies = []; // {table, name, cmd, roles, using, check, file}
 const files = readdirSync(dir).filter((f) => f.endsWith(".sql")).sort();
 for (const file of files) {
   const stmts = splitStatements(readFileSync(join(dir, file), "utf8"));
-  for (const s of stmts) {
+  for (let si = 0; si < stmts.length; si++) {
+    const s = stmts[si];
+    // Idempotent guard inside a DO block: `IF NOT EXISTS (... pg_policies ...) THEN CREATE POLICY ...`.
+    // Lint each guarded policy exactly like a top-level one (inserted right after the DO block).
+    if (/^do\s+\$/i.test(s)) {
+      const body = /\$[A-Za-z0-9_]*\$([\s\S]*)\$[A-Za-z0-9_]*\$/.exec(s)?.[1] ?? "";
+      const guarded = splitStatements(body)
+        .map((inner) => /^\s*(?:begin\s+)?if\s+not\s+exists\b[\s\S]*?\bthen\s+(create\s+policy\b[\s\S]*)$/i.exec(inner)?.[1])
+        .filter(Boolean);
+      if (guarded.length) stmts.splice(si + 1, 0, ...guarded);
+    }
     const flat = s.replace(/\s+/g, " ");
     let m;
     if ((m = new RegExp(`^create (?:unlogged )?table (?:if not exists )?${qual}`, "i").exec(flat)) && !/^create table \S+\.\S+/i.test(flat.replace(/"?public"?\./i, "")) ) {

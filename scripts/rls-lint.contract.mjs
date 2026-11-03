@@ -46,4 +46,30 @@ begin foreach t in array all_t loop
 end loop; end $$;
 `);
 check("dynamic DO-loop RLS is understood", dyn.report.summary.tables === 1 && rules(dyn).length === 0);
+const guardedBad = lint(`
+create table public.g (id int);
+alter table public.g enable row level security;
+do $$
+begin
+  if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'g' and policyname = 'g_open') then
+    create policy "g_open" on public.g for insert to anon with check (true);
+  end if;
+end $$;
+`);
+check("a policy guarded by IF NOT EXISTS is still linted", JSON.stringify(rules(guardedBad)) === JSON.stringify(["open-write-policy"]));
+
+const guardedGood = lint(`
+create table public.h (id int, org uuid);
+alter table public.h enable row level security;
+do $$
+begin
+  if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'h' and policyname = 'h_read') then
+    create policy "h_read" on public.h for select to authenticated using (org is not null);
+  end if;
+end $$;
+`);
+check(
+  "a guarded policy counts as the table's policy",
+  guardedGood.code === 0 && rules(guardedGood).length === 0 && !guardedGood.report.findings.some((f) => f.rule === "no-policy"),
+);
 process.exit(failed ? 1 : 0);
