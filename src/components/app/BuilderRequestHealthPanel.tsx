@@ -7,7 +7,7 @@ const secs = (v: number | null | undefined) =>
   v == null ? "—" : v < 90 ? `${v}s` : `${Math.round(v / 60)}m`;
 
 const label = { changed: "Changed", answered: "Answered", failed: "Failed", no_reply: "No reply" } as const;
-const tone = { changed: "success", answered: "signal", failed: "danger", no_reply: "attention" } as const;
+const tone = { changed: "signal", answered: "info", failed: "danger", no_reply: "attention" } as const;
 
 /** Super-admin view of builder chat requests over the last 7 days. */
 export function BuilderRequestHealthPanel() {
