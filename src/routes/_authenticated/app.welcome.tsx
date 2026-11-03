@@ -89,7 +89,7 @@ function WelcomePage() {
     }, () => setConfirmationTimedOut(true));
   }, [orgId, setupPaid, subActive, returnedFromCheckout, queryClient, confirmationAttempt]);
   const steps = [
-    { label: "Setup payment received", done: setupPaid },
+    { label: "Setup confirmed", done: setupPaid },
     {
       label: trialing
         ? `Platform ${GROWTH_SYSTEM.firstMonthFree}`
