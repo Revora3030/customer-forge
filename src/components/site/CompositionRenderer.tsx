@@ -21,6 +21,7 @@ import { LensMagnifier, StickySplitStory, TierFader } from "@/components/site/Ma
 import { capScrubFrames } from "@/lib/builder/scrub";
 import { CollectionRow, DialSelector, HeroVideo, InlineHeroVideo, SceneVideo, ScrubSequence, ScrubStage, ScrollChapters, SpinViewer, type SpinFrame } from "@/components/site/CinematicBlocks";
 import { CINEMATIC_CSS } from "@/components/site/cinematic-css";
+import { headingClamp } from "@/lib/type-scale";
 import { CountUpText } from "@/components/site/CountUp";
 import { ModelViewer } from "@/components/site/ModelViewer";
 import { ShaderField } from "@/components/site/ShaderField";
@@ -78,12 +79,8 @@ export function styleToCss(style: NodeStyle | undefined, type: CompositionNode["
   if (style.items) css.alignItems = ITEMS[style.items];
   if (style.size != null) {
     if (type === "heading") {
-      const max = Math.round(style.size);
-      // Never let the floor exceed the authored size (clamp() with min > max
-      // is invalid and the browser dropped the size entirely).
-      const min = Math.min(max, Math.max(18, Math.round(max * 0.72)));
-      const vw = Math.max(2.5, Math.min(8, Math.round((max / 16) * 10) / 10));
-      css.fontSize = `clamp(${min}px, ${vw}vw, ${max}px)`;
+      // rem-anchored fluid size (zoom-safe), max ≤ 2.5× min; see type-scale.ts.
+      css.fontSize = headingClamp(style.size);
     } else {
       css.fontSize = style.size;
     }
