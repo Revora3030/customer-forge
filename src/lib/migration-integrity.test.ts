@@ -57,6 +57,64 @@ describe("supabase migrations integrity", () => {
     expect(offenders).toEqual([]);
   });
 
+  // Files from here on were merged without being applied live and are applied
+  // later, possibly out of order and possibly twice (2026-11-03 pre-apply review).
+  const REVIEWED_FROM = "20261029000000";
+  const recent = files.filter((f) => versionOf(f) >= REVIEWED_FROM);
+  const code = (f: string) => stripComments(readFileSync(`${DIR}/${f}`, "utf8"));
+
+  it("scopes recent workspace policies through private.is_org_member, never an inline memberships query", () => {
+    // Latest definition of each policy wins (a later file may replace it).
+    const latest = new Map<string, { file: string; body: string }>();
+    for (const f of files) {
+      for (const m of code(f).matchAll(/create\s+policy\s+"?([^"\n]+?)"?\s+on\s+(?:public\.)?(\w+)([\s\S]*?);/gi)) {
+        latest.set(`${m[2]}.${m[1]}`, { file: f, body: m[3] ?? "" });
+      }
+    }
+    const offenders = [...latest.entries()]
+      .filter(([, p]) => versionOf(p.file) >= REVIEWED_FROM && /\b(?:public\.)?memberships\b/i.test(p.body))
+      .map(([k, p]) => `${k} (${p.file})`);
+    expect(offenders).toEqual([]);
+  });
+
+  it("revokes anon from every public table created by a recent migration", () => {
+    const all = files.map(code).join("\n");
+    const missing: string[] = [];
+    for (const f of recent) {
+      for (const m of code(f).matchAll(/create\s+table\s+(?:if\s+not\s+exists\s+)?public\.(\w+)/gi)) {
+        const t = m[1] ?? "";
+        const revoked = new RegExp(String.raw`revoke[^;]*\bon\s+(?:table\s+)?[^;]*public\.${t}\b[^;]*\bfrom\b[^;]*\banon\b`, "i");
+        if (!revoked.test(all)) missing.push(`${t} (${f})`);
+      }
+    }
+    expect(missing).toEqual([]);
+  });
+
+  it("keeps recent CREATE TABLE / CREATE INDEX re-runnable", () => {
+    const offenders: string[] = [];
+    for (const f of recent) {
+      const sql = code(f);
+      for (const m of sql.matchAll(/create\s+(?:unique\s+)?(table|index)\s+(?!if\s+not\s+exists)(?:concurrently\s+)?(?:public\.)?(\w+)/gi)) {
+        // A CREATE TABLE inside an explicit "only when absent" guard is fine.
+        if (m[1]?.toLowerCase() === "table" && new RegExp(String.raw`to_regclass\('public\.${m[2]}'\)\s+is\s+null`, "i").test(sql)) continue;
+        offenders.push(`${f}: create ${m[1]} ${m[2]}`);
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it("follow-up 20261103120000 fixes the reviewed files without touching data", () => {
+    const followUp = "20261103120000_unapplied_migrations_followup.sql";
+    expect(files).toContain(followUp);
+    const sql = code(followUp);
+    expect(sql).not.toMatch(/\b(drop\s+table|drop\s+column|truncate\s+(?:table\s+)?(?:only\s+)?public\.|delete\s+from|insert\s+into|update\s+public\.)/i);
+    // Embedding FK follows its parent: dropped only when jarvis_memories has no auth.users FK (live drizzle 0010).
+    expect(sql).toMatch(/if\s+not\s+exists\s*\([\s\S]*conrelid\s*=\s*'public\.jarvis_memories'::regclass[\s\S]*confrelid\s*=\s*'auth\.users'::regclass[\s\S]*\)\s*then\s*alter\s+table\s+public\.jarvis_memory_embeddings\s+drop\s+constraint\s+if\s+exists\s+jarvis_memory_embeddings_user_id_fkey/i);
+    for (const t of ["site_hosting_grace", "agent_runs", "agent_run_steps", "agent_run_events", "estimate_signatures", "builder_quality_log"]) {
+      expect(sql).toMatch(new RegExp(String.raw`revoke\s+insert,\s*update,\s*delete,\s*truncate[^;]*public\.${t}\s+from\s+authenticated`, "i"));
+    }
+  });
+
   it("closes every dollar-quoted body", () => {
     const offenders: string[] = [];
     for (const f of files) {
