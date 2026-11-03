@@ -1,0 +1,9 @@
+{
+  "_comment": "Tables created before scripts/grants-lint.mjs existed whose creating migration has no explicit GRANT (they REVOKE ALL from PUBLIC/anon/authenticated and rely on service_role's default privileges). Never add to this list: put GRANTs in the migration instead. Remove an entry once a migration grants it explicitly.",
+  "tables": [
+    "ai_paid_daily_budget",
+    "ai_paid_spend_reservations",
+    "voice_daily_budget",
+    "voice_link_claims"
+  ]
+}

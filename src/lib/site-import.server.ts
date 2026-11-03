@@ -1,13 +1,15 @@
 import { guardedFetch } from "./net-guard.server";
 import { validatePublicWebsiteUrl } from "./audit/website-audit";
 import { ownDomainLogoUrl } from "./brand-logos";
-import { extractFacts, mergeFacts, nextPages, type ImportedFacts } from "./site-import";
+import { extractFacts, isThirdPartySource, mergeFacts, nextPages, type ImportedFacts } from "./site-import";
 
 const MAX_PAGE_BYTES = 1_500_000;
 const MAX_REDIRECTS = 4;
 const PAGE_TIMEOUT_MS = 10_000;
 
 export class SiteImportError extends Error {}
+
+const THIRD_PARTY_MESSAGE = "Enter your own website address. Revora only reads your own site, not a Google Maps, Yelp, directory or social page.";
 
 /** Reads at most `limit` bytes; the rest of the body is never downloaded. */
 async function boundedHtml(response: Response, limit = MAX_PAGE_BYTES): Promise<string> {
@@ -46,6 +48,8 @@ async function fetchPage(start: string): Promise<{ url: string; html: string } |
       await response.body?.cancel().catch(() => undefined);
       if (!location) return null;
       url = validatePublicWebsiteUrl(new URL(location, url).toString()).toString();
+      // Only the owner's own site is read: a redirect to a map, directory or social page stops here.
+      if (isThirdPartySource(url)) return null;
       continue;
     }
     if (!response.ok) {
@@ -65,7 +69,9 @@ export type SiteImportResult = { url: string; pagesRead: string[]; facts: Import
 
 /**
  * Reads a business's existing home page and up to three of its own pages
- * (services, about, contact) and returns the facts they state.
+ * (services, about, contact) and returns the facts they state: Schema.org
+ * JSON-LD first, then meta tags and links. Map, review, directory and social
+ * pages are refused, including when the owner's address redirects to one.
  */
 export async function importSite(rawUrl: string): Promise<SiteImportResult> {
   let start: string;
@@ -74,6 +80,7 @@ export async function importSite(rawUrl: string): Promise<SiteImportResult> {
   } catch (error) {
     throw new SiteImportError(error instanceof Error ? error.message : "Enter your website address.");
   }
+  if (isThirdPartySource(start)) throw new SiteImportError(THIRD_PARTY_MESSAGE);
   let home: { url: string; html: string } | null;
   try {
     home = await fetchPage(start);

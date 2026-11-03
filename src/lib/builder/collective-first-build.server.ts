@@ -33,6 +33,7 @@ import { craftBarPrompt } from "@/lib/builder/world-class-craft";
 import { detectGenericPhrases } from "@/lib/builder/genericity";
 import { normalizeAspect } from "@/lib/builder/composition-tree";
 import type { ServiceAwareImageSpec } from "@/lib/builder/creative-authority";
+import { inventSignature, signatureBriefLine, type InventedSignature } from "@/lib/builder/ai-brand-identity.server";
 
 export type CollectivePassRecord = {
   tier: "sol" | "terra" | "luna" | "hall_of_fame";
@@ -55,6 +56,8 @@ export type CollectiveFirstBuild = {
   copyChanged: boolean;
   passes: CollectivePassRecord[];
   totalCostMicrocents: number;
+  /** The gated signature mechanic, when one was invented in this run (absent on resume or when none passed). */
+  signature?: InventedSignature | null;
 };
 
 type CreativeBriefPatch = Partial<
@@ -636,9 +639,12 @@ async function authorCoreDirection(input: {
   brief: SiteBrief;
   creative: FirstBuildCreativeDirection;
   signal?: AbortSignal;
+  /** The gated signature mechanic to build around, when one was invented. */
+  signature?: InventedSignature | null;
 }): Promise<CreativeStepResult> {
   const passes: CollectivePassRecord[] = [];
   const facts = factSheet(input.facts, input.brief, input.creative);
+  const signatureLine = signatureBriefLine(input.signature ?? null);
   const current = creativeSheet(input.creative);
   const vocabulary = JSON.stringify({ briefFields: [...CORE_BRIEF_FIELDS] }, null, 2);
 
@@ -658,6 +664,7 @@ async function authorCoreDirection(input: {
       "CURRENT CREATIVE DIRECTION:",
       current,
       "",
+      ...(signatureLine ? [signatureLine, ""] : []),
       "FIELDS YOU MAY AUTHOR (values are yours to invent):",
       vocabulary,
       "",
@@ -1098,6 +1105,41 @@ function firstBuildCopyStrings(value: unknown): string[] {
   return out;
 }
 
+/** Runs the signature-invention step and records it as a pass. Never throws. */
+async function inventFirstBuildSignature(
+  input: { organizationId: string; facts: DnaFacts; brief: SiteBrief; signal?: AbortSignal },
+  passes: CollectivePassRecord[],
+): Promise<InventedSignature | null> {
+  const facts = input.facts;
+  try {
+    const outcome = await inventSignature({
+      organizationId: input.organizationId,
+      businessName: facts.businessName ?? null,
+      industry: facts.industry ?? null,
+      city: formatLocality(facts.city, facts.region) || null,
+      proof: (facts.testimonialCount ?? 0) > 0 ? `${facts.testimonialCount} testimonials supplied` : null,
+      photoCount: Math.max(0, facts.photoCount ?? 0),
+      videoSeconds: null,
+      spine: facts.ownerStatements?.slice(0, 300) || facts.description?.slice(0, 300) || null,
+      ...(input.signal ? { signal: input.signal } : {}),
+    });
+    passes.push(
+      record(outcome.tier === "sol" || outcome.tier === "terra" || outcome.tier === "luna" ? outcome.tier : "hall_of_fame", "signature_invention", {
+        model: outcome.model,
+        used: outcome.signature !== null,
+        costMicrocents: outcome.costMicrocents,
+        skipped: outcome.signature
+          ? null
+          : outcome.failures.map((f) => `${f.test}: ${f.reason}`).join("; ") || "no signature passed the gate",
+        acceptedFields: outcome.signature ? ["signature"] : [],
+      }),
+    );
+    return outcome.signature;
+  } catch {
+    return null;
+  }
+}
+
 export async function refineFirstBuildWithCollective(input: {
   organizationId: string;
   facts: DnaFacts;
@@ -1137,6 +1179,7 @@ export async function refineFirstBuildWithCollective(input: {
   // (look and a 28-picture campaign together) outran the gateway's edge limit
   // on a slow model, and every retry started over from the first word.
   const creativePasses: CollectivePassRecord[] = [];
+  let signature: InventedSignature | null | undefined;
   const resumedDirection = input.checkpoints
     ? await input.checkpoints.get<CreativeSnapshot>("creative-direction", snapshotInputs)
     : null;
@@ -1153,13 +1196,19 @@ export async function refineFirstBuildWithCollective(input: {
       creativeChanged = resumedCore.changed;
       creativePasses.push(...resumedCore.passes);
     } else {
+      // Signature invention: between the business brief and the look, so the
+      // one mechanic a stranger remembers is decided first. Fail-open: with
+      // no passing signature the design team proceeds exactly as before.
+      // It is part of the owner-facing "design direction" step.
       report("planning your design direction");
+      signature = await inventFirstBuildSignature(input, creativePasses);
       const coreResult = await authorCoreDirection({
         organizationId: input.organizationId,
         facts: input.facts,
         brief: input.brief,
         creative,
         ...(input.signal ? { signal: input.signal } : {}),
+        ...(signature ? { signature } : {}),
       });
       creative = coreResult.creative;
       creativeChanged = coreResult.changed;
@@ -1548,5 +1597,6 @@ export async function refineFirstBuildWithCollective(input: {
     copyChanged,
     passes,
     totalCostMicrocents: passes.reduce((sum, pass) => sum + pass.costMicrocents, 0),
+    ...(signature !== undefined ? { signature } : {}),
   };
 }

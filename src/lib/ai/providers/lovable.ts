@@ -46,13 +46,34 @@ function headers(apiKey: string) {
   };
 }
 
-function usageOf(payload: unknown): AiUsage {
-  const usage = (payload as { usage?: Record<string, number> } | null)?.usage;
+export function usageOf(payload: unknown): AiUsage {
+  const usage = (payload as { usage?: Record<string, unknown> } | null)?.usage;
+  const details = usage?.["prompt_tokens_details"] as Record<string, unknown> | undefined;
+  const cached = details?.["cached_tokens"];
   return {
     inputTokens: typeof usage?.["prompt_tokens"] === "number" ? usage["prompt_tokens"] : null,
     outputTokens:
       typeof usage?.["completion_tokens"] === "number" ? usage["completion_tokens"] : null,
+    ...(typeof cached === "number" ? { cachedInputTokens: cached } : {}),
   };
+}
+
+/**
+ * One structured log line per chat call with the prompt-cache outcome, so the
+ * hit rate can be measured from Worker logs before anyone believes it.
+ * `cached_tokens` is null when the gateway did not report it (unknown, not 0).
+ */
+export function logPromptCache(model: string, usage: AiUsage): void {
+  if (usage.inputTokens === null) return;
+  console.info(
+    JSON.stringify({
+      event: "ai.prompt_cache",
+      provider: "lovable",
+      model,
+      prompt_tokens: usage.inputTokens,
+      cached_tokens: usage.cachedInputTokens ?? null,
+    }),
+  );
 }
 
 /**
@@ -555,6 +576,7 @@ export const lovableAdapter: ProviderAdapter = {
       const streamed = await readChatStream(response.body);
       // A cut-off answer is a failure that hands over to the next model, never a partial plan.
       if (streamed.finishReason === "length") throw truncated();
+      logPromptCache(model, streamed.usage);
       return { text: answerOrThrow(streamed.text), usage: streamed.usage };
     }
     // The gateway answered with one plain completion (it ignored `stream`).
@@ -562,7 +584,9 @@ export const lovableAdapter: ProviderAdapter = {
       choices?: { message?: { content?: string }; finish_reason?: string }[];
     };
     if (payload.choices?.[0]?.finish_reason === "length") throw truncated();
-    return { text: answerOrThrow(payload.choices?.[0]?.message?.content ?? ""), usage: usageOf(payload) };
+    const usage = usageOf(payload);
+    logPromptCache(model, usage);
+    return { text: answerOrThrow(payload.choices?.[0]?.message?.content ?? ""), usage };
   },
 
   async stream({ apiKey, model, messages, maxOutputTokens, signal }) {

@@ -84,3 +84,35 @@ export const getRecentBuildReports = createServerFn({ method: "GET" })
       }),
     );
   });
+
+/**
+ * Seven-day builder chat request health, from saved chat messages and live
+ * progress steps. Super-admin only; counts, timings and short failure reasons.
+ */
+export const getBuilderRequestHealth = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { assertSuperAdmin } = await import("@/lib/admin.server");
+    await assertSuperAdmin(context.supabase, context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const db = supabaseAdmin as unknown as import("@supabase/supabase-js").SupabaseClient;
+    const since = new Date(Date.now() - 7 * 86_400_000).toISOString();
+    const [messages, progress] = await Promise.all([
+      db
+        .from("builder_messages")
+        .select("request_id, role, kind, content, plan, created_at")
+        .gte("created_at", since)
+        .not("request_id", "is", null)
+        .order("created_at", { ascending: false })
+        .limit(2000),
+      db
+        .from("builder_progress")
+        .select("run_id, stage, created_at")
+        .gte("created_at", since)
+        .order("created_at", { ascending: false })
+        .limit(5000),
+    ]);
+    if (messages.error || progress.error) throw new Error("Couldn't load builder request health.");
+    const { buildTimelines, summariseRequests } = await import("@/lib/builder/request-health");
+    return summariseRequests(buildTimelines((messages.data ?? []) as never, (progress.data ?? []) as never));
+  });

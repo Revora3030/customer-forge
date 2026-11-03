@@ -17,7 +17,7 @@ permissions:
 
 concurrency:
   group: revora-browser-qa-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   browser:
@@ -34,7 +34,7 @@ jobs:
           node-version: 22
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
@@ -75,6 +75,19 @@ jobs:
           npm install --no-save --no-audit --no-fund playwright@1.64.1
           npx playwright install chromium
           npm run site:sweep -- "$BROWSER_QA_BASE_URL" --max=80 --out=browser-qa-artifacts/page-sweep.json
+
+      - name: Accessibility + layout-stability gate (IBM Equal Access + CLS)
+        env:
+          BROWSER_QA_BASE_URL: ${{ inputs.base_url || 'http://127.0.0.1:8080' }} # DevSkim: ignore DS162092,DS137138 -- CI-only local app under test.
+        # Key routes at 320 and 1440 px: accessibility-checker-engine (Apache-2.0, WCAG_2_2 policy)
+        # after hydration + fonts.ready, CLS after a 3 s settle.
+        # Exit 1 on CLS > 0.1 or a definite violation; exit 2 when no browser could run.
+        # The engine is installed --no-save (with playwright, in one command, so neither prunes the
+        # other) so this step works whether or not package.json already lists it; nothing re-adds axe-core.
+        run: |
+          npm install --no-save --no-audit --no-fund playwright@1.64.1 accessibility-checker-engine@4.0.34
+          npm run qa:a11y-cls:test
+          npm run qa:a11y-cls -- "$BROWSER_QA_BASE_URL" --out=browser-qa-artifacts/a11y-cls.json
 
 
       - name: Install agent-browser CLI
