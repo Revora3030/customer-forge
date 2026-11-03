@@ -6001,7 +6001,6 @@ export type Database = {
           current_period_start: string | null
           environment: string
           id: string
-          last_stripe_event_created: number | null
           organization_id: string
           payment_provider: string
           plan_id: string | null
@@ -6022,7 +6021,6 @@ export type Database = {
           current_period_start?: string | null
           environment?: string
           id?: string
-          last_stripe_event_created?: number | null
           organization_id: string
           payment_provider?: string
           plan_id?: string | null
@@ -6043,7 +6041,6 @@ export type Database = {
           current_period_start?: string | null
           environment?: string
           id?: string
-          last_stripe_event_created?: number | null
           organization_id?: string
           payment_provider?: string
           plan_id?: string | null
