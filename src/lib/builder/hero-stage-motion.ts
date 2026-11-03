@@ -218,7 +218,10 @@ export const HERO_STAGE_CSS = [
   "@keyframes rv-hs-drift{from{transform:translate(0,0)}to{transform:translate(var(--hs-dx,0),var(--hs-dy,0))}}",
 ].join("");
 
-/** Layers that may carry will-change while live, capped by the stage's guardrail. */
+/** GPU budget: at most this many layers hold will-change at once, whatever the stage allows. */
+export const MAX_PROMOTED_LAYERS = 3;
+
+/** Layers that may carry will-change while live: the stage's guardrail, never more than three. */
 export function promotedForStage(stage: CinematicHeroStage): Set<string> {
-  return new Set(promotedLayerIds(stage).slice(0, stage.guardrails.maxPromotedLayers));
+  return new Set(promotedLayerIds(stage).slice(0, Math.min(stage.guardrails.maxPromotedLayers, MAX_PROMOTED_LAYERS)));
 }

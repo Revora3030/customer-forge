@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { parseHeroStage, type CinematicHeroStage } from "@/lib/builder/cinematic-hero-stage";
+import { parseHeroStage, promotedLayerIds, type CinematicHeroStage } from "@/lib/builder/cinematic-hero-stage";
 import { DETAILER_HERO_STAGE, MED_SPA_HERO_STAGE, PLUMBER_HERO_STAGE } from "@/lib/builder/cinematic-hero-stage.fixtures";
-import { HERO_STAGE_CSS, stackOpacities, stageCss, stageFrame, tokenColor, windowProgress } from "@/lib/builder/hero-stage-motion";
+import { HERO_STAGE_CSS, MAX_PROMOTED_LAYERS, promotedForStage, stackOpacities, stageCss, stageFrame, tokenColor, windowProgress } from "@/lib/builder/hero-stage-motion";
 
 const parse = (raw: unknown): CinematicHeroStage => {
   const r = parseHeroStage(raw);
@@ -40,6 +40,19 @@ describe("hero stage motion maths", () => {
     expect(stageFrame(stage, 1)["route"]?.dashOffset).toBe(0);
     expect(stageFrame(stage, 0, { drawPaths: true })["route"]?.dashOffset).toBe(0);
     expect(stageFrame(stage, 0)["wall"]?.transform).toBe("scale(1.06)");
+  });
+});
+
+describe("GPU layer budget", () => {
+  it("promotes at most three layers even when a stage allows four", () => {
+    const raw = JSON.parse(JSON.stringify(DETAILER_HERO_STAGE));
+    raw.layers.splice(1, 0, { type: "media_single", id: "extra", channel: "scale", src: "https://cdn.revora.test/hero/extra.webp", alt: "Bay overview" });
+    raw.motion.scrubs.push({ target: "extra", property: "scale", from: 1.04, to: 1, range: [0, 1] });
+    const stage = parse(raw);
+    expect(stage.guardrails.maxPromotedLayers).toBe(4);
+    expect(promotedLayerIds(stage)).toHaveLength(4);
+    expect(promotedForStage(stage).size).toBe(MAX_PROMOTED_LAYERS);
+    expect(MAX_PROMOTED_LAYERS).toBe(3);
   });
 });
 
