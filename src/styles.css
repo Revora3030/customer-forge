@@ -2760,6 +2760,17 @@ html[data-cookie-banner="open"] .sticky-cta-bar {
   }
 }
 
+/* Revora's own phone action bar (RevoraMobileBar, e.g. on /contact) stays
+   usable while the cookie banner is open: the banner stacks just above the
+   bar instead of covering its Email / Quote / Book buttons. Bar height is
+   its 2.75rem buttons + 0.5rem top/bottom padding + 1px border, plus the
+   safe-area inset it also pads by; 0.5rem gap on top. */
+@media (max-width: 767px) {
+  html:has(.revora-mobile-bar) .cookie-banner {
+    bottom: calc(4.25rem + 1px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
 /* ---------------------------------------------------------------------------
    Bringing the platform to life. All of this is removed by the global
    prefers-reduced-motion rule.
