@@ -137,7 +137,7 @@ describe("owner rules for my site: storage", () => {
 
 describe("owner rules for my site: wiring and migration", () => {
   const agent = readFileSync("src/lib/site-agent.functions.ts", "utf8");
-  const sql = readFileSync("supabase/migrations/20261103060000_website_rules.sql", "utf8")
+  const sql = readFileSync("supabase/migrations/20261103130000_website_rules.sql", "utf8")
     .split("\n")
     .filter((line) => !line.trim().startsWith("--"))
     .join("\n");
