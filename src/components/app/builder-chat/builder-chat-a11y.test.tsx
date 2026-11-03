@@ -11,7 +11,7 @@ import type { ChatTask } from "@/lib/builder/hydrate-tasks";
 vi.mock("@tanstack/react-start", () => ({ useServerFn: (fn: unknown) => fn }));
 vi.mock("@/lib/ai-suggestions.functions", () => ({ getAiSuggestions: async () => ({ suggestions: [] }) }));
 vi.mock("@/lib/builder-requests.hooks", () => ({ INSTRUCTION_LIMIT: 1200 }));
-vi.mock("@/lib/builder/progress.hooks", () => ({ useBuildProgress: () => ({ steps: [], latest: null }) }));
+vi.mock("@/lib/builder/progress.hooks", () => ({ useBuildProgress: () => ({ steps: [], latest: null }), useReplyDraft: () => "" }));
 vi.mock("@/components/app/AssistantMedia", () => ({ AssistantMedia: () => null }));
 vi.mock("@/components/app/CompositionPreviewCard", () => ({ CompositionPreviewCard: () => null }));
 vi.mock("@/components/app/builder-chat/ResultCards", () => ({ ResultCards: () => null }));

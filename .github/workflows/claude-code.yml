@@ -46,7 +46,7 @@ jobs:
       # Claude runs the same checks a contributor runs, so it needs the
       # project's dependencies installed.
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 22
 

@@ -69,13 +69,13 @@ import { useChatTop } from "@/components/app/builder-chat/use-chat-top";
 import { useKeyboardInset } from "@/components/app/builder-chat/use-keyboard-inset";
 import { planIsSlow } from "@/lib/builder/plan-deadline";
 import { attachmentNotice } from "@/lib/builder/capabilities";
-import { useBuildProgress } from "@/lib/builder/progress.hooks";
+import { useBuildProgress, useReplyDraft } from "@/lib/builder/progress.hooks";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getAiSuggestions } from "@/lib/ai-suggestions.functions";
 import { QUEUE_LABELS, timelineFor } from "@/lib/builder-queue";
 import { onAssistantPrompt } from "@/lib/assistant-bridge";
-import { pageContextPrefix, selectionChipLabel, selectionPrefix, type PageContext } from "@/lib/builder/preview-bridge";
+import { ownerWords, pageContextPrefix, selectionChipLabel, selectionPrefix, type PageContext } from "@/lib/builder/preview-bridge";
 import { actionsForElement } from "@/lib/builder/element-actions";
 import { MAIN_BRANCH, normaliseRequestId } from "@/lib/builder/chat-thread";
 import { wantsFreshRebuild } from "@/lib/builder/rebuild-intent";
@@ -933,7 +933,7 @@ function UserTurn({ text, attachments = 0 }: { text: string; attachments?: numbe
   return (
     <div className="flex justify-end">
       <div className="ml-auto max-w-[85%] rounded-2xl rounded-br-md bg-[var(--chat-user-bg)] px-3.5 py-2.5 text-[15px] leading-6 whitespace-pre-wrap text-foreground [overflow-wrap:anywhere]">
-        {text}
+        {ownerWords(text)}
         {attachments ? (
           <span className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
             <ImagePlus className="size-3.5" aria-hidden /> {attachments} attachment{attachments === 1 ? "" : "s"}
@@ -989,7 +989,15 @@ function LiveActivity({
   // The steps recorded so far, oldest first, as an inline task tree (CU-1). The
   // newest one is the step still running; each finished one shows how long it took.
   const nodes = nodesFromProgress(steps, { running: true, model: workingModel });
+  const draft = useReplyDraft(organizationId, requestId, true);
   return (
+    <>
+    {draft ? (
+      <p className="whitespace-pre-wrap break-words text-[15px] leading-7 text-foreground" aria-live="polite" data-testid="reply-draft">
+        {draft}
+        <span aria-hidden className="ml-0.5 inline-block h-4 w-[2px] translate-y-0.5 animate-pulse bg-foreground/70" />
+      </p>
+    ) : null}
     <TaskTree nodes={nodes} ariaLabel="Steps so far" testId="live-activity" {...(nodes.length ? {} : { headline: fallback })}>
       {onStopWaiting && planIsSlow(seconds * 1000) ? (
         <div className="flex items-center gap-2 border-t border-border/60 pt-2" data-testid="plan-slow-hint">
@@ -1007,6 +1015,7 @@ function LiveActivity({
       ) : null}
       {askedModels.length > 1 ? <p className="text-xs text-muted-foreground">Asked so far: {askedModels.join(" → ")}</p> : null}
     </TaskTree>
+    </>
   );
 }
 
