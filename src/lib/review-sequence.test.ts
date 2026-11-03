@@ -90,7 +90,7 @@ describe("review sequence helpers", () => {
   it("only forwards to https review links", () => {
     expect(safeReviewUrl(business.reviewLink)).toBe(business.reviewLink);
     expect(safeReviewUrl("javascript:alert(1)")).toBeNull();
-    expect(safeReviewUrl("http://g.page/acme")).toBeNull();
+    expect(safeReviewUrl("http://g.page/acme")).toBeNull(); // DevSkim: ignore DS137138 -- Negative fixture: plain http review links must be rejected.
     expect(safeReviewUrl("https://user:pw@evil.test")).toBeNull();
     expect(safeReviewUrl("")).toBeNull();
   });
