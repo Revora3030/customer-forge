@@ -67,6 +67,7 @@ import {
   resolveIntent,
   riskFlags,
 } from "@/lib/prospect-replies";
+import { mailtoUnsubscribeToken, unsubscribeMailto } from "@/lib/gmail/outreach.server";
 import {
   runProspectReplies,
   approveReplyDraft,
@@ -433,6 +434,9 @@ let threadStatus = 200;
 let tokenStatus = 200;
 let sendStatus = 200;
 const sends: Array<{ raw: string; threadId?: string }> = [];
+/** Inbox messages a Gmail search returns (mailto unsubscribes), with the queries asked. */
+let inboxMessages: Array<{ id: string; from: string; subject: string }> = [];
+const searches: string[] = [];
 const gmailFetch = vi.fn(async (input: string | URL, init?: RequestInit) => {
   const url = String(input);
   if (url.startsWith("https://oauth2.googleapis.com/token"))
@@ -459,6 +463,19 @@ const gmailFetch = vi.fn(async (input: string | URL, init?: RequestInit) => {
       status: 200,
     });
   }
+  if (url.includes("/messages?")) {
+    searches.push(new URL(url).searchParams.get("q") ?? "");
+    return new Response(JSON.stringify({ messages: inboxMessages.map(({ id }) => ({ id })) }), { status: 200 });
+  }
+  const metadata = url.match(/\/messages\/([^/?]+)\?format=metadata/);
+  if (metadata) {
+    const found = inboxMessages.find((message) => message.id === metadata[1]);
+    if (!found) return new Response("{}", { status: 404 });
+    return new Response(
+      JSON.stringify({ id: found.id, payload: { headers: [{ name: "From", value: found.from }, { name: "Subject", value: found.subject }] } }),
+      { status: 200 },
+    );
+  }
   return new Response("not found", { status: 404 });
 });
 
@@ -484,6 +501,8 @@ beforeEach(() => {
   tokenStatus = 200;
   sendStatus = 200;
   sends.length = 0;
+  inboxMessages = [];
+  searches.length = 0;
   gmailFetch.mockClear();
   vi.mocked(sendTemplateEmail).mockClear();
   vi.mocked(generateText).mockClear();
@@ -2050,5 +2069,92 @@ describe("Jarvis inbox.list", () => {
     expect(parseActions([{ id: "inbox.list", args: {} }], []).reads).toEqual([
       { id: "inbox.list" },
     ]);
+  });
+});
+
+describe("RFC 8058 / RFC 2369 List-Unsubscribe with a mailto alternative", () => {
+  const TOKEN = "a".repeat(48);
+
+  it("lists the https one-click URL first and the mailto second", () => {
+    const mime = buildMimeMessage({
+      from: "sam@revora.test",
+      to: "owner@triangle.com",
+      subject: "Hi",
+      text: "x",
+      messageId: "<m@revora.test>",
+      listUnsubscribeUrl: `https://revoragrowthsystems.com/unsubscribe/outreach/${TOKEN}`,
+      listUnsubscribeMailto: unsubscribeMailto("sam@revora.test", `https://revoragrowthsystems.com/unsubscribe/outreach/${TOKEN}`),
+    });
+    const head = mime.split("\r\n\r\n")[0]!;
+    expect(head).toContain(
+      `List-Unsubscribe: <https://revoragrowthsystems.com/unsubscribe/outreach/${TOKEN}>, <mailto:sam@revora.test?subject=unsubscribe%20${TOKEN}>`,
+    );
+    expect(head).toContain("List-Unsubscribe-Post: List-Unsubscribe=One-Click");
+  });
+
+  it("never lets a mailto break out of its angle brackets or inject a header", () => {
+    const mime = buildMimeMessage({
+      from: "sam@revora.test",
+      to: "a@b.com",
+      subject: "Hi",
+      text: "x",
+      messageId: "<m@revora.test>",
+      listUnsubscribeUrl: "https://revoragrowthsystems.com/unsubscribe/outreach/abc",
+      listUnsubscribeMailto: "mailto:x@y.test>\r\nBcc: victim@evil.test",
+    });
+    const head = mime.split("\r\n\r\n")[0]!;
+    expect(head).not.toMatch(/^Bcc:/m);
+    expect(head).toMatch(/^List-Unsubscribe: <https:[^<>]+>, <mailto:[^<>\s]+>$/m);
+  });
+
+  it("keeps the https-only header when no mailto is given", () => {
+    const head = buildMimeMessage({ from: "s@r.test", to: "a@b.com", subject: "Hi", text: "x", messageId: "<m@r.test>", listUnsubscribeUrl: "https://r.test/u/abc" }).split("\r\n\r\n")[0]!;
+    expect(head).toContain("List-Unsubscribe: <https://r.test/u/abc>\r\n");
+  });
+
+  it("reads the token from a mailto subject, including Re:/Fwd: prefixes, and nothing else", () => {
+    expect(mailtoUnsubscribeToken(`unsubscribe ${TOKEN}`)).toBe(TOKEN);
+    expect(mailtoUnsubscribeToken(`Re: Fwd: UNSUBSCRIBE ${TOKEN} `)).toBe(TOKEN);
+    expect(mailtoUnsubscribeToken("unsubscribe")).toBeNull();
+    expect(mailtoUnsubscribeToken(`please unsubscribe ${TOKEN}`)).toBeNull();
+    expect(mailtoUnsubscribeToken(`unsubscribe ${TOKEN} now`)).toBeNull();
+    expect(mailtoUnsubscribeToken(null)).toBeNull();
+  });
+
+  it("every Gmail outreach email carries both targets", async () => {
+    setGmail();
+    const { db } = fakeDb(demoSeed());
+    expect((await sendDemoOutreach(db, { organizationId: ORG, channel: "email", to: "owner@triangle.com", mode: "manual", actorId: "admin" })).ok).toBe(true);
+    const { head } = sentText();
+    expect(head).toMatch(
+      /List-Unsubscribe: <https:\/\/revoragrowthsystems\.com\/unsubscribe\/outreach\/([a-f0-9]{48})>, <mailto:sam@revora\.test\?subject=unsubscribe%20\1>/,
+    );
+  });
+
+  it("the replies job turns a mailto unsubscribe into do-not-contact for the token's address and the sender", async () => {
+    setGmail();
+    inboxMessages = [
+      { id: "mailto001", from: "Front Desk <frontdesk@triangle.com>", subject: `unsubscribe ${TOKEN}` },
+      { id: "mailto002", from: "random@else.test", subject: "unsubscribe from your newsletter" },
+      { id: "mailto003", from: "stranger@else.test", subject: `unsubscribe ${"b".repeat(48)}` },
+    ];
+    const { db, tables } = fakeDb(demoSeed({
+      prospect_outreach_unsubscribe_tokens: [{ token: TOKEN, value: "owner@triangle.com" }],
+      prospect_reply_poll_state: [{ id: 1, last_result: {} }],
+    }));
+    const summary = await runProspectReplies(db);
+    expect(summary).toMatchObject({ status: "done", stopped: 1 });
+    expect(searches).toEqual(["in:inbox -from:me subject:unsubscribe newer_than:2d"]);
+    expect(await isDoNotContact(db, "owner@triangle.com")).toBe(true);
+    expect(await isDoNotContact(db, "frontdesk@triangle.com")).toBe(true);
+    // No known token: nobody is added from a look-alike subject.
+    expect(await isDoNotContact(db, "random@else.test")).toBe(false);
+    expect(await isDoNotContact(db, "stranger@else.test")).toBe(false);
+    expect(tables["prospect_do_not_contact"]!.find((row) => row["value"] === "frontdesk@triangle.com")).toMatchObject({ reason: "unsubscribe_mailto" });
+
+    // Re-reading the same message on the next run is harmless.
+    const again = await runProspectReplies(db);
+    expect(again).toMatchObject({ status: "done" });
+    expect(tables["prospect_do_not_contact"]!.filter((row) => row["value"] === "frontdesk@triangle.com")).toHaveLength(1);
   });
 });

@@ -1,14 +1,19 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  getGmailMessageHeaders,
   gmailConfig,
   gmailNotConfiguredMessage,
   getGmailThread,
   mailingAddress,
   missingGmailSecrets,
+  searchGmailMessageIds,
   type GmailConfig,
 } from "@/lib/gmail/client.server";
+import { mailtoUnsubscribeToken } from "@/lib/gmail/outreach.server";
 import {
+  addressOf,
   parseGmailMessage,
+  payloadHeader,
   type GmailApiMessage,
   type ParsedGmailMessage,
 } from "@/lib/gmail/mime.server";
@@ -20,6 +25,7 @@ import {
   loadDemoForOutreach,
   normalizeEmail,
   recordContactConsent,
+  unsubscribeByToken,
 } from "@/lib/prospect-outreach.server";
 import {
   autoReplyDecision,
@@ -299,6 +305,51 @@ export async function pollGmailReplies(
     else failures += 1;
   }
   if (failures) summary.status = "failed";
+}
+
+/** Mailto unsubscribes read per run; a 2-day window covers outages between the 10-minute runs. */
+export const MAX_MAILTO_UNSUBSCRIBES_PER_RUN = 25;
+export const MAILTO_UNSUBSCRIBE_QUERY = "in:inbox -from:me subject:unsubscribe newer_than:2d";
+
+/**
+ * RFC 2369 mailto unsubscribes: a mail client's "unsubscribe" sends a new
+ * message (not a thread reply) to the polled mailbox with the subject
+ * "unsubscribe <token>". Only an exact token subject counts; the token's
+ * address and the message's sender both go on do-not-contact. Re-reading a
+ * message is harmless (the do-not-contact upsert ignores duplicates).
+ */
+export async function processMailtoUnsubscribes(db: SupabaseClient, config: GmailConfig, summary: RepliesRunSummary): Promise<void> {
+  const found = await searchGmailMessageIds(config, MAILTO_UNSUBSCRIBE_QUERY, MAX_MAILTO_UNSUBSCRIBES_PER_RUN);
+  if (!found.ok) {
+    if (found.reason === "gmail_not_found") return;
+    summary.status = "failed";
+    if (summary.errors.length < 10) summary.errors.push(`mailto unsubscribe search: ${found.reason}`);
+    return;
+  }
+  for (const id of found.ids) {
+    const read = await getGmailMessageHeaders(config, id);
+    if (!read.ok) {
+      if (read.reason === "gmail_not_found") continue;
+      summary.status = "failed";
+      if (summary.errors.length < 10) summary.errors.push(`mailto unsubscribe ${id}: ${read.reason}`);
+      continue;
+    }
+    const token = mailtoUnsubscribeToken(payloadHeader(read.message.payload, "Subject"));
+    if (!token) continue;
+    const from = addressOf(payloadHeader(read.message.payload, "From"));
+    try {
+      const known = await unsubscribeByToken(db, token);
+      if (!known) continue;
+      if (from && from !== config.sender) {
+        await addDoNotContact(db, from, "unsubscribe_mailto");
+        await recordContactConsent(db, from, { email: false }, "unsubscribe_mailto").catch(() => undefined);
+      }
+      summary.stopped += 1;
+    } catch (error) {
+      summary.status = "failed";
+      if (summary.errors.length < 10) summary.errors.push(`mailto unsubscribe ${id}: ${error instanceof Error ? error.message.slice(0, 200) : "failed"}`);
+    }
+  }
 }
 
 /** Stores the thread's unseen prospect messages; false when any of them couldn't be stored (or its stop applied). */
@@ -1060,8 +1111,9 @@ async function runLeased(
   try {
     // A thread that failed marks the run failed but doesn't hold back follow-ups already stored.
     await pollGmailReplies(db, config, summary, started);
-    // Follow-ups and deferred previews also go through Gmail: skip them when it just refused the credentials.
+    // Mailto unsubscribes, follow-ups and deferred previews also go through Gmail: skip them when it just refused access.
     if (!summary.gmailAuthFailedAt) {
+      await processMailtoUnsubscribes(db, config, summary);
       await followUpPending(db, config, summary, now(), owner);
       await deliverDeferredPitchPreviews(db, now()).catch(() => 0);
     }
