@@ -114,7 +114,7 @@ describe("turnstile shared helpers", () => {
     for (const ok of ["revoragrowthsystems.com", "www.revoragrowthsystems.com", "revoraweb.site", "acme.revoraweb.site", "REVORAGROWTHSYSTEMS.COM:443"]) {
       expect(turnstileHostAllowed(ok)).toBe(true);
     }
-    for (const no of ["acmeplumbing.com", "revoragrowthsystems.com.evil.io", "evilrevoraweb.site", "", null, "localhost"]) {
+    for (const no of ["acmeplumbing.com", "revoragrowthsystems.com.evil.io", "evilrevoraweb.site", "", null, "localhost"]) { // DevSkim: ignore DS162092 -- Negative fixture: localhost must be rejected.
       expect(turnstileHostAllowed(no)).toBe(false);
     }
   });
