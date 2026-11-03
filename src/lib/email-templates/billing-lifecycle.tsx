@@ -208,7 +208,7 @@ const data = {
   planName: "Revora Growth System",
   interval: "monthly",
   amount: "$100.00",
-  setupPaidLine: "$350.00 setup payment received",
+  setupPaidLine: `$${GROWTH_SYSTEM.setupPrice}.00 setup payment received`,
   accessUntil: "September 28, 2026",
   chargeDate: "October 28, 2026",
   declineReason: "Your card does not support this type of purchase.",
