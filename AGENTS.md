@@ -64,3 +64,4 @@ Scan before broad changes; preserve generated files and tenant/auth/billing/publ
 - Public form interaction tracking uses a per-mounted-form deduplication guard and skips draft previews; this keeps repeated focus and back/continue actions from inflating conversion counts.
 - Existing composition primitives remain the sole interactive website rendering path; measured mobile action height reserves clearance without imposing new customer templates.
 - Live chat reply text streams via `withTextDeltas` (AsyncLocalStorage) from the provider SSE readers into throttled `builder_reply_drafts` rows that the chat polls; cosmetic only, so the saved plan stays the single source of truth.
+- Builder chat request health (admin monitoring) is derived read-only from builder_messages and builder_progress by request id; no separate metrics table, so measurement can never drift from what owners actually saw.
