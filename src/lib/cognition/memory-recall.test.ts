@@ -54,7 +54,7 @@ describe("Scratchpad", () => {
 
 describe("half-life decay, normalised relevance and obligations", () => {
   it("halves the recency weight once per half-life, by kind or the memory's own", () => {
-    expect(halfLifeDays({ kind: "preference" })).toBe(MEMORY_HALF_LIFE_DAYS.preference);
+    expect(halfLifeDays({ kind: "preference" })).toBe(MEMORY_HALF_LIFE_DAYS["preference"]);
     expect(halfLifeDays({ kind: "note" })).toBe(30);
     expect(halfLifeDays({ kind: "unknown_kind" })).toBe(30);
     expect(halfLifeDays({ kind: "note", half_life_days: 7 })).toBe(7);
