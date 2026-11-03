@@ -7,6 +7,21 @@ import { CINEMATIC_CSS } from "./cinematic-css";
 import { GRAIN_LAYER_CSS, GRAIN_OPACITY, GRAIN_URL } from "./film-grain";
 import { BODY_SCRIM_MIN_OPACITY, MAX_SCRIM_OPACITY, sceneScrim, worstSceneContrast } from "@/lib/builder/cinematic-primitives";
 
+/** Block preludes ("@media …", "@supports …", selectors) enclosing each occurrence of `needle`. */
+function enclosingBlocks(css: string, needle: string): string[][] {
+  const out: string[][] = [];
+  const stack: string[] = [];
+  let start = 0;
+  for (let i = 0; i < css.length; i++) {
+    const c = css[i];
+    if (c === "{") { stack.push(css.slice(start, i).trim()); start = i + 1; }
+    else if (c === "}") { stack.pop(); start = i + 1; }
+    else if (c === ";") start = i + 1;
+    else if (css.startsWith(needle, i) && (css[i - 1] === "{" || css[i - 1] === ";")) out.push([...stack]);
+  }
+  return out;
+}
+
 const keyframes = (name: string) => CINEMATIC_CSS.match(new RegExp(`@keyframes ${name}\\{(.*?)\\}\\}`))?.[1] ?? "";
 
 describe("film grain", () => {
@@ -60,5 +75,57 @@ describe("body-text scrim floor", () => {
     const large = sceneScrim({ ink: "#ffffff", scrim: "#000000", opacity: 10, large: true });
     expect(large.opacity).toBeLessThan(0.72);
     expect(large.contrast).toBeGreaterThanOrEqual(3);
+  });
+});
+
+import { CRAFT_BODY_SCRIM_FLOOR, CRAFT_ENGINE_CSS, CRAFT_LAYER_ORDER, OBSIDIAN_TOKENS, SCRIM_ALPHA } from "./craft-engine-css";
+
+describe("layered craft sheet (round-7 spec, adapted)", () => {
+  it("declares the layer order first, with names that cannot merge into Tailwind's base", () => {
+    expect(CRAFT_ENGINE_CSS.startsWith("@layer rv-tokens,rv-base,rv-craft,rv-motion,rv-tenant;")).toBe(true);
+    expect(CRAFT_LAYER_ORDER.every((name) => name.startsWith("rv-"))).toBe(true);
+  });
+
+  it("never restyles :root, html or body, and never forces a dark colour scheme on a tenant", () => {
+    expect(CRAFT_ENGINE_CSS).not.toMatch(/(^|[\s{},])(:root|html|body)\s*\{/m);
+    expect(CRAFT_ENGINE_CSS).not.toContain("color-scheme");
+  });
+
+  it("ships OKLCH obsidian tokens with hex fallbacks", () => {
+    for (const [name, [oklch, fallback]] of Object.entries(OBSIDIAN_TOKENS)) {
+      expect(oklch).toMatch(/^oklch\(/);
+      expect(CRAFT_ENGINE_CSS).toContain(`${name}:${fallback}`);
+      expect(CRAFT_ENGINE_CSS).toContain(`${name}:${oklch}`);
+    }
+    expect(CRAFT_ENGINE_CSS.indexOf("@supports (color:oklch(0 0 0))")).toBeGreaterThan(CRAFT_ENGINE_CSS.indexOf("--rv-void:#121318"));
+  });
+
+  it("body scrims are at least 0.72 alpha", () => {
+    expect(SCRIM_ALPHA.strong).toBeGreaterThanOrEqual(0.72);
+    expect(CRAFT_BODY_SCRIM_FLOOR).toBeGreaterThanOrEqual(0.72);
+    for (const dir of ["to-top", "to-bottom", "to-right"]) {
+      const rule = CRAFT_ENGINE_CSS.match(new RegExp(`\\.rv-scrim--${dir}\\{([^}]*)\\}`))?.[1] ?? "";
+      expect(rule, dir).toMatch(/var\(--rv-scrim-strong\) 0%,var\(--rv-scrim-strong\) 55%/);
+    }
+  });
+
+  it("animation-timeline only under @supports, all motion under no-preference, no will-change", () => {
+    const motion = CRAFT_ENGINE_CSS.slice(CRAFT_ENGINE_CSS.indexOf("@layer rv-motion{"));
+    expect(motion.startsWith("@layer rv-motion{\n@media (prefers-reduced-motion:no-preference){")).toBe(true);
+    expect(CRAFT_ENGINE_CSS).not.toContain("will-change");
+    for (const sheet of [CRAFT_ENGINE_CSS, CINEMATIC_CSS]) {
+      expect(enclosingBlocks(sheet, "animation-timeline:").length).toBeGreaterThan(1);
+      for (const stack of enclosingBlocks(sheet, "animation-timeline:")) {
+        expect(stack.some((p) => p.startsWith("@supports") && p.includes("animation-timeline")), stack.join(" > ")).toBe(true);
+        expect(stack.some((p) => /prefers-reduced-motion: ?no-preference/.test(p)), stack.join(" > ")).toBe(true);
+      }
+    }
+  });
+
+  it("the grain overlay is static and the same tile as the scene grain", () => {
+    const grain = CRAFT_ENGINE_CSS.match(/\.rv-grain\{([^}]*)\}/)?.[1] ?? "";
+    expect(grain).toContain(GRAIN_URL);
+    expect(grain).toContain("pointer-events:none");
+    expect(grain).not.toMatch(/animation|transition/);
   });
 });

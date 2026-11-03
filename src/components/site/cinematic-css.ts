@@ -70,7 +70,7 @@ ${S} .rv-chapter-rail a[aria-current="true"] span{background:currentColor;opacit
 @supports (animation-timeline: view()){
 ${S} .rv-chapter .rv-scene-media{animation:rv-scene-settle linear both;animation-timeline:view();animation-range:entry 0% exit 100%}
 ${S} .rv-chapter .rv-scene-slot,${S} .rv-chapter .rv-scene-offers{animation:rv-scene-rise linear both;animation-timeline:view();animation-range:entry 0px entry 220px}
-${S} .rv-chapter .rv-scene-frame,${S} .rv-split-pin > :is(img,video){animation:rv-wipe-up linear both;animation-timeline:view();animation-range:entry 0% entry 60%}
+${S} .rv-chapter .rv-scene-frame,${S} .rv-split-pin > :is(img,video){animation:rv-wipe-up 1ms linear both;animation-timeline:view();animation-range:entry 0% entry 60%}
 }
 ${S} .rv-collection-viewport{scroll-behavior:smooth}
 }
