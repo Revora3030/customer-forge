@@ -21,6 +21,7 @@ import { useStepScroll } from "@/lib/use-step-scroll";
 import { DirectContact } from "@/components/site/ContactDetails";
 import { PrintableEstimate } from "@/components/site/PrintableEstimate";
 import { AltchaField, altchaPayload } from "@/components/site/AltchaField";
+import { ClientPrivacyLink } from "@/components/site/ClientPrivacyNotice";
 import { AddToCalendar } from "@/components/site/AddToCalendar";
 import { useHolidayClosures } from "@/components/site/use-holiday-closures";
 import { widgetPresentationStyle } from "@/components/site/contact-details-utils";
@@ -125,12 +126,12 @@ function EstimateNotice() {
 }
 
 /** Factual consent line shown under every lead form. It states no policy. */
-function ConsentNote() {
-  // Note for Client Success legal pages: link the business's own privacy page here once a
-  // per-site privacy route exists. /privacy is Revora's platform page, not the business's.
+function ConsentNote({ slug }: { slug: string }) {
+  // Links the business's own generated notice (/privacy-notice), not Revora's /privacy.
   return (
     <p className="text-[13px] text-muted-foreground">
-      We'll only use your details to reply to your request.
+      We'll only use your details to reply to your request.{" "}
+      <ClientPrivacyLink slug={slug} className="underline underline-offset-4" />
     </p>
   );
 }
@@ -481,7 +482,7 @@ function QuoteCalculatorLive({ site, presentation }: { site: Site; presentation?
               {presentation?.backLabel ?? "Back"}
             </Button>
           </div>
-          <ConsentNote />
+          <ConsentNote slug={site.org.slug} />
         </form>
       )}
     </div>
@@ -787,7 +788,7 @@ function BookingFormLive({ site, presentation }: { site: Site; presentation?: Wi
       <p className="text-[14px] text-muted-foreground">
         No payment now — you'll get a confirmation before anything is charged.
       </p>
-      <ConsentNote />
+      <ConsentNote slug={site.org.slug} />
     </form>
   );
 }
@@ -946,7 +947,7 @@ function EnquiryFormLive({ site, presentation }: { site: Site; presentation?: Wi
       <Button type="submit" variant="signal" disabled={pending} aria-busy={pending} className="min-h-11 w-full sm:w-auto">
         {pending ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : null} {presentation?.actionLabel ?? "Send message"}
       </Button>
-      <ConsentNote />
+      <ConsentNote slug={site.org.slug} />
     </form>
   );
 }
