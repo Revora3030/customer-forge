@@ -76,6 +76,15 @@ jobs:
           npx playwright install chromium
           npm run site:sweep -- "$BROWSER_QA_BASE_URL" --max=80 --out=browser-qa-artifacts/page-sweep.json
 
+      - name: Accessibility + layout-stability gate (axe-core + CLS)
+        env:
+          BROWSER_QA_BASE_URL: ${{ inputs.base_url || 'http://127.0.0.1:8080' }} # DevSkim: ignore DS162092,DS137138 -- CI-only local app under test.
+        # Key routes at phone width: axe after hydration + fonts.ready, CLS after a 3 s settle.
+        # Exit 1 on CLS > 0.1 or a critical/serious axe violation; exit 2 when no browser could run.
+        run: |
+          npm run qa:a11y-cls:test
+          npm run qa:a11y-cls -- "$BROWSER_QA_BASE_URL" --out=browser-qa-artifacts/a11y-cls.json
+
 
       - name: Install agent-browser CLI
         run: |

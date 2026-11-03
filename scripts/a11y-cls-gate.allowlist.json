@@ -1,0 +1,9 @@
+{
+  "_comment": "Accepted axe findings for scripts/a11y-cls-gate.mjs, id \"<route>:<rule>\" (or \"*:<rule>\"). Each entry needs a reason; remove it once fixed.",
+  "accepted": [
+    {
+      "id": "/contact:target-size",
+      "reason": "Known phone-width overlap, found when this gate was added: at 390x800 the fixed bottom sales bar (SalesCTA.tsx, email link) is partly covered by another fixed bar's two buttons, so axe measures a 17px-tall target. Real bug, tracked for a UI fix; accepted so the gate can block new regressions."
+    }
+  ]
+}

@@ -33,6 +33,8 @@
     "repo:audit:test": "node scripts/whole-repo-upgrade-audit.contract.mjs",
     "browser:smoke": "node scripts/browser-smoke.mjs",
     "site:sweep": "node scripts/page-sweep.mjs",
+    "qa:a11y-cls": "node scripts/a11y-cls-gate.mjs",
+    "qa:a11y-cls:test": "node scripts/a11y-cls-gate.contract.mjs",
     "production:readiness:max": "node scripts/production-readiness-max-audit.mjs",
     "production:readiness:max:test": "node scripts/production-readiness-max-audit.contract.mjs",
     "repo:visual-output": "node scripts/whole-repo-visual-output-audit.mjs",

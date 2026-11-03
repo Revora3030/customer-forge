@@ -173,6 +173,12 @@ function RootComponent() {
   const router = useRouter();
 
   useEffect(() => {
+    // Hydration marker for the a11y + CLS gate (scripts/a11y-cls-gate.mjs):
+    // set once React has hydrated, so measurements start from the live page.
+    document.documentElement.dataset.hydrated = "true";
+  }, []);
+
+  useEffect(() => {
     // Entry pages a returning client can land on after signing back in
     // (email/password, magic link, or an OAuth round-trip back to the origin).
     const entryPaths = new Set(["/", "/auth"]);
