@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { FAQPage, Plumber, WithContext } from "schema-dts";
-import { validateJsonLd, type JsonLdFacts } from "./jsonld-validator";
+import { decodeHtmlEntities, validateJsonLd, type JsonLdFacts } from "./jsonld-validator";
 import { emittedJsonLd } from "./jsonld-emitted";
 import { preflight, type PreflightInput } from "@/lib/preflight";
 
@@ -242,5 +242,48 @@ describe("publish warning in Pre-Flight", () => {
     expect(check?.severity).toBe("warning");
     expect(check?.detail).toContain('telephone is "919-555-0100" but your phone number is "(919) 228-4417"');
     expect(preflight(input(withBusiness({ telephone: "919-555-0100" }))).blockers.some((b) => b.key === "structured-data")).toBe(false);
+  });
+});
+
+describe("decodeHtmlEntities (single pass, CodeQL js/double-escaping)", () => {
+  it("decodes &amp; exactly once, leaving a doubly-encoded entity literal", () => {
+    expect(decodeHtmlEntities("&amp;lt;")).toBe("&lt;");
+    expect(decodeHtmlEntities("&amp;nbsp;")).toBe("&nbsp;");
+    expect(decodeHtmlEntities("&amp;amp;")).toBe("&amp;");
+    expect(decodeHtmlEntities("&amp;#60;")).toBe("&#60;");
+    expect(decodeHtmlEntities("&amp;quot;")).toBe("&quot;");
+  });
+
+  it("decodes the common named and numeric references", () => {
+    expect(decodeHtmlEntities("Tom &amp; Jerry")).toBe("Tom & Jerry");
+    expect(decodeHtmlEntities("&lt;b&gt; &quot;hi&quot; &apos;x&apos;")).toBe("<b> \"hi\" 'x'");
+    expect(decodeHtmlEntities("a&nbsp;b&#160;c&#xA0;d")).toBe("a b c d");
+    expect(decodeHtmlEntities("&#39;&#x27;&#X41;&AMP;")).toBe("''A&");
+  });
+
+  it("leaves unknown, malformed and out-of-range references as written", () => {
+    expect(decodeHtmlEntities("&bogus; & &amp &#; &#xZZ; &#0; &#x110000; &#xD800;")).toBe(
+      "&bogus; & &amp &#; &#xZZ; &#0; &#x110000; &#xD800;",
+    );
+  });
+
+  it("matches FAQ text once-decoded, and does not over-decode", () => {
+    const faqWith = (q: string): JsonLdFacts => ({
+      ...base,
+      docs: [
+        localBusiness,
+        {
+          "@context": "https://schema.org",
+          "@type": "FAQPage",
+          mainEntity: [{ "@type": "Question", name: q, acceptedAnswer: { "@type": "Answer", text: "Yes." } }],
+        },
+      ],
+      visibleFaqs: [{ q: "Do you fix pipes &amp; drains?", a: "Yes." }],
+    });
+    expect(validateJsonLd(faqWith("Do you fix pipes & drains?"))).toEqual([]);
+    expect(validateJsonLd(faqWith("Do you fix pipes &amp;amp; drains?")).map((f) => f.code)).toEqual([
+      "faq_not_on_page",
+      "faq_missing_from_schema",
+    ]);
   });
 });

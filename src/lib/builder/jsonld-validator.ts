@@ -65,9 +65,36 @@ type Obj = Record<string, unknown>;
 const isObj = (value: unknown): value is Obj => !!value && typeof value === "object" && !Array.isArray(value);
 const str = (value: unknown): string => (typeof value === "string" ? value : typeof value === "number" ? String(value) : "");
 const squash = (value: string): string => value.replace(/\s+/g, " ").trim();
-// Decode &amp; last so "&amp;nbsp;" stays the literal text "&nbsp;" (no double unescape).
+const NAMED_ENTITIES: Readonly<Record<string, string>> = {
+  amp: "&",
+  lt: "<",
+  gt: ">",
+  quot: '"',
+  apos: "'",
+  nbsp: " ",
+};
+
+/**
+ * Decode HTML character references in ONE pass. Each match is replaced from a
+ * lookup and the output is never scanned again, so "&amp;lt;" decodes to the
+ * literal text "&lt;" (not "<") and "&amp;nbsp;" to "&nbsp;" — no double
+ * unescaping, whatever order the entities appear in. Unknown or out-of-range
+ * references are left as written.
+ */
+export const decodeHtmlEntities = (value: string): string =>
+  value.replace(/&(#[0-9]{1,7}|#[xX][0-9a-fA-F]{1,6}|[a-zA-Z]+);/g, (match, ref: string) => {
+    if (ref.startsWith("#")) {
+      const hex = ref[1] === "x" || ref[1] === "X";
+      const code = Number.parseInt(ref.slice(hex ? 2 : 1), hex ? 16 : 10);
+      if (!Number.isFinite(code) || code <= 0 || code > 0x10ffff || (code >= 0xd800 && code <= 0xdfff)) return match;
+      return code === 0xa0 ? " " : String.fromCodePoint(code);
+    }
+    return NAMED_ENTITIES[ref.toLowerCase()] ?? match;
+  });
+
+// Strip tags first, then decode entities once, so decoded text is never re-parsed as markup or entities.
 const words = (value: string): string =>
-  squash(value.replace(/<[^>]*>/g, " ").replace(/&nbsp;/gi, " ").replace(/&amp;/gi, "&"))
+  squash(decodeHtmlEntities(value.replace(/<[^>]*>/g, " ")))
     .toLowerCase()
     .replace(/[\u2018\u2019]/g, "'")
     .replace(/[\u201c\u201d]/g, '"');
