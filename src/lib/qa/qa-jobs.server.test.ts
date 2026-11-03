@@ -18,7 +18,7 @@ const ORG = "11111111-1111-4111-8111-111111111111";
 const JOB = "22222222-2222-4222-8222-222222222222";
 const jpeg = Buffer.from("fake-jpeg-bytes").toString("base64");
 
-/** In-memory copy of the rules in 20261101060500_qa_jobs.sql. */
+/** In-memory copy of the rules in 20261103050000_qa_jobs.sql. */
 function memoryRepo() {
   const jobs = new Map<string, QaJob>();
   const finished: { id: string; ok: boolean; screenshots: QaScreenshot[]; metrics: QaMetrics; error: string | null }[] = [];

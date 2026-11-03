@@ -40,7 +40,6 @@ ALTER TABLE public.qa_jobs ENABLE ROW LEVEL SECURITY;
 GRANT SELECT ON public.qa_jobs TO authenticated;
 GRANT ALL ON public.qa_jobs TO service_role;
 
-DROP POLICY IF EXISTS qa_jobs_member_read ON public.qa_jobs;
 CREATE POLICY qa_jobs_member_read ON public.qa_jobs
   FOR SELECT TO authenticated USING (private.is_org_member(organization_id));
 
