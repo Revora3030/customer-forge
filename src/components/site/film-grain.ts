@@ -8,7 +8,7 @@ export const GRAIN_OPACITY = 0.16;
 export const GRAIN_TILE_PX = 160;
 
 const GRAIN_SVG =
-  `<svg xmlns='http://www.w3.org/2000/svg' width='${GRAIN_TILE_PX}' height='${GRAIN_TILE_PX}'>` +
+  `<svg xmlns='http://www.w3.org/2000/svg' width='${GRAIN_TILE_PX}' height='${GRAIN_TILE_PX}'>` + // DevSkim: ignore DS137138 -- SVG namespace identifier inside a data URI; nothing is fetched.
   `<filter id='g'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/>` +
   `<feColorMatrix type='saturate' values='0'/></filter>` +
   `<rect width='100%' height='100%' filter='url(#g)'/></svg>`;
