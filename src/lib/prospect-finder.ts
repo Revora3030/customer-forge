@@ -9,6 +9,8 @@
 import type { ProspectDemoInput } from "./jarvis-demo-site";
 
 export const MAX_SEARCHES_PER_DAY = 40;
+/** Fair-use cap for free OpenStreetMap searches (Overpass/Nominatim), past the Places cap. */
+export const MAX_FREE_SEARCHES_PER_DAY = 200;
 
 export type WebPresence = "none" | "social_only" | "has_website";
 
