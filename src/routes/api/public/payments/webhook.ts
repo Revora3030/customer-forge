@@ -152,7 +152,7 @@ async function handleEvent(event: StripeWebhookEvent, env: StripeEnv) {
       const { STRIPE_CATALOG } = await import("@/lib/stripe-catalog");
       const invoiceCatalog = STRIPE_CATALOG[env];
       // The recurring line, not whichever line Stripe listed first (the first
-      // invoice also carries the one-time setup line).
+      // invoice also carries the setup line).
       const recurringLine = (invoiceRecurringLine(object, invoiceCatalog.monthly.stripePriceId) ??
         line) as typeof line;
       const priceKey = recurringLine?.price ? resolvePriceLookupKey(recurringLine.price) : null;
@@ -168,9 +168,11 @@ async function handleEvent(event: StripeWebhookEvent, env: StripeEnv) {
       const setupCents = paid ? invoiceSetupCents(object, invoiceCatalog.setup.stripePriceId) : 0;
       const invoiceCents = Number(paid ? (object?.amount_paid ?? 0) : (object?.amount_due ?? 0));
       const recordCents = Math.max(0, invoiceCents - setupCents);
-      // A paid invoice that was only the setup (plus the $0 free month) adds
-      // nothing new: no $0 "Payment received" row or notification.
-      if (paid && setupCents > 0 && recordCents === 0) break;
+      // A paid invoice that was only the setup (plus the $0 free month), or a
+      // paid $0 invoice on its own, adds nothing new: no $0 "Payment received"
+      // row, notification or activity entry.
+      const { shouldRecordPaidInvoice } = await import("@/lib/payment-amount");
+      if (paid && !shouldRecordPaidInvoice(recordCents)) break;
       await recordStripeTransaction(admin, {
         organizationId,
         stripeId: String(object?.id ?? ""),
@@ -241,7 +243,7 @@ async function handleEvent(event: StripeWebhookEvent, env: StripeEnv) {
       const md = (object?.metadata ?? {}) as Record<string, string | undefined>;
 
       // Revora Growth System: one subscription session that also carries the
-      // one-time setup line. Setup is only marked paid when Stripe confirms it.
+      // setup line. Setup is only marked paid when Stripe confirms it.
       if (md["kind"] === "growth_system" && md["organizationId"]) {
         if (object?.payment_status === "unpaid") break;
         const organizationId = md["organizationId"];

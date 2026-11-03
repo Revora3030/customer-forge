@@ -2,6 +2,7 @@ import { forwardRef, useCallback, useEffect, useMemo, useRef, useState, type Ref
 import { nextPreviewLoadState, PREVIEW_LOAD_TIMEOUT_MS, type PreviewLoadState } from "@/lib/builder/preview-load";
 import {
   ExternalLink,
+  Pencil,
   Maximize2,
   Minimize2,
   Monitor,
@@ -51,6 +52,8 @@ import {
   type PreviewToBuilderMessage,
 } from "@/lib/builder/preview-bridge";
 import { saveInlineText } from "@/lib/builder/inline-edit.functions";
+import { PreviewThemeEditor } from "@/components/app/PreviewThemeEditor";
+import type { Palette } from "@/lib/builder/palette-edit";
 import { splitForKey, splitForPointer } from "@/lib/builder/compare-slider";
 import { useServerFn } from "@tanstack/react-start";
 import { createPortal } from "react-dom";
@@ -58,6 +61,7 @@ import { toast } from "@/lib/ui/notify";
 import { pageNavLabel, type ContentPage } from "@/lib/website-content";
 import { pageOfSection } from "@/lib/builder/step-target";
 import { cn } from "@/lib/utils";
+import { PhoneLayoutPanel } from "@/components/app/PhoneLayoutPanel";
 import { LiveCanvasSkeleton } from "@/components/app/LiveCanvasSkeleton";
 import { settleStageSize, type StageSize } from "@/lib/builder/stage-size";
 
@@ -101,6 +105,10 @@ type BuilderPreviewProps = {
   onPageChange?: (page: { id: string; title: string; slug: string } | null) => void;
   /** Scroll a section into view and outline it ("Show in preview" from the chat). A new nonce asks again. */
   reveal?: { id: string; nonce: number } | null;
+  /** Bumped by the composer's crosshair: turns "pick a part of the page" on. */
+  pickRequest?: number;
+  /** Owners and managers get the phone-only hide/reorder controls; others just preview. */
+  canManage?: boolean;
 };
 
 /**
@@ -130,6 +138,8 @@ function BuilderPreviewFrame({
   livePublished = true,
   onPageChange,
   reveal = null,
+  pickRequest = 0,
+  canManage = false,
 }: Omit<BuilderPreviewProps, "firstRun">) {
   const ordered = useMemo(() => [...pages].sort((a, b) => a.sort_order - b.sort_order), [pages]);
   const [pageId, setPageId] = useState<string | null>(null);
@@ -148,6 +158,11 @@ function BuilderPreviewFrame({
   const [refreshKey, setRefreshKey] = useState(0);
   const [fullscreen, setFullscreen] = useState(false);
   const [selectMode, setSelectMode] = useState(false);
+  useEffect(() => {
+    if (pickRequest > 0) setSelectMode(true);
+  }, [pickRequest]);
+  // Quick edit: one click on a headline or paragraph edits the words in place.
+  const [quickEdit, setQuickEdit] = useState(false);
   // Compare: the published site (what visitors see now) next to the draft
   // (what Publish would put live), so every AI change can be checked first.
   const [compareMode, setCompareMode] = useState<CompareMode>("off");
@@ -272,12 +287,21 @@ function BuilderPreviewFrame({
     (on: boolean) => {
       const frame = frameRef.current?.contentWindow;
       if (!frame || typeof window === "undefined") return;
+      // Picking a block and quick-editing words are two different click meanings;
+      // picking wins when both are switched on.
       frame.postMessage(
-        { source: PREVIEW_BRIDGE_SOURCE, type: "select-mode", on, selectedId, selectedPath },
+        {
+          source: PREVIEW_BRIDGE_SOURCE,
+          type: "select-mode",
+          on: on || quickEdit,
+          selectedId,
+          selectedPath,
+          ...(quickEdit && !on ? { quickEdit: true } : {}),
+        },
         window.location.origin,
       );
     },
-    [selectedId, selectedPath],
+    [quickEdit, selectedId, selectedPath],
   );
 
   /** Sends a message to the preview frame; silently a no-op before it loads. */
@@ -286,6 +310,21 @@ function BuilderPreviewFrame({
     if (!frame || typeof window === "undefined") return;
     frame.postMessage({ source: PREVIEW_BRIDGE_SOURCE, ...message }, window.location.origin);
   }, []);
+
+  /** Tries a palette live in the preview; null puts the saved colours back. */
+  const previewPalette = useCallback(
+    (palette: Palette | null) => {
+      if (palette) tell({ type: "patch-theme", primary: palette.primary, secondary: palette.secondary, accent: palette.accent });
+      else tell({ type: "reset-theme" });
+    },
+    [tell],
+  );
+
+  const onPaletteSaved = useCallback(() => {
+    // Reload so the preview renders the saved colours for real, and tell other tabs.
+    setRefreshKey((value) => value + 1);
+    if (organizationId) announceDraftChange(organizationId, previewId.current);
+  }, [organizationId]);
 
   // A new page, device size or reload re-measures overflow and contrast.
   useEffect(() => {
@@ -434,6 +473,23 @@ function BuilderPreviewFrame({
               <MousePointerClick className="size-4" aria-hidden />
             </Button>
           ) : null}
+          {organizationId ? (
+            <>
+              <Button
+                type="button"
+                size="icon-sm"
+                variant={quickEdit ? "secondary" : "ghost"}
+                aria-pressed={quickEdit}
+                data-testid="builder-preview-quick-edit"
+                aria-label={quickEdit ? "Stop editing words in the preview" : "Edit words in the preview"}
+                title={quickEdit ? "Stop editing words" : "Click a headline or paragraph to edit it"}
+                onClick={() => setQuickEdit((value) => !value)}
+              >
+                <Pencil className="size-4" aria-hidden />
+              </Button>
+              <PreviewThemeEditor organizationId={organizationId} onPreview={previewPalette} onSaved={onPaletteSaved} />
+            </>
+          ) : null}
           {/* Phones: one viewport menu instead of six icons in a row. */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -461,15 +517,15 @@ function BuilderPreviewFrame({
               <Button
                 key={option.key}
                 type="button"
-                size="icon-sm"
+                size="sm"
                 variant={viewport === option.key ? "secondary" : "ghost"}
-                className="pointer-events-auto relative z-30 inline-flex min-h-11 min-w-11 px-2"
+                className="pointer-events-auto relative z-30 inline-flex min-h-11 min-w-11 shrink-0 whitespace-nowrap px-2 wrap-normal"
                 aria-label={`${option.label} preview, ${option.width} pixels`}
                 aria-pressed={viewport === option.key}
                 title={`${option.label} · ${option.width}px`}
                 onClick={() => setViewport(option.key)}
               >
-                <span className="text-xs tabular-nums">{option.width}</span>
+                <span className="whitespace-nowrap text-xs tabular-nums">{option.width}</span>
               </Button>
             );
           })}
@@ -607,6 +663,14 @@ function BuilderPreviewFrame({
             </span>
           ) : null}
         </div>
+        {canManage && page && viewportWidth <= 430 ? (
+          <PhoneLayoutPanel
+            key={page.id}
+            organizationId={organizationId}
+            sections={page.sections}
+            onSaved={onPaletteSaved}
+          />
+        ) : null}
         {a11yOpen && a11y?.issueCount ? (
           <ul className="mx-auto mb-2 max-w-xl space-y-1 rounded-lg border border-border bg-background/95 p-2 text-[12px]" data-testid="builder-preview-a11y-list">
             {a11y.issues.slice(0, 8).map((issue, index) => (

@@ -156,7 +156,7 @@ describe("old design layer is fully removed", () => {
   });
 
   it("customer website routes do not install fixed fallback chrome or canned CTAs", () => {
-    const pageRoute = readFileSync("src/routes/s.$slug.$page.tsx", "utf8");
+    const pageRoute = readFileSync("src/components/site/SitePageView.tsx", "utf8");
     const homeRoute = readFileSync("src/routes/s.$slug.tsx", "utf8");
     const tree = readFileSync("src/lib/builder-tree.ts", "utf8");
     expect(pageRoute).not.toMatch(/<SiteFooter|<SiteNav|Get my price|Book now/);
@@ -304,6 +304,12 @@ describe("no non-AI build fallback (Oct 3)", () => {
     expect(readFileSync("src/lib/builder/ai-brand-identity.server.ts", "utf8")).not.toMatch(/safe-neutral|Safe neutral identity/);
     expect(readFileSync("src/lib/site-engine.server.ts", "utf8")).not.toMatch(/safe fact-based brief|source: "safe-fallback"/);
     expect(readFileSync("src/lib/site-materialize.server.ts", "utf8")).not.toMatch(/fact inventory as a baseline|\|\| "Get in touch"/);
+  });
+  it("the only facts-only path is the capacity fallback, which queues an AI upgrade (owner decision 2026-11-01)", () => {
+    expect(worker).toMatch(/wordingCapacityHit\(refined\.passes\)/);
+    expect(worker).toMatch(/degradeLayoutFallback\(/);
+    const first = readFileSync("src/lib/builder/first-build-compositions.server.ts", "utf8");
+    expect(first).toMatch(/rescueShouldPark\([^)]*\)[\s\S]{0,3000}fallbackSectionComposition/);
   });
   it("an AI step that fails raises the shared retryable error", () => {
     expect(worker).toMatch(/AiStepUnavailableError/);

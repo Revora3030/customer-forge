@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   lifecycleBookingFollowUpTemplate,
   lifecycleSetupReminderTemplate,
+  lifecycleSiteReadyTemplate,
   lifecycleWelcomeTemplate,
   lifecycleWinbackTemplate,
 } from "./lifecycle";
@@ -23,10 +24,19 @@ describe("lifecycle email templates", () => {
 
   it("carry the recipient's unsubscribe link in every email", async () => {
     const url = "https://revoragrowthsystems.com/unsubscribe/lifecycle/abc123abc123abc123abc123";
-    for (const entry of [lifecycleWelcomeTemplate, lifecycleSetupReminderTemplate, lifecycleBookingFollowUpTemplate, lifecycleWinbackTemplate]) {
+    for (const entry of [lifecycleWelcomeTemplate, lifecycleSetupReminderTemplate, lifecycleBookingFollowUpTemplate, lifecycleSiteReadyTemplate, lifecycleWinbackTemplate]) {
       const out = await html(entry as never, { unsubscribeUrl: url });
       expect(out).toContain(url);
       expect(out).toContain("Unsubscribe");
     }
+  });
+
+  it("site-ready email calls the build a draft, links to the website page and never claims it is live", async () => {
+    const out = await html(lifecycleSiteReadyTemplate as never, { businessName: "Acme Plumbing", firstName: "Sam" });
+    expect(out).toContain("Acme Plumbing");
+    expect(out).toContain("draft");
+    expect(out).toContain("https://revoragrowthsystems.com/app/website");
+    expect(out).not.toMatch(/is live|now live|went live/i);
+    expect(lifecycleSiteReadyTemplate.subject()).toBe("Your website draft is ready to review");
   });
 });

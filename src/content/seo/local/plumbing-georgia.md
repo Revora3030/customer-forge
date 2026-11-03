@@ -30,7 +30,7 @@ Every form, quote and booking from your site lands in one pipeline. Revora can s
 
 ## Cost
 
-$350 one-time setup, first month free, then $100/month, cancel anytime, with 3 days of full access first. No one can promise a Google ranking.
+$350 setup, first month free, then $100/month, cancel anytime, with 3 days of full access first. No one can promise a Google ranking.
 
 ## Questions Georgia owners ask
 
@@ -47,4 +47,4 @@ Yes. A dedicated path with your phone number and a short form.
 Yes, ranges you choose. Complex work is quoted after a visit.
 
 **What does it cost?**
-$350 one-time, first month free, then $100/month.
+$350 setup, first month free, then $100/month.

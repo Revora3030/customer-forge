@@ -7,6 +7,7 @@ import {
   icsFileName,
   type BookingCalendarInput,
 } from "@/lib/booking-ics";
+import { isPlaceholderPhone } from "@/lib/builder/presentation";
 
 /**
  * "Add to calendar" after a booking request: an .ics download (Apple Calendar,
@@ -14,7 +15,11 @@ import {
  * is fetched. Hidden when the slot can't be turned into an event.
  */
 export function AddToCalendar(props: BookingCalendarInput) {
-  const event = useMemo(() => bookingCalendarEvent(props), [props]);
+  // A placeholder (555) number never goes into the calendar entry.
+  const event = useMemo(
+    () => bookingCalendarEvent(isPlaceholderPhone(props.phone) ? { ...props, phone: null } : props),
+    [props],
+  );
   if (!event) return null;
   const download = async () => {
     const ics = await bookingIcs(event);

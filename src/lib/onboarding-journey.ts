@@ -199,7 +199,7 @@ export function onboardingJourney(facts: JourneyFacts): JourneyPlan {
       day: 4,
       label: "Activate your Growth System",
       why: "Your free access ends — the setup payment keeps everything you built switched on.",
-      action: "Complete the one-time setup payment",
+      action: "Complete the setup payment",
       to: "/app/billing",
       done: facts.setupPaid,
       gate: true,

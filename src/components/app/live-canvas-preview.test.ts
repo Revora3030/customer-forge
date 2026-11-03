@@ -85,7 +85,7 @@ describe("draft section guards", () => {
     expect(safe.components).toEqual([{ id: "c" }]);
   });
   it("renders a shimmer slot for pending sections on the page renderer", () => {
-    const page = read("src/routes/s.$slug.$page.tsx");
+    const page = read("src/components/site/SitePageView.tsx");
     expect(page).toContain('data-testid="draft-section-pending"');
     expect(page).toContain("isRenderableSection(row)");
   });

@@ -3,6 +3,7 @@
  * workspace (not demos, not suspended, not Revora's own). Read-only: nothing
  * here writes, sends or changes anything.
  */
+import { TEST_LEAD_SOURCE } from "@/lib/test-lead";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { PLATFORM_OWNER_ORG_ID } from "@/lib/platform-owner";
 import { scoreCustomerHealth, type HealthInput, type HealthResult } from "@/lib/retention/health-score";
@@ -76,7 +77,7 @@ export async function loadClientHealth(db: Db, now = Date.now(), onlyOrgIds?: re
     readAll("publish_events", (a, b) => db.from("publish_events").select("organization_id, created_at").in("organization_id", ids).order("created_at", { ascending: true }).range(a, b)),
     readAll("business_profiles", (a, b) => db.from("business_profiles").select("organization_id, phone, city, service_area, address").in("organization_id", ids).range(a, b)),
     readAll("subscriptions", (a, b) => db.from("subscriptions").select("organization_id, status, cancel_at_period_end, updated_at").in("organization_id", ids).order("updated_at", { ascending: false }).range(a, b)),
-    readAll("leads", (a, b) => db.from("leads").select("organization_id, created_at, status, last_contacted_at").in("organization_id", ids).gte("created_at", since70).range(a, b)),
+    readAll("leads", (a, b) => db.from("leads").select("organization_id, created_at, status, last_contacted_at").neq("source", TEST_LEAD_SOURCE).in("organization_id", ids).gte("created_at", since70).range(a, b)),
     readAll("lead_activities", (a, b) =>
       db.from("lead_activities").select("organization_id, created_at").in("organization_id", ids).not("actor_id", "is", null).gte("created_at", since14).range(a, b),
     ),

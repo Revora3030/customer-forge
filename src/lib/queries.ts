@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { TEST_LEAD_SOURCE } from "@/lib/test-lead";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { nextPublishState } from "@/lib/publish-state";
 import { toast } from "@/lib/ui/notify";
@@ -10,6 +11,7 @@ import { runDueAutomations } from "@/lib/automations.functions";
 import { queueAutomationEvent } from "@/lib/automation-queue.functions";
 import { setWebsiteReviewState } from "@/lib/website-review.functions";
 import { RESPONSE_KINDS } from "@/lib/speed-to-lead";
+import { announceNewLead, readChimeOn } from "@/lib/lead-chime";
 
 /**
  * Client code can only queue automation steps — actual email/SMS delivery runs
@@ -59,18 +61,27 @@ const CLIENT_TRIGGERS = new Set(["quote_requested", "booking_created", "appointm
 
 const DAY = 86_400_000;
 
-export function useLeads(organizationId: string | undefined) {
+/**
+ * The workspace's leads. Test leads (sent from the "Send a test lead" step) are
+ * left out so they never count in real numbers; only the Leads page asks for
+ * them, to show them labeled.
+ */
+export function useLeads(organizationId: string | undefined, options?: { includeTest?: boolean }) {
+  const includeTest = options?.includeTest === true;
   return useQuery({
-    queryKey: ["leads", organizationId],
+    queryKey: includeTest ? ["leads", organizationId, "with-test"] : ["leads", organizationId],
     enabled: !!organizationId,
     queryFn: async () => {
-      const { data, error } = await supabase
+      const base = supabase
         .from("leads")
         .select(
           "id, name, email, phone, status, source, campaign, city, message, service_interest, estimated_value, next_follow_up_at, last_contacted_at, created_at, service_id, customer_id, assigned_to",
         )
-        .eq("organization_id", organizationId!)
-        .order("created_at", { ascending: false });
+        .eq("organization_id", organizationId!);
+      const { data, error } = await (includeTest ? base : base.neq("source", TEST_LEAD_SOURCE)).order(
+        "created_at",
+        { ascending: false },
+      );
       if (error) throw error;
       return data;
     },
@@ -242,6 +253,21 @@ export function useNotifications(organizationId: string | undefined) {
   });
 }
 
+/** Toast + optional chime for one realtime lead INSERT. Sound is off unless the owner turned it on. */
+async function announceNewLeadFromRealtime(row: Record<string, unknown>) {
+  try {
+    await announceNewLead(row as { source?: string; created_at?: string; name?: string; service_interest?: string }, {
+      notifyInfo: (message, extra) => toast(message, extra),
+      chimeOn: async () => {
+        const { data } = await supabase.auth.getSession();
+        return readChimeOn(window.localStorage, data.session?.user.id ?? null);
+      },
+    });
+  } catch {
+    /* an alert must never break the live feed */
+  }
+}
+
 /** Keeps lead/review/notification counts fresh while the workspace is open. */
 export function useWorkspaceRealtime(organizationId: string | undefined) {
   const queryClient = useQueryClient();
@@ -254,7 +280,11 @@ export function useWorkspaceRealtime(organizationId: string | undefined) {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "leads", filter: `organization_id=eq.${organizationId}` },
-        () => {
+        (payload) => {
+          if (payload.eventType === "INSERT") {
+            // Toast (and the chime, only if the owner turned sound on) for a new real lead.
+            void announceNewLeadFromRealtime(payload.new as Record<string, unknown>);
+          }
           void queryClient.invalidateQueries({ queryKey: ["leads", organizationId] });
           void queryClient.invalidateQueries({ queryKey: ["score_facts", organizationId] });
           void queryClient.invalidateQueries({ queryKey: ["notifications", organizationId] });

@@ -29,6 +29,7 @@ import {
 import { useExperiment } from "@/lib/experiments.hooks";
 import { trackConversion } from "@/lib/conversion";
 import { LocalPriceEstimate } from "@/components/marketing/LocalPriceEstimate";
+import { WhatRevoraReplaces } from "@/components/marketing/WhatRevoraReplaces";
 
 export const Route = createFileRoute("/pricing")({
   // On a client's own web address this path is THEIR page, not Revora's.
@@ -58,7 +59,7 @@ export const Route = createFileRoute("/pricing")({
         jsonLdScript({
           ...GROWTH_SYSTEM_SCHEMA,
           offers: GROWTH_SYSTEM_SCHEMA.offers.map((offer) =>
-            offer.name === "One-time setup"
+            offer.name === "Setup"
               ? { ...offer, name: `${usd(GROWTH_SYSTEM.setupPrice)} setup` }
               : offer,
           ),
@@ -93,7 +94,7 @@ const MONTHLY = usd(GROWTH_SYSTEM.monthlyPrice);
 const FAQ = [
   {
     q: `What does the ${SETUP} setup cover?`,
-    a: "The initial build, customization, configuration and launch of your system: website, domain setup, lead capture, CRM, booking, quote flow, follow-up automation, local SEO foundation and analytics. It is charged today.",
+    a: "The initial build, customization, configuration and launch of your system: website, domain setup, lead capture, CRM, booking, quote flow, follow-up automation, local SEO foundation and analytics. It is charged once, when you launch at checkout, not during your free access.",
   },
   {
     q: `What does the ${MONTHLY}/month cover?`,
@@ -138,8 +139,9 @@ function Pricing() {
         <div className="mt-5">
           <TrialBadge />
           <p className="mt-3 max-w-2xl text-[15px] leading-relaxed text-muted-foreground">
-            Start with a {GROWTH_SYSTEM.fullAccessWindowAdjective} free trial, no card needed. When
-            you launch, it's {usd(GROWTH_SYSTEM.setupPrice)} setup, your first month free, then{" "}
+            Start with {GROWTH_SYSTEM.fullAccessWindow} of free access, no card needed. Nothing is
+            charged during it. When you choose to launch, the {usd(GROWTH_SYSTEM.setupPrice)} setup is
+            charged at checkout, your first month is free, then{" "}
             {usd(GROWTH_SYSTEM.monthlyPrice)}/month.
           </p>
         </div>
@@ -196,11 +198,11 @@ function Pricing() {
                 <FreeAccessBanner />
               </div>
               <p className="mt-2.5 text-[13px] text-muted-foreground">
-                {GROWTH_SYSTEM.ctaSecondary.replace("one-time setup", "setup")}
+                {GROWTH_SYSTEM.ctaSecondary}
               </p>
               <p className="mt-4 flex items-start gap-2 text-[13px] leading-relaxed text-muted-foreground">
                 <ShieldCheck className="mt-0.5 size-4 shrink-0 text-primary" />
-                {GROWTH_SYSTEM.explainer.replace("one-time setup", "setup")}
+                {GROWTH_SYSTEM.explainer}
               </p>
             </div>
 
@@ -219,6 +221,7 @@ function Pricing() {
         </section>
 
         <ValueSplit />
+        <WhatRevoraReplaces className="mt-16" />
         <WhyRevora />
         <AfterYouStart />
 

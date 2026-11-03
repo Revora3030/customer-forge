@@ -37,6 +37,19 @@ describe("world-class craft bar", () => {
     expect(everything).not.toMatch(/must (include|use|start with) (a|an|the) (hero|testimonial|faq|pricing)/i);
   });
 
+  it("adds finished-state and motion detail for layout and polish only, still style-neutral", () => {
+    for (const role of ["layout", "polish"] as CraftRole[]) {
+      const prompt = craftBarPrompt(role);
+      expect(prompt, role).toContain("FINISHED STATES");
+      expect(prompt, role).toMatch(/prefers-reduced-motion/);
+      expect(prompt, role).toMatch(/aria-invalid/);
+    }
+    for (const role of ["copy", "page_architecture", "brand_identity"] as CraftRole[]) {
+      expect(craftBarPrompt(role), role).not.toContain("FINISHED STATES");
+    }
+    expect(VISUAL_CRAFT_REVIEW_BRIEF).toMatch(/loading, empty, error and overlay states/);
+  });
+
   it("frames common generated-site defaults as questions, not bans", () => {
     const prompt = craftBarPrompt("layout");
     expect(prompt).toMatch(/use one only when you can say why/);

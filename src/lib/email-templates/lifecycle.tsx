@@ -171,6 +171,25 @@ const WinbackEmail = (p: LifecycleProps) => (
   </Shell>
 );
 
+const SiteReadyEmail = (p: LifecycleProps) => (
+  <Shell
+    unsubscribeUrl={p.unsubscribeUrl}
+    preview="Your website draft is ready to review"
+    heading={`${p.firstName ? `${p.firstName}, y` : "Y"}our website draft is ready`}
+  >
+    <Text style={text}>
+      The first build of {p.businessName || "your website"} has finished. It is a draft for you to
+      look over — it is not live to the public until you publish it.
+    </Text>
+    <Text style={text}>
+      <strong>Next: open it, check the wording, photos and contact details, and fix anything that is
+      off.</strong>{" "}
+      When it looks right, publish it from the same page.
+    </Text>
+    {cta(p.actionUrl || `${APP}/website`, "Review my website")}
+  </Shell>
+);
+
 const preview = {
   businessName: "Elite Mobile Detailing",
   firstName: "Adam",
@@ -207,6 +226,13 @@ export const lifecycleBookingFollowUpTemplate = {
   subject: (d: Record<string, unknown>) =>
     `New booking: ${(d?.["bookingName"] as string) || "a customer"} — confirm and quote`,
   displayName: "Lifecycle: booking follow-up",
+  previewData: preview,
+} satisfies TemplateEntry;
+
+export const lifecycleSiteReadyTemplate = {
+  component: SiteReadyEmail,
+  subject: () => "Your website draft is ready to review",
+  displayName: "Lifecycle: site ready",
   previewData: preview,
 } satisfies TemplateEntry;
 

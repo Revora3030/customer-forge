@@ -152,7 +152,7 @@ function LocalIndustryStatePage() {
             </Button>
           </div>
           <p className="mt-3 text-[13px] text-muted-foreground">
-            {usd(GROWTH_SYSTEM.setupPrice)} one-time setup · first month free · then{" "}
+            {usd(GROWTH_SYSTEM.setupPrice)} setup · first month free · then{" "}
             {usd(GROWTH_SYSTEM.monthlyPrice)}/month · cancel anytime
           </p>
         </section>

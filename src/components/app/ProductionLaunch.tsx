@@ -34,7 +34,7 @@ export function EnvironmentBanner({ status }: { status: ProductionStatus | undef
           <p className="mt-1 max-w-2xl text-[12px] text-muted-foreground">
             {live
               ? "Checked changes go straight to your live site, with an undo point saved first."
-              : `Build and test everything now. Publishing and your own domain unlock once the one-time ${usd(GROWTH_SYSTEM.setupPrice)} setup is paid.`}
+              : `Build and test everything now. Publishing and your own domain unlock once the ${usd(GROWTH_SYSTEM.setupPrice)} setup is paid.`}
           </p>
         </div>
         {!live ? (
@@ -74,7 +74,7 @@ export function ProductionLaunchModal({
         </h2>
         <p className="mt-2 text-[13px] text-muted-foreground">
           {reason ??
-            "You've built your website and customer-growth system. Complete your one-time setup to take it live."}
+            "You've built your website and customer-growth system. Complete your setup to take it live."}
         </p>
         <ul className="mt-3 space-y-1.5 text-[13px]">
           {[
@@ -93,7 +93,7 @@ export function ProductionLaunchModal({
           ))}
         </ul>
         <div className="mt-4 rounded-md border border-border bg-elevated p-3">
-          <p className="text-[11px] text-muted-foreground">One-time setup</p>
+          <p className="text-[11px] text-muted-foreground">Setup</p>
           <p className="font-display text-[24px] font-semibold text-primary">
             ${GROWTH_SYSTEM.setupPrice}
           </p>
@@ -259,7 +259,7 @@ export function ProductionSummaryCard({ status }: { status: ProductionStatus | u
             <Link to="/get-started">Launch my website</Link>
           </Button>
           <span className="text-[11.5px] text-muted-foreground">
-            ${GROWTH_SYSTEM.setupPrice} one-time setup · then ${GROWTH_SYSTEM.monthlyPrice}/month,
+            ${GROWTH_SYSTEM.setupPrice} setup · then ${GROWTH_SYSTEM.monthlyPrice}/month,
             first month free
           </span>
         </div>

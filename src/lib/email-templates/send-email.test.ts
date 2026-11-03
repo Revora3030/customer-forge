@@ -16,7 +16,7 @@ describe("resolveReplyTo", () => {
   });
 
   it("gives Revora-own billing and lifecycle emails Revora's support address", () => {
-    for (const name of ["billing-welcome", "billing-payment-failed", "lifecycle-winback"]) {
+    for (const name of ["billing-welcome", "billing-payment-failed", "lifecycle-winback", "lifecycle-site-ready"]) {
       expect(resolveReplyTo(name)).toBe(REVORA.email);
     }
   });
@@ -29,7 +29,7 @@ describe("resolveReplyTo", () => {
 
   it("every template given the default exists in the registry; the internal sale alert does not get it", () => {
     const withDefault = Object.keys(TEMPLATES).filter((n) => resolveReplyTo(n) === REVORA.email);
-    expect(withDefault.length).toBe(10);
+    expect(withDefault.length).toBe(11);
     expect(resolveReplyTo("billing-sale-alert")).toBeUndefined();
   });
 });

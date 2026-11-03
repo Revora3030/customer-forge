@@ -28,7 +28,7 @@ Revora's current South Carolina page names Charleston, Columbia, North Charlesto
 
 Revora can send a first reply right away through a ready-made new-lead automation you switch on, put every form, quote and booking from your site in one pipeline, and follow up on a schedule you choose. After you mark a job complete, a ready-made review-request automation sends a text to customers who agreed to texts, then a follow-up email, in the same words every time. The site, the customer list and the data are yours.
 
-$350 one-time, first month free, then $100/month, cancel anytime, with 3 days of full access first. No one can promise a Google position.
+$350 setup, first month free, then $100/month, cancel anytime, with 3 days of full access first. No one can promise a Google position.
 
 ## Questions South Carolina owners ask
 
@@ -45,4 +45,4 @@ Yes. You choose the questions, set the ranges and route complex jobs to a visit 
 One per place you really serve. Don't list towns you won't drive to.
 
 **What does it cost?**
-$350 one-time, first month free, then $100/month.
+$350 setup, first month free, then $100/month.

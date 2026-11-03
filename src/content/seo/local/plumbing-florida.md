@@ -32,7 +32,7 @@ The website, customer list and analytics are yours. You can see which page, city
 
 ## Cost
 
-$350 one-time, first month free, then $100/month, cancel anytime. Try 3 days of full access before paying. No one can promise a specific Google position.
+$350 setup, first month free, then $100/month, cancel anytime. Try 3 days of full access before paying. No one can promise a specific Google position.
 
 ## Questions Florida owners ask
 
@@ -49,4 +49,4 @@ Yes. Many plumbers show it. You choose what to publish.
 No. A review request goes to your real customers after you mark a job complete, and the reviews are theirs.
 
 **How much is it?**
-$350 one-time setup, first month free, then $100/month.
+$350 setup, first month free, then $100/month.

@@ -29,7 +29,7 @@ Revora's current Texas page names Houston, San Antonio, Dallas, Austin and Fort 
 
 ## Cost
 
-$350 one-time setup, first month free, then $100/month, cancel anytime, with 3 days of full access before you pay. Revora does not guarantee rankings or traffic. You review every page before it goes live.
+$350 setup, first month free, then $100/month, cancel anytime, with 3 days of full access before you pay. Revora does not guarantee rankings or traffic. You review every page before it goes live.
 
 ## Questions Texas owners ask
 
@@ -46,4 +46,4 @@ Yes. You set the packages and add-ons. The quote form shows a range you control,
 Each page covers its own service area and the packages you actually offer there. We do not copy one town page and swap names.
 
 **What does it cost to start?**
-$350 one-time setup, first month free, then $100/month. 3 days of free access first, no card needed to try it.
+$350 setup, first month free, then $100/month. 3 days of free access first, no card needed to try it.

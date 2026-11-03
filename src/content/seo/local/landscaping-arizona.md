@@ -32,7 +32,7 @@ Revora can send a first reply right away through a ready-made new-lead automatio
 
 ## Cost
 
-$350 one-time, first month free, then $100/month, cancel anytime, with 3 days of full access first. No one can promise a Google ranking.
+$350 setup, first month free, then $100/month, cancel anytime, with 3 days of full access first. No one can promise a Google ranking.
 
 ## Questions Arizona owners ask
 
@@ -49,4 +49,4 @@ Yes. We build galleries from your own project photos.
 Yes, against availability you set.
 
 **What does it cost?**
-$350 one-time, first month free, then $100/month.
+$350 setup, first month free, then $100/month.

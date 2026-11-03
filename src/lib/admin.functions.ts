@@ -3,7 +3,10 @@ import type { Database } from "@/integrations/supabase/types";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { NewClientInput } from "@/lib/admin-types";
 import { fetchAllRows } from "@/lib/paginate";
+import { TEST_LEAD_SOURCE } from "@/lib/test-lead";
 import { netRevenue } from "@/lib/monthly-report";
+import { isRealPaymentAmount } from "@/lib/payment-amount";
+import { clientBusinessCount, isTestRecord, testReason } from "@/lib/admin-client-records";
 
 type SubscriptionStatus = Database["public"]["Enums"]["subscription_status"];
 type PublishState = Database["public"]["Enums"]["publish_state"];
@@ -32,14 +35,21 @@ export async function computePlatformMetrics() {
 
     // Every row is read (no silent 1,000-row cap), demo workspaces are left
     // out, and a failed read throws so the page says so instead of showing 0.
-    const [orgs, sites, leads, appts, plans, subs] = await Promise.all([
-      fetchAllRows<{ id: string; subscription_status: string; is_suspended: boolean; is_demo: boolean; plan_id: string | null }>(
+    const [orgs, owners, sites, leads, appts, plans, subs] = await Promise.all([
+      fetchAllRows<{ id: string; name: string; slug: string | null; created_at: string; subscription_status: string; is_suspended: boolean; is_demo: boolean; plan_id: string | null }>(
         (from, to) =>
           supabaseAdmin
             .from("organizations")
-            .select("id, subscription_status, is_suspended, is_demo, plan_id")
+            .select("id, name, slug, created_at, subscription_status, is_suspended, is_demo, plan_id")
             .order("id")
             .range(from, to),
+      ),
+      fetchAllRows<{ organization_id: string; owner_name: string | null; owner_email: string | null; email: string | null }>((from, to) =>
+        supabaseAdmin
+          .from("business_profiles")
+          .select("organization_id, owner_name, owner_email, email")
+          .order("organization_id")
+          .range(from, to),
       ),
       fetchAllRows<{ organization_id: string; publish_state: string; domain_status: string | null }>((from, to) =>
         supabaseAdmin
@@ -49,7 +59,13 @@ export async function computePlatformMetrics() {
           .range(from, to),
       ),
       fetchAllRows<{ organization_id: string | null }>((from, to) =>
-        supabaseAdmin.from("leads").select("organization_id").gte("created_at", since).order("id").range(from, to),
+        supabaseAdmin
+          .from("leads")
+          .select("organization_id")
+          .neq("source", TEST_LEAD_SOURCE)
+          .gte("created_at", since)
+          .order("id")
+          .range(from, to),
       ),
       fetchAllRows<{ organization_id: string | null }>((from, to) =>
         supabaseAdmin.from("appointments").select("organization_id").gte("created_at", since).order("id").range(from, to),
@@ -68,13 +84,23 @@ export async function computePlatformMetrics() {
             .range(from, to),
       ),
     ]);
-    const failed = [orgs.error, sites.error, leads.error, appts.error, plans.error, subs.error].find(Boolean);
+    const failed = [orgs.error, owners.error, sites.error, leads.error, appts.error, plans.error, subs.error].find(Boolean);
     if (failed) throw new Error("Couldn't read the platform numbers just now. Refresh in a moment.");
 
     // Demos, Revora's own workspace and staff-only test workspaces are not clients.
     const { loadCustomerOrgIds } = await import("@/lib/customer-orgs.server");
     const customers = await loadCustomerOrgIds(supabaseAdmin);
-    const orgRows = orgs.rows.filter((o) => customers.has(o.id));
+    // The count is exactly the rows the default client list shows: customers,
+    // no test/QA records, a business that exists twice counted once. The other
+    // figures are per workspace, so they skip test records but keep every row.
+    const ownerByOrg = new Map<string, { owner_name: string | null; owner_email: string | null }>();
+    for (const row of owners.rows) {
+      if (!ownerByOrg.has(row.organization_id)) ownerByOrg.set(row.organization_id, { owner_name: row.owner_name, owner_email: row.owner_email ?? row.email });
+    }
+    const records = orgs.rows
+      .filter((o) => customers.has(o.id))
+      .map((o) => ({ ...o, is_customer: true, owner_name: ownerByOrg.get(o.id)?.owner_name ?? null, owner_email: ownerByOrg.get(o.id)?.owner_email ?? null }));
+    const orgRows = records.filter((o) => !isTestRecord(o));
     const real = new Map(orgRows.map((o) => [o.id, o]));
     const siteRows = sites.rows.filter((s) => real.has(s.organization_id));
     const plan = (id: string | null) => (plans.data ?? []).find((p) => p.id === id);
@@ -93,7 +119,7 @@ export async function computePlatformMetrics() {
     }
 
     return {
-      clients: orgRows.length,
+      clients: clientBusinessCount(records),
       active: paying.size,
       suspended: orgRows.filter((o) => o.is_suspended).length,
       trialing: orgRows.filter((o) => o.subscription_status === "trialing").length,
@@ -126,6 +152,9 @@ export const listClients = createServerFn({ method: "GET" })
 
     const ids = (orgs ?? []).map((o) => o.id);
     if (!ids.length) return [];
+    // Workspaces only Revora staff belong to (internal builds, QA) are not customers.
+    const { loadCustomerOrgIds } = await import("@/lib/customer-orgs.server");
+    const customerIds = await loadCustomerOrgIds(supabaseAdmin);
 
     // `ids` is every workspace, so each table is read whole, page by page.
     // An unpaged read stops at 1,000 rows shared by ALL clients and quietly
@@ -163,7 +192,7 @@ export const listClients = createServerFn({ method: "GET" })
         useDbCounts
           ? none
           : all<{ organization_id: string; is_active: boolean }>("quote_forms", "organization_id, is_active"),
-        useDbCounts ? none : all<{ organization_id: string }>("leads", "organization_id"),
+        useDbCounts ? none : all<{ organization_id: string }>("leads", "organization_id", (q) => q.neq("source", TEST_LEAD_SOURCE)),
         useDbCounts ? none : all<{ organization_id: string }>("appointments", "organization_id"),
         useDbCounts ? none : all<{ organization_id: string }>("analytics_events", "organization_id"),
         // Financial truth is LIVE Stripe only.
@@ -276,6 +305,18 @@ export const listClients = createServerFn({ method: "GET" })
         owner_email: profile?.owner_email ?? profile?.email ?? null,
         owner_phone: profile?.phone ?? null,
         city: profile?.city ?? null,
+        // Display flags only: nothing is changed or deleted. The page leaves test
+        // records out unless "Show test records" is on.
+        is_customer: customerIds.has(org.id),
+        test_reason: testReason({
+          id: org.id,
+          name: org.name,
+          slug: org.slug,
+          is_demo: org.is_demo,
+          is_customer: customerIds.has(org.id),
+          owner_name: profile?.owner_name ?? null,
+          owner_email: profile?.owner_email ?? profile?.email ?? null,
+        }),
         custom_domain: settings?.custom_domain ?? null,
         domain_status: settings?.domain_status ?? "not_connected",
         domain_checked_at: settings?.domain_checked_at ?? null,
@@ -359,7 +400,13 @@ export const getClientDetail = createServerFn({ method: "GET" })
       supabaseAdmin.from("quote_forms").select("id, is_active").eq("organization_id", id),
       // Every lead and booking: a client past 1,000 must not read "1000".
       fetchAllRows<{ id: string; status: string; created_at: string }>((from, to) =>
-        supabaseAdmin.from("leads").select("id, status, created_at").eq("organization_id", id).order("id").range(from, to),
+        supabaseAdmin
+          .from("leads")
+          .select("id, status, created_at")
+          .eq("organization_id", id)
+          .neq("source", TEST_LEAD_SOURCE)
+          .order("id")
+          .range(from, to),
       ),
       fetchAllRows<{ id: string; status: string; starts_at: string }>((from, to) =>
         supabaseAdmin.from("appointments").select("id, status, starts_at").eq("organization_id", id).order("id").range(from, to),
@@ -612,6 +659,49 @@ export const setClientDomain = createServerFn({ method: "POST" })
     return { ...check, domain, target: DOMAIN_TARGET, live: check.dnsOk && check.sslOk };
   });
 
+/**
+ * Stores the hosting platform's per-domain `_lovable` TXT verification values
+ * (apex and www) in website_settings.generation.domainVerification — no
+ * migration. Values are only kept for the domain they were issued for.
+ */
+export const setClientDomainVerification = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: { organizationId: string; apex?: string; www?: string }) => {
+    if (!input?.organizationId) throw new Error("Missing client.");
+    return {
+      organizationId: String(input.organizationId),
+      apex: String(input.apex ?? "").trim(),
+      www: String(input.www ?? "").trim(),
+    };
+  })
+  .handler(async ({ data, context }) => {
+    const { assertSuperAdmin } = await import("@/lib/admin.server");
+    const { normalizeLovableVerifyValue, writeLovableVerification } = await import("@/lib/domain-setup");
+    await assertSuperAdmin(context.supabase, context.userId);
+    for (const [label, raw] of [["apex", data.apex], ["www", data.www]] as const) {
+      if (raw && !normalizeLovableVerifyValue(raw))
+        throw new Error(`The ${label} value must look like lovable_verify=… (copy it from the hosting dashboard).`);
+    }
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: settings, error: readError } = await supabaseAdmin
+      .from("website_settings")
+      .select("custom_domain, generation")
+      .eq("organization_id", data.organizationId)
+      .maybeSingle();
+    if (readError) throw new Error(readError.message);
+    if (!settings?.custom_domain) throw new Error("Save the client's domain first.");
+    const generation = writeLovableVerification(settings.generation, settings.custom_domain, {
+      apex: data.apex,
+      www: data.www,
+    });
+    const { error } = await supabaseAdmin
+      .from("website_settings")
+      .update({ generation: generation as never })
+      .eq("organization_id", data.organizationId);
+    if (error) throw new Error(error.message);
+    return { ok: true, domain: settings.custom_domain };
+  });
+
 /** Re-checks DNS for the saved domain. Never optimistic. */
 export const verifyClientDomain = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -760,6 +850,11 @@ export const setClientPublishState = createServerFn({ method: "POST" })
       entity_id: data.organizationId,
       metadata: { publish_state: data.state, source: "admin" } as never,
     });
+    if (data.state === "published") {
+      await import("@/lib/indexnow-site.server")
+        .then(({ submitPublishedSiteToIndexNow }) => submitPublishedSiteToIndexNow(data.organizationId))
+        .catch(() => undefined);
+    }
     return { ok: true };
   });
 
@@ -800,7 +895,7 @@ export const getMonthlyBusinessReport = createServerFn({ method: "GET" })
             .or(`created_at.gte.${since},completed_at.gte.${since}`),
       ),
       page<{ organization_id: string | null; created_at: string }>(() =>
-        supabaseAdmin.from("leads").select("id, organization_id, created_at").gte("created_at", since),
+        supabaseAdmin.from("leads").select("id, organization_id, created_at").neq("source", TEST_LEAD_SOURCE).gte("created_at", since),
       ),
       page<{ organization_id: string | null; created_at: string }>(() =>
         supabaseAdmin.from("appointments").select("id, organization_id, created_at").gte("created_at", since),
@@ -957,6 +1052,7 @@ export const getPlatformActivity = createServerFn({ method: "GET" })
       supabaseAdmin
         .from("leads")
         .select("id, organization_id, name, created_at")
+        .neq("source", TEST_LEAD_SOURCE)
         .gte("created_at", since)
         .order("created_at", { ascending: false })
         .limit(cap),
@@ -971,6 +1067,8 @@ export const getPlatformActivity = createServerFn({ method: "GET" })
         .select("id, organization_id, amount, status, environment, created_at")
         .eq("status", "completed")
         .eq("environment", "live")
+        // A $0.00 charge (free first month, 100%-off setup code) is not a payment.
+        .gt("amount", 0)
         .gte("created_at", since)
         .order("created_at", { ascending: false })
         .limit(cap),
@@ -1023,9 +1121,9 @@ export const getPlatformActivity = createServerFn({ method: "GET" })
       return extra ? extra(query) : query;
     };
     const [leadTotal, bookingTotal, paymentTotal, versionTotal, signupTotal] = await Promise.all([
-      windowCount("leads"),
+      windowCount("leads", (q) => q.neq("source", TEST_LEAD_SOURCE)),
       windowCount("appointments"),
-      windowCount("payments", (q) => q.eq("status", "completed").eq("environment", "live")),
+      windowCount("payments", (q) => q.eq("status", "completed").eq("environment", "live").gt("amount", 0)),
       windowCount("website_versions"),
       supabaseAdmin.from("organizations").select("id", { count: "exact", head: true }).gte("created_at", since).eq("is_demo", false),
     ]);
@@ -1069,7 +1167,7 @@ export const getPlatformActivity = createServerFn({ method: "GET" })
           business: names.get(a.organization_id) ?? null,
         })),
       ...(payments.data ?? [])
-        .filter((p) => !demoIds.has(p.organization_id))
+        .filter((p) => !demoIds.has(p.organization_id) && isRealPaymentAmount(p.amount))
         .map<Item>((p) => ({
           id: `pay-${p.id}`,
           kind: "payment",

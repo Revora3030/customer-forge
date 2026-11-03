@@ -94,7 +94,7 @@ const FREE_STEPS = [
   },
   {
     title: "Choose your paid setup",
-    body: `${usd(GROWTH_SYSTEM.setupPrice)} one-time setup starts your build. Your first platform month is free, then ${usd(GROWTH_SYSTEM.monthlyPrice)}/month. Exploring free access does not itself publish a finished website.`,
+    body: `${usd(GROWTH_SYSTEM.setupPrice)} setup starts your build. Your first platform month is free, then ${usd(GROWTH_SYSTEM.monthlyPrice)}/month. Exploring free access does not itself publish a finished website.`,
   },
 ];
 

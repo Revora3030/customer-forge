@@ -1,0 +1,13 @@
+{
+  "name": "revora-e2e",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Playwright end-to-end tests. Kept in its own package so the app's dependency tree, bundle and existing browser QA scripts are untouched.",
+  "scripts": {
+    "test": "playwright test",
+    "install:browser": "playwright install --with-deps chromium"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.1"
+  }
+}

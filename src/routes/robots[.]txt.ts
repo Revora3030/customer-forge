@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { clientSiteRobotsTxt } from "@/lib/client-robots";
 import { platformOrigin, resolveHostSite } from "@/lib/site-host.server";
 
 export const Route = createFileRoute("/robots.txt")({
@@ -19,6 +20,22 @@ export const Route = createFileRoute("/robots.txt")({
           });
         }
         const origin = site ? site.origin : platformOrigin(host ?? url.host, protocol);
+        // A verified custom domain is that client's site. Its robots.txt allows
+        // search and AI crawlers and points at its own sitemap only. An offline
+        // client host tells crawlers to stay out. Revora's own hosts keep the
+        // marketing rules below.
+        if (site) {
+          const body = clientSiteRobotsTxt({
+            indexable: !site.noindex,
+            sitemapUrl: site.noindex ? null : `${site.origin}/sitemap.xml`,
+          });
+          return new Response(body, {
+            headers: {
+              "content-type": "text/plain; charset=utf-8",
+              "cache-control": site.noindex ? "no-store" : "public, max-age=600",
+            },
+          });
+        }
         // Private application surfaces must never be indexed: the workspace, the
         // platform admin, the client portal, auth screens, invitations and
         // shareable preview links.
@@ -46,11 +63,11 @@ export const Route = createFileRoute("/robots.txt")({
           ...disallowed.map((path) => `Disallow: ${path}`),
 
           "",
-          `Sitemap: ${site ? site.origin : origin}/sitemap.xml`,
+          `Sitemap: ${origin}/sitemap.xml`,
           // One sitemap only. The former /sitemaps/sites.xml index of client
           // sites was empty and has been removed; a client's own sitemap is
           // /s/<slug>/sitemap.xml (or its custom domain's /sitemap.xml).
-          ...(site ? [] : [`# AI crawler summary: ${origin}/llms.txt`]),
+          `# AI crawler summary: ${origin}/llms.txt`,
           "",
         ];
 

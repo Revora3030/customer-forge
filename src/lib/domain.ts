@@ -161,6 +161,7 @@ export const sourceLabel = (source: string | null | undefined) => {
     referral: "Referral",
     website: "Website",
     qr_code: "QR code",
+    test_lead: "Test lead",
   };
   return map[source ?? ""] ?? "Unknown";
 };

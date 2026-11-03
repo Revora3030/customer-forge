@@ -32,7 +32,7 @@ Before-and-after images from your own jobs go on your site, grouped by package. 
 
 ## Cost
 
-$350 one-time, first month free, then $100/month, cancel anytime, with 3 days of full access first. Rankings are never guaranteed.
+$350 setup, first month free, then $100/month, cancel anytime, with 3 days of full access first. Rankings are never guaranteed.
 
 ## Questions North Carolina owners ask
 
@@ -49,4 +49,4 @@ Yes. You set availability and customers pick from it.
 After you mark a job complete, a ready-made review-request automation sends a text to customers who agreed to texts, then a follow-up email, in the same words every time. No incentives and no filtering.
 
 **How much does it cost?**
-$350 one-time setup, first month free, then $100/month. 3 days of full access first.
+$350 setup, first month free, then $100/month. 3 days of full access first.

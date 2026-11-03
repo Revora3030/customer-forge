@@ -82,7 +82,7 @@ export function buildIntegrationCards(facts: IntegrationFacts): IntegrationCard[
         ? subOk
           ? `Setup fee paid and the monthly plan is ${sub === "trialing" ? "in its free month" : "active"}.`
           : `Setup fee paid, but the monthly plan is ${sub || "not active"}.`
-        : "The one-time setup payment hasn't gone through yet, so the live website stays locked.",
+        : "The setup payment hasn't gone through yet, so the live website stays locked.",
       ...(paid && subOk ? {} : { action: { label: "Open billing", to: "/app/billing" } }),
     });
   }

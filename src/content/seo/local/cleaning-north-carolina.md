@@ -32,7 +32,7 @@ Every form, quote and booking from your site lands in one pipeline. Revora can s
 
 ## Cost
 
-$350 one-time, first month free, then $100/month, cancel anytime. Try 3 days of full access before paying. No one can promise a Google ranking.
+$350 setup, first month free, then $100/month, cancel anytime. Try 3 days of full access before paying. No one can promise a Google ranking.
 
 ## Questions North Carolina owners ask
 
@@ -49,4 +49,4 @@ We did not find a state license specific to residential cleaning. Check with you
 Only if it is true, and in your own words. We place the exact claim you give us.
 
 **How much does it cost?**
-$350 one-time setup, first month free, then $100/month, with a 3-day full-access trial first.
+$350 setup, first month free, then $100/month, with a 3-day full-access trial first.

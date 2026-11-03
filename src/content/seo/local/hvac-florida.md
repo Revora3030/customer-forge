@@ -29,7 +29,7 @@ Revora can send a first reply right away through a ready-made new-lead automatio
 
 ## Cost
 
-$350 one-time, first month free, then $100/month, cancel anytime. Try 3 days of full access before paying. No one can promise a specific Google position.
+$350 setup, first month free, then $100/month, cancel anytime. Try 3 days of full access before paying. No one can promise a specific Google position.
 
 ## Questions Florida owners ask
 
@@ -46,4 +46,4 @@ Yes, as long as you describe services you actually offer. Do not imply guarantee
 Yes, a range you set from the answers they give. A visit confirms the final price.
 
 **How much is it?**
-$350 one-time setup, first month free, then $100/month, cancel anytime.
+$350 setup, first month free, then $100/month, cancel anytime.

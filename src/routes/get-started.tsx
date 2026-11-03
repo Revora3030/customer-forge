@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { LegalAgreementNote } from "@/components/marketing/LegalAgreementNote";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, ArrowRight, Check, Lock, ShieldCheck, Sparkles } from "lucide-react";
@@ -7,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { GrowthSystemCheckout } from "@/components/app/GrowthSystemCheckout";
-import { GROWTH_SYSTEM, usdExact } from "@/lib/offer";
+import { GROWTH_SYSTEM, REFUND_POLICY, usd } from "@/lib/offer";
 import type { GrowthSystemIntake } from "@/lib/stripe.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { isPaymentsConfigured } from "@/lib/stripe";
@@ -26,8 +27,11 @@ import {
   claimAwareRedirect,
   isClaimToken,
 } from "@/lib/prospect-claim";
+import { VoiceDictateButton } from "@/components/marketing/VoiceDictateButton";
+import { DraftSitePreview } from "@/components/marketing/DraftSitePreview";
 import { readStarter, starterFromMetadata } from "@/components/marketing/hero-starter-utils";
 import { applyImportedFacts, importExistingWebsite } from "@/lib/site-import.functions";
+import { validateIntakeServices } from "@/lib/builder/intake-sanitize";
 
 export const Route = createFileRoute("/get-started")({
   validateSearch: (search: Record<string, unknown>): { claim?: string; pay?: "now" } => ({
@@ -41,13 +45,13 @@ export const Route = createFileRoute("/get-started")({
       {
         name: "description",
         content:
-          "Start with Revora Growth Systems: $350 one-time setup, a first month free, then $100/month for website, CRM, booking, SEO and support.",
+          "Start with Revora Growth Systems: $350 setup, first month free, then $100/month for website, CRM, booking, SEO and support.",
       },
       { property: "og:title", content: "Start with Revora Growth Systems" },
       {
         property: "og:description",
         content:
-          "$350 one-time setup + first month free + $100/month afterward. One complete customer acquisition system.",
+          "$350 setup, first month free, then $100/month. One complete customer acquisition system.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -66,6 +70,7 @@ const EMPTY: GrowthSystemIntake = {
   fullName: "",
   businessName: "",
   email: "",
+  businessEmail: "",
   phone: "",
   website: "",
   businessType: "",
@@ -74,7 +79,11 @@ const EMPTY: GrowthSystemIntake = {
   services: "",
 };
 
-const STEPS = ["Your information", "Order summary", "Payment"] as const;
+const STEPS = ["Your business", "Draft preview", "Order summary", "Payment"] as const;
+const STEP_QUICK = 0;
+const STEP_PREVIEW = 1;
+const STEP_SUMMARY = 2;
+const STEP_PAYMENT = 3;
 
 function GetStarted() {
   const [step, setStep] = useState(0);
@@ -187,9 +196,12 @@ function GetStarted() {
       if (saved) {
         const restored = { ...EMPTY, ...(JSON.parse(saved) as GrowthSystemIntake) };
         setIntake(restored);
-        // Returning from account creation: go straight back to payment.
-        if (restored.businessName.trim() && restored.email.trim() && restored.city.trim())
-          setStep(2);
+        // Returning from account creation: go straight back to payment if
+        // everything checkout needs is saved, otherwise to the draft preview.
+        if (restored.businessName.trim() && restored.email.trim() && restored.city.trim() && restored.phone.trim())
+          setStep(STEP_PAYMENT);
+        else if (restored.businessName.trim() && restored.businessType.trim() && restored.city.trim())
+          setStep(STEP_PREVIEW);
       }
     } catch {
       /* ignore unreadable drafts */
@@ -279,6 +291,16 @@ function GetStarted() {
   const set = (key: keyof GrowthSystemIntake) => (value: string) =>
     setIntake((prev) => ({ ...prev, [key]: value }));
 
+  // The three answers needed for the free draft preview and the free trial.
+  const quickMissing = useMemo(() => {
+    const problems: string[] = [];
+    if (!intake.businessName.trim()) problems.push("Business name");
+    if (!intake.businessType.trim()) problems.push("What you do");
+    if (!intake.city.trim()) problems.push("City");
+    return problems;
+  }, [intake.businessName, intake.businessType, intake.city]);
+
+  // Everything the paid checkout needs (collected only when paying).
   const missing = useMemo(() => {
     const problems: string[] = [];
     if (!intake.fullName.trim()) problems.push("Full name");
@@ -289,23 +311,38 @@ function GetStarted() {
     if (!intake.city.trim()) problems.push("City");
     if (!intake.state.trim()) problems.push("State");
     if (!intake.services.trim()) problems.push("Primary services");
+    else {
+      // "Full" on its own is half a name: ask for the full service name instead of saving it.
+      const listed = intake.services.split(/[\n,;]/).map((name) => ({ name: name.trim() })).filter((row) => row.name);
+      const rejected = validateIntakeServices(listed).rejected;
+      if (rejected.length) problems.push(`The full name of the service "${rejected[0]!.name}"`);
+    }
     return problems;
   }, [intake]);
 
   // Everything required is already on file — skip straight to payment instead
   // of re-asking for it. Still editable: "Edit information" goes back.
   useEffect(() => {
-    if (step !== 0 || !profileQuery.data || missing.length) return;
-    setStep(2);
+    if (step !== STEP_QUICK || !profileQuery.data || missing.length) return;
+    setStep(STEP_PAYMENT);
   }, [step, profileQuery.data, missing]);
 
-  const goToSummary = () => {
+  const goToPreview = () => {
+    if (quickMissing.length) {
+      setError(`Add: ${quickMissing.join(", ")}`);
+      return;
+    }
+    setError(null);
+    setStep(STEP_PREVIEW);
+  };
+
+  const goToPayment = () => {
     if (missing.length) {
       setError(`Add: ${missing.join(", ")}`);
       return;
     }
     setError(null);
-    setStep(1);
+    setStep(STEP_PAYMENT);
   };
 
   const signedIn = Boolean(session.data?.userId);
@@ -352,6 +389,7 @@ function GetStarted() {
         name: intake.businessName.trim() || "My business",
         industry: intake.businessType.trim() || null,
         email: intake.email.trim() || null,
+        businessEmail: intake.businessEmail?.trim() || null,
         phone: intake.phone.trim() || null,
         city: intake.city.trim() || null,
         state: intake.state.trim() || null,
@@ -453,15 +491,15 @@ function GetStarted() {
       replace: true,
     });
     if (alreadySubscribed || !cardsReady) {
-      setStep(2);
+      setStep(STEP_PAYMENT);
       return;
     }
     if (missing.length) {
-      setStep(0);
+      setStep(STEP_SUMMARY);
       setError(`Add: ${missing.join(", ")} — then continue to payment.`);
       return;
     }
-    setStep(2);
+    setStep(STEP_PAYMENT);
     void startPayment();
     // startPayment is recreated each render; this runs once per pay=now visit.
   }, [search.pay, search.claim, session.isLoading, profileQuery.isLoading, signedIn, claimToken, claimInfo.isLoading, alreadySubscribed, cardsReady, missing]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -493,10 +531,10 @@ function GetStarted() {
           {GROWTH_SYSTEM.headline}
         </h1>
         <p className="mt-3 text-[14px] leading-relaxed text-muted-foreground">
-          <span className="gold-hl">{usdExact(GROWTH_SYSTEM.setupPrice)} setup charged today</span>.
+          <span className="gold-hl">{usd(GROWTH_SYSTEM.setupPrice)} setup</span>.
           Platform{" "}
           <span className="gold-hl">{GROWTH_SYSTEM.firstMonthFree}</span>, then{" "}
-          {usdExact(GROWTH_SYSTEM.monthlyPrice)}/month unless canceled. One complete growth
+          {usd(GROWTH_SYSTEM.monthlyPrice)}/month unless canceled. One complete growth
           system — no packages to compare.
         </p>
         <p className="mt-2 text-[12.5px] text-muted-foreground">
@@ -504,10 +542,11 @@ function GetStarted() {
           <span className="gold-hl">
             {GROWTH_SYSTEM.fullAccessWindow} of free full access
           </span>{" "}
-          first — your answers below are saved as you type, so you can leave and come back anytime.
+          first, with no card needed. Answer three quick questions and see a free draft of your site
+          before you sign up. Your answers are saved as you type.
         </p>
 
-        <ol className="mt-7 grid gap-2 sm:grid-cols-3" aria-label="Checkout steps">
+        <ol className="mt-7 grid gap-2 sm:grid-cols-2 lg:grid-cols-4" aria-label="Steps">
           {STEPS.map((label, index) => (
             <li
               key={label}
@@ -529,57 +568,36 @@ function GetStarted() {
         </ol>
 
         <div ref={stepRef}>
-          {step === 0 ? (
+          {step === STEP_QUICK ? (
             <section className="panel mt-6 p-5">
-              <h2 className="font-display text-[17px] font-semibold">
-                Tell us about your business
-              </h2>
+              <h2 className="font-display text-[17px] font-semibold">Tell us about your business</h2>
               <p className="mt-1 text-[13px] text-muted-foreground">
-                This is what we use to build and configure your system — it takes about a minute.
+                Three quick answers and you'll see a free draft of your website. No account needed yet.
               </p>
-              <div className="mt-5 grid gap-4 sm:grid-cols-2">
+              <form
+                className="mt-5 grid gap-4 sm:grid-cols-2"
+                noValidate
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  goToPreview();
+                }}
+              >
+                <div className="sm:col-span-2">
+                  <Field
+                    label="Business name"
+                    value={intake.businessName}
+                    onChange={set("businessName")}
+                    autoComplete="organization"
+                    required
+                  />
+                </div>
                 <Field
-                  label="Full name"
-                  value={intake.fullName}
-                  onChange={set("fullName")}
-                  autoComplete="name"
-                  required
-                />
-                <Field
-                  label="Business name"
-                  value={intake.businessName}
-                  onChange={set("businessName")}
-                  autoComplete="organization"
-                  required
-                />
-                <Field
-                  label="Email"
-                  type="email"
-                  value={intake.email}
-                  onChange={set("email")}
-                  autoComplete="email"
-                  required
-                />
-                <Field
-                  label="Phone number"
-                  type="tel"
-                  value={intake.phone}
-                  onChange={set("phone")}
-                  autoComplete="tel"
-                  required
-                />
-                <Field
-                  label="Business website (optional)"
-                  value={intake.website ?? ""}
-                  onChange={set("website")}
-                  placeholder="yourbusiness.com"
-                />
-                <Field
-                  label="Business type"
+                  label="What you do"
                   value={intake.businessType}
                   onChange={set("businessType")}
                   placeholder="Mobile detailing, HVAC, landscaping…"
                   required
+                  dictate
                 />
                 <Field
                   label="City"
@@ -588,55 +606,93 @@ function GetStarted() {
                   autoComplete="address-level2"
                   required
                 />
-                <Field
-                  label="State"
-                  value={intake.state}
-                  onChange={set("state")}
-                  autoComplete="address-level1"
-                  required
-                />
+                {error ? (
+                  <p
+                    role="alert"
+                    className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-[13px] text-destructive sm:col-span-2"
+                  >
+                    {error}
+                  </p>
+                ) : null}
                 <div className="sm:col-span-2">
-                  <Label htmlFor="services" className="text-[13px]">
-                    Primary services <span aria-hidden="true">*</span>
-                  </Label>
-                  <textarea
-                    id="services"
-                    value={intake.services}
-                    onChange={(event) => set("services")(event.target.value)}
-                    rows={3}
-                    className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-2 text-[14px] outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    placeholder="Interior + exterior detailing, ceramic coating, fleet cleaning"
-                    required
-                  />
+                  <Button type="submit" variant="signal" size="lg" className="w-full sm:w-auto">
+                    See my free draft <ArrowRight className="size-4" />
+                  </Button>
                 </div>
-              </div>
-              {error ? (
-                <p className="mt-4 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-[13px] text-destructive">
-                  {error}
-                </p>
-              ) : null}
-              <Button
-                variant="signal"
-                size="lg"
-                className="mt-5 w-full sm:w-auto"
-                onClick={goToSummary}
-              >
-                Continue to order summary <ArrowRight className="size-4" />
-              </Button>
+              </form>
             </section>
           ) : null}
 
-          {step === 1 ? (
+          {step === STEP_PREVIEW ? (
+            <section className="mt-6 space-y-4" aria-labelledby="draft-preview-heading">
+              <div className="panel p-5">
+                <h2 id="draft-preview-heading" className="font-display text-[17px] font-semibold">
+                  Your free draft preview
+                </h2>
+                <p className="mt-1 text-[13px] text-muted-foreground">
+                  Built from the three answers you just gave. This is a draft for illustration; your real
+                  site is built from your details and fully editable.
+                </p>
+                <div className="mt-4">
+                  <DraftSitePreview
+                    businessName={intake.businessName}
+                    businessType={intake.businessType}
+                    city={intake.city}
+                    state={intake.state}
+                    services={intake.services}
+                  />
+                </div>
+                <Button variant="ghost" size="sm" className="mt-3" onClick={() => setStep(STEP_QUICK)}>
+                  <ArrowLeft className="size-4" /> Change my answers
+                </Button>
+              </div>
+              <div className="rounded-md border border-primary/40 bg-primary/5 p-4">
+                <p className="text-[13px] font-semibold">
+                  <span className="gold-text">Like it?</span> Start your {GROWTH_SYSTEM.fullAccessWindowAdjective} free trial, no card needed
+                </p>
+                <p className="mt-1 text-[13px] text-muted-foreground">
+                  Create your account to open your workspace with the website builder, leads, quotes, bookings,
+                  automations and analytics unlocked for {GROWTH_SYSTEM.fullAccessWindow}. Your answers are saved.
+                </p>
+                {error ? (
+                  <p role="alert" className="mt-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-[13px] text-destructive">
+                    {error}
+                  </p>
+                ) : null}
+                <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <Button
+                    variant="signal"
+                    size="lg"
+                    className="h-auto w-full py-3 leading-snug whitespace-normal sm:w-auto"
+                    disabled={startingTrial}
+                    onClick={startFreeAccess}
+                  >
+                    <Sparkles className="size-4" aria-hidden="true" />{" "}
+                    {startingTrial
+                      ? "Opening your workspace…"
+                      : signedIn
+                        ? `Start ${GROWTH_SYSTEM.fullAccessWindow} free, no card`
+                        : `Create account: ${GROWTH_SYSTEM.fullAccessWindow} free, no card`}
+                  </Button>
+                  <Button variant="outline" size="lg" className="w-full sm:w-auto" onClick={() => setStep(STEP_SUMMARY)}>
+                    Or launch now: {usd(GROWTH_SYSTEM.setupPrice)} setup <ArrowRight className="size-4" />
+                  </Button>
+                </div>
+              </div>
+            </section>
+          ) : null}
+
+          {step === STEP_SUMMARY ? (
             <section className="panel mt-6 p-5">
               <h2 className="font-display text-[17px] font-semibold">Order summary</h2>
               <div className="mt-5 rounded-md border border-border">
                 <div className="flex items-baseline justify-between gap-3 border-b border-border px-4 py-3">
                   <div>
                     <p className="text-[14px] font-medium">{GROWTH_SYSTEM.name}</p>
-                    <p className="text-[13px] text-muted-foreground">{GROWTH_SYSTEM.setupLabel}</p>
+                    <p className="text-[13px] text-muted-foreground">Implementation and customization of your system.</p>
                   </div>
                   <p className="tnum text-[15px] font-semibold whitespace-nowrap">
-                    {usdExact(GROWTH_SYSTEM.setupPrice)}
+                    {usd(GROWTH_SYSTEM.setupPrice)}
                   </p>
                 </div>
                 <div className="flex items-baseline justify-between gap-3 border-b border-border px-4 py-3">
@@ -654,35 +710,89 @@ function GetStarted() {
                       {GROWTH_SYSTEM.trialDays} days after setup
                     </p>
                     <p className="tnum text-[13px] whitespace-nowrap text-muted-foreground">
-                      then {usdExact(GROWTH_SYSTEM.monthlyPrice)}/month
+                      then {usd(GROWTH_SYSTEM.monthlyPrice)}/month
                     </p>
                   </div>
                 </div>
                 <div className="flex items-baseline justify-between gap-3 px-4 py-3">
                   <p className="text-[13px] font-medium">Charged today</p>
                   <p className="tnum text-[17px] font-semibold">
-                    {usdExact(GROWTH_SYSTEM.setupPrice)}
+                    {usd(GROWTH_SYSTEM.setupPrice)}
                   </p>
                 </div>
               </div>
               <p className="mt-4 text-[13px] leading-relaxed text-muted-foreground">
-                {GROWTH_SYSTEM.explainer} Cancel anytime. No hidden fees.
+                {usd(GROWTH_SYSTEM.setupPrice)} setup, charged today. Your first month of the {usd(GROWTH_SYSTEM.monthlyPrice)}/month platform fee is free, and your first monthly payment is charged 30 days later unless canceled. Cancel anytime. No hidden fees.
               </p>
-              <dl className="mt-5 grid gap-2 border-t border-border pt-4 text-[13px] sm:grid-cols-2">
-                <Summary label="Name" value={intake.fullName} />
-                <Summary label="Business" value={intake.businessName} />
-                <Summary label="Email" value={intake.email} />
-                <Summary label="Phone" value={intake.phone} />
-                <Summary label="Business type" value={intake.businessType} />
-                <Summary label="Location" value={`${intake.city}, ${intake.state}`} />
-                {intake.website ? <Summary label="Website" value={intake.website} /> : null}
-                <Summary label="Primary services" value={intake.services} />
-              </dl>
+              <div className="mt-5 border-t border-border pt-4">
+                <h3 className="font-display text-[15px] font-semibold">Details for your order</h3>
+                <p className="mt-1 text-[13px] text-muted-foreground">
+                  Needed only to launch now. Skip this and use the free trial below if you're not paying yet.
+                </p>
+                <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                  <Field label="Full name" value={intake.fullName} onChange={set("fullName")} autoComplete="name" required />
+                  <Field label="Email" type="email" value={intake.email} onChange={set("email")} autoComplete="email" required />
+                  <div className="sm:col-span-2">
+                    <Field
+                      label="Business email shown on your site"
+                      type="email"
+                      value={intake.businessEmail ?? ""}
+                      onChange={set("businessEmail")}
+                      autoComplete="off"
+                      placeholder="hello@yourbusiness.com (optional)"
+                    />
+                    <p className="mt-1 text-[12px] text-muted-foreground">
+                      Optional. Visitors see this address on your website. Leave it empty to use your account email above.
+                    </p>
+                  </div>
+                  <Field label="Phone number" type="tel" value={intake.phone} onChange={set("phone")} autoComplete="tel" required />
+                  <Field label="State" value={intake.state} onChange={set("state")} autoComplete="address-level1" required />
+                  <div className="sm:col-span-2">
+                    <Field
+                      label="Business website (optional)"
+                      value={intake.website ?? ""}
+                      onChange={set("website")}
+                      placeholder="yourbusiness.com"
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <Label htmlFor="services" className="text-[13px]">
+                        Primary services <span aria-hidden="true">*</span>
+                      </Label>
+                      <VoiceDictateButton
+                        value={intake.services}
+                        onText={(text) => set("services")(text)}
+                        label="primary services"
+                      />
+                    </div>
+                    <textarea
+                      id="services"
+                      value={intake.services}
+                      onChange={(event) => set("services")(event.target.value)}
+                      rows={3}
+                      className="mt-1.5 w-full rounded-md border border-border bg-background px-3 py-2 text-[14px] outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      placeholder="Interior + exterior detailing, ceramic coating, fleet cleaning"
+                      required
+                    />
+                  </div>
+                </div>
+                <dl className="mt-4 grid gap-2 text-[13px] sm:grid-cols-2">
+                  <Summary label="Business" value={intake.businessName} />
+                  <Summary label="What you do" value={intake.businessType} />
+                  <Summary label="City" value={intake.city} />
+                </dl>
+              </div>
+              {error ? (
+                <p role="alert" className="mt-4 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-[13px] text-destructive">
+                  {error}
+                </p>
+              ) : null}
               <div className="mt-5 flex flex-col gap-2 sm:flex-row">
-                <Button variant="outline" size="lg" onClick={() => setStep(0)}>
-                  <ArrowLeft className="size-4" /> Edit information
+                <Button variant="outline" size="lg" onClick={() => setStep(STEP_PREVIEW)}>
+                  <ArrowLeft className="size-4" /> Back to my draft
                 </Button>
-                <Button variant="signal" size="lg" className="sm:flex-1" onClick={() => setStep(2)}>
+                <Button variant="signal" size="lg" className="sm:flex-1" onClick={goToPayment}>
                   Continue to secure payment <ArrowRight className="size-4" />
                 </Button>
               </div>
@@ -714,7 +824,7 @@ function GetStarted() {
             </section>
           ) : null}
 
-          {step === 2 ? (
+          {step === STEP_PAYMENT ? (
             <section className="mt-6 space-y-4">
               {payNow ? null : (
                 <div className="panel p-5">
@@ -723,12 +833,18 @@ function GetStarted() {
                     <h2 className="font-display text-[17px] font-semibold">Payment</h2>
                   </div>
                   <p className="mt-2 text-[13px] text-muted-foreground">
-                    {usdExact(GROWTH_SYSTEM.setupPrice)} one-time setup charged today. Platform{" "}
+                    {usd(GROWTH_SYSTEM.setupPrice)} setup, charged today. Platform{" "}
                     {GROWTH_SYSTEM.firstMonthFree}, then{" "}
-                    {usdExact(GROWTH_SYSTEM.monthlyPrice)}/month automatically unless canceled.
-                    Payments are processed securely by our payment provider — Revora never sees your
-                    card details.
+                    {usd(GROWTH_SYSTEM.monthlyPrice)}/month automatically unless canceled.
+                    Cancel anytime from Billing → Manage subscription in your dashboard, or by
+                    emailing {REVORA.email}; you won't be billed again. Payments are processed
+                    securely by our payment provider — Revora never sees your card details.
                   </p>
+                  <p className="mt-2 text-[12px] text-muted-foreground">{REFUND_POLICY}</p>
+                  <LegalAgreementNote
+                    action="paying"
+                    className="mt-2 text-[12px] leading-relaxed text-muted-foreground"
+                  />
 
                   {session.isLoading ? (
                     <p className="mt-4 text-[13px] text-muted-foreground">Checking your account…</p>
@@ -785,11 +901,11 @@ function GetStarted() {
                       <Lock className="size-4" />{" "}
                       {provisioning
                         ? "Preparing your workspace…"
-                        : `Pay ${usdExact(GROWTH_SYSTEM.setupPrice)} today`}
+                        : `Pay ${usd(GROWTH_SYSTEM.setupPrice)} today`}
                     </Button>
                   )}
 
-                  {step === 2 && error ? (
+                  {step === STEP_PAYMENT && error ? (
                     <p className="mt-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-[13px] text-destructive">
                       {error}
                     </p>
@@ -826,7 +942,7 @@ function GetStarted() {
                   ) : null}
 
                   {!payNow ? (
-                    <Button variant="ghost" size="sm" className="mt-3" onClick={() => setStep(1)}>
+                    <Button variant="ghost" size="sm" className="mt-3" onClick={() => setStep(STEP_SUMMARY)}>
                       <ArrowLeft className="size-4" /> Back to summary
                     </Button>
                   ) : null}
@@ -864,6 +980,7 @@ function Field({
   placeholder,
   autoComplete,
   required,
+  dictate,
 }: {
   label: string;
   value: string;
@@ -872,13 +989,17 @@ function Field({
   placeholder?: string;
   autoComplete?: string;
   required?: boolean;
+  dictate?: boolean;
 }) {
   const id = label.toLowerCase().replace(/[^a-z]+/g, "-");
   return (
     <div>
-      <Label htmlFor={id} className="text-[13px]">
-        {label} {required ? <span aria-hidden="true">*</span> : null}
-      </Label>
+      <div className="flex items-start justify-between gap-2">
+        <Label htmlFor={id} className="text-[13px]">
+          {label} {required ? <span aria-hidden="true">*</span> : null}
+        </Label>
+        {dictate ? <VoiceDictateButton value={value} onText={onChange} label={label} /> : null}
+      </div>
       <Input
         id={id}
         className="mt-1.5"

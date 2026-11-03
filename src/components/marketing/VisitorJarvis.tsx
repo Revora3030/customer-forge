@@ -202,7 +202,7 @@ export function VisitorJarvis() {
             setNudge(false);
             setOpen(true);
           }}
-          className="jarvis-launcher animate-in fade-in slide-in-from-bottom-2 fixed right-4 bottom-[calc(9rem+env(safe-area-inset-bottom))] z-40 max-w-[260px] rounded-xl border border-primary/40 bg-card p-3 text-left text-[12.5px] shadow-xl"
+          className="jarvis-launcher animate-in fade-in slide-in-from-bottom-2 max-sm:hidden fixed right-4 bottom-[calc(9rem+env(safe-area-inset-bottom))] z-40 max-w-[260px] rounded-xl border border-primary/40 bg-card p-3 text-left text-[12.5px] shadow-xl"
         >
           {GREETING}
         </button>
@@ -215,11 +215,14 @@ export function VisitorJarvis() {
         }}
         aria-label={open ? "Close Jarvis" : "Ask Jarvis about Revora"}
         aria-expanded={open}
-        className="jarvis-launcher fixed right-4 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-40 flex h-12 items-center gap-2 rounded-full border border-primary/50 bg-card px-4 text-[13px] font-medium shadow-lg transition hover:bg-elevated"
+        className="jarvis-launcher fixed right-4 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-40 flex h-12 items-center gap-2 rounded-full border border-primary/50 bg-card px-4 max-sm:size-12 max-sm:justify-center max-sm:px-0 text-[13px] font-medium shadow-lg transition hover:bg-elevated"
       >
         {open ? <X className="size-4" aria-hidden /> : <Bot className="size-4 text-primary" aria-hidden />}
-        {open ? "Close" : "Ask Jarvis"}
+        <span className="max-sm:sr-only">{open ? "Close" : "Ask Jarvis"}</span>
       </button>
+      {/* Phones: reserve room under the page so the floating launcher (and the
+          offer bar below it) never sits on the last lines of content. */}
+      <div aria-hidden className="h-[calc(8rem+env(safe-area-inset-bottom))] sm:hidden" />
 
       {open ? (
         <section

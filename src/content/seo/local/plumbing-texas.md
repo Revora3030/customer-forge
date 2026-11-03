@@ -32,7 +32,7 @@ The website, the customer list and the analytics are yours. You can see which pa
 
 ## Cost
 
-$350 one-time, first month free, then $100/month, cancel anytime. You get 3 days of full access before you pay. No one can promise a specific Google position, but you get fast mobile pages, honest local content and a process for collecting reviews.
+$350 setup, first month free, then $100/month, cancel anytime. You get 3 days of full access before you pay. No one can promise a specific Google position, but you get fast mobile pages, honest local content and a process for collecting reviews.
 
 ## Questions Texas owners ask
 
@@ -49,4 +49,4 @@ Yes. Each has its own path and form, so urgent jobs reach you faster.
 No. We never invent reviews, ratings or awards. Your site shows only what you have earned.
 
 **What does it cost?**
-$350 one-time, first month free, then $100/month.
+$350 setup, first month free, then $100/month.

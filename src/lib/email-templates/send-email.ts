@@ -32,6 +32,7 @@ const REVORA_SUPPORT_REPLY_TEMPLATES: ReadonlySet<string> = new Set([
   "lifecycle-welcome",
   "lifecycle-setup-reminder",
   "lifecycle-booking-followup",
+  "lifecycle-site-ready",
   "lifecycle-winback",
 ]);
 

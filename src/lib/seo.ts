@@ -206,7 +206,7 @@ export const GROWTH_SYSTEM_SCHEMA = {
   offers: [
     {
       "@type": "Offer",
-      name: "One-time setup",
+      name: "Setup",
       description: "Charged once, at checkout. Free access before checkout needs no card.",
       price: GROWTH_SYSTEM.setupPrice,
       category: "Service",

@@ -48,7 +48,7 @@ export const Route = createFileRoute("/crm-for-contractors")({
             "@type": "Offer",
             priceCurrency: "USD",
             price: String(GROWTH_SYSTEM.setupPrice),
-            description: `One-time setup, then $${GROWTH_SYSTEM.monthlyPrice}/month after the first month free.`,
+            description: `Setup, then $${GROWTH_SYSTEM.monthlyPrice}/month after the first month free.`,
           },
         }),
       },

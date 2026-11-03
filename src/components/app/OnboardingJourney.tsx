@@ -6,7 +6,10 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useWorkspace } from "@/lib/use-tenant";
 import { useBillingState } from "@/lib/stripe.hooks";
+import { SendTestLeadCard } from "@/components/app/SendTestLeadCard";
+import { TEST_LEAD_SOURCE } from "@/lib/test-lead";
 import { onboardingJourney, type JourneyFacts, type JourneyPlan } from "@/lib/onboarding-journey";
+import { hasOpeningHours } from "@/lib/booking-link";
 
 const has = (v: unknown) => typeof v === "string" && v.trim().length > 0;
 
@@ -18,7 +21,7 @@ function useJourneyFacts(organizationId: string | undefined) {
     staleTime: 30_000,
     queryFn: async () => {
       const orgId = organizationId!;
-      const [profile, settings, services, media, forms, automations, reviews, leads, analytics] =
+      const [profile, settings, services, media, forms, automations, reviews, leads, testLeads, analytics] =
         await Promise.all([
           supabase
             .from("business_profiles")
@@ -56,7 +59,13 @@ function useJourneyFacts(organizationId: string | undefined) {
           supabase
             .from("leads")
             .select("id", { count: "exact", head: true })
-            .eq("organization_id", orgId),
+            .eq("organization_id", orgId)
+            .neq("source", TEST_LEAD_SOURCE),
+          supabase
+            .from("leads")
+            .select("id", { count: "exact", head: true })
+            .eq("organization_id", orgId)
+            .eq("source", TEST_LEAD_SOURCE),
           supabase
             .from("analytics_events")
             .select("id", { count: "exact", head: true })
@@ -78,12 +87,13 @@ function useJourneyFacts(organizationId: string | undefined) {
         automationsCount: automations.count ?? 0,
         reviewsCount: reviews.count ?? 0,
         leadsCount: leads.count ?? 0,
+        testLeadCount: testLeads.count ?? 0,
         analyticsCount: analytics.count ?? 0,
         localSeo: {
           city: has(p?.city),
           serviceArea: has(p?.service_area),
           hours: Boolean(
-            p?.hours && typeof p.hours === "object" && Object.keys(p.hours).length > 0,
+            hasOpeningHours(p?.hours),
           ),
           phone: has(p?.phone),
           description: has(p?.description),
@@ -109,6 +119,9 @@ export function OnboardingJourney() {
     setupPaid: Boolean(billing?.setupPaid),
     ...facts,
   };
+  const testLead = (
+    <SendTestLeadCard organizationId={orgId} hasTestLead={facts.testLeadCount > 0} />
+  );
   const plan: JourneyPlan = onboardingJourney(input);
   const next = plan.next;
 
@@ -123,6 +136,7 @@ export function OnboardingJourney() {
         <Button asChild variant="signal" size="sm" className="mt-4">
           <Link to="/app/command">Open the Command Center</Link>
         </Button>
+        <div className="-mx-5 -mb-5 mt-5 overflow-hidden rounded-b-[inherit]">{testLead}</div>
       </Panel>
     );
   }
@@ -207,6 +221,7 @@ export function OnboardingJourney() {
           </li>
         ))}
       </ol>
+      {testLead}
     </Panel>
   );
 }

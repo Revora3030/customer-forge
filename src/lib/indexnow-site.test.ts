@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const state = {
@@ -119,6 +120,22 @@ describe("submitPublishedSiteToIndexNow", () => {
     state.lastSubmittedAt = new Date(now - 5 * 60_000).toISOString();
     expect((await submitPublishedSiteToIndexNow("org-1", fetcher, now)).submitted).toBe(0);
     expect(calls).toHaveLength(0);
+  });
+
+  it("fires from publish, live edit, revert and an admin publish", () => {
+    const publish = readFileSync("src/lib/production.functions.ts", "utf8");
+    const body = publish.slice(publish.indexOf("export async function publishSiteNow"));
+    const ping = body.indexOf("submitPublishedSiteToIndexNow(orgId)");
+    expect(ping).toBeGreaterThan(0);
+    // Live edits use the same function; the ping is not inside the liveEdit message branch.
+    // The video-bar gate reads options.liveEdit earlier, so anchor on the liveEdit message branch itself.
+    const liveEditMessage = body.indexOf("reason: options.liveEdit");
+    expect(liveEditMessage).toBeGreaterThan(0);
+    expect(ping).toBeLessThan(liveEditMessage);
+    expect(readFileSync("src/lib/publish-records.functions.ts", "utf8")).toContain("submitPublishedSiteToIndexNow(data.organizationId)");
+    const admin = readFileSync("src/lib/admin.functions.ts", "utf8");
+    expect(admin).toContain('data.state === "published"');
+    expect(admin).toContain("submitPublishedSiteToIndexNow(data.organizationId)");
   });
 
   it("never throws when IndexNow cannot be reached", async () => {

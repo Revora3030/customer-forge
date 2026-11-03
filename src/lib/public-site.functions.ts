@@ -8,6 +8,7 @@ import type { Database } from "@/integrations/supabase/types";
 import { publicSubmissionErrorMessage, SITE_NOT_LIVE_MESSAGE, siteAcceptsSubmissions } from "@/lib/site-submission-gate";
 // Type-only import: erased at build time, so nothing server-only ships to the client.
 import type { loadSite } from "@/lib/public-site.server";
+import { scrubPlaceholderPayload } from "@/lib/builder/placeholder-contact";
 
 /**
  * Public-safe organization lookup. Organization rows carry billing and
@@ -140,14 +141,24 @@ export function parsePreviewInput(input: { token?: unknown; pageSlug?: unknown }
   return page ? { token, pageSlug: page } : { token };
 }
 
+/**
+ * What the public loader returns for a parsed request. The router serialises
+ * this value into the page's hydration script, so placeholder phones/emails are
+ * removed here, not only at render. Exported so it is unit tested.
+ */
+export async function loadPublicSitePayload(data: { slug: string; pageSlug?: string }) {
+  const { loadSite } = await import("@/lib/public-site.server");
+  const site = await loadSite(data.slug, data.pageSlug ? { pageSlug: data.pageSlug } : undefined);
+  return site ? scrubPlaceholderPayload(site) : site;
+}
+
 export const getPublicSite = createServerFn({ method: "GET" })
   .validator((input: { slug: string; pageSlug?: string }) => parsePublicSiteInput(input))
   .handler(async ({ data }) => {
     // A malformed address (uppercase, punctuation…) can never match a site:
     // answer "not found" (404) instead of throwing, which served a 500.
     if (data.invalid) return null;
-    const { loadSite } = await import("@/lib/public-site.server");
-    return loadSite(data.slug, data.pageSlug ? { pageSlug: data.pageSlug } : undefined);
+    return loadPublicSitePayload(data);
   });
 
 export type PublicSite = Awaited<ReturnType<typeof loadSite>>;

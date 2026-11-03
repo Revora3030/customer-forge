@@ -19,7 +19,7 @@ describe("fonts: pairing role fonts", () => {
     expect(pairingRoleFont("mono", false)).toContain("monospace");
   });
   it("site root sets font-family and loads the pairing stylesheet", () => {
-    const view = read("src/routes/s.$slug.$page.tsx");
+    const view = read("src/components/site/SitePageView.tsx");
     expect(view).toContain('fontFamily: "var(--font-body)"');
     expect(view).toContain("<SiteFontLinks");
     const links = read("src/components/site/SiteFontLinks.tsx");

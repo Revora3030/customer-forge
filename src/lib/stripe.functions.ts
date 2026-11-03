@@ -1,3 +1,4 @@
+import { isEmailShape, publicContactEmail } from "@/lib/business-email";
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { StripeEnv } from "@/lib/stripe.server";
@@ -7,6 +8,7 @@ import {
   parseStripeEnvironment,
   parseWorkspaceId,
 } from "@/lib/stripe-input";
+import { resolveSetupPaid, SETUP_FEE_DESCRIPTION_PREFIX } from "@/lib/billing-state";
 import { DEFAULT_OFFER_RATES, GROWTH_SYSTEM } from "@/lib/offer";
 import { isPlatformOwnerAccount, PLATFORM_OWNER_ORG_ID } from "@/lib/platform-owner";
 
@@ -14,6 +16,8 @@ export type GrowthSystemIntake = {
   fullName: string;
   businessName: string;
   email: string;
+  /** Optional: the email shown publicly on the website. Empty means use `email`. */
+  businessEmail?: string;
   phone: string;
   website?: string;
   businessType: string;
@@ -24,7 +28,7 @@ export type GrowthSystemIntake = {
 
 /**
  * Starts the single Revora Growth System checkout:
- *   • $350 one-time setup (charged on the first invoice)
+ *   • $350 setup (charged on the first invoice)
  *   • $100/month recurring subscription
  * Both live on ONE Stripe subscription session, so the recurring amount is
  * never $450 recurring — only the first invoice includes the setup line.
@@ -44,6 +48,7 @@ export const createGrowthSystemCheckout = createServerFn({ method: "POST" })
         fullName: cleanText(raw.fullName, 120),
         businessName: cleanText(raw.businessName, 120),
         email: cleanText(raw.email, 160).toLowerCase(),
+        businessEmail: cleanText(raw.businessEmail, 160).toLowerCase(),
         phone: cleanText(raw.phone, 40),
         website: cleanText(raw.website, 200),
         businessType: cleanText(raw.businessType, 80),
@@ -55,6 +60,8 @@ export const createGrowthSystemCheckout = createServerFn({ method: "POST" })
         throw new Error("Add your name and business name");
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(intake.email))
         throw new Error("Add a valid email address");
+      if (intake.businessEmail && !isEmailShape(intake.businessEmail))
+        throw new Error("The business email shown on your site doesn't look right. Fix it or leave it empty");
       if (intake.phone.replace(/\D/g, "").length < 10) throw new Error("Add a valid phone number");
       if (!intake.businessType) throw new Error("Add your business type");
       if (!intake.city || !intake.state) throw new Error("Add your city and state");
@@ -127,13 +134,16 @@ export const createGrowthSystemCheckout = createServerFn({ method: "POST" })
       .eq("id", data.organizationId);
     const { data: profile } = await context.supabase
       .from("business_profiles")
-      .select("id")
+      .select("id, notification_email")
       .eq("organization_id", data.organizationId)
       .maybeSingle();
+    const publicEmail = publicContactEmail(intake.businessEmail, intake.email) ?? intake.email;
     const profileFields = {
       owner_name: intake.fullName,
       owner_email: intake.email,
-      email: intake.email,
+      email: publicEmail,
+      // Lead alerts keep going to the sign-in address unless the owner chose another.
+      ...(publicEmail !== intake.email && !profile?.notification_email ? { notification_email: intake.email } : {}),
       phone: intake.phone,
       ...(intake.website ? { website: intake.website } : {}),
       city: intake.city,
@@ -571,17 +581,25 @@ export const getBillingState = createServerFn({ method: "POST" })
       .select("plan_id, feature_key, limit_value")
       .eq("plan_id", subscription?.plan_id ?? "");
 
-    const { data: setupPayment } = await context.supabase
+    // Single source of truth shared with the dashboard (see billing-state.ts):
+    // the webhook-written workspace columns AND the setup payment row, so a
+    // promotion-code setup (recorded with a different description and $0)
+    // can never read as "not paid" here while the dashboard says "paid".
+    const { data: orgRow } = await context.supabase
+      .from("organizations")
+      .select("setup_paid_at, setup_payment_status")
+      .eq("id", data.organizationId)
+      .maybeSingle();
+    const { data: setupCandidates } = await context.supabase
       .from("payments")
-      .select("id")
+      .select("status, amount, description, metadata")
       .eq("organization_id", data.organizationId)
       .eq("payment_provider", "stripe")
       .eq("environment", data.environment)
       .eq("status", "completed")
-      .eq("description", "Revora Growth System setup fee")
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      .like("description", `${SETUP_FEE_DESCRIPTION_PREFIX}%`)
+      .limit(20);
+    const setup = resolveSetupPaid({ org: orgRow, payments: setupCandidates ?? [] });
 
     const periodEnd = subscription?.current_period_end
       ? new Date(subscription.current_period_end)
@@ -596,7 +614,9 @@ export const getBillingState = createServerFn({ method: "POST" })
       entitlements: entitlements ?? [],
       features: (entitlements ?? []).map((row) => row.feature_key),
       active,
-      setupPaid: Boolean(setupPayment),
+      setupPaid: setup.setupPaid,
+      setupPaidSource: setup.source,
+      setupFullyDiscounted: setup.setupFullyDiscounted,
       environment: data.environment,
     };
   });

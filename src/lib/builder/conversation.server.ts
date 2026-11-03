@@ -1,9 +1,14 @@
 import { generateStructuredOutput } from "@/lib/ai/router.server";
 import { inspectConversation } from "./conversation-inspection.server";
 import { GROWTH_SYSTEM } from "@/lib/offer";
+import { CONVERSATION_UNAVAILABLE_REPLY, RETRY_BACKOFF_MS } from "./ai-retry";
 
 type Turn = { role: "user" | "assistant"; content: string };
-export type ConversationDecision = { mode: "answer"; reply: string } | { mode: "change" };
+export type ConversationDecision =
+  | { mode: "answer"; reply: string }
+  | { mode: "change" }
+  /** The AI team could not answer a question even after one retry; the chat offers Retry. */
+  | { mode: "unavailable"; reply: string };
 
 export async function decideConversation(input: {
   organizationId: string;
@@ -17,6 +22,11 @@ export async function decideConversation(input: {
   siteDetail?: string;
 }): Promise<ConversationDecision> {
   if (input.hasAttachments) return { mode: "change" };
+  // Lean triage first: most messages are edit requests or small talk, and
+  // neither needs the site snapshot or live inspection. Only questions that
+  // need evidence (audits, "why is…", "what's wrong…") pay for the full pass.
+  const quick = await triageConversation(input);
+  if (quick) return quick;
   const evidence = await inspectConversation(input);
   const serializedEvidence = JSON.stringify(evidence);
   const siteMap = input.pages.slice(0, 20).map((page) => `- ${page.title} (/${page.slug}, ${page.sectionCount} sections)`).join("\n");
@@ -43,10 +53,68 @@ export async function decideConversation(input: {
     const reply = typeof data["reply"] === "string" ? data["reply"].trim() : "";
     return data["mode"] === "answer" && reply ? { mode: "answer", reply: reply.slice(0, 20000) } : { mode: "change" };
   };
+  const ask = async () => await generateStructuredOutput({ organizationId: input.organizationId, userId: input.userId, task: "builder.converse" }, { role: "conversation", json: true, maxOutputTokens: 6000, messages: [{ role: "system", content: system }, ...turns] });
+  // One automatic retry after a short pause: a single busy or rate-limited
+  // answer should not turn into a dead end. Setup/credit failures fail the same
+  // way twice, so those are not retried.
+  const retryable = (error: unknown) => {
+    const category = (error as { category?: string } | null)?.category ?? null;
+    // An unclassified failure (e.g. an unreadable answer) is worth one more try.
+    return category === null || ["rate_limited", "provider_unavailable", "bad_response"].includes(category);
+  };
   try {
-    const result = await generateStructuredOutput({ organizationId: input.organizationId, userId: input.userId, task: "builder.converse" }, { role: "conversation", json: true, maxOutputTokens: 6000, messages: [{ role: "system", content: system }, ...turns] });
+    let result;
+    try { result = await ask(); } catch (first) {
+      if (!retryable(first)) throw first;
+      await new Promise((resolve) => setTimeout(resolve, RETRY_BACKOFF_MS));
+      result = await ask();
+    }
     return decide(result.data);
   } catch { return fallbackDecision(input.instruction); }
+}
+
+/**
+ * One small AI call that sorts the message into: a change (go straight to the
+ * planner), a simple answer it can give from the page list alone, or a
+ * question that needs inspection evidence (returns null → full pass). Any
+ * failure returns null so the existing evidence path decides, unchanged.
+ */
+export async function triageConversation(input: {
+  organizationId: string;
+  userId: string;
+  instruction: string;
+  history: Turn[];
+  business: { name: string; industry: string | null };
+  pages: { title: string; slug: string; sectionCount: number }[];
+  firstBuildActive?: boolean;
+}): Promise<ConversationDecision | null> {
+  const siteMap = input.pages.slice(0, 20).map((page) => `- ${page.title} (/${page.slug})`).join("\n");
+  const system = [
+    "You are Revora, the AI website builder inside Revora Growth Systems. Sort the owner's latest message.",
+    `Business: ${input.business.name}${input.business.industry ? ` (${input.business.industry})` : ""}. Pages:\n${siteMap || "- none yet"}`,
+    'Return {"mode":"change"} when the message asks to edit, fix, add, remove, redesign or apply something on the website, including approving an earlier proposal.',
+    'Return {"mode":"answer","reply":"..."} only for greetings, thanks, or general questions you can answer honestly without looking at the site\'s content or running checks. Keep it short and friendly; never invent business facts, prices, reviews or results, and never claim to have checked anything.',
+    `If asked about Revora's price: $${GROWTH_SYSTEM.setupPrice} setup, first month free, then $${GROWTH_SYSTEM.monthlyPrice}/month.`,
+    'Return {"mode":"inspect"} for anything that needs the site\'s actual content, an audit, a diagnosis, or verification.',
+    "JSON only.",
+  ].join("\n");
+  const turns = [...input.history.slice(-6).map((turn) => ({ role: turn.role, content: turn.content.slice(0, 2000) })), { role: "user" as const, content: input.instruction }];
+  try {
+    const result = await generateStructuredOutput(
+      { organizationId: input.organizationId, userId: input.userId, task: "builder.converse.triage" },
+      { role: "conversation", json: true, maxOutputTokens: 800, messages: [{ role: "system", content: system }, ...turns] },
+    );
+    return readTriage(result.data);
+  } catch {
+    return null;
+  }
+}
+
+export function readTriage(data: Record<string, unknown>): ConversationDecision | null {
+  const reply = typeof data["reply"] === "string" ? data["reply"].trim() : "";
+  if (data["mode"] === "change") return { mode: "change" };
+  if (data["mode"] === "answer" && reply) return { mode: "answer", reply: reply.slice(0, 4000) };
+  return null;
 }
 
 export function fallbackDecision(instruction: string): ConversationDecision {
@@ -54,5 +122,6 @@ export function fallbackDecision(instruction: string): ConversationDecision {
   const asksForChange = /\b(add|change|edit|update|replace|remove|delete|make|redesign|rewrite|restyle|fix|improve|move|swap|put|use|set|turn|apply|do it|go ahead|yes|generate|create|build)\b/.test(text);
   const smallTalk = /^(hi|hey|hello|yo|thanks|thank you|ok|okay|cool|great|good (morning|afternoon|evening))[!. ]*$/.test(text);
   if (asksForChange && !smallTalk) return { mode: "change" };
-  return { mode: "answer", reply: smallTalk ? "Hi! I'm here. Tell me what you'd like to change on your website — a section, the wording, photos or colours — and I'll do it." : "I couldn't reach the AI team to answer that just now. Please ask again in a moment — or tell me exactly what to change on the site and I'll start on it." };
+  if (smallTalk) return { mode: "answer", reply: "Hi! I'm here. Tell me what you'd like to change on your website — a section, the wording, photos or colours — and I'll do it." };
+  return { mode: "unavailable", reply: CONVERSATION_UNAVAILABLE_REPLY };
 }

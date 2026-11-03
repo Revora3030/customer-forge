@@ -127,7 +127,7 @@ describe("live status line", () => {
 describe("preview-only surfaces stay off the public site", () => {
   const read = (path: string) => readFileSync(resolve(__dirname, "../../..", path), "utf8");
   it("mounts the editing bridge only in preview and simulates preview leads", () => {
-    expect(read("src/routes/s.$slug.$page.tsx")).toContain("{preview ? <PreviewSelectBridge /> : null}");
+    expect(read("src/components/site/SitePageView.tsx")).toContain("{preview ? <PreviewSelectBridge /> : null}");
     const forms = read("src/components/site/SiteForms.tsx");
     expect(forms).toContain("useLeadSubmit()");
     expect(forms).toContain("Preview only — this test was not sent to your leads.");

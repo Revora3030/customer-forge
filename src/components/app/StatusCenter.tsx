@@ -71,7 +71,11 @@ export function StatusCenter({ organizationId }: { organizationId: string | unde
       to: "/app/website",
     };
 
-    const paid = production?.setupPaymentStatus === "paid";
+    // One shared answer: billing state (workspace columns + setup payment row) wins
+    // over the raw column so this tile can never disagree with /app/billing.
+    const paid = billingState
+      ? billingState.setupPaid
+      : production?.setupPaymentStatus === "paid";
     const trial: Tile = {
       key: "trial",
       label: "Free access",
@@ -94,7 +98,7 @@ export function StatusCenter({ organizationId }: { organizationId: string | unde
     };
 
     const status = deriveBillingStatus({
-      setupPaid: paid || Boolean(billingState?.setupPaid),
+      setupPaid: paid,
       subscription: billingState?.subscription ?? null,
       freeAccessEndsAt: Number.isFinite(trialEndsAt) ? trialEndsAt : null,
     });

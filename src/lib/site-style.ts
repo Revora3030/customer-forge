@@ -152,7 +152,17 @@ export type BlockStyle = {
   buttonBgColor: string | null;
   /* per-device visibility */
   hidden: boolean | null;
+  /**
+   * Phone-only display position (1 = first). Read from the mobile layer only,
+   * so the desktop and tablet order is never touched. See `mobileOrderRules`.
+   */
+  order: number | null;
 };
+
+/** Highest phone position a section can be given. */
+export const MOBILE_ORDER_MAX = 200;
+/** Sections with no phone position of their own sort after the ordered ones. */
+export const MOBILE_ORDER_REST = 500;
 
 export const STYLE_KEYS = [
   "font",
@@ -190,6 +200,7 @@ export const STYLE_KEYS = [
   "buttonTextColor",
   "buttonBgColor",
   "hidden",
+  "order",
 ] as const satisfies readonly (keyof BlockStyle)[];
 
 export type StyleKey = (typeof STYLE_KEYS)[number];
@@ -501,6 +512,7 @@ function readLayer(raw: unknown): Partial<BlockStyle> {
   set("buttonTextColor", safeColor(s["buttonTextColor"]));
   set("buttonBgColor", safeColor(s["buttonBgColor"]));
   if (typeof s["hidden"] === "boolean") set("hidden", s["hidden"]);
+  set("order", boundedNumber(s["order"], 1, MOBILE_ORDER_MAX, true));
 
   return out;
 }
@@ -965,10 +977,42 @@ export function blockRules(id: string, settings: unknown, surface?: string | nul
     if (body) parts.push(`[data-rvb="${id}"]{${body}}`);
     if (layer.hidden === true) parts.push(`[data-rvb="${id}"]{display:none !important}`);
     if (layer.hidden === false) parts.push(`[data-rvb="${id}"]{display:revert !important}`);
+    // Phone-only ordering. Only the mobile layer's own value counts, so a
+    // stray tablet/desktop `order` can never reorder anything.
+    if (device === "mobile" && typeof layer.order === "number") {
+      parts.push(`[data-rvb="${id}"]{order:${Math.trunc(layer.order)} !important}`);
+    }
     if (!parts.length) continue;
     rules.push(`@media (max-width:${DEVICE_META[device].maxWidth}px){${parts.join("")}}`);
   }
   return rules.join("");
+}
+
+/** True when any of these blocks carries a phone-only position. */
+export function hasMobileOrder(blocks: { settings: unknown }[]): boolean {
+  return blocks.some((block) => typeof readLayer(rootLayer(block.settings)["mobile"]).order === "number");
+}
+
+/** Attribute the page `<main>` carries when phone ordering is in use. */
+export const MOBILE_ORDER_ATTR = "data-rv-mobile-order";
+
+/**
+ * Container rules that make the per-section phone `order` take effect. They
+ * live inside the phone media query and only match a `<main>` that opted in
+ * through `MOBILE_ORDER_ATTR`, so a site that never reorders anything renders
+ * byte-for-byte as before, and desktop is never affected.
+ */
+export function mobileOrderRules(blocks: { settings: unknown }[]): string {
+  if (!hasMobileOrder(blocks)) return "";
+  const max = DEVICE_META.mobile.maxWidth;
+  const main = `main[${MOBILE_ORDER_ATTR}]`;
+  return (
+    `@media (max-width:${max}px){` +
+    `${main}{display:flex;flex-direction:column}` +
+    `${main}>*{order:${MOBILE_ORDER_REST};min-width:0}` +
+    `${main}>[data-studio-seam]{display:none}` +
+    `}`
+  );
 }
 
 /** One stylesheet for every styled block on a published page. */

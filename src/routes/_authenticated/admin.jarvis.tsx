@@ -17,8 +17,7 @@ import { useProspectDemoPump } from "@/lib/prospect-demo-pump.hooks";
 import { JarvisHeader, type ChecksSummary } from "@/components/app/jarvis/JarvisHeader";
 import { JarvisComposer, type JarvisMode } from "@/components/app/jarvis/JarvisComposer";
 import { AssistantMessage, UserMessage, type JarvisRow } from "@/components/app/jarvis/JarvisMessage";
-import { RunStepsSheet } from "@/components/app/jarvis/RunStepsSheet";
-import { LiveRunSteps } from "@/components/app/jarvis/LiveRunSteps";
+import { RunTaskTree } from "@/components/app/jarvis/RunTaskTree";
 import { ConversationsSheet } from "@/components/app/jarvis/ConversationsSheet";
 import { OperationsPanel, DIAGNOSTIC_SECTIONS, type ProspectorState } from "@/components/app/jarvis/OperationsPanel";
 import { CommandPalette } from "@/components/app/jarvis/CommandPalette";
@@ -40,6 +39,7 @@ import { saveInstagramDraftFn } from "@/lib/instagram.functions";
 import { approvePerplexityResearch } from "@/lib/integrations/perplexity-agent.functions";
 import { readResearchResults, rememberResearchResult, type ResearchResults } from "@/components/app/jarvis/research-results";
 import { ResearchResultCard } from "@/components/app/jarvis/ResearchResultCard";
+import { formatUsPhone } from "@/lib/format";
 
 type RecognitionResult = ArrayLike<{ transcript: string }> & { isFinal?: boolean };
 type Recognition = {
@@ -203,7 +203,6 @@ function Jarvis() {
   // Set when the owner stops playback (Stop, mute, Tap to talk) so a finishing reply doesn't restart listening twice.
   const userStoppedRef = useRef(false);
   const [showTools, setShowTools] = useState(false);
-  const [stepsRun, setStepsRun] = useState<string | null>(null);
   // Wide screens show the operations panel beside the chat; phones use a sheet.
   // null until measured, so the first paint never swaps one for the other.
   const [wide, setWide] = useState<boolean | null>(null);
@@ -455,7 +454,7 @@ function Jarvis() {
         ["Trade", result.prefill.industry],
         ["City", result.prefill.city],
         ["State", result.prefill.state],
-        ["Phone", result.prefill.phone],
+        ["Phone", formatUsPhone(result.prefill.phone)],
         ["Email", result.prefill.email],
         ["Website", result.website ?? ""],
         ["Services", result.prefill.services.replace(/\n/g, ", ")],
@@ -935,7 +934,7 @@ function Jarvis() {
                         onStopListening={stopSpeaking}
                         onRegenerate={() => regen.mutate()}
                         renderAfterProposal={renderAfterProposal}
-                        onShowSteps={setStepsRun}
+                        showSteps
                       />
                     )}
                   </Fragment>
@@ -945,13 +944,15 @@ function Jarvis() {
                 <DemoBuildCard key={demo.organizationId} card={demo} onDismiss={() => setLiveCards((current) => current.filter((item) => item.organizationId !== demo.organizationId))} />
               ))}
               {pending ? <UserMessage content={pending} /> : null}
-              {busy ? (
+              {busy && liveRun ? (
+                // The live task tree stands in for the spinner: each step shows as it is recorded.
+                <RunTaskTree runId={liveRun} live />
+              ) : busy ? (
                 <div className="flex items-center gap-3 text-sm text-muted-foreground">
                   <span aria-hidden><TypingDots /></span>
                   <span>Working<span aria-hidden> · {elapsed}s</span></span>
                 </div>
               ) : null}
-              {busy && liveRun ? <LiveRunSteps runId={liveRun} /> : null}
               {!busy && !pending && lastMessage?.role === "user" ? (
                 <div>
                   <Button type="button" variant="outline" size="sm" data-jarvis-tap="" className="gap-1.5 rounded-full" onClick={() => regen.mutate()}>
@@ -1053,7 +1054,6 @@ function Jarvis() {
 
         <ConversationsSheet open={showConversations} onOpenChange={setShowConversations} wide={wide === true} activeId={conversationId}
           onSelect={(id) => { if (id === conversationId) return; setOlder([]); setMoreEarlier(true); setFollowups([]); setConversationId(id); }} />
-        <RunStepsSheet runId={stepsRun} open={stepsRun !== null} onOpenChange={(o) => { if (!o) setStepsRun(null); }} wide={wide === true} />
         <CommandPalette open={commandsOpen} onOpenChange={setCommandsOpen} desktop={!coarse} commands={COMMANDS} disabled={busy} onRun={(prompt) => submit(prompt)} />
       </div>
     </TooltipProvider>

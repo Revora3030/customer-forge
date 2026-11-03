@@ -1,3 +1,4 @@
+import { publicContactEmail } from "@/lib/business-email";
 import { isPlatformOwnerOrg } from "@/lib/platform-owner";
 /**
  * Authoritative Revora platform funnel.
@@ -112,6 +113,8 @@ export const provisionWorkspace = createServerFn({ method: "POST" })
       name: string;
       industry?: string | null;
       email?: string | null;
+      /** Optional email shown publicly on the website; falls back to `email`. */
+      businessEmail?: string | null;
       phone?: string | null;
       city?: string | null;
       state?: string | null;
@@ -121,7 +124,7 @@ export const provisionWorkspace = createServerFn({ method: "POST" })
       name: clean(input?.name, 120) ?? "My business",
       industry: clean(input?.industry, 80),
       profile: {
-        email: clean(input?.email, 160),
+        email: publicContactEmail(input?.businessEmail, input?.email),
         phone: clean(input?.phone, 40),
         city: clean(input?.city, 80),
         state: clean(input?.state, 40),

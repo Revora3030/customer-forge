@@ -2,15 +2,16 @@
  * Search and browser metadata every published client website carries.
  *
  * Top site builders ship this automatically: a LocalBusiness record so search
- * engines show the business's name, phone, address, hours and reviews; the
+ * engines show the business's name, phone, address, hours and services; the
  * business's own logo as the browser-tab icon; and a theme colour for mobile
  * browser chrome. Before this, client sites had none of it (and inherited
  * Revora's own icon and Organization record instead).
  *
  * Every value comes from the owner's verified profile. Nothing is invented;
- * an unknown field is simply left out.
+ * an unknown field is simply left out. Ratings, reviews and awards are never
+ * added, even when the workspace has review rows.
  */
-import { hoursDisplay, placeDisplay } from "@/lib/builder/presentation";
+import { isPlaceholderEmail, isPlaceholderPhone, placeDisplay } from "@/lib/builder/presentation";
 import { weeklyHoursFromSummary } from "@/lib/booking-hours";
 import { readSiteChrome } from "@/lib/builder/site-chrome";
 import { readCopy } from "@/lib/site-engine";
@@ -19,8 +20,11 @@ import { compositionFonts, siteFontsHref } from "@/lib/site-theme";
 import { siteFontFor } from "@/lib/site-font-pairings";
 import { faqPageSchema, metaDescription, metaTitle } from "@/lib/seo";
 import { compositionFaqItems } from "@/lib/builder/composition-faq";
+import { faqFactsFor } from "@/lib/builder/faq-from-facts";
 import { pageNavLabel } from "@/lib/website-content";
 import { playbookFor } from "@/lib/builder/industry-playbook";
+import { scrubPlaceholderText } from "@/lib/builder/placeholder-contact";
+import { imageAltBase, mentionsWrongCity, normalizeCanonicalUrl } from "@/lib/client-seo-guard";
 
 type Profile = {
   tagline?: string | null;
@@ -40,7 +44,7 @@ type Profile = {
 } | null | undefined;
 
 type Review = { rating?: number | null; author_name?: string | null; comment?: string | null; created_at?: string | null };
-type Service = { name?: string | null; description?: string | null; price?: number | string | null; starting_price?: number | string | null };
+type Service = { name?: string | null; description?: string | null; price?: number | string | null; starting_price?: number | string | null; bookable?: boolean | null };
 
 const DAY_SCHEMA: Record<string, string> = {
   mon: "Monday", monday: "Monday",
@@ -197,7 +201,6 @@ export function localBusinessSchema(input: {
   name: string;
   url: string;
   profile: Profile;
-  reviews?: Review[];
   services?: Service[];
   image?: string | null;
   /** The organisation's own industry text: picks the most specific schema.org type. */
@@ -219,12 +222,12 @@ export function localBusinessSchema(input: {
     const cuisine = CUISINES.find((c) => new RegExp(`\\b${c}\\b`, "i").test(input.industry ?? ""));
     if (cuisine) schema["servesCuisine"] = cuisine;
   }
-  const description = clean(p.description, 500) ?? clean(p.tagline, 300);
+  const description = clean(scrubPlaceholderText(clean(p.description, 500) ?? ""), 500) ?? clean(scrubPlaceholderText(clean(p.tagline, 300) ?? ""), 300);
   if (description) schema["description"] = description;
   const phone = clean(p.phone, 40);
-  if (phone && /\d{3}/.test(phone)) schema["telephone"] = phone;
+  if (phone && /\d{3}/.test(phone) && !isPlaceholderPhone(phone)) schema["telephone"] = phone;
   const email = clean(p.email, 160);
-  if (email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) schema["email"] = email;
+  if (email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && !isPlaceholderEmail(email)) schema["email"] = email;
   const logo = clean(p.logo_url, 2000);
   if (logo?.startsWith("https://")) schema["logo"] = logo;
   const image = input.image ?? clean(p.hero_image_url, 2000);
@@ -251,11 +254,8 @@ export function localBusinessSchema(input: {
   const areaPlace = area ? area.replace(/\s*(?:\+|\bplus\b|&)\s*\d{1,3}\s*(?:mi|miles?|km|kilometres|kilometers)\b.*$/i, "").trim() : null;
   if (areaPlace) schema["areaServed"] = areaPlace;
   const hours = openingHoursSpec(p.hours);
+  // Only structured hours: a free-text openingHours string is not valid schema.org.
   if (hours.length) schema["openingHoursSpecification"] = hours;
-  else {
-    const display = hoursDisplay(p.hours);
-    if (display) schema["openingHours"] = display;
-  }
   const sameAs = [
     clean(p.review_link, 2000),
     ...["google_business", "facebook", "instagram", "linkedin", "tiktok", "youtube"].map((k) => clean((input.social as Record<string, unknown> | null | undefined)?.[k], 2000)),
@@ -264,33 +264,18 @@ export function localBusinessSchema(input: {
   const priceRange = priceRangeFrom(input.services);
   if (priceRange) schema["priceRange"] = priceRange;
 
-  // Only real, published reviews; aggregate only with at least one rating.
-  const rated = (input.reviews ?? []).filter(
-    (r) => typeof r.rating === "number" && r.rating >= 1 && r.rating <= 5,
-  );
-  if (rated.length) {
-    const avg = rated.reduce((sum, r) => sum + (r.rating as number), 0) / rated.length;
-    schema["aggregateRating"] = {
-      "@type": "AggregateRating",
-      ratingValue: Math.round(avg * 10) / 10,
-      reviewCount: rated.length,
-      bestRating: 5,
-      worstRating: 1,
-    };
-    schema["review"] = rated.slice(0, 5).map((r) => ({
-      "@type": "Review",
-      reviewRating: { "@type": "Rating", ratingValue: r.rating, bestRating: 5 },
-      author: { "@type": "Person", name: clean(r.author_name, 80) ?? "Customer" },
-      ...(clean(r.comment, 600) ? { reviewBody: clean(r.comment, 600) } : {}),
-      ...(r.created_at ? { datePublished: String(r.created_at).slice(0, 10) } : {}),
-    }));
-  }
+  // Ratings, reviews and awards are never emitted. A stored review stays on the
+  // page and is not copied into this record, and no stand-in author, score or
+  // award is invented to fill one.
 
   const offers = (input.services ?? [])
     .map((service) => {
       const name = clean(service.name, 120);
       if (!name) return null;
-      const price = Number(service.price ?? service.starting_price ?? NaN);
+      const exact = Number(service.price ?? NaN);
+      const startingAt = Number(service.starting_price ?? NaN);
+      const hasExact = Number.isFinite(exact) && exact > 0;
+      const hasStarting = !hasExact && Number.isFinite(startingAt) && startingAt > 0;
       return {
         "@type": "Offer",
         itemOffered: {
@@ -298,7 +283,12 @@ export function localBusinessSchema(input: {
           name,
           ...(clean(service.description, 300) ? { description: clean(service.description, 300) } : {}),
         },
-        ...(Number.isFinite(price) && price > 0 ? { price: price.toFixed(2), priceCurrency: "USD" } : {}),
+        // An exact price only when the owner set one; a "starting at" figure is a
+        // minimum, so it goes out as a PriceSpecification with minPrice.
+        ...(hasExact ? { price: exact.toFixed(2), priceCurrency: "USD" } : {}),
+        ...(hasStarting
+          ? { priceSpecification: { "@type": "PriceSpecification", minPrice: startingAt.toFixed(2), priceCurrency: "USD" } }
+          : {}),
       };
     })
     .filter(Boolean)
@@ -373,7 +363,6 @@ export function clientHeadExtrasSync(
             name: site.org.name,
             url: businessUrl,
             profile: site.profile,
-            reviews: site.reviews ?? [],
             services: site.services ?? [],
             image: shareImage && shareImage.startsWith("https://") ? shareImage : null,
             industry: site.org.industry ?? null,
@@ -408,6 +397,8 @@ export function shareImageFor(input: {
   ogImage?: string | null;
   heroImage?: string | null;
   sections?: { components?: unknown[] | null }[] | null;
+  /** Last resort: the owner's logo, so a shared link never falls back to the platform's picture. */
+  logo?: string | null;
 }): string | null {
   const https = (value: unknown): value is string => typeof value === "string" && value.startsWith("https://");
   if (https(input.ogImage)) return input.ogImage;
@@ -417,7 +408,7 @@ export function shareImageFor(input: {
       const url = (component as { url?: unknown } | null)?.url;
       if (https(url)) return url;
     }
-  return null;
+  return https(input.logo) ? input.logo : null;
 }
 
 /**
@@ -426,10 +417,7 @@ export function shareImageFor(input: {
  * example/test domain. Such a business is a placeholder, never a real listing.
  */
 export function hasPlaceholderContact(profile: { phone?: string | null; email?: string | null } | null | undefined): boolean {
-  const digits = String(profile?.phone ?? "").replace(/\D/g, "");
-  if (/55501\d\d$/.test(digits)) return true;
-  const domain = String(profile?.email ?? "").trim().toLowerCase().split("@")[1] ?? "";
-  return /(?:^|\.)(?:example|test|invalid|localhost)$/.test(domain) || /(?:^|\.)example\.(?:com|org|net)$/.test(domain); // DevSkim: ignore DS162092 -- Reserved "localhost" email domain marks placeholder data; no local connection is made.
+  return isPlaceholderPhone(profile?.phone ?? "") || isPlaceholderEmail(profile?.email ?? "");
 }
 
 /**
@@ -456,6 +444,107 @@ export function isNonIndexableSite(input: {
   return input.isDemo === true || hasTestSlug(input.slug) || hasPlaceholderContact(input.profile);
 }
 
+function slugPhrase(slug: string | null | undefined): string | null {
+  const clean = String(slug ?? "").trim().toLowerCase();
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(clean)) return null;
+  return clean.replace(/-/g, " ");
+}
+
+/**
+ * Fallback search title. The site slug is added only when its words are not
+ * already in the title and the result still fits the result-line limit, so
+ * two clients that share a name do not share a title when the slug can say so.
+ */
+function titleFallback(base: string, orgSlug: string | null | undefined): string {
+  const words = slugPhrase(orgSlug);
+  if (!words || base.toLowerCase().includes(words)) return base;
+  const next = `${base} — ${words}`;
+  return next.length <= 60 ? next : base;
+}
+
+/** Same idea for the description, which has room for the slug when the name does not already contain it. */
+function descriptionFallback(sentence: string, orgSlug: string | null | undefined): string {
+  const words = slugPhrase(orgSlug);
+  if (!words || sentence.toLowerCase().includes(words)) return sentence;
+  return `${sentence.replace(/[.!?]\s*$/, "")} (${words}).`;
+}
+
+/**
+ * Title and description for one client page.
+ *
+ * Authored page SEO, the home page's saved meta copy and the profile tagline
+ * are used as stored. When those are missing, the fallback is built from this
+ * page's label, the business name and the city — never another page's wording.
+ * An inner page does not reuse the homepage tagline, so pages on one site do
+ * not share a description.
+ */
+export function clientPageSearchText(input: {
+  isHome: boolean;
+  label: string;
+  name: string;
+  city: string | null;
+  /** The business's own place fields, used to reject wording that names a different city. */
+  state?: string | null;
+  serviceArea?: string | null;
+  address?: string | null;
+  /** The owner's own trade text (organizations.industry), used only in fallback wording. */
+  industry?: string | null;
+  pageSlug?: string | null;
+  orgSlug?: string | null;
+  seoTitle?: string | null;
+  seoDescription?: string | null;
+  generatedTitle?: string | null;
+  generatedDescription?: string | null;
+  settingsDescription?: string | null;
+  tagline?: string | null;
+}): { title: string; description: string } {
+  const name = input.name.replace(/\s+/g, " ").trim();
+  const label = input.label.replace(/\s+/g, " ").trim() || "Page";
+  const city = input.city?.replace(/\s+/g, " ").trim() || null;
+  const place = city ? ` in ${city}` : "";
+  const pageWords = slugPhrase(input.pageSlug);
+  const pageDistinct =
+    !input.isHome && pageWords && !label.toLowerCase().includes(pageWords) ? ` (${pageWords})` : "";
+  const trade = input.industry?.replace(/\s+/g, " ").trim() || null;
+  const tradeShown = trade && !name.toLowerCase().includes(trade.toLowerCase()) ? trade : null;
+
+  // Wording is used only when it carries no placeholder phone/email and does not
+  // name a different well-known city than the business's own (a stale template
+  // or earlier-workspace city). Rejected wording falls through to the fallback
+  // built from this page's label, the business name, its trade and its city.
+  const own = { city, state: input.state ?? null, serviceArea: input.serviceArea ?? null, address: input.address ?? null };
+  const safe = (value: string | null | undefined): string => {
+    const text = scrubPlaceholderText((value ?? "").replace(/\s+/g, " ").trim());
+    return text && !mentionsWrongCity(text, own) ? text : "";
+  };
+
+  const homeTitle = `${name}${tradeShown && city ? ` — ${tradeShown} in ${city}` : city ? ` — ${city}` : tradeShown ? ` — ${tradeShown}` : ""}`;
+  const homeTitleFits = homeTitle.length <= 60 ? homeTitle : `${name}${city ? ` — ${city}` : ""}`;
+  const fallbackTitle = input.isHome
+    ? safe(input.generatedTitle) || titleFallback(homeTitleFits, input.orgSlug)
+    : titleFallback(`${label} — ${name}${city ? `, ${city}` : ""}`, input.orgSlug);
+  const title = metaTitle(safe(input.seoTitle) || fallbackTitle, name);
+
+  const homeFallback = `${name}${tradeShown ? ` — ${tradeShown}` : ""}${place}.`;
+  const innerFallback = `${label}${pageDistinct} from ${name}${tradeShown ? `, ${tradeShown}` : ""}${place}.`;
+  const raw =
+    safe(input.seoDescription) ||
+    (input.isHome
+      ? safe(input.generatedDescription) || safe(input.settingsDescription) || safe(input.tagline) || descriptionFallback(homeFallback, input.orgSlug)
+      : descriptionFallback(innerFallback, input.orgSlug));
+  return { title, description: metaDescription(raw) };
+}
+
+function uniqueScripts<T extends { type?: string; children?: string }>(scripts: T[]): T[] {
+  const seen = new Set<string>();
+  return scripts.filter((script) => {
+    const key = `${script.type ?? ""}\n${script.children ?? ""}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 type TenantHeadPage = {
   slug?: string | null;
   title?: string | null;
@@ -472,6 +561,8 @@ export type TenantHeadSite = {
   org: { id?: string | null; slug?: string | null; name: string; industry?: string | null };
   /** Demo workspace (organizations.is_demo): sample data, never real business facts. */
   isDemo?: boolean | null;
+  /** The site's quote form, when it has one (an FAQ may then point to it). */
+  quote?: unknown;
   social?: Social;
   profile?: (Profile & { font_preference?: string | null }) | null;
   settings?: { generation?: unknown; seo?: unknown } | null;
@@ -508,22 +599,35 @@ export function tenantSiteHead(input: {
   const generated = readCopy((site.settings?.generation as { copy?: unknown } | null)?.copy);
   const label = pageNavLabel(page?.title, name, page?.slug ?? input.pageSlug ?? null);
 
-  const fallbackTitle = isHome
-    ? generated?.metaTitle || `${name}${city ? ` — ${city}` : ""}`
-    : `${label} — ${name}`;
-  const title = metaTitle(page?.seo_title || fallbackTitle, name);
-  const rawDescription =
-    page?.seo_description ||
-    (isHome ? generated?.metaDescription || readSeo(site.settings?.seo).meta_description : null) ||
-    site.profile?.tagline ||
-    (isHome ? `${name}${city ? ` in ${city}` : ""}.` : `${label} from ${name}.`);
-  const description = metaDescription(rawDescription);
+  const search = clientPageSearchText({
+    isHome,
+    label,
+    name,
+    city,
+    state: site.profile?.state ?? null,
+    serviceArea: site.profile?.service_area ?? null,
+    address: site.profile?.address ?? null,
+    industry: site.org.industry ?? null,
+    pageSlug: page?.slug ?? input.pageSlug ?? null,
+    orgSlug: site.org.slug ?? null,
+    seoTitle: page?.seo_title ?? null,
+    seoDescription: page?.seo_description ?? null,
+    generatedTitle: generated?.metaTitle ?? null,
+    generatedDescription: generated?.metaDescription ?? null,
+    settingsDescription: readSeo(site.settings?.seo).meta_description ?? null,
+    tagline: site.profile?.tagline ?? null,
+  });
+  const title = search.title;
+  const description = search.description;
   const sections = site.content?.sections;
   const shareImage = shareImageFor({
     ogImage: page?.og_image_url ?? null,
     heroImage: site.profile?.hero_image_url ?? null,
     sections: Array.isArray(sections) ? sections : [],
+    logo: site.profile?.logo_url ?? null,
   });
+  const canonical = normalizeCanonicalUrl(input.canonical);
+  const shareAlt = imageAltBase({ name, industry: site.org.industry ?? null, city });
   // A home page with nothing on it ("still being built") must not be indexed, and
   // must not hand search engines ratings or reviews, whatever rows exist behind it.
   // No content at all (no home page in the published copy, so `content` is
@@ -541,7 +645,17 @@ export function tenantSiteHead(input: {
   const placeholder = isNonIndexableSite({ isDemo: site.isDemo, slug: site.org.slug, profile: site.profile });
   const noindex = input.noindex === true || page?.noindex === true || emptyHome || placeholder;
   const emitSchema = !placeholder && !emptyHome;
-  const faqs = emitSchema ? compositionFaqItems(sections ?? []) : [];
+  // FAQ answers are grounded in the business facts exactly as the published page shows them
+  // (faq-from-facts.ts); a placeholder phone or email never reaches structured data, and an
+  // entry that would end up empty is dropped rather than advertised.
+  const faqs = emitSchema
+    ? compositionFaqItems(
+        sections ?? [],
+        faqFactsFor({ profile: site.profile, businessName: name, services: site.services ?? [], quote: Boolean(site.quote), generation: site.settings?.generation }),
+      )
+        .map((item) => ({ q: scrubPlaceholderText(item.q), a: scrubPlaceholderText(item.a) }))
+        .filter((item) => item.q.trim() && item.a.trim())
+    : [];
 
   return {
     meta: [
@@ -550,19 +664,23 @@ export function tenantSiteHead(input: {
       { property: "og:title", content: page?.og_title || title },
       { property: "og:description", content: page?.og_description || description },
       { property: "og:type", content: "website" },
-      { property: "og:url", content: input.canonical },
+      { property: "og:url", content: canonical },
+      { property: "og:locale", content: "en_US" },
       { property: "og:site_name", content: name },
       { name: "twitter:card", content: "summary_large_image" },
       ...(shareImage
         ? [
             { property: "og:image", content: shareImage },
+            ...(shareAlt ? [{ property: "og:image:alt", content: shareAlt }] : []),
             { name: "twitter:image", content: shareImage },
+            ...(shareAlt ? [{ name: "twitter:image:alt", content: shareAlt }] : []),
           ]
         : []),
       ...(noindex ? [{ name: "robots", content: "noindex" }] : []),
       ...extras.meta,
     ],
-    scripts: [...(emitSchema ? extras.scripts : []), ...(faqs.length ? [{ type: "application/ld+json", children: safeJsonLd(faqPageSchema(faqs)) }] : [])],
-    links: [{ rel: "canonical", href: input.canonical }, ...extras.links],
+    // One block per distinct JSON-LD payload: an identical Organization/LocalBusiness/FAQ block is never repeated.
+    scripts: uniqueScripts([...(emitSchema ? extras.scripts : []), ...(faqs.length ? [{ type: "application/ld+json", children: safeJsonLd(faqPageSchema(faqs)) }] : [])]),
+    links: [{ rel: "canonical", href: canonical }, ...extras.links],
   };
 }

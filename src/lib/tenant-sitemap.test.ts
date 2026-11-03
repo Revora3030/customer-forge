@@ -47,7 +47,7 @@ function fakeClient() {
 vi.mock("@/integrations/supabase/client.server", () => ({ supabaseAdmin: fakeClient() }));
 vi.mock("@supabase/supabase-js", () => ({ createClient: () => fakeClient() }));
 
-import { platformSitemapSlugs, platformTenantSitemapResponse, sitemapUrls, xmlSitemapIndex } from "./site-host.server";
+import { platformSitemapSlugs, platformTenantRobotsResponse, platformTenantSitemapResponse, sitemapUrls, xmlSitemapIndex } from "./site-host.server";
 
 const ORG = "11111111-1111-4111-8111-111111111111";
 const TRIAL = "22222222-2222-4222-8222-222222222222";
@@ -145,6 +145,24 @@ describe("/s/<slug>/sitemap.xml", () => {
     expect(response.headers.get("location")).toBe("https://owned.example/sitemap.xml");
   });
 
+  it("serves per-client robots that allow AI crawlers and list only that sitemap", async () => {
+    const response = await platformTenantRobotsResponse("acme");
+    expect(response.status).toBe(200);
+    const rules = await response.text();
+    for (const agent of ["GPTBot", "OAI-SearchBot", "ChatGPT-User", "ClaudeBot", "PerplexityBot", "Google-Extended", "Applebot-Extended", "Bingbot"]) {
+      expect(rules).toContain(`User-agent: ${agent}`);
+    }
+    expect(rules).toContain("Allow: /");
+    expect(rules).toContain("Sitemap: https://revoragrowthsystems.com/s/acme/sitemap.xml");
+    expect(rules).not.toContain("revoragrowthsystems.com/sitemap.xml");
+    expect(rules).not.toContain("/pricing");
+    const redirect = await platformTenantRobotsResponse("owned");
+    expect(redirect.status).toBe(301);
+    expect(redirect.headers.get("location")).toBe("https://owned.example/robots.txt");
+    expect((await platformTenantRobotsResponse("lapsed")).status).toBe(404);
+    expect((await platformTenantRobotsResponse("drafty")).status).toBe(404);
+  });
+
   it("returns 404 for an expired trial, an unpublished site and an unknown slug", async () => {
     expect((await platformTenantSitemapResponse("lapsed")).status).toBe(404);
     expect((await platformTenantSitemapResponse("drafty")).status).toBe(404);
@@ -224,22 +242,44 @@ describe("/sitemaps/sites.xml", () => {
 });
 
 describe("platform sitemap lastmod", () => {
-  it("uses a real per-page date where one exists and leaves lastmod out elsewhere", async () => {
+  it("gives every entry a real date: the guide's own, else the git date of its sources", async () => {
     const { xmlSitemap } = await import("./site-host.server");
     const { GUIDES } = await import("./guides");
+    const { SITEMAP_LASTMOD } = await import("./sitemap-lastmod.generated");
     const urls = sitemapUrls(null, "https://revoragrowthsystems.com");
     expect(urls.length).toBeGreaterThan(50);
-    const dated = urls.filter((u) => u.lastmod);
-    expect(dated.length).toBe(GUIDES.length);
+    // Every entry carries a lastmod: a valid calendar date, never in the future.
+    const today = new Date().toISOString().slice(0, 10);
+    for (const url of urls) {
+      expect(url.lastmod, url.loc).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      expect(url.lastmod! <= today, `${url.loc} lastmod ${url.lastmod} is in the future`).toBe(true);
+      expect(url.lastmod! <= SITEMAP_LASTMOD.generatedAt || GUIDES.some((g) => url.loc.endsWith(`/guides/${g.slug}`))).toBe(true);
+    }
+    // Guides keep their hand-maintained updated field.
     for (const guide of GUIDES) {
       expect(guide.published).toMatch(/^\d{4}-\d{2}-\d{2}$/);
       expect(guide.updated >= guide.published).toBe(true);
       const url = urls.find((u) => u.loc.endsWith(`/guides/${guide.slug}`));
       expect(url?.lastmod).toBe(guide.updated);
     }
-    expect(new Set(dated.map((u) => u.lastmod)).size).toBeGreaterThan(1);
+    // Not one shared date for everything.
+    expect(new Set(urls.map((u) => u.lastmod)).size).toBeGreaterThan(2);
     const xml = xmlSitemap(urls);
-    expect(xml.match(/<lastmod>/g)?.length).toBe(GUIDES.length);
+    expect(xml.match(/<lastmod>/g)?.length).toBe(urls.length);
+    expect(xml.match(/<url>/g)?.length).toBe(urls.length);
     expect(xml).toContain(`<lastmod>${new Date(GUIDES[0]!.updated).toISOString()}</lastmod>`);
+  });
+
+  it("knows a source group for every platform page, so none falls back silently", async () => {
+    const { indexablePlatformEntries } = await import("./seo-intent");
+    const { lastmodGroupFor } = await import("./sitemap-lastmod-sources");
+    const { GUIDES } = await import("./guides");
+    const { SITEMAP_LASTMOD } = await import("./sitemap-lastmod.generated");
+    for (const { path } of indexablePlatformEntries()) {
+      if (path.startsWith("/guides/") && GUIDES.some((g) => path === `/guides/${g.slug}`)) continue;
+      const group = lastmodGroupFor(path);
+      expect(group, `no lastmod group for ${path || "/"}`).not.toBeNull();
+      expect(SITEMAP_LASTMOD.groups[group!], `no generated date for group ${group}`).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    }
   });
 });

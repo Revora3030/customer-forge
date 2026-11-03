@@ -86,7 +86,7 @@ export type QueueDeps = {
   deliverFor: (ctx: { businessName: string | null; replyTo: string | null; businessState: string | null }) => RunDelivery;
 };
 
-async function loadBusiness(userDb: Db, organizationId: string) {
+export async function loadBusiness(userDb: Db, organizationId: string) {
   const [{ data: org, error: orgError }, { data: profile, error: profileError }] = await Promise.all([
     userDb.from("organizations").select("id, name").eq("id", organizationId).maybeSingle(),
     userDb

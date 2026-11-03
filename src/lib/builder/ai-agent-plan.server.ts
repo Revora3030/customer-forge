@@ -12,6 +12,7 @@
  * ships a stock layout or filler wording.
  */
 
+import { partialJsonStringField, withTextDeltas } from "@/lib/ai/text-delta-scope.server";
 import { callBestThinker } from "@/lib/ai/thinker.server";
 import type { AgentContext } from "@/lib/site-agent.server";
 import { MAX_ACTIONS } from "@/lib/site-agent";
@@ -54,9 +55,13 @@ const DESIGN_RULES = [
     "Design for this exact business using its supplied facts. You decide the layout, hierarchy, type, colour, spacing, imagery and conversion flow directly in the actions below.",
   "Work at mobile and desktop: never propose something that only reads well on a wide screen.",
   "For a direct style request, change only the requested property and target. Use set_block_style for literal backgrounds, text colours, typography, spacing, sizing, borders, buttons and responsive overrides. You may choose any value inside the documented safe numeric ranges rather than only common preset increments.",
+  "Phone-only requests (\"on mobile…\", \"on phones…\", \"for phones…\"): use set_block_style with device \"mobile\" so desktop and tablet stay unchanged. Hide a section on phones with patch {\"hidden\":true} (show it again with {\"hidden\":null}); move a section on phones with patch {\"order\":N} (N is its phone position, 1 = first), and when moving send an order for every section on that page in the same reply. Never use set_section_visibility or reorder_sections for a phone-only request: those also change desktop. Lead guard: never hide an enquiry, quote or booking section on phones (kinds quote, booking, contact, or any section with an enquiry_form, booking_form or quote_calculator widget): leave it showing, say it stays visible so visitors can always contact the business, and never move it lower than its desktop position on phones. The same goes for the form itself: never hide, remove or bury (hidden, near-zero opacity) the enquiry_form, booking_form or quote_calculator widget or a container holding one, on phones or anywhere, and never remove the site's only lead capture; moving or restyling the form is fine. Say so in one plain sentence such as \"I kept your enquiry form visible so visitors can always reach you.\"",
   "A vague request such as 'change the background color' must produce a clearly perceptible change from the current colour while preserving readable contrast. Never replace a colour with a near-identical shade.",
   "In customer messages, 'front' or 'fronts' beside colour, background or style almost always means 'font' or 'fonts'. Treat it as typography, never silently reinterpret it as foreground colour. Only change foreground or text colour when those words are explicit.",
   "If the owner asks for a whole-site or all-pages colour change, update every explicit section or component colour that would otherwise override the new theme.",
+  "Act decisively like a senior designer: when a request is clear enough to act on, propose the full change now with your best judgement instead of asking. Ask a question only when the answer changes what you would build and you cannot reasonably infer it; never ask for permission for ordinary design improvements.",
+  "When the owner names a section by what it shows (\"the hero\", \"the pricing part\", \"the photos\"), find the matching section in the website below and copy its exact id; never invent or shorten an id.",
+  "Keep the reply short, warm and concrete: say what you will change and why it helps, in plain words, without lecturing about rules.",
 ].join(" ");
 
 /** Compact JSON contract. Anything outside it is dropped by the validator. */
@@ -71,7 +76,7 @@ function actionContract(context: AgentContext): string {
     "Action is one of:",
     '{"type":"set_section_text","sectionId":id,"field":"heading"|"subheading"|"body","value":string}',
     '{"type":"set_section_visibility","sectionId":id,"visible":boolean}',
-    '{"type":"set_block_style","target":"section|component","targetId":id,"device":"desktop|tablet|mobile","patch":{"font":"display|body|serif|mono","size":"10..160","weight":"100..900","align":"left|center|right","lineHeight":"0.75..3","letterSpacing":"-0.1..0.3","textTransform":"none|uppercase|capitalize","italic":boolean,"textColor":"#RRGGBB or common named colour","columns":"1..6","gap":"0..240","maxWidth":"240..1920","contentAlign":"left|center|right","padTop":"0..240","padRight":"0..240","padBottom":"0..240","padLeft":"0..240","marginTop":"-240..240","marginBottom":"-240..240","bgColor":"#RRGGBB or common named colour","bgGradient":"#RRGGBB or common named colour (second gradient stop)","bgGradientAngle":"0..360","bgImage":"safe https URL or internal path","overlay":"0..100","radius":"0..999","borderWidth":"0..12","borderColor":"#RRGGBB or common named colour","shadow":"none|subtle|medium|strong","opacity":"0..100","objectFit":"cover|contain|fill","buttonStyle":"solid|outline|ghost|link","buttonSize":"sm|md|lg","buttonTextColor":"#RRGGBB or common named colour","buttonBgColor":"#RRGGBB or common named colour","hidden":boolean}}',
+    '{"type":"set_block_style","target":"section|component","targetId":id,"device":"desktop|tablet|mobile","patch":{"font":"display|body|serif|mono","size":"10..160","weight":"100..900","align":"left|center|right","lineHeight":"0.75..3","letterSpacing":"-0.1..0.3","textTransform":"none|uppercase|capitalize","italic":boolean,"textColor":"#RRGGBB or common named colour","columns":"1..6","gap":"0..240","maxWidth":"240..1920","contentAlign":"left|center|right","padTop":"0..240","padRight":"0..240","padBottom":"0..240","padLeft":"0..240","marginTop":"-240..240","marginBottom":"-240..240","bgColor":"#RRGGBB or common named colour","bgGradient":"#RRGGBB or common named colour (second gradient stop)","bgGradientAngle":"0..360","bgImage":"safe https URL or internal path","overlay":"0..100","radius":"0..999","borderWidth":"0..12","borderColor":"#RRGGBB or common named colour","shadow":"none|subtle|medium|strong","opacity":"0..100","objectFit":"cover|contain|fill","buttonStyle":"solid|outline|ghost|link","buttonSize":"sm|md|lg","buttonTextColor":"#RRGGBB or common named colour","buttonBgColor":"#RRGGBB or common named colour","hidden":boolean,"order":"1..200, phone position, device mobile only"}}',
     '{"type":"add_section","pageId":id,"ref":"temp_section_1","kind":kind,"heading":string,"subheading":string,"body":string,"position":number}',
     '{"type":"delete_section","sectionId":id}',
     '{"type":"reorder_sections","pageId":id,"sectionIds":[id,...]}',
@@ -249,6 +254,8 @@ export async function planWebsiteChangesWithAi(input: {
   onStage?: (stage: string, detail?: string) => void;
   /** Live progress hook: fired as each free model is tried. */
   onAttempt?: (provider: string, model: string) => void;
+  /** Receives the reply as the model writes it (live chat text). */
+  onReplyDraft?: (reply: string) => void;
 }): Promise<AiPlanOutcome> {
   const { context } = input;
   const designGuidance = designGuidancePrompt(
@@ -292,17 +299,29 @@ export async function planWebsiteChangesWithAi(input: {
     .join("\n");
 
   input.onStage?.("designing your change", "the AI team is composing your layout, copy and styling");
-  const direction = await callBestThinker({
-    json: true,
-    purpose: "creative_direction",
-    complexity: "high",
-    system,
-    user,
-    organizationId: input.organizationId,
-    // A full-site redesign is a long JSON plan; 6000 tokens cut it off mid-way.
-    maxOutputTokens: 32000,
-    ...(input.onAttempt ? { onAttempt: input.onAttempt } : {}),
-  });
+  const askThinker = () =>
+    callBestThinker({
+      json: true,
+      purpose: "creative_direction",
+      complexity: "high",
+      system,
+      user,
+      organizationId: input.organizationId,
+      // A full-site redesign is a long JSON plan; 6000 tokens cut it off mid-way.
+      maxOutputTokens: 32000,
+      ...(input.onAttempt ? { onAttempt: input.onAttempt } : {}),
+    });
+  const onReplyDraft = input.onReplyDraft;
+  let lastDraft = "";
+  const direction = onReplyDraft
+    ? await withTextDeltas((text) => {
+        const reply = partialJsonStringField(text, "reply");
+        if (reply !== null && reply !== lastDraft) {
+          lastDraft = reply;
+          onReplyDraft(reply);
+        }
+      }, askThinker)
+    : await askThinker();
   if (!direction.ok) {
     return { ok: false, reason: direction.reason, detail: direction.detail };
   }

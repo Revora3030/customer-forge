@@ -15,6 +15,7 @@ import { ProductTour } from "@/components/marketing/ProductTour";
 import { OfferIncludes } from "@/components/marketing/OfferIncludes";
 import { SavingsCalculator } from "@/components/marketing/SavingsCalculator";
 import { SoftwareComparison } from "@/components/marketing/SoftwareComparison";
+import { WhatRevoraReplaces } from "@/components/marketing/WhatRevoraReplaces";
 import { AiTeam } from "@/components/marketing/AiTeam";
 import { Pill, SectionHeading } from "@/components/app/Bits";
 import { RouteError } from "@/components/app/RouteStates";
@@ -31,7 +32,7 @@ import { tenantSiteHead } from "@/lib/site-head";
 // on a client's own custom domain. Loading it lazily keeps ~150 KB of JavaScript
 // off Revora's marketing home page, which is the one visitors actually see.
 const PublicSiteView = lazy(() =>
-  import("@/routes/s.$slug").then((module) => ({ default: module.PublicSiteView })),
+  import("@/components/site/PublicSiteView").then((module) => ({ default: module.PublicSiteView })),
 );
 
 export const Route = createFileRoute("/")({
@@ -220,7 +221,7 @@ function Landing() {
                     <p className="tnum gold-text font-display text-[34px] leading-none font-semibold">
                       {usd(GROWTH_SYSTEM.setupPrice)}
                     </p>
-                    <p className="mt-1.5 text-[13px] font-medium">One-time setup</p>
+                    <p className="mt-1.5 text-[13px] font-medium">Setup</p>
                     <p className="text-[13px] text-muted-foreground">{GROWTH_SYSTEM.setupLabel}</p>
                   </div>
                   <div>
@@ -251,6 +252,13 @@ function Landing() {
               </div>
               <OfferIncludes />
             </div>
+          </div>
+        </section>
+
+        {/* WHAT REVORA REPLACES: tool categories, no prices */}
+        <section className="border-b border-border">
+          <div className="mx-auto max-w-6xl px-4 py-10">
+            <WhatRevoraReplaces />
           </div>
         </section>
 

@@ -36,6 +36,7 @@ vi.mock("@/lib/prospect-outreach.server", async (importOriginal) => {
     smsAllowedNow: mocks.smsAllowedNow,
     // The real business-hours math: the tests read when each email was queued for.
     nextEmailBusinessHour: actual.nextEmailBusinessHour,
+    isUsOutreachState: actual.isUsOutreachState,
   };
 });
 // Enrichment stays real (its DNS calls go to the stubbed fetch); the legacy re-check is stubbed.
@@ -155,6 +156,7 @@ function seed(overrides: Record<string, Row[]> = {}) {
 }
 
 beforeEach(() => {
+  vi.stubEnv("REVORA_MAILING_ADDRESS", "PO Box 1, Example, NC 00000");
   vi.resetAllMocks();
   mocks.enqueued.length = 0;
   mocks.reverifyLegacyDemos.mockResolvedValue({ checked: 0, written: 0, results: [] });
@@ -388,7 +390,7 @@ describe("runProspectAutopilot", () => {
         ...["ready", "sent", "claimed", "manual"].map((id) => ({ organization_id: id, status: "completed", created_at: "2026-10-18T00:00:00Z" })),
         { organization_id: "building", status: "processing", created_at: "2026-10-18T00:00:00Z" },
       ],
-      business_profiles: ["ready", "sent", "claimed", "building", "manual"].map((id) => ({ organization_id: id, email: `${id}@example.com`, phone: "919-555-0123" })),
+      business_profiles: ["ready", "sent", "claimed", "building", "manual"].map((id) => ({ organization_id: id, email: `${id}@example.com`, phone: "919-555-0123", state: "NC" })),
       prospect_outreach: [
         { organization_id: "sent", channel: "email", status: "sent", mode: "autopilot", created_at: "2026-10-18T06:00:00Z" },
         { organization_id: "sent", channel: "sms", status: "skipped", mode: "autopilot", created_at: "2026-10-19T10:00:00Z" },
@@ -542,7 +544,7 @@ describe("rotation, Places budget and the verified-email gate", () => {
       ],
       organizations: ids.map((id) => ({ id, name: id })),
       generation_jobs: ids.map((id) => ({ organization_id: id, status: "completed", created_at: "2026-10-18T00:00:00Z" })),
-      business_profiles: ids.map((id) => ({ organization_id: id, email: `${id}@shop.com` })),
+      business_profiles: ids.map((id) => ({ organization_id: id, email: `${id}@shop.com`, state: "NC" })),
     });
     const result = await runProspectAutopilot(db, { now: () => NOW, random: () => 0.5 });
     expect(mocks.sendDemoOutreach.mock.calls.map((call) => call[1].to)).toEqual(["verified@shop.com", "dns@shop.com"]);
@@ -561,7 +563,7 @@ describe("rotation, Places budget and the verified-email gate", () => {
       website_settings: [{ organization_id: "a", generation: marker }],
       organizations: [{ id: "a", name: "a" }],
       generation_jobs: [{ organization_id: "a", status: "completed", created_at: "2026-10-18T00:00:00Z" }],
-      business_profiles: [{ organization_id: "a", email: "a@shop.com" }],
+      business_profiles: [{ organization_id: "a", email: "a@shop.com", state: "NC" }],
       prospect_send_queue: [{ organization_id: "a", channel: "email", status: "queued" }],
     });
     await runProspectAutopilot(db, { now: () => NOW });
@@ -575,7 +577,7 @@ describe("rotation, Places budget and the verified-email gate", () => {
       website_settings: [{ organization_id: "a", generation: marker }],
       organizations: [{ id: "a", name: "a" }],
       generation_jobs: [{ organization_id: "a", status: "completed", created_at: "2026-10-18T00:00:00Z" }],
-      business_profiles: [{ organization_id: "a", email: "a@shop.com" }],
+      business_profiles: [{ organization_id: "a", email: "a@shop.com", state: "NC" }],
     });
     mocks.assessDemoForOutreach.mockResolvedValue({ ok: false, blockers: [{ code: "unsupported_claim", message: "Unsupported claim on the home page.", safety: true }] });
     const result = await runProspectAutopilot(db, { now: () => NOW });
@@ -737,7 +739,7 @@ describe("pitch-first mode", () => {
       prospect_autopilot_settings: [settings({ targets: [], send_sms: true, pitch_first: true })],
       website_settings: [{ organization_id: "shell", generation: shellMarker({ enrichment: verified("shell@example.com") }) }],
       organizations: [{ id: "shell", name: "Shell Detail" }],
-      business_profiles: [{ organization_id: "shell", email: "shell@example.com", phone: "919-555-0123" }],
+      business_profiles: [{ organization_id: "shell", email: "shell@example.com", phone: "919-555-0123", state: "NC" }],
     });
     mocks.assessDemoForOutreach.mockResolvedValue({ ok: false, blockers: [{ code: "x", message: "no site", severity: "safety" }] });
 
@@ -748,5 +750,30 @@ describe("pitch-first mode", () => {
     expect(mocks.assessDemoForOutreach).not.toHaveBeenCalled();
     expect(mocks.enqueued.map((item) => item.kind)).toEqual(["first_touch"]);
     expect(result).toMatchObject({ emailed: 1, texted: 0 });
+  });
+
+  it("queues no email at all when the postal address is not configured", async () => {
+    vi.stubEnv("REVORA_MAILING_ADDRESS", "");
+    const { db } = seed({
+      prospect_autopilot_settings: [settings({ targets: [], pitch_first: true })],
+      website_settings: [{ organization_id: "shell", generation: shellMarker({ enrichment: verified("shell@example.com") }) }],
+      organizations: [{ id: "shell", name: "Shell Detail" }],
+      business_profiles: [{ organization_id: "shell", email: "shell@example.com", phone: "919-555-0123", state: "NC" }],
+    });
+    const result = await runProspectAutopilot(db, { now: () => NOW });
+    expect(mocks.sendDemoOutreach).not.toHaveBeenCalled();
+    expect(result.skipped).toContainEqual(expect.objectContaining({ reason: "mailing_address_missing" }));
+  });
+
+  it("skips a business with no recognised US state", async () => {
+    const { db } = seed({
+      prospect_autopilot_settings: [settings({ targets: [], pitch_first: true })],
+      website_settings: [{ organization_id: "shell", generation: shellMarker({ enrichment: verified("shell@example.com") }) }],
+      organizations: [{ id: "shell", name: "Shell Detail" }],
+      business_profiles: [{ organization_id: "shell", email: "shell@example.com", phone: "919-555-0123", state: "ON" }],
+    });
+    const result = await runProspectAutopilot(db, { now: () => NOW });
+    expect(mocks.sendDemoOutreach).not.toHaveBeenCalled();
+    expect(result.skipped).toContainEqual(expect.objectContaining({ reason: "non_us" }));
   });
 });

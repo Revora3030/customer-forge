@@ -121,6 +121,75 @@ export function mergeSplitServices<T extends { name?: string | null; description
   return out;
 }
 
+/**
+ * Words that say nothing about what is sold when they stand alone: the
+ * qualifiers that intake splits off ("Full" + "Auto detailing") and generic
+ * filler ("stuff", "package", "work"). One of these as the whole service name
+ * is rejected. A real one-word trade ("Plumbing", "Landscaping") is allowed.
+ */
+const VAGUE_SINGLE_WORDS = new Set([
+  ...SERVICE_QUALIFIERS,
+  "services", "service", "work", "works", "stuff", "things", "thing", "misc", "miscellaneous", "general", "various",
+  "package", "packages", "plan", "plans", "option", "options", "job", "jobs", "item", "items", "product", "products",
+  "special", "specials", "regular", "normal", "other", "others", "all", "more", "etc", "tbd", "tba", "test", "testing",
+  "sample", "example", "asdf", "xxx", "yes", "no", "ok", "and", "or", "the",
+]);
+
+export type ServiceNameCheck = { ok: true; name: string } | { ok: false; reason: "empty" | "too_short" | "vague" | "platform_label"; message: string };
+
+/**
+ * Checks a service name typed or extracted at intake. It never invents a
+ * replacement: a rejected name tells the owner to give the full name.
+ */
+export function checkServiceName(value: unknown): ServiceNameCheck {
+  const name = typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
+  if (!name) return { ok: false, reason: "empty", message: "Add the name of the service." };
+  if (isPlatformLabel(name)) {
+    return { ok: false, reason: "platform_label", message: `"${name}" isn't a service name. Add the full name of what you offer.` };
+  }
+  const letters = name.replace(/[^a-z]/gi, "");
+  if (letters.length < 3) {
+    return { ok: false, reason: "too_short", message: `"${name}" is too short. Add the full name of the service.` };
+  }
+  const words = normaliseLabel(name).split(" ").filter(Boolean);
+  if (words.length === 1 && VAGUE_SINGLE_WORDS.has(words[0]!)) {
+    return {
+      ok: false,
+      reason: "vague",
+      message: `"${name}" is only part of a name. What is the full name of the service?`,
+    };
+  }
+  return { ok: true, name };
+}
+
+/** Full service names kept, plus the owner-facing message for each one rejected. Nothing is invented. */
+export function partitionServiceNames<T extends { name?: string | null }>(
+  services: readonly T[],
+): { valid: T[]; rejected: { name: string; message: string }[] } {
+  const valid: T[] = [];
+  const rejected: { name: string; message: string }[] = [];
+  for (const service of services) {
+    const raw = typeof service.name === "string" ? service.name.trim() : "";
+    if (!raw) continue; // an untouched row is not an answer
+    const check = checkServiceName(raw);
+    if (check.ok) valid.push(service);
+    else rejected.push({ name: raw, message: check.message });
+  }
+  return { valid, rejected };
+}
+
+/**
+ * Intake check for a typed list: two halves of one phrase ("Full", "Auto
+ * detailing") are joined first, then anything that is still a stub is rejected.
+ */
+export function validateIntakeServices<T extends { name?: string | null }>(
+  services: readonly T[],
+): { valid: T[]; rejected: { name: string; message: string }[] } {
+  const filled = services.filter((service) => typeof service.name === "string" && service.name.trim());
+  type Mergeable = { name?: string | null; description?: string | null; price?: unknown; starting_price?: unknown };
+  return partitionServiceNames(mergeSplitServices(filled as unknown as Mergeable[]) as unknown as T[]);
+}
+
 export function sanitizeServices<T extends { name?: unknown }>(services: readonly T[]): T[] {
   const seen = new Set<string>();
   const kept: T[] = [];

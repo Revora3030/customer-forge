@@ -1,8 +1,13 @@
+import { containsLeadWidget, showStyle } from "@/lib/builder/lead-form-guard";
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { visibleFrameLabel } from "@/lib/builder/frame-labels";
+import { faqItemsForDisplay, NO_FAQ_FACTS, OWNER_TO_ANSWER, type FaqDisplayItem, type FaqFacts } from "@/lib/builder/faq-from-facts";
+import { usePreviewMode } from "@/components/site/preview-mode-context";
 import { Button } from "@/components/ui/button";
-import type { Breakpoint, CompositionFaqItem, CompositionNode, CompositionTab, CompositionTree, MotionEasing, NodeHover, NodeMotion, NodeStyle, WidgetPresentation } from "@/lib/builder/composition-tree";
+import type { Breakpoint, CompositionNode, CompositionTab, CompositionTree, MotionEasing, NodeHover, NodeMotion, NodeStyle, WidgetPresentation } from "@/lib/builder/composition-tree";
 import type { PersistedComponentVisual } from "@/lib/site-style";
 import { resolveImageSource } from "@/lib/brand-logos";
+import { fallbackImageAlt } from "@/lib/client-seo-guard";
 import { fitsFullBleed } from "@/lib/builder/first-build-image-qa";
 import { contrastRatio, readableOn, toRgb } from "@/lib/readable-color";
 import { pairingRoleFont, premiumSurface } from "@/lib/site-theme";
@@ -10,6 +15,8 @@ import { clampSplit, splitForKey, splitForPointer } from "@/lib/builder/compare-
 import { brushRadius, coverRect, formatElapsed, toolRadius, MAX_BRUSH_TOOLS, coveragePercent, isRevealDone, newGrid, paintAt, strokePoints, type RevealGrid } from "@/lib/builder/reveal-brush";
 import { DEFAULT_OFFER_ANCHOR, DEFAULT_SCENE_ANCHOR, sceneScrim, type SceneAnchor } from "@/lib/builder/cinematic-primitives";
 import { intrinsicSize } from "@/lib/builder/image-campaign";
+import { focalToObjectPosition, responsiveImage } from "@/lib/builder/image-framing";
+import { focalForKnownPhoto } from "@/lib/builder/trade-photo-picks";
 import { LensMagnifier, StickySplitStory, TierFader } from "@/components/site/MasterBlocks";
 import { CollectionRow, DialSelector, HeroVideo, InlineHeroVideo, SceneVideo, ScrubSequence, ScrubStage, ScrollChapters, SpinViewer, type SpinFrame } from "@/components/site/CinematicBlocks";
 import { CINEMATIC_CSS } from "@/components/site/cinematic-css";
@@ -19,6 +26,7 @@ import { ShaderField } from "@/components/site/ShaderField";
 import { Tour360, type TourScene } from "@/components/site/Tour360";
 import { BuildingExplorer } from "@/components/site/BuildingExplorer";
 import { usePremiumFx } from "@/components/site/premium-fx";
+import { ScrollRevealFallback } from "@/components/site/ScrollRevealFallback";
 import { PREMIUM_CSS } from "@/components/site/premium-css";
 import { looksEquirect, splitWords, TOUR_LIMITS } from "@/lib/builder/premium-effects";
 import { isModelUrl } from "@/lib/site-models";
@@ -147,7 +155,21 @@ const CHROME_SCOPES = new Set(["site-header", "site-footer"]);
 /** Facts for an offer card, read from the owner's real Services tool. Never authored by the AI. */
 export type OfferFacts = { name: string; price: string | null; duration: string | null };
 
-type Ctx = { premiumOff?: boolean; parentType?: string | undefined; align?: NodeStyle["align"] | undefined; offer?: (service: string) => OfferFacts | null; sceneScrim?: string | undefined; chrome?: boolean; editable?: boolean; label?: (text: string) => string; depth?: number | undefined; bg?: string | undefined; bg2?: string | undefined; fg?: string | undefined; rules: string[]; counter: { n: number; sawMedia?: boolean }; eagerFirstMedia?: boolean; heroVideo?: HeroVideoMedia | null; scope: string; href: (h: string) => string; media: (ref: string) => ResolvedMedia | null; widget: (name: string, presentation?: WidgetPresentation) => ReactNode };
+type Ctx = { altBase?: string; faq?: { facts: FaqFacts; mode: "published" | "draft" }; premiumOff?: boolean; parentType?: string | undefined; align?: NodeStyle["align"] | undefined; offer?: (service: string) => OfferFacts | null; sceneScrim?: string | undefined; chrome?: boolean; editable?: boolean; label?: (text: string) => string; depth?: number | undefined; bg?: string | undefined; bg2?: string | undefined; fg?: string | undefined; rules: string[]; counter: { n: number; sawMedia?: boolean; alts?: number }; eagerFirstMedia?: boolean; heroVideo?: HeroVideoMedia | null; scope: string; href: (h: string) => string; media: (ref: string) => ResolvedMedia | null; widget: (name: string, presentation?: WidgetPresentation) => ReactNode };
+
+/**
+ * The description a picture is shown with: its own alt, else the stored
+ * visual's, else (public pages only) the business name, trade and city so a
+ * photo is never left undescribed for search and screen readers.
+ */
+const altOf = (own: string | undefined, visual: string | undefined, ctx: Ctx): string => {
+  // An explicit blank alt is a deliberate "decorative" mark and is kept.
+  if (own !== undefined) return own;
+  if (visual?.trim()) return visual;
+  if (!ctx.altBase || ctx.chrome || ctx.editable) return visual ?? "";
+  ctx.counter.alts = (ctx.counter.alts ?? 0) + 1;
+  return fallbackImageAlt(ctx.altBase, ctx.counter.alts);
+};
 
 const mediaUrl = (media: ResolvedMedia | null): string | null =>
   typeof media === "string" ? media : media?.url ?? null;
@@ -199,6 +221,17 @@ function mediaCss(visual: PersistedComponentVisual | undefined): CSSProperties {
   if (visual.shadow != null) css.boxShadow = visual.shadow <= 0 ? "none" : `0 ${Math.round(visual.shadow * .55)}px ${Math.round(visual.shadow * 1.4)}px -${Math.round(visual.shadow * .35)}px rgba(0,0,0,.45)`;
   if (visual.overlay != null) css.opacity = 1 - visual.overlay / 200;
   return css;
+}
+
+/** Focal crop for a curated trade photo, so its subject stays in frame at any aspect. */
+function knownFocalCss(source: string | null | undefined): CSSProperties {
+  const focal = focalForKnownPhoto(source);
+  return focal ? { objectPosition: focalToObjectPosition(focal) } : {};
+}
+
+/** `sizes` hint for an inline picture: its own width when known, else the viewport. */
+function mediaSizes(visual: PersistedComponentVisual | undefined): string {
+  return visual?.width ? `(max-width: ${visual.width}px) 100vw, ${visual.width}px` : "100vw";
 }
 
 /** Panels that must fill the row. A centred parent otherwise shrinks them to their shortest label. */
@@ -363,6 +396,30 @@ export function readablePaint(node: Pick<CompositionNode, "type" | "style">, ctx
   return { ...(color ? { color } : {}), bg, bg2, fg: color ?? authored ?? ctx.fg };
 }
 
+const LEGIBLE_TYPES = new Set(["heading", "text", "list", "quote", "button", "link"]);
+
+/**
+ * Size and dimness floor for copy. The contrast scan reads a node's colour but
+ * not its `opacity` or a 9-11px size, so a dim, tiny caption could pass the
+ * scan and still be unreadable (audit item 3: tiny, dim text over the second
+ * photo). Over a photo scene copy is at least 14px and 90% opaque; elsewhere at
+ * least 12px and 80% opaque. Mutates `style` (the computed CSS), never the tree.
+ */
+// eslint-disable-next-line react-refresh/only-export-components -- renderer helper, exported for tests.
+export function legibleType(node: Pick<CompositionNode, "type">, style: CSSProperties, overPhoto: boolean): void {
+  if (!LEGIBLE_TYPES.has(node.type)) return;
+  const minSize = overPhoto ? 14 : 12;
+  if (typeof style.fontSize === "number" && style.fontSize < minSize) style.fontSize = minSize;
+  else if (typeof style.fontSize === "string") {
+    const size = style.fontSize;
+    const px = /^(\d+(?:\.\d+)?)px$/.exec(size);
+    const rem = /^(\d+(?:\.\d+)?)rem$/.exec(size);
+    if ((px && Number(px[1]) < minSize) || (rem && Number(rem[1]) * 16 < minSize)) style.fontSize = minSize;
+  }
+  const minOpacity = overPhoto ? 0.9 : 0.8;
+  if (typeof style.opacity === "number" && style.opacity < minOpacity) style.opacity = minOpacity;
+}
+
 /**
  * Big background areas (the section itself and full-width rows/grids/stacks)
  * get the same premium-surface correction as the page: a washed-out mid-grey
@@ -446,15 +503,22 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
   // Buttons and links are how visitors act: a design may restyle them per
   // screen size but never hide one, or a phone visitor loses the action.
   const actionable = node.type === "button" || node.type === "link";
+  // The enquiry form, booking form and quote calculator, and any container
+  // holding one, are never hidden on phones, whatever flag was stored with the
+  // layout: that is how a visitor becomes a lead.
+  const leadHolder = containsLeadWidget(node);
   for (const [bp, rawStyle] of Object.entries(node.responsive ?? {}) as [Breakpoint, NodeStyle][]) {
-    const style = actionable && rawStyle.hidden ? { ...rawStyle, hidden: false } : rawStyle;
+    const style = actionable && rawStyle.hidden ? { ...rawStyle, hidden: false } : leadHolder && bp === "mobile" ? (showStyle(rawStyle) ?? rawStyle) : rawStyle;
     const text = cssText(styleToCss(style, node.type));
     if (text) ctx.rules.push(`@media ${MEDIA[bp]}{[data-cn="${id}"]{${text}}}`);
   }
   if (node.hover) ctx.rules.push(hoverCss(id, node.hover));
   const style: CSSProperties = {
     ...baseLayout(node.type),
-    ...styleToCss(actionable && node.style?.hidden ? { ...node.style, hidden: false } : node.style, node.type),
+    ...styleToCss(
+      actionable && node.style?.hidden ? { ...node.style, hidden: false } : leadHolder ? (showStyle(node.style) ?? undefined) : node.style,
+      node.type,
+    ),
   };
   // An aspect ratio on a text-only grid or card becomes a hollow frame (two
   // short labels stacked in a tall bordered box). Pictures keep their crop.
@@ -466,6 +530,7 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
   // Text is re-paired with the surface it actually sits on, keeping its hue.
   const paint = readablePaint(node, ctx);
   if (paint.color) style.color = paint.color;
+  legibleType(node, style, Boolean(ctx.sceneScrim));
   ctx.bg = paint.bg; ctx.bg2 = paint.bg2; ctx.fg = paint.fg;
   ctx.depth = (ctx.depth ?? 0) + 1;
   const motion = premiumMotion(node, ctx);
@@ -514,6 +579,8 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
       /(?:email|phone|mail|call|tel|@|☎|📞|✉)/i.test(child.text ?? "")
     );
   });
+  // Children render first and mark media as seen, so remember whether any came before this node.
+  const mediaSeenBefore = Boolean(ctx.counter.sawMedia);
   const kids = prunedChildren.map((child, i) => renderNode(child, ctx, `${key}.${i}`));
   // A box whose contents all resolved to nothing (missing facts, unavailable
   // widget or image) is dropped so visitors never see an empty styled frame.
@@ -575,15 +642,15 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
         const first = !ctx.counter.sawMedia;
         ctx.counter.sawMedia = true;
         const box = intrinsicSize(typeof style.aspectRatio === "string" ? style.aspectRatio : visual?.aspect_ratio ?? null);
-        const pictureStyle: CSSProperties = { width: "100%", height: style.aspectRatio || visual?.aspect_ratio ? "100%" : undefined, objectFit: style.objectFit ?? visual?.object_fit ?? (style.aspectRatio ? "cover" : undefined), ...mediaCss(visual), ...props.style };
+        const pictureStyle: CSSProperties = { width: "100%", height: style.aspectRatio || visual?.aspect_ratio ? "100%" : undefined, objectFit: style.objectFit ?? visual?.object_fit ?? (style.aspectRatio ? "cover" : undefined), ...knownFocalCss(source), ...mediaCss(visual), ...props.style };
         // The home page's hero loop also plays when the top section is not a
         // full-screen scene (a split hero): it takes the place of the section's
         // first large picture, which stays as its poster. Before, such a hero
         // silently dropped the clip and the page had no video at all.
         const hero = first && source && !VIDEO_SOURCE.test(source) && (!visual?.width || visual.width >= 480) ? ctx.heroVideo ?? null : null;
         if (first) ctx.heroVideo = null;
-        if (hero && source) return <InlineHeroVideo key={key} {...props} {...(box ? { width: box.width, height: box.height } : {})} src={hero.src} mobileSrc={hero.mobileSrc} poster={source} alt={node.alt ?? visual?.alt ?? ""} loopStart={hero.loopStart} loopEnd={hero.loopEnd} eager={Boolean(ctx.eagerFirstMedia)} style={{ ...pictureStyle, objectFit: pictureStyle.objectFit ?? "cover" }} />;
-        return source ? <img key={key} {...props} {...(box ? { width: box.width, height: box.height } : {})} src={source} onError={markBrokenImage} alt={node.alt ?? visual?.alt ?? ""} loading={first && ctx.eagerFirstMedia ? "eager" : "lazy"} decoding="async" {...(first && ctx.eagerFirstMedia ? { fetchPriority: "high" as const } : {})} style={{ width: "100%", height: style.aspectRatio || visual?.aspect_ratio ? "100%" : undefined, objectFit: style.objectFit ?? visual?.object_fit ?? (style.aspectRatio ? "cover" : undefined), ...mediaCss(visual), ...props.style }} /> : null; }
+        if (hero && source) return <InlineHeroVideo key={key} {...props} {...(box ? { width: box.width, height: box.height } : {})} src={hero.src} mobileSrc={hero.mobileSrc} poster={source} alt={altOf(node.alt, visual?.alt, ctx)} loopStart={hero.loopStart} loopEnd={hero.loopEnd} eager={Boolean(ctx.eagerFirstMedia)} style={{ ...pictureStyle, objectFit: pictureStyle.objectFit ?? "cover" }} />;
+        return source ? <img key={key} {...props} {...(box ? { width: box.width, height: box.height } : {})} {...responsiveImage(source, mediaSizes(visual))} onError={markBrokenImage} alt={altOf(node.alt, visual?.alt, ctx)} loading={first && ctx.eagerFirstMedia ? "eager" : "lazy"} decoding="async" {...(first && ctx.eagerFirstMedia ? { fetchPriority: "high" as const } : {})} style={{ width: "100%", height: style.aspectRatio || visual?.aspect_ratio ? "100%" : undefined, objectFit: style.objectFit ?? visual?.object_fit ?? (style.aspectRatio ? "cover" : undefined), ...knownFocalCss(source), ...mediaCss(visual), ...props.style }} /> : null; }
     case "widget":
       { const w = node.text ? ctx.widget(node.text, node.widgetPresentation) : null;
         return w ? <div key={key} {...props} data-widget={node.text} style={{ ...props.style, ...widgetThemeStyle(node.widgetPresentation?.theme) }}>{w}{kids}</div> : null; }
@@ -748,8 +815,13 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
       return (node.dialOptions?.length ?? 0) >= 2 ? (
         <DialSelector key={key} props={props} label={node.text?.trim().slice(0, 60) || "Choose an option"} options={node.dialOptions!.slice(0, 6)} unit={node.dialUnit} />
       ) : null;
-    case "faq_accordion":
-      return node.faqItems?.length ? <FaqAccordion key={key} props={props} items={node.faqItems} /> : null;
+    case "faq_accordion": {
+      // FAQ answers must come from the business's own facts. Published pages
+      // drop a question with no grounded answer; drafts show a marked placeholder.
+      const faq = ctx.faq ?? { facts: NO_FAQ_FACTS, mode: ctx.editable ? "draft" as const : "published" as const };
+      const items = faqItemsForDisplay(node.faqItems ?? [], faq.facts, faq.mode);
+      return items.length ? <FaqAccordion key={key} props={props} items={items} /> : null;
+    }
     case "tab_group":
       return node.tabs?.length ? (
         <TabGroup
@@ -786,7 +858,7 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
         <div key={key} {...props} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))", ...props.style }}>
           {node.children?.map((c, i) => { const resolved = c.mediaRef ? ctx.media(c.mediaRef) : null; const visual = mediaVisual(resolved); const source = c.src ? resolveImageSource(c.src) : mediaUrl(resolved); return source ? (
             <a key={i} href={source} target="_blank" rel="noopener noreferrer">
-              <img src={source} alt={c.alt ?? visual?.alt ?? ""} loading="lazy" style={{ width: "100%", height: "100%", ...mediaCss(visual), ...styleToCss(c.style, "media") }} />
+              <img src={source} alt={altOf(c.alt, visual?.alt, ctx)} loading="lazy" style={{ width: "100%", height: "100%", ...mediaCss(visual), ...styleToCss(c.style, "media") }} />
             </a>
           ) : null; })}
         </div>
@@ -815,7 +887,7 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
       const Title = ctx.chrome ? "p" : (`h${node.level ?? 3}` as "h2" | "h3" | "h4");
       return (
         <article key={key} {...props} className={`${props.className ?? ""} rv-offer`.trim()} data-rv-card="" data-rv-overlay="offer">
-          {picture && pictureSource ? <img className="rv-offer-media" src={pictureSource} alt={picture.alt ?? mediaVisual(pictureResolved)?.alt ?? ""} loading="lazy" decoding="async" style={mediaCss(mediaVisual(pictureResolved))} /> : null}
+          {picture && pictureSource ? <img className="rv-offer-media" src={pictureSource} alt={altOf(picture.alt, mediaVisual(pictureResolved)?.alt, ctx)} loading="lazy" decoding="async" style={mediaCss(mediaVisual(pictureResolved))} /> : null}
           <Title className="rv-offer-title">{title}</Title>
           {facts?.price ? <p className="rv-offer-price">{facts.price}{facts.duration ? <span> · {facts.duration}</span> : null}</p> : null}
           {specs.length ? <ul className="rv-offer-specs">{specs.map((spec, i) => <li key={i}>{spec}</li>)}</ul> : null}
@@ -834,7 +906,9 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
       if (!photo || isGeneratedMedia(resolved)) return null;
       const source = mediaUrl(resolved);
       if (!source) return null;
-      return <LensMagnifier key={key} props={props} src={source} alt={photo.alt ?? mediaVisual(resolved)?.alt ?? ""} prompt={node.text?.trim().slice(0, 60) || "Inspect the detail"} />;
+      const first = !mediaSeenBefore;
+      ctx.counter.sawMedia = true;
+      return <LensMagnifier key={key} props={props} src={source} eager={first && Boolean(ctx.eagerFirstMedia)} alt={altOf(photo.alt, mediaVisual(resolved)?.alt, ctx)} prompt={node.text?.trim().slice(0, 60) || "Inspect the detail"} />;
     }
     case "sticky_split_story": {
       const phases = kids.slice(1).filter((kid) => kid != null);
@@ -876,7 +950,7 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
         const resolved = child.mediaRef ? ctx.media(child.mediaRef) : null;
         const source = child.src ? resolveImageSource(child.src) : mediaUrl(resolved);
         if (!source) return;
-        const label = child.text?.trim().slice(0, 30);
+        const label = visibleFrameLabel(child.text);
         frames.push({ src: source, alt: child.alt ?? mediaVisual(resolved)?.alt ?? "", ...(label ? { label } : {}) });
       });
       if (frames.length < 2 && copy.length === 0) return null;
@@ -965,7 +1039,7 @@ function renderScene(node: CompositionNode, ctx: Ctx, key: string, props: NodePr
   if (source) ctx.counter.sawMedia = true;
   const eager = first && Boolean(ctx.eagerFirstMedia);
   const alt = backdrop?.alt ?? visual?.alt ?? "";
-  const objectPosition = node.focal ?? visual?.object_position ?? visual?.focal_point;
+  const objectPosition = node.focal ?? visual?.object_position ?? visual?.focal_point ?? knownFocalCss(source).objectPosition;
   const scrubbed = Boolean(node.scrub && source && VIDEO_SOURCE.test(source));
   // Quality bar #5: a picture too small to fill the screen is never stretched
   // edge to edge. It is shown sharp at no more than its own size, in a frame,
@@ -986,7 +1060,7 @@ function renderScene(node: CompositionNode, ctx: Ctx, key: string, props: NodePr
   ) : framed ? (
     <img className="rv-scene-media" data-soft="" src={source} alt="" aria-hidden="true" loading={eager ? "eager" : "lazy"} decoding="async" />
   ) : (
-    <img className="rv-scene-media" {...(first ? { "data-kenburns": "" } : {})} src={source} alt={alt} loading={eager ? "eager" : "lazy"} decoding="async" {...(eager ? { fetchPriority: "high" as const } : {})} style={objectPosition ? { objectPosition } : undefined} />
+    <img className="rv-scene-media" {...(first ? { "data-kenburns": "" } : {})} {...responsiveImage(source, "100vw")} alt={alt} loading={eager ? "eager" : "lazy"} decoding="async" {...(eager ? { fetchPriority: "high" as const } : {})} style={objectPosition ? { objectPosition } : undefined} />
   );
   const frame = framed && source ? (
     <img className="rv-scene-frame" src={source} alt={alt} {...(visual?.width && visual.height ? { width: visual.width, height: visual.height } : {})} loading={eager ? "eager" : "lazy"} decoding="async" {...(eager ? { fetchPriority: "high" as const } : {})} style={visual?.width ? ({ "--rv-native": `${visual.width}px` } as CSSProperties) : undefined} />
@@ -1354,13 +1428,21 @@ function BeforeAfterSlider({ props, before, after, initialSplit }: {
 }
 
 
-function FaqAccordion({ props, items }: { props: NodeProps; items: CompositionFaqItem[] }) {
+function FaqAccordion({ props, items }: { props: NodeProps; items: FaqDisplayItem[] }) {
   return (
     <div {...props} className={`${props.className ?? ""} rv-cn-faq`.trim()}>
       {items.map((item, index) => (
         <details key={index} open={item.defaultOpen}>
           <summary><span>{item.question}</span><span aria-hidden="true" className="rv-cn-faq-chevron" /></summary>
-          <div className="rv-cn-faq-panel"><div className="rv-cn-faq-panel-inner">{item.answer}</div></div>
+          <div className="rv-cn-faq-panel">
+            {item.placeholder ? (
+              <div className="rv-cn-faq-panel-inner" data-faq-placeholder="">
+                <strong>{OWNER_TO_ANSWER}</strong> This answer isn&apos;t in your business details yet. Add it in the editor; until then this question is hidden on your live site.
+              </div>
+            ) : (
+              <div className="rv-cn-faq-panel-inner">{item.answer}</div>
+            )}
+          </div>
         </details>
       ))}
     </div>
@@ -1498,6 +1580,7 @@ const INTERACTIVE_CSS = `
 .rv-cn-faq-panel{display:grid;grid-template-rows:0fr;transition:grid-template-rows .24s ease}
 .rv-cn-faq details[open] .rv-cn-faq-panel{grid-template-rows:1fr}
 .rv-cn-faq-panel-inner{min-height:0;overflow:hidden;overflow:clip;padding:0 0 14px;white-space:pre-wrap}
+.rv-cn-faq-panel-inner[data-faq-placeholder]{font-style:italic;outline:2px dashed currentColor;outline-offset:-2px;padding:10px 12px;margin-bottom:14px;border-radius:8px}
 @supports (interpolate-size:allow-keywords){.rv-cn-faq details{interpolate-size:allow-keywords}.rv-cn-faq details::details-content{block-size:0;overflow:clip;transition:block-size .24s ease,content-visibility .24s;transition-behavior:allow-discrete}.rv-cn-faq details[open]::details-content{block-size:auto}}
 .rv-cn-tab-list{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;border-bottom:1px solid currentColor}
 .rv-cn-tab{position:relative;min-height:44px;padding:0 16px;border:0;border-radius:0;background:transparent;color:inherit;font:inherit;font-weight:650;cursor:pointer;opacity:.65}
@@ -1535,16 +1618,17 @@ export const BROKEN_MEDIA_CSS = `[data-rv-card]:has(img[data-rv-broken]):not(:ha
 // of the animation. A view() timeline binds to the nearest scroll container,
 // and an overflow:hidden card or panel is one that never scrolls, so faded
 // from-states froze sections blank ("How working with us goes", FAQs).
-const MOTION_CSS = `@media (prefers-reduced-motion: no-preference){.rv-cn-motion{animation:rv-cn-in .7s ease both}.rv-cn-motion[data-motion=rise]{animation-name:rv-cn-rise}.rv-cn-motion[data-motion=scale]{animation-name:rv-cn-scale}.rv-cn-motion[data-motion=float]{animation:rv-cn-float 6s ease-in-out infinite}.rv-cn-motion[data-motion=slide-left]{animation-name:rv-cn-sl}.rv-cn-motion[data-motion=slide-right]{animation-name:rv-cn-sr}.rv-cn-motion[data-motion=blur]{animation-name:rv-cn-blur}.rv-cn-motion[data-motion=reveal]{animation-name:rv-cn-reveal}.rv-cn-motion[data-motion=custom]{animation-name:rv-cn-custom}}@keyframes rv-cn-custom{from{transform:translate(var(--rv-x,0),var(--rv-y,0)) scale(var(--rv-s,1)) rotate(var(--rv-r,0))}}@keyframes rv-cn-sl{from{transform:translateX(16px)}to{transform:none}}@keyframes rv-cn-sr{from{transform:translateX(-16px)}to{transform:none}}@keyframes rv-cn-blur{from{transform:scale(.98)}to{transform:none}}@keyframes rv-cn-reveal{from{transform:translateY(16px)}to{transform:none}}@keyframes rv-cn-in{from{transform:translateY(8px)}to{transform:none}}@keyframes rv-cn-rise{from{transform:translateY(16px)}to{transform:none}}@keyframes rv-cn-scale{from{transform:scale(.97)}to{transform:none}}@keyframes rv-cn-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}@media (prefers-reduced-motion:no-preference){img.rv-scene-media[data-kenburns]{animation:rv-kenburns 28s ease-in-out infinite alternate;transform-origin:60% 40%}}@keyframes rv-kenburns{from{transform:scale(1)}to{transform:scale(1.08) translate(-1%,-1%)}}@supports (animation-timeline:view()){@media (prefers-reduced-motion:no-preference){.rv-cn-auto{animation:rv-cn-rise linear both;animation-timeline:view();animation-range:entry calc(var(--rv-i,0)*16px) entry calc(180px + var(--rv-i,0)*16px)}}}`;
+const MOTION_CSS = `@media (prefers-reduced-motion: no-preference){.rv-cn-motion{animation:rv-cn-in .7s ease both}.rv-cn-motion[data-motion=rise]{animation-name:rv-cn-rise}.rv-cn-motion[data-motion=scale]{animation-name:rv-cn-scale}.rv-cn-motion[data-motion=float]{animation:rv-cn-float 6s ease-in-out infinite}.rv-cn-motion[data-motion=slide-left]{animation-name:rv-cn-sl}.rv-cn-motion[data-motion=slide-right]{animation-name:rv-cn-sr}.rv-cn-motion[data-motion=blur]{animation-name:rv-cn-blur}.rv-cn-motion[data-motion=reveal]{animation-name:rv-cn-reveal}.rv-cn-motion[data-motion=custom]{animation-name:rv-cn-custom}}@keyframes rv-cn-custom{from{transform:translate(var(--rv-x,0),var(--rv-y,0)) scale(var(--rv-s,1)) rotate(var(--rv-r,0))}}@keyframes rv-cn-sl{from{transform:translateX(16px)}to{transform:none}}@keyframes rv-cn-sr{from{transform:translateX(-16px)}to{transform:none}}@keyframes rv-cn-blur{from{transform:scale(.98)}to{transform:none}}@keyframes rv-cn-reveal{from{transform:translateY(16px)}to{transform:none}}@keyframes rv-cn-in{from{transform:translateY(8px)}to{transform:none}}@keyframes rv-cn-rise{from{transform:translateY(16px)}to{transform:none}}@keyframes rv-cn-scale{from{transform:scale(.97)}to{transform:none}}@keyframes rv-cn-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}@media (prefers-reduced-motion:no-preference){img.rv-scene-media[data-kenburns]{animation:rv-kenburns 28s ease-in-out infinite alternate;transform-origin:60% 40%}}@keyframes rv-kenburns{from{transform:scale(1)}to{transform:scale(1.08) translate(-1%,-1%)}}@supports (animation-timeline:view()){@media (prefers-reduced-motion:no-preference){.rv-cn-auto{animation:rv-cn-rise linear both;animation-timeline:view();animation-range:entry calc(var(--rv-i,0)*16px) entry calc(180px + var(--rv-i,0)*16px)}}}@supports not (animation-timeline:view()){@media (prefers-reduced-motion:no-preference){.rv-cn-auto[data-rv-wait]{transform:translateY(16px)}.rv-cn-auto[data-rv-go]{transition:transform var(--motion-duration-slower,600ms) var(--motion-ease-out,cubic-bezier(.22,1,.36,1)) calc(var(--rv-i,0)*60ms)}}}article[data-rv-card]>img[style*="aspect-ratio"]{height:auto!important}`;
 
 export function CompositionRenderer(args: Parameters<typeof RenderComposition>[0]) {
   const { enabled } = usePremiumFx();
-  return <RenderComposition {...args} premiumOff={!enabled} />;
+  const preview = usePreviewMode();
+  return <RenderComposition {...args} premiumOff={!enabled} faqDraft={preview || Boolean(args.editable)} />;
 }
 
-function RenderComposition({ premiumOff = false, tree, scope, as = "section", resolveHref, resolveMedia, resolveWidget, resolveOffer, eagerFirstMedia = false, heroVideo = null, surface = null, linkLabel, editable = false }: { premiumOff?: boolean; tree: CompositionTree; /** The home page's hero loop, for the first section only. */ heroVideo?: HeroVideoMedia | null; scope: string; editable?: boolean; surface?: string | null; linkLabel?: (text: string) => string; as?: "section" | "div"; resolveHref?: (href: string) => string; resolveMedia?: (ref: string) => ResolvedMedia | null; resolveWidget?: (name: string, presentation?: WidgetPresentation) => ReactNode; /** Real service facts for offer cards (Services tool); without it no price is shown. */ resolveOffer?: (service: string) => OfferFacts | null; eagerFirstMedia?: boolean }) {
+function RenderComposition({ premiumOff = false, faqDraft = false, faqFacts = null, altBase, tree, scope, as = "section", resolveHref, resolveMedia, resolveWidget, resolveOffer, eagerFirstMedia = false, heroVideo = null, surface = null, linkLabel, editable = false }: { premiumOff?: boolean; /** Owner draft preview: unanswered FAQ questions show a marked placeholder instead of being dropped. */ faqDraft?: boolean; /** The business facts FAQ answers must come from; without them only fact-free answers are shown. */ faqFacts?: FaqFacts | null; /** Business name, trade and city: the description for pictures that have none. */ altBase?: string; tree: CompositionTree; /** The home page's hero loop, for the first section only. */ heroVideo?: HeroVideoMedia | null; scope: string; editable?: boolean; surface?: string | null; linkLabel?: (text: string) => string; as?: "section" | "div"; resolveHref?: (href: string) => string; resolveMedia?: (ref: string) => ResolvedMedia | null; resolveWidget?: (name: string, presentation?: WidgetPresentation) => ReactNode; /** Real service facts for offer cards (Services tool); without it no price is shown. */ resolveOffer?: (service: string) => OfferFacts | null; eagerFirstMedia?: boolean }) {
   const page = surface && /^#[0-9a-f]{6}$/i.test(surface) ? surface : undefined;
-  const ctx: Ctx = { ...(premiumOff ? { premiumOff: true } : {}), ...(resolveOffer ? { offer: resolveOffer } : {}), ...(CHROME_SCOPES.has(scope) ? { chrome: true } : {}), ...(editable ? { editable: true } : {}), ...(linkLabel ? { label: linkLabel } : {}), ...(page ? { bg: page, fg: bestInk(page) } : {}), rules: [], counter: { n: 0 }, eagerFirstMedia, ...(heroVideo && !editable ? { heroVideo } : {}), scope: scope.replace(/[^\w-]/g, "") || "cn", href: resolveHref ?? ((h) => h), media: resolveMedia ?? (() => null), widget: resolveWidget ?? (() => null) };
+  const ctx: Ctx = { faq: { facts: faqFacts ?? NO_FAQ_FACTS, mode: faqDraft ? "draft" : "published" }, ...(altBase ? { altBase } : {}), ...(premiumOff ? { premiumOff: true } : {}), ...(resolveOffer ? { offer: resolveOffer } : {}), ...(CHROME_SCOPES.has(scope) ? { chrome: true } : {}), ...(editable ? { editable: true } : {}), ...(linkLabel ? { label: linkLabel } : {}), ...(page ? { bg: page, fg: bestInk(page) } : {}), rules: [], counter: { n: 0 }, eagerFirstMedia, ...(heroVideo && !editable ? { heroVideo } : {}), scope: scope.replace(/[^\w-]/g, "") || "cn", href: resolveHref ?? ((h) => h), media: resolveMedia ?? (() => null), widget: resolveWidget ?? (() => null) };
   const body = renderNode(tree.root, ctx, "root");
   // The shared rules are identical for every section. They used to be
   // repeated inline in each one (several KB per section, re-parsed by the
@@ -1566,12 +1650,14 @@ function RenderComposition({ premiumOff = false, tree, scope, as = "section", re
         {shared}
         {own}
         {body}
+        {editable ? null : <ScrollRevealFallback />}
       </div>
     ) : (
       <section data-composition={tree.label ?? "composition"} style={rootStyle}>
         {shared}
         {own}
         {body}
+        {editable ? null : <ScrollRevealFallback />}
       </section>
     )
   );

@@ -5,6 +5,8 @@ import { SpinViewerView } from "./CinematicBlocks";
 import { CINEMATIC_CSS } from "./cinematic-css";
 import { offerFactsFor } from "./live-blocks-utils";
 import type { CompositionNode, CompositionTree } from "@/lib/builder/composition-tree";
+import { faqFactsFor, OWNER_TO_ANSWER } from "@/lib/builder/faq-from-facts";
+import { PreviewModeContext } from "./preview-mode-context";
 
 const ref = (n: number) => `${String(n).padStart(8, "0")}-1111-4111-8111-111111111111`;
 const pic = (n: number, alt = `Angle ${n}`): CompositionNode => ({ type: "media", mediaRef: ref(n), alt });
@@ -52,6 +54,18 @@ describe("scene renders a full-viewport, readable photographic chapter", () => {
     const eager = render(scene(), { eagerFirstMedia: true });
     expect(eager).toContain('loading="eager"');
     expect(eager).toContain('fetchPriority="high"');
+  });
+
+  it("the first picture on the page may be a lens magnifier: it loads eagerly, a later one stays lazy (audit P2-07)", () => {
+    const lens = (n: number): CompositionNode => ({ type: "lens_magnifier", text: "Inspect", children: [pic(n, `Detail ${n}`)] });
+    const html = markup(render({ type: "stack", children: [lens(1), lens(2)] } as CompositionNode, { eagerFirstMedia: true }));
+    const tags = html.match(/<img[^>]*rv-lens-img[^>]*>/g) ?? [];
+    expect(tags).toHaveLength(2);
+    expect(tags[0]).toContain('loading="eager"');
+    expect(tags[0]).toContain('fetchPriority="high"');
+    expect(tags[1]).toContain('loading="lazy"');
+    const notFirst = markup(render({ type: "stack", children: [lens(1)] } as CompositionNode));
+    expect(notFirst).toContain('loading="lazy"');
   });
 
   it("plays a backdrop video muted, without autoplay attributes or controls in the server HTML", () => {
@@ -187,6 +201,19 @@ describe("scrub_sequence", () => {
     expect(CINEMATIC_CSS).toContain("prefers-reduced-motion:reduce");
     expect(CINEMATIC_CSS).toContain(".rv-seq[data-live]");
   });
+
+  it("never renders an AI production label from a frame's text", () => {
+    const html = render({
+      type: "scrub_sequence",
+      children: [
+        { ...pic(1, "Vehicle in shade"), text: "Resting frame" },
+        { ...pic(2, "Panel in the light"), text: "Moving frame" },
+        { type: "heading", level: 1, text: "Bring it dirty" },
+      ],
+    });
+    expect(markup(html)).not.toMatch(/Resting frame|Moving frame/);
+    expect(html).toContain("Bring it dirty");
+  });
 });
 
 describe("accordion labels are not a hollow box", () => {
@@ -283,3 +310,38 @@ describe("home page hero video loop", () => {
   });
 });
 
+
+describe("faq_accordion answers come from the business facts", () => {
+  const faqTree: CompositionNode = {
+    type: "faq_accordion",
+    faqItems: [
+      { question: "What are your hours?", answer: "" },
+      { question: "Do you offer a warranty?", answer: "Yes, a lifetime warranty." },
+    ],
+  };
+  const faqFacts = faqFactsFor({ businessName: "Shine Bros", profile: { hours: "Mon–Sat 8am–6pm" } });
+
+  it("published pages show the fact answer and drop the unanswered question", () => {
+    const html = markup(render(faqTree, { faqFacts }));
+    expect(html).toContain("Our hours are Mon–Sat 8am–6pm.");
+    expect(html).not.toContain("warranty");
+    expect(html).not.toContain(OWNER_TO_ANSWER);
+  });
+
+  it("a page with no answered question renders no FAQ at all", () => {
+    const html = markup(render({ type: "faq_accordion", faqItems: [{ question: "Do you offer a warranty?", answer: "Yes." }] } as CompositionNode, { faqFacts }));
+    expect(html).not.toContain("rv-cn-faq");
+  });
+
+  it("the owner's draft preview marks the unanswered question", () => {
+    const html = markup(renderToStaticMarkup(
+      <PreviewModeContext.Provider value={true}>
+        <CompositionRenderer tree={{ version: 1, root: faqTree } as CompositionTree} scope="s-test" faqFacts={faqFacts} />
+      </PreviewModeContext.Provider>,
+    ));
+    expect(html).toContain("Do you offer a warranty?");
+    expect(html).toContain("data-faq-placeholder");
+    expect(html).toContain(OWNER_TO_ANSWER);
+    expect(html).not.toContain("lifetime");
+  });
+});

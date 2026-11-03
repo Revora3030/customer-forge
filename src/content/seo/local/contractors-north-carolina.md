@@ -32,7 +32,7 @@ After you mark a job complete, a ready-made review-request automation sends a te
 
 ## Cost
 
-$350 one-time setup, first month free, then $100/month, with cancel-anytime terms and 3 days of full access to try. Rankings can never be guaranteed. What you get is a fast mobile site, real content and a system that converts the visitors you earn.
+$350 setup, first month free, then $100/month, with cancel-anytime terms and 3 days of full access to try. Rankings can never be guaranteed. What you get is a fast mobile site, real content and a system that converts the visitors you earn.
 
 ## Questions North Carolina owners ask
 
@@ -50,3 +50,7 @@ Yes. Every lead, quote and booking lives in one pipeline, with follow-up schedul
 
 **Does Revora have a North Carolina office?**
 No. Revora works remotely, and we do not claim an address.
+
+## Source (checked October 31, 2026)
+
+- North Carolina general contractor license threshold, G.S. 87-1: https://www.ncleg.gov/EnactedLegislation/Statutes/HTML/ByArticle/Chapter_87/Article_1.html

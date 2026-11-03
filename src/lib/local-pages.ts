@@ -246,7 +246,7 @@ function generatedLocalPageContent(
     title: localTitle(industry.name, state.name, TITLE_OVERRIDES[`${industry.slug}/${state.slug}`]),
     description: localDescription(industry.name, state.name, topThree),
     heading: `${industry.name} website design and lead generation in ${topMetros} and across ${state.name}`,
-    intro: `If you run ${aLowerName} business in ${topMetros} or anywhere in ${state.name}, your next customer is already searching. Revora gives you the whole system that turns that search into a booked job — professional website design for your business, instant quotes, online booking, a CRM that holds every lead, and follow-up that runs while you work. ${SETUP} one-time setup, your first month free, then ${MONTHLY}/month, with 3 days of full access to try it first.`,
+    intro: `If you run ${aLowerName} business in ${topMetros} or anywhere in ${state.name}, your next customer is already searching. Revora gives you the whole system that turns that search into a booked job — professional website design for your business, instant quotes, online booking, a CRM that holds every lead, and follow-up that runs while you work. ${SETUP} setup, your first month free, then ${MONTHLY}/month, with 3 days of full access to try it first.`,
     metroLine: `Serving ${metroList} and every community across ${state.name} (${state.code}) — Revora works remotely, so there is no travel or install day.`,
     sections: [
       {
@@ -277,7 +277,7 @@ function generatedLocalPageContent(
       },
       {
         q: "What does it cost?",
-        a: `${SETUP} one time to build and launch the system, then your first 30 days of the ${MONTHLY}/month platform fee are free. The ${MONTHLY}/month starts in month two and covers hosting, updates, automation, reporting and support. Cancel anytime.`,
+        a: `${SETUP} setup to build and launch the system, then your first 30 days of the ${MONTHLY}/month platform fee are free. The ${MONTHLY}/month starts in month two and covers hosting, updates, automation, reporting and support. Cancel anytime.`,
       },
       {
         q: "How long until it is live?",

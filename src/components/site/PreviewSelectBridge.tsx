@@ -11,6 +11,11 @@
  *  - Double-click a heading, paragraph, button or link inside an AI layout to
  *    edit its words in place. Enter or clicking away saves (sent to the
  *    builder, which persists it with no AI turn); Escape cancels.
+ *  - Quick edit (toggled by the builder): one click, or Enter on a focused
+ *    heading, edits a headline or paragraph in place, with the same save and
+ *    cancel keys as above.
+ *  - The builder can try a palette live (CSS variables on the site root only)
+ *    and put the saved colours back; nothing is persisted from here.
  *  - The builder can patch an element's text instantly and show a floating
  *    status badge ("Sol is restyling Hero…") without reloading the frame.
  *
@@ -24,8 +29,12 @@ import {
   type PreviewToBuilderMessage,
 } from "@/lib/builder/preview-bridge";
 import { contrast, over, parseColor, requiredRatio, type Rgba } from "@/lib/builder/contrast-scan";
+import { siteThemeStyle } from "@/lib/site-theme";
+import { DOUBLE_TAP_MS, isDoubleTap, type Tap } from "@/lib/builder/inline-edit";
 
 const INLINE_TYPES = new Set(["heading", "text", "button", "link", "quote"]);
+/** Words an owner can click to edit directly (headlines and paragraphs). */
+const QUICK_TYPES = new Set(["heading", "text"]);
 const ACTIONS: { action: PreviewAction; label: string }[] = [
   { action: "restyle", label: "Restyle" },
   { action: "photo", label: "New photo" },
@@ -55,6 +64,9 @@ export function PreviewSelectBridge() {
     const post = (message: PreviewToBuilderMessage) => window.parent.postMessage(message, origin);
     const root = document.documentElement;
     let active = false;
+    let quick = false;
+    /** The site root's own inline style before a palette was tried, to put back exactly. */
+    let themeSnapshot: string | null = null;
     let editing: { node: HTMLElement; before: string; id: string; path: string } | null = null;
 
     /* ------------------------------ overlay UI ------------------------------ */
@@ -162,6 +174,27 @@ export function PreviewSelectBridge() {
       node.textContent = after;
       post({ source: PREVIEW_BRIDGE_SOURCE, type: "inline-edit", id, path, text: after });
     };
+    // Phones: a double-tap edits words like a desktop double-click. A touch pick is held back for one
+    // double-tap window so the first tap of a double-tap doesn't pick the block (and close the preview).
+    let lastTap: Tap | null = null;
+    let touchEditAt = 0;
+    let pendingPick: number | undefined;
+    const cancelPendingPick = () => {
+      if (pendingPick !== undefined) window.clearTimeout(pendingPick);
+      pendingPick = undefined;
+    };
+    const onPointerUp = (event: PointerEvent) => {
+      if (event.pointerType !== "touch" || !event.isPrimary || !active) return;
+      const element = elementOf(event.target instanceof Element ? event.target : null);
+      const tap: Tap = { t: event.timeStamp, x: event.clientX, y: event.clientY, target: element };
+      const double = element !== null && isDoubleTap(lastTap, tap);
+      lastTap = double ? null : tap;
+      if (double && element && startEdit(element)) {
+        cancelPendingPick();
+        touchEditAt = event.timeStamp;
+      }
+    };
+
     const startEdit = (element: HTMLElement) => {
       const type = element.getAttribute("data-rvp-type") ?? "";
       if (!INLINE_TYPES.has(type) || element.children.length > 0) return false;
@@ -185,6 +218,47 @@ export function PreviewSelectBridge() {
       box.style.display = "none";
       menu.style.display = "none";
       return true;
+    };
+
+    /* ------------------------------ quick edit ------------------------------- */
+    const quickTargets = () =>
+      Array.from(document.querySelectorAll<HTMLElement>("[data-rvp-type]")).filter(
+        (node) => QUICK_TYPES.has(node.getAttribute("data-rvp-type") ?? "") && node.children.length === 0 && !layer.contains(node),
+      );
+    // Keyboard users reach each editable headline with Tab and press Enter.
+    const markQuick = (on: boolean) => {
+      for (const node of quickTargets()) {
+        if (on) {
+          if (!node.hasAttribute("tabindex")) {
+            node.setAttribute("tabindex", "0");
+            node.setAttribute("data-rv-quick", "");
+          }
+          node.setAttribute("title", "Click to edit, or press Enter");
+        } else if (node.hasAttribute("data-rv-quick")) {
+          node.removeAttribute("tabindex");
+          node.removeAttribute("data-rv-quick");
+          node.removeAttribute("title");
+        }
+      }
+    };
+
+    /* ------------------------------ live palette ------------------------------ */
+    const siteRoot = () => document.querySelector<HTMLElement>(".rv-site-root");
+    const resetTheme = () => {
+      const node = siteRoot();
+      if (node && themeSnapshot !== null) node.style.cssText = themeSnapshot;
+      themeSnapshot = null;
+    };
+    const patchTheme = (primary: string, secondary: string, accent: string) => {
+      const node = siteRoot();
+      // Studio pages carry their own theme layer; leave those to a reload.
+      if (!node || node.hasAttribute("data-studio")) return;
+      if (themeSnapshot === null) themeSnapshot = node.style.cssText;
+      const vars = (siteThemeStyle({ primaryColor: primary, secondaryColor: secondary, accentColor: accent }) ?? {}) as Record<string, string>;
+      for (const [key, value] of Object.entries(vars)) {
+        if (key.startsWith("--")) node.style.setProperty(key, value);
+        else (node.style as unknown as Record<string, string>)[key] = value;
+      }
     };
 
     /* ------------------------- responsive overflow probe ------------------------ */
@@ -316,7 +390,17 @@ export function PreviewSelectBridge() {
         if (node && node !== editing?.node && node.children.length === 0) node.textContent = message.text;
         return;
       }
+      if (message.type === "patch-theme") {
+        patchTheme(message.primary, message.secondary, message.accent);
+        return;
+      }
+      if (message.type === "reset-theme") {
+        resetTheme();
+        return;
+      }
       active = message.on;
+      quick = message.on && message.quickEdit === true;
+      markQuick(quick);
       root.classList.toggle("rv-preview-select", active);
       if (!active) place(null, null);
       markSelected(message.selectedId, message.selectedPath);
@@ -345,6 +429,15 @@ export function PreviewSelectBridge() {
         post(selectionOf(picked, null, actionButton.dataset["action"] as PreviewAction));
         return;
       }
+      if (active && quick) {
+        // Quick edit: a click on a headline or paragraph edits it; nothing else
+        // in the page navigates or submits while editing words.
+        event.preventDefault();
+        event.stopPropagation();
+        const element = elementOf(target);
+        if (element && QUICK_TYPES.has(element.getAttribute("data-rvp-type") ?? "")) startEdit(element);
+        return;
+      }
       if (!active) return;
       const block = blockOf(target);
       if (!block) return;
@@ -352,11 +445,20 @@ export function PreviewSelectBridge() {
       event.preventDefault();
       event.stopPropagation();
       const element = elementOf(target);
-      post(selectionOf(block, element));
+      const message = selectionOf(block, element);
+      if (lastTap && event.timeStamp - lastTap.t < 80) {
+        // A finger tap: wait one double-tap window before picking.
+        cancelPendingPick();
+        pendingPick = window.setTimeout(() => { pendingPick = undefined; post(message); }, DOUBLE_TAP_MS);
+        return;
+      }
+      post(message);
     };
 
     const onDoubleClick = (event: MouseEvent) => {
       if (!active) return;
+      if (event.timeStamp - touchEditAt < 600) return;
+      cancelPendingPick();
       const element = elementOf(event.target instanceof Element ? event.target : null);
       if (!element) return;
       if (startEdit(element)) {
@@ -366,7 +468,20 @@ export function PreviewSelectBridge() {
     };
 
     const onKey = (event: KeyboardEvent) => {
-      if (!editing) return;
+      if (!editing) {
+        const focused = event.target instanceof HTMLElement ? event.target : null;
+        if (
+          active &&
+          quick &&
+          focused?.hasAttribute("data-rv-quick") &&
+          (event.key === "Enter" || event.key === "F2") &&
+          startEdit(focused)
+        ) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+        return;
+      }
       if (event.key === "Escape") {
         event.preventDefault();
         finishEdit(false);
@@ -385,6 +500,7 @@ export function PreviewSelectBridge() {
     document.addEventListener("mousemove", onMove, true);
     document.addEventListener("click", onClick, true);
     document.addEventListener("dblclick", onDoubleClick, true);
+    document.addEventListener("pointerup", onPointerUp, true);
     document.addEventListener("keydown", onKey, true);
     window.addEventListener("scroll", onScroll, true);
     window.addEventListener("resize", placeMenu);
@@ -395,10 +511,14 @@ export function PreviewSelectBridge() {
       resizeObserver?.disconnect();
       window.removeEventListener("load", scheduleOverflow);
       finishEdit(false);
+      markQuick(false);
+      resetTheme();
       window.removeEventListener("message", onMessage);
       document.removeEventListener("mousemove", onMove, true);
       document.removeEventListener("click", onClick, true);
       document.removeEventListener("dblclick", onDoubleClick, true);
+      document.removeEventListener("pointerup", onPointerUp, true);
+      cancelPendingPick();
       document.removeEventListener("keydown", onKey, true);
       window.removeEventListener("scroll", onScroll, true);
       window.removeEventListener("resize", placeMenu);

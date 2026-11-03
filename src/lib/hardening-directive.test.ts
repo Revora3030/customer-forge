@@ -180,38 +180,19 @@ describe("domain claim blocklist", () => {
 // ---------------------------------------------------------------------------
 
 describe("LocalBusiness schema review honesty", () => {
-  it("emits aggregateRating only when at least one real rating exists", async () => {
+  it("never emits ratings, reviews or awards", async () => {
     const { localBusinessSchema } = await import("@/lib/site-head");
-    const base = {
+    const schema = localBusinessSchema({
       name: "Test Co",
       url: "https://client.example.com",
       profile: { phone: null, hours: null } as never,
-      services: [],
-    };
-    const withReviews = localBusinessSchema({
-      ...base,
-      reviews: [
-        { author_name: "A", rating: 5, comment: "Great", created_at: "2026-01-01" },
-        { author_name: "B", rating: 4, comment: null, created_at: null },
-      ] as never[],
-    } as never);
-    const rating = (withReviews as Record<string, Record<string, unknown> | undefined>)["aggregateRating"];
-    expect(rating).toBeDefined();
-    expect(rating?.["reviewCount"]).toBe(2);
-    expect(Number(rating?.["ratingValue"])).toBeCloseTo(4.5);
-
-    const withJunk = localBusinessSchema({
-      ...base,
-      reviews: [
-        { author_name: "X", rating: 0, comment: null, created_at: null },
-        { author_name: "Y", rating: 9, comment: null, created_at: null },
-        { author_name: "Z", rating: null, comment: null, created_at: null },
-      ] as never[],
-    } as never);
-    expect((withJunk as Record<string, unknown>)["aggregateRating"]).toBeUndefined();
-
-    const withNone = localBusinessSchema({ ...base, reviews: [] } as never);
-    expect((withNone as Record<string, unknown>)["aggregateRating"]).toBeUndefined();
+      services: [{ name: "Repair" }],
+    });
+    expect(schema["aggregateRating"]).toBeUndefined();
+    expect(schema["review"]).toBeUndefined();
+    expect(schema["award"]).toBeUndefined();
+    expect(schema["name"]).toBe("Test Co");
+    expect(schema["url"]).toBe("https://client.example.com");
   });
 });
 

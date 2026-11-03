@@ -12,6 +12,7 @@ import {
   PageHead,
 } from "@/components/app/Bits";
 import { OnboardingJourney } from "@/components/app/OnboardingJourney";
+import { ToolsYouCanCancelCard } from "@/components/app/ToolsYouCanCancelCard";
 import { ProductionSummaryCard } from "@/components/app/ProductionLaunch";
 import { StatusCenter } from "@/components/app/StatusCenter";
 import { BuildLive } from "@/components/app/BuildLive";
@@ -20,6 +21,7 @@ import { RevoraCommandBar } from "@/components/app/RevoraCommandBar";
 import { ClientWebsiteSummary } from "@/components/app/ClientWebsiteSummary";
 import { SpeedToLeadCard } from "@/components/app/SpeedToLeadCard";
 import { WinbackCard } from "@/components/app/WinbackCard";
+import { LeadDeliveryFlags } from "@/components/app/LeadDeliveryFlags";
 import { WorkDoneCard } from "@/components/app/WorkDoneCard";
 
 import { useProductionStatus } from "@/lib/production.hooks";
@@ -473,6 +475,7 @@ function Dashboard() {
         />
       ) : null}
 
+      <LeadDeliveryFlags organizationId={orgId} />
       <StatusCenter organizationId={orgId} />
       {/* New customers see their site being built, live, at the top of the
           dashboard — real server-recorded stages, hidden once nothing runs. */}
@@ -501,6 +504,8 @@ function Dashboard() {
       <ProductionSummaryCard status={production} />
 
       <OnboardingJourney />
+
+      <ToolsYouCanCancelCard organizationId={orgId} />
 
       {range === "custom" ? (
         <Panel className="p-4">

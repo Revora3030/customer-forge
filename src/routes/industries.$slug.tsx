@@ -102,7 +102,7 @@ export const Route = createFileRoute("/industries/$slug")({
                   "@type": "PriceSpecification",
                   price: GROWTH_SYSTEM.setupPrice,
                   priceCurrency: "USD",
-                  description: "One-time setup",
+                  description: "Setup",
                 },
                 {
                   "@type": "UnitPriceSpecification",

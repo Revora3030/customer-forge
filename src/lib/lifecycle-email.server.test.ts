@@ -35,6 +35,7 @@ function fakeDb(tables: Record<string, Row[]>) {
       eq: (c: string, v: unknown) => (preds.push((r) => r[c] === v), chain),
       in: (c: string, v: unknown[]) => (preds.push((r) => v.includes(r[c])), chain),
       gte: (c: string, v: string) => (preds.push((r) => String(r[c]) >= v), chain),
+      neq: (c: string, v: unknown) => (preds.push((r) => r[c] !== v), chain),
       not: (c: string, _op: string, v: unknown) => (preds.push((r) => (r[c] ?? null) !== v), chain),
       update: (p: Row) => ((op = "update"), (patch = p), chain),
       delete: () => ((op = "delete"), chain),
@@ -143,6 +144,42 @@ describe("lifecycle email planning", () => {
   });
 });
 
+describe("site-ready email", () => {
+  const job = (orgId: string, over: Row = {}) => ({ organization_id: orgId, status: "completed", completed_at: ago(0.1), ...over });
+
+  it("plans one site_ready email for a build that finished in the last 2 days, with a link to the website page", async () => {
+    tables["generation_jobs"] = [job("a"), job("a", { completed_at: ago(0.2) })];
+    const planned = await planLifecycleEmails(fakeDb(tables));
+    const ready = planned.filter((p) => p.kind === "site_ready");
+    expect(ready).toHaveLength(1);
+    expect(ready[0]?.template).toBe("lifecycle-site-ready");
+    expect(ready[0]?.recipient).toBe("owner@example.com");
+    expect(ready[0]?.data["actionUrl"]).toBe("https://revoragrowthsystems.com/app/website");
+  });
+
+  it("ignores old, unfinished and failed builds", async () => {
+    tables["generation_jobs"] = [
+      job("a", { completed_at: ago(5) }),
+      job("a", { status: "processing", completed_at: null }),
+      job("a", { status: "failed" }),
+    ];
+    const planned = await planLifecycleEmails(fakeDb(tables));
+    expect(planned.some((p) => p.kind === "site_ready")).toBe(false);
+  });
+
+  it("never sends it twice to the same person, and respects unsubscribe, demo and QA rules", async () => {
+    tables["generation_jobs"] = [job("a"), job("b"), job("demo"), job("qa"), job("optout")];
+    const db = fakeDb(tables);
+    const first = await planLifecycleEmails(db);
+    expect(first.filter((p) => p.kind === "site_ready")).toHaveLength(1);
+    tables["lifecycle_email_log"] = [
+      { organization_id: "a", kind: "site_ready", window_key: "once", recipient: "owner@example.com" },
+    ];
+    const second = await planLifecycleEmails(fakeDb(tables));
+    expect(second.some((p) => p.kind === "site_ready")).toBe(false);
+  });
+});
+
 describe("lifecycle email run", () => {
   it("sends with a personal unsubscribe link, logs each send, and a second run sends nothing", async () => {
     const db = fakeDb(tables);
@@ -171,5 +208,20 @@ describe("lifecycle email run", () => {
     const after = await runLifecycleEmails(db);
     expect(after.sent).toBe(0);
     expect(sendTemplateEmail).not.toHaveBeenCalled();
+  });
+
+  it("does not count a test lead as a real lead or as recent activity", async () => {
+    tables["organizations"]!.push(org("wb", { created_at: ago(10) }));
+    tables["business_profiles"]!.push(profile("wb", "wb@example.com"));
+    tables["leads"] = [
+      { organization_id: "wb", status: "new", created_at: ago(9), source: "website" },
+      { organization_id: "wb", status: "new", created_at: ago(1), source: "test_lead" },
+    ];
+    const planned = await planLifecycleEmails(fakeDb(tables));
+    const winback = planned.filter((p) => p.kind === "winback" && p.organizationId === "wb");
+    // The only recent touch was the test lead, so the workspace still counts as quiet,
+    // and the win-back email reports one real new lead, not two.
+    expect(winback).toHaveLength(1);
+    expect(winback[0]?.data["leadCount"]).toBe(1);
   });
 });

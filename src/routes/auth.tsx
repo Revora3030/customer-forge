@@ -1,4 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { LegalAgreementNote } from "@/components/marketing/LegalAgreementNote";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "@/lib/ui/notify";
 import { ArrowLeft, Loader2 } from "lucide-react";
@@ -13,7 +14,7 @@ import { ErrorNote, Pill } from "@/components/app/Bits";
 import { RouteError } from "@/components/app/RouteStates";
 import { ga4SignUp } from "@/lib/ga4-events";
 import { reportRouteError } from "@/lib/route-error-reporting";
-import { GROWTH_SYSTEM, usd } from "@/lib/offer";
+import { GROWTH_SYSTEM, REFUND_POLICY, usd } from "@/lib/offer";
 import {
   ensureProfile,
   rememberPreference,
@@ -22,6 +23,22 @@ import {
 } from "@/lib/auth-session";
 import { authEmailRedirectTo, isSafeRedirect } from "@/lib/prospect-claim";
 import { readStarter, STARTER_METADATA_KEY } from "@/components/marketing/hero-starter-utils";
+
+/**
+ * Offer recap shown on the signup screen. Every feature line is taken verbatim
+ * from `GROWTH_SYSTEM.includes` — the same list the /pricing page renders — so
+ * the recap can never claim something pricing doesn't.
+ */
+const SIGNUP_RECAP_FEATURES: ReadonlyArray<(typeof GROWTH_SYSTEM.includes)[number]> = [
+  "Professional business website",
+  "Lead capture system",
+  "CRM",
+  "Online booking",
+  "Quote/request system",
+  "Automated lead follow-up",
+  "Local SEO foundation",
+  "Technical support",
+];
 
 function starterMetadata(): Record<string, unknown> {
   const starter = readStarter();
@@ -315,6 +332,42 @@ function AuthPage() {
             </ol>
           ) : null}
 
+          {isSignup ? (
+            <section
+              aria-labelledby="signup-offer-recap"
+              className="mt-5 rounded-md border border-primary/30 bg-primary/5 px-4 py-3.5"
+            >
+              <h2
+                id="signup-offer-recap"
+                className="text-[11px] font-semibold tracking-wider text-primary uppercase"
+              >
+                Your plan when you launch
+              </h2>
+              <p className="mt-1.5 text-[13px] leading-relaxed text-foreground">
+                <span className="tnum font-semibold">{usd(GROWTH_SYSTEM.setupPrice)}</span> setup,
+                your first month free, then{" "}
+                <span className="tnum font-semibold">{usd(GROWTH_SYSTEM.monthlyPrice)}/month</span>.
+                Cancel anytime.
+              </p>
+              <ul className="mt-2.5 grid grid-cols-2 gap-x-3 gap-y-1 text-[12px] text-muted-foreground">
+                {SIGNUP_RECAP_FEATURES.map((feature) => (
+                  <li key={feature} className="flex items-start gap-1.5">
+                    <span
+                      aria-hidden
+                      className="mt-[0.45em] size-1 shrink-0 rounded-full bg-primary"
+                    />
+                    <span>{feature}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-2.5 text-[11.5px] text-muted-foreground">
+                <Link to="/pricing" className="text-primary underline-offset-4 hover:underline">
+                  See full pricing
+                </Link>
+              </p>
+            </section>
+          ) : null}
+
           {forgotMode ? (
             <div className="panel mt-6 p-5">
               <h2 className="font-display text-[17px] font-semibold text-foreground">
@@ -375,7 +428,7 @@ function AuthPage() {
                 disabled={busy !== null}
               >
                 {busy === "google" ? <Loader2 className="size-4 animate-spin" /> : null}
-                {isSignup ? "Sign up with Google" : "Continue with Google"}
+                Continue with Google
               </Button>
               <button
                 type="button"
@@ -496,6 +549,7 @@ function AuthPage() {
                         : "Email me a sign-in link"
                       : "Sign in"}
                 </Button>
+                {isSignup ? <LegalAgreementNote action="creating an account" /> : null}
                 {!isSignup ? (
                   <>
                     <button

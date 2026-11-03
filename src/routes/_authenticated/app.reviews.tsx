@@ -31,6 +31,7 @@ import {
 import { relative } from "@/lib/format";
 import { REVIEWS_META } from "@/lib/app-meta";
 import { MetaPreview } from "@/components/app/MetaPreview";
+import { ReviewKitCard } from "@/components/app/ReviewKitCard";
 
 export const Route = createFileRoute("/_authenticated/app/reviews")({
   head: () => ({
@@ -157,6 +158,13 @@ function ReviewsPage() {
           </Button>
         ) : null}
       </Panel>
+
+      <ReviewKitCard
+        organizationId={orgId}
+        businessName={data?.workspace?.organization?.name ?? ""}
+        savedLink={reviewLink}
+        canManage={data?.workspace?.role === "owner" || data?.workspace?.role === "admin"}
+      />
 
       {appointments.isError ? (
         <QueryErrorNotice

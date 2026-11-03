@@ -10,6 +10,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  *   welcome          — right after the workspace exists
  *   setup_reminder   — one nudge naming the exact next action, days 1–21, until launched
  *   booking_followup — the first real booking that still needs confirming
+ *   site_ready       — the first website build finished (within the last 2 days); a draft to review
  *   winback          — no activity for a week or more, nothing lost
  *
  * Never emailed: demo or suspended workspaces, Revora's own workspace, test
@@ -26,6 +27,7 @@ import { FULL_ACCESS_TRIAL_DAYS } from "@/lib/offer";
 import { sendTemplateEmail } from "@/lib/email-templates/send-email";
 import { EmailAPIError } from "@lovable.dev/email-js";
 import { isPlatformOwnerOrg } from "@/lib/platform-owner";
+import { TEST_LEAD_SOURCE } from "@/lib/test-lead";
 
 type Db = {
   from: SupabaseClient["from"];
@@ -36,8 +38,9 @@ const SITE = "https://revoragrowthsystems.com";
 const APP = `${SITE}/app`;
 const ONCE = "once";
 const CHUNK = 100;
+const SITE_READY_WINDOW_DAYS = 2;
 
-export const LIFECYCLE_KINDS = ["welcome", "setup_reminder", "booking_followup", "winback"] as const;
+export const LIFECYCLE_KINDS = ["welcome", "setup_reminder", "booking_followup", "site_ready", "winback"] as const;
 
 /** Internal QA inboxes (name+qa@…, name+svcqa@…) never get lifecycle mail. */
 export const isTestInbox = (email: string) => /\+(?:svc)?qa(?:[^@]*)@/i.test(email);
@@ -72,7 +75,7 @@ async function selectIn(
 
 export type LifecycleSend = {
   organizationId: string;
-  kind: "welcome" | "setup_reminder" | "booking_followup" | "winback";
+  kind: (typeof LIFECYCLE_KINDS)[number];
   windowKey: string;
   recipient: string;
   template: string;
@@ -167,6 +170,7 @@ export async function planLifecycleEmails(db: Db, limit = 500): Promise<Lifecycl
     appointmentData,
     analyticsData,
     orgLog,
+    buildRows,
   ] = await Promise.all([
     selectIn(
       db,
@@ -181,7 +185,10 @@ export async function planLifecycleEmails(db: Db, limit = 500): Promise<Lifecycl
     selectIn(db, "quote_forms", "organization_id, is_active", "organization_id", ids),
     selectIn(db, "automations", "organization_id, is_active", "organization_id", ids),
     selectIn(db, "reviews", "organization_id", "organization_id", ids),
-    selectIn(db, "leads", "organization_id, status, created_at", "organization_id", ids),
+    // A test lead the owner sent themselves is not a real lead or activity.
+    selectIn(db, "leads", "organization_id, status, created_at", "organization_id", ids, (q) =>
+      q.neq("source", TEST_LEAD_SOURCE),
+    ),
     selectIn(db, "appointments", "organization_id, id, name, starts_at, status, created_at", "organization_id", ids, (q) =>
       q.gte("created_at", new Date(Date.now() - 2 * DAY).toISOString()),
     ),
@@ -189,7 +196,16 @@ export async function planLifecycleEmails(db: Db, limit = 500): Promise<Lifecycl
     selectIn(db, "lifecycle_email_log", "organization_id, kind, window_key", "organization_id", ids, (q) =>
       q.in("kind", [...LIFECYCLE_KINDS]),
     ),
+    // Finished builds from the last 2 days only: nobody gets a "ready" email about an old build.
+    selectIn(db, "generation_jobs", "organization_id, completed_at", "organization_id", ids, (q) =>
+      q.eq("status", "completed").gte("completed_at", new Date(Date.now() - SITE_READY_WINDOW_DAYS * DAY).toISOString()),
+    ),
   ]);
+  const finishedBuildOrgs = new Set(
+    (buildRows as { organization_id: string; completed_at: string | null }[])
+      .filter((r) => r.completed_at)
+      .map((r) => r.organization_id),
+  );
   const profiles = { data: profileRows };
   const settings = { data: settingRows };
   const services = { data: serviceData };
@@ -397,7 +413,19 @@ export async function planLifecycleEmails(db: Db, limit = 500): Promise<Lifecycl
       });
     }
 
-    // 4. Win-back — once, after a week or more of no activity.
+    // 4. Site ready — once, after the first build finishes. It is a draft: never says "live".
+    if (finishedBuildOrgs.has(org.id)) {
+      push({
+        organizationId: org.id,
+        kind: "site_ready",
+        windowKey: ONCE,
+        recipient,
+        template: "lifecycle-site-ready",
+        data: { businessName, firstName, actionUrl: `${APP}/website` },
+      });
+    }
+
+    // 5. Win-back — once, after a week or more of no activity.
     const lastTouch = Math.max(
       new Date(setting?.updated_at ?? org.created_at).getTime(),
       ...orgLeads.map((l) => new Date(l.created_at).getTime()),

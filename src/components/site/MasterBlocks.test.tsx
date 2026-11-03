@@ -25,6 +25,15 @@ describe("lens_magnifier and sticky_split_story", () => {
     expect(CINEMATIC_CSS).toMatch(/\.rv-lens-touch\{min-height:44px/);
   });
 
+  it("lens: lazy by default, eager with high fetch priority when it is the first picture (audit P2-07)", () => {
+    const lazy = renderToStaticMarkup(<LensMagnifier props={props} src="/a.jpg" alt="Clear coat" prompt="Inspect" />);
+    expect(lazy).toContain('loading="lazy"');
+    expect(lazy).not.toContain("fetchPriority");
+    const eager = renderToStaticMarkup(<LensMagnifier props={props} src="/a.jpg" alt="Clear coat" prompt="Inspect" eager />);
+    expect(eager).toContain('loading="eager"');
+    expect(eager).toMatch(/fetchPriority="high"|fetchpriority="high"/);
+  });
+
   it("split story: picture then phases in order, pinned only on wide screens", () => {
     const html = renderToStaticMarkup(<StickySplitStory props={props} picture={<img alt="Wall" src="/w.jpg" />} phases={[<p key="a">Prep</p>, <p key="b">Seal</p>]} />);
     expect(html.indexOf("rv-split-pin")).toBeLessThan(html.indexOf("rv-split-phases"));

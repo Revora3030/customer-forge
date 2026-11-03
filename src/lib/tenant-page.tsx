@@ -9,7 +9,7 @@
  */
 import type { ReactNode } from "react";
 import type { HostSiteResult } from "@/lib/host-site.functions";
-import { PublicSiteView } from "@/routes/s.$slug";
+import { PublicSiteView } from "@/components/site/PublicSiteView";
 
 /**
  * Loads the client page for this address, or null on Revora's own addresses.

@@ -15,7 +15,7 @@ describe("Jarvis for visitors", () => {
 
   it("states the real offer and forbids invented claims", () => {
     const prompt = visitorSystemPrompt("/pricing");
-    expect(prompt).toContain("$350.00 one-time setup");
+    expect(prompt).toContain("$350.00 setup");
     expect(prompt).toContain("$100.00/month");
     expect(prompt).toContain("never invent features");
     expect(prompt).toContain("Never ask for passwords or card details");

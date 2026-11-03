@@ -56,7 +56,7 @@ The sticker price is not the whole cost. Count the weekends spent building, the 
 
 **Do I own the site?** Yes. The site, customer list and data are yours.
 
-**Try it before you pay.** Revora gives you 3 days of full access with no card. Setup is $350 one time, your first month is free, then it is $100 a month, and you can cancel anytime. [See pricing](/pricing) or [start your system](/get-started).
+**Try it before you pay.** Revora gives you 3 days of full access with no card. Setup is $350, your first month is free, then it is $100 a month, and you can cancel anytime. [See pricing](/pricing) or [start your system](/get-started).
 
 See also: [Revora vs Wix](/compare/revora-vs-wix) and [Revora vs Squarespace](/compare/revora-vs-squarespace).
 

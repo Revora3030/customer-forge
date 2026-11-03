@@ -121,7 +121,7 @@ export const Route = createFileRoute("/locations/$city")({
                   "@type": "PriceSpecification",
                   price: GROWTH_SYSTEM.setupPrice,
                   priceCurrency: "USD",
-                  description: "One-time setup",
+                  description: "Setup",
                 },
                 {
                   "@type": "UnitPriceSpecification",

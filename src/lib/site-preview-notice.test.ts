@@ -22,7 +22,7 @@ describe("unpublished /s/:slug shows a preview notice (Phase A item 8)", () => {
 
   it("shows visitors no builder, template or sign-in wording (audit P1-02)", () => {
     const home = readFileSync("src/routes/s.$slug.tsx", "utf8");
-    const inner = readFileSync("src/routes/s.$slug.$page.tsx", "utf8");
+    const inner = readFileSync("src/routes/s.$slug.$page.tsx", "utf8") + readFileSync("src/components/site/SitePageView.tsx", "utf8");
     for (const text of [home, inner]) {
       expect(text).not.toContain("AI-authored home page");
       expect(text).not.toContain("replaced with a template");
