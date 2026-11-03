@@ -12,7 +12,7 @@ const BASE = "https://app.example";
 /** Twilio's documented scheme: HMAC-SHA1 over URL + sorted key/value pairs, base64. */
 function sign(url: string, params: Record<string, string>, token = TOKEN) {
   const payload = Object.keys(params).sort().reduce((acc, k) => acc + k + params[k], url);
-  return createHmac("sha1", token).update(payload).digest("base64");
+  return createHmac("sha1", token).update(payload).digest("base64"); // DevSkim: ignore DS126858 -- Twilio signs webhooks with HMAC-SHA1; test mirrors the provider algorithm.
 }
 
 function twilioRequest(path: string, params: Record<string, string>, opts: { signature?: string | null; signUrl?: string } = {}) {
