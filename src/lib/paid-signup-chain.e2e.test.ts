@@ -10,8 +10,8 @@
  * the $350 setup, checkout completion (setup unlock), the workspace provision
  * trigger, the build-start gate, a renewal on the current Stripe API shape, a
  * failed payment, duplicate delivery, forged events, sandbox isolation, and
- * the subscription ordering fence (out-of-order, same-second and duplicate
- * subscription events; invoices re-reading the subscription from Stripe).
+ * the subscription ordering fence (out-of-order, same-second, duplicate and
+ * resurrecting subscription events).
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -19,7 +19,6 @@ const mocks = vi.hoisted(() => ({
   db: null as unknown as FakeDb,
   sendEmail: vi.fn(),
   retrieveSession: vi.fn(),
-  retrieveSubscription: vi.fn(),
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -37,7 +36,6 @@ vi.mock("@/lib/stripe.server", async (importOriginal) => {
     ...actual,
     createStripeClient: () => ({
       checkout: { sessions: { retrieve: mocks.retrieveSession } },
-      subscriptions: { retrieve: mocks.retrieveSubscription },
     }),
   };
 });
@@ -336,7 +334,6 @@ beforeEach(() => {
   mocks.db = new FakeDb();
   mocks.sendEmail.mockReset().mockResolvedValue({ ok: true });
   mocks.retrieveSession.mockReset();
-  mocks.retrieveSubscription.mockReset();
   process.env["PAYMENTS_SANDBOX_WEBHOOK_SECRET"] = SECRETS.sandbox;
   process.env["PAYMENTS_LIVE_WEBHOOK_SECRET"] = SECRETS.live;
   vi.spyOn(console, "error").mockImplementation(() => undefined);
@@ -575,45 +572,16 @@ describe("subscription ordering fence (out-of-order and duplicate Stripe events)
     expect(emailsTo("billing-welcome")).toHaveLength(1);
   });
 
-  it("invoice.paid never writes a status: it re-reads the subscription from Stripe and projects that", async () => {
+  it("invoice events never write a subscription status (a late invoice.paid can't revive a cancel)", async () => {
     const db = mocks.db;
     seed(db);
     await deliver("live", "customer.subscription.created", subscription("live", "active"), { created: T });
     await deliver("live", "customer.subscription.deleted", ended(), { created: T + 20 });
-
-    // Stripe says the subscription is canceled; the late invoice must not flip it.
-    mocks.retrieveSubscription.mockResolvedValue(ended());
     await deliver("live", "invoice.paid", invoice("live", "in_fence_1", { reason: "subscription_cycle", paid: 10_000, monthly: 10_000 }), { created: T + 25 });
-    expect(mocks.retrieveSubscription).toHaveBeenCalledWith("sub_E2Etest1");
-    expect(subRow(db)["status"]).toBe("canceled");
+    expect(subRow(db)).toMatchObject({ status: "canceled", last_stripe_event_created: T + 20 });
     expect(db.org(ORG)["subscription_status"]).toBe("canceled");
     // The payment itself is still recorded.
     expect(payments(db).some((p) => (p["metadata"] as Row)["stripe_id"] === "in_fence_1")).toBe(true);
-  });
-
-  it("invoice.payment_failed projects the fresh Stripe state before the subscription event arrives", async () => {
-    const db = mocks.db;
-    seed(db);
-    await deliver("live", "customer.subscription.created", subscription("live", "active"), { created: T });
-    mocks.retrieveSubscription.mockResolvedValue(subscription("live", "past_due"));
-    await deliver("live", "invoice.payment_failed", invoice("live", "in_fence_2", { reason: "subscription_cycle", paid: 0, due: 10_000, monthly: 10_000 }), { created: T + 40 });
-    expect(subRow(db)).toMatchObject({ status: "past_due", last_stripe_event_created: T + 40 });
-    expect(db.org(ORG)["subscription_status"]).toBe("past_due");
-
-    // The older subscription.updated(active) that Stripe sent before the failure is now stale.
-    await deliver("live", "customer.subscription.updated", subscription("live", "active"), { created: T + 30 });
-    expect(subRow(db)["status"]).toBe("past_due");
-  });
-
-  it("a failed Stripe re-read never fails the invoice event", async () => {
-    const db = mocks.db;
-    seed(db);
-    await deliver("live", "customer.subscription.created", subscription("live", "active"), { created: T });
-    mocks.retrieveSubscription.mockRejectedValue(new Error("stripe unavailable"));
-    const res = await deliver("live", "invoice.paid", invoice("live", "in_fence_3", { reason: "subscription_cycle", paid: 10_000, monthly: 10_000 }), { created: T + 5 });
-    expect(res.status).toBe(200);
-    expect(subRow(db)["status"]).toBe("active");
-    expect(payments(db).some((p) => (p["metadata"] as Row)["stripe_id"] === "in_fence_3")).toBe(true);
   });
 
   it("another subscription ending never replaces the workspace's live subscription", async () => {

@@ -17,33 +17,6 @@ type StripeWebhookEvent = {
   data: { object: any };
 };
 
-/**
- * Layer 3 of the subscription fence: a status-less invoice event re-fetches
- * its subscription from Stripe and projects the fresh state (never inferring a
- * status from the invoice). Best-effort: the invoice bookkeeping must not fail
- * because the re-read did, and the subscription events still arrive.
- */
-async function reconcileInvoiceSubscription(
-  admin: Awaited<ReturnType<typeof import("@/lib/payments.server")["adminClient"]>>,
-  invoice: unknown,
-  env: StripeEnv,
-  event: StripeWebhookEvent,
-) {
-  const { invoiceSubscriptionId } = await import("@/lib/webhook-invoice");
-  const subscriptionId = invoiceSubscriptionId(invoice);
-  if (!subscriptionId) return;
-  try {
-    const { createStripeClient } = await import("@/lib/stripe.server");
-    const { syncStripeSubscription } = await import("@/lib/stripe-billing.server");
-    const { stripeEventCreated } = await import("@/lib/stripe-subscription-fence");
-    const fresh = await createStripeClient(env).subscriptions.retrieve(subscriptionId);
-    const result = await syncStripeSubscription(admin, fresh as never, env, { eventCreated: stripeEventCreated(event) });
-    if (result.applied === false) console.warn("[payments:webhook] invoice reconcile fenced", event.type, result.fence);
-  } catch (error) {
-    console.error("[payments:webhook] invoice subscription re-read failed", (error as Error).message);
-  }
-}
-
 async function handleEvent(event: StripeWebhookEvent, env: StripeEnv) {
   const { adminClient } = await import("@/lib/payments.server");
   const {
@@ -184,9 +157,6 @@ async function handleEvent(event: StripeWebhookEvent, env: StripeEnv) {
         console.error("[payments:webhook] invoice without organization metadata", object?.id);
         break;
       }
-      // Invoices carry no subscription status and never write one. Re-read the
-      // subscription from Stripe and project that through the same fence.
-      await reconcileInvoiceSubscription(admin, object, env, event);
       const { invoiceRecurringLine, invoiceSetupCents, invoiceLinePriceId } = await import(
         "@/lib/webhook-invoice"
       );
