@@ -18,7 +18,7 @@ import { writeDesignTokens } from "@/lib/builder/design-tokens";
 import { writePremiumSettings } from "@/lib/builder/premium-effects";
 import { writeBlockStyle, writeComponentVisual } from "@/lib/site-style";
 import { writeCustomBlock } from "@/lib/builder/custom-block";
-import { createServerFn } from "@tanstack/react-start";
+import { createServerFn, createServerOnlyFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import {
   MAX_ACTIONS,
@@ -295,10 +295,10 @@ async function callerOwner(client: unknown) {
  * operation key the browser uses), so the change lands even if the owner
  * never comes back to the app.
  */
-export async function executeBuilderChatJob(
+export const executeBuilderChatJob = createServerOnlyFn(async (
   job: import("@/lib/builder/chat-jobs.server").ChatJobRow,
   owner: { supabase: SupabaseClient; authorization: string },
-): Promise<unknown> {
+): Promise<unknown> => {
   const { withActingAuthorization } = await import("@/lib/builder/acting-auth.server");
   const { withModelActivity } = await import("@/lib/ai/model-activity-scope.server");
   const { noteStage } = await import("@/lib/builder/progress.server");
@@ -352,7 +352,7 @@ export async function executeBuilderChatJob(
     }
   }
   return plan;
-}
+});
 
 /** Same rule as the chat's auto-apply: only reversible steps, no open questions, first batch. */
 export function autoApplyActions(plan: unknown): unknown[] | null {
