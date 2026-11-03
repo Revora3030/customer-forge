@@ -15,6 +15,10 @@ import { jobIsActive, type JobLivenessRow } from "@/lib/builder/job-liveness";
 
 export const DEFERRED_BUILD_PREFIX = "Got it — your AI team is finishing the first website now";
 
+/** What the owner sees on a follow-up held while a build runs; it is applied at the next safe stop (the build finishing). */
+export const QUEUED_FOLLOWUP_LABEL = "Queued, will apply next";
+export const QUEUED_FOLLOWUP_REPLY = `${DEFERRED_BUILD_PREFIX}. ${QUEUED_FOLLOWUP_LABEL}: I'll apply this change as soon as the build finishes (usually a few minutes). Keep this window open.`;
+
 export const SETTLED_BUILD_REPLY =
   "This request came in while a website build was running. That build has finished or stopped, so if the change isn't on your site yet, send it again.";
 

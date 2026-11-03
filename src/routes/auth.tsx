@@ -1,4 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { LegalAgreementNote } from "@/components/marketing/LegalAgreementNote";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "@/lib/ui/notify";
 import { ArrowLeft, Loader2 } from "lucide-react";
@@ -13,7 +14,7 @@ import { ErrorNote, Pill } from "@/components/app/Bits";
 import { RouteError } from "@/components/app/RouteStates";
 import { ga4SignUp } from "@/lib/ga4-events";
 import { reportRouteError } from "@/lib/route-error-reporting";
-import { GROWTH_SYSTEM, usd } from "@/lib/offer";
+import { GROWTH_SYSTEM, REFUND_POLICY, usd } from "@/lib/offer";
 import {
   ensureProfile,
   rememberPreference,
@@ -548,6 +549,7 @@ function AuthPage() {
                         : "Email me a sign-in link"
                       : "Sign in"}
                 </Button>
+                {isSignup ? <LegalAgreementNote action="creating an account" /> : null}
                 {!isSignup ? (
                   <>
                     <button
