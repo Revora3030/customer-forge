@@ -26,7 +26,7 @@ describe("Jarvis conversation roster", () => {
     vi.stubEnv(["LOVABLE", "API", "KEY"].join("_"), "test");
     vi.stubEnv("AI_LOVABLE_MODEL_CONVERSATION", "");
     const roster = providerConfig("lovable")!.models.conversation.split(",");
-    expect(roster[0]).toBe("openai/gpt-6.1-sol");
+    expect(roster[0]).toBe("google/gemini-3.8-flash");
     expect(roster).toContain("anthropic/claude-sonnet-5");
     expect(roster.length).toBeGreaterThanOrEqual(8);
   });
