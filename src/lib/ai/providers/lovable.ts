@@ -14,6 +14,7 @@
  * `LOVABLE_API_KEY` inside handlers; it is never shipped to the browser.
  */
 
+import { emitTextDelta } from "@/lib/ai/text-delta-scope.server";
 import type { AiMessage, AiPart, AiUsage, ProviderAdapter } from "@/lib/ai/types";
 import { RevoraAiError } from "@/lib/ai/errors";
 import { base64FromDataUrl, bytesFromDataUrl, providerHttpError } from "@/lib/ai/providers/shared";
@@ -250,7 +251,10 @@ export async function readChatStream(
       });
     const choice = event["choices"]?.[0];
     const delta = choice?.delta?.content;
-    if (typeof delta === "string") text += delta;
+    if (typeof delta === "string") {
+      text += delta;
+      emitTextDelta(text);
+    }
     else if (typeof choice?.message?.content === "string" && !text) text = choice.message.content;
     if (typeof choice?.finish_reason === "string") finishReason = choice.finish_reason;
     if (event["usage"]) usage = usageOf(event);
@@ -392,7 +396,10 @@ async function readAnthropicStream(stream: ReadableStream<Uint8Array>) {
     if (event["type"] === "message_start" && typeof event["message"]?.usage?.input_tokens === "number")
       usage.input_tokens = event["message"].usage.input_tokens;
     if (event["type"] === "content_block_delta" && event["delta"]?.type === "text_delta")
+{
       text += String(event["delta"].text ?? "");
+      emitTextDelta(text);
+    }
     if (event["type"] === "message_delta") {
       if (typeof event["delta"]?.stop_reason === "string") stop_reason = event["delta"].stop_reason;
       if (typeof event["usage"]?.output_tokens === "number") usage.output_tokens = event["usage"].output_tokens;

@@ -845,6 +845,7 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
           noteStage(orgId, runId, stage, detail);
         },
         onAttempt: (provider: string, model: string) => noteStage(orgId, runId, planStage, `asking ${provider} · ${model}`),
+        onReplyDraft: (await import("@/lib/builder/progress.server")).replyDraftWriter(orgId, runId),
       };
       const { result: authored, report } = await retryOnceOnTransient(
         (attempt) => {

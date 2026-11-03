@@ -12,6 +12,7 @@
  * ships a stock layout or filler wording.
  */
 
+import { partialJsonStringField, withTextDeltas } from "@/lib/ai/text-delta-scope.server";
 import { callBestThinker } from "@/lib/ai/thinker.server";
 import type { AgentContext } from "@/lib/site-agent.server";
 import { MAX_ACTIONS } from "@/lib/site-agent";
@@ -250,6 +251,8 @@ export async function planWebsiteChangesWithAi(input: {
   onStage?: (stage: string, detail?: string) => void;
   /** Live progress hook: fired as each free model is tried. */
   onAttempt?: (provider: string, model: string) => void;
+  /** Receives the reply as the model writes it (live chat text). */
+  onReplyDraft?: (reply: string) => void;
 }): Promise<AiPlanOutcome> {
   const { context } = input;
   const designGuidance = designGuidancePrompt(
@@ -293,17 +296,29 @@ export async function planWebsiteChangesWithAi(input: {
     .join("\n");
 
   input.onStage?.("designing your change", "the AI team is composing your layout, copy and styling");
-  const direction = await callBestThinker({
-    json: true,
-    purpose: "creative_direction",
-    complexity: "high",
-    system,
-    user,
-    organizationId: input.organizationId,
-    // A full-site redesign is a long JSON plan; 6000 tokens cut it off mid-way.
-    maxOutputTokens: 32000,
-    ...(input.onAttempt ? { onAttempt: input.onAttempt } : {}),
-  });
+  const askThinker = () =>
+    callBestThinker({
+      json: true,
+      purpose: "creative_direction",
+      complexity: "high",
+      system,
+      user,
+      organizationId: input.organizationId,
+      // A full-site redesign is a long JSON plan; 6000 tokens cut it off mid-way.
+      maxOutputTokens: 32000,
+      ...(input.onAttempt ? { onAttempt: input.onAttempt } : {}),
+    });
+  const onReplyDraft = input.onReplyDraft;
+  let lastDraft = "";
+  const direction = onReplyDraft
+    ? await withTextDeltas((text) => {
+        const reply = partialJsonStringField(text, "reply");
+        if (reply !== null && reply !== lastDraft) {
+          lastDraft = reply;
+          onReplyDraft(reply);
+        }
+      }, askThinker)
+    : await askThinker();
   if (!direction.ok) {
     return { ok: false, reason: direction.reason, detail: direction.detail };
   }
