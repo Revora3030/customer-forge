@@ -175,7 +175,7 @@ function RootComponent() {
   useEffect(() => {
     // Hydration marker for the a11y + CLS gate (scripts/a11y-cls-gate.mjs):
     // set once React has hydrated, so measurements start from the live page.
-    document.documentElement.dataset.hydrated = "true";
+    document.documentElement.dataset["hydrated"] = "true";
   }, []);
 
   useEffect(() => {
