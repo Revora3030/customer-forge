@@ -119,10 +119,83 @@ export function domainSuggestions(input: {
   return out;
 }
 
-export type DnsRecordRow = { type: string; name: string; value: string; ttl: string; why: string };
+export type DnsRecordRow = {
+  type: string;
+  name: string;
+  value: string;
+  ttl: string;
+  why: string;
+  /** True while the value is not known yet: show the note, never a placeholder to copy. */
+  pending?: boolean;
+};
+
+/** Host label of the ownership TXT record the hosting platform checks. */
+export const LOVABLE_TXT_NAME = "_lovable";
+const LOVABLE_VERIFY_PREFIX = "lovable_verify=";
+
+export const LOVABLE_TXT_PENDING_NOTE =
+  "Pending — Revora will send your verification value. Add this record once you have it.";
+
+/**
+ * The per-domain ownership values the hosting platform issues when Revora adds
+ * the domain (apex and www are separate domains, each with its own value).
+ * Stored in website_settings.generation.domainVerification (no migration).
+ */
+export type LovableVerification = { apex: string | null; www: string | null };
+
+/** A pasted value, trimmed; null unless it is a real `lovable_verify=…` token. */
+export function normalizeLovableVerifyValue(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const value = raw.trim().replace(/^"|"$/g, "").trim();
+  if (!value.toLowerCase().startsWith(LOVABLE_VERIFY_PREFIX)) return null;
+  const token = value.slice(LOVABLE_VERIFY_PREFIX.length);
+  if (!/^[A-Za-z0-9._-]{4,200}$/.test(token)) return null;
+  return `${LOVABLE_VERIFY_PREFIX}${token}`;
+}
+
+/** The stored values for this exact domain; a value saved for another domain is ignored. */
+export function readLovableVerification(generation: unknown, domain: string | null | undefined): LovableVerification {
+  const empty = { apex: null, www: null };
+  const host = normalizeInput(domain ?? "");
+  if (!host || !generation || typeof generation !== "object") return empty;
+  const stored = (generation as Record<string, unknown>)["domainVerification"];
+  if (!stored || typeof stored !== "object") return empty;
+  const v = stored as Record<string, unknown>;
+  if (normalizeInput(String(v["domain"] ?? "")) !== host) return empty;
+  return { apex: normalizeLovableVerifyValue(v["apex"]), www: normalizeLovableVerifyValue(v["www"]) };
+}
+
+/** generation with the domain's verification values set (other keys untouched). */
+export function writeLovableVerification(
+  generation: unknown,
+  domain: string,
+  values: { apex?: unknown; www?: unknown },
+  now: Date = new Date(),
+): Record<string, unknown> {
+  const base = generation && typeof generation === "object" ? { ...(generation as Record<string, unknown>) } : {};
+  base["domainVerification"] = {
+    domain: normalizeInput(domain),
+    apex: normalizeLovableVerifyValue(values.apex),
+    www: normalizeLovableVerifyValue(values.www),
+    updatedAt: now.toISOString(),
+  };
+  return base;
+}
 
 /** Exactly what the owner types into their registrar's DNS screen. */
-export function dnsRows(domain: string): DnsRecordRow[] {
+export function dnsRows(domain: string, verification?: LovableVerification | null): DnsRecordRow[] {
+  const shown = domain || "yourdomain.com";
+  const txt = (name: string, value: string | null | undefined, host: string): DnsRecordRow =>
+    value
+      ? { type: "TXT", name, value, ttl: "Automatic", why: `Proves you own ${host} so HTTPS can be issued` }
+      : {
+          type: "TXT",
+          name,
+          value: LOVABLE_TXT_PENDING_NOTE,
+          ttl: "Automatic",
+          why: `Proves you own ${host} so HTTPS can be issued`,
+          pending: true,
+        };
   return [
     {
       type: "A",
@@ -136,9 +209,68 @@ export function dnsRows(domain: string): DnsRecordRow[] {
       name: "www",
       value: DOMAIN_IP,
       ttl: "Automatic",
-      why: `Makes www.${domain || "yourdomain.com"} work too`,
+      why: `Makes www.${shown} work too`,
     },
+    txt(LOVABLE_TXT_NAME, verification?.apex, shown),
+    txt(`${LOVABLE_TXT_NAME}.www`, verification?.www, `www.${shown}`),
   ];
+}
+
+/** Certificate authorities the hosting platform issues HTTPS certificates from. */
+export const ALLOWED_CAA_ISSUERS = ["letsencrypt.org", "pki.goog"] as const;
+
+export type CaaRecord = { flags: number; tag: string; value: string };
+
+/**
+ * One CAA answer from DNS-over-HTTPS. Accepts the presentation form
+ * (`0 issue "letsencrypt.org"`) and the RFC 3597 hex form some resolvers return
+ * (`\\# 19 00 05 69 73 73 75 65 ...`). Null when it can't be read.
+ */
+export function parseCaaRecord(data: string): CaaRecord | null {
+  const text = (data ?? "").trim();
+  const hex = text.match(/^\\#\s+\d+\s+([0-9a-fA-F\s]+)$/);
+  if (hex) {
+    const bytes = (hex[1] ?? "").replace(/\s+/g, "").match(/../g)?.map((b) => parseInt(b, 16)) ?? [];
+    if (bytes.length < 2) return null;
+    const flags = bytes[0]!;
+    const tagLen = bytes[1]!;
+    if (bytes.length < 2 + tagLen) return null;
+    const tag = String.fromCharCode(...bytes.slice(2, 2 + tagLen)).toLowerCase();
+    const value = String.fromCharCode(...bytes.slice(2 + tagLen));
+    return { flags, tag, value };
+  }
+  const m = text.match(/^(\d+)\s+([A-Za-z0-9]+)\s+"?(.*?)"?$/);
+  if (!m) return null;
+  return { flags: Number(m[1]), tag: (m[2] ?? "").toLowerCase(), value: m[3] ?? "" };
+}
+
+/**
+ * Whether the domain's CAA records let the platform get a certificate.
+ * No CAA records, or no `issue` records, means any CA may issue (ok).
+ * Otherwise at least one `issue` record must name Let's Encrypt or Google
+ * Trust Services; if none does, `warning` explains what to add.
+ */
+export function caaAllowsCertificates(answers: string[]): { ok: boolean; issuers: string[]; warning: string | null } {
+  const records = answers.map(parseCaaRecord).filter((r): r is CaaRecord => r !== null);
+  const issuers = records
+    .filter((r) => r.tag === "issue")
+    .map((r) => (r.value.split(";")[0] ?? "").trim().toLowerCase());
+  if (issuers.length === 0) return { ok: true, issuers, warning: null };
+  const ok = issuers.some((i) => (ALLOWED_CAA_ISSUERS as readonly string[]).includes(i));
+  return {
+    ok,
+    issuers,
+    warning: ok
+      ? null
+      : `Your domain's CAA records only allow ${issuers.filter(Boolean).join(", ") || "no certificate authority"} to issue certificates, so HTTPS can't be issued. Add a CAA record: 0 issue "letsencrypt.org" (and 0 issue "pki.goog"), or remove the CAA records.`,
+  };
+}
+
+/** The CAA warning saved by the last domain check (website_settings.domain_records). */
+export function readCaaWarning(domainRecords: unknown): string | null {
+  if (!domainRecords || typeof domainRecords !== "object") return null;
+  const w = (domainRecords as Record<string, unknown>)["caaWarning"];
+  return typeof w === "string" && w ? w : null;
 }
 
 export const DOMAIN_STEPS = [
@@ -150,8 +282,8 @@ export const DOMAIN_STEPS = [
   { id: "connect", title: "Save it in Revora", detail: "We store it and start watching your DNS." },
   {
     id: "dns",
-    title: "Add two DNS records",
-    detail: "Copy them into your registrar exactly as shown.",
+    title: "Add your DNS records",
+    detail: "Two A records and two _lovable TXT records, exactly as shown.",
   },
   {
     id: "verify",
@@ -202,7 +334,8 @@ export const REGISTRAR_GUIDES: {
       "Open DNS → Records.",
       "Add record → A, Name @, IPv4 address 185.158.133.1.",
       "Add record → A, Name www, IPv4 address 185.158.133.1.",
-      "Set Proxy status to DNS only (grey cloud) for both records.",
+      "Set Proxy status to DNS only (grey cloud) for both A records. Proxied (orange cloud) records stop the HTTPS certificate from being issued.",
+      "Add record → TXT, Name _lovable, Content: the verification value Revora sent you. Add another TXT, Name _lovable.www, with the www value.",
       "Save. Delete any older A/CNAME record for @ or www.",
     ],
   },
@@ -253,10 +386,10 @@ export const DOMAIN_FAQ: { q: string; a: string }[] = [
   },
   {
     q: "Do I need to buy an SSL certificate?",
-    a: "No. HTTPS is issued automatically and renews itself once DNS points here.",
+    a: "No. HTTPS is issued automatically and renews itself once DNS points here and the _lovable TXT records are in place. If your domain has CAA records, they must allow Let's Encrypt (letsencrypt.org) or Google Trust Services (pki.goog).",
   },
   {
     q: "What about my email on this domain?",
-    a: "Leave your MX and TXT records exactly as they are. Only the A records for @ and www change, so email keeps working.",
+    a: "Leave your MX and existing TXT records exactly as they are. You only change the A records for @ and www and add the two _lovable TXT records, so email keeps working.",
   },
 ];
