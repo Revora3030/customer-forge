@@ -103,7 +103,7 @@ export function jsonLdNodes(html: string): JsonObject[] {
   for (const match of html.matchAll(/<script\b[^>]*type\s*=\s*["']?application\/ld\+json["']?[^>]*>([\s\S]*?)<\/script>/gi)) {
     const body = (match[1] ?? "")
       .replace(/^\s*(?:<!--|\/\/\s*<!\[CDATA\[|<!\[CDATA\[)/, "")
-      .replace(/(?:-->|\/\/\s*\]\]>|\]\]>)\s*$/, "")
+      .replace(/(?:--!?>|\/\/\s*\]\]>|\]\]>)\s*$/, "")
       .trim();
     if (!body || body.length > MAX_JSON_LD_CHARS) continue;
     try {
