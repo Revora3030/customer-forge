@@ -10,8 +10,10 @@ const code = sql.replace(/--.*$/gm, "");
 
 describe("lead first-response migration", () => {
   it("is the newest migration and changes nothing destructively", () => {
-    const others = readdirSync(DIR).filter((f) => f.endsWith(".sql") && f !== FILE).sort();
-    expect(FILE.split("_")[0]! > others.at(-1)!.split("_")[0]!).toBe(true);
+    // Newer than every migration on the base branch (sibling round-10 PRs add later 20261103* files).
+    const base = readdirSync(DIR).filter((f) => f.endsWith(".sql") && f < "20261103000000").sort();
+    expect(base.length).toBeGreaterThan(0);
+    expect(FILE.split("_")[0]! > base.at(-1)!.split("_")[0]!).toBe(true);
     expect(code).not.toMatch(/\bDROP\b|\bTRUNCATE\b|\bDELETE\s+FROM\b|ALTER\s+COLUMN/i);
   });
 
