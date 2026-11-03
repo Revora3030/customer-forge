@@ -103,6 +103,21 @@ ${S} .rv-split-pin{position:sticky;top:96px;align-self:start}
 ${S} .rv-split-phases{gap:0}
 ${S} .rv-split-phase{min-height:70vh;display:flex;flex-direction:column;justify-content:center}
 }
+${S} .rv-doc{display:grid;gap:24px;width:100%}
+${S} .rv-doc-toc{position:relative;display:grid;gap:8px;padding-left:16px;min-width:0}
+${S} .rv-doc-toc-label{margin:0;font-size:13px;font-weight:650;letter-spacing:.08em;text-transform:uppercase;opacity:.8}
+${S} .rv-doc-toc-list{margin:0;padding:0;list-style:none;display:grid;gap:4px;counter-reset:rv-doc}
+${S} .rv-doc-toc-list a{display:flex;align-items:center;min-height:44px;color:inherit;text-decoration:none;opacity:.72;line-height:1.3}
+${S} .rv-doc-toc-list a:hover,${S} .rv-doc-toc-list a[aria-current]{opacity:1;text-decoration:underline;text-underline-offset:4px}
+${S} .rv-doc-toc-list a:focus-visible{outline:3px solid currentColor;outline-offset:2px}
+${S} .rv-doc-rail{position:absolute;left:0;top:0;bottom:0;width:2px;background:color-mix(in srgb,currentColor 18%,transparent)}
+${S} .rv-doc-rail>span{position:absolute;inset:0;background:currentColor;transform-origin:top;transform:scaleY(0)}
+${S} .rv-doc-body{display:grid;gap:56px;min-width:0;max-width:68ch}
+${S} .rv-doc-chapter{scroll-margin-top:96px;min-width:0}
+@media (min-width:1024px){
+${S} .rv-doc{grid-template-columns:minmax(200px,280px) minmax(0,1fr);gap:64px;align-items:start}
+${S} .rv-doc-toc{position:sticky;top:96px;align-self:start}
+}
 ${S} .rv-tier{display:grid;gap:20px;width:100%}
 ${S} .rv-tier-control{display:grid;gap:10px}
 ${S} .rv-tier-label{font-weight:650}

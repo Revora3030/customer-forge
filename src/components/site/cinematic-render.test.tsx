@@ -346,6 +346,31 @@ describe("faq_accordion answers come from the business facts", () => {
   });
 });
 
+describe("long_document renders a readable long-form layout", () => {
+  const chapter = (title: string, body: string): CompositionNode => ({
+    type: "stack",
+    children: [{ type: "heading", level: 2, text: title }, { type: "text", text: body }],
+  });
+  const doc: CompositionNode = { type: "long_document", text: "In this guide", children: [chapter("Why soft wash", "Low pressure keeps the shingles whole."), chapter("What we check", "Gutters, flashing and the north face.")] };
+
+  it("server-renders the contents links, every chapter and an untouched progress rail", () => {
+    const html = markup(render(doc));
+    expect(html).toContain('class="rv-doc-toc"');
+    expect(html).toContain('aria-label="In this guide"');
+    const ids = [...html.matchAll(/<section[^>]*id="([^"]+)"[^>]*data-doc-chapter/g)].map((m) => m[1]);
+    expect(ids).toHaveLength(2);
+    for (const id of ids) expect(html).toContain(`href="#${id}"`);
+    expect(html).toContain("Low pressure keeps the shingles whole.");
+    expect(html).toContain("Gutters, flashing and the north face.");
+    expect(html).toContain("scaleY(0)");
+    expect(html).not.toContain("aria-current");
+  });
+
+  it("styles the pinned list only on wide screens", () => {
+    expect(CINEMATIC_CSS).toMatch(/@media \(min-width:1024px\)\{[^}]*\.rv-doc\{[^}]*\}[^}]*\.rv-doc-toc\{position:sticky/);
+  });
+});
+
 describe("scrub_sequence frame cap", () => {
   const seq = (count: number): CompositionNode => ({
     type: "scrub_sequence",
