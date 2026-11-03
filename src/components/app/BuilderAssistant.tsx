@@ -1015,6 +1015,7 @@ function LiveActivity({
       ) : null}
       {askedModels.length > 1 ? <p className="text-xs text-muted-foreground">Asked so far: {askedModels.join(" → ")}</p> : null}
     </TaskTree>
+    </>
   );
 }
 
