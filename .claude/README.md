@@ -18,11 +18,11 @@ Project config committed so every Claude Code session (local, web, GitHub Action
 | Skill | Source | License |
 |---|---|---|
 | systematic-debugging, test-driven-development, requesting-code-review, receiving-code-review, verification-before-completion | https://github.com/obra/superpowers (commit `2ce8aa15d05b`) | MIT |
-| frontend-design, webapp-testing | https://github.com/anthropics/skills (commit `ca45fc496a34`) | Apache-2.0 |
+| frontend-design | https://github.com/anthropics/skills (commit `ca45fc496a34`) | Apache-2.0 |
 | security-and-hardening (OWASP), frontend-ui-engineering (accessibility), performance-optimization, code-simplification, deprecation-and-migration, ci-cd-and-automation; plus `references/*-checklist.md` | https://github.com/addyosmani/agent-skills (commit `301b02b12bff`) | MIT |
 | supabase (RLS, auth, security), supabase-postgres-best-practices (schema, indexes, migrations) | https://github.com/supabase/agent-skills (commit `c9be0e931b79`) | MIT |
 
-Not vendored: trailofbits/skills (CC-BY-SA-4.0, not an OSI license) and the anthropics document skills (docx/pdf/pptx/xlsx, source-available, not open source).
+Not vendored: anthropics `webapp-testing` (its example scripts trip DevSkim; the pinned Playwright MCP server plus `verify-customer-site-visuals` cover browser checks), trailofbits/skills (CC-BY-SA-4.0, not an OSI license) and the anthropics document skills (docx/pdf/pptx/xlsx, source-available, not open source).
 
 ## Repo skills (written for this repo)
 
