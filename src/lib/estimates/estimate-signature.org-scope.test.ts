@@ -90,10 +90,12 @@ const context = {
 };
 
 type Save = (arg: { data: unknown; context: unknown }) => Promise<{ ok: boolean; id?: string }>;
-const loadSave = async () =>
-  (
-    (await import(/* @vite-ignore */ "@/lib/estimates/estimate-signature.functions?server-fn-module-lookup")) as Record<string, unknown>
-  ).saveEstimateSignature as unknown as Save;
+/** Same "lookup" import the cross-tenant tests use: the SSR view keeps the real handler. */
+const loadSave = async () => {
+  const path = "@/lib/estimates/estimate-signature.functions?server-fn-module-lookup";
+  const mod = (await import(/* @vite-ignore */ path)) as Record<string, unknown>;
+  return mod["saveEstimateSignature"] as Save;
+};
 
 beforeEach(() => {
   h.adminCalls.length = 0;
