@@ -380,3 +380,66 @@ export function preflightActions(
   const audit = auditActionTargets(unique, known);
   return { ...audit, duplicates, ordered: unique.length };
 }
+
+/* ------------------------------ id repair --------------------------------- */
+
+function editDistanceWithin(a: string, b: string, max: number): boolean {
+  if (Math.abs(a.length - b.length) > max) return false;
+  let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    const cur = [i];
+    let rowMin = i;
+    for (let j = 1; j <= b.length; j++) {
+      const v = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      cur.push(v);
+      if (v < rowMin) rowMin = v;
+    }
+    if (rowMin > max) return false;
+    prev = cur;
+  }
+  return prev[b.length] <= max;
+}
+
+/**
+ * Maps a near-miss id onto the single real id it obviously meant: same id in
+ * another letter case, a unique prefix of at least 8 characters, or one real
+ * id within two typed characters. Anything ambiguous is returned unchanged
+ * so the step is reported as stale rather than applied to a guessed target.
+ */
+export function repairId(value: string, pool: Set<string>): string {
+  if (!value || pool.has(value)) return value;
+  const lower = value.toLowerCase();
+  const ids = [...pool].filter(isStableId);
+  const caseHit = ids.filter((id) => id.toLowerCase() === lower);
+  if (caseHit.length === 1) return caseHit[0];
+  if (lower.length >= 8) {
+    const prefix = ids.filter((id) => id.toLowerCase().startsWith(lower));
+    if (prefix.length === 1) return prefix[0];
+  }
+  if (lower.length >= 30) {
+    const near = ids.filter((id) => editDistanceWithin(lower, id.toLowerCase(), 2));
+    if (near.length === 1) return near[0];
+  }
+  return value;
+}
+
+function repairActionIds(
+  action: AgentAction,
+  pages: Set<string>,
+  sections: Set<string>,
+  components: Set<string>,
+): AgentAction {
+  const row = { ...(action as unknown as Record<string, unknown>) };
+  const fix = (key: string, pool: Set<string>) => {
+    if (typeof row[key] === "string") row[key] = repairId(row[key] as string, pool);
+  };
+  fix("pageId", pages);
+  fix("sectionId", sections);
+  fix("componentId", components);
+  if (action.type === "set_block_style") fix("targetId", action.target === "section" ? sections : components);
+  if (Array.isArray(row["sectionIds"]) && action.type === "reorder_sections")
+    row["sectionIds"] = (row["sectionIds"] as string[]).map((id) => repairId(id, sections));
+  if (Array.isArray(row["componentIds"]) && action.type === "reorder_components")
+    row["componentIds"] = (row["componentIds"] as string[]).map((id) => repairId(id, components));
+  return row as unknown as AgentAction;
+}
