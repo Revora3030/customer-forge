@@ -50,7 +50,7 @@ describe("default audit writer", () => {
 });
 
 describe("ai_tool_audit v2 migration", () => {
-  const sql = readFileSync("supabase/migrations/20261031213100_ai_tool_audit_v2.sql", "utf8");
+  const sql = readFileSync("supabase/migrations/20261103010000_ai_tool_audit_v2.sql", "utf8");
   const code = sql.replace(/--.*$/gm, "").toLowerCase();
 
   it("is additive: nullable columns, no drops, no data change, no policy change", () => {
