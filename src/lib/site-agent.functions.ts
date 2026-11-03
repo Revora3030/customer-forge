@@ -48,6 +48,13 @@ import {
   stalePlanMessage,
 } from "@/lib/builder/apply-plan";
 import {
+  hintForSection,
+  resolutionLines,
+  resolvePlanTargets,
+  sectionTargetOf,
+  type ResolverSite,
+} from "@/lib/builder/section-resolver";
+import {
   captureUndoFrom,
   loadUndoSnapshot,
   rollback,
@@ -915,8 +922,27 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
     const { polishEditCompositions } = await import("@/lib/builder/edit-polish.server");
     const polished = await polishEditCompositions({ organizationId: orgId, instruction, actions: raw["actions"] });
     if (polished.report) trace.push(polished.report.accepted ? "The review team improved this change before showing it to you." : "The review team checked this change; the original design scored best.");
+    // Fail-safe targeting at plan time too: a step naming a section the
+    // planner described rather than identified ("hero", a stale id) is
+    // re-found by role/heading/position, or left out with a reason — never
+    // silently dropped and never pointed at a guessed section.
+    const planSite: ResolverSite = {
+      pages: agentContext.pages.map((page) => ({ id: page.id, slug: page.slug })),
+      sections: allSections.map((section) => ({
+        id: section.id,
+        pageId: section.pageId,
+        kind: section.kind,
+        heading: section.heading,
+        sortOrder: Number(section.sort_order) || 0,
+      })),
+    };
+    const planTargets = resolvePlanTargets(polished.actions, planSite);
+    for (const entry of planTargets.resolved)
+      console.info("[site-agent] plan section target resolved", { runId, type: entry.type, strategy: entry.strategy, detail: entry.detail });
+    for (const entry of planTargets.skipped)
+      droppedReasons.push(`One update was left out because I couldn't tell for sure which section it was for (${entry.reason}).`);
     const parsedActions = readActions(
-      polished.actions,
+      planTargets.actions,
       {
         pageIds: new Set(agentContext.pages.map((page) => page.id)),
         sectionIds: new Set(allSections.map((section) => section.id)),
@@ -926,6 +952,13 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
       },
       droppedReasons,
     );
+    // Each step remembers what its section looked like when planned, so apply
+    // can still find it if the id changes before the owner presses apply.
+    for (const action of parsedActions) {
+      const sectionId = sectionTargetOf(action as unknown as Record<string, unknown>);
+      const hint = sectionId ? hintForSection(sectionId, planSite) : null;
+      if (hint) Object.assign(action, { targetHint: hint });
+    }
     const actions = parsedActions;
     const index: SiteIndex = { pages: new Map(), sections: new Map(), components: new Map() };
     const currentText = new Map<string, string>();
@@ -1059,6 +1092,23 @@ function treeHasWidget(node: { type?: string; text?: string; children?: unknown[
   return false;
 }
 
+/** The live site reduced to what semantic section resolution reads. */
+function resolverSiteOf(site: {
+  pages: { id: string; slug: string }[];
+  sections: { id: string; page_id: string; kind: string; heading: string | null; sort_order: number }[];
+}): ResolverSite {
+  return {
+    pages: site.pages.map((page) => ({ id: page.id, slug: page.slug })),
+    sections: site.sections.map((section) => ({
+      id: section.id,
+      pageId: section.page_id,
+      kind: section.kind,
+      heading: section.heading,
+      sortOrder: Number(section.sort_order) || 0,
+    })),
+  };
+}
+
 async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInput) {
   {
     const orgId = data.organizationId;
@@ -1147,8 +1197,18 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
     // right now. A step whose target was deleted or renamed after planning is
     // reported with a reason rather than being dropped in silence.
     const applyDropped: string[] = [];
+    // Fail-safe targeting: a step whose section id no longer matches is
+    // re-found by role, heading or position before it is judged stale, and a
+    // step that cannot be re-found with confidence is skipped on its own
+    // (with a reason) instead of taking the whole bundle down with it.
+    const targets = resolvePlanTargets(data.actions, resolverSiteOf(site));
+    const resolutionNotes = resolutionLines(targets.resolved, targets.skipped);
+    for (const entry of targets.resolved)
+      console.info("[site-agent] section target resolved", { operationId, type: entry.type, strategy: entry.strategy, detail: entry.detail });
+    for (const entry of targets.skipped)
+      console.info("[site-agent] section target skipped (low confidence)", { operationId, type: entry.type, reason: entry.reason });
     const planned = readActions(
-      data.actions,
+      targets.actions,
       {
         pageIds: ANY_ID,
         sectionIds: ANY_ID,
@@ -1178,9 +1238,42 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
       components: new Map(site.components.map((component) => [component.id, component])),
     });
     const actions = settled.actions;
-    const staleNotice = stalePlanMessage(preflight.stale, planned.length);
+    // Low-confidence skips are stale steps too: counted and explained, never
+    // silently dropped.
+    const staleTargets = [
+      ...targets.skipped.map((entry) => ({ type: entry.type as AgentAction["type"], target: entry.target, reason: "missing_section" as const })),
+      ...preflight.stale,
+    ];
+    const staleCount = staleTargets.length;
+    const staleNotice = stalePlanMessage(staleTargets, planned.length + targets.skipped.length);
     if (!actions.length) {
-      if (preflight.stale.length) throw new Error(staleNotice);
+      // Partial apply: nothing in this bundle could be placed. Nothing is
+      // written (so no restore point is needed) and the real counts and
+      // reasons go back to the chat instead of a bare error.
+      if (staleCount)
+        return {
+          applied: 0,
+          live: null as { published: boolean; reason: string } | null,
+          failed: 0,
+          unconfirmed: [] as string[],
+          stale: staleCount,
+          unchanged: settled.unchanged,
+          staleNotice,
+          duplicates: preflight.duplicates,
+          details: [
+            ...resolutionNotes,
+            ...preflight.stale.map((entry) => `stale ${entry.type} (${entry.reason})`),
+            ...settled.unchangedLabels,
+            ...applyDropped.map((reason) => `left out — ${reason}`),
+          ],
+          dropped: applyDropped,
+          snapshotLabel: "",
+          snapshotVersion: 0,
+          operationId,
+          alreadyApplied: false,
+          verification: null as VerificationReport | null,
+          qa: null,
+        };
       if (settled.unchanged) {
         throw new Error(
           "Your website already matches that, so there was nothing to change. Nothing was touched.",
@@ -1304,9 +1397,10 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
     const applied: string[] = [];
     const failed: string[] = [];
 
-    // Every write records how to reverse itself first. The first failure stops
-    // the run and reverses everything already applied, so an approved plan is
-    // either fully in place or the site is exactly as it was.
+    // Every write records how to reverse itself first. A step that fails is
+    // skipped on its own and reported (partial apply); the restore point taken
+    // above still covers the whole batch. Only a step whose undo cannot be
+    // recorded stops the run and reverses everything already applied.
     const undoSteps: UndoStep[] = [];
     let fatal: unknown = null;
 
@@ -1340,17 +1434,6 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
       overlay.set(key, { ...(overlay.get(key) ?? {}), [column]: value });
     };
 
-    const OPTIONAL_ACTIONS = new Set([
-      "set_block_style",
-      "set_component_visual",
-      "set_theme",
-      "set_design_tokens",
-      "set_premium_fx",
-      "set_backdrop",
-      "set_section_effect",
-      "generate_component_image",
-      "link_generated_image",
-    ]);
 
     const run = async (
       label: string,
@@ -1365,7 +1448,10 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
       } catch (error) {
         console.error("[site-agent] action failed", label, error);
         failed.push(label);
-        if (options.fatalOnError ?? !OPTIONAL_ACTIONS.has(label)) fatal = error;
+        // Partial apply: a refused write skips that one step (its dependants
+        // are skipped too, because their temporary refs never resolve). Only
+        // an explicit fatal write stops the run and reverses the batch.
+        if (options.fatalOnError ?? false) fatal = error;
       }
     };
 
@@ -1567,9 +1653,9 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
       if (action.type === "reorder_sections") {
         const wrongPage = action.sectionIds.find((id) => sectionPage.get(id) !== action.pageId);
         if (wrongPage) {
-          fatal = new Error("A section reorder tried to cross page boundaries.");
+          // Invalid on its own: skip this step, keep the rest of the bundle.
           failed.push("reorder_sections:cross_page_target");
-          break;
+          continue;
         }
       }
       if (action.type === "reorder_components") {
@@ -1577,9 +1663,8 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
           (id) => componentSection.get(id) !== action.sectionId,
         );
         if (wrongSection) {
-          fatal = new Error("A component reorder tried to cross section boundaries.");
           failed.push("reorder_components:cross_section_target");
-          break;
+          continue;
         }
       }
 
@@ -1597,7 +1682,7 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
         continue;
       }
       // Same for components and styling targets: never write against a
-      // made-up id, because one rejected write reverses the entire batch.
+      // made-up id; the step is skipped and reported instead.
       if ("componentId" in action && !UUID_ID.test(action.componentId)) {
         failed.push(`${action.type}:unresolved_component`);
         continue;
@@ -1615,6 +1700,14 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
         fatal = error;
         break;
       }
+      // Partial apply bookkeeping: if this one step fails, only what it wrote
+      // itself (e.g. a created row it could not finish) is reversed, and the
+      // in-memory column overlay forgets values it never saved. Earlier and
+      // later steps are unaffected; the batch-level undo steps captured above
+      // stay in place for a verification rollback.
+      const failedBeforeStep = failed.length;
+      const ownUndoStart = undoSteps.length;
+      const overlayBeforeStep = new Map(overlay);
       switch (action.type) {
         case "set_section_text":
           await run(action.type, () =>
@@ -2094,6 +2187,12 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
           );
           break;
       }
+      if (failed.length > failedBeforeStep) {
+        const own = undoSteps.splice(ownUndoStart);
+        if (own.length) await rollback(own);
+        overlay.clear();
+        for (const [key, value] of overlayBeforeStep) overlay.set(key, value);
+      }
       void sortOf;
     }
 
@@ -2280,7 +2379,7 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
           operationKey: data.operationKey || null,
           applied: applied.length,
           failed: failed.length,
-          stale: preflight.stale.length,
+          stale: staleCount,
           unchanged: settled.unchanged,
           duplicates: preflight.duplicates,
           staleNotice,
@@ -2432,8 +2531,8 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
       failed: failed.length,
       /** Writes whose saved value did not match on read-back — never reported as done. */
       unconfirmed,
-      /** Steps that could not run because their target no longer exists. */
-      stale: preflight.stale.length,
+      /** Steps that could not run because their target no longer exists (or could not be re-found with confidence). */
+      stale: staleCount,
       /** Steps that needed no write because the site already matched them. */
       unchanged: settled.unchanged,
       staleNotice,
@@ -2443,6 +2542,7 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
         ...applied.map((label) => `applied ${label}`),
         ...failed.map((label) => `skipped ${label}`),
         ...unconfirmed.map((label) => `not confirmed on read-back: ${label}`),
+        ...resolutionNotes,
         ...preflight.stale.map((entry) => `stale ${entry.type} (${entry.reason})`),
         ...settled.unchangedLabels,
         ...applyDropped.map((reason) => `left out — ${reason}`),
