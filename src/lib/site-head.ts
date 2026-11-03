@@ -116,7 +116,67 @@ export function openingHoursSpec(hours: unknown): Record<string, unknown>[] {
   return out;
 }
 
-export type SchemaType = { type: string; serviceType?: string };
+/**
+ * Every schema.org type `resolveSchemaType` may emit, mapped to its parent on
+ * the LocalBusiness branch (schema.org current release). Typing `SchemaType.type`
+ * against this map turns a typo or a non-LocalBusiness type into a compile error,
+ * without pulling in schema-dts. The test walks each chain up to LocalBusiness.
+ */
+export const LOCAL_BUSINESS_PARENT = {
+  LocalBusiness: null,
+  HomeAndConstructionBusiness: "LocalBusiness",
+  Plumber: "HomeAndConstructionBusiness",
+  HVACBusiness: "HomeAndConstructionBusiness",
+  RoofingContractor: "HomeAndConstructionBusiness",
+  Electrician: "HomeAndConstructionBusiness",
+  Locksmith: "HomeAndConstructionBusiness",
+  HousePainter: "HomeAndConstructionBusiness",
+  GeneralContractor: "HomeAndConstructionBusiness",
+  MovingCompany: "HomeAndConstructionBusiness",
+  AutomotiveBusiness: "LocalBusiness",
+  AutoRepair: "AutomotiveBusiness",
+  AutoBodyShop: "AutomotiveBusiness",
+  FoodEstablishment: "LocalBusiness",
+  Restaurant: "FoodEstablishment",
+  Bakery: "FoodEstablishment",
+  CafeOrCoffeeShop: "FoodEstablishment",
+  BarOrPub: "FoodEstablishment",
+  Brewery: "FoodEstablishment",
+  HealthAndBeautyBusiness: "LocalBusiness",
+  BeautySalon: "HealthAndBeautyBusiness",
+  HairSalon: "HealthAndBeautyBusiness",
+  NailSalon: "HealthAndBeautyBusiness",
+  TattooParlor: "HealthAndBeautyBusiness",
+  DaySpa: "HealthAndBeautyBusiness",
+  HealthClub: "HealthAndBeautyBusiness",
+  MedicalBusiness: "LocalBusiness",
+  MedicalClinic: "MedicalBusiness",
+  Optician: "MedicalBusiness",
+  Dentist: "LocalBusiness",
+  LegalService: "LocalBusiness",
+  RealEstateAgent: "LocalBusiness",
+  FinancialService: "LocalBusiness",
+  AccountingService: "FinancialService",
+  InsuranceAgency: "FinancialService",
+  ProfessionalService: "LocalBusiness",
+  ChildCare: "LocalBusiness",
+} as const;
+
+export type LocalBusinessType = keyof typeof LOCAL_BUSINESS_PARENT;
+
+/**
+ * Specific types that are NOT LocalBusiness subtypes on schema.org (VeterinaryCare
+ * is a MedicalOrganization). They are emitted alongside a LocalBusiness type, so
+ * the record stays eligible for local-business rich results.
+ */
+export type ExtraSchemaType = "VeterinaryCare";
+
+export type SchemaType = { type: LocalBusinessType; serviceType?: string; alsoType?: ExtraSchemaType };
+
+/** The `@type` value for a resolved type: a single LocalBusiness subtype, or [extra, subtype]. */
+export function schemaTypeValue(resolved: SchemaType): LocalBusinessType | [ExtraSchemaType, LocalBusinessType] {
+  return resolved.alsoType ? [resolved.alsoType, resolved.type] : resolved.type;
+}
 
 const CUISINES = ["Italian", "Mexican", "Chinese", "Japanese", "Thai", "Indian", "French", "Greek", "Korean", "Vietnamese", "Mediterranean", "Spanish", "Caribbean", "Ethiopian", "Lebanese", "Turkish", "Peruvian", "Brazilian", "American", "Southern", "Cajun", "Sushi", "Pizza", "Barbecue", "BBQ", "Seafood", "Vegan", "Vegetarian", "Tex-Mex", "Middle Eastern"];
 
@@ -129,7 +189,7 @@ export function resolveSchemaType(industry: string | null | undefined): SchemaTy
   const text = (industry ?? "").trim();
   if (!text) return { type: "LocalBusiness" };
   const key = playbookFor(text)?.key;
-  const service = (serviceType: string, type = "HomeAndConstructionBusiness"): SchemaType => ({ type, serviceType });
+  const service = (serviceType: string, type: LocalBusinessType = "HomeAndConstructionBusiness"): SchemaType => ({ type, serviceType });
   switch (key) {
     case "plumbing": return { type: "Plumber" };
     case "hvac": return { type: "HVACBusiness" };
@@ -165,7 +225,7 @@ export function resolveSchemaType(industry: string | null | undefined): SchemaTy
     case "med-spa": return service("Medical spa", "DaySpa");
     case "dentist": return { type: "Dentist" };
     case "medical-wellness":
-      if (/\bvet/i.test(text)) return { type: "VeterinaryCare" };
+      if (/\bvet/i.test(text)) return { type: "MedicalBusiness", alsoType: "VeterinaryCare" };
       if (/optom/i.test(text)) return { type: "Optician" };
       if (/physio|chiropract|therap/i.test(text)) return service(text.slice(0, 80), "MedicalClinic");
       return { type: "MedicalClinic" };
@@ -212,7 +272,7 @@ export function localBusinessSchema(input: {
   const resolved = resolveSchemaType(input.industry);
   const schema: Record<string, unknown> = {
     "@context": "https://schema.org",
-    "@type": resolved.type,
+    "@type": schemaTypeValue(resolved),
     "@id": `${input.url}#business`,
     name: input.name,
     url: input.url,
