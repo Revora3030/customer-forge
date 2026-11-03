@@ -135,7 +135,11 @@ export function auditActionTargets(actions: AgentAction[], known: KnownTargets):
   const ok: AgentAction[] = [];
   const stale: StaleTarget[] = [];
 
-  for (const action of actions) {
+  for (const original of actions) {
+    // Models sometimes copy a real id with a dropped or swapped character.
+    // Repair it only when exactly one real id is that close, so a slip no
+    // longer silently drops the owner's change and a guess never retargets.
+    const action = repairActionIds(original, pages, sections, components);
     const row = action as unknown as Record<string, unknown>;
     const pageId = typeof row["pageId"] === "string" ? row["pageId"] : "";
     const sectionId = typeof row["sectionId"] === "string" ? row["sectionId"] : "";
