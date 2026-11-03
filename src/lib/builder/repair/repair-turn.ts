@@ -349,10 +349,13 @@ export async function runRepairTurn(input: {
     const limit = Math.min(callTimeout, remaining);
     let timer: ReturnType<typeof setTimeout> | null = null;
     const timeout = new Promise<{ ok: false; reason: string }>((resolve) => {
-      timer = setTimeout(() => {
-        controller.abort();
-        resolve({ ok: false, reason: "timeout" });
-      }, limit);
+      timer = setTimeout( // DevSkim: ignore DS172411 -- Fixed callback and a numeric delay; no untrusted data.
+        () => {
+          controller.abort();
+          resolve({ ok: false, reason: "timeout" });
+        },
+        limit,
+      );
     });
     modelCalls += 1;
     let answer: Awaited<ReturnType<RepairModelCall>>;
