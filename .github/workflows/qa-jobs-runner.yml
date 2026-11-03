@@ -1,0 +1,37 @@
+name: Self-QA Runner
+
+# Opt-in runner for queued post-publish checks (PAI-19). Opens each published
+# page at phone and desktop size and reports back to the app. The repository is
+# public, so this workflow prints only job ids and counts and uploads no
+# artifacts. Turn on by setting repository variable QA_RUNNER_ENABLED=1.
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: revora-qa-jobs-runner
+  cancel-in-progress: false
+
+jobs:
+  drain:
+    if: ${{ github.event_name == 'workflow_dispatch' || vars.QA_RUNNER_ENABLED == '1' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Playwright and Chromium
+        run: |
+          npm install --no-save --no-audit --no-fund playwright@1.64.1
+          npx playwright install --with-deps chromium
+      - name: Check queued pages
+        env:
+          APP_URL: ${{ secrets.REVORA_APP_URL }}
+          LOVABLE_CRON_SECRET: ${{ secrets.LOVABLE_CRON_SECRET }}
+        run: node scripts/run-qa-jobs.mjs

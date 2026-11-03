@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { scrubFrame, scrubProgress, scrubTime, shouldSeek } from "./scrub";
+import { capScrubFrames, scrubFrame, scrubProgress, scrubTime, scrubTransition, shouldSeek, SCRUB_FRAME_LIMITS } from "./scrub";
 
 describe("scroll-scrubbed video maths", () => {
   it("runs 0 → 1 across the pinned travel and clamps outside it", () => {
@@ -33,5 +33,33 @@ describe("scroll-scrubbed video maths", () => {
   it("skips seeks that would not change the picture", () => {
     expect(shouldSeek(1, 1.01)).toBe(false);
     expect(shouldSeek(1, 1.05)).toBe(true);
+  });
+});
+
+describe("scrub frame cap", () => {
+  const frames = (real: number, generated = 0) => [
+    ...Array.from({ length: real }, (_, i) => ({ id: `r${i}`, generated: false })),
+    ...Array.from({ length: generated }, (_, i) => ({ id: `g${i}`, generated: true })),
+  ];
+
+  it("leaves a sequence of up to six frames alone, generated atmosphere included", () => {
+    expect(capScrubFrames(frames(2, 4)).map((f) => f.id)).toEqual(["r0", "r1", "g0", "g1", "g2", "g3"]);
+  });
+
+  it("keeps only real photographs beyond six frames, capped at 18", () => {
+    expect(capScrubFrames(frames(8, 3)).every((f) => !f.generated)).toBe(true);
+    expect(capScrubFrames(frames(8, 3))).toHaveLength(8);
+    expect(capScrubFrames(frames(24))).toHaveLength(SCRUB_FRAME_LIMITS.max);
+  });
+
+  it("falls back to the first six authored frames when almost nothing real is left", () => {
+    expect(capScrubFrames(frames(1, 9)).map((f) => f.id)).toEqual(["r0", "g0", "g1", "g2", "g3", "g4"]);
+  });
+
+  it("wipes short sequences and cross-fades from ten frames", () => {
+    expect(scrubTransition(6)).toBe("wipe");
+    expect(scrubTransition(9)).toBe("wipe");
+    expect(scrubTransition(10)).toBe("crossfade");
+    expect(scrubTransition(18)).toBe("crossfade");
   });
 });

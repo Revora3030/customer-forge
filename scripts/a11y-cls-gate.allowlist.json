@@ -1,0 +1,25 @@
+{
+  "_comment": "Accepted definite violations (accessibility-checker-engine, WCAG_2_2) for scripts/a11y-cls-gate.mjs. id is \"<route>:<rule>\", \"<route>@<width>:<rule>\" or \"*:<rule>\". Each entry needs a reason; remove it once fixed so the gate blocks regressions.",
+  "accepted": [
+    {
+      "id": "/contact:target_spacing_sufficient",
+      "reason": "Re-mapped from axe target-size. At phone width the fixed bottom sales bar's email link (SalesCTA.tsx) is partly covered by the cookie banner's buttons. IBM's WCAG 2.5.8 rule does not currently report it as a definite violation (the overlap shows as the non-blocking potential element_tabbable_unobscured), so this entry is dormant. PR #635 stacks the banner above the bar; remove this entry after #635 lands."
+    },
+    {
+      "id": "*:img_alt_redundant",
+      "reason": "Pre-existing, site-wide header: the logo <img alt=\"Revora\"> (src/components/brand/Logo.tsx) sits in the same link as the visible \"Revora\" wordmark, so screen readers read the name twice. Fix: alt=\"\" on the mark when the wordmark is shown."
+    },
+    {
+      "id": "*:aria_id_unique",
+      "reason": "Pre-existing, phone widths: the mobile menu button (src/components/marketing/Chrome.tsx) always sets aria-controls=\"marketing-mobile-menu\", but that element is only rendered while the menu is open. Fix: render the menu container always (hidden) or set aria-controls only when open."
+    },
+    {
+      "id": "/get-started:label_name_visible",
+      "reason": "Pre-existing (WCAG 2.5.3 Label in Name): VoiceDictateButton.tsx shows \"Say it\" but its aria-label is \"Dictate <field>\", so a voice-control user saying the visible text can't activate it. Fix: aria-label that starts with the visible text, e.g. \"Say it: <field>\"."
+    },
+    {
+      "id": "/:text_contrast_sufficient",
+      "reason": "Likely engine false positive: the home Before/After slider (BeforeAfterSlider.tsx RevoraStyleSide, aria-hidden decorative mockup) draws #f5f3ee text on its own dark INK layer, but the engine measures it against the stacked light 'before' layer and reports 1.07:1. Needs a manual check; narrow or remove once confirmed."
+    }
+  ]
+}

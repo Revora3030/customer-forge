@@ -3,7 +3,7 @@
  * and follow-ups move while the owner is watching.
  */
 
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getActivityFeed, type ActivityFeed } from "@/lib/observability.functions";
 import {
@@ -28,10 +28,20 @@ export function activityFeedRefetchInterval(error: unknown): number | false {
   return isStaleServerFnError(error) ? false : POLL_MS;
 }
 
-/** Retry ordinary failures a couple of times; never retry a stale server-function ID. */
+/** Retry an ordinary failure once (T004: a failing feed must not hammer the server); never retry a stale server-function ID. */
 export function activityFeedRetry(failureCount: number, error: unknown): boolean {
-  return !isStaleServerFnError(error) && failureCount < 2;
+  return !isStaleServerFnError(error) && failureCount < 1;
 }
+
+/**
+ * Degraded-state policy (T004): a short stale window, and the last good feed
+ * stays on screen while a refetch fails. ActivityFeed labels that state as
+ * "unavailable / may be out of date" rather than claiming all is healthy.
+ */
+export const ACTIVITY_FEED_CACHE_POLICY = {
+  staleTime: 10_000,
+  placeholderData: keepPreviousData,
+} as const;
 
 function recoverStaleBuild() {
   if (typeof window === "undefined") return;
@@ -52,6 +62,7 @@ export function useActivityFeed(organizationId: string | undefined) {
     enabled: !!organizationId,
     refetchInterval: (query) => activityFeedRefetchInterval(query.state.error),
     retry: activityFeedRetry,
+    ...ACTIVITY_FEED_CACHE_POLICY,
     queryFn: async () => {
       try {
         return await load({ data: { organizationId: organizationId! } });

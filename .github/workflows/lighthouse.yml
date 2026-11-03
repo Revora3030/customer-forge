@@ -9,7 +9,7 @@ permissions:
   contents: read
 concurrency:
   group: revora-lhci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   lighthouse:
     name: Lighthouse (SEO, accessibility, performance)

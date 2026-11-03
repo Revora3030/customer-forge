@@ -54,6 +54,7 @@ export const TRUSTED_SCRIPT_HOSTS = [
   "googleads.g.doubleclick.net",
   "www.clarity.ms",
   "scripts.clarity.ms",
+  "challenges.cloudflare.com",
 ] as const;
 
 type SecretRule = { id: string; label: string; re: RegExp; severity: "blocker" | "warning" };
