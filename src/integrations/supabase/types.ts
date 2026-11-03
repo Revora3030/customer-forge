@@ -1281,6 +1281,7 @@ export type Database = {
           phone: string | null
           primary_color: string | null
           review_link: string | null
+          review_sequence_enabled: boolean
           secondary_color: string | null
           service_area: string | null
           state: string | null
@@ -1315,6 +1316,7 @@ export type Database = {
           phone?: string | null
           primary_color?: string | null
           review_link?: string | null
+          review_sequence_enabled?: boolean
           secondary_color?: string | null
           service_area?: string | null
           state?: string | null
@@ -1349,6 +1351,7 @@ export type Database = {
           phone?: string | null
           primary_color?: string | null
           review_link?: string | null
+          review_sequence_enabled?: boolean
           secondary_color?: string | null
           service_area?: string | null
           state?: string | null
@@ -5587,6 +5590,51 @@ export type Database = {
           referrer_name?: string
           reward_value?: number | null
           status?: string
+        }
+        Relationships: []
+      }
+      review_feedback_requests: {
+        Row: {
+          appointment_id: string | null
+          created_at: string
+          customer_name: string
+          feedback: string | null
+          id: string
+          lead_id: string | null
+          organization_id: string
+          rated_at: string | null
+          rating: number | null
+          review_id: string | null
+          routed_to: string | null
+          token: string
+        }
+        Insert: {
+          appointment_id?: string | null
+          created_at?: string
+          customer_name: string
+          feedback?: string | null
+          id?: string
+          lead_id?: string | null
+          organization_id: string
+          rated_at?: string | null
+          rating?: number | null
+          review_id?: string | null
+          routed_to?: string | null
+          token: string
+        }
+        Update: {
+          appointment_id?: string | null
+          created_at?: string
+          customer_name?: string
+          feedback?: string | null
+          id?: string
+          lead_id?: string | null
+          organization_id?: string
+          rated_at?: string | null
+          rating?: number | null
+          review_id?: string | null
+          routed_to?: string | null
+          token?: string
         }
         Relationships: []
       }

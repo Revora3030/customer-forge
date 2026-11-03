@@ -25,6 +25,13 @@ import {
 } from "@/lib/automation-engine";
 import { requireOrgRole } from "@/lib/org-authz.server";
 import { effectiveReviewLink, placeIdFromGeneration } from "@/lib/google-review-link";
+import {
+  REVIEW_SEQUENCE_TRIGGER,
+  feedbackUrl,
+  newFeedbackToken,
+  reviewSequenceMessages,
+  safeReviewUrl,
+} from "@/lib/review-sequence";
 
 type Db = SupabaseClient<Database>;
 
@@ -91,7 +98,7 @@ export async function loadBusiness(userDb: Db, organizationId: string) {
     userDb.from("organizations").select("id, name").eq("id", organizationId).maybeSingle(),
     userDb
       .from("business_profiles")
-      .select("email, owner_email, state, review_link")
+      .select("email, owner_email, state, review_link, review_sequence_enabled")
       .eq("organization_id", organizationId)
       .maybeSingle(),
   ]);
@@ -114,6 +121,7 @@ export async function loadBusiness(userDb: Db, organizationId: string) {
     replyTo: profile?.email ?? profile?.owner_email ?? null,
     businessState: profile?.state ?? null,
     reviewLink,
+    reviewSequenceEnabled: profile?.review_sequence_enabled === true,
   };
 }
 
@@ -141,7 +149,108 @@ async function loadLead(userDb: Db, organizationId: string, id: string) {
   return data;
 }
 
-export type QueueResult = { queued: number; sent: number; skipped: number; failed: number; duplicate?: boolean };
+export type ReviewSequenceOutcome = {
+  started: boolean;
+  reason?: "off" | "no_review_link" | "no_email" | "custom_automation" | "already_asked" | "error";
+};
+
+export type QueueResult = {
+  queued: number;
+  sent: number;
+  skipped: number;
+  failed: number;
+  duplicate?: boolean;
+  reviewSequence?: ReviewSequenceOutcome;
+};
+
+/**
+ * Starts the built-in post-job review sequence for a completed booking (see
+ * review-sequence.ts): one review_feedback_requests row with a private token,
+ * then two queued email runs (1 hour, day 3) that the scheduled sweep
+ * delivers through the normal consent-gated path. Runs only when the owner
+ * switched it on and saved a review link, the booking has an email, the
+ * workspace has no active "Appointment completed" automation of its own, and
+ * this job was never asked before. Service-role client only.
+ */
+export async function startReviewSequence(
+  admin: Db,
+  input: {
+    organizationId: string;
+    appointment: { id: string; name: string; email: string | null; lead_id: string | null };
+    business: { businessName: string | null; reviewLink: string | null; reviewSequenceEnabled: boolean };
+  },
+  now = Date.now(),
+): Promise<ReviewSequenceOutcome> {
+  const { organizationId, appointment, business } = input;
+  if (!business.reviewSequenceEnabled) return { started: false, reason: "off" };
+  if (!safeReviewUrl(business.reviewLink)) return { started: false, reason: "no_review_link" };
+  const email = appointment.email?.trim();
+  if (!email) return { started: false, reason: "no_email" };
+
+  const { data: custom, error: customError } = await admin
+    .from("automations")
+    .select("id")
+    .eq("organization_id", organizationId)
+    .eq("trigger_event", "appointment_completed")
+    .eq("is_active", true)
+    .limit(1);
+  if (customError) throw new Error(`Couldn't check the workspace's automations: ${customError.message}`);
+  if (custom?.length) return { started: false, reason: "custom_automation" };
+
+  const { data: asked, error: askedError } = await admin
+    .from("automation_runs")
+    .select("id")
+    .eq("organization_id", organizationId)
+    .eq("appointment_id", appointment.id)
+    .eq("trigger_event", REVIEW_SEQUENCE_TRIGGER)
+    .in("status", ["queued", "sent"])
+    .limit(1);
+  if (askedError) throw new Error(`Couldn't check earlier review requests: ${askedError.message}`);
+  if (asked?.length) return { started: false, reason: "already_asked" };
+
+  const token = newFeedbackToken();
+  // UNIQUE (organization_id, appointment_id): a second completion of the same job can't start a second sequence.
+  const { error: claimError } = await admin.from("review_feedback_requests").insert({
+    organization_id: organizationId,
+    appointment_id: appointment.id,
+    lead_id: appointment.lead_id,
+    customer_name: appointment.name.trim().slice(0, 200) || "Customer",
+    token,
+  });
+  if (claimError) return { started: false, reason: "already_asked" };
+
+  const runs = reviewSequenceMessages({
+    customerName: appointment.name,
+    businessName: business.businessName,
+    url: feedbackUrl(token),
+  }).map((step) => ({
+    organization_id: organizationId,
+    lead_id: appointment.lead_id,
+    appointment_id: appointment.id,
+    trigger_event: REVIEW_SEQUENCE_TRIGGER,
+    action_type: "email",
+    recipient: email,
+    subject: step.subject,
+    body: step.body,
+    scheduled_for: new Date(now + step.delayMinutes * 60_000).toISOString(),
+    status: "queued",
+  }));
+  const { error: runError } = await admin.from("automation_runs").insert(runs);
+  if (runError) throw new Error(`Couldn't queue the review emails: ${runError.message}`);
+  return { started: true };
+}
+
+/** Once a customer has rated, the day-3 reminder is not sent. Service-role client only. */
+export async function skipQueuedReviewRuns(admin: Db, organizationId: string, appointmentId: string): Promise<void> {
+  const { error } = await admin
+    .from("automation_runs")
+    .update({ status: "skipped" })
+    .eq("organization_id", organizationId)
+    .eq("appointment_id", appointmentId)
+    .eq("trigger_event", REVIEW_SEQUENCE_TRIGGER)
+    .eq("status", "queued");
+  if (error) console.warn("review reminder skip failed", error.message);
+}
 
 export async function queueAutomationEventFor(
   userDb: Db,
@@ -173,6 +282,15 @@ export async function queueAutomationEventFor(
     throw new Error("Only a quoted lead starts the quote follow-up.");
   }
 
+  // The built-in review sequence never blocks the workspace's own follow-ups.
+  let reviewSequence: ReviewSequenceOutcome | undefined;
+  if (input.trigger === "appointment_completed" && appointment) {
+    reviewSequence = await startReviewSequence(deps.admin, { organizationId, appointment, business }).catch((error) => {
+      console.error("review sequence failed", error instanceof Error ? error.message : error);
+      return { started: false, reason: "error" as const };
+    });
+  }
+
   // One queue per trigger per record: re-saving a status never re-messages.
   let existing = deps.admin
     .from("automation_runs")
@@ -184,7 +302,7 @@ export async function queueAutomationEventFor(
     : existing.eq("lead_id", leadRow!.id).eq("status", "queued");
   const { data: already, error: existingError } = await existing.limit(1);
   if (existingError) throw new Error(`Couldn't check earlier follow-ups: ${existingError.message}`);
-  if (already?.length) return { queued: 0, sent: 0, skipped: 0, failed: 0, duplicate: true };
+  if (already?.length) return { queued: 0, sent: 0, skipped: 0, failed: 0, duplicate: true, ...(reviewSequence ? { reviewSequence } : {}) };
 
   const leadId = leadRow?.id ?? appointment?.lead_id ?? null;
   const ctx: AutomationContext = {
@@ -213,10 +331,11 @@ export async function queueAutomationEventFor(
         }
       : null,
   };
-  return enqueueAutomations(deps.admin, ctx, {
+  const result = await enqueueAutomations(deps.admin, ctx, {
     businessName: business.businessName,
     deliver: deps.deliverFor(business),
   });
+  return reviewSequence ? { ...result, reviewSequence } : result;
 }
 
 export async function requestReviewFor(

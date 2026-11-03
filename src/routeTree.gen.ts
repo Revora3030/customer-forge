@@ -48,6 +48,7 @@ import { Route as CrmIndexRouteImport } from './routes/crm.index'
 import { Route as CrmTradeRouteImport } from './routes/crm.$trade'
 import { Route as DemoIndexRouteImport } from './routes/demo.index'
 import { Route as DemoDashboardRouteImport } from './routes/demo.dashboard'
+import { Route as FeedbackTokenRouteImport } from './routes/feedback.$token'
 import { Route as GuidesIndexRouteImport } from './routes/guides.index'
 import { Route as GuidesSlugRouteImport } from './routes/guides.$slug'
 import { Route as IndustriesIndexRouteImport } from './routes/industries.index'
@@ -347,6 +348,11 @@ const DemoDashboardRoute = DemoDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
   getParentRoute: () => DemoRoute,
+} as any)
+const FeedbackTokenRoute = FeedbackTokenRouteImport.update({
+  id: '/feedback/$token',
+  path: '/feedback/$token',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const GuidesIndexRoute = GuidesIndexRouteImport.update({
   id: '/guides/',
@@ -951,6 +957,7 @@ export interface FileRoutesByFullPath {
   '/compare/$slug': typeof CompareSlugRoute
   '/crm/$trade': typeof CrmTradeRoute
   '/demo/dashboard': typeof DemoDashboardRoute
+  '/feedback/$token': typeof FeedbackTokenRoute
   '/guides/$slug': typeof GuidesSlugRoute
   '/industries/$slug': typeof IndustriesSlugRoute
   '/invite/$token': typeof InviteTokenRoute
@@ -1090,6 +1097,7 @@ export interface FileRoutesByTo {
   '/compare/$slug': typeof CompareSlugRoute
   '/crm/$trade': typeof CrmTradeRoute
   '/demo/dashboard': typeof DemoDashboardRoute
+  '/feedback/$token': typeof FeedbackTokenRoute
   '/guides/$slug': typeof GuidesSlugRoute
   '/industries/$slug': typeof IndustriesSlugRoute
   '/invite/$token': typeof InviteTokenRoute
@@ -1236,6 +1244,7 @@ export interface FileRoutesById {
   '/compare/$slug': typeof CompareSlugRoute
   '/crm/$trade': typeof CrmTradeRoute
   '/demo/dashboard': typeof DemoDashboardRoute
+  '/feedback/$token': typeof FeedbackTokenRoute
   '/guides/$slug': typeof GuidesSlugRoute
   '/industries/$slug': typeof IndustriesSlugRoute
   '/invite/$token': typeof InviteTokenRoute
@@ -1382,6 +1391,7 @@ export interface FileRouteTypes {
     | '/compare/$slug'
     | '/crm/$trade'
     | '/demo/dashboard'
+    | '/feedback/$token'
     | '/guides/$slug'
     | '/industries/$slug'
     | '/invite/$token'
@@ -1521,6 +1531,7 @@ export interface FileRouteTypes {
     | '/compare/$slug'
     | '/crm/$trade'
     | '/demo/dashboard'
+    | '/feedback/$token'
     | '/guides/$slug'
     | '/industries/$slug'
     | '/invite/$token'
@@ -1666,6 +1677,7 @@ export interface FileRouteTypes {
     | '/compare/$slug'
     | '/crm/$trade'
     | '/demo/dashboard'
+    | '/feedback/$token'
     | '/guides/$slug'
     | '/industries/$slug'
     | '/invite/$token'
@@ -1807,6 +1819,7 @@ export interface RootRouteChildren {
   Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   CompareSlugRoute: typeof CompareSlugRoute
   CrmTradeRoute: typeof CrmTradeRoute
+  FeedbackTokenRoute: typeof FeedbackTokenRoute
   GuidesSlugRoute: typeof GuidesSlugRoute
   InviteTokenRoute: typeof InviteTokenRoute
   LocationsCityRoute: typeof LocationsCityRoute
@@ -2139,6 +2152,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/demo/dashboard'
       preLoaderRoute: typeof DemoDashboardRouteImport
       parentRoute: typeof DemoRoute
+    }
+    '/feedback/$token': {
+      id: '/feedback/$token'
+      path: '/feedback/$token'
+      fullPath: '/feedback/$token'
+      preLoaderRoute: typeof FeedbackTokenRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/guides/': {
       id: '/guides/'
@@ -3138,6 +3158,7 @@ const rootRouteChildren: RootRouteChildren = {
     Char91DotwellKnownChar93OauthProtectedResourceRoute,
   CompareSlugRoute: CompareSlugRoute,
   CrmTradeRoute: CrmTradeRoute,
+  FeedbackTokenRoute: FeedbackTokenRoute,
   GuidesSlugRoute: GuidesSlugRoute,
   InviteTokenRoute: InviteTokenRoute,
   LocationsCityRoute: LocationsCityRoute,
