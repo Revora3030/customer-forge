@@ -29,6 +29,8 @@ interface Props {
   when?: string;
   /** Deep link to this lead in the workspace, e.g. https://revoragrowthsystems.com/app/leads?lead=<id>. */
   leadUrl?: string;
+  /** E.164 number to call back (missed calls): rendered as a one-tap "Call back" tel: button. */
+  callbackPhone?: string;
 }
 
 /** Digits (and a leading +) only, so the tel: link dials what was typed. */
@@ -89,6 +91,14 @@ const Email = (props: Props) => (
           <>
             <Hr style={hr} />
             <Text style={text}>{props.message}</Text>
+          </>
+        ) : null}
+        {props.callbackPhone && telHref(props.callbackPhone) ? (
+          <>
+            <Hr style={hr} />
+            <Link href={telHref(props.callbackPhone) ?? undefined} style={button}>
+              Call back
+            </Link>
           </>
         ) : null}
         {safeLeadUrl(props.leadUrl) ? (

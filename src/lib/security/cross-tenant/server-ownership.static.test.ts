@@ -248,6 +248,12 @@ describe("routes", () => {
   it("third-party webhooks verify a signature", () => {
     expect(text(join(SRC, "routes/api/public/payments/webhook.ts"))).toMatch(/verifyWebhook/);
     expect(text(join(SRC, "routes/api/public/twilio/inbound.ts"))).toMatch(/Invalid signature/);
+    for (const route of ["voice", "call-status"]) {
+      expect(text(join(SRC, `routes/api/public/twilio/${route}.ts`))).toMatch(/handleTwilioVoiceWebhook/);
+    }
+    const voice = text(join(SRC, "lib/calls/missed-call.server.ts"));
+    expect(voice).toMatch(/validateTwilioSignature/);
+    expect(voice).toMatch(/Invalid signature/);
     expect(text(join(SRC, "routes/api/public/jarvis-voice.ts"))).toMatch(/verifyVoiceLink/);
   });
 
