@@ -226,7 +226,7 @@ describe("acceptTeamInvitation", () => {
     });
   });
   const joinAs = (role: string) =>
-    h.db["memberships"].push({ id: "m-invitee", ...membership(INVITEE, role) });
+    (h.db["memberships"] ??= []).push({ id: "m-invitee", ...membership(INVITEE, role) });
   const claimed = () =>
     h.writes.some(
       (w) =>
@@ -247,21 +247,21 @@ describe("acceptTeamInvitation", () => {
     joinAs("manager");
     seedInvite("viewer", OWNER);
     const result = await accept();
-    expect(result.error).toMatch(/already on this team as manager/);
+    expect(result["error"]).toMatch(/already on this team as manager/);
     expect(claimed()).toBe(false);
     expect(h.writes.some((w) => w.table === "memberships")).toBe(false);
 
-    h.db["memberships"] = h.db["memberships"].filter((m) => m["user_id"] !== INVITEE);
+    h.db["memberships"] = (h.db["memberships"] ?? []).filter((m) => m["user_id"] !== INVITEE);
     joinAs("admin");
     seedInvite("manager", OWNER);
-    expect((await accept()).error).toMatch(/already on this team as admin/);
+    expect((await accept())["error"]).toMatch(/already on this team as admin/);
     expect(h.writes).toEqual([]);
   });
 
   it("refuses the workspace owner accepting any invite to their own workspace", async () => {
     joinAs("owner");
     seedInvite("admin", OWNER);
-    expect((await accept()).error).toMatch(/already on this team as owner/);
+    expect((await accept())["error"]).toMatch(/already on this team as owner/);
     expect(h.writes).toEqual([]);
   });
 
