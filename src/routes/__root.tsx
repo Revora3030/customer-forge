@@ -19,6 +19,7 @@ import spaceGrotesk700 from "@fontsource/space-grotesk/files/space-grotesk-latin
 import { Toaster } from "@/components/ui/sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { ensureProfile, enforceSessionPolicy, resolvePostLoginPath } from "@/lib/auth-session";
+import { isSafeRedirect } from "@/lib/prospect-claim";
 import { ORGANIZATION_SCHEMA, WEBSITE_SCHEMA, isClientSiteMatch } from "@/lib/seo";
 import { RouteError, RouteNotFound } from "@/components/app/RouteStates";
 import { CookieConsent } from "@/components/marketing/CookieConsent";
@@ -194,10 +195,10 @@ function RootComponent() {
       let target: string | null = null;
       try {
         const stored = sessionStorage.getItem("lle:redirect");
-        if (stored && stored.startsWith("/")) {
-          sessionStorage.removeItem("lle:redirect");
-          target = stored;
-        }
+        // One-shot: drop it either way, and only follow a same-site path
+        // ("//evil.com", "/\\evil.com" and "/javascript:" start with "/" too).
+        if (stored !== null) sessionStorage.removeItem("lle:redirect");
+        if (isSafeRedirect(stored)) target = stored;
       } catch {
         /* storage unavailable */
       }
