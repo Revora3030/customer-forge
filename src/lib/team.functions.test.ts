@@ -225,4 +225,114 @@ describe("acceptTeamInvitation", () => {
       role: "staff",
     });
   });
+  const joinAs = (role: string) =>
+    (h.db["memberships"] ??= []).push({ id: "m-invitee", ...membership(INVITEE, role) });
+  const claimed = () =>
+    h.writes.some(
+      (w) =>
+        w.table === "team_invitations" && (w.values as Row | null)?.["accepted_at"] !== undefined,
+    );
+
+  it("refuses an existing member's same-role invite without spending it", async () => {
+    joinAs("staff");
+    seedInvite("staff", ADMIN);
+    expect(await accept()).toEqual({
+      error:
+        "You're already on this team as staff member. This invitation would not give you more access, so it was not used.",
+    });
+    expect(h.writes).toEqual([]);
+  });
+
+  it("never demotes: a lower-role invite is refused before the claim", async () => {
+    joinAs("manager");
+    seedInvite("viewer", OWNER);
+    const result = await accept();
+    expect(result["error"]).toMatch(/already on this team as manager/);
+    expect(claimed()).toBe(false);
+    expect(h.writes.some((w) => w.table === "memberships")).toBe(false);
+
+    h.db["memberships"] = (h.db["memberships"] ?? []).filter((m) => m["user_id"] !== INVITEE);
+    joinAs("admin");
+    seedInvite("manager", OWNER);
+    expect((await accept())["error"]).toMatch(/already on this team as admin/);
+    expect(h.writes).toEqual([]);
+  });
+
+  it("refuses the workspace owner accepting any invite to their own workspace", async () => {
+    joinAs("owner");
+    seedInvite("admin", OWNER);
+    expect((await accept())["error"]).toMatch(/already on this team as owner/);
+    expect(h.writes).toEqual([]);
+  });
+
+  it("raises an existing member's role when the invite is higher and still grantable", async () => {
+    joinAs("viewer");
+    seedInvite("manager", ADMIN);
+    expect(await accept()).toMatchObject({ ok: true, organizationId: ORG });
+    const roleWrite = h.writes.find((w) => w.table === "memberships");
+    expect(roleWrite).toEqual({ table: "memberships", op: "update", values: { role: "manager" } });
+    expect(h.writes.some((w) => w.table === "memberships" && w.op === "insert")).toBe(false);
+  });
+
+  it("checks the inviter before upgrading: an admin's admin invite can't promote a member", async () => {
+    joinAs("staff");
+    seedInvite("admin", ADMIN);
+    expect(await accept()).toEqual(stale);
+    expect(h.writes).toEqual([]);
+  });
+});
+
+describe("revokeTeamInvitation", () => {
+  const seed = (role: string) => {
+    h.db["team_invitations"] = [
+      {
+        id: INVITE_ID,
+        organization_id: ORG,
+        email: INVITEE_EMAIL,
+        role,
+        invited_by: OWNER,
+        accepted_at: null,
+        revoked_at: null,
+      },
+    ];
+  };
+  const revoke = async (actor: string) => {
+    const { revokeTeamInvitation } = await fns();
+    return call(revokeTeamInvitation, { organizationId: ORG, invitationId: INVITE_ID }, ctx(actor));
+  };
+
+  it("lets only the owner cancel an admin invite", async () => {
+    seed("admin");
+    expect(await revoke(ADMIN)).toEqual({
+      error: "Only the workspace owner can cancel an admin invite.",
+    });
+    expect(h.writes).toEqual([]);
+    expect(await revoke(OWNER)).toEqual({ ok: true });
+    expect(h.writes.find((w) => w.table === "team_invitations")?.values).toHaveProperty(
+      "revoked_at",
+    );
+  });
+
+  it("still lets an admin cancel invites below admin, and never lets a manager", async () => {
+    seed("staff");
+    expect(await revoke(ADMIN)).toEqual({ ok: true });
+    h.writes.length = 0;
+    expect(await revoke(MANAGER)).toEqual({
+      error: "Only workspace owners and admins can manage the team.",
+    });
+    expect(h.writes).toEqual([]);
+  });
+
+  it("canRevokeInvite and isRoleUpgrade follow the role order", async () => {
+    const { canRevokeInvite, isRoleUpgrade } = await fns();
+    expect(canRevokeInvite("owner", "admin")).toBe(true);
+    expect(canRevokeInvite("admin", "admin")).toBe(false);
+    expect(canRevokeInvite("admin", "viewer")).toBe(true);
+    expect(canRevokeInvite("manager", "viewer")).toBe(false);
+    expect(isRoleUpgrade("viewer", "staff")).toBe(true);
+    expect(isRoleUpgrade("staff", "staff")).toBe(false);
+    expect(isRoleUpgrade("admin", "manager")).toBe(false);
+    expect(isRoleUpgrade("owner", "admin")).toBe(false);
+    expect(isRoleUpgrade(null, "viewer")).toBe(true);
+  });
 });

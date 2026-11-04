@@ -26,7 +26,7 @@ export function parseSubscription(input: unknown): StoredSubscription | null {
   try {
     const host = new URL(endpoint).hostname;
     if (
-      host === "localhost" ||
+      host === "localhost" || // DevSkim: ignore DS162092 -- rejecting localhost endpoints, not debug code
       /^[\d.]+$/.test(host) ||
       host.startsWith("[") ||
       host.endsWith(".local")
