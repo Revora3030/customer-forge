@@ -204,6 +204,13 @@
       "when": 1793815249767,
       "tag": "0028_builder_quality_log",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1793815597519,
+      "tag": "0029_lead_delivery_watchdog",
+      "breakpoints": true
     }
   ]
 }

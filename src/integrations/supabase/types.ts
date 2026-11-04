@@ -3174,6 +3174,72 @@ export type Database = {
           },
         ]
       }
+      lead_delivery_watch: {
+        Row: {
+          attempts: number
+          first_flagged_at: string
+          last_attempt_at: string | null
+          last_checked_at: string
+          lead_id: string
+          next_attempt_at: string | null
+          organization_id: string
+          owner_notified_at: string | null
+          problem: string
+          reason: string | null
+          resolution: string | null
+          resolved_at: string | null
+          state: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          first_flagged_at?: string
+          last_attempt_at?: string | null
+          last_checked_at?: string
+          lead_id: string
+          next_attempt_at?: string | null
+          organization_id: string
+          owner_notified_at?: string | null
+          problem: string
+          reason?: string | null
+          resolution?: string | null
+          resolved_at?: string | null
+          state?: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          first_flagged_at?: string
+          last_attempt_at?: string | null
+          last_checked_at?: string
+          lead_id?: string
+          next_attempt_at?: string | null
+          organization_id?: string
+          owner_notified_at?: string | null
+          problem?: string
+          reason?: string | null
+          resolution?: string | null
+          resolved_at?: string | null
+          state?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_delivery_watch_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_delivery_watch_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "public_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lead_tasks: {
         Row: {
           assigned_to: string | null
@@ -3228,6 +3294,48 @@ export type Database = {
           },
           {
             foreignKeyName: "lead_tasks_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "public_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lead_watchdog_events: {
+        Row: {
+          created_at: string
+          detail: string | null
+          event: string
+          id: string
+          lead_id: string | null
+          organization_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          detail?: string | null
+          event: string
+          id?: string
+          lead_id?: string | null
+          organization_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          detail?: string | null
+          event?: string
+          id?: string
+          lead_id?: string | null
+          organization_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_watchdog_events_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_watchdog_events_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "public_organizations"
