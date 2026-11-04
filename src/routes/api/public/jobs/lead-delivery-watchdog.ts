@@ -16,7 +16,7 @@ async function escalate(db: never) {
 }
 
 /**
- * Every 5 minutes: confirm each new lead's owner alert was accepted by the email provider;
+ * Every 15 minutes: confirm each new lead's owner alert was accepted by the email provider;
  * retry, flag on the owner dashboard and /admin, and log when it was not. Bearer-authenticated
  * with the cron secret; called by pg_cron (public.call_revora_job) with GitHub Actions
  * (.github/workflows/scheduled-jobs.yml) as an hourly backstop. Safe to repeat: retries reuse
