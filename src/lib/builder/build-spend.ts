@@ -65,7 +65,7 @@ const usd = (microcents: number) => `$${(microcents / MICROCENTS_PER_DOLLAR).toF
 
 /** Plain words for the owner and the logs. Names the limit, says nothing was published, and what to do. */
 export function buildSpendLimitMessage(spentMicrocents: number, capMicrocents: number): string {
-  return `This build reached its spending limit (${usd(capMicrocents)}) after using ${usd(spentMicrocents)} of AI credits without finishing, so Revora stopped it instead of trying again. Nothing was published. You can start it again when you are ready.`;
+  return `This build reached its spending limit (${usd(capMicrocents)}) after using ${usd(spentMicrocents)} of AI credits without finishing, so Revora stopped it instead of trying again. Nothing was published. Pictures already made are kept and reused when you start it again.`;
 }
 
 /** Raised by the worker before it spends more on a build that has used its ceiling. */

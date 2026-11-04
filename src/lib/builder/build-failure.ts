@@ -49,7 +49,7 @@ const OWNER_MESSAGES: Record<BuildFailureKind, string> = {
   validation: "The draft didn't pass Revora's quality checks (links, forms, mobile or SEO). It isn't marked ready.",
   infrastructure: "The build worker was interrupted. Revora resumes it automatically.",
   credits: "Revora's AI credits ran out, so this build stopped before it finished. Nothing was published and your current website is unchanged. This is on Revora's side, not yours: press Retry build once the credits are topped up (finished sections are kept).",
-  budget: "This build used its spending limit before it finished, so Revora stopped it to protect your credits. Nothing was published. You can start it again when you are ready.",
+  budget: "This build used its spending limit before it finished, so Revora stopped it to protect your credits. Nothing was published. Pictures saved so far are reused when you start it again.",
 };
 
 /** Fields an owner can fix in Business details, with the name shown to them. */
