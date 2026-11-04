@@ -211,6 +211,90 @@
       "when": 1793815597519,
       "tag": "0029_lead_delivery_watchdog",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1793815970689,
+      "tag": "0030_agent_runs",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1793816000789,
+      "tag": "0031_generation_jobs_fallback_used",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1793816007606,
+      "tag": "0032_ai_tool_audit_v2",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1793816030250,
+      "tag": "0033_agent_approvals",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1793816087241,
+      "tag": "0034_agent_limits",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1793816130521,
+      "tag": "0035_agent_routines",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1793816175963,
+      "tag": "0036_qa_jobs",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1793816218520,
+      "tag": "0037_unapplied_migrations_followup_rerun",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1793816238564,
+      "tag": "0038_website_rules",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1793816245141,
+      "tag": "0039_subscriptions_stripe_event_fence",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1793816251828,
+      "tag": "0040_jarvis_memory_obligations",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1793816259210,
+      "tag": "0041_harden_grants_routines_qa_rules",
+      "breakpoints": true
     }
   ]
 }
