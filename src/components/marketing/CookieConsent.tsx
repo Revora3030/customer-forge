@@ -78,7 +78,7 @@ export function CookieConsent() {
       role="dialog"
       aria-modal="false"
       aria-label="Cookie preferences"
-      className="cookie-banner fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-[100] rounded-lg border border-border bg-card p-3 shadow-lg sm:inset-x-auto sm:left-6 sm:bottom-6 sm:max-w-sm sm:p-4"
+      className="cookie-banner static z-[100] m-3 rounded-lg border border-border bg-card p-3 shadow-lg sm:fixed sm:inset-x-auto sm:left-6 sm:bottom-6 sm:m-0 sm:max-w-sm sm:p-4"
     >
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
