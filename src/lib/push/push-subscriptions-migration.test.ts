@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-const FILE = "20261104210000_owner_push_subscriptions.sql";
+const FILE = "20261104230000_owner_push_subscriptions.sql";
 const sql = readFileSync(resolve(process.cwd(), "supabase/migrations", FILE), "utf8")
   .split("\n")
   .filter((line) => !line.trim().startsWith("--"))
