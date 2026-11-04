@@ -11,9 +11,11 @@
  * React Three Fiber / drei (MIT). Motion is CSS plus the MIT `motion`
  * package already in the app; GSAP is deliberately not used (its standard
  * licence is not MIT/Apache/CC0 and excludes no-code visual animation
- * builders that compete with Webflow, which a site builder can be). Lenis is
- * not used either: native scroll keeps scroll-snap pages and the section
- * settle working and never slows an emergency visitor down.
+ * builders that compete with Webflow, which a site builder can be). Lenis
+ * (MIT) runs on desktop mouse/trackpad only (src/lib/smooth-scroll.ts): never
+ * on touch, so the touch-only chapter snap and native momentum stay; never
+ * under reduced motion; the section settle routes through it; horizontal
+ * collection rails keep their native wheel.
  *
  * Performance rules (REVORA premium effects spec, 2026-10-30): nothing in the
  * first load, one live WebGL canvas per page, 3D and 360 only after a tap,
