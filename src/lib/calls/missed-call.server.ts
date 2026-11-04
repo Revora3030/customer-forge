@@ -152,7 +152,11 @@ export async function handleTwilioVoiceWebhook(
   depsFactory: () => Promise<MissedCallDeps> = defaultDeps,
 ): Promise<Response> {
   const authToken = process.env["TWILIO_AUTH_TOKEN"]?.trim();
-  if (!authToken) return new Response("Not configured", { status: 503 });
+  if (!authToken) {
+    // Unverifiable: nothing is read or trusted. Warn (secret name only) so the gap is visible in logs.
+    console.warn(`[twilio ${kind}] TWILIO_AUTH_TOKEN is not configured; webhook not processed (503)`);
+    return new Response("Not configured", { status: 503 });
+  }
   const params = await verifiedTwilioParams(request, kind === "voice" ? VOICE_PATH : CALL_STATUS_PATH, authToken);
   if (!params) return new Response("Invalid signature", { status: 403 });
 

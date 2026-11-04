@@ -9,6 +9,8 @@ import path from "node:path";
 import { loadEnv } from "vite";
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 import { mcpPlugin } from "@lovable.dev/mcp-js/stacks/tanstack/vite";
+import { VitePWA } from "vite-plugin-pwa";
+import { ownerPwaOptions } from "./src/lib/pwa/owner-pwa-config";
 import { assertPublicEnvironment } from "./src/lib/security/public-env-policy.mjs";
 
 // Load unprefixed env vars into process.env for server routes (never into the client bundle).
@@ -51,7 +53,9 @@ export default defineConfig({
     },
     // Agent integrations (MCP): emits src/routes/mcp.ts and the OAuth
     // protected-resource metadata route from src/lib/mcp/index.ts.
-    plugins: [mcpPlugin()],
+    // Owner dashboard PWA: service worker scoped to /app/, never caches HTML,
+    // Supabase or API responses (see src/lib/pwa/owner-pwa-config.ts).
+    plugins: [mcpPlugin(), VitePWA(ownerPwaOptions)],
     // The Lovable TanStack config owns preview/sandbox host detection. Do not
     // override its allowed-host list: Lovable editor/mobile previews can arrive
     // through sandbox/proxy hosts that are not customer domains.

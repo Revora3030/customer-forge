@@ -49,6 +49,19 @@ describe("resolveAccess", () => {
     expect(result.allowed).toBe(true);
   });
 
+  it("locks a workspace once Stripe gives up on retries (unpaid), even with setup paid", () => {
+    for (const subscription_status of ["unpaid", "incomplete_expired"]) {
+      const result = resolveAccess({ created_at: iso(-60 * DAY), subscription_status, setup_payment_status: "paid" });
+      expect(result.state).toBe("CANCELED");
+      expect(result.allowed).toBe(false);
+    }
+  });
+
+  it("does not grant paid access for an incomplete first charge after the trial", () => {
+    const result = resolveAccess({ created_at: iso(-60 * DAY), subscription_status: "incomplete" });
+    expect(result.allowed).toBe(false);
+  });
+
   it("locks canceled and expired workspaces", () => {
     expect(
       resolveAccess({ created_at: iso(-60 * DAY), subscription_status: "canceled" }),

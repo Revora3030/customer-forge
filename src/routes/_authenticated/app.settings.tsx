@@ -188,6 +188,7 @@ function SettingsPage() {
                     organizationId={orgId}
                     role={member.role}
                     isSelf={member.user_id === session?.user.id}
+                    actorRole={role}
                   />
                 ) : null}
               </li>
@@ -200,7 +201,7 @@ function SettingsPage() {
             Send a secure invite link by email. Invites expire after 14 days and can be cancelled
             any time.
           </p>
-          <TeamInvites organizationId={orgId} canManage={canManage} />
+          <TeamInvites organizationId={orgId} canManage={canManage} actorRole={role} />
         </div>
         <div className="mt-5 border-t border-border pt-5">
           <p className="eyebrow">Client portal access</p>

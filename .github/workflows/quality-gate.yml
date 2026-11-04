@@ -149,6 +149,7 @@ jobs:
     needs: quality
     if: ${{ !cancelled() && needs.quality.result == 'success' && needs.quality.outputs.coverage_uploaded == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
       code-quality: write

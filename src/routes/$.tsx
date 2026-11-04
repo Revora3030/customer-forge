@@ -11,21 +11,22 @@ import { Button } from "@/components/ui/button";
 import { SiteAddressProvider } from "@/components/site/site-links-context";
 import { getHostSite } from "@/lib/host-site.functions";
 import { SiteFontLinks } from "@/components/site/SiteFontLinks";
-import { businessFacts } from "@/lib/builder/facts";
-import { siteFontFor } from "@/lib/site-font-pairings";
 import { siteFontStyle } from "@/lib/site-theme";
 import { SitePageView } from "@/components/site/SitePageView";
 import { ClientPrivacyNotice } from "@/components/site/ClientPrivacyNotice";
-import { PRIVACY_NOTICE_SLUG } from "@/lib/client-privacy-notice";
-import { isDuplicatePrivacySlug } from "@/lib/privacy-notice-slug";
-import { tenantSiteHead } from "@/lib/site-head";
+import { PRIVACY_NOTICE_SLUG, isDuplicatePrivacySlug } from "@/lib/privacy-notice-slug";
 
 /** What the business's own 404 page may show: only facts the owner gave us, only when the lookup found the site. */
 type HostBusiness = { name: string; phone: string | null; phoneHref: string | null; font: string };
 type HostSiteResponse = Awaited<ReturnType<typeof getHostSite>>;
-const hostBusiness = (response: HostSiteResponse | undefined): HostBusiness | null => {
+const hostBusiness = async (response: HostSiteResponse | undefined): Promise<HostBusiness | null> => {
   const site = response?.result?.site;
   if (!site) return null;
+  // Loaded on demand so the client-site modules stay out of the entry bundle.
+  const [{ businessFacts }, { siteFontFor }] = await Promise.all([
+    import("@/lib/builder/facts"),
+    import("@/lib/site-font-pairings"),
+  ]);
   const facts = businessFacts(site.profile ?? null, site.org?.name);
   if (!facts.businessName) return null;
   return {
@@ -58,11 +59,11 @@ export const Route = createFileRoute("/$")({
     if (!response?.result?.site?.content?.sections?.length && response?.result?.site && pageSlug === PRIVACY_NOTICE_SLUG) {
       return response.result;
     }
-    if (!response?.result?.site?.content?.sections?.length) throw notFound({ data: hostBusiness(response) });
+    if (!response?.result?.site?.content?.sections?.length) throw notFound({ data: await hostBusiness(response) });
 
     return response.result;
   },
-  head: ({ loaderData }) => {
+  head: async ({ loaderData }) => {
     if (loaderData && !loaderData.site.content?.sections?.length) {
       return { meta: [{ title: `Privacy and cookie notice | ${loaderData.site.org.name}` }, { name: "robots", content: "noindex" }] };
     }
@@ -76,6 +77,9 @@ export const Route = createFileRoute("/$")({
     const url = explicit.startsWith("https://")
       ? explicit
       : `https://${loaderData.host}/${page.slug}`;
+    // Lazy: site-head pulls the whole client-site renderer chunk; keep it out of
+    // the entry bundle that every marketing page loads (mobile TBT).
+    const { tenantSiteHead } = await import("@/lib/site-head");
     return tenantSiteHead({
       site: loaderData.site,
       pageSlug: page.slug,
@@ -100,7 +104,7 @@ function HostPageRoute() {
 /** Same look as the business's site: its body face, its name and phone when we have them. */
 function HostMessagePage({ business, title, message }: { business: HostBusiness | null; title: string; message: string }) {
   return (
-    <div
+    <main
       className="flex min-h-screen items-center justify-center px-4 text-center"
       style={{ ...(business ? siteFontStyle(business.font) : {}), fontFamily: business ? "var(--font-body, system-ui, sans-serif)" : "system-ui, sans-serif" }}
     >
@@ -120,7 +124,7 @@ function HostMessagePage({ business, title, message }: { business: HostBusiness 
           </p>
         ) : null}
       </div>
-    </div>
+    </main>
   );
 }
 
