@@ -89,7 +89,7 @@ BEGIN
 
   PERFORM cron.schedule(
     'revora-lead-delivery-watchdog',
-    '*/5 * * * *',
+    '*/15 * * * *',
     $cmd$select public.call_revora_job('lead-delivery-watchdog', 600000)$cmd$
   );
 END $$;
