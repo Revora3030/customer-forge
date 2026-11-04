@@ -46,4 +46,50 @@ begin foreach t in array all_t loop
 end loop; end $$;
 `);
 check("dynamic DO-loop RLS is understood", dyn.report.summary.tables === 1 && rules(dyn).length === 0);
+const guardedBad = lint(`
+create table public.g (id int);
+alter table public.g enable row level security;
+do $$
+begin
+  if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'g' and policyname = 'g_open') then
+    create policy "g_open" on public.g for insert to anon with check (true);
+  end if;
+end $$;
+`);
+check("a policy guarded by IF NOT EXISTS is still linted", JSON.stringify(rules(guardedBad)) === JSON.stringify(["open-write-policy"]));
+
+const guardedGood = lint(`
+create table public.h (id int, org uuid);
+alter table public.h enable row level security;
+do $$
+begin
+  if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'h' and policyname = 'h_read') then
+    create policy "h_read" on public.h for select to authenticated using (org is not null);
+  end if;
+end $$;
+`);
+check(
+  "a guarded policy counts as the table's policy",
+  guardedGood.code === 0 && rules(guardedGood).length === 0 && !guardedGood.report.findings.some((f) => f.rule === "no-policy"),
+);
+
+// Multiple migration trees are replayed in order (supabase, then drizzle).
+{
+  const a = mkdtempSync(join(tmpdir(), "rls-lint-a-"));
+  const b = mkdtempSync(join(tmpdir(), "rls-lint-b-"));
+  writeFileSync(join(a, "20260101000000_a.sql"), "create table public.base (id int); alter table public.base enable row level security;");
+  writeFileSync(join(b, "0001_b.sql"), "create table public.later (id int); alter table public.base disable row level security;");
+  const r = spawnSync(process.execPath, ["scripts/rls-lint.mjs", "--dir", a, "--dir", b, "--json", "--enforce"], { encoding: "utf8" });
+  const report = JSON.parse(r.stdout);
+  const flagged = report.findings.filter((f) => f.rule === "rls-disabled").map((f) => f.object).sort();
+  check("second dir is replayed after the first", r.status === 1 && JSON.stringify(flagged) === JSON.stringify(["base", "later"]));
+  check("findings from later dirs name their tree", report.findings.some((f) => f.file === `${b}/0001_b.sql`));
+}
+
+// The default run covers the builder-track drizzle migrations too.
+{
+  const r = spawnSync(process.execPath, ["scripts/rls-lint.mjs", "--json"], { encoding: "utf8" });
+  const report = JSON.parse(r.stdout);
+  check("default run lints supabase and drizzle migrations", JSON.stringify(report.summary.dirs) === JSON.stringify(["supabase/migrations", "drizzle/migrations"]));
+}
 process.exit(failed ? 1 : 0);

@@ -10,8 +10,15 @@
  *  - phones: floating offer cards flow below the copy so nothing covers a
  *    control, and scenes leave room for a mobile sticky bar,
  *  - reduced motion: no scroll-driven or smooth motion at all,
- *  - every control is at least 44×44px with a visible focus ring.
+ *  - every control is at least 44×44px with a visible focus ring,
+ *  - photographic scenes carry a static feTurbulence grain (above the scrim,
+ *    below the copy; hidden in print and forced-colours),
+ *  - reveals are clip-path inset() wipes, not opacity fades, and are off for
+ *    reduced motion.
  */
+import { GRAIN_LAYER_CSS } from "./film-grain";
+import { SCENE_HEADLINE_CLAMP, fluidClamp } from "@/lib/type-scale";
+
 const S = "[data-composition][data-composition]";
 
 export const CINEMATIC_CSS = `
@@ -21,6 +28,9 @@ ${S} .rv-scene-scrim{position:absolute;inset:0;z-index:-1;pointer-events:none}
 ${S} .rv-scene-media.rv-hero-video{opacity:0;transition:opacity .9s ease;background:transparent}
 ${S} .rv-scene-media.rv-hero-video[data-playing]{opacity:1}
 @media (prefers-reduced-motion: reduce){${S} .rv-scene-media.rv-hero-video{opacity:1;transition:none}}
+${S} .rv-scene:has(> .rv-scene-scrim)::after{${GRAIN_LAYER_CSS};z-index:-1}
+${S} .rv-seq-stage::after{${GRAIN_LAYER_CSS};z-index:2}
+@media print,(forced-colors:active){${S} .rv-scene::after,${S} .rv-seq-stage::after{display:none}}
 ${S} .rv-hero-control{position:absolute;z-index:3;right:16px;bottom:16px;display:inline-flex;align-items:center;justify-content:center;min-width:44px;min-height:44px;padding:0 14px;border:1px solid rgb(255 255 255 / .35);border-radius:999px;background:rgb(8 12 18 / .55);color:#fff;font:600 13px/1 system-ui,sans-serif;letter-spacing:.04em;cursor:pointer;backdrop-filter:blur(10px)}
 ${S} .rv-hero-control:focus-visible{outline:2px solid #fff;outline-offset:3px}
 ${S} .rv-scene[data-framed] .rv-scene-media[data-soft]{filter:blur(28px) saturate(1.05);transform:scale(1.15)}
@@ -61,12 +71,14 @@ ${S} .rv-chapter-rail a[aria-current="true"] span{background:currentColor;opacit
 @supports (animation-timeline: view()){
 ${S} .rv-chapter .rv-scene-media{animation:rv-scene-settle linear both;animation-timeline:view();animation-range:entry 0% exit 100%}
 ${S} .rv-chapter .rv-scene-slot,${S} .rv-chapter .rv-scene-offers{animation:rv-scene-rise linear both;animation-timeline:view();animation-range:entry 0px entry 220px}
+${S} .rv-chapter .rv-scene-frame,${S} .rv-split-pin > :is(img,video){animation:rv-wipe-up 1ms linear both;animation-timeline:view();animation-range:entry 0% entry 60%}
 }
 ${S} .rv-collection-viewport{scroll-behavior:smooth}
 }
 @keyframes rv-scene-settle{from{transform:scale(1.1)}to{transform:scale(1)}}
 @media (prefers-reduced-motion: no-preference){@supports (animation-timeline: view()){${S} .rv-hero-video[data-playing]{animation:rv-hero-drift linear both;animation-timeline:view();animation-range:exit 0% exit 100%}}}
 @keyframes rv-hero-drift{from{transform:scale(1)}to{transform:scale(1.12)}}
+@keyframes rv-wipe-up{from{clip-path:inset(18% 0 0 0)}to{clip-path:inset(0 0 0 0)}}
 @keyframes rv-scene-rise{from{translate:0 16px}to{translate:0 0}}
 ${S} .rv-spin{display:grid;gap:16px;justify-items:center;margin:0;width:100%}
 ${S} .rv-spin-stage{position:relative;width:100%;max-width:960px;aspect-ratio:16 / 10;display:grid;place-items:center;border-radius:24px;overflow:hidden;cursor:grab;user-select:none;touch-action:pan-y}
@@ -101,6 +113,21 @@ ${S} .rv-split-pin{position:sticky;top:96px;align-self:start}
 ${S} .rv-split-phases{gap:0}
 ${S} .rv-split-phase{min-height:70vh;display:flex;flex-direction:column;justify-content:center}
 }
+${S} .rv-doc{display:grid;gap:24px;width:100%}
+${S} .rv-doc-toc{position:relative;display:grid;gap:8px;padding-left:16px;min-width:0}
+${S} .rv-doc-toc-label{margin:0;font-size:13px;font-weight:650;letter-spacing:.08em;text-transform:uppercase;opacity:.8}
+${S} .rv-doc-toc-list{margin:0;padding:0;list-style:none;display:grid;gap:4px;counter-reset:rv-doc}
+${S} .rv-doc-toc-list a{display:flex;align-items:center;min-height:44px;color:inherit;text-decoration:none;opacity:.72;line-height:1.3}
+${S} .rv-doc-toc-list a:hover,${S} .rv-doc-toc-list a[aria-current]{opacity:1;text-decoration:underline;text-underline-offset:4px}
+${S} .rv-doc-toc-list a:focus-visible{outline:3px solid currentColor;outline-offset:2px}
+${S} .rv-doc-rail{position:absolute;left:0;top:0;bottom:0;width:2px;background:color-mix(in srgb,currentColor 18%,transparent)}
+${S} .rv-doc-rail>span{position:absolute;inset:0;background:currentColor;transform-origin:top;transform:scaleY(0)}
+${S} .rv-doc-body{display:grid;gap:56px;min-width:0;max-width:68ch}
+${S} .rv-doc-chapter{scroll-margin-top:96px;min-width:0}
+@media (min-width:1024px){
+${S} .rv-doc{grid-template-columns:minmax(200px,280px) minmax(0,1fr);gap:64px;align-items:start}
+${S} .rv-doc-toc{position:sticky;top:96px;align-self:start}
+}
 ${S} .rv-tier{display:grid;gap:20px;width:100%}
 ${S} .rv-tier-control{display:grid;gap:10px}
 ${S} .rv-tier-label{font-weight:650}
@@ -118,7 +145,7 @@ ${S} .rv-tier-cards{display:grid;gap:16px}
 ${S} .rv-tier-card[data-hidden]{display:none}
 @media (min-width:768px){${S} .rv-tier-cards{grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}}
 ${S} .rv-tier[data-live] .rv-tier-card[data-on]{animation:rv-tier-in .28s ease both}
-@keyframes rv-tier-in{from{opacity:0}to{opacity:1}}
+@keyframes rv-tier-in{from{clip-path:inset(0 100% 0 0 round 16px)}to{clip-path:inset(0 0 0 0 round 16px)}}
 @media (prefers-reduced-motion:reduce){${S} .rv-tier[data-live] .rv-tier-card[data-on]{animation:none}}
 ${S} .rv-scrub[data-live]{height:300vh;height:300svh}
 ${S} .rv-scrub[data-live] > .rv-scene{position:sticky;top:0}
@@ -149,7 +176,9 @@ ${S} .rv-px-layer[data-depth="2"]{--px:4%}
 ${S} .rv-px-layer[data-depth="3"]{--px:6%}
 @keyframes rv-px-drift{from{transform:translateY(var(--px,0%))}to{transform:translateY(calc(var(--px,0%) * -1))}}
 }}
-${S} .rv-scene :is(h1,h2),${S} .rv-seq-copy :is(h1,h2){font-size:clamp(3.2rem,7vw,6.5rem)!important;line-height:.95!important;letter-spacing:-.03em;text-wrap:balance}
+${S} .rv-scene :is(h1,h2),${S} .rv-seq-copy :is(h1,h2){font-size:${SCENE_HEADLINE_CLAMP}!important;line-height:.95!important;letter-spacing:-.03em;text-wrap:balance}
+@media (max-width:47.99rem){${S} .rv-scene :is(h1,h2),${S} .rv-seq-copy :is(h1,h2){line-height:1.02!important;letter-spacing:-.028em;overflow-wrap:break-word}}
+@media (max-width:22.49rem){${S} .rv-scene :is(h1,h2),${S} .rv-seq-copy :is(h1,h2){font-weight:min(var(--ds-heading-weight,700),650)!important;letter-spacing:-.035em;line-height:1.04!important}}
 ${S} .rv-scene:not(:has(img)):not(:has(video)){background:radial-gradient(48% 36% at 50% 12%,rgba(255,255,255,.07),transparent 70%),#0a0d10}
 .rv-site-root[data-studio]{background:#0a0d10;color:#f4f1ea}
 .rv-site-root[data-studio]::before{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;background:radial-gradient(42% 32% at 50% -4%,rgba(255,255,255,.07),transparent 68%),radial-gradient(28% 22% at 88% 18%,rgba(255,255,255,.04),transparent 70%)}
@@ -173,7 +202,7 @@ ${S} .rv-dial-gauge svg{width:min(240px,70%);height:auto;overflow:visible}
 ${S} .rv-dial-gauge svg[data-draggable]{cursor:grab;touch-action:none;-webkit-user-select:none;user-select:none}${S} .rv-dial-gauge svg[data-draggable]:active{cursor:grabbing}
 ${S} .rv-dial-fill,${S} .rv-dial-needle{transition:all 520ms cubic-bezier(.2,.8,.2,1)}
 ${S} .rv-dial-reading{display:flex;align-items:baseline;gap:6px;margin-top:-28px}
-${S} .rv-dial-reading strong{font-size:clamp(24px,3.4vw,34px);font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+${S} .rv-dial-reading strong{font-size:${fluidClamp(24, 34, 320, 1000)};font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
 ${S} .rv-dial-reading span{font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;opacity:.7}
 ${S} .rv-dial-option{margin:6px 0 0;font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--primary-ink,var(--primary,currentColor))}
 ${S} .rv-dial-note{margin:0;max-width:34ch;font-size:14px;line-height:1.5;opacity:.8}
@@ -186,7 +215,7 @@ ${S} .rv-model{margin:0;display:flex;flex-direction:column;gap:10px}
 ${S} .rv-model-stage{position:relative;aspect-ratio:4/3;width:100%;border-radius:18px;overflow:hidden;background:radial-gradient(120% 90% at 50% 20%,rgba(127,127,127,.18),rgba(127,127,127,.04));touch-action:none}
 ${S} .rv-model-poster,${S} .rv-model-canvas,${S} .rv-model-placeholder{position:absolute;inset:0;width:100%;height:100%}
 ${S} .rv-model-poster{object-fit:cover}
-${S} .rv-model-placeholder{display:grid;place-items:center;font-size:clamp(28px,6vw,56px);font-weight:800;letter-spacing:.08em;opacity:.35}
+${S} .rv-model-placeholder{display:grid;place-items:center;font-size:${fluidClamp(28, 56, 320, 933)};font-weight:800;letter-spacing:.08em;opacity:.35}
 ${S} .rv-model-open{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);min-height:44px;padding:0 20px;border-radius:999px;border:0;background:var(--primary,#111);color:var(--primary-foreground,#fff);font-weight:700;font-size:14px;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.25)}
 ${S} .rv-model-status{position:absolute;inset:auto 0 16px;text-align:center;font-size:14px;margin:0}
 ${S} .rv-model-caption{display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px;font-size:14px;font-weight:600}

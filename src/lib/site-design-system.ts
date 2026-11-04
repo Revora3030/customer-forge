@@ -23,6 +23,7 @@
 import type { CSSProperties } from "react";
 import { FONT_PAIRINGS, type FontPairing } from "@/lib/site-font-pairings";
 import { siteHeadingFont } from "@/lib/site-theme";
+import { DISPLAY_STEPS, TYPE_STEPS } from "@/lib/type-scale";
 
 /** Fluid type ramp. Each step is a clamp() between a phone and a wide-desktop size. */
 export const TYPE_RAMP = {
@@ -150,7 +151,7 @@ const decl = (vars: Record<string, string>) =>
  * zero-specificity inside `@layer base`, so anything authored beats them.
  */
 export function designSystemCss(): string {
-  const ramp = decl(Object.fromEntries(Object.entries(TYPE_RAMP).map(([step, value]) => [`--ds-text-${step}`, value])));
+  const ramp = decl({ ...Object.fromEntries(Object.entries(TYPE_RAMP).map(([step, value]) => [`--ds-text-${step}`, value])), ...TYPE_STEPS, ...DISPLAY_STEPS });
   const space = decl(Object.fromEntries(Object.entries(SPACE_SCALE).map(([step, value]) => [`--ds-space-${step}`, value])));
   const root = ":where(.rv-site-root)";
   return [

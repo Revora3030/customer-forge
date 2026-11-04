@@ -88,7 +88,7 @@ export const submitContactRequest = createServerFn({ method: "POST" })
     // or emailed. Missing payloads and verifier outages fail open.
     const { verifyAltchaPayload } = await import("@/lib/altcha.server");
     if ((await verifyAltchaPayload(data.altcha)) === "invalid") {
-      return { ok: true as const, stored: false, emailed: false, throttled: false as const };
+      return { ok: true as const, stored: false, emailQueued: false, throttled: false as const };
     }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
@@ -116,7 +116,7 @@ export const submitContactRequest = createServerFn({ method: "POST" })
       console.error("submitContactRequest rate check failed", (byEmail.error ?? byIp.error)?.message);
     }
     if (isContactThrottled({ byEmail: byEmail.count, byIp: byIp.count })) {
-      return { ok: true as const, stored: false, emailed: false, throttled: true as const };
+      return { ok: true as const, stored: false, emailQueued: false, throttled: true as const };
     }
 
     const { error } = await supabaseAdmin.from("marketing_conversions").insert({
@@ -139,26 +139,43 @@ export const submitContactRequest = createServerFn({ method: "POST" })
       throw new Error("We could not save your message. Please email us directly.");
     }
 
-    let emailed = false;
-    try {
-      const { sendTemplateEmail } = await import("@/lib/email-templates/send-email");
-      const sent = await sendTemplateEmail("lead-alert", REVORA.email, {
-        replyTo: data.email,
-        templateData: {
-          businessName: "Revora Growth Systems",
-          kind: "New contact request",
-          leadName: data.name,
-          leadEmail: data.email,
-          leadPhone: data.phone ?? "",
-          service: data.interest ?? "",
-          city: data.businessType ?? "",
-          message: data.message,
-        },
-      });
-      emailed = sent.sent === true;
-    } catch (err) {
-      console.error("contact email failed", err instanceof Error ? err.message : err);
-    }
+    // The founder alert runs after the response (T015): the enquiry is already
+    // stored, so the visitor should not wait on the email provider.
+    const { runInBackground } = await import("@/lib/background.server");
+    runInBackground(() => sendContactAlert(data));
 
-    return { ok: true as const, stored: true, emailed, throttled: false as const };
+    return { ok: true as const, stored: true, emailQueued: true, throttled: false as const };
   });
+
+type ContactAlert = {
+  name: string;
+  email: string;
+  phone?: string | null;
+  interest?: string | null;
+  businessType?: string | null;
+  message: string;
+};
+
+/** Emails the Revora inbox about a stored contact request; never throws. */
+export async function sendContactAlert(data: ContactAlert): Promise<boolean> {
+  try {
+    const { sendTemplateEmail } = await import("@/lib/email-templates/send-email");
+    const sent = await sendTemplateEmail("lead-alert", REVORA.email, {
+      replyTo: data.email,
+      templateData: {
+        businessName: "Revora Growth Systems",
+        kind: "New contact request",
+        leadName: data.name,
+        leadEmail: data.email,
+        leadPhone: data.phone ?? "",
+        service: data.interest ?? "",
+        city: data.businessType ?? "",
+        message: data.message,
+      },
+    });
+    return sent.sent === true;
+  } catch (err) {
+    console.error("contact email failed", err instanceof Error ? err.message : err);
+    return false;
+  }
+}

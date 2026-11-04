@@ -12,6 +12,7 @@ import {
   SectionHeading,
 } from "@/components/app/Bits";
 import { LeadDeliveryHealthPanel } from "@/components/app/LeadDeliveryHealthPanel";
+import { BuilderRequestHealthPanel } from "@/components/app/BuilderRequestHealthPanel";
 import { getErrorFeed } from "@/lib/monitoring.functions";
 import { getBuildHealth, getRecentBuildReports } from "@/lib/build-monitoring.functions";
 
@@ -86,6 +87,8 @@ function AdminMonitoring() {
       </div>
 
       <LeadDeliveryHealthPanel />
+
+      <BuilderRequestHealthPanel />
 
       <Panel>
         <SectionHeading

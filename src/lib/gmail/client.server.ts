@@ -201,3 +201,33 @@ export async function getGmailThread(
   if (!result.ok) return result;
   return { ok: true, messages: Array.isArray(result.data.messages) ? result.data.messages : [] };
 }
+
+/** Message ids matching a Gmail search (users.messages.list), newest first, at most `max`. */
+export async function searchGmailMessageIds(
+  config: GmailConfig,
+  query: string,
+  max: number,
+): Promise<{ ok: true; ids: string[] } | GmailError> {
+  const params = new URLSearchParams({ q: query, maxResults: String(Math.max(1, Math.min(100, Math.floor(max)))) });
+  const result = await gmailRequest<{ messages?: Array<{ id?: unknown }> }>(config, `/messages?${params.toString()}`, { idempotent: true });
+  if (!result.ok) return result;
+  const ids = (Array.isArray(result.data.messages) ? result.data.messages : [])
+    .map((message) => message.id)
+    .filter((id): id is string => typeof id === "string" && /^[A-Za-z0-9_-]{6,64}$/.test(id));
+  return { ok: true, ids };
+}
+
+/** One message's From and Subject headers only (format=metadata). */
+export async function getGmailMessageHeaders(
+  config: GmailConfig,
+  messageId: string,
+): Promise<{ ok: true; message: GmailApiMessage } | GmailError> {
+  if (!/^[A-Za-z0-9_-]{6,64}$/.test(messageId)) return { ok: false, reason: "gmail_not_found", status: null, transient: false };
+  const result = await gmailRequest<GmailApiMessage>(
+    config,
+    `/messages/${messageId}?format=metadata&metadataHeaders=From&metadataHeaders=Subject`,
+    { idempotent: true },
+  );
+  if (!result.ok) return result;
+  return { ok: true, message: result.data };
+}

@@ -36,3 +36,39 @@ describe("memoryPromptBlock", () => {
     expect(block).toContain("serif display font");
   });
 });
+
+describe("memoryPromptBlock with obligation and supersession columns", () => {
+  const iso = (daysAgo: number) => new Date(Date.now() - daysAgo * 86_400_000).toISOString();
+  function fakeDbWithExtras(rows: ReturnType<typeof row>[], extras: Record<string, unknown>[] | "missing_columns") {
+    const main: Record<string, unknown> = {
+      select: () => main, eq: () => main, order: () => main,
+      limit: (n: number) => Promise.resolve({ data: rows.slice(0, n), error: null }),
+      or: () => Promise.resolve(extras === "missing_columns" ? { data: null, error: { message: "column jarvis_memories.due_at does not exist" } } : { data: extras, error: null }),
+    };
+    return { from: () => main } as never;
+  }
+  const rows = [row("a", "Prefers morning site visits", 2), row("old", "Brand colour is navy", 40), row("new", "Brand colour is forest green", 1)];
+
+  it("behaves exactly as before when the new columns are not there yet", async () => {
+    const block = await memoryPromptBlock(fakeDbWithExtras(rows, "missing_columns"), "u1");
+    expect(block).toContain("Brand colour is navy");
+    expect(block).not.toContain("DUE OBLIGATIONS");
+  });
+
+  it("drops a superseded memory and raises due obligations soonest first", async () => {
+    const extras = [
+      { id: "old", kind: "fact", content: "Brand colour is navy", created_at: iso(40), due_at: null, completed_at: null, superseded_by: "new", half_life_days: null },
+      { id: "o1", kind: "note", content: "Send Dana the revised quote", created_at: iso(3), due_at: iso(1), completed_at: null, superseded_by: null, half_life_days: null },
+      { id: "o2", kind: "note", content: "Renew the domain", created_at: iso(3), due_at: iso(2), completed_at: null, superseded_by: null, half_life_days: null },
+      { id: "o3", kind: "note", content: "Filed permit", created_at: iso(3), due_at: iso(2), completed_at: iso(1), superseded_by: null, half_life_days: null },
+      { id: "o4", kind: "note", content: "Next quarter review", created_at: iso(3), due_at: iso(-30), completed_at: null, superseded_by: null, half_life_days: null },
+    ];
+    const block = (await memoryPromptBlock(fakeDbWithExtras(rows, extras), "u1"))!;
+    expect(block).toContain("Brand colour is forest green");
+    expect(block).not.toContain("Brand colour is navy");
+    expect(block).toContain("DUE OBLIGATIONS");
+    expect(block.indexOf("Renew the domain")).toBeLessThan(block.indexOf("Send Dana the revised quote"));
+    expect(block).not.toContain("Filed permit");
+    expect(block).not.toContain("Next quarter review");
+  });
+});

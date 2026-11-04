@@ -75,7 +75,7 @@ export function useLeads(organizationId: string | undefined, options?: { include
       const base = supabase
         .from("leads")
         .select(
-          "id, name, email, phone, status, source, campaign, city, message, service_interest, estimated_value, next_follow_up_at, last_contacted_at, created_at, service_id, customer_id, assigned_to",
+          "id, name, email, phone, status, source, campaign, city, message, service_interest, estimated_value, next_follow_up_at, last_contacted_at, first_response_at, created_at, service_id, customer_id, assigned_to",
         )
         .eq("organization_id", organizationId!);
       const { data, error } = await (includeTest ? base : base.neq("source", TEST_LEAD_SOURCE)).order(

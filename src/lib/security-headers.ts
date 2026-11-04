@@ -15,6 +15,8 @@
  *   measurement (same tag family) beacons to Google's Ads endpoints and is
  *   consent-gated by the cookie banner.
 
+ * - Cloudflare Turnstile (public lead forms, Revora-owned hosts only) loads
+ *   its script and challenge frame from `challenges.cloudflare.com`.
  * - Client websites show images the business uploaded or linked, which can live
  *   on any https host, so `img-src` stays broad while script/frame/connect
  *   sources stay locked down.
@@ -43,7 +45,7 @@ const EMBED_FRAME_SOURCES = [
 const SUPABASE_WS = "wss://*.supabase.co";
 
 const SCRIPT_HOSTS =
-  "https://js.stripe.com https://maps.googleapis.com https://maps.gstatic.com https://www.googletagmanager.com https://pagead2.googlesyndication.com https://googleads.g.doubleclick.net https://www.clarity.ms https://scripts.clarity.ms";
+  "https://js.stripe.com https://maps.googleapis.com https://maps.gstatic.com https://www.googletagmanager.com https://pagead2.googlesyndication.com https://googleads.g.doubleclick.net https://www.clarity.ms https://scripts.clarity.ms https://challenges.cloudflare.com";
 
 /** A fresh, unguessable value for one response (128 bits, base64). */
 export function generateCspNonce(): string {
@@ -119,7 +121,7 @@ const STATIC_DIRECTIVES = [
     "https://*.clarity.ms",
     "https://c.bing.com",
   ].join(" "),
-  `frame-src ${[...new Set(["'self'", "https://www.google.com", "https://maps.google.com", "https://js.stripe.com", "https://hooks.stripe.com", "https://googleads.g.doubleclick.net", "https://td.doubleclick.net", ...EMBED_FRAME_SOURCES.split(" ")])].join(" ")}`,
+  `frame-src ${[...new Set(["'self'", "https://www.google.com", "https://maps.google.com", "https://js.stripe.com", "https://hooks.stripe.com", "https://googleads.g.doubleclick.net", "https://td.doubleclick.net", "https://challenges.cloudflare.com", ...EMBED_FRAME_SOURCES.split(" ")])].join(" ")}`,
   "worker-src 'self' blob:",
   "manifest-src 'self'",
   "upgrade-insecure-requests",

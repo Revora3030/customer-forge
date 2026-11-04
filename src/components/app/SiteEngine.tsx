@@ -25,11 +25,13 @@ import {
   useLatestGenerationJob,
   useRestoreWebsiteVersion,
   useRunSiteEngine,
+  useBuildAllowance,
   useSnapshotWebsiteVersion,
   useWebsiteVersions,
 } from "@/lib/site-engine.hooks";
 import { dateShort } from "@/lib/format";
 import { describeBuildFailure } from "@/lib/builder/build-failure";
+import { buildAllowanceText } from "@/lib/builder/build-allowance";
 import { useCancelSiteEngine } from "@/lib/site-engine-cancel.hooks";
 import { cn } from "@/lib/utils";
 import { focusAndScrollToId } from "@/lib/use-step-scroll";
@@ -41,15 +43,20 @@ export function SiteEnginePanel({
   canManage,
   canFreshRebuild = false,
   hasCopy,
+  onFixDetails,
 }: {
   organizationId: string | undefined;
   canManage: boolean;
   canFreshRebuild?: boolean;
   hasCopy: boolean;
+  /** Opens Business details; shown inline when a build stopped on a field (T051). */
+  onFixDetails?: () => void;
 }) {
   const { data: job } = useLatestGenerationJob(organizationId);
   const { data: readiness } = useBuildReadiness(organizationId);
   const run = useRunSiteEngine(organizationId);
+  const { data: allowance } = useBuildAllowance(organizationId);
+  const outOfBuilds = allowance?.left === 0;
   const [confirmRedesign, setConfirmRedesign] = useState(false);
   const cancel = useCancelSiteEngine(organizationId);
   const [freshConfirm, setFreshConfirm] = useState("");
@@ -99,13 +106,18 @@ export function SiteEnginePanel({
             structure for your industry, writes the copy, sets up your search settings and connects
             lead capture — in one run. It never invents reviews, awards, credentials or prices.
           </p>
+          {canManage && allowance && !running ? (
+            <p data-testid="build-allowance" className={`mt-1 text-[12px] ${outOfBuilds ? "text-foreground" : "text-muted-foreground"}`}>
+              {buildAllowanceText(allowance, (date) => date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }))}
+            </p>
+          ) : null}
         </div>
         {canManage ? (
           <Button
             variant={hasCopy ? "outline" : "signal"}
-            disabled={running || blocked}
+            disabled={running || blocked || outOfBuilds}
             onClick={() => run.mutate({ mode: "safe" })}
-            title={blockedReason ?? undefined}
+            title={blockedReason ?? (outOfBuilds ? "All builds for the last 24 hours are used." : undefined)}
           >
             {running ? (
               <Loader2 className="size-4 animate-spin" />
@@ -240,6 +252,25 @@ export function SiteEnginePanel({
           <div>
             <p className="text-[13px] font-medium">{failure.label}</p>
             <p className="mt-0.5 text-[12px] text-muted-foreground">{failure.message}</p>
+            {failure.fixFields?.length && canManage ? (
+              <div className="mt-2 rounded-md border border-border bg-background/60 p-2.5" data-testid="fix-this-field">
+                <p className="text-[12px] font-medium">
+                  Fix {failure.fixFields.length === 1 ? "this field" : "these fields"}:
+                </p>
+                <ul className="mt-1 grid gap-0.5">
+                  {failure.fixFields.map((field) => (
+                    <li key={field} className="text-[12px] text-muted-foreground">
+                      <span className="text-primary">•</span> {field}
+                    </li>
+                  ))}
+                </ul>
+                {onFixDetails ? (
+                  <Button size="sm" variant="outline" className="mt-2 min-h-11" onClick={onFixDetails}>
+                    Open Business details
+                  </Button>
+                ) : null}
+              </div>
+            ) : null}
             {failure.canRetry && canManage ? (
               <p className="mt-1 text-[12px] text-muted-foreground">Press “Retry build” to run the whole build again.</p>
             ) : null}

@@ -48,6 +48,7 @@ import { Route as CrmIndexRouteImport } from './routes/crm.index'
 import { Route as CrmTradeRouteImport } from './routes/crm.$trade'
 import { Route as DemoIndexRouteImport } from './routes/demo.index'
 import { Route as DemoDashboardRouteImport } from './routes/demo.dashboard'
+import { Route as FeedbackTokenRouteImport } from './routes/feedback.$token'
 import { Route as GuidesIndexRouteImport } from './routes/guides.index'
 import { Route as GuidesSlugRouteImport } from './routes/guides.$slug'
 import { Route as IndustriesIndexRouteImport } from './routes/industries.index'
@@ -122,6 +123,7 @@ import { Route as ApiPublicAgentBuildsRouteImport } from './routes/api/public/ag
 import { Route as ApiPublicAgentHealthRouteImport } from './routes/api/public/agent/health'
 import { Route as ApiPublicAgentProspectsRouteImport } from './routes/api/public/agent/prospects'
 import { Route as ApiPublicInstagramCallbackRouteImport } from './routes/api/public/instagram/callback'
+import { Route as ApiPublicJobsAgentRoutinesRouteImport } from './routes/api/public/jobs/agent-routines'
 import { Route as ApiPublicJobsAgentRunsRouteImport } from './routes/api/public/jobs/agent-runs'
 import { Route as ApiPublicJobsAutomationRunsRouteImport } from './routes/api/public/jobs/automation-runs'
 import { Route as ApiPublicJobsBackupRouteImport } from './routes/api/public/jobs/backup'
@@ -133,15 +135,19 @@ import { Route as ApiPublicJobsLeadDeliveryWatchdogRouteImport } from './routes/
 import { Route as ApiPublicJobsLeadReminderRouteImport } from './routes/api/public/jobs/lead-reminder'
 import { Route as ApiPublicJobsLifecycleEmailRouteImport } from './routes/api/public/jobs/lifecycle-email'
 import { Route as ApiPublicJobsMediaCleanupRouteImport } from './routes/api/public/jobs/media-cleanup'
+import { Route as ApiPublicJobsMonthlyReportRouteImport } from './routes/api/public/jobs/monthly-report'
 import { Route as ApiPublicJobsProspectAutopilotRouteImport } from './routes/api/public/jobs/prospect-autopilot'
 import { Route as ApiPublicJobsProspectRepliesRouteImport } from './routes/api/public/jobs/prospect-replies'
+import { Route as ApiPublicJobsQaJobsRouteImport } from './routes/api/public/jobs/qa-jobs'
 import { Route as ApiPublicJobsSiteContentAuditRouteImport } from './routes/api/public/jobs/site-content-audit'
 import { Route as ApiPublicJobsSiteEngineRouteImport } from './routes/api/public/jobs/site-engine'
 import { Route as ApiPublicJobsSiteHealthRouteImport } from './routes/api/public/jobs/site-health'
 import { Route as ApiPublicJobsSiteHostingRouteImport } from './routes/api/public/jobs/site-hosting'
 import { Route as ApiPublicJobsWeeklyReportRouteImport } from './routes/api/public/jobs/weekly-report'
 import { Route as ApiPublicPaymentsWebhookRouteImport } from './routes/api/public/payments/webhook'
+import { Route as ApiPublicTwilioCallStatusRouteImport } from './routes/api/public/twilio/call-status'
 import { Route as ApiPublicTwilioInboundRouteImport } from './routes/api/public/twilio/inbound'
+import { Route as ApiPublicTwilioVoiceRouteImport } from './routes/api/public/twilio/voice'
 import { Route as LovableEmailAuthPreviewRouteImport } from './routes/lovable/email/auth/preview'
 import { Route as LovableEmailAuthWebhookRouteImport } from './routes/lovable/email/auth/webhook'
 import { Route as LovableEmailTransactionalPreviewRouteImport } from './routes/lovable/email/transactional/preview'
@@ -344,6 +350,11 @@ const DemoDashboardRoute = DemoDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
   getParentRoute: () => DemoRoute,
+} as any)
+const FeedbackTokenRoute = FeedbackTokenRouteImport.update({
+  id: '/feedback/$token',
+  path: '/feedback/$token',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const GuidesIndexRoute = GuidesIndexRouteImport.update({
   id: '/guides/',
@@ -740,6 +751,12 @@ const ApiPublicInstagramCallbackRoute =
     path: '/api/public/instagram/callback',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicJobsAgentRoutinesRoute =
+  ApiPublicJobsAgentRoutinesRouteImport.update({
+    id: '/api/public/jobs/agent-routines',
+    path: '/api/public/jobs/agent-routines',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicJobsAgentRunsRoute = ApiPublicJobsAgentRunsRouteImport.update({
   id: '/api/public/jobs/agent-runs',
   path: '/api/public/jobs/agent-runs',
@@ -804,6 +821,12 @@ const ApiPublicJobsMediaCleanupRoute =
     path: '/api/public/jobs/media-cleanup',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicJobsMonthlyReportRoute =
+  ApiPublicJobsMonthlyReportRouteImport.update({
+    id: '/api/public/jobs/monthly-report',
+    path: '/api/public/jobs/monthly-report',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicJobsProspectAutopilotRoute =
   ApiPublicJobsProspectAutopilotRouteImport.update({
     id: '/api/public/jobs/prospect-autopilot',
@@ -816,6 +839,11 @@ const ApiPublicJobsProspectRepliesRoute =
     path: '/api/public/jobs/prospect-replies',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicJobsQaJobsRoute = ApiPublicJobsQaJobsRouteImport.update({
+  id: '/api/public/jobs/qa-jobs',
+  path: '/api/public/jobs/qa-jobs',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicJobsSiteContentAuditRoute =
   ApiPublicJobsSiteContentAuditRouteImport.update({
     id: '/api/public/jobs/site-content-audit',
@@ -850,9 +878,20 @@ const ApiPublicPaymentsWebhookRoute =
     path: '/api/public/payments/webhook',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicTwilioCallStatusRoute =
+  ApiPublicTwilioCallStatusRouteImport.update({
+    id: '/api/public/twilio/call-status',
+    path: '/api/public/twilio/call-status',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicTwilioInboundRoute = ApiPublicTwilioInboundRouteImport.update({
   id: '/api/public/twilio/inbound',
   path: '/api/public/twilio/inbound',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicTwilioVoiceRoute = ApiPublicTwilioVoiceRouteImport.update({
+  id: '/api/public/twilio/voice',
+  path: '/api/public/twilio/voice',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LovableEmailAuthPreviewRoute = LovableEmailAuthPreviewRouteImport.update({
@@ -931,6 +970,7 @@ export interface FileRoutesByFullPath {
   '/compare/$slug': typeof CompareSlugRoute
   '/crm/$trade': typeof CrmTradeRoute
   '/demo/dashboard': typeof DemoDashboardRoute
+  '/feedback/$token': typeof FeedbackTokenRoute
   '/guides/$slug': typeof GuidesSlugRoute
   '/industries/$slug': typeof IndustriesSlugRoute
   '/invite/$token': typeof InviteTokenRoute
@@ -1008,6 +1048,7 @@ export interface FileRoutesByFullPath {
   '/api/public/agent/health': typeof ApiPublicAgentHealthRoute
   '/api/public/agent/prospects': typeof ApiPublicAgentProspectsRoute
   '/api/public/instagram/callback': typeof ApiPublicInstagramCallbackRoute
+  '/api/public/jobs/agent-routines': typeof ApiPublicJobsAgentRoutinesRoute
   '/api/public/jobs/agent-runs': typeof ApiPublicJobsAgentRunsRoute
   '/api/public/jobs/automation-runs': typeof ApiPublicJobsAutomationRunsRoute
   '/api/public/jobs/backup': typeof ApiPublicJobsBackupRoute
@@ -1019,15 +1060,19 @@ export interface FileRoutesByFullPath {
   '/api/public/jobs/lead-reminder': typeof ApiPublicJobsLeadReminderRoute
   '/api/public/jobs/lifecycle-email': typeof ApiPublicJobsLifecycleEmailRoute
   '/api/public/jobs/media-cleanup': typeof ApiPublicJobsMediaCleanupRoute
+  '/api/public/jobs/monthly-report': typeof ApiPublicJobsMonthlyReportRoute
   '/api/public/jobs/prospect-autopilot': typeof ApiPublicJobsProspectAutopilotRoute
   '/api/public/jobs/prospect-replies': typeof ApiPublicJobsProspectRepliesRoute
+  '/api/public/jobs/qa-jobs': typeof ApiPublicJobsQaJobsRoute
   '/api/public/jobs/site-content-audit': typeof ApiPublicJobsSiteContentAuditRoute
   '/api/public/jobs/site-engine': typeof ApiPublicJobsSiteEngineRoute
   '/api/public/jobs/site-health': typeof ApiPublicJobsSiteHealthRoute
   '/api/public/jobs/site-hosting': typeof ApiPublicJobsSiteHostingRoute
   '/api/public/jobs/weekly-report': typeof ApiPublicJobsWeeklyReportRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
+  '/api/public/twilio/call-status': typeof ApiPublicTwilioCallStatusRoute
   '/api/public/twilio/inbound': typeof ApiPublicTwilioInboundRoute
+  '/api/public/twilio/voice': typeof ApiPublicTwilioVoiceRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
   '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
@@ -1067,6 +1112,7 @@ export interface FileRoutesByTo {
   '/compare/$slug': typeof CompareSlugRoute
   '/crm/$trade': typeof CrmTradeRoute
   '/demo/dashboard': typeof DemoDashboardRoute
+  '/feedback/$token': typeof FeedbackTokenRoute
   '/guides/$slug': typeof GuidesSlugRoute
   '/industries/$slug': typeof IndustriesSlugRoute
   '/invite/$token': typeof InviteTokenRoute
@@ -1144,6 +1190,7 @@ export interface FileRoutesByTo {
   '/api/public/agent/health': typeof ApiPublicAgentHealthRoute
   '/api/public/agent/prospects': typeof ApiPublicAgentProspectsRoute
   '/api/public/instagram/callback': typeof ApiPublicInstagramCallbackRoute
+  '/api/public/jobs/agent-routines': typeof ApiPublicJobsAgentRoutinesRoute
   '/api/public/jobs/agent-runs': typeof ApiPublicJobsAgentRunsRoute
   '/api/public/jobs/automation-runs': typeof ApiPublicJobsAutomationRunsRoute
   '/api/public/jobs/backup': typeof ApiPublicJobsBackupRoute
@@ -1155,15 +1202,19 @@ export interface FileRoutesByTo {
   '/api/public/jobs/lead-reminder': typeof ApiPublicJobsLeadReminderRoute
   '/api/public/jobs/lifecycle-email': typeof ApiPublicJobsLifecycleEmailRoute
   '/api/public/jobs/media-cleanup': typeof ApiPublicJobsMediaCleanupRoute
+  '/api/public/jobs/monthly-report': typeof ApiPublicJobsMonthlyReportRoute
   '/api/public/jobs/prospect-autopilot': typeof ApiPublicJobsProspectAutopilotRoute
   '/api/public/jobs/prospect-replies': typeof ApiPublicJobsProspectRepliesRoute
+  '/api/public/jobs/qa-jobs': typeof ApiPublicJobsQaJobsRoute
   '/api/public/jobs/site-content-audit': typeof ApiPublicJobsSiteContentAuditRoute
   '/api/public/jobs/site-engine': typeof ApiPublicJobsSiteEngineRoute
   '/api/public/jobs/site-health': typeof ApiPublicJobsSiteHealthRoute
   '/api/public/jobs/site-hosting': typeof ApiPublicJobsSiteHostingRoute
   '/api/public/jobs/weekly-report': typeof ApiPublicJobsWeeklyReportRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
+  '/api/public/twilio/call-status': typeof ApiPublicTwilioCallStatusRoute
   '/api/public/twilio/inbound': typeof ApiPublicTwilioInboundRoute
+  '/api/public/twilio/voice': typeof ApiPublicTwilioVoiceRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
   '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
@@ -1210,6 +1261,7 @@ export interface FileRoutesById {
   '/compare/$slug': typeof CompareSlugRoute
   '/crm/$trade': typeof CrmTradeRoute
   '/demo/dashboard': typeof DemoDashboardRoute
+  '/feedback/$token': typeof FeedbackTokenRoute
   '/guides/$slug': typeof GuidesSlugRoute
   '/industries/$slug': typeof IndustriesSlugRoute
   '/invite/$token': typeof InviteTokenRoute
@@ -1287,6 +1339,7 @@ export interface FileRoutesById {
   '/api/public/agent/health': typeof ApiPublicAgentHealthRoute
   '/api/public/agent/prospects': typeof ApiPublicAgentProspectsRoute
   '/api/public/instagram/callback': typeof ApiPublicInstagramCallbackRoute
+  '/api/public/jobs/agent-routines': typeof ApiPublicJobsAgentRoutinesRoute
   '/api/public/jobs/agent-runs': typeof ApiPublicJobsAgentRunsRoute
   '/api/public/jobs/automation-runs': typeof ApiPublicJobsAutomationRunsRoute
   '/api/public/jobs/backup': typeof ApiPublicJobsBackupRoute
@@ -1298,15 +1351,19 @@ export interface FileRoutesById {
   '/api/public/jobs/lead-reminder': typeof ApiPublicJobsLeadReminderRoute
   '/api/public/jobs/lifecycle-email': typeof ApiPublicJobsLifecycleEmailRoute
   '/api/public/jobs/media-cleanup': typeof ApiPublicJobsMediaCleanupRoute
+  '/api/public/jobs/monthly-report': typeof ApiPublicJobsMonthlyReportRoute
   '/api/public/jobs/prospect-autopilot': typeof ApiPublicJobsProspectAutopilotRoute
   '/api/public/jobs/prospect-replies': typeof ApiPublicJobsProspectRepliesRoute
+  '/api/public/jobs/qa-jobs': typeof ApiPublicJobsQaJobsRoute
   '/api/public/jobs/site-content-audit': typeof ApiPublicJobsSiteContentAuditRoute
   '/api/public/jobs/site-engine': typeof ApiPublicJobsSiteEngineRoute
   '/api/public/jobs/site-health': typeof ApiPublicJobsSiteHealthRoute
   '/api/public/jobs/site-hosting': typeof ApiPublicJobsSiteHostingRoute
   '/api/public/jobs/weekly-report': typeof ApiPublicJobsWeeklyReportRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
+  '/api/public/twilio/call-status': typeof ApiPublicTwilioCallStatusRoute
   '/api/public/twilio/inbound': typeof ApiPublicTwilioInboundRoute
+  '/api/public/twilio/voice': typeof ApiPublicTwilioVoiceRoute
   '/lovable/email/auth/preview': typeof LovableEmailAuthPreviewRoute
   '/lovable/email/auth/webhook': typeof LovableEmailAuthWebhookRoute
   '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
@@ -1353,6 +1410,7 @@ export interface FileRouteTypes {
     | '/compare/$slug'
     | '/crm/$trade'
     | '/demo/dashboard'
+    | '/feedback/$token'
     | '/guides/$slug'
     | '/industries/$slug'
     | '/invite/$token'
@@ -1430,6 +1488,7 @@ export interface FileRouteTypes {
     | '/api/public/agent/health'
     | '/api/public/agent/prospects'
     | '/api/public/instagram/callback'
+    | '/api/public/jobs/agent-routines'
     | '/api/public/jobs/agent-runs'
     | '/api/public/jobs/automation-runs'
     | '/api/public/jobs/backup'
@@ -1441,15 +1500,19 @@ export interface FileRouteTypes {
     | '/api/public/jobs/lead-reminder'
     | '/api/public/jobs/lifecycle-email'
     | '/api/public/jobs/media-cleanup'
+    | '/api/public/jobs/monthly-report'
     | '/api/public/jobs/prospect-autopilot'
     | '/api/public/jobs/prospect-replies'
+    | '/api/public/jobs/qa-jobs'
     | '/api/public/jobs/site-content-audit'
     | '/api/public/jobs/site-engine'
     | '/api/public/jobs/site-health'
     | '/api/public/jobs/site-hosting'
     | '/api/public/jobs/weekly-report'
     | '/api/public/payments/webhook'
+    | '/api/public/twilio/call-status'
     | '/api/public/twilio/inbound'
+    | '/api/public/twilio/voice'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
     | '/lovable/email/transactional/preview'
@@ -1489,6 +1552,7 @@ export interface FileRouteTypes {
     | '/compare/$slug'
     | '/crm/$trade'
     | '/demo/dashboard'
+    | '/feedback/$token'
     | '/guides/$slug'
     | '/industries/$slug'
     | '/invite/$token'
@@ -1566,6 +1630,7 @@ export interface FileRouteTypes {
     | '/api/public/agent/health'
     | '/api/public/agent/prospects'
     | '/api/public/instagram/callback'
+    | '/api/public/jobs/agent-routines'
     | '/api/public/jobs/agent-runs'
     | '/api/public/jobs/automation-runs'
     | '/api/public/jobs/backup'
@@ -1577,15 +1642,19 @@ export interface FileRouteTypes {
     | '/api/public/jobs/lead-reminder'
     | '/api/public/jobs/lifecycle-email'
     | '/api/public/jobs/media-cleanup'
+    | '/api/public/jobs/monthly-report'
     | '/api/public/jobs/prospect-autopilot'
     | '/api/public/jobs/prospect-replies'
+    | '/api/public/jobs/qa-jobs'
     | '/api/public/jobs/site-content-audit'
     | '/api/public/jobs/site-engine'
     | '/api/public/jobs/site-health'
     | '/api/public/jobs/site-hosting'
     | '/api/public/jobs/weekly-report'
     | '/api/public/payments/webhook'
+    | '/api/public/twilio/call-status'
     | '/api/public/twilio/inbound'
+    | '/api/public/twilio/voice'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
     | '/lovable/email/transactional/preview'
@@ -1631,6 +1700,7 @@ export interface FileRouteTypes {
     | '/compare/$slug'
     | '/crm/$trade'
     | '/demo/dashboard'
+    | '/feedback/$token'
     | '/guides/$slug'
     | '/industries/$slug'
     | '/invite/$token'
@@ -1708,6 +1778,7 @@ export interface FileRouteTypes {
     | '/api/public/agent/health'
     | '/api/public/agent/prospects'
     | '/api/public/instagram/callback'
+    | '/api/public/jobs/agent-routines'
     | '/api/public/jobs/agent-runs'
     | '/api/public/jobs/automation-runs'
     | '/api/public/jobs/backup'
@@ -1719,15 +1790,19 @@ export interface FileRouteTypes {
     | '/api/public/jobs/lead-reminder'
     | '/api/public/jobs/lifecycle-email'
     | '/api/public/jobs/media-cleanup'
+    | '/api/public/jobs/monthly-report'
     | '/api/public/jobs/prospect-autopilot'
     | '/api/public/jobs/prospect-replies'
+    | '/api/public/jobs/qa-jobs'
     | '/api/public/jobs/site-content-audit'
     | '/api/public/jobs/site-engine'
     | '/api/public/jobs/site-health'
     | '/api/public/jobs/site-hosting'
     | '/api/public/jobs/weekly-report'
     | '/api/public/payments/webhook'
+    | '/api/public/twilio/call-status'
     | '/api/public/twilio/inbound'
+    | '/api/public/twilio/voice'
     | '/lovable/email/auth/preview'
     | '/lovable/email/auth/webhook'
     | '/lovable/email/transactional/preview'
@@ -1769,6 +1844,7 @@ export interface RootRouteChildren {
   Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   CompareSlugRoute: typeof CompareSlugRoute
   CrmTradeRoute: typeof CrmTradeRoute
+  FeedbackTokenRoute: typeof FeedbackTokenRoute
   GuidesSlugRoute: typeof GuidesSlugRoute
   InviteTokenRoute: typeof InviteTokenRoute
   LocationsCityRoute: typeof LocationsCityRoute
@@ -1798,6 +1874,7 @@ export interface RootRouteChildren {
   ApiPublicAgentHealthRoute: typeof ApiPublicAgentHealthRoute
   ApiPublicAgentProspectsRoute: typeof ApiPublicAgentProspectsRoute
   ApiPublicInstagramCallbackRoute: typeof ApiPublicInstagramCallbackRoute
+  ApiPublicJobsAgentRoutinesRoute: typeof ApiPublicJobsAgentRoutinesRoute
   ApiPublicJobsAgentRunsRoute: typeof ApiPublicJobsAgentRunsRoute
   ApiPublicJobsAutomationRunsRoute: typeof ApiPublicJobsAutomationRunsRoute
   ApiPublicJobsBackupRoute: typeof ApiPublicJobsBackupRoute
@@ -1809,15 +1886,19 @@ export interface RootRouteChildren {
   ApiPublicJobsLeadReminderRoute: typeof ApiPublicJobsLeadReminderRoute
   ApiPublicJobsLifecycleEmailRoute: typeof ApiPublicJobsLifecycleEmailRoute
   ApiPublicJobsMediaCleanupRoute: typeof ApiPublicJobsMediaCleanupRoute
+  ApiPublicJobsMonthlyReportRoute: typeof ApiPublicJobsMonthlyReportRoute
   ApiPublicJobsProspectAutopilotRoute: typeof ApiPublicJobsProspectAutopilotRoute
   ApiPublicJobsProspectRepliesRoute: typeof ApiPublicJobsProspectRepliesRoute
+  ApiPublicJobsQaJobsRoute: typeof ApiPublicJobsQaJobsRoute
   ApiPublicJobsSiteContentAuditRoute: typeof ApiPublicJobsSiteContentAuditRoute
   ApiPublicJobsSiteEngineRoute: typeof ApiPublicJobsSiteEngineRoute
   ApiPublicJobsSiteHealthRoute: typeof ApiPublicJobsSiteHealthRoute
   ApiPublicJobsSiteHostingRoute: typeof ApiPublicJobsSiteHostingRoute
   ApiPublicJobsWeeklyReportRoute: typeof ApiPublicJobsWeeklyReportRoute
   ApiPublicPaymentsWebhookRoute: typeof ApiPublicPaymentsWebhookRoute
+  ApiPublicTwilioCallStatusRoute: typeof ApiPublicTwilioCallStatusRoute
   ApiPublicTwilioInboundRoute: typeof ApiPublicTwilioInboundRoute
+  ApiPublicTwilioVoiceRoute: typeof ApiPublicTwilioVoiceRoute
   LovableEmailAuthPreviewRoute: typeof LovableEmailAuthPreviewRoute
   LovableEmailAuthWebhookRoute: typeof LovableEmailAuthWebhookRoute
   LovableEmailTransactionalPreviewRoute: typeof LovableEmailTransactionalPreviewRoute
@@ -2098,6 +2179,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/demo/dashboard'
       preLoaderRoute: typeof DemoDashboardRouteImport
       parentRoute: typeof DemoRoute
+    }
+    '/feedback/$token': {
+      id: '/feedback/$token'
+      path: '/feedback/$token'
+      fullPath: '/feedback/$token'
+      preLoaderRoute: typeof FeedbackTokenRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/guides/': {
       id: '/guides/'
@@ -2617,6 +2705,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicInstagramCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/jobs/agent-routines': {
+      id: '/api/public/jobs/agent-routines'
+      path: '/api/public/jobs/agent-routines'
+      fullPath: '/api/public/jobs/agent-routines'
+      preLoaderRoute: typeof ApiPublicJobsAgentRoutinesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/jobs/agent-runs': {
       id: '/api/public/jobs/agent-runs'
       path: '/api/public/jobs/agent-runs'
@@ -2694,6 +2789,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicJobsMediaCleanupRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/jobs/monthly-report': {
+      id: '/api/public/jobs/monthly-report'
+      path: '/api/public/jobs/monthly-report'
+      fullPath: '/api/public/jobs/monthly-report'
+      preLoaderRoute: typeof ApiPublicJobsMonthlyReportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/jobs/prospect-autopilot': {
       id: '/api/public/jobs/prospect-autopilot'
       path: '/api/public/jobs/prospect-autopilot'
@@ -2706,6 +2808,13 @@ declare module '@tanstack/react-router' {
       path: '/api/public/jobs/prospect-replies'
       fullPath: '/api/public/jobs/prospect-replies'
       preLoaderRoute: typeof ApiPublicJobsProspectRepliesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/jobs/qa-jobs': {
+      id: '/api/public/jobs/qa-jobs'
+      path: '/api/public/jobs/qa-jobs'
+      fullPath: '/api/public/jobs/qa-jobs'
+      preLoaderRoute: typeof ApiPublicJobsQaJobsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/jobs/site-content-audit': {
@@ -2750,11 +2859,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicPaymentsWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/twilio/call-status': {
+      id: '/api/public/twilio/call-status'
+      path: '/api/public/twilio/call-status'
+      fullPath: '/api/public/twilio/call-status'
+      preLoaderRoute: typeof ApiPublicTwilioCallStatusRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/twilio/inbound': {
       id: '/api/public/twilio/inbound'
       path: '/api/public/twilio/inbound'
       fullPath: '/api/public/twilio/inbound'
       preLoaderRoute: typeof ApiPublicTwilioInboundRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/twilio/voice': {
+      id: '/api/public/twilio/voice'
+      path: '/api/public/twilio/voice'
+      fullPath: '/api/public/twilio/voice'
+      preLoaderRoute: typeof ApiPublicTwilioVoiceRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/lovable/email/auth/preview': {
@@ -3076,6 +3199,7 @@ const rootRouteChildren: RootRouteChildren = {
     Char91DotwellKnownChar93OauthProtectedResourceRoute,
   CompareSlugRoute: CompareSlugRoute,
   CrmTradeRoute: CrmTradeRoute,
+  FeedbackTokenRoute: FeedbackTokenRoute,
   GuidesSlugRoute: GuidesSlugRoute,
   InviteTokenRoute: InviteTokenRoute,
   LocationsCityRoute: LocationsCityRoute,
@@ -3106,6 +3230,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicAgentHealthRoute: ApiPublicAgentHealthRoute,
   ApiPublicAgentProspectsRoute: ApiPublicAgentProspectsRoute,
   ApiPublicInstagramCallbackRoute: ApiPublicInstagramCallbackRoute,
+  ApiPublicJobsAgentRoutinesRoute: ApiPublicJobsAgentRoutinesRoute,
   ApiPublicJobsAgentRunsRoute: ApiPublicJobsAgentRunsRoute,
   ApiPublicJobsAutomationRunsRoute: ApiPublicJobsAutomationRunsRoute,
   ApiPublicJobsBackupRoute: ApiPublicJobsBackupRoute,
@@ -3118,15 +3243,19 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicJobsLeadReminderRoute: ApiPublicJobsLeadReminderRoute,
   ApiPublicJobsLifecycleEmailRoute: ApiPublicJobsLifecycleEmailRoute,
   ApiPublicJobsMediaCleanupRoute: ApiPublicJobsMediaCleanupRoute,
+  ApiPublicJobsMonthlyReportRoute: ApiPublicJobsMonthlyReportRoute,
   ApiPublicJobsProspectAutopilotRoute: ApiPublicJobsProspectAutopilotRoute,
   ApiPublicJobsProspectRepliesRoute: ApiPublicJobsProspectRepliesRoute,
+  ApiPublicJobsQaJobsRoute: ApiPublicJobsQaJobsRoute,
   ApiPublicJobsSiteContentAuditRoute: ApiPublicJobsSiteContentAuditRoute,
   ApiPublicJobsSiteEngineRoute: ApiPublicJobsSiteEngineRoute,
   ApiPublicJobsSiteHealthRoute: ApiPublicJobsSiteHealthRoute,
   ApiPublicJobsSiteHostingRoute: ApiPublicJobsSiteHostingRoute,
   ApiPublicJobsWeeklyReportRoute: ApiPublicJobsWeeklyReportRoute,
   ApiPublicPaymentsWebhookRoute: ApiPublicPaymentsWebhookRoute,
+  ApiPublicTwilioCallStatusRoute: ApiPublicTwilioCallStatusRoute,
   ApiPublicTwilioInboundRoute: ApiPublicTwilioInboundRoute,
+  ApiPublicTwilioVoiceRoute: ApiPublicTwilioVoiceRoute,
   LovableEmailAuthPreviewRoute: LovableEmailAuthPreviewRoute,
   LovableEmailAuthWebhookRoute: LovableEmailAuthWebhookRoute,
   LovableEmailTransactionalPreviewRoute: LovableEmailTransactionalPreviewRoute,

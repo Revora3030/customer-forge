@@ -159,3 +159,30 @@ describe("plain field validation errors name the field and never retry", () => {
     expect(classifyBuildFailure(new Error("fetch failed")).retryable).toBe(true);
   });
 });
+
+describe("inline fix-this-field prompt (T051)", () => {
+  it("names the refused fields for a stored integrity refusal", () => {
+    const error = integrityError();
+    const row = { status: "failed", failure_kind: "intake_validation", error_message: tagFailureMessage("intake_validation", error.message) };
+    const failure = describeBuildFailure(row);
+    expect(failure?.fixFields?.length).toBeGreaterThan(0);
+    expect(failure?.fixFields).toContain("business email");
+  });
+
+  it("names a plain validation field", () => {
+    const failure = describeBuildFailure({ status: "failed", error_message: '[intake_validation] null value in column "city" violates not-null constraint' });
+    expect(failure?.fixFields).toEqual(["city"]);
+  });
+
+  it("has no prompt for other failure kinds", () => {
+    const failure = describeBuildFailure({ status: "failed", error_message: "[provider] gateway busy" });
+    expect(failure?.fixFields).toBeUndefined();
+  });
+
+  it("wires the prompt to Business details in the builder", () => {
+    const panel = readFileSync("src/components/app/SiteEngine.tsx", "utf8");
+    expect(panel).toContain('data-testid="fix-this-field"');
+    const page = readFileSync("src/routes/_authenticated/app.website.tsx", "utf8");
+    expect(page).toContain("onFixDetails={() => setSetupOpen(true)}");
+  });
+});

@@ -113,7 +113,9 @@ export function RevoraMobileBar() {
       {/* Keeps the bar from covering whatever sits at the bottom of the page,
           such as the send button on the contact form. */}
       <div className="h-24 md:hidden" aria-hidden="true" />
-      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 px-2 py-2 backdrop-blur md:hidden">
+      {/* `revora-mobile-bar` lets the cookie banner stack above this bar on
+          phones instead of covering it (see styles.css). */}
+      <div className="revora-mobile-bar fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 px-2 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] backdrop-blur md:hidden">
         <div className="grid grid-cols-3 gap-2">
           <Button asChild variant="outline" size="sm" className="min-h-11">
             <a href={revoraMailto(MAIL_SUBJECTS.inquiry)}>Email</a>
