@@ -78,7 +78,7 @@ export function smokeTargets(input: {
 }): { targets: SmokeTarget[]; pendingDomain: string | null } {
   const slug = String(input.slug ?? "").trim();
   if (!slug) return { targets: [], pendingDomain: null };
-  const platform = liveSiteUrl({ slug, platformOrigin: input.platformOrigin });
+  const platform = liveSiteUrl(input.platformOrigin === undefined ? { slug } : { slug, platformOrigin: input.platformOrigin });
   const targets: SmokeTarget[] = [{ label: "platform", base: platform }];
   const live = liveSiteUrl({ ...input, slug });
   const domain = input.customDomain?.trim().toLowerCase() || null;
