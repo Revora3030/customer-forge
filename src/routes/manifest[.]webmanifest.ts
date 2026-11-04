@@ -14,8 +14,9 @@ export const Route = createFileRoute("/manifest.webmanifest")({
             short_name: "Revora",
             description:
               "Your website, quotes, bookings, follow-up and reviews in one growth system.",
+            id: "/app",
             start_url: "/app",
-            scope: "/",
+            scope: "/app",
             display: "standalone",
             orientation: "portrait-primary",
             background_color: "#0A0A0C",
