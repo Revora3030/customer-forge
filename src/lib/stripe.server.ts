@@ -44,7 +44,7 @@ export function signatureMatches(expected: string, candidates: string[]): boolea
     const b = new TextEncoder().encode(candidate);
     if (b.length !== a.length) continue;
     let diff = 0;
-    for (let i = 0; i < a.length; i++) diff |= a[i] ^ b[i];
+    for (let i = 0; i < a.length; i++) diff |= (a[i] ?? 0) ^ (b[i] ?? 0);
     found |= diff === 0 ? 1 : 0;
   }
   return found === 1;
