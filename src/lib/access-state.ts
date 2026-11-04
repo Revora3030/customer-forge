@@ -36,7 +36,13 @@ export type AccessOrgFields = TrialOrgFields & {
   is_suspended?: boolean | null;
   setup_paid_at?: string | null;
   setup_payment_status?: string | null;
+  /** When the workspace entered past_due (stamped by a DB trigger). */
+  past_due_since?: string | null;
 };
+
+/** How long a past_due workspace keeps access while the card is fixed. */
+export const PAST_DUE_GRACE_DAYS = 14;
+const PAST_DUE_GRACE_MS = PAST_DUE_GRACE_DAYS * 24 * 60 * 60 * 1000;
 
 export type AccessDecision = {
   state: AccountState;
@@ -130,6 +136,17 @@ export function resolveAccess(org: AccessOrgFields | null | undefined): AccessDe
     };
   }
   if (status === "past_due") {
+    const since = org.past_due_since ? Date.parse(org.past_due_since) : NaN;
+    if (Number.isFinite(since) && Date.now() - since > PAST_DUE_GRACE_MS) {
+      return {
+        state: "PAST_DUE",
+        allowed: false,
+        label: "Payment needs attention",
+        reason: `Your payment has been overdue for more than ${PAST_DUE_GRACE_DAYS} days, so your work is saved but locked. Update your card in billing to restore access.`,
+        builderUsage: "included",
+        trialEndsAt,
+      };
+    }
     return {
       state: "PAST_DUE",
       allowed: true,
