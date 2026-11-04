@@ -90,9 +90,10 @@ export function tenantBrandFacts(input: BrandFactsInput): BrandFacts {
       const spec = offer["priceSpecification"] as Record<string, unknown> | undefined;
       const price = str(offer["price"]);
       const startingPrice = str(spec?.["minPrice"]);
+      const description = str(item?.["description"]);
       return [{
         name,
-        ...(str(item?.["description"]) ? { description: str(item?.["description"]) } : {}),
+        ...(description ? { description } : {}),
         ...(price ? { price } : {}),
         ...(startingPrice ? { startingPrice } : {}),
         ...(price || startingPrice ? { currency: "USD" as const } : {}),
