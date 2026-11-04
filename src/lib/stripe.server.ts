@@ -13,8 +13,41 @@ export type StripeEnv = "sandbox" | "live";
  * environment names are kept for database/subscription compatibility, but every
  * Stripe call goes to the same connected account via STRIPE_SECRET_KEY.
  */
-export function getConnectionApiKey(_env: StripeEnv): string {
-  return getEnv("STRIPE_SECRET_KEY");
+export function getConnectionApiKey(env: StripeEnv): string {
+  const key = getEnv("STRIPE_SECRET_KEY");
+  assertKeyMatchesEnv(key, env);
+  return key;
+}
+
+/**
+ * Stripe keys carry their mode in the prefix (sk_test_/rk_test_ vs
+ * sk_live_/rk_live_). Because both environments share one key, a sandbox
+ * request must never run against a live key (real charges), and a live
+ * request must never silently run against a test key. Never logs the key.
+ */
+export function assertKeyMatchesEnv(key: string, env: StripeEnv): void {
+  const live = /^(sk|rk)_live_/.test(key);
+  const test = /^(sk|rk)_test_/.test(key);
+  if (env === "sandbox" && !test) {
+    throw new Error("STRIPE_SECRET_KEY is not a test-mode key; refusing sandbox Stripe call");
+  }
+  if (env === "live" && !live) {
+    throw new Error("STRIPE_SECRET_KEY is not a live-mode key; refusing live Stripe call");
+  }
+}
+
+/** Constant-time comparison of a hex signature against the candidates. */
+export function signatureMatches(expected: string, candidates: string[]): boolean {
+  const a = new TextEncoder().encode(expected);
+  let found = 0;
+  for (const candidate of candidates) {
+    const b = new TextEncoder().encode(candidate);
+    if (b.length !== a.length) continue;
+    let diff = 0;
+    for (let i = 0; i < a.length; i++) diff |= a[i] ^ b[i];
+    found |= diff === 0 ? 1 : 0;
+  }
+  return found === 1;
 }
 
 export function createStripeClient(env: StripeEnv): Stripe {
@@ -102,7 +135,7 @@ export async function verifyWebhook(
     new TextEncoder().encode(`${timestamp}.${body}`),
   );
   const expected = Buffer.from(new Uint8Array(signed)).toString("hex");
-  if (!v1Signatures.includes(expected)) throw new Error("Invalid webhook signature");
+  if (!signatureMatches(expected, v1Signatures)) throw new Error("Invalid webhook signature");
 
   return JSON.parse(body);
 }
