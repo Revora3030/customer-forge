@@ -156,6 +156,99 @@ export type Database = {
           },
         ]
       }
+      agent_limits: {
+        Row: {
+          max_concurrent_runs: number | null
+          max_runs_per_hour: number | null
+          max_tool_calls_per_minute: number | null
+          organization_id: string
+          run_budget_microcents: number | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          max_concurrent_runs?: number | null
+          max_runs_per_hour?: number | null
+          max_tool_calls_per_minute?: number | null
+          organization_id: string
+          run_budget_microcents?: number | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          max_concurrent_runs?: number | null
+          max_runs_per_hour?: number | null
+          max_tool_calls_per_minute?: number | null
+          organization_id?: string
+          run_budget_microcents?: number | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_limits_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_limits_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "public_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agent_run_admissions: {
+        Row: {
+          cancel_reason: string | null
+          created_at: string
+          finished_at: string | null
+          id: string
+          organization_id: string
+          run_id: string
+          started_at: string | null
+          status: string
+        }
+        Insert: {
+          cancel_reason?: string | null
+          created_at?: string
+          finished_at?: string | null
+          id?: string
+          organization_id: string
+          run_id: string
+          started_at?: string | null
+          status?: string
+        }
+        Update: {
+          cancel_reason?: string | null
+          created_at?: string
+          finished_at?: string | null
+          id?: string
+          organization_id?: string
+          run_id?: string
+          started_at?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_run_admissions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_run_admissions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "public_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       agent_run_events: {
         Row: {
           created_at: string
@@ -354,6 +447,45 @@ export type Database = {
             foreignKeyName: "agent_runs_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "public_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agent_settings: {
+        Row: {
+          disabled_reason: string | null
+          enabled: boolean
+          organization_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          disabled_reason?: string | null
+          enabled?: boolean
+          organization_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          disabled_reason?: string | null
+          enabled?: boolean
+          organization_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_settings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_settings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
             referencedRelation: "public_organizations"
             referencedColumns: ["id"]
           },
@@ -7892,6 +8024,32 @@ export type Database = {
         Returns: Json
       }
       agent_approval_sweep: { Args: never; Returns: number }
+      agent_limits_admit_run: {
+        Args: {
+          _max_concurrent: number
+          _max_per_hour: number
+          _organization_id: string
+          _run_id: string
+        }
+        Returns: {
+          admitted: boolean
+          in_flight: number
+          reason: string
+          runs_last_hour: number
+        }[]
+      }
+      agent_limits_cancel_queued: {
+        Args: { _organization_id: string; _reason: string }
+        Returns: {
+          organization_id: string
+          run_id: string
+        }[]
+      }
+      agent_limits_mark_finished: {
+        Args: { _run_id: string }
+        Returns: boolean
+      }
+      agent_limits_mark_started: { Args: { _run_id: string }; Returns: boolean }
       agent_run_add_event: {
         Args: {
           _data?: Json

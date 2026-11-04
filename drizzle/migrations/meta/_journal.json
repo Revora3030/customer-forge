@@ -239,6 +239,13 @@
       "when": 1793816030250,
       "tag": "0033_agent_approvals",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1793816087241,
+      "tag": "0034_agent_limits",
+      "breakpoints": true
     }
   ]
 }
