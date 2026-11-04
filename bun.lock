@@ -15,7 +15,6 @@
         "@lovable.dev/mcp-js": "^3.1.1",
         "@lovable.dev/webhooks-js": "^0.0.1",
         "@paper-design/shaders-react": "0.0.82",
-        "@perplexity-ai/perplexity_ai": "^0.39.1",
         "@photo-sphere-viewer/core": "5.15.1",
         "@radix-ui/react-accordion": "^1.2.12",
         "@radix-ui/react-alert-dialog": "^1.1.15",
@@ -595,8 +594,6 @@
     "@pdf-lib/standard-fonts": ["@pdf-lib/standard-fonts@1.0.0", "", { "dependencies": { "pako": "^1.0.6" } }, "sha512-hU30BK9IUN/su0Mn9VdlVKsWBS6GyhVfqjwl1FjZN4TxP6cCw0jP2w7V3Hf5uX7M0AZJ16vey9yE0ny7Sa59ZA=="],
 
     "@pdf-lib/upng": ["@pdf-lib/upng@1.0.1", "", { "dependencies": { "pako": "^1.0.10" } }, "sha512-dQK2FUMQtowVP00mtIksrlZhdFXQZPC+taih1q4CvPZ5vqdxR/LKBaFg0oAfzd1GlHZXXSPdQfzQnt+ViGvEIQ=="],
-
-    "@perplexity-ai/perplexity_ai": ["@perplexity-ai/perplexity_ai@0.39.1", "https://europe-west1-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache/@perplexity-ai/perplexity_ai/-/perplexity_ai-0.39.1.tgz", {}, "sha512-hTYweSKbDX9lwKTQLUXZ7S3/oKnwf4tL3TsbBhTXrOqUcV1PGKv0Ml2XZ7ls/ETOyQssFD0eBrAbG4rS6Gvk4g=="],
 
     "@photo-sphere-viewer/core": ["@photo-sphere-viewer/core@5.15.1", "", { "dependencies": { "three": "^0.185.1" } }, "sha512-nhJviczUB1xiAT/I7mGba9iDIw7DvsiK34hbR9t7kIrg9MySG33uA+a4QUk2dEOP5PjcKMj58wod8I/dQ7ePiw=="],
 
