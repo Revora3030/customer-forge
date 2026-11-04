@@ -267,12 +267,12 @@ describe("runLeadDeliveryWatchdog", () => {
 });
 
 describe("wiring", () => {
-  it("has a cron-authenticated route, a 5-minute pg_cron schedule, RLS and an hourly backstop", () => {
+  it("has a cron-authenticated route, a 15-minute pg_cron schedule, RLS and an hourly backstop", () => {
     const route = readFileSync("src/routes/api/public/jobs/lead-delivery-watchdog.ts", "utf8");
     expect(route).toContain("authenticateCronRequest(request)");
     expect(route).toContain("runLeadDeliveryWatchdog");
     const sql = readFileSync("supabase/migrations/20261101010000_lead_delivery_watchdog.sql", "utf8");
-    expect(sql).toContain("'*/5 * * * *'");
+    expect(sql).toContain("'*/15 * * * *'");
     expect(sql).toContain("call_revora_job('lead-delivery-watchdog', 600000)");
     expect(sql).toContain("ALTER TABLE public.lead_delivery_watch ENABLE ROW LEVEL SECURITY");
     expect(sql).toContain("ALTER TABLE public.lead_watchdog_events ENABLE ROW LEVEL SECURITY");
