@@ -1,17 +1,23 @@
 /**
- * Perplexity Agent API — web-grounded answers. Server-only.
+ * Web-grounded research answers ("research.ask"). Server-only.
  *
- * Uses the workspace owner's own Perplexity key (`PERPLEXITY_API_KEY_1`, a
- * `pplx-` key) against the Perplexity API directly. `PERPLEXITY_API_KEY` is the
- * separate Lovable-managed connection key and is gateway/Search-API-only — it
- * must never be sent to api.perplexity.ai.
+ * Runs entirely on Lovable paths, per the rule that the Lovable AI Gateway is
+ * Revora's only AI provider:
+ *   1. live web results come from the Lovable connector-gateway search path in
+ *      research.server.ts (`searchWeb`);
+ *   2. the answer is written by the Lovable AI router (`generateText`), with an
+ *      explicit per-call timeout and chain deadline, and the router's own retry
+ *      policy, failover and error categories.
+ * Nothing here calls a third-party AI host directly or reads an owner's
+ * direct-API key.
  *
- * Answers are third-party research with citations: evidence for a human or an
- * AI checkpoint to review, never a verified business fact. The key is read at
- * call time and never logged.
+ * The exported name and types are kept so callers (perplexity-agent.functions.ts,
+ * the Jarvis research card) do not change. Answers are third-party research
+ * with citations: evidence for a human or an AI checkpoint to review, never a
+ * verified business fact.
  */
 
-import Perplexity from "@perplexity-ai/perplexity_ai";
+import type { RevoraAiError } from "@/lib/ai/errors";
 
 export type AgentPreset = "fast" | "low" | "medium" | "high" | "xhigh";
 
@@ -28,7 +34,7 @@ export type AgentAnswer = {
 
 export type AgentFailure = {
   ok: false;
-  reason: "not_configured" | "quota_exhausted" | "rate_limited" | "provider_error";
+  reason: "not_configured" | "quota_exhausted" | "rate_limited" | "timeout" | "provider_error";
   detail: string;
   retryAfterSeconds?: number;
 };
@@ -38,121 +44,108 @@ export type AgentRequest = {
   preset?: AgentPreset;
   instructions?: string;
   maxOutputTokens?: number;
+  /** Kept for interface compatibility; the Lovable paths read their own configuration. */
   environment?: Readonly<Record<string, string | undefined>>;
 };
 
-const ENDPOINT = "https://api.perplexity.ai/v1/agent";
+/** How much each preset searches, writes and waits. Timeouts are per model call; the deadline covers failover. */
+export const RESEARCH_PRESETS: Record<AgentPreset, { results: number; tokens: number; timeoutMs: number; chainDeadlineMs: number }> = {
+  fast: { results: 5, tokens: 900, timeoutMs: 30_000, chainDeadlineMs: 45_000 },
+  low: { results: 6, tokens: 1_200, timeoutMs: 35_000, chainDeadlineMs: 55_000 },
+  medium: { results: 8, tokens: 1_600, timeoutMs: 45_000, chainDeadlineMs: 70_000 },
+  high: { results: 10, tokens: 2_400, timeoutMs: 60_000, chainDeadlineMs: 90_000 },
+  xhigh: { results: 10, tokens: 3_200, timeoutMs: 60_000, chainDeadlineMs: 90_000 },
+};
 
-type UnknownRecord = Record<string, unknown>;
+const SYSTEM = [
+  "You answer research questions using ONLY the numbered web sources provided.",
+  "Cite every claim with its source number in square brackets, like [1] or [2][3].",
+  "If the sources do not answer the question, say so plainly instead of guessing.",
+  "Be concise. This is third-party research for a person to review, not a verified fact.",
+].join(" ");
 
-const asRecord = (value: unknown): UnknownRecord | null =>
-  value !== null && typeof value === "object" ? (value as UnknownRecord) : null;
-
-function extractCitations(output: unknown): string[] {
-  const urls = new Set<string>();
-  if (!Array.isArray(output)) return [];
-  for (const item of output) {
-    const record = asRecord(item);
-    if (!record || record["type"] !== "message" || !Array.isArray(record["content"])) continue;
-    for (const content of record["content"]) {
-      const part = asRecord(content);
-      if (!part || part["type"] !== "output_text" || !Array.isArray(part["annotations"])) continue;
-      for (const annotation of part["annotations"]) {
-        const note = asRecord(annotation);
-        const url = typeof note?.["url"] === "string" ? note["url"] : null;
-        if (url) urls.add(url);
-      }
-    }
-  }
-  return [...urls];
+function isAiError(error: unknown): error is RevoraAiError {
+  return error instanceof Error && typeof (error as { category?: unknown }).category === "string";
 }
 
-function extractSearchResults(output: unknown): AgentSearchResult[] {
-  const results: AgentSearchResult[] = [];
-  if (!Array.isArray(output)) return results;
-  for (const item of output) {
-    const record = asRecord(item);
-    if (!record || record["type"] !== "search_results" || !Array.isArray(record["results"])) continue;
-    for (const result of record["results"]) {
-      const entry = asRecord(result);
-      if (!entry) continue;
-      const url = typeof entry["url"] === "string" ? entry["url"] : null;
-      if (!url) continue;
-      results.push({ title: typeof entry["title"] === "string" ? entry["title"] : null, url });
-    }
+/** Maps the router's error categories onto this module's stable failure reasons. */
+function failureFrom(error: unknown): AgentFailure {
+  if (!isAiError(error)) {
+    return { ok: false, reason: "provider_error", detail: "Revora AI couldn't write a research answer. Try again." };
   }
-  return results;
+  const retry = typeof error.retryAfterSeconds === "number" ? { retryAfterSeconds: error.retryAfterSeconds } : {};
+  switch (error.category) {
+    case "not_configured":
+    case "free_unavailable":
+      return { ok: false, reason: "not_configured", detail: "Revora AI (Lovable AI Gateway) isn't available for research right now." };
+    case "quota":
+      return { ok: false, reason: "quota_exhausted", detail: "Revora AI is out of credits for paid research. Add Lovable AI credits, then try again.", ...retry };
+    case "rate_limited":
+    case "workspace_cooldown":
+      return { ok: false, reason: "rate_limited", detail: "Revora AI is rate limited; wait a moment before retrying.", ...retry };
+    case "timeout":
+      return { ok: false, reason: "timeout", detail: "Revora AI took too long to write the research answer. Try again." };
+    default:
+      return { ok: false, reason: "provider_error", detail: `Revora AI couldn't write a research answer (${error.category}). Try again.` };
+  }
 }
 
-function classifyError(error: unknown): AgentFailure {
-  const record = asRecord(error);
-  const status = typeof record?.["status"] === "number" ? record["status"] : null;
-  const bodyText = JSON.stringify(record?.["error"] ?? record?.["message"] ?? "");
-  if (status === 401 && bodyText.includes("insufficient_quota")) {
-    return {
-      ok: false,
-      reason: "quota_exhausted",
-      detail:
-        "Perplexity API credits are exhausted on the owner's account. Buy credits at https://console.perplexity.ai — API credits are separate from a Perplexity Pro subscription.",
-    };
+/** Source numbers the answer actually cites, in order of first use. */
+function citedUrls(text: string, sources: AgentSearchResult[]): string[] {
+  const urls: string[] = [];
+  for (const match of text.matchAll(/\[(\d{1,2})\]/g)) {
+    const source = sources[Number(match[1]) - 1];
+    if (source && !urls.includes(source.url)) urls.push(source.url);
   }
-  if (status === 429) {
-    const headers = record?.["headers"];
-    const retryAfterRaw =
-      headers instanceof Headers
-        ? headers.get("retry-after")
-        : asRecord(headers)?.["retry-after"];
-    const retryAfterSeconds =
-      typeof retryAfterRaw === "string" && Number.isFinite(Number(retryAfterRaw))
-        ? Number(retryAfterRaw)
-        : undefined;
-    return {
-      ok: false,
-      reason: "rate_limited",
-      detail: "Perplexity rate limit hit; honor Retry-After before retrying.",
-      ...(retryAfterSeconds !== undefined ? { retryAfterSeconds } : {}),
-    };
-  }
-  const message = error instanceof Error ? error.message : String(error);
-  return {
-    ok: false,
-    reason: "provider_error",
-    detail: `Perplexity Agent request failed${status ? ` [${status}]` : ""}: ${message.slice(0, 500)}`,
-  };
+  return urls;
 }
 
 export async function runPerplexityAgent(request: AgentRequest): Promise<AgentAnswer | AgentFailure> {
-  const env = request.environment ?? process.env;
-  const apiKey = env["PERPLEXITY_API_KEY_1"];
-  if (!apiKey) {
-    return {
-      ok: false,
-      reason: "not_configured",
-      detail: "PERPLEXITY_API_KEY_1 is not configured; link the owner's own Perplexity connection.",
-    };
-  }
+  const preset = RESEARCH_PRESETS[request.preset ?? "fast"];
+  const question = request.input.trim().slice(0, 4_000);
 
-  // No SDK-internal retries: callers get the failure (and Retry-After) to decide.
-  const client = new Perplexity({ apiKey, maxRetries: 0 });
+  // 1. Live sources from the Lovable connector-gateway search path.
+  const { searchWeb } = await import("./research.server");
+  const found = await searchWeb(question, preset.results);
+  if (!found.ok) {
+    if (found.reason === "not_configured")
+      return { ok: false, reason: "not_configured", detail: "Web search isn't connected; link the Perplexity connection in Lovable." };
+    if (/timeout|timed out|abort/i.test(`${found.reason} ${found.detail}`))
+      return { ok: false, reason: "timeout", detail: "Web search took too long to answer. Try again." };
+    if (/\b429\b|rate/i.test(found.detail))
+      return { ok: false, reason: "rate_limited", detail: "Web search is rate limited; wait a moment before retrying." };
+    return { ok: false, reason: "provider_error", detail: "Web search couldn't be reached, so no research answer was written." };
+  }
+  const searchResults: AgentSearchResult[] = found.results.map((r) => ({ title: r.title || null, url: r.url }));
+  const sourceBlock = found.results.length
+    ? found.results.map((r, i) => `[${i + 1}] ${r.title || r.url}\n${r.url}${r.date ? ` (${r.date})` : ""}\n${r.snippet}`).join("\n\n")
+    : "(no web results were found)";
+
+  // 2. The answer, written through the Lovable AI router.
+  const { generateText } = await import("@/lib/ai/router.server");
   try {
-    const response = await client.responses.create({
-      preset: request.preset ?? "fast",
-      input: request.input,
-      ...(request.instructions ? { instructions: request.instructions } : {}),
-      ...(request.maxOutputTokens ? { max_output_tokens: request.maxOutputTokens } : {}),
-    });
-    const record = asRecord(response) ?? {};
+    const result = await generateText(
+      { task: "research.ask" },
+      {
+        messages: [
+          { role: "system", content: request.instructions ? `${SYSTEM}\n\n${request.instructions.slice(0, 2_000)}` : SYSTEM },
+          { role: "user", content: `Question: ${question}\n\nSources:\n${sourceBlock}` },
+        ],
+        maxOutputTokens: request.maxOutputTokens ?? preset.tokens,
+        timeoutMs: preset.timeoutMs,
+        chainDeadlineMs: preset.chainDeadlineMs,
+      },
+    );
+    const text = result.text.trim();
     return {
       ok: true,
-      id: typeof record["id"] === "string" ? record["id"] : "",
-      model: typeof record["model"] === "string" ? record["model"] : null,
-      text: typeof record["output_text"] === "string" ? record["output_text"] : "",
-      citations: extractCitations(record["output"]),
-      searchResults: extractSearchResults(record["output"]),
+      id: result.requestId,
+      model: `${result.provider}/${result.model}`,
+      text,
+      citations: citedUrls(text, searchResults),
+      searchResults,
     };
   } catch (error) {
-    return classifyError(error);
+    return failureFrom(error);
   }
 }
-
-export { ENDPOINT as PERPLEXITY_AGENT_ENDPOINT };

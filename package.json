@@ -79,7 +79,6 @@
     "@lovable.dev/mcp-js": "^3.1.1",
     "@lovable.dev/webhooks-js": "^0.0.1",
     "@paper-design/shaders-react": "0.0.82",
-    "@perplexity-ai/perplexity_ai": "^0.39.1",
     "@photo-sphere-viewer/core": "5.15.1",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-alert-dialog": "^1.1.15",
