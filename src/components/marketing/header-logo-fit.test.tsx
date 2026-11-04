@@ -33,7 +33,10 @@ describe("marketing header brand fits beside the phone auth buttons", () => {
 
   it("hides only the wordmark below 360px; the mark and accessible name stay", () => {
     expect(home).toMatch(/<span class="[^"]*max-\[359px\]:hidden[^"]*"><span[^>]*>REVORA<\/span>/);
-    expect(home).toContain('alt="Revora"');
+    // The link's aria-label is the accessible name at every width; the mark image sits in an
+    // aria-hidden span, so its alt is "" (not read twice beside the wordmark).
+    expect(home).toMatch(/^<a[^>]*aria-label="Revora home"/);
+    expect(home).toMatch(/<img [^>]*src="\/revora-mark-[^"]+"/);
     expect(html).toContain("Sign up");
   });
 });
