@@ -1727,6 +1727,82 @@ export type Database = {
           },
         ]
       }
+      estimate_signatures: {
+        Row: {
+          created_at: string
+          document_json: Json
+          document_kind: string
+          document_number: string
+          document_sha256: string
+          id: string
+          ip_hash: string | null
+          lead_id: string | null
+          organization_id: string
+          recorded_by: string | null
+          signed_at: string
+          signer_name: string
+          storage_path: string
+          total_cents: number | null
+          user_agent: string | null
+        }
+        Insert: {
+          created_at?: string
+          document_json: Json
+          document_kind?: string
+          document_number: string
+          document_sha256: string
+          id?: string
+          ip_hash?: string | null
+          lead_id?: string | null
+          organization_id: string
+          recorded_by?: string | null
+          signed_at?: string
+          signer_name: string
+          storage_path: string
+          total_cents?: number | null
+          user_agent?: string | null
+        }
+        Update: {
+          created_at?: string
+          document_json?: Json
+          document_kind?: string
+          document_number?: string
+          document_sha256?: string
+          id?: string
+          ip_hash?: string | null
+          lead_id?: string | null
+          organization_id?: string
+          recorded_by?: string | null
+          signed_at?: string
+          signer_name?: string
+          storage_path?: string
+          total_cents?: number | null
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "estimate_signatures_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "estimate_signatures_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "estimate_signatures_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "public_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       gbp_profiles: {
         Row: {
           avg_rating: number | null
