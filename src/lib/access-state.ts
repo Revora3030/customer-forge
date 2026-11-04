@@ -114,7 +114,22 @@ export function resolveAccess(org: AccessOrgFields | null | undefined): AccessDe
       trialEndsAt,
     };
   }
-  if (status === "past_due" || status === "unpaid" || status === "incomplete") {
+  // Stripe moves a subscription to "unpaid" (or "incomplete_expired") only
+  // after every retry failed. That is the end of dunning, not a grace state:
+  // the work is kept but locked, exactly like a cancellation, even if the
+  // setup fee was paid once. "incomplete" means the first charge never
+  // succeeded, so it grants nothing on its own (trial/setup rules still apply).
+  if (status === "unpaid" || status === "incomplete_expired") {
+    return {
+      state: "CANCELED",
+      allowed: false,
+      label: "Payment failed",
+      reason: `Your payments didn't go through after several attempts, so your work is saved but locked. Update your card in billing to restore access.`,
+      builderUsage: "included",
+      trialEndsAt,
+    };
+  }
+  if (status === "past_due") {
     return {
       state: "PAST_DUE",
       allowed: true,
@@ -127,7 +142,7 @@ export function resolveAccess(org: AccessOrgFields | null | undefined): AccessDe
   // Setup paid, monthly not yet canceled: access is active. This is checked
   // AFTER the failed/canceled states so a setup payment can never
   // grant permanent access once the monthly subscription stops paying.
-  if (setupPaid && status !== "canceled" && status !== "cancelled") {
+  if (setupPaid && status !== "canceled" && status !== "cancelled" && status !== "incomplete") {
     return {
       state: "ACTIVE_SETUP",
       allowed: true,
