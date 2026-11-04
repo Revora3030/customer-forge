@@ -17,9 +17,10 @@ function emailNotConfigured(error: unknown, label: string): DeliveryResult | nul
   if (typeof error !== "object" || error === null || (error as { code?: unknown }).code !== "email_not_configured") {
     return null;
   }
-  // Warn, never crash: names the missing secret only. Retryable so the send
-  // goes out once the secret is added.
-  console.warn(`[${label}] email not sent: LOVABLE_API_KEY is not configured`);
+  // Warn, never crash: the error message names the missing secret only, never
+  // a value. Retryable so the send goes out once the secret is added.
+  const detail = error instanceof Error ? error.message : "email secret is not configured";
+  console.warn(`[${label}] email not sent: ${detail}`);
   return { ok: false, retry: true, reason: "email_not_configured" };
 }
 
