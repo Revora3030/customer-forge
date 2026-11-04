@@ -1237,6 +1237,72 @@ export type Database = {
           },
         ]
       }
+      builder_quality_log: {
+        Row: {
+          attempt: number
+          bar: number | null
+          blueprint_source: string | null
+          capped: string | null
+          created_at: string
+          event_kind: string
+          failures: Json
+          gate_mode: string | null
+          id: string
+          organization_id: string
+          passed: boolean | null
+          score: number | null
+          step_roles: Json | null
+          trade_slug: string
+        }
+        Insert: {
+          attempt?: number
+          bar?: number | null
+          blueprint_source?: string | null
+          capped?: string | null
+          created_at?: string
+          event_kind: string
+          failures?: Json
+          gate_mode?: string | null
+          id?: string
+          organization_id: string
+          passed?: boolean | null
+          score?: number | null
+          step_roles?: Json | null
+          trade_slug: string
+        }
+        Update: {
+          attempt?: number
+          bar?: number | null
+          blueprint_source?: string | null
+          capped?: string | null
+          created_at?: string
+          event_kind?: string
+          failures?: Json
+          gate_mode?: string | null
+          id?: string
+          organization_id?: string
+          passed?: boolean | null
+          score?: number | null
+          step_roles?: Json | null
+          trade_slug?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "builder_quality_log_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "builder_quality_log_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "public_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       builder_reply_drafts: {
         Row: {
           organization_id: string
@@ -1720,6 +1786,82 @@ export type Database = {
           },
           {
             foreignKeyName: "error_events_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "public_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      estimate_signatures: {
+        Row: {
+          created_at: string
+          document_json: Json
+          document_kind: string
+          document_number: string
+          document_sha256: string
+          id: string
+          ip_hash: string | null
+          lead_id: string | null
+          organization_id: string
+          recorded_by: string | null
+          signed_at: string
+          signer_name: string
+          storage_path: string
+          total_cents: number | null
+          user_agent: string | null
+        }
+        Insert: {
+          created_at?: string
+          document_json: Json
+          document_kind?: string
+          document_number: string
+          document_sha256: string
+          id?: string
+          ip_hash?: string | null
+          lead_id?: string | null
+          organization_id: string
+          recorded_by?: string | null
+          signed_at?: string
+          signer_name: string
+          storage_path: string
+          total_cents?: number | null
+          user_agent?: string | null
+        }
+        Update: {
+          created_at?: string
+          document_json?: Json
+          document_kind?: string
+          document_number?: string
+          document_sha256?: string
+          id?: string
+          ip_hash?: string | null
+          lead_id?: string | null
+          organization_id?: string
+          recorded_by?: string | null
+          signed_at?: string
+          signer_name?: string
+          storage_path?: string
+          total_cents?: number | null
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "estimate_signatures_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "estimate_signatures_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "estimate_signatures_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "public_organizations"
@@ -5946,6 +6088,54 @@ export type Database = {
             foreignKeyName: "site_content_audits_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "public_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      site_hosting_grace: {
+        Row: {
+          created_at: string
+          ended_at: string
+          offline_after: string
+          offline_at: string | null
+          organization_id: string
+          stripe_subscription_id: string | null
+          updated_at: string
+          warning_sent_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          ended_at: string
+          offline_after: string
+          offline_at?: string | null
+          organization_id: string
+          stripe_subscription_id?: string | null
+          updated_at?: string
+          warning_sent_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          ended_at?: string
+          offline_after?: string
+          offline_at?: string | null
+          organization_id?: string
+          stripe_subscription_id?: string | null
+          updated_at?: string
+          warning_sent_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "site_hosting_grace_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "site_hosting_grace_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
             referencedRelation: "public_organizations"
             referencedColumns: ["id"]
           },
