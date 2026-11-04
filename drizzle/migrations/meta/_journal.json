@@ -218,6 +218,27 @@
       "when": 1793815970689,
       "tag": "0030_agent_runs",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1793816000789,
+      "tag": "0031_generation_jobs_fallback_used",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1793816007606,
+      "tag": "0032_ai_tool_audit_v2",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1793816030250,
+      "tag": "0033_agent_approvals",
+      "breakpoints": true
     }
   ]
 }

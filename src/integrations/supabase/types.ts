@@ -77,6 +77,85 @@ export type Database = {
         }
         Relationships: []
       }
+      agent_approvals: {
+        Row: {
+          args: Json
+          args_hash: string
+          consumed_at: string | null
+          created_at: string
+          decided_at: string | null
+          decided_by: string | null
+          expires_at: string
+          id: string
+          organization_id: string | null
+          requested_by: string | null
+          run_id: string | null
+          scope: string
+          status: string
+          step_id: string | null
+          summary: string
+          tool: string
+        }
+        Insert: {
+          args?: Json
+          args_hash: string
+          consumed_at?: string | null
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          expires_at?: string
+          id?: string
+          organization_id?: string | null
+          requested_by?: string | null
+          run_id?: string | null
+          scope?: string
+          status?: string
+          step_id?: string | null
+          summary?: string
+          tool: string
+        }
+        Update: {
+          args?: Json
+          args_hash?: string
+          consumed_at?: string | null
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          expires_at?: string
+          id?: string
+          organization_id?: string | null
+          requested_by?: string | null
+          run_id?: string | null
+          scope?: string
+          status?: string
+          step_id?: string | null
+          summary?: string
+          tool?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_approvals_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_approvals_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "public_organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_approvals_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "agent_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       agent_run_events: {
         Row: {
           created_at: string
@@ -605,35 +684,53 @@ export type Database = {
       }
       ai_tool_audit: {
         Row: {
+          args_hash: string | null
           created_at: string
           duration_ms: number
           id: string
+          idempotency_key: string | null
           ok: boolean
           organization_id: string | null
           reason: string | null
           request_id: string
+          result_status: string | null
+          risk: string | null
+          run_id: string | null
+          step_id: string | null
           tool: string
           user_id: string | null
         }
         Insert: {
+          args_hash?: string | null
           created_at?: string
           duration_ms?: number
           id?: string
+          idempotency_key?: string | null
           ok: boolean
           organization_id?: string | null
           reason?: string | null
           request_id: string
+          result_status?: string | null
+          risk?: string | null
+          run_id?: string | null
+          step_id?: string | null
           tool: string
           user_id?: string | null
         }
         Update: {
+          args_hash?: string | null
           created_at?: string
           duration_ms?: number
           id?: string
+          idempotency_key?: string | null
           ok?: boolean
           organization_id?: string | null
           reason?: string | null
           request_id?: string
+          result_status?: string | null
+          risk?: string | null
+          run_id?: string | null
+          step_id?: string | null
           tool?: string
           user_id?: string | null
         }
@@ -2147,6 +2244,7 @@ export type Database = {
           error_message: string | null
           failed_stage: string | null
           failure_kind: string | null
+          fallback_used: boolean
           id: string
           lease_expires_at: string | null
           organization_id: string
@@ -2175,6 +2273,7 @@ export type Database = {
           error_message?: string | null
           failed_stage?: string | null
           failure_kind?: string | null
+          fallback_used?: boolean
           id?: string
           lease_expires_at?: string | null
           organization_id: string
@@ -2203,6 +2302,7 @@ export type Database = {
           error_message?: string | null
           failed_stage?: string | null
           failure_kind?: string | null
+          fallback_used?: boolean
           id?: string
           lease_expires_at?: string | null
           organization_id?: string
@@ -7761,6 +7861,37 @@ export type Database = {
           organization_id: string
         }[]
       }
+      agent_approval_cancel_for_run: { Args: { _run: string }; Returns: number }
+      agent_approval_consume: {
+        Args: {
+          _hash: string
+          _id?: string
+          _org: string
+          _scope: string
+          _tool: string
+        }
+        Returns: Json
+      }
+      agent_approval_decide: {
+        Args: { _approve: boolean; _decider: string; _id: string }
+        Returns: Json
+      }
+      agent_approval_request: {
+        Args: {
+          _args: Json
+          _hash: string
+          _org: string
+          _run: string
+          _scope: string
+          _step: string
+          _summary: string
+          _tool: string
+          _ttl_seconds?: number
+          _user: string
+        }
+        Returns: Json
+      }
+      agent_approval_sweep: { Args: never; Returns: number }
       agent_run_add_event: {
         Args: {
           _data?: Json
