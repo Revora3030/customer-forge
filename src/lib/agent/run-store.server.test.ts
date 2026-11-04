@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   LostLeaseError,
+  NO_EXECUTOR_ERROR,
   UNEXPECTED_ERROR_PLAIN,
   runDueAgentRuns,
   supabaseRunRepo,
@@ -12,7 +13,7 @@ import {
 
 /** In-memory copy of the rules in 20261101020000_agent_runs.sql. */
 function memoryRepo() {
-  const runs = new Map<string, AgentRun & { leaseLapsed: boolean; backoff?: boolean }>();
+  const runs = new Map<string, AgentRun & { leaseLapsed: boolean; backoff?: boolean; ageSeconds?: number }>();
   const events: { run_id: string; kind: string }[] = [];
   let n = 0;
   const live = (id: string, fence: number) => {
@@ -82,6 +83,17 @@ function memoryRepo() {
         }
       }
       return out;
+    },
+    async failStaleQueued(olderThanSeconds, limit, error) {
+      const stale = [...runs.values()]
+        .filter((r) => r.status === "queued" && (r.ageSeconds ?? 0) > olderThanSeconds)
+        .sort((a, b) => (b.ageSeconds ?? 0) - (a.ageSeconds ?? 0))
+        .slice(0, limit);
+      for (const r of stale) {
+        r.status = "failed";
+        r.error_plain = error;
+      }
+      return stale.map((r) => r.id);
     },
   };
   return { repo, runs, events };
@@ -192,7 +204,76 @@ describe("runDueAgentRuns", () => {
   });
 });
 
+describe("runDueAgentRuns with no executor registered", () => {
+  it("fails queued runs older than 30 minutes and leaves fresh ones queued", async () => {
+    const { repo, runs } = memoryRepo();
+    const old = await repo.create(goal);
+    const fresh = await repo.create(goal);
+    const justUnder = await repo.create(goal);
+    runs.get(old.id)!.ageSeconds = 31 * 60;
+    runs.get(fresh.id)!.ageSeconds = 60;
+    runs.get(justUnder.id)!.ageSeconds = 29 * 60;
+    const result = await runDueAgentRuns(repo, null);
+    expect(result).toMatchObject({ skipped: "no executor", expired: 1 });
+    expect(runs.get(old.id)).toMatchObject({ status: "failed", error_plain: NO_EXECUTOR_ERROR });
+    expect(runs.get(fresh.id)!.status).toBe("queued");
+    expect(runs.get(justUnder.id)!.status).toBe("queued");
+  });
+
+  it("bounds each pass to the batch size", async () => {
+    const { repo, runs } = memoryRepo();
+    for (let i = 0; i < 5; i++) runs.get((await repo.create(goal)).id)!.ageSeconds = 3600 + i;
+    expect((await runDueAgentRuns(repo, null, { expireBatch: 2 })).expired).toBe(2);
+    expect([...runs.values()].filter((r) => r.status === "failed")).toHaveLength(2);
+  });
+
+  it("never expires anything while an executor is registered", async () => {
+    const { repo, runs } = memoryRepo();
+    const failStaleQueued = vi.spyOn(repo, "failStaleQueued");
+    runs.get((await repo.create(goal)).id)!.ageSeconds = 3600;
+    await runDueAgentRuns(repo, async () => ({ status: "done" }));
+    expect(failStaleQueued).not.toHaveBeenCalled();
+  });
+});
+
 describe("supabaseRunRepo", () => {
+  it("fails stale queued runs with a batch limit and a status = 'queued' fence", async () => {
+    const calls: { table: string; op: string; args: unknown[] }[] = [];
+    const chain = (table: string, op: string, result: unknown) => {
+      const self: Record<string, unknown> = {};
+      for (const method of ["select", "eq", "lt", "order", "limit", "update", "in"])
+        self[method] = (...args: unknown[]) => (calls.push({ table, op: method, args }), self);
+      self["then"] = (resolve: (v: unknown) => unknown) => resolve({ data: result, error: null });
+      return self;
+    };
+    // Both the select and the fenced update return the one stale run.
+    const from = vi.fn((table: string) => chain(table, "from", [{ id: "r-old" }]));
+    const repo = supabaseRunRepo({ rpc: vi.fn(), from });
+    expect(await repo.failStaleQueued(1800, 50, NO_EXECUTOR_ERROR)).toEqual(["r-old"]);
+    const ops = calls.map((c) => [c.op, ...c.args.slice(0, 2)]);
+    expect(ops).toContainEqual(["eq", "status", "queued"]);
+    expect(ops).toContainEqual(["limit", 50]);
+    expect(ops).toContainEqual(["in", "id", ["r-old"]]);
+    const update = calls.find((c) => c.op === "update")!;
+    expect(update.args[0]).toMatchObject({ status: "failed", error_plain: NO_EXECUTOR_ERROR });
+    // The update itself is fenced on status = 'queued' (after .in), so a just-claimed run is untouched.
+    const afterUpdate = calls.slice(calls.indexOf(update));
+    expect(afterUpdate.map((c) => [c.op, ...c.args.slice(0, 2)])).toContainEqual(["eq", "status", "queued"]);
+  });
+
+  it("does not update anything when no queued run is stale", async () => {
+    const update = vi.fn();
+    const from = vi.fn(() => {
+      const self: Record<string, unknown> = { update };
+      for (const method of ["select", "eq", "lt", "order", "limit"]) self[method] = () => self;
+      self["then"] = (resolve: (v: unknown) => unknown) => resolve({ data: [], error: null });
+      return self;
+    });
+    const repo = supabaseRunRepo({ rpc: vi.fn(), from });
+    expect(await repo.failStaleQueued(1800, 50, NO_EXECUTOR_ERROR)).toEqual([]);
+    expect(update).not.toHaveBeenCalled();
+  });
+
   it("calls the fenced SQL functions with the fence it was given", async () => {
     const rpc = vi.fn(async () => ({ data: true, error: null }));
     const repo = supabaseRunRepo({ rpc });
