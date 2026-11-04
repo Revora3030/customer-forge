@@ -248,7 +248,7 @@ export type PaidImageJob = {
   /** Required for a change to an existing picture; ignored for a fresh frame. */
   source?: { dataUrl: string; mimeType: string } | null;
   /** Output size for a fresh frame, e.g. "1536x1024". */
-  size?: string;
+  size?: string | undefined;
 };
 
 /**
