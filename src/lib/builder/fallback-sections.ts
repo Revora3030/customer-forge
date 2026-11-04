@@ -262,6 +262,9 @@ function savedBlocks(section: FallbackSection, family: FallbackFamily, options: 
   return tree?.root.children ?? [];
 }
 
+const leafNodes = (node: CompositionNode): CompositionNode[] =>
+  node.children?.length ? node.children.flatMap(leafNodes) : node.type === "stack" || node.type === "row" || node.type === "grid" ? [] : [node];
+
 const textOf = (node: CompositionNode): string[] => [
   ...(node.text ? [node.text] : []),
   ...(node.children ?? []).flatMap(textOf),
@@ -415,6 +418,20 @@ export function fallbackSectionComposition(section: FallbackSection, options: Fa
   const shown = new Set<string>();
   for (const block of blocks) usedMediaRefs(block, shown);
   blocks.push(...leftoverMedia(section, shown, savedHeading ?? name ?? ""));
+
+  // A section that would show only its heading (no saved words, list, picture
+  // or action, e.g. an empty "Our Values" block) is one bare line. Give it the
+  // owner's description or where they work, and the real ways to reach them.
+  if (family !== "sticky" && blocks.flatMap(leafNodes).length === 1 && blocks.flatMap(leafNodes)[0]?.type === "heading") {
+    const line = clean(facts.description, 600) ?? placeLine(facts);
+    const extra = [...(line ? [paragraph(line)] : []), ...actionRow(contactActions(options))];
+    // Off the lead, a split (heading beside the action) keeps a run of such
+    // sections from stacking the same heading-then-button shape back to back.
+    if (extra.length && !options.lead) {
+      const head = blocks.splice(0, blocks.length);
+      blocks.push({ type: "grid", style: { columns: 2, gap: 40, items: "center" }, responsive: { mobile: { columns: 1, gap: 20 } }, children: [stack(head, 14), stack(extra, 16)] });
+    } else blocks.push(...extra);
+  }
 
   // Floor: never an empty section.
   if (!blocks.length) {
