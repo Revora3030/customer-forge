@@ -14,6 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { MemberControls, TeamInvites } from "@/components/app/TeamInvites";
 import { PortalAccess } from "@/components/app/PortalAccess";
 import { LeadNotifications } from "@/components/app/LeadNotifications";
+import { PushLeadAlerts } from "@/components/app/PushLeadAlerts";
 import { UpgradeFromWebsite } from "@/components/app/UpgradeFromWebsite";
 import { BookingLinkCard } from "@/components/app/BookingLinkCard";
 import { DataPrivacy } from "@/components/app/DataPrivacy";
@@ -215,6 +216,8 @@ function SettingsPage() {
       <BookingLinkCard organizationId={orgId} canManage={canManage} />
 
       <LeadNotifications organizationId={orgId} canManage={canManage} />
+
+      <PushLeadAlerts organizationId={orgId} />
 
       <SiteBackupExport organizationId={orgId} slug={org?.slug} canManage={canManage} />
 
