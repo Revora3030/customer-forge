@@ -406,7 +406,7 @@ export async function generateFirstBuildImages(
       // hero was rejected (seen: the vehicle's grille badge and wheel hub) shipped
       // a text-only opening. It gets one more corrective round than the rest.
       const isHero = /hero|masthead|opening|lead/i.test(placementOf(shot));
-      const rounds = isHero ? 2 : 1;
+      const rounds = 1; void isHero;
       let current = verdict;
       let currentPrompt = prompt;
       for (let round = 0; round < rounds && !replaced && shouldReshoot(current); round += 1) {
