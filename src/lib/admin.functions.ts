@@ -832,6 +832,10 @@ export const setClientPublishState = createServerFn({ method: "POST" })
     await assertSuperAdmin(context.supabase, context.userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
+    // Never mark an empty workspace live: require a saved snapshot and a visible section.
+    const { assertCanSetPublishState } = await import("@/lib/admin-publish-guard");
+    await assertCanSetPublishState(supabaseAdmin as never, data.organizationId, data.state);
+
     const { error } = await supabaseAdmin
       .from("website_settings")
       .update({
