@@ -44,6 +44,7 @@ import { TrialCountdownLabel } from "@/components/app/TrialCountdownLabel";
 import { useQueryClient } from "@tanstack/react-query";
 import { RouteError } from "@/components/app/RouteStates";
 import { WorkspaceSkeleton } from "@/components/app/WorkspaceSkeleton";
+import { OwnerPwaUpdatePrompt } from "@/components/app/OwnerPwaUpdatePrompt";
 
 export const Route = createFileRoute("/_authenticated/app")({
   head: () => ({
@@ -558,6 +559,7 @@ function AppShell() {
           )}
         </main>
       </div>
+      <OwnerPwaUpdatePrompt />
     </div>
   );
 }

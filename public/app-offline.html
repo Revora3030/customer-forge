@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="theme-color" content="#0A0A0C" />
+    <title>Offline — Revora</title>
+    <link rel="icon" href="/favicon.png" />
+    <style>
+      :root { color-scheme: dark; }
+      html, body { margin: 0; min-height: 100%; background: #0a0a0c; color: #f4f4f5;
+        font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+      main { min-height: 100vh; display: grid; place-items: center; padding: 24px;
+        padding-bottom: max(24px, env(safe-area-inset-bottom));
+        background: radial-gradient(120% 80% at 50% 0%, #1a1a1f 0%, #0a0a0c 60%); }
+      .card { max-width: 420px; width: 100%; text-align: center; border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 20px; padding: 32px 24px; background: rgba(255,255,255,0.03); }
+      img { width: 56px; height: 56px; border-radius: 14px; }
+      h1 { font-size: 20px; letter-spacing: -0.01em; margin: 16px 0 8px; }
+      p { color: #a1a1aa; line-height: 1.5; margin: 0 0 20px; font-size: 15px; }
+      a { display: inline-block; min-height: 44px; line-height: 44px; padding: 0 20px; border-radius: 12px;
+        background: #f4f4f5; color: #0a0a0c; font-weight: 600; text-decoration: none; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="card">
+        <img src="/icon-192.png" alt="Revora" />
+        <h1>You're offline</h1>
+        <p>Your Revora dashboard needs a connection to show live leads, quotes and bookings. Nothing is stored on this device.</p>
+        <a href="/app">Try again</a>
+      </div>
+    </main>
+  </body>
+</html>
