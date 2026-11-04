@@ -17,7 +17,7 @@ describe("legacy card link label", () => {
     expect(tree).not.toBeNull();
     const links = walk(tree!.root).filter((n) => n.type === "link");
     expect(links.map((l) => l.text)).toEqual(["See details"]);
-    expect(auditSectionDesign(tree!, {}).map((f) => f.code)).not.toContain("action_label_is_heading");
+    expect(auditSectionDesign(tree!, { lead: false, role: "services" }).map((f) => f.code)).not.toContain("action_label_is_heading");
   });
 
   it("a saved link label is kept as written", () => {
