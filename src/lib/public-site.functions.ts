@@ -5,7 +5,12 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { createClient } from "@supabase/supabase-js";
 import { isAutomatedUserAgent } from "@/lib/automated-traffic";
 import type { Database } from "@/integrations/supabase/types";
-import { publicSubmissionErrorMessage, SITE_NOT_LIVE_MESSAGE, siteAcceptsSubmissions } from "@/lib/site-submission-gate";
+import type { PushDb } from "@/lib/push/lead-push.server";
+import {
+  publicSubmissionErrorMessage,
+  SITE_NOT_LIVE_MESSAGE,
+  siteAcceptsSubmissions,
+} from "@/lib/site-submission-gate";
 // Type-only import: erased at build time, so nothing server-only ships to the client.
 import type { loadSite } from "@/lib/public-site.server";
 import { scrubPlaceholderPayload } from "@/lib/builder/placeholder-contact";
@@ -110,7 +115,9 @@ const PREVIEW_TOKEN_RE = /^[A-Za-z0-9_-]{16,}$/;
  * Normalises a public site address. Never throws: a malformed slug or page is
  * flagged `invalid` so the route answers 404 rather than a server error.
  */
-export function parsePublicSiteInput(input: { slug?: unknown; pageSlug?: unknown } | null | undefined): {
+export function parsePublicSiteInput(
+  input: { slug?: unknown; pageSlug?: unknown } | null | undefined,
+): {
   slug: string;
   pageSlug?: string;
   invalid?: true;
@@ -121,12 +128,15 @@ export function parsePublicSiteInput(input: { slug?: unknown; pageSlug?: unknown
   const page = String(input?.pageSlug ?? "")
     .trim()
     .slice(0, 80);
-  if (!ADDRESS_RE.test(slug) || (page && !ADDRESS_RE.test(page))) return { slug: "", invalid: true };
+  if (!ADDRESS_RE.test(slug) || (page && !ADDRESS_RE.test(page)))
+    return { slug: "", invalid: true };
   return page ? { slug, pageSlug: page } : { slug };
 }
 
 /** Same contract for preview links: a malformed token is `invalid`, not an exception. */
-export function parsePreviewInput(input: { token?: unknown; pageSlug?: unknown } | null | undefined): {
+export function parsePreviewInput(
+  input: { token?: unknown; pageSlug?: unknown } | null | undefined,
+): {
   token: string;
   pageSlug?: string;
   invalid?: true;
@@ -137,7 +147,8 @@ export function parsePreviewInput(input: { token?: unknown; pageSlug?: unknown }
   const page = String(input?.pageSlug ?? "")
     .trim()
     .slice(0, 80);
-  if (!PREVIEW_TOKEN_RE.test(token) || (page && !ADDRESS_RE.test(page))) return { token: "", invalid: true };
+  if (!PREVIEW_TOKEN_RE.test(token) || (page && !ADDRESS_RE.test(page)))
+    return { token: "", invalid: true };
   return page ? { token, pageSlug: page } : { token };
 }
 
@@ -176,7 +187,11 @@ export const DRAFT_STALL_MS = 10 * 60 * 1000;
  * True when an active job has not been updated within DRAFT_STALL_MS and the
  * draft already has content to show. Pure, so it is unit tested.
  */
-export function isStalledJob(updatedAt: string | null | undefined, sectionCount: number, now = Date.now()): boolean {
+export function isStalledJob(
+  updatedAt: string | null | undefined,
+  sectionCount: number,
+  now = Date.now(),
+): boolean {
   if (sectionCount <= 0 || !updatedAt) return false;
   const touched = Date.parse(updatedAt);
   return Number.isFinite(touched) && now - touched > DRAFT_STALL_MS;
@@ -223,15 +238,20 @@ export function heldSnapshotFromBackup(
   if (backup.organization_id !== organizationId) return null;
   const snapshot = backup.snapshot;
   if (!isRow(snapshot)) return null;
-  if (snapshot["organization_id"] !== undefined && snapshot["organization_id"] !== organizationId) return null;
+  if (snapshot["organization_id"] !== undefined && snapshot["organization_id"] !== organizationId)
+    return null;
   const website = snapshot["website"];
   if (!isRow(website) || !Array.isArray(website["pages"])) return null;
   const pages = website["pages"].filter(isRow).map((page) => ({
     ...page,
-    sections: (Array.isArray(page["sections"]) ? page["sections"] : []).filter(isRow).map((section) => ({
-      ...section,
-      components: (Array.isArray(section["components"]) ? section["components"] : []).filter(isRow),
-    })),
+    sections: (Array.isArray(page["sections"]) ? page["sections"] : [])
+      .filter(isRow)
+      .map((section) => ({
+        ...section,
+        components: (Array.isArray(section["components"]) ? section["components"] : []).filter(
+          isRow,
+        ),
+      })),
   }));
   if (!pages.some((page) => page.sections.length > 0)) return null;
   const tables = isRow(snapshot["tables"]) ? snapshot["tables"] : {};
@@ -282,7 +302,11 @@ export async function loadHeldSnapshot(
     if (error || !isRow(data)) return null;
     if (data["kind"] !== "pre_restore") return null;
     return heldSnapshotFromBackup(
-      { id: String(data["id"]), organization_id: String(data["organization_id"]), snapshot: data["snapshot"] },
+      {
+        id: String(data["id"]),
+        organization_id: String(data["organization_id"]),
+        snapshot: data["snapshot"],
+      },
       input.organizationId,
     );
   } catch {
@@ -343,7 +367,10 @@ export const getOwnerDraftSite = createServerFn({ method: "GET" })
       const backupId = heldDraftSource(settingsRow?.generation ?? null, job);
       if (backupId) {
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-        const heldSnapshot = await loadHeldSnapshot(supabaseAdmin, { backupId, organizationId: org.id });
+        const heldSnapshot = await loadHeldSnapshot(supabaseAdmin, {
+          backupId,
+          organizationId: org.id,
+        });
         const heldSite = heldSnapshot
           ? await loadSite(data.slug, {
               allowUnpublished: true,
@@ -352,10 +379,20 @@ export const getOwnerDraftSite = createServerFn({ method: "GET" })
             }).catch(() => null)
           : null;
         // Same organization as the RLS-resolved one, and something to show.
-        if (heldSite && heldSite.org.id === org.id && (heldSite.content?.sections?.length ?? 0) > 0) {
+        if (
+          heldSite &&
+          heldSite.org.id === org.id &&
+          (heldSite.content?.sections?.length ?? 0) > 0
+        ) {
           const heldSections = heldSite.content?.sections?.length ?? 0;
           if (isStalledJob(job.updated_at as string | null, heldSections)) {
-            return { ok: true as const, status: "ready" as const, site: heldSite, job: null, held: true };
+            return {
+              ok: true as const,
+              status: "ready" as const,
+              site: heldSite,
+              job: null,
+              held: true,
+            };
           }
           return {
             ok: true as const,
@@ -474,7 +511,11 @@ export const getPreviewSite = createServerFn({ method: "GET" })
   });
 
 /** "Monday, October 5, 2026 at 10:00 AM" in the business's own calendar. */
-function bookingWhen(booking: { startsAt: string; localDate?: string; localTime?: string }): string {
+function bookingWhen(booking: {
+  startsAt: string;
+  localDate?: string;
+  localTime?: string;
+}): string {
   const date = /^(\d{4})-(\d{2})-(\d{2})$/.exec(booking.localDate ?? "");
   const time = /^(\d{2}):(\d{2})$/.exec(booking.localTime ?? "");
   if (date && time) {
@@ -490,12 +531,18 @@ function bookingWhen(booking: { startsAt: string; localDate?: string; localTime?
     const clock = `${hour % 12 === 0 ? 12 : hour % 12}:${time[2]} ${hour < 12 ? "AM" : "PM"}`;
     return `${dayText} at ${clock}`;
   }
-  return new Date(booking.startsAt).toLocaleString("en-US", { timeZone: "UTC", timeZoneName: "short" });
+  return new Date(booking.startsAt).toLocaleString("en-US", {
+    timeZone: "UTC",
+    timeZoneName: "short",
+  });
 }
 
 /** "Add to Google Calendar" link + readable time for the visitor's booking confirmation email. */
 async function bookingCalendarFields(
-  booking: { startsAt: string; durationMinutes?: number; localDate?: string; localTime?: string } | null | undefined,
+  booking:
+    | { startsAt: string; durationMinutes?: number; localDate?: string; localTime?: string }
+    | null
+    | undefined,
   businessName: string,
   serviceName: string | null | undefined,
   phone: string | null | undefined,
@@ -510,7 +557,9 @@ async function bookingCalendarFields(
     serviceName: serviceName ?? null,
     phone: phone ?? null,
   });
-  return event ? { requestedWhen: bookingWhen(booking), calendarUrl: googleCalendarUrl(event) } : {};
+  return event
+    ? { requestedWhen: bookingWhen(booking), calendarUrl: googleCalendarUrl(event) }
+    : {};
 }
 
 /** Anonymous lead / quote / booking submission from a public business site. */
@@ -574,14 +623,20 @@ export const submitPublicLead = createServerFn({ method: "POST" })
       if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
         throw new Error("That email address doesn't look right.");
       }
-      if (!/^[a-z0-9-]+$/.test(String(input.slug ?? ""))) throw new Error("Invalid business address");
+      if (!/^[a-z0-9-]+$/.test(String(input.slug ?? "")))
+        throw new Error("Invalid business address");
       const KINDS = ["inquiry", "quote", "booking", "consultation", "contact"] as const;
-      const kind = (KINDS as readonly string[]).includes(String(input.kind)) ? input.kind : "inquiry";
+      const kind = (KINDS as readonly string[]).includes(String(input.kind))
+        ? input.kind
+        : "inquiry";
       // A booking label and booking details must travel together: a "booking"
       // with no time skipped every booking check yet was saved as booked.
       if (kind === "booking" && !input.booking) throw new Error("Choose a date and time to book.");
       const booking = kind === "booking" ? input.booking : null;
-      const serviceId = typeof input.serviceId === "string" && /^[0-9a-f-]{36}$/i.test(input.serviceId) ? input.serviceId : null;
+      const serviceId =
+        typeof input.serviceId === "string" && /^[0-9a-f-]{36}$/i.test(input.serviceId)
+          ? input.serviceId
+          : null;
       return {
         ...input,
         kind,
@@ -628,13 +683,14 @@ export const submitPublicLead = createServerFn({ method: "POST" })
     // and verifier outages fail open (the rate limits below still apply), so
     // a real lead is never lost.
     {
-      const [{ verifyAltchaPayload }, { verifyTurnstileToken, leadCaptchaDecision }] = await Promise.all([
-        import("@/lib/altcha.server"),
-        import("@/lib/turnstile.server"),
-      ]);
+      const [{ verifyAltchaPayload }, { verifyTurnstileToken, leadCaptchaDecision }] =
+        await Promise.all([import("@/lib/altcha.server"), import("@/lib/turnstile.server")]);
       const [altcha, turnstile] = await Promise.all([
         verifyAltchaPayload(data.altcha),
-        verifyTurnstileToken(data.turnstile, { host: new URL(getRequest().url).host, ip: source.ip }),
+        verifyTurnstileToken(data.turnstile, {
+          host: new URL(getRequest().url).host,
+          ip: source.ip,
+        }),
       ]);
       if (leadCaptchaDecision(turnstile, altcha) === "drop")
         return { ok: true as const, leadId: null, notified: false };
@@ -672,11 +728,12 @@ export const submitPublicLead = createServerFn({ method: "POST" })
     const userAgentHash = source.userAgent
       ? await sha256Hex(`ua|${orgId}|${source.userAgent}`)
       : null;
-    const attemptArgs: Database["public"]["Functions"]["register_public_submission_attempt"]["Args"] = {
-      _organization_id: orgId,
-      _purpose: `public_${data.kind}`,
-      _ip_hash: await sha256Hex(`ip|${orgId}|${source.ip}`),
-    };
+    const attemptArgs: Database["public"]["Functions"]["register_public_submission_attempt"]["Args"] =
+      {
+        _organization_id: orgId,
+        _purpose: `public_${data.kind}`,
+        _ip_hash: await sha256Hex(`ip|${orgId}|${source.ip}`),
+      };
     if (contactHash) attemptArgs._contact_hash = contactHash;
     if (userAgentHash) attemptArgs._user_agent_hash = userAgentHash;
     const { data: attempt, error: attemptError } = await supabase.rpc(
@@ -707,7 +764,11 @@ export const submitPublicLead = createServerFn({ method: "POST" })
           .eq("organization_id", orgId)
           .eq("is_active", true)
           .maybeSingle(),
-        supabase.from("quote_questions").select("id, label").eq("form_id", formId).eq("organization_id", orgId),
+        supabase
+          .from("quote_questions")
+          .select("id, label")
+          .eq("form_id", formId)
+          .eq("organization_id", orgId),
         supabase
           .from("quote_options")
           .select("question_id, label, price_modifier, modifier_type")
@@ -720,7 +781,9 @@ export const submitPublicLead = createServerFn({ method: "POST" })
       const verified = recomputeQuote({
         form: form.data as never,
         questions: (questions.data ?? []) as never,
-        options: ((options.data ?? []) as { question_id: string }[]).filter((row) => questionIds.has(row.question_id)) as never,
+        options: ((options.data ?? []) as { question_id: string }[]).filter((row) =>
+          questionIds.has(row.question_id),
+        ) as never,
         addons: (addons.data ?? []) as never,
         answers: (data.quote.answers ?? []).map((answer) => ({
           question: String(answer.question ?? ""),
@@ -743,10 +806,13 @@ export const submitPublicLead = createServerFn({ method: "POST" })
         .eq("is_active", true)
         .eq("bookable", true)
         .maybeSingle();
-      if (!service) throw new Error("That service can't be booked online. Please contact the business.");
+      if (!service)
+        throw new Error("That service can't be booked online. Please contact the business.");
       data.estimatedValue = Number(service.price ?? service.starting_price ?? 0) || 0;
       // The appointment length comes from the owner's service, not the browser.
-      const ownDuration = Number((service as { duration_minutes?: number | null }).duration_minutes ?? 0);
+      const ownDuration = Number(
+        (service as { duration_minutes?: number | null }).duration_minutes ?? 0,
+      );
       if (ownDuration > 0) data.booking.durationMinutes = ownDuration;
       const startsAt = new Date(data.booking.startsAt);
       if (Number.isNaN(startsAt.getTime())) throw new Error("Choose a valid date and time.");
@@ -764,7 +830,9 @@ export const submitPublicLead = createServerFn({ method: "POST" })
         const ownerHours = (hoursRow as { hours?: unknown } | null)?.hours ?? null;
         // Holiday closures (owner opt-in). publicHolidays() fails open to [].
         const holidays = closedOnHolidays(ownerHours)
-          ? await (await import("@/lib/holidays.server")).publicHolidays(Number(data.booking.localDate.slice(0, 4)))
+          ? await (
+              await import("@/lib/holidays.server")
+            ).publicHolidays(Number(data.booking.localDate.slice(0, 4)))
           : null;
         const verdict = checkBookingTime({
           hours: ownerHours,
@@ -913,7 +981,11 @@ export const submitPublicLead = createServerFn({ method: "POST" })
     // so any failure here is logged and swallowed.
     try {
       const conversionEvent =
-        data.kind === "quote" ? "quote_complete" : data.kind === "booking" ? "booking_start" : "form_submit";
+        data.kind === "quote"
+          ? "quote_complete"
+          : data.kind === "booking"
+            ? "booking_start"
+            : "form_submit";
       let alreadyRecorded = false;
       if (data.sessionId) {
         const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
@@ -1002,7 +1074,8 @@ export const submitPublicLead = createServerFn({ method: "POST" })
       };
 
       const { sendLeadConfirmation } = await import("@/lib/messaging.server");
-      const { buildLeadWebhookPayload, dispatchLeadWebhook } = await import("@/lib/lead-routing.server");
+      const { buildLeadWebhookPayload, dispatchLeadWebhook } =
+        await import("@/lib/lead-routing.server");
       const webhookUrl =
         typeof routingSettings?.lead_webhook_url === "string"
           ? routingSettings.lead_webhook_url
@@ -1015,12 +1088,21 @@ export const submitPublicLead = createServerFn({ method: "POST" })
               leadName: data.name,
               replyToEmail: ownerEmail || profile?.email || undefined,
               businessPhone: profile?.phone || undefined,
-              ...(await bookingCalendarFields(data.booking, org.name, data.serviceInterest, profile?.phone)),
+              ...(await bookingCalendarFields(
+                data.booking,
+                org.name,
+                data.serviceInterest,
+                profile?.phone,
+              )),
             },
             `lead-confirmation-${lead.id}`,
             ownerEmail || profile?.email || null,
           )
-        : Promise.resolve({ ok: true as const, skipped: true as const, reason: "no_email_address" as const });
+        : Promise.resolve({
+            ok: true as const,
+            skipped: true as const,
+            reason: "no_email_address" as const,
+          });
       const webhookPayload = buildLeadWebhookPayload({
         organizationId: orgId,
         leadId: lead.id,
@@ -1033,7 +1115,21 @@ export const submitPublicLead = createServerFn({ method: "POST" })
       });
       const webhook = dispatchLeadWebhook(webhookUrl, webhookPayload, signing?.secret ?? null);
 
-      const [alert, confirmation, webhookResult] = await Promise.all([
+      // Owner Web Push (speed-to-lead) on every opted-in device. Best effort:
+      // sendLeadPush never throws and does nothing until VAPID keys are set.
+      const { sendLeadPush } = await import("@/lib/push/lead-push.server");
+      const push = sendLeadPush(
+        {
+          organizationId: orgId,
+          leadId: lead.id,
+          businessName: org.name,
+          kind: alertData.kind,
+          service: data.serviceInterest || null,
+        },
+        { db: supabase as unknown as PushDb },
+      ).catch(() => null);
+
+      const [alert, confirmation, webhookResult, pushResult] = await Promise.all([
         alertEmail
           ? sendLeadAlert(
               alertEmail,
@@ -1041,10 +1137,21 @@ export const submitPublicLead = createServerFn({ method: "POST" })
               // One alert per lead, even if the submit is retried.
               `lead-alert-${lead.id}`,
             )
-          : Promise.resolve({ ok: true as const, skipped: true as const, reason: "no_email_address" as const }),
+          : Promise.resolve({
+              ok: true as const,
+              skipped: true as const,
+              reason: "no_email_address" as const,
+            }),
         confirmationEmail,
         webhook,
+        push,
       ]);
+      if (pushResult && pushResult.failed > 0) {
+        console.warn("lead push partially failed", {
+          sent: pushResult.sent,
+          failed: pushResult.failed,
+        });
+      }
 
       if (alertEmail) {
         await logAlertDelivery(null, {
@@ -1064,7 +1171,9 @@ export const submitPublicLead = createServerFn({ method: "POST" })
       // into a failed visitor submission.
       try {
         const deliveryStatus = webhookResult.ok
-          ? ("skipped" in webhookResult && webhookResult.skipped ? "skipped" : "delivered")
+          ? "skipped" in webhookResult && webhookResult.skipped
+            ? "skipped"
+            : "delivered"
           : "failed";
         // Supabase reports insert failures in the result instead of throwing, so
         // the error has to be read explicitly or a missing table fails silently.
@@ -1114,11 +1223,7 @@ export const submitPublicLead = createServerFn({ method: "POST" })
           retryable: webhookResult.retryable,
         });
       }
-      if (
-        (alertEmail && !alert.ok) ||
-        (data.email && !confirmation.ok) ||
-        !webhookResult.ok
-      ) {
+      if ((alertEmail && !alert.ok) || (data.email && !confirmation.ok) || !webhookResult.ok) {
         deliveryOk = false;
       }
 

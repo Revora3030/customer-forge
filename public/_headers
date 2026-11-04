@@ -27,3 +27,8 @@
 /.well-known/security.txt
   Cache-Control: public, max-age=86400
   Content-Type: text/plain; charset=utf-8
+
+# Owner push-alert service worker: always revalidate.
+/push-sw.js
+  Cache-Control: no-cache
+  Content-Type: application/javascript; charset=utf-8
