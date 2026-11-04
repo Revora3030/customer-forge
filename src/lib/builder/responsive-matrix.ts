@@ -25,6 +25,10 @@ export const DEVICE_MATRIX = [
   { width: 1024, label: "Tablet landscape", kind: "tablet" as const },
   { width: 1280, label: "Laptop", kind: "desktop" as const },
   { width: 1440, label: "Desktop", kind: "desktop" as const },
+  // The God Body standard covers 320–2560px: wide and ultra-wide desktops get
+  // the same desktop rules as 1440 (three columns, measured overflow).
+  { width: 1920, label: "Wide desktop", kind: "desktop" as const },
+  { width: 2560, label: "Ultra-wide desktop", kind: "desktop" as const },
 ];
 
 export type DeviceWidth = (typeof DEVICE_MATRIX)[number]["width"];
