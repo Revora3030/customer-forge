@@ -32,3 +32,13 @@
 /push-sw.js
   Cache-Control: no-cache
   Content-Type: application/javascript; charset=utf-8
+
+# Owner dashboard service worker (vite-plugin-pwa). Always revalidate so an
+# update is picked up on the next visit; the SW itself is scoped to /app/.
+/sw.js
+  Cache-Control: no-cache
+  Content-Type: application/javascript; charset=utf-8
+
+/app-offline.html
+  Cache-Control: no-cache
+  X-Robots-Tag: noindex, nofollow

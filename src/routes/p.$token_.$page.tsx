@@ -1,4 +1,4 @@
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute, notFound, redirect } from "@tanstack/react-router";
 import { getPreviewSite } from "@/lib/public-site.functions";
 import { PublicSiteView } from "@/components/site/PublicSiteView";
 import { ClientPrivacyNotice } from "@/components/site/ClientPrivacyNotice";
@@ -27,8 +27,16 @@ export const Route = createFileRoute("/p/$token_/$page")({
       replace: true,
     });
   },
-  loader: async ({ params }) =>
-    getPreviewSite({ data: { token: params.token, pageSlug: params.page } }),
+  // A dead link or a page the draft does not have answers HTTP 404, not 200.
+  loader: async ({ params }) => {
+    const result = await getPreviewSite({ data: { token: params.token, pageSlug: params.page } });
+    if (!result?.ok || !result.site) throw notFound({ data: { reason: result?.reason ?? "unknown" } });
+    const privacyNotice = !result.site.content?.sections.length && params.page === PRIVACY_NOTICE_SLUG;
+    if (!privacyNotice && (!result.site.pageFound || !result.site.content?.sections.length)) {
+      throw notFound({ data: { reason: "page" } });
+    }
+    return result;
+  },
   // Never stored, indexed or sent on as a referrer (src/lib/page-cache.ts).
   headers: () => privatePreviewHeaders(),
   head: ({ loaderData, params }) => ({
@@ -44,6 +52,7 @@ export const Route = createFileRoute("/p/$token_/$page")({
     ],
   }),
   component: PreviewPageRoute,
+  notFoundComponent: PreviewPageNotFound,
   errorComponent: () => (
     <PreviewMessage title="This preview page isn't available" body="Ask for a new link." />
   ),
@@ -52,31 +61,12 @@ export const Route = createFileRoute("/p/$token_/$page")({
 function PreviewPageRoute() {
   const result = Route.useLoaderData();
   const { token, page } = Route.useParams();
-  if (!result?.ok || !result.site) {
-    const reason = result?.reason;
-    return (
-      <PreviewMessage
-        title={reason === "expired" ? "This preview link has expired" : reason === "revoked" ? "This preview link was switched off" : "This preview link isn't valid"}
-        body={reason === "expired" || reason === "revoked" ? "Ask for a fresh preview link." : "Check the address, or ask for a new link."}
-      />
-    );
-  }
+  if (!result.site) return null;
   if (!result.site.content?.sections.length && page === PRIVACY_NOTICE_SLUG) {
     return (
       <SiteBaseContext.Provider value={`/p/${encodeURIComponent(token)}`}>
         <ClientPrivacyNotice site={result.site} />
       </SiteBaseContext.Provider>
-    );
-  }
-  if (!result.site.pageFound || !result.site.content?.sections.length) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background px-4 text-center">
-        <div className="max-w-md space-y-4">
-          <h1 className="text-2xl font-semibold">This preview page isn't ready</h1>
-          <p className="text-sm text-muted-foreground">You can still review the rest of the website.</p>
-          <Button asChild><Link to="/p/$token" params={{ token }}>Back to preview</Link></Button>
-        </div>
-      </div>
     );
   }
   if (isBuilderPreviewLabel(result.label)) {
@@ -94,5 +84,27 @@ function PreviewPageRoute() {
       <ProspectClaimBar token={token} page={page} />
       <PreviewBeacon token={token} page={page} />
     </SiteBaseContext.Provider>
+  );
+}
+
+function PreviewPageNotFound({ data }: { data?: unknown }) {
+  const { token } = Route.useParams();
+  const reason = (data as { reason?: string } | undefined)?.reason;
+  if (reason === "page") {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background px-4 text-center">
+        <div className="max-w-md space-y-4">
+          <h1 className="text-2xl font-semibold">This preview page isn't ready</h1>
+          <p className="text-sm text-muted-foreground">You can still review the rest of the website.</p>
+          <Button asChild><Link to="/p/$token" params={{ token }}>Back to preview</Link></Button>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <PreviewMessage
+      title={reason === "expired" ? "This preview link has expired" : reason === "revoked" ? "This preview link was switched off" : "This preview link isn't valid"}
+      body={reason === "expired" || reason === "revoked" ? "Ask for a fresh preview link." : "Check the address, or ask for a new link."}
+    />
   );
 }
