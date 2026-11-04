@@ -23,6 +23,15 @@ export type SmokeResult = {
   checks: { path: string; ok: boolean; problem: string | null; ms: number }[];
 };
 
+/**
+ * Set by PublicSiteView on the "This website is being updated" notice it shows
+ * when the home page has no visible sections. A published site that renders it
+ * is an empty shell, so the smoke check fails instead of passing on a page that
+ * has a title, a stylesheet and the business name but nothing else.
+ */
+export const EMPTY_SITE_MARKER = "data-site-empty";
+const EMPTY_SITE_RE = new RegExp(`<[a-z]+[^>]*\\s${EMPTY_SITE_MARKER}(=|[\\s>])`, "i");
+
 /** Template leaks that must never reach a live page. */
 const LEAKS = [/\{\{\s*[a-z_.]+\s*\}\}/i, /lorem ipsum/i, /\bundefined\b<\//, /\[object Object\]/, /TODO:/];
 
@@ -32,6 +41,7 @@ export function evaluateSmoke(probes: readonly SmokeProbe[], expected: { busines
     if (probe.status < 200 || probe.status >= 400) problem = `HTTP ${probe.status}`;
     else if (!/text\/html/i.test(probe.contentType ?? "")) problem = "not an HTML page";
     else if (probe.body.length < 500) problem = "page is nearly empty";
+    else if (EMPTY_SITE_RE.test(probe.body)) problem = "the page has no sections (\"being updated\" notice is showing)";
     else if (LEAKS.some((leak) => leak.test(probe.body))) problem = "template placeholder text is visible";
     else if (!/<title>[^<]{2,}<\/title>/i.test(probe.body)) problem = "page has no title";
     else if (!/<link[^>]+rel=["']?stylesheet/i.test(probe.body) && !/<style[\s>]/i.test(probe.body)) problem = "page has no stylesheet";
