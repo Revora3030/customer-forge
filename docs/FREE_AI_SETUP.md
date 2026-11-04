@@ -54,9 +54,11 @@ Tests enforce the boundary (`src/lib/ai/free-runtime.test.ts`).
 | `OVH_AI_FREE=true` | OVHcloud anonymous tier | No key (a key would bill); 2 requests/minute per model; EU-hosted |
 | `KILO_FREE=true` | Kilo Code free models | No key; `:free` models only, auto-routers excluded. NVIDIA models log prompts |
 
-Web search (builder research and Jarvis `web.search`) tries, in order, each
-provider whose key is set: Perplexity (Lovable connector), `TAVILY_API_KEY`,
-`BRAVE_SEARCH_API_KEY` (or `BRAVE_API_KEY`), `EXA_API_KEY`, `JINA_API_KEY`.
+Web search (builder research and Jarvis `web.search`) uses one path only:
+Perplexity search through the Lovable connector gateway (`LOVABLE_API_KEY` plus
+the linked `PERPLEXITY_API_KEY` connection). There is no direct Perplexity,
+Tavily, Brave, Exa or Jina fallback; without the connection, search reports
+"not connected".
 
 Half a provider's credentials simply marks that provider unavailable — it never
 throws and never blocks the builder.
