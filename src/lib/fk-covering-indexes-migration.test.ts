@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-const sql = readFileSync(join(process.cwd(), "supabase/migrations/20261104230000_fk_covering_indexes.sql"), "utf8");
+const sql = readFileSync(join(process.cwd(), "supabase/migrations/20261104235000_fk_covering_indexes.sql"), "utf8");
 const code = sql
   .split("\n")
   .filter((l) => !l.trim().startsWith("--"))
@@ -28,7 +28,7 @@ const expected: Array<[string, string]> = [
   ["jarvis_memories", "superseded_by"],
 ];
 
-describe("20261104230000 FK covering indexes", () => {
+describe("20261104235000 FK covering indexes", () => {
   it("covers every unindexed foreign key from the 2026-11-04 audit", () => {
     for (const [table, column] of expected) {
       expect(code).toContain(`ARRAY['${table}',`);
