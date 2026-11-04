@@ -1281,6 +1281,7 @@ export type Database = {
           phone: string | null
           primary_color: string | null
           review_link: string | null
+          review_sequence_enabled: boolean
           secondary_color: string | null
           service_area: string | null
           state: string | null
@@ -1315,6 +1316,7 @@ export type Database = {
           phone?: string | null
           primary_color?: string | null
           review_link?: string | null
+          review_sequence_enabled?: boolean
           secondary_color?: string | null
           service_area?: string | null
           state?: string | null
@@ -1349,6 +1351,7 @@ export type Database = {
           phone?: string | null
           primary_color?: string | null
           review_link?: string | null
+          review_sequence_enabled?: boolean
           secondary_color?: string | null
           service_area?: string | null
           state?: string | null
@@ -3135,6 +3138,7 @@ export type Database = {
           customer_id: string | null
           email: string | null
           estimated_value: number
+          first_response_at: string | null
           id: string
           last_contacted_at: string | null
           message: string | null
@@ -3143,6 +3147,7 @@ export type Database = {
           notes: string | null
           organization_id: string
           phone: string | null
+          response_escalated_at: string | null
           service_id: string | null
           service_interest: string | null
           source: string
@@ -3157,6 +3162,7 @@ export type Database = {
           customer_id?: string | null
           email?: string | null
           estimated_value?: number
+          first_response_at?: string | null
           id?: string
           last_contacted_at?: string | null
           message?: string | null
@@ -3165,6 +3171,7 @@ export type Database = {
           notes?: string | null
           organization_id: string
           phone?: string | null
+          response_escalated_at?: string | null
           service_id?: string | null
           service_interest?: string | null
           source?: string
@@ -3179,6 +3186,7 @@ export type Database = {
           customer_id?: string | null
           email?: string | null
           estimated_value?: number
+          first_response_at?: string | null
           id?: string
           last_contacted_at?: string | null
           message?: string | null
@@ -3187,6 +3195,7 @@ export type Database = {
           notes?: string | null
           organization_id?: string
           phone?: string | null
+          response_escalated_at?: string | null
           service_id?: string | null
           service_interest?: string | null
           source?: string
@@ -5583,6 +5592,94 @@ export type Database = {
           status?: string
         }
         Relationships: []
+      }
+      review_feedback_requests: {
+        Row: {
+          appointment_id: string | null
+          created_at: string
+          customer_name: string
+          feedback: string | null
+          id: string
+          lead_id: string | null
+          organization_id: string
+          rated_at: string | null
+          rating: number | null
+          review_id: string | null
+          routed_to: string | null
+          token: string
+        }
+        Insert: {
+          appointment_id?: string | null
+          created_at?: string
+          customer_name: string
+          feedback?: string | null
+          id?: string
+          lead_id?: string | null
+          organization_id: string
+          rated_at?: string | null
+          rating?: number | null
+          review_id?: string | null
+          routed_to?: string | null
+          token: string
+        }
+        Update: {
+          appointment_id?: string | null
+          created_at?: string
+          customer_name?: string
+          feedback?: string | null
+          id?: string
+          lead_id?: string | null
+          organization_id?: string
+          rated_at?: string | null
+          rating?: number | null
+          review_id?: string | null
+          routed_to?: string | null
+          token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "review_feedback_requests_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "review_feedback_requests_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "review_feedback_requests_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "review_feedback_requests_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "public_organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "review_feedback_requests_review_id_fkey"
+            columns: ["review_id"]
+            isOneToOne: false
+            referencedRelation: "public_reviews"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "review_feedback_requests_review_id_fkey"
+            columns: ["review_id"]
+            isOneToOne: false
+            referencedRelation: "reviews"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       review_requests: {
         Row: {
