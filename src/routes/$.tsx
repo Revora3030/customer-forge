@@ -100,7 +100,7 @@ function HostPageRoute() {
 /** Same look as the business's site: its body face, its name and phone when we have them. */
 function HostMessagePage({ business, title, message }: { business: HostBusiness | null; title: string; message: string }) {
   return (
-    <div
+    <main
       className="flex min-h-screen items-center justify-center px-4 text-center"
       style={{ ...(business ? siteFontStyle(business.font) : {}), fontFamily: business ? "var(--font-body, system-ui, sans-serif)" : "system-ui, sans-serif" }}
     >
@@ -120,7 +120,7 @@ function HostMessagePage({ business, title, message }: { business: HostBusiness 
           </p>
         ) : null}
       </div>
-    </div>
+    </main>
   );
 }
 
