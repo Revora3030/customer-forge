@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   DAILY_ROUTINE,
@@ -113,6 +113,24 @@ describe("share templates", () => {
     expect(email.message.endsWith(fake)).toBe(true);
     expect(byId("email").message).not.toMatch(/\[[^\]]*address[^\]]*\]/i);
     expect(byId("email").note).toContain("postal address");
+  });
+  it("leaves the address line off entirely when postalAddress is null, even with a server address set", async () => {
+    const prev = process.env["REVORA_POSTAL_ADDRESS"];
+    process.env["REVORA_POSTAL_ADDRESS"] = "PO Box 9, Example, NC 00000";
+    try {
+      vi.resetModules();
+      const mod = await import("@/lib/distribution");
+      expect(mod.REVORA_POSTAL_ADDRESS).toBe("PO Box 9, Example, NC 00000");
+      const withEnv = mod.buildChannelAssets({ campaign: "x" }).find((a) => a.id === "email")!;
+      expect(withEnv.message.endsWith("PO Box 9, Example, NC 00000")).toBe(true);
+      const publicCopy = mod.buildChannelAssets({ campaign: "x", postalAddress: null }).find((a) => a.id === "email")!;
+      expect(publicCopy.message).not.toContain("PO Box 9");
+      expect(publicCopy.message.endsWith("Revora Growth Systems")).toBe(true);
+    } finally {
+      if (prev === undefined) delete process.env["REVORA_POSTAL_ADDRESS"];
+      else process.env["REVORA_POSTAL_ADDRESS"] = prev;
+      vi.resetModules();
+    }
   });
   it("keeps the phone number off the public share copy and avoids ranking promises", () => {
     for (const asset of assets) {
