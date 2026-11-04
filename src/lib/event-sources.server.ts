@@ -125,7 +125,18 @@ export function siteDownSource(db: Db): EventSource {
   };
 }
 
-type Run = { id?: number; name?: string | null; conclusion?: string | null; head_sha?: string | null; updated_at?: string | null; html_url?: string | null };
+type Run = { id?: number; name?: string | null; conclusion?: string | null; head_sha?: string | null; updated_at?: string | null; html_url?: string | null; actor?: { login?: string | null } | null; triggering_actor?: { login?: string | null } | null };
+
+/**
+ * Dependabot's own "npm_and_yarn in /. - Update #123" jobs run on the default
+ * branch but are not release checks; their failures are collapsed into one
+ * quiet event instead of one release-CI alert per run.
+ */
+export function isDependabotRun(run: Pick<Run, "name" | "actor" | "triggering_actor">): boolean {
+  const actor = `${run.actor?.login ?? ""} ${run.triggering_actor?.login ?? ""}`.toLowerCase();
+  if (actor.includes("dependabot")) return true;
+  return /^dependabot\b/i.test(run.name ?? "") || /\bin \/\S* - update #\d+$/i.test(run.name ?? "");
+}
 
 /** Completed CI runs that failed on the release branch's current commit, within the last day. */
 export function ciFailedSource(fetcher: typeof fetch = fetch, token: string | null = process.env["REVORA_GITHUB_READ_TOKEN"]?.trim() || null): EventSource {
@@ -145,15 +156,27 @@ export function ciFailedSource(fetcher: typeof fetch = fetch, token: string | nu
       // CI on an old commit says nothing about the current release.
       const current = /^[0-9a-f]{40}$/i.test(head.sha ?? "") ? head.sha! : null;
       if (!current) throw new Error("no release commit");
-      return (runs.workflow_runs ?? [])
-        .filter((run) => run.conclusion === "failure" && run.head_sha === current && Date.parse(String(run.updated_at)) >= now - DAY)
-        .map((run): PlatformEvent => ({
-          id: String(run.id ?? `${run.name}-${run.updated_at}`),
-          type: "ci.failed",
-          occurredAt: Date.parse(String(run.updated_at)),
-          subject: String(run.name ?? "Unnamed workflow").slice(0, 100),
-          detail: `On commit ${current.slice(0, 7)}.${run.html_url?.startsWith(`https://github.com/${REPO}/actions/runs/`) ? ` ${run.html_url}` : ""}`,
-        }));
+      const failed = (runs.workflow_runs ?? []).filter((run) => run.conclusion === "failure" && run.head_sha === current && Date.parse(String(run.updated_at)) >= now - DAY);
+      const real = failed.filter((run) => !isDependabotRun(run));
+      const bots = failed.filter(isDependabotRun);
+      const events = real.map((run): PlatformEvent => ({
+        id: String(run.id ?? `${run.name}-${run.updated_at}`),
+        type: "ci.failed",
+        occurredAt: Date.parse(String(run.updated_at)),
+        subject: String(run.name ?? "Unnamed workflow").slice(0, 100),
+        detail: `On commit ${current.slice(0, 7)}.${run.html_url?.startsWith(`https://github.com/${REPO}/actions/runs/`) ? ` ${run.html_url}` : ""}`,
+      }));
+      const newest = bots.reduce<Run | null>((best, run) => (!best || Date.parse(String(run.updated_at)) > Date.parse(String(best.updated_at)) ? run : best), null);
+      if (newest) {
+        events.push({
+          id: `dependabot-${newest.id ?? newest.updated_at}`,
+          type: "ci.dependabot_failed",
+          occurredAt: Date.parse(String(newest.updated_at)),
+          subject: "Dependabot updates",
+          detail: `${bots.length} dependency-update run${bots.length === 1 ? "" : "s"} failed on commit ${current.slice(0, 7)}.${newest.html_url?.startsWith(`https://github.com/${REPO}/actions/runs/`) ? ` ${newest.html_url}` : ""}`,
+        });
+      }
+      return events;
     },
   };
 }

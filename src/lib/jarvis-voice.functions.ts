@@ -5,10 +5,14 @@ import { speakableText } from "./jarvis-actions";
 
 const assertAdmin = async (context: { supabase: unknown; userId: unknown }) => {
   const { assertSuperAdmin } = await import("./admin.server");
-  await assertSuperAdmin(context.supabase as Parameters<typeof assertSuperAdmin>[0], String(context.userId));
+  await assertSuperAdmin(
+    context.supabase as Parameters<typeof assertSuperAdmin>[0],
+    String(context.userId),
+  );
 };
 
-const ADMIN_BUDGET_REFUSED = "Today's ElevenLabs voice budget for Jarvis is used up (ELEVENLABS_ADMIN_DAILY_CHARS).";
+const ADMIN_BUDGET_REFUSED =
+  "Today's ElevenLabs voice budget for Jarvis is used up (ELEVENLABS_ADMIN_DAILY_CHARS).";
 
 /**
  * ElevenLabs TTS is called only on the server. The API key is never returned
@@ -18,10 +22,26 @@ const ADMIN_BUDGET_REFUSED = "Today's ElevenLabs voice budget for Jarvis is used
 export type JarvisVoiceProvider = "auto" | "elevenlabs" | "lovable";
 
 /** Auto keeps the existing ElevenLabs voice when its key is set, else Lovable AI speech. */
-export function resolveVoiceProvider(choice: JarvisVoiceProvider, elevenLabsConfigured: boolean, lovableConfigured: boolean): "elevenlabs" | "lovable" | null {
+export function resolveVoiceProvider(
+  choice: JarvisVoiceProvider,
+  elevenLabsConfigured: boolean,
+  lovableConfigured: boolean,
+): "elevenlabs" | "lovable" | null {
   if (choice === "elevenlabs") return elevenLabsConfigured ? "elevenlabs" : null;
   if (choice === "lovable") return lovableConfigured ? "lovable" : null;
   return elevenLabsConfigured ? "elevenlabs" : lovableConfigured ? "lovable" : null;
+}
+
+/**
+ * When Auto picked ElevenLabs but its daily budget is used up, Auto falls back
+ * to Lovable AI speech (if connected) instead of failing. An explicit
+ * ElevenLabs choice still refuses.
+ */
+export function budgetFallbackLane(
+  choice: JarvisVoiceProvider,
+  lovableConfigured: boolean,
+): "lovable" | null {
+  return choice === "auto" && lovableConfigured ? "lovable" : null;
 }
 
 export const synthesizeJarvisVoice = createServerFn({ method: "POST" })
@@ -30,28 +50,53 @@ export const synthesizeJarvisVoice = createServerFn({ method: "POST" })
     if (typeof input?.text !== "string") throw new Error("Enter text for Jarvis to speak.");
     const text = speakableText(input.text);
     if (!text) throw new Error("There is no readable text to speak.");
-    const provider: JarvisVoiceProvider = input.provider === "elevenlabs" || input.provider === "lovable" ? input.provider : "auto";
+    const provider: JarvisVoiceProvider =
+      input.provider === "elevenlabs" || input.provider === "lovable" ? input.provider : "auto";
     return { text, provider };
   })
   .handler(async ({ context, data }) => {
     await assertAdmin(context);
     const { lovableSpeechConfigured } = await import("./ai/lovable-speech.server");
-    const lane = resolveVoiceProvider(data.provider, Boolean(process.env["ELEVENLABS_API_KEY"]?.trim()), lovableSpeechConfigured());
-    if (!lane) throw new Error(data.provider === "lovable" ? "Lovable AI speech is not connected on the server." : "No server voice is configured.");
-    if (lane === "lovable") {
+    const lane = resolveVoiceProvider(
+      data.provider,
+      Boolean(process.env["ELEVENLABS_API_KEY"]?.trim()),
+      lovableSpeechConfigured(),
+    );
+    if (!lane)
+      throw new Error(
+        data.provider === "lovable"
+          ? "Lovable AI speech is not connected on the server."
+          : "No server voice is configured.",
+      );
+    const speakWithLovable = async () => {
       const { synthesizeLovableSpeech } = await import("./ai/lovable-speech.server");
       const result = await synthesizeLovableSpeech(data.text, { organizationId: null });
       if (!result.ok) throw new Error(result.message);
-      return { audioBase64: Buffer.from(result.audio).toString("base64"), contentType: result.contentType, provider: "lovable" as const, model: result.model };
-    }
+      return {
+        audioBase64: Buffer.from(result.audio).toString("base64"),
+        contentType: result.contentType,
+        provider: "lovable" as const,
+        model: result.model,
+      };
+    };
+    if (lane === "lovable") return speakWithLovable();
     const { requestElevenLabsSpeech, readAudio } = await import("./jarvis-voice.server");
     const { reserveVoiceChars } = await import("./jarvis-voice-budget.server");
-    if (!(await reserveVoiceChars("admin", data.text.length)).allowed) throw new Error(ADMIN_BUDGET_REFUSED);
+    if (!(await reserveVoiceChars("admin", data.text.length)).allowed) {
+      if (budgetFallbackLane(data.provider, lovableSpeechConfigured()) === "lovable")
+        return speakWithLovable();
+      throw new Error(ADMIN_BUDGET_REFUSED);
+    }
     const response = await requestElevenLabsSpeech(data.text, { stream: false });
     const chunks = await readAudio(response);
     if (!chunks.length) throw new Error("ElevenLabs returned empty audio.");
     const audio = Buffer.concat(chunks.map((chunk) => Buffer.from(chunk))).toString("base64");
-    return { audioBase64: audio, contentType: "audio/mpeg" as const, provider: "elevenlabs" as const, model: "eleven_flash_v2_5" };
+    return {
+      audioBase64: audio,
+      contentType: "audio/mpeg" as const,
+      provider: "elevenlabs" as const,
+      model: "eleven_flash_v2_5",
+    };
   });
 
 /**
@@ -75,7 +120,9 @@ export const jarvisVoiceLinks = createServerFn({ method: "POST" })
     const { voiceConfig } = await import("./jarvis-voice.server");
     const { signVoiceLink } = await import("./jarvis-voice-token.server");
     const { apiKey } = voiceConfig();
-    return { urls: await Promise.all(data.texts.map((text) => signVoiceLink(apiKey, text, "admin"))) };
+    return {
+      urls: await Promise.all(data.texts.map((text) => signVoiceLink(apiKey, text, "admin"))),
+    };
   });
 
 export type JarvisVoiceStatus =
@@ -93,28 +140,54 @@ export const jarvisVoiceStatus = createServerFn({ method: "GET" })
   .handler(async ({ context }): Promise<JarvisVoiceStatus> => {
     await assertAdmin(context);
     const configured = process.env["ELEVENLABS_VOICE_ID"]?.trim() ?? "";
-    const { voiceConfig, describeElevenLabsFailure, readErrorBody } = await import("./jarvis-voice.server");
+    const { voiceConfig, describeElevenLabsFailure, readErrorBody } =
+      await import("./jarvis-voice.server");
     if (!process.env["ELEVENLABS_API_KEY"]?.trim())
-      return { connected: false, code: "not_configured", reason: "ELEVENLABS_API_KEY isn't set in the server secrets, so Jarvis uses the browser voice." };
+      return {
+        connected: false,
+        code: "not_configured",
+        reason:
+          "ELEVENLABS_API_KEY isn't set in the server secrets, so Jarvis uses the browser voice.",
+      };
     let apiKey: string;
     let voiceId: string;
     try {
       ({ apiKey, voiceId } = voiceConfig());
     } catch (error) {
-      return { connected: false, code: "invalid_config", reason: error instanceof Error ? error.message : "The voice settings are invalid." };
+      return {
+        connected: false,
+        code: "invalid_config",
+        reason: error instanceof Error ? error.message : "The voice settings are invalid.",
+      };
     }
     try {
-      const response = await fetch(`https://api.elevenlabs.io/v1/voices/${encodeURIComponent(voiceId)}`, {
-        headers: { "xi-api-key": apiKey, accept: "application/json" },
-        signal: AbortSignal.timeout(8000),
-        redirect: "manual",
-      });
+      const response = await fetch(
+        `https://api.elevenlabs.io/v1/voices/${encodeURIComponent(voiceId)}`,
+        {
+          headers: { "xi-api-key": apiKey, accept: "application/json" },
+          signal: AbortSignal.timeout(8000),
+          redirect: "manual",
+        },
+      );
       if (!response.ok) {
         const failure = describeElevenLabsFailure(response.status, await readErrorBody(response));
         if (failure.code === "missing_permissions")
-          return { connected: false, code: failure.code, reason: "The ElevenLabs key can't list voices; speech may still work. Use Test voice to check." };
-        if (response.status === 404 || response.status === 400 || failure.code === "voice_not_found")
-          return { connected: false, code: "voice_not_found", reason: `ElevenLabs has no voice ${voiceId} on this account. Set ELEVENLABS_VOICE_ID to your voice's ID.` };
+          return {
+            connected: false,
+            code: failure.code,
+            reason:
+              "The ElevenLabs key can't list voices; speech may still work. Use Test voice to check.",
+          };
+        if (
+          response.status === 404 ||
+          response.status === 400 ||
+          failure.code === "voice_not_found"
+        )
+          return {
+            connected: false,
+            code: "voice_not_found",
+            reason: `ElevenLabs has no voice ${voiceId} on this account. Set ELEVENLABS_VOICE_ID to your voice's ID.`,
+          };
         return { connected: false, code: failure.code, reason: failure.message };
       }
       const voice = (await response.json()) as { name?: unknown };
@@ -125,11 +198,16 @@ export const jarvisVoiceStatus = createServerFn({ method: "GET" })
         customVoice: Boolean(configured),
       };
     } catch {
-      return { connected: false, code: "unreachable", reason: "Couldn't reach ElevenLabs just now." };
+      return {
+        connected: false,
+        code: "unreachable",
+        reason: "Couldn't reach ElevenLabs just now.",
+      };
     }
   });
 
-export type JarvisVoiceTest = { ok: true; ms: number; bytes: number } | { ok: false; code: string; reason: string };
+export type JarvisVoiceTest =
+  { ok: true; ms: number; bytes: number } | { ok: false; code: string; reason: string };
 
 const TEST_PHRASE = "Jarvis voice check.";
 
@@ -143,20 +221,32 @@ export const testJarvisVoice = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<JarvisVoiceTest> => {
     await assertAdmin(context);
-    const { requestElevenLabsSpeech, readAudio, ElevenLabsError } = await import("./jarvis-voice.server");
+    const { requestElevenLabsSpeech, readAudio, ElevenLabsError } =
+      await import("./jarvis-voice.server");
     const { reserveVoiceChars } = await import("./jarvis-voice-budget.server");
     if (!process.env["ELEVENLABS_API_KEY"]?.trim())
-      return { ok: false, code: "not_configured", reason: "ELEVENLABS_API_KEY isn't set in the server secrets." };
-    if (!(await reserveVoiceChars("admin", TEST_PHRASE.length)).allowed) return { ok: false, code: "budget_exhausted", reason: ADMIN_BUDGET_REFUSED };
+      return {
+        ok: false,
+        code: "not_configured",
+        reason: "ELEVENLABS_API_KEY isn't set in the server secrets.",
+      };
+    if (!(await reserveVoiceChars("admin", TEST_PHRASE.length)).allowed)
+      return { ok: false, code: "budget_exhausted", reason: ADMIN_BUDGET_REFUSED };
     const started = Date.now();
     try {
       const response = await requestElevenLabsSpeech(TEST_PHRASE, { stream: false });
       const chunks = await readAudio(response, 200_000);
       const bytes = chunks.reduce((sum, chunk) => sum + chunk.byteLength, 0);
-      if (!bytes) return { ok: false, code: "bad_response", reason: "ElevenLabs returned empty audio." };
+      if (!bytes)
+        return { ok: false, code: "bad_response", reason: "ElevenLabs returned empty audio." };
       return { ok: true, ms: Date.now() - started, bytes };
     } catch (error) {
-      if (error instanceof ElevenLabsError) return { ok: false, code: error.code, reason: error.message };
-      return { ok: false, code: "failed", reason: error instanceof Error ? error.message : "The voice check failed." };
+      if (error instanceof ElevenLabsError)
+        return { ok: false, code: error.code, reason: error.message };
+      return {
+        ok: false,
+        code: "failed",
+        reason: error instanceof Error ? error.message : "The voice check failed.",
+      };
     }
   });

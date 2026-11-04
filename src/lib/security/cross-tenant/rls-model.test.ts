@@ -36,6 +36,20 @@ describe("rls model replay", () => {
     expect([...t.policies.keys()].sort()).toEqual(["p1"]);
   });
 
+  it("models a policy created behind an IF NOT EXISTS (pg_policies) guard in a DO block", () => {
+    const t = table(`${BASE}
+      alter table public.t enable row level security;
+      do $$
+      begin
+        if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 't' and policyname = 'guarded_read') then
+          create policy "guarded_read" on public.t for select to authenticated using (private.is_org_member(organization_id));
+        end if;
+      end $$;`);
+    expect([...t.policies.keys()]).toEqual(["guarded_read"]);
+    expect(t.policies.get("guarded_read")?.cmd).toBe("SELECT");
+    expect(t.policies.get("guarded_read")?.using).toMatch(/is_org_member\(organization_id\)/);
+  });
+
   it("sees RLS turned back off by a later statement", () => {
     const t = table(`${BASE}
       alter table public.t enable row level security;

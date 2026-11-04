@@ -15,7 +15,7 @@ permissions:
 
 concurrency:
   group: e2e-journey-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   e2e:

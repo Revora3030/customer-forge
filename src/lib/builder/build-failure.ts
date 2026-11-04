@@ -11,7 +11,7 @@
  * `readFailureKind()`.
  */
 
-import { integrityOwnerMessage, isContentIntegrityError, parseIntegrityViolations } from "./content-integrity";
+import { integrityOwnerMessage, isContentIntegrityError, ownerFieldName, parseIntegrityViolations } from "./content-integrity";
 import { isStallMessage } from "./no-progress";
 
 export const BUILD_FAILURE_KINDS = [
@@ -223,7 +223,7 @@ export function describeBuildFailure(row: {
   status?: string | null;
   failure_kind?: string | null;
   error_message?: string | null;
-}): { label: string; message: string; canRetry: boolean } | null {
+}): { label: string; message: string; canRetry: boolean; fixFields?: string[] } | null {
   if (row.status === "cancelled" || row.failure_kind === "cancelled")
     return { label: FAILURE_KIND_LABELS.cancelled, message: "The build was stopped before it finished. Nothing was published.", canRetry: true };
   if (row.status !== "failed") return null;
@@ -232,9 +232,23 @@ export function describeBuildFailure(row: {
   if (!kind) return { label: "Build didn't finish", message: untaggedMessage(row.error_message) || "The build didn't finish.", canRetry: true };
   // A build ended by the no-progress guard carries its own plain message.
   if (isStallMessage(row.error_message)) return { label: FAILURE_KIND_LABELS[kind], message: untaggedMessage(row.error_message), canRetry: true };
-  const message =
-    kind === "intake_validation" ? intakeOwnerMessage(untaggedMessage(row.error_message)) : (FINAL_OWNER_MESSAGES[kind] ?? OWNER_MESSAGES[kind]);
-  return { label: FAILURE_KIND_LABELS[kind], message, canRetry: true };
+  if (kind === "intake_validation") {
+    const text = untaggedMessage(row.error_message);
+    const fixFields = intakeFixFields(text);
+    return { label: FAILURE_KIND_LABELS[kind], message: intakeOwnerMessage(text), canRetry: true, ...(fixFields.length ? { fixFields } : {}) };
+  }
+  return { label: FAILURE_KIND_LABELS[kind], message: FINAL_OWNER_MESSAGES[kind] ?? OWNER_MESSAGES[kind], canRetry: true };
+}
+
+/**
+ * The Business-details fields an intake refusal names, in owner wording and
+ * without repeats (T051: the builder shows them as an inline "fix this field"
+ * prompt). Empty when the error names no field.
+ */
+export function intakeFixFields(message: string | null | undefined): string[] {
+  const names = parseIntegrityViolations(message).flatMap((entry) => entry.field.split(/,\s*/).map(ownerFieldName));
+  const single = names.length ? null : validationFieldFromError(message);
+  return [...new Set(single ? [single] : names)].filter(Boolean);
 }
 
 /** The message without its kind tag, for display. */

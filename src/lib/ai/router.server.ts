@@ -31,6 +31,7 @@ import { paidDailyCapUsd, reservePaidSpendDetailed, routerActual, secondsUntilPa
 import { scopedAbortSignal, scopedFreeOnly } from "@/lib/ai/spend-scope.server";
 import {
   aiLimits,
+  roleTimeoutMs,
   providerChain,
   providerConfig,
   type ModelRole,
@@ -47,6 +48,7 @@ import { compactMessages } from "@/lib/ai/context-compaction";
 import { demoteDegradedPaid, noteProviderFailure, noteProviderSuccess, providerAccountCooldown } from "@/lib/ai/provider-backoff";
 import { aiRetryDecision, clampAttempts, logAiCallFailure, type AiRetryAction } from "@/lib/ai/retry-policy";
 import { checkAiLimits, recordAiEvent } from "@/lib/ai/telemetry.server";
+import { noteGatewayCreditsStop } from "@/lib/ai/gateway-credits-alert.server";
 import type {
   AiCaller,
   AiImageResult,
@@ -381,7 +383,8 @@ async function run<T>(
     }
   }
   const chain = applyModelPreference(candidates, scopedPreferredModels(prefer), options?.avoidModels);
-  const attemptTimeoutMs = attemptTimeoutFor(clampPositive(options?.timeoutMs, limits.requestTimeoutMs), options?.longAttemptMs);
+  // Per-role ceiling (T010): design/primary get longer, fast calls shorter.
+  const attemptTimeoutMs = attemptTimeoutFor(clampPositive(options?.timeoutMs, roleTimeoutMs(role, limits)), options?.longAttemptMs);
   const chainBudgetMs = clampPositive(options?.chainDeadlineMs, chainDeadlineMs());
   if (chain.length === 0)
     throw notConfigured();
@@ -635,6 +638,9 @@ noteProviderSuccess(config.name);
 
           // A stopped build ends the whole walk: no next model, no retry.
           if (error.category === "cancelled") throw error;
+          // The gateway itself said the workspace is out of credits or at its
+          // spending cap: tell the super-admin by email (deduped, best effort).
+          noteGatewayCreditsStop(error);
           if (action === "skip_provider") {
             deadProviders.add(config.name);
             break;

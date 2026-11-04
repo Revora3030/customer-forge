@@ -1,0 +1,88 @@
+name: Gitleaks (new commits)
+
+# Secret scan of ONLY the commits a pull request or push adds, with gitleaks
+# (MIT, the release binary run directly: the gitleaks-action needs a paid
+# licence for orgs). Unlike the warn-mode full-history job in
+# security-scans.yml, this one FAILS when a new commit adds a secret, so a leak
+# is caught before merge instead of reported afterwards. Not a required check.
+#
+# Config: .gitleaks.toml (built-in rules + narrow public-key / unit-test
+# fixture allowlists). Known false positives: .gitleaksignore (fingerprints).
+# --redact keeps secret values out of logs and the job summary.
+on:
+  pull_request:
+    branches: [lovable-sync, main]
+  push:
+    branches: [lovable-sync, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  GITLEAKS_VERSION: "8.30.1"
+  # sha256 of gitleaks_8.30.1_linux_x64.tar.gz from the official checksums file
+  GITLEAKS_SHA256: "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb" # DevSkim: ignore DS173237 (public release checksum, not a secret)
+
+jobs:
+  gitleaks:
+    name: Secret scan (gitleaks, new commits)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Install gitleaks (pinned, checksum verified)
+        run: |
+          curl -sSfL -o gitleaks.tgz "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256}  gitleaks.tgz" | sha256sum -c -
+          tar -xzf gitleaks.tgz gitleaks
+          ./gitleaks version
+      - name: Work out the commit range
+        id: range
+        env:
+          EVENT: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          SHA: ${{ github.sha }}
+        run: |
+          zero=0000000000000000000000000000000000000000
+          if [ "$EVENT" = "pull_request" ]; then
+            range="${PR_BASE}..${PR_HEAD}"
+          elif [ "$EVENT" = "push" ] && [ -n "$PUSH_BEFORE" ] && [ "$PUSH_BEFORE" != "$zero" ] && git cat-file -e "${PUSH_BEFORE}^{commit}" 2>/dev/null; then
+            range="${PUSH_BEFORE}..${SHA}"
+          else
+            # Manual run, new branch, or a force-pushed base we can't see: last commit only.
+            range="${SHA}~1..${SHA}"
+          fi
+          echo "Scanning ${range} ($(git rev-list --count "$range" 2>/dev/null || echo '?') commits)"
+          echo "range=${range}" >> "$GITHUB_OUTPUT"
+      - name: gitleaks git
+        env:
+          RANGE: ${{ steps.range.outputs.range }}
+        run: |
+          set +e
+          ./gitleaks git --log-opts="$RANGE" --config .gitleaks.toml --redact --no-banner --verbose --exit-code 7 . 2>&1 | tee gitleaks.log
+          status=${PIPESTATUS[0]}
+          set -e
+          if [ "$status" -eq 0 ]; then
+            echo "## gitleaks: no secrets in ${RANGE}" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          {
+            echo "## gitleaks: possible secret in new commits (${RANGE})"
+            echo "Values are redacted. Rotate any real credential, then remove it from the branch."
+            echo "A false positive goes in .gitleaksignore (fingerprint) or a narrow .gitleaks.toml allowlist."
+            echo '```'
+            grep -E "^(RuleID|File|Line|Commit|Fingerprint):" gitleaks.log || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "::error title=gitleaks::A new commit in ${RANGE} looks like it contains a secret (exit ${status}). See the job summary; never paste the value anywhere."
+          exit 1

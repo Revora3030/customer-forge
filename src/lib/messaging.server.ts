@@ -1,5 +1,6 @@
 import { EmailAPIError } from "@lovable.dev/email-js";
 import { sendTemplateEmail } from "@/lib/email-templates/send-email";
+import { feedbackUrlFromBody } from "@/lib/review-sequence";
 import type { ConsentLookups } from "@/lib/automation-consent";
 
 /**
@@ -106,13 +107,17 @@ export async function deliverEmail(
   const gate = await consentGate(run, to, ctx);
   if (!gate.ok) return gate;
   try {
-    const result = await sendTemplateEmail("automation-message", to, {
+    // Post-job review sequence runs carry a private feedback link: send them
+    // with tappable stars. Everything else uses the plain follow-up template.
+    const feedbackUrl = run.trigger_event === "review_request" ? feedbackUrlFromBody(run.body) : null;
+    const result = await sendTemplateEmail(feedbackUrl ? "review-request" : "automation-message", to, {
       // Same run never sends twice, even if the processor runs concurrently.
       idempotencyKey: `automation-run-${run.id}`,
       templateData: {
         businessName: ctx.businessName ?? undefined,
         heading: run.subject ?? undefined,
         message: run.body ?? undefined,
+        ...(feedbackUrl ? { feedbackUrl } : {}),
       },
       ...(ctx.replyTo ? { replyTo: ctx.replyTo } : {}),
     });

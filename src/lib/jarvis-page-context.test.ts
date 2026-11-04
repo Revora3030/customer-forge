@@ -43,10 +43,10 @@ describe("Jarvis is on every admin page", () => {
   it("mounts the dock in the admin layout and sends the page with each question", () => {
     expect(readFileSync("src/routes/_authenticated/admin.tsx", "utf8")).toContain("<JarvisDock />");
     const dock = readFileSync("src/components/app/JarvisDock.tsx", "utf8");
-    expect(dock).toContain('send({ data: { message, mode: "brief", page } })');
+    expect(dock).toContain('send({ data: { message, mode: "brief", page, voice: prefs.voice } })');
     expect(dock).toContain("refetchInterval: 60_000");
     const fns = readFileSync("src/lib/jarvis.functions.ts", "utf8");
-    expect(fns).toContain("return runJarvis(db, userId, data.mode, data.page, conversationId, data.runId, data.model);");
+    expect(fns).toContain("return runJarvis(db, userId, data.mode, data.page, conversationId, data.runId, data.model, data.voice);");
     expect(fns.slice(fns.indexOf("export const getJarvisPageBrief"))).toContain("await guardedAdmin(context);");
   });
 

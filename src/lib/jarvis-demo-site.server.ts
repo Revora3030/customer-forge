@@ -383,7 +383,7 @@ export async function findProspects(
   input: { niche: string; city: string; state?: string | null; source?: ProspectSearchSource },
 ) {
   const useGoogle = prospectSearchUsesGoogle(input.source);
-  const { MAX_SEARCHES_PER_DAY, selectProspects, isUpgradeProspect } = await import("@/lib/prospect-finder");
+  const { MAX_SEARCHES_PER_DAY, MAX_FREE_SEARCHES_PER_DAY, selectProspects, isUpgradeProspect } = await import("@/lib/prospect-finder");
   const since = new Date();
   since.setUTCHours(0, 0, 0, 0);
   const { count } = await db
@@ -391,12 +391,16 @@ export async function findProspects(
     .select("id", { count: "exact", head: true })
     .eq("action", "jarvis.prospects.search")
     .gte("created_at", since.toISOString());
-  if ((count ?? 0) >= MAX_SEARCHES_PER_DAY)
-    throw new Error(`Daily search limit reached (${MAX_SEARCHES_PER_DAY}). It resets at midnight UTC, so Google Places costs stay bounded.`);
+  const searchesToday = count ?? 0;
+  // The 40-a-day cap bounds Google Places spend. Free OpenStreetMap searches
+  // keep working past it (T022), inside their own fair-use cap.
+  if (searchesToday >= MAX_FREE_SEARCHES_PER_DAY)
+    throw new Error(`Daily search limit reached (${MAX_FREE_SEARCHES_PER_DAY}). It resets at midnight UTC.`);
+  const googleAllowed = useGoogle && searchesToday < MAX_SEARCHES_PER_DAY;
 
   const query = `${input.niche} in ${input.city}${input.state ? `, ${input.state}` : ""}`;
   // Free mode (default) never calls Google Places, which can bill per request.
-  const places = useGoogle
+  const places = googleAllowed
     ? await (await import("@/lib/integrations/google.server")).searchPlacesForProspects(query, 20)
     : [];
   const existing = (await listProspectDemos(db, 100)).map((demo) => demo.name);
@@ -426,11 +430,11 @@ export async function findProspects(
     organization_id: null,
     actor_id: actorId,
     action: "jarvis.prospects.search",
-    entity: useGoogle ? "google_places" : "openstreetmap",
+    entity: googleAllowed ? "google_places" : "openstreetmap",
     entity_id: null,
-    metadata: { query, source: useGoogle ? "google_and_osm" : "free_osm_only", results: places.length, osmResults: osm.length, prospects: prospects.length },
+    metadata: { query, source: googleAllowed ? "google_and_osm" : "free_osm_only", results: places.length, osmResults: osm.length, prospects: prospects.length },
   });
-  return { query, source: useGoogle ? ("google_and_osm" as const) : ("free_osm_only" as const), searched: places.length + osm.length, prospects };
+  return { query, source: googleAllowed ? ("google_and_osm" as const) : ("free_osm_only" as const), searched: places.length + osm.length, prospects };
 }
 
 /** The demo form, prefilled from a Google Maps link or a picture. Empty means unknown. */

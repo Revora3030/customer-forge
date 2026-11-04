@@ -129,7 +129,7 @@ export function JarvisDock() {
   }, [brief.data, page, prefs.autoBrief, prefs.voice, voice]);
 
   const ask = useMutation({
-    mutationFn: (message: string) => send({ data: { message, mode: "brief", page } }),
+    mutationFn: (message: string) => send({ data: { message, mode: "brief", page, voice: prefs.voice } }),
     onSuccess: async (result) => {
       const { body, meta } = splitReplyMeta(result.reply);
       setReply({ body, followups: result.followups ?? [], proposals: meta.proposals.length });

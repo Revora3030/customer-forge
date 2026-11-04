@@ -24,6 +24,7 @@ import { useLaunchFlow } from "@/lib/production.hooks";
 import { readSeo } from "@/lib/site-seo";
 import { readCopy } from "@/lib/site-engine";
 import type { AutoFixKey, GrowthAuditInput } from "@/lib/growth-command";
+import { buildGrowthAuditInput } from "@/lib/growth-audit-input";
 import { auditStructure, type LivePageResult } from "@/lib/site-audit";
 import {
   CONVERSION_GOALS,
@@ -88,50 +89,17 @@ function CommandCenterPage() {
 
   const isLoadingWorkspace = profileQuery.isLoading || settingsQuery.isLoading;
 
-  const visibleSections = (pages ?? []).reduce(
-    (sum, page) => sum + page.sections.filter((section) => section.is_visible).length,
-    0,
-  );
-  const str = (key: string) => {
-    const value = profile?.[key];
-    return typeof value === "string" && value.trim() ? value : null;
-  };
-  const hours = profile?.["hours"];
-
-  const input: GrowthAuditInput = {
-    businessName: org?.name ?? null,
-    description: str("description"),
-    tagline: str("tagline"),
-    phone: str("phone"),
-    email: str("email"),
-    city: str("city"),
-    serviceArea: str("service_area"),
-    logoUrl: str("logo_url"),
-    hoursSet: Boolean(hours && typeof hours === "object" && Object.keys(hours).length > 0),
-    headline: seo.headline ?? null,
-    metaDescription: seo.meta_description ?? null,
-    primaryCtaLabel: seo.primary_cta_label ?? null,
-    hasCopy: !!copy,
-    copyFaqCount: copy?.faqs?.length ?? 0,
-    copyHeadline: copy?.heroHeadline ?? null,
-    copyMetaDescription: copy?.metaDescription ?? null,
-    copyPrimaryCta: copy?.primaryCta ?? null,
-    servicesCount: facts.data?.servicesCount ?? (services ?? []).length,
-    pricedServicesCount: facts.data?.pricedServicesCount ?? 0,
-    bookableCount: facts.data?.bookableCount ?? 0,
-    quoteFormCount: facts.data?.quoteFormCount ?? 0,
-    mediaCount: facts.data?.mediaCount ?? 0,
-    reviewCount: facts.data?.reviewCount ?? 0,
-    socialLinks: facts.data?.socialLinks ?? 0,
-    pagesCount: (pages ?? []).length,
-    visibleSections,
-    publishState: settings?.publish_state ?? "draft",
-    domainStatus: settings?.domain_status ?? null,
-    visitors: facts.data?.signals.visitors ?? 0,
-    leads: facts.data?.signals.leads ?? 0,
-    bookings: facts.data?.signals.bookings ?? 0,
-    callClicks: facts.data?.signals.callClicks ?? 0,
-  };
+  const input: GrowthAuditInput = buildGrowthAuditInput({
+    businessName: org?.name,
+    profile,
+    seo,
+    copy,
+    facts: facts.data,
+    servicesLength: (services ?? []).length,
+    pages,
+    publishState: settings?.publish_state,
+    domainStatus: settings?.domain_status,
+  });
 
   /* ---------------- Auditor · conversion engine · auto-upgrades ---------------- */
 

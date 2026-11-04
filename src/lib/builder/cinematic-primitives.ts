@@ -49,6 +49,13 @@ export const MIN_CHAPTERS = 2;
 export const MAX_CHAPTERS = 8;
 /** Renderer-safety ceiling for a scrim: the photo must stay visible. */
 export const MAX_SCRIM_OPACITY = 95;
+/**
+ * Body-text floor for a scene scrim (percent). Contrast math alone can settle
+ * on a thin scrim that passes 4.5:1 only at its two extreme pixels; busy
+ * mid-tone photos still make paragraphs shimmer. Body copy always gets at
+ * least this much scrim; large display text (3:1) keeps the computed value.
+ */
+export const BODY_SCRIM_MIN_OPACITY = 72;
 
 const WHITE = { r: 255, g: 255, b: 255 };
 const BLACK = { r: 0, g: 0, b: 0 };
@@ -89,7 +96,8 @@ export type SceneScrim = {
  * The computed scrim that guarantees WCAG AA text over ANY photograph: the
  * text is measured against the scrim composited over both a pure white and a
  * pure black pixel, and the opacity rises until both pass. The AI's own
- * opacity is a floor, never lowered. When the authored scrim colour can never
+ * opacity is a floor, never lowered, and body copy never sits on less than
+ * BODY_SCRIM_MIN_OPACITY. When the authored scrim colour can never
  * carry the authored ink (light text on a light scrim), the ink flips to the
  * readable end — the same correction the renderer applies everywhere else.
  */
@@ -98,7 +106,8 @@ export function sceneScrim(input: { ink?: string | null | undefined; scrim?: str
   const authoredInk = input.ink && toRgb(input.ink) ? input.ink : null;
   const inkLight = authoredInk ? (contrastRatio(authoredInk, "#000000") ?? 21) >= (contrastRatio(authoredInk, "#ffffff") ?? 21) : true;
   const scrim = input.scrim && toRgb(input.scrim) ? input.scrim : inkLight ? "#000000" : "#ffffff";
-  const floor = Math.min(MAX_SCRIM_OPACITY, Math.max(0, input.opacity ?? 0)) / 100;
+  const authored = Math.max(0, input.opacity ?? 0);
+  const floor = Math.min(MAX_SCRIM_OPACITY, input.large ? authored : Math.max(authored, BODY_SCRIM_MIN_OPACITY)) / 100;
   const solve = (ink: string): number | null => {
     for (let step = Math.round(floor * 100); step <= MAX_SCRIM_OPACITY; step += 1)
       if (worstSceneContrast(ink, scrim, step / 100) >= target) return step / 100;

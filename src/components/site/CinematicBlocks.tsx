@@ -8,7 +8,7 @@
  */
 import { cleanFrameLabels } from "@/lib/builder/frame-labels";
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
-import { scrubFrame, scrubProgress, scrubTime, shouldSeek } from "@/lib/builder/scrub";
+import { scrubFrame, scrubProgress, scrubTime, scrubTransition, shouldSeek } from "@/lib/builder/scrub";
 import { MIN_SPIN_FRAMES, dialAngle, dialArcPath, dialOptionForKey, dialOptionForPoint, frameForDrag, frameForKey } from "@/lib/builder/cinematic-primitives";
 
 type NodeProps = { "data-cn": string; "data-motion": string | undefined; className: string | undefined; style: CSSProperties };
@@ -560,15 +560,20 @@ export function ScrubSequence({
   }, [frames.length]);
   const shown = pinned != null ? { index: pinned, mix: 0 } : live ? scrubFrame(progress, frames.length) : { index: Math.max(0, frames.length - 1), mix: 0 };
   const last = Math.max(0, frames.length - 1);
+  // 10-18 real frames cross-fade (a smooth move); shorter sequences wipe.
+  const transition = scrubTransition(frames.length);
   return (
-    <div ref={track} {...props} className={merge(props, "rv-seq")} data-live={live ? "" : undefined}>
+    <div ref={track} {...props} className={merge(props, "rv-seq")} data-live={live ? "" : undefined} data-transition={transition}>
       <div className="rv-seq-pin">
         <div className="rv-seq-stage" style={{ color: ink, backgroundColor: scrim }}>
           {frames.map((frame, index) => {
             const incoming = live && index === shown.index + 1;
             const current = live ? index === shown.index : index === last;
             const visible = current || incoming;
-            const clip = incoming ? `inset(0 ${(1 - shown.mix) * 100}% 0 0)` : undefined;
+            const fade = transition === "crossfade";
+            const clip = incoming && !fade ? `inset(0 ${(1 - shown.mix) * 100}% 0 0)` : undefined;
+            // Only the frame on screen and the one arriving get a compositor layer.
+            const opacity = visible ? (incoming && fade ? shown.mix : 1) : 0;
             return (
               <img
                 key={frame.src}
@@ -578,7 +583,7 @@ export function ScrubSequence({
                 aria-hidden={index === last ? undefined : true}
                 loading={index === 0 || index === last ? "eager" : "lazy"}
                 decoding="async"
-                style={{ opacity: visible ? 1 : 0, clipPath: clip, zIndex: incoming ? 2 : 1 }}
+                style={{ opacity, clipPath: clip, zIndex: incoming ? 2 : 1, willChange: live && visible ? (fade ? "opacity" : "clip-path") : undefined }}
               />
             );
           })}

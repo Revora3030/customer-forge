@@ -21,6 +21,8 @@ import { useStepScroll } from "@/lib/use-step-scroll";
 import { DirectContact } from "@/components/site/ContactDetails";
 import { PrintableEstimate } from "@/components/site/PrintableEstimate";
 import { AltchaField, altchaPayload } from "@/components/site/AltchaField";
+import { TurnstileField } from "@/components/site/TurnstileField";
+import { turnstilePayload } from "@/lib/turnstile";
 import { ClientPrivacyLink } from "@/components/site/ClientPrivacyNotice";
 import { AddToCalendar } from "@/components/site/AddToCalendar";
 import { useHolidayClosures } from "@/components/site/use-holiday-closures";
@@ -411,6 +413,7 @@ function QuoteCalculatorLive({ site, presentation }: { site: Site; presentation?
                 message: String(form.get("message") ?? ""),
                 companyWebsite: String(form.get("company_website") ?? ""),
                 altcha: altchaPayload(form),
+                turnstile: turnstilePayload(form),
                 sessionId: currentSessionId(),
                 serviceInterest: quote.form.name,
                 estimatedValue: Math.round((min + max) / 2),
@@ -447,6 +450,7 @@ function QuoteCalculatorLive({ site, presentation }: { site: Site; presentation?
         >
           <Honeypot />
           <AltchaField />
+          <TurnstileField />
           <p className="tnum text-[14px] text-muted-foreground">
             Your estimate:{" "}
             <span className="font-semibold text-primary">
@@ -644,6 +648,7 @@ function BookingFormLive({ site, presentation }: { site: Site; presentation?: Wi
             city: String(form.get("city") ?? ""),
             companyWebsite: String(form.get("company_website") ?? ""),
             altcha: altchaPayload(form),
+            turnstile: turnstilePayload(form),
             sessionId: currentSessionId(),
             serviceId: serviceId || null,
             serviceInterest: service?.name ?? null,
@@ -679,6 +684,7 @@ function BookingFormLive({ site, presentation }: { site: Site; presentation?: Wi
 
       <Honeypot />
       <AltchaField />
+      <TurnstileField />
       <DirectContact profile={site.profile} businessName={site.org.name} {...(presentation ? { presentation } : {})} />
 
       {bookable.length ? (
@@ -871,6 +877,7 @@ function EnquiryFormLive({ site, presentation }: { site: Site; presentation?: Wi
             city: String(form.get("city") ?? ""),
             companyWebsite: String(form.get("company_website") ?? ""),
             altcha: altchaPayload(form),
+            turnstile: turnstilePayload(form),
             sessionId: currentSessionId(),
             serviceId: service?.id ?? null,
             serviceInterest: service?.name ?? null,
@@ -897,6 +904,7 @@ function EnquiryFormLive({ site, presentation }: { site: Site; presentation?: Wi
 
       <Honeypot />
       <AltchaField />
+      <TurnstileField />
 
       {services.length > 1 ? (
         <div className="space-y-1.5">
