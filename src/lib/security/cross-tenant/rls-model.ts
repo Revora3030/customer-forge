@@ -293,6 +293,9 @@ function parsePolicy(stmt: string, file: string): PolicyModel | null {
   return { name, table, cmd, permissive, roles, using, withCheck, file };
 }
 
+/** `[BEGIN] IF NOT EXISTS (...) THEN CREATE POLICY ...` inside a DO body; group 1 is the CREATE POLICY. */
+export const GUARDED_POLICY = /^\s*(?:begin\s+)?if\s+not\s+exists\b[\s\S]*?\bthen\s+(create\s+policy\b[\s\S]*)$/i;
+
 /** Expand `foreach t in array ARR loop ... execute format('...%I...', t ...) ... end loop`. */
 function expandForeachLoops(body: string): string[] {
   const out: string[] = [];
@@ -343,7 +346,12 @@ function applyStatement(model: RlsModel, raw: string, file: string): void {
       for (const inner of splitStatements(body)) {
         if (/^(create policy|alter table|drop policy|create table|revoke|grant)\b/i.test(squash(inner))) {
           applyStatement(model, inner, file);
+          continue;
         }
+        // Idempotent guard: `[BEGIN] IF NOT EXISTS (SELECT ... pg_policies ...) THEN CREATE POLICY ...`.
+        // The guarded policy is still a policy and must be modelled like any other.
+        const guarded = GUARDED_POLICY.exec(inner);
+        if (guarded) applyStatement(model, guarded[1] as string, file);
       }
     }
     return;
