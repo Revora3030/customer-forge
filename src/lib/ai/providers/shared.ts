@@ -74,7 +74,9 @@ export async function providerHttpError(
       ? "Revora AI took too long to answer. Try again."
       : category === "rate_limited"
       ? "Revora AI is busy right now. Try again in a moment."
-      : category === "quota" || category === "policy"
+      : category === "quota"
+        ? `Revora's AI provider (${provider}) is out of credits. Replies resume once credits are topped up.`
+      : category === "policy"
         ? `Revora's AI provider (${provider}) refused this request. Check the provider account for this workspace.`
         : category === "too_large"
           ? contextTooLong
