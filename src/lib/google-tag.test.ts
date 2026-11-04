@@ -58,7 +58,7 @@ describe("single Google tag after load or first interaction", () => {
     readyState = "complete";
     let idle: (() => void) | undefined;
     let timeout: number | undefined;
-    (globalThis as unknown as { window: Record<string, unknown> }).window.requestIdleCallback = (
+    (globalThis as unknown as { window: Record<string, unknown> }).window["requestIdleCallback"] = (
       cb: () => void,
       opts: { timeout: number },
     ) => {
