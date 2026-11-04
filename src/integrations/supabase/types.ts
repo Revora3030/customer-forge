@@ -201,6 +201,97 @@ export type Database = {
           },
         ]
       }
+      agent_routines: {
+        Row: {
+          claim_token: string | null
+          claimed_until: string | null
+          created_at: string
+          created_by: string | null
+          enabled: boolean
+          frequency: string
+          hour: number
+          id: string
+          last_run_at: string | null
+          last_run_id: string | null
+          last_status: string | null
+          minute: number
+          month_day: number | null
+          name: string
+          next_run_at: string
+          organization_id: string
+          preset: string
+          prompt: string | null
+          updated_at: string
+          weekday: number | null
+        }
+        Insert: {
+          claim_token?: string | null
+          claimed_until?: string | null
+          created_at?: string
+          created_by?: string | null
+          enabled?: boolean
+          frequency: string
+          hour: number
+          id?: string
+          last_run_at?: string | null
+          last_run_id?: string | null
+          last_status?: string | null
+          minute: number
+          month_day?: number | null
+          name: string
+          next_run_at: string
+          organization_id: string
+          preset: string
+          prompt?: string | null
+          updated_at?: string
+          weekday?: number | null
+        }
+        Update: {
+          claim_token?: string | null
+          claimed_until?: string | null
+          created_at?: string
+          created_by?: string | null
+          enabled?: boolean
+          frequency?: string
+          hour?: number
+          id?: string
+          last_run_at?: string | null
+          last_run_id?: string | null
+          last_status?: string | null
+          minute?: number
+          month_day?: number | null
+          name?: string
+          next_run_at?: string
+          organization_id?: string
+          preset?: string
+          prompt?: string | null
+          updated_at?: string
+          weekday?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_routines_last_run_id_fkey"
+            columns: ["last_run_id"]
+            isOneToOne: false
+            referencedRelation: "agent_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_routines_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_routines_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "public_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       agent_run_admissions: {
         Row: {
           cancel_reason: string | null
@@ -8050,6 +8141,55 @@ export type Database = {
         Returns: boolean
       }
       agent_limits_mark_started: { Args: { _run_id: string }; Returns: boolean }
+      agent_routine_claim_due: {
+        Args: { _lease_seconds?: number; _limit?: number }
+        Returns: {
+          claim_token: string | null
+          claimed_until: string | null
+          created_at: string
+          created_by: string | null
+          enabled: boolean
+          frequency: string
+          hour: number
+          id: string
+          last_run_at: string | null
+          last_run_id: string | null
+          last_status: string | null
+          minute: number
+          month_day: number | null
+          name: string
+          next_run_at: string
+          organization_id: string
+          preset: string
+          prompt: string | null
+          updated_at: string
+          weekday: number | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "agent_routines"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      agent_routine_fire: {
+        Args: {
+          _goal: string
+          _id: string
+          _next_run_at: string
+          _token: string
+        }
+        Returns: string
+      }
+      agent_routine_release: {
+        Args: {
+          _id: string
+          _next_run_at: string
+          _status: string
+          _token: string
+        }
+        Returns: boolean
+      }
       agent_run_add_event: {
         Args: {
           _data?: Json
