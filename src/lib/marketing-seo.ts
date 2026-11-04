@@ -28,7 +28,7 @@ export function marketingSearchHead(page: (typeof MARKETING_SEARCH)[keyof typeof
       { property: "og:title", content: page.title },
       { property: "og:description", content: page.description },
       { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary" },
+      { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:title", content: page.title },
       { name: "twitter:description", content: page.description },
       ogUrl(page.path),
