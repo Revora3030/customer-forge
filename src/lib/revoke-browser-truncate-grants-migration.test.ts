@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const sql = readFileSync(
-  join(process.cwd(), "supabase/migrations/20261104231000_revoke_browser_truncate_references_trigger.sql"),
+  join(process.cwd(), "supabase/migrations/20261104236000_revoke_browser_truncate_references_trigger.sql"),
   "utf8",
 );
 const code = sql
@@ -11,7 +11,7 @@ const code = sql
   .filter((l) => !l.trim().startsWith("--"))
   .join("\n");
 
-describe("20261104231000 revoke browser TRUNCATE/REFERENCES/TRIGGER", () => {
+describe("20261104236000 revoke browser TRUNCATE/REFERENCES/TRIGGER", () => {
   it("revokes only TRUNCATE, REFERENCES and TRIGGER from anon and authenticated", () => {
     expect(code).toContain("REVOKE TRUNCATE, REFERENCES, TRIGGER ON public.%I FROM anon, authenticated");
     const revokes = code.match(/REVOKE[^;']*/gi) ?? [];
