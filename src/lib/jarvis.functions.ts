@@ -338,6 +338,7 @@ export const runJarvis = createServerOnlyFn(async (db: SupabaseClient, userId: s
     reply = executiveFallback({
       ran,
       reason: error instanceof Error ? error.message : "The model roster did not finish.",
+      error,
     });
   }
   reply = appendReplyMeta(reply.slice(0, 40000), { ran, proposals });
