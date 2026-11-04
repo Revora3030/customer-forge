@@ -7,7 +7,7 @@ const section = { id: "00000000-0000-4000-8000-000000000001", kind: "values", he
 describe("fallback section with only a heading", () => {
   it("adds the real ways to reach the business instead of shipping a bare heading", () => {
     const tree = fallbackSectionComposition(section, { facts: { businessName: "Test Co", phone: "8135550123" }, enquiryHref: "/contact" });
-    expect(auditSectionDesign(tree, { role: "values" }).map((f) => f.code)).not.toContain("section_too_thin");
+    expect(auditSectionDesign(tree, { lead: false, role: "values" }).map((f) => f.code)).not.toContain("section_too_thin");
     expect(JSON.stringify(tree.root)).toContain("tel:8135550123");
   });
 
@@ -16,7 +16,7 @@ describe("fallback section with only a heading", () => {
     const text = JSON.stringify(tree.root);
     expect(text).toContain("Tampa");
     expect(text).toContain("/contact");
-    expect(auditSectionDesign(tree, { role: "values" }).map((f) => f.code)).not.toContain("section_too_thin");
+    expect(auditSectionDesign(tree, { lead: false, role: "values" }).map((f) => f.code)).not.toContain("section_too_thin");
   });
 });
 
