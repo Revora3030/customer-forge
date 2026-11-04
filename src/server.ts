@@ -2,6 +2,7 @@ import "./lib/error-capture";
 
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
+import { applyDraft404, draftSlugFromPath } from "./lib/draft-404";
 
 type ServerEntry = {
   fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;
@@ -63,8 +64,10 @@ export default {
     return withExecutionContext(ctx, async () => {
       try {
         const handler = await getServerEntry();
-        const response = await handler.fetch(request, env, ctx);
-        return await normalizeCatastrophicSsrResponse(response);
+        const response = await normalizeCatastrophicSsrResponse(await handler.fetch(request, env, ctx));
+        if (!draftSlugFromPath(new URL(request.url).pathname)) return response;
+        const { organizationSlugExists } = await import("./lib/draft-404.server");
+        return await applyDraft404(request, response, organizationSlugExists);
       } catch (error) {
         console.error(error);
         return new Response(renderErrorPage(), {
