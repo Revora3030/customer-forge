@@ -3,7 +3,7 @@ import { authenticateCronRequest } from "@/integrations/supabase/cron-auth";
 import { methodNotAllowed } from "@/lib/method-not-allowed";
 
 /**
- * Scheduler endpoint for prospect replies (pg_cron, every 10 minutes).
+ * Scheduler endpoint for prospect replies (pg_cron, every 15 minutes).
  * Bearer-authenticated like the other jobs. POST-only because a run sends
  * queued outreach and in-thread replies. Drains the send queue, then polls
  * the Gmail threads of sent outreach; without the GMAIL_* secrets it returns
