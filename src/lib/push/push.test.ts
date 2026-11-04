@@ -86,8 +86,8 @@ describe("parseSubscription", () => {
   it("accepts a real browser subscription and rejects unsafe endpoints", async () => {
     const sub = await browserSubscription();
     expect(parseSubscription(sub)).toEqual({ endpoint: sub.endpoint, ...sub.keys });
-    expect(parseSubscription({ ...sub, endpoint: "http://fcm.googleapis.com/x" })).toBeNull();
-    expect(parseSubscription({ ...sub, endpoint: "https://localhost/x" })).toBeNull();
+    expect(parseSubscription({ ...sub, endpoint: "http://fcm.googleapis.com/x" })).toBeNull(); // DevSkim: ignore DS137138 -- asserts http:// endpoints are rejected
+    expect(parseSubscription({ ...sub, endpoint: "https://localhost/x" })).toBeNull(); // DevSkim: ignore DS162092 -- asserts localhost endpoints are rejected
     expect(parseSubscription({ ...sub, endpoint: "https://10.0.0.1/x" })).toBeNull();
     expect(
       parseSubscription({ ...sub, keys: { p256dh: "short", auth: sub.keys.auth } }),
