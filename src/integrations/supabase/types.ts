@@ -77,6 +77,209 @@ export type Database = {
         }
         Relationships: []
       }
+      agent_run_events: {
+        Row: {
+          created_at: string
+          data: Json
+          id: number
+          kind: string
+          message: string
+          organization_id: string
+          run_id: string
+        }
+        Insert: {
+          created_at?: string
+          data?: Json
+          id?: never
+          kind: string
+          message: string
+          organization_id: string
+          run_id: string
+        }
+        Update: {
+          created_at?: string
+          data?: Json
+          id?: never
+          kind?: string
+          message?: string
+          organization_id?: string
+          run_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_run_events_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_run_events_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "public_organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_run_events_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "agent_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agent_run_steps: {
+        Row: {
+          created_at: string
+          finished_at: string | null
+          id: string
+          input: Json
+          kind: string
+          organization_id: string
+          output: Json | null
+          run_id: string
+          seq: number
+          status: string
+          tool: string | null
+        }
+        Insert: {
+          created_at?: string
+          finished_at?: string | null
+          id?: string
+          input?: Json
+          kind: string
+          organization_id: string
+          output?: Json | null
+          run_id: string
+          seq: number
+          status?: string
+          tool?: string | null
+        }
+        Update: {
+          created_at?: string
+          finished_at?: string | null
+          id?: string
+          input?: Json
+          kind?: string
+          organization_id?: string
+          output?: Json | null
+          run_id?: string
+          seq?: number
+          status?: string
+          tool?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_run_steps_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_run_steps_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "public_organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_run_steps_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "agent_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agent_runs: {
+        Row: {
+          attempts: number
+          budget_cap: number | null
+          budget_used: number
+          checkpoint: Json
+          created_at: string
+          error_plain: string | null
+          fence: number
+          finished_at: string | null
+          goal: string
+          id: string
+          lease_expires_at: string | null
+          max_attempts: number
+          not_before: string
+          organization_id: string
+          result_summary: string | null
+          source: string
+          started_at: string | null
+          status: string
+          updated_at: string
+          user_id: string | null
+          worker: string | null
+        }
+        Insert: {
+          attempts?: number
+          budget_cap?: number | null
+          budget_used?: number
+          checkpoint?: Json
+          created_at?: string
+          error_plain?: string | null
+          fence?: number
+          finished_at?: string | null
+          goal: string
+          id?: string
+          lease_expires_at?: string | null
+          max_attempts?: number
+          not_before?: string
+          organization_id: string
+          result_summary?: string | null
+          source?: string
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+          worker?: string | null
+        }
+        Update: {
+          attempts?: number
+          budget_cap?: number | null
+          budget_used?: number
+          checkpoint?: Json
+          created_at?: string
+          error_plain?: string | null
+          fence?: number
+          finished_at?: string | null
+          goal?: string
+          id?: string
+          lease_expires_at?: string | null
+          max_attempts?: number
+          not_before?: string
+          organization_id?: string
+          result_summary?: string | null
+          source?: string
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+          worker?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_runs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_runs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "public_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_command_settings: {
         Row: {
           id: number
@@ -7557,6 +7760,119 @@ export type Database = {
           media: number
           organization_id: string
         }[]
+      }
+      agent_run_add_event: {
+        Args: {
+          _data?: Json
+          _fence: number
+          _kind: string
+          _message: string
+          _run: string
+        }
+        Returns: boolean
+      }
+      agent_run_cancel: { Args: { _run: string }; Returns: boolean }
+      agent_run_claim: {
+        Args: { _lease_seconds?: number; _worker: string }
+        Returns: {
+          attempts: number
+          budget_cap: number | null
+          budget_used: number
+          checkpoint: Json
+          created_at: string
+          error_plain: string | null
+          fence: number
+          finished_at: string | null
+          goal: string
+          id: string
+          lease_expires_at: string | null
+          max_attempts: number
+          not_before: string
+          organization_id: string
+          result_summary: string | null
+          source: string
+          started_at: string | null
+          status: string
+          updated_at: string
+          user_id: string | null
+          worker: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "agent_runs"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      agent_run_create: {
+        Args: {
+          _budget_cap?: number
+          _goal: string
+          _max_attempts?: number
+          _org: string
+          _source?: string
+          _user: string
+        }
+        Returns: {
+          attempts: number
+          budget_cap: number | null
+          budget_used: number
+          checkpoint: Json
+          created_at: string
+          error_plain: string | null
+          fence: number
+          finished_at: string | null
+          goal: string
+          id: string
+          lease_expires_at: string | null
+          max_attempts: number
+          not_before: string
+          organization_id: string
+          result_summary: string | null
+          source: string
+          started_at: string | null
+          status: string
+          updated_at: string
+          user_id: string | null
+          worker: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "agent_runs"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      agent_run_finish: {
+        Args: {
+          _error?: string
+          _fence: number
+          _run: string
+          _status: string
+          _summary?: string
+        }
+        Returns: boolean
+      }
+      agent_run_heartbeat: {
+        Args: { _fence: number; _lease_seconds?: number; _run: string }
+        Returns: boolean
+      }
+      agent_run_recover_stalled: {
+        Args: { _grace_seconds?: number }
+        Returns: {
+          outcome: string
+          run_id: string
+        }[]
+      }
+      agent_run_resume: { Args: { _run: string }; Returns: boolean }
+      agent_run_save: {
+        Args: {
+          _budget_used?: number
+          _checkpoint: Json
+          _fence: number
+          _run: string
+        }
+        Returns: boolean
       }
       ai_note_free_tokens: {
         Args: { _amount: number; _provider: string }
