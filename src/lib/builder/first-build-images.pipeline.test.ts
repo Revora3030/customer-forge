@@ -120,7 +120,8 @@ describe("first-build picture pipeline", () => {
     const result = await generateFirstBuildImages(fakeDb(), input(9));
     expect(state.peak).toBeGreaterThan(1);
     expect(state.peak).toBeLessThanOrEqual(3);
-    expect(result.assets.map((asset) => asset.label)).toEqual(Array.from({ length: 9 }, (_, i) => `Shot ${i + 1}`));
+    // First builds plan four key pictures; the rest are left for later.
+    expect(result.assets.map((asset) => asset.label)).toEqual(Array.from({ length: 4 }, (_, i) => `Shot ${i + 1}`));
     expect(result.evidence.status).toBe("generated");
   });
 
@@ -154,15 +155,13 @@ describe("first-build picture pipeline", () => {
     expect(result.assets).toHaveLength(1);
   });
 
-  it("gives the opening picture one more corrective round than the rest, so a rejected hero is not left empty", async () => {
+  it("gives the opening picture at most one reshoot, so a rejected hero cannot loop on spend", async () => {
     process.env["FIRST_BUILD_IMAGE_CONCURRENCY"] = "1";
     state.reviewMode = "reject-two";
     const result = await generateFirstBuildImages(fakeDb(), input(1));
-    // The shot, then two corrected reshoots; the second one passes.
-    expect(state.generated).toBe(3);
-    expect(state.reviews).toBe(3);
-    expect(result.assets).toHaveLength(1);
-    expect(result.assets[0]?.slot).toBe("hero");
+    expect(state.generated).toBe(2);
+    expect(state.reviews).toBe(2);
+    expect(result.assets).toHaveLength(0);
   });
 
   it("gives a supporting picture a single reshoot, and says why it was left out", async () => {
