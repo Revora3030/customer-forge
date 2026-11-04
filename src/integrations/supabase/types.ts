@@ -1237,6 +1237,72 @@ export type Database = {
           },
         ]
       }
+      builder_quality_log: {
+        Row: {
+          attempt: number
+          bar: number | null
+          blueprint_source: string | null
+          capped: string | null
+          created_at: string
+          event_kind: string
+          failures: Json
+          gate_mode: string | null
+          id: string
+          organization_id: string
+          passed: boolean | null
+          score: number | null
+          step_roles: Json | null
+          trade_slug: string
+        }
+        Insert: {
+          attempt?: number
+          bar?: number | null
+          blueprint_source?: string | null
+          capped?: string | null
+          created_at?: string
+          event_kind: string
+          failures?: Json
+          gate_mode?: string | null
+          id?: string
+          organization_id: string
+          passed?: boolean | null
+          score?: number | null
+          step_roles?: Json | null
+          trade_slug: string
+        }
+        Update: {
+          attempt?: number
+          bar?: number | null
+          blueprint_source?: string | null
+          capped?: string | null
+          created_at?: string
+          event_kind?: string
+          failures?: Json
+          gate_mode?: string | null
+          id?: string
+          organization_id?: string
+          passed?: boolean | null
+          score?: number | null
+          step_roles?: Json | null
+          trade_slug?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "builder_quality_log_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "builder_quality_log_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "public_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       builder_reply_drafts: {
         Row: {
           organization_id: string

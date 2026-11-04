@@ -197,6 +197,13 @@
       "when": 1793815207351,
       "tag": "0027_canceled_site_grace",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1793815249767,
+      "tag": "0028_builder_quality_log",
+      "breakpoints": true
     }
   ]
 }
