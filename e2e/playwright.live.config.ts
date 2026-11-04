@@ -27,6 +27,7 @@ export default defineConfig({
     baseURL,
     headless: true,
     navigationTimeout: 60_000,
+    reducedMotion: "reduce",
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },
