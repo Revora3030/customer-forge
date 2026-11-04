@@ -24,6 +24,7 @@ import {
   enforceSessionPolicy,
   resolvePostLoginPath,
 } from "@/lib/auth-session";
+import { isSafeRedirect } from "@/lib/prospect-claim";
 import { clearBuilderCachedTurns, resetSignedOutState } from "@/lib/signed-out-reset";
 import { ORGANIZATION_SCHEMA, WEBSITE_SCHEMA, isClientSiteMatch } from "@/lib/seo";
 import { RouteError, RouteNotFound } from "@/components/app/RouteStates";
@@ -200,10 +201,10 @@ function RootComponent() {
       let target: string | null = null;
       try {
         const stored = sessionStorage.getItem("lle:redirect");
-        if (stored && stored.startsWith("/")) {
-          sessionStorage.removeItem("lle:redirect");
-          target = stored;
-        }
+        // One-shot: drop it either way, and only follow a same-site path
+        // ("//evil.com", "/\\evil.com" and "/javascript:" start with "/" too).
+        if (stored !== null) sessionStorage.removeItem("lle:redirect");
+        if (isSafeRedirect(stored)) target = stored;
       } catch {
         /* storage unavailable */
       }
