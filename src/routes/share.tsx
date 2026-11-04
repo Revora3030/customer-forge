@@ -52,7 +52,13 @@ function SharePage() {
   const [copied, setCopied] = useState<string | null>(null);
 
   const campaign = useMemo(() => (name.trim() ? `share-${name.trim()}` : "share"), [name]);
-  const assets = useMemo(() => buildChannelAssets({ campaign, audience }), [campaign, audience]);
+  // postalAddress: null — the sharer sends as themselves and adds their own address (see the
+  // email note). Falling back to Revora's server-only env address made the server HTML differ
+  // from the browser render (React hydration error #418).
+  const assets = useMemo(
+    () => buildChannelAssets({ campaign, audience, postalAddress: null }),
+    [campaign, audience],
+  );
   const mainLink = useMemo(
     () => trackedLink("/", { source: "referral", medium: "share", campaign }),
     [campaign],
