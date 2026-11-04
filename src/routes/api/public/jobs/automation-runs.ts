@@ -3,7 +3,7 @@ import { authenticateCronRequest } from "@/integrations/supabase/cron-auth";
 import { methodNotAllowed } from "@/lib/method-not-allowed";
 
 /**
- * Every 10 minutes (pg_cron `revora-automation-runs`, migration
+ * Every 15 minutes (pg_cron `revora-automation-runs`, migration
  * 20261030120000): deliver automation follow-ups that have come due in any
  * workspace. Bearer-authenticated with the cron secret; safe to repeat.
  */

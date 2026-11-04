@@ -75,7 +75,7 @@ export const getProductionStatus = createServerFn({ method: "POST" })
     const { data: org, error } = await supabase
       .from("organizations")
       .select(
-        "id, is_demo, is_suspended, subscription_status, trial_ends_at, created_at, setup_paid_at, setup_payment_status",
+        "id, is_demo, is_suspended, subscription_status, trial_ends_at, created_at, setup_paid_at, setup_payment_status, past_due_since",
       )
       .eq("id", data.organizationId)
       .maybeSingle();
@@ -139,7 +139,7 @@ async function gatherReadiness(
   const [org, profile, settings, pages, sections, services] = await Promise.all([
     supabase
       .from("organizations")
-      .select("id, name, is_demo, is_suspended, setup_paid_at, setup_payment_status, trial_ends_at, created_at, subscription_status")
+      .select("id, name, is_demo, is_suspended, setup_paid_at, setup_payment_status, trial_ends_at, created_at, subscription_status, past_due_since")
       .eq("id", organizationId)
       .maybeSingle(),
     supabase
