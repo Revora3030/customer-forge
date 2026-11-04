@@ -59,6 +59,20 @@ describe("sendLeadAlert is actionable", () => {
     const result = await sendLeadAlert("owner@acme.test", {}, `lead-alert-${LEAD_ID}`);
     expect(result).toEqual({ ok: false, retry: false, reason: "recipient_suppressed" });
   });
+
+  it("reports a missing LOVABLE_API_KEY as email_not_configured (retryable), with a warning instead of an error", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    vi.mocked(sendTemplateEmail).mockRejectedValueOnce(
+      Object.assign(new Error("LOVABLE_API_KEY is not configured"), { code: "email_not_configured" }),
+    );
+    const result = await sendLeadAlert("owner@acme.test", {}, `lead-alert-${LEAD_ID}`);
+    expect(result).toEqual({ ok: false, retry: true, reason: "email_not_configured" });
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("LOVABLE_API_KEY is not configured"));
+    expect(error).not.toHaveBeenCalled();
+    warn.mockRestore();
+    error.mockRestore();
+  });
 });
 
 describe("lead-alert template", () => {
