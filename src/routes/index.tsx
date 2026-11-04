@@ -26,7 +26,6 @@ import { VisualComposition } from "@/components/site/VisualComposition";
 import { HOMEPAGE_COMPOSITION } from "@/lib/homepage-concept";
 import { SiteAddressProvider } from "@/components/site/site-links-context";
 import { getHostSite } from "@/lib/host-site.functions";
-import { tenantSiteHead } from "@/lib/site-head";
 
 // The client-website renderer (header, sections, builder bridges) is only needed
 // on a client's own custom domain. Loading it lazily keeps ~150 KB of JavaScript
@@ -53,7 +52,9 @@ export const Route = createFileRoute("/")({
       return null;
     }
   },
-  head: ({ loaderData }) =>
+  // site-head is imported lazily (client hosts only) so the client-site
+  // renderer chunk stays out of the entry bundle on Revora's own pages.
+  head: async ({ loaderData }) =>
     loaderData && "pending" in loaderData
       ? {
           meta: [
@@ -75,7 +76,7 @@ export const Route = createFileRoute("/")({
           ],
         }
       : loaderData
-        ? tenantSiteHead({
+        ? (await import("@/lib/site-head")).tenantSiteHead({
             site: loaderData.site,
             pageSlug: null,
             canonical: `https://${loaderData.host}/`,

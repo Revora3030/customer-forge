@@ -103,8 +103,13 @@ export function buildChannelAssets(input: {
   campaign: string;
   audience?: string;
   path?: string;
-  /** The sender's real mailing address. Commercial email must carry one; it is never invented. */
-  postalAddress?: string;
+  /**
+   * The sender's real mailing address. Commercial email must carry one; it is never invented.
+   * Omitted: falls back to Revora's server-side address (empty in the browser). `null`: no
+   * address line at all, for public pages where the sharer adds their own address and the
+   * server-rendered and hydrated copy must match.
+   */
+  postalAddress?: string | null;
 }): ChannelAsset[] {
   const campaign = input.campaign || "growth";
   const audience = (input.audience || "business owners in every industry").trim();
@@ -116,7 +121,8 @@ export function buildChannelAssets(input: {
 
   const whatsappBody = `Hey — I build complete customer-getting systems for ${audience}. Website, instant quotes, online booking, follow-up, all in one. First month free. Take a look: ${link("whatsapp", "chat")}`;
   const smsBody = `Hey — I build complete customer-getting systems for ${audience}. Website, instant quotes, online booking, follow-up, all in one. First month free. Take a look: ${link("sms", "text")}`;
-  const postal = input.postalAddress?.trim() || REVORA_POSTAL_ADDRESS;
+  const postal =
+    input.postalAddress === null ? "" : input.postalAddress?.trim() || REVORA_POSTAL_ADDRESS;
   const emailBody = `Hi,\n\n${pitch}\n\nYou can see exactly what it looks like here: ${link("email", "email")}\n\nIf it's not a fit, no hard feelings — reply "no" and I won't follow up.\n\n${REVORA.founder.name}\nRevora Growth Systems${postal ? `\n${postal}` : ""}`;
 
   const assets: ChannelAsset[] = [

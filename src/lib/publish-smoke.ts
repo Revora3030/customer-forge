@@ -59,6 +59,38 @@ export function liveSiteUrl(input: {
   return `${(input.platformOrigin ?? "https://revoragrowthsystems.com").replace(/\/$/, "")}/s/${encodeURIComponent(input.slug)}`;
 }
 
+export type SmokeTarget = { label: "platform" | "custom_domain"; base: string };
+
+/**
+ * Every address a visitor can reach after a publish: always the platform
+ * /s/<slug> copy, plus the custom domain once DNS and SSL are verified. The
+ * old check probed only the custom domain when one was verified, so a broken
+ * /s/<slug> copy passed unnoticed. `pendingDomain` names an attached domain
+ * that is not verified yet, so the owner is told instead of it being skipped
+ * silently.
+ */
+export function smokeTargets(input: {
+  slug: string | null | undefined;
+  customDomain?: string | null;
+  dnsOk?: boolean | null;
+  sslOk?: boolean | null;
+  platformOrigin?: string;
+}): { targets: SmokeTarget[]; pendingDomain: string | null } {
+  const slug = String(input.slug ?? "").trim();
+  if (!slug) return { targets: [], pendingDomain: null };
+  const platform = liveSiteUrl(input.platformOrigin === undefined ? { slug } : { slug, platformOrigin: input.platformOrigin });
+  const targets: SmokeTarget[] = [{ label: "platform", base: platform }];
+  const live = liveSiteUrl({ ...input, slug });
+  const domain = input.customDomain?.trim().toLowerCase() || null;
+  if (live !== platform) targets.push({ label: "custom_domain", base: live });
+  return { targets, pendingDomain: domain && live === platform ? domain : null };
+}
+
+/** Prefixes each check's path with the address it ran against, e.g. "custom_domain:/services". */
+export function labelChecks(label: SmokeTarget["label"], result: SmokeResult): SmokeResult["checks"] {
+  return result.checks.map((check) => ({ ...check, path: label === "platform" ? check.path : `${label}:${check.path}` }));
+}
+
 /**
  * The paths to smoke-test after a publish: the home page plus every visible
  * page (capped so a large site can't stall the publish response).
