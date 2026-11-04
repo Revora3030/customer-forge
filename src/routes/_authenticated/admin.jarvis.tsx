@@ -27,6 +27,7 @@ import { readApprovals, rememberApproval, type Approvals } from "@/components/ap
 import { DemoBuildCard } from "@/components/app/jarvis/DemoBuildCard";
 import { findMapsLink, readDemoCards, readDemoSendProposal, rememberDemoCard, type DemoCardRef, type DemoChannel } from "@/components/app/jarvis/demo-build";
 import "@/components/app/jarvis/jarvis.css";
+import { isTurnStopped, stoppable } from "@/components/app/jarvis/stop-turn";
 import { askClaudeToFixPullRequestFn, openJarvisPullRequestFn, recoverStalledBuildsFn, sendClaudeCodeRequestFn, clearJarvisHistory, getJarvisHistory, getJarvisDiagnostics, getJarvisAcquisitionReadiness, getJarvisDiagnosticTools, runJarvisDiagnosticTool, regenerateJarvisReply, sendJarvisMessage, forgetJarvisMemoryFn, claimJarvisApprovalFn, finishJarvisApprovalFn, saveJarvisRoutineFn, deleteJarvisRoutineFn, JARVIS_HISTORY_PAGE } from "@/lib/jarvis.functions";
 import { draftProspectOutreach, type ProspectDraft } from "@/lib/jarvis-prospecting.functions";
 import { formatRevoraOffer } from "@/lib/jarvis-acquisition-policy";
@@ -301,16 +302,33 @@ function Jarvis() {
     announce("Jarvis replied");
     if (voice || liveRef.current) void speak(result.reply, latestAssistantId());
   };
+  // The turn in flight, so Stop can abort it. The server may still finish and save
+  // its reply; the page ignores the late result and the reply shows on the next refresh.
+  const inflight = useRef<AbortController | null>(null);
+  const startTurn = <T,>(request: (signal: AbortSignal) => Promise<T>) => {
+    inflight.current?.abort();
+    const controller = new AbortController();
+    inflight.current = controller;
+    return stoppable(request, controller).finally(() => {
+      if (inflight.current === controller) inflight.current = null;
+    });
+  };
+  const stopTurn = () => {
+    if (!inflight.current) return;
+    inflight.current.abort();
+    announce("Stopped");
+  };
   const mutation = useMutation({
     mutationFn: (message: string) => {
       const runId = crypto.randomUUID();
       setLiveRun(runId);
       // Live mode or the voice toggle: the reply will be read aloud, so ask for a short spoken core.
-      return send({ data: { message, mode, conversationId, runId, model: pickedModel, voice: voice || liveRef.current } });
+      return startTurn((signal) => send({ data: { message, mode, conversationId, runId, model: pickedModel, voice: voice || liveRef.current }, signal }));
     },
     onSuccess: finish,
     onError: async (error: Error, message: string) => {
-      toast.error(error.message);
+      if (isTurnStopped(error)) toast("Stopped. Jarvis may still save a reply; it shows when the chat refreshes.");
+      else toast.error(error.message);
       // The server saves the message before answering, so it may already be in the chat.
       await qc.invalidateQueries({ queryKey: ["jarvis", "history"] }).catch(() => undefined);
       const rows = qc.getQueryData<JarvisRow[]>(historyKey) ?? [];
@@ -321,9 +339,14 @@ function Jarvis() {
     onSettled: () => { setPending(null); setLiveRun(null); },
   });
   const regen = useMutation({
-    mutationFn: () => redo({ data: { mode, conversationId } }),
+    mutationFn: () => startTurn((signal) => redo({ data: { mode, conversationId }, signal })),
     onSuccess: finish,
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => {
+      if (isTurnStopped(error)) {
+        toast("Stopped. Jarvis may still save a reply; it shows when the chat refreshes.");
+        void qc.invalidateQueries({ queryKey: ["jarvis", "history"] }).catch(() => undefined);
+      } else toast.error(error.message);
+    },
   });
   const clearing = useMutation({
     mutationFn: () => clear(),
@@ -1014,6 +1037,7 @@ function Jarvis() {
                 onSubmit={() => submit()}
                 maxLength={MAX_LENGTH}
                 busy={busy}
+                onStop={stopTurn}
                 coarse={coarse}
                 listening={listening && !live}
                 interim={live ? "" : interim}
