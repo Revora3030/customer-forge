@@ -2,10 +2,6 @@
   "_comment": "Accepted definite violations (accessibility-checker-engine, WCAG_2_2) for scripts/a11y-cls-gate.mjs. id is \"<route>:<rule>\", \"<route>@<width>:<rule>\" or \"*:<rule>\". Each entry needs a reason; remove it once fixed so the gate blocks regressions.",
   "accepted": [
     {
-      "id": "/contact:target_spacing_sufficient",
-      "reason": "Re-mapped from axe target-size. At phone width the fixed bottom sales bar's email link (SalesCTA.tsx) is partly covered by the cookie banner's buttons. IBM's WCAG 2.5.8 rule does not currently report it as a definite violation (the overlap shows as the non-blocking potential element_tabbable_unobscured), so this entry is dormant. PR #635 stacks the banner above the bar; remove this entry after #635 lands."
-    },
-    {
       "id": "*:img_alt_redundant",
       "reason": "Pre-existing, site-wide header: the logo <img alt=\"Revora\"> (src/components/brand/Logo.tsx) sits in the same link as the visible \"Revora\" wordmark, so screen readers read the name twice. Fix: alt=\"\" on the mark when the wordmark is shown."
     },
