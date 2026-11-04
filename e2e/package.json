@@ -5,7 +5,8 @@
   "description": "Playwright end-to-end tests. Kept in its own package so the app's dependency tree, bundle and existing browser QA scripts are untouched.",
   "scripts": {
     "test": "playwright test",
-    "install:browser": "playwright install --with-deps chromium"
+    "install:browser": "playwright install --with-deps chromium",
+    "test:live": "playwright test -c playwright.live.config.ts"
   },
   "devDependencies": {
     "@playwright/test": "1.64.1"
