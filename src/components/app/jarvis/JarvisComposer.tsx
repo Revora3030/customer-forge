@@ -1,5 +1,5 @@
 import { useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent, type RefObject } from "react";
-import { ArrowUp, ChevronDown, BadgeCheck, ImagePlus, Loader2, Mic, MicOff, Slash } from "lucide-react";
+import { ArrowUp, ChevronDown, BadgeCheck, ImagePlus, Loader2, Mic, MicOff, Slash, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { firstImage, pastedPicture } from "./composer-input";
@@ -13,6 +13,8 @@ type Props = {
   onSubmit: () => void;
   maxLength: number;
   busy: boolean;
+  /** While busy, Send becomes Stop: aborts the turn in flight. */
+  onStop?: () => void;
   /** Touch devices: return inserts a newline; Send is the button. */
   coarse: boolean;
   listening: boolean;
@@ -31,7 +33,7 @@ type Props = {
 const iconButton = "size-9 shrink-0 rounded-full sm:size-9";
 
 /** The Jarvis message box: text, picture to demo (button, paste or drop), commands, response style, dictation and send. */
-export function JarvisComposer({ value, onChange, onSubmit, maxLength, busy, coarse, listening, interim, onToggleMic, readingPicture, picturePreview, onPicture, mode, onModeChange, onOpenCommands, inputRef }: Props) {
+export function JarvisComposer({ value, onChange, onSubmit, maxLength, busy, onStop, coarse, listening, interim, onToggleMic, readingPicture, picturePreview, onPicture, mode, onModeChange, onOpenCommands, inputRef }: Props) {
   const pictureInput = useRef<HTMLInputElement>(null);
   const modeLabel = JARVIS_MODES.find(([id]) => id === mode)?.[1] ?? "Balanced";
   const canSend = Boolean(value.trim()) && !busy;
@@ -156,16 +158,31 @@ export function JarvisComposer({ value, onChange, onSubmit, maxLength, busy, coa
         >
           {listening ? <MicOff className="size-4" aria-hidden /> : <Mic className="size-4" aria-hidden />}
         </Button>
-        <Button
-          type="submit"
-          size="icon-sm"
-          data-jarvis-tap=""
-          aria-label="Send"
-          disabled={!canSend}
-          className="size-9 shrink-0 rounded-full sm:size-9 [&_svg]:size-[18px] disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100"
-        >
-          <ArrowUp className="size-[18px]" aria-hidden />
-        </Button>
+        {busy && onStop ? (
+          <Button
+            type="button"
+            size="icon-sm"
+            variant="ghost"
+            data-jarvis-tap=""
+            aria-label="Stop"
+            title="Stop this answer"
+            onClick={onStop}
+            className="size-9 shrink-0 rounded-full border border-white/15 bg-white/[0.06] text-foreground backdrop-blur-xl hover:bg-white/10 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring sm:size-9"
+          >
+            <Square className="size-3.5 fill-current" aria-hidden />
+          </Button>
+        ) : (
+          <Button
+            type="submit"
+            size="icon-sm"
+            data-jarvis-tap=""
+            aria-label="Send"
+            disabled={!canSend}
+            className="size-9 shrink-0 rounded-full sm:size-9 [&_svg]:size-[18px] disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100"
+          >
+            <ArrowUp className="size-[18px]" aria-hidden />
+          </Button>
+        )}
       </div>
     </form>
   );

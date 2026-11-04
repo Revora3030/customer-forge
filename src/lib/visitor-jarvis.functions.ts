@@ -3,6 +3,7 @@ import { getRequest } from "@tanstack/react-start/server";
 import { GROWTH_SYSTEM, usdExact } from "./offer";
 import { BUSINESS } from "./business-identity";
 import { parseVisitorReply, visitorSpokenText, type VisitorTurn, type VisitorReply, type VisitorVoice } from "./visitor-jarvis";
+import { VISITOR_JARVIS_ATTEMPT_TIMEOUT_MS, VISITOR_JARVIS_CHAIN_DEADLINE_MS } from "./jarvis-turn-deadline";
 
 /**
  * Jarvis for visitors to revoragrowthsystems.com: answers questions about
@@ -181,6 +182,9 @@ export const askVisitorJarvis = createServerFn({ method: "POST" })
           role: "conversation",
           maxOutputTokens: 400,
           temperature: 0.4,
+          // Visitors wait on a public page: a shorter limit than admin Jarvis, then the friendly fallback.
+          timeoutMs: VISITOR_JARVIS_ATTEMPT_TIMEOUT_MS,
+          chainDeadlineMs: VISITOR_JARVIS_CHAIN_DEADLINE_MS,
           messages: [{ role: "system", content: visitorSystemPrompt(data.page) }, ...visitorMessages(data.turns)],
         },
       );

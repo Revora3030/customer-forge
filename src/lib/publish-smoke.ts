@@ -23,6 +23,15 @@ export type SmokeResult = {
   checks: { path: string; ok: boolean; problem: string | null; ms: number }[];
 };
 
+/**
+ * Set by PublicSiteView on the "This website is being updated" notice it shows
+ * when the home page has no visible sections. A published site that renders it
+ * is an empty shell, so the smoke check fails instead of passing on a page that
+ * has a title, a stylesheet and the business name but nothing else.
+ */
+export const EMPTY_SITE_MARKER = "data-site-empty";
+const EMPTY_SITE_RE = new RegExp(`<[a-z]+[^>]*\\s${EMPTY_SITE_MARKER}(=|[\\s>])`, "i");
+
 /** Template leaks that must never reach a live page. */
 const LEAKS = [/\{\{\s*[a-z_.]+\s*\}\}/i, /lorem ipsum/i, /\bundefined\b<\//, /\[object Object\]/, /TODO:/];
 
@@ -32,6 +41,7 @@ export function evaluateSmoke(probes: readonly SmokeProbe[], expected: { busines
     if (probe.status < 200 || probe.status >= 400) problem = `HTTP ${probe.status}`;
     else if (!/text\/html/i.test(probe.contentType ?? "")) problem = "not an HTML page";
     else if (probe.body.length < 500) problem = "page is nearly empty";
+    else if (EMPTY_SITE_RE.test(probe.body)) problem = "the page has no sections (\"being updated\" notice is showing)";
     else if (LEAKS.some((leak) => leak.test(probe.body))) problem = "template placeholder text is visible";
     else if (!/<title>[^<]{2,}<\/title>/i.test(probe.body)) problem = "page has no title";
     else if (!/<link[^>]+rel=["']?stylesheet/i.test(probe.body) && !/<style[\s>]/i.test(probe.body)) problem = "page has no stylesheet";
@@ -57,6 +67,38 @@ export function liveSiteUrl(input: {
   const domain = input.customDomain?.trim().toLowerCase();
   if (domain && input.dnsOk && input.sslOk && /^[a-z0-9.-]+\.[a-z]{2,}$/.test(domain)) return `https://${domain}`;
   return `${(input.platformOrigin ?? "https://revoragrowthsystems.com").replace(/\/$/, "")}/s/${encodeURIComponent(input.slug)}`;
+}
+
+export type SmokeTarget = { label: "platform" | "custom_domain"; base: string };
+
+/**
+ * Every address a visitor can reach after a publish: always the platform
+ * /s/<slug> copy, plus the custom domain once DNS and SSL are verified. The
+ * old check probed only the custom domain when one was verified, so a broken
+ * /s/<slug> copy passed unnoticed. `pendingDomain` names an attached domain
+ * that is not verified yet, so the owner is told instead of it being skipped
+ * silently.
+ */
+export function smokeTargets(input: {
+  slug: string | null | undefined;
+  customDomain?: string | null;
+  dnsOk?: boolean | null;
+  sslOk?: boolean | null;
+  platformOrigin?: string;
+}): { targets: SmokeTarget[]; pendingDomain: string | null } {
+  const slug = String(input.slug ?? "").trim();
+  if (!slug) return { targets: [], pendingDomain: null };
+  const platform = liveSiteUrl(input.platformOrigin === undefined ? { slug } : { slug, platformOrigin: input.platformOrigin });
+  const targets: SmokeTarget[] = [{ label: "platform", base: platform }];
+  const live = liveSiteUrl({ ...input, slug });
+  const domain = input.customDomain?.trim().toLowerCase() || null;
+  if (live !== platform) targets.push({ label: "custom_domain", base: live });
+  return { targets, pendingDomain: domain && live === platform ? domain : null };
+}
+
+/** Prefixes each check's path with the address it ran against, e.g. "custom_domain:/services". */
+export function labelChecks(label: SmokeTarget["label"], result: SmokeResult): SmokeResult["checks"] {
+  return result.checks.map((check) => ({ ...check, path: label === "platform" ? check.path : `${label}:${check.path}` }));
 }
 
 /**

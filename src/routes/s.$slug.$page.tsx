@@ -12,11 +12,9 @@ import { createFileRoute, Link, notFound, redirect, useParams } from "@tanstack/
 import { Button } from "@/components/ui/button";
 import { getPublicSite } from "@/lib/public-site.functions";
 import { canonicalSiteUrl } from "@/lib/revora-address";
-import { tenantSiteHead } from "@/lib/site-head";
 import { SitePageView } from "@/components/site/SitePageView";
 import { ClientPrivacyNotice } from "@/components/site/ClientPrivacyNotice";
-import { PRIVACY_NOTICE_SLUG } from "@/lib/client-privacy-notice";
-import { isDuplicatePrivacySlug } from "@/lib/privacy-notice-slug";
+import { PRIVACY_NOTICE_SLUG, isDuplicatePrivacySlug } from "@/lib/privacy-notice-slug";
 
 export const Route = createFileRoute("/s/$slug/$page")({
   loader: async ({ params }) => {
@@ -41,7 +39,7 @@ export const Route = createFileRoute("/s/$slug/$page")({
     return site;
   },
 
-  head: ({ loaderData, params }) => {
+  head: async ({ loaderData, params }) => {
     // A draft can load before its page row exists; never read a missing page.
     if (
       loaderData &&
@@ -64,6 +62,9 @@ export const Route = createFileRoute("/s/$slug/$page")({
       `https://revoragrowthsystems.com/s/${params.slug}/${params.page}`;
     // Shared client head (src/lib/site-head.ts): word-safe title, share image,
     // fonts and LocalBusiness data, identical on every client address.
+    // Lazy: site-head pulls the whole client-site renderer chunk; keep it out of
+    // the entry bundle that every marketing page loads (mobile TBT).
+    const { tenantSiteHead } = await import("@/lib/site-head");
     return tenantSiteHead({
       site: loaderData,
       pageSlug: params.page,

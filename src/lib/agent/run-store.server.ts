@@ -54,6 +54,12 @@ export interface RunRepo {
   cancel(runId: string): Promise<boolean>;
   resume(runId: string): Promise<boolean>;
   recoverStalled(graceSeconds: number): Promise<{ run_id: string; outcome: "requeued" | "failed" }[]>;
+  /**
+   * Fails up to `limit` runs still queued `olderThanSeconds` after creation,
+   * fenced on status = 'queued' so a run claimed in the meantime is never
+   * touched. Returns the ids it failed.
+   */
+  failStaleQueued(olderThanSeconds: number, limit: number, error: string): Promise<string[]>;
 }
 
 /** Thrown inside an executor when a write shows another worker (or a cancel) now owns the run. */
@@ -100,12 +106,20 @@ export type RunPassResult = {
   recovered: { requeued: number; failed: number };
   ran: { id: string; status: string }[];
   skipped?: "no executor";
+  /** Queued runs failed because no executor is registered to ever run them. */
+  expired?: number;
 };
+
+/** With no executor registered, a run still queued this long is failed instead of waiting forever. */
+export const NO_EXECUTOR_QUEUED_TTL_MS = 30 * 60_000;
+/** At most this many stale queued runs are failed per pass (the kick runs every minute). */
+export const NO_EXECUTOR_BATCH = 50;
+export const NO_EXECUTOR_ERROR = "no executor registered";
 
 export async function runDueAgentRuns(
   repo: RunRepo,
   executor: RunExecutor | null,
-  opts: { worker?: string; maxRuns?: number; leaseSeconds?: number; graceMs?: number } = {},
+  opts: { worker?: string; maxRuns?: number; leaseSeconds?: number; graceMs?: number; queuedTtlMs?: number; expireBatch?: number } = {},
 ): Promise<RunPassResult> {
   const leaseSeconds = opts.leaseSeconds ?? LEASE_SECONDS;
   const stalled = await repo.recoverStalled(Math.ceil((opts.graceMs ?? STALLED_LEASE_GRACE_MS) / 1000));
@@ -116,7 +130,15 @@ export async function runDueAgentRuns(
     },
     ran: [],
   };
-  if (!executor) return { ...result, skipped: "no executor" };
+  if (!executor) {
+    // Nothing will ever claim these; fail old ones so callers stop waiting on them.
+    const expired = await repo.failStaleQueued(
+      Math.ceil((opts.queuedTtlMs ?? NO_EXECUTOR_QUEUED_TTL_MS) / 1000),
+      opts.expireBatch ?? NO_EXECUTOR_BATCH,
+      NO_EXECUTOR_ERROR,
+    );
+    return { ...result, skipped: "no executor", expired: expired.length };
+  }
 
   const worker = opts.worker ?? `worker-${Math.random().toString(36).slice(2, 10)}`;
   for (let i = 0; i < (opts.maxRuns ?? MAX_RUNS_PER_PASS); i++) {
@@ -170,6 +192,27 @@ async function call(client: RpcClient, fn: string, args: Record<string, unknown>
   return data;
 }
 
+type TableClient = {
+  from(table: string): {
+    select(columns: string): {
+      eq(column: string, value: unknown): {
+        lt(column: string, value: string): {
+          order(column: string, options: { ascending: boolean }): {
+            limit(count: number): PromiseLike<{ data: unknown; error: { message: string } | null }>;
+          };
+        };
+      };
+    };
+    update(patch: Record<string, unknown>): {
+      in(column: string, values: string[]): {
+        eq(column: string, value: unknown): {
+          select(columns: string): PromiseLike<{ data: unknown; error: { message: string } | null }>;
+        };
+      };
+    };
+  };
+};
+
 function firstRun(data: unknown): AgentRun | null {
   const row = Array.isArray(data) ? data[0] : data;
   return row && typeof row === "object" ? (row as AgentRun) : null;
@@ -216,6 +259,30 @@ export function supabaseRunRepo(admin: SupabaseClient | unknown): RunRepo {
     async recoverStalled(graceSeconds) {
       const data = await call(client, "agent_run_recover_stalled", { _grace_seconds: graceSeconds });
       return Array.isArray(data) ? (data as { run_id: string; outcome: "requeued" | "failed" }[]) : [];
+    },
+    async failStaleQueued(olderThanSeconds, limit, error) {
+      const tables = admin as TableClient;
+      const now = new Date();
+      const cutoff = new Date(now.getTime() - olderThanSeconds * 1000).toISOString();
+      const { data: stale, error: selectError } = await tables
+        .from("agent_runs")
+        .select("id")
+        .eq("status", "queued")
+        .lt("created_at", cutoff)
+        .order("created_at", { ascending: true })
+        .limit(Math.max(1, Math.min(limit, 500)));
+      if (selectError) throw new Error(`agent_runs stale queued: ${selectError.message}`);
+      const ids = (Array.isArray(stale) ? (stale as { id: string }[]) : []).map((row) => row.id);
+      if (!ids.length) return [];
+      // Fenced on status = 'queued': a run claimed since the select is left alone.
+      const { data: failed, error: updateError } = await tables
+        .from("agent_runs")
+        .update({ status: "failed", error_plain: error, finished_at: now.toISOString(), updated_at: now.toISOString() })
+        .in("id", ids)
+        .eq("status", "queued")
+        .select("id");
+      if (updateError) throw new Error(`agent_runs fail stale queued: ${updateError.message}`);
+      return (Array.isArray(failed) ? (failed as { id: string }[]) : []).map((row) => row.id);
     },
   };
 }

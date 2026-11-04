@@ -13,7 +13,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { evaluateSmoke, liveSiteUrl, previousProduction, smokePaths, type SmokeProbe } from "@/lib/publish-smoke";
+import { evaluateSmoke, labelChecks, previousProduction, smokePaths, smokeTargets, type SmokeProbe, type SmokeResult } from "@/lib/publish-smoke";
 
 const UUID = /^[0-9a-f-]{36}$/i;
 
@@ -152,17 +152,16 @@ export const recordPublishAndSmoke = createServerFn({ method: "POST" })
     ]);
     const slug = (org as { slug?: string } | null)?.slug;
     const origin = new URL(getRequest().url).origin;
-    const base = slug
-      ? liveSiteUrl({
-          slug,
-          customDomain: (settings as { custom_domain?: string | null } | null)?.custom_domain ?? null,
-          dnsOk: (settings as { dns_ok?: boolean | null } | null)?.dns_ok ?? null,
-          sslOk: (settings as { ssl_ok?: boolean | null } | null)?.ssl_ok ?? null,
-          platformOrigin: origin,
-        })
-      : null;
+    const { targets, pendingDomain } = smokeTargets({
+      slug,
+      customDomain: (settings as { custom_domain?: string | null } | null)?.custom_domain ?? null,
+      dnsOk: (settings as { dns_ok?: boolean | null } | null)?.dns_ok ?? null,
+      sslOk: (settings as { ssl_ok?: boolean | null } | null)?.ssl_ok ?? null,
+      platformOrigin: origin,
+    });
+    // The address the owner sees first: the custom domain when it is live.
+    const base = targets.at(-1)?.base ?? null;
 
-    const probes: SmokeProbe[] = [];
     const { data: pageRows } = await context.supabase
       .from("website_pages")
       .select("slug, hidden, kind")
@@ -185,11 +184,15 @@ export const recordPublishAndSmoke = createServerFn({ method: "POST" })
       );
       if (purge.skipped) console.info("[publish] edge cache purge skipped:", purge.skipped);
     }
-    if (base) {
+    // Probe every address a visitor can use (platform /s/<slug> and, when
+    // verified, the custom domain); the publish passes only if all answer.
+    const checks: SmokeResult["checks"] = [];
+    for (const target of targets) {
+      const probes: SmokeProbe[] = [];
       for (const path of paths) {
         const started = Date.now();
         try {
-          const response = await fetch(`${base}${path === "/" ? "" : path}`, {
+          const response = await fetch(`${target.base}${path === "/" ? "" : path}`, {
             redirect: "follow",
             signal: AbortSignal.timeout(10_000),
             headers: { "user-agent": "RevoraPublishSmoke/1.0" },
@@ -203,13 +206,18 @@ export const recordPublishAndSmoke = createServerFn({ method: "POST" })
           });
         } catch (error) {
           probes.push({ path, status: 0, contentType: null, body: "", ms: Date.now() - started });
-          console.warn("[publish-smoke] fetch failed", (error as Error)?.message);
+          console.warn("[publish-smoke] fetch failed", target.label, (error as Error)?.message);
         }
       }
+      checks.push(...labelChecks(target.label, evaluateSmoke(probes, { businessName: (org as { name?: string } | null)?.name ?? null })));
     }
-    const result = base
-      ? evaluateSmoke(probes, { businessName: (org as { name?: string } | null)?.name ?? null })
+    if (pendingDomain) {
+      checks.push({ path: `custom_domain:${pendingDomain}`, ok: true, problem: "custom domain not verified yet (DNS/SSL); only the platform address was checked", ms: 0 });
+    }
+    const result: SmokeResult | null = targets.length
+      ? { status: checks.length > 0 && checks.every((c) => c.ok) ? "passed" : "failed", checks }
       : null;
+    if (!slug) console.warn("[publish-smoke] skipped: workspace has no public address (slug)");
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     await (supabaseAdmin as unknown as import("@supabase/supabase-js").SupabaseClient).from("publish_events").insert({

@@ -124,166 +124,103 @@ export type WebSearchResult = {
 
 export type WebSearchOutcome =
   | { ok: true; results: WebSearchResult[] }
-  | { ok: false; reason: string; detail: string };
-
-type SearchProvider = {
-  id: "perplexity" | "tavily" | "brave" | "exa" | "jina";
-  configured: () => boolean;
-  run: (query: string, max: number, signal: AbortSignal) => Promise<{ title?: unknown; url?: unknown; snippet?: unknown; date?: unknown }[]>;
-};
+  | { ok: false; reason: string; detail: string; retryAfterSeconds?: number };
 
 const key = (...names: string[]) => names.map((name) => process.env[name]?.trim()).find(Boolean) ?? null;
 
-async function json(response: Response, provider: string) {
-  if (!response.ok) throw new Error(`${provider}_${response.status}: ${(await response.text()).slice(0, 200)}`);
-  return (await response.json()) as Record<string, unknown>;
-}
-
 /**
- * Search providers in order. Each is used only when its own key is set; the
- * first one that answers wins. Every request uses redirect: "manual" (Workers
- * reject "error"), and a 3xx fails the ok check.
+ * The single web-search path: Perplexity search through the Lovable connector
+ * gateway. Per the rule that Lovable is Revora's only AI provider, there is no
+ * direct third-party search or AI host here and no fallback outside Lovable.
  */
-const SEARCH_PROVIDERS: SearchProvider[] = [
-  {
-    // The owner's own Perplexity key calls the API directly and is preferred;
-    // the Lovable-managed gateway connection below stays as the fallback.
-    id: "perplexity",
-    configured: () => Boolean(key("PERPLEXITY_API_KEY_1")),
-    run: async (query, max, signal) => {
-      const payload = await json(
-        await fetch("https://api.perplexity.ai/search", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${key("PERPLEXITY_API_KEY_1")}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ query, max_results: max }),
-          redirect: "manual",
-          signal,
-        }),
-        "perplexity",
-      );
-      return (payload["results"] as Record<string, unknown>[] | undefined) ?? [];
-    },
-  },
-  {
-    id: "perplexity",
-    configured: () => Boolean(key("LOVABLE_API_KEY") && key("PERPLEXITY_API_KEY")),
-    run: async (query, max, signal) => {
-      const payload = await json(
-        await fetch("https://connector-gateway.lovable.dev/perplexity/search", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${key("LOVABLE_API_KEY")}`, "X-Connection-Api-Key": key("PERPLEXITY_API_KEY")!, "Content-Type": "application/json" },
-          body: JSON.stringify({ query, max_results: max }),
-          redirect: "manual",
-          signal,
-        }),
-        "perplexity",
-      );
-      return (payload["results"] as Record<string, unknown>[] | undefined) ?? [];
-    },
-  },
-  {
-    id: "tavily",
-    configured: () => Boolean(key("TAVILY_API_KEY")),
-    run: async (query, max, signal) => {
-      const payload = await json(
-        await fetch("https://api.tavily.com/search", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${key("TAVILY_API_KEY")}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ query, max_results: max, search_depth: "basic" }),
-          redirect: "manual",
-          signal,
-        }),
-        "tavily",
-      );
-      return ((payload["results"] as Record<string, unknown>[] | undefined) ?? []).map((r) => ({ title: r["title"], url: r["url"], snippet: r["content"], date: r["published_date"] }));
-    },
-  },
-  {
-    id: "brave",
-    configured: () => Boolean(key("BRAVE_SEARCH_API_KEY", "BRAVE_API_KEY")),
-    run: async (query, max, signal) => {
-      const payload = await json(
-        await fetch(`https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)}&count=${max}`, {
-          headers: { Accept: "application/json", "X-Subscription-Token": key("BRAVE_SEARCH_API_KEY", "BRAVE_API_KEY")! },
-          redirect: "manual",
-          signal,
-        }),
-        "brave",
-      );
-      const web = payload["web"] as { results?: Record<string, unknown>[] } | undefined;
-      return (web?.results ?? []).map((r) => ({ title: r["title"], url: r["url"], snippet: r["description"], date: r["page_age"] ?? r["age"] }));
-    },
-  },
-  {
-    id: "exa",
-    configured: () => Boolean(key("EXA_API_KEY")),
-    run: async (query, max, signal) => {
-      const payload = await json(
-        await fetch("https://api.exa.ai/search", {
-          method: "POST",
-          headers: { "x-api-key": key("EXA_API_KEY")!, "Content-Type": "application/json" },
-          body: JSON.stringify({ query, numResults: max, contents: { text: { maxCharacters: 600 } } }),
-          redirect: "manual",
-          signal,
-        }),
-        "exa",
-      );
-      return ((payload["results"] as Record<string, unknown>[] | undefined) ?? []).map((r) => ({ title: r["title"], url: r["url"], snippet: r["text"], date: r["publishedDate"] }));
-    },
-  },
-  {
-    id: "jina",
-    configured: () => Boolean(key("JINA_API_KEY")),
-    run: async (query, max, signal) => {
-      const payload = await json(
-        await fetch(`https://s.jina.ai/?q=${encodeURIComponent(query)}`, {
-          headers: { Authorization: `Bearer ${key("JINA_API_KEY")}`, Accept: "application/json", "X-Respond-With": "no-content" },
-          redirect: "manual",
-          signal,
-        }),
-        "jina",
-      );
-      return ((payload["data"] as Record<string, unknown>[] | undefined) ?? []).slice(0, max).map((r) => ({ title: r["title"], url: r["url"], snippet: r["description"] ?? r["content"], date: r["date"] }));
-    },
-  },
-];
+const LOVABLE_PERPLEXITY_SEARCH = "https://connector-gateway.lovable.dev/perplexity/search";
+export const SEARCH_TIMEOUT_MS = 15_000;
+const SEARCH_PROVIDER_ID = "perplexity";
 
-/** Search providers with a key set, in the order they are tried. */
+const lovableSearchConfigured = () => Boolean(key("LOVABLE_API_KEY") && key("PERPLEXITY_API_KEY"));
+
+/** Search providers that are configured. Only the Lovable connector path exists. */
 export function configuredSearchProviders(): string[] {
-  return SEARCH_PROVIDERS.filter((provider) => provider.configured()).map((provider) => provider.id);
+  return lovableSearchConfigured() ? [SEARCH_PROVIDER_ID] : [];
+}
+
+function retryAfterSeconds(response: Response): number | null {
+  const raw = response.headers.get("retry-after");
+  if (!raw) return null;
+  const seconds = Number(raw);
+  if (Number.isFinite(seconds) && seconds >= 0) return Math.ceil(seconds);
+  const at = Date.parse(raw);
+  return Number.isFinite(at) ? Math.max(0, Math.ceil((at - Date.now()) / 1000)) : null;
 }
 
 /**
- * Live web search. Tries Perplexity (Lovable connector), then Tavily, Brave,
- * Exa and Jina, each only when its key is set; the first that answers wins.
+ * Live web search through the Lovable connector gateway (Perplexity search).
  * Results are third-party research, never business facts about a customer.
+ * Failures are reported, never thrown: not_configured, timeout, rate_limited
+ * (with retryAfterSeconds when the gateway sends Retry-After) or unavailable.
  */
 export async function searchWeb(query: string, maxResults = 5): Promise<WebSearchOutcome> {
   const trimmed = query.trim().slice(0, 400);
   if (!trimmed) return { ok: false, reason: "invalid", detail: "Nothing to search for." };
-  const providers = SEARCH_PROVIDERS.filter((provider) => provider.configured());
-  if (!providers.length) return { ok: false, reason: "not_configured", detail: "Web search isn't connected." };
+  if (!lovableSearchConfigured())
+    return {
+      ok: false,
+      reason: "not_configured",
+      detail: "Web search isn't connected. Link the Perplexity connection in Lovable (LOVABLE_API_KEY and PERPLEXITY_API_KEY).",
+    };
   const max = Math.min(Math.max(maxResults, 1), 10);
-  const failures: string[] = [];
-  for (const provider of providers) {
-    try {
-      const rows = await provider.run(trimmed, max, AbortSignal.timeout(15_000));
-      const fetchedAt = new Date().toISOString();
-      const results = rows
-        .filter((r) => typeof r.url === "string" && /^https?:\/\//.test(r.url))
-        .slice(0, max)
-        .map((r) => ({
-          title: String(r.title ?? "").slice(0, 200),
-          url: r.url as string,
-          snippet: String(r.snippet ?? "").replace(/\s+/g, " ").slice(0, 1_000),
-          date: typeof r.date === "string" ? r.date : null,
-          source: { url: r.url as string, fetchedAt, provider: provider.id, trust: "research" as const },
-        }));
-      return { ok: true, results };
-    } catch (error) {
-      failures.push(`${provider.id}: ${error instanceof Error ? error.message.slice(0, 160) : "failed"}`);
-    }
+  let response: Response;
+  try {
+    response = await fetch(LOVABLE_PERPLEXITY_SEARCH, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${key("LOVABLE_API_KEY")}`,
+        "X-Connection-Api-Key": key("PERPLEXITY_API_KEY")!,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ query: trimmed, max_results: max }),
+      // Workers reject redirect: "error"; a 3xx fails the ok check below.
+      redirect: "manual",
+      signal: AbortSignal.timeout(SEARCH_TIMEOUT_MS),
+    });
+  } catch (error) {
+    const name = error instanceof Error ? error.name : "";
+    if (name === "TimeoutError" || name === "AbortError")
+      return { ok: false, reason: "timeout", detail: `Web search took longer than ${SEARCH_TIMEOUT_MS / 1000}s, so nothing was found.` };
+    console.error("[research] Lovable search request failed", error instanceof Error ? error.message.slice(0, 160) : "failed");
+    return { ok: false, reason: "unavailable", detail: "Web search couldn't be reached." };
   }
-  console.error("[research] every search provider failed", failures.join(" | "));
-  return { ok: false, reason: "unavailable", detail: failures.join("; ").slice(0, 300) };
+  if (response.status === 429) {
+    const wait = retryAfterSeconds(response);
+    return {
+      ok: false,
+      reason: "rate_limited",
+      detail: wait === null ? "Web search is rate limited; try again shortly." : `Web search is rate limited; try again in ${wait}s.`,
+      ...(wait === null ? {} : { retryAfterSeconds: wait }),
+    };
+  }
+  if (!response.ok) {
+    const body = (await response.text().catch(() => "")).slice(0, 160);
+    console.error("[research] Lovable search failed", response.status, body);
+    return { ok: false, reason: "unavailable", detail: `Web search failed (${response.status}).` };
+  }
+  let payload: Record<string, unknown>;
+  try {
+    payload = (await response.json()) as Record<string, unknown>;
+  } catch {
+    return { ok: false, reason: "unavailable", detail: "Web search returned an unreadable answer." };
+  }
+  const rows = (Array.isArray(payload["results"]) ? payload["results"] : []) as { title?: unknown; url?: unknown; snippet?: unknown; date?: unknown }[];
+  const fetchedAt = new Date().toISOString();
+  const results = rows
+    .filter((r) => typeof r.url === "string" && /^https?:\/\//.test(r.url))
+    .slice(0, max)
+    .map((r) => ({
+      title: String(r.title ?? "").slice(0, 200),
+      url: r.url as string,
+      snippet: String(r.snippet ?? "").replace(/\s+/g, " ").slice(0, 1_000),
+      date: typeof r.date === "string" ? r.date : null,
+      source: { url: r.url as string, fetchedAt, provider: SEARCH_PROVIDER_ID, trust: "research" as const },
+    }));
+  return { ok: true, results };
 }

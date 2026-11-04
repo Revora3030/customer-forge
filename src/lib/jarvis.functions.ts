@@ -246,6 +246,9 @@ export const runJarvis = createServerOnlyFn(async (db: SupabaseClient, userId: s
   const { splitReplyMeta } = await import("./jarvis-actions");
   let reply = "";
   let followups: string[] = [];
+  // Set when the reply is the executive fallback (no model answered). The chat
+  // shows the same reply; routines use this to settle as an error, not "ok".
+  let fellBack: { category: string | null } | null = null;
   const ran: string[] = [];
   const proposals: import("./jarvis-actions").WriteProposal[] = [];
   const { createRunRecorder } = await import("./jarvis-events.server");
@@ -261,13 +264,16 @@ export const runJarvis = createServerOnlyFn(async (db: SupabaseClient, userId: s
     // Set once any round reads text the owner didn't write; blocks memory.save for the rest of the turn.
     let outsideTextSeen = false;
     const { reflectOnRound, nextRoundIsFinal, FINAL_ROUND_NOTE } = await import("./cognition/react-loop");
+    // One wall-clock limit for the whole turn: every model round, tool round and the correction round.
+    const { createTurnDeadline } = await import("./jarvis-turn-deadline");
+    const deadline = createTurnDeadline();
     // Act, observe, answer: up to MAX_ACTION_STEPS rounds of read actions.
     for (let step = 0; step <= MAX_ACTION_STEPS; step += 1) {
       const modelStart = Date.now();
       let result: Awaited<ReturnType<typeof generateText>>;
       try {
-        result = await generateText({ userId, task: "admin.jarvis" },
-          jarvisModelRequest(conversation, MODE_CONFIG[mode].tokens, pickedModel));
+        result = await deadline.race(generateText({ userId, task: "admin.jarvis" },
+          jarvisModelRequest(conversation, MODE_CONFIG[mode].tokens, pickedModel, deadline.nextRound())));
       } catch (modelError) {
         recorder.add({ step, kind: "model_call", status: "failed", label: "AI answer", startedAt: modelStart, finishedAt: Date.now(), error: modelError instanceof Error ? modelError.message : "model call failed" });
         throw modelError;
@@ -295,7 +301,7 @@ export const runJarvis = createServerOnlyFn(async (db: SupabaseClient, userId: s
         break;
       }
       const toolStart = Date.now();
-      const results = await runReadActions(db, parsed.reads, userId, outsideTextSeen);
+      const results = await deadline.race(runReadActions(db, parsed.reads, userId, outsideTextSeen));
       outsideTextSeen = outsideTextSeen || readsUntrustedText(parsed.reads);
       const toolEnd = Date.now();
       results.forEach((item, i) => {
@@ -323,15 +329,19 @@ export const runJarvis = createServerOnlyFn(async (db: SupabaseClient, userId: s
     }
     if (!reply) {
       const { executiveFallback } = await import("./jarvis-executive-fallback");
+      if (!proposals.length) fellBack = { category: "bad_response" };
       reply = proposals.length
         ? "Here's what I'd do. Approve below and I'll start."
         : executiveFallback({ ran, reason: "The model roster returned an empty answer." });
     }
   } catch (error) {
+    const category = (error as { category?: unknown } | null)?.category;
+    fellBack = { category: typeof category === "string" ? category : null };
     const { executiveFallback } = await import("./jarvis-executive-fallback");
     reply = executiveFallback({
       ran,
       reason: error instanceof Error ? error.message : "The model roster did not finish.",
+      error,
     });
   }
   reply = appendReplyMeta(reply.slice(0, 40000), { ran, proposals });
@@ -342,7 +352,7 @@ export const runJarvis = createServerOnlyFn(async (db: SupabaseClient, userId: s
     const { recordProposals } = await import("./jarvis-approvals.server");
     await recordProposals(db, userId, (saved.data?.id as string | undefined) ?? null, conversationId, reply);
   }
-  return { reply, diagnostics, followups, runId: recorder.count ? recorder.runId : null, conversationId };
+  return { reply, diagnostics, followups, runId: recorder.count ? recorder.runId : null, conversationId, fellBack };
 });
 
 export const sendJarvisMessage = createServerFn({ method: "POST" })

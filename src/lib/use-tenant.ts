@@ -2,6 +2,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useSupportMode } from "@/lib/support-mode";
+import { clearSessionPolicy } from "@/lib/auth-session";
+import { clearBuilderCachedTurns, resetSignedOutState } from "@/lib/signed-out-reset";
 import type { AppRole } from "@/lib/domain";
 
 export type Session = Awaited<ReturnType<typeof supabase.auth.getSession>>["data"]["session"];
@@ -110,8 +112,7 @@ export const canEdit = (role: AppRole | undefined) => role !== "viewer" && role 
 export function useSignOut() {
   const queryClient = useQueryClient();
   return useCallback(async () => {
-    await queryClient.cancelQueries();
-    queryClient.clear();
+    await resetSignedOutState({ queryClient, clearSessionPolicy, clearCachedTurns: clearBuilderCachedTurns });
     await supabase.auth.signOut();
   }, [queryClient]);
 }

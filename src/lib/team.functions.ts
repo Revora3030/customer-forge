@@ -7,6 +7,43 @@ import { cleanText, parseReturnUrl, parseWorkspaceId } from "@/lib/stripe-input"
 export const INVITABLE_ROLES = ["admin", "manager", "staff", "viewer"] as const;
 export type InvitableRole = (typeof INVITABLE_ROLES)[number];
 
+/**
+ * Roles a teammate with `actorRole` may hand out through an invitation. This
+ * mirrors the database role guard (private.guard_membership_change): owners
+ * may grant any invitable role, admins may grant everything below admin, and
+ * nobody else may invite. Invitations are written and accepted with the
+ * service role, which that trigger lets through, so the rule has to be
+ * enforced here too or an admin could mint a second admin by invite.
+ */
+export function rolesGrantableBy(actorRole: string | null | undefined): readonly InvitableRole[] {
+  if (actorRole === "owner") return INVITABLE_ROLES;
+  if (actorRole === "admin") return INVITABLE_ROLES.filter((role) => role !== "admin");
+  return [];
+}
+
+export function canGrantRole(actorRole: string | null | undefined, role: string): boolean {
+  return (rolesGrantableBy(actorRole) as readonly string[]).includes(role);
+}
+
+/**
+ * Who may cancel an open invitation: the same people who could have sent it.
+ * Only the owner may revoke an admin invite, so an admin cannot quietly
+ * cancel the owner's choice of a co-admin.
+ */
+export function canRevokeInvite(actorRole: string | null | undefined, role: string): boolean {
+  return canGrantRole(actorRole, role);
+}
+
+/** Workspace roles from most to least access. */
+const ROLE_RANK: Record<string, number> = { owner: 5, admin: 4, manager: 3, staff: 2, viewer: 1 };
+
+/** True only when `next` gives strictly more access than `current`. */
+export function isRoleUpgrade(current: string | null | undefined, next: string): boolean {
+  return (ROLE_RANK[next] ?? 0) > (ROLE_RANK[String(current ?? "")] ?? 0);
+}
+
+const roleName = (role: string) => (role === "staff" ? "staff member" : role);
+
 const parseRole = (value: unknown): InvitableRole => {
   const role = String(value ?? "");
   if ((INVITABLE_ROLES as readonly string[]).includes(role)) return role as InvitableRole;
@@ -44,29 +81,36 @@ async function assertCanManage(
     .eq("organization_id", organizationId)
     .eq("user_id", userId)
     .maybeSingle();
-  if (!["owner", "admin"].includes(data?.role ?? "")) {
+  const role = data?.role ?? "";
+  if (!["owner", "admin"].includes(role)) {
     throw new Error("Only workspace owners and admins can manage the team.");
   }
+  return role as "owner" | "admin";
 }
 
 /** Creates a single-use, 14-day invitation and emails the invite link. */
 export const createTeamInvitation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator(
-    (input: { organizationId: string; email: string; role: string; appUrl: string }) => ({
-      organizationId: parseWorkspaceId(input?.organizationId),
-      email: parseEmail(input?.email),
-      role: parseRole(input?.role),
-      appUrl: parseReturnUrl(input?.appUrl),
-    }),
-  )
+  .validator((input: { organizationId: string; email: string; role: string; appUrl: string }) => ({
+    organizationId: parseWorkspaceId(input?.organizationId),
+    email: parseEmail(input?.email),
+    role: parseRole(input?.role),
+    appUrl: parseReturnUrl(input?.appUrl),
+  }))
   .handler(
     async ({
       data,
       context,
     }): Promise<{ ok: true; email: string; emailed: boolean } | { error: string }> => {
       try {
-        await assertCanManage(context.supabase, data.organizationId, context.userId);
+        const actorRole = await assertCanManage(
+          context.supabase,
+          data.organizationId,
+          context.userId,
+        );
+        if (!canGrantRole(actorRole, data.role)) {
+          return { error: "Only the workspace owner can invite an admin." };
+        }
 
         const { data: org } = await context.supabase
           .from("organizations")
@@ -159,13 +203,28 @@ export const revokeTeamInvitation = createServerFn({ method: "POST" })
   }))
   .handler(async ({ data, context }): Promise<{ ok: true } | { error: string }> => {
     try {
-      await assertCanManage(context.supabase, data.organizationId, context.userId);
+      const actorRole = await assertCanManage(
+        context.supabase,
+        data.organizationId,
+        context.userId,
+      );
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { data: invite } = await supabaseAdmin
+        .from("team_invitations")
+        .select("id, role")
+        .eq("id", data.invitationId)
+        .eq("organization_id", data.organizationId)
+        .maybeSingle();
+      if (!invite) return { error: "That invite was not found." };
+      if (!canRevokeInvite(actorRole, invite.role)) {
+        return { error: "Only the workspace owner can cancel an admin invite." };
+      }
       const { error } = await supabaseAdmin
         .from("team_invitations")
         .update({ revoked_at: new Date().toISOString() })
         .eq("id", data.invitationId)
         .eq("organization_id", data.organizationId)
+        .eq("role", invite.role)
         .is("accepted_at", null)
         .is("revoked_at", null);
       // A revoke that didn't save leaves the invite link usable.
@@ -192,7 +251,7 @@ export const acceptTeamInvitation = createServerFn({ method: "POST" })
 
       const { data: invite } = await supabaseAdmin
         .from("team_invitations")
-        .select("id, organization_id, email, role, expires_at, accepted_at, revoked_at")
+        .select("id, organization_id, email, role, invited_by, expires_at, accepted_at, revoked_at")
         .eq("token_hash", tokenHash)
         .maybeSingle();
 
@@ -221,6 +280,40 @@ export const acceptTeamInvitation = createServerFn({ method: "POST" })
         };
       }
 
+      // The inviter must still be allowed to grant this role today. A link
+      // sent by an admin who has since been demoted or removed (or an admin
+      // invite minted before this check existed) must not grant access.
+      const inviterRole = invite.invited_by
+        ? (
+            await supabaseAdmin
+              .from("memberships")
+              .select("role")
+              .eq("organization_id", invite.organization_id)
+              .eq("user_id", invite.invited_by)
+              .maybeSingle()
+          ).data?.role
+        : null;
+      if (!canGrantRole(inviterRole, invite.role)) {
+        return {
+          error: "This invitation is no longer valid. Ask the workspace owner to send a new one.",
+        };
+      }
+
+      // Already on the team? The invite may only raise access, never lower
+      // it, and a no-op is refused before the link is spent so it stays
+      // usable (or can be cancelled) instead of being marked used for nothing.
+      const { data: existing } = await supabaseAdmin
+        .from("memberships")
+        .select("id, role")
+        .eq("organization_id", invite.organization_id)
+        .eq("user_id", context.userId)
+        .maybeSingle();
+      if (existing && !isRoleUpgrade(existing.role, invite.role)) {
+        return {
+          error: `You're already on this team as ${roleName(String(existing.role))}. This invitation would not give you more access, so it was not used.`,
+        };
+      }
+
       // Claim the invitation first, atomically: only one request can move it
       // from open to accepted, so a link opened twice at once grants one seat.
       const { data: claimed, error: claimError } = await supabaseAdmin
@@ -234,24 +327,35 @@ export const acceptTeamInvitation = createServerFn({ method: "POST" })
       if (claimError) return { error: "Could not accept that invitation. Try again." };
       if (!claimed) return { error: "This invitation was already used." };
 
-      const { data: existing } = await supabaseAdmin
-        .from("memberships")
-        .select("id")
-        .eq("organization_id", invite.organization_id)
-        .eq("user_id", context.userId)
-        .maybeSingle();
-      if (!existing) {
+      // Give the invitation back so the person can try again.
+      const releaseClaim = () =>
+        supabaseAdmin
+          .from("team_invitations")
+          .update({ accepted_at: null, accepted_by: null })
+          .eq("id", invite.id);
+
+      if (existing) {
+        // Raise the role only if it is still the one checked above, so a
+        // concurrent role change (say, a promotion to owner) is never undone.
+        const { data: raised, error } = await supabaseAdmin
+          .from("memberships")
+          .update({ role: invite.role })
+          .eq("id", existing.id)
+          .eq("role", existing.role)
+          .select("id")
+          .maybeSingle();
+        if (error || !raised) {
+          await releaseClaim();
+          return { error: "Your access changed while accepting. Open the invitation again." };
+        }
+      } else {
         const { error } = await supabaseAdmin.from("memberships").insert({
           organization_id: invite.organization_id,
           user_id: context.userId,
           role: invite.role,
         });
         if (error) {
-          // Give the invitation back so the person can try again.
-          await supabaseAdmin
-            .from("team_invitations")
-            .update({ accepted_at: null, accepted_by: null })
-            .eq("id", invite.id);
+          await releaseClaim();
           return { error: "Could not add you to that workspace." };
         }
       }

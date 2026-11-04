@@ -1,5 +1,4 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/lib/ui/notify";
 import { LoadingRows, PageHead, Panel, Pill, SectionHeading } from "@/components/app/Bits";
 import { IntegrationCenter } from "@/components/app/IntegrationCenter";
@@ -7,13 +6,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useTeam, useUpdateOrganization } from "@/lib/queries";
-import { useSession, useWorkspace } from "@/lib/use-tenant";
+import { useSession, useSignOut, useWorkspace } from "@/lib/use-tenant";
 import { ROLES } from "@/lib/domain";
 import { initials, dateShort } from "@/lib/format";
-import { supabase } from "@/integrations/supabase/client";
 import { MemberControls, TeamInvites } from "@/components/app/TeamInvites";
 import { PortalAccess } from "@/components/app/PortalAccess";
 import { LeadNotifications } from "@/components/app/LeadNotifications";
+import { PushLeadAlerts } from "@/components/app/PushLeadAlerts";
 import { UpgradeFromWebsite } from "@/components/app/UpgradeFromWebsite";
 import { BookingLinkCard } from "@/components/app/BookingLinkCard";
 import { DataPrivacy } from "@/components/app/DataPrivacy";
@@ -44,7 +43,7 @@ export const Route = createFileRoute("/_authenticated/app/settings")({
 
 function SettingsPage() {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
+  const signOut = useSignOut();
   const { data: session } = useSession();
   const { data: ws, isLoading } = useWorkspace();
   const org = ws?.workspace?.organization;
@@ -55,9 +54,7 @@ function SettingsPage() {
   const updateOrg = useUpdateOrganization();
 
   async function handleSignOut() {
-    await queryClient.cancelQueries();
-    queryClient.clear();
-    await supabase.auth.signOut();
+    await signOut();
     navigate({ to: "/auth", replace: true });
   }
 
@@ -188,6 +185,7 @@ function SettingsPage() {
                     organizationId={orgId}
                     role={member.role}
                     isSelf={member.user_id === session?.user.id}
+                    actorRole={role}
                   />
                 ) : null}
               </li>
@@ -200,7 +198,7 @@ function SettingsPage() {
             Send a secure invite link by email. Invites expire after 14 days and can be cancelled
             any time.
           </p>
-          <TeamInvites organizationId={orgId} canManage={canManage} />
+          <TeamInvites organizationId={orgId} canManage={canManage} actorRole={role} />
         </div>
         <div className="mt-5 border-t border-border pt-5">
           <p className="eyebrow">Client portal access</p>
@@ -214,6 +212,8 @@ function SettingsPage() {
       <BookingLinkCard organizationId={orgId} canManage={canManage} />
 
       <LeadNotifications organizationId={orgId} canManage={canManage} />
+
+      <PushLeadAlerts organizationId={orgId} />
 
       <SiteBackupExport organizationId={orgId} slug={org?.slug} canManage={canManage} />
 

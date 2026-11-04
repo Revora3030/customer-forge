@@ -77,6 +77,7 @@ const PLATFORM_TABLES = new Set([
   "ai_command_settings",
   "agent_action_requests",
   "ai_team_trace",
+  "job_leases", // scheduled-job single-flight leases: service role only
 ]);
 
 /** The ONLY tables an anonymous visitor may read, and only for a published site. */
@@ -118,6 +119,7 @@ const ADMIN_ONLY_TABLES = [
   "jarvis_approvals",
   "user_roles",
   "support_sessions",
+  "job_leases",
 ];
 
 const tenantTables = publicTables.filter(isTenantTable);
