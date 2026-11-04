@@ -81,10 +81,10 @@ vi.mock("@/lib/email-templates/send-email", () => ({
   sendTemplateEmail: async (...args: unknown[]) => (h.sent.push(args), { sent: true }),
 }));
 
+/** Same "lookup" view the other server-function tests use (real handlers, no RPC stubs). */
+const TEAM_FNS_PATH = "@/lib/team.functions?server-fn-module-lookup";
 const fns = async () =>
-  (await import(
-    /* @vite-ignore */ "@/lib/team.functions?server-fn-module-lookup"
-  )) as typeof import("./team.functions");
+  (await import(/* @vite-ignore */ TEAM_FNS_PATH)) as typeof import("./team.functions");
 
 type Fn = (arg: { data: unknown; context: unknown }) => Promise<Record<string, unknown>>;
 const ctx = (userId: string, email?: string) => ({
