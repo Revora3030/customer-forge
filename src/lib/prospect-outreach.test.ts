@@ -339,6 +339,18 @@ describe("outreach compliance fixes", () => {
     expect(await isDoNotContact(db, "+19195550100")).toBe(true);
   });
 
+  it("honours a WhatsApp STOP on the shared Twilio webhook, but never treats a WhatsApp START as SMS consent", async () => {
+    const { db, tables } = fakeDb(demoSeed());
+    expect(await handleInboundSms(db, "whatsapp:+19195550100", "STOP")).toBe("stop");
+    expect(await isDoNotContact(db, "+19195550100")).toBe(true);
+
+    expect(await handleInboundSms(db, "whatsapp:+19195550100", "START")).toBeNull();
+    expect(await isDoNotContact(db, "+19195550100")).toBe(true);
+    expect((tables["prospect_contact_consent"] ?? []).some((row) => row["sms"] === true)).toBe(false);
+
+    expect(await handleInboundSms(db, "messenger:12345", "STOP")).toBeNull();
+  });
+
   it("checks quiet hours in the number's zone, and in every continental zone when it's unknown", async () => {
     expect(stateForPhone("(213) 555-0100")).toBe("CA");
     expect(stateForPhone("+447700900123")).toBeNull();

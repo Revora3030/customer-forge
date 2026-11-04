@@ -81,9 +81,11 @@ afterEach(() => {
 describe("Twilio Voice webhook signature checks", () => {
   it("is unavailable (503) without TWILIO_AUTH_TOKEN", async () => {
     vi.stubEnv("TWILIO_AUTH_TOKEN", "");
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const f = fakeDeps();
     const res = await handleTwilioVoiceWebhook(twilioRequest(VOICE, call), "voice", f.factory);
     expect(res.status).toBe(503);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("TWILIO_AUTH_TOKEN is not configured"));
   });
 
   it("rejects unsigned requests", async () => {

@@ -43,6 +43,7 @@ import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/app'
 import { Route as AuthenticatedMyRouteImport } from './routes/_authenticated/my'
 import { Route as AuthenticatedOnboardingRouteImport } from './routes/_authenticated/onboarding'
+import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as CompareIndexRouteImport } from './routes/compare.index'
 import { Route as CompareSlugRouteImport } from './routes/compare.$slug'
 import { Route as CrmIndexRouteImport } from './routes/crm.index'
@@ -328,6 +329,11 @@ const AuthenticatedOnboardingRoute = AuthenticatedOnboardingRouteImport.update({
   id: '/onboarding',
   path: '/onboarding',
   getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const ApiHealthRoute = ApiHealthRouteImport.update({
+  id: '/api/health',
+  path: '/api/health',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const CompareIndexRoute = CompareIndexRouteImport.update({
   id: '/compare/',
@@ -986,6 +992,7 @@ export interface FileRoutesByFullPath {
   '/app': typeof AuthenticatedAppRouteWithChildren
   '/my': typeof AuthenticatedMyRouteWithChildren
   '/onboarding': typeof AuthenticatedOnboardingRoute
+  '/api/health': typeof ApiHealthRoute
   '/compare/$slug': typeof CompareSlugRoute
   '/crm/$trade': typeof CrmTradeRoute
   '/demo/dashboard': typeof DemoDashboardRoute
@@ -1131,6 +1138,7 @@ export interface FileRoutesByTo {
   '/{$key}.txt': typeof Char123keyChar125DottxtRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
+  '/api/health': typeof ApiHealthRoute
   '/compare/$slug': typeof CompareSlugRoute
   '/crm/$trade': typeof CrmTradeRoute
   '/demo/dashboard': typeof DemoDashboardRoute
@@ -1283,6 +1291,7 @@ export interface FileRoutesById {
   '/_authenticated/app': typeof AuthenticatedAppRouteWithChildren
   '/_authenticated/my': typeof AuthenticatedMyRouteWithChildren
   '/_authenticated/onboarding': typeof AuthenticatedOnboardingRoute
+  '/api/health': typeof ApiHealthRoute
   '/compare/$slug': typeof CompareSlugRoute
   '/crm/$trade': typeof CrmTradeRoute
   '/demo/dashboard': typeof DemoDashboardRoute
@@ -1435,6 +1444,7 @@ export interface FileRouteTypes {
     | '/app'
     | '/my'
     | '/onboarding'
+    | '/api/health'
     | '/compare/$slug'
     | '/crm/$trade'
     | '/demo/dashboard'
@@ -1580,6 +1590,7 @@ export interface FileRouteTypes {
     | '/{$key}.txt'
     | '/.well-known/oauth-protected-resource'
     | '/onboarding'
+    | '/api/health'
     | '/compare/$slug'
     | '/crm/$trade'
     | '/demo/dashboard'
@@ -1731,6 +1742,7 @@ export interface FileRouteTypes {
     | '/_authenticated/app'
     | '/_authenticated/my'
     | '/_authenticated/onboarding'
+    | '/api/health'
     | '/compare/$slug'
     | '/crm/$trade'
     | '/demo/dashboard'
@@ -1879,6 +1891,7 @@ export interface RootRouteChildren {
   WebsiteAuditRoute: typeof WebsiteAuditRoute
   Char123keyChar125DottxtRoute: typeof Char123keyChar125DottxtRoute
   Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
+  ApiHealthRoute: typeof ApiHealthRoute
   CompareSlugRoute: typeof CompareSlugRoute
   CrmTradeRoute: typeof CrmTradeRoute
   FeedbackTokenRoute: typeof FeedbackTokenRoute
@@ -2181,6 +2194,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/onboarding'
       preLoaderRoute: typeof AuthenticatedOnboardingRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/api/health': {
+      id: '/api/health'
+      path: '/api/health'
+      fullPath: '/api/health'
+      preLoaderRoute: typeof ApiHealthRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/compare/': {
       id: '/compare/'
@@ -3260,6 +3280,7 @@ const rootRouteChildren: RootRouteChildren = {
   Char123keyChar125DottxtRoute: Char123keyChar125DottxtRoute,
   Char91DotwellKnownChar93OauthProtectedResourceRoute:
     Char91DotwellKnownChar93OauthProtectedResourceRoute,
+  ApiHealthRoute: ApiHealthRoute,
   CompareSlugRoute: CompareSlugRoute,
   CrmTradeRoute: CrmTradeRoute,
   FeedbackTokenRoute: FeedbackTokenRoute,

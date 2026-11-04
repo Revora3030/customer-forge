@@ -77,6 +77,511 @@ export type Database = {
         }
         Relationships: []
       }
+      agent_approvals: {
+        Row: {
+          args: Json
+          args_hash: string
+          consumed_at: string | null
+          created_at: string
+          decided_at: string | null
+          decided_by: string | null
+          expires_at: string
+          id: string
+          organization_id: string | null
+          requested_by: string | null
+          run_id: string | null
+          scope: string
+          status: string
+          step_id: string | null
+          summary: string
+          tool: string
+        }
+        Insert: {
+          args?: Json
+          args_hash: string
+          consumed_at?: string | null
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          expires_at?: string
+          id?: string
+          organization_id?: string | null
+          requested_by?: string | null
+          run_id?: string | null
+          scope?: string
+          status?: string
+          step_id?: string | null
+          summary?: string
+          tool: string
+        }
+        Update: {
+          args?: Json
+          args_hash?: string
+          consumed_at?: string | null
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          expires_at?: string
+          id?: string
+          organization_id?: string | null
+          requested_by?: string | null
+          run_id?: string | null
+          scope?: string
+          status?: string
+          step_id?: string | null
+          summary?: string
+          tool?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_approvals_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_approvals_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "public_organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_approvals_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "agent_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agent_limits: {
+        Row: {
+          max_concurrent_runs: number | null
+          max_runs_per_hour: number | null
+          max_tool_calls_per_minute: number | null
+          organization_id: string
+          run_budget_microcents: number | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          max_concurrent_runs?: number | null
+          max_runs_per_hour?: number | null
+          max_tool_calls_per_minute?: number | null
+          organization_id: string
+          run_budget_microcents?: number | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          max_concurrent_runs?: number | null
+          max_runs_per_hour?: number | null
+          max_tool_calls_per_minute?: number | null
+          organization_id?: string
+          run_budget_microcents?: number | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_limits_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_limits_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "public_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agent_routines: {
+        Row: {
+          claim_token: string | null
+          claimed_until: string | null
+          created_at: string
+          created_by: string | null
+          enabled: boolean
+          frequency: string
+          hour: number
+          id: string
+          last_run_at: string | null
+          last_run_id: string | null
+          last_status: string | null
+          minute: number
+          month_day: number | null
+          name: string
+          next_run_at: string
+          organization_id: string
+          preset: string
+          prompt: string | null
+          updated_at: string
+          weekday: number | null
+        }
+        Insert: {
+          claim_token?: string | null
+          claimed_until?: string | null
+          created_at?: string
+          created_by?: string | null
+          enabled?: boolean
+          frequency: string
+          hour: number
+          id?: string
+          last_run_at?: string | null
+          last_run_id?: string | null
+          last_status?: string | null
+          minute: number
+          month_day?: number | null
+          name: string
+          next_run_at: string
+          organization_id: string
+          preset: string
+          prompt?: string | null
+          updated_at?: string
+          weekday?: number | null
+        }
+        Update: {
+          claim_token?: string | null
+          claimed_until?: string | null
+          created_at?: string
+          created_by?: string | null
+          enabled?: boolean
+          frequency?: string
+          hour?: number
+          id?: string
+          last_run_at?: string | null
+          last_run_id?: string | null
+          last_status?: string | null
+          minute?: number
+          month_day?: number | null
+          name?: string
+          next_run_at?: string
+          organization_id?: string
+          preset?: string
+          prompt?: string | null
+          updated_at?: string
+          weekday?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_routines_last_run_id_fkey"
+            columns: ["last_run_id"]
+            isOneToOne: false
+            referencedRelation: "agent_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_routines_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_routines_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "public_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agent_run_admissions: {
+        Row: {
+          cancel_reason: string | null
+          created_at: string
+          finished_at: string | null
+          id: string
+          organization_id: string
+          run_id: string
+          started_at: string | null
+          status: string
+        }
+        Insert: {
+          cancel_reason?: string | null
+          created_at?: string
+          finished_at?: string | null
+          id?: string
+          organization_id: string
+          run_id: string
+          started_at?: string | null
+          status?: string
+        }
+        Update: {
+          cancel_reason?: string | null
+          created_at?: string
+          finished_at?: string | null
+          id?: string
+          organization_id?: string
+          run_id?: string
+          started_at?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_run_admissions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_run_admissions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "public_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agent_run_events: {
+        Row: {
+          created_at: string
+          data: Json
+          id: number
+          kind: string
+          message: string
+          organization_id: string
+          run_id: string
+        }
+        Insert: {
+          created_at?: string
+          data?: Json
+          id?: never
+          kind: string
+          message: string
+          organization_id: string
+          run_id: string
+        }
+        Update: {
+          created_at?: string
+          data?: Json
+          id?: never
+          kind?: string
+          message?: string
+          organization_id?: string
+          run_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_run_events_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_run_events_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "public_organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_run_events_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "agent_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agent_run_steps: {
+        Row: {
+          created_at: string
+          finished_at: string | null
+          id: string
+          input: Json
+          kind: string
+          organization_id: string
+          output: Json | null
+          run_id: string
+          seq: number
+          status: string
+          tool: string | null
+        }
+        Insert: {
+          created_at?: string
+          finished_at?: string | null
+          id?: string
+          input?: Json
+          kind: string
+          organization_id: string
+          output?: Json | null
+          run_id: string
+          seq: number
+          status?: string
+          tool?: string | null
+        }
+        Update: {
+          created_at?: string
+          finished_at?: string | null
+          id?: string
+          input?: Json
+          kind?: string
+          organization_id?: string
+          output?: Json | null
+          run_id?: string
+          seq?: number
+          status?: string
+          tool?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_run_steps_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_run_steps_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "public_organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_run_steps_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "agent_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agent_runs: {
+        Row: {
+          attempts: number
+          budget_cap: number | null
+          budget_used: number
+          checkpoint: Json
+          created_at: string
+          error_plain: string | null
+          fence: number
+          finished_at: string | null
+          goal: string
+          id: string
+          lease_expires_at: string | null
+          max_attempts: number
+          not_before: string
+          organization_id: string
+          result_summary: string | null
+          source: string
+          started_at: string | null
+          status: string
+          updated_at: string
+          user_id: string | null
+          worker: string | null
+        }
+        Insert: {
+          attempts?: number
+          budget_cap?: number | null
+          budget_used?: number
+          checkpoint?: Json
+          created_at?: string
+          error_plain?: string | null
+          fence?: number
+          finished_at?: string | null
+          goal: string
+          id?: string
+          lease_expires_at?: string | null
+          max_attempts?: number
+          not_before?: string
+          organization_id: string
+          result_summary?: string | null
+          source?: string
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+          worker?: string | null
+        }
+        Update: {
+          attempts?: number
+          budget_cap?: number | null
+          budget_used?: number
+          checkpoint?: Json
+          created_at?: string
+          error_plain?: string | null
+          fence?: number
+          finished_at?: string | null
+          goal?: string
+          id?: string
+          lease_expires_at?: string | null
+          max_attempts?: number
+          not_before?: string
+          organization_id?: string
+          result_summary?: string | null
+          source?: string
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+          worker?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_runs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_runs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "public_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agent_settings: {
+        Row: {
+          disabled_reason: string | null
+          enabled: boolean
+          organization_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          disabled_reason?: string | null
+          enabled?: boolean
+          organization_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          disabled_reason?: string | null
+          enabled?: boolean
+          organization_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_settings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_settings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "public_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_command_settings: {
         Row: {
           id: number
@@ -402,35 +907,53 @@ export type Database = {
       }
       ai_tool_audit: {
         Row: {
+          args_hash: string | null
           created_at: string
           duration_ms: number
           id: string
+          idempotency_key: string | null
           ok: boolean
           organization_id: string | null
           reason: string | null
           request_id: string
+          result_status: string | null
+          risk: string | null
+          run_id: string | null
+          step_id: string | null
           tool: string
           user_id: string | null
         }
         Insert: {
+          args_hash?: string | null
           created_at?: string
           duration_ms?: number
           id?: string
+          idempotency_key?: string | null
           ok: boolean
           organization_id?: string | null
           reason?: string | null
           request_id: string
+          result_status?: string | null
+          risk?: string | null
+          run_id?: string | null
+          step_id?: string | null
           tool: string
           user_id?: string | null
         }
         Update: {
+          args_hash?: string | null
           created_at?: string
           duration_ms?: number
           id?: string
+          idempotency_key?: string | null
           ok?: boolean
           organization_id?: string | null
           reason?: string | null
           request_id?: string
+          result_status?: string | null
+          risk?: string | null
+          run_id?: string | null
+          step_id?: string | null
           tool?: string
           user_id?: string | null
         }
@@ -1944,6 +2467,7 @@ export type Database = {
           error_message: string | null
           failed_stage: string | null
           failure_kind: string | null
+          fallback_used: boolean
           id: string
           lease_expires_at: string | null
           organization_id: string
@@ -1972,6 +2496,7 @@ export type Database = {
           error_message?: string | null
           failed_stage?: string | null
           failure_kind?: string | null
+          fallback_used?: boolean
           id?: string
           lease_expires_at?: string | null
           organization_id: string
@@ -2000,6 +2525,7 @@ export type Database = {
           error_message?: string | null
           failed_stage?: string | null
           failure_kind?: string | null
+          fallback_used?: boolean
           id?: string
           lease_expires_at?: string | null
           organization_id?: string
@@ -2711,33 +3237,53 @@ export type Database = {
       }
       jarvis_memories: {
         Row: {
+          completed_at: string | null
           content: string
           created_at: string
+          due_at: string | null
+          half_life_days: number | null
           id: string
           kind: string
           source: string
+          superseded_by: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
+          completed_at?: string | null
           content: string
           created_at?: string
+          due_at?: string | null
+          half_life_days?: number | null
           id?: string
           kind?: string
           source?: string
+          superseded_by?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
+          completed_at?: string | null
           content?: string
           created_at?: string
+          due_at?: string | null
+          half_life_days?: number | null
           id?: string
           kind?: string
           source?: string
+          superseded_by?: string | null
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "jarvis_memories_superseded_by_fkey"
+            columns: ["superseded_by"]
+            isOneToOne: false
+            referencedRelation: "jarvis_memories"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       jarvis_memory_embeddings: {
         Row: {
@@ -3174,6 +3720,72 @@ export type Database = {
           },
         ]
       }
+      lead_delivery_watch: {
+        Row: {
+          attempts: number
+          first_flagged_at: string
+          last_attempt_at: string | null
+          last_checked_at: string
+          lead_id: string
+          next_attempt_at: string | null
+          organization_id: string
+          owner_notified_at: string | null
+          problem: string
+          reason: string | null
+          resolution: string | null
+          resolved_at: string | null
+          state: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          first_flagged_at?: string
+          last_attempt_at?: string | null
+          last_checked_at?: string
+          lead_id: string
+          next_attempt_at?: string | null
+          organization_id: string
+          owner_notified_at?: string | null
+          problem: string
+          reason?: string | null
+          resolution?: string | null
+          resolved_at?: string | null
+          state?: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          first_flagged_at?: string
+          last_attempt_at?: string | null
+          last_checked_at?: string
+          lead_id?: string
+          next_attempt_at?: string | null
+          organization_id?: string
+          owner_notified_at?: string | null
+          problem?: string
+          reason?: string | null
+          resolution?: string | null
+          resolved_at?: string | null
+          state?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_delivery_watch_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_delivery_watch_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "public_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lead_tasks: {
         Row: {
           assigned_to: string | null
@@ -3228,6 +3840,48 @@ export type Database = {
           },
           {
             foreignKeyName: "lead_tasks_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "public_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lead_watchdog_events: {
+        Row: {
+          created_at: string
+          detail: string | null
+          event: string
+          id: string
+          lead_id: string | null
+          organization_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          detail?: string | null
+          event: string
+          id?: string
+          lead_id?: string | null
+          organization_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          detail?: string | null
+          event?: string
+          id?: string
+          lead_id?: string | null
+          organization_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_watchdog_events_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_watchdog_events_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "public_organizations"
@@ -5238,6 +5892,91 @@ export type Database = {
           },
         ]
       }
+      qa_jobs: {
+        Row: {
+          attempts: number
+          created_at: string
+          error_plain: string | null
+          fence: number
+          finished_at: string | null
+          id: string
+          lease_expires_at: string | null
+          max_attempts: number
+          metrics: Json
+          not_before: string
+          organization_id: string
+          run_id: string | null
+          screenshots: Json
+          started_at: string | null
+          status: string
+          updated_at: string
+          url: string
+          worker: string | null
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          error_plain?: string | null
+          fence?: number
+          finished_at?: string | null
+          id?: string
+          lease_expires_at?: string | null
+          max_attempts?: number
+          metrics?: Json
+          not_before?: string
+          organization_id: string
+          run_id?: string | null
+          screenshots?: Json
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+          url: string
+          worker?: string | null
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          error_plain?: string | null
+          fence?: number
+          finished_at?: string | null
+          id?: string
+          lease_expires_at?: string | null
+          max_attempts?: number
+          metrics?: Json
+          not_before?: string
+          organization_id?: string
+          run_id?: string | null
+          screenshots?: Json
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+          url?: string
+          worker?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "qa_jobs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "qa_jobs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "public_organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "qa_jobs_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "agent_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       qna_monitor: {
         Row: {
           created_at: string
@@ -6288,6 +7027,7 @@ export type Database = {
           current_period_start: string | null
           environment: string
           id: string
+          last_stripe_event_created: number | null
           organization_id: string
           payment_provider: string
           plan_id: string | null
@@ -6308,6 +7048,7 @@ export type Database = {
           current_period_start?: string | null
           environment?: string
           id?: string
+          last_stripe_event_created?: number | null
           organization_id: string
           payment_provider?: string
           plan_id?: string | null
@@ -6328,6 +7069,7 @@ export type Database = {
           current_period_start?: string | null
           environment?: string
           id?: string
+          last_stripe_event_created?: number | null
           organization_id?: string
           payment_provider?: string
           plan_id?: string | null
@@ -6900,6 +7642,42 @@ export type Database = {
           },
         ]
       }
+      website_rules: {
+        Row: {
+          organization_id: string
+          rules: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          organization_id: string
+          rules: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          organization_id?: string
+          rules?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "website_rules_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "website_rules_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "public_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       website_sections: {
         Row: {
           body: string | null
@@ -7450,6 +8228,225 @@ export type Database = {
           organization_id: string
         }[]
       }
+      agent_approval_cancel_for_run: { Args: { _run: string }; Returns: number }
+      agent_approval_consume: {
+        Args: {
+          _hash: string
+          _id?: string
+          _org: string
+          _scope: string
+          _tool: string
+        }
+        Returns: Json
+      }
+      agent_approval_decide: {
+        Args: { _approve: boolean; _decider: string; _id: string }
+        Returns: Json
+      }
+      agent_approval_request: {
+        Args: {
+          _args: Json
+          _hash: string
+          _org: string
+          _run: string
+          _scope: string
+          _step: string
+          _summary: string
+          _tool: string
+          _ttl_seconds?: number
+          _user: string
+        }
+        Returns: Json
+      }
+      agent_approval_sweep: { Args: never; Returns: number }
+      agent_limits_admit_run: {
+        Args: {
+          _max_concurrent: number
+          _max_per_hour: number
+          _organization_id: string
+          _run_id: string
+        }
+        Returns: {
+          admitted: boolean
+          in_flight: number
+          reason: string
+          runs_last_hour: number
+        }[]
+      }
+      agent_limits_cancel_queued: {
+        Args: { _organization_id: string; _reason: string }
+        Returns: {
+          organization_id: string
+          run_id: string
+        }[]
+      }
+      agent_limits_mark_finished: {
+        Args: { _run_id: string }
+        Returns: boolean
+      }
+      agent_limits_mark_started: { Args: { _run_id: string }; Returns: boolean }
+      agent_routine_claim_due: {
+        Args: { _lease_seconds?: number; _limit?: number }
+        Returns: {
+          claim_token: string | null
+          claimed_until: string | null
+          created_at: string
+          created_by: string | null
+          enabled: boolean
+          frequency: string
+          hour: number
+          id: string
+          last_run_at: string | null
+          last_run_id: string | null
+          last_status: string | null
+          minute: number
+          month_day: number | null
+          name: string
+          next_run_at: string
+          organization_id: string
+          preset: string
+          prompt: string | null
+          updated_at: string
+          weekday: number | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "agent_routines"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      agent_routine_fire: {
+        Args: {
+          _goal: string
+          _id: string
+          _next_run_at: string
+          _token: string
+        }
+        Returns: string
+      }
+      agent_routine_release: {
+        Args: {
+          _id: string
+          _next_run_at: string
+          _status: string
+          _token: string
+        }
+        Returns: boolean
+      }
+      agent_run_add_event: {
+        Args: {
+          _data?: Json
+          _fence: number
+          _kind: string
+          _message: string
+          _run: string
+        }
+        Returns: boolean
+      }
+      agent_run_cancel: { Args: { _run: string }; Returns: boolean }
+      agent_run_claim: {
+        Args: { _lease_seconds?: number; _worker: string }
+        Returns: {
+          attempts: number
+          budget_cap: number | null
+          budget_used: number
+          checkpoint: Json
+          created_at: string
+          error_plain: string | null
+          fence: number
+          finished_at: string | null
+          goal: string
+          id: string
+          lease_expires_at: string | null
+          max_attempts: number
+          not_before: string
+          organization_id: string
+          result_summary: string | null
+          source: string
+          started_at: string | null
+          status: string
+          updated_at: string
+          user_id: string | null
+          worker: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "agent_runs"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      agent_run_create: {
+        Args: {
+          _budget_cap?: number
+          _goal: string
+          _max_attempts?: number
+          _org: string
+          _source?: string
+          _user: string
+        }
+        Returns: {
+          attempts: number
+          budget_cap: number | null
+          budget_used: number
+          checkpoint: Json
+          created_at: string
+          error_plain: string | null
+          fence: number
+          finished_at: string | null
+          goal: string
+          id: string
+          lease_expires_at: string | null
+          max_attempts: number
+          not_before: string
+          organization_id: string
+          result_summary: string | null
+          source: string
+          started_at: string | null
+          status: string
+          updated_at: string
+          user_id: string | null
+          worker: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "agent_runs"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      agent_run_finish: {
+        Args: {
+          _error?: string
+          _fence: number
+          _run: string
+          _status: string
+          _summary?: string
+        }
+        Returns: boolean
+      }
+      agent_run_heartbeat: {
+        Args: { _fence: number; _lease_seconds?: number; _run: string }
+        Returns: boolean
+      }
+      agent_run_recover_stalled: {
+        Args: { _grace_seconds?: number }
+        Returns: {
+          outcome: string
+          run_id: string
+        }[]
+      }
+      agent_run_resume: { Args: { _run: string }; Returns: boolean }
+      agent_run_save: {
+        Args: {
+          _budget_used?: number
+          _checkpoint: Json
+          _fence: number
+          _run: string
+        }
+        Returns: boolean
+      }
       ai_note_free_tokens: {
         Args: { _amount: number; _provider: string }
         Returns: number
@@ -7731,6 +8728,79 @@ export type Database = {
         Returns: string
       }
       prune_old_operational_records: { Args: never; Returns: Json }
+      qa_job_claim: {
+        Args: { _lease_seconds?: number; _max?: number; _worker: string }
+        Returns: {
+          attempts: number
+          created_at: string
+          error_plain: string | null
+          fence: number
+          finished_at: string | null
+          id: string
+          lease_expires_at: string | null
+          max_attempts: number
+          metrics: Json
+          not_before: string
+          organization_id: string
+          run_id: string | null
+          screenshots: Json
+          started_at: string | null
+          status: string
+          updated_at: string
+          url: string
+          worker: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "qa_jobs"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      qa_job_create: {
+        Args: { _org: string; _run?: string; _url: string }
+        Returns: {
+          attempts: number
+          created_at: string
+          error_plain: string | null
+          fence: number
+          finished_at: string | null
+          id: string
+          lease_expires_at: string | null
+          max_attempts: number
+          metrics: Json
+          not_before: string
+          organization_id: string
+          run_id: string | null
+          screenshots: Json
+          started_at: string | null
+          status: string
+          updated_at: string
+          url: string
+          worker: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "qa_jobs"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      qa_job_finish: {
+        Args: {
+          _error?: string
+          _fence: number
+          _job: string
+          _metrics?: Json
+          _ok: boolean
+          _screenshots?: Json
+        }
+        Returns: boolean
+      }
+      qa_job_recover_stalled: {
+        Args: { _grace_seconds?: number }
+        Returns: number
+      }
       register_public_submission_attempt: {
         Args: {
           _contact_hash?: string
