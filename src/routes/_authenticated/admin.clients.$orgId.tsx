@@ -22,6 +22,7 @@ import {
   endSupportSession,
   getClientDetail,
   setClientDomain,
+  setClientDomainVerification,
   setClientPublishState,
   startSupportSession,
   updateClientOrg,
@@ -30,7 +31,7 @@ import {
 import { usePlans } from "@/lib/queries";
 import { DOMAIN_STATES, PUBLISH_STATES, readiness } from "@/lib/readiness";
 import { writeSupportMode } from "@/lib/support-mode";
-import { dnsRows } from "@/lib/domain-setup";
+import { dnsRows, readLovableVerification } from "@/lib/domain-setup";
 import { currency, dateShort, dateLong, formatUsPhone, number } from "@/lib/format";
 import { Sparkline } from "@/components/demo/DemoCharts";
 
@@ -62,12 +63,15 @@ function ClientDetail() {
   const update = useServerFn(updateClientOrg);
   const saveDomain = useServerFn(setClientDomain);
   const verifyDomain = useServerFn(verifyClientDomain);
+  const saveVerification = useServerFn(setClientDomainVerification);
   const publish = useServerFn(setClientPublishState);
   const startSupport = useServerFn(startSupportSession);
   const endSupport = useServerFn(endSupportSession);
   const { data: plans } = usePlans();
 
   const [domain, setDomain] = useState<string | null>(null);
+  const [verifyApex, setVerifyApex] = useState<string | null>(null);
+  const [verifyWww, setVerifyWww] = useState<string | null>(null);
   const [reason, setReason] = useState("");
   const [pendingPublish, setPendingPublish] = useState<string | null>(null);
   const [pendingBilling, setPendingBilling] = useState<
@@ -92,6 +96,18 @@ function ClientDetail() {
       toast.message(DOMAIN_STATES[result.status]?.label ?? result.status, {
         description: result.detail,
       });
+      await refresh();
+    },
+    onError: (error: Error) => toast.error(friendlyError(error)),
+  });
+
+  const verificationMutation = useMutation({
+    mutationFn: (values: { apex: string; www: string }) =>
+      saveVerification({ data: { organizationId: orgId, ...values } }),
+    onSuccess: async () => {
+      toast.success("Verification values saved — the client now sees their TXT records.");
+      setVerifyApex(null);
+      setVerifyWww(null);
       await refresh();
     },
     onError: (error: Error) => toast.error(friendlyError(error)),
@@ -160,6 +176,7 @@ function ClientDetail() {
   });
 
   const domainStatus = settings?.domain_status ?? "not_connected";
+  const verification = readLovableVerification(settings?.generation, settings?.custom_domain);
   const publishState = settings?.publish_state ?? "draft";
   const openSession = data.supportSessions.find((s) => !s.ended_at);
 
@@ -380,12 +397,48 @@ function ClientDetail() {
         </div>
         <div className="product-tile">
           <p className="eyebrow">DNS records</p>
-          {dnsRows(settings?.custom_domain ?? "").map((row) => (
-            <p key={row.name} className="mt-1.5">
+          {dnsRows(settings?.custom_domain ?? "", verification).map((row) => (
+            <p key={`${row.type}-${row.name}`} className="mt-1.5">
               {row.type} <span className="text-muted-foreground">{row.name}</span> →{" "}
-              <code className="rounded bg-elevated px-1.5 py-0.5">{row.value}</code>
+              {row.pending ? (
+                <span className="text-muted-foreground italic">{row.value}</span>
+              ) : (
+                <code className="rounded bg-elevated px-1.5 py-0.5">{row.value}</code>
+              )}
             </p>
           ))}
+          {settings?.custom_domain ? (
+            <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+              <div>
+                <Label className="mb-1.5 block text-[12px]">_lovable TXT value (apex)</Label>
+                <Input
+                  placeholder="lovable_verify=…"
+                  value={verifyApex ?? verification.apex ?? ""}
+                  onChange={(event) => setVerifyApex(event.target.value)}
+                />
+              </div>
+              <div>
+                <Label className="mb-1.5 block text-[12px]">_lovable.www TXT value</Label>
+                <Input
+                  placeholder="lovable_verify=…"
+                  value={verifyWww ?? verification.www ?? ""}
+                  onChange={(event) => setVerifyWww(event.target.value)}
+                />
+              </div>
+              <Button
+                variant="outline"
+                disabled={verificationMutation.isPending}
+                onClick={() =>
+                  verificationMutation.mutate({
+                    apex: verifyApex ?? verification.apex ?? "",
+                    www: verifyWww ?? verification.www ?? "",
+                  })
+                }
+              >
+                Save TXT values
+              </Button>
+            </div>
+          ) : null}
           {settings?.domain_error ? (
             <p className="mt-2 text-destructive">{settings.domain_error}</p>
           ) : null}

@@ -55,8 +55,12 @@ export function SiteHeader() {
   return (
     <header className="sticky top-0 z-40 pt-[env(safe-area-inset-top)] border-b border-border bg-background/90 backdrop-blur-sm">
       <div className="mx-auto grid h-16 max-w-6xl grid-cols-[minmax(0,1fr)_auto] items-center gap-2 px-4 max-[400px]:h-14 max-[400px]:px-3 md:flex md:justify-between">
+        {/* Below 360px the phone header's Sign up / Sign in / menu buttons
+            leave less room than the mark plus the REVORA wordmark need, so
+            the wordmark steps aside (the gold mark and the link's accessible
+            name stay) rather than sliding under the Sign up button. */}
         <Link to="/" aria-label="Revora home" className="inline-flex min-h-11 min-w-0 items-center">
-          <Logo />
+          <Logo wordmarkClassName="max-[359px]:hidden" />
         </Link>
 
         <nav aria-label="Main" className="hidden items-center gap-1 md:flex">

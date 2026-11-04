@@ -9,6 +9,11 @@ import { GROWTH_SYSTEM } from "@/lib/offer";
 import type { StripeEnv } from "@/lib/stripe.server";
 import { MONTHLY_PRICE_LOOKUP_KEY, SETUP_PRICE_LOOKUP_KEY } from "@/lib/stripe-catalog";
 import { shouldAnnouncePayment } from "@/lib/payment-amount";
+import {
+  decideSubscriptionProjection,
+  storedEventCreated,
+  type FenceDecision,
+} from "@/lib/stripe-subscription-fence";
 
 type Admin = SupabaseClient<Database>;
 type SubStatus = Database["public"]["Enums"]["subscription_status"];
@@ -74,8 +79,10 @@ const iso = (seconds: unknown) =>
   typeof seconds === "number" && seconds > 0 ? new Date(seconds * 1000).toISOString() : null;
 
 /**
- * Writes a verified Stripe subscription into `subscriptions` + `organizations`.
- * Safe to call repeatedly for the same event (upsert on organization_id).
+ * Writes a verified Stripe subscription into `subscriptions` + `organizations`,
+ * through the ordering fence in stripe-subscription-fence.ts. Safe to call
+ * repeatedly for the same event; a late, older or resurrecting event is
+ * reported as `applied: false` and changes nothing.
  */
 /** Minimal Stripe subscription shape — fields read defensively. */
 type StripeSubscription = {
@@ -91,12 +98,40 @@ type StripeSubscription = {
   trial_end?: number;
 };
 
+/** Attempts at the compare-and-set write before the event is handed back to Stripe to retry. */
+const PROJECTION_ATTEMPTS = 3;
+
+type StoredRow = {
+  id: string;
+  status: string;
+  provider_subscription_id: string | null;
+  updated_at: string | null;
+  last_stripe_event_created?: unknown;
+};
+
+/** Postgres "undefined column" / PostgREST "column not in schema cache": the fence migration isn't applied yet. */
+function missingFenceColumn(error: { code?: string; message?: string } | null): boolean {
+  if (!error) return false;
+  return error.code === "42703" || error.code === "PGRST204" || /last_stripe_event_created/.test(error.message ?? "");
+}
+
+export type SyncStripeSubscriptionResult = {
+  ok: boolean;
+  organizationId?: string;
+  reason?: string;
+  canonical?: boolean;
+  /** False when the ordering fence kept this event from changing the stored subscription. */
+  applied?: boolean;
+  fence?: FenceDecision["reason"];
+};
+
 export async function syncStripeSubscription(
   admin: Admin,
   // Raw Stripe subscription payload (webhook JSON); fields are read defensively.
   subscription: StripeSubscription,
   env: StripeEnv,
-): Promise<{ ok: boolean; organizationId?: string; reason?: string; canonical?: boolean }> {
+  options: { eventCreated?: number | null } = {},
+): Promise<SyncStripeSubscriptionResult> {
   const organizationId = subscription?.metadata?.organizationId as string | undefined;
   if (!organizationId) return { ok: false, reason: "missing_organization_metadata" };
 
@@ -128,11 +163,75 @@ export async function syncStripeSubscription(
     trial_ends_at: iso(subscription?.trial_end),
   };
 
-  const { error: subError } = await admin
-    .from("subscriptions")
-    .upsert(record, { onConflict: "organization_id,payment_provider,environment" });
-  // A failed write must surface so Stripe retries — never a silent success.
-  if (subError) throw new Error(`subscription_upsert_failed:${subError.code ?? subError.message}`);
+  // Fenced compare-and-set: read the row, decide, then write only if the row
+  // is unchanged since the read (updated_at moves on every write), so two
+  // webhook workers can't interleave a stale event past the fence.
+  let fenceColumn = true;
+  let written = false;
+  for (let attempt = 0; attempt < PROJECTION_ATTEMPTS && !written; attempt += 1) {
+    const lookup = () =>
+      admin
+        .from("subscriptions")
+        .select(
+          fenceColumn
+            ? "id, status, provider_subscription_id, updated_at, last_stripe_event_created"
+            : "id, status, provider_subscription_id, updated_at",
+        )
+        .eq("organization_id", organizationId)
+        .eq("payment_provider", "stripe")
+        .eq("environment", env)
+        .maybeSingle();
+    let read = await lookup();
+    if (read.error && fenceColumn && missingFenceColumn(read.error)) {
+      fenceColumn = false;
+      read = await lookup();
+    }
+    if (read.error) throw new Error(`subscription_read_failed:${read.error.code ?? read.error.message}`);
+    const stored = (read.data ?? null) as StoredRow | null;
+
+    const decision = decideSubscriptionProjection(
+      stored
+        ? {
+            providerSubscriptionId: stored.provider_subscription_id,
+            status: String(stored.status),
+            lastEventCreated: fenceColumn ? storedEventCreated(stored.last_stripe_event_created) : null,
+          }
+        : null,
+      { subscriptionId: record.provider_subscription_id, status, eventCreated: options.eventCreated ?? null },
+    );
+    if (!decision.apply) {
+      // Nothing written: the workspace's billing columns keep the newer state.
+      return { ok: true, organizationId, canonical: env === "live", applied: false, fence: decision.reason };
+    }
+    const fenced =
+      fenceColumn && decision.nextEventCreated !== null
+        ? { ...record, last_stripe_event_created: decision.nextEventCreated }
+        : record;
+
+    if (stored) {
+      let update = admin.from("subscriptions").update(fenced).eq("id", stored.id);
+      update = stored.updated_at === null ? update.is("updated_at", null) : update.eq("updated_at", stored.updated_at);
+      const { data: changed, error: updateError } = await update.select("id");
+      if (updateError && fenceColumn && missingFenceColumn(updateError)) {
+        fenceColumn = false;
+        continue;
+      }
+      // A failed write must surface so Stripe retries — never a silent success.
+      if (updateError) throw new Error(`subscription_upsert_failed:${updateError.code ?? updateError.message}`);
+      written = (changed?.length ?? 0) === 1;
+    } else {
+      const { error: insertError } = await admin.from("subscriptions").insert(fenced);
+      if (insertError && fenceColumn && missingFenceColumn(insertError)) {
+        fenceColumn = false;
+        continue;
+      }
+      // 23505: another worker inserted the row first; re-read and decide again.
+      if (insertError && insertError.code !== "23505")
+        throw new Error(`subscription_upsert_failed:${insertError.code ?? insertError.message}`);
+      written = !insertError;
+    }
+  }
+  if (!written) throw new Error("subscription_upsert_failed:contended");
 
   const orgStatus =
     status === "canceled" && periodEnd && new Date(periodEnd) > new Date() ? "active" : status;
@@ -141,7 +240,7 @@ export async function syncStripeSubscription(
   // stops there. It may NEVER touch the canonical production billing columns,
   // production access, or the trial -> paid conversion the funnel counts.
   if (env !== "live") {
-    return { ok: true, organizationId, canonical: false };
+    return { ok: true, organizationId, canonical: false, applied: true };
   }
 
   const { error: orgError } = await admin
@@ -167,7 +266,7 @@ export async function syncStripeSubscription(
       throw new Error(`trial_conversion_update_failed:${trialError.code ?? trialError.message}`);
   }
 
-  return { ok: true, organizationId, canonical: true };
+  return { ok: true, organizationId, canonical: true, applied: true };
 }
 
 /** Records a verified Stripe charge/invoice payment. Idempotent on the Stripe id. */

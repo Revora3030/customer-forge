@@ -1,12 +1,27 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { authenticateCronRequest } from "@/integrations/supabase/cron-auth";
 
+/** 5-minute speed-to-lead escalation; its own failure never fails the delivery watchdog. */
+async function escalate(db: never) {
+  try {
+    const [{ runLeadResponseEscalation }, { sendLeadAlert, leadUrlFor }] = await Promise.all([
+      import("@/lib/lead-escalation.server"),
+      import("@/lib/messaging.server"),
+    ]);
+    return await runLeadResponseEscalation(db, { sendLeadAlert: (to, data, key) => sendLeadAlert(to, data, key), leadUrlFor });
+  } catch (error) {
+    console.error("[lead-escalation job]", error);
+    return { error: "lead-escalation failed" };
+  }
+}
+
 /**
  * Every 5 minutes: confirm each new lead's owner alert was accepted by the email provider;
  * retry, flag on the owner dashboard and /admin, and log when it was not. Bearer-authenticated
  * with the cron secret; called by pg_cron (public.call_revora_job) with GitHub Actions
  * (.github/workflows/scheduled-jobs.yml) as an hourly backstop. Safe to repeat: retries reuse
- * the lead's original idempotency key.
+ * the lead's original idempotency key. Then sends the one-time 5-minute "still waiting"
+ * escalation for new leads nobody has answered (lead-escalation.server.ts).
  */
 async function handle(request: Request): Promise<Response> {
   const denied = await authenticateCronRequest(request);
@@ -14,7 +29,8 @@ async function handle(request: Request): Promise<Response> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { runLeadDeliveryWatchdog } = await import("@/lib/lead-delivery-watchdog.server");
   try {
-    return Response.json(await runLeadDeliveryWatchdog(supabaseAdmin as never));
+    const watchdog = await runLeadDeliveryWatchdog(supabaseAdmin as never);
+    return Response.json({ ...watchdog, escalation: await escalate(supabaseAdmin as never) });
   } catch (error) {
     console.error("[lead-delivery-watchdog job]", error);
     return Response.json({ error: "lead-delivery-watchdog failed" }, { status: 500 });

@@ -72,16 +72,19 @@ export function Logo({
   className,
   wordmark = true,
   tagline = false,
+  wordmarkClassName,
 }: {
   className?: string;
   wordmark?: boolean;
   tagline?: boolean;
+  /** Extra classes for the REVORA wordmark only (e.g. hide it below a width). */
+  wordmarkClassName?: string;
 }) {
   return (
     <span className={cn("flex items-center gap-2.5", className)}>
       <LogoMark alt={wordmark ? "" : "Revora"} />
       {wordmark ? (
-        <span className="flex flex-col leading-none">
+        <span className={cn("flex flex-col leading-none", wordmarkClassName)}>
           <span className="font-display bg-[linear-gradient(100deg,var(--color-gold-deep),var(--color-gold)_40%,var(--color-gold-soft)_60%,var(--color-gold))] bg-clip-text text-[16px] font-bold tracking-[0.16em] text-transparent">
             REVORA
           </span>

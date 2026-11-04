@@ -1,12 +1,14 @@
 import type { ComponentType } from "react";
 import InviteEmail from "./invite";
 import { template as automationMessageTemplate } from "./automation-message";
+import { template as reviewRequestTemplate } from "./review-request";
 import { template as leadAlertTemplate } from "./lead-alert";
 import { template as leadConfirmationTemplate } from "./lead-confirmation";
 import { template as newSignupAlertTemplate } from "./new-signup-alert";
 import { template as founderAlertTemplate } from "./founder-alert";
 import { template as growthAssessmentTemplate } from "./growth-assessment";
 import { template as prospectDemoTemplate } from "./prospect-demo";
+import { template as monthlyValueTemplate } from "./monthly-value";
 import {
   lifecycleBookingFollowUpTemplate,
   lifecycleSetupReminderTemplate,
@@ -46,6 +48,7 @@ export interface TemplateEntry {
  */
 export const TEMPLATES: Record<string, TemplateEntry> = {
   "automation-message": automationMessageTemplate,
+  "review-request": reviewRequestTemplate,
   "lead-alert": leadAlertTemplate,
   "lead-confirmation": leadConfirmationTemplate,
   "new-signup-alert": newSignupAlertTemplate,
@@ -64,6 +67,7 @@ export const TEMPLATES: Record<string, TemplateEntry> = {
   "lifecycle-booking-followup": lifecycleBookingFollowUpTemplate,
   "lifecycle-site-ready": lifecycleSiteReadyTemplate,
   "lifecycle-winback": lifecycleWinbackTemplate,
+  "monthly-value": monthlyValueTemplate,
   "team-invite": {
     component: InviteEmail,
     subject: (data: Record<string, unknown>) =>

@@ -29,6 +29,7 @@ import { reportRouteError } from "@/lib/route-error-reporting";
 import { BOOT_WATCHDOG } from "@/lib/boot-watchdog";
 import { describeClientError, errorFromWindowEvent, isStaleDeployError, reloadOnceForNewBuild } from "@/lib/client-error-classify";
 import { safeJsonLd } from "@/lib/json-ld";
+import { speculationRulesScript } from "@/lib/speculation-rules";
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   /**
@@ -75,6 +76,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
           { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" },
           { name: "robots", content: "max-image-preview:large, max-snippet:-1" },
         ],
+        // Hover prefetch for the client site's own pages (see speculation-rules.ts).
+        scripts: [speculationRulesScript],
         links: [{ rel: "stylesheet", href: appCss }],
       };
     }
@@ -125,6 +128,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { children: BOOT_WATCHDOG },
       { type: "application/ld+json", children: safeJsonLd(ORGANIZATION_SCHEMA) },
       { type: "application/ld+json", children: safeJsonLd(WEBSITE_SCHEMA) },
+      // Hover prefetch for full-page navigations; signed-in, token and
+      // side-effect paths are excluded (see speculation-rules.ts).
+      speculationRulesScript,
     ],
     links: [
       { rel: "stylesheet", href: appCss },
@@ -171,6 +177,12 @@ function RootShell({ children }: { children: ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const router = useRouter();
+
+  useEffect(() => {
+    // Hydration marker for the a11y + CLS gate (scripts/a11y-cls-gate.mjs):
+    // set once React has hydrated, so measurements start from the live page.
+    document.documentElement.dataset["hydrated"] = "true";
+  }, []);
 
   useEffect(() => {
     // Entry pages a returning client can land on after signing back in

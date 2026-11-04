@@ -3,6 +3,7 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Environment, Lightformer, OrbitControls, PerformanceMonitor } from "@react-three/drei";
 import * as THREE from "three";
 import type { OrbitControls as OrbitControlsType } from "three-stdlib";
+import { CITY_ANIMATION_FPS, CITY_DPR_MIN, cityDprCeiling } from "./city-render";
 import { CITY_DISTRICTS, districtCounts, districtState, pulseRate, type CitySnapshot, type DistrictId } from "@/lib/ai-city";
 
 type Palette = { ground: string; road: string; structure: string; gold: string; cyan: string; magenta: string; light: string; muted: string; ok: string; danger: string };
@@ -189,6 +190,21 @@ function CityControls({ selected, reset, controls }: { selected: DistrictId; res
   return null;
 }
 
+/**
+ * The canvas runs with frameloop="demand". While a district is animating this
+ * asks for a frame CITY_ANIMATION_FPS times a second, and not at all when the
+ * tab is hidden, instead of rendering every display refresh.
+ */
+function AnimationClock({ running }: { running: boolean }) {
+  const invalidate = useThree(state => state.invalidate);
+  useEffect(() => {
+    if (!running) return;
+    const timer = window.setInterval(() => { if (!document.hidden) invalidate(); }, 1000 / CITY_ANIMATION_FPS);
+    return () => window.clearInterval(timer);
+  }, [running, invalidate]);
+  return null;
+}
+
 export default function CityScene({ snapshot, selected, onSelect, palette, motion, reset, onFailure }: CitySceneProps) {
   const now = Date.now();
   // On phones only the chosen district carries a full label; the others show just a count.
@@ -199,13 +215,12 @@ export default function CityScene({ snapshot, selected, onSelect, palette, motio
     sync(); media.addEventListener("change", sync);
     return () => media.removeEventListener("change", sync);
   }, []);
-  // Pixel ratio follows the screen up to 2x; if the frame rate drops while animating it falls back to 1x.
-  const ceiling = useMemo(() => Math.min(typeof window === "undefined" ? 1 : window.devicePixelRatio || 1, compact ? 1.5 : 2), [compact]);
+  // Pixel ratio follows the screen but never above CITY_DPR_MAX; if the frame rate drops while animating it falls back to 1x.
+  const ceiling = useMemo(() => cityDprCeiling(typeof window === "undefined" ? 1 : window.devicePixelRatio), []);
   const [dpr, setDpr] = useState(ceiling);
-  useEffect(() => setDpr(ceiling), [ceiling]);
   const controls = useRef<OrbitControlsType>(null);
   const anyActive = CITY_DISTRICTS.some(d => districtState(d.id, snapshot, Date.now()) === "working");
-  return <Canvas orthographic shadows dpr={dpr} frameloop={motion && anyActive ? "always" : "demand"} camera={{ position: [25, 26, 30], zoom: 20, near: 0.1, far: 150 }} gl={{ antialias: true, powerPreference: "low-power" }} onCreated={({ gl }) => { gl.domElement.addEventListener("webglcontextlost", onFailure, { once: true }); }} fallback={<div role="alert">3D unavailable. Switch to Operations.</div>}>
+  return <Canvas orthographic shadows dpr={[CITY_DPR_MIN, dpr]} frameloop="demand" camera={{ position: [25, 26, 30], zoom: 20, near: 0.1, far: 150 }} gl={{ antialias: true, powerPreference: "low-power" }} onCreated={({ gl }) => { gl.domElement.addEventListener("webglcontextlost", onFailure, { once: true }); }} fallback={<div role="alert">3D unavailable. Switch to Operations.</div>}>
     <color attach="background" args={[palette.ground]} />
     <fogExp2 attach="fog" args={[palette.ground, 0.011]} />
     <ambientLight intensity={0.95} color="#9fb4c4" />
@@ -222,7 +237,8 @@ export default function CityScene({ snapshot, selected, onSelect, palette, motio
     })}
     {CITY_DISTRICTS.map((d, index) => <Suspense key={d.id} fallback={null}><Building index={index} palette={palette} selected={selected === d.id} active={motion && districtState(d.id, snapshot, now) === "working"} state={districtState(d.id, snapshot, now)} counts={districtCounts(snapshot, d.id, now)} compact={compact} onSelect={() => onSelect(d.id)} /></Suspense>)}
     <OrbitControls ref={controls} makeDefault enableDamping dampingFactor={0.09} enableRotate zoomToCursor screenSpacePanning={false} panSpeed={1.1} minZoom={8} maxZoom={65} minPolarAngle={0.35} maxPolarAngle={1.25} target={[0, 1.5, 0]} onChange={keepCityInView} touches={CITY_TOUCHES} />
-    {motion && anyActive ? <PerformanceMonitor onDecline={() => setDpr(1)} onIncline={() => setDpr(ceiling)} /> : null}
+    {motion && anyActive ? <PerformanceMonitor bounds={() => [CITY_ANIMATION_FPS * 0.6, CITY_ANIMATION_FPS * 0.9]} onDecline={() => setDpr(CITY_DPR_MIN)} onIncline={() => setDpr(ceiling)} /> : null}
     <CityControls selected={selected} reset={reset} controls={controls} />
+    <AnimationClock running={motion && anyActive} />
   </Canvas>;
 }

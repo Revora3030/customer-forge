@@ -21,6 +21,8 @@ export type MimeMessage = {
   messageId: string;
   replyTo?: string | null;
   listUnsubscribeUrl?: string | null;
+  /** RFC 2369 mailto alternative listed after the https one-click URL. */
+  listUnsubscribeMailto?: string | null;
   /** Message-ID of the message being answered (threading). */
   inReplyTo?: string | null;
   /** Earlier Message-IDs of the thread, oldest first. */
@@ -92,7 +94,11 @@ export function buildMimeMessage(message: MimeMessage): string {
   const uniqueRefs = [...new Set(references)].slice(-20);
   if (uniqueRefs.length) headers.push(`References: ${uniqueRefs.join(" ")}`);
   if (message.listUnsubscribeUrl) {
-    headers.push(`List-Unsubscribe: <${headerValue(message.listUnsubscribeUrl, 500)}>`);
+    // RFC 8058: the https URL takes the one-click POST; RFC 2369 lets a mailto follow it.
+    const targets = [message.listUnsubscribeUrl, message.listUnsubscribeMailto]
+      .map((target) => (target ? headerValue(target, 500).replace(/[<>\s]/g, "") : ""))
+      .filter((target) => target.length > 0);
+    headers.push(`List-Unsubscribe: ${targets.map((target) => `<${target}>`).join(", ")}`);
     headers.push("List-Unsubscribe-Post: List-Unsubscribe=One-Click");
   }
   const body = wrap76(Buffer.from(message.text.replace(/\r?\n/g, "\r\n"), "utf8").toString("base64"));

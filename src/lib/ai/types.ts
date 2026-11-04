@@ -57,7 +57,12 @@ export type AiRequest = {
   chainDeadlineMs?: number;
 };
 
-export type AiUsage = { inputTokens: number | null; outputTokens: number | null };
+export type AiUsage = {
+  inputTokens: number | null;
+  outputTokens: number | null;
+  /** Prompt tokens the provider served from its prefix cache (OpenAI `usage.prompt_tokens_details.cached_tokens`), when reported. */
+  cachedInputTokens?: number | null;
+};
 
 export type AiTextResult = {
   text: string;

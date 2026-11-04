@@ -12,7 +12,7 @@ permissions:
 
 concurrency:
   group: revora-quality-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   quality:
@@ -59,6 +59,13 @@ jobs:
 
       - name: Lint
         run: npm run lint
+
+      # Every table a migration creates must carry explicit GRANTs in that
+      # same migration (no reliance on Supabase default privileges).
+      - name: Migration grants lint
+        run: |
+          npm run db:grants-lint:test
+          npm run db:grants-lint
 
       - name: Whole-repository audit
         run: npm run repo:audit

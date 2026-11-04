@@ -78,6 +78,21 @@ describe("lead-alert template", () => {
     expect(html).toContain('href="mailto:sam@visitor.test"');
   });
 
+  it("renders a one-tap Call back button for missed calls, and none without a number", async () => {
+    const html = await render(
+      React.createElement(leadAlert.component, {
+        kind: "Missed call",
+        leadName: "(919) 555-0134",
+        leadPhone: "+19195550134",
+        callbackPhone: "+19195550134",
+      }),
+    );
+    expect(html).toContain("Call back");
+    expect(html.match(/href="tel:\+19195550134"/g)?.length).toBe(2);
+    const none = await render(React.createElement(leadAlert.component, { kind: "Missed call", leadName: "a blocked number" }));
+    expect(none).not.toContain("Call back");
+  });
+
   it("drops a non-https lead link", async () => {
     const html = await render(
       React.createElement(leadAlert.component, { leadName: "Sam", leadUrl: "javascript:alert(1)" }),

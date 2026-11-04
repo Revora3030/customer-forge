@@ -360,7 +360,8 @@ export function parseIntegrityViolations(message: string | null | undefined): { 
   return out;
 }
 
-function ownerFieldName(field: string): string {
+/** The owner-facing name of a refused field ("email" -> "business email"). */
+export function ownerFieldName(field: string): string {
   const name = field.trim().toLowerCase();
   if (name === "email") return "business email";
   if (name === "phone") return "business phone";
