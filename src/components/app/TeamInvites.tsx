@@ -20,6 +20,7 @@ import { ROLES } from "@/lib/domain";
 import {
   createTeamInvitation,
   rolesGrantableBy,
+  canRevokeInvite,
   revokeTeamInvitation,
   type InvitableRole,
 } from "@/lib/team.functions";
@@ -250,14 +251,16 @@ export function TeamInvites({
                   </p>
                 </div>
                 <Pill tone="neutral">Invited</Pill>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  disabled={cancelInvite.isPending}
-                  onClick={() => cancelInvite.mutate(item.id)}
-                >
-                  Cancel
-                </Button>
+                {canRevokeInvite(actorRole, item.role) ? (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={cancelInvite.isPending}
+                    onClick={() => cancelInvite.mutate(item.id)}
+                  >
+                    Cancel
+                  </Button>
+                ) : null}
               </li>
             ))}
           </ul>
