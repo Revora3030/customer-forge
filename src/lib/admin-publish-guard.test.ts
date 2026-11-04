@@ -52,7 +52,7 @@ describe("assertCanSetPublishState", () => {
   it("allows published when a version and a visible section exist", async () => {
     const { client, calls } = fakeClient({ website_versions: 1, website_sections: 3 });
     await expect(assertCanSetPublishState(client, ORG, "published")).resolves.toBeUndefined();
-    expect(calls.every((c) => c.filters.organization_id === ORG)).toBe(true);
+    expect(calls.every((c) => c.filters["organization_id"] === ORG)).toBe(true);
   });
 
   it("refuses published when the content check itself fails", async () => {
