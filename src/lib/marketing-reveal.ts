@@ -46,7 +46,7 @@ export function startMarketingReveal(env: MarketingRevealEnv): () => void {
       observer.unobserve(entry.target);
     }
   });
-  const failSafe = env.setTimeout(() => {
+  const failSafe = env.setTimeout(() => { // DevSkim: ignore DS172411 -- Fixed callback and constant delay; no untrusted data.
     if (armed) return;
     revealAll();
     observer.disconnect();
