@@ -100,10 +100,22 @@ export function omitRepeatedCalls(roots: readonly CompositionNode[]): Compositio
     const nextOffer = inOffer || node.type === "offer_card";
     const children = node.children.map((child) => prune(child, nextOffer)).filter((child): child is CompositionNode => child !== null);
     if (children.length === node.children.length && children.every((child, i) => child === node.children![i])) return node;
+    // A row or stack that held only the removed copies is dropped with them.
+    if (!children.length && EMPTYABLE.has(node.type)) return null;
     return { ...node, children };
   };
-  return roots.map((root) => prune(root, false) ?? root);
+  return roots.map((root) => {
+    const pruned = prune(root, false) ?? { ...root, children: [] };
+    // Removing the copy must not leave a section that is one bare heading:
+    // that section keeps its own action instead of becoming a dead end.
+    const leaves = contentLeaves(pruned);
+    return pruned !== root && leaves.length === 1 && leaves[0]!.type === "heading" ? root : pruned;
+  });
 }
+
+const EMPTYABLE = new Set<CompositionNode["type"]>(["row", "stack", "grid"]);
+const contentLeaves = (node: CompositionNode): CompositionNode[] =>
+  node.children?.length ? node.children.flatMap(contentLeaves) : EMPTYABLE.has(node.type) ? [] : [node];
 
 function loneTitle(node: CompositionNode): string | null {
   const own = node.text?.trim() ?? "";
