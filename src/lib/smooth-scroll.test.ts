@@ -35,17 +35,18 @@ function fakeWindow(env: Env = {}) {
     }),
     scrollBy: vi.fn(),
   };
-  win.self = win;
-  win.top = state.framed ? {} : win;
+  win["self"] = win;
+  win["top"] = state.framed ? {} : win;
   const change = () => [...changeListeners].forEach((fn) => fn());
   return { win: win as unknown as Window, state, change, changeListeners };
 }
 
 function fakeLenis() {
-  const instance: SmoothScroller & { destroyed: boolean; scrollTo: ReturnType<typeof vi.fn> } = {
+  const scrollTo = vi.fn<SmoothScroller["scrollTo"]>();
+  const instance: SmoothScroller & { destroyed: boolean; scrollTo: typeof scrollTo } = {
     scroll: 500,
     destroyed: false,
-    scrollTo: vi.fn(),
+    scrollTo,
     destroy() {
       this.destroyed = true;
     },
@@ -76,7 +77,7 @@ describe("smoothScrollAllowed", () => {
   });
   it("treats a missing matchMedia as not allowed", () => {
     const { win } = fakeWindow();
-    (win as unknown as Record<string, unknown>).matchMedia = undefined;
+    (win as unknown as Record<string, unknown>)["matchMedia"] = undefined;
     expect(smoothScrollAllowed(win)).toBe(false);
   });
 });

@@ -92,9 +92,9 @@ describe("installSectionSettle", () => {
   it("with desktop smooth scroll, waits out the glide and settles through Lenis", async () => {
     const { win, fire, scrollBy } = fakeWindow({ fine: true, edges: [50] });
     const w = win as unknown as Record<string, unknown>;
-    w.innerWidth = 1440;
-    w.self = w;
-    w.top = w;
+    w["innerWidth"] = 1440;
+    w["self"] = w;
+    w["top"] = w;
     const lenis = { scroll: 1200, scrollTo: vi.fn(), destroy: vi.fn() };
     const stopSmooth = startSmoothScroll(win, async () => () => lenis);
     await new Promise((r) => setTimeout(r, 0));
