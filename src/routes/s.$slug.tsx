@@ -2,7 +2,6 @@ import { createFileRoute, notFound, Outlet, useChildMatches } from "@tanstack/re
 import { getPublicSite } from "@/lib/public-site.functions";
 import { canonicalSiteUrl } from "@/lib/revora-address";
 import { PublicSiteView } from "@/components/site/PublicSiteView";
-import { tenantSiteHead } from "@/lib/site-head";
 import { isLeafMatch } from "@/lib/page-cache";
 
 export const Route = createFileRoute("/s/$slug")({
@@ -11,7 +10,7 @@ export const Route = createFileRoute("/s/$slug")({
     if (!site) throw notFound();
     return site;
   },
-  head: ({ loaderData, params, matches, match }) => {
+  head: async ({ loaderData, params, matches, match }) => {
     if (!loaderData) {
       return {
         // Unpublished drafts and unknown addresses look the same to the public
@@ -27,6 +26,9 @@ export const Route = createFileRoute("/s/$slug")({
       `https://revoragrowthsystems.com/s/${params.slug}`;
     // One head for every client address (title limits, share image, fonts,
     // LocalBusiness data): src/lib/site-head.ts tenantSiteHead.
+    // Lazy: site-head pulls the whole client-site renderer chunk; keep it out of
+    // the entry bundle that every marketing page loads (mobile TBT).
+    const { tenantSiteHead } = await import("@/lib/site-head");
     return tenantSiteHead({
       site: loaderData,
       pageSlug: null,

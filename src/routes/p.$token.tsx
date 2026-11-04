@@ -9,7 +9,6 @@ import { prospectLinkState } from "@/lib/prospect-claim.functions";
 import { previewHeadTitle } from "@/lib/builder/draft-route";
 import { BUSINESS } from "@/lib/business-identity";
 import { privatePreviewHeaders } from "@/lib/page-cache";
-import { heroPreloadLinks } from "@/lib/site-head";
 import { isBuilderPreviewLabel } from "@/lib/builder/builder-preview-link";
 import { BuilderPreviewMode } from "@/components/site/BuilderPreviewMode";
 
@@ -32,25 +31,28 @@ export const Route = createFileRoute("/p/$token")({
   },
   // Never stored by a browser or edge, never indexed, never sent on as a referrer.
   headers: () => privatePreviewHeaders(),
-  head: ({ loaderData }) => ({
-    // The opening picture starts downloading with the first HTML bytes.
-    links: loaderData?.result?.ok ? heroPreloadLinks(loaderData.result.site?.content?.sections) : [],
-    meta: [
-      { title: previewHeadTitle(loaderData?.result) },
-      {
-        name: "description",
-        content: "A private, time-limited preview of a website draft built with Revora.",
-      },
-      { name: "robots", content: "noindex, nofollow" },
-      { property: "og:title", content: previewHeadTitle(loaderData?.result) },
-      {
-        property: "og:description",
-        content: "A private preview link for reviewing a website draft.",
-      },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary" },
-    ],
-  }),
+  head: async ({ loaderData }) => {
+    const { heroPreloadLinks } = await import("@/lib/site-head");
+    return {
+      // The opening picture starts downloading with the first HTML bytes.
+      links: loaderData?.result?.ok ? heroPreloadLinks(loaderData.result.site?.content?.sections) : [],
+      meta: [
+        { title: previewHeadTitle(loaderData?.result) },
+        {
+          name: "description",
+          content: "A private, time-limited preview of a website draft built with Revora.",
+        },
+        { name: "robots", content: "noindex, nofollow" },
+        { property: "og:title", content: previewHeadTitle(loaderData?.result) },
+        {
+          property: "og:description",
+          content: "A private preview link for reviewing a website draft.",
+        },
+        { property: "og:type", content: "website" },
+        { name: "twitter:card", content: "summary" },
+      ],
+    };
+  },
   component: PreviewRoute,
   errorComponent: () => (
     <PreviewMessage title="This preview link isn't valid" body="Ask for a new link." />
