@@ -183,32 +183,105 @@ export function routineIsDue(routine: Pick<JarvisRoutine, "frequency" | "hour" |
 }
 
 /**
+ * The routine's run produced no real answer: the model failed (credits, rate
+ * limit, outage) and Jarvis wrote its executive fallback instead. The message is
+ * safe to store and alert on: it names the error category, never provider text.
+ */
+export class RoutineFellBackError extends Error {
+  constructor(category: string | null) {
+    super(`Jarvis couldn't finish this routine: the AI model did not answer${category ? ` (${category.replace(/[^a-z_]/gi, "").slice(0, 40)})` : ""}. No result was produced; it runs again at its next scheduled time.`);
+    this.name = "RoutineFellBackError";
+  }
+}
+
+/**
  * Runs due routines as their owner: each posts its prompt into the owner's
  * Jarvis chat and runs the normal Jarvis loop, so approvals and safety rules
  * are unchanged. AI spend goes through the same router and caps as chat.
+ * A fallback reply (the model never answered) throws, so the run settles as an
+ * error instead of "ok".
  */
-async function executeRoutine(db: SupabaseClient, routine: JarvisRoutine): Promise<string> {
+export async function executeRoutine(db: SupabaseClient, routine: JarvisRoutine): Promise<string> {
   const inserted = await db.from("jarvis_messages").insert({ user_id: routine.user_id, role: "user", content: `[Routine: ${routine.name}] ${routine.prompt}` });
   if (inserted.error) throw new Error(inserted.error.message);
   const { runJarvis } = await import("./jarvis.functions");
-  const { reply } = await runJarvis(db, routine.user_id, "balanced");
+  const { reply, fellBack } = await runJarvis(db, routine.user_id, "balanced");
+  if (fellBack) throw new RoutineFellBackError(fellBack.category);
   const { splitReplyMeta } = await import("./jarvis-actions");
   return splitReplyMeta(reply).body.slice(0, 400);
 }
 
-/** Runs one of the owner's routines immediately. The same chat loop and spend caps apply. */
-export async function runJarvisRoutineNow(db: SupabaseClient, userId: string, routineId: string) {
+type RoutineExecutor = (db: SupabaseClient, routine: JarvisRoutine) => Promise<string>;
+
+/**
+ * Claims a routine with a fenced conditional update: it only succeeds when the
+ * row still matches what was read (same schedule, same last run and status), so
+ * two passes, or a pass and a "Run now", can never both dispatch it.
+ * Returns the attempt marker, or null when another run holds the routine.
+ */
+async function claimRoutine(db: SupabaseClient, routine: JarvisRoutine, now: Date, requireEnabled: boolean): Promise<string | null> {
+  const attempt = `Routine attempt ${crypto.randomUUID()}; completion not yet confirmed.`;
+  let claim = db.from("jarvis_routines")
+    .update({ last_run_at: now.toISOString(), last_status: "running", last_summary: attempt, updated_at: now.toISOString() })
+    .eq("id", routine.id).eq("user_id", routine.user_id);
+  if (requireEnabled) claim = claim.eq("enabled", true);
+  claim = claim
+    .eq("name", routine.name).eq("prompt", routine.prompt).eq("frequency", routine.frequency)
+    .eq("hour", routine.hour).eq("minute", routine.minute);
+  claim = routine.last_run_at === null ? claim.is("last_run_at", null) : claim.eq("last_run_at", routine.last_run_at);
+  claim = routine.last_status === null ? claim.is("last_status", null) : claim.eq("last_status", routine.last_status);
+  const claimed = await claim.select("id");
+  if (claimed.error) throw new Error("Couldn't confirm routine claim; no work dispatched.");
+  if (!claimed.data?.length) return null;
+  if (claimed.data.length !== 1 || claimed.data[0]?.id !== routine.id) throw new Error("Couldn't verify routine claim identity; no work dispatched.");
+  return attempt;
+}
+
+/** Runs a claimed routine and settles it ok/error, fenced on the claim it holds. */
+async function runClaimedRoutine(db: SupabaseClient, routine: JarvisRoutine, now: Date, attempt: string, execute: RoutineExecutor) {
+  let ok = true;
+  let summary: string;
+  try {
+    summary = (await execute(db, routine)).slice(0, 400);
+  } catch (routineError) {
+    ok = false;
+    summary = routineError instanceof Error ? routineError.message.slice(0, 300) : "failed";
+  }
+  // Never turn a failed settlement into a second execution or an unfenced error write.
+  const settled = await db.from("jarvis_routines")
+    .update({ last_status: ok ? "ok" : "error", last_summary: summary, updated_at: new Date().toISOString() })
+    .eq("id", routine.id).eq("user_id", routine.user_id)
+    .eq("last_run_at", now.toISOString()).eq("last_status", "running").eq("last_summary", attempt).select("id");
+  const confirmed = !settled.error && settled.data?.length === 1 && settled.data[0]?.id === routine.id;
+  return { ok, summary, confirmed };
+}
+
+export const ROUTINE_ALREADY_RUNNING = "That routine is already running.";
+export const ROUTINE_UNCONFIRMED = "Completion unconfirmed; review the recorded attempt before resuming this routine.";
+
+export type RoutineRunNowResult = {
+  status: "ok" | "error" | "already_running" | "unconfirmed";
+  summary: string;
+};
+
+/**
+ * Runs one of the owner's routines immediately. The same chat loop and spend
+ * caps apply, and it takes the same fenced claim and settlement as the cron
+ * pass, so it can't overlap a scheduled run or report "ok" when the AI failed.
+ */
+export async function runJarvisRoutineNow(db: SupabaseClient, userId: string, routineId: string, execute: RoutineExecutor = executeRoutine, now = new Date()): Promise<RoutineRunNowResult> {
   const routines = await listJarvisRoutines(db, userId);
   const routine = routines.find((item) => item.id === routineId);
   if (!routine) throw new Error("That routine was not found.");
-  if (routine.last_status === "running" && !claimIsStranded(routine)) throw new Error("That routine is already running.");
-  const summary = await executeRoutine(db, routine);
-  const now = new Date().toISOString();
-  await db.from("jarvis_routines").update({ last_run_at: now, last_status: "ok", last_summary: summary, updated_at: now }).eq("id", routine.id).eq("user_id", userId);
-  return { summary };
+  if (routine.last_status === "running" && !claimIsStranded(routine, now)) return { status: "already_running", summary: ROUTINE_ALREADY_RUNNING };
+  const attempt = await claimRoutine(db, routine, now, false);
+  if (!attempt) return { status: "already_running", summary: ROUTINE_ALREADY_RUNNING };
+  const { ok, summary, confirmed } = await runClaimedRoutine(db, routine, now, attempt, execute);
+  if (!confirmed) return { status: "unconfirmed", summary: ROUTINE_UNCONFIRMED };
+  return { status: ok ? "ok" : "error", summary };
 }
 
-export async function runDueJarvisRoutines(db: SupabaseClient, now = new Date(), execute = executeRoutine) {
+export async function runDueJarvisRoutines(db: SupabaseClient, now = new Date(), execute: RoutineExecutor = executeRoutine) {
   const { data, error } = await db
     .from("jarvis_routines")
     .select("id,user_id,name,prompt,frequency,hour,minute,enabled,last_run_at,last_status")
@@ -224,33 +297,11 @@ export async function runDueJarvisRoutines(db: SupabaseClient, now = new Date(),
   const due = rows.filter((routine) => routine.last_status !== "running" && routineIsDue(routine, now)).slice(0, MAX_RUNS_PER_PASS);
   const results: { id: string; name: string; ok: boolean; detail: string }[] = [];
   for (const routine of due) {
-    const attempt = `Routine attempt ${crypto.randomUUID()}; completion not yet confirmed.`;
-    let claim = db.from("jarvis_routines")
-      .update({ last_run_at: now.toISOString(), last_status: "running", last_summary: attempt, updated_at: now.toISOString() })
-      .eq("id", routine.id).eq("user_id", routine.user_id).eq("enabled", true)
-      .eq("name", routine.name).eq("prompt", routine.prompt).eq("frequency", routine.frequency)
-      .eq("hour", routine.hour).eq("minute", routine.minute);
-    claim = routine.last_run_at === null ? claim.is("last_run_at", null) : claim.eq("last_run_at", routine.last_run_at);
-    claim = routine.last_status === null ? claim.is("last_status", null) : claim.eq("last_status", routine.last_status);
-    const claimed = await claim.select("id");
-    if (claimed.error) throw new Error("Couldn't confirm routine claim; no work dispatched.");
-    if (!claimed.data?.length) continue;
-    if (claimed.data.length !== 1 || claimed.data[0]?.id !== routine.id) throw new Error("Couldn't verify routine claim identity; no work dispatched.");
-    let ok = true;
-    let summary: string;
-    try {
-      summary = (await execute(db, routine)).slice(0, 400);
-    } catch (routineError) {
-      ok = false;
-      summary = routineError instanceof Error ? routineError.message.slice(0, 300) : "failed";
-    }
-    // Never turn a failed settlement into a second execution or an unfenced error write.
-    const settled = await db.from("jarvis_routines")
-      .update({ last_status: ok ? "ok" : "error", last_summary: summary, updated_at: new Date().toISOString() })
-      .eq("id", routine.id).eq("user_id", routine.user_id)
-      .eq("last_run_at", now.toISOString()).eq("last_status", "running").eq("last_summary", attempt).select("id");
-    if (settled.error || settled.data?.length !== 1 || settled.data[0]?.id !== routine.id) {
-      results.push({ id: routine.id, name: routine.name, ok: false, detail: "Completion unconfirmed; review the recorded attempt before resuming this routine." });
+    const attempt = await claimRoutine(db, routine, now, true);
+    if (!attempt) continue;
+    const { ok, summary, confirmed } = await runClaimedRoutine(db, routine, now, attempt, execute);
+    if (!confirmed) {
+      results.push({ id: routine.id, name: routine.name, ok: false, detail: ROUTINE_UNCONFIRMED });
       continue;
     }
     results.push({ id: routine.id, name: routine.name, ok, detail: summary.slice(0, 120) });

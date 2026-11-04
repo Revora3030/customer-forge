@@ -7,6 +7,24 @@ import { cleanText, parseReturnUrl, parseWorkspaceId } from "@/lib/stripe-input"
 export const INVITABLE_ROLES = ["admin", "manager", "staff", "viewer"] as const;
 export type InvitableRole = (typeof INVITABLE_ROLES)[number];
 
+/**
+ * Roles a teammate with `actorRole` may hand out through an invitation. This
+ * mirrors the database role guard (private.guard_membership_change): owners
+ * may grant any invitable role, admins may grant everything below admin, and
+ * nobody else may invite. Invitations are written and accepted with the
+ * service role, which that trigger lets through, so the rule has to be
+ * enforced here too or an admin could mint a second admin by invite.
+ */
+export function rolesGrantableBy(actorRole: string | null | undefined): readonly InvitableRole[] {
+  if (actorRole === "owner") return INVITABLE_ROLES;
+  if (actorRole === "admin") return INVITABLE_ROLES.filter((role) => role !== "admin");
+  return [];
+}
+
+export function canGrantRole(actorRole: string | null | undefined, role: string): boolean {
+  return (rolesGrantableBy(actorRole) as readonly string[]).includes(role);
+}
+
 const parseRole = (value: unknown): InvitableRole => {
   const role = String(value ?? "");
   if ((INVITABLE_ROLES as readonly string[]).includes(role)) return role as InvitableRole;
@@ -44,9 +62,11 @@ async function assertCanManage(
     .eq("organization_id", organizationId)
     .eq("user_id", userId)
     .maybeSingle();
-  if (!["owner", "admin"].includes(data?.role ?? "")) {
+  const role = data?.role ?? "";
+  if (!["owner", "admin"].includes(role)) {
     throw new Error("Only workspace owners and admins can manage the team.");
   }
+  return role as "owner" | "admin";
 }
 
 /** Creates a single-use, 14-day invitation and emails the invite link. */
@@ -66,7 +86,14 @@ export const createTeamInvitation = createServerFn({ method: "POST" })
       context,
     }): Promise<{ ok: true; email: string; emailed: boolean } | { error: string }> => {
       try {
-        await assertCanManage(context.supabase, data.organizationId, context.userId);
+        const actorRole = await assertCanManage(
+          context.supabase,
+          data.organizationId,
+          context.userId,
+        );
+        if (!canGrantRole(actorRole, data.role)) {
+          return { error: "Only the workspace owner can invite an admin." };
+        }
 
         const { data: org } = await context.supabase
           .from("organizations")
@@ -192,7 +219,9 @@ export const acceptTeamInvitation = createServerFn({ method: "POST" })
 
       const { data: invite } = await supabaseAdmin
         .from("team_invitations")
-        .select("id, organization_id, email, role, expires_at, accepted_at, revoked_at")
+        .select(
+          "id, organization_id, email, role, invited_by, expires_at, accepted_at, revoked_at",
+        )
         .eq("token_hash", tokenHash)
         .maybeSingle();
 
@@ -218,6 +247,25 @@ export const acceptTeamInvitation = createServerFn({ method: "POST" })
       if (!authUser?.user?.email_confirmed_at || confirmedEmail !== invite.email) {
         return {
           error: `Confirm ${invite.email} first (check your inbox for the verification email), then open this invitation again.`,
+        };
+      }
+
+      // The inviter must still be allowed to grant this role today. A link
+      // sent by an admin who has since been demoted or removed (or an admin
+      // invite minted before this check existed) must not grant access.
+      const inviterRole = invite.invited_by
+        ? (
+            await supabaseAdmin
+              .from("memberships")
+              .select("role")
+              .eq("organization_id", invite.organization_id)
+              .eq("user_id", invite.invited_by)
+              .maybeSingle()
+          ).data?.role
+        : null;
+      if (!canGrantRole(inviterRole, invite.role)) {
+        return {
+          error: "This invitation is no longer valid. Ask the workspace owner to send a new one.",
         };
       }
 

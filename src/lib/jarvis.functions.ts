@@ -246,6 +246,9 @@ export const runJarvis = createServerOnlyFn(async (db: SupabaseClient, userId: s
   const { splitReplyMeta } = await import("./jarvis-actions");
   let reply = "";
   let followups: string[] = [];
+  // Set when the reply is the executive fallback (no model answered). The chat
+  // shows the same reply; routines use this to settle as an error, not "ok".
+  let fellBack: { category: string | null } | null = null;
   const ran: string[] = [];
   const proposals: import("./jarvis-actions").WriteProposal[] = [];
   const { createRunRecorder } = await import("./jarvis-events.server");
@@ -323,15 +326,19 @@ export const runJarvis = createServerOnlyFn(async (db: SupabaseClient, userId: s
     }
     if (!reply) {
       const { executiveFallback } = await import("./jarvis-executive-fallback");
+      if (!proposals.length) fellBack = { category: "bad_response" };
       reply = proposals.length
         ? "Here's what I'd do. Approve below and I'll start."
         : executiveFallback({ ran, reason: "The model roster returned an empty answer." });
     }
   } catch (error) {
+    const category = (error as { category?: unknown } | null)?.category;
+    fellBack = { category: typeof category === "string" ? category : null };
     const { executiveFallback } = await import("./jarvis-executive-fallback");
     reply = executiveFallback({
       ran,
       reason: error instanceof Error ? error.message : "The model roster did not finish.",
+      error,
     });
   }
   reply = appendReplyMeta(reply.slice(0, 40000), { ran, proposals });
@@ -342,7 +349,7 @@ export const runJarvis = createServerOnlyFn(async (db: SupabaseClient, userId: s
     const { recordProposals } = await import("./jarvis-approvals.server");
     await recordProposals(db, userId, (saved.data?.id as string | undefined) ?? null, conversationId, reply);
   }
-  return { reply, diagnostics, followups, runId: recorder.count ? recorder.runId : null, conversationId };
+  return { reply, diagnostics, followups, runId: recorder.count ? recorder.runId : null, conversationId, fellBack };
 });
 
 export const sendJarvisMessage = createServerFn({ method: "POST" })

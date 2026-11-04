@@ -10,6 +10,20 @@ import { Label } from "@/components/ui/label";
 import { ErrorNote } from "@/components/app/Bits";
 import { resolvePostLoginPath, setRememberPreference } from "@/lib/auth-session";
 import { metaDescription } from "@/lib/seo";
+import {
+  changePassword,
+  forgetRecoverySession,
+  isRecoverySession,
+  rememberRecoverySession,
+} from "@/lib/password-recovery";
+
+function tabStorage(): Storage | null {
+  try {
+    return window.sessionStorage;
+  } catch {
+    return null;
+  }
+}
 
 export const Route = createFileRoute("/reset-password")({
   ssr: false,
@@ -30,6 +44,11 @@ export const Route = createFileRoute("/reset-password")({
 function ResetPasswordPage() {
   const navigate = useNavigate();
   const [password, setPassword] = useState("");
+  const [current, setCurrent] = useState("");
+  // True only for a session started by a reset link; any other signed-in
+  // session must confirm the current password before changing it.
+  const [recovery, setRecovery] = useState(false);
+  const [accountEmail, setAccountEmail] = useState<string | null>(null);
   const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false);
   const [ready, setReady] = useState(false);
@@ -43,11 +62,25 @@ function ResetPasswordPage() {
     const hashError = hash.get("error_description") ?? hash.get("error");
     if (hashError) setLinkError(hashError.replace(/\+/g, " "));
 
-    supabase.auth.getSession().then(({ data }) => setReady(Boolean(data.session)));
-    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+    supabase.auth.getSession().then(({ data }) => {
+      const session = data.session;
+      setReady(Boolean(session));
+      setAccountEmail(session?.user.email ?? null);
+      setRecovery(isRecoverySession(tabStorage(), session));
+    });
+    const { data } = supabase.auth.onAuthStateChange((event, session) => {
+      // Supabase emits this only after it has verified the reset link's
+      // tokens; the URL itself is never trusted (anyone can type
+      // "#type=recovery" onto a signed-in tab).
+      if (event === "PASSWORD_RECOVERY") rememberRecoverySession(tabStorage(), session);
       if (session) {
         setReady(true);
+        setAccountEmail(session.user.email ?? null);
+        setRecovery(isRecoverySession(tabStorage(), session));
         setLinkError(null);
+      } else {
+        setReady(false);
+        setRecovery(false);
       }
     });
     return () => data.subscription.unsubscribe();
@@ -62,8 +95,14 @@ function ResetPasswordPage() {
     }
     setBusy(true);
     try {
-      const { error: updateError } = await supabase.auth.updateUser({ password });
-      if (updateError) throw updateError;
+      const result = await changePassword(supabase.auth, {
+        recovery,
+        email: accountEmail,
+        currentPassword: current,
+        newPassword: password,
+      });
+      if (!result.ok) throw new Error(result.message);
+      forgetRecoverySession(tabStorage());
       setRememberPreference(true);
       toast.success("Password updated. You're signed in.");
       navigate({ to: await resolvePostLoginPath(), replace: true });
@@ -98,8 +137,10 @@ function ResetPasswordPage() {
           <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
             {linkError
               ? "That reset link is no longer valid — links are single-use and expire quickly."
-              : ready
-                ? "Choose a password of at least 8 characters. We'll keep you signed in on this device."
+              : ready && !recovery
+                ? "Confirm your current password, then choose a new one of at least 8 characters."
+                : ready
+                  ? "Choose a password of at least 8 characters. We'll keep you signed in on this device."
                 : "Open the reset link from your email on this device to continue."}
           </p>
 
@@ -115,6 +156,27 @@ function ResetPasswordPage() {
             </div>
           ) : (
             <form className="panel mt-6 space-y-4 p-5" onSubmit={handleSubmit}>
+              {ready && !recovery ? (
+                <div className="space-y-1.5">
+                  <Label htmlFor="rp-current">Current password</Label>
+                  <Input
+                    id="rp-current"
+                    name="current-password"
+                    type="password"
+                    value={current}
+                    onChange={(e) => setCurrent(e.target.value)}
+                    autoComplete="current-password"
+                    required
+                  />
+                  <p className="text-[11.5px] text-muted-foreground">
+                    Forgot it?{" "}
+                    <Link to="/auth" className="text-primary hover:underline">
+                      Email yourself a reset link
+                    </Link>{" "}
+                    and open it on this device.
+                  </p>
+                </div>
+              ) : null}
               <div className="space-y-1.5">
                 <Label htmlFor="rp-password">New password</Label>
                 <Input
