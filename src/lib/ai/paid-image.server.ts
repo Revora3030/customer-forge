@@ -247,6 +247,8 @@ export type PaidImageJob = {
   purpose: ImagePurpose;
   /** Required for a change to an existing picture; ignored for a fresh frame. */
   source?: { dataUrl: string; mimeType: string } | null;
+  /** Output size for a fresh frame, e.g. "1536x1024". */
+  size?: string;
 };
 
 /**
@@ -334,6 +336,7 @@ export async function generatePaidImage(
       job.prompt,
       model,
       source,
+      job.size,
     );
     const check = validateGeneratedImage({ base64: result.base64, mimeType: result.mimeType });
     if (!check.ok) {
@@ -405,8 +408,9 @@ export async function generatePaidImageBase64(
   prompt: string,
   caller: { organizationId: string | null; userId?: string | null },
   purpose: ImagePurpose = "starter_photo",
+  size?: string,
 ): Promise<PaidImageResult> {
-  return generatePaidImage({ prompt, purpose }, caller);
+  return generatePaidImage({ prompt, purpose, size }, caller);
 }
 
 /** Precision change to an existing picture — premium tier only. */

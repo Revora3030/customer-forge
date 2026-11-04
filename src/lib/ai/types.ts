@@ -117,6 +117,8 @@ export type ProviderAdapter = {
     prompt: string;
     /** Present when editing an existing image rather than creating one. */
     source?: { dataUrl: string; mimeType: string } | null;
+    /** Output size for a fresh picture, e.g. "1536x1024". */
+    size?: string;
     signal: AbortSignal;
   }): Promise<{ base64: string; mimeType: string }>;
   transcribe(input: {
