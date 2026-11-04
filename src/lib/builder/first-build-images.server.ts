@@ -69,7 +69,7 @@ function maxStarterImages() {
   // Every page that needs a picture must get one on the first build: the hero,
   // each service page, the about page, campaign support and closing sections.
   // The ceiling only keeps generation finite; it is not a quality budget.
-  return Number.isFinite(raw) && raw > 0 ? Math.min(Math.floor(raw), 28) : 24;
+  return Number.isFinite(raw) && raw > 0 ? Math.min(Math.floor(raw), 16) : 16;
 }
 
 /**

@@ -36,6 +36,31 @@ export function overBuildSpendCap(spentMicrocents: number, capMicrocents: number
   return capMicrocents > 0 && spentMicrocents >= capMicrocents;
 }
 
+/**
+ * PICTURE ALLOWANCE WITHIN ONE BUILD ATTEMPT
+ * A failed Elite mobile detail rebuild spent $5.17 of its $6 ceiling on 43
+ * picture requests (failures included), leaving nothing to finish the site.
+ * Pictures get their own smaller allowance so they can never use up the build.
+ */
+export const DEFAULT_PICTURE_SPEND_CAP_USD = 3;
+export const MAX_PAID_PICTURE_ATTEMPTS = 24;
+
+export function pictureSpendCapMicrocents(environment: Readonly<Record<string, string | undefined>> = process.env): number {
+  const parsed = Number(environment["BUILD_PICTURE_CAP_USD"]?.trim() ?? "");
+  const usd = Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_PICTURE_SPEND_CAP_USD;
+  return Math.round(usd * MICROCENTS_PER_DOLLAR);
+}
+
+/** True once pictures used their money or attempt allowance; every attempt counts, failed ones too. */
+export function pictureAllowanceUsed(attempts: number, spentMicrocents: number, capMicrocents: number): boolean {
+  return attempts >= MAX_PAID_PICTURE_ATTEMPTS || spentMicrocents >= capMicrocents;
+}
+
+/** Only the very first home-page hero picture may use the premium picture model. */
+export function pictureUsesPremium(index: number, isHero: boolean): boolean {
+  return index === 0 && isHero;
+}
+
 const usd = (microcents: number) => `$${(microcents / MICROCENTS_PER_DOLLAR).toFixed(2)}`;
 
 /** Plain words for the owner and the logs. Names the limit, says nothing was published, and what to do. */
