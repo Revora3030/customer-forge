@@ -16,7 +16,8 @@ import { reportRouteError } from "@/lib/route-error-reporting";
 
 export function RouteNotFound() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+    <div className="relative isolate flex min-h-[100svh] w-full items-center justify-center overflow-hidden bg-background px-4 py-16 sm:px-6">
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(60%_50%_at_50%_0%,color-mix(in_oklch,var(--color-primary)_18%,transparent),transparent_70%)]" />
       {/*
         React hoists these into <head>, which is the only reliable way to set
         not-found metadata: a route that throws notFound() never runs its own
@@ -25,11 +26,11 @@ export function RouteNotFound() {
       */}
       <title>Page not found — Revora</title>
       <meta name="robots" content="noindex" />
-      <div className="max-w-md text-center">
+      <div className="w-full max-w-md text-center sm:max-w-lg 2xl:max-w-xl">
         <div className="mb-6 flex justify-center"><Logo /></div>
         <p className="eyebrow">Error 404</p>
-        <h1 className="mt-3 font-editorial text-[30px] leading-tight text-foreground">This page doesn't exist</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
+        <h1 className="mt-3 font-editorial text-[clamp(1.75rem,4vw+0.5rem,3rem)] leading-tight text-foreground">This page doesn't exist</h1>
+        <p className="mt-3 text-sm text-muted-foreground sm:text-base">
           The link may be out of date, or the business page you're looking for has moved.
         </p>
         <div className="mt-6">
@@ -52,12 +53,15 @@ export function RouteError({ error, reset }: { error: unknown; reset?: () => voi
   }, [error]);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="max-w-md text-center">
+    <div role="alert" className="relative isolate flex min-h-[100svh] w-full items-center justify-center overflow-hidden bg-background px-4 py-16 sm:px-6">
+      <title>Something went wrong — Revora</title>
+      <meta name="robots" content="noindex" />
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(60%_50%_at_50%_0%,color-mix(in_oklch,var(--color-primary)_18%,transparent),transparent_70%)]" />
+      <div className="w-full max-w-md text-center sm:max-w-lg 2xl:max-w-xl">
         <div className="mb-6 flex justify-center"><Logo /></div>
         <p className="eyebrow">Temporarily unavailable</p>
-        <h1 className="mt-3 font-editorial text-[30px] leading-tight text-foreground">This page didn't load</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
+        <h1 className="mt-3 font-editorial text-[clamp(1.75rem,4vw+0.5rem,3rem)] leading-tight text-foreground">This page didn't load</h1>
+        <p className="mt-3 text-sm text-muted-foreground sm:text-base">
           We couldn't load this page. Try again, or return to the start.
         </p>
         <div className="mt-6 flex flex-wrap justify-center gap-2">
