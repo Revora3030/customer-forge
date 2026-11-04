@@ -27,7 +27,7 @@ const required = [
   ".github/workflows/authenticated-browser-journey.yml",
   ".github/workflows/quality-gate.yml",
   ".github/workflows/trivy.yml",
-  ".github/workflows/semgrep.yml",
+  ".github/workflows/security-scans.yml",
   ".github/workflows/dast-baseline.yml",
   "src/lib/ai/observability-export.server.ts",
   "src/lib/ai/observability-export.server.test.ts",

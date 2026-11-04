@@ -1194,6 +1194,8 @@ export async function callPinnedPaidImage(
   model: string,
   /** Supplying a source picture makes this a precision EDIT. */
   source: { dataUrl: string; mimeType: string } | null = null,
+  /** Output size for a fresh picture; ignored for edits. */
+  size?: string,
 ): Promise<{ base64: string; mimeType: string; provider: ProviderName; model: string }> {
   const limits = aiLimits();
   if (prompt.length > limits.maxRequestChars)
@@ -1220,7 +1222,7 @@ export async function callPinnedPaidImage(
       }, limits.requestTimeoutMs);
     });
     const result = await Promise.race([
-      ADAPTERS.lovable.image({ apiKey: config.apiKey, model: pictureModel, prompt, source, signal: controller.signal }),
+      ADAPTERS.lovable.image({ apiKey: config.apiKey, model: pictureModel, prompt, source, size: source ? undefined : size, signal: controller.signal }),
       deadline,
     ]);
     return { base64: result.base64, mimeType: result.mimeType, provider: "lovable", model: pictureModel };

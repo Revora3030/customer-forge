@@ -146,5 +146,5 @@ BEGIN
     RAISE NOTICE 'public.call_revora_job is missing; routine schedule was not changed.';
     RETURN;
   END IF;
-  PERFORM cron.schedule('revora-agent-routines', '*/5 * * * *', $cmd$select public.call_revora_job('agent-routines', 55000)$cmd$);
+  PERFORM cron.schedule('revora-agent-routines', '*/15 * * * *', $cmd$select public.call_revora_job('agent-routines', 55000)$cmd$);
 END $$;

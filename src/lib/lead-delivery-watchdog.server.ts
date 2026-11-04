@@ -16,7 +16,7 @@ import {
 } from "@/lib/lead-delivery-watchdog";
 
 /**
- * Lead-delivery watchdog (runs every 5 minutes, pg_cron -> call_revora_job ->
+ * Lead-delivery watchdog (runs every 15 minutes, pg_cron -> call_revora_job ->
  * /api/public/jobs/lead-delivery-watchdog).
  *
  * For every real lead from the last 72 hours (plus any lead that still has an

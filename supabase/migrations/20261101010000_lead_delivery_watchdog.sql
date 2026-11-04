@@ -13,7 +13,7 @@
 --    plus one 'run' heartbeat per pass so /admin can tell if the watchdog
 --    itself stopped. Rows with a workspace are readable by that workspace's
 --    members; heartbeat rows (no workspace) are service-role only.
--- 3. pg_cron schedule through public.call_revora_job every 5 minutes, same
+-- 3. pg_cron schedule through public.call_revora_job every 15 minutes, same
 --    guards as 20261030120000_customer_jobs_schedule.sql: does nothing where
 --    pg_cron or call_revora_job is missing, and re-running reschedules in place.
 
@@ -89,7 +89,7 @@ BEGIN
 
   PERFORM cron.schedule(
     'revora-lead-delivery-watchdog',
-    '*/5 * * * *',
+    '*/15 * * * *',
     $cmd$select public.call_revora_job('lead-delivery-watchdog', 600000)$cmd$
   );
 END $$;

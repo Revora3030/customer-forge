@@ -186,7 +186,7 @@ describe("old design layer is fully removed", () => {
   it("the AI plans a picture for every page without triggering a design fallback", () => {
     const src = readFileSync("src/lib/builder/collective-first-build.server.ts", "utf8");
     expect(src).toMatch(/gives EVERY page of the site real photography/);
-    expect(src).toMatch(/at most 28 for generation cost/);
+    expect(src).toMatch(/at most 16 for generation cost/);
     expect(src).not.toMatch(/complete AI-authored picture campaign/);
   });
 
