@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, notFound } from "@tanstack/react-router";
 import { getPreviewSite } from "@/lib/public-site.functions";
 import { PublicSiteView } from "@/components/site/PublicSiteView";
 import { PreviewMessage } from "@/components/PreviewMessage";
@@ -15,8 +15,25 @@ import { BuilderPreviewMode } from "@/components/site/BuilderPreviewMode";
 
 /**
  * Shareable, time-limited draft preview. The token is checked on the server;
- * an unknown, revoked or expired link renders a plain message and nothing else.
+ * an unknown, revoked or expired link answers HTTP 404 with a plain message
+ * and nothing else (it used to answer 200, a soft 404).
  */
+export type DeadPreviewLink = { reason: string; isProspect: boolean };
+
+export function deadPreviewCopy({ reason, isProspect }: DeadPreviewLink): { title: string; body: string } {
+  // A prospect demo is viewed by the business itself, so "ask the business"
+  // would address the wrong person.
+  if (isProspect && (reason === "expired" || reason === "revoked")) {
+    return {
+      title: "This demo link has expired",
+      body: `This demo link has expired — email ${BUSINESS.email} for a fresh one.`,
+    };
+  }
+  if (reason === "expired") return { title: "This preview link has expired", body: "Ask the business for a fresh link." };
+  if (reason === "revoked") return { title: "This preview link was switched off", body: "Ask the business for a fresh link." };
+  return { title: "This preview link isn't valid", body: "Check the address, or ask for a new link." };
+}
+
 export const Route = createFileRoute("/p/$token")({
   loader: async ({ params }) => {
     const result = await getPreviewSite({ data: { token: params.token } });
@@ -28,6 +45,9 @@ export const Route = createFileRoute("/p/$token")({
             .then((state) => state.isProspect)
             .catch(() => false)
         : false;
+    if (!result?.ok || !result.site) {
+      throw notFound({ data: { reason: result?.reason ?? "unknown", isProspect } satisfies DeadPreviewLink });
+    }
     return { result, isProspect };
   },
   // Never stored by a browser or edge, never indexed, never sent on as a referrer.
@@ -52,41 +72,18 @@ export const Route = createFileRoute("/p/$token")({
     ],
   }),
   component: PreviewRoute,
+  notFoundComponent: ({ data }) => (
+    <PreviewMessage {...deadPreviewCopy((data as DeadPreviewLink | undefined) ?? { reason: "unknown", isProspect: false })} />
+  ),
   errorComponent: () => (
     <PreviewMessage title="This preview link isn't valid" body="Ask for a new link." />
   ),
 });
 
 function PreviewRoute() {
-  const { result, isProspect } = Route.useLoaderData();
+  const { result } = Route.useLoaderData();
   const { token } = Route.useParams();
-
-  if (!result?.ok || !result.site) {
-    const reason = result?.reason ?? "unknown";
-    // A prospect demo is viewed by the business itself, so "ask the business"
-    // would address the wrong person.
-    if (isProspect && (reason === "expired" || reason === "revoked")) {
-      return (
-        <PreviewMessage
-          title="This demo link has expired"
-          body={`This demo link has expired — email ${BUSINESS.email} for a fresh one.`}
-        />
-      );
-    }
-    const copy =
-      reason === "expired"
-        ? { title: "This preview link has expired", body: "Ask the business for a fresh link." }
-        : reason === "revoked"
-          ? {
-              title: "This preview link was switched off",
-              body: "Ask the business for a fresh link.",
-            }
-          : {
-              title: "This preview link isn't valid",
-              body: "Check the address, or ask for a new link.",
-            };
-    return <PreviewMessage {...copy} />;
-  }
+  if (!result.site) return null;
 
   // The builder's own link: the draft as the owner edits it, with no
   // prospect bar and no view beacon (it is not a shared link).
