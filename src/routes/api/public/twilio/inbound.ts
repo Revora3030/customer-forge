@@ -7,8 +7,9 @@ const EMPTY_TWIML = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>
  * Twilio inbound SMS webhook. Verified with X-Twilio-Signature (HMAC of the
  * public URL and POST params with TWILIO_AUTH_TOKEN) before anything is read.
  * STOP-style replies add the number to do-not-contact; START/YES record SMS
- * consent and lift a STOP. Replies with empty TwiML (Twilio sends its own
- * opt-out confirmation).
+ * consent and lift a STOP. WhatsApp replies on the same number (From
+ * "whatsapp:+1…") are honoured for STOP only; a WhatsApp START is not SMS
+ * consent. Replies with empty TwiML (Twilio sends its own opt-out confirmation).
  */
 async function handle(request: Request): Promise<Response> {
   const authToken = process.env["TWILIO_AUTH_TOKEN"]?.trim();
