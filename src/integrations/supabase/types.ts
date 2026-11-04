@@ -4551,7 +4551,6 @@ export type Database = {
           portal_code: string | null
           setup_checkout_session_id: string | null
           setup_paid_at: string | null
-          past_due_since: string | null
           setup_payment_status: string
           slug: string
           subscription_status: Database["public"]["Enums"]["subscription_status"]
@@ -4575,7 +4574,6 @@ export type Database = {
           portal_code?: string | null
           setup_checkout_session_id?: string | null
           setup_paid_at?: string | null
-          past_due_since?: string | null
           setup_payment_status?: string
           slug: string
           subscription_status?: Database["public"]["Enums"]["subscription_status"]
@@ -4599,7 +4597,6 @@ export type Database = {
           portal_code?: string | null
           setup_checkout_session_id?: string | null
           setup_paid_at?: string | null
-          past_due_since?: string | null
           setup_payment_status?: string
           slug?: string
           subscription_status?: Database["public"]["Enums"]["subscription_status"]
