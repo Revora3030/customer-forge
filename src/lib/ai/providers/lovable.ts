@@ -611,7 +611,7 @@ export const lovableAdapter: ProviderAdapter = {
 
   // Pictures use the gateway's OpenAI-format image endpoints. Server-side and
   // final-only, so the request is not streamed; the caller's deadline bounds it.
-  async image({ apiKey, model, prompt, source, signal }) {
+  async image({ apiKey, model, prompt, source, size, signal }) {
     let response: Response;
     if (source) {
       const form = new FormData();
@@ -624,7 +624,7 @@ export const lovableAdapter: ProviderAdapter = {
       response = await fetch(`${BASE}/images/generations`, {
         method: "POST",
         headers: headers(apiKey),
-        body: JSON.stringify({ model, prompt }),
+        body: JSON.stringify(size ? { model, prompt, size } : { model, prompt }),
         signal,
       });
     }
