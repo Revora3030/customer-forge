@@ -267,6 +267,34 @@
       "when": 1793816218520,
       "tag": "0037_unapplied_migrations_followup_rerun",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1793816238564,
+      "tag": "0038_website_rules",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1793816245141,
+      "tag": "0039_subscriptions_stripe_event_fence",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1793816251828,
+      "tag": "0040_jarvis_memory_obligations",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1793816259210,
+      "tag": "0041_harden_grants_routines_qa_rules",
+      "breakpoints": true
     }
   ]
 }

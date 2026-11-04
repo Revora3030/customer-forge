@@ -3237,33 +3237,53 @@ export type Database = {
       }
       jarvis_memories: {
         Row: {
+          completed_at: string | null
           content: string
           created_at: string
+          due_at: string | null
+          half_life_days: number | null
           id: string
           kind: string
           source: string
+          superseded_by: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
+          completed_at?: string | null
           content: string
           created_at?: string
+          due_at?: string | null
+          half_life_days?: number | null
           id?: string
           kind?: string
           source?: string
+          superseded_by?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
+          completed_at?: string | null
           content?: string
           created_at?: string
+          due_at?: string | null
+          half_life_days?: number | null
           id?: string
           kind?: string
           source?: string
+          superseded_by?: string | null
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "jarvis_memories_superseded_by_fkey"
+            columns: ["superseded_by"]
+            isOneToOne: false
+            referencedRelation: "jarvis_memories"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       jarvis_memory_embeddings: {
         Row: {
@@ -7007,6 +7027,7 @@ export type Database = {
           current_period_start: string | null
           environment: string
           id: string
+          last_stripe_event_created: number | null
           organization_id: string
           payment_provider: string
           plan_id: string | null
@@ -7027,6 +7048,7 @@ export type Database = {
           current_period_start?: string | null
           environment?: string
           id?: string
+          last_stripe_event_created?: number | null
           organization_id: string
           payment_provider?: string
           plan_id?: string | null
@@ -7047,6 +7069,7 @@ export type Database = {
           current_period_start?: string | null
           environment?: string
           id?: string
+          last_stripe_event_created?: number | null
           organization_id?: string
           payment_provider?: string
           plan_id?: string | null
@@ -7614,6 +7637,42 @@ export type Database = {
             foreignKeyName: "website_requests_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
+            referencedRelation: "public_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      website_rules: {
+        Row: {
+          organization_id: string
+          rules: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          organization_id: string
+          rules: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          organization_id?: string
+          rules?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "website_rules_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "website_rules_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
             referencedRelation: "public_organizations"
             referencedColumns: ["id"]
           },
