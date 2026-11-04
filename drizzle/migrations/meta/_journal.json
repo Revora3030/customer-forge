@@ -253,6 +253,13 @@
       "when": 1793816130521,
       "tag": "0035_agent_routines",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1793816175963,
+      "tag": "0036_qa_jobs",
+      "breakpoints": true
     }
   ]
 }

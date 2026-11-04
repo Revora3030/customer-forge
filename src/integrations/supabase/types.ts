@@ -5872,6 +5872,91 @@ export type Database = {
           },
         ]
       }
+      qa_jobs: {
+        Row: {
+          attempts: number
+          created_at: string
+          error_plain: string | null
+          fence: number
+          finished_at: string | null
+          id: string
+          lease_expires_at: string | null
+          max_attempts: number
+          metrics: Json
+          not_before: string
+          organization_id: string
+          run_id: string | null
+          screenshots: Json
+          started_at: string | null
+          status: string
+          updated_at: string
+          url: string
+          worker: string | null
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          error_plain?: string | null
+          fence?: number
+          finished_at?: string | null
+          id?: string
+          lease_expires_at?: string | null
+          max_attempts?: number
+          metrics?: Json
+          not_before?: string
+          organization_id: string
+          run_id?: string | null
+          screenshots?: Json
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+          url: string
+          worker?: string | null
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          error_plain?: string | null
+          fence?: number
+          finished_at?: string | null
+          id?: string
+          lease_expires_at?: string | null
+          max_attempts?: number
+          metrics?: Json
+          not_before?: string
+          organization_id?: string
+          run_id?: string | null
+          screenshots?: Json
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+          url?: string
+          worker?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "qa_jobs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "qa_jobs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "public_organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "qa_jobs_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "agent_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       qna_monitor: {
         Row: {
           created_at: string
@@ -8584,6 +8669,79 @@ export type Database = {
         Returns: string
       }
       prune_old_operational_records: { Args: never; Returns: Json }
+      qa_job_claim: {
+        Args: { _lease_seconds?: number; _max?: number; _worker: string }
+        Returns: {
+          attempts: number
+          created_at: string
+          error_plain: string | null
+          fence: number
+          finished_at: string | null
+          id: string
+          lease_expires_at: string | null
+          max_attempts: number
+          metrics: Json
+          not_before: string
+          organization_id: string
+          run_id: string | null
+          screenshots: Json
+          started_at: string | null
+          status: string
+          updated_at: string
+          url: string
+          worker: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "qa_jobs"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      qa_job_create: {
+        Args: { _org: string; _run?: string; _url: string }
+        Returns: {
+          attempts: number
+          created_at: string
+          error_plain: string | null
+          fence: number
+          finished_at: string | null
+          id: string
+          lease_expires_at: string | null
+          max_attempts: number
+          metrics: Json
+          not_before: string
+          organization_id: string
+          run_id: string | null
+          screenshots: Json
+          started_at: string | null
+          status: string
+          updated_at: string
+          url: string
+          worker: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "qa_jobs"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      qa_job_finish: {
+        Args: {
+          _error?: string
+          _fence: number
+          _job: string
+          _metrics?: Json
+          _ok: boolean
+          _screenshots?: Json
+        }
+        Returns: boolean
+      }
+      qa_job_recover_stalled: {
+        Args: { _grace_seconds?: number }
+        Returns: number
+      }
       register_public_submission_attempt: {
         Args: {
           _contact_hash?: string
