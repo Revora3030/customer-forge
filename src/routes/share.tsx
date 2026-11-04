@@ -59,9 +59,17 @@ function SharePage() {
   );
 
   const [qr, setQr] = useState<string | null>(null);
+  const [qrFailed, setQrFailed] = useState(false);
   useEffect(() => {
     let live = true;
-    void qrDataUrl(mainLink, 320).then((url) => live && setQr(url)).catch(() => live && setQr(null));
+    setQrFailed(false);
+    void qrDataUrl(mainLink, 320)
+      .then((url) => live && setQr(url))
+      .catch(() => {
+        if (!live) return;
+        setQr(null);
+        setQrFailed(true);
+      });
     return () => {
       live = false;
     };
@@ -152,15 +160,26 @@ function SharePage() {
           </div>
 
           <div className="mt-6 flex flex-col items-start gap-4 sm:flex-row sm:items-center">
-            <img
-              src={qr ?? undefined}
-              alt="QR code that opens the tracked Revora link"
-              width={160}
-              height={160}
-              loading="lazy"
-              decoding="async"
-              className="rounded-lg border border-border bg-white p-2"
-            />
+            {qr ? (
+              <img
+                src={qr}
+                alt="QR code that opens the tracked Revora link"
+                width={160}
+                height={160}
+                decoding="async"
+                className="size-40 shrink-0 rounded-lg border border-border bg-white p-2"
+              />
+            ) : (
+              // Until the browser has drawn the code (and on the server), hold the same 160px slot
+              // instead of an <img> with no src, which showed a broken-image icon and its alt text.
+              <div
+                role="status"
+                aria-live="polite"
+                className="flex size-40 shrink-0 items-center justify-center rounded-lg border border-border bg-muted/30 p-2 text-center text-[12px] text-muted-foreground"
+              >
+                {qrFailed ? "QR code couldn't be made here. Copy the link instead." : "Making your QR code…"}
+              </div>
+            )}
             <p className="text-[13px] leading-relaxed text-muted-foreground">
               Print this on flyers, truck decals, counter cards or job-site signs. Scans are tracked
               exactly like clicks.
