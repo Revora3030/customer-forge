@@ -13,7 +13,11 @@ const EMPTY_TWIML = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>
  */
 async function handle(request: Request): Promise<Response> {
   const authToken = process.env["TWILIO_AUTH_TOKEN"]?.trim();
-  if (!authToken) return new Response("Not configured", { status: 503 });
+  if (!authToken) {
+    // Unverifiable: nothing is read or trusted. Warn (secret name only) so the gap is visible in logs.
+    console.warn("[twilio inbound] TWILIO_AUTH_TOKEN is not configured; inbound text not processed (503)");
+    return new Response("Not configured", { status: 503 });
+  }
   const raw = await request.text();
   const params: Record<string, string> = {};
   for (const [key, value] of new URLSearchParams(raw)) params[key] = value;
