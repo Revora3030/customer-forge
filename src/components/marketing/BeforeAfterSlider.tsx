@@ -198,7 +198,7 @@ function RevoraStyleSide() {
     >
       <div className="flex items-center justify-between gap-2 px-4 pb-2 pt-12 max-sm:flex-col max-sm:items-start max-sm:pl-[52%] max-sm:pr-3 sm:px-6">
         <span className="font-display text-[13px] font-semibold tracking-tight">Your Business</span>
-        <span className="hidden gap-4 text-[11px] opacity-70 sm:flex">
+        <span className="hidden gap-4 text-[12px] sm:flex" style={{ color: "#D6D1C7" }}>
           <span>Services</span>
           <span>About</span>
           <span>Contact</span>
@@ -214,7 +214,7 @@ function RevoraStyleSide() {
         <p className="font-display text-[clamp(16px,3.6vw,30px)] font-semibold leading-tight">
           Your service, <span style={{ color: GOLD }}>easy to book online.</span>
         </p>
-        <p className="mt-1.5 max-w-[34ch] text-[clamp(10px,1.5vw,13px)] opacity-70">
+        <p className="mt-1.5 max-w-[34ch] text-[clamp(12px,1.5vw,13px)]" style={{ color: "#D6D1C7" }}>
           A clear message, fast pages and a button people can find on a phone.
         </p>
         <span
