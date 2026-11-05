@@ -126,7 +126,7 @@ export function JarvisHeader(props: Props) {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel className="min-h-11">Cancel</AlertDialogCancel>
-            <AlertDialogAction className="min-h-11 bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={onClear}>Clear chat</AlertDialogAction>
+            <AlertDialogAction className="min-h-11 bg-destructive-solid text-destructive-foreground hover:bg-destructive-solid/90" onClick={onClear}>Clear chat</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

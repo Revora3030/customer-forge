@@ -78,6 +78,7 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
+  --color-destructive-solid: var(--destructive-solid);
   --color-success: var(--success);
   --color-success-foreground: var(--success-foreground);
   --color-info: var(--info);
@@ -152,6 +153,11 @@
   --accent-foreground: oklch(0.1421 0.0032 286);
   --destructive: oklch(0.645 0.2154 16.44);
   --destructive-foreground: oklch(1 0 0);
+  /* Solid destructive fills that carry white text. --destructive stays light enough
+     to read as text on the dark surfaces (about 5:1 on --card), which a fill that
+     passes 4.5:1 with white (needs a darker red) cannot do at the same time.
+     Same hue and chroma as --destructive; only lightness is lower. */
+  --destructive-solid: oklch(0.585 0.2154 16.44);
   --success: oklch(0.7729 0.1535 163.22);
   --success-foreground: oklch(0.1421 0.0032 286);
   --info: oklch(0.7535 0.139 232.66);
