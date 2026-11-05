@@ -17,6 +17,8 @@ export type LeadWebhookPayload = {
   organization_id: string;
   /** Stable per lead: a retried submit or redelivery carries the same key. */
   idempotency_key: string;
+  /** Present and true only for owner-sent test leads; receivers should ignore or file these separately. */
+  test?: true;
   lead: {
     lead_id: string;
     name: string;
@@ -168,6 +170,7 @@ export async function dispatchLeadWebhook(
         // the body carries, so a redelivered lead is never created twice.
         "idempotency-key": payload.idempotency_key,
         ...(signature ? { "x-revora-signature": signature } : {}),
+        ...(payload.test ? { "x-revora-test": "true" } : {}),
       },
       body,
       signal: controller.signal,

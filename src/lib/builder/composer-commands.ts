@@ -23,7 +23,7 @@ export const COMPOSER_COMMANDS: ComposerItem[] = [
   { kind: "command", id: "theme", label: "/theme", hint: "Change colours, fonts or the look", template: "Change the look of the site: " },
   { kind: "command", id: "seo", label: "/seo", hint: "Improve titles, descriptions and local search wording", template: "Improve the SEO of this page: " },
   { kind: "command", id: "revert", label: "/revert", hint: "Open history to undo or restore" },
-  { kind: "command", id: "lead-test", label: "/lead-test", hint: "Send a clearly labelled test lead to your own inbox" },
+  { kind: "command", id: "lead-test", label: "/lead-test", hint: "Send yourself a labelled test lead and check every step" },
 ];
 
 export const COMPOSER_MENTIONS: ComposerItem[] = [

@@ -15,7 +15,10 @@ vi.mock("@/lib/builder/progress.hooks", () => ({ useBuildProgress: () => ({ step
 vi.mock("@/components/app/AssistantMedia", () => ({ AssistantMedia: () => null }));
 vi.mock("@/components/app/CompositionPreviewCard", () => ({ CompositionPreviewCard: () => null }));
 vi.mock("@/components/app/builder-chat/ResultCards", () => ({ ResultCards: () => null }));
-vi.mock("@/components/app/builder-chat/use-test-lead", () => ({ useSendTestLead: () => ({ mutate: () => undefined }) }));
+vi.mock("@/components/app/builder-chat/use-test-lead", () => ({
+  useSendTestLead: () => ({ mutate: () => undefined }),
+  useLeadSimulation: () => ({ mutate: () => undefined, isPending: false, data: undefined, error: null }),
+}));
 vi.mock("@/components/app/SectionHistoryButton", () => ({ SectionHistoryButton: () => null }));
 
 import { BuilderAssistant, RebuildConfirm } from "@/components/app/BuilderAssistant";

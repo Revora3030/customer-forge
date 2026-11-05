@@ -63,7 +63,8 @@ import { ApplyResultCard } from "@/components/app/builder-chat/ApplyResultCard";
 import { InspectChanges } from "@/components/app/builder-chat/InspectChanges";
 import { MessageMenu } from "@/components/app/builder-chat/MessageMenu";
 import { useComposerMenu } from "@/components/app/builder-chat/ComposerMenu";
-import { useSendTestLead } from "@/components/app/builder-chat/use-test-lead";
+import { useLeadSimulation } from "@/components/app/builder-chat/use-test-lead";
+import { LeadSimulationDialog } from "@/components/app/builder-chat/LeadSimulationDialog";
 import { expandMentions } from "@/lib/builder/composer-commands";
 import { useChatTop } from "@/components/app/builder-chat/use-chat-top";
 import { useKeyboardInset } from "@/components/app/builder-chat/use-keyboard-inset";
@@ -366,7 +367,12 @@ export function BuilderAssistant({
   const empty = requests.tasks.length === 0 && !factQuestion && factLog.length === 0;
   const composerLocked = !requests.ready || accessBlocked;
   const canSend = !composerLocked && (value.trim().length > 0 || attachments.length > 0);
-  const testLead = useSendTestLead(organizationId);
+  const leadSim = useLeadSimulation(organizationId);
+  const [leadSimOpen, setLeadSimOpen] = useState(false);
+  const runLeadSim = () => {
+    setLeadSimOpen(true);
+    leadSim.mutate();
+  };
   const composer = useComposerMenu({
     value,
     setValue,
@@ -376,7 +382,7 @@ export function BuilderAssistant({
     disabled: composerLocked || Boolean(factQuestion),
     onAction: (id) => {
       if (id === "revert") onOpenHistory?.();
-      else if (id === "lead-test") (onLeadTest ?? (() => testLead.mutate()))();
+      else if (id === "lead-test") (onLeadTest ?? runLeadSim)();
     },
   });
   const runSuggestion = (instruction: string) =>
@@ -885,6 +891,14 @@ export function BuilderAssistant({
           <p className="sr-only">Every change saves a restore point first. On a live website, checked changes go live straight away.</p>
         </div>
       </div>
+      <LeadSimulationDialog
+        open={leadSimOpen}
+        onOpenChange={setLeadSimOpen}
+        pending={leadSim.isPending}
+        result={leadSim.data}
+        error={leadSim.error}
+        onRunAgain={() => leadSim.mutate()}
+      />
     </section>
   );
 }
