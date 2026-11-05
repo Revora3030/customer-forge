@@ -6,6 +6,8 @@
  * there isn't enough data, that is said plainly rather than guessed at.
  */
 
+import { bucketSessions } from "@/lib/traffic-source";
+
 export type TrafficEvent = {
   event_type: string;
   path: string | null;
@@ -97,6 +99,7 @@ export function summarizeTraffic(events: TrafficEvent[], days: number, offsetMin
     conversionRate: viewTotal ? Math.round((conversionTotal / viewTotal) * 1000) / 10 : 0,
     calls: inWindow.filter((e) => e.event_type === "call_click").length,
     sources: count(inWindow, (e) => e.source ?? "direct").slice(0, 8),
+    sourceBuckets: bucketSessions(inWindow),
     pages: count(currentViews, (e) => e.path ?? "/").slice(0, 10),
     devices: count(currentViews, (e) => e.device ?? "unknown"),
     daily,

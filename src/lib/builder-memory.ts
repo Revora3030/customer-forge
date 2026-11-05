@@ -7,6 +7,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
 import { MAIN_BRANCH, kindForTurn, normaliseBranch, normaliseRequestId, type MessageKind } from "@/lib/builder/chat-thread";
+import type { RepairEvent } from "@/lib/builder/repair-card";
 
 export type SavedTaskResult = {
   state: "complete" | "failed" | "skipped";
@@ -19,6 +20,8 @@ export type SavedTaskResult = {
   reasons?: string[];
   /** Titles of the planned changes that were written, for the result card. */
   titles?: string[];
+  /** B12-1: the measured self-repair event for this request (bounded; see repair-card.ts). */
+  repair?: RepairEvent;
 };
 
 export type SavedTurn = {

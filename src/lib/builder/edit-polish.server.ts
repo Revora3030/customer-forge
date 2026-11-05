@@ -8,6 +8,7 @@
 import { callBestThinker } from "@/lib/ai/thinker.server";
 import { craftBarPrompt } from "@/lib/builder/world-class-craft";
 import { validateComposition } from "@/lib/builder/composition-tree";
+import { AST_REPAIR_GUIDE, applySectionEdits } from "@/lib/builder/ast-repair";
 import { runReviewPanel } from "@/lib/builder/review-panel.server";
 import { runImprovementGate, type GateReport } from "@/lib/builder/improvement-gate.server";
 
@@ -61,14 +62,17 @@ export async function polishEditCompositions(input: {
       maxOutputTokens: 12000,
       system: "You are Sol, lead art director. Improve your section layouts using the review notes where you agree. Keep the owner's requested change, keep every word, link and picture truthful, never downgrade. Use the same composition tree format. " + craftBarPrompt("polish"),
       user: ["OWNER REQUEST:", input.instruction, "", "YOUR LAYOUTS:", JSON.stringify(current), "", "REVIEW NOTES:", JSON.stringify(notes), "",
-        'Return JSON: {"sections": {"<sectionId>": {"version": 1, "label": "...", "root": {...}}}}'].join("\n"),
+        "Change only what the notes need, as precise node edits (never rewrite a whole layout):",
+        AST_REPAIR_GUIDE,
+        'Return JSON: {"edits": {"<sectionId>": [ ...edits ]}}. Only if a section truly needs a new layout, use {"sections": {"<sectionId>": {"version": 1, "label": "...", "root": {...}}}} instead.'].join("\n"),
     });
     if (!call.ok) return { actions: input.actions, report: null, models };
     if (call.model) models.push(call.model);
     const start = call.text.indexOf("{");
     const end = call.text.lastIndexOf("}");
-    const parsed = start >= 0 && end > start ? (JSON.parse(call.text.slice(start, end + 1)) as { sections?: Record<string, unknown> }) : {};
-    const revised = parsed.sections ?? {};
+    const parsed = start >= 0 && end > start ? (JSON.parse(call.text.slice(start, end + 1)) as { sections?: Record<string, unknown>; edits?: unknown }) : {};
+    // BRF-01: prefer AST-precise edits; untouched sections and nodes stay identical.
+    const revised = applySectionEdits(current, parsed)?.trees ?? parsed.sections ?? {};
     const proposed = Object.fromEntries(
       Object.entries(current).map(([id, tree]) => [id, validateComposition(revised[id]).ok ? revised[id] : tree]),
     );
