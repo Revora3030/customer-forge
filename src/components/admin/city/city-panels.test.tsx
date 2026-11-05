@@ -63,6 +63,13 @@ describe("Sparkline", () => {
     expect(html).toContain("No records in the last 3 hours");
     expect(html).not.toContain("<svg");
   });
+
+  it("labels empty and peak series in days when the unit is days", () => {
+    const empty = renderToStaticMarkup(<Sparkline values={[0, 0, 0, 0, 0, 0, 0]} label="Leads" unit="days" />);
+    expect(empty).toContain("No records in the last 7 days");
+    const peak = renderToStaticMarkup(<Sparkline values={[0, 2, 5, 1]} label="Leads, last 4 days" unit="days" />);
+    expect(peak).toContain("peak 5 per day");
+  });
 });
 
 import { DistrictCarousel } from "./DistrictCarousel";

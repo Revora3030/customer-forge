@@ -13,6 +13,7 @@ import { MemoryHealth } from "./MemoryHealth";
 import { ModelEvidence } from "./ModelEvidence";
 import { GateScoreboard } from "./GateScoreboard";
 import { SHEET_HEIGHT_DVH, SHEET_TALL_DVH, sheetDragResult, sheetOffset } from "@/lib/city-nav";
+import { TodayBriefing } from "./TodayBriefing";
 import { CITY_DISTRICTS, FAILURE_CAUSE_HINT, ageLabel, districtFailureSummary, districtState, hourlyBuckets, missionsFor, pipelineStages, runningFor, workIsActive, type CitySnapshot, type CityWork, type DistrictId, type SalesMission } from "@/lib/ai-city";
 
 type Props = {
@@ -91,6 +92,7 @@ export function DistrictInspector({ open, onOpenChange, district, snapshot, now,
         <Stat label="Queued" value={snapshot ? queued.length : null} />
         <Stat label="Failed · 48h" value={failures ? failures.count : null} suffix={failures?.capped ? "+" : ""} />
       </div>
+      {district === "executive" ? <TodayBriefing snapshot={snapshot} now={now} onDraft={onDraft} /> : null}
       {failures?.groups.length ? <section className="mt-4" aria-label="Why it failed">
         <h3 className="text-xs font-semibold uppercase">Why it failed</h3>
         <ul className="mt-2 space-y-2">{failures.groups.slice(0, 5).map((group) => <li key={group.key} className="rounded-md border border-border p-2"><button type="button" className="block min-h-11 w-full text-left" onClick={() => onRecord(group.latest)}><span className="block break-words text-xs font-medium">{group.count}× {group.label}</span><span className="mt-0.5 block text-[11px] text-muted-foreground">newest {ageLabel(group.ageMs)} ago{group.cause ? ` · ${FAILURE_CAUSE_HINT[group.cause]}` : ""}</span></button></li>)}</ul>

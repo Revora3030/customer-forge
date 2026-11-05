@@ -3,6 +3,7 @@ import { Minus, Plus, RotateCcw } from "lucide-react";
 import { MAP_MAX_ZOOM, MAP_MIN_ZOOM, MAP_PAD, MAP_SPAN, MAP_TAP_SLOP_PX, FRAMED_VIEW, centerOn, panBy, pinchZoom, viewBoxOf, zoomAbout, type MapView } from "@/lib/city-nav";
 import { CITY_DISTRICTS, districtCounts, districtState, failedLabel, districtFailureSummary, type CitySnapshot, type DistrictId } from "@/lib/ai-city";
 import { skyLighting, type SkyMode, type WeatherState } from "@/lib/city-sky";
+import { ApprovalBeaconsSvg } from "./ApprovalBeacons";
 
 export type CitySvgMapProps = { snapshot?: CitySnapshot | undefined; selected: DistrictId; now: number; onSelect: (id: DistrictId) => void; skyMode?: SkyMode; weather?: WeatherState };
 
@@ -121,6 +122,7 @@ export function CitySvgMap({ snapshot, selected, now, onSelect, skyMode = "neutr
       </g>;
     })}
     {rainDots.map((dot, i) => <line key={`r-${i}`} x1={dot.x} y1={dot.y} x2={dot.x} y2={dot.y + 3} stroke="var(--city-cyan)" strokeWidth="0.35" strokeOpacity={0.45} />)}
+    <ApprovalBeaconsSvg />
   </svg>
   </div>;
 }

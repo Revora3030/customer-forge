@@ -20,9 +20,12 @@ import { JarvisHeader, type ChecksSummary } from "@/components/app/jarvis/Jarvis
 import { JarvisComposer, type JarvisMode } from "@/components/app/jarvis/JarvisComposer";
 import { JarvisModelPicker } from "@/components/app/jarvis/JarvisModelPicker";
 import { AssistantMessage, UserMessage, type JarvisRow } from "@/components/app/jarvis/JarvisMessage";
+import { NoticeRepeatDigest } from "@/components/app/jarvis/NoticeRepeatDigest";
+import { foldRepeatNotices, type FoldedNoticeItem } from "@/lib/jarvis-notice-digest";
 import { RunTaskTree } from "@/components/app/jarvis/RunTaskTree";
 import { ApprovalsInbox } from "@/components/app/jarvis/ApprovalsInbox";
 import { ConversationsSheet } from "@/components/app/jarvis/ConversationsSheet";
+import { CITY_COMMAND_ENTRIES } from "@/lib/jarvis/city-commands";
 import { OperationsPanel, DIAGNOSTIC_SECTIONS, type ProspectorState } from "@/components/app/jarvis/OperationsPanel";
 import { CommandPalette } from "@/components/app/jarvis/CommandPalette";
 import { LiveSurface, type VoiceState } from "@/components/app/jarvis/LiveSurface";
@@ -426,7 +429,32 @@ function Jarvis() {
   const busy = mutation.isPending || regen.isPending;
   const latest = useMemo(() => history.data ?? [], [history.data]);
   const messages = useMemo(() => mergeRows(older, latest), [older, latest]);
-  const foldedMessages = useMemo(() => foldQuietNotices(messages), [messages]);
+  /** JC-46 then JC-47: quiet digests first; repeat digests fold plain rows between them. */
+  const chatItems = useMemo(() => {
+    const afterQuiet = foldQuietNotices(messages);
+    type QuietItem = (typeof afterQuiet)[number];
+    type RepeatItem = FoldedNoticeItem<JarvisRow>;
+    type ChatItem =
+      | Extract<QuietItem, { kind: "quiet-digest" }>
+      | RepeatItem;
+    const out: ChatItem[] = [];
+    let buffer: typeof messages = [];
+    const flush = () => {
+      if (!buffer.length) return;
+      out.push(...foldRepeatNotices(buffer));
+      buffer = [];
+    };
+    for (const item of afterQuiet) {
+      if (item.kind === "quiet-digest") {
+        flush();
+        out.push(item);
+      } else {
+        buffer.push(item.row);
+      }
+    }
+    flush();
+    return out;
+  }, [messages]);
   const lastMessage = messages[messages.length - 1];
   const lastAssistantId = lastMessage?.role === "assistant" ? lastMessage.id : null;
   const empty = !history.isLoading && !history.error && messages.length === 0 && !pending;
@@ -1026,54 +1054,56 @@ function Jarvis() {
                   <Button type="button" variant="ghost" data-jarvis-tap="" className="self-start" onClick={() => setCommandsOpen(true)}>All commands</Button>
                 </div>
               ) : null}
-              {foldedMessages.map((item, index) => {
-                if (item.kind === "quiet-digest") {
-                  const firstAt = item.rows[0]?.createdAt ?? "";
-                  const prev = foldedMessages[index - 1];
-                  const prevAt = prev?.kind === "quiet-digest" ? (prev.rows[0]?.createdAt ?? "") : prev?.row.created_at ?? "";
-                  const day = dayKey(firstAt);
-                  const newDay = index === 0 || day !== dayKey(prevAt);
-                  return (
-                    <Fragment key={`quiet:${item.rows.map((row) => row.id).join(",")}`}>
-                      {newDay && day ? (
-                        <div role="separator" aria-label={dayLabel(firstAt)} className="flex items-center gap-3 text-xs text-muted-foreground">
-                          <span className="h-px flex-1 bg-border/70" aria-hidden />
-                          <span aria-hidden>{dayLabel(firstAt)}</span>
-                          <span className="h-px flex-1 bg-border/70" aria-hidden />
-                        </div>
-                      ) : null}
-                      <QuietNoticesDigest rows={item.rows} busy={busy} onAsk={(prompt) => submit(prompt)} />
-                    </Fragment>
-                  );
-                }
-                const message = item.row;
-                const prev = foldedMessages[index - 1];
-                const prevAt = prev?.kind === "quiet-digest" ? (prev.rows[prev.rows.length - 1]?.createdAt ?? "") : prev?.row.created_at ?? "";
-                const day = dayKey(message.created_at);
-                const newDay = index === 0 || day !== dayKey(prevAt);
+              {chatItems.map((item, index) => {
+                const stamp =
+                  item.kind === "quiet-digest"
+                    ? (item.rows[item.rows.length - 1]?.createdAt ?? item.rows[0]?.createdAt ?? "")
+                    : item.kind === "repeat-digest"
+                      ? item.members[item.members.length - 1]!.createdAt
+                      : item.row.created_at;
+                const prev = index === 0 ? null : chatItems[index - 1]!;
+                const prevStamp = !prev
+                  ? null
+                  : prev.kind === "quiet-digest"
+                    ? (prev.rows[prev.rows.length - 1]?.createdAt ?? prev.rows[0]?.createdAt ?? "")
+                    : prev.kind === "repeat-digest"
+                      ? prev.members[prev.members.length - 1]!.createdAt
+                      : prev.row.created_at;
+                const day = dayKey(stamp);
+                const newDay = index === 0 || !prevStamp || day !== dayKey(prevStamp);
+                const key =
+                  item.kind === "quiet-digest"
+                    ? `quiet:${item.rows.map((row) => row.id).join(",")}`
+                    : item.kind === "repeat-digest"
+                      ? `digest:${item.key}`
+                      : item.row.id;
                 return (
-                  <Fragment key={message.id}>
+                  <Fragment key={key}>
                     {newDay && day ? (
-                      <div role="separator" aria-label={dayLabel(message.created_at)} className="flex items-center gap-3 text-xs text-muted-foreground">
+                      <div role="separator" aria-label={dayLabel(stamp)} className="flex items-center gap-3 text-xs text-muted-foreground">
                         <span className="h-px flex-1 bg-border/70" aria-hidden />
-                        <span aria-hidden>{dayLabel(message.created_at)}</span>
+                        <span aria-hidden>{dayLabel(stamp)}</span>
                         <span className="h-px flex-1 bg-border/70" aria-hidden />
                       </div>
                     ) : null}
-                    {message.role === "user" ? (
-                      <UserMessage content={message.content} createdAt={message.created_at} />
+                    {item.kind === "quiet-digest" ? (
+                      <QuietNoticesDigest rows={item.rows} busy={busy} onAsk={(prompt) => submit(prompt)} />
+                    ) : item.kind === "repeat-digest" ? (
+                      <NoticeRepeatDigest members={item.members} busy={busy} onAsk={(prompt) => submit(prompt)} />
+                    ) : item.row.role === "user" ? (
+                      <UserMessage content={item.row.content} createdAt={item.row.created_at} />
                     ) : (
                       <AssistantMessage
-                        message={message}
-                        isLast={message.id === lastAssistantId}
+                        message={item.row}
+                        isLast={item.row.id === lastAssistantId}
                         busy={busy}
-                        regenerating={regen.isPending && message.id === lastAssistantId}
-                        speakingThis={jarvisVoice.speaking && speakingId === message.id}
-                        approvalState={(key) => approved[key] ?? remembered[key]?.state}
-                        approvalUrl={(key) => openedPrs[key] ?? remembered[key]?.url}
-                        onApprove={(key, proposal) => { void approveProposal(key, proposal); }}
+                        regenerating={regen.isPending && item.row.id === lastAssistantId}
+                        speakingThis={jarvisVoice.speaking && speakingId === item.row.id}
+                        approvalState={(akey) => approved[akey] ?? remembered[akey]?.state}
+                        approvalUrl={(akey) => openedPrs[akey] ?? remembered[akey]?.url}
+                        onApprove={(akey, proposal) => { void approveProposal(akey, proposal); }}
                         onCopy={(body) => { void copy(body); }}
-                        onListen={() => { jarvisVoice.unlock(); void speak(message.content, message.id); }}
+                        onListen={() => { jarvisVoice.unlock(); void speak(item.row.content, item.row.id); }}
                         onStopListening={stopSpeaking}
                         onRegenerate={() => regen.mutate()}
                         renderAfterProposal={renderAfterProposal}
@@ -1143,7 +1173,7 @@ function Jarvis() {
               <JarvisComposer
                 value={text}
                 onChange={setText}
-                onSubmit={() => submit()}
+                onSubmit={(message) => submit(message)}
                 maxLength={MAX_LENGTH}
                 busy={busy}
                 onStop={stopTurn}
@@ -1189,7 +1219,7 @@ function Jarvis() {
 
         <ConversationsSheet open={showConversations} onOpenChange={setShowConversations} wide={wide === true} activeId={conversationId}
           onSelect={(id) => { if (id === conversationId) return; setOlder([]); setMoreEarlier(true); setFollowups([]); setConversationId(id); }} />
-        <CommandPalette open={commandsOpen} onOpenChange={setCommandsOpen} desktop={!coarse} commands={COMMANDS} disabled={busy} onRun={(prompt) => submit(prompt)} />
+        <CommandPalette open={commandsOpen} onOpenChange={setCommandsOpen} desktop={!coarse} commands={COMMANDS} cityCommands={CITY_COMMAND_ENTRIES} disabled={busy} onRun={(prompt) => submit(prompt)} />
       </div>
     </TooltipProvider>
   );
