@@ -52,7 +52,9 @@ export const leadsList = defineToolV2({
   risk: "read",
   scope: "owner",
   schema: z.strictObject({
-    status: z.string().min(1).max(40).optional(),
+    status: z
+      .enum(["new", "contacted", "qualified", "quoted", "booked", "completed", "lost"])
+      .optional(),
     limit: z.number().int().min(1).max(50).optional(),
   }),
   run: async (input, context) => {

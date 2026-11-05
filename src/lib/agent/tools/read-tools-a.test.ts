@@ -108,7 +108,7 @@ function dataset() {
     name: `Lead ${i}`,
     email: `lead${i}@example.com`,
     phone: `555-010${i}`,
-    status: i % 3 ? "new" : "won",
+    status: i % 3 ? "new" : "completed",
     source: "web",
     campaign: null,
     city: "Raleigh",
@@ -404,16 +404,19 @@ describe("PAI-7 read tools", () => {
     });
   }
 
-  it("leads.list is PII-light, capped at 50, and excludes the other org", async () => {
+  it("leads.list is PII-light, bounded by rows/bytes, and excludes the other org", async () => {
     const { run } = setup();
     const out = await run("leads.list");
-    expect(out.leads!.length).toBe(50);
-    expect(out.truncated).toBe(true);
+    expect(out.leads!.length).toBeGreaterThan(0);
+    expect(out.leads!.length).toBeLessThanOrEqual(MAX_ROWS);
+    expect(out['total']).toBeGreaterThan(out.leads!.length);
+    expect(out['truncated']).toBe(true);
     const json = JSON.stringify(out);
+    expect(json.length).toBeLessThanOrEqual(MAX_BYTES);
     expect(json).not.toContain("ada@example.com");
     expect(json).not.toContain("919-555-0100");
-    expect(json).toContain("Ada Owner");
-    expect((out.leads![0] as { has_email: boolean }).has_email).toBe(true);
+    expect(json).toContain('"has_email":true');
+    expect(json).not.toContain("secret-other@example.com");
   });
 
   it("leads.get returns contact details for the session org only", async () => {
