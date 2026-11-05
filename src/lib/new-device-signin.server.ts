@@ -87,7 +87,7 @@ export async function reportSignInDevice(input: {
     knownDevice,
     countryChanged,
     lastAlertAt: (alertState as { last_alert_at?: string } | null)?.last_alert_at ?? null,
-    now: input.now,
+    ...(input.now ? { now: input.now } : {}),
   });
 
   if (!decision.send) return { ok: true, emailed: false, reason: decision.reason };
@@ -97,7 +97,7 @@ export async function reportSignInDevice(input: {
 
   try {
     const copy = newDeviceEmailCopy(country);
-    await sendTemplateEmail("automation-message", to, copy);
+    await sendTemplateEmail("automation-message", to, { templateData: copy });
   } catch {
     return { ok: true, emailed: false, reason: "send_failed" };
   }
