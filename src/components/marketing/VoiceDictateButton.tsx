@@ -16,7 +16,10 @@ export function VoiceDictateButton({
   onText: (next: string) => void;
   label: string;
 }) {
-  const [supported, setSupported] = useState(false);
+  // null = not checked yet (server render and the first client paint). Browser support can only be
+  // known after mount, so until then we reserve the exact footprint of the real control (invisible and
+  // out of the tab order). Otherwise the button popping in pushes the whole form down (layout shift).
+  const [supported, setSupported] = useState<boolean | null>(null);
   const [listening, setListening] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const recRef = useRef<SpeechRecognitionLike | null>(null);
@@ -28,7 +31,18 @@ export function VoiceDictateButton({
     return () => recRef.current?.stop();
   }, []);
 
-  if (!supported) return null;
+  if (supported === false) return null;
+  if (supported === null) {
+    return (
+      <span aria-hidden="true" className="invisible inline-flex flex-col items-end gap-0.5">
+        <span className="inline-flex min-h-11 items-center gap-1.5 rounded-md border border-transparent px-3 py-1 text-xs">
+          <span className="size-3" />
+          Say it
+        </span>
+        <span className="text-xs">Your browser may send your voice to its speech service to turn it into text.</span>
+      </span>
+    );
+  }
 
   function toggle() {
     if (listening) {
