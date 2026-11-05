@@ -279,3 +279,21 @@ export function safetyLines(safety: ApprovalSafety): SafetyLine[] {
     { key: "undo", label: "Can be undone", value: undoValue, tone: undoTone },
   ];
 }
+
+/**
+ * JC-55 / New Bot 4 hard gate for bulk approve.
+ *
+ * Only an explicit Yes for "can be undone", plus explicit No for "sends to a
+ * person" and "spends money", may pass. "Not known", "Nothing to undo", and
+ * any other answer fails closed — never treat unknowns as safe.
+ */
+export function isBulkApproveEligible(safety: ApprovalSafety): boolean {
+  return (
+    safety.undoable === "yes" &&
+    safety.sendsToPerson === "no" &&
+    safety.spendsMoney === "no"
+  );
+}
+
+/** Alias used by callers that look up safety by Jarvis action id. */
+export const approvalSafety = jarvisApprovalSafety;

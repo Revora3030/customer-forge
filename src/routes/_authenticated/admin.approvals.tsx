@@ -7,6 +7,7 @@ import { friendlyError } from "@/lib/user-error";
 import { EmptyState, LoadingRows, SectionHeading } from "@/components/app/Bits";
 import { AgentRequestCard } from "@/components/app/AgentRequestCard";
 import { QueryErrorNotice } from "@/components/app/QueryErrorNotice";
+import { JarvisApprovalsSection } from "@/components/app/jarvis/JarvisApprovalsSection";
 import { decideAgentActionFn, listFounderApprovalsFn } from "@/lib/agent-actions.functions";
 import type { ActionRequestView } from "@/lib/agent-gateway";
 import { approvalsFocus } from "@/lib/approvals-focus";
@@ -77,6 +78,17 @@ function AdminApprovals() {
           </Link>
         </div>
       ) : null}
+
+      <section className="space-y-2" aria-label="Jarvis proposals">
+        <h2 className="text-sm font-medium">Jarvis proposals</h2>
+        <p className="text-xs text-muted-foreground">
+          Same cards as the Jarvis chat approvals inbox. Bulk approve only for undoable
+          actions that do not send to a person or spend money — use Jarvis chat for that.
+        </p>
+        <JarvisApprovalsSection />
+      </section>
+
+      <h2 className="text-sm font-medium">Bot requests</h2>
       {query.isError ? (
         <QueryErrorNotice title="Couldn't load approvals." retry={() => query.refetch()} retrying={query.isFetching} />
       ) : query.isPending ? (
