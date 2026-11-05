@@ -3,6 +3,7 @@
  * Every action here sends a real request into the builder chat; nothing edits
  * the site directly. Service pages are listed from the owner's real services.
  */
+import { QueryErrorNotice } from "@/components/app/QueryErrorNotice";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -71,6 +72,13 @@ export function AiTeamPages({
         <p className="text-sm text-muted-foreground">
           Service pages open up once your first website is built.
         </p>
+      ) : null}
+      {services.isError && !services.data ? (
+        <QueryErrorNotice
+          title="We couldn't load your services."
+          retry={() => services.refetch()}
+          retrying={services.isFetching}
+        />
       ) : null}
       <ul className="space-y-2">
         {(services.data ?? []).map((s) => {
