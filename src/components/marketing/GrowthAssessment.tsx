@@ -249,7 +249,6 @@ export function GrowthAssessment({ mode = "assessment" }: { mode?: "assessment" 
                 type="email"
                 required
                 autoComplete="email"
-                aria-label="Your email address"
                 value={answers.email}
                 onChange={(e) => set("email", e.target.value)}
                 placeholder="you@yourbusiness.com"

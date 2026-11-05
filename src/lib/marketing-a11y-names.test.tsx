@@ -32,9 +32,15 @@ vi.mock("@/lib/speech-input", () => ({
   appendTranscript: (a: string, b: string) => `${a} ${b}`.trim(),
 }));
 
+vi.mock("@/lib/assessment.functions", () => ({ submitAssessment: vi.fn() }));
+vi.mock("@/components/marketing/FreeAccess", () => ({
+  FreeAccessButton: () => <button type="button">Start free access</button>,
+}));
+
 import { Logo, LogoMark } from "@/components/brand/Logo";
 import { SiteHeader } from "@/components/marketing/Chrome";
 import { VoiceDictateButton } from "@/components/marketing/VoiceDictateButton";
+import { GrowthAssessment } from "@/components/marketing/GrowthAssessment";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -97,6 +103,31 @@ describe("dictate button accessible name (WCAG 2.5.3 Label in Name)", () => {
     const name = button!.getAttribute("aria-label")!;
     expect(name.toLowerCase().startsWith(visible.toLowerCase())).toBe(true);
     expect(name).toContain("What you do");
+    unmount();
+  });
+});
+
+describe("growth assessment email Label in Name (WCAG 2.5.3)", () => {
+  it("uses the visible Step 5 label as the accessible name (no overriding aria-label)", () => {
+    const { host, unmount } = mount(<GrowthAssessment mode="assessment" />);
+    const input = host.querySelector<HTMLInputElement>("#ga-email");
+    expect(input).not.toBeNull();
+    expect(input!.getAttribute("aria-label")).toBeNull();
+    const label = host.querySelector<HTMLLabelElement>('label[for="ga-email"]');
+    expect(label).not.toBeNull();
+    const visible = label!.textContent!.trim();
+    expect(visible.toLowerCase()).toContain("where should we send the report");
+    // Associated label text is the accessible name source — must match visible wording.
+    expect(label!.htmlFor).toBe("ga-email");
+    unmount();
+  });
+
+  it("keeps the same label association in audit mode", () => {
+    const { host, unmount } = mount(<GrowthAssessment mode="audit" />);
+    const input = host.querySelector<HTMLInputElement>("#ga-email");
+    expect(input).not.toBeNull();
+    expect(input!.getAttribute("aria-label")).toBeNull();
+    expect(host.querySelector('label[for="ga-email"]')!.textContent).toMatch(/send the report/i);
     unmount();
   });
 });
