@@ -2,6 +2,9 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 
+const usage = { count: 0 as number, error: null as unknown };
+const usageQuery = { select: () => usageQuery, eq: () => usageQuery, gte: async () => usage };
+vi.mock("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from: () => usageQuery } }));
 vi.mock("@/lib/entitlement.server", () => ({ assertOrgEntitled: vi.fn(async () => undefined) }));
 const generate = vi.fn();
 vi.mock("@/lib/ai/router.server", () => ({ generateStructuredOutput: (...args: unknown[]) => generate(...args) }));
@@ -62,6 +65,18 @@ describe("B12-7 readIngestDocument", () => {
         mimeType: "application/pdf",
       }),
     ).rejects.toThrow(/isn't in your workspace/);
+  });
+
+  it("enforces the monthly read cap and still deletes the upload", async () => {
+    usage.count = 40;
+    const { client, calls } = fakeSupabase(await pdf(["Haircut $35"]));
+    generate.mockClear();
+    await expect(
+      readIngestDocument(client, "u1", { organizationId: ORG, path: PATH, fileName: "menu.pdf", mimeType: "application/pdf" }),
+    ).rejects.toThrow(/last 30 days/);
+    expect(calls).toEqual([`download ${PATH}`, `remove ${PATH}`]);
+    expect(generate).not.toHaveBeenCalled();
+    usage.count = 0;
   });
 
   it("never writes services or memory (static check)", () => {

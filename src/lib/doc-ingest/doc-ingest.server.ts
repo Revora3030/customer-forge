@@ -8,6 +8,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import {
   INGEST_BUCKET,
+  INGEST_TASK,
+  MAX_READS_PER_MONTH,
   MAX_FILE_BYTES,
   MAX_PAGES,
   PARSE_TIMEOUT_MS,
@@ -38,6 +40,21 @@ export async function extractPdfPages(bytes: Uint8Array): Promise<string[]> {
   );
 }
 
+/** Monthly cap: counts this workspace's document reads in the last 30 days (read-only). */
+export async function assertMonthlyReadCap(organizationId: string): Promise<void> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  const { count, error } = await supabaseAdmin
+    .from("ai_usage_events")
+    .select("id", { count: "exact", head: true })
+    .eq("organization_id", organizationId)
+    .eq("task", INGEST_TASK)
+    .gte("created_at", since);
+  if (error) throw new Error("Upload limits can't be checked right now. Try again soon.");
+  if ((count ?? 0) >= MAX_READS_PER_MONTH)
+    throw new Error(`This workspace has read ${MAX_READS_PER_MONTH} menus or price sheets in the last 30 days. Try again later.`);
+}
+
 function toBase64(bytes: Uint8Array): string {
   let bin = "";
   for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
@@ -61,11 +78,12 @@ export async function readIngestDocument(
   const downloaded = await storage.download(data.path);
   // One-shot: the file is never kept after it's read.
   await storage.remove([data.path]).catch(() => undefined);
+  await assertMonthlyReadCap(orgId);
   if (downloaded.error || !downloaded.data) throw new Error("That file couldn't be read. Upload it again.");
   if (downloaded.data.size > MAX_FILE_BYTES) throw new Error("That file is over 5 MB.");
   const bytes = new Uint8Array(await downloaded.data.arrayBuffer());
   const fileName = data.fileName.slice(0, 120);
-  const caller = { organizationId: orgId, userId, task: "services.doc_ingest" };
+  const caller = { organizationId: orgId, userId, task: INGEST_TASK };
   const { generateStructuredOutput } = await import("@/lib/ai/router.server");
 
   let pages: IngestPage[] = [];

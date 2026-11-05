@@ -15,6 +15,9 @@ export const MAX_TOTAL_CHARS = 30000;
 export const MAX_PROPOSALS = 60;
 export const MAX_CSV_ROWS = 200;
 export const PARSE_TIMEOUT_MS = 8000;
+/** Per-workspace document reads in a rolling 30 days (on top of the general AI caps). */
+export const MAX_READS_PER_MONTH = 40;
+export const INGEST_TASK = "services.doc_ingest";
 
 export type IngestKind = "pdf" | "image" | "table" | "text";
 
