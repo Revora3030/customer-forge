@@ -21,7 +21,8 @@ const PROMPT = /\s*Send this to Jarvis to open the recovery: [â€œ"]([\s\S]*?)[â€
 // The card says once that nothing was changed or sent, so both the trailer and the summary's own ending are dropped.
 const TAIL = /\s*Nothing was changed(?: or sent(?: from here)?)?\.?\s*$/;
 
-const LABELS: Record<string, string> = {
+/** Human labels for every DEFAULT_EVENT_RULES id (JC-46). */
+export const EVENT_NOTICE_LABELS: Record<string, string> = {
   "build-failed-review": "Site build failed",
   "ci-failed-triage": "Release check failed",
   "dependabot-failed-quiet": "Dependabot update failed",
@@ -35,6 +36,7 @@ const LABELS: Record<string, string> = {
   "client-no-leads": "Client has no leads",
   "client-leads-unanswered": "Client leads waiting",
 };
+const LABELS = EVENT_NOTICE_LABELS;
 
 export const QUIET_RULES: ReadonlySet<string> = new Set(["dependabot-failed-quiet"]);
 
