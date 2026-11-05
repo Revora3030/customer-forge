@@ -3,10 +3,11 @@
  * build's work log. Every line is an event the server recorded; nothing is added.
  */
 import { useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { Check, ChevronDown, TriangleAlert } from "lucide-react";
 import { Shimmer } from "@/components/ai-elements/shimmer";
 import { useAgentRunFeed } from "@/lib/builder/agent-run-feed.hooks";
-import type { RunFeed } from "@/lib/builder/agent-run-feed";
+import type { RunFeed, UsedNote } from "@/lib/builder/agent-run-feed";
 import { cn } from "@/lib/utils";
 
 export function AgentRunFeed({
@@ -70,6 +71,7 @@ export function AgentRunFeedView({ feed }: { feed: RunFeed }) {
           aria-hidden
         />
       </button>
+      {feed.memory.length ? <UsedNoteChips notes={feed.memory} /> : null}
       {open && feed.lines.length ? (
         <ol className="space-y-1.5 border-t border-border/60 px-3.5 py-3" aria-label="Run steps">
           {feed.lines.map((line) => (
@@ -86,5 +88,34 @@ export function AgentRunFeedView({ feed }: { feed: RunFeed }) {
         </ol>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * JC-42: a small "Used: <note>" chip for every saved note the assistant was given for this run.
+ * Chips come only from the run's own record; tapping one opens the Memory manager in Settings.
+ */
+export function UsedNoteChips({ notes }: { notes: UsedNote[] }) {
+  return (
+    <ul
+      className="flex flex-wrap gap-1.5 border-t border-border/60 px-3.5 py-2.5"
+      aria-label="Saved notes used for this run"
+      data-testid="used-note-chips"
+    >
+      {notes.map((note) => (
+        <li key={note.id} className="max-w-full">
+          <Link
+            to="/app/settings"
+            hash="memory-manager"
+            title={`${note.source ? `${note.source}. ` : ""}${note.confirmed ? "Confirmed by you." : "Not confirmed yet."} Tap to open your saved notes.`}
+            className="inline-flex min-h-8 max-w-full items-center gap-1 rounded-full border border-border/70 bg-muted/40 px-2.5 py-1 text-xs leading-4 transition-colors hover:bg-muted"
+          >
+            <span className="text-muted-foreground">Used:</span>
+            <span className="truncate">{note.key}</span>
+            {note.confirmed ? null : <span className="shrink-0 text-amber-600">(not confirmed)</span>}
+          </Link>
+        </li>
+      ))}
+    </ul>
   );
 }

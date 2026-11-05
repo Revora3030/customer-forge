@@ -6,7 +6,38 @@ export type RunRow = {
   error_plain: string | null;
   created_at: string;
 };
-export type RunEventRow = { id: number; kind: string; message: string; created_at: string };
+export type RunEventRow = { id: number; kind: string; message: string; created_at: string; data?: unknown };
+
+/** JC-42: one saved note the run was given before it started. Only what the server recorded. */
+export type UsedNote = { id: string; key: string; confirmed: boolean; source: string };
+const MAX_USED = 8;
+
+/** Reads the notes off the run's `memory_recalled` event. Anything malformed is ignored, never invented. */
+export function usedNotes(events: readonly RunEventRow[]): UsedNote[] {
+  const out: UsedNote[] = [];
+  const seen = new Set<string>();
+  for (const event of events) {
+    if (event.kind !== "memory_recalled") continue;
+    const list = (event.data as { notes?: unknown } | null | undefined)?.notes;
+    if (!Array.isArray(list)) continue;
+    for (const item of list) {
+      if (!item || typeof item !== "object") continue;
+      const note = item as Record<string, unknown>;
+      const id = typeof note["id"] === "string" ? note["id"] : "";
+      const key = typeof note["key"] === "string" ? note["key"].replace(/\s+/g, " ").trim() : "";
+      if (!id || !key || seen.has(id)) continue;
+      seen.add(id);
+      out.push({
+        id,
+        key,
+        confirmed: note["status"] === "confirmed",
+        source: typeof note["source"] === "string" ? note["source"].replace(/\s+/g, " ").trim().slice(0, 120) : "",
+      });
+      if (out.length >= MAX_USED) return out;
+    }
+  }
+  return out;
+}
 
 export type RunFeedState = "queued" | "running" | "waiting" | "done" | "failed" | "cancelled";
 export type RunFeed = {
@@ -14,6 +45,8 @@ export type RunFeed = {
   headline: string;
   detail: string | null;
   lines: { id: number; text: string; at: string; tone: "info" | "ok" | "warn" }[];
+  /** Saved notes the assistant was given for this run (JC-42). Empty when none were recalled. */
+  memory: UsedNote[];
 };
 
 const WARN_KINDS = new Set([
@@ -75,5 +108,5 @@ export function buildRunFeed(run: RunRow | null, events: readonly RunEventRow[])
     tone: (WARN_KINDS.has(event.kind) ? "warn" : OK_KINDS.has(event.kind) ? "ok" : "info") as
       "info" | "ok" | "warn",
   }));
-  return { state, headline, detail, lines };
+  return { state, headline, detail, lines, memory: usedNotes(events) };
 }
