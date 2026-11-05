@@ -96,6 +96,7 @@ describe("auditSite limits", () => {
   });
   it("cleanText strips control and bidi characters", () => {
     expect(cleanText("a\u202eb\u0000c<b>d</b>")).toBe("a b c d");
+    expect(cleanText("Tom &amp;lt;b&amp;gt; &amp; Co")).toBe("Tom &lt;b&gt; & Co");
   });
   it("owner cells use the owner's URL", async () => {
     const { fn } = fakeFetch({ "https://me.test/": { body: "<h1>Mine</h1>" }, "https://them.test/": { body: "<h1>Theirs</h1>" } });
