@@ -14,7 +14,7 @@ export const Route = createFileRoute("/help/$slug")({
     if (!article) return { meta: [{ title: "Page not found — Revora" }, { name: "robots", content: "noindex" }] };
     const path = `/help/${article.slug}`;
     return {
-      meta: [{ title: `${article.title} — Revora help` }, { name: "description", content: metaDescription(article.description) }, ogUrl(path)],
+      meta: [{ title: `${article.title} — Revora help` }, { name: "description", content: metaDescription(article.metaDescription) }, ogUrl(path)],
       links: [canonicalLink(path), { rel: "alternate", type: "text/markdown", href: `${path}.md` }],
     };
   },

@@ -112,6 +112,38 @@ export type LiveSnapshot = {
  * the previous behaviour (served from the working tree) until their next
  * publish, so no live site is ever rolled back to an old copy.
  */
+/**
+ * Earlier published copies (newest first, older than `beforeVersion`), only
+ * their publish time and pages, for per-page sitemap dates. Capped so a
+ * sitemap request stays cheap; any read error just means no history.
+ */
+export async function loadPublishedHistory(
+  orgId: string,
+  beforeVersion: number,
+  limit = 10,
+): Promise<{ publishedAt: string | null; pages: Record<string, unknown>[] }[]> {
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data, error } = await supabaseAdmin
+      .from("website_versions")
+      .select("version, pages, published_at")
+      .eq("organization_id", orgId)
+      .eq("pages->>live_format", String(LIVE_SNAPSHOT_FORMAT))
+      .not("published_at", "is", null)
+      .lt("version", beforeVersion)
+      .order("version", { ascending: false })
+      .limit(limit);
+    if (error || !Array.isArray(data)) return [];
+    return data.flatMap((row) => {
+      const body = (row.pages ?? {}) as Record<string, unknown>;
+      if (body["live_format"] !== LIVE_SNAPSHOT_FORMAT || !Array.isArray(body["pages"])) return [];
+      return [{ publishedAt: (row.published_at as string | null) ?? null, pages: body["pages"] as Record<string, unknown>[] }];
+    });
+  } catch {
+    return [];
+  }
+}
+
 export async function loadLiveSnapshot(orgId: string): Promise<LiveSnapshot | null> {
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
