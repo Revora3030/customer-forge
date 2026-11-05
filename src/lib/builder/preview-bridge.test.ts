@@ -129,4 +129,20 @@ describe("reveal message", () => {
     expect(readBuilderMessage({ source: PREVIEW_BRIDGE_SOURCE, type: "reveal" })).toBeNull();
     expect(readBuilderMessage({ source: "someone-else", type: "reveal", id: "abc" })).toBeNull();
   });
+
+  it("reads a tap-target report and bounds its numbers", () => {
+    expect(
+      readPreviewMessage({ source: PREVIEW_BRIDGE_SOURCE, type: "tap-report", checked: 14.4, smallCount: 2, smallest: 31.2, clientWidth: 390, examples: ["button: Menu", " ", 5] }),
+    ).toEqual({ source: PREVIEW_BRIDGE_SOURCE, type: "tap-report", checked: 14, smallCount: 2, smallest: 31, clientWidth: 390, examples: ["button: Menu"] });
+  });
+
+  it("never reports a smallest size when nothing was small", () => {
+    const message = readPreviewMessage({ source: PREVIEW_BRIDGE_SOURCE, type: "tap-report", checked: 5, smallCount: 0, smallest: 12, clientWidth: 320 });
+    expect(message).toMatchObject({ type: "tap-report", smallCount: 0, smallest: null });
+    expect(readPreviewMessage({ type: "tap-report", checked: 1 })).toBeNull();
+  });
+
+  it("accepts the builder's run-tap-check request", () => {
+    expect(readBuilderMessage({ source: PREVIEW_BRIDGE_SOURCE, type: "run-tap-check" })).toEqual({ source: PREVIEW_BRIDGE_SOURCE, type: "run-tap-check" });
+  });
 });

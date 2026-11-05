@@ -134,6 +134,7 @@ export function replyDraftWriter(organizationId: string, runId: string): (text: 
   return (text: string) => {
     pending = text;
     if (timer) return;
-    timer = setTimeout(() => void flush(), Math.max(0, 600 - (Date.now() - lastAt)));
+    const delayMs = Math.max(0, 600 - (Date.now() - lastAt));
+    timer = setTimeout(() => void flush(), delayMs); // DevSkim: ignore DS172411 -- Fixed callback and numeric delay; no untrusted data.
   };
 }

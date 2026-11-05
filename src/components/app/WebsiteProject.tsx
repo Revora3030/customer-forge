@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { VisitorProblems } from "@/components/app/VisitorProblems";
 
 type Props = {
   organizationId?: string | null | undefined;
@@ -54,6 +55,7 @@ export function WebsiteProject(props: Props) {
   ];
 
   return (
+    <>
     <section className="panel p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
@@ -102,5 +104,7 @@ export function WebsiteProject(props: Props) {
         Revora's AI team for your business, so it never looks like another Revora client's site.
       </p>
     </section>
+      {props.publishState === "published" && props.organizationId ? <VisitorProblems organizationId={props.organizationId} /> : null}
+    </>
   );
 }

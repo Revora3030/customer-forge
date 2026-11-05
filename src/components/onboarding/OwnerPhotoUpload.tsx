@@ -1,3 +1,4 @@
+import { enhancePhotoFile } from "@/lib/photo-enhance.browser";
 import { useEffect, useRef, useState } from "react";
 import { ImagePlus, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -71,12 +72,16 @@ export function OwnerPhotoUpload(props: {
     const next = [...photos];
     try {
       for (const file of Array.from(files).slice(0, Math.max(0, 20 - photos.length))) {
-        const ready = await prepare(file);
-        if (!ready) continue;
+        const prepared = await prepare(file);
+        if (!prepared) continue;
+        const touched = await enhancePhotoFile(prepared);
+        const ready = touched.file;
         next.push({
           id: crypto.randomUUID(),
           file: ready,
           preview: URL.createObjectURL(ready),
+          ...(touched.changed ? { original: touched.original, enhanced: touched.file } : {}),
+          note: touched.note,
           category: next.length === 0 && !props.savedCount ? "hero" : "work",
         });
       }
@@ -200,6 +205,34 @@ export function OwnerPhotoUpload(props: {
                     <X className="size-4" />
                   </button>
                 </div>
+                {photo.note ? (
+                  <p className="text-[11px] leading-snug text-muted-foreground">
+                    {photo.original && photo.file !== photo.enhanced
+                      ? "Using your original."
+                      : photo.note}
+                    {photo.original && photo.enhanced ? (
+                      <>
+                        {" "}
+                        <button
+                          type="button"
+                          className="underline"
+                          onClick={() => {
+                            const useOriginal = photo.file === photo.enhanced;
+                            const file = useOriginal ? photo.original! : photo.enhanced!;
+                            URL.revokeObjectURL(photo.preview);
+                            onPhotosChange(
+                              photos.map((p) =>
+                                p.id === photo.id ? { ...p, file, preview: URL.createObjectURL(file) } : p,
+                              ),
+                            );
+                          }}
+                        >
+                          {photo.file === photo.enhanced ? "Use my original" : "Use touched-up"}
+                        </button>
+                      </>
+                    ) : null}
+                  </p>
+                ) : null}
                 <select
                   aria-label="Where this photo goes"
                   value={photo.category}
