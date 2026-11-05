@@ -13,6 +13,9 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { Conversation, ConversationContent, ConversationScrollButton } from "@/components/ai-elements/conversation";
 import { TypingDots } from "@/components/ai-elements/shimmer";
 import { useJarvisVoice } from "@/components/app/use-jarvis-voice";
+import { classifyRecognitionError, createSilenceSender, deriveTalkState, talkSupport, type SilenceSender } from "@/components/app/jarvis-voice-gate";
+import { getSpeechRecognition } from "@/lib/speech-input";
+import { JarvisTalkStatus } from "@/components/app/jarvis/JarvisTalkStatus";
 import { useProspectDemoPump } from "@/lib/prospect-demo-pump.hooks";
 import { JarvisHeader, type ChecksSummary } from "@/components/app/jarvis/JarvisHeader";
 import { JarvisComposer, type JarvisMode } from "@/components/app/jarvis/JarvisComposer";
@@ -46,7 +49,7 @@ type RecognitionResult = ArrayLike<{ transcript: string }> & { isFinal?: boolean
 type Recognition = {
   lang: string; interimResults: boolean;
   onresult: ((event: { resultIndex?: number; results: ArrayLike<RecognitionResult> }) => void) | null;
-  onend: (() => void) | null; onerror: (() => void) | null;
+  onend: (() => void) | null; onerror: ((event: { error?: string }) => void) | null;
   start: () => void; stop: () => void;
 };
 type RecognitionConstructor = new () => Recognition;
@@ -241,6 +244,10 @@ function Jarvis() {
   const [announcement, setAnnouncement] = useState("");
   const [speakingId, setSpeakingId] = useState<string | null>(null);
   const recognition = useRef<Recognition | null>(null);
+  // Talk mode sends on silence: this counts the quiet after the last words heard.
+  const silence = useRef<SilenceSender | null>(null);
+  // Why Talk can't run here (no speech recognition, mic blocked); shown and announced, never silent.
+  const [talkNotice, setTalkNotice] = useState<string | null>(null);
   const conversation = useRef<StickToBottomContext>(null);
   const input = useRef<HTMLTextAreaElement>(null);
   const [voiceProvider, setVoiceProvider] = useState<JarvisVoiceProvider>("auto");
@@ -289,6 +296,16 @@ function Jarvis() {
     stopVoice();
     resumeLive();
   };
+  // Barge-in from the keyboard: Escape stops Jarvis mid-sentence while Talk mode is on (a tap on the Talk button does the same).
+  const stopSpeakingRef = useRef(stopSpeaking);
+  stopSpeakingRef.current = stopSpeaking;
+  const talkSpeaking = jarvisVoice.speaking;
+  useEffect(() => {
+    if (!live || !talkSpeaking) return;
+    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") stopSpeakingRef.current(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [live, talkSpeaking]);
   const finish = async (result: { reply: string; diagnostics: unknown; followups?: string[]; conversationId?: string | null }) => {
     if (result.conversationId && result.conversationId !== conversationId) {
       // Carry the loaded rows over so the chat doesn't flash empty.
@@ -443,6 +460,8 @@ function Jarvis() {
   const detachRecognition = () => {
     const rec = recognition.current;
     recognition.current = null;
+    silence.current?.cancel();
+    silence.current = null;
     if (rec) {
       rec.onresult = null;
       rec.onend = null;
@@ -533,6 +552,12 @@ function Jarvis() {
   /** Hands-free mode: listen, send, speak the answer, listen again. */
   const toggleLive = () => {
     const next = !liveRef.current;
+    if (next) {
+      // Free browser speech recognition only. Without it, say so and stay in text.
+      const support = talkSupport();
+      if (!support.supported) { setTalkNotice(support.message); return; }
+      setTalkNotice(null);
+    }
     liveRef.current = next;
     setLive(next);
     if (next) { jarvisVoice.unlock(); setVoice(true); toast.message("Live mode on. Talk to Jarvis: it answers out loud, then keeps listening."); listen(true); }
@@ -557,9 +582,13 @@ function Jarvis() {
     if (liveRef.current) window.setTimeout(() => { if (liveRef.current) listen(true); }, 350);
   }
   function listen(autoSend: boolean) {
-    const browser = window as unknown as { SpeechRecognition?: RecognitionConstructor; webkitSpeechRecognition?: RecognitionConstructor };
-    const Ctor = browser.SpeechRecognition ?? browser.webkitSpeechRecognition;
-    if (!Ctor) { toast.error("Voice input is unavailable; use text instead."); return; }
+    const Ctor = getSpeechRecognition() as RecognitionConstructor | null;
+    if (!Ctor) {
+      const support = talkSupport();
+      setTalkNotice(support.supported ? "Voice input is unavailable; use text instead." : support.message);
+      if (liveRef.current) endLive();
+      return;
+    }
     // Barge-in: stop Jarvis talking in the same tap, so the mic doesn't hear Jarvis.
     stopVoice();
     detachRecognition();
@@ -568,12 +597,16 @@ function Jarvis() {
     let heard = false;
     let lastInterim = "";
     const commit = (transcript: string) => {
+      if (autoSend && heard) return;
       heard = true;
       lastInterim = "";
       setInterim("");
       if (autoSend) submitRef.current(transcript);
       else setText((prev) => (prev ? prev + " " + transcript : transcript).slice(0, MAX_LENGTH));
     };
+    // Talk mode: the words go out once the owner has been quiet, without waiting for the browser to mark them final.
+    const quiet = autoSend ? createSilenceSender((words) => commit(words)) : null;
+    silence.current = quiet;
     rec.onresult = (event) => {
       let finalText = "";
       let interimText = "";
@@ -583,10 +616,11 @@ function Jarvis() {
         if (result?.isFinal) finalText += transcript; else interimText += transcript;
       }
       if (finalText.trim()) commit(finalText.trim());
-      else { lastInterim = interimText.trim(); setInterim(lastInterim); }
+      else { lastInterim = interimText.trim(); setInterim(lastInterim); quiet?.hear(lastInterim); }
     };
     // Silence in live mode just means keep listening.
     rec.onend = () => {
+      quiet?.cancel();
       if (recognition.current === rec) recognition.current = null;
       setListening(false);
       setInterim("");
@@ -594,12 +628,21 @@ function Jarvis() {
       if (!heard && lastInterim) commit(lastInterim);
       else if (autoSend && !heard) resumeLive();
     };
-    rec.onerror = () => {
+    rec.onerror = (event) => {
       setListening(false);
-      if (!autoSend) toast.error("Voice input failed. You can still type.");
+      const failure = classifyRecognitionError(event?.error);
+      if (failure.message) setTalkNotice(failure.message);
+      // A blocked or missing mic would fail the same way on every retry: leave Talk instead of looping.
+      if (failure.fatal) { heard = true; if (liveRef.current) endLive(); }
     };
     recognition.current = rec;
     try { rec.start(); setListening(true); } catch { recognition.current = null; setListening(false); if (!autoSend) toast.error("Microphone could not start."); }
+  }
+  /** Leaves Talk mode without touching the reply that may still be playing. */
+  function endLive() {
+    liveRef.current = false;
+    setLive(false);
+    detachRecognition();
   }
   // Keys claimed server-side in this tab; finishing reports back so the approval is single-use.
   const claimedKeys = useRef(new Set<string>());
@@ -819,7 +862,7 @@ function Jarvis() {
     return demo ? <DemoBuildCard card={demo} /> : null;
   };
 
-  const voiceState: VoiceState = jarvisVoice.speaking ? "speaking" : listening ? "listening" : busy ? "thinking" : "idle";
+  const voiceState: VoiceState = deriveTalkState({ speaking: jarvisVoice.speaking, listening, busy });
   const status = jarvisVoice.speaking ? "Speaking…" : listening ? (live ? "Live · listening" : "Listening…") : busy ? "Thinking…" : live ? "Live" : "Ready";
   const sectionStatuses = DIAGNOSTIC_SECTIONS.map(([name]) => diagnostics.data?.sections[name]?.status);
   const unavailable = sectionStatuses.filter((value) => value === "unavailable").length;
@@ -992,6 +1035,7 @@ function Jarvis() {
 
           <div className="shrink-0 border-t border-border/60 bg-background/95 px-3 pb-2 pt-2 backdrop-blur">
             <div className="mx-auto w-full max-w-[var(--jarvis-measure)]">
+              <JarvisTalkStatus state={voiceState} talkOn={live} notice={talkNotice} onDismissNotice={() => setTalkNotice(null)} />
               {live ? (
                 <LiveSurface
                   state={voiceState}

@@ -39,8 +39,11 @@ import { GroupTabs } from "@/components/app/BuilderGroups";
 import { orderGroups } from "@/components/app/builder-groups-utils";
 import { BuilderAssistant } from "@/components/app/BuilderAssistant";
 import { useBuilderRequests } from "@/lib/builder-requests.hooks";
-import { actionPrompt, selectionPrefix, type PageContext } from "@/lib/builder/preview-bridge";
+import { actionPrompt, announceDraftChange, selectionPrefix, type PageContext } from "@/lib/builder/preview-bridge";
+import { applySectionLook } from "@/lib/builder/site-look.functions";
+import { nextLook, readSectionLook, sectionCanReseed } from "@/lib/builder/site-look";
 import { starterIdeasFor } from "@/lib/builder/industry-playbook";
+import type { InsertSpot } from "@/lib/builder/arrange";
 import { isBareRebuildCommand } from "@/lib/builder/rebuild-intent";
 import { sectionOfTarget, changedSectionOf } from "@/lib/builder/step-target";
 import { liveStatusLine } from "@/lib/builder/live-status";
@@ -82,6 +85,7 @@ import type { BuilderAccessUiState } from "@/lib/builder-access-status";
 import { PreFlightPanel } from "@/components/app/PreFlight";
 import { preflight } from "@/lib/preflight";
 import { emittedJsonLd } from "@/lib/builder/jsonld-emitted";
+import { faqFactsFor } from "@/lib/builder/faq-from-facts";
 import { usePreflightFacts } from "@/lib/preflight.hooks";
 import { useSelfHeal } from "@/lib/self-heal.hooks";
 import { ClientOnboardingFlow } from "@/components/app/ClientOnboardingFlow";
@@ -118,6 +122,7 @@ import {
   EngineSelfTestPanel,
   MissingFactsPanel,
 } from "@/components/app/BriefReview";
+import { PagePlanPanel } from "@/components/app/PagePlanPanel";
 import { readBrief, readReport } from "@/lib/site-brief";
 import { AiTeamImages, AiTeamPages } from "@/components/app/AiTeamTabs";
 import { HeroVideoPanel } from "@/components/app/HeroVideoPanel";
@@ -263,6 +268,8 @@ function WebsitePage() {
   }, []);
   /** The block the owner clicked in the preview, scoping their next message. */
   const [selected, setSelected] = useState<PreviewSelection | null>(null);
+  /** "+ Add section with AI" in the preview: where the next message's new section goes. */
+  const [insertAt, setInsertAt] = useState<InsertSpot | null>(null);
   // B12-4: a single click on a picture opens the Asset Swapper for that slot.
   const [swapTarget, setSwapTarget] = useState<AssetSwapTarget | null>(null);
   /** The page open in the preview, so chat requests know what the owner is looking at. */
@@ -565,6 +572,14 @@ function WebsitePage() {
       profile: profileFacts,
       services: activeServices,
       sections: shownSections,
+      // Same grounded answers the published head uses (site-head.ts), never invented ones.
+      faqFacts: faqFactsFor({
+        profile: profile as Parameters<typeof faqFactsFor>[0]["profile"],
+        businessName: org.name,
+        services: activeServices,
+        quote: (facts.data?.quoteFormCount ?? 0) > 0,
+        generation: settings?.generation,
+      }),
     });
     return {
       docs: emitted.docs,
@@ -784,6 +799,8 @@ function WebsitePage() {
             />
             }
             selection={selected}
+            insertAt={manage ? insertAt : null}
+            onClearInsert={() => setInsertAt(null)}
             pageContext={viewingPage}
             onReveal={(target) => {
               const id = sectionOfTarget(target, shownPages as never);
@@ -883,7 +900,16 @@ function WebsitePage() {
               canManage={manage}
               reveal={reveal}
               pickRequest={pickRequest}
+              {...(manage ? { onAnnotate: (message: string) => requests.queue(message) } : {})}
               liveStatus={liveStatus ?? rebuildStatus}
+              {...(manage ? {
+                onInsertSection: (spot: InsertSpot) => {
+                  // Aim the composer at the gap; a picked block would fence the edit.
+                  setInsertAt({ id: spot.id, position: spot.position, label: spot.label, kind: spot.kind });
+                  setSelected(null);
+                  setPreviewOpen(false);
+                },
+              } : {})}
               onInlineSaved={() => {
                 // The frame already shows the new words; refresh caches so
                 // the canvas, history and chat context read the saved text.
@@ -892,11 +918,29 @@ function WebsitePage() {
               onSelect={(pick) => {
                 // A hover-menu action runs at once as a scoped request.
                 if (pick.action && manage) {
+                  // CG-14: free layout reseed for plain sections (no AI credits).
+                  if (pick.action === "redesign") {
+                    const section = (shownPages ?? []).flatMap((page) => page.sections).find((row) => row.id === pick.id);
+                    if (section && sectionCanReseed(section.settings, (settings) => readComposition(settings) !== null) && orgId) {
+                      const look = nextLook(readSectionLook(settingsQuery.data?.generation, pick.id));
+                      void applySectionLook({ data: { organizationId: orgId, sectionId: pick.id, look } })
+                        .then(() => {
+                          announceDraftChange(orgId, "section-look");
+                          void queryClient.invalidateQueries({ queryKey: ["website_settings", orgId] });
+                          void queryClient.invalidateQueries({ queryKey: ["website_content", orgId] });
+                          toast.success("Trying a new layout for this section. Free: no AI credits used.");
+                        })
+                        .catch((error: Error) => toast.error(friendlyError(error)));
+                      setSelected(pick);
+                      return;
+                    }
+                  }
                   requests.queue(`${selectionPrefix(pick)} ${actionPrompt(pick.action, pick)}`);
                   setSelected(pick);
                   return;
                 }
                 setSelected(pick);
+                setInsertAt(null);
                 if (manage && pick.element === "media" && pick.path) {
                   const section = (shownPages ?? []).flatMap((page) => page.sections).find((row) => row.id === pick.id);
                   const tree = readComposition(section?.settings);
@@ -1362,6 +1406,7 @@ function WebsitePage() {
       >
         <MissingFactsPanel organizationId={orgId} gaps={readiness?.gaps ?? []} canManage={manage} />
         <BriefReviewPanel organizationId={orgId} brief={brief} canManage={manage} />
+        <PagePlanPanel organizationId={orgId} hasBrief={!!brief} canManage={manage} />
         <BuilderWizard
           organizationId={orgId}
           org={org}

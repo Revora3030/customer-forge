@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { BellOff } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Panel } from "@/components/app/Bits";
+import { QueryErrorNotice } from "@/components/app/QueryErrorNotice";
 import { relative } from "@/lib/format";
 import { PROBLEM_COPY, type WatchdogProblem } from "@/lib/lead-delivery-watchdog";
 
@@ -14,7 +15,7 @@ type Flag = { lead_id: string; problem: WatchdogProblem; attempts: number; first
  * once an alert goes out. The lead itself is always safe in Leads.
  */
 export function LeadDeliveryFlags({ organizationId }: { organizationId: string | undefined }) {
-  const { data } = useQuery({
+  const { data, isError, refetch, isFetching } = useQuery({
     queryKey: ["lead-delivery-flags", organizationId],
     enabled: !!organizationId,
     refetchInterval: 60_000,
@@ -30,6 +31,15 @@ export function LeadDeliveryFlags({ organizationId }: { organizationId: string |
       return (rows ?? []) as unknown as Flag[];
     },
   });
+  if (isError && !data) {
+    return (
+      <QueryErrorNotice
+        title="We couldn't check whether any new-lead emails failed."
+        retry={() => refetch()}
+        retrying={isFetching}
+      />
+    );
+  }
   if (!data?.length) return null;
 
   const needsYou = data.find((f) => f.problem === "failed_permanent" || f.problem === "no_alert_inbox" || f.problem === "exhausted");

@@ -32,17 +32,17 @@ const compile = (ownerStyle: ReturnType<typeof ownerStyleChoice>) => {
 };
 
 describe("style picks", () => {
-  it("offers exactly three cards, each built from an existing palette preset and font pairing", () => {
-    expect(STYLE_PICKS).toHaveLength(3);
+  it("offers exactly six cards, each built from an existing palette preset and font pairing", () => {
+    expect(STYLE_PICKS).toHaveLength(6);
     const resolved = resolvedStylePicks();
-    expect(resolved).toHaveLength(3);
+    expect(resolved).toHaveLength(6);
     for (const pick of resolved) {
       expect(PALETTE_PRESETS).toContain(pick.palette);
       expect(FONT_PAIRINGS).toContain(pick.pairing);
       expect(pick.feel.length).toBeGreaterThan(10);
     }
-    expect(new Set(resolved.map((pick) => pick.palette.id)).size).toBe(3);
-    expect(new Set(resolved.map((pick) => pick.pairing.id)).size).toBe(3);
+    expect(new Set(resolved.map((pick) => pick.palette.id)).size).toBe(6);
+    expect(new Set(resolved.map((pick) => pick.pairing.id)).size).toBe(6);
   });
 
   it("writes only existing business-profile columns, so no migration is needed", () => {

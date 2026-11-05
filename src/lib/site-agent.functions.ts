@@ -2574,6 +2574,15 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
   }
 }
 
+/**
+ * PAI-14: the same apply path for agent tools (`src/lib/agent/tools/website.ts`).
+ * Runs `applyImpl` unchanged with the caller's RLS client: same checks, same
+ * restore point, same read-back and the same publish rule.
+ */
+export const applyWebsiteActionsForTool = createServerOnlyFn(
+  (supabase: unknown, userId: string, data: ApplyInput) => applyImpl(supabase as SupabaseLike, userId, data),
+);
+
 /* ------------------------------ voice commands ----------------------------- */
 
 /**

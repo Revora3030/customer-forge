@@ -88,6 +88,10 @@ describe("no third-party AI gateway remains", () => {
       // Growth Engine posts approved Google profile updates through the
       // connector gateway; AI drafting goes through the shared router.
       "growth-engine/service.server.ts",
+      // BIL-12 Drive photo intake reads a shared folder through the connector
+      // gateway (file listing + download, no model); its test stubs the key.
+      "drive-intake/drive-intake.server.ts",
+      "drive-intake/drive-intake.test.ts",
       // The live model-catalogue listing (GET /v1/models, no generation).
       "ai/catalogue.server.ts",
       // Catalogue and roster tests stub the key with fake values.

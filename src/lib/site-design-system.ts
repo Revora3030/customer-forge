@@ -155,6 +155,12 @@ export function designSystemCss(): string {
   const space = decl(Object.fromEntries(Object.entries(SPACE_SCALE).map(([step, value]) => [`--ds-space-${step}`, value])));
   const root = ":where(.rv-site-root)";
   return [
+    // Hero keyframes live outside the layer (they are names, not rules that compete).
+    `@keyframes rv-hero-rise{from{transform:translateY(calc(var(--motion-hover-lift) * -6))}to{transform:none}}`,
+    `@keyframes rv-hero-fade{from{opacity:0;transform:translateY(calc(var(--motion-hover-lift) * -4))}to{opacity:1;transform:none}}`,
+    `@keyframes rv-hero-settle{from{transform:scale(calc(var(--motion-hover-scale) + .025))}to{transform:none}}`,
+    // G-A8 Ken-Burns: a slow pan/zoom loop on the hero photo itself (free, no video).
+    `@keyframes rv-hero-kenburns{from{transform:none}to{transform:scale(calc(var(--motion-hover-scale) + .045)) translate3d(-1.5%,-1%,0)}}`,
     "@layer base{",
     // Tokens.
     `${root}{${ramp};${space};${decl(MOTION_TOKENS)};` +
@@ -179,8 +185,24 @@ export function designSystemCss(): string {
     `${root} :is(a,button,summary,[role="button"]){transition:color var(--motion-duration-base) var(--motion-ease-standard),background-color var(--motion-duration-base) var(--motion-ease-standard),border-color var(--motion-duration-base) var(--motion-ease-standard),box-shadow var(--motion-duration-base) var(--motion-ease-standard),transform var(--motion-duration-base) var(--motion-ease-out)}`,
     `${root} :is(a,button,[role="button"])[class*="bg-primary"]:hover{transform:translateY(var(--motion-hover-lift))}`,
     `${root} :is(a,button,input,select,textarea,summary,[tabindex]):focus-visible{outline:2px solid var(--primary-ink,currentColor);outline-offset:3px}`,
+    // CG-10 hero entrance: one short, staggered settle on the opening hero only.
+    // The headline moves but never starts invisible (so it still counts for LCP);
+    // copy and buttons fade in after it, and the hero image eases from a slight zoom.
+    // Timing comes from the --motion-* tokens, which are 0ms under reduced motion.
+    `${root} [data-rv-hero] h1{animation:rv-hero-rise var(--motion-duration-slower) var(--motion-ease-out) both}`,
+    `${root} [data-rv-hero] h1~:is(p,div){animation:rv-hero-fade var(--motion-duration-slower) var(--motion-ease-out) calc(var(--motion-duration-fast) * 1) both}`,
+    `${root} [data-rv-hero] :is(h1~p~div,h1~div~div){animation-delay:calc(var(--motion-duration-fast) * 2)}`,
+    `${root} [data-rv-hero] :is(img,picture,video):first-of-type{animation:rv-hero-settle calc(var(--motion-duration-slower) * 2) var(--motion-ease-out) both}`,
+    // G-A8 Ken-Burns: a slow alternate pan/zoom loop on the hero photo's WRAPPER
+    // (never the <img>, which CG-10's settle zoom animates). It starts after the
+    // settle finishes (2x --motion-duration-slower), runs 40x slower (24s) each way,
+    // and the wrapper's own frame is clipped, so it is transform-only with no CLS.
+    // Duration tokens are 0ms under reduced motion and the media query below
+    // removes it outright. Photos only; hero video keeps its own motion.
+    `${root} [data-rv-hero] :has(> :has(> img:first-of-type)){overflow:clip}`,
+    `${root} [data-rv-hero] :has(> img:first-of-type){animation:rv-hero-kenburns calc(var(--motion-duration-slower) * 40) var(--motion-ease-in-out) calc(var(--motion-duration-slower) * 2) infinite alternate}`,
     "}",
     // Reduced motion: unlayered so it beats the token block above.
-    `@media (prefers-reduced-motion:reduce){.rv-site-root{${decl(REDUCED_MOTION_TOKENS)}}}`,
+    `@media (prefers-reduced-motion:reduce){.rv-site-root{${decl(REDUCED_MOTION_TOKENS)}}.rv-site-root [data-rv-hero] :is(h1,h1~p,h1~div,img,picture,video,:has(> img:first-of-type)){animation:none!important}}`,
   ].join("\n");
 }

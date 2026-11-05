@@ -33,6 +33,7 @@ import { WorkspaceNav, type WorkspaceNavItem } from "@/components/app/WorkspaceN
 import { useNotifications, useWebsiteSettings, useWorkspaceRealtime } from "@/lib/queries";
 import { useSignOut, useWorkspace } from "@/lib/use-tenant";
 import { endSupportSession } from "@/lib/admin.functions";
+import { markNotificationsRead, shouldMarkNotificationsReadOnOpen } from "@/lib/notifications.functions";
 import { GROWTH_SYSTEM, usd } from "@/lib/offer";
 import { MAIL_SUBJECTS, REVORA, revoraMailto, revoraTel } from "@/lib/brand";
 import { useSupportMode, writeSupportMode } from "@/lib/support-mode";
@@ -193,6 +194,7 @@ function AppShell() {
   const unread = (notifications ?? []).filter((n) => !n.is_read).length;
   const { mode: supportMode } = useSupportMode();
   const endSupport = useServerFn(endSupportSession);
+  const markNotificationsReadFn = useServerFn(markNotificationsRead);
   const supporting = Boolean(data?.supporting && supportMode);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const currentPage = [...PRIMARY_NAV, ...SECONDARY_NAV].find((item) =>
@@ -251,6 +253,31 @@ function AppShell() {
     void queryClient.invalidateQueries({ queryKey: ["workspace"] });
     void queryClient.invalidateQueries({ queryKey: ["billing_state", org.id] });
   }, [trialExpired, org?.id, queryClient]);
+
+  // Opening the bell marks unread rows so the badge clears (LPL-8 / #802).
+  // Only on open — a notification that arrives while the panel is already open
+  // keeps its unread state until the next open.
+  useEffect(() => {
+    if (!org?.id) return;
+    if (!shouldMarkNotificationsReadOnOpen(unread, bellOpen)) return;
+    const orgId = org.id;
+    // Optimistic: clear badge immediately; server + realtime confirm.
+    queryClient.setQueryData(
+      ["notifications", orgId],
+      (prev: Array<{ is_read: boolean }> | undefined) =>
+        (prev ?? []).map((n) => (n.is_read ? n : { ...n, is_read: true })),
+    );
+    void markNotificationsReadFn({ data: { organizationId: orgId } })
+      .then(() => {
+        void queryClient.invalidateQueries({ queryKey: ["notifications", orgId] });
+      })
+      .catch(() => {
+        // Re-fetch so a failed write does not leave a fake "all read" badge.
+        void queryClient.invalidateQueries({ queryKey: ["notifications", orgId] });
+      });
+    // Intentionally keyed on bellOpen (and org): unread is read from the open render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mark only when the panel opens
+  }, [bellOpen, org?.id, markNotificationsReadFn, queryClient]);
 
   // Close the mobile drawer on route change, on Escape, and lock page scroll
   // while it is open so it behaves like a real app drawer.

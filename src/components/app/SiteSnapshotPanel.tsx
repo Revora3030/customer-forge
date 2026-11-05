@@ -1,3 +1,4 @@
+import { QueryErrorNotice } from "@/components/app/QueryErrorNotice";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Panel, SectionHeading } from "@/components/app/Bits";
@@ -62,6 +63,13 @@ export function SiteSnapshotPanel({ organizationId }: { organizationId: string }
           {note}
         </p>
       ) : null}
+      {list.isError && !list.data ? (
+        <QueryErrorNotice
+          title="We couldn't load the saved snapshots."
+          retry={() => list.refetch()}
+          retrying={list.isFetching}
+        />
+      ) : null}
       <form
         className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end"
         onSubmit={(e) => {
@@ -103,7 +111,11 @@ export function SiteSnapshotPanel({ organizationId }: { organizationId: string }
             className="min-h-11 min-w-0 flex-1 rounded-md border border-border bg-background px-3 text-sm"
           >
             <option value="">
-              {snapshots.length ? "Choose a snapshot" : "No snapshots saved yet"}
+              {list.isError && !list.data
+                ? "Couldn't load snapshots"
+                : snapshots.length
+                  ? "Choose a snapshot"
+                  : "No snapshots saved yet"}
             </option>
             {snapshots.map((s) => (
               <option key={s.id} value={s.id}>

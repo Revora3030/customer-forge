@@ -65,6 +65,7 @@ import { RepairStreamCard } from "@/components/app/builder-chat/RepairStreamCard
 import { MessageMenu } from "@/components/app/builder-chat/MessageMenu";
 import { CheckpointTimelineButton, RestoreBeforeMessage } from "@/components/app/builder-chat/checkpoints-mount";
 import { useComposerMenu } from "@/components/app/builder-chat/ComposerMenu";
+import { useTabBuildStatus } from "@/components/app/builder-chat/use-tab-status";
 import { useAskMode } from "@/components/app/builder-chat/AskMode";
 import { useLeadSimulation } from "@/components/app/builder-chat/use-test-lead";
 import { LeadSimulationDialog } from "@/components/app/builder-chat/LeadSimulationDialog";
@@ -80,6 +81,7 @@ import { getAiSuggestions } from "@/lib/ai-suggestions.functions";
 import { QUEUE_LABELS, timelineFor } from "@/lib/builder-queue";
 import { onAssistantPrompt } from "@/lib/assistant-bridge";
 import { ownerWords, pageContextPrefix, selectionChipLabel, selectionPrefix, type PageContext } from "@/lib/builder/preview-bridge";
+import { insertChipLabel, insertPrefix, type InsertSpot } from "@/lib/builder/arrange";
 import { actionsForElement } from "@/lib/builder/element-actions";
 import { MAIN_BRANCH, normaliseRequestId } from "@/lib/builder/chat-thread";
 import { wantsFreshRebuild } from "@/lib/builder/rebuild-intent";
@@ -95,6 +97,8 @@ import { WorkFeed } from "@/components/app/WorkFeed";
 import { TaskTree } from "@/components/app/TaskTree";
 import { nodesFromProgress } from "@/lib/builder/task-tree";
 import { modelsAsked } from "@/lib/builder/work-feed";
+import { NextStepChips } from "@/components/app/builder-chat/NextStepChips";
+import { nextStepChips } from "@/lib/builder/next-step-chips";
 
 /** How many suggestion chips sit above the composer before "More". */
 const CHIP_LIMIT = 3;
@@ -112,6 +116,8 @@ export function BuilderAssistant({
   businessName = null,
   compact = false,
   selection = null,
+  insertAt = null,
+  onClearInsert,
   pageContext = null,
   onReveal,
   starterIdeas = [],
@@ -146,6 +152,9 @@ export function BuilderAssistant({
   compact?: boolean;
   /** The block the owner clicked in the preview, if any. */
   selection?: { id: string; label: string | null; kind: string | null; text: string | null; element?: string | null } | null;
+  /** "+ Add section with AI" in the preview: the next request adds one section at this spot. */
+  insertAt?: InsertSpot | null;
+  onClearInsert?: () => void;
   /** The page open in the preview: shown as a chip and sent as soft context with each request. */
   pageContext?: PageContext | null;
   /** Shows a planned or applied change in the preview: opens its page, scrolls to it and outlines it. */
@@ -253,9 +262,12 @@ export function BuilderAssistant({
    * Adds the context the owner has already given by pointing or by being asked
    * a question, so they don't have to describe it again in words.
    */
+  const inserting = insertAt && !onFirstBuild && !factQuestion ? insertAt : null;
   const scoped = (text: string) => {
     const parts: string[] = [];
-    if (selection) parts.push(selectionPrefix(selection));
+    // A gap between two sections: the request adds a section there (never fenced to one block).
+    if (inserting) parts.push(insertPrefix(inserting));
+    else if (selection) parts.push(selectionPrefix(selection));
     // A picked block is more specific than the open page, and a first build has no page yet.
     else if (pageContext && !onFirstBuild) parts.push(pageContextPrefix(pageContext));
     if (answering) parts.push(`Answering your question "${answering}":`);
@@ -326,6 +338,7 @@ export function BuilderAssistant({
     setMediaOpen(false);
     setAnswering(null);
     onClearSelection?.();
+    if (inserting) onClearInsert?.();
     afterSend();
   };
 
@@ -343,6 +356,10 @@ export function BuilderAssistant({
   useEffect(() => {
     if (selection && !isTouch()) inputRef.current?.focus();
   }, [selection]);
+  // "+ Add section with AI" does the same: the owner just describes the section.
+  useEffect(() => {
+    if (insertAt && !isTouch()) inputRef.current?.focus();
+  }, [insertAt]);
 
   // Tapping the conversation closes the keyboard, like a native chat.
   const dismissKeyboard = () => {
@@ -393,6 +410,9 @@ export function BuilderAssistant({
   const runSuggestion = (instruction: string) =>
     onFirstBuild ? void onFirstBuild(instruction) : requests.queue(instruction);
   const lastTask = requests.tasks[requests.tasks.length - 1];
+/** The "/lead-test" flow, offered as a next-step chip after a change to a contact path. */
+  const leadTestFromChip = () => (onLeadTest ?? (() => testLead.mutate()))();
+  useTabBuildStatus(busy || trackingWork, lastTask?.state);
   // Chips only where a next step is natural: after a finished change.
   const showChips = !empty && !busy && lastTask?.state === "complete" && (SUGGESTIONS.length > 0 || suggestionsLoading);
   const toolsVisible = !onFirstBuild && requests.memoryLoaded;
@@ -604,6 +624,8 @@ export function BuilderAssistant({
                     task={task}
                     requests={requests}
                     isActive={task.id === activeTaskId || Boolean(task.tracking)}
+                    isLatest={task.id === lastTask?.id}
+                    onLeadTest={leadTestFromChip}
                     organizationId={organizationId}
                     onAnswer={setAnswering}
                     {...(onReveal ? { onReveal } : {})}
@@ -746,9 +768,25 @@ export function BuilderAssistant({
               send(value);
             }}
           >
-            {selection || answering || (pageContext && !onFirstBuild) ? (
+            {selection || inserting || answering || (pageContext && !onFirstBuild) ? (
               <div className="order-first flex w-full flex-wrap gap-1.5 px-3 pt-3">
-                {pageContext && !onFirstBuild && !selection ? (
+                {inserting ? (
+                  <span className="inline-flex max-w-full items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 py-1 pr-1 pl-2.5 text-xs text-foreground">
+                    <span className="truncate" data-testid="insert-chip" title="Your next request adds one new section here">
+                      <span aria-hidden>+ </span>
+                      {insertChipLabel(inserting)}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => onClearInsert?.()}
+                      aria-label="Don't add a section here"
+                      className="relative grid size-6 cursor-pointer place-items-center rounded-md text-muted-foreground after:absolute after:-inset-1.5 hover:bg-primary/15 hover:text-foreground"
+                    >
+                      <X className="size-3.5" aria-hidden />
+                    </button>
+                  </span>
+                ) : null}
+                {pageContext && !onFirstBuild && !selection && !inserting ? (
                   <span
                     className="inline-flex max-w-full items-center gap-1.5 rounded-lg border border-border/70 bg-muted/40 px-2.5 py-1 text-xs text-muted-foreground"
                     title="Requests know which page you have open. Say so if you mean the whole site."
@@ -807,6 +845,8 @@ export function BuilderAssistant({
               placeholder={
                 askMode.placeholder ?? (factQuestion
                   ? "Type your answer…"
+                  : inserting
+                    ? "Describe the new section…"
                   : selection
                     ? "Describe the change to this block…"
                     : onFirstBuild
@@ -1056,6 +1096,8 @@ function TaskBody({
   onRetryBuild,
   stoppingBuild = false,
   onFollowUp,
+  isLatest = false,
+  onLeadTest,
 }: {
   task: ChatTask;
   requests: BuilderRequests;
@@ -1071,6 +1113,10 @@ function TaskBody({
   onRetryBuild?: (instruction: string) => void;
   stoppingBuild?: boolean;
   onFollowUp: (prompt: string) => void;
+  /** Only the newest request gets next-step chips. */
+  isLatest?: boolean;
+  /** Runs the "/lead-test" flow; offered as a chip after a change to a contact path. */
+  onLeadTest?: () => void;
 }) {
   const working = task.state === "queued" || task.state === "planning" || task.state === "building";
   const timeline = timelineFor(task);
@@ -1293,6 +1339,29 @@ function TaskBody({
             ))}
           </ul>
         </details>
+      ) : null}
+
+      {isLatest ? (
+        <NextStepChips
+          chips={nextStepChips({
+            state: task.state,
+            instruction: task.instruction,
+            applied: task.applied ?? 0,
+            requirements: task.requirements ?? [],
+            changed: task.titles ?? task.steps.filter((step) => step.included).map((step) => `${step.title} · ${step.where}`),
+            questionCount: task.questions.length,
+            canLeadTest: Boolean(onLeadTest),
+            canOpenHistory: Boolean(onOpenHistory),
+            canShowPreview: Boolean(onShowPreview),
+          })}
+          disabled={requests.busy}
+          onPick={(chip) => {
+            if (chip.action.kind === "follow-up") onFollowUp(chip.action.prompt);
+            else if (chip.action.kind === "lead-test") onLeadTest?.();
+            else if (chip.action.kind === "history") onOpenHistory?.();
+            else onShowPreview?.();
+          }}
+        />
       ) : null}
 
       {!working && (task.reply || result) ? (

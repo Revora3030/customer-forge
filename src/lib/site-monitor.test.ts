@@ -103,6 +103,7 @@ describe("runSiteMonitor", () => {
     const run = await runSiteMonitor(w.db, { mode: "off", probe });
     expect(probe).not.toHaveBeenCalled();
     expect(run.scanned).toBe(0);
+    expect(w.writes).toEqual([]);
   });
 
   it("a failing site gives exactly one finding and one email; the second run gives none", async () => {
@@ -144,12 +145,17 @@ describe("runSiteMonitor", () => {
     expect(run.findings.map((f) => f.check)).toEqual(["visitor_errors"]);
   });
 
-  it("dry run lists what it would send without writing or sending", async () => {
+  it("dry run records check results only: no findings rows, no email", async () => {
     const w = world();
     const send = vi.fn(async () => true);
     const run = await runSiteMonitor(w.db, { mode: "dry_run", probe: async () => DOWN, send });
     expect(send).not.toHaveBeenCalled();
-    expect(w.writes).toEqual([]);
+    expect(w.writes).toEqual(["upsert site_monitor_checks"]);
+    expect(w.tables["site_monitor_findings"] ?? []).toHaveLength(0);
+    // The test db stores a batch upsert as one row keyed 0..n; flatten it.
+    const checks = w.tables["site_monitor_checks"]!.flatMap((row) => Object.values(row) as Record<string, unknown>[]);
+    expect(checks).toHaveLength(5);
+    expect(checks.find((r) => r["check_key"] === "home_down")?.["status"]).toBe("fail");
     expect(run.wouldEmail).toEqual([{ host: "acme-plumbing.test", recipient: "owner@acme-plumbing.test", heading: "Your website isn't loading" }]);
   });
 });

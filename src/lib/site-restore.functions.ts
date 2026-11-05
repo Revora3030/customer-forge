@@ -225,49 +225,56 @@ export const restoreWebsiteVersion = createServerFn({ method: "POST" })
     organizationId: uuid(data?.organizationId),
     versionId: uuid(data?.versionId),
   }))
-  .handler(async ({ data, context }) => {
-    const supabase = context.supabase as never as RestoreClient;
-    const { data: row, error } = await supabase
-      .from("website_versions")
-      .select("id, version, generation, seo, pages")
-      .eq("id", data.versionId)
-      .eq("organization_id", data.organizationId)
-      .maybeSingle();
-    if (error) throw new Error("Couldn't read that version right now.");
-    if (!row) throw new Error("That version is no longer available.");
-    const version = row as VersionRow;
-    const plan = planVersionRestore(version);
-    if (!plan.full && !Object.keys(plan.settings).length) {
-      throw new Error("That version doesn't hold anything that can be put back.");
-    }
+  .handler(async ({ data, context }) =>
+    restoreVersionInto(context.supabase as never as RestoreClient, data.organizationId, data.versionId),
+  );
 
-    let exact: boolean | null = null;
-    if (plan.full) {
-      const result = await applyWebsiteRestore(supabase, data.organizationId, plan.full);
-      exact = result.exact;
-    }
+/**
+ * The body of `restoreWebsiteVersion`, shared with the agent's restore tool
+ * (PAI-14) so both put a version back the same way. Caller's RLS client only.
+ */
+export async function restoreVersionInto(supabase: RestoreClient, organizationId: string, versionId: string) {
+  const { data: row, error } = await supabase
+    .from("website_versions")
+    .select("id, version, generation, seo, pages")
+    .eq("id", versionId)
+    .eq("organization_id", organizationId)
+    .maybeSingle();
+  if (error) throw new Error("Couldn't read that version right now.");
+  if (!row) throw new Error("That version is no longer available.");
+  const version = row as VersionRow;
+  const plan = planVersionRestore(version);
+  if (!plan.full && !Object.keys(plan.settings).length) {
+    throw new Error("That version doesn't hold anything that can be put back.");
+  }
 
-    if (Object.keys(plan.settings).length) {
-      const { nextPublishState } = await import("@/lib/publish-state");
-      const keepState = await nextPublishState(supabase, data.organizationId);
-      const { error: writeError } = await supabase
-        .from("website_settings")
-        .update({
-          ...plan.settings,
-          review_state: "ready_for_review",
-          publish_state: keepState,
-        } as never)
-        .eq("organization_id", data.organizationId);
-      if (writeError) throw new Error("The pages were put back, but the site settings couldn't be.");
-    }
+  let exact: boolean | null = null;
+  if (plan.full) {
+    const result = await applyWebsiteRestore(supabase, organizationId, plan.full);
+    exact = result.exact;
+  }
 
-    return {
-      version: Number(version.version),
-      pagesRestored: Boolean(plan.full),
-      settingsRestored: Object.keys(plan.settings).length > 0,
-      exact,
-    };
-  });
+  if (Object.keys(plan.settings).length) {
+    const { nextPublishState } = await import("@/lib/publish-state");
+    const keepState = await nextPublishState(supabase, organizationId);
+    const { error: writeError } = await supabase
+      .from("website_settings")
+      .update({
+        ...plan.settings,
+        review_state: "ready_for_review",
+        publish_state: keepState,
+      } as never)
+      .eq("organization_id", organizationId);
+    if (writeError) throw new Error("The pages were put back, but the site settings couldn't be.");
+  }
+
+  return {
+    version: Number(version.version),
+    pagesRestored: Boolean(plan.full),
+    settingsRestored: Object.keys(plan.settings).length > 0,
+    exact,
+  };
+}
 
 /** The saved versions of one section, newest first (for "revert this section"). */
 export const listSectionHistory = createServerFn({ method: "POST" })

@@ -395,6 +395,8 @@ export type PreviewLink = {
   views: number;
   last_viewed_at: string | null;
   created_at: string;
+  /** LOV-6: display-only lock flag; the server decides from the hidden secrets table. */
+  password_protected?: boolean;
 };
 
 export function usePreviewLinks(organizationId: string | undefined) {
@@ -404,12 +406,13 @@ export function usePreviewLinks(organizationId: string | undefined) {
     queryFn: async (): Promise<PreviewLink[]> => {
       const { data, error } = await supabase
         .from("website_preview_links")
-        .select("id, token, label, expires_at, revoked, views, last_viewed_at, created_at")
+        // "*" so the list still loads before the LOV-6 column exists.
+        .select("*")
         .eq("organization_id", organizationId!)
         .order("created_at", { ascending: false });
       if (error) throw error;
       // The builder's own live-preview link is not a shared link: never list it.
-      return withoutBuilderLinks((data ?? []) as PreviewLink[]);
+      return withoutBuilderLinks((data ?? []) as unknown as PreviewLink[]);
     },
   });
 }
@@ -420,9 +423,9 @@ export function useCreatePreviewLink(organizationId: string | undefined) {
   return useMutation({
     // Created on the server: the table's RLS only admits members, so Revora
     // support (who is not one) was refused by a direct browser insert.
-    mutationFn: async ({ label, hours }: { label: string; hours: number }) => {
+    mutationFn: async ({ label, hours, password }: { label: string; hours: number; password?: string }) => {
       if (!organizationId) throw new Error("Couldn't create a preview link: no workspace is selected.");
-      const { token } = await create({ data: { organizationId, label, hours } });
+      const { token } = await create({ data: { organizationId, label, hours, ...(password ? { password } : {}) } });
       return token;
     },
     onSuccess: () => {

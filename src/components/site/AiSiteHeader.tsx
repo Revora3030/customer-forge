@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Menu, Phone, X } from "lucide-react";
+import { useHeaderOffset } from "@/components/site/use-header-offset";
 import { CompositionRenderer } from "@/components/site/CompositionRenderer";
 import type { CompositionTree } from "@/lib/builder/composition-tree";
 import { stripBusinessSuffix } from "@/lib/website-content";
@@ -70,6 +71,8 @@ export function AiSiteHeader(props: {
     );
   const extraMobile = extraLinks.filter((link) => !links.some((item) => item.href === link.href));
   const closeRef = useRef<HTMLButtonElement>(null);
+  const headerRef = useRef<HTMLElement>(null);
+  useHeaderOffset(headerRef);
   const toggleRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (!open) return;
@@ -113,7 +116,7 @@ export function AiSiteHeader(props: {
   }, [open]);
 
   return (
-    <header className="rv-site-header rv-ai-header sticky top-0 z-40 isolate border-b border-border bg-background pt-[env(safe-area-inset-top)]">
+    <header ref={headerRef} className="rv-site-header rv-ai-header sticky top-0 z-40 isolate border-b border-border bg-background pt-[env(safe-area-inset-top)]">
       <nav aria-label="Main" className="hidden md:block">
         <div className="rv-site-header-nav mx-auto flex max-w-6xl items-center gap-4 px-4 py-3">
           {logo ? (
