@@ -20,6 +20,7 @@ import {
   type OwnerRoutinePreset,
 } from "@/lib/agent/routine-presets";
 import { relative } from "@/lib/format";
+import { RoutineRunHistory } from "@/components/app/RoutineRunHistory";
 
 /**
  * JC-53: the owner's scheduled AI routines. Read-only presets only: a routine
@@ -94,6 +95,12 @@ export function RoutinesPanel({ organizationId, isOwner }: { organizationId: str
                     Last run{r.last_run_at ? ` ${relative(r.last_run_at)}` : ""}: {r.last_status}
                   </p>
                 ) : null}
+                <details className="mt-1">
+                  <summary className="cursor-pointer text-[12px] text-muted-foreground">Run history</summary>
+                  <div className="mt-2">
+                    <RoutineRunHistory organizationId={organizationId} routineId={r.id} isOwner={isOwner} enabled={r.enabled} />
+                  </div>
+                </details>
               </div>
               {isOwner ? (
                 <div className="flex items-center gap-2">
