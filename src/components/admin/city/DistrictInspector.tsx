@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { ArrowUpRight, Radar, Send, Sparkles, Terminal } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PipelineLanes } from "./PipelineLanes";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Sparkline } from "./Sparkline";
 import { ApprovalReview } from "./ApprovalReview";
@@ -122,6 +123,7 @@ export function DistrictInspector({ open, onOpenChange, district, snapshot, now,
         <div className="mt-3 grid gap-2">{SALES_ACTIONS.map(a => <Button key={a.kind} variant="outline" className="min-h-11 justify-start" onClick={() => onSalesMission(a.kind)}><a.icon className="size-4 text-gold" /> {a.label}</Button>)}</div>
         <p className="mt-2 text-[11px] text-muted-foreground">Each step opens a draft in Jarvis. Nothing is sent until you approve it in the approval queue.</p>
       </section> : null}
+      {district === "factory" ? <PipelineLanes enabled={open} onDraft={onDraft} /> : null}
       <section className="mt-5"><h3 className="text-xs font-semibold uppercase">Models used (recorded calls)</h3>
         {models.size ? <ul className="mt-2 space-y-1">{[...models].map(([id, m]) => <li key={id} className="flex justify-between gap-2 text-xs"><span className="break-all font-mono">{id}</span><span className="shrink-0 text-gold">{m.ok}/{m.total}</span></li>)}</ul> : <p className="mt-2 text-xs text-muted-foreground">No model calls recorded for this district in the current feeds.</p>}
       </section>
