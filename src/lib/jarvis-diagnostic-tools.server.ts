@@ -701,7 +701,7 @@ export async function executeJarvisDiagnosticTool(
           ]);
           const seoLim = [...lim, "robots.txt and /sitemap.xml at the site root only; redirects are not followed; not a ranking check."];
           if (!("html" in page)) return done("unknown", page, seoLim);
-          const s = { url: target, robots: free.summarizeRobots(robots?.ok ? robots.text : null), sitemap: free.summarizeSitemap(sitemap?.ok ? sitemap.text : null), page: free.summarizeSeoTags(page.html) };
+          const s = { url: target, robots: free.summarizeRobots(robots?.ok ? robots.text : null, new URL("/robots.txt", target).toString()), sitemap: free.summarizeSitemap(sitemap?.ok ? sitemap.text : null), page: free.summarizeSeoTags(page.html) };
           const bad = s.robots.blocksAllCrawlers || s.page.noindex || !s.sitemap.present || s.page.missing.length > 0 || s.page.invalidJsonLd > 0;
           return done(bad ? "failed" : "observed", s, seoLim);
         }
