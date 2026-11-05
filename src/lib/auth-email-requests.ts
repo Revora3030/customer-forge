@@ -62,3 +62,21 @@ export function emailLinkOutcome(error: unknown, neutralMessage: string): EmailR
   if (!error || revealsAccountExistence(error)) return { kind: "sent", message: neutralMessage };
   return { kind: "failed", message: EMAIL_REQUEST_FAILED_MESSAGE };
 }
+
+/**
+ * In-Settings email change: the signed-in owner already has an account. The
+ * risk is revealing whether the *new* address is already registered to
+ * someone else (email_exists / already registered). Success and those
+ * existence errors share one pending message; never say "taken" or "free".
+ */
+export const NEUTRAL_EMAIL_CHANGE_MESSAGE =
+  "If that address can be used, we sent a confirmation link. Check the new inbox (and your current one). It works once and expires; if nothing arrives in a few minutes, try a different address or check spam.";
+
+/**
+ * Outcome for an email-change request after updateUser({ email }). Existence
+ * answers (address already on another account, per-user send cooldowns) look
+ * exactly like a sent confirmation.
+ */
+export function emailChangeOutcome(error: unknown): EmailRequestOutcome {
+  return emailLinkOutcome(error, NEUTRAL_EMAIL_CHANGE_MESSAGE);
+}

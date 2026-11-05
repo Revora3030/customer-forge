@@ -7,8 +7,10 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   EMAIL_REQUEST_FAILED_MESSAGE,
+  NEUTRAL_EMAIL_CHANGE_MESSAGE,
   NEUTRAL_MAGIC_LINK_MESSAGE,
   NEUTRAL_RESET_MESSAGE,
+  emailChangeOutcome,
   emailLinkOutcome,
   revealsAccountExistence,
 } from "@/lib/auth-email-requests";
@@ -145,5 +147,25 @@ describe("__root saved redirect", () => {
     for (const ok of ["/app", "/get-started?claim=abc", "/oauth/consent?authorization_id=1"]) {
       expect(isSafeRedirect(ok)).toBe(true);
     }
+  });
+});
+
+
+describe("emailChangeOutcome", () => {
+  it("hides email_exists the same way as a sent confirmation", () => {
+    const sent = emailChangeOutcome(null);
+    expect(sent).toEqual({ kind: "sent", message: NEUTRAL_EMAIL_CHANGE_MESSAGE });
+    expect(
+      emailChangeOutcome({ code: "email_exists", message: "Email address already registered" }),
+    ).toEqual(sent);
+    expect(emailChangeOutcome(alreadyRegistered)).toEqual(sent);
+  });
+
+  it("keeps real failures generic and silent about accounts", () => {
+    expect(emailChangeOutcome(network)).toEqual({
+      kind: "failed",
+      message: EMAIL_REQUEST_FAILED_MESSAGE,
+    });
+    expect(NEUTRAL_EMAIL_CHANGE_MESSAGE).not.toMatch(/already registered|taken|in use/i);
   });
 });

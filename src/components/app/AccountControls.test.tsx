@@ -16,11 +16,13 @@ const sb = vi.hoisted(() => {
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { auth: sb.auth, from: sb.from } }));
 
 import {
+  ChangeEmailForm,
   ChangePasswordForm,
   DisplayNameForm,
   validateDisplayName,
   validateNewPassword,
 } from "@/components/app/AccountControls";
+import { NEUTRAL_EMAIL_CHANGE_MESSAGE } from "@/lib/auth-email-requests";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -127,5 +129,60 @@ describe("ChangePasswordForm", () => {
     await fill("oldpass123", "newpass123", "nope12345");
     await submit();
     expect(sb.auth.signInWithPassword).not.toHaveBeenCalled();
+  });
+});
+
+
+describe("ChangeEmailForm", () => {
+  async function fill(email: string, pw: string) {
+    await type("acct-email-new", email);
+    await type("acct-email-pw", pw);
+  }
+  it("re-authenticates then requests the email change", async () => {
+    sb.auth.updateUser.mockResolvedValueOnce({
+      data: { user: { new_email: "new@ex.com" } },
+      error: null,
+    });
+    await render(<ChangeEmailForm email="old@ex.com" />);
+    await fill("new@ex.com", "secretpw1");
+    await submit();
+    expect(sb.auth.signInWithPassword).toHaveBeenCalledWith({
+      email: "old@ex.com",
+      password: "secretpw1",
+    });
+    expect(sb.auth.updateUser).toHaveBeenCalledWith(
+      { email: "new@ex.com" },
+      expect.objectContaining({ emailRedirectTo: expect.stringMatching(/\/app\/settings$/) }),
+    );
+    expect(host.textContent).toContain(NEUTRAL_EMAIL_CHANGE_MESSAGE.slice(0, 24));
+    expect(host.textContent).toMatch(/Confirmation pending for/);
+  });
+  it("shows the neutral pending copy when Auth says the address exists", async () => {
+    sb.auth.updateUser.mockResolvedValueOnce({
+      data: { user: null },
+      error: { code: "email_exists", message: "Email address already registered" },
+    });
+    await render(<ChangeEmailForm email="old@ex.com" />);
+    await fill("taken@ex.com", "secretpw1");
+    await submit();
+    expect(host.textContent).toContain(NEUTRAL_EMAIL_CHANGE_MESSAGE.slice(0, 24));
+    expect(host.querySelector('[role="status"]')?.textContent).toBe(NEUTRAL_EMAIL_CHANGE_MESSAGE);
+    expect(host.textContent).not.toMatch(/Confirmation pending for taken@ex.com/);
+    expect(host.textContent).not.toMatch(/Email address already registered/);
+  });
+  it("does not update when the current password is wrong", async () => {
+    sb.auth.signInWithPassword.mockResolvedValueOnce({ error: new Error("bad") });
+    await render(<ChangeEmailForm email="old@ex.com" />);
+    await fill("new@ex.com", "wrong");
+    await submit();
+    expect(sb.auth.updateUser).not.toHaveBeenCalled();
+    expect(host.querySelector('[role="alert"]')?.textContent).toMatch(/incorrect/);
+  });
+  it("blocks same-as-current before calling auth", async () => {
+    await render(<ChangeEmailForm email="old@ex.com" />);
+    await fill("OLD@ex.com", "secretpw1");
+    await submit();
+    expect(sb.auth.signInWithPassword).not.toHaveBeenCalled();
+    expect(host.querySelector('[role="alert"]')?.textContent).toMatch(/already your email/);
   });
 });
