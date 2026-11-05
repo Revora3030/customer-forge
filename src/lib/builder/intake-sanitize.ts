@@ -83,7 +83,7 @@ export function isPlatformLabel(name: unknown): boolean {
  * phrase that intake split on a comma or a line break. A qualifier is joined
  * to the next name when neither side is a priced, described package of its own.
  */
-const SERVICE_QUALIFIERS = new Set([
+export const SERVICE_QUALIFIERS = new Set([
   "full", "complete", "basic", "premium", "standard", "deluxe", "express", "custom", "professional", "partial", "total",
 ]);
 

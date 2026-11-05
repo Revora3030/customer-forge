@@ -175,5 +175,4 @@ export const PREMIUM_CSS = `
 
 @media (prefers-reduced-motion:reduce){.pm-root *,.pm-root *::before,.pm-root *::after{animation:none!important;transition:none!important}.pm-hero-media img{transform:none}}
 ${CHROME_CLEARANCE_CSS}
-${CHROME_CLEARANCE_CSS}
 `;

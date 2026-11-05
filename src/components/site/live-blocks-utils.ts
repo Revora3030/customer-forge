@@ -1,4 +1,4 @@
-import { mergeSplitServices } from "@/lib/builder/intake-sanitize";
+import { mergeSplitServices, SERVICE_QUALIFIERS } from "@/lib/builder/intake-sanitize";
 import { currency } from "@/lib/format";
 import { safeParagraph, safeText } from "@/lib/builder/presentation";
 import { resolveImageSource } from "@/lib/brand-logos";
@@ -42,9 +42,22 @@ export function packageBookHref(base: string, serviceId: string): string {
 }
 
 /** The owner's active services, featured first, ready to display. */
+/**
+ * A row that says nothing: a lone qualifier word ("Full", "Premium") that did
+ * not merge into a real service name and carries no price, words, time or
+ * picture. Shown, it is a bordered row with a single orphan word in it.
+ */
+function isEmptyServiceRow(row: ServiceRow): boolean {
+  const name = safeText(row.name);
+  if (!name) return true;
+  const lone = name.split(/\s+/).length === 1 && SERVICE_QUALIFIERS.has(name.toLowerCase());
+  if (!lone) return false;
+  return !money(row.price) && !money(row.starting_price) && !safeParagraph(row.description) && !durationLabel(row.duration_minutes) && !(row.image_url && /^https:\/\//i.test(row.image_url));
+}
+
 export function serviceMenuItems(rows: ServiceRow[], limit = 12, industry: string | null = null) {
   return mergeSplitServices([...rows])
-    .filter((row) => safeText(row.name))
+    .filter((row) => safeText(row.name) && !isEmptyServiceRow(row))
     .sort((a, b) => Number(Boolean(b.featured)) - Number(Boolean(a.featured)) || (a.sort_order ?? 0) - (b.sort_order ?? 0))
     .slice(0, Math.max(1, limit))
     .map((row) => {
