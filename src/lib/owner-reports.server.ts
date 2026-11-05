@@ -8,6 +8,19 @@ import { REVORA } from "@/lib/brand";
 import { PLATFORM_OWNER_ORG_ID } from "@/lib/platform-owner";
 import type { PaymentRow } from "@/lib/monthly-report";
 import {
+  quoteValue,
+  seoFromAudit,
+  topLeadSources,
+  weekViews,
+  weeklyDigestSection,
+  type DigestAuditRow,
+  type DigestLead,
+  type DigestQuote,
+  type DigestQuoteLine,
+  type DigestView,
+  type WeeklyDigestExtra,
+} from "@/lib/weekly-digest";
+import {
   MONTHLY_VALUE_KIND,
   buildMonthlyValue,
   inSendWindow,
@@ -217,9 +230,17 @@ export async function runLeadReminders(db: Db, now = Date.now()): Promise<Report
 
 export type WeekCounts = { leads: number; uncontacted: number; won: number; appointments: number };
 
-export function weeklyReportMessage(name: string, counts: WeekCounts): string {
+export function weeklyReportMessage(name: string, counts: WeekCounts, extra?: WeeklyDigestExtra | null): string {
+  const more = weeklyDigestSection(extra, counts.leads);
   if (!counts.leads && !counts.appointments) {
-    return `No new leads or appointments came in for ${name} during the last 7 days.\n\nNumbers come straight from Revora — nothing is estimated.`;
+    return [
+      `No new leads or appointments came in for ${name} during the last 7 days.`,
+      more,
+      "Numbers come straight from Revora — nothing is estimated.",
+      more ? "https://revoragrowthsystems.com/app" : "",
+    ]
+      .filter(Boolean)
+      .join("\n\n");
   }
   return [
     `Here is ${name}'s last 7 days:`,
@@ -229,9 +250,58 @@ export function weeklyReportMessage(name: string, counts: WeekCounts): string {
       `• Booked or completed: ${counts.won}`,
       `• Appointments made: ${counts.appointments}`,
     ].join("\n"),
+    more,
     "Numbers come straight from Revora — nothing is estimated.",
     "https://revoragrowthsystems.com/app",
-  ].join("\n\n");
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+/**
+ * The extra Monday numbers for one workspace, each read from that workspace's own rows.
+ * Returns null when anything cannot be read, so the plain weekly report still goes out.
+ */
+export async function loadWeeklyDigestExtra(db: Db, organizationId: string, now: number): Promise<WeeklyDigestExtra | null> {
+  try {
+    const since = new Date(now - 7 * DAY).toISOString();
+    const previousSince = new Date(now - 14 * DAY).toISOString();
+    const [leads, quotes, accepted, views, suggestions, audits] = await Promise.all([
+      db.from("leads").select("source, created_at").eq("organization_id", organizationId).neq("source", TEST_LEAD_SOURCE).gte("created_at", previousSince).limit(10000),
+      db.from("quotes").select("id, created_at").eq("organization_id", organizationId).gte("created_at", since).limit(1000),
+      db.from("quotes").select("id").eq("organization_id", organizationId).gte("accepted_at", since).limit(1000),
+      db.from("analytics_events").select("session_id, created_at").eq("organization_id", organizationId).eq("event_type", "page_view").gte("created_at", previousSince).limit(50000),
+      db.from("agent_suggestions").select("title, body").eq("organization_id", organizationId).eq("status", "active").order("created_at", { ascending: false }).limit(1),
+      db.from("site_content_audits").select("reachable, p1_count, p2_count, findings, audited_at").eq("organization_id", organizationId).gte("audited_at", new Date(now - 14 * DAY).toISOString()).order("audited_at", { ascending: false }).limit(1),
+    ]);
+    if (leads.error || quotes.error || accepted.error || views.error || suggestions.error) return null;
+    const seo = seoFromAudit(audits.error ? null : ((audits.data ?? []) as DigestAuditRow[])[0]);
+    const leadRows = (leads.data ?? []) as DigestLead[];
+    const thisWeek = leadRows.filter((l) => l.created_at >= since);
+    const quoteRows = (quotes.data ?? []) as DigestQuote[];
+    let lines: DigestQuoteLine[] = [];
+    if (quoteRows.length) {
+      const result = await db
+        .from("quote_line_items")
+        .select("quote_id, quantity, unit_price")
+        .eq("organization_id", organizationId)
+        .in("quote_id", quoteRows.map((q) => q.id))
+        .limit(5000);
+      if (result.error) return null;
+      lines = (result.data ?? []) as DigestQuoteLine[];
+    }
+    const suggestion = ((suggestions.data ?? []) as { title: string; body: string }[])[0] ?? null;
+    return {
+      previousLeads: leadRows.length - thisWeek.length,
+      topSources: topLeadSources(thisWeek),
+      quotes: { created: quoteRows.length, acceptedThisWeek: (accepted.data ?? []).length, value: quoteValue(quoteRows, lines) },
+      views: weekViews((views.data ?? []) as DigestView[], now),
+      suggestion,
+      seo,
+    };
+  } catch {
+    return null;
+  }
 }
 
 export async function runWeeklyReports(db: Db, now = Date.now()): Promise<ReportRun> {
@@ -256,6 +326,7 @@ export async function runWeeklyReports(db: Db, now = Date.now()): Promise<Report
       won: mine.filter((l) => l.status === "booked" || l.status === "completed").length,
       appointments: (appointments.data ?? []).filter((a) => a.organization_id === workspace.id).length,
     };
+    const extra = await loadWeeklyDigestExtra(db, workspace.id, now);
     await sendOnce(db, run, {
       organizationId: workspace.id,
       kind: "weekly_report",
@@ -263,7 +334,7 @@ export async function runWeeklyReports(db: Db, now = Date.now()): Promise<Report
       recipient: workspace.recipient,
       businessName: workspace.name,
       heading: `Weekly report: ${counts.leads} lead${counts.leads === 1 ? "" : "s"}, ${counts.appointments} appointment${counts.appointments === 1 ? "" : "s"}`,
-      message: weeklyReportMessage(workspace.name, counts),
+      message: weeklyReportMessage(workspace.name, counts, extra),
     });
   }
   return run;
