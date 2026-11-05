@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Panel, Pill, SectionHeading } from "@/components/app/Bits";
 import { cn } from "@/lib/utils";
+import { DriveFolderImport } from "@/components/app/DriveFolderImport";
 import {
   ACCEPTED_IMAGE_TYPES,
   MAX_UPLOAD_BYTES,
@@ -252,6 +253,9 @@ export function MediaLibrary({
               )}
             </Button>
           </div>
+          {organizationId ? (
+            <DriveFolderImport organizationId={organizationId} category={category} onImported={invalidate} />
+          ) : null}
         </>
       ) : (
         <p className="mt-4 text-[13px] text-muted-foreground">
