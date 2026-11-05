@@ -264,3 +264,38 @@ export const getProspectPipeline = createServerFn({ method: "GET" })
       paidCustomers: paid.count ?? 0,
     };
   });
+
+/** JC-58, super-admin only: prospects grouped into board stages from saved records. Read-only. */
+export const getProspectBoard = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const db = await guardedAdmin(context);
+    const { data: demoRows, error } = await db
+      .from("website_settings")
+      .select("organization_id")
+      .not("generation->prospectDemo", "is", null)
+      .limit(1000);
+    if (error) throw new Error("Couldn't read prospect demos.");
+    const ids = ((demoRows ?? []) as Array<{ organization_id: string }>).map((d) => d.organization_id);
+    const none = Promise.resolve({ data: [] as Array<Record<string, unknown>>, error: null });
+    const [orgs, jobs, sent, replies, leads] = await Promise.all([
+      ids.length ? db.from("organizations").select("id, name").in("id", ids) : none,
+      ids.length ? db.from("generation_jobs").select("organization_id").eq("status", "completed").in("organization_id", ids).limit(5000) : none,
+      db.from("prospect_outreach").select("organization_id").eq("status", "sent").limit(10000),
+      db.from("prospect_inbound").select("organization_id").limit(10000),
+      db.from("prospect_import_queue").select("id, business_name, status, organization_id").in("status", ["pending", "approved"]).limit(1000),
+    ]);
+    if (orgs.error || jobs.error || sent.error || replies.error || leads.error) throw new Error("Couldn't read the prospect board.");
+    const col = (rows: unknown) => ((rows ?? []) as Array<{ organization_id: string }>).map((r) => r.organization_id);
+    const names = new Map(((orgs.data ?? []) as Array<{ id: string; name: string | null }>).map((o) => [o.id, o.name ?? ""]));
+    const { buildBoard } = await import("./prospect-board");
+    return buildBoard({
+      demos: ids.map((id) => ({ organizationId: id, name: names.get(id) ?? "" })),
+      leads: ((leads.data ?? []) as Array<{ id: string; business_name: string | null; status: string; organization_id: string | null }>).map((l) => ({
+        id: l.id, name: l.business_name ?? "", status: l.status, organizationId: l.organization_id,
+      })),
+      builtOrgIds: col(jobs.data),
+      sentOrgIds: col(sent.data),
+      repliedOrgIds: col(replies.data),
+    });
+  });
