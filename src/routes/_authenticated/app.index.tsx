@@ -1,3 +1,4 @@
+import { openLinkLabel } from "@/lib/open-link-labels";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { averageEstimate, conversionLabel } from "@/lib/outcome-numbers";
 import { useEffect, useMemo, useState } from "react";
@@ -707,6 +708,7 @@ function Dashboard() {
             <li key={section.to}>
               <Link
                 to={section.to}
+                aria-label={openLinkLabel(section.to, section.title)}
                 className="panel card-lift block h-full p-3.5 transition-colors hover:border-primary/40"
               >
                 <div className="flex items-start justify-between gap-2">
