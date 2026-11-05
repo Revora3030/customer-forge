@@ -41,6 +41,7 @@ const INLINE_TYPES = new Set(["heading", "text", "button", "link", "quote"]);
 /** Words an owner can click to edit directly (headlines and paragraphs). */
 const QUICK_TYPES = new Set(["heading", "text"]);
 const ACTIONS: { action: PreviewAction; label: string }[] = [
+  { action: "redesign", label: "New layout" },
   { action: "restyle", label: "Restyle" },
   { action: "photo", label: "New photo" },
   { action: "punchier", label: "Punchier copy" },

@@ -39,7 +39,9 @@ import { GroupTabs } from "@/components/app/BuilderGroups";
 import { orderGroups } from "@/components/app/builder-groups-utils";
 import { BuilderAssistant } from "@/components/app/BuilderAssistant";
 import { useBuilderRequests } from "@/lib/builder-requests.hooks";
-import { actionPrompt, selectionPrefix, type PageContext } from "@/lib/builder/preview-bridge";
+import { actionPrompt, announceDraftChange, selectionPrefix, type PageContext } from "@/lib/builder/preview-bridge";
+import { applySectionLook } from "@/lib/builder/site-look.functions";
+import { nextLook, readSectionLook, sectionCanReseed } from "@/lib/builder/site-look";
 import { starterIdeasFor } from "@/lib/builder/industry-playbook";
 import type { InsertSpot } from "@/lib/builder/arrange";
 import { isBareRebuildCommand } from "@/lib/builder/rebuild-intent";
@@ -916,6 +918,23 @@ function WebsitePage() {
               onSelect={(pick) => {
                 // A hover-menu action runs at once as a scoped request.
                 if (pick.action && manage) {
+                  // CG-14: free layout reseed for plain sections (no AI credits).
+                  if (pick.action === "redesign") {
+                    const section = (shownPages ?? []).flatMap((page) => page.sections).find((row) => row.id === pick.id);
+                    if (section && sectionCanReseed(section.settings, (settings) => readComposition(settings) !== null) && orgId) {
+                      const look = nextLook(readSectionLook(settingsQuery.data?.generation, pick.id));
+                      void applySectionLook({ data: { organizationId: orgId, sectionId: pick.id, look } })
+                        .then(() => {
+                          announceDraftChange(orgId, "section-look");
+                          void queryClient.invalidateQueries({ queryKey: ["website_settings", orgId] });
+                          void queryClient.invalidateQueries({ queryKey: ["website_content", orgId] });
+                          toast.success("Trying a new layout for this section. Free: no AI credits used.");
+                        })
+                        .catch((error: Error) => toast.error(friendlyError(error)));
+                      setSelected(pick);
+                      return;
+                    }
+                  }
                   requests.queue(`${selectionPrefix(pick)} ${actionPrompt(pick.action, pick)}`);
                   setSelected(pick);
                   return;

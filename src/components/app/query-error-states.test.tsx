@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   approvals: vi.fn(),
   snapshots: vi.fn(),
   rows: vi.fn(),
+  draft: vi.fn(),
 }));
 
 vi.mock("@/lib/visitor-errors.functions", () => ({ getVisitorErrorFeed: mocks.feed }));
@@ -25,11 +26,16 @@ vi.mock("@/lib/builder/site-snapshots.functions", () => ({
   saveSiteSnapshotFn: vi.fn(),
   startSiteFromSnapshotFn: vi.fn(),
 }));
+vi.mock("@/lib/public-site.functions", () => ({ getOwnerDraftSite: mocks.draft }));
+vi.mock("@/lib/site-head", () => ({ tenantSiteHead: () => ({ meta: [], scripts: [] }) }));
 vi.mock("@/integrations/supabase/client", () => {
-  const chain: Record<string, unknown> = {};
-  for (const name of ["select", "eq", "gte", "order", "limit"]) chain[name] = () => chain;
-  chain["then"] = (resolve: (value: unknown) => unknown) => resolve(mocks.rows());
-  return { supabase: { from: () => chain } };
+  const makeChain = (table: string) => {
+    const chain: Record<string, unknown> = {};
+    for (const name of ["select", "eq", "gte", "order", "limit", "maybeSingle"]) chain[name] = () => chain;
+    chain["then"] = (resolve: (value: unknown) => unknown) => resolve(mocks.rows(table));
+    return chain;
+  };
+  return { supabase: { from: (table: string) => makeChain(table) } };
 });
 
 import { VisitorProblems } from "@/components/app/VisitorProblems";
@@ -38,6 +44,7 @@ import { AgentApprovalsPanel } from "@/components/app/AgentApprovalsPanel";
 import { LeadDeliveryFlags } from "@/components/app/LeadDeliveryFlags";
 import { SitePerformance } from "@/components/app/SitePerformance";
 import { SiteSnapshotPanel } from "@/components/app/SiteSnapshotPanel";
+import { ResultCards } from "@/components/app/builder-chat/ResultCards";
 
 let root: Root | null = null;
 let host: HTMLElement | null = null;
@@ -65,7 +72,8 @@ afterEach(() => {
 });
 
 const failure = () => Promise.reject(new Error("boom"));
-const rowsFailure = () => ({ data: null, error: new Error("boom") });
+const rowsFailure = (_table?: string) => ({ data: null, error: new Error("boom") });
+const rowsByTable = (map: Record<string, unknown>) => (table: string) => map[table] ?? { data: null, error: null };
 
 describe("a failed read is never shown as an empty state", () => {
   it("VisitorProblems says it could not check", async () => {
@@ -125,5 +133,30 @@ describe("a failed read is never shown as an empty state", () => {
     const el = await mount(<SiteSnapshotPanel organizationId="org" />);
     expect(el.querySelector('[role="alert"]')?.textContent).toContain("couldn't load the saved snapshots");
     expect(el.textContent).not.toContain("No snapshots saved yet");
+  });
+});
+
+describe("CU-2 ResultCards failed reads", () => {
+  it("shows Try again when the Terra visual read fails, not silence", async () => {
+    mocks.rows.mockImplementation(rowsFailure);
+    mocks.draft.mockResolvedValue({ site: null });
+    const el = await mount(<ResultCards organizationId="org" composition={null} finished />);
+    expect(el.querySelector('[data-result-card="terra-error"]')?.textContent).toContain("couldn't load the device check");
+    expect(el.textContent).toContain("Try again");
+    expect(el.querySelector('[data-result-card="terra"]')).toBeNull();
+  });
+
+  it("shows Try again when the Luna draft read fails", async () => {
+    mocks.rows.mockImplementation(
+      rowsByTable({
+        website_visual_reports: { data: [], error: null },
+        organizations: { data: { slug: "acme" }, error: null },
+      }),
+    );
+    mocks.draft.mockImplementation(failure);
+    const el = await mount(<ResultCards organizationId="org" composition={null} finished />);
+    expect(el.querySelector('[data-result-card="luna-error"]')?.textContent).toContain("couldn't load the search listing");
+    expect(el.textContent).toContain("Try again");
+    expect(el.querySelector('[data-result-card="luna"]')).toBeNull();
   });
 });

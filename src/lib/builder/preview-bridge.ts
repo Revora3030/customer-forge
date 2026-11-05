@@ -97,7 +97,7 @@ export type PreviewToBuilderMessage =
 export type A11yIssue = { text: string; ratio: number; required: number; path: string };
 
 /** Hover-menu actions offered on a block in the preview. */
-export const PREVIEW_ACTIONS = ["restyle", "photo", "punchier", "delete"] as const;
+export const PREVIEW_ACTIONS = ["redesign", "restyle", "photo", "punchier", "delete"] as const;
 export type PreviewAction = (typeof PREVIEW_ACTIONS)[number];
 
 /** Sent by the builder to the preview. */
@@ -360,6 +360,8 @@ export function selectionPrefix(selection: {
 export function actionPrompt(action: PreviewAction, selection: { label: string | null; kind: string | null; element?: string | null | undefined }): string {
   const what = selection.element && selection.element !== "stack" ? `this ${selection.element}` : "this section";
   switch (action) {
+    case "redesign":
+      return `Try a different layout for ${what}. Keep every word, photo and fact that is already there.`;
     case "restyle":
       return `Restyle ${what} so it feels more premium and on-brand. Keep every fact and word that is already there.`;
     case "photo":
