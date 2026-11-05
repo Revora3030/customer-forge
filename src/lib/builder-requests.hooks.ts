@@ -38,6 +38,7 @@ import { applyWebsiteChanges, cancelWebsitePlan, planWebsiteChanges } from "@/li
 import type { AgentStep } from "@/lib/site-agent";
 import type { AgentAttachment } from "@/lib/site-agent";
 import { trackConversion } from "@/lib/conversion";
+import { mergeRepairEvents, repairEventFrom } from "@/lib/builder/repair-card";
 import { PLAN_STOPPED_MESSAGE, recoveryLooksDead, withDeadline } from "@/lib/builder/plan-deadline";
 import { friendlyError } from "@/lib/user-error";
 import {
@@ -538,6 +539,8 @@ export function useBuilderRequests({
         },
       });
       const beforeVersion = Number((result as { snapshotVersion?: number }).snapshotVersion ?? 0) || undefined;
+      // B12-1: each batch's measured check → repair → re-check, merged for the self-repair card.
+      const repairEvents = [repairEventFrom((result as { qa?: unknown }).qa)];
       for (let index = 1; index < batches.length; index += 1) {
         // Nothing landed from the previous batch: stop rather than keep pushing
         // changes at a website that has moved on. The owner is told to retry,
@@ -552,6 +555,7 @@ export function useBuilderRequests({
             operationKey: `${task.id}:${index + 1}`,
           },
         });
+        repairEvents.push(repairEventFrom((next as { qa?: unknown }).qa));
         result = {
           ...next,
           applied: result.applied + next.applied,
@@ -594,8 +598,10 @@ export function useBuilderRequests({
       // the same card instead of a frozen sentence.
       const reasons = skippedReasons(result.details ?? []);
       const titles = steps.map((step) => step.title.slice(0, 120)).slice(0, 30);
+      const repair = mergeRepairEvents(repairEvents);
       patch(task.id, {
         state: "complete",
+        repair,
         applied: result.applied,
         snapshotVersion: beforeVersion,
         failedCount: result.failed,
@@ -638,6 +644,7 @@ export function useBuilderRequests({
             ...(beforeVersion !== undefined ? { snapshotVersion: beforeVersion } : {}),
             ...(reasons.length ? { reasons } : {}),
             ...(titles.length ? { titles } : {}),
+            ...(repair ? { repair } : {}),
           },
         },
       ], task.id);
