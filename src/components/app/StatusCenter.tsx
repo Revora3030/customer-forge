@@ -7,6 +7,7 @@
  * says so instead of guessing, and a state is only reported as live/connected
  * when the underlying record says it is.
  */
+import { openLinkLabel } from "@/lib/open-link-labels";
 import { Link } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { Panel, Pill, SectionHeading } from "@/components/app/Bits";
@@ -239,6 +240,7 @@ export function StatusCenter({ organizationId }: { organizationId: string | unde
           <li key={tile.key}>
             <Link
               to={tile.to}
+              aria-label={`${openLinkLabel(tile.to, tile.label, tile.value)}. ${tile.hint}`}
               className="flex h-full flex-col gap-2 rounded-xl border border-border bg-elevated/60 p-3 transition-colors hover:border-primary/40 focus-visible:border-primary/60 focus-visible:outline-none"
             >
               <span className="text-xs font-semibold tracking-[0.1em] text-muted-foreground uppercase">
