@@ -177,7 +177,7 @@ export function PreviewSelectBridge() {
         return;
       }
       node.textContent = after;
-      post({ source: PREVIEW_BRIDGE_SOURCE, type: "inline-edit", id, path, text: after });
+      post({ source: PREVIEW_BRIDGE_SOURCE, type: "inline-edit", id, path, text: after, before });
     };
     // Phones: a double-tap edits words like a desktop double-click. A touch pick is held back for one
     // double-tap window so the first tap of a double-tap doesn't pick the block (and close the preview).
