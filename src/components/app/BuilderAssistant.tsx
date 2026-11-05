@@ -67,7 +67,8 @@ import { CheckpointTimelineButton, RestoreBeforeMessage } from "@/components/app
 import { useComposerMenu } from "@/components/app/builder-chat/ComposerMenu";
 import { useTabBuildStatus } from "@/components/app/builder-chat/use-tab-status";
 import { useAskMode } from "@/components/app/builder-chat/AskMode";
-import { useSendTestLead } from "@/components/app/builder-chat/use-test-lead";
+import { useLeadSimulation } from "@/components/app/builder-chat/use-test-lead";
+import { LeadSimulationDialog } from "@/components/app/builder-chat/LeadSimulationDialog";
 import { expandMentions } from "@/lib/builder/composer-commands";
 import { useChatTop } from "@/components/app/builder-chat/use-chat-top";
 import { useKeyboardInset } from "@/components/app/builder-chat/use-keyboard-inset";
@@ -387,7 +388,12 @@ export function BuilderAssistant({
   const empty = requests.tasks.length === 0 && !factQuestion && factLog.length === 0;
   const composerLocked = !requests.ready || accessBlocked;
   const canSend = !composerLocked && (value.trim().length > 0 || attachments.length > 0);
-  const testLead = useSendTestLead(organizationId);
+  const leadSim = useLeadSimulation(organizationId);
+  const [leadSimOpen, setLeadSimOpen] = useState(false);
+  const runLeadSim = () => {
+    setLeadSimOpen(true);
+    leadSim.mutate();
+  };
   const composer = useComposerMenu({
     value,
     setValue,
@@ -397,7 +403,7 @@ export function BuilderAssistant({
     disabled: composerLocked || Boolean(factQuestion),
     onAction: (id) => {
       if (id === "revert") onOpenHistory?.();
-      else if (id === "lead-test") (onLeadTest ?? (() => testLead.mutate()))();
+      else if (id === "lead-test") (onLeadTest ?? runLeadSim)();
     },
   });
   const askMode = useAskMode({ organizationId, onMakeChange: (text) => requests.queue(text), available: !onFirstBuild && !factQuestion && !accessBlocked });
@@ -405,7 +411,7 @@ export function BuilderAssistant({
     onFirstBuild ? void onFirstBuild(instruction) : requests.queue(instruction);
   const lastTask = requests.tasks[requests.tasks.length - 1];
 /** The "/lead-test" flow, offered as a next-step chip after a change to a contact path. */
-  const leadTestFromChip = () => (onLeadTest ?? (() => testLead.mutate()))();
+  const leadTestFromChip = () => (onLeadTest ?? runLeadSim)();
   useTabBuildStatus(busy || trackingWork, lastTask?.state);
   // Chips only where a next step is natural: after a finished change.
   const showChips = !empty && !busy && lastTask?.state === "complete" && (SUGGESTIONS.length > 0 || suggestionsLoading);
@@ -934,6 +940,14 @@ export function BuilderAssistant({
           <p className="sr-only">Every change saves a restore point first. On a live website, checked changes go live straight away.</p>
         </div>
       </div>
+      <LeadSimulationDialog
+        open={leadSimOpen}
+        onOpenChange={setLeadSimOpen}
+        pending={leadSim.isPending}
+        result={leadSim.data}
+        error={leadSim.error}
+        onRunAgain={() => leadSim.mutate()}
+      />
     </section>
   );
 }
