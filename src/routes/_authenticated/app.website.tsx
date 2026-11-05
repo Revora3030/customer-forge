@@ -897,6 +897,7 @@ function WebsitePage() {
               canManage={manage}
               reveal={reveal}
               pickRequest={pickRequest}
+              {...(manage ? { onAnnotate: (message: string) => requests.queue(message) } : {})}
               liveStatus={liveStatus ?? rebuildStatus}
               {...(manage ? {
                 onInsertSection: (spot: InsertSpot) => {

@@ -9,6 +9,7 @@
  */
 
 import { readSiteStyle, type SiteStyle } from "@/lib/builder/style-edit";
+import { ANNOTATION_TRAILER } from "@/lib/builder/draw-annotation";
 
 export const PREVIEW_BRIDGE_SOURCE = "revora-preview";
 
@@ -439,6 +440,7 @@ export function ownerWords(instruction: string): string {
   let text = instruction;
   for (;;) {
     const next = text
+      .replace(ANNOTATION_TRAILER, "")
       .replace(/^\s*\(The owner has the "[^"]*" page, [^,]*, open in the preview\. Treat that as context, not a limit\.\)\s*/, "")
       .replace(/ \(element [^)]*\)/, "")
       .replace(/ block \(id [0-9a-z-]+\):/i, " block:")
