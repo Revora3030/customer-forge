@@ -46,9 +46,13 @@ describe("/p/:token", () => {
     await expect(loadHome("good")).resolves.toMatchObject({ result: { ok: true } });
     expect(prospectLinkState).not.toHaveBeenCalled();
   });
-  it("keeps the prospect-specific copy for a dead demo link", () => {
-    expect(home.deadPreviewCopy({ reason: "expired", isProspect: true }).title).toBe("This demo link has expired");
-    expect(home.deadPreviewCopy({ reason: "unknown", isProspect: false }).title).toBe("This preview link isn't valid");
+  it("expired and invalid tokens show the item-18 expired page with /get-started", () => {
+    const expired = home.deadPreviewCopy({ reason: "expired", isProspect: true });
+    const invalid = home.deadPreviewCopy({ reason: "unknown", isProspect: false });
+    expect(expired.title).toBe("This preview has expired");
+    expect(invalid.title).toBe("This preview has expired");
+    expect(expired.href).toBe("/get-started");
+    expect(invalid.href).toBe("/get-started");
   });
 });
 
