@@ -65,7 +65,7 @@ describe("tenantLlmsTxt", () => {
         ...base,
         profile: { description: "Line one\n# not a heading", phone: "(919) 832-0190", service_area: "Wake County" },
         services: [{ name: "Roof repair", price: 499.5 }],
-        social: { facebook: "https://facebook.com/oakcity", instagram: "http://insecure.example" },
+        social: { facebook: "https://facebook.com/oakcity", instagram: "https://instagram.com/oakcity", youtube: "not a url" },
       }),
     );
     expect(text.split("\n")[0]).toBe("# Oak City Roofing");
@@ -74,7 +74,8 @@ describe("tenantLlmsTxt", () => {
     expect(text).toContain("- Service area: Wake County");
     expect(text).toContain("- Roof repair ($499.50)");
     expect(text).toContain("## Official profiles\n- https://facebook.com/oakcity");
-    expect(text).not.toContain("insecure.example");
+    expect(text).toContain("- https://instagram.com/oakcity");
+    expect(text).not.toContain("not a url");
     expect(text).toContain("- https://oakcityroofing.example/sitemap.xml");
     expect(text).toContain("Last published: 2026-11-01T12:00:00.000Z");
   });
