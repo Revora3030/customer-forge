@@ -1,3 +1,4 @@
+import { QueryErrorNotice } from "@/components/app/QueryErrorNotice";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, X } from "lucide-react";
@@ -44,6 +45,16 @@ export function AgentApprovalsPanel({
   const items: ApprovalView[] = pendingApprovals(
     (list.data?.approvals ?? []) as unknown as ApprovalRow[],
   );
+  // A failed read must not hide approvals that may be waiting: the agent is paused until they answer.
+  if (list.isError && !list.data) {
+    return (
+      <QueryErrorNotice
+        title="We couldn't check whether the agent is waiting for your approval."
+        retry={() => list.refetch()}
+        retrying={list.isFetching}
+      />
+    );
+  }
   if (items.length === 0 && !message) return null;
   return (
     <section
