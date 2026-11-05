@@ -1,10 +1,10 @@
 /**
- * Settings "Your account" controls: edit display name, change password, and
- * change email. Display name is written to auth user_metadata.full_name (so
- * ensureProfile keeps it on the next sign-in) and to profiles.full_name.
- * Password and email changes re-authenticate with the current password first.
- * Email change uses enumeration-safe copy (never reveals whether the new
- * address is already registered). Account deletion stays mailto elsewhere.
+ * Settings "Your account" controls: edit display name, change password,
+ * change email, and upload/clear a profile photo. Display name and avatar
+ * are written to auth user_metadata (so ensureProfile keeps them on the next
+ * sign-in) and to profiles. Password and email changes re-authenticate with
+ * the current password first. Email change uses enumeration-safe copy.
+ * Account deletion stays mailto elsewhere.
  */
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -13,6 +13,16 @@ import { requestEmailChange, validateChangeEmail } from "@/lib/account-email-cha
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { initials } from "@/lib/format";
+import {
+  AVATAR_ACCEPT,
+  AVATAR_MAX_BYTES,
+  clearAccountAvatar,
+  uploadAccountAvatar,
+  validateAvatarFile,
+} from "@/lib/account-avatar";
+import { humanFileSize } from "@/lib/media";
 
 export const DISPLAY_NAME_MAX = 80;
 export const PASSWORD_MIN = 8;
@@ -274,3 +284,91 @@ export function ChangeEmailForm({
     </form>
   );
 }
+
+export function AvatarForm({
+  userId,
+  initialUrl,
+  displayName,
+}: {
+  userId: string | null | undefined;
+  initialUrl: string | null | undefined;
+  displayName: string | null | undefined;
+}) {
+  const [url, setUrl] = useState(initialUrl ?? null);
+  const [saving, setSaving] = useState(false);
+  const [status, setStatus] = useState<Status>({ kind: "idle" });
+  const fallback = initials(displayName || "You");
+
+  async function onPick(file: File | null) {
+    if (!userId || !file) return;
+    const v = validateAvatarFile(file);
+    if (!v.ok) return setStatus({ kind: "error", message: v.message });
+    setSaving(true);
+    setStatus({ kind: "idle" });
+    try {
+      const next = await uploadAccountAvatar(userId, v.file);
+      setUrl(next);
+      setStatus({ kind: "ok", message: "Photo saved." });
+    } catch {
+      setStatus({ kind: "error", message: "Could not upload your photo. Try again." });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function onClear() {
+    if (!userId) return;
+    setSaving(true);
+    setStatus({ kind: "idle" });
+    try {
+      await clearAccountAvatar(userId, url);
+      setUrl(null);
+      setStatus({ kind: "ok", message: "Photo removed." });
+    } catch {
+      setStatus({ kind: "error", message: "Could not remove your photo. Try again." });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="space-y-3" aria-label="Profile photo">
+      <Label>Profile photo</Label>
+      <div className="flex flex-wrap items-center gap-3">
+        <Avatar className="size-14">
+          {url ? <AvatarImage src={url} alt="" /> : null}
+          <AvatarFallback className="text-[13px] font-semibold">{fallback}</AvatarFallback>
+        </Avatar>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="outline" disabled={saving || !userId} asChild>
+            <label className="cursor-pointer">
+              {saving ? "Working…" : url ? "Replace photo" : "Upload photo"}
+              <input
+                type="file"
+                accept={AVATAR_ACCEPT}
+                className="sr-only"
+                disabled={saving || !userId}
+                onChange={(e) => {
+                  const file = e.target.files?.[0] ?? null;
+                  e.target.value = "";
+                  void onPick(file);
+                }}
+              />
+            </label>
+          </Button>
+          {url ? (
+            <Button type="button" variant="ghost" disabled={saving || !userId} onClick={() => void onClear()}>
+              Remove
+            </Button>
+          ) : null}
+        </div>
+      </div>
+      <p className="text-[11px] text-muted-foreground">
+        JPG, PNG, WebP or AVIF · up to {humanFileSize(AVATAR_MAX_BYTES)}. Shown on your account;
+        teammates may see it in the team list.
+      </p>
+      <StatusLine status={status} />
+    </div>
+  );
+}
+
