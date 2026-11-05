@@ -63,7 +63,7 @@ export function JarvisHeader(props: Props) {
         </div>
       </div>
       {speaking ? (
-        <Button type="button" variant="outline" size="sm" data-jarvis-tap="" aria-label="Stop speaking" onClick={onStopSpeaking} className="h-9 shrink-0 gap-1.5 rounded-full px-3 text-sm sm:h-9">
+        <Button type="button" variant="outline" size="sm" data-jarvis-tap="" aria-label="Stop speaking" onClick={onStopSpeaking} className="h-11 min-w-11 shrink-0 gap-1.5 rounded-full px-3 text-sm">
           <Square className="size-3.5 fill-current" aria-hidden />
           <span aria-hidden>Stop</span>
         </Button>
@@ -73,14 +73,15 @@ export function JarvisHeader(props: Props) {
         variant="ghost"
         data-jarvis-tap=""
         aria-pressed={live}
+        title="Talk hands-free: Jarvis listens, sends when you stop talking, answers out loud, then listens again"
         onClick={onToggleLive}
-        className={`h-9 shrink-0 gap-1.5 rounded-full px-3 text-sm sm:min-h-9 ${live ? "bg-primary/15 text-primary ring-1 ring-primary/40 hover:bg-primary/20 hover:text-primary" : "text-foreground"}`}
+        className={`h-11 min-w-11 shrink-0 gap-1.5 rounded-full px-3 text-sm ${live ? "bg-primary/15 text-primary ring-1 ring-primary/40 hover:bg-primary/20 hover:text-primary" : "text-foreground"}`}
       >
         <Radio className="size-4" aria-hidden />Live
       </Button>
       <Tooltip>
         <TooltipTrigger asChild>
-          <Button type="button" variant="ghost" size="icon-sm" data-jarvis-tap="" aria-label={voice ? "Mute replies" : "Speak replies"} aria-pressed={voice} onClick={onToggleVoice} className={`pointer-events-auto relative z-30 size-9 shrink-0 rounded-full sm:size-9 ${voice ? "bg-primary/20 text-primary ring-1 ring-primary/50" : ""}`}>
+          <Button type="button" variant="ghost" size="icon-sm" data-jarvis-tap="" aria-label={voice ? "Mute replies" : "Speak replies"} aria-pressed={voice} onClick={onToggleVoice} className={`pointer-events-auto relative z-30 size-11 shrink-0 rounded-full ${voice ? "bg-primary/20 text-primary ring-1 ring-primary/50" : ""}`}>
             {voice ? <Volume2 className="size-4" aria-hidden /> : <VolumeX className="size-4" aria-hidden />}
           </Button>
         </TooltipTrigger>
