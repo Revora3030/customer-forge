@@ -1,6 +1,7 @@
 import { splitReplyMeta, type WriteProposal } from "@/lib/jarvis-actions";
 import { splitJarvisPlan } from "@/lib/jarvis/multi-step-plan";
 import {
+  isBulkApproveEligible,
   jarvisApprovalSafety,
   safetyLines,
   type ApprovalSafety,
@@ -135,3 +136,14 @@ export function inboxEntries(
       };
     });
 }
+
+/**
+ * JC-55: entries that may be bulk-approved — safety gate passes and the
+ * proposal body is loaded so the existing approve path can run.
+ */
+export function bulkApproveEligibleEntries(entries: readonly InboxEntry[]): InboxEntry[] {
+  return entries.filter(
+    (entry) => entry.proposal !== undefined && isBulkApproveEligible(entry.safety),
+  );
+}
+

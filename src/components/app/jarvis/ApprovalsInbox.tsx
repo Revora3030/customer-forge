@@ -21,7 +21,9 @@ import {
   type InboxRow,
 } from "@/lib/jarvis/approvals-inbox";
 import { OPEN_APPROVALS_FLAG } from "@/lib/city-approval-beacons";
-import { ApprovalSafetySummary } from "./ApprovalSafety";
+import { ApprovalsQueue, InboxCard } from "./ApprovalsQueue";
+
+export { InboxCard };
 
 type Props = {
   /** The chat messages already loaded; a proposal's Approve needs its message. */
@@ -32,75 +34,11 @@ type Props = {
 
 export const APPROVALS_QUERY_KEY = ["jarvis", "approvals"] as const;
 
-/** One waiting approval: what, who it affects, the safety summary, and Approve or Reject. */
-export function InboxCard({
-  entry,
-  busy,
-  onApprove,
-  onReject,
-}: {
-  entry: InboxEntry;
-  busy: boolean;
-  onApprove: () => void;
-  onReject: () => void;
-}) {
-  return (
-    <li data-testid="approval-inbox-card" className="rounded-xl border border-border bg-card p-3">
-      <p className="text-sm font-medium">
-        {entry.title}
-        {entry.retry ? " (failed, can retry)" : ""}
-      </p>
-      <p className="mt-1 break-words text-sm text-muted-foreground">{entry.summary}</p>
-      <p className="mt-1 text-xs text-muted-foreground">Affects: {entry.affects}</p>
-      {entry.exact.length ? (
-        <div
-          className="mt-2 rounded-lg border border-border bg-background/60 p-2 text-xs"
-          aria-label="Exactly what goes out"
-        >
-          <p className="font-medium">Exactly what goes out</p>
-          {entry.exact.map((line) => (
-            <p key={line.label} className="mt-1 whitespace-pre-wrap break-words">
-              <span className="text-muted-foreground">{line.label}: </span>
-              {line.value}
-            </p>
-          ))}
-        </div>
-      ) : null}
-      <ApprovalSafetySummary safety={entry.safety} className="mt-2" />
-      <p className="mt-2 text-xs text-muted-foreground">{entry.expiresLabel}</p>
-      {entry.proposal ? null : (
-        <p className="mt-2 text-xs text-muted-foreground">
-          Open the conversation this came from to approve it. You can still reject it here.
-        </p>
-      )}
-      <div className="mt-3 grid grid-cols-2 gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          className="min-h-11"
-          disabled={busy}
-          onClick={onReject}
-        >
-          Reject
-        </Button>
-        <Button
-          type="button"
-          className="min-h-11"
-          disabled={busy || !entry.proposal}
-          onClick={onApprove}
-        >
-          Approve
-        </Button>
-      </div>
-    </li>
-  );
-}
-
 /**
- * JC-36: a badge in the chat header that opens every waiting Jarvis approval.
- * It reads and rejects through the same functions as Operations → Approvals
- * and approves through the same path as the chat card, so there is one set of
- * approval rules. Rejecting needs no reason.
+ * JC-36 + JC-55: a badge in the chat header that opens every waiting Jarvis
+ * approval. It shares ApprovalsQueue with `/admin/approvals`, rejects through
+ * rejectJarvisApprovalFn, and approves through the same chat path as the card.
+ * JC-14: AI City approval beacons set OPEN_APPROVALS_FLAG so this sheet opens once.
  */
 export function ApprovalsInbox({ rows, onApprove }: Props) {
   const list = useServerFn(listJarvisApprovalsFn);
@@ -109,9 +47,17 @@ export function ApprovalsInbox({ rows, onApprove }: Props) {
   const [open, setOpen] = useState(false);
   // JC-14: a tap on an AI City approval beacon sends the owner here and asks for the sheet once.
   useEffect(() => {
-    try { if (sessionStorage.getItem(OPEN_APPROVALS_FLAG)) { sessionStorage.removeItem(OPEN_APPROVALS_FLAG); setOpen(true); } } catch { /* storage unavailable */ }
+    try {
+      if (sessionStorage.getItem(OPEN_APPROVALS_FLAG)) {
+        sessionStorage.removeItem(OPEN_APPROVALS_FLAG);
+        setOpen(true);
+      }
+    } catch {
+      /* storage unavailable */
+    }
   }, []);
   const [pending, setPending] = useState<string | null>(null);
+  const [bulkBusy, setBulkBusy] = useState(false);
   const approvals = useQuery({
     queryKey: APPROVALS_QUERY_KEY,
     queryFn: () => list(),
@@ -124,13 +70,12 @@ export function ApprovalsInbox({ rows, onApprove }: Props) {
     [approvals.data, proposals],
   );
   const count = entries.length;
-  const decide = async (entry: InboxEntry, approve: boolean) => {
-    if (approve) {
-      if (!entry.proposal) return;
-      setOpen(false);
-      onApprove(entry.key, entry.proposal);
-      return;
-    }
+
+  const invalidate = () => {
+    void qc.invalidateQueries({ queryKey: APPROVALS_QUERY_KEY });
+  };
+
+  const rejectOne = async (entry: InboxEntry) => {
     setPending(entry.key);
     try {
       const result = await reject({ data: { key: entry.key } });
@@ -143,9 +88,52 @@ export function ApprovalsInbox({ rows, onApprove }: Props) {
       toast.error(error instanceof Error ? error.message : "Couldn't reject that proposal.");
     } finally {
       setPending(null);
-      void qc.invalidateQueries({ queryKey: APPROVALS_QUERY_KEY });
+      invalidate();
     }
   };
+
+  const decide = (entry: InboxEntry, approve: boolean) => {
+    if (approve) {
+      if (!entry.proposal) return;
+      setOpen(false);
+      onApprove(entry.key, entry.proposal);
+      return;
+    }
+    void rejectOne(entry);
+  };
+
+  const bulkReject = async (items: InboxEntry[]) => {
+    setBulkBusy(true);
+    let rejected = 0;
+    try {
+      for (const entry of items) {
+        try {
+          const result = await reject({ data: { key: entry.key } });
+          if (result.rejected) rejected += 1;
+        } catch {
+          /* keep going; toast summary after */
+        }
+      }
+      toast.success(
+        rejected
+          ? `Rejected ${rejected} proposal${rejected === 1 ? "" : "s"}. Jarvis won't run them.`
+          : "Nothing was rejected — they may have already run or expired.",
+      );
+    } finally {
+      setBulkBusy(false);
+      invalidate();
+    }
+  };
+
+  const bulkApprove = (items: InboxEntry[]) => {
+    if (!items.length) return;
+    setOpen(false);
+    for (const entry of items) {
+      if (!entry.proposal) continue;
+      onApprove(entry.key, entry.proposal);
+    }
+  };
+
   return (
     <>
       <Button
@@ -178,7 +166,8 @@ export function ApprovalsInbox({ rows, onApprove }: Props) {
             <SheetTitle>Approvals</SheetTitle>
             <SheetDescription>
               Everything Jarvis is waiting on you for. Nothing runs until you approve it, and
-              approvals last 24 hours.
+              approvals last 24 hours. Bulk approve only covers undoable actions that do not
+              send to a person or spend money.
             </SheetDescription>
           </SheetHeader>
           <div className="space-y-3 p-4">
@@ -193,21 +182,17 @@ export function ApprovalsInbox({ rows, onApprove }: Props) {
             ) : count === 0 ? (
               <p className="text-sm text-muted-foreground">Nothing is waiting for you.</p>
             ) : (
-              <ul className="space-y-3">
-                {entries.map((entry) => (
-                  <InboxCard
-                    key={entry.key}
-                    entry={entry}
-                    busy={pending === entry.key}
-                    onApprove={() => {
-                      void decide(entry, true);
-                    }}
-                    onReject={() => {
-                      void decide(entry, false);
-                    }}
-                  />
-                ))}
-              </ul>
+              <ApprovalsQueue
+                entries={entries}
+                busyKey={pending}
+                bulkBusy={bulkBusy}
+                onApprove={(entry) => decide(entry, true)}
+                onReject={(entry) => decide(entry, false)}
+                onBulkApprove={bulkApprove}
+                onBulkReject={(items) => {
+                  void bulkReject(items);
+                }}
+              />
             )}
           </div>
         </SheetContent>
