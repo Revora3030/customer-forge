@@ -22,23 +22,13 @@ const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 function wallParts(instant: Date): Wall {
   const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: ROUTINE_TZ,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-    weekday: "short",
+    timeZone: ROUTINE_TZ, year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", hour12: false, weekday: "short",
   }).formatToParts(instant);
   const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
   return {
-    y: Number(get("year")),
-    m: Number(get("month")),
-    d: Number(get("day")),
-    hh: Number(get("hour")) % 24,
-    mm: Number(get("minute")),
-    weekday: WEEKDAYS.indexOf(get("weekday")),
+    y: Number(get("year")), m: Number(get("month")), d: Number(get("day")),
+    hh: Number(get("hour")) % 24, mm: Number(get("minute")), weekday: WEEKDAYS.indexOf(get("weekday")),
   };
 }
 
@@ -53,22 +43,11 @@ function wallToInstant(y: number, m: number, d: number, hh: number, mm: number):
 }
 
 export function validateSchedule(s: RoutineSchedule): string | null {
-  if (!Number.isInteger(s.hour) || s.hour < 0 || s.hour > 23)
-    return "Pick an hour between 0 and 23.";
-  if (!Number.isInteger(s.minute) || s.minute < 0 || s.minute > 59)
-    return "Pick a minute between 0 and 59.";
-  if (
-    s.frequency === "weekly" &&
-    !(Number.isInteger(s.weekday) && s.weekday! >= 0 && s.weekday! <= 6)
-  )
-    return "Pick a day of the week.";
-  if (
-    s.frequency === "monthly" &&
-    !(Number.isInteger(s.monthDay) && s.monthDay! >= 1 && s.monthDay! <= 28)
-  )
-    return "Pick a day of the month between 1 and 28.";
-  if (!["daily", "weekly", "monthly"].includes(s.frequency))
-    return "Pick daily, weekly or monthly.";
+  if (!Number.isInteger(s.hour) || s.hour < 0 || s.hour > 23) return "Pick an hour between 0 and 23.";
+  if (!Number.isInteger(s.minute) || s.minute < 0 || s.minute > 59) return "Pick a minute between 0 and 59.";
+  if (s.frequency === "weekly" && !(Number.isInteger(s.weekday) && s.weekday! >= 0 && s.weekday! <= 6)) return "Pick a day of the week.";
+  if (s.frequency === "monthly" && !(Number.isInteger(s.monthDay) && s.monthDay! >= 1 && s.monthDay! <= 28)) return "Pick a day of the month between 1 and 28.";
+  if (!["daily", "weekly", "monthly"].includes(s.frequency)) return "Pick daily, weekly or monthly.";
   return null;
 }
 

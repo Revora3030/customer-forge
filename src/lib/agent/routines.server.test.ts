@@ -1,13 +1,8 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
-  MAX_ROUTINES_PER_ORG,
-  ROUTINE_PRESETS,
-  parseRoutineInput,
-  routineGoal,
-  runDueAgentRoutines,
-  type AgentRoutine,
-  type RoutineRepo,
+  MAX_ROUTINES_PER_ORG, ROUTINE_PRESETS, parseRoutineInput, routineGoal, runDueAgentRoutines,
+  type AgentRoutine, type RoutineRepo,
 } from "./routines.server";
 import { nextRunAfter } from "./routine-schedule";
 
@@ -15,24 +10,9 @@ const NOW = new Date("2026-11-09T15:00:00Z"); // Monday 10:00 ET
 
 function routine(over: Partial<AgentRoutine> = {}): AgentRoutine & { suspended?: boolean } {
   return {
-    id: "r1",
-    organization_id: "org-1",
-    created_by: "u1",
-    name: "Weekly digest",
-    preset: "weekly_digest",
-    prompt: null,
-    frequency: "weekly",
-    weekday: 1,
-    month_day: null,
-    hour: 8,
-    minute: 0,
-    enabled: true,
-    next_run_at: "2026-10-26T12:00:00Z",
-    claim_token: null,
-    last_run_at: null,
-    last_run_id: null,
-    last_status: null,
-    ...over,
+    id: "r1", organization_id: "org-1", created_by: "u1", name: "Weekly digest", preset: "weekly_digest", prompt: null,
+    frequency: "weekly", weekday: 1, month_day: null, hour: 8, minute: 0, enabled: true,
+    next_run_at: "2026-10-26T12:00:00Z", claim_token: null, last_run_at: null, last_run_id: null, last_status: null, ...over,
   };
 }
 
@@ -53,17 +33,13 @@ function memoryRepo(rows: (AgentRoutine & { suspended?: boolean })[]) {
       const r = rows.find((x) => x.id === id);
       if (!r || r.claim_token !== token || !r.enabled || r.suspended) return null;
       runs.push({ goal, routineId: id });
-      r.next_run_at = next.toISOString();
-      r.claim_token = null;
-      r.last_status = "queued";
+      r.next_run_at = next.toISOString(); r.claim_token = null; r.last_status = "queued";
       return `run-${runs.length}`;
     },
     async release(id, token, next, status) {
       const r = rows.find((x) => x.id === id);
       if (!r || r.claim_token !== token) return false;
-      r.next_run_at = next.toISOString();
-      r.claim_token = null;
-      r.last_status = status;
+      r.next_run_at = next.toISOString(); r.claim_token = null; r.last_status = status;
       return true;
     },
   };
@@ -78,17 +54,11 @@ describe("runDueAgentRoutines", () => {
     expect((await runDueAgentRoutines(repo, NOW)).started).toHaveLength(0);
     expect(runs).toHaveLength(1);
     expect(new Date(rows[0]!.next_run_at).getTime()).toBeGreaterThan(NOW.getTime());
-    expect(rows[0]!.next_run_at).toBe(
-      nextRunAfter({ frequency: "weekly", weekday: 1, hour: 8, minute: 0 }, NOW).toISOString(),
-    );
+    expect(rows[0]!.next_run_at).toBe(nextRunAfter({ frequency: "weekly", weekday: 1, hour: 8, minute: 0 }, NOW).toISOString());
   });
 
   it("starts no run for a suspended workspace or a paused routine", async () => {
-    const { repo, runs } = memoryRepo(
-      [routine({ id: "a" }), routine({ id: "b", enabled: false })].map((r, i) =>
-        i === 0 ? { ...r, suspended: true } : r,
-      ),
-    );
+    const { repo, runs } = memoryRepo([routine({ id: "a" }), routine({ id: "b", enabled: false })].map((r, i) => (i === 0 ? { ...r, suspended: true } : r)));
     const result = await runDueAgentRoutines(repo, NOW);
     expect(result).toMatchObject({ claimed: 0, started: [] });
     expect(runs).toHaveLength(0);
@@ -106,9 +76,7 @@ describe("runDueAgentRoutines", () => {
   it("a failed start moves the routine on instead of retrying every pass", async () => {
     const rows = [routine()];
     const { repo } = memoryRepo(rows);
-    repo.fire = async () => {
-      throw new Error("db down");
-    };
+    repo.fire = async () => { throw new Error("db down"); };
     const spy = console.error;
     console.error = () => undefined;
     const result = await runDueAgentRoutines(repo, NOW);
@@ -130,55 +98,38 @@ describe("runDueAgentRoutines", () => {
 
 describe("routine safety", () => {
   it("no preset can send on its own", () => {
-    for (const preset of Object.values(ROUTINE_PRESETS))
-      expect(["no_external_actions", "approval_required"]).toContain(preset.sendPolicy);
+    for (const preset of Object.values(ROUTINE_PRESETS)) expect(["no_external_actions", "approval_required"]).toContain(preset.sendPolicy);
     expect(ROUTINE_PRESETS.review_asks.sendPolicy).toBe("approval_required");
     expect(ROUTINE_PRESETS.review_asks.goal).toMatch(/until the owner approves/);
     expect(ROUTINE_PRESETS.site_refresh.goal).toMatch(/do not change or publish/i);
   });
 
   it("custom routines get the approval guard appended", () => {
-    expect(routineGoal({ preset: "custom", prompt: "Summarise open quotes." })).toMatch(
-      /waits for the owner's approval/,
-    );
+    expect(routineGoal({ preset: "custom", prompt: "Summarise open quotes." })).toMatch(/waits for the owner's approval/);
   });
 
   it("the migration only ever sets a safe send policy and never lets a client write", () => {
     const sql = readFileSync("supabase/migrations/20261103040000_agent_routines.sql", "utf8");
     expect(sql).toMatch(/'no_external_actions' ELSE 'approval_required'/);
-    expect(sql).not.toMatch(
-      /auto_send|'auto'|DROP TABLE|ALTER TABLE public\.(?!agent_routines ENABLE)/i,
-    );
+    expect(sql).not.toMatch(/auto_send|'auto'|DROP TABLE|ALTER TABLE public\.(?!agent_routines ENABLE)/i);
     expect(sql).toMatch(/ENABLE ROW LEVEL SECURITY/);
     expect(sql).not.toMatch(/FOR (INSERT|UPDATE|DELETE|ALL) TO authenticated/);
   });
 
   it("limits a workspace to 5 routines", () => {
     expect(MAX_ROUTINES_PER_ORG).toBe(5);
-    expect(readFileSync("supabase/migrations/20261103040000_agent_routines.sql", "utf8")).toMatch(
-      />= 5/,
-    );
+    expect(readFileSync("supabase/migrations/20261103040000_agent_routines.sql", "utf8")).toMatch(/>= 5/);
   });
 });
 
 describe("parseRoutineInput", () => {
   it("fills a preset's schedule and name when none is given", () => {
     const input = parseRoutineInput({ preset: "weekly_digest" });
-    expect(input).toMatchObject({
-      name: "Weekly digest",
-      schedule: { frequency: "weekly", weekday: 1 },
-    });
+    expect(input).toMatchObject({ name: "Weekly digest", schedule: { frequency: "weekly", weekday: 1 } });
   });
   it("requires a real instruction for custom routines and a valid schedule", () => {
-    expect(() => parseRoutineInput({ preset: "custom", name: "Mine", prompt: "short" })).toThrow(
-      /sentence/,
-    );
-    expect(() =>
-      parseRoutineInput({
-        preset: "weekly_digest",
-        schedule: { frequency: "monthly", monthDay: 40, hour: 9, minute: 0 },
-      }),
-    ).toThrow(/1 and 28/);
+    expect(() => parseRoutineInput({ preset: "custom", name: "Mine", prompt: "short" })).toThrow(/sentence/);
+    expect(() => parseRoutineInput({ preset: "weekly_digest", schedule: { frequency: "monthly", monthDay: 40, hour: 9, minute: 0 } })).toThrow(/1 and 28/);
     expect(() => parseRoutineInput({ preset: "nope" })).toThrow(/routine types/);
   });
 });

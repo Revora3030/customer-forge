@@ -36,8 +36,7 @@ export type PageInspection = {
   links: string[];
 };
 
-export type VerificationCategory =
-  "content" | "seo" | "accessibility" | "conversion" | "technical" | "security";
+export type VerificationCategory = "content" | "seo" | "accessibility" | "conversion" | "technical" | "security";
 
 export type VerificationReport = {
   evidence: "served_html";
@@ -85,13 +84,7 @@ export function inspectHtml(html: string, where: string): PageInspection {
   // layout used a level-2 headline.
   add("The page has a real headline", headingText.length > 0, "warning", undefined, "content");
   if (headings.length > 1)
-    add(
-      "Only one main headline per page",
-      false,
-      "warning",
-      `${headings.length} found`,
-      "accessibility",
-    );
+    add("Only one main headline per page", false, "warning", `${headings.length} found`, "accessibility");
 
   const title = stripped(/<title[^>]*>([\s\S]*?)<\/title>/i.exec(html)?.[1] ?? "");
   add("The browser tab has a title", title.length > 2, "warning", title.slice(0, 80), "seo");
@@ -124,13 +117,7 @@ export function inspectHtml(html: string, where: string): PageInspection {
   );
 
   const viewport = metas.some((tag) => /name\s*=\s*["']viewport["']/i.test(tag));
-  add(
-    "The page declares a mobile viewport",
-    viewport,
-    "critical",
-    "Layout and readability require a rendered screen check.",
-    "accessibility",
-  );
+  add("The page declares a mobile viewport", viewport, "critical", "Layout and readability require a rendered screen check.", "accessibility");
 
   const images = html.match(/<img\b[^>]*>/gi) ?? [];
   const missingAlt = images.filter((tag) => !attr(tag, "alt")).length;
@@ -158,12 +145,8 @@ export function inspectHtml(html: string, where: string): PageInspection {
   );
 
   const forms = html.match(/<form\b[^>]*>/gi) ?? [];
-  const submitSignals =
-    /<(?:button|input)\b[^>]*(?:type\s*=\s*["']submit["']|>[^<]*(?:book|quote|contact|call|get started|schedule|request))/i.test(
-      html,
-    );
-  const ctaSignal =
-    /href\s*=\s*["'][^"']*(?:book|quote|contact|call|schedule|get-started|start)/i.test(html);
+  const submitSignals = /<(?:button|input)\b[^>]*(?:type\s*=\s*["']submit["']|>[^<]*(?:book|quote|contact|call|get started|schedule|request))/i.test(html);
+  const ctaSignal = /href\s*=\s*["'][^"']*(?:book|quote|contact|call|schedule|get-started|start)/i.test(html);
   const hasConversionSignal = forms.length > 0 || submitSignals || ctaSignal;
   add(
     "The page contains conversion markup",
@@ -173,9 +156,7 @@ export function inspectHtml(html: string, where: string): PageInspection {
     "conversion",
   );
 
-  const conversionLinks = (
-    html.match(/href\\s*=\\s*["'][^"']*(?:tel:|mailto:|sms:)[^"']*["']/gi) ?? []
-  ).length;
+  const conversionLinks = (html.match(/href\\s*=\\s*["'][^"']*(?:tel:|mailto:|sms:)[^"']*["']/gi) ?? []).length;
   add(
     "Direct contact actions are available when a site exposes them",
     hasConversionSignal || conversionLinks > 0,
@@ -255,35 +236,18 @@ export function summarise(checks: Check[]): VerificationReport {
     if (check.ok) categories[category].passed += 1;
     else categories[category].failed += 1;
   }
-  const totalWeight = checks
-    .filter((check) => !check.notChecked)
-    .reduce((sum, check) => sum + (check.severity === "critical" ? 2 : 1), 0);
-  const failedWeight = failures.reduce(
-    (sum, check) => sum + (check.severity === "critical" ? 2 : 1),
-    0,
-  );
+  const totalWeight = checks.filter((check) => !check.notChecked).reduce((sum, check) => sum + (check.severity === "critical" ? 2 : 1), 0);
+  const failedWeight = failures.reduce((sum, check) => sum + (check.severity === "critical" ? 2 : 1), 0);
   const score = totalWeight ? Math.max(0, Math.round(100 - (failedWeight / totalWeight) * 100)) : 0;
-  const status =
-    notChecked || !checks.length ? "incomplete" : failures.length ? "issues" : "passed";
+  const status = notChecked || !checks.length ? "incomplete" : failures.length ? "issues" : "passed";
   const summary = critical
     ? `${critical} critical issue${critical === 1 ? "" : "s"} require attention before this page is considered verified.`
     : notChecked
       ? `Verification incomplete: ${notChecked} check${notChecked === 1 ? "" : "s"} could not run. Nothing is claimed about those results.`
-      : warnings
-        ? `Served-page checks found ${warnings} issue${warnings === 1 ? "" : "s"}; rendered layouts and interactions still need checking.`
-        : checks.length
-          ? "Served-page checks passed. Rendered layouts, images and form submissions were not tested here."
-          : "No pages could be checked.";
-  return {
-    checks,
-    critical,
-    warnings,
-    passed,
-    score,
-    categories,
-    summary,
-    evidence: "served_html",
-    status,
-    notChecked,
-  };
+    : warnings
+      ? `Served-page checks found ${warnings} issue${warnings === 1 ? "" : "s"}; rendered layouts and interactions still need checking.`
+      : checks.length
+        ? "Served-page checks passed. Rendered layouts, images and form submissions were not tested here."
+        : "No pages could be checked.";
+  return { checks, critical, warnings, passed, score, categories, summary, evidence: "served_html", status, notChecked };
 }

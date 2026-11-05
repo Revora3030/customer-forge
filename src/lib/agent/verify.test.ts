@@ -17,9 +17,7 @@ describe("inspectHtml", () => {
     const result = inspectHtml(good, "Home");
     expect(result.checks.every((check) => check.ok)).toBe(true);
     expect(result.links).toEqual(["/s/elite/services", "/book"]);
-    expect(
-      result.checks.some((check) => check.label.includes("useful search length") && check.ok),
-    ).toBe(true);
+    expect(result.checks.some((check) => check.label.includes("useful search length") && check.ok)).toBe(true);
     expect(result.checks.some((check) => check.category === "security" && check.ok)).toBe(true);
   });
 
@@ -52,35 +50,26 @@ describe("inspectHtml", () => {
 
   it("flags unlabeled interactive links and insecure resources", () => {
     const result = inspectHtml(
-      good
-        .replace('<a href="/book">Book now</a>', '<a href="/book"></a>')
-        .replace('<a href="https://x.com/e">X</a>', '<a href="http://x.com/e">X</a>'),
+      good.replace('<a href="/book">Book now</a>', '<a href="/book"></a>').replace(
+        '<a href="https://x.com/e">X</a>',
+        '<a href="http://x.com/e">X</a>',
+      ),
       "Home",
     );
-    expect(
-      result.checks.some((check) => !check.ok && check.label.includes("accessible labels")),
-    ).toBe(true);
-    expect(result.checks.some((check) => !check.ok && check.label.includes("insecure HTTP"))).toBe(
-      true,
-    );
+    expect(result.checks.some((check) => !check.ok && check.label.includes("accessible labels"))).toBe(true);
+    expect(result.checks.some((check) => !check.ok && check.label.includes("insecure HTTP"))).toBe(true);
   });
 
   it("warns when search metadata is unusually short or long", () => {
     const result = inspectHtml(
-      good
-        .replace(/<title>[\s\S]*?<\/title>/, "<title>x</title>")
-        .replace(
-          /<meta name="description"[^>]*>/,
-          '<meta name="description" content="too short" />',
-        ),
+      good.replace(/<title>[\s\S]*?<\/title>/, "<title>x</title>").replace(
+        /<meta name="description"[^>]*>/,
+        '<meta name="description" content="too short" />',
+      ),
       "Home",
     );
-    expect(
-      result.checks.some((check) => !check.ok && check.label.includes("useful search length")),
-    ).toBe(true);
-    expect(result.checks.some((check) => !check.ok && check.label.includes("useful length"))).toBe(
-      true,
-    );
+    expect(result.checks.some((check) => !check.ok && check.label.includes("useful search length"))).toBe(true);
+    expect(result.checks.some((check) => !check.ok && check.label.includes("useful length"))).toBe(true);
   });
 
   it("warns about more than one main headline", () => {
@@ -124,9 +113,7 @@ describe("summarise", () => {
     );
   });
   it("never treats missing render evidence as a pass or a critical rollback reason", () => {
-    const report = summarise([
-      { label: "draft render", ok: false, severity: "warning", where: "Draft", notChecked: true },
-    ]);
+    const report = summarise([{ label: "draft render", ok: false, severity: "warning", where: "Draft", notChecked: true }]);
     expect(report.status).toBe("incomplete");
     expect(report.notChecked).toBe(1);
     expect(report.passed).toBe(0);
@@ -136,12 +123,7 @@ describe("summarise", () => {
   it("does not improve a measured score by adding missing evidence", () => {
     const measured = [{ label: "failed", ok: false, severity: "warning" as const, where: "Home" }];
     expect(summarise(measured).score).toBe(0);
-    expect(
-      summarise([
-        ...measured,
-        { label: "unrun", ok: false, severity: "critical", where: "Home", notChecked: true },
-      ]).score,
-    ).toBe(0);
+    expect(summarise([...measured, { label: "unrun", ok: false, severity: "critical", where: "Home", notChecked: true }]).score).toBe(0);
   });
   it("distinguishes HTML evidence from browser interaction evidence", () => {
     const report = summarise(inspectHtml(good, "Home").checks);
@@ -161,10 +143,7 @@ describe("inspectHtml visible text", () => {
   });
 
   it("counts only visible text as real content", () => {
-    const html = good.replace(
-      /<p>[\s\S]*?<\/p>/,
-      `<p>Short.</p><script>${"x".repeat(500)}</script >`,
-    );
+    const html = good.replace(/<p>[\s\S]*?<\/p>/, `<p>Short.</p><script>${"x".repeat(500)}</script >`);
     const failed = inspectHtml(html, "Home").checks.find((check) => !check.ok);
     expect(failed?.label).toBe("The page has real content on it");
   });

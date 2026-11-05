@@ -43,19 +43,12 @@ function client(publishState: string) {
           }),
           eq: () => ({
             order: async () => ({
-              data:
-                table === "website_sections"
-                  ? []
-                  : [
-                      { slug: "", title: "Home", kind: "home", is_visible: true, sort_order: 0 },
-                      {
-                        slug: "services",
-                        title: "Services",
-                        kind: "page",
-                        is_visible: true,
-                        sort_order: 1,
-                      },
-                    ],
+              data: table === "website_sections"
+                ? []
+                : [
+                { slug: "", title: "Home", kind: "home", is_visible: true, sort_order: 0 },
+                { slug: "services", title: "Services", kind: "page", is_visible: true, sort_order: 1 },
+              ],
             }),
           }),
         }),
@@ -89,10 +82,7 @@ describe("post-change website check", () => {
     });
 
     const { verifyWorkspaceSite } = await import("@/lib/agent/verify.server");
-    const report = await verifyWorkspaceSite(
-      client("draft"),
-      "11111111-1111-4111-8111-111111111111",
-    );
+    const report = await verifyWorkspaceSite(client("draft"), "11111111-1111-4111-8111-111111111111");
 
     expect(report).not.toBeNull();
     // The whole point: nothing critical failed, so the apply stage keeps the
@@ -119,10 +109,7 @@ describe("post-change website check", () => {
   it("reports an unavailable private draft as incomplete, not successfully verified", async () => {
     vi.stubGlobal("fetch", async () => new Response("not found", { status: 503 }));
     const { verifyWorkspaceSite } = await import("@/lib/agent/verify.server");
-    const report = await verifyWorkspaceSite(
-      client("draft"),
-      "11111111-1111-4111-8111-111111111111",
-    );
+    const report = await verifyWorkspaceSite(client("draft"), "11111111-1111-4111-8111-111111111111");
     expect(report?.status).toBe("incomplete");
     expect(report?.notChecked).toBe(1);
     expect(report?.critical).toBe(0);

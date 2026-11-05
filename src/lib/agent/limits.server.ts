@@ -63,8 +63,7 @@ export function defaultLimits(env: Env = process.env): AgentLimits {
   return {
     maxConcurrentRuns:
       positiveInt(env["AGENT_MAX_CONCURRENT_RUNS"]) ?? DEFAULT_AGENT_LIMITS.maxConcurrentRuns,
-    maxRunsPerHour:
-      positiveInt(env["AGENT_MAX_RUNS_PER_HOUR"]) ?? DEFAULT_AGENT_LIMITS.maxRunsPerHour,
+    maxRunsPerHour: positiveInt(env["AGENT_MAX_RUNS_PER_HOUR"]) ?? DEFAULT_AGENT_LIMITS.maxRunsPerHour,
     maxToolCallsPerMinute:
       positiveInt(env["AGENT_MAX_TOOL_CALLS_PER_MINUTE"]) ??
       DEFAULT_AGENT_LIMITS.maxToolCallsPerMinute,
@@ -201,10 +200,7 @@ export async function cancelQueuedForWorkspace(organizationId: string, deps: Lim
 
 /* ---------------------------- resolve + admit a run ------------------------- */
 
-export async function resolveLimits(
-  organizationId: string,
-  deps: LimitsDeps,
-): Promise<AgentLimits> {
+export async function resolveLimits(organizationId: string, deps: LimitsDeps): Promise<AgentLimits> {
   const base = defaultLimits(deps.env ?? process.env);
   const o = await deps.store.getOverrides(organizationId);
   return {
@@ -281,7 +277,9 @@ export const markRunFinished = (runId: string, deps: Pick<LimitsDeps, "ledger">)
 
 /* ------------------------------ tool-call limits --------------------------- */
 
-export type ToolGate = { ok: true } | { ok: false; reason: RefusalReason; message: string };
+export type ToolGate =
+  | { ok: true }
+  | { ok: false; reason: RefusalReason; message: string };
 
 /**
  * Checked before every tool call of a run: both kill switches stop a run that
@@ -291,30 +289,18 @@ export async function checkToolCall(organizationId: string, deps: LimitsDeps): P
   const env = deps.env ?? process.env;
   const fallback = defaultLimits(env);
   if (globalKillSwitchOn(env)) {
-    return {
-      ok: false,
-      reason: "global_kill_switch",
-      message: refusalMessage("global_kill_switch", fallback),
-    };
+    return { ok: false, reason: "global_kill_switch", message: refusalMessage("global_kill_switch", fallback) };
   }
   try {
     const settings = await deps.store.getSettings(organizationId);
     if (!settings.enabled) {
-      return {
-        ok: false,
-        reason: "workspace_disabled",
-        message: refusalMessage("workspace_disabled", fallback),
-      };
+      return { ok: false, reason: "workspace_disabled", message: refusalMessage("workspace_disabled", fallback) };
     }
     const limits = await resolveLimits(organizationId, deps);
     const now = (deps.now ?? Date.now)();
     const used = await deps.toolCalls.countSince(organizationId, now - 60_000);
     if (used >= limits.maxToolCallsPerMinute) {
-      return {
-        ok: false,
-        reason: "tool_rate_limit",
-        message: refusalMessage("tool_rate_limit", limits),
-      };
+      return { ok: false, reason: "tool_rate_limit", message: refusalMessage("tool_rate_limit", limits) };
     }
     return { ok: true };
   } catch (error) {
@@ -343,10 +329,7 @@ export async function runToolWithLimits(
   context: ToolContext,
   call: { name: string; arguments: unknown; requestId: string },
   deps: LimitsDeps,
-  run?: (
-    context: ToolContext,
-    call: { name: string; arguments: unknown; requestId: string },
-  ) => Promise<ToolResult>,
+  run?: (context: ToolContext, call: { name: string; arguments: unknown; requestId: string }) => Promise<ToolResult>,
 ): Promise<LimitedToolResult> {
   const gate = await checkToolCall(context.organizationId, deps);
   if (!gate.ok) {
@@ -354,10 +337,7 @@ export async function runToolWithLimits(
       ok: false,
       tool: call.name,
       error: gate.message,
-      reason:
-        gate.reason === "tool_rate_limit" || gate.reason === "unavailable"
-          ? "rate_limited"
-          : "disabled",
+      reason: gate.reason === "tool_rate_limit" || gate.reason === "unavailable" ? "rate_limited" : "disabled",
       limit: gate.reason,
       durationMs: 0,
     };
@@ -405,9 +385,7 @@ export function createRunBudgetGuard(options: {
   let settled = 0;
   let held = 0;
   const cap = Math.max(0, Math.floor(options.capMicrocents));
-  let ledgerPromise: Promise<BudgetLedger> | null = options.ledger
-    ? Promise.resolve(options.ledger)
-    : null;
+  let ledgerPromise: Promise<BudgetLedger> | null = options.ledger ? Promise.resolve(options.ledger) : null;
   const getLedger = () => (ledgerPromise ??= lunaLedger());
   const message = refusalMessage("run_budget", { ...DEFAULT_AGENT_LIMITS });
 
@@ -417,8 +395,7 @@ export function createRunBudgetGuard(options: {
       if (settled + held + estimate > cap) return { allowed: false, reason: "run_budget", message };
       const ledger = await getLedger();
       const reservation = await ledger.reserve(estimate, options.organizationId);
-      if (!reservation || !reservation.allowed)
-        return { allowed: false, reason: "ledger", message };
+      if (!reservation || !reservation.allowed) return { allowed: false, reason: "ledger", message };
       held += estimate;
       return { allowed: true, estimate, reservation };
     },
@@ -442,10 +419,7 @@ type QueryChain = PromiseLike<QueryResult> & {
   gte: (column: string, value: unknown) => QueryChain;
 };
 type RpcClient = {
-  rpc: (
-    name: string,
-    args: Record<string, unknown>,
-  ) => PromiseLike<{ data: unknown; error: unknown }>;
+  rpc: (name: string, args: Record<string, unknown>) => PromiseLike<{ data: unknown; error: unknown }>;
   from: (table: string) => {
     select: (columns: string, options?: Record<string, unknown>) => QueryChain;
   };
@@ -457,17 +431,10 @@ async function adminClient(): Promise<RpcClient> {
 }
 
 function fail(error: unknown): never {
-  throw new Error(
-    typeof error === "object" && error && "message" in error
-      ? String((error as { message: unknown }).message)
-      : "database error",
-  );
+  throw new Error(typeof error === "object" && error && "message" in error ? String((error as { message: unknown }).message) : "database error");
 }
 
-export function supabaseLimitsDeps(
-  client?: RpcClient,
-  extra: Pick<LimitsDeps, "onCancelled" | "env" | "now"> = {},
-): LimitsDeps {
+export function supabaseLimitsDeps(client?: RpcClient, extra: Pick<LimitsDeps, "onCancelled" | "env" | "now"> = {}): LimitsDeps {
   const get = async () => client ?? (await adminClient());
 
   const store: LimitsStore = {
@@ -476,10 +443,7 @@ export function supabaseLimitsDeps(
       const { data, error } = (await c
         .from("agent_settings")
         .select("enabled, disabled_reason")
-        .eq("organization_id", organizationId)) as {
-        data: { enabled: boolean; disabled_reason: string | null }[] | null;
-        error: unknown;
-      };
+        .eq("organization_id", organizationId)) as { data: { enabled: boolean; disabled_reason: string | null }[] | null; error: unknown };
       if (error) fail(error);
       const row = data?.[0];
       return { enabled: row ? row.enabled !== false : true, reason: row?.disabled_reason ?? null };
@@ -488,9 +452,7 @@ export function supabaseLimitsDeps(
       const c = await get();
       const { data, error } = (await c
         .from("agent_limits")
-        .select(
-          "max_concurrent_runs, max_runs_per_hour, max_tool_calls_per_minute, run_budget_microcents",
-        )
+        .select("max_concurrent_runs, max_runs_per_hour, max_tool_calls_per_minute, run_budget_microcents")
         .eq("organization_id", organizationId)) as {
         data: Record<string, number | null>[] | null;
         error: unknown;
@@ -501,18 +463,13 @@ export function supabaseLimitsDeps(
       const out: Partial<AgentLimits> = {};
       if (row["max_concurrent_runs"]) out.maxConcurrentRuns = Number(row["max_concurrent_runs"]);
       if (row["max_runs_per_hour"]) out.maxRunsPerHour = Number(row["max_runs_per_hour"]);
-      if (row["max_tool_calls_per_minute"])
-        out.maxToolCallsPerMinute = Number(row["max_tool_calls_per_minute"]);
-      if (row["run_budget_microcents"])
-        out.runBudgetMicrocents = Number(row["run_budget_microcents"]);
+      if (row["max_tool_calls_per_minute"]) out.maxToolCallsPerMinute = Number(row["max_tool_calls_per_minute"]);
+      if (row["run_budget_microcents"]) out.runBudgetMicrocents = Number(row["run_budget_microcents"]);
       return out;
     },
     async listDisabledOrganizations() {
       const c = await get();
-      const { data, error } = (await c
-        .from("agent_settings")
-        .select("organization_id")
-        .eq("enabled", false)) as {
+      const { data, error } = (await c.from("agent_settings").select("organization_id").eq("enabled", false)) as {
         data: { organization_id: string }[] | null;
         error: unknown;
       };
@@ -532,12 +489,7 @@ export function supabaseLimitsDeps(
       });
       if (error) fail(error);
       const row = (Array.isArray(data) ? data[0] : data) as
-        | {
-            admitted: boolean;
-            reason: AdmitResult["reason"];
-            in_flight: number;
-            runs_last_hour: number;
-          }
+        | { admitted: boolean; reason: AdmitResult["reason"]; in_flight: number; runs_last_hour: number }
         | undefined;
       if (!row) fail("no admission result");
       return {

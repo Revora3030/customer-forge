@@ -44,6 +44,7 @@ export type Understanding = {
  */
 const UNDERSTAND_ROLE: ModelRole = "conversation";
 
+
 const SYSTEM = `You read a small business owner's request about their website or business
 software and work out what it MEANS. You never ask them to use special vocabulary and you
 never reject a request for being vague — "make this look expensive", "make it feel like
@@ -85,6 +86,7 @@ const list = (value: unknown, max: number, limit: number) =>
         .filter(Boolean)
         .slice(0, limit)
     : [];
+
 
 /**
  * Deterministic understanding, used only when the model cannot be reached. It

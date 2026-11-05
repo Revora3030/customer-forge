@@ -1,13 +1,6 @@
-export type ReleasePhase =
-  "plan" | "build" | "inspect" | "verify" | "repair" | "reinspect" | "publish";
+export type ReleasePhase = "plan" | "build" | "inspect" | "verify" | "repair" | "reinspect" | "publish";
 export type EvidenceLevel = "deterministic" | "runtime" | "human";
-export interface ReleaseObservation {
-  phase: ReleasePhase;
-  passed: boolean;
-  evidence: EvidenceLevel;
-  failures: string[];
-  repairable: string[];
-}
+export interface ReleaseObservation { phase: ReleasePhase; passed: boolean; evidence: EvidenceLevel; failures: string[]; repairable: string[]; }
 export interface ReleaseLoopInput {
   requestedActions: number;
   destructive: boolean;
@@ -18,12 +11,7 @@ export interface ReleaseLoopInput {
   /** Billing, account-level or legal actions — always need a human. */
   accountOrBilling?: boolean;
 }
-export interface ReleaseLoopDecision {
-  phases: ReleasePhase[];
-  maxRepairCycles: number;
-  requiresApproval: boolean;
-  blockedReasons: string[];
-}
+export interface ReleaseLoopDecision { phases: ReleasePhase[]; maxRepairCycles: number; requiresApproval: boolean; blockedReasons: string[]; }
 
 /**
  * Approval is a safety gate, never a creative gate: ordinary creative work
@@ -34,8 +22,7 @@ export function planAutonomousReleaseLoop(input: ReleaseLoopInput): ReleaseLoopD
   const maxRepairCycles = Math.max(0, Math.min(input.maxRepairCycles ?? 3, 5));
   const blockedReasons: string[] = [];
   if (input.requestedActions > 100) blockedReasons.push("plan exceeds bounded action budget");
-  if (input.destructive && input.productionTarget)
-    blockedReasons.push("destructive production changes require explicit approval");
+  if (input.destructive && input.productionTarget) blockedReasons.push("destructive production changes require explicit approval");
   if (!input.runtimeAvailable) blockedReasons.push("runtime evidence unavailable");
   if (!input.browserAvailable) blockedReasons.push("browser evidence unavailable");
   return {

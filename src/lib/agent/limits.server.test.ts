@@ -24,30 +24,18 @@ const ORG_B = "22222222-2222-4222-8222-222222222222";
 
 /** In-memory mirror of the SQL admission function, so the rules are tested without a database. */
 function memoryLedger(clock: { now: number }) {
-  type Row = {
-    org: string;
-    run: string;
-    status: "queued" | "running" | "finished" | "cancelled";
-    at: number;
-    started: boolean;
-  };
+  type Row = { org: string; run: string; status: "queued" | "running" | "finished" | "cancelled"; at: number; started: boolean };
   const rows: Row[] = [];
   const disabled = new Set<string>();
   const ledger: RunLedger = {
     async admit(org, run, limits): Promise<AdmitResult> {
       const mine = rows.filter((r) => r.org === org);
       const inFlight = mine.filter((r) => r.status === "queued" || r.status === "running").length;
-      const hour = mine.filter(
-        (r) => r.at > clock.now - 3_600_000 && !(r.status === "cancelled" && !r.started),
-      ).length;
-      if (rows.some((r) => r.run === run))
-        return { admitted: true, reason: "ok", inFlight, runsLastHour: hour };
-      if (disabled.has(org))
-        return { admitted: false, reason: "workspace_disabled", inFlight, runsLastHour: hour };
-      if (inFlight >= limits.maxConcurrentRuns)
-        return { admitted: false, reason: "too_many_running", inFlight, runsLastHour: hour };
-      if (hour >= limits.maxRunsPerHour)
-        return { admitted: false, reason: "hourly_limit", inFlight, runsLastHour: hour };
+      const hour = mine.filter((r) => r.at > clock.now - 3_600_000 && !(r.status === "cancelled" && !r.started)).length;
+      if (rows.some((r) => r.run === run)) return { admitted: true, reason: "ok", inFlight, runsLastHour: hour };
+      if (disabled.has(org)) return { admitted: false, reason: "workspace_disabled", inFlight, runsLastHour: hour };
+      if (inFlight >= limits.maxConcurrentRuns) return { admitted: false, reason: "too_many_running", inFlight, runsLastHour: hour };
+      if (hour >= limits.maxRunsPerHour) return { admitted: false, reason: "hourly_limit", inFlight, runsLastHour: hour };
       rows.push({ org, run, status: "queued", at: clock.now, started: false });
       return { admitted: true, reason: "ok", inFlight: inFlight + 1, runsLastHour: hour + 1 };
     },
@@ -60,9 +48,7 @@ function memoryLedger(clock: { now: number }) {
       return Boolean(r);
     },
     async markFinished(run) {
-      const r = rows.find(
-        (x) => x.run === run && (x.status === "queued" || x.status === "running"),
-      );
+      const r = rows.find((x) => x.run === run && (x.status === "queued" || x.status === "running"));
       if (r) r.status = "finished";
       return Boolean(r);
     },
@@ -80,14 +66,7 @@ function memoryLedger(clock: { now: number }) {
   return { ledger, rows, disabled };
 }
 
-function makeDeps(
-  opts: {
-    env?: Record<string, string>;
-    overrides?: Partial<AgentLimits>;
-    toolCalls?: number;
-    enabled?: boolean;
-  } = {},
-) {
+function makeDeps(opts: { env?: Record<string, string>; overrides?: Partial<AgentLimits>; toolCalls?: number; enabled?: boolean } = {}) {
   const clock = { now: 1_800_000_000_000 };
   const mem = memoryLedger(clock);
   const enabled = new Map<string, boolean>([[ORG_A, opts.enabled ?? true]]);
@@ -96,8 +75,7 @@ function makeDeps(
     store: {
       getSettings: async (org) => ({ enabled: enabled.get(org) ?? true, reason: null }),
       getOverrides: async () => opts.overrides ?? {},
-      listDisabledOrganizations: async () =>
-        [...enabled].filter(([, on]) => !on).map(([org]) => org),
+      listDisabledOrganizations: async () => [...enabled].filter(([, on]) => !on).map(([org]) => org),
     },
     ledger: mem.ledger,
     toolCalls: { countSince: async () => opts.toolCalls ?? 0 },
@@ -119,10 +97,7 @@ describe("run admission", () => {
       await deps.ledger.markStarted(runId);
       await deps.ledger.markFinished(runId);
     }
-    const eleventh = await admitRun(
-      { organizationId: ORG_A, runId: "00000000-0000-4000-8000-0000000000ff" },
-      deps,
-    );
+    const eleventh = await admitRun({ organizationId: ORG_A, runId: "00000000-0000-4000-8000-0000000000ff" }, deps);
     expect(eleventh.ok).toBe(false);
     if (eleventh.ok) return;
     expect(eleventh.reason).toBe("hourly_limit");
@@ -182,15 +157,11 @@ describe("run admission", () => {
   });
 
   it("reads per-workspace overrides and operator env defaults", () => {
-    expect(
-      defaultLimits({ AGENT_MAX_RUNS_PER_HOUR: "25", AGENT_RUN_BUDGET_USD: "2.5" }),
-    ).toMatchObject({
+    expect(defaultLimits({ AGENT_MAX_RUNS_PER_HOUR: "25", AGENT_RUN_BUDGET_USD: "2.5" })).toMatchObject({
       maxRunsPerHour: 25,
       runBudgetMicrocents: 250_000_000,
     });
-    expect(
-      defaultLimits({ AGENT_MAX_RUNS_PER_HOUR: "-4", AGENT_RUN_BUDGET_USD: "nope" }),
-    ).toMatchObject({
+    expect(defaultLimits({ AGENT_MAX_RUNS_PER_HOUR: "-4", AGENT_RUN_BUDGET_USD: "nope" })).toMatchObject({
       maxRunsPerHour: 10,
       runBudgetMicrocents: 100_000_000,
     });
@@ -210,9 +181,7 @@ describe("workspace kill switch", () => {
     expect(refused.ok).toBe(false);
     if (!refused.ok) {
       expect(refused.reason).toBe("workspace_disabled");
-      expect(refused.message).toBe(
-        "Revora AI is turned off for your workspace, so your request wasn't started.",
-      );
+      expect(refused.message).toBe("Revora AI is turned off for your workspace, so your request wasn't started.");
     }
     expect(mem.rows.find((r) => r.run === "q1")?.status).toBe("cancelled");
     expect(mem.rows.find((r) => r.run === "q2")?.status).toBe("running");
@@ -235,23 +204,16 @@ describe("workspace kill switch", () => {
     await admitRun({ organizationId: ORG_B, runId: "b1" }, deps);
     enabled.set(ORG_A, false);
     const swept = await sweepKillSwitches(deps);
-    expect(swept).toMatchObject({
-      globalOn: false,
-      cancelled: [{ runId: "a1", organizationId: ORG_A }],
-    });
+    expect(swept).toMatchObject({ globalOn: false, cancelled: [{ runId: "a1", organizationId: ORG_A }] });
     expect(mem.rows.find((r) => r.run === "b1")?.status).toBe("queued");
-    expect(await cancelQueuedForWorkspace(ORG_B, deps)).toEqual([
-      { runId: "b1", organizationId: ORG_B },
-    ]);
+    expect(await cancelQueuedForWorkspace(ORG_B, deps)).toEqual([{ runId: "b1", organizationId: ORG_B }]);
   });
 });
 
 describe("global env kill switch", () => {
   it("recognises the on values only", () => {
-    for (const on of ["1", "true", "TRUE", " on ", "yes"])
-      expect(globalKillSwitchOn({ AGENT_RUNS_DISABLED: on })).toBe(true);
-    for (const off of ["", "0", "false", "off", undefined])
-      expect(globalKillSwitchOn({ AGENT_RUNS_DISABLED: off })).toBe(false);
+    for (const on of ["1", "true", "TRUE", " on ", "yes"]) expect(globalKillSwitchOn({ AGENT_RUNS_DISABLED: on })).toBe(true);
+    for (const off of ["", "0", "false", "off", undefined]) expect(globalKillSwitchOn({ AGENT_RUNS_DISABLED: off })).toBe(false);
   });
 
   it("refuses new runs everywhere, even with a healthy ledger, and cancels queued runs", async () => {
@@ -267,12 +229,7 @@ describe("global env kill switch", () => {
       expect(refused.reason).toBe("global_kill_switch");
       expect(refused.message).toMatch(/paused right now/);
     }
-    expect(
-      mem.rows
-        .filter((r) => r.status === "cancelled")
-        .map((r) => r.run)
-        .sort(),
-    ).toEqual(["a1", "b1"]);
+    expect(mem.rows.filter((r) => r.status === "cancelled").map((r) => r.run).sort()).toEqual(["a1", "b1"]);
     expect(mem.rows.some((r) => r.run === "b2")).toBe(false);
     expect(cancelled.flat()).toHaveLength(2);
   });
@@ -289,10 +246,7 @@ describe("global env kill switch", () => {
     };
     const result = await admitRun({ organizationId: ORG_A, runId: "r1" }, deps);
     expect(result).toMatchObject({ ok: false, reason: "global_kill_switch" });
-    expect(await checkToolCall(ORG_A, deps)).toMatchObject({
-      ok: false,
-      reason: "global_kill_switch",
-    });
+    expect(await checkToolCall(ORG_A, deps)).toMatchObject({ ok: false, reason: "global_kill_switch" });
     expect(await sweepKillSwitches(deps)).toMatchObject({ globalOn: true });
   });
 
@@ -312,18 +266,8 @@ describe("tool calls per minute", () => {
   });
 
   it("runToolWithLimits never runs the tool when refused, and runs it otherwise", async () => {
-    const run = vi.fn(async () => ({
-      ok: true as const,
-      tool: "inspect_website",
-      data: {},
-      durationMs: 1,
-    }));
-    const context = {
-      supabase: {} as never,
-      userId: "u",
-      organizationId: ORG_A,
-      isSuperAdmin: false,
-    };
+    const run = vi.fn(async () => ({ ok: true as const, tool: "inspect_website", data: {}, durationMs: 1 }));
+    const context = { supabase: {} as never, userId: "u", organizationId: ORG_A, isSuperAdmin: false };
     const call = { name: "inspect_website", arguments: {}, requestId: "r" };
     const blocked = await runToolWithLimits(context, call, makeDeps({ toolCalls: 99 }).deps, run);
     expect(blocked).toMatchObject({ ok: false, reason: "rate_limited" });
@@ -338,16 +282,7 @@ describe("per-run budget (Luna reserveBudget)", () => {
   function lunaFake(allow = true) {
     const reserve = vi.fn(async (_estimate: number, _org: string | null) =>
       allow
-        ? {
-            allowed: true,
-            spent: 0,
-            cap: 1,
-            calls: 0,
-            tenantSpent: 0,
-            tenantCap: 1,
-            dailyCapped: false,
-            paid: null,
-          }
+        ? { allowed: true, spent: 0, cap: 1, calls: 0, tenantSpent: 0, tenantCap: 1, dailyCapped: false, paid: null }
         : null,
     );
     const settle = vi.fn(async () => undefined);
@@ -356,11 +291,7 @@ describe("per-run budget (Luna reserveBudget)", () => {
 
   it("reserves through Luna for the workspace and settles the real cost", async () => {
     const luna = lunaFake();
-    const guard = createRunBudgetGuard({
-      organizationId: ORG_A,
-      capMicrocents: 1000,
-      ledger: luna.ledger,
-    });
+    const guard = createRunBudgetGuard({ organizationId: ORG_A, capMicrocents: 1000, ledger: luna.ledger });
     const grant = await guard.reserve(400);
     expect(grant.allowed).toBe(true);
     if (!grant.allowed) return;
@@ -372,11 +303,7 @@ describe("per-run budget (Luna reserveBudget)", () => {
 
   it("refuses a call that would pass the run ceiling without asking Luna", async () => {
     const luna = lunaFake();
-    const guard = createRunBudgetGuard({
-      organizationId: ORG_A,
-      capMicrocents: 1000,
-      ledger: luna.ledger,
-    });
+    const guard = createRunBudgetGuard({ organizationId: ORG_A, capMicrocents: 1000, ledger: luna.ledger });
     const first = await guard.reserve(700);
     expect(first.allowed).toBe(true);
     const second = await guard.reserve(400);
@@ -385,20 +312,13 @@ describe("per-run budget (Luna reserveBudget)", () => {
   });
 
   it("fails closed when Luna cannot reserve", async () => {
-    const guard = createRunBudgetGuard({
-      organizationId: ORG_A,
-      capMicrocents: 1000,
-      ledger: lunaFake(false).ledger,
-    });
+    const guard = createRunBudgetGuard({ organizationId: ORG_A, capMicrocents: 1000, ledger: lunaFake(false).ledger });
     expect(await guard.reserve(1)).toMatchObject({ allowed: false, reason: "ledger" });
   });
 });
 
 describe("migration", () => {
-  const sql = readFileSync(
-    join(process.cwd(), "supabase/migrations/20261103030000_agent_limits.sql"),
-    "utf8",
-  )
+  const sql = readFileSync(join(process.cwd(), "supabase/migrations/20261103030000_agent_limits.sql"), "utf8")
     .split("\n")
     .filter((line) => !line.trimStart().startsWith("--"))
     .join("\n");
@@ -415,8 +335,6 @@ describe("migration", () => {
   it("does not create agent_runs, touch billing or loosen the admission functions", () => {
     expect(sql).not.toMatch(/CREATE TABLE[^;]*agent_runs\b/i);
     expect(sql).not.toMatch(/stripe|subscription|price|billing/i);
-    expect(sql).toMatch(
-      /REVOKE ALL ON FUNCTION public\.agent_limits_admit_run[^;]*FROM PUBLIC, anon, authenticated/,
-    );
+    expect(sql).toMatch(/REVOKE ALL ON FUNCTION public\.agent_limits_admit_run[^;]*FROM PUBLIC, anon, authenticated/);
   });
 });
