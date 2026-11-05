@@ -104,7 +104,7 @@ const clip = (text: string, max: number) => (text.length > max ? `${text.slice(0
 export async function runAgentLoop(ctx: RunContext, deps: LoopDeps): Promise<RunOutcome> {
   const limits: LoopLimits = { ...DEFAULT_LOOP_LIMITS, ...deps.limits };
   const now = deps.now ?? Date.now;
-  const sleep = deps.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+  const sleep = deps.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))); // DevSkim: ignore DS172411 -- Numeric delay only; no untrusted data.
   const startedAt = now();
   const state = readState(ctx.checkpoint);
   const tools = deps.tools.list();
@@ -268,7 +268,7 @@ export async function runAgentLoop(ctx: RunContext, deps: LoopDeps): Promise<Run
 async function runWithTimeout(run: () => Promise<ToolResultV2>, ms: number, tool: string): Promise<ToolResultV2> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<ToolResultV2>((resolve) => {
-    timer = setTimeout(
+    timer = setTimeout( // DevSkim: ignore DS172411 -- Fixed callback and numeric delay; no untrusted data.
       () => resolve({ ok: false, tool, risk: null, reason: "timeout", error: `${tool} timed out.`, durationMs: ms }),
       ms,
     );
