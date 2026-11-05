@@ -53,6 +53,29 @@ export type PreviewToBuilderMessage =
       type: "a11y-report";
       issueCount: number;
       issues: A11yIssue[];
+    }
+  | {
+      /** Arrange mode: the owner dragged (or keyed) a section next to another one. */
+      source: typeof PREVIEW_BRIDGE_SOURCE;
+      type: "move-section";
+      id: string;
+      overId: string;
+      position: "before" | "after";
+    }
+  | {
+      /** Arrange mode: "+ Add section with AI" between two sections. */
+      source: typeof PREVIEW_BRIDGE_SOURCE;
+      type: "insert-section";
+      /** The neighbouring section the new one goes next to. */
+      id: string;
+      position: "before" | "after";
+      label: string | null;
+      kind: string | null;
+    }
+  | {
+      /** Arrange mode: Ctrl/Cmd+Z inside the preview undoes the last move. */
+      source: typeof PREVIEW_BRIDGE_SOURCE;
+      type: "undo-move";
     };
 
 /** One low-contrast text element found in the preview. */
@@ -113,7 +136,27 @@ export type BuilderToPreviewMessage =
       source: typeof PREVIEW_BRIDGE_SOURCE;
       type: "reveal";
       id: string;
+    }
+  | {
+      /** Arrange mode on/off: drag handles and "+ Add section with AI" lines on sections. */
+      source: typeof PREVIEW_BRIDGE_SOURCE;
+      type: "arrange-mode";
+      on: boolean;
+    }
+  | {
+      /**
+       * Put the page's sections in this order on screen (rollback after a failed
+       * save, or undo). Ids not on the page are ignored; nothing is saved here.
+       */
+      source: typeof PREVIEW_BRIDGE_SOURCE;
+      type: "order";
+      ids: string[];
+      /** Read out to screen readers once the order is shown. */
+      announce?: string | null;
     };
+
+/** Most sections a page order message may carry. */
+const MAX_ORDER_IDS = 200;
 
 const ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 const PATH_PATTERN = /^root(?:\.\d{1,3}){0,12}$/;
@@ -165,8 +208,19 @@ export function readPreviewMessage(data: unknown): PreviewToBuilderMessage | nul
     const count = Math.max(issues.length, Math.min(9999, Math.round(Number(record["issueCount"]) || 0)));
     return { source: PREVIEW_BRIDGE_SOURCE, type: "a11y-report", issueCount: count, issues };
   }
+  if (record["type"] === "undo-move") return { source: PREVIEW_BRIDGE_SOURCE, type: "undo-move" };
   const id = typeof record["id"] === "string" ? record["id"] : "";
   if (!ID_PATTERN.test(id)) return null;
+  if (record["type"] === "move-section" || record["type"] === "insert-section") {
+    const position = record["position"] === "before" || record["position"] === "after" ? record["position"] : null;
+    if (!position) return null;
+    if (record["type"] === "insert-section") {
+      return { source: PREVIEW_BRIDGE_SOURCE, type: "insert-section", id, position, label: text(record["label"], 60), kind: text(record["kind"], 40) };
+    }
+    const overId = typeof record["overId"] === "string" ? record["overId"] : "";
+    if (!ID_PATTERN.test(overId) || overId === id) return null;
+    return { source: PREVIEW_BRIDGE_SOURCE, type: "move-section", id, overId, position };
+  }
   if (record["type"] === "inline-edit") {
     const at = path(record["path"]);
     const value = typeof record["text"] === "string" ? record["text"].replace(/\s+/g, " ").trim().slice(0, 600) : "";
@@ -195,6 +249,14 @@ export function readBuilderMessage(data: unknown): BuilderToPreviewMessage | nul
   const record = data as Record<string, unknown>;
   if (record["source"] !== PREVIEW_BRIDGE_SOURCE) return null;
   if (record["type"] === "run-a11y-check") return { source: PREVIEW_BRIDGE_SOURCE, type: "run-a11y-check" };
+  if (record["type"] === "arrange-mode") return { source: PREVIEW_BRIDGE_SOURCE, type: "arrange-mode", on: record["on"] === true };
+  if (record["type"] === "order") {
+    if (!Array.isArray(record["ids"])) return null;
+    const ids = (record["ids"] as unknown[])
+      .filter((item): item is string => typeof item === "string" && ID_PATTERN.test(item))
+      .slice(0, MAX_ORDER_IDS);
+    return { source: PREVIEW_BRIDGE_SOURCE, type: "order", ids: [...new Set(ids)], announce: text(record["announce"], 120) };
+  }
   if (record["type"] === "reveal") {
     const id = typeof record["id"] === "string" ? record["id"] : "";
     return ID_PATTERN.test(id) ? { source: PREVIEW_BRIDGE_SOURCE, type: "reveal", id } : null;
@@ -336,7 +398,11 @@ export function ownerWords(instruction: string): string {
     const next = text
       .replace(/^\s*\(The owner has the "[^"]*" page, [^,]*, open in the preview\. Treat that as context, not a limit\.\)\s*/, "")
       .replace(/ \(element [^)]*\)/, "")
-      .replace(/ block \(id [0-9a-z-]+\):/i, " block:");
+      .replace(/ block \(id [0-9a-z-]+\):/i, " block:")
+      .replace(
+        /^\s*Add one new section to this page, placed directly (?:before|after) the "[^"]*" section \(id [0-9A-Za-z_-]+\)\. Keep every other section where it is\. The new section:\s*/,
+        "",
+      );
     if (next === text) break;
     text = next;
   }

@@ -76,6 +76,7 @@ import { getAiSuggestions } from "@/lib/ai-suggestions.functions";
 import { QUEUE_LABELS, timelineFor } from "@/lib/builder-queue";
 import { onAssistantPrompt } from "@/lib/assistant-bridge";
 import { ownerWords, pageContextPrefix, selectionChipLabel, selectionPrefix, type PageContext } from "@/lib/builder/preview-bridge";
+import { insertChipLabel, insertPrefix, type InsertSpot } from "@/lib/builder/arrange";
 import { actionsForElement } from "@/lib/builder/element-actions";
 import { MAIN_BRANCH, normaliseRequestId } from "@/lib/builder/chat-thread";
 import { wantsFreshRebuild } from "@/lib/builder/rebuild-intent";
@@ -108,6 +109,8 @@ export function BuilderAssistant({
   businessName = null,
   compact = false,
   selection = null,
+  insertAt = null,
+  onClearInsert,
   pageContext = null,
   onReveal,
   starterIdeas = [],
@@ -142,6 +145,9 @@ export function BuilderAssistant({
   compact?: boolean;
   /** The block the owner clicked in the preview, if any. */
   selection?: { id: string; label: string | null; kind: string | null; text: string | null; element?: string | null } | null;
+  /** "+ Add section with AI" in the preview: the next request adds one section at this spot. */
+  insertAt?: InsertSpot | null;
+  onClearInsert?: () => void;
   /** The page open in the preview: shown as a chip and sent as soft context with each request. */
   pageContext?: PageContext | null;
   /** Shows a planned or applied change in the preview: opens its page, scrolls to it and outlines it. */
@@ -249,9 +255,12 @@ export function BuilderAssistant({
    * Adds the context the owner has already given by pointing or by being asked
    * a question, so they don't have to describe it again in words.
    */
+  const inserting = insertAt && !onFirstBuild && !factQuestion ? insertAt : null;
   const scoped = (text: string) => {
     const parts: string[] = [];
-    if (selection) parts.push(selectionPrefix(selection));
+    // A gap between two sections: the request adds a section there (never fenced to one block).
+    if (inserting) parts.push(insertPrefix(inserting));
+    else if (selection) parts.push(selectionPrefix(selection));
     // A picked block is more specific than the open page, and a first build has no page yet.
     else if (pageContext && !onFirstBuild) parts.push(pageContextPrefix(pageContext));
     if (answering) parts.push(`Answering your question "${answering}":`);
@@ -321,6 +330,7 @@ export function BuilderAssistant({
     setMediaOpen(false);
     setAnswering(null);
     onClearSelection?.();
+    if (inserting) onClearInsert?.();
     afterSend();
   };
 
@@ -338,6 +348,10 @@ export function BuilderAssistant({
   useEffect(() => {
     if (selection && !isTouch()) inputRef.current?.focus();
   }, [selection]);
+  // "+ Add section with AI" does the same: the owner just describes the section.
+  useEffect(() => {
+    if (insertAt && !isTouch()) inputRef.current?.focus();
+  }, [insertAt]);
 
   // Tapping the conversation closes the keyboard, like a native chat.
   const dismissKeyboard = () => {
@@ -732,9 +746,25 @@ export function BuilderAssistant({
               send(value);
             }}
           >
-            {selection || answering || (pageContext && !onFirstBuild) ? (
+            {selection || inserting || answering || (pageContext && !onFirstBuild) ? (
               <div className="order-first flex w-full flex-wrap gap-1.5 px-3 pt-3">
-                {pageContext && !onFirstBuild && !selection ? (
+                {inserting ? (
+                  <span className="inline-flex max-w-full items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 py-1 pr-1 pl-2.5 text-xs text-foreground">
+                    <span className="truncate" data-testid="insert-chip" title="Your next request adds one new section here">
+                      <span aria-hidden>+ </span>
+                      {insertChipLabel(inserting)}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => onClearInsert?.()}
+                      aria-label="Don't add a section here"
+                      className="relative grid size-6 cursor-pointer place-items-center rounded-md text-muted-foreground after:absolute after:-inset-1.5 hover:bg-primary/15 hover:text-foreground"
+                    >
+                      <X className="size-3.5" aria-hidden />
+                    </button>
+                  </span>
+                ) : null}
+                {pageContext && !onFirstBuild && !selection && !inserting ? (
                   <span
                     className="inline-flex max-w-full items-center gap-1.5 rounded-lg border border-border/70 bg-muted/40 px-2.5 py-1 text-xs text-muted-foreground"
                     title="Requests know which page you have open. Say so if you mean the whole site."
@@ -793,6 +823,8 @@ export function BuilderAssistant({
               placeholder={
                 factQuestion
                   ? "Type your answer…"
+                  : inserting
+                    ? "Describe the new section…"
                   : selection
                     ? "Describe the change to this block…"
                     : onFirstBuild
