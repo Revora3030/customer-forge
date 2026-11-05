@@ -996,6 +996,35 @@ export const getJarvisModelStatus = createServerFn({ method: "GET" })
   });
 
 /**
+ * Time and cost of the most recent builds, from recorded AI calls only: each
+ * build's cost is what its workspace's calls added up to while it ran.
+ */
+export const getRecentBuildCosts = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const db = await guardedAdmin(context);
+    const jobs = await db
+      .from("generation_jobs")
+      .select("id, organization_id, status, created_at, started_at, completed_at")
+      .not("started_at", "is", null)
+      .order("started_at", { ascending: false })
+      .limit(20);
+    if (jobs.error) throw new Error("Couldn't read recent builds.");
+    const rows = (jobs.data ?? []) as { id: string; organization_id: string; status: string | null; started_at: string | null; completed_at: string | null }[];
+    if (!rows.length) return [];
+    const since = rows.reduce((min, row) => (row.started_at && row.started_at < min ? row.started_at : min), rows[0]!.started_at as string);
+    const events = await db
+      .from("ai_usage_events")
+      .select("organization_id, created_at, ok, estimated_cost_usd")
+      .in("organization_id", [...new Set(rows.map((row) => row.organization_id))])
+      .gte("created_at", since)
+      .limit(10000);
+    if (events.error) throw new Error("Couldn't read model usage records.");
+    const { summarizeBuildCosts } = await import("./lovable-model-usage");
+    return summarizeBuildCosts(rows as never, (events.data ?? []) as never);
+  });
+
+/**
  * Per-model usage of the Lovable lane over the last 24 hours, from recorded
  * calls only. Every roster model is listed so unused ones are visible.
  */

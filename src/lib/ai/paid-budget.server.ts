@@ -147,16 +147,20 @@ export async function reservePaidSpendDetailed(estimate: number): Promise<PaidRe
           allowed?: boolean;
           reservation_id?: string | null;
           day?: string | null;
+          committed_microcents?: number | string | null;
         };
         if (row.allowed !== true) {
           noteDailyCapReached(cap);
           return { reservation: null, refusal: "cap_reached" };
         }
-        if (row.reservation_id && row.day)
+        if (row.reservation_id && row.day) {
+          const committed = Number(row.committed_microcents);
+          if (isNearDailyCap(committed, cap)) noteDailyCapWarning(cap, committed, String(row.day));
           return {
             reservation: { id: String(row.reservation_id), day: String(row.day), estimate: amount },
             refusal: null,
           };
+        }
       }
     } catch {
       /* retried below */
@@ -216,6 +220,53 @@ export function paidDailyCapUsd(): number {
 }
 
 let capAlertDay: string | null = null;
+let capWarnDay: string | null = null;
+
+/** Share of the daily cap at which the founder is warned before it runs out. */
+export const PAID_CAP_WARN_RATIO = 0.8;
+
+/** True once today's committed spend (settled + open + this call) reaches the warning share of the cap. */
+export function isNearDailyCap(
+  committed: number,
+  cap: number,
+  ratio = PAID_CAP_WARN_RATIO,
+): boolean {
+  return Number.isFinite(committed) && cap > 0 && committed / cap >= ratio;
+}
+
+/**
+ * The first reservation of a UTC day that brings spend to the warning share
+ * emails the founder once (the founder-alert marker dedupes across workers).
+ * Email only, fire-and-forget: it never touches the AI call being reserved.
+ */
+function noteDailyCapWarning(cap: number, committed: number, day: string) {
+  if (capWarnDay === day) return;
+  capWarnDay = day;
+  void (async () => {
+    try {
+      const handle = await ledger();
+      if (!handle) return;
+      const { sendFounderAlert } = await import("@/lib/founder-alerts.server");
+      const dollars = (value: number) => `$${(value / MICROCENTS_PER_DOLLAR).toFixed(2)}`;
+      const sent = await sendFounderAlert(handle.db as never, {
+        kind: "ai_budget_warning",
+        marker: `ai-budget-warning:${day}`,
+        organizationId: null,
+        title: "Paid AI budget is almost used up today",
+        summary: `Paid AI calls have reached ${Math.round((committed / cap) * 100)}% of today's ${dollars(cap)} cap (AI_PAID_DAILY_CAP_USD), counting calls still running. At the cap, new AI work pauses until it resets at midnight UTC (8 PM New York time in summer). This is Revora's own daily cap; it is not a reading of the Lovable credit balance.`,
+        rows: [
+          ["Day (UTC)", day],
+          ["Spent or reserved", dollars(committed)],
+          ["Daily cap", dollars(cap)],
+        ],
+        link: "https://revoragrowthsystems.com/admin/ai",
+      });
+      if (sent === "failed") capWarnDay = null;
+    } catch {
+      capWarnDay = null;
+    }
+  })();
+}
 
 /**
  * The first refusal of a UTC day emails the founder once (the founder-alert
@@ -253,6 +304,7 @@ function noteDailyCapReached(cap: number, now = Date.now()) {
 export function resetPaidCapAlertForTests() {
   capAlertDay = null;
   ledgerAlertHour = null;
+  capWarnDay = null;
 }
 
 const SETTLE_ATTEMPTS = 3;

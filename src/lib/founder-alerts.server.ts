@@ -25,6 +25,7 @@ export type FounderAlertKind =
   | "build_completed"
   | "build_failed"
   | "ai_budget_reached"
+  | "ai_budget_warning"
   | "ai_gateway_credits"
   | "ai_budget_ledger_unavailable";
 
