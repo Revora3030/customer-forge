@@ -1,5 +1,6 @@
 import { websiteSuggestions, type WebsiteSuggestion } from "@/lib/jarvis-demo-site";
 import { capacityWaitState, type CapacityWaitState } from "@/lib/builder/capacity-wait";
+import { shareImageFor } from "@/lib/site-head";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { slugify } from "@/lib/admin.server";
 import {
@@ -279,6 +280,8 @@ export type ProspectDemoSummary = {
   previewToken: string;
   /** Set once the business claimed the demo (marker.claimedAt). */
   claimedAt?: string | null;
+  /** HTTPS preview thumbnail when the site has one (og / hero / logo via shareImageFor). */
+  thumbnailUrl: string | null;
   build: { status: string; progress: number; step: string | null; error: string | null; wait: CapacityWaitState | null } | null;
 };
 
@@ -312,20 +315,37 @@ export async function listProspectDemos(admin: SupabaseClient, limit = 20): Prom
     .map(([id]) => id);
   if (!ids.length) return [];
 
-  const [orgs, jobs] = await Promise.all([
+  const [orgs, jobs, profiles, pages] = await Promise.all([
     admin.from("organizations").select("id, name, industry").in("id", ids),
     admin
       .from("generation_jobs")
       .select("organization_id, status, progress, current_step, error_message, created_at, resumes_at, wait_reason, wait_providers, lease_expires_at, failure_kind, capacity_deferrals")
       .in("organization_id", ids)
       .order("created_at", { ascending: false }),
+    admin.from("business_profiles").select("organization_id, hero_image_url, logo_url").in("organization_id", ids),
+    admin
+      .from("website_pages")
+      .select("organization_id, og_image_url, kind, slug")
+      .in("organization_id", ids)
+      .or("kind.eq.home,slug.eq.home"),
   ]);
   if (orgs.error) throw new Error(orgs.error.message);
   if (jobs.error) throw new Error(`Couldn't read demo build status: ${jobs.error.message}`);
+  // Thumbnail sources are best-effort; a missing profile/page row just means no preview image.
+  if (profiles.error) throw new Error(`Couldn't read demo thumbnails: ${profiles.error.message}`);
+  if (pages.error) throw new Error(`Couldn't read demo page images: ${pages.error.message}`);
   const orgById = new Map((orgs.data ?? []).map((org) => [org.id as string, org]));
   const latestJob = new Map<string, NonNullable<typeof jobs.data>[number]>();
   for (const job of jobs.data ?? []) {
     if (!latestJob.has(job.organization_id as string)) latestJob.set(job.organization_id as string, job);
+  }
+  const profileById = new Map((profiles.data ?? []).map((row) => [row.organization_id as string, row]));
+  const homePageById = new Map<string, NonNullable<typeof pages.data>[number]>();
+  for (const page of pages.data ?? []) {
+    const orgId = page.organization_id as string;
+    const existing = homePageById.get(orgId);
+    // Prefer kind=home over slug=home when both exist.
+    if (!existing || (existing.kind !== "home" && page.kind === "home")) homePageById.set(orgId, page);
   }
 
   const out: ProspectDemoSummary[] = [];
@@ -334,6 +354,8 @@ export async function listProspectDemos(admin: SupabaseClient, limit = 20): Prom
     const entry = markers.get(id);
     if (!org || !entry) continue;
     const job = latestJob.get(id);
+    const profile = profileById.get(id);
+    const home = homePageById.get(id);
     out.push({
       organizationId: id,
       name: org.name as string,
@@ -341,6 +363,11 @@ export async function listProspectDemos(admin: SupabaseClient, limit = 20): Prom
       createdAt: entry.marker.createdAt,
       previewToken: entry.marker.previewToken,
       claimedAt: entry.claimedAt,
+      thumbnailUrl: shareImageFor({
+        ogImage: (home?.og_image_url as string | null | undefined) ?? null,
+        heroImage: (profile?.hero_image_url as string | null | undefined) ?? null,
+        logo: (profile?.logo_url as string | null | undefined) ?? null,
+      }),
       build: job
         ? {
             status: job.status as string,

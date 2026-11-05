@@ -2,7 +2,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { CapacityWaitNotice } from "@/components/app/CapacityWaitNotice";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
-import { Copy, Eye, ExternalLink, Hammer, ImageUp, Mail, MapPin, Search } from "lucide-react";
+import { Check, Circle, Copy, Eye, ExternalLink, Hammer, ImageUp, Loader2, Mail, MapPin, Search } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,7 +20,9 @@ import {
 import { prospectDemoInput, type FoundProspect } from "@/lib/prospect-finder";
 import { factOrigin, type FactOrigin } from "@/lib/jarvis-demo-site";
 import { pictureDataUrl } from "@/lib/picture-data-url";
-import { ACTIVE_DEMO_STATUSES, pollWhileActive } from "@/lib/prospect-demo-pump.hooks";
+import { pollWhileActive } from "@/lib/prospect-demo-pump.hooks";
+import type { ProspectDemoSummary } from "@/lib/jarvis-demo-site.server";
+import { currentStepLabel, demoStages, normalizeDemoStatus } from "@/components/app/jarvis/demo-build";
 
 const EMPTY = { businessName: "", industry: "", city: "", state: "", phone: "", email: "", services: "", description: "", placeId: "", address: "", hours: "" };
 type Field = keyof typeof EMPTY;
@@ -47,7 +49,6 @@ function OriginBadge({ origin }: { origin: FactOrigin }) {
   return <span className={`ml-1.5 text-[10px] font-normal uppercase tracking-wide ${tone}`}>{ORIGIN_LABEL[origin]}</span>;
 }
 
-const ACTIVE = ACTIVE_DEMO_STATUSES;
 
 type Prefill = Awaited<ReturnType<typeof prospectFromMapsFn>>;
 
@@ -60,6 +61,198 @@ type BuilderProps = {
   /** "Preview here": open this demo's build card / live preview in the chat. */
   onPreview?: ((demo: DemoCardTarget) => void) | undefined;
 };
+
+type ListItemProps = {
+  demo: ProspectDemoSummary;
+  previewHref: string;
+  onCopyLink: () => void;
+  onPreview?: ((demo: DemoCardTarget) => void) | undefined;
+  draftingPending: boolean;
+  draftingThis: boolean;
+  onWriteEmail: () => void;
+  draft: DemoOutreachDraft | undefined;
+  body: string;
+  onBodyChange: (value: string) => void;
+  onCopyEmail: () => void;
+};
+
+/**
+ * One row in the Demo sites list: honest build stages (same language as
+ * DemoBuildCard), an HTTPS thumbnail when one exists, and the private link.
+ * Sending stays behind the email draft / mailto path (or DemoSendSheet on the
+ * chat card) — nothing auto-sends from here.
+ */
+export function ProspectDemoListItem({
+  demo,
+  previewHref,
+  onCopyLink,
+  onPreview,
+  draftingPending,
+  draftingThis,
+  onWriteEmail,
+  draft,
+  body,
+  onBodyChange,
+  onCopyEmail,
+}: ListItemProps) {
+  const buildStatus = demo.build
+    ? normalizeDemoStatus({
+        status: demo.build.status,
+        progress: demo.build.progress,
+        step: demo.build.step,
+        error: demo.build.error,
+      })
+    : null;
+  const phase = buildStatus?.phase;
+  const label = buildStatus
+    ? currentStepLabel(buildStatus.step, buildStatus.progress, buildStatus.phase)
+    : "Not started";
+  const stages = buildStatus && phase === "active" ? demoStages(buildStatus.step, buildStatus.progress, buildStatus.phase) : [];
+  const stagesDone = stages.filter((stage) => stage.state === "done").length;
+  const done = phase === "ready";
+  const thumbnail = typeof demo.thumbnailUrl === "string" && demo.thumbnailUrl.startsWith("https://") ? demo.thumbnailUrl : null;
+  const statusLine = demo.claimedAt
+    ? "Claimed by the business"
+    : phase === "ready"
+      ? "Draft ready"
+      : phase === "active"
+        ? label
+        : phase === "failed"
+          ? "Build stopped"
+          : demo.build?.wait
+            ? "Waiting"
+            : demo.build
+              ? label
+              : "Not started";
+
+  return (
+    <article className="rounded-md border border-border p-3 text-sm">
+      <div className="flex gap-3">
+        {thumbnail ? (
+          <img
+            src={thumbnail}
+            alt=""
+            className="size-16 shrink-0 rounded-md border border-border object-cover"
+            data-testid="demo-thumbnail"
+          />
+        ) : null}
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <strong className="min-w-0 truncate">{demo.name}</strong>
+            <span className="text-xs text-muted-foreground">
+              {[demo.industry, statusLine].filter(Boolean).join(" · ")}
+            </span>
+          </div>
+          {phase === "active" && buildStatus ? (
+            <div className="mt-2 space-y-2">
+              <p className="text-xs" data-testid="demo-stage-label">{label}</p>
+              <details className="rounded-md border border-border">
+                <summary className="flex min-h-9 cursor-pointer items-center px-2.5 text-xs">
+                  Stages · {stagesDone} of {stages.length} done
+                </summary>
+                <ol aria-label="Build stages" className="space-y-1 border-t border-border p-2 text-xs">
+                  {stages.map((stage) => (
+                    <li
+                      key={stage.key}
+                      aria-current={stage.state === "current" ? "step" : undefined}
+                      className={`flex items-center gap-2 ${stage.state === "todo" ? "text-muted-foreground" : ""}`}
+                    >
+                      {stage.state === "done" ? (
+                        <Check className="size-3.5 shrink-0 text-primary" aria-hidden />
+                      ) : stage.state === "current" ? (
+                        <Loader2 className="size-3.5 shrink-0 animate-spin text-primary motion-reduce:animate-none" aria-hidden />
+                      ) : (
+                        <Circle className="size-3.5 shrink-0" aria-hidden />
+                      )}
+                      <span className="min-w-0 break-words">{stage.label}</span>
+                      <span className="sr-only">
+                        {stage.state === "done" ? "(done)" : stage.state === "current" ? "(in progress)" : "(to do)"}
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              </details>
+            </div>
+          ) : null}
+          {demo.build?.wait ? (
+            <div className="mt-2">
+              <CapacityWaitNotice state={demo.build.wait} />
+            </div>
+          ) : null}
+          {demo.build?.error && !done && !demo.build?.wait ? (
+            <p className="mt-1 break-words text-xs text-destructive">{demo.build.error}</p>
+          ) : null}
+          <div className="mt-2 flex flex-wrap gap-2">
+            {onPreview ? (
+              <Button
+                type="button"
+                size="sm"
+                data-jarvis-tap=""
+                aria-label={`Preview ${demo.name} here`}
+                onClick={() => onPreview({ organizationId: demo.organizationId, name: demo.name, previewToken: demo.previewToken })}
+              >
+                <Eye className="mr-1 size-3.5" aria-hidden />
+                Preview here
+              </Button>
+            ) : null}
+            <a
+              className="inline-flex min-h-10 items-center gap-1 rounded-md border border-border px-3 text-xs font-medium hover:bg-muted sm:min-h-8"
+              data-jarvis-tap=""
+              data-testid="demo-open-preview"
+              href={`/p/${demo.previewToken}`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              <ExternalLink className="size-3.5" aria-hidden />
+              Open preview
+            </a>
+            <Button type="button" size="sm" variant="outline" data-testid="demo-copy-link" onClick={onCopyLink}>
+              <Copy className="mr-1 size-3.5" />
+              Copy link
+            </Button>
+            {done ? (
+              <Button type="button" size="sm" variant="outline" disabled={draftingPending && draftingThis} onClick={onWriteEmail}>
+                <Mail className="mr-1 size-3.5" />
+                {draftingPending && draftingThis ? "Writing…" : draft ? "Rewrite email" : "Write email"}
+              </Button>
+            ) : null}
+          </div>
+          {draft ? (
+            <div className="mt-3 space-y-2 rounded-md border border-border p-2">
+              <p className="text-xs text-muted-foreground">
+                To: {draft.email ?? "no business email on file, so copy the text and reach them another way"} ·{" "}
+                {draft.aiWritten ? "written by the Lovable AI team" : "AI unavailable, plain template used"}
+              </p>
+              <p className="text-sm font-medium">{draft.subject}</p>
+              <Textarea rows={8} value={body} onChange={(event) => onBodyChange(event.target.value)} />
+              {!draft.mailingAddressConfigured ? (
+                <p role="alert" className="text-xs text-destructive">
+                  Set REVORA_MAILING_ADDRESS (a real street address or PO box) in your server secrets before sending. Commercial email must include it.
+                </p>
+              ) : null}
+              <div className="flex flex-wrap gap-2">
+                {draft.email && draft.mailingAddressConfigured ? (
+                  <a
+                    className="inline-flex h-8 items-center rounded-md border border-border px-3 text-xs font-medium hover:bg-muted"
+                    href={`mailto:${draft.email}?subject=${encodeURIComponent(draft.subject)}&body=${encodeURIComponent(body)}`}
+                  >
+                    Send from my mail app
+                  </a>
+                ) : null}
+                <Button type="button" size="sm" variant="ghost" onClick={onCopyEmail}>
+                  <Copy className="mr-1 size-3.5" />
+                  Copy email
+                </Button>
+              </div>
+            </div>
+          ) : null}
+          {/* Keep the private link string available for tests / operators without inventing a send. */}
+          <p className="sr-only">Private demo link: {previewHref}</p>
+        </div>
+      </div>
+    </article>
+  );
+}
 
 /**
  * Jarvis panel: build a private demo website for a business with no website.
@@ -373,118 +566,33 @@ export function ProspectDemoBuilder({ onBuildStarted, onPreview }: BuilderProps 
           {demos.isLoading ? <p className="text-xs text-muted-foreground">Loading…</p> : null}
           {demos.error ? <p role="alert" className="text-xs text-destructive">Couldn't load demo sites: {demos.error.message}</p> : null}
           {demos.data && demos.data.length === 0 ? <p className="text-xs text-muted-foreground">No demo sites yet.</p> : null}
-          {(demos.data ?? []).map((demo) => {
-            const status = demo.build?.status ?? "not started";
-            const done = status === "completed";
-            return (
-              <article key={demo.organizationId} className="rounded-md border border-border p-3 text-sm">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <strong className="min-w-0 truncate">{demo.name}</strong>
-                  <span className="text-xs text-muted-foreground">
-                    {demo.industry ?? ""} · {status}
-                    {demo.build && ACTIVE.has(status) ? ` · ${demo.build.progress}%` : ""}
-                  </span>
-                </div>
-                {demo.build && ACTIVE.has(status) ? (
-                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted" role="progressbar" aria-label={`${demo.name} build`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={demo.build.progress}>
-                    <div className="h-full rounded-full bg-primary" style={{ width: `${Math.min(100, Math.max(0, demo.build.progress))}%` }} />
-                  </div>
-                ) : null}
-                {demo.build?.wait ? <div className="mt-2"><CapacityWaitNotice state={demo.build.wait} /></div> : null}
-                {demo.build?.error && !done && !demo.build?.wait ? <p className="mt-1 break-words text-xs text-destructive">{demo.build.error}</p> : null}
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {onPreview ? (
-                    <Button
-                      type="button"
-                      size="sm"
-                      data-jarvis-tap=""
-                      aria-label={`Preview ${demo.name} here`}
-                      onClick={() => onPreview({ organizationId: demo.organizationId, name: demo.name, previewToken: demo.previewToken })}
-                    >
-                      <Eye className="mr-1 size-3.5" aria-hidden />Preview here
-                    </Button>
-                  ) : null}
-                  <a className="inline-flex min-h-10 items-center gap-1 rounded-md border border-border px-3 text-xs font-medium hover:bg-muted sm:min-h-8" data-jarvis-tap="" href={`/p/${demo.previewToken}`} target="_blank" rel="noreferrer">
-                    <ExternalLink className="size-3.5" aria-hidden />Open preview
-                  </a>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      void navigator.clipboard
-                        .writeText(previewUrl(demo.previewToken))
-                        .then(() => toast.success("Preview link copied."), () => toast.error("Couldn't copy the link."));
-                    }}
-                  >
-                    <Copy className="mr-1 size-3.5" />Copy link
-                  </Button>
-                  {done ? (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      disabled={drafting.isPending && drafting.variables === demo.organizationId}
-                      onClick={() => drafting.mutate(demo.organizationId)}
-                    >
-                      <Mail className="mr-1 size-3.5" />
-                      {drafting.isPending && drafting.variables === demo.organizationId
-                        ? "Writing…"
-                        : drafts[demo.organizationId]
-                          ? "Rewrite email"
-                          : "Write email"}
-                    </Button>
-                  ) : null}
-                </div>
-                {drafts[demo.organizationId] ? (() => {
-                  const draft = drafts[demo.organizationId]!;
-                  const body = bodies[demo.organizationId] ?? draft.body;
-                  const blocked = !draft.mailingAddressConfigured;
-                  return (
-                    <div className="mt-3 space-y-2 rounded-md border border-border p-2">
-                      <p className="text-xs text-muted-foreground">
-                        To: {draft.email ?? "no business email on file, so copy the text and reach them another way"} ·{" "}
-                        {draft.aiWritten ? "written by the Lovable AI team" : "AI unavailable, plain template used"}
-                      </p>
-                      <p className="text-sm font-medium">{draft.subject}</p>
-                      <Textarea
-                        rows={8}
-                        value={body}
-                        onChange={(event) => setBodies((current) => ({ ...current, [demo.organizationId]: event.target.value }))}
-                      />
-                      {blocked ? (
-                        <p role="alert" className="text-xs text-destructive">
-                          Set REVORA_MAILING_ADDRESS (a real street address or PO box) in your server secrets before sending. Commercial email must include it.
-                        </p>
-                      ) : null}
-                      <div className="flex flex-wrap gap-2">
-                        {draft.email && !blocked ? (
-                          <a
-                            className="inline-flex h-8 items-center rounded-md border border-border px-3 text-xs font-medium hover:bg-muted"
-                            href={`mailto:${draft.email}?subject=${encodeURIComponent(draft.subject)}&body=${encodeURIComponent(body)}`}
-                          >
-                            Send from my mail app
-                          </a>
-                        ) : null}
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => {
-                            void navigator.clipboard
-                              .writeText(`${draft.subject}\n\n${body}`)
-                              .then(() => toast.success("Email copied."), () => toast.error("Couldn't copy the email."));
-                          }}
-                        >
-                          <Copy className="mr-1 size-3.5" />Copy email
-                        </Button>
-                      </div>
-                    </div>
-                  );
-                })() : null}
-              </article>
-            );
-          })}
+          {(demos.data ?? []).map((demo) => (
+            <ProspectDemoListItem
+              key={demo.organizationId}
+              demo={demo}
+              previewHref={previewUrl(demo.previewToken)}
+              onPreview={onPreview}
+              draftingPending={drafting.isPending}
+              draftingThis={drafting.variables === demo.organizationId}
+              onWriteEmail={() => drafting.mutate(demo.organizationId)}
+              draft={drafts[demo.organizationId]}
+              body={bodies[demo.organizationId] ?? drafts[demo.organizationId]?.body ?? ""}
+              onBodyChange={(value) => setBodies((current) => ({ ...current, [demo.organizationId]: value }))}
+              onCopyLink={() => {
+                void navigator.clipboard
+                  .writeText(previewUrl(demo.previewToken))
+                  .then(() => toast.success("Preview link copied."), () => toast.error("Couldn't copy the link."));
+              }}
+              onCopyEmail={() => {
+                const draft = drafts[demo.organizationId];
+                if (!draft) return;
+                const body = bodies[demo.organizationId] ?? draft.body;
+                void navigator.clipboard
+                  .writeText(`${draft.subject}\n\n${body}`)
+                  .then(() => toast.success("Email copied."), () => toast.error("Couldn't copy the email."));
+              }}
+            />
+          ))}
         </div>
       </div>
     </details>
