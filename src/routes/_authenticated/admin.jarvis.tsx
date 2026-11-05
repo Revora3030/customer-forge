@@ -1,4 +1,3 @@
-import { LOVABLE_CONVERSATION_MODELS, modelDisplayName } from "@/lib/ai/lovable-models";
 import { generateStudioImage } from "@/lib/image-studio.functions";
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
@@ -19,6 +18,7 @@ import { JarvisTalkStatus } from "@/components/app/jarvis/JarvisTalkStatus";
 import { useProspectDemoPump } from "@/lib/prospect-demo-pump.hooks";
 import { JarvisHeader, type ChecksSummary } from "@/components/app/jarvis/JarvisHeader";
 import { JarvisComposer, type JarvisMode } from "@/components/app/jarvis/JarvisComposer";
+import { JarvisModelPicker } from "@/components/app/jarvis/JarvisModelPicker";
 import { AssistantMessage, UserMessage, type JarvisRow } from "@/components/app/jarvis/JarvisMessage";
 import { RunTaskTree } from "@/components/app/jarvis/RunTaskTree";
 import { ApprovalsInbox } from "@/components/app/jarvis/ApprovalsInbox";
@@ -1139,21 +1139,7 @@ function Jarvis() {
                   ))}
                 </div>
               ) : null}
-              <label className="mb-1.5 flex items-center gap-2 text-xs text-muted-foreground">
-                <span className="shrink-0">Model</span>
-                <select
-                  value={pickedModel ?? ""}
-                  onChange={(event) => setPickedModel(event.target.value || null)}
-                  className="h-9 min-w-0 flex-1 rounded-full border border-white/10 bg-white/[0.03] px-3 text-sm text-foreground backdrop-blur-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:max-w-xs"
-                >
-                  <option value="">Auto (best per job)</option>
-                  {(["openai", "anthropic", "google"] as const).map((family) => (
-                    <optgroup key={family} label={family === "openai" ? "OpenAI" : family === "anthropic" ? "Anthropic" : "Google"}>
-                      {LOVABLE_CONVERSATION_MODELS.filter((id) => id.startsWith(`${family}/`)).map((id) => <option key={id} value={id}>{modelDisplayName(id)}</option>)}
-                    </optgroup>
-                  ))}
-                </select>
-              </label>
+              <JarvisModelPicker value={pickedModel} onChange={setPickedModel} />
               <JarvisComposer
                 value={text}
                 onChange={setText}
