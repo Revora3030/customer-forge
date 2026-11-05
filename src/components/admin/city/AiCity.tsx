@@ -18,6 +18,7 @@ import { DistrictInspector } from "./DistrictInspector";
 import { Sparkline } from "./Sparkline";
 import { getAiCity, getCityMetrics } from "@/lib/ai-city.functions";
 import { CityMetrics } from "./CityMetrics";
+import { CitySound } from "./CitySound";
 import { getCommandCenter } from "@/lib/ai/command-center.functions";
 import { getAiHealth } from "@/lib/ai/health.functions";
 import { getLunaStatus } from "@/lib/ai/luna.functions";
@@ -147,7 +148,7 @@ export function AiCity() {
     {unavailable.length ? <p role="status" className="text-xs text-destructive">Unavailable sources: {unavailable.join(", ")}. No healthy verdict inferred.</p> : null}
     <div className="flex flex-wrap items-center justify-between gap-2">
       <div className="flex items-center gap-1" role="group" aria-label="City view"><Button variant={view === "city" ? "secondary" : "ghost"} aria-pressed={view === "city"} onClick={() => setView("city")}><Box className="size-4" /> City</Button><Button variant={view === "operations" ? "secondary" : "ghost"} aria-pressed={view === "operations"} onClick={() => setView("operations")}><List className="size-4" /> Operations</Button></div>
-      <div className="flex gap-1"><Button size="icon" variant="ghost" className="min-h-11 min-w-11" aria-label={motion ? "Pause activity animation" : "Enable activity animation"} title={motion ? "Pause animation" : "Enable animation"} onClick={() => setMotion(v => !v)}>{motion ? <Pause className="size-4" /> : <Play className="size-4" />}</Button><Button size="icon" variant="ghost" className="min-h-11 min-w-11" aria-label="Reset city camera" title="Reset camera" onClick={() => setReset(v => v + 1)}><RotateCcw className="size-4" /></Button></div>
+      <div className="flex gap-1"><CitySound rows={rows} /><Button size="icon" variant="ghost" className="min-h-11 min-w-11" aria-label={motion ? "Pause activity animation" : "Enable activity animation"} title={motion ? "Pause animation" : "Enable animation"} onClick={() => setMotion(v => !v)}>{motion ? <Pause className="size-4" /> : <Play className="size-4" />}</Button><Button size="icon" variant="ghost" className="min-h-11 min-w-11" aria-label="Reset city camera" title="Reset camera" onClick={() => setReset(v => v + 1)}><RotateCcw className="size-4" /></Button></div>
     </div>
     <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
       <section className="min-w-0" aria-label="AI workforce districts">
