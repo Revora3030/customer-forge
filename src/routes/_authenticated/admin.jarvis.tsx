@@ -21,6 +21,7 @@ import { JarvisHeader, type ChecksSummary } from "@/components/app/jarvis/Jarvis
 import { JarvisComposer, type JarvisMode } from "@/components/app/jarvis/JarvisComposer";
 import { AssistantMessage, UserMessage, type JarvisRow } from "@/components/app/jarvis/JarvisMessage";
 import { RunTaskTree } from "@/components/app/jarvis/RunTaskTree";
+import { ApprovalsInbox } from "@/components/app/jarvis/ApprovalsInbox";
 import { ConversationsSheet } from "@/components/app/jarvis/ConversationsSheet";
 import { OperationsPanel, DIAGNOSTIC_SECTIONS, type ProspectorState } from "@/components/app/jarvis/OperationsPanel";
 import { CommandPalette } from "@/components/app/jarvis/CommandPalette";
@@ -926,6 +927,7 @@ function Jarvis() {
             clearDisabled={clearing.isPending || busy}
             onClear={() => clearing.mutate()}
             onOpenConversations={() => setShowConversations(true)}
+            inbox={<ApprovalsInbox rows={messages} onApprove={(key, proposal) => { void approveProposal(key, proposal); }} />}
           />
           {voice || live ? (
             <div className="flex items-center justify-end gap-2 border-b border-border px-3 py-1.5 text-xs text-muted-foreground sm:px-6">

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Download, MoreHorizontal, Radio, RefreshCw, Square, Trash2, Volume2, VolumeX, Wrench, MessagesSquare } from "lucide-react";
 import { LogoMark } from "@/components/brand/Logo";
 import { Button } from "@/components/ui/button";
@@ -32,13 +32,15 @@ type Props = {
   clearDisabled: boolean;
   onClear: () => void;
   onOpenConversations: () => void;
+  /** The approvals badge and sheet (JC-36), shown before the Live button. */
+  inbox?: ReactNode;
 };
 
 const dotTone = { ran: "bg-emerald-500", unavailable: "bg-destructive", unknown: "bg-muted-foreground/50" } as const;
 
 /** One 56px row: identity and status, then Stop, Live, voice and an overflow menu. */
 export function JarvisHeader(props: Props) {
-  const { voiceState, level, status, checks, onOpenChecks, speaking, onStopSpeaking, live, onToggleLive, voice, onToggleVoice, refreshing, onRefreshDiagnostics, onExport, showOperationsItem, onOpenOperations, clearDisabled, onClear, onOpenConversations } = props;
+  const { voiceState, level, status, checks, onOpenChecks, speaking, onStopSpeaking, live, onToggleLive, voice, onToggleVoice, refreshing, onRefreshDiagnostics, onExport, showOperationsItem, onOpenOperations, clearDisabled, onClear, onOpenConversations, inbox } = props;
   const [confirmClear, setConfirmClear] = useState(false);
   return (
     <header className="relative z-30 flex h-14 shrink-0 items-center gap-2 border-b border-white/10 bg-white/[0.03] px-3 backdrop-blur-xl sm:px-4">
@@ -68,6 +70,7 @@ export function JarvisHeader(props: Props) {
           <span aria-hidden>Stop</span>
         </Button>
       ) : null}
+      {inbox}
       <Button
         type="button"
         variant="ghost"
