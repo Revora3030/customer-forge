@@ -46,7 +46,7 @@ describe("Operations view parity with the scene (JC-17)", () => {
     expect(rows).toHaveLength(CITY_DISTRICTS.length);
     for (const d of rows) expect(d.counts).toEqual(districtCounts(snapshot, d.id, NOW));
     const html = renderToStaticMarkup(<CityOperationsTables snapshot={snapshot} now={NOW} onOpen={() => undefined} />);
-    for (const d of CITY_DISTRICTS) expect(html).toContain(d.name.replace("&", "&amp;"));
+    for (const d of CITY_DISTRICTS) expect(html).toContain(d.name.replaceAll("&", "&amp;"));
     expect(rows.reduce((sum, d) => sum + (d.counts?.running ?? 0), 0)).toBe(4);
   });
 
