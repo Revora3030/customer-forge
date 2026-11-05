@@ -26,6 +26,7 @@ import { LeadDeliveryFlags } from "@/components/app/LeadDeliveryFlags";
 import { WorkDoneCard } from "@/components/app/WorkDoneCard";
 import { GrowthSnapshot } from "@/components/app/GrowthSnapshot";
 import { SeoReviewCard } from "@/components/app/SeoReviewCard";
+import { AiVisibilityCard } from "@/components/app/AiVisibilityCard";
 
 import { useProductionStatus } from "@/lib/production.hooks";
 
@@ -505,6 +506,8 @@ function Dashboard() {
       />
 
       <SeoReviewCard organizationId={orgId} businessName={org?.name ?? null} />
+
+      <AiVisibilityCard organizationId={orgId} industry={org?.industry ?? null} />
 
       <GrowthSnapshot organizationId={orgId} businessName={org?.name ?? null} />
 
