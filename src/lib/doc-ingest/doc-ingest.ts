@@ -114,7 +114,7 @@ export function tablePages(rows: string[][]): IngestPage[] {
 export function withTimeout<T>(work: Promise<T>, ms: number, message: string): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new Error(message)), ms);
+    timer = setTimeout(() => reject(new Error(message)), ms); // DevSkim: ignore DS172411 -- Fixed reject callback; the delay is a server constant, never untrusted data.
   });
   return Promise.race([work, timeout]).finally(() => clearTimeout(timer));
 }
