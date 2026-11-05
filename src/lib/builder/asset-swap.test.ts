@@ -111,7 +111,7 @@ describe("planPictureSwap", () => {
       planPictureSwap({
         ...base,
         tree: tree({ alt: "a" }),
-        media: { ...stock, source_page: "http://pexels.com/1" },
+        media: { ...stock, source_page: "http://pexels.com/1" }, // DevSkim: ignore DS137138 -- test fixture: plain-http source page must be rejected.
       }),
     ).toEqual({
       ok: false,
@@ -121,7 +121,7 @@ describe("planPictureSwap", () => {
       planPictureSwap({
         ...base,
         tree: tree({ alt: "a" }),
-        media: { ...stock, url: "http://cdn.example.com/a.jpg" },
+        media: { ...stock, url: "http://cdn.example.com/a.jpg" }, // DevSkim: ignore DS137138 -- test fixture: plain-http picture address must be rejected.
       }),
     ).toEqual({
       ok: false,
