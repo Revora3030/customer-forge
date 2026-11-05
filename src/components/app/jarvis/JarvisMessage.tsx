@@ -97,7 +97,7 @@ export function AssistantMessage({ message, isLast, busy, regenerating, speaking
           </ul>
         ) : null}
         <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-3.5 py-2.5 text-[15px] leading-7 backdrop-blur-xl"><JarvisMarkdown>{shown}</JarvisMarkdown></div>
-        {long ? <button type="button" className="mt-1 min-h-11 px-1 text-xs text-muted-foreground underline-offset-2 hover:underline" onClick={() => setExpanded((open) => !open)}>{expanded ? "Show less" : "Show full reply"}</button> : null}
+        {long ? <button type="button" className="mt-1 min-h-11 rounded-md px-1 text-xs text-muted-foreground underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-ring" onClick={() => setExpanded((open) => !open)}>{expanded ? "Show less" : "Show full reply"}</button> : null}
         {message.run_id ? <div><ModelTag runId={message.run_id} /></div> : null}
         {message.run_id && showSteps ? (
           stepsOpen ? (

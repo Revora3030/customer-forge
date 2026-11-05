@@ -34,7 +34,7 @@ export function DistrictCarousel({ selected, snapshot, now, onSelect, onOpen, on
                 className={`flex min-h-14 min-w-[8.5rem] items-center gap-2 rounded-lg border px-3 py-2 text-left text-xs ${chosen ? "border-gold bg-gold/10" : "border-border"}`}
               >
                 <span aria-hidden="true" className={`size-2.5 shrink-0 rounded-full ${DOT[state] ?? DOT["idle"]}`} />
-                <span className="min-w-0"><span className="block truncate font-medium">{district.name}</span><span className="block truncate text-[10px] text-muted-foreground">{chosen ? (onDraft ? "Tap to open · hold for actions" : "Tap to open") : state}{open ? ` · ${open} open` : ""}</span></span>
+                <span className="min-w-0"><span className="block truncate font-medium">{district.name}</span><span className="block truncate text-[10px] text-muted-foreground">{chosen ? `${state} · ${onDraft ? "tap to open · hold for actions" : "tap to open"}` : state}{open ? ` · ${open} open` : ""}</span></span>
               </DistrictButton>
             </li>
           );

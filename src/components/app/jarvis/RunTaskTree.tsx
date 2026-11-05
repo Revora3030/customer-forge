@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { TaskTree } from "@/components/app/TaskTree";
 import { getJarvisRunEvents } from "@/lib/jarvis.functions";
 import { nodesFromRunEvents } from "@/lib/builder/task-tree";
+import { stepAnnouncement } from "@/lib/a11y-announce";
 import { pollInterval, useRunEventsRealtime } from "@/lib/builder/run-events-realtime";
 
 /**
@@ -40,7 +41,7 @@ export function RunTaskTree({
     return (
       <div role="alert" className="space-y-2 rounded-xl border border-border/70 bg-card/40 px-3.5 py-2.5 text-sm">
         <p>Couldn't load these steps.</p>
-        <button type="button" onClick={() => void q.refetch()} className="min-h-9 cursor-pointer rounded-full border border-border px-3 text-xs font-medium">Try again</button>
+        <button type="button" onClick={() => void q.refetch()} className="min-h-9 cursor-pointer rounded-full border border-border px-3 text-xs font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">Try again</button>
       </div>
     );
   }
@@ -48,13 +49,16 @@ export function RunTaskTree({
   const nodes = nodesFromRunEvents(q.data ?? []);
   if (!live && !nodes.length) return <p className="text-xs text-muted-foreground">No steps were recorded for this reply.</p>;
   return (
-    <TaskTree
-      nodes={nodes}
-      ariaLabel="What Jarvis did"
-      testId="jarvis-task-tree"
-      retryDisabled={retryDisabled}
-      {...(defaultOpen !== undefined ? { defaultOpen } : {})}
-      {...(onRetry && !live ? { onRetry: () => onRetry() } : {})}
-    />
+    <>
+      {live ? <p role="status" aria-live="polite" aria-atomic="true" className="sr-only" data-testid="jarvis-step-live">{stepAnnouncement(nodes)}</p> : null}
+      <TaskTree
+        nodes={nodes}
+        ariaLabel="What Jarvis did"
+        testId="jarvis-task-tree"
+        retryDisabled={retryDisabled}
+        {...(defaultOpen !== undefined ? { defaultOpen } : {})}
+        {...(onRetry && !live ? { onRetry: () => onRetry() } : {})}
+      />
+    </>
   );
 }

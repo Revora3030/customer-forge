@@ -4,6 +4,9 @@ import type { ReactElement } from "react";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { JarvisComposer } from "./JarvisComposer";
 import { ProposalCard } from "./ProposalCard";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { districtStateWord, newFailureAnnouncement, stepAnnouncement } from "@/lib/a11y-announce";
 
 const noop = () => undefined;
 const render = (node: ReactElement) => renderToStaticMarkup(<TooltipProvider>{node}</TooltipProvider>);
@@ -92,5 +95,45 @@ describe("Jarvis proposal card", () => {
     expect(html).not.toContain("Approve and send to Claude Code");
     const recover = render(<ProposalCard proposal={{ id: "builds.recover" }} state="done" onApprove={noop} />);
     expect(recover).toMatch(/<button[^>]*disabled=""[^>]*>Done<\/button>/);
+  });
+});
+
+describe("Jarvis live region and focus (JC-62)", () => {
+  it("announces the step Jarvis is on, then a failure, then the last done step", () => {
+    expect(stepAnnouncement([])).toBe("");
+    expect(stepAnnouncement([{ label: "Read the site", status: "done" }, { label: "Write copy", status: "running" }])).toBe("Jarvis is working on: Write copy");
+    expect(stepAnnouncement([{ label: "Read the site", status: "done" }, { label: "Publish", status: "failed" }])).toBe("Step failed: Publish");
+    expect(stepAnnouncement([{ label: "Read the site", status: "done" }])).toBe("Step done: Read the site");
+  });
+
+  it("the live task tree has a polite, always-mounted status, and the controls show focus", () => {
+    const read = (file: string) => readFileSync(join(process.cwd(), "src/components/app/jarvis", file), "utf8");
+    const tree = read("RunTaskTree.tsx");
+    expect(tree).toContain('data-testid="jarvis-step-live"');
+    expect(tree).toContain('aria-live="polite"');
+    expect(tree).toContain("focus-visible:outline-2");
+    expect(read("JarvisMessage.tsx")).toContain("focus-visible:outline-2");
+  });
+
+  it("the composer frame shows a ring while the field has focus", () => {
+    expect(composer()).toContain("focus-within:ring-2");
+  });
+});
+
+describe("City state words and failure announcements (JC-62)", () => {
+  it("says nothing on the first read or when failures fall, and counts new ones", () => {
+    expect(newFailureAnnouncement(null, 3)).toBe("");
+    expect(newFailureAnnouncement(2, 2)).toBe("");
+    expect(newFailureAnnouncement(3, 1)).toBe("");
+    expect(newFailureAnnouncement(0, 1)).toBe("1 new failure in the AI City. 1 failed in total.");
+    expect(newFailureAnnouncement(1, 4)).toContain("3 new failures");
+  });
+
+  it("gives every district state a plain word", () => {
+    expect(districtStateWord("working", false)).toBe("Working");
+    expect(districtStateWord("attention", false)).toBe("Needs attention");
+    expect(districtStateWord("idle", false)).toBe("Idle");
+    expect(districtStateWord("unavailable", false)).toBe("Unavailable");
+    expect(districtStateWord("working", true)).toBe("Failed");
   });
 });
