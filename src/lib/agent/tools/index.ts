@@ -50,7 +50,9 @@ export function readTools(): ToolDefinitionV2<z.ZodType>[] {
  * append its factory to this list. sendTools (PAI-12) holds the send_external
  * tools: the registry refuses them without a PAI-4 approval, and this is the
  * one place they are wrapped in the limits. writeInternalTools (PAI-11) are
- * undoable owner-scope writes.
+ * undoable owner-scope writes (undo helpers are NOT listed here — undoRunWrites
+ * owns them). Loop install also strips these writes from routine-source runs
+ * and no_external_actions runs so read-only routine promises stay true.
  */
 const AGENT_TOOL_GROUPS: Array<() => ToolDefinitionV2<z.ZodType>[]> = [
   readToolsA,
@@ -67,5 +69,10 @@ export function agentTools(limits?: LimitsDeps): ToolDefinitionV2<z.ZodType>[] {
   );
 }
 
-export { writeInternalTools } from "./write-internal";
+export {
+  writeInternalTools,
+  writeInternalUndoHelpers,
+  writeInternalAllTools,
+} from "./write-internal";
 export { undoRunWrites } from "./undo-run";
+export { runAllowsWriteInternalTools, writeInternalToolNames } from "./write-policy";

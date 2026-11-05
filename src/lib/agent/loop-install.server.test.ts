@@ -384,6 +384,35 @@ describe("flag on: the one install", () => {
     expect(result).toMatchObject({ ok: false, reason: "forbidden" });
     expect(s.rec.filters).toEqual([]);
   });
+
+  it("routine and no_external_actions runs omit PAI-11 write tools", async () => {
+    const s = setup({ loop: [{ final: { status: "done", summary: "x" } }] });
+    const build = createLoopBuilder(s.installDeps);
+
+    const owner = await build(run({ source: "owner" }));
+    expect(owner.tools.list().some((t) => t.name === "leads.update_status")).toBe(true);
+    expect(owner.tools.list().some((t) => t.name === "leads.restore_notes")).toBe(false);
+    expect(owner.tools.list().some((t) => t.name === "leads.delete_task")).toBe(false);
+
+    const routine = await build(run({ source: "routine" }));
+    expect(routine.tools.list().some((t) => t.name === "leads.update_status")).toBe(false);
+    expect(routine.tools.list().some((t) => t.name === "leads.list")).toBe(true);
+    const refused = await routine.tools.run({
+      name: "leads.update_status",
+      args: { leadId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", status: "contacted" },
+      requestId: "r-write",
+      stepId: "s-write",
+    });
+    expect(refused).toMatchObject({ ok: false, reason: "forbidden", tool: "leads.update_status" });
+
+    const noExt = await build(
+      run({
+        source: "owner",
+        checkpoint: { routine: { send_policy: "no_external_actions" } },
+      }),
+    );
+    expect(noExt.tools.list().some((t) => t.name === "automations.toggle")).toBe(false);
+  });
 });
 
 describe("flag on: the kill switches stop a run", () => {
