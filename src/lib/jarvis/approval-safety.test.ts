@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { JARVIS_ACTION_CLASSES } from "@/lib/jarvis-actions";
 import {
   agentApprovalSafety,
+  approvalSafety,
+  isBulkApproveEligible,
   JARVIS_APPROVAL_FACTS,
   jarvisApprovalSafety,
   safetyLines,
@@ -60,5 +62,15 @@ describe("approval safety summary (JC-37)", () => {
   it("ignores anything a model could write: the result depends only on the action id", () => {
     expect(jarvisApprovalSafety("demo.send")).toEqual(jarvisApprovalSafety("demo.send"));
     expect(jarvisApprovalSafety("demo.send").sendsToPerson).toBe("yes");
+  });
+});
+
+describe("isBulkApproveEligible (JC-55)", () => {
+  it("matches the NB4 hard gate via approvalSafety alias", () => {
+    expect(approvalSafety).toBe(jarvisApprovalSafety);
+    expect(isBulkApproveEligible(approvalSafety("code.pr"))).toBe(true);
+    expect(isBulkApproveEligible(approvalSafety("demo.send"))).toBe(false);
+    expect(isBulkApproveEligible(approvalSafety("research.ask"))).toBe(false);
+    expect(isBulkApproveEligible(approvalSafety("claude.code"))).toBe(false);
   });
 });
