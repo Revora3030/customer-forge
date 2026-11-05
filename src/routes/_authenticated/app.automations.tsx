@@ -42,6 +42,7 @@ import {
   delayLabel,
 } from "@/lib/automation-engine";
 import { relative } from "@/lib/format";
+import { RoutinesPanel } from "@/components/app/RoutinesPanel";
 
 export const Route = createFileRoute("/_authenticated/app/automations")({
   head: () => ({
@@ -461,6 +462,7 @@ function AutomationsPage() {
           ) : null}
         </DialogContent>
       </Dialog>
+      {orgId ? <RoutinesPanel organizationId={orgId} isOwner={ws?.workspace?.role === "owner"} /> : null}
     </div>
   );
 }
