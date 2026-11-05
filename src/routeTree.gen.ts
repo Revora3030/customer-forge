@@ -14,6 +14,7 @@ import { Route as SplatRouteImport } from './routes/$'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AboutRouteImport } from './routes/about'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as BrandFactsDotjsonRouteImport } from './routes/brand-facts[.]json'
 import { Route as ContactRouteImport } from './routes/contact'
 import { Route as CrmForContractorsRouteImport } from './routes/crm-for-contractors'
 import { Route as DemoRouteImport } from './routes/demo'
@@ -107,10 +108,13 @@ import { Route as ApiPublicAltchaRouteImport } from './routes/api/public/altcha'
 import { Route as ApiPublicJarvisVoiceRouteImport } from './routes/api/public/jarvis-voice'
 import { Route as ApiPublicPreviewBeaconRouteImport } from './routes/api/public/preview-beacon'
 import { Route as ApiPublicSentryTestRouteImport } from './routes/api/public/sentry-test'
+import { Route as ApiPublicVisitorErrorsRouteImport } from './routes/api/public/visitor-errors'
 import { Route as LocalIndustryIndexRouteImport } from './routes/local.$industry.index'
 import { Route as LocalIndustryStateRouteImport } from './routes/local.$industry.$state'
 import { Route as PTokenPageRouteImport } from './routes/p.$token_.$page'
 import { Route as SSlugPageRouteImport } from './routes/s.$slug.$page'
+import { Route as SSlugBrandFactsDotjsonRouteImport } from './routes/s.$slug.brand-facts[.]json'
+import { Route as SSlugLlmsDottxtRouteImport } from './routes/s.$slug.llms[.]txt'
 import { Route as SSlugRobotsDottxtRouteImport } from './routes/s.$slug.robots[.]txt'
 import { Route as SSlugSitemapDotxmlRouteImport } from './routes/s.$slug.sitemap[.]xml'
 import { Route as UnsubscribeLifecycleTokenRouteImport } from './routes/unsubscribe.lifecycle.$token'
@@ -179,6 +183,11 @@ const AboutRoute = AboutRouteImport.update({
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BrandFactsDotjsonRoute = BrandFactsDotjsonRouteImport.update({
+  id: '/brand-facts.json',
+  path: '/brand-facts.json',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ContactRoute = ContactRouteImport.update({
@@ -666,6 +675,11 @@ const ApiPublicSentryTestRoute = ApiPublicSentryTestRouteImport.update({
   path: '/api/public/sentry-test',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicVisitorErrorsRoute = ApiPublicVisitorErrorsRouteImport.update({
+  id: '/api/public/visitor-errors',
+  path: '/api/public/visitor-errors',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LocalIndustryIndexRoute = LocalIndustryIndexRouteImport.update({
   id: '/local/$industry/',
   path: '/local/$industry/',
@@ -684,6 +698,16 @@ const PTokenPageRoute = PTokenPageRouteImport.update({
 const SSlugPageRoute = SSlugPageRouteImport.update({
   id: '/$page',
   path: '/$page',
+  getParentRoute: () => SSlugRoute,
+} as any)
+const SSlugBrandFactsDotjsonRoute = SSlugBrandFactsDotjsonRouteImport.update({
+  id: '/brand-facts.json',
+  path: '/brand-facts.json',
+  getParentRoute: () => SSlugRoute,
+} as any)
+const SSlugLlmsDottxtRoute = SSlugLlmsDottxtRouteImport.update({
+  id: '/llms.txt',
+  path: '/llms.txt',
   getParentRoute: () => SSlugRoute,
 } as any)
 const SSlugRobotsDottxtRoute = SSlugRobotsDottxtRouteImport.update({
@@ -945,6 +969,7 @@ export interface FileRoutesByFullPath {
   '/$': typeof SplatRoute
   '/about': typeof AboutRoute
   '/auth': typeof AuthRoute
+  '/brand-facts.json': typeof BrandFactsDotjsonRoute
   '/contact': typeof ContactRoute
   '/crm-for-contractors': typeof CrmForContractorsRoute
   '/demo': typeof DemoRouteWithChildren
@@ -1035,9 +1060,12 @@ export interface FileRoutesByFullPath {
   '/api/public/jarvis-voice': typeof ApiPublicJarvisVoiceRoute
   '/api/public/preview-beacon': typeof ApiPublicPreviewBeaconRoute
   '/api/public/sentry-test': typeof ApiPublicSentryTestRoute
+  '/api/public/visitor-errors': typeof ApiPublicVisitorErrorsRoute
   '/local/$industry/$state': typeof LocalIndustryStateRoute
   '/p/$token/$page': typeof PTokenPageRoute
   '/s/$slug/$page': typeof SSlugPageRoute
+  '/s/$slug/brand-facts.json': typeof SSlugBrandFactsDotjsonRoute
+  '/s/$slug/llms.txt': typeof SSlugLlmsDottxtRoute
   '/s/$slug/robots.txt': typeof SSlugRobotsDottxtRoute
   '/s/$slug/sitemap.xml': typeof SSlugSitemapDotxmlRoute
   '/unsubscribe/lifecycle/$token': typeof UnsubscribeLifecycleTokenRoute
@@ -1093,6 +1121,7 @@ export interface FileRoutesByTo {
   '/$': typeof SplatRoute
   '/about': typeof AboutRoute
   '/auth': typeof AuthRoute
+  '/brand-facts.json': typeof BrandFactsDotjsonRoute
   '/contact': typeof ContactRoute
   '/crm-for-contractors': typeof CrmForContractorsRoute
   '/get-started': typeof GetStartedRoute
@@ -1178,9 +1207,12 @@ export interface FileRoutesByTo {
   '/api/public/jarvis-voice': typeof ApiPublicJarvisVoiceRoute
   '/api/public/preview-beacon': typeof ApiPublicPreviewBeaconRoute
   '/api/public/sentry-test': typeof ApiPublicSentryTestRoute
+  '/api/public/visitor-errors': typeof ApiPublicVisitorErrorsRoute
   '/local/$industry/$state': typeof LocalIndustryStateRoute
   '/p/$token/$page': typeof PTokenPageRoute
   '/s/$slug/$page': typeof SSlugPageRoute
+  '/s/$slug/brand-facts.json': typeof SSlugBrandFactsDotjsonRoute
+  '/s/$slug/llms.txt': typeof SSlugLlmsDottxtRoute
   '/s/$slug/robots.txt': typeof SSlugRobotsDottxtRoute
   '/s/$slug/sitemap.xml': typeof SSlugSitemapDotxmlRoute
   '/unsubscribe/lifecycle/$token': typeof UnsubscribeLifecycleTokenRoute
@@ -1238,6 +1270,7 @@ export interface FileRoutesById {
   '/$': typeof SplatRoute
   '/about': typeof AboutRoute
   '/auth': typeof AuthRoute
+  '/brand-facts.json': typeof BrandFactsDotjsonRoute
   '/contact': typeof ContactRoute
   '/crm-for-contractors': typeof CrmForContractorsRoute
   '/demo': typeof DemoRouteWithChildren
@@ -1328,9 +1361,12 @@ export interface FileRoutesById {
   '/api/public/jarvis-voice': typeof ApiPublicJarvisVoiceRoute
   '/api/public/preview-beacon': typeof ApiPublicPreviewBeaconRoute
   '/api/public/sentry-test': typeof ApiPublicSentryTestRoute
+  '/api/public/visitor-errors': typeof ApiPublicVisitorErrorsRoute
   '/local/$industry/$state': typeof LocalIndustryStateRoute
   '/p/$token_/$page': typeof PTokenPageRoute
   '/s/$slug/$page': typeof SSlugPageRoute
+  '/s/$slug/brand-facts.json': typeof SSlugBrandFactsDotjsonRoute
+  '/s/$slug/llms.txt': typeof SSlugLlmsDottxtRoute
   '/s/$slug/robots.txt': typeof SSlugRobotsDottxtRoute
   '/s/$slug/sitemap.xml': typeof SSlugSitemapDotxmlRoute
   '/unsubscribe/lifecycle/$token': typeof UnsubscribeLifecycleTokenRoute
@@ -1388,6 +1424,7 @@ export interface FileRouteTypes {
     | '/$'
     | '/about'
     | '/auth'
+    | '/brand-facts.json'
     | '/contact'
     | '/crm-for-contractors'
     | '/demo'
@@ -1478,9 +1515,12 @@ export interface FileRouteTypes {
     | '/api/public/jarvis-voice'
     | '/api/public/preview-beacon'
     | '/api/public/sentry-test'
+    | '/api/public/visitor-errors'
     | '/local/$industry/$state'
     | '/p/$token/$page'
     | '/s/$slug/$page'
+    | '/s/$slug/brand-facts.json'
+    | '/s/$slug/llms.txt'
     | '/s/$slug/robots.txt'
     | '/s/$slug/sitemap.xml'
     | '/unsubscribe/lifecycle/$token'
@@ -1536,6 +1576,7 @@ export interface FileRouteTypes {
     | '/$'
     | '/about'
     | '/auth'
+    | '/brand-facts.json'
     | '/contact'
     | '/crm-for-contractors'
     | '/get-started'
@@ -1621,9 +1662,12 @@ export interface FileRouteTypes {
     | '/api/public/jarvis-voice'
     | '/api/public/preview-beacon'
     | '/api/public/sentry-test'
+    | '/api/public/visitor-errors'
     | '/local/$industry/$state'
     | '/p/$token/$page'
     | '/s/$slug/$page'
+    | '/s/$slug/brand-facts.json'
+    | '/s/$slug/llms.txt'
     | '/s/$slug/robots.txt'
     | '/s/$slug/sitemap.xml'
     | '/unsubscribe/lifecycle/$token'
@@ -1680,6 +1724,7 @@ export interface FileRouteTypes {
     | '/$'
     | '/about'
     | '/auth'
+    | '/brand-facts.json'
     | '/contact'
     | '/crm-for-contractors'
     | '/demo'
@@ -1770,9 +1815,12 @@ export interface FileRouteTypes {
     | '/api/public/jarvis-voice'
     | '/api/public/preview-beacon'
     | '/api/public/sentry-test'
+    | '/api/public/visitor-errors'
     | '/local/$industry/$state'
     | '/p/$token_/$page'
     | '/s/$slug/$page'
+    | '/s/$slug/brand-facts.json'
+    | '/s/$slug/llms.txt'
     | '/s/$slug/robots.txt'
     | '/s/$slug/sitemap.xml'
     | '/unsubscribe/lifecycle/$token'
@@ -1830,6 +1878,7 @@ export interface RootRouteChildren {
   SplatRoute: typeof SplatRoute
   AboutRoute: typeof AboutRoute
   AuthRoute: typeof AuthRoute
+  BrandFactsDotjsonRoute: typeof BrandFactsDotjsonRoute
   ContactRoute: typeof ContactRoute
   CrmForContractorsRoute: typeof CrmForContractorsRoute
   DemoRoute: typeof DemoRouteWithChildren
@@ -1875,6 +1924,7 @@ export interface RootRouteChildren {
   ApiPublicJarvisVoiceRoute: typeof ApiPublicJarvisVoiceRoute
   ApiPublicPreviewBeaconRoute: typeof ApiPublicPreviewBeaconRoute
   ApiPublicSentryTestRoute: typeof ApiPublicSentryTestRoute
+  ApiPublicVisitorErrorsRoute: typeof ApiPublicVisitorErrorsRoute
   LocalIndustryStateRoute: typeof LocalIndustryStateRoute
   PTokenPageRoute: typeof PTokenPageRoute
   UnsubscribeLifecycleTokenRoute: typeof UnsubscribeLifecycleTokenRoute
@@ -1953,6 +2003,13 @@ declare module '@tanstack/react-router' {
       path: '/auth'
       fullPath: '/auth'
       preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/brand-facts.json': {
+      id: '/brand-facts.json'
+      path: '/brand-facts.json'
+      fullPath: '/brand-facts.json'
+      preLoaderRoute: typeof BrandFactsDotjsonRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/contact': {
@@ -2606,6 +2663,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicSentryTestRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/visitor-errors': {
+      id: '/api/public/visitor-errors'
+      path: '/api/public/visitor-errors'
+      fullPath: '/api/public/visitor-errors'
+      preLoaderRoute: typeof ApiPublicVisitorErrorsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/local/$industry/': {
       id: '/local/$industry/'
       path: '/local/$industry'
@@ -2632,6 +2696,20 @@ declare module '@tanstack/react-router' {
       path: '/$page'
       fullPath: '/s/$slug/$page'
       preLoaderRoute: typeof SSlugPageRouteImport
+      parentRoute: typeof SSlugRoute
+    }
+    '/s/$slug/brand-facts.json': {
+      id: '/s/$slug/brand-facts.json'
+      path: '/brand-facts.json'
+      fullPath: '/s/$slug/brand-facts.json'
+      preLoaderRoute: typeof SSlugBrandFactsDotjsonRouteImport
+      parentRoute: typeof SSlugRoute
+    }
+    '/s/$slug/llms.txt': {
+      id: '/s/$slug/llms.txt'
+      path: '/llms.txt'
+      fullPath: '/s/$slug/llms.txt'
+      preLoaderRoute: typeof SSlugLlmsDottxtRouteImport
       parentRoute: typeof SSlugRoute
     }
     '/s/$slug/robots.txt': {
@@ -3133,12 +3211,16 @@ const IndustriesRouteWithChildren = IndustriesRoute._addFileChildren(
 
 interface SSlugRouteChildren {
   SSlugPageRoute: typeof SSlugPageRoute
+  SSlugBrandFactsDotjsonRoute: typeof SSlugBrandFactsDotjsonRoute
+  SSlugLlmsDottxtRoute: typeof SSlugLlmsDottxtRoute
   SSlugRobotsDottxtRoute: typeof SSlugRobotsDottxtRoute
   SSlugSitemapDotxmlRoute: typeof SSlugSitemapDotxmlRoute
 }
 
 const SSlugRouteChildren: SSlugRouteChildren = {
   SSlugPageRoute: SSlugPageRoute,
+  SSlugBrandFactsDotjsonRoute: SSlugBrandFactsDotjsonRoute,
+  SSlugLlmsDottxtRoute: SSlugLlmsDottxtRoute,
   SSlugRobotsDottxtRoute: SSlugRobotsDottxtRoute,
   SSlugSitemapDotxmlRoute: SSlugSitemapDotxmlRoute,
 }
@@ -3192,6 +3274,7 @@ const rootRouteChildren: RootRouteChildren = {
   SplatRoute: SplatRoute,
   AboutRoute: AboutRoute,
   AuthRoute: AuthRoute,
+  BrandFactsDotjsonRoute: BrandFactsDotjsonRoute,
   ContactRoute: ContactRoute,
   CrmForContractorsRoute: CrmForContractorsRoute,
   DemoRoute: DemoRouteWithChildren,
@@ -3238,6 +3321,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicJarvisVoiceRoute: ApiPublicJarvisVoiceRoute,
   ApiPublicPreviewBeaconRoute: ApiPublicPreviewBeaconRoute,
   ApiPublicSentryTestRoute: ApiPublicSentryTestRoute,
+  ApiPublicVisitorErrorsRoute: ApiPublicVisitorErrorsRoute,
   LocalIndustryStateRoute: LocalIndustryStateRoute,
   PTokenPageRoute: PTokenPageRoute,
   UnsubscribeLifecycleTokenRoute: UnsubscribeLifecycleTokenRoute,

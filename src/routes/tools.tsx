@@ -5,13 +5,20 @@ import { SiteFooter, SiteHeader } from "@/components/marketing/Chrome";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { GROWTH_SYSTEM, usdExact } from "@/lib/offer";
+import { GROWTH_SYSTEM } from "@/lib/offer";
 import { breadcrumbSchema, canonicalLink, ogUrl, metaDescription, OG_IMAGE_META } from "@/lib/seo";
+import {
+  MISSED_LEAD_FIXED_ASSUMPTIONS,
+  MISSED_LEAD_HEADING,
+  MISSED_LEAD_INTRO,
+  MISSED_LEAD_RESULT_LABELS,
+  missedLeadInputLines,
+} from "@/lib/missed-lead-copy";
 import { formatPercent, formatUsd, leadValue, missedCallImpact } from "@/lib/tools-calc";
 
 const TITLE = "Free Calculators for Local Businesses | Revora";
 const DESCRIPTION =
-  "Free calculators for businesses in every industry: what missed calls cost you and what every lead is worth. No signup.";
+  "Free calculators for businesses in every industry: what unanswered calls could cost and what every lead is worth. No signup.";
 
 export const Route = createFileRoute("/tools")({
   head: () => ({
@@ -137,12 +144,8 @@ function ToolsPage() {
         </p>
 
         <section className="mt-12 rounded-2xl border border-border/60 p-5 sm:p-6">
-          <h2 className="font-display text-[20px] font-semibold">
-            1. What missed calls and slow replies cost you
-          </h2>
-          <p className="mt-2 text-[14px] text-muted-foreground">
-            Every unanswered call or form is a job that goes to whoever answers first.
-          </p>
+          <h2 className="font-display text-[20px] font-semibold">1. {MISSED_LEAD_HEADING}</h2>
+          <p className="mt-2 text-[14px] text-muted-foreground">{MISSED_LEAD_INTRO}</p>
           <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <NumberField
               id="enquiries"
@@ -176,16 +179,52 @@ function ToolsPage() {
             />
           </div>
           <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <Stat label="Missed per week" value={missed.missedPerWeek.toFixed(1)} />
-            <Stat label="Missed per month" value={missed.missedPerMonth.toFixed(1)} />
-            <Stat label="Lost jobs per month" value={missed.lostJobsPerMonth.toFixed(1)} />
-            <Stat label="Lost revenue per year" value={formatUsd(missed.lostRevenuePerYear)} />
+            <Stat
+              label={MISSED_LEAD_RESULT_LABELS.missedPerWeek}
+              value={missed.missedPerWeek.toFixed(1)}
+            />
+            <Stat
+              label={MISSED_LEAD_RESULT_LABELS.missedPerMonth}
+              value={missed.missedPerMonth.toFixed(1)}
+            />
+            <Stat
+              label={MISSED_LEAD_RESULT_LABELS.jobsPerMonth}
+              value={missed.lostJobsPerMonth.toFixed(1)}
+            />
+            <Stat
+              label={MISSED_LEAD_RESULT_LABELS.revenuePerYear}
+              value={formatUsd(missed.lostRevenuePerYear)}
+            />
           </div>
           <p className="mt-4 text-[13px] text-muted-foreground">
-            Estimated {formatUsd(missed.lostRevenuePerMonth)} per month. The Revora system answers
-            instantly, quotes automatically and follows up on its own — that gap is exactly what it
-            is built to close for {usdExact(GROWTH_SYSTEM.monthlyPrice)}/month after setup.
+            About {formatUsd(missed.lostRevenuePerMonth)} of revenue per month at the numbers above.
           </p>
+          <div
+            className="mt-4 rounded-xl border border-border/60 bg-card/40 p-4"
+            data-testid="missed-lead-assumptions"
+          >
+            <h3 className="text-[14px] font-semibold">How this is worked out</h3>
+            <p className="mt-2 text-[13px] text-muted-foreground">
+              Unanswered per week × 52 ÷ 12 × share that would book × average job value × 12. Your
+              inputs:
+            </p>
+            <ul className="mt-1 list-disc space-y-1 pl-5 text-[13px] text-muted-foreground">
+              {missedLeadInputLines({
+                enquiriesPerWeek,
+                missedPercent,
+                closeRatePercent,
+                averageJobValue,
+              }).map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
+            <h3 className="mt-3 text-[14px] font-semibold">What it assumes</h3>
+            <ul className="mt-1 list-disc space-y-1 pl-5 text-[13px] text-muted-foreground">
+              {MISSED_LEAD_FIXED_ASSUMPTIONS.map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
+          </div>
         </section>
 
         <section className="mt-10 rounded-2xl border border-border/60 p-5 sm:p-6">
@@ -258,7 +297,9 @@ function ToolsPage() {
 
         <div className="mt-10 flex flex-wrap gap-3">
           <Button asChild size="lg">
-            <Link to="/get-started">Start your system free for {GROWTH_SYSTEM.fullAccessWindow}</Link>
+            <Link to="/get-started">
+              Start your system free for {GROWTH_SYSTEM.fullAccessWindow}
+            </Link>
           </Button>
           <Button asChild size="lg" variant="outline">
             <Link to="/guides">Read the free guides</Link>

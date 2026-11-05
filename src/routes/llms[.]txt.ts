@@ -7,6 +7,7 @@ import { LOCAL_INDUSTRIES } from "@/lib/local-pages";
 import { BUSINESS } from "@/lib/business-identity";
 import { GROWTH_SYSTEM, usdExact } from "@/lib/offer";
 import { SITE_URL } from "@/lib/seo";
+import { hostTenantFactsResponse } from "@/lib/site-host.server";
 
 function body() {
   const lines: string[] = [];
@@ -70,13 +71,29 @@ function body() {
 export const Route = createFileRoute("/llms.txt")({
   server: {
     handlers: {
-      GET: () =>
-        new Response(body(), {
+      GET: async ({ request }) => {
+        // A verified client custom domain is that business's site: it answers
+        // with the business's own facts, never Revora's platform identity.
+        const url = new URL(request.url);
+        const host = request.headers.get("x-forwarded-host") ?? request.headers.get("host");
+        const protocol = request.headers.get("x-forwarded-proto") ?? url.protocol.replace(":", "");
+        try {
+          const tenant = await hostTenantFactsResponse(host, protocol, "llms.txt");
+          if (tenant) return tenant;
+        } catch (error) {
+          console.error("llms.txt host resolution failed", error);
+          return new Response("Business facts temporarily unavailable", {
+            status: 503,
+            headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store", "retry-after": "60" },
+          });
+        }
+        return new Response(body(), {
           headers: {
             "content-type": "text/plain; charset=utf-8",
             "cache-control": "public, max-age=3600",
           },
-        }),
+        });
+      },
     },
   },
 });

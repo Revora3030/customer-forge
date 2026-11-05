@@ -269,7 +269,7 @@ const crawlNotFound = () =>
 type PlatformTenantCrawl =
   | { kind: "missing" }
   | { kind: "redirect"; location: string }
-  | { kind: "site"; site: HostSite };
+  | { kind: "site"; site: HostSite; organizationId: string; name: string; industry: string | null };
 
 /**
  * The published, indexable site behind /s/<slug>, or a redirect when a
@@ -277,7 +277,9 @@ type PlatformTenantCrawl =
  * sitemap and robots.txt. Lookup failures throw so the route can answer 503
  * instead of an empty success.
  */
-async function platformTenantCrawl(rawSlug: string, file: "sitemap.xml" | "robots.txt"): Promise<PlatformTenantCrawl> {
+type PlatformTenantFile = "sitemap.xml" | "robots.txt" | "llms.txt" | "brand-facts.json";
+
+async function platformTenantCrawl(rawSlug: string, file: PlatformTenantFile): Promise<PlatformTenantCrawl> {
   const slug = String(rawSlug ?? "").trim().toLowerCase();
   if (!/^[a-z0-9-]{1,80}$/.test(slug)) return { kind: "missing" };
   const org = await publicOrganization({ slug });
@@ -311,6 +313,9 @@ async function platformTenantCrawl(rawSlug: string, file: "sitemap.xml" | "robot
   if (!homeReady) return { kind: "missing" };
   return {
     kind: "site",
+    organizationId: org.id,
+    name: org.name,
+    industry: org.industry,
     site: {
       slug: org.slug,
       origin: `${PLATFORM_ORIGIN}/s/${org.slug}`,
@@ -353,6 +358,102 @@ export async function platformTenantRobotsResponse(rawSlug: string): Promise<Res
   }
   const body = clientSiteRobotsTxt({ indexable: true, sitemapUrl: `${crawl.site.origin}/sitemap.xml` });
   return new Response(body, { headers: ROBOTS_HEADERS });
+}
+
+const LLMS_HEADERS = {
+  "content-type": "text/plain; charset=utf-8",
+  "cache-control": "public, max-age=600",
+} as const;
+
+const BRAND_FACTS_HEADERS = {
+  "content-type": "application/json; charset=utf-8",
+  "cache-control": "public, max-age=600",
+  "access-control-allow-origin": "*",
+} as const;
+
+export type TenantFactsFile = "llms.txt" | "brand-facts.json";
+
+/**
+ * The verified facts of one published site, read from the published-only
+ * public projections (profile, active services, social links). Never drafts,
+ * reviews or private columns. A failed read throws so the route answers 503.
+ */
+export async function tenantFactsFor(input: {
+  organizationId: string;
+  name: string;
+  industry: string | null;
+  site: HostSite;
+}) {
+  const supabase = publicClient();
+  const [profile, services, social] = await Promise.all([
+    supabase.from("public_business_profiles").select("*").eq("organization_id", input.organizationId).maybeSingle(),
+    supabase
+      .from("services")
+      .select("name, description, price, starting_price, bookable, sort_order")
+      .eq("organization_id", input.organizationId)
+      .eq("is_active", true)
+      .order("sort_order"),
+    supabase
+      .from("social_profiles")
+      .select("facebook, instagram, linkedin, tiktok, youtube, google_business")
+      .eq("organization_id", input.organizationId)
+      .maybeSingle(),
+  ]);
+  if (profile.error || services.error || social.error) throw new Error("Business facts unavailable");
+  const { tenantBrandFacts } = await import("@/lib/tenant-llms");
+  return tenantBrandFacts({
+    name: input.name,
+    siteUrl: input.site.origin,
+    industry: input.industry,
+    profile: profile.data as never,
+    services: (services.data ?? []) as never,
+    social: social.data as never,
+    pageSlugs: input.site.pages.map((page) => page.slug),
+    publishedAt: input.site.publishedAt ?? null,
+  });
+}
+
+async function tenantFactsBody(file: TenantFactsFile, facts: Awaited<ReturnType<typeof tenantFactsFor>>): Promise<Response> {
+  if (file === "brand-facts.json") return new Response(`${JSON.stringify(facts, null, 2)}\n`, { headers: BRAND_FACTS_HEADERS });
+  const { tenantLlmsTxt } = await import("@/lib/tenant-llms");
+  return new Response(tenantLlmsTxt(facts), { headers: LLMS_HEADERS });
+}
+
+/**
+ * Response for /s/<slug>/llms.txt and /s/<slug>/brand-facts.json. Same gate as
+ * the per-client sitemap (published, live, not a demo/sample, home populated);
+ * a verified custom domain owns the canonical copy, so the request is sent there.
+ */
+export async function platformTenantFactsResponse(rawSlug: string, file: TenantFactsFile): Promise<Response> {
+  const crawl = await platformTenantCrawl(rawSlug, file);
+  if (crawl.kind === "missing") return crawlNotFound();
+  if (crawl.kind === "redirect") {
+    return new Response(null, {
+      status: 301,
+      headers: { location: crawl.location, "cache-control": "public, max-age=600" },
+    });
+  }
+  return tenantFactsBody(file, await tenantFactsFor({ organizationId: crawl.organizationId, name: crawl.name, industry: crawl.industry, site: crawl.site }));
+}
+
+/**
+ * The same files on a verified custom domain's root. Returns null when the host
+ * is not a client site (Revora's own hosts keep the platform /llms.txt), and a
+ * 404 for an offline, demo or sample client site.
+ */
+export async function hostTenantFactsResponse(
+  rawHost: string | null,
+  protocol: string,
+  file: TenantFactsFile,
+): Promise<Response | null> {
+  const site = await resolveHostSite(rawHost, protocol);
+  if (!site) return null;
+  if (site.noindex) return crawlNotFound();
+  const org = await publicOrganization({ slug: site.slug });
+  if (!org?.id || org.is_demo) return crawlNotFound();
+  const { homeReady } = await tenantSitemapPages(org.id);
+  if (!homeReady) return crawlNotFound();
+  return tenantFactsBody(file, await tenantFactsFor({ organizationId: org.id, name: org.name, industry: org.industry, site }));
 }
 
 /**
