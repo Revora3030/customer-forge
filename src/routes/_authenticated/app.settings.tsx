@@ -16,7 +16,7 @@ import { PushLeadAlerts } from "@/components/app/PushLeadAlerts";
 import { TwoFactorCard } from "@/components/app/TwoFactorCard";
 import { UpgradeFromWebsite } from "@/components/app/UpgradeFromWebsite";
 import { BookingLinkCard } from "@/components/app/BookingLinkCard";
-import { ChangePasswordForm, DisplayNameForm } from "@/components/app/AccountControls";
+import { ChangeEmailForm, ChangePasswordForm, DisplayNameForm } from "@/components/app/AccountControls";
 import { BusinessMemoryManager } from "@/components/app/BusinessMemoryManager";
 import { DataPrivacy } from "@/components/app/DataPrivacy";
 import { SiteBackupExport } from "@/components/app/SiteBackupExport";
@@ -100,6 +100,15 @@ function SettingsPage() {
               ""
             }
           />
+          <div>
+            <p className="eyebrow mb-2">Email</p>
+            <ChangeEmailForm
+              email={session?.user.email}
+              pendingEmail={
+                (session?.user as { new_email?: string | null } | undefined)?.new_email ?? null
+              }
+            />
+          </div>
           <div>
             <p className="eyebrow mb-2">Password</p>
             <ChangePasswordForm email={session?.user.email} />
