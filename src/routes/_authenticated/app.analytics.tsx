@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { conversionLabel } from "@/lib/outcome-numbers";
 import { useMemo, useState } from "react";
 import { LoadingRows, MetricCard, PageHead, Panel, SectionHeading } from "@/components/app/Bits";
 import { useAnalytics, useAppointments, useLeads } from "@/lib/queries";
@@ -154,7 +155,7 @@ function AnalyticsPage() {
         />
         <MetricCard
           label="Conversion"
-          value={`${model.conversion.toFixed(1)}%`}
+          value={conversionLabel(model.leads, model.views)}
           tone="attention"
           hint="visitor → lead"
           progress={model.conversion * 10}
