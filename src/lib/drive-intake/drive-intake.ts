@@ -70,8 +70,14 @@ export function planDriveImport(
   return { toImport, skipped, remaining };
 }
 
-/** Google account owners share their photo folder with (Viewer access). */
-export const DRIVE_SHARE_ADDRESS = "godbody4040@gmail.com";
+/**
+ * Address owners share their folder with, from VITE_REVORA_DRIVE_SHARE_EMAIL
+ * (Adam picks it). Anything that isn't a plain email is treated as unset.
+ */
+export function driveShareAddress(value: unknown): string | null {
+  const v = typeof value === "string" ? value.trim() : "";
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) ? v : null;
+}
 
 /**
  * Owner-facing Drive intake stays OFF until Google Drive is connected in

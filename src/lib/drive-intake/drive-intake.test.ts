@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
 import {
   driveIntakeEnabled,
+  driveShareAddress,
   drivePhotoPath,
   parseDriveFolderId,
   planDriveImport,
@@ -98,5 +99,14 @@ describe("driveIntakeEnabled", () => {
     expect(driveIntakeEnabled(undefined)).toBe(false);
     expect(driveIntakeEnabled("1")).toBe(false);
     expect(driveIntakeEnabled("true")).toBe(true);
+  });
+});
+
+describe("driveShareAddress", () => {
+  it("uses only a configured email", () => {
+    expect(driveShareAddress(undefined)).toBeNull();
+    expect(driveShareAddress("  ")).toBeNull();
+    expect(driveShareAddress("not-an-email")).toBeNull();
+    expect(driveShareAddress(" photos@example.com ")).toBe("photos@example.com");
   });
 });
