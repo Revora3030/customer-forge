@@ -17,9 +17,17 @@ export const TAP_TARGET_MIN_PX = 44;
 const WIDTH_TOLERANCE_PX = 24;
 
 /** Snap any value (slider, keyboard, stray NaN) to a whole width inside the slider's range. */
-export function clampFluidWidth(value: number, fallback = 390): number {
+export function clampFluidWidth(value: number, fallback = 390, max = FLUID_MAX_WIDTH): number {
   const base = Number.isFinite(value) ? value : fallback;
-  return Math.min(FLUID_MAX_WIDTH, Math.max(FLUID_MIN_WIDTH, Math.round(base)));
+  return Math.min(max, Math.max(FLUID_MIN_WIDTH, Math.round(base)));
+}
+
+/** Widest preview a small screen is asked to lay out: a 1440 px site inside a phone tab is what ran iPhone Safari out of memory. */
+export const FLUID_MAX_WIDTH_SMALL_SCREEN = 820;
+
+/** The slider's top end for the screen it is shown on (window width in CSS px; unknown means desktop). */
+export function fluidMaxForScreen(windowWidth: number | null | undefined): number {
+  return typeof windowWidth === "number" && Number.isFinite(windowWidth) && windowWidth > 0 && windowWidth < 768 ? FLUID_MAX_WIDTH_SMALL_SCREEN : FLUID_MAX_WIDTH;
 }
 
 export type OverflowReading = {
