@@ -883,6 +883,7 @@ function WebsitePage() {
               canManage={manage}
               reveal={reveal}
               pickRequest={pickRequest}
+              {...(manage ? { onAnnotate: (message: string) => requests.queue(message) } : {})}
               liveStatus={liveStatus ?? rebuildStatus}
               onInlineSaved={() => {
                 // The frame already shows the new words; refresh caches so

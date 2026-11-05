@@ -1,7 +1,8 @@
-import { forwardRef, useCallback, useEffect, useMemo, useRef, useState, type Ref, type RefObject } from "react";
+import { forwardRef, useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type Ref, type RefObject } from "react";
 import { framePainted, nextPreviewLoadState, PREVIEW_LOAD_TIMEOUT_MS, PREVIEW_PAINT_POLL_MS, type PreviewLoadState } from "@/lib/builder/preview-load";
 import {
   ExternalLink,
+  Brush,
   Pencil,
   Maximize2,
   Minimize2,
@@ -52,6 +53,7 @@ import {
 } from "@/lib/builder/preview-bridge";
 import { saveInlineText } from "@/lib/builder/inline-edit.functions";
 import { PreviewThemeEditor } from "@/components/app/PreviewThemeEditor";
+import { PreviewAnnotateLayer } from "@/components/app/PreviewAnnotateLayer";
 import type { SiteStyle } from "@/lib/builder/style-edit";
 import type { Palette } from "@/lib/builder/palette-edit";
 import { splitForKey, splitForPointer } from "@/lib/builder/compare-slider";
@@ -92,6 +94,8 @@ type BuilderPreviewProps = {
   refreshRevision?: number;
   /** Called when the owner clicks a block while select mode is on. */
   onSelect?: (selection: PreviewSelection) => void;
+  /** Draw-on-preview (G-A10): called with the chat message for what the owner marked. Shows the Draw button. */
+  onAnnotate?: (message: string) => void;
   /** The block currently being discussed, outlined inside the preview. */
   selectedId?: string | null;
   /** The exact element being discussed inside that block, if one was picked. */
@@ -141,6 +145,7 @@ function BuilderPreviewFrame({
   refreshing = false,
   refreshRevision = 0,
   onSelect,
+  onAnnotate,
   selectedId = null,
   selectedPath = null,
   liveStatus = null,
@@ -173,6 +178,7 @@ function BuilderPreviewFrame({
   const [refreshKey, setRefreshKey] = useState(0);
   const [fullscreen, setFullscreen] = useState(false);
   const [selectMode, setSelectMode] = useState(false);
+  const [annotating, setAnnotating] = useState(false);
   useEffect(() => {
     if (pickRequest > 0) setSelectMode(true);
   }, [pickRequest]);
@@ -497,6 +503,21 @@ function BuilderPreviewFrame({
         </div>
 
         <div className="flex shrink-0 items-center gap-1">
+          {onAnnotate ? (
+            <Button
+              type="button"
+              size="icon-sm"
+              variant={annotating ? "secondary" : "ghost"}
+              aria-pressed={annotating}
+              disabled={!frameReady || visibleCompareMode === "overlay"}
+              data-testid="builder-preview-draw"
+              aria-label={annotating ? "Stop drawing on the preview" : "Draw on the preview"}
+              title={annotating ? "Stop drawing" : "Circle or underline what to change"}
+              onClick={() => setAnnotating((value) => !value)}
+            >
+              <Brush className="size-4" aria-hidden />
+            </Button>
+          ) : null}
           {onSelect ? (
             <Button
               type="button"
@@ -757,6 +778,20 @@ function BuilderPreviewFrame({
             scale={paneScale}
             title={`${page?.title ?? "Website"} preview`}
             testId="builder-preview-frame"
+            overlay={
+              annotating && onAnnotate ? (
+                <PreviewAnnotateLayer
+                  key={`${source}-${refreshKey}-${refreshRevision}-${tabRevision}`}
+                  frameRef={frameRef}
+                  viewportWidth={viewportWidth}
+                  frameHeight={frameHeight}
+                  scale={paneScale}
+                  pageTitle={page?.title ?? null}
+                  onSend={onAnnotate}
+                  onClose={() => setAnnotating(false)}
+                />
+              ) : null
+            }
           />
         </div>
         )}
@@ -789,8 +824,10 @@ const PreviewFrame = forwardRef<
     testId?: string;
     /** The address is not decided yet: show the page skeleton without loading anything. */
     waiting?: boolean;
+    /** Drawn over the frame, at the frame's scaled size (the draw-on-preview layer). */
+    overlay?: ReactNode;
   }
->(function PreviewFrame({ label, src, frameKey, viewportWidth, frameHeight, scale, title, testId, waiting = false }, ref) {
+>(function PreviewFrame({ label, src, frameKey, viewportWidth, frameHeight, scale, title, testId, waiting = false, overlay = null }, ref) {
   const [attempt, setAttempt] = useState(0);
   const [loadState, setLoadState] = useState<PreviewLoadState>("loading");
   const localFrame = useRef<HTMLIFrameElement | null>(null);
@@ -857,6 +894,7 @@ const PreviewFrame = forwardRef<
             <SiteSkeleton label="Loading your preview…" compact={viewportWidth * scale < 520} />
           </div>
         ) : null}
+        {overlay}
         {loadState === "failed" ? (
           <div role="alert" className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-background p-4 text-center">
             <p className="text-[14px] font-semibold">Preview couldn't load</p>
