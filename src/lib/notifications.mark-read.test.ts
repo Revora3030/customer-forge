@@ -39,7 +39,7 @@ function table(name: string) {
     then: (res: (v: unknown) => unknown) => {
       const matched = applyUpdate();
       if (op) h.writes.push({ table: name, op: op.kind, values: op.values, filters: [...filterPairs] });
-      return Promise.resolve({ data: matched.map((r) => ({ id: r.id })), error: null }).then(res);
+      return Promise.resolve({ data: matched.map((r) => ({ id: r["id"] })), error: null }).then(res);
     },
   };
   return b;
@@ -116,21 +116,25 @@ describe("markNotificationsRead", () => {
     const result = await call(markNotificationsRead, { organizationId: ORG }, ctx());
     expect(result).toEqual({ ok: true, marked: 1 });
     expect(h.writes).toHaveLength(1);
-    expect(h.writes[0]).toMatchObject({
+    const write = h.writes[0];
+    expect(write).toBeDefined();
+    expect(write).toMatchObject({
       table: "notifications",
       op: "update",
       values: { is_read: true },
     });
-    expect(h.writes[0].filters).toEqual(
+    expect(write!.filters).toEqual(
       expect.arrayContaining([
         ["organization_id", ORG],
         ["is_read", false],
       ]),
     );
-    const orgRows = h.db["notifications"].filter((r) => r.organization_id === ORG);
-    expect(orgRows.find((r) => r.id === "n1")?.is_read).toBe(true);
-    expect(orgRows.find((r) => r.id === "n2")?.is_read).toBe(true);
-    expect(h.db["notifications"].find((r) => r.id === "n3")?.is_read).toBe(false);
+    const all = h.db["notifications"];
+    expect(all).toBeDefined();
+    const orgRows = all!.filter((r) => r["organization_id"] === ORG);
+    expect(orgRows.find((r) => r["id"] === "n1")?.["is_read"]).toBe(true);
+    expect(orgRows.find((r) => r["id"] === "n2")?.["is_read"]).toBe(true);
+    expect(all!.find((r) => r["id"] === "n3")?.["is_read"]).toBe(false);
   });
 
   it("rejects a missing organization id", async () => {
@@ -149,6 +153,8 @@ describe("markNotificationsRead", () => {
     const result = await call(markNotificationsRead, { organizationId: ORG }, ctx());
     expect(result).toEqual({ ok: true, marked: 0 });
     expect(h.writes).toHaveLength(1);
-    expect(h.writes[0].values).toEqual({ is_read: true });
+    const write = h.writes[0];
+    expect(write).toBeDefined();
+    expect(write!.values).toEqual({ is_read: true });
   });
 });
