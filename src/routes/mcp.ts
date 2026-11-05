@@ -7,12 +7,12 @@ import { createFileRoute } from "@tanstack/react-router";
 
 import { createTanStackMcpHandler } from "@lovable.dev/mcp-js/stacks/tanstack";
 
-const loadMcp = () => import("../lib/mcp/index");
+import mcp from "../lib/mcp/index";
 
 export const Route = createFileRoute("/mcp")({
   server: {
     handlers: {
-      ANY: createTanStackMcpHandler(loadMcp, {
+      ANY: createTanStackMcpHandler(mcp, {
         resourcePath: "/mcp",
         metadataPath: "/.well-known/oauth-protected-resource",
         trustForwardedHost: true,
