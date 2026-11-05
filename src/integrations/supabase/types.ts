@@ -3496,6 +3496,27 @@ export type Database = {
         }
         Relationships: []
       }
+      job_leases: {
+        Row: {
+          job: string
+          lease_owner: string | null
+          leased_until: string | null
+          updated_at: string
+        }
+        Insert: {
+          job: string
+          lease_owner?: string | null
+          leased_until?: string | null
+          updated_at?: string
+        }
+        Update: {
+          job?: string
+          lease_owner?: string | null
+          leased_until?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       job_queue_state: {
         Row: {
           consecutive_rate_limits: number
@@ -4547,6 +4568,7 @@ export type Database = {
           name: string
           onboarding_completed: boolean
           onboarding_step: number
+          past_due_since: string | null
           plan_id: string | null
           portal_code: string | null
           setup_checkout_session_id: string | null
@@ -4570,6 +4592,7 @@ export type Database = {
           name: string
           onboarding_completed?: boolean
           onboarding_step?: number
+          past_due_since?: string | null
           plan_id?: string | null
           portal_code?: string | null
           setup_checkout_session_id?: string | null
@@ -4593,6 +4616,7 @@ export type Database = {
           name?: string
           onboarding_completed?: boolean
           onboarding_step?: number
+          past_due_since?: string | null
           plan_id?: string | null
           portal_code?: string | null
           setup_checkout_session_id?: string | null
@@ -5885,6 +5909,69 @@ export type Database = {
           },
           {
             foreignKeyName: "publish_events_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "public_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      push_subscriptions: {
+        Row: {
+          auth: string
+          created_at: string
+          disabled_at: string | null
+          endpoint: string
+          failure_count: number
+          id: string
+          last_failure_at: string | null
+          last_success_at: string | null
+          organization_id: string
+          p256dh: string
+          updated_at: string
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          auth: string
+          created_at?: string
+          disabled_at?: string | null
+          endpoint: string
+          failure_count?: number
+          id?: string
+          last_failure_at?: string | null
+          last_success_at?: string | null
+          organization_id: string
+          p256dh: string
+          updated_at?: string
+          user_agent?: string | null
+          user_id?: string
+        }
+        Update: {
+          auth?: string
+          created_at?: string
+          disabled_at?: string | null
+          endpoint?: string
+          failure_count?: number
+          id?: string
+          last_failure_at?: string | null
+          last_success_at?: string | null
+          organization_id?: string
+          p256dh?: string
+          updated_at?: string
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "push_subscriptions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "push_subscriptions_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "public_organizations"
@@ -8589,6 +8676,10 @@ export type Database = {
       call_revora_job: {
         Args: { path: string; timeout_ms?: number }
         Returns: number
+      }
+      claim_job_lease: {
+        Args: { p_job: string; p_owner: string; p_seconds?: number }
+        Returns: boolean
       }
       claim_prospect_demo_server: {
         Args: { _token: string; _trial_days?: number; _user_id: string }
