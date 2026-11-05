@@ -1,0 +1,64 @@
+{
+  "_meta": {
+    "purpose": "JC-63 client bundle size budgets (gzip). Scene runtime/draw-call budgets are JC-18 (NB5), not here.",
+    "measuredAt": "2026-11-05 4:55 AM ET (npm run build \u2192 .output/public/assets)",
+    "assetsDir": ".output/public/assets",
+    "headroom": "10% over measured gzip",
+    "measuredGzipBytes": {
+      "totalJsGzip": 2140110,
+      "totalCssGzip": 46869,
+      "citySceneGzip": 22952,
+      "adminCityGzip": 29015,
+      "largestJsGzip": 184969
+    },
+    "licenseNote": "No new deps; Node zlib only (MIT)."
+  },
+  "assetDirs": [
+    ".output/public/assets",
+    "dist/assets"
+  ],
+  "budgets": [
+    {
+      "id": "total-js-gzip",
+      "description": "Sum of gzip sizes of all *.js browser assets",
+      "glob": "*.js",
+      "metric": "gzipSum",
+      "maxBytes": 2354121,
+      "measuredBytes": 2140110
+    },
+    {
+      "id": "total-css-gzip",
+      "description": "Sum of gzip sizes of all *.css browser assets",
+      "glob": "*.css",
+      "metric": "gzipSum",
+      "maxBytes": 51556,
+      "measuredBytes": 46869
+    },
+    {
+      "id": "city-scene-chunk-gzip",
+      "description": "Gzip max for the lazy CityScene chunk (JC-63 city chunk budget)",
+      "glob": "CityScene-*.js",
+      "metric": "gzipMax",
+      "maxBytes": 25248,
+      "measuredBytes": 22952,
+      "required": true
+    },
+    {
+      "id": "admin-city-route-gzip",
+      "description": "Gzip max for the /admin/city route chunk",
+      "glob": "admin.city-*.js",
+      "metric": "gzipMax",
+      "maxBytes": 31917,
+      "measuredBytes": 29015,
+      "required": true
+    },
+    {
+      "id": "largest-js-chunk-gzip",
+      "description": "Gzip max for any single *.js asset (currently three.module)",
+      "glob": "*.js",
+      "metric": "gzipMax",
+      "maxBytes": 203466,
+      "measuredBytes": 184969
+    }
+  ]
+}

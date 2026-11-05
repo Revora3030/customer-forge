@@ -9,7 +9,9 @@
  * Wrap such helpers in `createServerOnlyFn` or move them into a `.server.ts`.
  */
 import { readdirSync, readFileSync, existsSync } from "node:fs";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+import { spawnSync } from "node:child_process";
 
 const dir = process.argv[2] ?? ".output/public/assets";
 if (!existsSync(dir)) {
@@ -27,4 +29,12 @@ if (problems.length) {
   console.error("client-bundle-guard: server-only code leaked into the browser bundle:\n" + problems.map((p) => `  - ${p}`).join("\n"));
   process.exit(1);
 }
+
 console.log(`client-bundle-guard: ${files.length} browser chunks clean (no *.server chunks, no async_hooks).`);
+
+// JC-63: gzip size budgets (same assets dir). No workflow edit — runs in existing post-build step.
+{
+  const budgetScript = join(dirname(fileURLToPath(import.meta.url)), "perf-budgets.mjs");
+  const budget = spawnSync(process.execPath, [budgetScript, dir], { stdio: "inherit" });
+  if (budget.status) process.exit(budget.status ?? 1);
+}
