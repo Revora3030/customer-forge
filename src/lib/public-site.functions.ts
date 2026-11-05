@@ -434,7 +434,11 @@ export const getPreviewSite = createServerFn({ method: "GET" })
         label: null as string | null,
       };
     const { loadSite, resolvePreviewToken } = await import("@/lib/public-site.server");
-    const link = await resolvePreviewToken(data.token);
+    // A link with a password stays closed (and uncounted) until this browser
+    // has entered it; any error reading that state also keeps it closed.
+    const link = await resolvePreviewToken(data.token, {
+      beforeCount: async (found) => (await import("@/lib/preview-password.server")).previewAccessAllowed(data.token, found.id),
+    });
     if (!link.ok)
       return {
         ok: false as const,
@@ -467,7 +471,7 @@ export const getPreviewSite = createServerFn({ method: "GET" })
       };
     return {
       ok: true as const,
-      reason: null as "expired" | "revoked" | "unknown" | null,
+      reason: null as "expired" | "revoked" | "unknown" | "password" | null,
       site,
       expiresAt: link.expiresAt as string | null,
       label: link.label as string | null,

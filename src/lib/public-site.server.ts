@@ -622,7 +622,17 @@ export async function loadSite(
  * Validates a shareable preview token. Returns the organisation slug only when
  * the link exists, has not been revoked and has not expired.
  */
-export async function resolvePreviewToken(token: string) {
+export async function resolvePreviewToken(
+  token: string,
+  options?: {
+    /**
+     * Runs for a live link before anything is read or counted; return false to
+     * keep the content closed (LOV-6: a link with a password the visitor has not
+     * entered). Expired and revoked links are answered before this runs.
+     */
+    beforeCount?: (link: { id: string }) => Promise<boolean>;
+  },
+) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data: link } = await supabaseAdmin
     .from("website_preview_links")
@@ -635,6 +645,8 @@ export async function resolvePreviewToken(token: string) {
   const expiresAt = new Date(link.expires_at).getTime();
   if (!Number.isFinite(expiresAt) || expiresAt <= Date.now())
     return { ok: false as const, reason: "expired" as const };
+  if (options?.beforeCount && !(await options.beforeCount({ id: link.id as string })))
+    return { ok: false as const, reason: "password" as const };
 
   const { data: org } = await supabaseAdmin
     .from("organizations")
@@ -650,6 +662,7 @@ export async function resolvePreviewToken(token: string) {
 
   return {
     ok: true as const,
+    linkId: link.id as string,
     slug: org.slug,
     organizationId: link.organization_id as string,
     expiresAt: link.expires_at,

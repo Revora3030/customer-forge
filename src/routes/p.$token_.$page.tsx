@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { privatePreviewHeaders } from "@/lib/page-cache";
 import { isBuilderPreviewLabel } from "@/lib/builder/builder-preview-link";
 import { BuilderPreviewMode } from "@/components/site/BuilderPreviewMode";
+import { PreviewPasswordGate } from "@/components/PreviewPasswordGate";
 
 /** Sub-pages of a private draft preview link, checked on the server like the home page. */
 export const Route = createFileRoute("/p/$token_/$page")({
@@ -92,6 +93,7 @@ function PreviewPageRoute() {
 function PreviewPageNotFound({ data }: { data?: unknown }) {
   const { token } = Route.useParams();
   const reason = (data as { reason?: string } | undefined)?.reason;
+  if (reason === "password") return <PreviewPasswordGate token={token} />;
   if (reason === "page") {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background px-4 text-center">
