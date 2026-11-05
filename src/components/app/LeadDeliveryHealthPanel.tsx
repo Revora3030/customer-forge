@@ -2,6 +2,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { BellRing } from "lucide-react";
 import { EmptyState, LoadingRows, Panel, Pill } from "@/components/app/Bits";
+import { LeadRoutingAudit } from "@/components/app/LeadRoutingAudit";
 import { getLeadDeliveryHealth } from "@/lib/lead-delivery-watchdog.functions";
 import { relative } from "@/lib/format";
 
@@ -88,6 +89,7 @@ export function LeadDeliveryHealthPanel() {
           )}
         </>
       ) : null}
+      <LeadRoutingAudit />
     </Panel>
   );
 }
