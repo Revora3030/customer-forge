@@ -26,6 +26,10 @@ export type PendingPhoto = {
   file: File;
   preview: string;
   category: "hero" | "work" | "team" | "premises";
+  /** CG-09: the photo as the owner picked it, and the touched-up copy, when one was made. */
+  original?: File;
+  enhanced?: File;
+  note?: string;
 };
 
 /**
@@ -59,6 +63,18 @@ export async function saveOwnerPhotos(
       );
 
       if (upErr) throw upErr;
+      // CG-09: keep the owner's original next to the touched-up copy (best effort).
+      if (photo.enhanced && photo.original && photo.file === photo.enhanced) {
+        const base = path.slice(path.indexOf("/") + 1);
+        await withUploadTimeout(
+          supabase.storage
+            .from(MEDIA_BUCKET)
+            .upload(`${organizationId}/originals/${base}`, photo.original, {
+              contentType: photo.original.type,
+              upsert: false,
+            }),
+        ).catch(() => undefined);
+      }
       const category =
         photo.id === heroId ? "hero" : photo.category === "hero" ? "work" : photo.category;
       const { error: rowErr } = await supabase.from("media").insert({
