@@ -3,6 +3,7 @@ import { publishBlockReason } from "@/lib/builder/draft-branch";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { GROWTH_SYSTEM, usd } from "@/lib/offer";
 import { readWebsiteState } from "@/lib/site-restore.functions";
+import { stripCheckpointMeta } from "@/lib/builder/checkpoints";
 
 /**
  * Revora production activation.
@@ -560,7 +561,8 @@ export async function publishSiteNow(
           generation: restoreSource.generation ?? {},
           seo: restoreSource.seo ?? {},
           // `restored_from` lets the version list show this as its own entry.
-          pages: { ...restoreSource.pages, live_format: 1, restored_from: restoreSource.version },
+          // A restore is a new checkpoint: it never inherits the source's name or pin (CU-5).
+          pages: { ...stripCheckpointMeta(restoreSource.pages), live_format: 1, restored_from: restoreSource.version },
         }
       : {
           label: `Production v${nextVersion}`,

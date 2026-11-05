@@ -19,6 +19,7 @@ import {
 } from "@/lib/site-engine.hooks";
 import { useWebsiteContent } from "@/lib/website-content.hooks";
 import { useWorkspace } from "@/lib/use-tenant";
+import { AgentApprovalsPanel } from "@/components/app/AgentApprovalsPanel";
 import { canManage } from "@/lib/domain";
 import { useLaunchFlow } from "@/lib/production.hooks";
 import { readSeo } from "@/lib/site-seo";
@@ -49,7 +50,11 @@ export const Route = createFileRoute("/_authenticated/app/command")({
     meta: [
       { title: "AI Growth Command Center — Revora" },
       { property: "og:title", content: "AI Growth Command Center — Revora" },
-      { property: "og:description", content: "Audit, improve, connect and repair your whole website and growth system from one place." },
+      {
+        property: "og:description",
+        content:
+          "Audit, improve, connect and repair your whole website and growth system from one place.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       {
@@ -104,11 +109,15 @@ function CommandCenterPage() {
   /* ---------------- Auditor · conversion engine · auto-upgrades ---------------- */
 
   const selectedGoals = Array.isArray(profile?.["website_goals"])
-    ? (profile["website_goals"] as unknown[]).filter((goal): goal is string => typeof goal === "string")
+    ? (profile["website_goals"] as unknown[]).filter(
+        (goal): goal is string => typeof goal === "string",
+      )
     : [];
   const goal =
     normalizeGoal(org?.conversion_goal ?? null) ??
-    selectedGoals.map((selected) => normalizeGoal(selected)).find((selected) => selected !== null) ??
+    selectedGoals
+      .map((selected) => normalizeGoal(selected))
+      .find((selected) => selected !== null) ??
     null;
 
   const conversionCtx: ConversionContext = {
@@ -227,7 +236,9 @@ function CommandCenterPage() {
 
   /* ------------------------------ One-input intake ---------------------------- */
 
-  const goalLabel = goal ? (CONVERSION_GOALS.find((entry) => entry.value === goal)?.label ?? "") : "";
+  const goalLabel = goal
+    ? (CONVERSION_GOALS.find((entry) => entry.value === goal)?.label ?? "")
+    : "";
 
   const intakeValues: IntakeValues = {
     name: org?.name ?? "",
@@ -262,7 +273,9 @@ function CommandCenterPage() {
         lead: "lead",
       };
       const nextGoal = websiteGoalByConversion[normalizedPrimaryGoal];
-      const rest = selectedGoals.filter((selected) => normalizeGoal(selected) !== normalizedPrimaryGoal);
+      const rest = selectedGoals.filter(
+        (selected) => normalizeGoal(selected) !== normalizedPrimaryGoal,
+      );
       profilePatch["website_goals"] = [nextGoal, ...rest];
     }
     await saveProfile.mutateAsync(profilePatch);
@@ -320,6 +333,10 @@ function CommandCenterPage() {
         title="What should we improve?"
         purpose="Choose an outcome. Revora checks what is saved, recommends the next move, and keeps every change reversible."
       />
+
+      {orgId ? (
+        <AgentApprovalsPanel organizationId={orgId} isOwner={ws?.workspace?.role === "owner"} />
+      ) : null}
 
       <GrowthCommandCenter
         input={input}

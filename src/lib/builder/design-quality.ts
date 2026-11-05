@@ -53,7 +53,10 @@ export type DesignFinding = {
     | "near_duplicate_text"
     | "flat_section_rhythm"
     | "too_many_heavy_effects"
-    | "shader_text_contrast";
+    | "shader_text_contrast"
+    | "motion_stagger_too_long"
+    | "motion_too_many_staggered"
+    | "translucent_text_backing";
   severity: "critical" | "major";
   path: string;
   /** Plain repair instruction for the art director. */
@@ -677,6 +680,8 @@ export function auditPageCraft(
   for (const section of sections) {
     const visits = walk(section.tree.root);
 
+    for (const finding of auditStatesAndMotion(section.tree)) push(section.id, finding);
+
     // Repeated cards that carry a title but no supporting words.
     for (const visit of visits) {
       if (visit.node.type !== "grid" && visit.node.type !== "row") continue;
@@ -786,6 +791,73 @@ export function auditPageCraft(
         fix: "Every section after the opening sits on the same background, so the page scrolls as one flat sheet. Give this section a contrasting surface (the accent at low strength, a lighter or darker band) or a full-bleed picture scene so the page changes pace.",
       });
     }
+  }
+  return out;
+}
+
+
+/** Entrance motions that play once as an element arrives. Ambient loops, float and scroll-depth are not part of a stagger. */
+const NON_ENTRANCE_MOTION = new Set(["none", "float", "depth"]);
+
+/** A stagger that finishes later than this makes the reader wait for content (craft bar: "inside about a second"). */
+export const MAX_STAGGER_MS = 1000;
+/** Past roughly a dozen staggered items the stagger is skipped (craft bar). */
+export const MAX_STAGGERED_ITEMS = 12;
+/** Body copy shorter than this is a label, not reading text. */
+const BODY_COPY_MIN = 40;
+/** Below this opacity (percent) a surface lets the page show through enough to threaten text contrast. */
+const SOLID_ENOUGH_OPACITY = 85;
+
+function isEntranceMotion(node: CompositionNode): boolean {
+  const motion = node.motion;
+  if (!motion || NON_ENTRANCE_MOTION.has(motion.kind)) return false;
+  return motion.repeat == null;
+}
+
+/**
+ * States & motion gates (Lovable prompt library, APPLY.md item 2). Only what
+ * can be measured from the authored tree: staggers that run long or across too
+ * many items, and body copy on a frosted or see-through surface with no solid
+ * backing. Working widgets (forms, booking) author their own error and success
+ * states in the app, and the renderer supplies hover/focus styles, so neither is
+ * guessed at here.
+ */
+export function auditStatesAndMotion(tree: CompositionTree): DesignFinding[] {
+  const out: DesignFinding[] = [];
+  const visits = walk(tree.root);
+
+  const staggered = visits.filter(({ node }) => isEntranceMotion(node) && (node.motion?.delayMs ?? 0) > 0);
+  const slowest = staggered.reduce<Visit | null>((worst, visit) => ((visit.node.motion?.delayMs ?? 0) > (worst?.node.motion?.delayMs ?? 0) ? visit : worst), null);
+  if (slowest && (slowest.node.motion?.delayMs ?? 0) > MAX_STAGGER_MS)
+    out.push({
+      code: "motion_stagger_too_long",
+      severity: "major",
+      path: slowest.path,
+      fix: `This entrance waits ${slowest.node.motion?.delayMs}ms before it starts, so the group takes longer than about a second to appear and visitors wait on content. Shorten the stagger steps so the last item starts within ${MAX_STAGGER_MS}ms.`,
+    });
+  if (staggered.length > MAX_STAGGERED_ITEMS)
+    out.push({
+      code: "motion_too_many_staggered",
+      severity: "major",
+      path: staggered[MAX_STAGGERED_ITEMS]!.path,
+      fix: `${staggered.length} elements in this section have their own staggered entrance. Past about ${MAX_STAGGERED_ITEMS} the effect reads as lag. Animate the group once, or only the first few items, and let the rest appear together.`,
+    });
+
+  for (const { node, path } of visits) {
+    if (!CONTAINERS.has(node.type)) continue;
+    const frosted = (node.style?.blur ?? 0) > 0 && !node.style?.background;
+    const seeThrough = node.style?.opacity != null && node.style.opacity < SOLID_ENOUGH_OPACITY;
+    if (!frosted && !seeThrough) continue;
+    const hasBodyCopy = walk(node).some(({ node: inner }) => TEXTUAL.has(inner.type) && textLength(inner) >= BODY_COPY_MIN);
+    if (!hasBodyCopy) continue;
+    out.push({
+      code: "translucent_text_backing",
+      severity: "major",
+      path,
+      fix: frosted
+        ? "Body copy sits on a frosted-glass panel with no solid background behind it, so its contrast changes with whatever is underneath. Give the panel a solid or mostly opaque background colour, or move the paragraph off the glass and keep only a short heading on it."
+        : `Body copy sits on a surface at ${node.style?.opacity}% opacity, so the page shows through it. Keep surfaces that hold reading text at ${SOLID_ENOUGH_OPACITY}% or more, or move the copy onto a solid panel.`,
+    });
   }
   return out;
 }
