@@ -71,7 +71,7 @@ describe("unlock cookie proof", () => {
 describe("LOV-6 migration", () => {
   it("keeps hashes and attempt counters out of every browser role", async () => {
     const { readFileSync } = await import("node:fs");
-    const sql = readFileSync("supabase/migrations/20261101040000_preview_link_passwords.sql", "utf8");
+    const sql = readFileSync("supabase/migrations/20261105030000_preview_link_passwords.sql", "utf8");
     expect(sql).toMatch(/ALTER TABLE public\.website_preview_link_secrets ENABLE ROW LEVEL SECURITY/);
     expect(sql).toMatch(/REVOKE ALL ON public\.website_preview_link_secrets FROM PUBLIC, anon, authenticated/);
     expect(sql).not.toMatch(/GRANT[^;]*\b(anon|authenticated)\b/i);
