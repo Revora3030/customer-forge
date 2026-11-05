@@ -9,6 +9,8 @@ import { ModelTag } from "./ModelTag";
 import { EventNoticeCard } from "./EventNoticeCard";
 import { parseEventNotice } from "@/lib/jarvis-event-notice";
 import { RunTaskTree } from "./RunTaskTree";
+import { PlanCard } from "./PlanCard";
+import { splitJarvisPlan } from "@/lib/jarvis/multi-step-plan";
 
 export type JarvisRow = { id: string; role: "user" | "assistant"; content: string; created_at: string; run_id?: string | null };
 
@@ -68,7 +70,8 @@ type AssistantProps = {
 
 export function AssistantMessage({ message, isLast, busy, regenerating, speakingThis, approvalState, approvalUrl, onApprove, onCopy, onListen, onStopListening, onRegenerate, renderAfterProposal, showSteps, onAsk }: AssistantProps) {
   const notice = parseEventNotice(message.content);
-  const { body, meta } = splitReplyMeta(message.content);
+  const { body: withoutPlan, plan } = splitJarvisPlan(message.content);
+  const { body, meta } = splitReplyMeta(withoutPlan);
   const [expanded, setExpanded] = useState(isLast);
   const [stepsOpen, setStepsOpen] = useState(false);
   const long = body.length > 900;
@@ -103,6 +106,7 @@ export function AssistantMessage({ message, isLast, busy, regenerating, speaking
             </button>
           )
         ) : null}
+        {plan ? <PlanCard plan={plan} messageId={message.id} busy={busy} onAsk={onAsk} /> : null}
         {meta.proposals.map((proposal, index) => {
           const key = `${message.id}:${index}`;
           return (
