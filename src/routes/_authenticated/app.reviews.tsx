@@ -33,6 +33,7 @@ import { REVIEWS_META } from "@/lib/app-meta";
 import { MetaPreview } from "@/components/app/MetaPreview";
 import { ReviewKitCard } from "@/components/app/ReviewKitCard";
 import { ReviewSequenceCard } from "@/components/app/ReviewSequenceCard";
+import { ReviewReplyDraftPanel } from "@/components/app/ReviewReplyDraftPanel";
 
 export const Route = createFileRoute("/_authenticated/app/reviews")({
   head: () => ({
@@ -276,10 +277,20 @@ function ReviewsPage() {
                   Private feedback (never shown publicly): {review.private_feedback}
                 </p>
               ) : null}
+              {review.comment ? (
+                <details className="text-[13px]">
+                  <summary className="cursor-pointer text-muted-foreground">Draft a reply</summary>
+                  <div className="mt-2">
+                    <ReviewReplyDraftPanel organizationId={orgId} reviewId={review.id} />
+                  </div>
+                </details>
+              ) : null}
             </Panel>
           ))}
         </div>
       )}
+
+      <ReviewReplyDraftPanel organizationId={orgId} />
 
       <MetaPreview meta={REVIEWS_META} label="/app/reviews" />
 
