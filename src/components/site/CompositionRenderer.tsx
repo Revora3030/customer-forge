@@ -34,6 +34,7 @@ import { CinematicHeroStage, type HeroStagePicture } from "@/components/site/Cin
 import { usePremiumFx } from "@/components/site/premium-fx";
 import { ScrollRevealFallback } from "@/components/site/ScrollRevealFallback";
 import { PREMIUM_CSS } from "@/components/site/premium-css";
+import { LAYOUT_SAFETY_CSS } from "@/components/site/layout-safety-css";
 import { looksEquirect, splitWords, TOUR_LIMITS } from "@/lib/builder/premium-effects";
 import { isModelUrl } from "@/lib/site-models";
 import type { HeroVideoMedia } from "@/lib/builder/hero-stock-video";
@@ -203,7 +204,10 @@ function widgetThemeStyle(theme: WidgetPresentation["theme"] | undefined): CSSPr
   set("--card-foreground", theme.text);
   set("--popover-foreground", theme.text);
   set("--secondary-foreground", theme.text);
-  set("--muted-foreground", theme.muted ?? theme.text);
+  // Helper, privacy and small print: whatever muted ink the AI chose, it is
+  // pulled to AA (4.5:1) on the widget surface.
+  const mutedInk = theme.muted ?? theme.text;
+  set("--muted-foreground", theme.surface && mutedInk ? readableOn(mutedInk, theme.surface) : mutedInk);
   set("--border", theme.border);
   set("--input", theme.border);
   set("--primary", theme.action);
@@ -587,11 +591,11 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
   // A box whose contents all resolved to nothing (missing facts, unavailable
   // widget or image) is dropped so visitors never see an empty styled frame.
   const EMPTY_PRUNE = new Set(["card", "stack", "row", "grid", "scene3d"]);
-  if (EMPTY_PRUNE.has(node.type) && !node.text && node.children?.length && kids?.every((k) => k == null)) return null;
+  if (EMPTY_PRUNE.has(node.type) && !node.text?.trim() && node.children?.length && kids?.every((k) => k == null)) return null;
   // The same box is also dropped when only decoration survived (an accent rule,
   // spacer or icon) because its picture or content did not resolve: otherwise
   // visitors see a large empty card with just a coloured strip across its top.
-  if (EMPTY_PRUNE.has(node.type) && !node.text && onlyDecorationLeft(prunedChildren, kids)) return null;
+  if (EMPTY_PRUNE.has(node.type) && !node.text?.trim() && onlyDecorationLeft(prunedChildren, kids)) return null;
   // A grid laid out for more items than it really shows (a picture that did
   // not resolve, a widget that is unavailable, or just fewer cards than
   // columns) would park its content in the first narrow track and leave the
@@ -637,6 +641,9 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
       return <Tag key={key} {...props} style={headingStyle}>{headingText}{kids}</Tag>;
     }
     case "text": {
+      // A text block with no words and nothing inside it paints nothing, so it
+      // must not leave an empty paragraph (and the gap that goes with it).
+      if (!node.text?.trim() && !kids?.some((k) => k != null)) return null;
       const textBody = splitText(node, ctx, motion) ?? countUpText(node, ctx);
       if (!childrenArePhrasing(node)) return <div key={key} {...props}>{textBody}{kids}</div>;
       return <p key={key} {...props}>{textBody}{kids}</p>;
@@ -1564,6 +1571,8 @@ export function MobileStickyBar({ props, primary, secondary, tertiary, layout = 
     const measure = () => {
       const height = Math.max(0, ...Array.from(document.querySelectorAll<HTMLElement>(".rv-cn-mobile-sticky-bar")).map((item) => item.getBoundingClientRect().height));
       document.documentElement.style.setProperty("--rv-sticky-height", `${Math.ceil(height)}px`);
+      // Marker for browsers without :has(), so the page padding still applies.
+      document.documentElement.setAttribute("data-rv-sticky-bar", "");
     };
     const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
     observer?.observe(element);
@@ -1573,6 +1582,7 @@ export function MobileStickyBar({ props, primary, secondary, tertiary, layout = 
       observer?.disconnect();
       window.removeEventListener("resize", measure);
       document.documentElement.style.removeProperty("--rv-sticky-height");
+      document.documentElement.removeAttribute("data-rv-sticky-bar");
     };
   }, []);
   if (layout === "tabs") {
@@ -1730,7 +1740,7 @@ function RenderComposition({ premiumOff = false, faqDraft = false, faqFacts = nu
   // section's own responsive/hover rules stay inline, after the shared ones.
   const shared = (
     <style href="rv-cn-shared" precedence="rv-cn">
-      {CRAFT_ENGINE_CSS + MOTION_CSS + MARQUEE_CSS + INTERACTIVE_CSS + PHONE_SAFETY_CSS + CINEMATIC_CSS + BROKEN_MEDIA_CSS + PREMIUM_CSS}
+      {CRAFT_ENGINE_CSS + MOTION_CSS + MARQUEE_CSS + INTERACTIVE_CSS + PHONE_SAFETY_CSS + CINEMATIC_CSS + BROKEN_MEDIA_CSS + PREMIUM_CSS + LAYOUT_SAFETY_CSS}
     </style>
   );
   const own = ctx.rules.length ? <style>{ctx.rules.join("")}</style> : null;
