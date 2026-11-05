@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { installSectionSettle, SETTLE_IDLE_MS, settleDelta } from "./section-settle";
+import { installSectionSettle, SETTLE_IDLE_MS, SETTLE_WHEEL_WINDOW_MS, settleDelta } from "./section-settle";
+import { SMOOTH_SCROLL_GLIDE_MS, startSmoothScroll } from "./smooth-scroll";
 
 describe("settleDelta", () => {
   it("lines up a section edge that is close to the top", () => {
@@ -86,5 +87,28 @@ describe("installSectionSettle", () => {
     const stop = installSectionSettle(win);
     stop();
     expect(Object.values(listeners).every((list) => list.length === 0)).toBe(true);
+  });
+
+  it("with desktop smooth scroll, waits out the glide and settles through Lenis", async () => {
+    const { win, fire, scrollBy } = fakeWindow({ fine: true, edges: [50] });
+    const w = win as unknown as Record<string, unknown>;
+    w["innerWidth"] = 1440;
+    w["self"] = w;
+    w["top"] = w;
+    const lenis = { scroll: 1200, scrollTo: vi.fn(), destroy: vi.fn() };
+    const stopSmooth = startSmoothScroll(win, async () => () => lenis);
+    await new Promise((r) => setTimeout(r, 0));
+    vi.useFakeTimers();
+    const stop = installSectionSettle(win);
+    fire("wheel");
+    // Lenis keeps the page gliding (and firing scroll events) after the last wheel event.
+    vi.advanceTimersByTime(SETTLE_WHEEL_WINDOW_MS + SMOOTH_SCROLL_GLIDE_MS / 2);
+    fire("scroll");
+    vi.advanceTimersByTime(SETTLE_IDLE_MS + 5);
+    expect(lenis.scrollTo).toHaveBeenCalledWith(1250, { duration: 0.6 });
+    expect(scrollBy).not.toHaveBeenCalled();
+    stop();
+    stopSmooth();
+    expect(lenis.destroy).toHaveBeenCalled();
   });
 });
