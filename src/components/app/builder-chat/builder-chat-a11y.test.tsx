@@ -10,6 +10,7 @@ import type { ChatTask } from "@/lib/builder/hydrate-tasks";
 
 vi.mock("@tanstack/react-start", () => ({ useServerFn: (fn: unknown) => fn }));
 vi.mock("@/lib/ai-suggestions.functions", () => ({ getAiSuggestions: async () => ({ suggestions: [] }) }));
+vi.mock("@/lib/builder/ask-mode.functions", () => ({ askAboutSite: async () => ({ answer: "", unsure: true, change: null }) }));
 vi.mock("@/lib/builder-requests.hooks", () => ({ INSTRUCTION_LIMIT: 1200 }));
 vi.mock("@/lib/builder/progress.hooks", () => ({ useBuildProgress: () => ({ steps: [], latest: null }), useReplyDraft: () => "" }));
 vi.mock("@/components/app/AssistantMedia", () => ({ AssistantMedia: () => null }));
@@ -254,5 +255,17 @@ describe("show in preview", () => {
     expect(html).toContain('aria-label="Show in preview: Warmer headline"');
     expect(html).not.toContain('aria-label="Show in preview: Set SEO title"');
     expect(render([planned])).not.toContain("Show in preview");
+  });
+});
+
+describe("Ask mode switch (COMP-2 + LOV-1)", () => {
+  it("shows the Ask / Change switch, off by default, on an edit chat", () => {
+    const html = render([appliedTask]);
+    expect(html).toContain('data-testid="ask-mode-toggle"');
+    expect(html).toContain('aria-checked="false"');
+  });
+  it("hides it for a first build", () => {
+    const html = render([], { onFirstBuild: async () => undefined });
+    expect(html).not.toContain('data-testid="ask-mode-toggle"');
   });
 });
