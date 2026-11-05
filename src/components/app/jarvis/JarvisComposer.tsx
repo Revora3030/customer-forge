@@ -154,7 +154,7 @@ export function JarvisComposer({ value, onChange, onSubmit, maxLength, busy, onS
           aria-pressed={listening}
           disabled={busy && !listening}
           onClick={onToggleMic}
-          className={`${iconButton} ${listening ? "bg-destructive/15 text-destructive hover:bg-destructive/20 hover:text-destructive" : ""}`}
+          className={`size-11 shrink-0 rounded-full ${listening ? "bg-destructive/15 text-destructive hover:bg-destructive/20 hover:text-destructive" : ""}`}
         >
           {listening ? <MicOff className="size-4" aria-hidden /> : <Mic className="size-4" aria-hidden />}
         </Button>
