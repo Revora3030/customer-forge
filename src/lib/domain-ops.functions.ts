@@ -371,3 +371,31 @@ export const runDomainSeoReport = createServerFn({ method: "POST" })
       .eq("organization_id", data.organizationId);
     return report;
   });
+
+/**
+ * Where the saved domain's DNS appears to be hosted, from public NS records.
+ * Reads the domain stored on the workspace (never an arbitrary name from the
+ * browser). "unknown" means we can't tell; it is never a guess.
+ */
+export const lookupDnsHost = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: { organizationId: string }) => ({
+    organizationId: String(input?.organizationId ?? ""),
+  }))
+  .handler(async ({ data, context }) => {
+    await authorize(context, data.organizationId, "staff");
+    const { data: settings, error } = await context.supabase
+      .from("website_settings")
+      .select("custom_domain")
+      .eq("organization_id", data.organizationId)
+      .maybeSingle();
+    if (error || !settings) throw new Error("You don't have access to that workspace.");
+    const domain = settings.custom_domain ?? "";
+    if (!domain) return { domain: null, detection: null };
+    const { detectDomainDnsHost, dnsHostLookupLimiter, RATE_LIMITED_MESSAGE } = await import(
+      "@/lib/domain-ops.server"
+    );
+    if (!dnsHostLookupLimiter.hit(`ns|${context.userId}|${data.organizationId}`))
+      throw new Error(RATE_LIMITED_MESSAGE);
+    return { domain, detection: await detectDomainDnsHost(domain) };
+  });

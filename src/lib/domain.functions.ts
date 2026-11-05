@@ -174,6 +174,11 @@ export const recheckDomain = createServerFn({ method: "POST" })
   }))
   .handler(async ({ data, context }) => {
     const { checkDomain, DOMAIN_A_RECORD } = await import("@/lib/admin.server");
+    const { domainLiveCheckLimiter, RATE_LIMITED_MESSAGE } = await import(
+      "@/lib/domain-ops.server"
+    );
+    if (!domainLiveCheckLimiter.hit(`live|${context.userId}|${data.organizationId}`))
+      throw new Error(RATE_LIMITED_MESSAGE);
 
     const { data: settings, error } = await context.supabase
       .from("website_settings")
@@ -220,6 +225,7 @@ export const recheckDomain = createServerFn({ method: "POST" })
       expected: DOMAIN_A_RECORD,
       seen: [...(records.a ?? []), ...(records.cname ?? [])],
       rootOk: !!(records.aMatches || records.cnameMatches),
+      records: check.records,
       checkedAt: new Date().toISOString(),
     };
   });
