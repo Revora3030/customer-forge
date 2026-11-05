@@ -153,12 +153,14 @@ export async function runSiteMonitor(db: Db, deps: SiteMonitorDeps = {}): Promis
       for (const f of current) run.findings.push({ host, check: f.check, fresh: fresh.includes(f) });
 
       const stamp = new Date(now).toISOString();
+      // COMP-4: remember what this run measured (pass / fail / not verified) per
+      // check, in dry_run and on (off returned above). Check results only:
+      // findings rows and owner emails stay strictly behind "on".
+      await db.from("site_monitor_checks").upsert(
+        checkOutcomes(result, errorsMeasured ? spikes : null).map((o) => ({ organization_id: organizationId, host, check_key: o.check, status: o.status, checked_at: stamp })),
+        { onConflict: "organization_id,host,check_key" },
+      );
       if (mode === "on") {
-        // COMP-4: remember what this run measured (pass / fail / not verified) per check.
-        await db.from("site_monitor_checks").upsert(
-          checkOutcomes(result, errorsMeasured ? spikes : null).map((o) => ({ organization_id: organizationId, host, check_key: o.check, status: o.status, checked_at: stamp })),
-          { onConflict: "organization_id,host,check_key" },
-        );
         for (const f of fresh)
           await db.from("site_monitor_findings").upsert(
             { organization_id: organizationId, host, check_key: f.check, state: "new", title: f.title, detail: f.detail, first_seen_at: stamp, last_seen_at: stamp, fixed_at: null },
