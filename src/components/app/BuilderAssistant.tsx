@@ -62,6 +62,7 @@ import { ChatSearch, VoiceDictationButton } from "@/components/app/ChatThreadToo
 import { ApplyResultCard } from "@/components/app/builder-chat/ApplyResultCard";
 import { InspectChanges } from "@/components/app/builder-chat/InspectChanges";
 import { MessageMenu } from "@/components/app/builder-chat/MessageMenu";
+import { CheckpointTimelineButton, RestoreBeforeMessage } from "@/components/app/builder-chat/checkpoints-mount";
 import { useComposerMenu } from "@/components/app/builder-chat/ComposerMenu";
 import { useSendTestLead } from "@/components/app/builder-chat/use-test-lead";
 import { expandMentions } from "@/lib/builder/composer-commands";
@@ -417,6 +418,7 @@ export function BuilderAssistant({
             {busy || trackingWork ? "Working on your website…" : "AI website team · ready"}
           </p>
         </div>
+        <CheckpointTimelineButton organizationId={organizationId} />
         {toolsVisible ? (
           <div className="shrink-0">
             <ChatSearch search={requests.search} onPick={(hit) => jumpTo(hit.turn.requestId, hit.turn.branch)} />
@@ -586,6 +588,7 @@ export function BuilderAssistant({
                 className="chat-rise scroll-mt-3 space-y-3"
               >
                 <UserTurn text={task.instruction} attachments={task.attachments?.length ?? 0} />
+                <RestoreBeforeMessage organizationId={organizationId} task={task} />
                 <AssistantTurn>
                   <TaskBody
                     task={task}
