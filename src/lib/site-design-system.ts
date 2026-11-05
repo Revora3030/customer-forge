@@ -193,15 +193,16 @@ export function designSystemCss(): string {
     `${root} [data-rv-hero] h1~:is(p,div){animation:rv-hero-fade var(--motion-duration-slower) var(--motion-ease-out) calc(var(--motion-duration-fast) * 1) both}`,
     `${root} [data-rv-hero] :is(h1~p~div,h1~div~div){animation-delay:calc(var(--motion-duration-fast) * 2)}`,
     `${root} [data-rv-hero] :is(img,picture,video):first-of-type{animation:rv-hero-settle calc(var(--motion-duration-slower) * 2) var(--motion-ease-out) both}`,
-    // G-A8 Ken-Burns: after the CG-10 settle, the hero photo drifts in a slow
-    // alternate pan/zoom loop (40x --motion-duration-slower = 24s each way).
-    // Transform-only and clipped by its own frame, so it adds no layout shift;
-    // the duration token is 0ms under reduced motion and the media query below
-    // removes the animation outright. Photos only; hero video keeps its own motion.
-    `${root} [data-rv-hero] :has(> img:first-of-type){overflow:clip}`,
-    `${root} [data-rv-hero] img:first-of-type{animation:rv-hero-settle calc(var(--motion-duration-slower) * 2) var(--motion-ease-out) both,rv-hero-kenburns calc(var(--motion-duration-slower) * 40) var(--motion-ease-in-out) calc(var(--motion-duration-slower) * 2) infinite alternate;will-change:transform}`,
+    // G-A8 Ken-Burns: a slow alternate pan/zoom loop on the hero photo's WRAPPER
+    // (never the <img>, which CG-10's settle zoom animates). It starts after the
+    // settle finishes (2x --motion-duration-slower), runs 40x slower (24s) each way,
+    // and the wrapper's own frame is clipped, so it is transform-only with no CLS.
+    // Duration tokens are 0ms under reduced motion and the media query below
+    // removes it outright. Photos only; hero video keeps its own motion.
+    `${root} [data-rv-hero] :has(> :has(> img:first-of-type)){overflow:clip}`,
+    `${root} [data-rv-hero] :has(> img:first-of-type){animation:rv-hero-kenburns calc(var(--motion-duration-slower) * 40) var(--motion-ease-in-out) calc(var(--motion-duration-slower) * 2) infinite alternate}`,
     "}",
     // Reduced motion: unlayered so it beats the token block above.
-    `@media (prefers-reduced-motion:reduce){.rv-site-root{${decl(REDUCED_MOTION_TOKENS)}}.rv-site-root [data-rv-hero] :is(h1,h1~p,h1~div,img,picture,video){animation:none!important;will-change:auto}}`,
+    `@media (prefers-reduced-motion:reduce){.rv-site-root{${decl(REDUCED_MOTION_TOKENS)}}.rv-site-root [data-rv-hero] :is(h1,h1~p,h1~div,img,picture,video,:has(> img:first-of-type)){animation:none!important}}`,
   ].join("\n");
 }

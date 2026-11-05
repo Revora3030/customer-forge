@@ -246,18 +246,22 @@ describe("CG-10 hero entrance motion", () => {
 
 describe("G-A8 hero Ken-Burns", () => {
   const css = designSystemCss();
-  it("loops a slow pan/zoom on the hero photo after the CG-10 settle", () => {
+  it("loops a slow pan/zoom on the photo's wrapper after the CG-10 settle", () => {
     expect(css).toContain("@keyframes rv-hero-kenburns");
-    expect(css).toMatch(/\[data-rv-hero\] img:first-of-type\{animation:rv-hero-settle [^;]*,rv-hero-kenburns calc\(var\(--motion-duration-slower\) \* 40\) var\(--motion-ease-in-out\) calc\(var\(--motion-duration-slower\) \* 2\) infinite alternate/);
+    expect(css).toContain("[data-rv-hero] :has(> img:first-of-type){animation:rv-hero-kenburns calc(var(--motion-duration-slower) * 40) var(--motion-ease-in-out) calc(var(--motion-duration-slower) * 2) infinite alternate}");
+  });
+  it("never touches the <img> CG-10 animates", () => {
+    expect(css).not.toMatch(/img:first-of-type\{[^}]*rv-hero-kenburns/);
+    expect(css).toMatch(/:is\(img,picture,video\):first-of-type\{animation:rv-hero-settle/);
   });
   it("is transform-only and clipped, so it causes no layout shift", () => {
     const kb = css.match(/@keyframes rv-hero-kenburns\{.*?\}\}/)?.[0] ?? "";
     expect(kb).toContain("transform");
     expect(kb).not.toMatch(/width|height|top|left|margin|opacity/);
-    expect(css).toContain("[data-rv-hero] :has(> img:first-of-type){overflow:clip}");
+    expect(css).toContain("[data-rv-hero] :has(> :has(> img:first-of-type)){overflow:clip}");
   });
   it("is off under prefers-reduced-motion", () => {
     const reduced = css.slice(css.indexOf("@media (prefers-reduced-motion:reduce)"));
-    expect(reduced).toMatch(/\[data-rv-hero\] :is\([^)]*img[^)]*\)\{animation:none!important/);
+    expect(reduced).toContain(":has(> img:first-of-type)){animation:none!important");
   });
 });
