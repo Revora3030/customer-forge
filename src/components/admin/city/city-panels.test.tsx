@@ -90,6 +90,14 @@ describe("DistrictCarousel", () => {
     expect(html).toContain("min-h-14");
   });
 
+  it("offers a visible Actions button only when drafting is available", () => {
+    const withDraft = renderToStaticMarkup(<DistrictCarousel selected="growth" snapshot={SNAP} now={NOW} onSelect={() => undefined} onOpen={() => undefined} onDraft={() => undefined} />);
+    expect(withDraft).toContain('data-testid="district-actions-button"');
+    expect(withDraft).toContain("Actions for Growth &amp; Sales Hub");
+    expect(withDraft).toContain("min-h-11");
+    expect(html).not.toContain("district-actions-button");
+  });
+
   it("marks the chosen district, says how many records are open, and names the state for screen readers", () => {
     expect(html).toContain('aria-pressed="true"');
     expect(html).toContain("tap to open");

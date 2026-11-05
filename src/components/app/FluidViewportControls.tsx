@@ -3,6 +3,7 @@
  * overflow and tap-target badges. Badges show only what the preview frame
  * measured at the width on screen; otherwise they say NOT MEASURED.
  */
+import { useState } from "react";
 import { Accessibility, TriangleAlert } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { clampFluidWidth, FLUID_MAX_WIDTH, FLUID_MIN_WIDTH, fluidBadges, type FluidBadge, type OverflowReading, type TapReading } from "@/lib/builder/fluid-viewport";
@@ -15,23 +16,40 @@ const BADGE_CLASS: Record<CheckState, string> = {
   not_verified: "border-border/70 bg-muted text-muted-foreground",
 };
 
-export function FluidViewportSlider({ width, onChange }: { width: number; onChange: (width: number) => void }) {
+/**
+ * The preview frame is a whole site laid out at this width, so it must not
+ * re-lay-out on every pixel of a drag: on iPhone Safari that repeated layout
+ * of a heavy page ran the tab out of memory ("A problem repeatedly occurred").
+ * The drag only moves the thumb and the number; the preview takes the new width
+ * once the finger lifts (or a keyboard step lands).
+ */
+export function FluidViewportSlider({ width, onChange, max = FLUID_MAX_WIDTH }: { width: number; onChange: (width: number) => void; max?: number }) {
+  const [dragWidth, setDragWidth] = useState<number | null>(null);
+  // The number is the real width on screen (a wide preset can exceed the slider
+  // range); the thumb is pinned inside it.
+  const shownWidth = dragWidth ?? width;
+  const thumb = clampFluidWidth(shownWidth, 390, max);
   return (
     <div className="mx-auto mb-2 flex w-full max-w-xl items-center gap-2 text-[12px] text-muted-foreground" data-testid="builder-preview-fluid">
       <span className="tnum" aria-hidden>{FLUID_MIN_WIDTH}</span>
       <Slider
         className="h-11 flex-1"
         min={FLUID_MIN_WIDTH}
-        max={FLUID_MAX_WIDTH}
+        max={max}
         step={1}
-        value={[clampFluidWidth(width)]}
-        onValueChange={([next]) => onChange(clampFluidWidth(next ?? width))}
+        value={[thumb]}
+        onValueChange={([next]) => setDragWidth(clampFluidWidth(next ?? width, 390, max))}
+        onValueCommit={([next]) => {
+          const committed = clampFluidWidth(next ?? width, 390, max);
+          setDragWidth(null);
+          if (committed !== width) onChange(committed);
+        }}
         aria-label="Preview width in pixels"
         data-testid="builder-preview-fluid-slider"
       />
-      <span className="tnum" aria-hidden>{FLUID_MAX_WIDTH}</span>
-      <output className="tnum w-14 text-right font-medium text-foreground" aria-live="polite">
-        {width}px
+      <span className="tnum" aria-hidden>{max}</span>
+      <output className="tnum w-14 text-right font-medium text-foreground" aria-live="off">
+        {shownWidth}px
       </output>
     </div>
   );
