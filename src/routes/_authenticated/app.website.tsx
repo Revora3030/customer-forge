@@ -66,6 +66,9 @@ import { PublishRetryBar } from "@/components/app/PublishRetryBar";
 
 
 import { ImageStudio } from "@/components/app/ImageStudio";
+import { AssetSwapPanel, type AssetSwapTarget } from "@/components/app/AssetSwapPanel";
+import { pictureAlt } from "@/lib/builder/asset-swap";
+import { readComposition } from "@/lib/builder/composition-tree";
 import { readBackdrop } from "@/lib/site-effects";
 import { BuilderAudit } from "@/components/app/BuilderAudit";
 import { PrivacyNoticeDetails } from "@/components/app/PrivacyNoticeDetails";
@@ -260,6 +263,8 @@ function WebsitePage() {
   }, []);
   /** The block the owner clicked in the preview, scoping their next message. */
   const [selected, setSelected] = useState<PreviewSelection | null>(null);
+  // B12-4: a single click on a picture opens the Asset Swapper for that slot.
+  const [swapTarget, setSwapTarget] = useState<AssetSwapTarget | null>(null);
   /** The page open in the preview, so chat requests know what the owner is looking at. */
   const [viewingPage, setViewingPage] = useState<PageContext | null>(null);
   /** "Show in preview" from the chat: the section to scroll to and outline. */
@@ -892,7 +897,28 @@ function WebsitePage() {
                   return;
                 }
                 setSelected(pick);
+                if (manage && pick.element === "media" && pick.path) {
+                  const section = (shownPages ?? []).flatMap((page) => page.sections).find((row) => row.id === pick.id);
+                  const tree = readComposition(section?.settings);
+                  setSwapTarget({
+                    sectionId: pick.id,
+                    path: pick.path,
+                    label: pick.label ?? null,
+                    alt: tree ? pictureAlt(tree, pick.path) : "",
+                  });
+                  return;
+                }
                 setPreviewOpen(false);
+              }}
+            />
+            <AssetSwapPanel
+              organizationId={orgId ?? undefined}
+              industry={(org?.industry as string | undefined) ?? null}
+              target={swapTarget}
+              onClose={() => setSwapTarget(null)}
+              onSwapped={() => {
+                void queryClient.invalidateQueries({ queryKey: ["website_content", orgId] });
+                void queryClient.invalidateQueries({ queryKey: ["website_versions", orgId] });
               }}
             />
           </div>
