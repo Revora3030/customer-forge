@@ -10,3 +10,12 @@ export const getAiCity = createServerFn({ method: "GET" })
     const { collectCitySnapshot } = await import("./ai-city.server");
     return collectCitySnapshot(supabaseAdmin, context.userId);
   });
+export const getCityMetrics = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { assertSuperAdmin } = await import("./admin.server");
+    await assertSuperAdmin(context.supabase, context.userId);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { collectCityMetrics } = await import("./ai-city-metrics.server");
+    return collectCityMetrics(supabaseAdmin);
+  });
