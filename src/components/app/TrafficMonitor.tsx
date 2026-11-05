@@ -17,6 +17,7 @@ import { Label } from "@/components/ui/label";
 import { getTrafficReport, setTrafficAlerts } from "@/lib/traffic.functions";
 import { TRAFFIC_RANGES, severityTone, type TrafficIssue } from "@/lib/traffic";
 import { dateLong } from "@/lib/format";
+import { TRAFFIC_BUCKET_LABEL, TRAFFIC_BUCKET_ORDER } from "@/lib/traffic-source";
 
 export function TrafficMonitor({
   organizationId,
@@ -127,6 +128,26 @@ export function TrafficMonitor({
               />
               <List title="Most visited pages" rows={summary.pages} empty="No page views yet." />
               <List title="Device" rows={summary.devices} empty="No device data yet." />
+            </div>
+
+            <div className="mt-6" data-testid="traffic-buckets">
+              <p className="eyebrow">Sessions by kind of source</p>
+              <dl className="mt-2.5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                {TRAFFIC_BUCKET_ORDER.map((bucket) => (
+                  <Stat
+                    key={bucket}
+                    label={TRAFFIC_BUCKET_LABEL[bucket]}
+                    value={summary.sourceBuckets[bucket]}
+                  />
+                ))}
+              </dl>
+              <p className="mt-2 text-[12px] text-muted-foreground">
+                Counts only what your site recorded: a source tag on the link or the site the
+                visitor came from. AI assistants (ChatGPT, Perplexity, Claude, Gemini, Copilot) show
+                here when their name was recorded. A visit from a plain link that records no site
+                name appears under Other websites, so this can undercount assistants. Nothing is
+                estimated.
+              </p>
             </div>
 
             {!summary.hasEnoughData ? (

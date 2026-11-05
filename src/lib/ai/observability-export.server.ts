@@ -31,7 +31,11 @@ export function buildOtlpTracePayload(event:AiEvent,now=Date.now()){
 }
 export function getAiObservabilityExportStatus(){const otlpConfigured=otlpUrl()!==null,langfuseConfigured=langfuse()!==null;return {otlpConfigured,langfuseConfigured,anyDestinationConfigured:otlpConfigured||langfuseConfigured,promptsAndCompletionsIncluded:false as const,tenantAndUserIdsIncluded:false as const,ingestionVerified:false as const};}
 export async function exportAiTelemetry(event:AiEvent):Promise<{attempted:number;delivered:number}>{
- const body=JSON.stringify(buildOtlpTracePayload(event)),targets:{name:string;url:string;headers:Record<string,string>}[]=[];
+ return exportOtlpBody(JSON.stringify(buildOtlpTracePayload(event)));
+}
+/** Posts one OTLP/HTTP JSON body to every configured destination (none configured: no network call). */
+export async function exportOtlpBody(body:string):Promise<{attempted:number;delivered:number}>{
+ const targets:{name:string;url:string;headers:Record<string,string>}[]=[];
  const endpoint=otlpUrl();if(endpoint)targets.push({name:"otlp",url:endpoint,headers:{"content-type":"application/json",...(env("OTEL_EXPORTER_OTLP_AUTHORIZATION")?{authorization:env("OTEL_EXPORTER_OTLP_AUTHORIZATION")}:{})}});
  const lf=langfuse();if(lf)targets.push({name:"langfuse",url:lf.url,headers:{"content-type":"application/json",authorization:lf.authorization,"x-langfuse-ingestion-version":"4"}});
  if(!targets.length)return {attempted:0,delivered:0};

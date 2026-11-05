@@ -32,6 +32,7 @@ import { usePreviewMode } from "@/components/site/preview-mode-context";
 import { shouldTrackFormEvent } from "@/lib/site-event-once";
 import { mergeSplitServices } from "@/lib/builder/intake-sanitize";
 import { SiteNotLiveNotice } from "@/components/site/SiteNotLiveNotice";
+import { composeEnquiryMessage, ENQUIRY_TIMINGS, enquiryUsesSteps, timingLabel } from "@/lib/enquiry-steps";
 
 type Site = NonNullable<PublicSite>;
 
@@ -825,6 +826,14 @@ function EnquiryFormLive({ site, presentation }: { site: Site; presentation?: Wi
   const [problem, setProblem] = useState<string | null>(null);
   const [confirmationEmail, setConfirmationEmail] = useState("");
   const doneRef = useStepScroll<HTMLDivElement>(done);
+  // CG-15: with two or more services, ask "what do you need, and how soon?"
+  // first, then the contact details. One form throughout, so the spam
+  // protection fields are always part of the submit.
+  const stepped = enquiryUsesSteps(services);
+  const [step, setStep] = useState<"need" | "contact">(stepped ? "need" : "contact");
+  const [need, setNeed] = useState("");
+  const [timing, setTiming] = useState("");
+  const stepRef = useStepScroll<HTMLFormElement>(step);
 
   if (done) {
     return (
@@ -844,7 +853,9 @@ function EnquiryFormLive({ site, presentation }: { site: Site; presentation?: Wi
 
   return (
     <form
+      ref={stepRef}
       id="contact-form"
+      data-rv-enquiry-step={stepped ? step : undefined}
       className="panel space-y-4 p-5 scroll-mt-24 text-left"
       style={widgetPresentationStyle(presentation)}
       noValidate
@@ -853,6 +864,11 @@ function EnquiryFormLive({ site, presentation }: { site: Site; presentation?: Wi
       onSubmit={(e) => {
         e.preventDefault();
         if (pending) return;
+        if (step === "need") {
+          setProblem(null);
+          setStep("contact");
+          return;
+        }
         const form = new FormData(e.currentTarget);
         const name = String(form.get("name") ?? "").trim();
         const email = String(form.get("email") ?? "").trim();
@@ -873,7 +889,7 @@ function EnquiryFormLive({ site, presentation }: { site: Site; presentation?: Wi
             name,
             email,
             phone,
-            message,
+            message: composeEnquiryMessage(message, stepped ? timing : null),
             city: String(form.get("city") ?? ""),
             companyWebsite: String(form.get("company_website") ?? ""),
             altcha: altchaPayload(form),
@@ -906,7 +922,73 @@ function EnquiryFormLive({ site, presentation }: { site: Site; presentation?: Wi
       <AltchaField />
       <TurnstileField />
 
-      {services.length > 1 ? (
+      {stepped ? <input type="hidden" name="service" value={need} /> : null}
+
+      {stepped && step === "need" ? (
+        <>
+          <p className="text-[13px] text-muted-foreground">Step 1 of 2</p>
+          <fieldset>
+            <legend className="text-[14px] font-medium">{presentation?.fieldLabels?.service ?? "What do you need?"}</legend>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              {[...services.map((s) => s.name), ""].map((serviceName) => (
+                <Button
+                  key={serviceName || "not-sure"}
+                  type="button"
+                  variant="outline"
+                  aria-pressed={need === serviceName}
+                  onClick={() => setNeed(serviceName)}
+                  className={cn(
+                    "min-h-11 justify-start rounded-md border px-3.5 py-2.5 text-left text-[14px] whitespace-normal transition-colors",
+                    need === serviceName ? "border-primary bg-primary/10 text-foreground" : "border-border hover:bg-elevated",
+                  )}
+                >
+                  {serviceName || "Not sure yet"}
+                </Button>
+              ))}
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend className="text-[14px] font-medium">How soon? (optional)</legend>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {ENQUIRY_TIMINGS.map((option) => (
+                <Button
+                  key={option.id}
+                  type="button"
+                  variant="outline"
+                  aria-pressed={timing === option.id}
+                  onClick={() => setTiming((current) => (current === option.id ? "" : option.id))}
+                  className={cn(
+                    "min-h-11 rounded-full border px-3.5 text-[14px] transition-colors",
+                    timing === option.id ? "border-primary bg-primary/10 text-foreground" : "border-border hover:bg-elevated",
+                  )}
+                >
+                  {option.label}
+                </Button>
+              ))}
+            </div>
+          </fieldset>
+          <Button type="submit" variant="signal" className="min-h-11 w-full sm:w-auto">
+            Next
+          </Button>
+        </>
+      ) : null}
+
+      {stepped && step === "contact" ? (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-muted-foreground">
+          <span>Step 2 of 2</span>
+          <span>
+            {need || "Not sure yet"}
+            {timingLabel(timing) ? ` · ${timingLabel(timing)}` : ""}
+          </span>
+          <button type="button" onClick={() => setStep("need")} className="min-h-11 cursor-pointer underline underline-offset-2 hover:text-foreground">
+            Change
+          </button>
+        </div>
+      ) : null}
+
+      {stepped && step === "need" ? null : (
+      <>
+      {stepped ? null : services.length > 1 ? (
         <div className="space-y-1.5">
           <Label id={fid("service-label")} htmlFor={fid("service")}>{presentation?.fieldLabels?.service ?? "What can we help with? (optional)"}</Label>
           <SiteSelect
@@ -956,6 +1038,8 @@ function EnquiryFormLive({ site, presentation }: { site: Site; presentation?: Wi
         {pending ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : null} {presentation?.actionLabel ?? "Send message"}
       </Button>
       <ConsentNote slug={site.org.slug} />
+      </>
+      )}
     </form>
   );
 }
