@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "@/lib/ui/notify";
@@ -16,6 +16,7 @@ import {
 import { Panel, Pill, SectionHeading } from "@/components/app/Bits";
 import { Button } from "@/components/ui/button";
 import { ConfirmAction } from "@/components/app/ConfirmAction";
+import { DomainLiveAssistant } from "@/components/app/DomainLiveAssistant";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { recheckDomain, saveOwnDomain } from "@/lib/domain.functions";
@@ -88,6 +89,7 @@ export function DomainCenter({
   const [idea, setIdea] = useState("");
 
   const [registrar, setRegistrar] = useState("godaddy");
+  const selectDetectedRegistrar = useCallback((id: string) => setRegistrar(id), []);
   const [lastCheck, setLastCheck] = useState<{
     dnsOk: boolean;
     sslOk: boolean;
@@ -430,6 +432,12 @@ export function DomainCenter({
                 </Button>
               </div>
             }
+          />
+          <DomainLiveAssistant
+            organizationId={organizationId}
+            domain={connected}
+            settings={settings}
+            onDetected={selectDetectedRegistrar}
           />
           {/* Phones: one card per record, nothing scrolls sideways at 320px. */}
           <ul className="space-y-2 sm:hidden">
