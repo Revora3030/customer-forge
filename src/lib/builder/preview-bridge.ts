@@ -55,6 +55,16 @@ export type PreviewToBuilderMessage =
       type: "a11y-report";
       issueCount: number;
       issues: A11yIssue[];
+    }
+  | {
+      /** Controls measured inside the frame at its current width (B13-5). */
+      source: typeof PREVIEW_BRIDGE_SOURCE;
+      type: "tap-report";
+      checked: number;
+      smallCount: number;
+      smallest: number | null;
+      clientWidth: number;
+      examples: string[];
     };
 
 /** One low-contrast text element found in the preview. */
@@ -104,6 +114,11 @@ export type BuilderToPreviewMessage =
       /** Ask the preview to scan its text contrast (WCAG 2.2 AA). */
       source: typeof PREVIEW_BRIDGE_SOURCE;
       type: "run-a11y-check";
+    }
+  | {
+      /** Ask the preview to measure its tap targets at the current width. */
+      source: typeof PREVIEW_BRIDGE_SOURCE;
+      type: "run-tap-check";
     }
   | {
       /** Floating status on the preview while the team works on a block. */
@@ -169,6 +184,24 @@ export function readPreviewMessage(data: unknown): PreviewToBuilderMessage | nul
     const count = Math.max(issues.length, Math.min(9999, Math.round(Number(record["issueCount"]) || 0)));
     return { source: PREVIEW_BRIDGE_SOURCE, type: "a11y-report", issueCount: count, issues };
   }
+  if (record["type"] === "tap-report") {
+    const whole = (value: unknown, max: number) => Math.max(0, Math.min(max, Math.round(Number(value) || 0)));
+    const smallCount = whole(record["smallCount"], 99999);
+    const rawSmallest = record["smallest"];
+    const smallest = smallCount > 0 && typeof rawSmallest === "number" && Number.isFinite(rawSmallest) ? whole(rawSmallest, 99999) : null;
+    const examples = Array.isArray(record["examples"])
+      ? (record["examples"] as unknown[]).map((item) => text(item, 80)).filter((item): item is string => Boolean(item)).slice(0, 3)
+      : [];
+    return {
+      source: PREVIEW_BRIDGE_SOURCE,
+      type: "tap-report",
+      checked: Math.max(smallCount, whole(record["checked"], 99999)),
+      smallCount,
+      smallest,
+      clientWidth: whole(record["clientWidth"], 99999),
+      examples,
+    };
+  }
   const id = typeof record["id"] === "string" ? record["id"] : "";
   if (!ID_PATTERN.test(id)) return null;
   if (record["type"] === "inline-edit") {
@@ -199,6 +232,7 @@ export function readBuilderMessage(data: unknown): BuilderToPreviewMessage | nul
   const record = data as Record<string, unknown>;
   if (record["source"] !== PREVIEW_BRIDGE_SOURCE) return null;
   if (record["type"] === "run-a11y-check") return { source: PREVIEW_BRIDGE_SOURCE, type: "run-a11y-check" };
+  if (record["type"] === "run-tap-check") return { source: PREVIEW_BRIDGE_SOURCE, type: "run-tap-check" };
   if (record["type"] === "reveal") {
     const id = typeof record["id"] === "string" ? record["id"] : "";
     return ID_PATTERN.test(id) ? { source: PREVIEW_BRIDGE_SOURCE, type: "reveal", id } : null;

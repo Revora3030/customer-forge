@@ -51,7 +51,7 @@ export function createTurnDeadline(totalMs = JARVIS_TURN_DEADLINE_MS, clock: () 
       }
       let timer: ReturnType<typeof setTimeout> | undefined;
       const expired = new Promise<never>((_, reject) => {
-        timer = setTimeout(() => reject(turnDeadlineExceeded()), left);
+        timer = setTimeout(() => reject(turnDeadlineExceeded()), left); // DevSkim: ignore DS172411 -- Fixed callback and numeric delay; no untrusted data.
       });
       // A late failure of the abandoned work must not surface as an unhandled rejection.
       work.catch(() => undefined);

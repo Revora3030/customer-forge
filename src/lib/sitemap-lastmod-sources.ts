@@ -23,6 +23,8 @@ export const LASTMOD_SOURCE_GROUPS: Readonly<Record<string, readonly string[]>> 
   "locations-page": ["src/routes/locations.$city.tsx", "src/lib/business-identity.ts"],
   "states-hub": ["src/routes/states.index.tsx", "src/lib/us-states.ts"],
   "states-page": ["src/routes/states.$state.tsx", "src/lib/us-states.ts"],
+  "help-hub": ["src/routes/help.index.tsx", "src/lib/help-articles.ts"],
+  "help-page": ["src/routes/help.$slug.tsx", "src/lib/help-articles.ts"],
   "guides-hub": ["src/routes/guides.index.tsx", "src/lib/guides.ts"],
   "compare-hub": ["src/routes/compare.index.tsx", "src/content/seo/compare/index.md"],
   "compare-page": ["src/routes/compare.$slug.tsx", "src/lib/compare.ts"],
@@ -46,6 +48,7 @@ const STATIC_GROUPS: Readonly<Record<string, string>> = {
   "/locations": "locations-hub",
   "/states": "states-hub",
   "/guides": "guides-hub",
+  "/help": "help-hub",
   "/compare": "compare-hub",
   "/about": "about",
   "/contact": "contact",
@@ -64,6 +67,7 @@ export function lastmodGroupFor(path: string): string | null {
     if (parts[0] === "industries") return "industries-page";
     if (parts[0] === "locations") return "locations-page";
     if (parts[0] === "states") return "states-page";
+    if (parts[0] === "help") return "help-page";
     if (parts[0] === "compare") return "compare-page";
     if (parts[0] === "local") return "local-trade-hub";
   }
