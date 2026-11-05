@@ -14,7 +14,7 @@ function readDismissed(): string[] {
   } catch { return []; }
 }
 
-export function EventNoticeCard({ id, notice, time, busy, onAsk }: { id: string; notice: EventNotice; time?: string; busy?: boolean; onAsk?: ((prompt: string) => void) | undefined }) {
+export function EventNoticeCard({ id, notice, time, busy, onAsk }: { id: string; notice: EventNotice; time?: string | undefined; busy?: boolean | undefined; onAsk?: ((prompt: string) => void) | undefined }) {
   const [hidden, setHidden] = useState(false);
   useEffect(() => { setHidden(readDismissed().includes(id)); }, [id]);
   const dismiss = () => {

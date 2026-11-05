@@ -49,6 +49,7 @@ import { CRM_STAGES, LEAD_STATUSES, crmStageOf, leadStatusMeta, sourceLabel, typ
 import { groupByStage, leadsToCsv } from "@/lib/crm";
 import { DueTasksStrip, LeadTasks } from "@/components/app/LeadTasks";
 import { LeadReviewDraftPanel } from "@/components/app/LeadReviewDraftPanel";
+import { AskAiButton } from "@/components/app/AskAiButton";
 import { LeadReplyDraftPanel } from "@/components/app/LeadReplyDraftPanel";
 import { LeadResponseChip } from "@/components/app/LeadResponseChip";
 import { LeadWhatsAppButton } from "@/components/app/LeadWhatsAppButton";
@@ -173,6 +174,7 @@ function LeadsPage() {
         title="Leads"
         purpose="Everyone who enquired, and where each one stands."
       >
+        <AskAiButton topic="leads" label="Ask AI about my leads" />
         <LeadChimeToggle />
         <Dialog open={addOpen} onOpenChange={setAddOpen}>
           <DialogTrigger asChild>
@@ -529,6 +531,8 @@ function LeadsPage() {
                 </div>
 
                 <LeadTasks organizationId={orgId} leadId={selected.id} />
+
+                <AskAiButton key={`ask-${selected.id}`} topic="leads" leadId={selected.id} label="Ask AI about this lead" />
 
                 {selected.status === "new" || selected.status === "contacted" ? (
                   <LeadReplyDraftPanel key={`reply-${selected.id}`} organizationId={orgId} leadId={selected.id} />

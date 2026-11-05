@@ -585,6 +585,29 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
     } else {
       noteStage(orgId, runId, "waiting for first website");
     }
+    // PAI-15: business work (follow-ups, review requests, replies) becomes an agent
+    // run when the agent loop is on. It never reaches the site planner. With the
+    // loop off, or for anything about the website, this returns "site" and nothing changes.
+    {
+      const { startChatAgentRun } = await import("@/lib/builder/agent-run-start.server");
+      const started = await startChatAgentRun({ organizationId: orgId, userId, instruction: data.instruction, hasAttachments: data.attachments.length > 0 });
+      if (started.kind !== "site") {
+        return settle({
+          reply: started.reply,
+          summary: "",
+          steps: [] as AgentStep[],
+          questions: [] as string[],
+          notes: [] as string[],
+          dropped: [] as string[],
+          requirements: [] as { label: string; covered: boolean }[],
+          trace: [started.kind === "started" ? "Started as a background run. Nothing on your website changed." : "Not started. Nothing changed."],
+          unavailable: null as { reason: string; retryable: boolean; instruction: string } | null,
+          composition: null as import("@/lib/builder/composition-preview").CompositionPreview | null,
+          conversational: true,
+          agentRunId: started.kind === "started" ? started.runId : null,
+        }, "agent-run");
+      }
+    }
     const { decideConversation } = await import("@/lib/builder/conversation.server");
     const decision = await decideConversation({
       organizationId: orgId,

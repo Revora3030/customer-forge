@@ -189,7 +189,7 @@ function evalAtom(atomRaw: string, p: Persona, unknown: string[]): boolean {
 
   // <col>user_id = auth.uid()   /   auth.uid() = user_id   /   <col> = auth.uid()
   if (/^(?:\w+\.)?\w*user_id\s*=\s*auth\.uid\(\)$/i.test(atom) || /^auth\.uid\(\)\s*=\s*(?:\w+\.)?\w*user_id$/i.test(atom)) return p.ownsRowUser;
-  if (/^(?:\w+\.)?(created_by|owner_id|admin_id|id)\s*=\s*auth\.uid\(\)$/i.test(atom)) return p.ownsRowUser;
+  if (/^(?:\w+\.)?(created_by|recorded_by|owner_id|admin_id|id)\s*=\s*auth\.uid\(\)$/i.test(atom)) return p.ownsRowUser;
 
   unknown.push(atom);
   return true;

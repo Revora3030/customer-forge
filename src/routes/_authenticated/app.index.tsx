@@ -23,9 +23,11 @@ import { ClientWebsiteSummary } from "@/components/app/ClientWebsiteSummary";
 import { SpeedToLeadCard } from "@/components/app/SpeedToLeadCard";
 import { WinbackCard } from "@/components/app/WinbackCard";
 import { LeadDeliveryFlags } from "@/components/app/LeadDeliveryFlags";
+import { SuggestionsCard } from "@/components/app/SuggestionsCard";
 import { WorkDoneCard } from "@/components/app/WorkDoneCard";
 import { GrowthSnapshot } from "@/components/app/GrowthSnapshot";
 import { SeoReviewCard } from "@/components/app/SeoReviewCard";
+import { AiVisibilityCard } from "@/components/app/AiVisibilityCard";
 
 import { useProductionStatus } from "@/lib/production.hooks";
 
@@ -489,6 +491,7 @@ function Dashboard() {
 
       <LeadDeliveryFlags organizationId={orgId} />
       <StatusCenter organizationId={orgId} />
+      <SuggestionsCard organizationId={orgId} />
       {/* New customers see their site being built, live, at the top of the
           dashboard — real server-recorded stages, hidden once nothing runs. */}
       <BuildLive organizationId={orgId} />
@@ -505,6 +508,8 @@ function Dashboard() {
       />
 
       <SeoReviewCard organizationId={orgId} businessName={org?.name ?? null} />
+
+      <AiVisibilityCard organizationId={orgId} industry={org?.industry ?? null} />
 
       <GrowthSnapshot organizationId={orgId} businessName={org?.name ?? null} />
 
