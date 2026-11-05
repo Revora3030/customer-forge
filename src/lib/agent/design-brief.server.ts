@@ -15,6 +15,7 @@
  */
 
 import { callJson } from "@/lib/site-agent.server";
+import { designVocabularyBrief } from "@/lib/agent/design-vocabulary";
 import type { ModelRole } from "@/lib/ai/config";
 
 export type DesignDirection = {
@@ -66,7 +67,9 @@ Rules:
 - Mobile is a designed layout of its own, not a squeezed desktop one. Say what changes.
 - Design for conversion: every page has a clear primary action, trust signals where hesitation
   occurs, and a contact path that's never more than one tap away.
-- Visual hierarchy: one hero per page, clear section breaks, confident scale contrasts.`;
+- Visual hierarchy: one hero per page, clear section breaks, confident scale contrasts.
+
+${designVocabularyBrief()}`;
 
 const text = (value: unknown, max: number) =>
   typeof value === "string" ? value.replace(/\s+/g, " ").trim().slice(0, max) : "";
