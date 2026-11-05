@@ -19,10 +19,16 @@ export const Route = createFileRoute("/_authenticated/app/analytics")({
     meta: [
       { title: "Analytics — Revora" },
       { property: "og:title", content: "Analytics — Revora" },
-      { property: "og:description", content: metaDescription("Traffic, leads, bookings and conversion by source.") },
+      {
+        property: "og:description",
+        content: metaDescription("Traffic, leads, bookings and conversion by source."),
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
-      { name: "description", content: metaDescription("Traffic, leads, bookings and conversion by source.") },
+      {
+        name: "description",
+        content: metaDescription("Traffic, leads, bookings and conversion by source."),
+      },
       { name: "robots", content: "noindex" },
     ],
   }),
@@ -153,7 +159,11 @@ function AnalyticsPage() {
           hint="visitor → lead"
           progress={model.conversion * 10}
         />
-        <MetricCard label="Booked value" value={currency(model.revenue)} hint="from won leads" />
+        <MetricCard
+          label="Booked value"
+          value={currency(model.revenue)}
+          hint="estimated, from booked and won leads"
+        />
       </div>
 
       <Panel className="p-5">
