@@ -39,6 +39,8 @@ export type PreviewToBuilderMessage =
       id: string;
       path: string;
       text: string;
+      /** The words before the edit, so a batch can list "was -> now" (COMP-3). */
+      before?: string;
     }
   | {
       /** The page is wider than the frame: visitors would scroll sideways. */
@@ -208,7 +210,8 @@ export function readPreviewMessage(data: unknown): PreviewToBuilderMessage | nul
     const at = path(record["path"]);
     const value = typeof record["text"] === "string" ? record["text"].replace(/\s+/g, " ").trim().slice(0, 600) : "";
     if (!at || !value) return null;
-    return { source: PREVIEW_BRIDGE_SOURCE, type: "inline-edit", id, path: at, text: value };
+    const before = typeof record["before"] === "string" ? record["before"].slice(0, 600) : "";
+    return { source: PREVIEW_BRIDGE_SOURCE, type: "inline-edit", id, path: at, text: value, ...(before ? { before } : {}) };
   }
   if (record["type"] !== "select") return null;
   const element = typeof record["element"] === "string" && ELEMENT_PATTERN.test(record["element"]) ? record["element"] : null;

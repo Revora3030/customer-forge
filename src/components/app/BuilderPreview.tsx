@@ -50,7 +50,9 @@ import {
   type A11yIssue,
   type PreviewToBuilderMessage,
 } from "@/lib/builder/preview-bridge";
-import { saveInlineText } from "@/lib/builder/inline-edit.functions";
+import { saveBatchEdits } from "@/lib/builder/batch-edits.functions";
+import { batchLabel, stageEdit, type PendingEdit } from "@/lib/builder/batch-edits";
+import { PendingEditsBar } from "@/components/app/PendingEditsBar";
 import { PreviewThemeEditor } from "@/components/app/PreviewThemeEditor";
 import type { SiteStyle } from "@/lib/builder/style-edit";
 import type { Palette } from "@/lib/builder/palette-edit";
@@ -191,7 +193,10 @@ function BuilderPreviewFrame({
   const [a11yOpen, setA11yOpen] = useState(false);
 
   const [tabRevision, setTabRevision] = useState(0);
-  const saveText = useServerFn(saveInlineText);
+  const saveBatch = useServerFn(saveBatchEdits);
+  /** COMP-3: quick edits waiting for Save. The frame already shows them; nothing is written yet. */
+  const [pending, setPending] = useState<PendingEdit[]>([]);
+  const [savingBatch, setSavingBatch] = useState(false);
   const loadDiff = useServerFn(getDraftDiff);
   const diff = useQuery({
     queryKey: ["draft-diff", organizationId, refreshRevision, tabRevision],
@@ -399,23 +404,61 @@ function BuilderPreviewFrame({
     return () => channel.close();
   }, [organizationId]);
 
+  // Quick edits collect here (free, no AI); Save writes them all at once as one version.
   const onInlineEdit = useCallback(
-    async (edit: { id: string; path: string; text: string }) => {
-      if (!organizationId) return;
-      try {
-        const result = await saveText({ data: { organizationId, sectionId: edit.id, path: edit.path, text: edit.text } });
-        if (result.unchanged) return;
-        // The preview already shows the new words; no reload needed.
-        onInlineSaved?.({ sectionId: edit.id, path: edit.path, before: result.before, after: result.after });
-        announceDraftChange(organizationId, previewId.current);
-        toast.success("Saved to draft");
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Couldn't save that change.");
-        setRefreshKey((value) => value + 1);
-      }
+    (edit: { id: string; path: string; text: string; before?: string }) => {
+      setPending((list) => stageEdit(list, { sectionId: edit.id, path: edit.path, before: edit.before ?? "", after: edit.text }));
     },
-    [onInlineSaved, organizationId, saveText],
+    [],
   );
+
+  const saveBatchNow = useCallback(async () => {
+    if (!organizationId || !pending.length || savingBatch) return;
+    setSavingBatch(true);
+    try {
+      const result = await saveBatch({
+        data: { organizationId, edits: pending.map((edit) => ({ sectionId: edit.sectionId, path: edit.path, text: edit.after, label: edit.label ?? null })) },
+      });
+      // The preview already shows the new words; no reload needed.
+      for (const change of result.changes) onInlineSaved?.(change);
+      setPending([]);
+      if (result.saved) announceDraftChange(organizationId, previewId.current);
+      toast.success(result.saved ? `Saved ${batchLabel(result.saved)} to draft` : "Nothing needed saving");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Couldn't save those changes.");
+    } finally {
+      setSavingBatch(false);
+    }
+  }, [onInlineSaved, organizationId, pending, saveBatch, savingBatch]);
+
+  const discardBatch = useCallback(() => {
+    setPending([]);
+    // Reload the frame so it shows the saved words again.
+    setRefreshKey((value) => value + 1);
+  }, []);
+
+  // A reload from outside (the assistant or another tab changed the draft) shows
+  // saved words again, so staged edits would no longer match what the owner sees.
+  const pendingCount = useRef(0);
+  pendingCount.current = pending.length;
+  const reloadSeen = useRef(`${refreshRevision}-${tabRevision}`);
+  useEffect(() => {
+    const now = `${refreshRevision}-${tabRevision}`;
+    if (reloadSeen.current === now) return;
+    reloadSeen.current = now;
+    if (pendingCount.current) toast.info("The preview was refreshed, so unsaved quick edits were cleared.");
+    setPending([]);
+  }, [refreshRevision, tabRevision]);
+
+  // Leaving the page with unsaved quick edits asks first.
+  useEffect(() => {
+    if (!pending.length) return;
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [pending.length]);
 
   useEffect(() => {
     syncSelectMode(selectMode);
@@ -701,6 +744,7 @@ function BuilderPreviewFrame({
             onSaved={onPaletteSaved}
           />
         ) : null}
+        <PendingEditsBar edits={pending} saving={savingBatch} onSave={() => void saveBatchNow()} onDiscard={discardBatch} />
         {a11yOpen && a11y?.issueCount ? (
           <ul className="mx-auto mb-2 max-w-xl space-y-1 rounded-lg border border-border bg-background/95 p-2 text-[12px]" data-testid="builder-preview-a11y-list">
             {a11y.issues.slice(0, 8).map((issue, index) => (
