@@ -258,7 +258,11 @@ function DraftHomeRouteContent() {
         ) : null}
         <PreviewModeContext.Provider value={true}>
           <SiteBaseContext.Provider value={`/draft/${encodeURIComponent(result.site.org.slug)}`}>
-            <PublicSiteView site={previewLook === null ? result.site : withLook(result.site, previewLook)} preview />
+            {previewLook === null ? (
+              <PublicSiteView site={result.site} preview />
+            ) : (
+              <PublicSiteView site={withLook(result.site, previewLook)} preview />
+            )}
           </SiteBaseContext.Provider>
         </PreviewModeContext.Provider>
       </>
