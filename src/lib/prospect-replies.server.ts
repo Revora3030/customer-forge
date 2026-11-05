@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { buildProvenance, type ProspectProvenance, type ProvenanceInput } from "./prospect-provenance";
 import {
   getGmailMessageHeaders,
   gmailConfig,
@@ -1143,7 +1144,39 @@ export type ProspectInbox = {
   lastPolledAt: string | null;
   lastError: string | null;
   items: InboundItem[];
+  /** JC-57: per organization lead source, freshness, duplicate flag and why-ranked line. */
+  provenance: Record<string, ProspectProvenance>;
 };
+
+/** Loads every prospect demo's stored marker + profile so duplicates are checked across all of them. */
+async function loadProvenance(db: SupabaseClient, orgIds: string[]): Promise<Record<string, ProspectProvenance>> {
+  if (!orgIds.length) return {};
+  const { data: settings } = await db
+    .from("website_settings")
+    .select("organization_id, generation")
+    .not("generation->prospectDemo", "is", null)
+    .limit(1000);
+  const markers = new Map<string, unknown>();
+  for (const row of (settings ?? []) as Row[]) {
+    const gen = row["generation"] as Record<string, unknown> | null;
+    markers.set(String(row["organization_id"]), gen?.["prospectDemo"] ?? null);
+  }
+  const ids = [...new Set([...markers.keys(), ...orgIds])];
+  const [{ data: orgs }, { data: profiles }] = await Promise.all([
+    db.from("organizations").select("id, name").in("id", ids),
+    db.from("business_profiles").select("organization_id, phone, city").in("organization_id", ids),
+  ]);
+  const names = new Map(((orgs ?? []) as Row[]).map((o) => [String(o["id"]), text(o["name"])]));
+  const profs = new Map(((profiles ?? []) as Row[]).map((p) => [String(p["organization_id"]), p]));
+  const input = (id: string): ProvenanceInput => ({
+    organizationId: id,
+    name: names.get(id) ?? null,
+    city: text(profs.get(id)?.["city"]),
+    phone: text(profs.get(id)?.["phone"]),
+    marker: markers.get(id) ?? null,
+  });
+  return buildProvenance(orgIds.map(input), ids.map(input));
+}
 
 export async function listProspectInbox(db: SupabaseClient, limit = 30): Promise<ProspectInbox> {
   const configured = Boolean(gmailConfig());
@@ -1169,6 +1202,7 @@ export async function listProspectInbox(db: SupabaseClient, limit = 30): Promise
       names.set(String(org["id"]), String(org["name"] ?? ""));
   }
   const s = (state.data ?? null) as Row | null;
+  const provenance = await loadProvenance(db, orgIds).catch(() => ({}));
   return {
     configured,
     missingSecrets: missingGmailSecrets(),
@@ -1176,6 +1210,7 @@ export async function listProspectInbox(db: SupabaseClient, limit = 30): Promise
     lastPolledAt: text(s?.["last_polled_at"]),
     lastError: text(s?.["last_error"]),
     items: rows.map((row) => readInbound(row, names)),
+    provenance,
   };
 }
 
