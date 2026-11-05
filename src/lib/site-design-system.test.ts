@@ -224,3 +224,22 @@ describe("authority: the design system never overrides authored styling", () => 
     expect(bridge).toContain("siteThemeStyle(");
   });
 });
+
+describe("CG-10 hero entrance motion", () => {
+  const css = designSystemCss();
+  it("animates only the opening hero, timed by the --motion-* tokens", () => {
+    expect(css).toMatch(/\[data-rv-hero\] h1\{animation:rv-hero-rise var\(--motion-duration-slower\) var\(--motion-ease-out\)/);
+    expect(css).toContain("@keyframes rv-hero-fade");
+    expect(css).not.toMatch(/\.rv-site-section h1\{animation/);
+  });
+  it("never hides the headline (keeps LCP honest)", () => {
+    const rise = css.match(/@keyframes rv-hero-rise\{[^}]*\}[^}]*\}/)?.[0] ?? "";
+    expect(rise).not.toContain("opacity");
+  });
+  it("turns the hero animation off under prefers-reduced-motion", () => {
+    const reduced = css.slice(css.indexOf("@media (prefers-reduced-motion:reduce)"));
+    expect(reduced).toContain("[data-rv-hero]");
+    expect(reduced).toContain("animation:none!important");
+    expect(reduced).toContain("--motion-duration-slower:0ms");
+  });
+});
