@@ -54,3 +54,42 @@ export function paidSpend(rows: SpendRow[] | null, capMicrocents: number, microc
 export function formatRate(s: CityMetrics["success"]): string {
   return s ? `${Math.round(s.rate * 1000) / 10}% (N=${s.n})` : NOT_MEASURED;
 }
+
+/** Share of the daily cap at which the gauge warns. Mirrors PAID_CAP_WARN_RATIO in the paid-budget guard. */
+export const CAP_WARN_RATIO = 0.8;
+/** The metrics reads stop at this many rows, so a window with this many builds is a floor, not a full count. */
+export const METRICS_ROW_LIMIT = 10_000;
+
+export type CapLevel = { level: "ok" | "warn" | "full"; share: number; label: string };
+
+/**
+ * Where today's paid AI spend sits against Revora's own daily cap. Settled cost
+ * plus reservations still open counts, as the guard counts it. Returns null
+ * when the spend or the cap is unknown (cap of zero means paid AI is off, which
+ * is not "full").
+ */
+export function capLevel(s: CityMetrics["paidSpend"] | undefined): CapLevel | null {
+  if (!s || !Number.isFinite(s.settledUsd) || !Number.isFinite(s.openUsd) || !Number.isFinite(s.capUsd) || s.capUsd <= 0) return null;
+  const share = (s.settledUsd + s.openUsd) / s.capUsd;
+  if (share >= 1) return { level: "full", share, label: "At the daily cap. New paid AI work pauses until midnight UTC." };
+  if (share >= CAP_WARN_RATIO) return { level: "warn", share, label: `${Math.floor(share * 100)}% of the daily cap used. Paid AI work pauses at the cap.` };
+  return { level: "ok", share, label: "" };
+}
+
+export type MetricKey = "queued" | "success" | "failures" | "spend";
+
+/** Plain-language "how this is measured" for each stat. Uses only what was read: window, sample size, row limit. */
+export function metricExplainer(key: MetricKey, m: CityMetrics | undefined): string {
+  const days = m?.success?.windowDays ?? 7;
+  const capped = m?.success && m.success.n >= METRICS_ROW_LIMIT ? ` Only the newest ${METRICS_ROW_LIMIT.toLocaleString("en-US")} finished builds are read, so this is a floor.` : "";
+  switch (key) {
+    case "queued":
+      return "Builds waiting for a worker right now: generation jobs whose status is queued. A live count, not an average.";
+    case "success":
+      return `Finished builds (completed or failed) updated in the last ${days} days. Cancelled and still-running builds are left out. N is the number of finished builds counted.${capped}`;
+    case "failures":
+      return `Failed builds in the same ${days}-day window, grouped by the failure kind recorded on the job. A failure with no recorded kind shows as unrecorded; nothing is guessed.${capped}`;
+    case "spend":
+      return "Real cost of paid AI calls settled today (UTC day) plus calls still running, counted at their estimate, against Revora's own daily cap (AI_PAID_DAILY_CAP_USD). It is not the Lovable credit balance.";
+  }
+}
