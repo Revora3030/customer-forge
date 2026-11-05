@@ -7,6 +7,7 @@ import { bookingsFindGaps, bookingsListUpcoming } from "./bookings";
 import { campaignsList, campaignsResults } from "./campaigns";
 import { domainStatus } from "./domain";
 import { withAgentLimits } from "./guard";
+import { readToolsC } from "./quotes-reviews";
 import type { LimitsDeps } from "@/lib/agent/limits.server";
 import { leadsGet, leadsList } from "./leads";
 import { quotesGet, quotesList } from "./quotes";
@@ -49,6 +50,7 @@ export function readTools(): ToolDefinitionV2<z.ZodType>[] {
 const AGENT_TOOL_GROUPS: Array<() => ToolDefinitionV2<z.ZodType>[]> = [
   readToolsA,
   readToolsB,
+  readToolsC,
 ];
 
 export function agentTools(limits?: LimitsDeps): ToolDefinitionV2<z.ZodType>[] {
