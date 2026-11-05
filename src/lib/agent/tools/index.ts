@@ -8,6 +8,7 @@ import { campaignsList, campaignsResults } from "./campaigns";
 import { domainStatus } from "./domain";
 import { withAgentLimits } from "./guard";
 import { readToolsC } from "./quotes-reviews";
+import { writeInternalTools } from "./write-internal";
 import { sendTools } from "./send";
 import type { LimitsDeps } from "@/lib/agent/limits.server";
 import { leadsGet, leadsList } from "./leads";
@@ -48,12 +49,14 @@ export function readTools(): ToolDefinitionV2<z.ZodType>[] {
  * Every agent tool group, each wrapped in the PAI-5 limits. To add a group,
  * append its factory to this list. sendTools (PAI-12) holds the send_external
  * tools: the registry refuses them without a PAI-4 approval, and this is the
- * one place they are wrapped in the limits.
+ * one place they are wrapped in the limits. writeInternalTools (PAI-11) are
+ * undoable owner-scope writes.
  */
 const AGENT_TOOL_GROUPS: Array<() => ToolDefinitionV2<z.ZodType>[]> = [
   readToolsA,
   readToolsB,
   readToolsC,
+  writeInternalTools,
   () => sendTools(),
 ];
 
@@ -63,3 +66,6 @@ export function agentTools(limits?: LimitsDeps): ToolDefinitionV2<z.ZodType>[] {
     limits,
   );
 }
+
+export { writeInternalTools } from "./write-internal";
+export { undoRunWrites } from "./undo-run";

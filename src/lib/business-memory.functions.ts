@@ -90,6 +90,14 @@ export const deleteBusinessMemory = createServerFn({ method: "POST" })
     return deleteMemory(context.supabase as never, await ownerContext(context.userId, data.organizationId), data.id);
   });
 
+export const restoreBusinessMemory = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: { organizationId: string; id: string }) => ({ organizationId: orgId(input), id: noteId(input) }))
+  .handler(async ({ data, context }) => {
+    const { restoreMemory } = await import("@/lib/business-memory.server");
+    return restoreMemory(context.supabase as never, await ownerContext(context.userId, data.organizationId), data.id);
+  });
+
 export const businessMemoryHistory = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: { organizationId: string; id: string }) => ({ organizationId: orgId(input), id: noteId(input) }))

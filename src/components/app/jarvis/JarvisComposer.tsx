@@ -6,6 +6,7 @@ import { firstImage, pastedPicture } from "./composer-input";
 import { composeWithDocuments, readDocumentText, sortComposerFiles, type ComposerDoc } from "@/lib/jarvis/composer-attachments";
 import { expandCityCommand } from "@/lib/jarvis/city-commands";
 import { MAX_ATTACHMENTS_PER_MESSAGE } from "@/lib/jarvis-attachments-policy.mjs";
+import { modeExplainerLine } from "@/lib/jarvis-mode-explainers";
 
 export type JarvisMode = "brief" | "balanced" | "deep";
 export const JARVIS_MODES = [["brief", "Brief"], ["balanced", "Balanced"], ["deep", "Deep"]] as const;
@@ -221,10 +222,19 @@ export function JarvisComposer({ value, onChange, onSubmit, maxLength, busy, onS
               <ChevronDown className="size-3.5" aria-hidden />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" side="top" className="w-48">
+          <DropdownMenuContent align="start" side="top" className="w-72">
             <DropdownMenuLabel className="text-xs text-muted-foreground">Response style</DropdownMenuLabel>
             <DropdownMenuRadioGroup value={mode} onValueChange={(next) => { if (next === "brief" || next === "balanced" || next === "deep") onModeChange(next); }}>
-              {JARVIS_MODES.map(([id, label]) => <DropdownMenuRadioItem key={id} value={id} className="min-h-11">{label}</DropdownMenuRadioItem>)}
+              {JARVIS_MODES.map(([id, label]) => (
+                <DropdownMenuRadioItem key={id} value={id} className="min-h-11 items-start py-2">
+                  <span className="flex min-w-0 flex-col gap-0.5">
+                    <span>{label}</span>
+                    <span className="whitespace-normal text-xs font-normal leading-snug text-muted-foreground">
+                      {modeExplainerLine(id)}
+                    </span>
+                  </span>
+                </DropdownMenuRadioItem>
+              ))}
             </DropdownMenuRadioGroup>
           </DropdownMenuContent>
         </DropdownMenu>

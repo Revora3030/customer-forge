@@ -263,6 +263,39 @@ export async function deleteMemory(db: Db, ctx: MemoryContext, id: string): Prom
   return { ok: true, row: data as BusinessMemoryRow };
 }
 
+/** A deleted note can be brought back only this soon after (the Undo button). */
+export const RESTORE_WINDOW_MS = 120_000;
+
+/**
+ * Undo for a delete. Only a note the owner deleted within the last couple of
+ * minutes comes back, so Undo can never resurrect something removed long ago.
+ * If a newer confirmed note took the same label meanwhile, nothing is restored.
+ */
+export async function restoreMemory(db: Db, ctx: MemoryContext, id: string, now: number = Date.now()): Promise<MemoryResult> {
+  const denied = requireOwner(ctx);
+  if (denied) return { ok: false, problem: denied };
+  const row = await loadRow(db, ctx, id);
+  if (!row || !row.deleted_at) return { ok: false, problem: "That note was not deleted." };
+  const deletedAt = Date.parse(row.deleted_at);
+  if (!Number.isFinite(deletedAt) || now - deletedAt > RESTORE_WINDOW_MS) {
+    return { ok: false, problem: "Undo is only available right after a delete." };
+  }
+  if (row.status === "confirmed") {
+    const clash = (await liveRows(db, ctx, row.kind)).find((other) => other.id !== row.id && other.status === "confirmed" && keyOf(other.key) === keyOf(row.key));
+    if (clash) return { ok: false, problem: "A newer note already uses that label, so this one was not restored." };
+  }
+  const { data, error } = await db
+    .from("business_memory")
+    .update({ deleted_at: null, updated_at: new Date(now).toISOString() })
+    .eq("organization_id", ctx.organizationId)
+    .eq("id", row.id)
+    .select(COLUMNS)
+    .single();
+  if (error || !data) return { ok: false, problem: "That note could not be restored. Try again." };
+  await recordEvent(db, ctx, row.id, "restored", null, { status: row.status, key: row.key, value: row.value });
+  return { ok: true, row: data as BusinessMemoryRow };
+}
+
 /** The owner's saved notes, newest first. Deleted notes are never listed. */
 export async function listMemory(db: Db, ctx: MemoryContext, options: { statuses?: ("proposed" | "confirmed" | "superseded")[] } = {}): Promise<BusinessMemoryRow[]> {
   const statuses = options.statuses ?? LIVE_STATUSES;

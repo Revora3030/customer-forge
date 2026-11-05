@@ -20,6 +20,17 @@ Threshold: a lead with no accepted alert **5 minutes** after it was created is "
 
 `/admin` shows the watchdog as silent if there is no heartbeat for 20 minutes.
 
+## Routing audit: right workspace, right recipient (read-only)
+The watchdog above asks "was an alert accepted, and if not, retry". The routing audit asks the independent question: **did every accepted form reach the right workspace and the right recipient.** It reads stored rows only (`leads`, `lead_alert_log`, `lead_delivery_logs`, `business_profiles`, `website_settings`, `lead_delivery_watch`) and sends, writes and charges nothing. No migration.
+
+- Code: `src/lib/lead-delivery-audit.ts` (pure rules), `.server.ts` (SELECT-only loader), `.functions.ts` (super-admin server fn), `src/components/app/LeadRoutingAudit.tsx` ("Routing check" section inside the existing /admin and /admin/monitoring "Lead alert delivery" panel).
+- Window: real leads from the last 72 hours; test leads (`source = test_lead`), demo and suspended workspaces are skipped. A lead is judged only after 20 minutes (one watchdog cycle).
+- Findings (severity): `alert_wrong_workspace` / `webhook_wrong_workspace` (critical: a delivery row for the lead is filed under a different workspace); `alert_wrong_recipient` (critical: sent to another workspace's address or to an address on no workspace; high: went to a secondary address instead of the alert inbox; medium: the workspace's contact settings changed after the alert, so confirm); `alert_missing`, `alert_failed`, `no_alert_inbox`, `webhook_missing`, `webhook_failed` (high). A transient webhook failure the retry sweep is still working on is not a finding. Findings say whether the watchdog already has the lead flagged.
+- Privacy: findings carry workspace name, age, reason and a masked address (`o***@acme.test`); never a lead's name, email or phone, and never the webhook URL.
+- If `lead_delivery_logs` is not in the database yet, webhook routing is reported as "not checked", never as a pass.
+- Tests: `lead-delivery-audit.test.ts` (rules on fixture rows), `lead-delivery-audit.server.test.ts` (loader over an in-memory database that throws on any write), and `lead-delivery-audit.live.test.ts`, which runs the same audit on the REAL rows and fails on any finding. The live test is skipped (announced as NOT_VERIFIED) unless you run: `LEAD_DELIVERY_AUDIT_LIVE=1 SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... bunx vitest run src/lib/lead-delivery-audit.live.test.ts`. It only SELECTs.
+- Limits: it cannot see an alert that the provider accepted and that later bounced (no receipt exists), and it cannot know a workspace's alert inbox at the moment of an old alert, only today's settings (hence the "medium" confirm case).
+
 ## Boundary with other owners
 - **Client Success** owns end-to-end journey proof (a one-off test lead through a customer's site and a check that the owner email arrives). They run it on demand.
 - **Site Factory** (README item 25, `sf/post-publish-verify`) owns post-publish verification that the form reaches its recipient at publish time.

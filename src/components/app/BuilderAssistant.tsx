@@ -187,7 +187,7 @@ export function BuilderAssistant({
   firstBuildBusy?: boolean;
   publishState?: string;
   /** A fact Revora still needs from the owner, asked in the chat. */
-  factQuestion?: { key: string; label: string; prompt: string; required: boolean } | null;
+  factQuestion?: { key: string; label: string; prompt: string; required: boolean; choices?: string[] } | null;
   onFactAnswer?: (key: string, answer: string) => Promise<void>;
   onFactSkip?: (key: string) => void;
   /**
@@ -688,6 +688,23 @@ export function BuilderAssistant({
                     >
                       Your answer wasn't saved. {factError}
                     </p>
+                  ) : null}
+                  {factQuestion.choices?.length && !factBusy ? (
+                    // COMP-13: tap an answer instead of typing it; each one is
+                    // built from what the owner already told us.
+                    <div className="flex flex-wrap gap-2" role="group" aria-label={`Quick answers: ${factQuestion.label}`}>
+                      {factQuestion.choices.slice(0, 3).map((choice) => (
+                        <button
+                          key={choice}
+                          type="button"
+                          data-testid="builder-fact-choice"
+                          onClick={() => send(choice)}
+                          className="relative min-h-9 cursor-pointer rounded-full border border-primary/40 px-3.5 text-[13px] text-foreground transition-colors hover:border-primary hover:bg-primary/5"
+                        >
+                          {choice}
+                        </button>
+                      ))}
+                    </div>
                   ) : null}
                   {!factQuestion.required && onFactSkip && !factBusy ? (
                     <button

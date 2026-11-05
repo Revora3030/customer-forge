@@ -50,7 +50,9 @@
     "jarvis:mcp": "node scripts/jarvis-mcp-server.mjs",
     "jarvis:mcp:contract": "node scripts/jarvis-mcp-server.contract.mjs",
     "ladle": "ladle serve --port 61000",
-    "ladle:build": "ladle build"
+    "ladle:build": "ladle build",
+    "perf:budgets": "node scripts/perf-budgets.mjs",
+    "perf:budgets:test": "node scripts/perf-budgets.contract.mjs"
   },
   "overrides": {
     "rolldown": "1.2.1",
