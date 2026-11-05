@@ -13,6 +13,7 @@ import { MemberControls, TeamInvites } from "@/components/app/TeamInvites";
 import { PortalAccess } from "@/components/app/PortalAccess";
 import { LeadNotifications } from "@/components/app/LeadNotifications";
 import { PushLeadAlerts } from "@/components/app/PushLeadAlerts";
+import { TwoFactorCard } from "@/components/app/TwoFactorCard";
 import { UpgradeFromWebsite } from "@/components/app/UpgradeFromWebsite";
 import { BookingLinkCard } from "@/components/app/BookingLinkCard";
 import { DataPrivacy } from "@/components/app/DataPrivacy";
@@ -214,6 +215,8 @@ function SettingsPage() {
       <LeadNotifications organizationId={orgId} canManage={canManage} />
 
       <PushLeadAlerts organizationId={orgId} />
+
+      <TwoFactorCard />
 
       <SiteBackupExport organizationId={orgId} slug={org?.slug} canManage={canManage} />
 
