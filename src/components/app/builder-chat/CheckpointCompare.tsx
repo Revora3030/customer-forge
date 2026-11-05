@@ -30,7 +30,7 @@ function Outline({
     <div className="space-y-3 p-3">
       {outline.pages.map((page) => (
         <div key={page.id} className="space-y-1.5">
-          <p className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
+          <p className="text-[12px] font-semibold tracking-wide text-muted-foreground uppercase">
             {page.title}
           </p>
           {page.sections.map((section) => (
@@ -46,7 +46,7 @@ function Outline({
                   : "border-border/60",
               )}
             >
-              <span className="block text-[11px] text-muted-foreground">{section.label}</span>
+              <span className="block text-[12px] text-muted-foreground">{section.label}</span>
               {section.heading ? (
                 <span className="block font-medium">{section.heading}</span>
               ) : null}
@@ -99,10 +99,10 @@ export function CheckpointCompareView({
             style={{ marginLeft: `${split}%` }}
           />
         </div>
-        <span className="pointer-events-none absolute top-1.5 left-1.5 rounded-full bg-black/65 px-2 py-0.5 text-[11px] font-semibold text-white">
+        <span className="pointer-events-none absolute top-1.5 left-1.5 rounded-full bg-black/65 px-2 py-0.5 text-[12px] font-semibold text-white">
           Before
         </span>
-        <span className="pointer-events-none absolute top-1.5 right-1.5 rounded-full bg-black/65 px-2 py-0.5 text-[11px] font-semibold text-white">
+        <span className="pointer-events-none absolute top-1.5 right-1.5 rounded-full bg-black/65 px-2 py-0.5 text-[12px] font-semibold text-white">
           Now
         </span>
       </div>
