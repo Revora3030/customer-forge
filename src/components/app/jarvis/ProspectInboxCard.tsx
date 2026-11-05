@@ -81,6 +81,21 @@ export function ProspectInboxCard({ className }: { className?: string }) {
                   <span className="text-xs text-muted-foreground">{item.from} · {when(item.receivedAt)}</span>
                   <span className="ml-auto text-xs uppercase tracking-wide text-muted-foreground">{item.intent}</span>
                 </div>
+                {(() => {
+                  const pv = data?.provenance?.[item.organizationId];
+                  return (
+                    <p className="text-xs text-muted-foreground">
+                      Source: {pv?.source ?? "unknown"} · Freshness: {pv?.freshness ?? "unknown"} ·{" "}
+                      {pv?.duplicateOf.length ? (
+                        <span className="text-amber-600">Possible duplicate of {pv.duplicateOf.slice(0, 3).join(", ")} ({pv.duplicateReason})</span>
+                      ) : (
+                        pv ? "No duplicate found" : "Duplicate: unknown"
+                      )}
+                      <br />
+                      Why ranked: {pv?.whyRanked ?? "unknown"}
+                    </p>
+                  );
+                })()}
                 <p className="whitespace-pre-wrap break-words text-muted-foreground">{(item.body ?? item.snippet ?? "").slice(0, 600)}</p>
                 <p className="text-xs">
                   {ACTION_LABEL[item.action ?? ""] ?? (item.status === "pending" ? "Waiting for the next check" : item.status)}
