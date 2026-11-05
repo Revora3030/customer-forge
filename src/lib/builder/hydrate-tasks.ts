@@ -29,6 +29,8 @@ export type ChatTask = QueueTask & {
   isBuild?: boolean;
   /** A change held back until the first build finishes: the build's own log is shown meanwhile. */
   waitingOnBuild?: boolean;
+  /** When the owner sent a saved message (ISO); the chat's "restore to before this message" uses it. */
+  sentAt?: string;
 };
 
 /**
@@ -61,6 +63,7 @@ export function hydrateTasks(pairs: readonly SavedPair[], now: number = Date.now
       reply: pair.reply,
       answered: Boolean(pair.reply) && !result,
       restored: true,
+      ...(pair.at ? { sentAt: pair.at } : {}),
     };
     if (!pair.reply && !result) {
       const sentAt = Date.parse(pair.at);
