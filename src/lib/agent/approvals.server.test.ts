@@ -40,8 +40,16 @@ function memoryRepo(clock: { now: number }) {
 
   const repo: ApprovalRepo = {
     async request(i) {
-      for (const r of rows) if (live(r) && Date.parse(r.expires_at) <= clock.now && sameKey(r, i.organizationId, i.scope, i.tool, i.argsHash)) r.status = "expired";
-      const found = rows.find((r) => live(r) && sameKey(r, i.organizationId, i.scope, i.tool, i.argsHash));
+      for (const r of rows)
+        if (
+          live(r) &&
+          Date.parse(r.expires_at) <= clock.now &&
+          sameKey(r, i.organizationId, i.scope, i.tool, i.argsHash)
+        )
+          r.status = "expired";
+      const found = rows.find(
+        (r) => live(r) && sameKey(r, i.organizationId, i.scope, i.tool, i.argsHash),
+      );
       if (found) return { approval: found, created: false };
       const row: ApprovalRow = {
         id: `00000000-0000-4000-8000-${String(++seq).padStart(12, "0")}`,
@@ -67,9 +75,13 @@ function memoryRepo(clock: { now: number }) {
     async decide(id, decider, approve) {
       const r = rows.find((x) => x.id === id);
       if (!r) return { outcome: "not_found", approval: null };
-      const allowed = r.scope === "owner" ? members.get(`${r.organization_id}:${decider}`) === "owner" : supers.has(decider);
+      const allowed =
+        r.scope === "owner"
+          ? members.get(`${r.organization_id}:${decider}`) === "owner"
+          : supers.has(decider);
       if (!allowed) return { outcome: "forbidden", approval: null };
-      if (r.status !== "pending") return { outcome: r.status === "expired" ? "expired" : "already_decided", approval: r };
+      if (r.status !== "pending")
+        return { outcome: r.status === "expired" ? "expired" : "already_decided", approval: r };
       if (Date.parse(r.expires_at) <= clock.now) {
         r.status = "expired";
         return { outcome: "expired", approval: r };
@@ -81,7 +93,11 @@ function memoryRepo(clock: { now: number }) {
     },
     async consume(i) {
       const hit = rows.find(
-        (r) => r.status === "approved" && Date.parse(r.expires_at) > clock.now && sameKey(r, i.organizationId, i.scope, i.tool, i.argsHash) && (!i.id || r.id === i.id),
+        (r) =>
+          r.status === "approved" &&
+          Date.parse(r.expires_at) > clock.now &&
+          sameKey(r, i.organizationId, i.scope, i.tool, i.argsHash) &&
+          (!i.id || r.id === i.id),
       );
       if (hit) {
         hit.status = "consumed";
@@ -89,13 +105,19 @@ function memoryRepo(clock: { now: number }) {
         return { outcome: "consumed", approval: hit };
       }
       const r = i.id
-        ? rows.find((x) => x.id === i.id && x.organization_id === i.organizationId && x.scope === i.scope)
-        : [...rows].reverse().find((x) => sameKey(x, i.organizationId, i.scope, i.tool, i.argsHash));
+        ? rows.find(
+            (x) => x.id === i.id && x.organization_id === i.organizationId && x.scope === i.scope,
+          )
+        : [...rows]
+            .reverse()
+            .find((x) => sameKey(x, i.organizationId, i.scope, i.tool, i.argsHash));
       if (!r) return { outcome: "not_found", approval: null };
-      if (r.tool !== i.tool || r.args_hash !== i.argsHash) return { outcome: "changed", approval: null };
+      if (r.tool !== i.tool || r.args_hash !== i.argsHash)
+        return { outcome: "changed", approval: null };
       if (r.status === "consumed") return { outcome: "used", approval: null };
       if (r.status === "rejected") return { outcome: "rejected", approval: null };
-      if (r.status === "pending" && Date.parse(r.expires_at) > clock.now) return { outcome: "not_approved", approval: null };
+      if (r.status === "pending" && Date.parse(r.expires_at) > clock.now)
+        return { outcome: "not_approved", approval: null };
       return { outcome: "expired", approval: null };
     },
     async cancelForRun(runId) {
@@ -128,12 +150,24 @@ function setup(extra: Partial<ApprovalDeps> = {}) {
 
 const TEXT = { to: "Dana Reyes", body: "Your quote is ready." };
 const ask = (deps: ApprovalDeps, args: Record<string, unknown> = TEXT, org: string | null = ORG) =>
-  requestApproval(deps, { organizationId: org, tool: "send_sms", args, summary: "Text Dana Reyes: your quote is ready.", runId: RUN, stepId: "s1", requestedBy: OWNER });
+  requestApproval(deps, {
+    organizationId: org,
+    tool: "send_sms",
+    args,
+    summary: "Text Dana Reyes: your quote is ready.",
+    runId: RUN,
+    stepId: "s1",
+    requestedBy: OWNER,
+  });
 
 async function approved(deps: ApprovalDeps, args: Record<string, unknown> = TEXT) {
   const r = await ask(deps, args);
   if (!r.ok) throw new Error("request failed");
-  const d = await decideApproval(deps, { approvalId: r.approval.id, deciderId: OWNER, decision: "approve" });
+  const d = await decideApproval(deps, {
+    approvalId: r.approval.id,
+    deciderId: OWNER,
+    decision: "approve",
+  });
   expect(d.ok).toBe(true);
   return r.approval;
 }
@@ -171,10 +205,35 @@ describe("requestApproval", () => {
   it("refuses a missing workspace, a blank summary and oversized or non-object arguments", async () => {
     const { deps } = setup();
     expect(await ask(deps, TEXT, null)).toMatchObject({ ok: false, reason: "no_workspace" });
-    expect(await requestApproval(deps, { organizationId: ORG, tool: "send_sms", args: TEXT, summary: "  " })).toMatchObject({ ok: false, reason: "no_summary" });
-    expect(await ask(deps, { body: "x".repeat(20_000) })).toMatchObject({ ok: false, reason: "args_too_large" });
-    expect(await requestApproval(deps, { organizationId: ORG, tool: "send_sms", args: [] as never, summary: "x" })).toMatchObject({ ok: false, reason: "bad_args" });
-    expect(await requestApproval(deps, { organizationId: ORG, tool: "x", args: {}, summary: "x", scope: "admin" })).toMatchObject({ ok: false, reason: "scope" });
+    expect(
+      await requestApproval(deps, {
+        organizationId: ORG,
+        tool: "send_sms",
+        args: TEXT,
+        summary: "  ",
+      }),
+    ).toMatchObject({ ok: false, reason: "no_summary" });
+    expect(await ask(deps, { body: "x".repeat(20_000) })).toMatchObject({
+      ok: false,
+      reason: "args_too_large",
+    });
+    expect(
+      await requestApproval(deps, {
+        organizationId: ORG,
+        tool: "send_sms",
+        args: [] as never,
+        summary: "x",
+      }),
+    ).toMatchObject({ ok: false, reason: "bad_args" });
+    expect(
+      await requestApproval(deps, {
+        organizationId: ORG,
+        tool: "x",
+        args: {},
+        summary: "x",
+        scope: "admin",
+      }),
+    ).toMatchObject({ ok: false, reason: "scope" });
   });
 });
 
@@ -184,7 +243,11 @@ describe("decideApproval", () => {
     const { deps, events } = setup({ resumeRun });
     const r = await ask(deps);
     if (!r.ok) throw new Error("x");
-    const d = await decideApproval(deps, { approvalId: r.approval.id, deciderId: OWNER, decision: "approve" });
+    const d = await decideApproval(deps, {
+      approvalId: r.approval.id,
+      deciderId: OWNER,
+      decision: "approve",
+    });
     expect(d).toMatchObject({ ok: true, decision: "approved" });
     expect(resumeRun).toHaveBeenCalledWith(RUN);
     expect(events.map((e) => e.kind)).toEqual(["approval_requested", "approval_approved"]);
@@ -195,38 +258,89 @@ describe("decideApproval", () => {
     const r = await ask(deps);
     if (!r.ok) throw new Error("x");
     for (const who of [MANAGER, OUTSIDER, "ffffffff-ffff-4fff-8fff-ffffffffffff"]) {
-      expect(await decideApproval(deps, { approvalId: r.approval.id, deciderId: who, decision: "approve" })).toMatchObject({ ok: false, reason: "forbidden" });
+      expect(
+        await decideApproval(deps, {
+          approvalId: r.approval.id,
+          deciderId: who,
+          decision: "approve",
+        }),
+      ).toMatchObject({ ok: false, reason: "forbidden" });
     }
     expect(rows[0]!.status).toBe("pending");
-    expect(await consumeApproval(deps, { organizationId: ORG, tool: "send_sms", args: TEXT })).toMatchObject({ ok: false, reason: "not_approved" });
+    expect(
+      await consumeApproval(deps, { organizationId: ORG, tool: "send_sms", args: TEXT }),
+    ).toMatchObject({ ok: false, reason: "not_approved" });
   });
 
   it("a rejection blocks the action", async () => {
     const { deps } = setup();
     const r = await ask(deps);
     if (!r.ok) throw new Error("x");
-    expect(await decideApproval(deps, { approvalId: r.approval.id, deciderId: OWNER, decision: "reject" })).toMatchObject({ ok: true, decision: "rejected" });
-    expect(await consumeApproval(deps, { organizationId: ORG, tool: "send_sms", args: TEXT })).toMatchObject({ ok: false, reason: "rejected" });
+    expect(
+      await decideApproval(deps, {
+        approvalId: r.approval.id,
+        deciderId: OWNER,
+        decision: "reject",
+      }),
+    ).toMatchObject({ ok: true, decision: "rejected" });
+    expect(
+      await consumeApproval(deps, { organizationId: ORG, tool: "send_sms", args: TEXT }),
+    ).toMatchObject({ ok: false, reason: "rejected" });
   });
 
   it("cannot decide twice or after it expired", async () => {
     const { deps, clock } = setup();
     const a = await approved(deps);
-    expect(await decideApproval(deps, { approvalId: a.id, deciderId: OWNER, decision: "reject" })).toMatchObject({ ok: false, reason: "already_decided" });
+    expect(
+      await decideApproval(deps, { approvalId: a.id, deciderId: OWNER, decision: "reject" }),
+    ).toMatchObject({ ok: false, reason: "already_decided" });
     const r = await ask(deps, { to: "Sam", body: "Hi" });
     if (!r.ok) throw new Error("x");
     clock.now += (APPROVAL_TTL_SECONDS + 1) * 1000;
-    expect(await decideApproval(deps, { approvalId: r.approval.id, deciderId: OWNER, decision: "approve" })).toMatchObject({ ok: false, reason: "expired" });
-    expect(await decideApproval(deps, { approvalId: "nope", deciderId: OWNER, decision: "approve" })).toMatchObject({ ok: false, reason: "not_found" });
+    expect(
+      await decideApproval(deps, {
+        approvalId: r.approval.id,
+        deciderId: OWNER,
+        decision: "approve",
+      }),
+    ).toMatchObject({ ok: false, reason: "expired" });
+    expect(
+      await decideApproval(deps, { approvalId: "nope", deciderId: OWNER, decision: "approve" }),
+    ).toMatchObject({ ok: false, reason: "not_found" });
   });
 
   it("only a super admin decides an admin-scope approval", async () => {
     const { deps } = setup();
-    const r = await requestApproval(deps, { organizationId: null, scope: "admin", tool: "website.draft.update", args: { id: 1 }, summary: "Update draft" });
+    const r = await requestApproval(deps, {
+      organizationId: null,
+      scope: "admin",
+      tool: "website.draft.update",
+      args: { id: 1 },
+      summary: "Update draft",
+    });
     if (!r.ok) throw new Error("x");
-    expect(await decideApproval(deps, { approvalId: r.approval.id, deciderId: OWNER, decision: "approve" })).toMatchObject({ ok: false, reason: "forbidden" });
-    expect(await decideApproval(deps, { approvalId: r.approval.id, deciderId: SUPER, decision: "approve" })).toMatchObject({ ok: true });
-    expect(await consumeApproval(deps, { organizationId: null, scope: "admin", tool: "website.draft.update", args: { id: 1 } })).toMatchObject({ ok: true });
+    expect(
+      await decideApproval(deps, {
+        approvalId: r.approval.id,
+        deciderId: OWNER,
+        decision: "approve",
+      }),
+    ).toMatchObject({ ok: false, reason: "forbidden" });
+    expect(
+      await decideApproval(deps, {
+        approvalId: r.approval.id,
+        deciderId: SUPER,
+        decision: "approve",
+      }),
+    ).toMatchObject({ ok: true });
+    expect(
+      await consumeApproval(deps, {
+        organizationId: null,
+        scope: "admin",
+        tool: "website.draft.update",
+        args: { id: 1 },
+      }),
+    ).toMatchObject({ ok: true });
   });
 });
 
@@ -234,7 +348,11 @@ describe("consumeApproval", () => {
   it("runs once with the exact approved arguments", async () => {
     const { deps, events } = setup();
     await approved(deps);
-    const first = await consumeApproval(deps, { organizationId: ORG, tool: "send_sms", args: { body: "Your quote is ready.", to: "Dana Reyes" } });
+    const first = await consumeApproval(deps, {
+      organizationId: ORG,
+      tool: "send_sms",
+      args: { body: "Your quote is ready.", to: "Dana Reyes" },
+    });
     expect(first.ok).toBe(true);
     expect(events.at(-1)?.kind).toBe("approval_used");
   });
@@ -243,56 +361,96 @@ describe("consumeApproval", () => {
     const { deps } = setup();
     const a = await approved(deps);
     const edited = { ...TEXT, body: "Your quote is ready. Pay now at evil.example" };
-    expect(await consumeApproval(deps, { organizationId: ORG, tool: "send_sms", args: edited })).toMatchObject({ ok: false, reason: "not_found" });
-    expect(await consumeApproval(deps, { organizationId: ORG, tool: "send_sms", args: edited, approvalId: a.id })).toMatchObject({ ok: false, reason: "changed" });
+    expect(
+      await consumeApproval(deps, { organizationId: ORG, tool: "send_sms", args: edited }),
+    ).toMatchObject({ ok: false, reason: "not_found" });
+    expect(
+      await consumeApproval(deps, {
+        organizationId: ORG,
+        tool: "send_sms",
+        args: edited,
+        approvalId: a.id,
+      }),
+    ).toMatchObject({ ok: false, reason: "changed" });
     // The approval is still intact for the real arguments.
-    expect(await consumeApproval(deps, { organizationId: ORG, tool: "send_sms", args: TEXT, approvalId: a.id })).toMatchObject({ ok: true });
+    expect(
+      await consumeApproval(deps, {
+        organizationId: ORG,
+        tool: "send_sms",
+        args: TEXT,
+        approvalId: a.id,
+      }),
+    ).toMatchObject({ ok: true });
   });
 
   it("refuses a different tool with the same arguments", async () => {
     const { deps } = setup();
     await approved(deps);
-    expect(await consumeApproval(deps, { organizationId: ORG, tool: "send_email", args: TEXT })).toMatchObject({ ok: false });
+    expect(
+      await consumeApproval(deps, { organizationId: ORG, tool: "send_email", args: TEXT }),
+    ).toMatchObject({ ok: false });
   });
 
   it("refuses an expired approval", async () => {
     const { deps, clock } = setup();
     await approved(deps);
     clock.now += (APPROVAL_TTL_SECONDS + 1) * 1000;
-    expect(await consumeApproval(deps, { organizationId: ORG, tool: "send_sms", args: TEXT })).toMatchObject({ ok: false, reason: "expired" });
+    expect(
+      await consumeApproval(deps, { organizationId: ORG, tool: "send_sms", args: TEXT }),
+    ).toMatchObject({ ok: false, reason: "expired" });
   });
 
   it("refuses a replay of a consumed approval", async () => {
     const { deps } = setup();
     await approved(deps);
-    expect(await consumeApproval(deps, { organizationId: ORG, tool: "send_sms", args: TEXT })).toMatchObject({ ok: true });
-    expect(await consumeApproval(deps, { organizationId: ORG, tool: "send_sms", args: TEXT })).toMatchObject({ ok: false, reason: "used" });
+    expect(
+      await consumeApproval(deps, { organizationId: ORG, tool: "send_sms", args: TEXT }),
+    ).toMatchObject({ ok: true });
+    expect(
+      await consumeApproval(deps, { organizationId: ORG, tool: "send_sms", args: TEXT }),
+    ).toMatchObject({ ok: false, reason: "used" });
   });
 
   it("only one of two racing consumers wins", async () => {
     const { deps } = setup();
     await approved(deps);
-    const results = await Promise.all([1, 2].map(() => consumeApproval(deps, { organizationId: ORG, tool: "send_sms", args: TEXT })));
+    const results = await Promise.all(
+      [1, 2].map(() =>
+        consumeApproval(deps, { organizationId: ORG, tool: "send_sms", args: TEXT }),
+      ),
+    );
     expect(results.filter((r) => r.ok)).toHaveLength(1);
   });
 
   it("never uses another workspace's approval", async () => {
     const { deps } = setup();
     await approved(deps);
-    expect(await consumeApproval(deps, { organizationId: OTHER_ORG, tool: "send_sms", args: TEXT })).toMatchObject({ ok: false, reason: "not_found" });
+    expect(
+      await consumeApproval(deps, { organizationId: OTHER_ORG, tool: "send_sms", args: TEXT }),
+    ).toMatchObject({ ok: false, reason: "not_found" });
   });
 
   it("refuses an owner-scope call with no workspace or a malformed hash", async () => {
     const { deps } = setup();
     await approved(deps);
-    expect(await consumeApproval(deps, { organizationId: null, tool: "send_sms", args: TEXT })).toMatchObject({ ok: false });
-    expect(await consumeApproval(deps, { organizationId: ORG, tool: "send_sms", argsHash: "abc" })).toMatchObject({ ok: false });
+    expect(
+      await consumeApproval(deps, { organizationId: null, tool: "send_sms", args: TEXT }),
+    ).toMatchObject({ ok: false });
+    expect(
+      await consumeApproval(deps, { organizationId: ORG, tool: "send_sms", argsHash: "abc" }),
+    ).toMatchObject({ ok: false });
   });
 
   it("an event-feed failure never blocks the send", async () => {
-    const { deps } = setup({ emit: async () => { throw new Error("feed down"); } });
+    const { deps } = setup({
+      emit: async () => {
+        throw new Error("feed down");
+      },
+    });
     await approved(deps);
-    expect(await consumeApproval(deps, { organizationId: ORG, tool: "send_sms", args: TEXT })).toMatchObject({ ok: true });
+    expect(
+      await consumeApproval(deps, { organizationId: ORG, tool: "send_sms", args: TEXT }),
+    ).toMatchObject({ ok: true });
   });
 });
 
@@ -301,9 +459,15 @@ describe("createApprovalsConsumer (tool registry hook)", () => {
     const { deps } = setup();
     await approved(deps);
     const hook = createApprovalsConsumer(deps);
-    const call = { tool: "send_sms", argsHash: hashApprovalArgs(TEXT), context: { organizationId: ORG } };
+    const call = {
+      tool: "send_sms",
+      argsHash: hashApprovalArgs(TEXT),
+      context: { organizationId: ORG },
+    };
     expect(await hook.consume({ ...call, context: { organizationId: OTHER_ORG } })).toBe(false);
-    expect(await hook.consume({ ...call, argsHash: hashApprovalArgs({ ...TEXT, to: "Someone Else" }) })).toBe(false);
+    expect(
+      await hook.consume({ ...call, argsHash: hashApprovalArgs({ ...TEXT, to: "Someone Else" }) }),
+    ).toBe(false);
     expect(await hook.consume(call)).toBe(true);
     expect(await hook.consume(call)).toBe(false);
   });
@@ -329,9 +493,12 @@ describe("supabaseApprovalRepo", () => {
     const client = {
       rpc: async (fn: string, args: Record<string, unknown> = {}) => {
         calls.push({ fn, args });
-        if (fn === "agent_approval_request") return { data: { created: true, approval: row }, error: null };
-        if (fn === "agent_approval_decide") return { data: { outcome: "approved", approval: row }, error: null };
-        if (fn === "agent_approval_consume") return { data: { outcome: "consumed", approval: row }, error: null };
+        if (fn === "agent_approval_request")
+          return { data: { created: true, approval: row }, error: null };
+        if (fn === "agent_approval_decide")
+          return { data: { outcome: "approved", approval: row }, error: null };
+        if (fn === "agent_approval_consume")
+          return { data: { outcome: "consumed", approval: row }, error: null };
         return { data: 3, error: null };
       },
     };
@@ -339,12 +506,29 @@ describe("supabaseApprovalRepo", () => {
     const deps: ApprovalDeps = { repo };
     const r = await ask(deps);
     expect(r).toMatchObject({ ok: true, reused: false });
-    expect(calls[0]).toMatchObject({ fn: "agent_approval_request", args: { _org: ORG, _scope: "owner", _tool: "send_sms", _hash: hashApprovalArgs(TEXT) } });
-    expect(await decideApproval(deps, { approvalId: "1", deciderId: OWNER, decision: "approve" })).toMatchObject({ ok: true });
-    expect(calls[1]).toMatchObject({ fn: "agent_approval_decide", args: { _id: "1", _decider: OWNER, _approve: true } });
-    expect(await consumeApproval(deps, { organizationId: ORG, tool: "send_sms", args: TEXT })).toMatchObject({ ok: true });
-    expect(calls[2]).toMatchObject({ fn: "agent_approval_consume", args: { _org: ORG, _scope: "owner", _id: null } });
+    expect(calls[0]).toMatchObject({
+      fn: "agent_approval_request",
+      args: { _org: ORG, _scope: "owner", _tool: "send_sms", _hash: hashApprovalArgs(TEXT) },
+    });
+    expect(
+      await decideApproval(deps, { approvalId: "1", deciderId: OWNER, decision: "approve" }),
+    ).toMatchObject({ ok: true });
+    expect(calls[1]).toMatchObject({
+      fn: "agent_approval_decide",
+      args: { _id: "1", _decider: OWNER, _approve: true },
+    });
+    expect(
+      await consumeApproval(deps, { organizationId: ORG, tool: "send_sms", args: TEXT }),
+    ).toMatchObject({ ok: true });
+    expect(calls[2]).toMatchObject({
+      fn: "agent_approval_consume",
+      args: { _org: ORG, _scope: "owner", _id: null },
+    });
     expect(await sweepExpiredApprovals(deps)).toBe(3);
-    await expect(supabaseApprovalRepo({ rpc: async () => ({ data: null, error: { message: "boom" } }) }).sweep()).rejects.toThrow("agent_approval_sweep: boom");
+    await expect(
+      supabaseApprovalRepo({
+        rpc: async () => ({ data: null, error: { message: "boom" } }),
+      }).sweep(),
+    ).rejects.toThrow("agent_approval_sweep: boom");
   });
 });

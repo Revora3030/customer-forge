@@ -26,7 +26,8 @@ export const APPROVAL_TTL_SECONDS = 24 * 60 * 60;
 export const MAX_APPROVAL_ARGS_BYTES = 16_384;
 
 export type ApprovalScope = "owner" | "admin";
-export type ApprovalStatus = "pending" | "approved" | "rejected" | "expired" | "consumed" | "cancelled";
+export type ApprovalStatus =
+  "pending" | "approved" | "rejected" | "expired" | "consumed" | "cancelled";
 
 export type ApprovalRow = {
   id: string;
@@ -47,8 +48,10 @@ export type ApprovalRow = {
   consumed_at: string | null;
 };
 
-export type DecideOutcome = "approved" | "rejected" | "forbidden" | "expired" | "already_decided" | "not_found";
-export type ConsumeOutcome = "consumed" | "not_found" | "not_approved" | "rejected" | "expired" | "used" | "changed";
+export type DecideOutcome =
+  "approved" | "rejected" | "forbidden" | "expired" | "already_decided" | "not_found";
+export type ConsumeOutcome =
+  "consumed" | "not_found" | "not_approved" | "rejected" | "expired" | "used" | "changed";
 
 export type NewApproval = {
   organizationId: string | null;
@@ -66,7 +69,11 @@ export type NewApproval = {
 export interface ApprovalRepo {
   /** `created` is false when a live approval for the same action already existed. */
   request(input: NewApproval): Promise<{ approval: ApprovalRow; created: boolean }>;
-  decide(id: string, deciderId: string, approve: boolean): Promise<{ outcome: DecideOutcome; approval: ApprovalRow | null }>;
+  decide(
+    id: string,
+    deciderId: string,
+    approve: boolean,
+  ): Promise<{ outcome: DecideOutcome; approval: ApprovalRow | null }>;
   consume(input: {
     organizationId: string | null;
     scope: ApprovalScope;
@@ -81,7 +88,12 @@ export interface ApprovalRepo {
 export type ApprovalDeps = {
   repo: ApprovalRepo;
   /** An honest line for the run's event feed. Must not throw; failures are swallowed. */
-  emit?: (runId: string, kind: string, message: string, data?: Record<string, unknown>) => Promise<void> | void;
+  emit?: (
+    runId: string,
+    kind: string,
+    message: string,
+    data?: Record<string, unknown>,
+  ) => Promise<void> | void;
   /** Called when a decision should wake the waiting run (e.g. `RunRepo.resume`). */
   resumeRun?: (runId: string) => Promise<unknown> | unknown;
 };
@@ -111,7 +123,8 @@ export function hashApprovalArgs(args: unknown): string {
 /* ------------------------------- the service ------------------------------ */
 
 export type ApprovalRefusal = { ok: false; reason: string; message: string };
-export type ApprovalRequestResult = { ok: true; approval: ApprovalRow; reused: boolean } | ApprovalRefusal;
+export type ApprovalRequestResult =
+  { ok: true; approval: ApprovalRow; reused: boolean } | ApprovalRefusal;
 
 const DECIDE_MESSAGES: Record<Exclude<DecideOutcome, "approved" | "rejected">, string> = {
   forbidden: "Only the workspace owner can approve or reject this.",
@@ -129,7 +142,13 @@ const CONSUME_MESSAGES: Record<Exclude<ConsumeOutcome, "consumed">, string> = {
   changed: "The action changed after it was approved, so it needs a new approval.",
 };
 
-async function note(deps: ApprovalDeps, runId: string | null, kind: string, message: string, data?: Record<string, unknown>) {
+async function note(
+  deps: ApprovalDeps,
+  runId: string | null,
+  kind: string,
+  message: string,
+  data?: Record<string, unknown>,
+) {
   if (!runId || !deps.emit) return;
   try {
     await deps.emit(runId, kind, message, data);
@@ -159,9 +178,15 @@ export async function requestApproval(
   },
 ): Promise<ApprovalRequestResult> {
   const scope = input.scope ?? "owner";
-  const refuse = (reason: string, message: string): ApprovalRefusal => ({ ok: false, reason, message });
-  if (scope === "owner" && !input.organizationId) return refuse("no_workspace", "An approval needs a workspace.");
-  if (scope === "admin" && input.organizationId) return refuse("scope", "Admin approvals aren't tied to one workspace.");
+  const refuse = (reason: string, message: string): ApprovalRefusal => ({
+    ok: false,
+    reason,
+    message,
+  });
+  if (scope === "owner" && !input.organizationId)
+    return refuse("no_workspace", "An approval needs a workspace.");
+  if (scope === "admin" && input.organizationId)
+    return refuse("scope", "Admin approvals aren't tied to one workspace.");
   const tool = input.tool.trim();
   if (!tool || tool.length > 80) return refuse("bad_tool", "That action name isn't valid.");
   const summary = input.summary.replace(/\s+/g, " ").trim().slice(0, 300);
@@ -172,7 +197,10 @@ export async function requestApproval(
   if (Buffer.byteLength(JSON.stringify(input.args) ?? "", "utf8") > MAX_APPROVAL_ARGS_BYTES) {
     return refuse("args_too_large", "The action is too large to approve in one go.");
   }
-  const ttl = Math.min(APPROVAL_TTL_SECONDS, Math.max(60, Math.floor(input.ttlSeconds ?? APPROVAL_TTL_SECONDS)));
+  const ttl = Math.min(
+    APPROVAL_TTL_SECONDS,
+    Math.max(60, Math.floor(input.ttlSeconds ?? APPROVAL_TTL_SECONDS)),
+  );
   const { approval, created } = await deps.repo.request({
     organizationId: scope === "admin" ? null : input.organizationId,
     scope,
@@ -186,21 +214,32 @@ export async function requestApproval(
     summary,
     ttlSeconds: ttl,
   });
-  if (created) await note(deps, approval.run_id, "approval_requested", `Waiting for the owner to approve: ${summary}`, { approvalId: approval.id, tool });
+  if (created)
+    await note(
+      deps,
+      approval.run_id,
+      "approval_requested",
+      `Waiting for the owner to approve: ${summary}`,
+      { approvalId: approval.id, tool },
+    );
   return { ok: true, approval, reused: !created };
 }
 
 export type ApprovalDecisionResult =
-  | { ok: true; decision: "approved" | "rejected"; approval: ApprovalRow }
-  | ApprovalRefusal;
+  { ok: true; decision: "approved" | "rejected"; approval: ApprovalRow } | ApprovalRefusal;
 
 /** The owner's tap. `deciderId` is the signed-in user from the session. */
 export async function decideApproval(
   deps: ApprovalDeps,
   input: { approvalId: string; deciderId: string; decision: "approve" | "reject" },
 ): Promise<ApprovalDecisionResult> {
-  if (!input.approvalId || !input.deciderId) return { ok: false, reason: "not_found", message: DECIDE_MESSAGES.not_found };
-  const { outcome, approval } = await deps.repo.decide(input.approvalId, input.deciderId, input.decision === "approve");
+  if (!input.approvalId || !input.deciderId)
+    return { ok: false, reason: "not_found", message: DECIDE_MESSAGES.not_found };
+  const { outcome, approval } = await deps.repo.decide(
+    input.approvalId,
+    input.deciderId,
+    input.decision === "approve",
+  );
   if (outcome !== "approved" && outcome !== "rejected") {
     return { ok: false, reason: outcome, message: DECIDE_MESSAGES[outcome] };
   }
@@ -209,7 +248,9 @@ export async function decideApproval(
     deps,
     approval.run_id,
     outcome === "approved" ? "approval_approved" : "approval_rejected",
-    outcome === "approved" ? `The owner approved: ${approval.summary}` : `The owner said no: ${approval.summary}`,
+    outcome === "approved"
+      ? `The owner approved: ${approval.summary}`
+      : `The owner said no: ${approval.summary}`,
     { approvalId: approval.id, tool: approval.tool },
   );
   if (approval.run_id && deps.resumeRun) {
@@ -222,7 +263,8 @@ export async function decideApproval(
   return { ok: true, decision: outcome, approval };
 }
 
-export type ApprovalConsumeResult = { ok: true; approval: ApprovalRow } | (ApprovalRefusal & { reason: ConsumeOutcome });
+export type ApprovalConsumeResult =
+  { ok: true; approval: ApprovalRow } | (ApprovalRefusal & { reason: ConsumeOutcome });
 
 /**
  * Use an approval, once, for exactly these arguments. Pass either the
@@ -255,10 +297,16 @@ export async function consumeApproval(
     const reason = outcome === "consumed" ? "not_found" : outcome;
     return { ok: false, reason, message: CONSUME_MESSAGES[reason] };
   }
-  await note(deps, approval.run_id, "approval_used", `Sent with the owner's approval: ${approval.summary}`, {
-    approvalId: approval.id,
-    tool: approval.tool,
-  });
+  await note(
+    deps,
+    approval.run_id,
+    "approval_used",
+    `Sent with the owner's approval: ${approval.summary}`,
+    {
+      approvalId: approval.id,
+      tool: approval.tool,
+    },
+  );
   return { ok: true, approval };
 }
 
@@ -269,7 +317,11 @@ export async function consumeApproval(
  */
 export function createApprovalsConsumer(deps: ApprovalDeps, scope: ApprovalScope = "owner") {
   return {
-    consume: async (call: { tool: string; argsHash: string; context: { organizationId: string } }): Promise<boolean> => {
+    consume: async (call: {
+      tool: string;
+      argsHash: string;
+      context: { organizationId: string };
+    }): Promise<boolean> => {
       const result = await consumeApproval(deps, {
         organizationId: call.context.organizationId,
         scope,
@@ -282,7 +334,8 @@ export function createApprovalsConsumer(deps: ApprovalDeps, scope: ApprovalScope
 }
 
 /** A cancelled or failed run must not leave live approvals behind. */
-export const cancelApprovalsForRun = (deps: ApprovalDeps, runId: string) => deps.repo.cancelForRun(runId);
+export const cancelApprovalsForRun = (deps: ApprovalDeps, runId: string) =>
+  deps.repo.cancelForRun(runId);
 export const sweepExpiredApprovals = (deps: ApprovalDeps) => deps.repo.sweep();
 
 /* --------------------------- Supabase implementation ----------------------- */
@@ -290,15 +343,29 @@ export const sweepExpiredApprovals = (deps: ApprovalDeps) => deps.repo.sweep();
 type RpcResult = PromiseLike<{ data: unknown; error: { message: string } | null }>;
 type RpcClient = { rpc(fn: string, args?: Record<string, unknown>): RpcResult };
 
-async function call(client: RpcClient, fn: string, args: Record<string, unknown>): Promise<unknown> {
+async function call(
+  client: RpcClient,
+  fn: string,
+  args: Record<string, unknown>,
+): Promise<unknown> {
   const { data, error } = await client.rpc(fn, args);
   if (error) throw new Error(`${fn}: ${error.message}`);
   return data;
 }
 
-const asOutcome = (data: unknown): { outcome: string; created: boolean; approval: ApprovalRow | null } => {
-  const value = (Array.isArray(data) ? data[0] : data) as { outcome?: string; created?: boolean; approval?: ApprovalRow } | null;
-  return { outcome: value?.outcome ?? "not_found", created: value?.created === true, approval: value?.approval ?? null };
+const asOutcome = (
+  data: unknown,
+): { outcome: string; created: boolean; approval: ApprovalRow | null } => {
+  const value = (Array.isArray(data) ? data[0] : data) as {
+    outcome?: string;
+    created?: boolean;
+    approval?: ApprovalRow;
+  } | null;
+  return {
+    outcome: value?.outcome ?? "not_found",
+    created: value?.created === true,
+    approval: value?.approval ?? null,
+  };
 };
 
 /** Pass the service-role client; a browser client can't execute these functions. */
@@ -324,7 +391,13 @@ export function supabaseApprovalRepo(admin: SupabaseClient | unknown): ApprovalR
       return { approval: out.approval, created: out.created };
     },
     async decide(id, deciderId, approve) {
-      const { outcome, approval } = asOutcome(await call(client, "agent_approval_decide", { _id: id, _decider: deciderId, _approve: approve }));
+      const { outcome, approval } = asOutcome(
+        await call(client, "agent_approval_decide", {
+          _id: id,
+          _decider: deciderId,
+          _approve: approve,
+        }),
+      );
       return { outcome: outcome as DecideOutcome, approval };
     },
     async consume(input) {
