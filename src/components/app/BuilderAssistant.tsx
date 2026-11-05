@@ -63,6 +63,7 @@ import { ApplyResultCard } from "@/components/app/builder-chat/ApplyResultCard";
 import { InspectChanges } from "@/components/app/builder-chat/InspectChanges";
 import { MessageMenu } from "@/components/app/builder-chat/MessageMenu";
 import { useComposerMenu } from "@/components/app/builder-chat/ComposerMenu";
+import { useAskMode } from "@/components/app/builder-chat/AskMode";
 import { useSendTestLead } from "@/components/app/builder-chat/use-test-lead";
 import { expandMentions } from "@/lib/builder/composer-commands";
 import { useChatTop } from "@/components/app/builder-chat/use-chat-top";
@@ -274,6 +275,7 @@ export function BuilderAssistant({
 
   const send = (text: string) => {
     if (!text.trim() && attachments.length === 0) return;
+    if (askMode.intercept(scoped(text))) return void (setValue(""), afterSend());
     // Revora asked for a missing fact: this message is the answer.
     if (factQuestion && onFactAnswer && text.trim()) {
       const q = factQuestion;
@@ -379,6 +381,7 @@ export function BuilderAssistant({
       else if (id === "lead-test") (onLeadTest ?? (() => testLead.mutate()))();
     },
   });
+  const askMode = useAskMode({ organizationId, onMakeChange: (text) => requests.queue(text), available: !onFirstBuild && !factQuestion && !accessBlocked });
   const runSuggestion = (instruction: string) =>
     onFirstBuild ? void onFirstBuild(instruction) : requests.queue(instruction);
   const lastTask = requests.tasks[requests.tasks.length - 1];
@@ -609,6 +612,7 @@ export function BuilderAssistant({
             ));
           })()}
 
+          {askMode.transcript}
           {rebuildAsk ? (
             <div className="chat-rise space-y-3">
               <UserTurn text={rebuildAsk.instruction} />
@@ -791,13 +795,13 @@ export function BuilderAssistant({
               maxLength={INSTRUCTION_LIMIT}
               disabled={composerLocked}
               placeholder={
-                factQuestion
+                askMode.placeholder ?? (factQuestion
                   ? "Type your answer…"
                   : selection
                     ? "Describe the change to this block…"
                     : onFirstBuild
                       ? "Describe your business, or say “build my website”…"
-                      : "Ask Revora to change anything…"
+                      : "Ask Revora to change anything…")
               }
               aria-label="Tell Revora what to change"
               className="max-h-40 min-h-[48px] px-4 pt-3 text-[16px] leading-6"
@@ -833,6 +837,7 @@ export function BuilderAssistant({
                     <Crosshair className="size-[18px]" aria-hidden />
                   </PromptInputButton>
                 ) : null}
+                {askMode.toggle}
                 <VoiceDictationButton
                   disabled={composerLocked}
                   onText={(text) => setValue((prior) => (prior ? `${prior.trim()} ${text}` : text).slice(0, INSTRUCTION_LIMIT))}
