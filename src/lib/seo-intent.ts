@@ -17,6 +17,7 @@ import { US_STATES } from "@/lib/us-states";
 import { NC_LOCATIONS } from "@/lib/business-identity";
 import { LOCAL_INDUSTRIES, localPageContent, localPath } from "@/lib/local-pages";
 import { GUIDES } from "@/lib/guides";
+import { HELP_ARTICLES } from "@/lib/help-articles";
 import { COMPARISONS } from "@/lib/compare";
 import { CRM_SOLUTIONS } from "@/lib/crm-solutions";
 import { MARKETING_SEARCH } from "@/lib/marketing-seo";
@@ -357,6 +358,11 @@ export function seoInventory(): SeoPage[] {
         ),
       );
     }
+  }
+
+  pages.push(page("/help", "revora help center", "Help center — Revora", "Short how-to articles for Revora owners.", 120));
+  for (const article of HELP_ARTICLES) {
+    pages.push(page(`/help/${article.slug}`, article.title.toLowerCase(), `${article.title} — Revora help`, article.description, countWords(article.steps.join(" "))));
   }
 
   for (const guide of GUIDES) {

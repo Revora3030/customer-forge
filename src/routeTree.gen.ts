@@ -19,6 +19,7 @@ import { Route as CrmForContractorsRouteImport } from './routes/crm-for-contract
 import { Route as DemoRouteImport } from './routes/demo'
 import { Route as GetStartedRouteImport } from './routes/get-started'
 import { Route as GrowthAssessmentRouteImport } from './routes/growth-assessment'
+import { Route as HelpDotmdRouteImport } from './routes/help[.]md'
 import { Route as IndexnowKeyDottxtRouteImport } from './routes/indexnow-key[.]txt'
 import { Route as IndustriesRouteImport } from './routes/industries'
 import { Route as LlmsDottxtRouteImport } from './routes/llms[.]txt'
@@ -52,6 +53,9 @@ import { Route as DemoDashboardRouteImport } from './routes/demo.dashboard'
 import { Route as FeedbackTokenRouteImport } from './routes/feedback.$token'
 import { Route as GuidesIndexRouteImport } from './routes/guides.index'
 import { Route as GuidesSlugRouteImport } from './routes/guides.$slug'
+import { Route as HelpIndexRouteImport } from './routes/help.index'
+import { Route as HelpSlugRouteImport } from './routes/help.$slug'
+import { Route as HelpChar123slugChar125DotmdRouteImport } from './routes/help.{$slug}[.]md'
 import { Route as IndustriesIndexRouteImport } from './routes/industries.index'
 import { Route as IndustriesSlugRouteImport } from './routes/industries.$slug'
 import { Route as InviteTokenRouteImport } from './routes/invite.$token'
@@ -204,6 +208,11 @@ const GetStartedRoute = GetStartedRouteImport.update({
 const GrowthAssessmentRoute = GrowthAssessmentRouteImport.update({
   id: '/growth-assessment',
   path: '/growth-assessment',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HelpDotmdRoute = HelpDotmdRouteImport.update({
+  id: '/help.md',
+  path: '/help.md',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexnowKeyDottxtRoute = IndexnowKeyDottxtRouteImport.update({
@@ -372,6 +381,22 @@ const GuidesSlugRoute = GuidesSlugRouteImport.update({
   path: '/guides/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const HelpIndexRoute = HelpIndexRouteImport.update({
+  id: '/help/',
+  path: '/help/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HelpSlugRoute = HelpSlugRouteImport.update({
+  id: '/help/$slug',
+  path: '/help/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HelpChar123slugChar125DotmdRoute =
+  HelpChar123slugChar125DotmdRouteImport.update({
+    id: '/help/{$slug}.md',
+    path: '/help/{$slug}.md',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const IndustriesIndexRoute = IndustriesIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -950,6 +975,7 @@ export interface FileRoutesByFullPath {
   '/demo': typeof DemoRouteWithChildren
   '/get-started': typeof GetStartedRoute
   '/growth-assessment': typeof GrowthAssessmentRoute
+  '/help.md': typeof HelpDotmdRoute
   '/indexnow-key.txt': typeof IndexnowKeyDottxtRoute
   '/industries': typeof IndustriesRouteWithChildren
   '/llms.txt': typeof LlmsDottxtRoute
@@ -979,6 +1005,8 @@ export interface FileRoutesByFullPath {
   '/demo/dashboard': typeof DemoDashboardRoute
   '/feedback/$token': typeof FeedbackTokenRoute
   '/guides/$slug': typeof GuidesSlugRoute
+  '/help/$slug': typeof HelpSlugRoute
+  '/help/{$slug}.md': typeof HelpChar123slugChar125DotmdRoute
   '/industries/$slug': typeof IndustriesSlugRoute
   '/invite/$token': typeof InviteTokenRoute
   '/locations/$city': typeof LocationsCityRoute
@@ -989,6 +1017,7 @@ export interface FileRoutesByFullPath {
   '/crm/': typeof CrmIndexRoute
   '/demo/': typeof DemoIndexRoute
   '/guides/': typeof GuidesIndexRoute
+  '/help/': typeof HelpIndexRoute
   '/industries/': typeof IndustriesIndexRoute
   '/local/': typeof LocalIndexRoute
   '/locations/': typeof LocationsIndexRoute
@@ -1097,6 +1126,7 @@ export interface FileRoutesByTo {
   '/crm-for-contractors': typeof CrmForContractorsRoute
   '/get-started': typeof GetStartedRoute
   '/growth-assessment': typeof GrowthAssessmentRoute
+  '/help.md': typeof HelpDotmdRoute
   '/indexnow-key.txt': typeof IndexnowKeyDottxtRoute
   '/llms.txt': typeof LlmsDottxtRoute
   '/login': typeof LoginRoute
@@ -1122,6 +1152,8 @@ export interface FileRoutesByTo {
   '/demo/dashboard': typeof DemoDashboardRoute
   '/feedback/$token': typeof FeedbackTokenRoute
   '/guides/$slug': typeof GuidesSlugRoute
+  '/help/$slug': typeof HelpSlugRoute
+  '/help/{$slug}.md': typeof HelpChar123slugChar125DotmdRoute
   '/industries/$slug': typeof IndustriesSlugRoute
   '/invite/$token': typeof InviteTokenRoute
   '/locations/$city': typeof LocationsCityRoute
@@ -1132,6 +1164,7 @@ export interface FileRoutesByTo {
   '/crm': typeof CrmIndexRoute
   '/demo': typeof DemoIndexRoute
   '/guides': typeof GuidesIndexRoute
+  '/help': typeof HelpIndexRoute
   '/industries': typeof IndustriesIndexRoute
   '/local': typeof LocalIndexRoute
   '/locations': typeof LocationsIndexRoute
@@ -1243,6 +1276,7 @@ export interface FileRoutesById {
   '/demo': typeof DemoRouteWithChildren
   '/get-started': typeof GetStartedRoute
   '/growth-assessment': typeof GrowthAssessmentRoute
+  '/help.md': typeof HelpDotmdRoute
   '/indexnow-key.txt': typeof IndexnowKeyDottxtRoute
   '/industries': typeof IndustriesRouteWithChildren
   '/llms.txt': typeof LlmsDottxtRoute
@@ -1272,6 +1306,8 @@ export interface FileRoutesById {
   '/demo/dashboard': typeof DemoDashboardRoute
   '/feedback/$token': typeof FeedbackTokenRoute
   '/guides/$slug': typeof GuidesSlugRoute
+  '/help/$slug': typeof HelpSlugRoute
+  '/help/{$slug}.md': typeof HelpChar123slugChar125DotmdRoute
   '/industries/$slug': typeof IndustriesSlugRoute
   '/invite/$token': typeof InviteTokenRoute
   '/locations/$city': typeof LocationsCityRoute
@@ -1282,6 +1318,7 @@ export interface FileRoutesById {
   '/crm/': typeof CrmIndexRoute
   '/demo/': typeof DemoIndexRoute
   '/guides/': typeof GuidesIndexRoute
+  '/help/': typeof HelpIndexRoute
   '/industries/': typeof IndustriesIndexRoute
   '/local/': typeof LocalIndexRoute
   '/locations/': typeof LocationsIndexRoute
@@ -1393,6 +1430,7 @@ export interface FileRouteTypes {
     | '/demo'
     | '/get-started'
     | '/growth-assessment'
+    | '/help.md'
     | '/indexnow-key.txt'
     | '/industries'
     | '/llms.txt'
@@ -1422,6 +1460,8 @@ export interface FileRouteTypes {
     | '/demo/dashboard'
     | '/feedback/$token'
     | '/guides/$slug'
+    | '/help/$slug'
+    | '/help/{$slug}.md'
     | '/industries/$slug'
     | '/invite/$token'
     | '/locations/$city'
@@ -1432,6 +1472,7 @@ export interface FileRouteTypes {
     | '/crm/'
     | '/demo/'
     | '/guides/'
+    | '/help/'
     | '/industries/'
     | '/local/'
     | '/locations/'
@@ -1540,6 +1581,7 @@ export interface FileRouteTypes {
     | '/crm-for-contractors'
     | '/get-started'
     | '/growth-assessment'
+    | '/help.md'
     | '/indexnow-key.txt'
     | '/llms.txt'
     | '/login'
@@ -1565,6 +1607,8 @@ export interface FileRouteTypes {
     | '/demo/dashboard'
     | '/feedback/$token'
     | '/guides/$slug'
+    | '/help/$slug'
+    | '/help/{$slug}.md'
     | '/industries/$slug'
     | '/invite/$token'
     | '/locations/$city'
@@ -1575,6 +1619,7 @@ export interface FileRouteTypes {
     | '/crm'
     | '/demo'
     | '/guides'
+    | '/help'
     | '/industries'
     | '/local'
     | '/locations'
@@ -1685,6 +1730,7 @@ export interface FileRouteTypes {
     | '/demo'
     | '/get-started'
     | '/growth-assessment'
+    | '/help.md'
     | '/indexnow-key.txt'
     | '/industries'
     | '/llms.txt'
@@ -1714,6 +1760,8 @@ export interface FileRouteTypes {
     | '/demo/dashboard'
     | '/feedback/$token'
     | '/guides/$slug'
+    | '/help/$slug'
+    | '/help/{$slug}.md'
     | '/industries/$slug'
     | '/invite/$token'
     | '/locations/$city'
@@ -1724,6 +1772,7 @@ export interface FileRouteTypes {
     | '/crm/'
     | '/demo/'
     | '/guides/'
+    | '/help/'
     | '/industries/'
     | '/local/'
     | '/locations/'
@@ -1835,6 +1884,7 @@ export interface RootRouteChildren {
   DemoRoute: typeof DemoRouteWithChildren
   GetStartedRoute: typeof GetStartedRoute
   GrowthAssessmentRoute: typeof GrowthAssessmentRoute
+  HelpDotmdRoute: typeof HelpDotmdRoute
   IndexnowKeyDottxtRoute: typeof IndexnowKeyDottxtRoute
   IndustriesRoute: typeof IndustriesRouteWithChildren
   LlmsDottxtRoute: typeof LlmsDottxtRoute
@@ -1859,6 +1909,8 @@ export interface RootRouteChildren {
   CrmTradeRoute: typeof CrmTradeRoute
   FeedbackTokenRoute: typeof FeedbackTokenRoute
   GuidesSlugRoute: typeof GuidesSlugRoute
+  HelpSlugRoute: typeof HelpSlugRoute
+  HelpChar123slugChar125DotmdRoute: typeof HelpChar123slugChar125DotmdRoute
   InviteTokenRoute: typeof InviteTokenRoute
   LocationsCityRoute: typeof LocationsCityRoute
   PTokenRoute: typeof PTokenRoute
@@ -1867,6 +1919,7 @@ export interface RootRouteChildren {
   CompareIndexRoute: typeof CompareIndexRoute
   CrmIndexRoute: typeof CrmIndexRoute
   GuidesIndexRoute: typeof GuidesIndexRoute
+  HelpIndexRoute: typeof HelpIndexRoute
   LocalIndexRoute: typeof LocalIndexRoute
   LocationsIndexRoute: typeof LocationsIndexRoute
   StatesIndexRoute: typeof StatesIndexRoute
@@ -1988,6 +2041,13 @@ declare module '@tanstack/react-router' {
       path: '/growth-assessment'
       fullPath: '/growth-assessment'
       preLoaderRoute: typeof GrowthAssessmentRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/help.md': {
+      id: '/help.md'
+      path: '/help.md'
+      fullPath: '/help.md'
+      preLoaderRoute: typeof HelpDotmdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/indexnow-key.txt': {
@@ -2219,6 +2279,27 @@ declare module '@tanstack/react-router' {
       path: '/guides/$slug'
       fullPath: '/guides/$slug'
       preLoaderRoute: typeof GuidesSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/help/': {
+      id: '/help/'
+      path: '/help'
+      fullPath: '/help/'
+      preLoaderRoute: typeof HelpIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/help/$slug': {
+      id: '/help/$slug'
+      path: '/help/$slug'
+      fullPath: '/help/$slug'
+      preLoaderRoute: typeof HelpSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/help/{$slug}.md': {
+      id: '/help/{$slug}.md'
+      path: '/help/{$slug}.md'
+      fullPath: '/help/{$slug}.md'
+      preLoaderRoute: typeof HelpChar123slugChar125DotmdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/industries/': {
@@ -3197,6 +3278,7 @@ const rootRouteChildren: RootRouteChildren = {
   DemoRoute: DemoRouteWithChildren,
   GetStartedRoute: GetStartedRoute,
   GrowthAssessmentRoute: GrowthAssessmentRoute,
+  HelpDotmdRoute: HelpDotmdRoute,
   IndexnowKeyDottxtRoute: IndexnowKeyDottxtRoute,
   IndustriesRoute: IndustriesRouteWithChildren,
   LlmsDottxtRoute: LlmsDottxtRoute,
@@ -3222,6 +3304,8 @@ const rootRouteChildren: RootRouteChildren = {
   CrmTradeRoute: CrmTradeRoute,
   FeedbackTokenRoute: FeedbackTokenRoute,
   GuidesSlugRoute: GuidesSlugRoute,
+  HelpSlugRoute: HelpSlugRoute,
+  HelpChar123slugChar125DotmdRoute: HelpChar123slugChar125DotmdRoute,
   InviteTokenRoute: InviteTokenRoute,
   LocationsCityRoute: LocationsCityRoute,
   PTokenRoute: PTokenRoute,
@@ -3230,6 +3314,7 @@ const rootRouteChildren: RootRouteChildren = {
   CompareIndexRoute: CompareIndexRoute,
   CrmIndexRoute: CrmIndexRoute,
   GuidesIndexRoute: GuidesIndexRoute,
+  HelpIndexRoute: HelpIndexRoute,
   LocalIndexRoute: LocalIndexRoute,
   LocationsIndexRoute: LocationsIndexRoute,
   StatesIndexRoute: StatesIndexRoute,
