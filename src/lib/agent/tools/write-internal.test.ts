@@ -37,7 +37,7 @@ function fakeDb(seed: Record<string, Row[]>) {
       const run = () => {
         if (pendingInsert) {
           const inserted = pendingInsert.map((row) => {
-            const withId = { id: row.id ?? crypto.randomUUID(), ...row };
+            const withId = { id: row["id"] ?? crypto.randomUUID(), ...row };
             tables[table] = [...(tables[table] ?? []), withId];
             return withId;
           });
@@ -49,8 +49,8 @@ function fakeDb(seed: Record<string, Row[]>) {
           return { data: matched.map((r) => ({ ...r })), error: null };
         }
         if (pendingDelete) {
-          const ids = new Set(matched.map((r) => r.id));
-          tables[table] = (tables[table] ?? []).filter((r) => !ids.has(r.id));
+          const ids = new Set(matched.map((r) => r["id"]));
+          tables[table] = (tables[table] ?? []).filter((r) => !ids.has(r["id"]));
           return { data: matched.map((r) => ({ ...r })), error: null };
         }
         const rows = matched;
@@ -71,31 +71,31 @@ function fakeDb(seed: Record<string, Row[]>) {
       };
 
       const chain: Record<string, unknown> = {};
-      chain.select = (cols?: string) => {
+      chain["select"] = (cols?: string) => {
         selectCols = cols ?? null;
         return chain;
       };
-      chain.eq = (col: string, val: unknown) => {
+      chain["eq"] = (col: string, val: unknown) => {
         filters.push(["eq", col, val]);
         return chain;
       };
-      chain.maybeSingle = () => {
+      chain["maybeSingle"] = () => {
         wantSingle = true;
         return chain;
       };
-      chain.insert = (rows: Row | Row[]) => {
+      chain["insert"] = (rows: Row | Row[]) => {
         pendingInsert = Array.isArray(rows) ? rows : [rows];
         return chain;
       };
-      chain.update = (patch: Row) => {
+      chain["update"] = (patch: Row) => {
         pendingUpdate = patch;
         return chain;
       };
-      chain.delete = () => {
+      chain["delete"] = () => {
         pendingDelete = true;
         return chain;
       };
-      chain.then = (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) =>
+      chain["then"] = (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) =>
         Promise.resolve(run()).then(resolve, reject);
       return chain;
     },
@@ -126,7 +126,7 @@ const baseTables = () => ({
       organization_id: ORG,
       status: "new",
       notes: "Hello",
-      customer_id: null,
+      customer_id: null as string | null,
       name: "Pat",
     },
     {
@@ -134,7 +134,7 @@ const baseTables = () => ({
       organization_id: OTHER,
       status: "new",
       notes: null,
-      customer_id: null,
+      customer_id: null as string | null,
       name: "Other",
     },
   ],
@@ -199,14 +199,14 @@ describe("PAI-11 write_internal tools", () => {
     });
     expect(res.ok).toBe(true);
     if (!res.ok) return;
-    expect(tables.leads![0]!.status).toBe("contacted");
+    expect(tables["leads"]![0]!["status"]).toBe("contacted");
     expect(res.inverse).toEqual({
       tool: "leads.update_status",
       arguments: { leadId: LEAD, status: "new" },
     });
     const undo = await undoRunWrites(r, context, [res.inverse!]);
     expect(undo.ok).toBe(true);
-    expect(tables.leads![0]!.status).toBe("new");
+    expect(tables["leads"]![0]!["status"]).toBe("new");
   });
 
   it("refuses to touch another workspace's lead", async () => {
@@ -230,9 +230,9 @@ describe("PAI-11 write_internal tools", () => {
     });
     expect(res.ok).toBe(true);
     if (!res.ok) return;
-    expect(tables.leads![0]!.notes).toBe("Hello\nCalled Monday");
+    expect(tables["leads"]![0]!["notes"]).toBe("Hello\nCalled Monday");
     await undoRunWrites(r, context, [res.inverse!]);
-    expect(tables.leads![0]!.notes).toBe("Hello");
+    expect(tables["leads"]![0]!["notes"]).toBe("Hello");
   });
 
   it("stores a reversible tag marker on notes when the lead has no customer", async () => {
@@ -246,9 +246,9 @@ describe("PAI-11 write_internal tools", () => {
     });
     expect(res.ok).toBe(true);
     if (!res.ok) return;
-    expect(String(tables.leads![0]!.notes)).toContain("⟦tags:hot⟧");
+    expect(String(tables["leads"]![0]!["notes"])).toContain("⟦tags:hot⟧");
     await undoRunWrites(r, context, [res.inverse!]);
-    expect(tables.leads![0]!.notes).toBe("Hello");
+    expect(tables["leads"]![0]!["notes"]).toBe("Hello");
   });
 
   it("adds a customer tag when the lead is linked, and undoes it", async () => {
@@ -264,9 +264,9 @@ describe("PAI-11 write_internal tools", () => {
     });
     expect(res.ok).toBe(true);
     if (!res.ok) return;
-    expect(tables.customers![0]!.tags).toEqual(["vip", "referral"]);
+    expect(tables["customers"]![0]!["tags"]).toEqual(["vip", "referral"]);
     await undoRunWrites(r, context, [res.inverse!]);
-    expect(tables.customers![0]!.tags).toEqual(["vip"]);
+    expect(tables["customers"]![0]!["tags"]).toEqual(["vip"]);
   });
 
   it("creates a task whose inverse deletes only that task — never a lead", async () => {
@@ -280,11 +280,11 @@ describe("PAI-11 write_internal tools", () => {
     });
     expect(res.ok).toBe(true);
     if (!res.ok) return;
-    expect(tables.lead_tasks).toHaveLength(1);
+    expect(tables["lead_tasks"]).toHaveLength(1);
     expect(res.inverse?.tool).toBe("leads.delete_task");
     await undoRunWrites(r, context, [res.inverse!]);
-    expect(tables.lead_tasks).toHaveLength(0);
-    expect(tables.leads).toHaveLength(2);
+    expect(tables["lead_tasks"]).toHaveLength(0);
+    expect(tables["leads"]).toHaveLength(2);
   });
 
   it("drafts a quote and undoes by deleting only the draft", async () => {
@@ -302,11 +302,11 @@ describe("PAI-11 write_internal tools", () => {
     });
     expect(res.ok).toBe(true);
     if (!res.ok) return;
-    expect(tables.quotes).toHaveLength(1);
-    expect(tables.quote_line_items).toHaveLength(1);
+    expect(tables["quotes"]).toHaveLength(1);
+    expect(tables["quote_line_items"]).toHaveLength(1);
     expect(res.inverse?.tool).toBe("quotes.delete_draft");
     await undoRunWrites(r, context, [res.inverse!]);
-    expect(tables.quotes).toHaveLength(0);
+    expect(tables["quotes"]).toHaveLength(0);
   });
 
   it("toggles an automation and restores the prior on/off state", async () => {
@@ -320,9 +320,9 @@ describe("PAI-11 write_internal tools", () => {
     });
     expect(res.ok).toBe(true);
     if (!res.ok) return;
-    expect(tables.automations![0]!.is_active).toBe(false);
+    expect(tables["automations"]![0]!["is_active"]).toBe(false);
     await undoRunWrites(r, context, [res.inverse!]);
-    expect(tables.automations![0]!.is_active).toBe(true);
+    expect(tables["automations"]![0]!["is_active"]).toBe(true);
   });
 
   it("appends a booking note and restores prior notes", async () => {
@@ -336,9 +336,9 @@ describe("PAI-11 write_internal tools", () => {
     });
     expect(res.ok).toBe(true);
     if (!res.ok) return;
-    expect(tables.appointments![0]!.notes).toBe("Arrive via alley\nBring towels");
+    expect(tables["appointments"]![0]!["notes"]).toBe("Arrive via alley\nBring towels");
     await undoRunWrites(r, context, [res.inverse!]);
-    expect(tables.appointments![0]!.notes).toBe("Arrive via alley");
+    expect(tables["appointments"]![0]!["notes"]).toBe("Arrive via alley");
   });
 
   it("run-level undo replays multiple inverses newest-first", async () => {
@@ -355,14 +355,14 @@ describe("PAI-11 write_internal tools", () => {
       expect(res.ok).toBe(true);
       if (res.ok && res.inverse) inverses.push(res.inverse);
     }
-    expect(tables.leads![0]!.status).toBe("qualified");
-    expect(tables.automations![0]!.is_active).toBe(false);
+    expect(tables["leads"]![0]!["status"]).toBe("qualified");
+    expect(tables["automations"]![0]!["is_active"]).toBe(false);
     const undo = await undoRunWrites(r, context, inverses);
     expect(undo.ok).toBe(true);
     expect(undo.restored).toBe(3);
-    expect(tables.leads![0]!.status).toBe("new");
-    expect(tables.leads![0]!.notes).toBe("Hello");
-    expect(tables.automations![0]!.is_active).toBe(true);
+    expect(tables["leads"]![0]!["status"]).toBe("new");
+    expect(tables["leads"]![0]!["notes"]).toBe("Hello");
+    expect(tables["automations"]![0]!["is_active"]).toBe(true);
   });
 
   it("exposes no lead-delete tool", () => {
