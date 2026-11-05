@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cleanLook, lookCanChange, lookSeed, MAX_LOOKS, nextLook, readSiteLook, withLook } from "@/lib/builder/site-look";
+import { cleanLook, lookCanChange, lookSeed, MAX_LOOKS, nextLook, readSectionLook, readSectionLooks, readSiteLook, sectionCanReseed, sectionLookSeed, seedForSection, withLook, withSectionLook } from "@/lib/builder/site-look";
 import { legacySectionToComposition } from "@/lib/builder/legacy-composition";
 import { pickVariant } from "@/lib/builder/section-variants";
 
@@ -45,5 +45,40 @@ describe("CG-07 try another look", () => {
     expect(lookCanChange([{ settings: { composition: {} } }], has)).toBe(false);
     expect(lookCanChange([{ settings: { composition: {} } }, { settings: {} }], has)).toBe(true);
     expect(lookCanChange(null, has)).toBe(false);
+  });
+});
+
+describe("CG-14 per-section look", () => {
+  it("keeps look 0 as the site seed so untouched sections do not change", () => {
+    expect(sectionLookSeed("acme", 0, "sec-1", 0)).toBe("acme");
+    expect(sectionLookSeed("acme", 3, "sec-1", 0)).toBe("acme#look-3");
+    expect(seedForSection("acme", { look: 3 }, "sec-1")).toBe("acme#look-3");
+  });
+
+  it("mixes a section override into the seed and clears look 0 from the map", () => {
+    expect(sectionLookSeed("acme", 0, "sec-1", 2)).toBe("acme#sec-sec-1-2");
+    expect(readSectionLooks({ sectionLooks: { "sec-1": 2, "sec-2": 0, bad: 99 } })).toEqual({ "sec-1": 2 });
+    expect(readSectionLook({ sectionLooks: { "sec-1": 2 } }, "sec-1")).toBe(2);
+    expect(readSectionLook({}, "sec-1")).toBe(0);
+  });
+
+  it("previews one section without mutating the saved site", () => {
+    const site = { settings: { generation: { look: 1, sectionLooks: { "sec-1": 2 }, palette: "x" } } };
+    const preview = withSectionLook(site, "sec-2", 4);
+    expect(preview.settings.generation).toEqual({ look: 1, sectionLooks: { "sec-1": 2, "sec-2": 4 }, palette: "x" });
+    expect(site.settings.generation.sectionLooks).toEqual({ "sec-1": 2 });
+    expect(withSectionLook(site, "sec-1", 0).settings.generation.sectionLooks).toBeUndefined();
+  });
+
+  it("a section reseed rearranges at least one plain layout across looks", () => {
+    const seeds = Array.from({ length: MAX_LOOKS }, (_, n) => sectionLookSeed("acme", 0, "sec-1", n));
+    const variants = seeds.map((seed) => pickVariant("hero", "sec-1", seed));
+    expect(variants.some((v) => v !== variants[0])).toBe(true);
+  });
+
+  it("only offers a free reseed on plain sections", () => {
+    const has = (s: unknown) => Boolean(s && (s as { composition?: unknown }).composition);
+    expect(sectionCanReseed({ composition: {} }, has)).toBe(false);
+    expect(sectionCanReseed({}, has)).toBe(true);
   });
 });
