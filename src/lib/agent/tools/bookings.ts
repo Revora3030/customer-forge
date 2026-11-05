@@ -66,7 +66,8 @@ export function gapsForDay(input: {
   return gaps;
 }
 
-export const bookingsListUpcoming = defineToolV2({
+export const bookingsListUpcoming = () =>
+  defineToolV2({
   name: "bookings.list_upcoming",
   description:
     "List upcoming bookings for this workspace (from now, soonest first). PII-light: no full emails or phones.",
@@ -105,7 +106,8 @@ export const bookingsListUpcoming = defineToolV2({
   },
 });
 
-export const bookingsFindGaps = defineToolV2({
+export const bookingsFindGaps = () =>
+  defineToolV2({
   name: "bookings.find_gaps",
   description:
     "Find open booking windows over the next few days from stored opening hours minus confirmed/pending appointments. Times are UTC clock from the stored timestamps.",

@@ -12,17 +12,17 @@ import { leadsGet, leadsList } from "./leads";
 import { quotesGet, quotesList } from "./quotes";
 import { reviewsFindUnanswered, reviewsList } from "./reviews";
 
-/** PAI-7: leads, quotes, bookings, reviews (const tool defs). */
+/** PAI-7: leads, quotes, bookings, reviews (factory tool defs). */
 export function readToolsA(): ToolDefinitionV2<z.ZodType>[] {
   return [
-    leadsList,
-    leadsGet,
-    quotesList,
-    quotesGet,
-    bookingsListUpcoming,
-    bookingsFindGaps,
-    reviewsList,
-    reviewsFindUnanswered,
+    leadsList(),
+    leadsGet(),
+    quotesList(),
+    quotesGet(),
+    bookingsListUpcoming(),
+    bookingsFindGaps(),
+    reviewsList(),
+    reviewsFindUnanswered(),
   ] as unknown as ToolDefinitionV2<z.ZodType>[];
 }
 

@@ -34,7 +34,8 @@ function summarize(row: ReviewRow) {
   };
 }
 
-export const reviewsList = defineToolV2({
+export const reviewsList = () =>
+  defineToolV2({
   name: "reviews.list",
   description:
     "List this workspace's reviews (newest first). Comment text is truncated; private feedback is never returned.",
@@ -62,7 +63,8 @@ export const reviewsList = defineToolV2({
   },
 });
 
-export const reviewsFindUnanswered = defineToolV2({
+export const reviewsFindUnanswered = () =>
+  defineToolV2({
   name: "reviews.find_unanswered",
   description:
     "Reviews that still need an owner response: unpublished ones, or ratings of 3 or lower. Private feedback text is never returned.",

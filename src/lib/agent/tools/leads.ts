@@ -45,7 +45,8 @@ function lightLead(row: {
   };
 }
 
-export const leadsList = defineToolV2({
+export const leadsList = () =>
+  defineToolV2({
   name: "leads.list",
   description:
     "List this workspace's leads (newest first). PII-light: no full emails or phones. Optional status filter.",
@@ -74,7 +75,8 @@ export const leadsList = defineToolV2({
   },
 });
 
-export const leadsGet = defineToolV2({
+export const leadsGet = () =>
+  defineToolV2({
   name: "leads.get",
   description:
     "Get one lead by id for this workspace, including email and phone when stored.",

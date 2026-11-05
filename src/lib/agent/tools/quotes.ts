@@ -51,7 +51,8 @@ function total(lines: LineRow[]) {
   return lines.reduce((sum, line) => sum + Number(line.unit_price) * Number(line.quantity), 0);
 }
 
-export const quotesList = defineToolV2({
+export const quotesList = () =>
+  defineToolV2({
   name: "quotes.list",
   description:
     "List this workspace's quotes (newest first) with line totals. PII-light: no full emails or phones.",
@@ -102,7 +103,8 @@ export const quotesList = defineToolV2({
   },
 });
 
-export const quotesGet = defineToolV2({
+export const quotesGet = () =>
+  defineToolV2({
   name: "quotes.get",
   description:
     "Get one quote by id for this workspace, including customer contact and line items.",
