@@ -63,6 +63,7 @@ import { ApplyResultCard } from "@/components/app/builder-chat/ApplyResultCard";
 import { InspectChanges } from "@/components/app/builder-chat/InspectChanges";
 import { MessageMenu } from "@/components/app/builder-chat/MessageMenu";
 import { useComposerMenu } from "@/components/app/builder-chat/ComposerMenu";
+import { useTabBuildStatus } from "@/components/app/builder-chat/use-tab-status";
 import { useSendTestLead } from "@/components/app/builder-chat/use-test-lead";
 import { expandMentions } from "@/lib/builder/composer-commands";
 import { useChatTop } from "@/components/app/builder-chat/use-chat-top";
@@ -382,6 +383,7 @@ export function BuilderAssistant({
   const runSuggestion = (instruction: string) =>
     onFirstBuild ? void onFirstBuild(instruction) : requests.queue(instruction);
   const lastTask = requests.tasks[requests.tasks.length - 1];
+  useTabBuildStatus(busy || trackingWork, lastTask?.state);
   // Chips only where a next step is natural: after a finished change.
   const showChips = !empty && !busy && lastTask?.state === "complete" && (SUGGESTIONS.length > 0 || suggestionsLoading);
   const toolsVisible = !onFirstBuild && requests.memoryLoaded;
