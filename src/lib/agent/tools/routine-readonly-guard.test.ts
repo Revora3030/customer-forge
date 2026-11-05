@@ -53,7 +53,7 @@ function approvalRepo(): ApprovalRepo {
         approval: {
           id: "00000000-0000-4000-8000-000000000001",
           organization_id: ORG,
-          scope: "run",
+          scope: "owner",
           run_id: "run-rrg",
           step_id: null,
           requested_by: OWNER,
