@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { CITY_DISTRICTS, NO_ACKS, applyAcknowledged, attentionItems, cityCommandDraft, districtCounts, districtFailureSummary, districtForKey, failedLabel, parseAcks, triageDraft, type CityAcks, districtFromParam, districtState, hourlyBuckets, salesMissionDraft, workIsActive, type CityWork, type DistrictId, type SalesMission } from "@/lib/ai-city";
 import { CityActivity } from "./CityActivity";
 import { CityAttention } from "./CityAttention";
+import { CityReplay } from "./CityReplay";
 import { CitySvgMap } from "./CitySvgMap";
 import { CITY_2D_QUERY } from "./city-render";
 import { DistrictCarousel } from "./DistrictCarousel";
@@ -178,6 +179,7 @@ export function AiCity() {
       </section>
     </div>
     {snapshot ? <Sparkline values={hourlyBuckets(Object.values(snapshot.sources).flatMap((source) => source.rows), now)} label="Recorded work per hour, last 24 hours" /> : null}
+    <CityReplay snapshot={snapshot} now={now} onOpen={row => { setSelected(row.district); setEvidence(row); }} />
     <CityAttention items={attention} available={!!snapshot} onOpen={row => { setSelected(row.district); setEvidence(row); }} onTriage={(group) => sendDraft(triageDraft(group, now))} onDismiss={(key) => saveAcks({ ...acks, groups: { ...acks.groups, [key]: Date.now() } })} onClear={() => saveAcks({ ...acks, all: Date.now() })} />
     <section className="border-t border-border pt-5">
       <div className="flex flex-wrap gap-2" role="tablist" aria-label="Workforce records">{(["work", "activity", "models", "routines"] as const).map(key => <Button key={key} role="tab" aria-selected={tab === key} variant={tab === key ? "secondary" : "ghost"} onClick={() => setTab(key)}>{key === "work" ? "Work & evidence" : key === "activity" ? "All activity" : key === "models" ? "Lovable workforce" : "Saved routines"}</Button>)}</div>
