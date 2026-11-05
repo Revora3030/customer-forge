@@ -10,7 +10,7 @@ export type QuietDigestRow = {
   createdAt: string;
 };
 
-export type FoldedChatItem<T extends { id: string; role: string; content: string; created_at: string }> =
+export type FoldedChatItem<T extends { id: string; role: "user" | "assistant"; content: string; created_at: string }> =
   | { kind: "row"; row: T }
   | { kind: "quiet-digest"; rows: QuietDigestRow[] };
 
@@ -19,7 +19,7 @@ export type FoldedChatItem<T extends { id: string; role: string; content: string
  * becomes one digest; a single quiet notice and every non-quiet / non-notice
  * row stay as ordinary rows. Dependabot stays quiet.
  */
-export function foldQuietNotices<T extends { id: string; role: string; content: string; created_at: string }>(
+export function foldQuietNotices<T extends { id: string; role: "user" | "assistant"; content: string; created_at: string }>(
   rows: readonly T[],
 ): FoldedChatItem<T>[] {
   const out: FoldedChatItem<T>[] = [];
