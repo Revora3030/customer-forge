@@ -33,6 +33,7 @@ import { shouldTrackFormEvent } from "@/lib/site-event-once";
 import { mergeSplitServices } from "@/lib/builder/intake-sanitize";
 import { SiteNotLiveNotice } from "@/components/site/SiteNotLiveNotice";
 import { composeEnquiryMessage, ENQUIRY_TIMINGS, enquiryUsesSteps, timingLabel } from "@/lib/enquiry-steps";
+import { FORM_HELPER_TEXT } from "@/components/site/form-helper-text";
 
 type Site = NonNullable<PublicSite>;
 
@@ -72,7 +73,7 @@ function Success({ title, body }: { title: string; body: string }) {
         <Check className="size-5" aria-hidden="true" />
       </span>
       <h3 className="mt-4 font-display text-[17px] font-semibold">{title}</h3>
-      <p className="mt-1.5 max-w-sm text-[14px] leading-relaxed text-muted-foreground">{body}</p>
+      <p className={`mt-1.5 max-w-sm text-[14px] leading-relaxed ${FORM_HELPER_TEXT}`}>{body}</p>
     </div>
   );
 }
@@ -122,7 +123,7 @@ const contactInvalid = (problem: string | null): true | undefined =>
 /** Same wording as the printable estimate: a range is not a quote. */
 function EstimateNotice() {
   return (
-    <p className="mt-1 text-[14px] text-muted-foreground">
+    <p className={`mt-1 text-[14px] ${FORM_HELPER_TEXT}`}>
       This is an estimate, not a final quote. The owner will confirm the price.
     </p>
   );
@@ -132,7 +133,7 @@ function EstimateNotice() {
 function ConsentNote({ slug }: { slug: string }) {
   // Links the business's own generated notice (/privacy-notice), not Revora's /privacy.
   return (
-    <p className="text-[13px] text-muted-foreground">
+    <p className={`text-[13px] ${FORM_HELPER_TEXT}`}>
       We'll only use your details to reply to your request.{" "}
       <ClientPrivacyLink slug={slug} className="underline underline-offset-4" />
     </p>
@@ -141,7 +142,7 @@ function ConsentNote({ slug }: { slug: string }) {
 
 function ReachHint({ id }: { id: string }) {
   return (
-    <p id={id} className="-mt-2 text-[13px] text-muted-foreground sm:col-span-2">
+    <p id={id} className={`-mt-2 text-[13px] ${FORM_HELPER_TEXT} sm:col-span-2`}>
       Phone or email — at least one, so we can reply.
     </p>
   );
@@ -270,7 +271,7 @@ function QuoteCalculatorLive({ site, presentation }: { site: Site; presentation?
       <div className="border-b border-border px-5 py-4">
         <p className="eyebrow">{presentation?.eyebrow ?? "Instant estimate"}</p>
         <h3 className="mt-1 font-display text-[19px] font-semibold">{presentation?.title ?? quote.form.name}</h3>
-        {presentation?.description ? <p className="mt-2 text-[14px] text-muted-foreground">{presentation.description}</p> : null}
+        {presentation?.description ? <p className={`mt-2 text-[14px] ${FORM_HELPER_TEXT}`}>{presentation.description}</p> : null}
       </div>
 
       {step === "questions" ? (
@@ -279,7 +280,7 @@ function QuoteCalculatorLive({ site, presentation }: { site: Site; presentation?
             <fieldset key={question.id}>
               <legend className="text-[14px] font-medium">{question.label}</legend>
               {question.helper_text ? (
-                <p className="mt-1 text-[14px] text-muted-foreground">{question.helper_text}</p>
+                <p className={`mt-1 text-[14px] ${FORM_HELPER_TEXT}`}>{question.helper_text}</p>
               ) : null}
               <div className="mt-3 grid gap-2 sm:grid-cols-2">
                 {question.options.map((option) => {
@@ -340,7 +341,7 @@ function QuoteCalculatorLive({ site, presentation }: { site: Site; presentation?
                         <span className="tnum text-primary">+{currency(Number(addon.price))}</span>
                       </span>
                       {addon.description ? (
-                        <span className="mt-1 block text-[14px] text-muted-foreground">
+                        <span className={`mt-1 block text-[14px] ${FORM_HELPER_TEXT}`}>
                           {addon.description}
                         </span>
                       ) : null}
@@ -365,10 +366,10 @@ function QuoteCalculatorLive({ site, presentation }: { site: Site; presentation?
                 </>
               ) : (
                 <>
-                  <p className="mt-1 text-[14px] text-muted-foreground">
+                  <p className={`mt-1 text-[14px] ${FORM_HELPER_TEXT}`}>
                     {presentation?.optionPrompt ?? "Choose your options to see your price"}
                   </p>
-                  <p className="tnum mt-1 text-[14px] text-muted-foreground" aria-live="polite">
+                  <p className={`tnum mt-1 text-[14px] ${FORM_HELPER_TEXT}`} aria-live="polite">
                     {answered} of {questions.length} answered
                     {fromPrice !== null ? <> · From {currency(fromPrice)}</> : null}
                   </p>
@@ -452,7 +453,7 @@ function QuoteCalculatorLive({ site, presentation }: { site: Site; presentation?
           <Honeypot />
           <AltchaField />
           <TurnstileField />
-          <p className="tnum text-[14px] text-muted-foreground">
+          <p className={`tnum text-[14px] ${FORM_HELPER_TEXT}`}>
             Your estimate:{" "}
             <span className="font-semibold text-primary">
               {currency(min)} – {currency(max)}
@@ -680,7 +681,7 @@ function BookingFormLive({ site, presentation }: { site: Site; presentation?: Wi
       <div>
         <p className="eyebrow">{presentation?.eyebrow ?? "Appointment request"}</p>
         <h3 className="mt-1 font-display text-[19px] font-semibold">{presentation?.title ?? "Request your appointment"}</h3>
-        {presentation?.description ? <p className="mt-2 text-[14px] text-muted-foreground">{presentation.description}</p> : null}
+        {presentation?.description ? <p className={`mt-2 text-[14px] ${FORM_HELPER_TEXT}`}>{presentation.description}</p> : null}
       </div>
 
       <Honeypot />
@@ -773,7 +774,7 @@ function BookingFormLive({ site, presentation }: { site: Site; presentation?: Wi
         ) : null}
       </div>
       {bookable.length ? (
-        <p className="text-[14px] text-muted-foreground">
+        <p className={`text-[14px] ${FORM_HELPER_TEXT}`}>
           {/* The times offered come from the business's own opening hours, so they are
               the business's local time, not the visitor's device time. The saved
               wall-clock date and time (localDate / localTime) are the source of truth;
@@ -792,7 +793,7 @@ function BookingFormLive({ site, presentation }: { site: Site; presentation?: Wi
       <Button type="submit" variant="signal" disabled={pending} aria-busy={pending}>
         {pending ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : null} {presentation?.actionLabel ?? "Request appointment"}
       </Button>
-      <p className="text-[14px] text-muted-foreground">
+      <p className={`text-[14px] ${FORM_HELPER_TEXT}`}>
         No payment now — you'll get a confirmation before anything is charged.
       </p>
       <ConsentNote slug={site.org.slug} />
@@ -915,7 +916,7 @@ function EnquiryFormLive({ site, presentation }: { site: Site; presentation?: Wi
       <div>
         <p className="eyebrow">{presentation?.eyebrow ?? "Send a message"}</p>
         <h3 className="mt-1 font-display text-[19px] font-semibold">{presentation?.title ?? `Contact ${site.org.name}`}</h3>
-        {presentation?.description ? <p className="mt-2 text-[14px] text-muted-foreground">{presentation.description}</p> : null}
+        {presentation?.description ? <p className={`mt-2 text-[14px] ${FORM_HELPER_TEXT}`}>{presentation.description}</p> : null}
       </div>
 
       <Honeypot />
