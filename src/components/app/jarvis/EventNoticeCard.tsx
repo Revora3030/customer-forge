@@ -2,24 +2,16 @@ import { useEffect, useState } from "react";
 import { Bell, BellOff, ExternalLink, Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { EventNotice } from "@/lib/jarvis-event-notice";
+import { dismissNoticeIds, isNoticeDismissed } from "@/lib/jarvis-notice-dismiss";
 
 const RUN_LINK = /https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/actions\/runs\/\d+/;
-const STORE = "revora:jarvis-notices-dismissed";
 
-/** Notices the owner dismissed on this device. The message itself stays in the history. */
-function readDismissed(): string[] {
-  try {
-    const parsed: unknown = JSON.parse(localStorage.getItem(STORE) ?? "[]");
-    return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === "string").slice(-300) : [];
-  } catch { return []; }
-}
-
-export function EventNoticeCard({ id, notice, time, busy, onAsk }: { id: string; notice: EventNotice; time?: string; busy?: boolean; onAsk?: ((prompt: string) => void) | undefined }) {
+export function EventNoticeCard({ id, notice, time, busy, onAsk }: { id: string; notice: EventNotice; time?: string | undefined; busy?: boolean | undefined; onAsk?: ((prompt: string) => void) | undefined }) {
   const [hidden, setHidden] = useState(false);
-  useEffect(() => { setHidden(readDismissed().includes(id)); }, [id]);
+  useEffect(() => { setHidden(isNoticeDismissed(id)); }, [id]);
   const dismiss = () => {
     setHidden(true);
-    try { localStorage.setItem(STORE, JSON.stringify([...readDismissed(), id].slice(-300))); } catch { /* storage unavailable */ }
+    dismissNoticeIds([id]);
   };
   const link = RUN_LINK.exec(notice.summary)?.[0];
   const text = notice.summary.replace(RUN_LINK, "").replace(/\s+/g, " ").trim();

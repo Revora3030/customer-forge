@@ -9,6 +9,7 @@
  * be stored and sent without writing or sending; `on` does both. Every
  * dependency is injectable so tests never hit the network or send email.
  */
+import { checkOutcomes } from "@/lib/live-site-health";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { connect } from "node:tls";
 import { alertRecipient } from "@/lib/lead-alert-recipient";
@@ -143,6 +144,7 @@ export async function runSiteMonitor(db: Db, deps: SiteMonitorDeps = {}): Promis
         db.from("site_monitor_findings").select("check_key, state, emailed_at").eq("organization_id", organizationId).eq("host", host),
       ]);
       const spikes = visitorErrorSpikes(((errorRows.data ?? []) as VisitorErrorRow[]), today);
+      const errorsMeasured = !errorRows.error;
       const current = findingsFor(host, result, spikes);
       const rows = (openRows.data ?? []) as Array<{ check_key: MonitorCheck; state: string; emailed_at: string | null }>;
       const open: OpenFinding[] = rows.filter((r) => r.state !== "fixed").map((r) => ({ check: r.check_key, state: r.state as OpenFinding["state"] }));
@@ -151,6 +153,13 @@ export async function runSiteMonitor(db: Db, deps: SiteMonitorDeps = {}): Promis
       for (const f of current) run.findings.push({ host, check: f.check, fresh: fresh.includes(f) });
 
       const stamp = new Date(now).toISOString();
+      // COMP-4: remember what this run measured (pass / fail / not verified) per
+      // check, in dry_run and on (off returned above). Check results only:
+      // findings rows and owner emails stay strictly behind "on".
+      await db.from("site_monitor_checks").upsert(
+        checkOutcomes(result, errorsMeasured ? spikes : null).map((o) => ({ organization_id: organizationId, host, check_key: o.check, status: o.status, checked_at: stamp })),
+        { onConflict: "organization_id,host,check_key" },
+      );
       if (mode === "on") {
         for (const f of fresh)
           await db.from("site_monitor_findings").upsert(

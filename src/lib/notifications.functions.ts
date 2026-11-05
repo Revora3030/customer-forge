@@ -248,3 +248,33 @@ export const sendTestLeadWebhook = createServerFn({ method: "POST" })
     if (result.ok) return { ok: true as const, statusCode: null, reason: null };
     return { ok: false as const, statusCode: result.statusCode, reason: result.reason };
   });
+
+/**
+ * Mark every unread in-app notification for this workspace as read.
+ * Used when the owner opens the shell bell so the badge clears honestly.
+ * RLS (`is_org_member`) scopes the update to orgs the caller belongs to.
+ */
+export const markNotificationsRead = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: { organizationId: string }) => ({
+    organizationId: String(input?.organizationId ?? "").trim(),
+  }))
+  .handler(async ({ data, context }) => {
+    if (!data.organizationId) throw new Error("Missing workspace.");
+
+    const { data: rows, error } = await context.supabase
+      .from("notifications")
+      .update({ is_read: true })
+      .eq("organization_id", data.organizationId)
+      .eq("is_read", false)
+      .select("id");
+    if (error) throw new Error("Couldn't mark notifications as read.");
+
+    return { ok: true as const, marked: rows?.length ?? 0 };
+  });
+
+/** Whether opening the bell should fire mark-read (unread badge present). */
+export function shouldMarkNotificationsReadOnOpen(unreadCount: number, opening: boolean): boolean {
+  return opening && unreadCount > 0;
+}
+

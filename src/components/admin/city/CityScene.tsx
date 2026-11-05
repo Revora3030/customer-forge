@@ -5,10 +5,13 @@ import * as THREE from "three";
 import type { OrbitControls as OrbitControlsType } from "three-stdlib";
 import { CITY_ANIMATION_FPS, CITY_DPR_MIN, cityDprCeiling } from "./city-render";
 import { CITY_DISTRICTS, districtCounts, districtState, pulseRate, type CitySnapshot, type DistrictId } from "@/lib/ai-city";
+import { skyLighting, type SkyMode, type WeatherState } from "@/lib/city-sky";
+import { ApprovalBeacons3D } from "./ApprovalBeacons3D";
+import { useApprovalBeacons, useOpenApprovals } from "./use-approval-beacons";
 
 type Palette = { ground: string; road: string; structure: string; gold: string; cyan: string; magenta: string; light: string; muted: string; ok: string; danger: string };
 type DState = ReturnType<typeof districtState>;
-export type CitySceneProps = { snapshot?: CitySnapshot | undefined; selected: DistrictId; onSelect: (id: DistrictId) => void; palette: Palette; motion: boolean; reset: number; onFailure: () => void };
+export type CitySceneProps = { snapshot?: CitySnapshot | undefined; selected: DistrictId; onSelect: (id: DistrictId) => void; palette: Palette; motion: boolean; reset: number; onFailure: () => void; skyMode?: SkyMode; weather?: WeatherState; showWeather?: boolean };
 
 /**
  * Window pattern painted in memory. The old glTF files asked the browser for
@@ -205,7 +208,44 @@ function AnimationClock({ running }: { running: boolean }) {
   return null;
 }
 
-export default function CityScene({ snapshot, selected, onSelect, palette, motion, reset, onFailure }: CitySceneProps) {
+
+/** Sparse rain streaks from measured failure density. No motion when density is 0. */
+function Rain({ density, color }: { density: number; color: string }) {
+  const drops = useMemo(() => {
+    const count = Math.max(0, Math.min(120, Math.round(density * 120)));
+    return Array.from({ length: count }, (_, i) => ({
+      x: ((i * 47) % 200) / 10 - 10,
+      z: ((i * 91) % 200) / 10 - 10,
+      y: 8 + ((i * 13) % 40) / 10,
+      speed: 4 + (i % 5),
+    }));
+  }, [density]);
+  const group = useRef<THREE.Group>(null);
+  useFrame((_, rawDelta) => {
+    const root = group.current;
+    if (!root || density <= 0) return;
+    const delta = Math.min(rawDelta, 0.05);
+    root.children.forEach((child, i) => {
+      const drop = drops[i];
+      if (!drop) return;
+      child.position.y -= drop.speed * delta;
+      if (child.position.y < 0) child.position.y = drop.y;
+    });
+  });
+  if (density <= 0 || drops.length === 0) return null;
+  return (
+    <group ref={group} aria-hidden>
+      {drops.map((drop, i) => (
+        <mesh key={i} position={[drop.x, drop.y, drop.z]}>
+          <boxGeometry args={[0.02, 0.35, 0.02]} />
+          <meshBasicMaterial color={color} transparent opacity={0.35 + density * 0.35} depthWrite={false} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+export default function CityScene({ snapshot, selected, onSelect, palette, motion, reset, onFailure, skyMode = "neutral", weather, showWeather = false }: CitySceneProps) {
   const now = Date.now();
   // On phones only the chosen district carries a full label; the others show just a count.
   const [compact, setCompact] = useState(false);
@@ -220,10 +260,15 @@ export default function CityScene({ snapshot, selected, onSelect, palette, motio
   const [dpr, setDpr] = useState(ceiling);
   const controls = useRef<OrbitControlsType>(null);
   const anyActive = CITY_DISTRICTS.some(d => districtState(d.id, snapshot, Date.now()) === "working");
+  const lighting = skyLighting(skyMode, palette.ground);
+  const approvals = useApprovalBeacons();
+  const openApprovals = useOpenApprovals();
+  const beaconsPulse = motion && approvals.status === "ok" && approvals.total > 0;
+  const rainOn = Boolean(showWeather && motion && weather && weather.kind === "rain" && weather.density > 0);
   return <Canvas orthographic shadows dpr={[CITY_DPR_MIN, dpr]} frameloop="demand" camera={{ position: [25, 26, 30], zoom: 20, near: 0.1, far: 150 }} gl={{ antialias: true, powerPreference: "low-power" }} onCreated={({ gl }) => { gl.domElement.addEventListener("webglcontextlost", onFailure, { once: true }); }} fallback={<div role="alert">3D unavailable. Switch to Operations.</div>}>
-    <color attach="background" args={[palette.ground]} />
-    <fogExp2 attach="fog" args={[palette.ground, 0.011]} />
-    <ambientLight intensity={0.95} color="#9fb4c4" />
+    <color attach="background" args={[lighting.background]} />
+    <fogExp2 attach="fog" args={[lighting.fog, skyMode === "amber" ? 0.016 : 0.011]} />
+    <ambientLight intensity={lighting.ambient} color={lighting.ambientColor} />
     <directionalLight position={[-12, 9, -14]} intensity={0.9} color={palette.cyan} />
     <pointLight position={[0, 9, 0]} intensity={22} distance={22} decay={2} color={palette.gold} />
     <directionalLight position={[10, 20, 8]} intensity={2.2} color="#ffe2b0" castShadow shadow-mapSize-width={compact ? 1024 : 2048} shadow-mapSize-height={compact ? 1024 : 2048} shadow-camera-left={-20} shadow-camera-right={20} shadow-camera-top={20} shadow-camera-bottom={-20} />
@@ -239,6 +284,8 @@ export default function CityScene({ snapshot, selected, onSelect, palette, motio
     <OrbitControls ref={controls} makeDefault enableDamping dampingFactor={0.09} enableRotate zoomToCursor screenSpacePanning={false} panSpeed={1.1} minZoom={8} maxZoom={65} minPolarAngle={0.35} maxPolarAngle={1.25} target={[0, 1.5, 0]} onChange={keepCityInView} touches={CITY_TOUCHES} />
     {motion && anyActive ? <PerformanceMonitor bounds={() => [CITY_ANIMATION_FPS * 0.6, CITY_ANIMATION_FPS * 0.9]} onDecline={() => setDpr(CITY_DPR_MIN)} onIncline={() => setDpr(ceiling)} /> : null}
     <CityControls selected={selected} reset={reset} controls={controls} />
-    <AnimationClock running={motion && anyActive} />
+    <ApprovalBeacons3D state={approvals} gold={palette.gold} motion={motion} onOpen={openApprovals} />
+    {rainOn ? <Rain density={weather!.density} color={palette.cyan} /> : null}
+    <AnimationClock running={(motion && anyActive) || rainOn || beaconsPulse} />
   </Canvas>;
 }

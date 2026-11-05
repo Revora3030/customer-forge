@@ -1,5 +1,6 @@
 import type { CSSProperties } from "react";
 import { emailLink, phoneLink } from "@/lib/builder/presentation";
+import { readableOn } from "@/lib/readable-color";
 import type { WidgetPresentation } from "@/lib/builder/composition-tree";
 
 export const telHref = (phone: string) => phoneLink(phone) ?? "#";
@@ -20,7 +21,10 @@ export function widgetPresentationStyle(presentation?: WidgetPresentation): CSSP
   set("--card-foreground", theme.text);
   set("--popover-foreground", theme.text);
   set("--secondary-foreground", theme.text);
-  set("--muted-foreground", theme.muted ?? theme.text);
+  // Helper, privacy and small print use the muted ink: whatever the AI chose,
+  // it is pulled to AA (4.5:1) on the widget surface.
+  const muted = theme.muted ?? theme.text;
+  set("--muted-foreground", theme.surface && muted ? readableOn(muted, theme.surface) : muted);
   set("--border", theme.border);
   set("--input", theme.border);
   set("--primary", theme.action);

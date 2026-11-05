@@ -135,6 +135,7 @@ import { Route as ApiPublicAgentProspectsRouteImport } from './routes/api/public
 import { Route as ApiPublicInstagramCallbackRouteImport } from './routes/api/public/instagram/callback'
 import { Route as ApiPublicJobsAgentRoutinesRouteImport } from './routes/api/public/jobs/agent-routines'
 import { Route as ApiPublicJobsAgentRunsRouteImport } from './routes/api/public/jobs/agent-runs'
+import { Route as ApiPublicJobsAgentSuggestionsRouteImport } from './routes/api/public/jobs/agent-suggestions'
 import { Route as ApiPublicJobsAutomationRunsRouteImport } from './routes/api/public/jobs/automation-runs'
 import { Route as ApiPublicJobsBackupRouteImport } from './routes/api/public/jobs/backup'
 import { Route as ApiPublicJobsBuilderChatRouteImport } from './routes/api/public/jobs/builder-chat'
@@ -824,6 +825,12 @@ const ApiPublicJobsAgentRunsRoute = ApiPublicJobsAgentRunsRouteImport.update({
   path: '/api/public/jobs/agent-runs',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicJobsAgentSuggestionsRoute =
+  ApiPublicJobsAgentSuggestionsRouteImport.update({
+    id: '/api/public/jobs/agent-suggestions',
+    path: '/api/public/jobs/agent-suggestions',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicJobsAutomationRunsRoute =
   ApiPublicJobsAutomationRunsRouteImport.update({
     id: '/api/public/jobs/automation-runs',
@@ -1128,6 +1135,7 @@ export interface FileRoutesByFullPath {
   '/api/public/instagram/callback': typeof ApiPublicInstagramCallbackRoute
   '/api/public/jobs/agent-routines': typeof ApiPublicJobsAgentRoutinesRoute
   '/api/public/jobs/agent-runs': typeof ApiPublicJobsAgentRunsRoute
+  '/api/public/jobs/agent-suggestions': typeof ApiPublicJobsAgentSuggestionsRoute
   '/api/public/jobs/automation-runs': typeof ApiPublicJobsAutomationRunsRoute
   '/api/public/jobs/backup': typeof ApiPublicJobsBackupRoute
   '/api/public/jobs/builder-chat': typeof ApiPublicJobsBuilderChatRoute
@@ -1281,6 +1289,7 @@ export interface FileRoutesByTo {
   '/api/public/instagram/callback': typeof ApiPublicInstagramCallbackRoute
   '/api/public/jobs/agent-routines': typeof ApiPublicJobsAgentRoutinesRoute
   '/api/public/jobs/agent-runs': typeof ApiPublicJobsAgentRunsRoute
+  '/api/public/jobs/agent-suggestions': typeof ApiPublicJobsAgentSuggestionsRoute
   '/api/public/jobs/automation-runs': typeof ApiPublicJobsAutomationRunsRoute
   '/api/public/jobs/backup': typeof ApiPublicJobsBackupRoute
   '/api/public/jobs/builder-chat': typeof ApiPublicJobsBuilderChatRoute
@@ -1441,6 +1450,7 @@ export interface FileRoutesById {
   '/api/public/instagram/callback': typeof ApiPublicInstagramCallbackRoute
   '/api/public/jobs/agent-routines': typeof ApiPublicJobsAgentRoutinesRoute
   '/api/public/jobs/agent-runs': typeof ApiPublicJobsAgentRunsRoute
+  '/api/public/jobs/agent-suggestions': typeof ApiPublicJobsAgentSuggestionsRoute
   '/api/public/jobs/automation-runs': typeof ApiPublicJobsAutomationRunsRoute
   '/api/public/jobs/backup': typeof ApiPublicJobsBackupRoute
   '/api/public/jobs/builder-chat': typeof ApiPublicJobsBuilderChatRoute
@@ -1601,6 +1611,7 @@ export interface FileRouteTypes {
     | '/api/public/instagram/callback'
     | '/api/public/jobs/agent-routines'
     | '/api/public/jobs/agent-runs'
+    | '/api/public/jobs/agent-suggestions'
     | '/api/public/jobs/automation-runs'
     | '/api/public/jobs/backup'
     | '/api/public/jobs/builder-chat'
@@ -1754,6 +1765,7 @@ export interface FileRouteTypes {
     | '/api/public/instagram/callback'
     | '/api/public/jobs/agent-routines'
     | '/api/public/jobs/agent-runs'
+    | '/api/public/jobs/agent-suggestions'
     | '/api/public/jobs/automation-runs'
     | '/api/public/jobs/backup'
     | '/api/public/jobs/builder-chat'
@@ -1913,6 +1925,7 @@ export interface FileRouteTypes {
     | '/api/public/instagram/callback'
     | '/api/public/jobs/agent-routines'
     | '/api/public/jobs/agent-runs'
+    | '/api/public/jobs/agent-suggestions'
     | '/api/public/jobs/automation-runs'
     | '/api/public/jobs/backup'
     | '/api/public/jobs/builder-chat'
@@ -2018,6 +2031,7 @@ export interface RootRouteChildren {
   ApiPublicInstagramCallbackRoute: typeof ApiPublicInstagramCallbackRoute
   ApiPublicJobsAgentRoutinesRoute: typeof ApiPublicJobsAgentRoutinesRoute
   ApiPublicJobsAgentRunsRoute: typeof ApiPublicJobsAgentRunsRoute
+  ApiPublicJobsAgentSuggestionsRoute: typeof ApiPublicJobsAgentSuggestionsRoute
   ApiPublicJobsAutomationRunsRoute: typeof ApiPublicJobsAutomationRunsRoute
   ApiPublicJobsBackupRoute: typeof ApiPublicJobsBackupRoute
   ApiPublicJobsBuilderChatRoute: typeof ApiPublicJobsBuilderChatRoute
@@ -2932,6 +2946,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicJobsAgentRunsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/jobs/agent-suggestions': {
+      id: '/api/public/jobs/agent-suggestions'
+      path: '/api/public/jobs/agent-suggestions'
+      fullPath: '/api/public/jobs/agent-suggestions'
+      preLoaderRoute: typeof ApiPublicJobsAgentSuggestionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/jobs/automation-runs': {
       id: '/api/public/jobs/automation-runs'
       path: '/api/public/jobs/automation-runs'
@@ -3464,6 +3485,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicInstagramCallbackRoute: ApiPublicInstagramCallbackRoute,
   ApiPublicJobsAgentRoutinesRoute: ApiPublicJobsAgentRoutinesRoute,
   ApiPublicJobsAgentRunsRoute: ApiPublicJobsAgentRunsRoute,
+  ApiPublicJobsAgentSuggestionsRoute: ApiPublicJobsAgentSuggestionsRoute,
   ApiPublicJobsAutomationRunsRoute: ApiPublicJobsAutomationRunsRoute,
   ApiPublicJobsBackupRoute: ApiPublicJobsBackupRoute,
   ApiPublicJobsBuilderChatRoute: ApiPublicJobsBuilderChatRoute,
@@ -3497,6 +3519,7 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
 import type { getRouter } from './router.tsx'
 import type { startInstance } from './start.ts'
 declare module '@tanstack/react-start' {

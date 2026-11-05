@@ -17,6 +17,7 @@
 import { enforceThemeAa } from "@/lib/site-contrast";
 import { contrastRatio, readableOn } from "@/lib/readable-color";
 import { isPlaceholderPhone } from "@/lib/builder/presentation";
+import { normalizeStateAbbreviations } from "@/lib/intake-smart";
 
 export const PREMIUM_MOBILE_TEMPLATE = "premium-mobile" as const;
 
@@ -149,9 +150,12 @@ const clean = (value: unknown, max = 600): string | null => {
 export function fullAddress(parts: { address?: string | null; city?: string | null; state?: string | null; zip?: string | null }): string | null {
   const street = clean(parts.address, 200);
   const city = clean(parts.city, 80);
-  const region = [clean(parts.state, 40), clean(parts.zip, 20)].filter(Boolean).join(" ");
+  const rawState = clean(parts.state, 40);
+  // A two-letter state is a USPS code ("NC"), never "Nc".
+  const state = rawState && /^[A-Za-z]{2}$/.test(rawState) ? rawState.toUpperCase() : rawState;
+  const region = [state, clean(parts.zip, 20)].filter(Boolean).join(" ");
   if (!street && !city) return null;
-  return [street, city, region || null].filter(Boolean).join(", ");
+  return normalizeStateAbbreviations([street, city, region || null].filter(Boolean).join(", "));
 }
 
 /** Keyless Google Maps directions link (https, so it passes isSafeHref). */
@@ -313,7 +317,7 @@ export function premiumFactsFrom(site: SiteLike, href: (path: string) => string 
     phoneDisplay: displayPhone(phone),
     email: text("email", 200),
     address: fullAddress({ address: text("address"), city: text("city"), state: text("state"), zip: text("zip") }),
-    serviceArea: text("service_area", 120),
+    serviceArea: ((v) => (v ? normalizeStateAbbreviations(v) : v))(text("service_area", 120)),
     yearsInBusiness: typeof years === "number" ? years : null,
     certifications: text("certifications", 120),
     logo: text("logo_url", 2000),

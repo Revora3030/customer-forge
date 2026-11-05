@@ -730,8 +730,8 @@
   inset: 0;
   z-index: -1;
   background:
-    linear-gradient(90deg, color-mix(in srgb, var(--site-hero-scrim) 92%, transparent) 0%, color-mix(in srgb, var(--site-hero-scrim) 54%, transparent) 58%, transparent 100%),
-    linear-gradient(0deg, color-mix(in srgb, var(--site-hero-scrim) 88%, transparent), transparent 65%);
+    linear-gradient(90deg, color-mix(in srgb, var(--site-hero-scrim) 92%, transparent) 0%, color-mix(in srgb, var(--site-hero-scrim) 74%, transparent) 58%, color-mix(in srgb, var(--site-hero-scrim) 42%, transparent) 100%),
+    linear-gradient(0deg, color-mix(in srgb, var(--site-hero-scrim) 88%, transparent), color-mix(in srgb, var(--site-hero-scrim) 30%, transparent) 65%);
 }
 .rv-site .rv-media-role-background .rv-hero-copy {
   position: relative;
@@ -813,6 +813,13 @@
   .rv-site .rv-media-role-background .rv-hero-copy h1 {
     font-size: clamp(2.25rem, 11vw, 4.5rem);
     overflow-wrap: break-word;
+  }
+  /* On a phone the copy spans the whole photo, so the scrim is an even dark
+     layer (not a left-to-right fade): body text on even a white photo stays
+     above 4.5:1 against it. */
+  .rv-site .rv-media-role-background .rv-hero-grid::after {
+    background:
+      linear-gradient(0deg, color-mix(in srgb, var(--site-hero-scrim) 90%, transparent), color-mix(in srgb, var(--site-hero-scrim) 78%, transparent));
   }
 }
 

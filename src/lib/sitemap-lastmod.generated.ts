@@ -8,7 +8,7 @@ export const SITEMAP_LASTMOD: {
   "groups": {
     "home": "2026-11-04",
     "pricing": "2026-11-01",
-    "get-started": "2026-11-01",
+    "get-started": "2026-11-05",
     "crm-for-contractors": "2026-10-31",
     "crm-hub": "2026-11-01",
     "crm-page": "2026-10-31",

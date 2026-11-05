@@ -12,6 +12,8 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ErrorNote, Pill } from "@/components/app/Bits";
 import { RouteError } from "@/components/app/RouteStates";
+import { SecondFactorPrompt } from "@/components/auth/SecondFactorPrompt";
+import { needsSecondFactor } from "@/lib/two-factor";
 import { ga4SignUp } from "@/lib/ga4-events";
 import { reportRouteError } from "@/lib/route-error-reporting";
 import { GROWTH_SYSTEM, REFUND_POLICY, usd } from "@/lib/offer";
@@ -98,6 +100,17 @@ export const Route = createFileRoute("/auth")({
   errorComponent: RouteError,
 });
 
+/** LOV-12: true only when this account has a verified authenticator and this session hasn't used it yet. */
+async function owesSecondFactor(): Promise<boolean> {
+  try {
+    const { data, error } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+    if (error) return false;
+    return needsSecondFactor(data);
+  } catch {
+    return false;
+  }
+}
+
 function AuthPage() {
   const { mode, redirect } = Route.useSearch();
   const navigate = useNavigate();
@@ -118,6 +131,8 @@ function AuthPage() {
   const [error, setError] = useState<string | null>(null);
   // Persistent (non-toast) notice, e.g. "confirm your email" after signup.
   const [notice, setNotice] = useState<string | null>(null);
+  // LOV-12: accounts that turned on an authenticator code finish here first.
+  const [codeStep, setCodeStep] = useState(false);
 
   const goToWorkspace = useCallback(
     async (fallback?: string) => {
@@ -141,6 +156,10 @@ function AuthPage() {
       .then(async ({ data }) => {
         if (!active || !data.session) return;
         await ensureProfile(data.session.user);
+        if (await owesSecondFactor()) {
+          if (active) setCodeStep(true);
+          return;
+        }
         if (active) await goToWorkspace();
       })
       .catch((error: unknown) => {
@@ -190,6 +209,10 @@ function AuthPage() {
         const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
         if (signInError) throw signInError;
         await ensureProfile();
+        if (await owesSecondFactor()) {
+          setCodeStep(true);
+          return;
+        }
         toast.success("Welcome back.");
         await goToWorkspace();
       }
@@ -284,6 +307,25 @@ function AuthPage() {
     } finally {
       setBusy(null);
     }
+  }
+
+  if (codeStep) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background px-4 py-12">
+        <div className="w-full max-w-sm">
+          <SecondFactorPrompt
+            onVerified={async () => {
+              toast.success("Welcome back.");
+              await goToWorkspace();
+            }}
+            onCancel={async () => {
+              await supabase.auth.signOut();
+              setCodeStep(false);
+            }}
+          />
+        </div>
+      </div>
+    );
   }
 
   return (

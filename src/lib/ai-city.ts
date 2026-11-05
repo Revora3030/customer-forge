@@ -164,7 +164,7 @@ export function districtForKey(key: string, current: DistrictId): DistrictId | n
 
 /* ------------------------------ mission presets ------------------------------ */
 
-const GATE = "Read-only: change nothing, and do not spend, send or publish without my explicit approval.";
+export const GATE = "Read-only: change nothing, and do not spend, send or publish without my explicit approval.";
 
 export type CityMission = { id: string; label: string; hint: string; draft: string };
 

@@ -2,10 +2,17 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { ArrowUpRight, Radar, Send, Sparkles, Terminal } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PipelineLanes } from "./PipelineLanes";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Sparkline } from "./Sparkline";
 import { ApprovalReview } from "./ApprovalReview";
 import { AssetQueue } from "./AssetQueue";
+import { GrowthFunnel } from "./GrowthFunnel";
+import { ReleaseBoard } from "./ReleaseBoard";
+import { MemoryHealth } from "./MemoryHealth";
+import { ModelEvidence } from "./ModelEvidence";
+import { GateScoreboard } from "./GateScoreboard";
+import { TodayBriefing } from "./TodayBriefing";
 import { CITY_DISTRICTS, FAILURE_CAUSE_HINT, ageLabel, districtFailureSummary, districtState, hourlyBuckets, missionsFor, pipelineStages, runningFor, workIsActive, type CitySnapshot, type CityWork, type DistrictId, type SalesMission } from "@/lib/ai-city";
 
 type Props = {
@@ -77,6 +84,7 @@ export function DistrictInspector({ open, onOpenChange, district, snapshot, now,
         <Stat label="Queued" value={snapshot ? queued.length : null} />
         <Stat label="Failed · 48h" value={failures ? failures.count : null} suffix={failures?.capped ? "+" : ""} />
       </div>
+      {district === "executive" ? <TodayBriefing snapshot={snapshot} now={now} onDraft={onDraft} /> : null}
       {failures?.groups.length ? <section className="mt-4" aria-label="Why it failed">
         <h3 className="text-xs font-semibold uppercase">Why it failed</h3>
         <ul className="mt-2 space-y-2">{failures.groups.slice(0, 5).map((group) => <li key={group.key} className="rounded-md border border-border p-2"><button type="button" className="block min-h-11 w-full text-left" onClick={() => onRecord(group.latest)}><span className="block break-words text-xs font-medium">{group.count}× {group.label}</span><span className="mt-0.5 block text-[11px] text-muted-foreground">newest {ageLabel(group.ageMs)} ago{group.cause ? ` · ${FAILURE_CAUSE_HINT[group.cause]}` : ""}</span></button></li>)}</ul>
@@ -108,6 +116,11 @@ export function DistrictInspector({ open, onOpenChange, district, snapshot, now,
         <p className="mt-2 text-[11px] text-muted-foreground">Shows what each record says; per-task spend is not recorded.</p>
       </section>
       {district === "creative" ? <section className="mt-5" aria-label="Asset queue"><h3 className="text-xs font-semibold uppercase">Asset queue · waiting for review</h3><AssetQueue now={now} /></section> : null}
+      {district === "growth" ? <section className="mt-5" aria-label="Funnel"><h3 className="text-xs font-semibold uppercase">Funnel · visitors to paid</h3><GrowthFunnel /></section> : null}
+      {district === "security" ? <section className="mt-5" aria-label="Release and error board"><h3 className="text-xs font-semibold uppercase">Release and error board</h3><ReleaseBoard errors={failures} /></section> : null}
+      {district === "institute" ? <section className="mt-5" aria-label="Model evidence"><h3 className="text-xs font-semibold uppercase">Model evidence · recorded calls</h3><ModelEvidence /></section> : null}
+      {district === "knowledge" ? <section className="mt-5" aria-label="Memory health"><h3 className="text-xs font-semibold uppercase">Memory health</h3><MemoryHealth /></section> : null}
+      {district === "factory" ? <GateScoreboard enabled={open} /> : null}
       {district === "growth" ? <section className="mt-5" aria-label="Approvals"><h3 className="text-xs font-semibold uppercase">Waiting for your approval</h3><ApprovalReview now={now} /></section> : null}
       {district === "growth" ? <section className="mt-5" aria-label="Sales pipeline">
         <h3 className="text-xs font-semibold uppercase">Sales pipeline</h3>
@@ -116,6 +129,7 @@ export function DistrictInspector({ open, onOpenChange, district, snapshot, now,
         <div className="mt-3 grid gap-2">{SALES_ACTIONS.map(a => <Button key={a.kind} variant="outline" className="min-h-11 justify-start" onClick={() => onSalesMission(a.kind)}><a.icon className="size-4 text-gold" /> {a.label}</Button>)}</div>
         <p className="mt-2 text-[11px] text-muted-foreground">Each step opens a draft in Jarvis. Nothing is sent until you approve it in the approval queue.</p>
       </section> : null}
+      {district === "factory" ? <PipelineLanes enabled={open} onDraft={onDraft} /> : null}
       <section className="mt-5"><h3 className="text-xs font-semibold uppercase">Models used (recorded calls)</h3>
         {models.size ? <ul className="mt-2 space-y-1">{[...models].map(([id, m]) => <li key={id} className="flex justify-between gap-2 text-xs"><span className="break-all font-mono">{id}</span><span className="shrink-0 text-gold">{m.ok}/{m.total}</span></li>)}</ul> : <p className="mt-2 text-xs text-muted-foreground">No model calls recorded for this district in the current feeds.</p>}
       </section>

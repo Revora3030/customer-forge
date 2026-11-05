@@ -8,7 +8,7 @@ import { resolvedStylePicks, styleFromProfile, styleProfilePatch } from "@/lib/b
 type ProfileLike = Record<string, unknown> | null | undefined;
 
 /**
- * Three ready-made looks for the first build: palette swatch, a sample in the
+ * Six ready-made looks for the first build: palette swatch, a sample in the
  * look's heading font, and the layout feel. "Let the AI choose" is the default
  * and the way back. Cards stack one per row on a phone and every target is at
  * least 44px tall.
@@ -25,7 +25,7 @@ export function StylePicker({
   const picks = resolvedStylePicks();
   const selected = styleFromProfile(profile);
 
-  // The font sample needs its faces; one stylesheet for all three pairings.
+  // The font sample needs its faces; one stylesheet for every pairing.
   useEffect(() => {
     const href = siteFontsHref(pairingPreference(picks[0]!.pairing), picks.slice(1).flatMap((pick) => [pick.pairing.display, pick.pairing.body]));
     if (!href || document.querySelector(`link[data-style-picker-fonts]`)) return;

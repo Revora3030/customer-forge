@@ -1,7 +1,7 @@
 {
   "name": "customer-forge",
   "version": "1.0.0",
-  "description": "Revora Growth Systems — AI-powered website builder platform using the Lovable AI gateway, multi-tenant architecture, and production-grade quality gates.",
+  "description": "Revora Growth Systems \u2014 AI-powered website builder platform using the Lovable AI gateway, multi-tenant architecture, and production-grade quality gates.",
   "private": true,
   "sideEffects": false,
   "type": "module",
@@ -48,7 +48,9 @@
     "browser:journey:test": "node scripts/browser-journey.contract.mjs",
     "supabase:drift": "node scripts/supabase-migration-drift-audit.mjs",
     "jarvis:mcp": "node scripts/jarvis-mcp-server.mjs",
-    "jarvis:mcp:contract": "node scripts/jarvis-mcp-server.contract.mjs"
+    "jarvis:mcp:contract": "node scripts/jarvis-mcp-server.contract.mjs",
+    "ladle": "ladle serve --port 61000",
+    "ladle:build": "ladle build"
   },
   "overrides": {
     "rolldown": "1.2.1",
@@ -150,6 +152,7 @@
     "react-hook-form": "^7.71.2",
     "react-resizable-panels": "^4.6.5",
     "recharts": "^2.15.4",
+    "robots-parser": "3.0.1",
     "signature_pad": "^5.1.4",
     "sonner": "^2.0.7",
     "streamdown": "^2.6.0",
@@ -168,6 +171,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.32.0",
+    "@ladle/react": "5.1.1",
     "@lovable.dev/vite-tanstack-config": "2.26.5",
     "@types/node": "^22.16.5",
     "@types/react": "^19.2.0",

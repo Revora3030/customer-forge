@@ -78,6 +78,7 @@ const PUBLIC_FUNCTIONS: Record<string, string> = {
   "platform-settings.functions.ts#getPublicGaMeasurementIds": "public analytics ids",
   "prospect-claim.functions.ts#getProspectClaim": "unguessable single-use claim token",
   "prospect-claim.functions.ts#prospectLinkState": "unguessable preview token",
+  "preview-unlock.functions.ts#unlockPreview": "visitor password check for a private preview link; unguessable token, rate limited per link, returns no tenant data until unlocked",
   "review-feedback.functions.ts#getReviewFeedback": "unguessable feedback token from the review email; read-only",
   "public-site.functions.ts#getPublicSite": "slug lookup through the anon client: RLS exposes published sites only",
   "public-site.functions.ts#getPreviewSite": "unguessable preview token",
@@ -105,6 +106,8 @@ const REVIEWED_ADMIN_WITHOUT_SHARED_GUARD: Record<string, string> = {
   "platform-funnel.functions.ts#recordAccountCreated": "acts on context.userId only; no request id",
   "platform-funnel.functions.ts#provisionWorkspace": "creates a NEW workspace owned by context.userId; no request id for an existing tenant",
   "prospect-claim.functions.ts#claimProspectDemo": "unguessable claim token, bound to context.userId in a server-only RPC",
+  "new-device-signin.functions.ts#reportNewDeviceSignIn":
+    "acts on context.userId from the verified session only; no tenant id from the request; service role needed because authenticated users have SELECT-only on the device tables",
 };
 
 /**

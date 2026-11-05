@@ -1,3 +1,6 @@
+import { QueryErrorNotice } from "@/components/app/QueryErrorNotice";
+import { ApprovalSafetySummary } from "@/components/app/jarvis/ApprovalSafety";
+import { agentApprovalSafety } from "@/lib/jarvis/approval-safety";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, X } from "lucide-react";
@@ -44,6 +47,16 @@ export function AgentApprovalsPanel({
   const items: ApprovalView[] = pendingApprovals(
     (list.data?.approvals ?? []) as unknown as ApprovalRow[],
   );
+  // A failed read must not hide approvals that may be waiting: the agent is paused until they answer.
+  if (list.isError && !list.data) {
+    return (
+      <QueryErrorNotice
+        title="We couldn't check whether the agent is waiting for your approval."
+        retry={() => list.refetch()}
+        retrying={list.isFetching}
+      />
+    );
+  }
   if (items.length === 0 && !message) return null;
   return (
     <section
@@ -65,6 +78,7 @@ export function AgentApprovalsPanel({
               <span className="text-xs text-muted-foreground">{item.expiresLabel}</span>
             </div>
             <p className="break-words text-sm">{item.summary}</p>
+            <ApprovalSafetySummary safety={agentApprovalSafety(item.tool)} />
             {item.details.length > 0 ? (
               <details>
                 <summary className="min-h-11 cursor-pointer py-2 text-sm font-medium">

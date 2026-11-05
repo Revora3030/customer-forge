@@ -19,6 +19,11 @@ module.exports = {
       numberOfRuns: 1,
       settings: {
         preset: "desktop",
+        // The CI app is the Vite dev server, which never compresses and serves hundreds of
+        // unbundled modules. The text-compression audit fetches every response body over
+        // DevTools (1s each) and aborts the whole run with PROTOCOL_TIMEOUT on a loaded runner.
+        // It is not asserted below, so skip it (this also drops the ResponseCompression gatherer).
+        skipAudits: ["uses-text-compression"],
         chromeFlags: "--no-sandbox --headless=new",
       },
     },

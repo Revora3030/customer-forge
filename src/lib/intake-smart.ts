@@ -8,11 +8,36 @@
 
 const SMALL_WORDS = new Set(["and", "of", "the", "for", "to", "at", "in", "on", "by", "a", "an"]);
 
+/** USPS codes for the 50 states, DC and the inhabited territories. */
+const STATE_CODES = new Set(
+  "AL AK AZ AR CA CO CT DE DC FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS MO MT NE NV NH NJ NM NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY PR GU VI AS MP".split(" "),
+);
+
+export function isStateAbbreviation(value: string): boolean {
+  return STATE_CODES.has(value.trim().replace(/\.$/, "").toUpperCase());
+}
+
+/**
+ * Put a US state code that follows a comma in upper case in a location string:
+ * "Raleigh, Nc" and "raleigh, nc 27601" become "Raleigh, NC" and "... NC 27601".
+ * Only for location fields (city, address, service area), where a two-letter
+ * word after a comma is a state, never prose like "yes, or no".
+ */
+export function normalizeStateAbbreviations(value: string): string {
+  return value.replace(/(,\s*)([A-Za-z]{2})(?=$|[\s,;.]|\d)/g, (match, lead: string, code: string) =>
+    isStateAbbreviation(code) ? lead + code.toUpperCase() : match,
+  );
+}
+
 function titleCase(value: string) {
   return value
     .split(/\s+/)
-    .map((word, index) => {
+    .map((word, index, words) => {
       const lower = word.toLowerCase();
+      // "Raleigh, nc": the state code after a comma stays upper case.
+      if (index > 0 && words[index - 1]?.endsWith(",") && isStateAbbreviation(lower.replace(/[,;]+$/, ""))) {
+        return word.toUpperCase();
+      }
       if (index > 0 && SMALL_WORDS.has(lower)) return lower;
       if (/^[A-Z0-9&.'-]+$/.test(word) && word.length <= 4) return word; // keep acronyms (LLC, ABC)
       return lower.replace(/^[a-z]/, (c) => c.toUpperCase());
@@ -50,7 +75,10 @@ export function smartList(value: string) {
   const parts = value
     .split(/[,\n;]+/)
     .map((part) => smartName(part))
-    .filter(Boolean);
+    .filter(Boolean)
+    // A list like "Raleigh, NC, Durham, NC" splits on its commas, so a part
+    // that is only a state code (after the first) keeps its capitals.
+    .map((part, index) => (index > 0 && isStateAbbreviation(part) ? part.toUpperCase() : part));
   return Array.from(new Set(parts)).join(", ");
 }
 
