@@ -47,6 +47,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { RouteError } from "@/components/app/RouteStates";
 import { WorkspaceSkeleton } from "@/components/app/WorkspaceSkeleton";
 import { OwnerPwaUpdatePrompt } from "@/components/app/OwnerPwaUpdatePrompt";
+import { OwnerHelpDrawer } from "@/components/app/OwnerHelpDrawer";
 
 export const Route = createFileRoute("/_authenticated/app")({
   head: () => ({
@@ -171,11 +172,11 @@ const SECONDARY_NAV = [
         hint: "Business details, team and preferences",
       },
       {
-        to: "/contact",
+        to: "/help",
         label: "Help & support",
         icon: LifeBuoy,
         exact: false,
-        hint: "Message the Revora team",
+        hint: "Owner help center and how to contact Revora",
       },
 ] satisfies readonly WorkspaceNavItem[];
 
@@ -481,6 +482,7 @@ function AppShell() {
           </div>
 
           <div className="flex items-center gap-2">
+            <OwnerHelpDrawer />
             {trialStillActive ? (
               <Pill tone="attention">
                 <span className="whitespace-nowrap">

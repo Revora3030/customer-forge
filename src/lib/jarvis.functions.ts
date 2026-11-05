@@ -516,6 +516,7 @@ export const getJarvisFreeToolReadiness = createServerFn({ method: "GET" })
       "website.lighthouse.audit": Boolean(process.env["GOOGLE_PAGESPEED_API_KEY"]),
       "website.browser.check": Boolean(process.env["BROWSERLESS_API_KEY"]),
       "docs.lookup": Boolean(process.env["CONTEXT7_API_KEY"]),
+      "help.articles.lookup": true,
       "website.page.audit": Boolean(process.env["BROWSERBASE_API_KEY"]),
       "images.stock.search": Boolean(process.env["UNSPLASH_ACCESS_KEY"] || process.env["PEXELS_API_KEY"]),
       "stock.unsplash": Boolean(process.env["UNSPLASH_ACCESS_KEY"]),

@@ -77,6 +77,20 @@ describe("Jarvis diagnostic executor", () => {
     expect((await executeJarvisDiagnosticTool(db, "docs.lookup", { query: "react: hooks" })).data).toMatchObject({ reason: "needs_key" });
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  it("looks up owner help articles with citeable /help paths and no network", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const output = await executeJarvisDiagnosticTool(db, "help.articles.lookup", { query: "billing" });
+    expect(output.toolId).toBe("help.articles.lookup");
+    expect(output.status).toBe("observed");
+    expect(output.data).toMatchObject({ query: "billing" });
+    const articles = (output.data as { articles: Array<{ path: string; slug: string }> }).articles;
+    expect(articles[0]?.path).toBe("/help/billing");
+    expect(articles[0]?.slug).toBe("billing");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("rejects unknown and model-invented tool identifiers before doing any work", async () => {
     await expect(executeJarvisDiagnosticTool(db, "shell.exec")).rejects.toThrow("Unknown Jarvis diagnostic tool");
     await expect(executeJarvisDiagnosticTool(db, "database.run_sql")).rejects.toThrow("Unknown Jarvis diagnostic tool");
