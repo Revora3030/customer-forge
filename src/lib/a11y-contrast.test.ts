@@ -84,8 +84,20 @@ describe("text/background token pairs in City and Jarvis meet 4.5:1", () => {
     expect(pair("primary-foreground", "primary")).toBeGreaterThanOrEqual(4.5);
   });
 
-  // Not asserted: --destructive-foreground on --destructive is about 3.7:1 (a solid destructive
-  // button). City and Jarvis use destructive only as text on dark surfaces, covered above.
+  // Solid fills that carry white text use --destructive-solid; --destructive stays the lighter
+  // red for text on dark surfaces (one value cannot do both: white needs a darker red).
+  it("white text on solid destructive (Jarvis clear-chat button, dock badge)", () => {
+    expect(pair("destructive-foreground", "destructive-solid")).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it("the solid token keeps the hue of --destructive", () => {
+    const hue = (name: string) => Number(/oklch\([\d.]+\s+[\d.]+\s+([\d.]+)\)/.exec(token(name))?.[1]);
+    expect(hue("destructive-solid")).toBe(hue("destructive"));
+  });
+
+  it("destructive text also reads on the elevated and popover surfaces (4.5:1)", () => {
+    for (const bg of ["elevated", "popover"]) expect(pair("destructive", bg), `--${bg}`).toBeGreaterThanOrEqual(4.5);
+  });
 
   it("Jarvis user bubble: foreground on primary 14% mixed into card", () => {
     expect(ratio(linear(token("foreground")), mixOklab("primary", 14, "card"))).toBeGreaterThanOrEqual(4.5);
