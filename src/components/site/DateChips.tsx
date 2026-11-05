@@ -100,9 +100,9 @@ export function DateChips({
                 chip.closed && "cursor-not-allowed opacity-45 hover:translate-y-0 hover:border-border",
               )}
             >
-              <span aria-hidden="true" className="text-[11px] font-semibold uppercase tracking-[0.12em] opacity-80">{chip.relative ?? chip.weekday}</span>
+              <span aria-hidden="true" className="text-xs font-semibold uppercase tracking-[0.12em] opacity-80">{chip.relative ?? chip.weekday}</span>
               <span aria-hidden="true" className="text-[19px] font-semibold tabular-nums">{chip.day}</span>
-              <span aria-hidden="true" className="text-[11px] opacity-75">{chip.closed ? "Closed" : chip.month}</span>
+              <span aria-hidden="true" className="text-xs opacity-75">{chip.closed ? "Closed" : chip.month}</span>
             </button>
           );
         })}

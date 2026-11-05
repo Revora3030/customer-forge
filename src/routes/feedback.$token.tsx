@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { SubmitOnceButton } from "@/components/ui/submit-once-button";
 import { useState } from "react";
 import { getReviewFeedback } from "@/lib/review-feedback.functions";
 import { parseRating, FEEDBACK_MAX_LENGTH } from "@/lib/review-sequence";
@@ -109,9 +110,9 @@ function FeedbackPage() {
               </label>
             ))}
           </fieldset>
-          <button type="submit" className="min-h-11 w-full rounded-md bg-primary px-4 font-medium text-primary-foreground">
+          <SubmitOnceButton pendingLabel="Sending…" className="min-h-11 w-full rounded-md bg-primary px-4 font-medium text-primary-foreground">
             Send rating
-          </button>
+          </SubmitOnceButton>
         </form>
       </main>
     );
@@ -158,9 +159,9 @@ function FeedbackPage() {
               className="w-full rounded-md border border-input bg-background p-3"
               aria-label="Your feedback"
             />
-            <button type="submit" className="min-h-11 w-full rounded-md bg-primary px-4 font-medium text-primary-foreground">
-              Send privately
-            </button>
+            <SubmitOnceButton pendingLabel="Sending…" className="min-h-11 w-full rounded-md bg-primary px-4 font-medium text-primary-foreground">
+            Send privately
+          </SubmitOnceButton>
           </form>
         </>
       )}

@@ -46,7 +46,7 @@ const ORIGIN_LABEL: Record<FactOrigin, string> = {
 
 function OriginBadge({ origin }: { origin: FactOrigin }) {
   const tone = origin === "listing" ? "text-primary" : origin === "missing" ? "text-muted-foreground" : "text-accent";
-  return <span className={`ml-1.5 text-[10px] font-normal uppercase tracking-wide ${tone}`}>{ORIGIN_LABEL[origin]}</span>;
+  return <span className={`ml-1.5 text-xs font-normal uppercase tracking-wide ${tone}`}>{ORIGIN_LABEL[origin]}</span>;
 }
 
 

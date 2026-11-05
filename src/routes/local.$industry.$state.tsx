@@ -113,7 +113,7 @@ function LocalIndustryStatePage() {
   }, [industry.slug, state.slug]);
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-dvh">
       <SiteHeader />
       {content.doc ? <PublishedLocalMain content={content} /> : (
       <main>

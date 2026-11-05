@@ -86,7 +86,7 @@ export function ReviewReplyDraftPanel({ organizationId, reviewId }: { organizati
               </Button>
             </div>
           ))}
-          <p className="text-[11px] text-muted-foreground">Drafts only. Revora never posts to Google; you paste and post it yourself.</p>
+          <p className="text-xs text-muted-foreground">Drafts only. Revora never posts to Google; you paste and post it yourself.</p>
         </div>
       ) : null}
     </Panel>

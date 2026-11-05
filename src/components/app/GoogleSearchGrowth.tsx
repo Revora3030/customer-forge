@@ -120,7 +120,7 @@ export function GoogleSearchGrowth() {
                   </p>
                   <Pill tone="neutral">{KIND_LABELS[item.kind] ?? item.kind}</Pill>
                 </div>
-                <p className="mt-0.5 text-[11px] text-muted-foreground">
+                <p className="mt-0.5 text-xs text-muted-foreground">
                   {item.page} · {number(item.impressions)} times shown · {number(item.clicks)} clicks
                   · {(item.ctr * 100).toFixed(1)}% clicked
                   {item.position ? ` · position ${item.position.toFixed(1)}` : ""}
@@ -199,7 +199,7 @@ export function GoogleLocalListing() {
               {result.listings.map((listing) => (
                 <li key={`${listing.name}-${listing.address ?? ""}`} className="rounded-md border border-border p-3">
                   <p className="text-[13px] font-medium">{listing.name}</p>
-                  <p className="mt-0.5 text-[11.5px] text-muted-foreground">
+                  <p className="mt-0.5 text-xs text-muted-foreground">
                     {[
                       listing.address,
                       listing.phone,
@@ -211,7 +211,7 @@ export function GoogleLocalListing() {
                       .filter(Boolean)
                       .join(" · ") || "Google returned no public details for this listing."}
                   </p>
-                  <p className="mt-1 text-[11px] text-muted-foreground">
+                  <p className="mt-1 text-xs text-muted-foreground">
                     Source: Google Maps · read {readAt(listing.fetchedAt)}
                   </p>
                 </li>

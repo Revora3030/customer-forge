@@ -184,7 +184,7 @@ export function OwnerQuotes({
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="min-w-0">
                     <p className="truncate text-[13px] font-medium">{quote.customer_name}</p>
-                    <p className="truncate text-[11px] text-muted-foreground">
+                    <p className="truncate text-xs text-muted-foreground">
                       {quote.quote_line_items.map((line) => line.name).join(", ")} ·{" "}
                       {relative(quote.created_at)}
                     </p>
@@ -398,7 +398,7 @@ export function OwnerQuotes({
                     {draft.lines.map((line, index) => (
                       <li key={index} className="panel-inset grid gap-2 p-3 sm:grid-cols-[1fr_7rem_5rem_auto] sm:items-end">
                         <div className="space-y-1">
-                          <Label htmlFor={`oq-line-${index}`} className="text-[11px]">
+                          <Label htmlFor={`oq-line-${index}`} className="text-xs">
                             {line.service_id ? "Service" : "Custom line"}
                           </Label>
                           <Input
@@ -410,7 +410,7 @@ export function OwnerQuotes({
                         </div>
                         <div className="grid grid-cols-2 gap-2 sm:contents">
                           <div className="space-y-1">
-                            <Label htmlFor={`oq-price-${index}`} className="text-[11px]">
+                            <Label htmlFor={`oq-price-${index}`} className="text-xs">
                               {line.from_starting_price ? "Price (from)" : "Price ($)"}
                             </Label>
                             <Input
@@ -428,7 +428,7 @@ export function OwnerQuotes({
                             />
                           </div>
                           <div className="space-y-1">
-                            <Label htmlFor={`oq-qty-${index}`} className="text-[11px]">
+                            <Label htmlFor={`oq-qty-${index}`} className="text-xs">
                               Qty
                             </Label>
                             <Input

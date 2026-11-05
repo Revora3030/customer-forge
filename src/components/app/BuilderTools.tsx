@@ -35,12 +35,12 @@ export function Disclosure({
         <span className="min-w-0">
           <span className="block truncate text-[13px] font-medium">{label}</span>
           {hint ? (
-            <span className="mt-0.5 block text-[11.5px] text-muted-foreground">{hint}</span>
+            <span className="mt-0.5 block text-xs text-muted-foreground">{hint}</span>
           ) : null}
         </span>
         <span className="flex shrink-0 items-center gap-2">
           {badge ? (
-            <span className="rounded-full bg-accent/15 px-1.5 text-[11px] text-accent">
+            <span className="rounded-full bg-accent/15 px-1.5 text-xs text-accent">
               {badge}
             </span>
           ) : null}

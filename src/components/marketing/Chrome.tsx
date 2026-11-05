@@ -374,18 +374,18 @@ export function SiteFooter() {
         </div>
 
         <div className="mt-12 flex flex-col gap-2 border-t border-border pt-6 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-xs text-muted-foreground">
             © {new Date().getFullYear()} <span className="text-foreground">REVORA™</span> — The
             Business Growth Operating System
           </p>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               Estimated opportunity figures are estimates, not guaranteed revenue.
             </p>
             <button
               type="button"
               onClick={openCookieSettings}
-              className="min-h-11 self-start text-[11px] text-muted-foreground underline-offset-2 transition-colors hover:text-primary hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring sm:min-h-0 sm:self-auto"
+              className="min-h-11 self-start text-xs text-muted-foreground underline-offset-2 transition-colors hover:text-primary hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring sm:min-h-0 sm:self-auto"
             >
               Cookie settings
             </button>

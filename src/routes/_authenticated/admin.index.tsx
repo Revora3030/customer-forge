@@ -111,7 +111,7 @@ function AdminOverview() {
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
           <div>
             <p className="eyebrow">Live activity</p>
-            <p className="mt-1 text-[11px] text-muted-foreground">
+            <p className="mt-1 text-xs text-muted-foreground">
               Real recorded events from client businesses over the last{" "}
               {activity.data?.windowDays ?? 14} days. Revora's own internal pages are never
               included.
@@ -134,7 +134,7 @@ function AdminOverview() {
           </div>
         ) : (
           <>
-            <p className="px-4 pt-3 text-[11px] text-muted-foreground">
+            <p className="px-4 pt-3 text-xs text-muted-foreground">
               {number(activity.data?.counts.signups ?? 0)} new businesses ·{" "}
               {number(activity.data?.counts.leads ?? 0)} enquiries ·{" "}
               {number(activity.data?.counts.bookings ?? 0)} bookings ·{" "}
@@ -146,7 +146,7 @@ function AdminOverview() {
                 <li key={item.id} className="flex items-center justify-between gap-3 px-4 py-2.5">
                   <div className="min-w-0">
                     <p className="truncate text-[13px]">{item.title}</p>
-                    <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                    <p className="mt-0.5 truncate text-xs text-muted-foreground">
                       {item.business ?? "Unknown business"} · {dateShort(item.at)}
                     </p>
                   </div>
@@ -199,7 +199,7 @@ function AdminOverview() {
               >
                 <div className="w-full min-w-0 sm:w-auto">
                   <p className="text-[13px] font-medium break-words sm:truncate">{client.name}</p>
-                  <p className="mt-0.5 text-[11px] text-muted-foreground break-words sm:truncate">
+                  <p className="mt-0.5 text-xs text-muted-foreground break-words sm:truncate">
                     {client.city ?? "No city"} · added {dateShort(client.created_at)} ·{" "}
                     {number(client.leads)} leads
                   </p>
@@ -227,7 +227,7 @@ function AdminOverview() {
           <h2 className="font-display text-[13px] font-semibold tracking-[0.12em] uppercase">
             Revora company information
           </h2>
-          <p className="mt-1 text-[11px] text-muted-foreground">
+          <p className="mt-1 text-xs text-muted-foreground">
             Platform identity used across Revora marketing, CTAs and system emails. Client
             businesses keep their own contact details in their workspace settings.
           </p>
@@ -242,7 +242,7 @@ function AdminOverview() {
             ["Primary message", REVORA.primaryMessage],
           ].map(([label, value]) => (
             <div key={label}>
-              <dt className="text-[11px] tracking-[0.14em] text-muted-foreground uppercase">
+              <dt className="text-xs tracking-[0.14em] text-muted-foreground uppercase">
                 {label}
               </dt>
               <dd className="mt-1 text-[13px]">{value}</dd>
@@ -255,7 +255,7 @@ function AdminOverview() {
           </span>
           <div>
             <p className="text-[13px] font-medium">{REVORA.founder.name}</p>
-            <p className="text-[11px] text-muted-foreground">Founder profile · platform owner</p>
+            <p className="text-xs text-muted-foreground">Founder profile · platform owner</p>
           </div>
         </div>
       </Panel>
@@ -278,7 +278,7 @@ function AdminOverview() {
           <div className="overflow-x-auto">
             <table className="w-full text-[13px]">
               <thead>
-                <tr className="text-left text-[11px] tracking-[0.14em] text-muted-foreground uppercase">
+                <tr className="text-left text-xs tracking-[0.14em] text-muted-foreground uppercase">
                   <th className="px-4 py-2">Source</th>
                   <th className="px-4 py-2">Views</th>
                   <th className="px-4 py-2">Signups started</th>

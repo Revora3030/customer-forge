@@ -138,7 +138,7 @@ export function FreeAccessSection() {
             className="border-b border-border p-5 last:border-b-0 sm:[&:nth-child(3)]:border-b-0 sm:[&:nth-child(4)]:border-b-0 sm:[&:nth-child(odd)]:border-r lg:border-b-0 lg:not-last:border-r"
           >
             <div className="flex items-center gap-2">
-              <span className="tnum grid size-6 place-items-center rounded-full border border-primary/40 bg-primary/10 text-[11px] font-semibold text-primary">
+              <span className="tnum grid size-6 place-items-center rounded-full border border-primary/40 bg-primary/10 text-xs font-semibold text-primary">
                 {index + 1}
               </span>
               <h3 className="font-display text-[13px] font-bold tracking-[0.1em] uppercase">

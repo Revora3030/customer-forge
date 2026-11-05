@@ -29,7 +29,7 @@ export function SiteHealthCard({ organizationId }: { organizationId: string }) {
         {RATING[health.rating]}: {health.passed} of {health.total} checks passed
       </p>
       {health.lastCheckedAt && (
-        <p className="text-[11px] text-muted-foreground">
+        <p className="text-xs text-muted-foreground">
           {query.data?.host} last checked {new Date(health.lastCheckedAt).toLocaleString()}. We re-check automatically.
         </p>
       )}
@@ -41,7 +41,7 @@ export function SiteHealthCard({ organizationId }: { organizationId: string }) {
           </li>
         ))}
       </ul>
-      {health.rating === "needs_work" && <p className="mt-2 text-[11px] text-muted-foreground">See the problems listed below for how to fix them.</p>}
+      {health.rating === "needs_work" && <p className="mt-2 text-xs text-muted-foreground">See the problems listed below for how to fix them.</p>}
     </section>
   );
 }

@@ -876,7 +876,7 @@ function BuilderPreviewFrame({
           </div>
         ) : null}
         <FluidViewportSlider width={viewportWidth} max={fluidMax} onChange={(next) => setCustomWidth(clampFluidWidth(next, 390, fluidMax))} />
-        <div className="mb-2 flex flex-wrap items-center justify-center gap-1.5 text-[11.5px]" data-testid="builder-preview-status">
+        <div className="mb-2 flex flex-wrap items-center justify-center gap-1.5 text-xs" data-testid="builder-preview-status">
           <span className="rounded-full border border-border/70 bg-background/80 px-2 py-0.5 tnum text-muted-foreground">{viewportWidth}px</span>
           <FluidBadges viewportWidth={viewportWidth} overflow={overflow} taps={taps} />
           {a11y ? (
@@ -1054,7 +1054,7 @@ const PreviewFrame = forwardRef<
   return (
     <figure className="m-0 min-w-0">
       {label ? (
-        <figcaption className="mb-1.5 text-center text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</figcaption>
+        <figcaption className="mb-1.5 text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</figcaption>
       ) : null}
       <div
         className="relative overflow-hidden rounded-lg border border-border bg-background shadow-lift transition-[width,height] duration-300 motion-reduce:transition-none"
@@ -1123,7 +1123,7 @@ function UnpublishedComparePane({
       <div className="overflow-hidden rounded-lg border border-border bg-background shadow-lift" style={{ width: Math.round(viewportWidth * scale), height: Math.round(frameHeight * scale) }}>
         <div className="origin-top-left" style={{ width: viewportWidth, height: frameHeight, transform: `scale(${scale})` }}>
           <div className="flex h-full flex-col items-center justify-center gap-2 p-8 text-center">
-            <span className="rounded-full border border-border bg-elevated px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Live now</span>
+            <span className="rounded-full border border-border bg-elevated px-3 py-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Live now</span>
             <p className="text-[15px] font-semibold">Not published yet</p>
             <p className="max-w-sm text-[13px] text-muted-foreground">
               {businessName ? `${businessName} doesn't` : "This site doesn't"} have a live version to compare yet. Publish, and this side shows exactly what visitors see.
@@ -1206,8 +1206,8 @@ function OverlayCompare({
         </div>
         {/* While dragging, a transparent shield stops the frames swallowing pointer moves. */}
         {dragging ? <div className="absolute inset-0 z-10" /> : null}
-        <span className="pointer-events-none absolute top-2 left-2 z-20 rounded-full bg-black/65 px-2 py-0.5 text-[11px] font-semibold text-white">Live</span>
-        <span className="pointer-events-none absolute top-2 right-2 z-20 rounded-full bg-black/65 px-2 py-0.5 text-[11px] font-semibold text-white">Draft</span>
+        <span className="pointer-events-none absolute top-2 left-2 z-20 rounded-full bg-black/65 px-2 py-0.5 text-xs font-semibold text-white">Live</span>
+        <span className="pointer-events-none absolute top-2 right-2 z-20 rounded-full bg-black/65 px-2 py-0.5 text-xs font-semibold text-white">Draft</span>
         <div className="pointer-events-none absolute top-0 bottom-0 z-20 w-[3px] -translate-x-1/2 bg-white shadow-[0_0_0_1px_rgba(0,0,0,.45)]" style={{ left: `${split}%` }} />
         <div
           role="slider"

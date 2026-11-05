@@ -89,7 +89,7 @@ function MyActivity() {
                         <Pill tone={lead.status === "new" ? "signal" : "neutral"}>
                           {lead.status}
                         </Pill>
-                        <span className="text-[11.5px] text-muted-foreground">
+                        <span className="text-xs text-muted-foreground">
                           {relative(new Date(lead.created_at))}
                         </span>
                       </div>

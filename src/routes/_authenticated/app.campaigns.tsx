@@ -208,7 +208,7 @@ function CampaignsPage() {
                       <p className="truncate font-display text-[15px] font-semibold">
                         {campaign.name}
                       </p>
-                      <p className="truncate text-[11px] text-muted-foreground">
+                      <p className="truncate text-xs text-muted-foreground">
                         {campaign.source}
                         {campaign.medium ? ` · ${campaign.medium}` : ""} · {campaign.code}
                       </p>
@@ -232,7 +232,7 @@ function CampaignsPage() {
                       </Button>
                     </div>
                   </div>
-                  <p className="truncate text-[11px] text-muted-foreground">{url}</p>
+                  <p className="truncate text-xs text-muted-foreground">{url}</p>
                   <div className="flex flex-wrap gap-1.5">
                     <Pill tone="info">{campaign.views} visits</Pill>
                     <Pill tone="attention">{campaign.conversions} actions</Pill>

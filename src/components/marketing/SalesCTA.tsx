@@ -90,7 +90,7 @@ export function FounderNote() {
           </span>
           <span className="text-left">
             <span className="block text-[13px] font-medium">{REVORA.founder.name}</span>
-            <span className="block text-[11px] text-muted-foreground">{REVORA.founder.role}</span>
+            <span className="block text-xs text-muted-foreground">{REVORA.founder.role}</span>
           </span>
         </div>
         <div className="flex flex-wrap justify-center gap-2">

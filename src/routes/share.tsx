@@ -106,7 +106,7 @@ function SharePage() {
   }
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-dvh">
       <SiteHeader />
       <main className="mx-auto max-w-4xl px-4 py-12">
         <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
@@ -239,7 +239,7 @@ function SharePage() {
               <pre tabIndex={0} aria-label={`${asset.label} message`} className="mt-4 max-w-full overflow-x-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-lg border border-border bg-muted/30 p-3 text-[13px] leading-relaxed whitespace-pre-wrap text-foreground">
                 {asset.message}
               </pre>
-              <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">{asset.note}</p>
+              <p className="mt-3 text-xs leading-relaxed text-muted-foreground">{asset.note}</p>
             </Panel>
           ))}
         </div>

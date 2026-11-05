@@ -293,7 +293,7 @@ export function PlatformEngine({
             {Object.entries(tokens.colors).map(([name, value]) => (
               <span
                 key={name}
-                className="inline-flex items-center gap-1.5 rounded-full border border-border px-2 py-0.5 text-[11px]"
+                className="inline-flex items-center gap-1.5 rounded-full border border-border px-2 py-0.5 text-xs"
               >
                 <span
                   aria-hidden="true"
@@ -304,7 +304,7 @@ export function PlatformEngine({
               </span>
             ))}
           </div>
-          <pre className="mt-2 max-h-40 overflow-auto rounded-md border border-border bg-elevated p-2 text-[11px]">
+          <pre className="mt-2 max-h-40 overflow-auto rounded-md border border-border bg-elevated p-2 text-xs">
             <code>{tokensCss(tokens)}</code>
           </pre>
         </div>

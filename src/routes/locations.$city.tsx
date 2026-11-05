@@ -151,7 +151,7 @@ function LocationPage() {
   );
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-dvh">
       <SiteHeader />
       <main>
         <section className="mx-auto max-w-6xl px-4 pt-14 pb-10 sm:px-6 sm:pt-20">

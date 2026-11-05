@@ -262,13 +262,13 @@ function ClientDetail() {
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
-            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">
               Site visits trend
             </p>
             <Sparkline values={data.usage.visitSeries} />
           </div>
           <div className="space-y-1.5">
-            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Leads trend</p>
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Leads trend</p>
             <Sparkline values={data.usage.leadSeries} tone="info" />
           </div>
         </div>
@@ -278,9 +278,9 @@ function ClientDetail() {
               <li key={page.id} className="flex items-center justify-between gap-2 py-2">
                 <span>
                   {page.title}
-                  <span className="ml-1.5 text-[11px] text-muted-foreground">/{page.slug}</span>
+                  <span className="ml-1.5 text-xs text-muted-foreground">/{page.slug}</span>
                 </span>
-                <span className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                <span className="flex items-center gap-2 text-xs text-muted-foreground">
                   {number(page.sections)} sections
                   <Pill tone={page.is_visible ? "signal" : "neutral"}>
                     {page.is_visible ? "Visible" : "Hidden"}
@@ -295,7 +295,7 @@ function ClientDetail() {
           </p>
         )}
         {data.usage.versions.length ? (
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-xs text-muted-foreground">
             Latest saved version v{data.usage.versions[0]!.version}
             {data.usage.versions[0]!.published_at
               ? ` · published ${dateShort(data.usage.versions[0]!.published_at)}`
@@ -317,7 +317,7 @@ function ClientDetail() {
               )}
               <span className={item.done ? "" : "text-muted-foreground"}>
                 {item.label}
-                {!item.done ? <span className="block text-[11px]">{item.fix}</span> : null}
+                {!item.done ? <span className="block text-xs">{item.fix}</span> : null}
               </span>
             </li>
           ))}
@@ -352,7 +352,7 @@ function ClientDetail() {
           ))}
         </div>
         {settings?.last_published_at ? (
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-xs text-muted-foreground">
             Last published {dateLong(settings.last_published_at)}
           </p>
         ) : null}
@@ -490,7 +490,7 @@ function ClientDetail() {
           </div>
         </div>
         {org.trial_ends_at ? (
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-xs text-muted-foreground">
             Trial ends {dateShort(org.trial_ends_at)}
           </p>
         ) : null}
@@ -573,7 +573,7 @@ function ClientDetail() {
               <li key={session.id} className="flex items-center justify-between gap-3 px-3 py-2.5">
                 <div className="min-w-0">
                   <p className="truncate text-[12px]">{session.admin_email ?? "Platform admin"}</p>
-                  <p className="truncate text-[11px] text-muted-foreground">
+                  <p className="truncate text-xs text-muted-foreground">
                     {session.reason} · {dateLong(session.started_at)}
                     {session.ended_at ? ` → ${dateLong(session.ended_at)}` : " · open"}
                   </p>

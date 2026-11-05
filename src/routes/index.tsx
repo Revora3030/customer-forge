@@ -92,7 +92,7 @@ function HomeRoute() {
   const hostSite = Route.useLoaderData();
   if (hostSite && "pending" in hostSite) {
     return (
-      <div className="flex min-h-screen items-center justify-center px-4 text-center">
+      <div className="flex min-h-dvh items-center justify-center px-4 text-center">
         <div>
           <h1 className="font-display text-[22px] font-semibold">Revora Growth Systems</h1>
           <p className="mt-2 text-[13px] text-muted-foreground">
@@ -132,7 +132,7 @@ function PriceLine({ className = "" }: { className?: string }) {
 
 function Landing() {
   return (
-    <div className="min-h-screen">
+    <div className="min-h-dvh">
       <VisualComposition composition={HOMEPAGE_COMPOSITION} />
       <SiteHeader />
 
@@ -149,7 +149,7 @@ function Landing() {
               <Pill tone="signal">
                 <Sparkles className="size-3.5" aria-hidden="true" /> Revora Growth Systems™
               </Pill>
-              <p className="mt-5 text-[10px] font-semibold tracking-[0.18em] text-champagne/80 sm:text-[11px] sm:tracking-[0.32em]">
+              <p className="mt-5 text-xs font-semibold tracking-[0.18em] text-champagne/80 sm:text-xs sm:tracking-[0.32em]">
                 BUILD · ATTRACT · AUTOMATE · CONVERT · GROW
               </p>
               <h1 className="mt-3 font-editorial text-[38px] leading-[1.02] sm:text-[60px] text-balance">

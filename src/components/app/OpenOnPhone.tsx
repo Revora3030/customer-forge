@@ -93,7 +93,7 @@ export function OpenOnPhoneButton({ link }: { link: PhoneLink | null }) {
           <Smartphone className="size-4" aria-hidden /> Open on your phone
         </p>
         <OpenOnPhoneQr link={link} />
-        <p className="mt-3 text-center text-[11px] text-muted-foreground">
+        <p className="mt-3 text-center text-xs text-muted-foreground">
           Point your phone camera at the code to see {link.label}.
         </p>
       </PopoverContent>

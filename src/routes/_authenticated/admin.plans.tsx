@@ -64,7 +64,7 @@ function AdminPlans() {
                 <li key={feature}>· {feature}</li>
               ))}
             </ul>
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               Setup lookup key <code>{GROWTH_SYSTEM.setupPriceKey}</code> · monthly lookup key{" "}
               <code>{GROWTH_SYSTEM.monthlyPriceKey}</code>
             </p>

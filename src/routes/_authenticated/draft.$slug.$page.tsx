@@ -31,7 +31,7 @@ export const Route = createFileRoute("/_authenticated/draft/$slug/$page")({
   loader: async ({ params }) =>
     getOwnerDraftSite({ data: { slug: params.slug, pageSlug: params.page } }),
   pendingMs: DRAFT_PENDING_MS,
-  pendingComponent: () => <SiteSkeleton className="min-h-screen" label="Loading this page…" />,
+  pendingComponent: () => <SiteSkeleton className="min-h-dvh" label="Loading this page…" />,
   head: ({ loaderData, params }) => ({
     meta: [
       { title: draftHeadTitle(loaderData, params.page) },

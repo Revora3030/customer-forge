@@ -46,7 +46,7 @@ export function SpeedToLeadView({
       <dl className="grid grid-cols-3 gap-3">
         {stats.map((stat) => (
           <div key={stat.label}>
-            <dt className="text-[11px] text-muted-foreground">{stat.label}</dt>
+            <dt className="text-xs text-muted-foreground">{stat.label}</dt>
             <dd className="mt-0.5 text-lg font-semibold tabular-nums">{stat.value}</dd>
           </div>
         ))}
@@ -59,7 +59,7 @@ export function SpeedToLeadView({
       ) : (
         <p className="text-[12px] text-muted-foreground">Every enquiry in this period has a logged reply.</p>
       )}
-      <p className="text-[11px] text-muted-foreground">
+      <p className="text-xs text-muted-foreground">
         Counts calls, emails and texts logged on the lead in the last {SPEED_WINDOW_DAYS} days.
         {truncated ? " Showing the most recent activity only." : ""}
       </p>

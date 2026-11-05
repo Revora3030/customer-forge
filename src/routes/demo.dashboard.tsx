@@ -136,7 +136,7 @@ function DemoDashboard() {
     leads.find((l) => l.id === selectedId) ?? leads[0] ?? workspace.leads[0];
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-dvh">
       <SiteHeader />
       <main>
         <section className="hero-aura border-b border-border">
@@ -296,7 +296,7 @@ function DemoDashboard() {
                   eyebrow={`Demo performance · last ${rangeLabel}`}
                   title="Leads and booked jobs over time"
                   action={
-                    <span className="hidden items-center gap-1.5 text-[11px] text-muted-foreground sm:inline-flex">
+                    <span className="hidden items-center gap-1.5 text-xs text-muted-foreground sm:inline-flex">
                       <LiveDot /> demo data
                     </span>
                   }
@@ -373,14 +373,14 @@ function DemoDashboard() {
                               <p className="text-[13px] font-medium">{entry.title}</p>
                               <p className="text-[13px] text-muted-foreground">{entry.detail}</p>
                             </div>
-                            <span className="tnum ml-auto shrink-0 text-[11px] text-muted-foreground">
+                            <span className="tnum ml-auto shrink-0 text-xs text-muted-foreground">
                               {formatAgo(entry.minutesAgo)}
                             </span>
                           </li>
                         );
                       })}
                     </ol>
-                    <p className="mt-3 inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                    <p className="mt-3 inline-flex items-center gap-1.5 text-xs text-muted-foreground">
                       <Activity className="size-3.5" aria-hidden="true" /> Simulated events — demo
                       data only.
                     </p>
@@ -529,7 +529,7 @@ function DemoDashboard() {
                           </span>
                         ))}
                       </div>
-                      <p className="mt-2 text-[11px] text-muted-foreground">
+                      <p className="mt-2 text-xs text-muted-foreground">
                         Actions are disabled in the demo — in your workspace each one logs to the
                         lead's timeline.
                       </p>
@@ -552,7 +552,7 @@ function DemoDashboard() {
                             />
                             <div className="min-w-0">
                               <p className="text-[13px] leading-relaxed">{entry.label}</p>
-                              <p className="text-[11px] text-muted-foreground">{entry.at}</p>
+                              <p className="text-xs text-muted-foreground">{entry.at}</p>
                             </div>
                           </li>
                         ))}
@@ -600,7 +600,7 @@ function DemoDashboard() {
                   </li>
                 ))}
               </ul>
-              <p className="mt-3 text-[11px] text-muted-foreground">
+              <p className="mt-3 text-xs text-muted-foreground">
                 Demo data. Confirmations and reminders send automatically in a live workspace.
               </p>
             </Panel>
@@ -646,7 +646,7 @@ function DemoDashboard() {
                   </tbody>
                 </table>
               </div>
-              <p className="mt-3 text-[11px] text-muted-foreground">
+              <p className="mt-3 text-xs text-muted-foreground">
                 Demo data. Timing, wording and channels are configurable per business.
               </p>
             </Panel>
@@ -682,13 +682,13 @@ function DemoDashboard() {
                     <p className="mt-1.5 text-[13px] leading-relaxed text-muted-foreground">
                       {review.text}
                     </p>
-                    <p className="mt-1.5 text-[11px] text-muted-foreground">
+                    <p className="mt-1.5 text-xs text-muted-foreground">
                       {review.service} · {workspace.formatRelative(review.daysAgo)}
                     </p>
                   </li>
                 ))}
               </ul>
-              <p className="mt-3 text-[11px] text-muted-foreground">
+              <p className="mt-3 text-xs text-muted-foreground">
                 Placeholder review content for the demo — not real customer statements.
               </p>
             </Panel>
@@ -724,7 +724,7 @@ function DemoDashboard() {
                   );
                 })}
               </ul>
-              <p className="mt-3 text-[11px] text-muted-foreground">
+              <p className="mt-3 text-xs text-muted-foreground">
                 Demo data. Live workspaces track real sources, campaigns and QR codes.
               </p>
             </Panel>

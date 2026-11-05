@@ -124,7 +124,7 @@ function StickyCtaBar() {
               </span>
               <span className="text-muted-foreground"> · no card to start</span>
             </p>
-            <p className="hidden text-[11px] text-muted-foreground sm:block">
+            <p className="hidden text-xs text-muted-foreground sm:block">
               Then {usd(GROWTH_SYSTEM.setupPrice)} setup, first month free,{" "}
               {usd(GROWTH_SYSTEM.monthlyPrice)}/month. Cancel anytime.
             </p>

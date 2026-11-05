@@ -175,7 +175,7 @@ export function SitePageView({
 
   if (!page) {
     return (
-      <div className="flex min-h-screen items-center justify-center px-4 text-center">
+      <div className="flex min-h-dvh items-center justify-center px-4 text-center">
         <div>
           <h1 className="font-display text-[20px] font-semibold">This page is being updated</h1>
           <p className="mt-2 text-[13px] text-muted-foreground">
@@ -222,7 +222,7 @@ export function SitePageView({
   return (
     <PremiumFxContext.Provider value={premiumFxValue(premium.enabled, niche.tier)}>
     <div
-      className={`rv-site-root min-h-screen bg-background text-foreground ${designTokenClasses(readDesignTokens(site.settings?.generation ?? null))}`}
+      className={`rv-site-root min-h-dvh bg-background text-foreground ${designTokenClasses(readDesignTokens(site.settings?.generation ?? null))}`}
       style={{
         ...siteThemeStyle({
           primaryColor: profile?.primary_color ?? null,

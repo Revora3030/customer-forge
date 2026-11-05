@@ -107,7 +107,7 @@ export function SitePerformance({
               >
                 {row.p75 === null ? "—" : formatVital(row.metric, row.p75)}
               </p>
-              <p className="mt-0.5 text-[11px] text-muted-foreground">
+              <p className="mt-0.5 text-xs text-muted-foreground">
                 {row.samples === 0
                   ? "No visits recorded"
                   : `${row.samples} visit${row.samples === 1 ? "" : "s"} · good is under ${formatVital(

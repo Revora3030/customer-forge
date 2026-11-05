@@ -64,7 +64,7 @@ export function WinbackView({
           ))}
         </div>
         <div className="min-w-[12rem] flex-1 space-y-1">
-          <Label htmlFor="winback-offer" className="text-[11px] text-muted-foreground">
+          <Label htmlFor="winback-offer" className="text-xs text-muted-foreground">
             Optional line from you (an offer, if you have one)
           </Label>
           <Input id="winback-offer" value={offer} maxLength={200} onChange={(event) => setOffer(event.target.value)} />

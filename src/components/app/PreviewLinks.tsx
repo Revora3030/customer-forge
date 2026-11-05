@@ -187,7 +187,7 @@ export function PreviewLinks({
               aria-invalid={passwordTooShort}
               aria-describedby="preview-password-hint"
             />
-            <p id="preview-password-hint" className={`text-[11px] ${passwordTooShort ? "text-destructive" : "text-muted-foreground"}`}>
+            <p id="preview-password-hint" className={`text-xs ${passwordTooShort ? "text-destructive" : "text-muted-foreground"}`}>
               {passwordTooShort
                 ? `Use at least ${PREVIEW_PASSWORD_MIN} characters.`
                 : "Visitors must enter it before they see anything. Share it separately."}
@@ -249,7 +249,7 @@ export function PreviewLinks({
                       </Pill>
                     ) : null}
                   </div>
-                  <p className="mt-1 truncate text-[11px] text-muted-foreground">
+                  <p className="mt-1 truncate text-xs text-muted-foreground">
                     Expires {dateShort(link.expires_at)} · {link.views} view
                     {link.views === 1 ? "" : "s"}
                     {link.last_viewed_at ? ` · last opened ${dateShort(link.last_viewed_at)}` : ""}

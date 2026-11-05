@@ -36,7 +36,7 @@ const Row = ({
     <span className="min-w-0 flex-1 text-[12.5px] text-foreground">{left}</span>
     <span className="hidden min-w-0 flex-1 text-[13px] text-muted-foreground sm:block">{mid}</span>
     <span
-      className={`tnum shrink-0 rounded-full border px-2 py-0.5 text-[11px] ${
+      className={`tnum shrink-0 rounded-full border px-2 py-0.5 text-xs ${
         tone === "gold"
           ? "border-primary/40 bg-primary/10 text-primary"
           : "border-border text-muted-foreground"
@@ -58,7 +58,7 @@ const Bars = ({ data }: { data: { label: string; value: number }[] }) => {
             style={{ height: `${Math.max(8, (d.value / max) * 100)}%` }}
             aria-hidden="true"
           />
-          <span className="text-[10px] text-muted-foreground">{d.label}</span>
+          <span className="text-xs text-muted-foreground">{d.label}</span>
         </div>
       ))}
     </div>
@@ -72,10 +72,10 @@ function Screen({ view }: { view: ScreenKey }) {
         <div className="flex items-center justify-between rounded-md border border-border bg-background/60 px-3 py-2">
           <span className="font-display text-[13px] font-semibold">Northside Plumbing</span>
           <span className="flex gap-1.5">
-            <span className="rounded-full border border-border px-2 py-0.5 text-[10px] text-muted-foreground">
+            <span className="rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground">
               Call
             </span>
-            <span className="rounded-full border border-primary/40 bg-primary/10 px-2 py-0.5 text-[10px] text-primary">
+            <span className="rounded-full border border-primary/40 bg-primary/10 px-2 py-0.5 text-xs text-primary">
               Get quote
             </span>
           </span>
@@ -91,7 +91,7 @@ function Screen({ view }: { view: ScreenKey }) {
             {["Drain cleaning", "Water heaters", "Leak repair", "Repiping"].map((s) => (
               <span
                 key={s}
-                className="rounded-full border border-border px-2 py-0.5 text-[10.5px] text-muted-foreground"
+                className="rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground"
               >
                 {s}
               </span>
@@ -102,7 +102,7 @@ function Screen({ view }: { view: ScreenKey }) {
           {["Service pages", "City pages", "Reviews block"].map((s) => (
             <div
               key={s}
-              className="rounded-md border border-border bg-background/40 px-2 py-3 text-center text-[10.5px] text-muted-foreground"
+              className="rounded-md border border-border bg-background/40 px-2 py-3 text-center text-xs text-muted-foreground"
             >
               {s}
             </div>
@@ -126,7 +126,7 @@ function Screen({ view }: { view: ScreenKey }) {
               className="rounded-md border border-border bg-background/40 p-2 text-center"
             >
               <p className="tnum font-display text-[16px] font-semibold text-primary">{count}</p>
-              <p className="text-[10.5px] text-muted-foreground">{label}</p>
+              <p className="text-xs text-muted-foreground">{label}</p>
             </div>
           ))}
         </div>
@@ -159,9 +159,9 @@ function Screen({ view }: { view: ScreenKey }) {
           ))}
         </div>
         <div className="mt-3 rounded-md border border-primary/35 bg-primary/5 px-3 py-3">
-          <p className="text-[11px] text-muted-foreground">Your estimated range</p>
+          <p className="text-xs text-muted-foreground">Your estimated range</p>
           <p className="tnum gold-text font-display text-[22px] font-semibold">$1,450 – $2,100</p>
-          <p className="mt-1 text-[11px] text-muted-foreground">
+          <p className="mt-1 text-xs text-muted-foreground">
             Example output from a configured quote calculator.
           </p>
         </div>
@@ -175,12 +175,12 @@ function Screen({ view }: { view: ScreenKey }) {
         <div className="mt-3 grid grid-cols-4 gap-2">
           {["Tue", "Wed", "Thu", "Fri"].map((day) => (
             <div key={day} className="rounded-md border border-border bg-background/40 p-2">
-              <p className="text-[11px] font-medium">{day}</p>
+              <p className="text-xs font-medium">{day}</p>
               <div className="mt-2 space-y-1.5">
                 {["8:00", "11:30", "2:00"].map((slot, i) => (
                   <span
                     key={slot}
-                    className={`block rounded px-1.5 py-1 text-center text-[10.5px] ${
+                    className={`block rounded px-1.5 py-1 text-center text-xs ${
                       i === 1 && day === "Thu"
                         ? "border border-primary/40 bg-primary/15 text-primary"
                         : "border border-border text-muted-foreground"
@@ -216,9 +216,9 @@ function Screen({ view }: { view: ScreenKey }) {
             <Zap className="size-4 shrink-0 text-primary" aria-hidden="true" />
             <span className="min-w-0 flex-1">
               <span className="block text-[12.5px]">{trigger}</span>
-              <span className="block text-[11px] text-muted-foreground">{action}</span>
+              <span className="block text-xs text-muted-foreground">{action}</span>
             </span>
-            <span className="shrink-0 rounded-full border border-primary/40 bg-primary/10 px-2 py-0.5 text-[10.5px] text-primary">
+            <span className="shrink-0 rounded-full border border-primary/40 bg-primary/10 px-2 py-0.5 text-xs text-primary">
               {state}
             </span>
           </div>
@@ -236,7 +236,7 @@ function Screen({ view }: { view: ScreenKey }) {
         ].map(([label, value]) => (
           <div key={label} className="rounded-md border border-border bg-background/40 p-3">
             <p className="tnum font-display text-[17px] font-semibold text-primary">{value}</p>
-            <p className="text-[10.5px] text-muted-foreground">{label}</p>
+            <p className="text-xs text-muted-foreground">{label}</p>
           </div>
         ))}
       </div>
@@ -254,7 +254,7 @@ function Screen({ view }: { view: ScreenKey }) {
           />
         </div>
       </div>
-      <p className="mt-3 text-[11px] text-muted-foreground">
+      <p className="mt-3 text-xs text-muted-foreground">
         Example workspace data — your dashboard shows your own numbers.
       </p>
     </div>
@@ -312,7 +312,7 @@ export function ProductTour() {
                     >
                       {label}
                     </span>
-                    <span className="hidden text-[11px] text-muted-foreground lg:block">
+                    <span className="hidden text-xs text-muted-foreground lg:block">
                       {outcome}
                     </span>
                   </span>
@@ -335,7 +335,7 @@ export function ProductTour() {
         >
           <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-b border-border pb-3">
             <p className="font-display text-[13px] font-semibold">{active.label}</p>
-            <span className="rounded-full border border-primary/35 bg-primary/10 px-2.5 py-0.5 text-[10.5px] text-primary">
+            <span className="rounded-full border border-primary/35 bg-primary/10 px-2.5 py-0.5 text-xs text-primary">
               {active.outcome}
             </span>
           </div>

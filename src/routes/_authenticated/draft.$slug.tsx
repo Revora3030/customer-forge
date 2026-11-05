@@ -35,7 +35,7 @@ export const Route = createFileRoute("/_authenticated/draft/$slug")({
   // This route renders only in the browser (the signed-in area has no server
   // render), so without a pending screen a slow load was a blank black page.
   pendingMs: DRAFT_PENDING_MS,
-  pendingComponent: () => <SiteSkeleton className="min-h-screen" label="Loading your draft…" />,
+  pendingComponent: () => <SiteSkeleton className="min-h-dvh" label="Loading your draft…" />,
   head: ({ loaderData }) => ({
     meta: [
       { title: draftHeadTitle(loaderData) },
@@ -82,7 +82,7 @@ export function DraftMessage({
   progress?: number | null;
 }) {
   return (
-    <div className="flex min-h-screen items-center justify-center px-4 text-center">
+    <div className="flex min-h-dvh items-center justify-center px-4 text-center">
       <div>
         <h1 className="font-editorial text-[26px] leading-tight">{title}</h1>
         <p className="mt-2 text-[13px] text-muted-foreground">{body}</p>
@@ -91,7 +91,7 @@ export function DraftMessage({
             <div className="h-1.5 overflow-hidden rounded-full bg-muted">
               <div className="h-full rounded-full bg-primary transition-[width]" style={{ width: `${Math.min(100, Math.max(0, progress))}%` }} />
             </div>
-            <p className="mt-1 text-[11px] text-muted-foreground">{Math.round(progress)}% complete</p>
+            <p className="mt-1 text-xs text-muted-foreground">{Math.round(progress)}% complete</p>
           </div>
         ) : null}
         <div className="mt-5 flex flex-wrap justify-center gap-2">
@@ -238,7 +238,7 @@ function DraftHomeRouteContent() {
         }}
       />
     ) : (
-      <SiteSkeleton className="min-h-screen" label="Loading your draft…" />
+      <SiteSkeleton className="min-h-dvh" label="Loading your draft…" />
     );
 
   // A draft that already has sections stays visible during rebuilds and AI

@@ -54,7 +54,7 @@ export function BusinessDetails() {
               key={row.label}
               className="rounded-xl border border-border/60 bg-background/60 p-4"
             >
-              <dt className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              <dt className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 <row.icon className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
                 {row.label}
               </dt>
@@ -82,7 +82,7 @@ export function BusinessDetails() {
         <div className="mt-6 flex flex-wrap items-start gap-2 rounded-xl border border-border/60 bg-background/60 p-4">
           <Globe2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Areas served
             </p>
             <p className="mt-1 text-[13px] leading-relaxed sm:text-[14px]">

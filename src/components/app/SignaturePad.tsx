@@ -73,7 +73,7 @@ export function SignaturePad({
           className="block h-36 w-full touch-none rounded-md"
           style={{ pointerEvents: disabled ? "none" : undefined }}
         />
-        <span className="pointer-events-none absolute bottom-2 left-3 right-3 border-b border-dashed border-neutral-400 text-[11px] text-neutral-500">
+        <span className="pointer-events-none absolute bottom-2 left-3 right-3 border-b border-dashed border-neutral-400 text-xs text-neutral-500">
           {ready ? "Sign above this line" : "Loading signature box…"}
         </span>
       </div>

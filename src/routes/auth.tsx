@@ -311,7 +311,7 @@ function AuthPage() {
 
   if (codeStep) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background px-4 py-12">
+      <div className="flex min-h-dvh items-center justify-center bg-background px-4 py-12">
         <div className="w-full max-w-sm">
           <SecondFactorPrompt
             onVerified={async () => {
@@ -329,7 +329,7 @@ function AuthPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
+    <div className="flex min-h-dvh flex-col bg-background">
       <header className="border-b border-border">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
           <Link to="/" className="flex min-h-11 items-center">
@@ -386,7 +386,7 @@ function AuthPage() {
                 `Launch when ready — ${usd(GROWTH_SYSTEM.setupPrice)} setup, first month free`,
               ].map((step, index) => (
                 <li key={step} className="flex items-start gap-2.5">
-                  <span className="tnum mt-0.5 grid size-5 shrink-0 place-items-center rounded-full border border-primary/40 bg-primary/10 text-[11px] font-semibold text-primary">
+                  <span className="tnum mt-0.5 grid size-5 shrink-0 place-items-center rounded-full border border-primary/40 bg-primary/10 text-xs font-semibold text-primary">
                     {index + 1}
                   </span>
                   <span className={index === 0 ? "text-foreground" : undefined}>{step}</span>
@@ -402,7 +402,7 @@ function AuthPage() {
             >
               <h2
                 id="signup-offer-recap"
-                className="text-[11px] font-semibold tracking-wider text-primary uppercase"
+                className="text-xs font-semibold tracking-wider text-primary uppercase"
               >
                 Your plan when you launch
               </h2>
@@ -423,7 +423,7 @@ function AuthPage() {
                   </li>
                 ))}
               </ul>
-              <p className="mt-2.5 text-[11.5px] text-muted-foreground">
+              <p className="mt-2.5 text-xs text-muted-foreground">
                 <Link to="/pricing" className="text-primary underline-offset-4 hover:underline">
                   See full pricing
                 </Link>
@@ -500,13 +500,13 @@ function AuthPage() {
               >
                 Use a different Google account
               </button>
-              <p className="mt-2 text-center text-[11px] leading-relaxed text-muted-foreground">
+              <p className="mt-2 text-center text-xs leading-relaxed text-muted-foreground">
                 Each Google account gets its own <span className="gold-hl">Revora</span> workspace.
               </p>
 
               <div className="my-5 flex items-center gap-3">
                 <span className="h-px flex-1 bg-border" />
-                <span className="text-[11px] tracking-wider uppercase text-muted-foreground">
+                <span className="text-xs tracking-wider uppercase text-muted-foreground">
                   or
                 </span>
                 <span className="h-px flex-1 bg-border" />
@@ -643,7 +643,7 @@ function AuthPage() {
                     )}
                   </>
                 ) : null}
-                <p className="text-center text-[11.5px] text-muted-foreground">
+                <p className="text-center text-xs text-muted-foreground">
                   {remember
                     ? "We keep you signed in on this device, so next time you land straight in your dashboard."
                     : "This session ends when you close your browser."}
@@ -656,7 +656,7 @@ function AuthPage() {
             {isSignup ? "Already have an account?" : "New here?"}{" "}
             <button
               type="button"
-              className="inline-flex min-h-11 cursor-pointer items-center text-primary hover:underline"
+              className="inline-flex min-h-11 min-w-11 justify-center px-1 cursor-pointer items-center text-primary hover:underline"
               onClick={() => {
                 setError(null);
                 setIsSignup((v) => !v);

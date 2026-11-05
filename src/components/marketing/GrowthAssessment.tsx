@@ -135,7 +135,7 @@ export function GrowthAssessment({ mode = "assessment" }: { mode?: "assessment" 
                   name="industry"
                   value={answers.industry}
                   onChange={(e) => set("industry", e.target.value)}
-                  className="mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-[13px]"
+                  className="mt-1.5 h-11 sm:h-10 w-full rounded-md border border-input bg-background px-3 text-[13px]"
                 >
                   <option value="">Select your trade</option>
                   {INDUSTRIES.map((industry) => (
@@ -180,7 +180,7 @@ export function GrowthAssessment({ mode = "assessment" }: { mode?: "assessment" 
                     onChange={(e) => set(field.key, Number(e.target.value) as never)}
                     className="tnum mt-1.5"
                   />
-                  <p className="mt-1 text-[11px] text-muted-foreground">{field.hint}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{field.hint}</p>
                 </div>
               ))}
             </div>
@@ -268,7 +268,7 @@ export function GrowthAssessment({ mode = "assessment" }: { mode?: "assessment" 
                 {mode === "audit" ? "Send my audit" : "Send my score"}
               </Button>
             </div>
-            <p className="mt-2 text-[11.5px] text-muted-foreground">
+            <p className="mt-2 text-xs text-muted-foreground">
               One report email, plus occasional Revora growth tips. Unsubscribe anytime. No card
               required, nothing to install.
             </p>
@@ -326,7 +326,7 @@ export function GrowthAssessment({ mode = "assessment" }: { mode?: "assessment" 
             {result.leakagePercent}% of your leads. That share is this tool&apos;s planning
             assumption, not a measured or published figure.
           </p>
-          <p className="mt-3 text-[11.5px] leading-relaxed text-muted-foreground">
+          <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
             Arithmetic on the numbers you entered. An estimate for planning — not a guarantee of
             revenue.
           </p>

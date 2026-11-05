@@ -87,7 +87,7 @@ function MySite() {
                   <p className="truncate text-[13px] font-medium">
                     {address.url.replace(/^https:\/\//, "")}
                   </p>
-                  <p className="text-[11.5px] text-muted-foreground">{address.label}</p>
+                  <p className="text-xs text-muted-foreground">{address.label}</p>
                 </div>
                 <Button asChild variant="outline" size="sm">
                   <a href={address.url} target="_blank" rel="noreferrer">
@@ -130,11 +130,11 @@ function MySite() {
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <p className="text-[13px] font-medium">
                       {page.title}
-                      <span className="ml-2 text-[11.5px] font-normal text-muted-foreground">
+                      <span className="ml-2 text-xs font-normal text-muted-foreground">
                         {page.slug === "home" ? "/" : `/${page.slug}`}
                       </span>
                     </p>
-                    <span className="text-[11.5px] text-muted-foreground">
+                    <span className="text-xs text-muted-foreground">
                       {visible.length} section{visible.length === 1 ? "" : "s"}
                     </span>
                   </div>

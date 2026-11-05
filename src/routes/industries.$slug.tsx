@@ -128,7 +128,7 @@ function IndustryPage() {
   const others = INDUSTRIES.filter((i) => i.name !== industry.name).slice(0, 6);
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-dvh">
       <SiteHeader />
       <main className="hero-aura mx-auto max-w-6xl px-4 py-16">
         <p className="eyebrow">For {industry.name}</p>

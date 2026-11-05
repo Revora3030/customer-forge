@@ -104,7 +104,7 @@ export function ClientOnboardingFlow({
               >
                 <span
                   className={cn(
-                    "grid size-6 shrink-0 place-items-center rounded-full border text-[11px]",
+                    "grid size-6 shrink-0 place-items-center rounded-full border text-xs",
                     step.done
                       ? "border-primary bg-primary/15 text-primary"
                       : "border-border text-muted-foreground",
@@ -113,7 +113,7 @@ export function ClientOnboardingFlow({
                   {step.done ? <Check className="size-3.5" aria-hidden /> : index + 1}
                 </span>
                 <span className="min-w-0 flex-1 text-[13px] font-medium">{step.title}</span>
-                <span className="text-[11px] text-muted-foreground">
+                <span className="text-xs text-muted-foreground">
                   {step.done ? "Done" : isOpen ? "Open" : "Next"}
                 </span>
               </button>

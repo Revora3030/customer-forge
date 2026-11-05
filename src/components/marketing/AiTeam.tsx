@@ -19,7 +19,7 @@ export function AiTeam() {
                 {role.role}
               </p>
               <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">{role.job}</p>
-              <p className="mt-3 text-[11px] tracking-wide text-muted-foreground uppercase">Led by</p>
+              <p className="mt-3 text-xs tracking-wide text-muted-foreground uppercase">Led by</p>
               <ul className="mt-1.5 flex flex-wrap gap-1.5">
                 {role.models.map((model) => (
                   <li key={model} className="rounded-full border border-border bg-elevated px-2.5 py-1 text-[12px] text-foreground">

@@ -115,7 +115,7 @@ function AdminShell() {
 
   if (isLoading) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-4 p-10 text-[13px] text-muted-foreground">
+      <div className="flex min-h-dvh flex-col items-center justify-center gap-4 p-10 text-[13px] text-muted-foreground">
         <Logo />
         Checking your access…
       </div>
@@ -140,7 +140,7 @@ function AdminShell() {
   }
 
   return (
-    <div className="product-workspace min-h-screen lg:flex">
+    <div className="product-workspace min-h-dvh lg:flex">
       {navOpen ? (
         <button type="button" aria-label="Close navigation" onClick={() => setNavOpen(false)} className="fixed inset-0 z-40 bg-background/80 backdrop-blur-sm lg:hidden" />
       ) : null}
@@ -162,7 +162,7 @@ function AdminShell() {
           <LogoMark className="size-8" />
           <p className="text-[13px] font-medium">Platform workspace</p>
           <LiveDot label="Live data" />
-          <span className="ml-auto hidden items-center gap-1.5 text-[11px] text-muted-foreground sm:flex"><LifeBuoy className="size-3.5" /> Support access is audited</span>
+          <span className="ml-auto hidden items-center gap-1.5 text-xs text-muted-foreground sm:flex"><LifeBuoy className="size-3.5" /> Support access is audited</span>
         </header>
         <main className="product-canvas px-4 py-5 sm:px-6 sm:py-6"><Outlet /></main>
       </div>

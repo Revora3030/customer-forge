@@ -311,7 +311,7 @@ export function DomainOperations({
           />
           <Pill tone={ssl.tone}>{ssl.label}</Pill>
           {settings?.ssl_last_ok_at ? (
-            <span className="text-[11px] text-muted-foreground">
+            <span className="text-xs text-muted-foreground">
               Last verified {dateLong(settings.ssl_last_ok_at)}
             </span>
           ) : null}
@@ -564,7 +564,7 @@ export function DomainOperations({
                       key={option}
                       type="button"
                       onClick={() => setAlias(option)}
-                      className="rounded-full border border-border px-2.5 py-1 text-[11px] hover:border-primary"
+                      className="rounded-full border border-border px-2.5 py-1 text-xs hover:border-primary"
                     >
                       {option}
                     </button>
@@ -722,7 +722,7 @@ export function DomainOperations({
                 Redirects, crawl access and the canonical address all check out on your domain.
               </p>
             )}
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               Checked {dateLong(report.checkedAt)}
             </p>
           </div>

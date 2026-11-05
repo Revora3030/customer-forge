@@ -173,7 +173,7 @@ export function DomainCenter({
             <p className="mt-1 font-mono text-[12px] text-muted-foreground">
               {previewPath ?? "Created with your website"}
             </p>
-            <p className="mt-1 text-[11px] text-muted-foreground">
+            <p className="mt-1 text-xs text-muted-foreground">
               Use this to review and share your site before your domain is connected. Your own
               domain becomes the public address as soon as it is verified.
             </p>
@@ -183,7 +183,7 @@ export function DomainCenter({
             <p className="mt-1 font-mono text-[12px] text-muted-foreground">
               {connected || "Not connected yet"}
             </p>
-            <p className="mt-1 text-[11px] text-muted-foreground">
+            <p className="mt-1 text-xs text-muted-foreground">
               {connected && dnsOk && sslOk
                 ? "Verified and live with HTTPS."
                 : "It only goes live after DNS and HTTPS both pass — until then use your Revora share link."}
@@ -199,11 +199,11 @@ export function DomainCenter({
                 ) : (
                   <Circle className="size-3.5 text-muted-foreground" aria-hidden="true" />
                 )}
-                <span className="text-[11px] font-medium">
+                <span className="text-xs font-medium">
                   {index + 1}. {step.title}
                 </span>
               </div>
-              <p className="mt-1 text-[11px] text-muted-foreground">{step.detail}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{step.detail}</p>
             </li>
           ))}
         </ol>
@@ -232,7 +232,7 @@ export function DomainCenter({
               <button
                 key={s}
                 type="button"
-                className="cursor-pointer rounded-full border border-border px-2.5 py-1 font-mono text-[11px] text-muted-foreground transition-colors hover:bg-elevated"
+                className="cursor-pointer rounded-full border border-border px-2.5 py-1 font-mono text-xs text-muted-foreground transition-colors hover:bg-elevated"
                 onClick={() => setIdea(s)}
               >
                 {s}
@@ -256,12 +256,12 @@ export function DomainCenter({
                   </a>
                 </Button>
               </div>
-              <p className="mt-1 text-[11px] text-muted-foreground">{r.note}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{r.note}</p>
             </div>
           ))}
         </div>
 
-        <p className="text-[11px] text-muted-foreground">
+        <p className="text-xs text-muted-foreground">
           The registrar's checkout shows the real price and whether the name is still available.
           Once you own it, connect it below — nothing else to buy, HTTPS is included.
         </p>
@@ -357,7 +357,7 @@ export function DomainCenter({
             "Once DNS and HTTPS both pass, publish (or re-publish) and your domain serves your site.",
           ].map((step, index) => (
             <li key={index} className="flex gap-2">
-              <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-primary/15 text-[11px] font-semibold text-primary">
+              <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xs font-semibold text-primary">
                 {index + 1}
               </span>
               <span className="text-muted-foreground">{step}</span>
@@ -374,7 +374,7 @@ export function DomainCenter({
                 type="button"
                 aria-pressed={registrar === guide.id}
                 onClick={() => setRegistrar(guide.id)}
-                className={`cursor-pointer rounded-full border px-2.5 py-1 text-[11px] transition-colors ${
+                className={`cursor-pointer rounded-full border px-2.5 py-1 text-xs transition-colors ${
                   registrar === guide.id
                     ? "border-primary/60 bg-primary/10 text-foreground"
                     : "border-border text-muted-foreground hover:bg-elevated"
@@ -399,7 +399,7 @@ export function DomainCenter({
           {DOMAIN_FAQ.map((item) => (
             <div key={item.q} className="rounded-md border border-border/60 p-3">
               <p className="text-[12px] font-medium">{item.q}</p>
-              <p className="mt-1 text-[11px] text-muted-foreground">{item.a}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{item.a}</p>
             </div>
           ))}
         </div>
@@ -464,7 +464,7 @@ export function DomainCenter({
           </ul>
           <div className="hidden overflow-x-auto sm:block">
             <table className="w-full text-left text-[12px]">
-              <thead className="text-[11px] uppercase tracking-wide text-muted-foreground">
+              <thead className="text-xs uppercase tracking-wide text-muted-foreground">
                 <tr>
                   <th className="py-1.5 pr-3">Type</th>
                   <th className="py-1.5 pr-3">Name / host</th>
@@ -513,7 +513,7 @@ export function DomainCenter({
           ) : null}
           <ul className="grid gap-1.5 sm:grid-cols-2">
             {DNS_HELP.map((help) => (
-              <li key={help.registrar} className="text-[11px] text-muted-foreground">
+              <li key={help.registrar} className="text-xs text-muted-foreground">
                 <span className="font-medium text-foreground">{help.registrar}:</span> {help.where}
               </li>
             ))}
@@ -527,7 +527,7 @@ export function DomainCenter({
                   {dnsOk ? "Resolving here" : "Not pointing here"}
                 </Pill>
               </div>
-              <p className="mt-1.5 text-[11px] text-muted-foreground">
+              <p className="mt-1.5 text-xs text-muted-foreground">
                 Changes usually appear within an hour, but registrars can take up to 48 hours.
               </p>
             </div>
@@ -538,7 +538,7 @@ export function DomainCenter({
                   {sslOk ? "HTTPS active" : dnsOk ? "Being issued" : "Waiting on DNS"}
                 </Pill>
               </div>
-              <p className="mt-1.5 text-[11px] text-muted-foreground">
+              <p className="mt-1.5 text-xs text-muted-foreground">
                 Issued automatically once DNS resolves here. No configuration needed from you.
               </p>
             </div>
@@ -555,15 +555,15 @@ export function DomainCenter({
           {lastCheck ? (
             <div className="rounded-md border border-border/60 p-3">
               <p className="text-[12px] font-medium">Live lookup result</p>
-              <p className="mt-1 text-[11px] text-muted-foreground">{lastCheck.detail}</p>
-              <p className="mt-1 font-mono text-[11px] text-muted-foreground">
+              <p className="mt-1 text-xs text-muted-foreground">{lastCheck.detail}</p>
+              <p className="mt-1 font-mono text-xs text-muted-foreground">
                 expected {lastCheck.expected} · found{" "}
                 {lastCheck.seen.length ? lastCheck.seen.join(", ") : "nothing yet"}
               </p>
             </div>
           ) : null}
           {settings?.domain_checked_at ? (
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               Last checked {dateLong(settings.domain_checked_at)}
             </p>
           ) : null}
@@ -591,7 +591,7 @@ function RecordPill({ state }: { state: "ok" | "missing" | "unchecked" }) {
 function RecordFound({ check }: { check: { state: string; found: string[] } }) {
   if (check.state !== "missing") return null;
   return (
-    <p className="mt-1 font-sans text-[11px] text-muted-foreground">
+    <p className="mt-1 font-sans text-xs text-muted-foreground">
       {check.found.length ? `Currently answers: ${check.found.join(", ")}` : "No answer for this record yet."}
     </p>
   );

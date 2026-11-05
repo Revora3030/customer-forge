@@ -84,7 +84,7 @@ export function SearchSettings({
             placeholder={businessName ? `${businessName} — what you do, where` : "What you do, where"}
             onChange={(event) => setHeadline(event.target.value)}
           />
-          <p className={`text-[11.5px] ${tone(titleHint.tone)}`}>{titleHint.text}</p>
+          <p className={`text-xs ${tone(titleHint.tone)}`}>{titleHint.text}</p>
         </div>
 
         <div className="space-y-1.5">
@@ -108,7 +108,7 @@ export function SearchSettings({
             placeholder="The short paragraph shown under your name in search results."
             onChange={(event) => setDescription(event.target.value)}
           />
-          <p className={`text-[11.5px] ${tone(descriptionHint.tone)}`}>{descriptionHint.text}</p>
+          <p className={`text-xs ${tone(descriptionHint.tone)}`}>{descriptionHint.text}</p>
         </div>
 
         <div className="space-y-1.5">
@@ -124,7 +124,7 @@ export function SearchSettings({
       </div>
 
       <div className="rounded-md border border-border bg-elevated/40 p-3">
-        <p className="text-[11px] tracking-wide text-muted-foreground uppercase">Search preview</p>
+        <p className="text-xs tracking-wide text-muted-foreground uppercase">Search preview</p>
         <p className="mt-2 truncate text-[12px] text-muted-foreground">
           {previewUrl ?? "Your web address appears here once your site is live"}
         </p>
@@ -168,11 +168,11 @@ export function SearchSettings({
               Cancel
             </Button>
           ) : (
-            <span className="text-[11.5px] text-muted-foreground">Saved</span>
+            <span className="text-xs text-muted-foreground">Saved</span>
           )}
         </div>
       ) : (
-        <p className="text-[11.5px] text-muted-foreground">
+        <p className="text-xs text-muted-foreground">
           You can view these words. Ask an owner or admin to change them.
         </p>
       )}

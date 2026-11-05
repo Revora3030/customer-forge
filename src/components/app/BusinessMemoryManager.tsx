@@ -120,7 +120,7 @@ export function MemoryManagerView(props: MemoryManagerViewProps) {
               <Label htmlFor="memory-add-kind">Kind</Label>
               <select
                 id="memory-add-kind"
-                className="flex h-10 w-full rounded-md border border-input bg-transparent px-3 text-[14px]"
+                className="flex h-11 sm:h-10 w-full rounded-md border border-input bg-transparent px-3 text-[14px]"
                 value={props.adding.kind}
                 onChange={(event) => props.onAddChange({ kind: event.target.value as MemoryKind })}
               >

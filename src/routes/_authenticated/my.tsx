@@ -86,12 +86,12 @@ function PortalApp() {
   }, [navOpen]);
 
   return (
-    <div className="product-workspace min-h-screen lg:flex">
+    <div className="product-workspace min-h-dvh lg:flex">
       {navOpen ? <button type="button" aria-label="Close navigation" onClick={() => setNavOpen(false)} className="fixed inset-0 z-40 bg-background/80 backdrop-blur-sm lg:hidden" /> : null}
       <aside ref={navPanel} id="portal-navigation" role={navOpen ? "dialog" : undefined} aria-modal={navOpen ? true : undefined} aria-label="Client portal navigation" inert={!navOpen && !desktopNav} className={`fixed inset-y-0 left-0 z-50 pt-[env(safe-area-inset-top)] lg:pt-0 flex h-[100dvh] w-64 max-w-[86vw] flex-col overflow-y-auto overscroll-contain border-r border-border bg-card transition-transform motion-reduce:transition-none lg:sticky lg:top-0 lg:z-auto lg:h-screen lg:w-56 lg:translate-x-0 ${navOpen ? "translate-x-0" : "-translate-x-full"}`}>
         <div className="flex h-14 items-center gap-3 border-b border-border px-4">
           <LogoMark className="h-7 w-7 shrink-0" />
-          <div className="min-w-0 flex-1"><p className="truncate text-[13px] font-medium">{org?.name ?? "Your business"}</p><p className="text-[11px] text-muted-foreground">Client portal</p></div>
+          <div className="min-w-0 flex-1"><p className="truncate text-[13px] font-medium">{org?.name ?? "Your business"}</p><p className="text-xs text-muted-foreground">Client portal</p></div>
           <Button variant="ghost" size="icon" onClick={() => setNavOpen(false)} className="min-h-11 min-w-11 lg:hidden" aria-label="Close navigation"><X className="size-4" /></Button>
         </div>
         <WorkspaceNav primary={NAV} onNavigate={() => setNavOpen(false)} className="flex-1" />
@@ -105,7 +105,7 @@ function PortalApp() {
           <Button ref={navTrigger} variant="ghost" size="icon" className="min-h-11 min-w-11" onClick={() => setNavOpen(true)} aria-label="Open navigation" aria-expanded={navOpen} aria-controls="portal-navigation"><Menu className="size-4" /></Button>
           <p className="truncate text-[13px] font-medium">{org?.name ?? "Your business"}</p>
         </header>
-        <main className="product-canvas min-h-[calc(100vh-3.5rem)] px-4 py-5 sm:px-6 sm:py-6"><Outlet /></main>
+        <main className="product-canvas min-h-[calc(100dvh-3.5rem)] px-4 py-5 sm:px-6 sm:py-6"><Outlet /></main>
       </div>
     </div>
   );

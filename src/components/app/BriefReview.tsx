@@ -207,7 +207,7 @@ export function BriefReviewPanel({
                     set({ [field.key]: lines(e.target.value) } as Partial<SiteBrief>)
                   }
                 />
-                <p className="text-[11px] text-muted-foreground">{field.help}</p>
+                <p className="text-xs text-muted-foreground">{field.help}</p>
               </div>
             ))}
             <div className="grid gap-1.5">
@@ -322,7 +322,7 @@ export function MissingFactsPanel({
                   onChange={(e) => setAnswers((a) => ({ ...a, [gap.key]: e.target.value }))}
                 />
               )}
-              <p className="text-[11px] text-muted-foreground">{gap.prompt}</p>
+              <p className="text-xs text-muted-foreground">{gap.prompt}</p>
             </div>
           ))}
           {canManage ? (
@@ -361,7 +361,7 @@ export function MissingFactsPanel({
       ) : null}
 
       {optional.length && !required.length ? (
-        <p className="mt-4 text-[11px] text-muted-foreground">None of these block your build.</p>
+        <p className="mt-4 text-xs text-muted-foreground">None of these block your build.</p>
       ) : null}
     </Panel>
   );
@@ -414,7 +414,7 @@ export function EngineSelfTestPanel({ organizationId }: { organizationId: string
               </li>
             ))}
           </ul>
-          <p className="mt-4 text-[11px] text-muted-foreground">
+          <p className="mt-4 text-xs text-muted-foreground">
             Checked {dateShort(result.ranAt)} —{" "}
             {result.passed ? "everything passed" : "see the failures above"}.
           </p>

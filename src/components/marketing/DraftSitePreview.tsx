@@ -42,14 +42,14 @@ export function DraftSitePreview({ businessName, businessType, city, state, serv
         <span className="size-2.5 rounded-full bg-border" />
         <span className="size-2.5 rounded-full bg-border" />
         <span className="size-2.5 rounded-full bg-border" />
-        <span className="ml-2 truncate rounded bg-background px-2 py-0.5 text-[11px] text-muted-foreground">
+        <span className="ml-2 truncate rounded bg-background px-2 py-0.5 text-xs text-muted-foreground">
           yourbusiness.com
         </span>
       </div>
       <div className="bg-background">
         <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
           <p className="min-w-0 truncate font-display text-[15px] font-semibold">{name}</p>
-          <span className="shrink-0 rounded-full border border-border px-3 py-1 text-[11px] text-muted-foreground">
+          <span className="shrink-0 rounded-full border border-border px-3 py-1 text-xs text-muted-foreground">
             Contact
           </span>
         </div>

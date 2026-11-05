@@ -49,7 +49,7 @@ export function PackageSuggestionsView({
           {packages.map((item) => (
             <li key={item.name} className="rounded-lg border border-border bg-elevated p-4">
               <p className="font-display text-[15px] font-semibold">{item.name}</p>
-              {item.category ? <p className="mt-0.5 text-[11px] tracking-wide text-muted-foreground uppercase">{item.category}</p> : null}
+              {item.category ? <p className="mt-0.5 text-xs tracking-wide text-muted-foreground uppercase">{item.category}</p> : null}
               <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">{item.description}</p>
               <p className="mt-2 text-[12px] text-muted-foreground">Draft: check it matches what you do, then add your price and time.</p>
               <div className="mt-3 flex gap-2">

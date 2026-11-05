@@ -226,12 +226,12 @@ export function WorkFeedView({
                     {item.models.length ? (
                       <p className="mt-0.5 flex flex-wrap gap-1">
                         {item.models.slice(0, 4).map((m) => (
-                          <span key={m.name} className="rounded-full border border-border/70 px-2 py-0.5 text-[11px] text-muted-foreground">
+                          <span key={m.name} className="rounded-full border border-border/70 px-2 py-0.5 text-xs text-muted-foreground">
                             {m.name}
                             {m.count > 1 ? ` ×${m.count}` : ""}
                           </span>
                         ))}
-                        {item.models.length > 4 ? <span className="px-1 py-0.5 text-[11px] text-muted-foreground">+{item.models.length - 4} more</span> : null}
+                        {item.models.length > 4 ? <span className="px-1 py-0.5 text-xs text-muted-foreground">+{item.models.length - 4} more</span> : null}
                       </p>
                     ) : null}
                     {item.note ? <p className="mt-0.5 text-xs text-muted-foreground">{item.note}</p> : null}

@@ -28,7 +28,7 @@ export function LeadDeliveryHealthPanel() {
           <p className="eyebrow flex items-center gap-1.5">
             <BellRing className="size-3.5" aria-hidden /> Lead alert delivery
           </p>
-          <p className="mt-1 text-[11px] text-muted-foreground">
+          <p className="mt-1 text-xs text-muted-foreground">
             Checked every 5 minutes. A lead whose owner alert hasn&apos;t been accepted by the email
             provider after 5 minutes is retried, then flagged here and on the owner&apos;s dashboard.
           </p>

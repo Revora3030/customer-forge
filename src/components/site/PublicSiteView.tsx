@@ -25,7 +25,7 @@ export function PublicSiteView({
   const facts = businessFacts(site?.profile ?? null, site?.org?.name);
   return (
     // Stable marker the post-publish smoke check looks for (publish-smoke.ts).
-    <main {...{ [EMPTY_SITE_MARKER]: "" }} className="flex min-h-screen items-center justify-center bg-background px-6 text-center">
+    <main {...{ [EMPTY_SITE_MARKER]: "" }} className="flex min-h-dvh items-center justify-center bg-background px-6 text-center">
       <div className="max-w-md">
         <h1 className="font-display text-2xl font-semibold">{facts.businessName ?? "This website"}</h1>
         <p className="mt-3 text-sm text-muted-foreground">

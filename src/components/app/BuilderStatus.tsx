@@ -24,7 +24,7 @@ export function BuilderStatus({
           data-testid={`builder-status-${answer.key}`}
           className="panel flex min-h-[132px] flex-col gap-2 p-4"
         >
-          <p className="text-[11px] font-medium tracking-[0.04em] text-muted-foreground uppercase">
+          <p className="text-xs font-medium tracking-[0.04em] text-muted-foreground uppercase">
             {answer.question}
           </p>
           <div className="min-w-0">

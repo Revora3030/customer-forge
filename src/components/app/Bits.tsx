@@ -26,7 +26,7 @@ export function Pill({
   return (
     <span
       className={cn(
-        "inline-flex max-w-full items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-semibold tracking-[0.08em] uppercase",
+        "inline-flex max-w-full items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-semibold tracking-[0.08em] uppercase",
         toneClasses[tone],
         className,
       )}
@@ -42,7 +42,7 @@ export function KeyLabel({ children, className }: { children: ReactNode; classNa
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-primary/10 px-2 py-0.5 text-[11px] font-semibold tracking-[0.1em] text-primary uppercase",
+        "inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-primary/10 px-2 py-0.5 text-xs font-semibold tracking-[0.1em] text-primary uppercase",
         className,
       )}
     >
@@ -229,7 +229,7 @@ export function MetricCard({
       >
         {value}
       </p>
-      {hint ? <p className={cn("mt-1.5 text-[11px]", hintTone[tone])}>{hint}</p> : null}
+      {hint ? <p className={cn("mt-1.5 text-xs", hintTone[tone])}>{hint}</p> : null}
       {bar ? (
         <div
           role="progressbar"
@@ -271,7 +271,7 @@ function useValueFlash(value: string): number {
 /** "Live" marker for anything that refreshes on its own. */
 export function LiveDot({ label = "Live", className }: { label?: string; className?: string }) {
   return (
-    <span className={cn("inline-flex items-center gap-1.5 text-[11px] text-muted-foreground", className)}>
+    <span className={cn("inline-flex items-center gap-1.5 text-xs text-muted-foreground", className)}>
       <span className="live-dot" aria-hidden="true" />
       {label}
     </span>

@@ -14,7 +14,7 @@ export function OfferLine({ className = "" }: { className?: string }) {
 
 export function TrialBadge() {
   return (
-    <span className="inline-flex items-center gap-2 rounded-full border border-primary/40 bg-primary/10 px-3 py-1 text-[11px] font-semibold tracking-[0.14em] text-primary uppercase">
+    <span className="inline-flex items-center gap-2 rounded-full border border-primary/40 bg-primary/10 px-3 py-1 text-xs font-semibold tracking-[0.14em] text-primary uppercase">
       <ShieldCheck className="size-3.5" aria-hidden="true" />
       {GROWTH_SYSTEM.trialBadge}
     </span>

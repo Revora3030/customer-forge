@@ -693,7 +693,7 @@ function Onboarding() {
             : true;
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-dvh bg-background">
       <header className="border-b border-border">
         <div className="mx-auto flex h-16 max-w-3xl items-center px-4">
           <Logo />
@@ -715,7 +715,7 @@ function Onboarding() {
             <li key={label} className="flex items-center gap-2">
               <span
                 className={cn(
-                  "tnum grid size-6 place-items-center rounded-full text-[11px] font-semibold",
+                  "tnum grid size-6 place-items-center rounded-full text-xs font-semibold",
                   index <= step
                     ? "bg-primary text-primary-foreground"
                     : "bg-elevated text-muted-foreground",
@@ -762,7 +762,7 @@ function Onboarding() {
                   placeholder="Elite Mobile Detailing"
                 />
                 {draft.businessName ? (
-                  <p className="text-[11px] text-muted-foreground">
+                  <p className="text-xs text-muted-foreground">
                     Your Revora share link: {revoraShareAddress(slugPreview)}
                   </p>
                 ) : null}
@@ -1077,7 +1077,7 @@ function Onboarding() {
                     value={draft.google}
                     onChange={(e) => set("google", e.target.value)}
                   />
-                  <p className="text-[11px] text-muted-foreground">
+                  <p className="text-xs text-muted-foreground">
                     A Google Maps link here also shows a map in your site's contact section.
                   </p>
                 </div>

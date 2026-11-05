@@ -50,7 +50,7 @@ function Delta({ current, previous }: { current: number; previous: number | unde
   return (
     <span
       className={cn(
-        "tnum inline-flex items-center gap-0.5 text-[11px]",
+        "tnum inline-flex items-center gap-0.5 text-xs",
         flat ? "text-muted-foreground" : up ? "text-primary" : "text-destructive",
       )}
     >
@@ -204,7 +204,7 @@ function MonthlyReport() {
                     <div className="mt-2">
                       <MonthBar value={month.revenue} max={maxRevenue} />
                     </div>
-                    <p className="tnum mt-2 text-[11px] text-muted-foreground">
+                    <p className="tnum mt-2 text-xs text-muted-foreground">
                       {number(month.leads)} leads · {number(month.bookings)} bookings ·{" "}
                       {number(month.visits)} visits · {number(month.workspaces)} workspaces
                       {month.refunded ? ` · ${currency(month.refunded)} refunded` : ""}
@@ -247,7 +247,7 @@ function MonthlyReport() {
                       <p className="truncate text-[14px] font-medium">
                         {workspace?.name ?? "Unknown workspace"}
                       </p>
-                      <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
+                      <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
                         {workspace?.industry ? <span>{workspace.industry}</span> : null}
                         {workspace?.status ? <Pill tone="info">{workspace.status}</Pill> : null}
                         {workspace?.suspended ? <Pill tone="danger">suspended</Pill> : null}
@@ -258,7 +258,7 @@ function MonthlyReport() {
                       {currency(row.revenue)}
                     </p>
                   </div>
-                  <dl className="tnum mt-2 grid grid-cols-2 gap-2 text-[11px] sm:grid-cols-4">
+                  <dl className="tnum mt-2 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
                     <div>
                       <dt className="text-muted-foreground">Leads</dt>
                       <dd className="font-medium">{number(row.leads)}</dd>
@@ -277,7 +277,7 @@ function MonthlyReport() {
                     </div>
                   </dl>
                   {row.refunded ? (
-                    <p className="mt-1.5 text-[11px] text-destructive">
+                    <p className="mt-1.5 text-xs text-destructive">
                       {currency(row.refunded)} refunded
                     </p>
                   ) : null}
@@ -289,7 +289,7 @@ function MonthlyReport() {
       </Panel>
 
       {data?.generatedAt ? (
-        <p className="text-[11px] text-muted-foreground">
+        <p className="text-xs text-muted-foreground">
           Live data from your workspaces, read at {new Date(data.generatedAt).toLocaleString()}.
         </p>
       ) : null}

@@ -425,7 +425,7 @@ export function VisionReviewPanel({
                   </p>
                 ) : null}
                 {result.model ? (
-                  <p className="text-[11px] text-muted-foreground">Reviewed by {result.model}.</p>
+                  <p className="text-xs text-muted-foreground">Reviewed by {result.model}.</p>
                 ) : null}
                 {canManage && fixable > 0 ? (
                   <Button size="sm" disabled={busy !== null} onClick={() => void repair()}>

@@ -61,7 +61,7 @@ export function LeadReplyDraftPanel({ organizationId, leadId }: { organizationId
               {draft.isPending ? "Drafting…" : "Try another"}
             </Button>
           </div>
-          <p className="text-[11px] text-muted-foreground">Draft only. Nothing is sent until you send it yourself.</p>
+          <p className="text-xs text-muted-foreground">Draft only. Nothing is sent until you send it yourself.</p>
         </div>
       )}
     </Panel>

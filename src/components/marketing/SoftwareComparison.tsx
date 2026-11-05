@@ -23,7 +23,7 @@ export function SoftwareComparison() {
           Published monthly list prices of the cheapest paid plan for tools a local business often pays for
         </caption>
         <thead>
-          <tr className="border-b border-border text-[11px] tracking-wide text-muted-foreground uppercase">
+          <tr className="border-b border-border text-xs tracking-wide text-muted-foreground uppercase">
             <th scope="col" className="py-2 pr-3 font-medium">Tool</th>
             <th scope="col" className="py-2 text-right font-medium">Cheapest paid plan, per month</th>
           </tr>
@@ -50,11 +50,11 @@ export function SoftwareComparison() {
       </table>
       <dl className="mt-5 grid gap-3 sm:grid-cols-2">
         <div className="rounded-md border border-border bg-elevated p-4">
-          <dt className="text-[11px] tracking-wide text-muted-foreground uppercase">Those tools, first 12 months</dt>
+          <dt className="text-xs tracking-wide text-muted-foreground uppercase">Those tools, first 12 months</dt>
           <dd className="tnum mt-1.5 font-display text-[19px] font-semibold">{usd(c.toolsFirstYear)}</dd>
         </div>
         <div className="rounded-md border border-border bg-elevated p-4">
-          <dt className="text-[11px] tracking-wide text-muted-foreground uppercase">Revora, first 12 months</dt>
+          <dt className="text-xs tracking-wide text-muted-foreground uppercase">Revora, first 12 months</dt>
           <dd className="tnum mt-1.5 font-display text-[19px] font-semibold">{usd(c.revoraFirstYear)}</dd>
           <dd className="mt-1 text-[12px] text-muted-foreground">
             {usd(GROWTH_SYSTEM.setupPrice)} setup plus 11 paid months at {usd(GROWTH_SYSTEM.monthlyPrice)}; the first month is free.

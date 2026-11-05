@@ -145,7 +145,7 @@ export function BuilderWizard({
             Step {index + 1} of {WIZARD_STEPS.length}
           </p>
           <span
-            className="flex items-center gap-1.5 text-[11px] text-muted-foreground"
+            className="flex items-center gap-1.5 text-xs text-muted-foreground"
             aria-live="polite"
           >
             {busy ? (
@@ -171,7 +171,7 @@ export function BuilderWizard({
               style={{ width: `${completion}%` }}
             />
           </div>
-          <span className="tnum text-[11px] text-muted-foreground">{completion}% ready</span>
+          <span className="tnum text-xs text-muted-foreground">{completion}% ready</span>
         </div>
         <ol className="mt-3 flex flex-wrap gap-1.5">
           {WIZARD_STEPS.map((item, i) => (
@@ -605,10 +605,10 @@ function DesignReferenceBox({
             onChange={(event) => onFile(event.currentTarget.files?.[0] ?? null)}
           />
         </Label>
-        <span className="text-[11px] text-muted-foreground">Free vision only; no paid fallback.</span>
+        <span className="text-xs text-muted-foreground">Free vision only; no paid fallback.</span>
       </div>
       {reference?.warnings?.length ? (
-        <p className="mt-2 text-[11px] text-muted-foreground">
+        <p className="mt-2 text-xs text-muted-foreground">
           Ignored unsafe reference details: {reference.warnings.slice(0, 2).join(" ")}
         </p>
       ) : null}
@@ -723,7 +723,7 @@ function AutoField({
             )}
             {actionPending ? "Preparing your website…" : actionLabel}
           </Button>
-          <span className="text-[11px] text-muted-foreground" aria-live="polite">
+          <span className="text-xs text-muted-foreground" aria-live="polite">
             {actionPending
               ? "Sol plans · Terra reviews · images and copy follow"
               : draft.trim().length < 20

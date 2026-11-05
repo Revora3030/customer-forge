@@ -41,12 +41,12 @@ function Row({ entry }: { entry: ModelLogEntry }) {
           {entry.ok ? "Done" : "Didn't work"}
         </Pill>
       </div>
-      <div className="mt-1 text-[11.5px] text-muted-foreground">
+      <div className="mt-1 text-xs text-muted-foreground">
         {when(entry.at)}
         {entry.latencyMs != null ? ` · ${(entry.latencyMs / 1000).toFixed(1)}s` : ""}
         {entry.note ? ` · ${entry.note}` : ""}
       </div>
-      <div className="tnum mt-0.5 truncate font-mono text-[11px] text-muted-foreground">
+      <div className="tnum mt-0.5 truncate font-mono text-xs text-muted-foreground">
         {entry.provider ? `${entry.provider} · ` : ""}
         {entry.model}
       </div>

@@ -427,7 +427,7 @@ function PictureControls({
               onClick={() => onChange({ aspect_ratio: ratio })}
               aria-pressed={visual.aspect_ratio === ratio}
               className={cn(
-                "min-h-8 rounded-full border px-2.5 text-[11px]",
+                "min-h-8 rounded-full border px-2.5 text-xs",
                 visual.aspect_ratio === ratio
                   ? "border-primary text-foreground"
                   : "border-border text-muted-foreground hover:text-foreground",
@@ -448,7 +448,7 @@ function PictureControls({
               onClick={() => onChange({ object_fit: fit })}
               aria-pressed={(visual.object_fit ?? "cover") === fit}
               className={cn(
-                "min-h-8 rounded-full border px-2.5 text-[11px]",
+                "min-h-8 rounded-full border px-2.5 text-xs",
                 (visual.object_fit ?? "cover") === fit
                   ? "border-primary text-foreground"
                   : "border-border text-muted-foreground hover:text-foreground",
@@ -491,7 +491,7 @@ function PictureControls({
               aria-pressed={(visual.source ?? "unknown") === option.value}
               onClick={() => onChange({ source: option.value })}
               className={cn(
-                "min-h-8 rounded-full border px-2.5 text-[11px]",
+                "min-h-8 rounded-full border px-2.5 text-xs",
                 (visual.source ?? "unknown") === option.value
                   ? "border-primary text-foreground"
                   : "border-border text-muted-foreground hover:text-foreground",
@@ -790,7 +790,7 @@ export function BuilderCanvas({
       {trail.length ? (
         <nav
           aria-label="Selected element"
-          className="flex flex-wrap items-center gap-1 border-b border-border/70 px-3 py-1.5 text-[11px] text-muted-foreground"
+          className="flex flex-wrap items-center gap-1 border-b border-border/70 px-3 py-1.5 text-xs text-muted-foreground"
         >
           {trail.map((crumb, index) => (
             <span key={`${crumb}-${index}`} className="flex items-center gap-1">
@@ -817,7 +817,7 @@ export function BuilderCanvas({
         {/* Layers */}
         {showLayers ? (
           <aside className="max-h-[70vh] overflow-auto border-b border-border bg-card/30 p-2 @min-[960px]:border-r @min-[960px]:border-b-0">
-            <p className="px-1 pb-1 text-[11px] tracking-wide text-muted-foreground uppercase">
+            <p className="px-1 pb-1 text-xs tracking-wide text-muted-foreground uppercase">
               Page structure
             </p>
             {layerNodes.length === 0 ? (
@@ -843,7 +843,7 @@ export function BuilderCanvas({
                     >
                       <span className="truncate">{node.label}</span>
                       {node.children ? (
-                        <span className="ml-auto text-[11px] text-muted-foreground">
+                        <span className="ml-auto text-xs text-muted-foreground">
                           {node.children}
                         </span>
                       ) : null}
@@ -877,7 +877,7 @@ export function BuilderCanvas({
                 className="sticky top-0 z-20 -mx-1 mb-1 flex flex-wrap items-center gap-1.5 rounded-full border border-border bg-card/95 px-2.5 py-1.5 shadow-lg backdrop-blur"
                 onClick={(event) => event.stopPropagation()}
               >
-                <span className="max-w-[40%] truncate pr-1 text-[11px] tracking-wide text-muted-foreground uppercase">
+                <span className="max-w-[40%] truncate pr-1 text-xs tracking-wide text-muted-foreground uppercase">
                   {selectedComponent
                     ? elementLabel(selectedComponent)
                     : sectionLabel(selectedSection.kind)}
@@ -1050,7 +1050,7 @@ export function BuilderCanvas({
                     : `${stagedCount(staged)} unsaved changes`}
                   {stagedFieldSummary(staged) ? ` — ${stagedFieldSummary(staged)}` : ""}
                 </span>
-                <span className="text-[11px] text-muted-foreground">
+                <span className="text-xs text-muted-foreground">
                   Only you can see these until you apply them.
                 </span>
                 <div className="ml-auto flex gap-2">
@@ -1124,14 +1124,14 @@ export function BuilderCanvas({
                   )}
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <span className="flex items-center gap-1 text-[11px] tracking-wide text-muted-foreground uppercase">
+                    <span className="flex items-center gap-1 text-xs tracking-wide text-muted-foreground uppercase">
                       {canManage ? (
                         <GripVertical className="size-3.5 cursor-grab" aria-hidden />
                       ) : null}
                       {sectionLabel(section.kind)}
                     </span>
                     {!section.is_visible ? (
-                      <span className="text-[11px] text-muted-foreground">Hidden</span>
+                      <span className="text-xs text-muted-foreground">Hidden</span>
                     ) : null}
                   </div>
 
@@ -1367,7 +1367,7 @@ export function BuilderCanvas({
                             ),
                           )
                         }
-                        className="min-h-8 rounded-full border border-border px-2.5 py-1 text-[11px] text-muted-foreground hover:bg-elevated hover:text-foreground disabled:opacity-50"
+                        className="min-h-8 rounded-full border border-border px-2.5 py-1 text-xs text-muted-foreground hover:bg-elevated hover:text-foreground disabled:opacity-50"
                       >
                         {suggestion}
                       </button>
@@ -1544,7 +1544,7 @@ export function BuilderCanvas({
                             ),
                           )
                         }
-                        className="min-h-8 rounded-full border border-border px-2.5 py-1 text-[11px] text-muted-foreground hover:bg-elevated hover:text-foreground disabled:opacity-50"
+                        className="min-h-8 rounded-full border border-border px-2.5 py-1 text-xs text-muted-foreground hover:bg-elevated hover:text-foreground disabled:opacity-50"
                       >
                         {suggestion}
                       </button>
@@ -1651,7 +1651,7 @@ function Field({
     <label className="block">
       <span className="text-[12px] text-muted-foreground">{label}</span>
       <span className="mt-1 block">{children}</span>
-      {hint ? <span className="mt-1 block text-[11px] text-muted-foreground">{hint}</span> : null}
+      {hint ? <span className="mt-1 block text-xs text-muted-foreground">{hint}</span> : null}
     </label>
   );
 }
@@ -1756,7 +1756,7 @@ function StyleControls({
         ) : null}
       </div>
       {device !== "desktop" ? (
-        <p className="text-[11px] leading-relaxed text-muted-foreground">
+        <p className="text-xs leading-relaxed text-muted-foreground">
           Changes here apply on {DEVICE_META[device].label.toLowerCase()} screens only. Anything
           left on Default follows your desktop design.
         </p>

@@ -80,7 +80,7 @@ export function ActivityFeed({ organizationId }: { organizationId: string | unde
                   {event.detail ? (
                     <p className="text-[12px] break-words text-muted-foreground">{event.detail}</p>
                   ) : null}
-                  <p className="text-[11px] text-muted-foreground">{when(event.at)}</p>
+                  <p className="text-xs text-muted-foreground">{when(event.at)}</p>
                 </div>
                 {event.to ? (
                   <Link to={event.to} className="text-[12px] text-primary underline shrink-0">

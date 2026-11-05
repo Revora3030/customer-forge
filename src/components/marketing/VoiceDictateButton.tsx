@@ -16,7 +16,10 @@ export function VoiceDictateButton({
   onText: (next: string) => void;
   label: string;
 }) {
-  const [supported, setSupported] = useState(false);
+  // null = not checked yet (server render and the first client paint). Browser support can only be
+  // known after mount, so until then we reserve the exact footprint of the real control (invisible and
+  // out of the tab order). Otherwise the button popping in pushes the whole form down (layout shift).
+  const [supported, setSupported] = useState<boolean | null>(null);
   const [listening, setListening] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const recRef = useRef<SpeechRecognitionLike | null>(null);
@@ -28,7 +31,18 @@ export function VoiceDictateButton({
     return () => recRef.current?.stop();
   }, []);
 
-  if (!supported) return null;
+  if (supported === false) return null;
+  if (supported === null) {
+    return (
+      <span aria-hidden="true" className="invisible inline-flex flex-col items-end gap-0.5">
+        <span className="inline-flex min-h-11 items-center gap-1.5 rounded-md border border-transparent px-3 py-1 text-xs">
+          <span className="size-3" />
+          Say it
+        </span>
+        <span className="text-xs">Your browser may send your voice to its speech service to turn it into text.</span>
+      </span>
+    );
+  }
 
   function toggle() {
     if (listening) {
@@ -72,16 +86,16 @@ export function VoiceDictateButton({
         aria-pressed={listening}
         // WCAG 2.5.3 Label in Name: the accessible name starts with the visible text.
         aria-label={listening ? `Listening… tap to stop dictating ${label}` : `Say it: dictate ${label}`}
-        className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[12px] text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+        className="inline-flex min-h-11 items-center gap-1.5 rounded-md border border-border px-3 py-1 text-xs text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
       >
         {listening ? <Square className="size-3" aria-hidden="true" /> : <Mic className="size-3" aria-hidden="true" />}
         {listening ? "Listening… tap to stop" : "Say it"}
       </button>
-      <span className="text-[11px] text-muted-foreground">
+      <span className="text-xs text-muted-foreground">
         Your browser may send your voice to its speech service to turn it into text.
       </span>
       {problem ? (
-        <span role="status" className="text-[11px] text-destructive">
+        <span role="status" className="text-xs text-destructive">
           {problem}
         </span>
       ) : null}

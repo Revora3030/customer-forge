@@ -179,7 +179,7 @@ function ServicesPage() {
                       ] as const
                     ).map(([label, value]) => (
                       <div key={label} className="rounded-md border border-border px-2 py-1.5">
-                        <dt className="text-[11px] text-muted-foreground">{label}</dt>
+                        <dt className="text-xs text-muted-foreground">{label}</dt>
                         <dd className="tnum text-[14px] font-semibold">{value}</dd>
                       </div>
                     ))}
@@ -287,7 +287,7 @@ function ServicesPage() {
                     {currency(Number(quote.estimate_min))} – {currency(Number(quote.estimate_max))}
                   </p>
                 </div>
-                <p className="mt-1 text-[11px] text-muted-foreground">
+                <p className="mt-1 text-xs text-muted-foreground">
                   {relative(quote.created_at)}
                   {Array.isArray(quote.answers)
                     ? ` · ${(quote.answers as { answer?: string }[])

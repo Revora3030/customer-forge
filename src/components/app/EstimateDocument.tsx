@@ -3,7 +3,7 @@ import type { EstimateSignature } from "@/lib/estimates/estimate-signature";
 
 const quantityFormat = new Intl.NumberFormat("en-US", { maximumFractionDigits: 3 });
 
-const labelClass = "text-[11px] font-semibold uppercase tracking-wider text-neutral-500";
+const labelClass = "text-xs font-semibold uppercase tracking-wider text-neutral-500";
 
 function Detail({ label, value }: { label: string; value: string }) {
   if (!value) return null;
@@ -19,7 +19,7 @@ function SignatureLine({ label }: { label: string }) {
   return (
     <div className="break-inside-avoid">
       <div className="h-10 border-b border-neutral-700" aria-hidden="true" />
-      <p className="mt-1 text-[11px] text-neutral-600">{label}</p>
+      <p className="mt-1 text-xs text-neutral-600">{label}</p>
     </div>
   );
 }
@@ -77,7 +77,7 @@ export function EstimateDocument({
       <table className="mt-5 w-full border-collapse text-left">
         <caption className="sr-only">{isEstimate ? "Work and materials" : "Tasks for the crew"}</caption>
         <thead>
-          <tr className="border-b border-neutral-400 text-[11px] uppercase tracking-wider text-neutral-500">
+          <tr className="border-b border-neutral-400 text-xs uppercase tracking-wider text-neutral-500">
             {isEstimate ? null : (
               <th scope="col" className="w-7 py-1.5 pr-2">
                 <span className="sr-only">Done</span>
@@ -173,7 +173,7 @@ export function EstimateDocument({
                       className="max-h-16 max-w-[240px] object-contain"
                     />
                   </div>
-                  <p className="mt-1 text-[11px] text-neutral-600">
+                  <p className="mt-1 text-xs text-neutral-600">
                     Approved by {signature.signerName} — signed electronically
                   </p>
                 </div>
@@ -181,7 +181,7 @@ export function EstimateDocument({
                   <div className="flex h-16 items-end border-b border-neutral-700">
                     <span className="tnum">{new Date(signature.signedAt).toLocaleString("en-US")}</span>
                   </div>
-                  <p className="mt-1 text-[11px] text-neutral-600">Date</p>
+                  <p className="mt-1 text-xs text-neutral-600">Date</p>
                 </div>
               </>
             ) : (

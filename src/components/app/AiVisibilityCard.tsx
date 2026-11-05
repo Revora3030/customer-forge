@@ -109,7 +109,7 @@ export function AiVisibilityCard({ organizationId, industry }: { organizationId:
           <p className="text-[12px] text-muted-foreground">Times mentioned, by month (what you recorded)</p>
           <ul className="mt-2 flex items-end gap-3">
             {trend.map((m) => (
-              <li key={m.month} className="flex flex-col items-center gap-1 text-[11px]">
+              <li key={m.month} className="flex flex-col items-center gap-1 text-xs">
                 <span>{m.mentioned}/{m.checked}</span>
                 <span className="w-6 rounded-sm bg-primary" style={{ height: `${Math.max(4, (m.mentioned / Math.max(1, m.checked)) * 48)}px` }} aria-hidden />
                 <span className="text-muted-foreground">{m.month.slice(0, 7)}</span>

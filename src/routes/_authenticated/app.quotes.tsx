@@ -447,7 +447,7 @@ function QuotesPage() {
                   {currency(Number(request.estimate_max))}
                 </p>
               </div>
-              <p className="mt-1 text-[11px] text-muted-foreground">
+              <p className="mt-1 text-xs text-muted-foreground">
                 {relative(request.created_at)}
                 {Array.isArray(request.answers)
                   ? ` · ${(request.answers as { answer?: string }[])
@@ -588,7 +588,7 @@ function QuotesPage() {
                       id="o-type"
                       value={option.modifier_type}
                       onChange={(e) => setOption({ ...option, modifier_type: e.target.value })}
-                      className="h-10 w-full cursor-pointer rounded-md border border-input bg-background px-3 text-sm"
+                      className="h-11 sm:h-10 w-full cursor-pointer rounded-md border border-input bg-background px-3 text-sm"
                     >
                       <option value="add">Add / subtract dollars</option>
                       <option value="multiply">Multiply the total</option>

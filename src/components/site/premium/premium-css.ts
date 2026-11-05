@@ -56,7 +56,7 @@ export const PREMIUM_CSS = `
 .pm-monogram{display:grid;place-items:center;width:40px;height:40px;border-radius:11px;font-weight:900;font-size:20px;color:var(--primary-foreground);background:linear-gradient(140deg,var(--primary),color-mix(in srgb,var(--primary) 55%,#000));box-shadow:inset 0 1px 0 rgb(255 255 255 / .3)}
 .pm-brand-text{display:flex;flex-direction:column;min-width:0;line-height:1.1}
 .pm-wordmark{font-family:var(--pm-display);font-weight:850;font-size:clamp(1.05rem,1rem + .3vw,1.25rem);letter-spacing:-.01em;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.pm-brand-tag{font-size:11px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--muted-foreground);margin-top:3px}
+.pm-brand-tag{font-size:12px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--muted-foreground);margin-top:3px}
 .pm-desktop-nav{display:none;gap:4px}
 .pm-desktop-nav a{position:relative;padding:10px 14px;border-radius:10px;text-decoration:none;font-weight:600;font-size:15px;color:var(--muted-foreground);transition:color .2s}
 .pm-desktop-nav a::after{content:"";position:absolute;left:14px;right:14px;bottom:4px;height:2px;border-radius:2px;background:var(--primary);transform:scaleX(0);transition:transform .25s var(--pm-ease)}

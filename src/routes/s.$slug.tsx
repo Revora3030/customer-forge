@@ -40,7 +40,7 @@ export const Route = createFileRoute("/s/$slug")({
   },
   component: PublicSiteRoute,
   errorComponent: () => (
-    <div className="flex min-h-screen items-center justify-center px-4 text-center">
+    <div className="flex min-h-dvh items-center justify-center px-4 text-center">
       <p className="text-[14px] text-muted-foreground">
         This business page couldn't load. Please refresh and try again.
       </p>
@@ -57,7 +57,7 @@ export const Route = createFileRoute("/s/$slug")({
  */
 function SitePreviewNotice() {
   return (
-    <main className="flex min-h-screen items-center justify-center px-4 text-center">
+    <main className="flex min-h-dvh items-center justify-center px-4 text-center">
       <div className="max-w-md">
         <h1 className="font-display text-[22px] font-semibold">This website is being updated</h1>
         <p className="mt-2 text-[14px] text-muted-foreground">Please check back soon.</p>

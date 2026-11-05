@@ -343,7 +343,7 @@ function LeadsPage() {
                 <section key={stage.key} className="w-64 shrink-0" aria-label={`${stage.label} leads`}>
                   <div className="mb-2 flex items-center justify-between">
                     <span className="eyebrow">{stage.label}</span>
-                    <span className="tnum rounded-full bg-elevated px-1.5 py-0.5 text-[11px] font-semibold">
+                    <span className="tnum rounded-full bg-elevated px-1.5 py-0.5 text-xs font-semibold">
                       {column.length} · {currency(value)}
                     </span>
                   </div>
@@ -359,21 +359,21 @@ function LeadsPage() {
                         className="panel w-full cursor-pointer p-3 text-left transition-colors hover:border-muted-foreground/40"
                       >
                         <p className="truncate text-[13px] font-medium">{lead.name}</p>
-                        <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                        <p className="mt-0.5 truncate text-xs text-muted-foreground">
                           {[serviceLabel(lead), sourceLabel(lead.source)]
                             .filter(Boolean)
                             .join(" · ")}
                         </p>
                         <div className="mt-2 flex items-center justify-between">
-                          <span className="tnum text-[11px] text-muted-foreground">
+                          <span className="tnum text-xs text-muted-foreground">
                             {currency(Number(lead.estimated_value ?? 0))}
                           </span>
-                          <span className="text-[11px] text-muted-foreground">
+                          <span className="text-xs text-muted-foreground">
                             {relative(lead.created_at)}
                           </span>
                         </div>
                         {lead.next_follow_up_at ? (
-                          <p className="mt-1.5 text-[11px] text-accent">
+                          <p className="mt-1.5 text-xs text-accent">
                             Follow up {relative(lead.next_follow_up_at)}
                           </p>
                         ) : null}
@@ -383,7 +383,7 @@ function LeadsPage() {
                       </button>
                     ))}
                     {column.length === 0 ? (
-                      <p className="rounded-md border border-dashed border-border px-3 py-6 text-center text-[11px] text-muted-foreground">
+                      <p className="rounded-md border border-dashed border-border px-3 py-6 text-center text-xs text-muted-foreground">
                         Nothing here
                       </p>
                     ) : null}
@@ -567,7 +567,7 @@ function LeadsPage() {
                           ...(triggerFor(next) ? { trigger: triggerFor(next)! } : {}),
                         });
                       }}
-                      className="h-10 w-full cursor-pointer rounded-md border border-input bg-background px-3 text-sm"
+                      className="h-11 sm:h-10 w-full cursor-pointer rounded-md border border-input bg-background px-3 text-sm"
                     >
                       {LEAD_STATUSES.map((s) => (
                         <option key={s.value} value={s.value}>
@@ -609,7 +609,7 @@ function LeadsPage() {
                           },
                         });
                       }}
-                      className="h-10 w-full cursor-pointer rounded-md border border-input bg-background px-3 text-sm"
+                      className="h-11 sm:h-10 w-full cursor-pointer rounded-md border border-input bg-background px-3 text-sm"
                     >
                       <option value="">Unassigned</option>
                       {(team ?? []).map((member) => {
@@ -796,7 +796,7 @@ function LeadsPage() {
                 <select
                   id="b-service"
                   name="service"
-                  className="h-10 w-full cursor-pointer rounded-md border border-input bg-background px-3 text-sm"
+                  className="h-11 sm:h-10 w-full cursor-pointer rounded-md border border-input bg-background px-3 text-sm"
                 >
                   <option value="">No specific service</option>
                   {(services ?? []).map((s) => (

@@ -75,11 +75,11 @@ export function WebhookPresets({
             <li key={step}>{step}</li>
           ))}
         </ol>
-        <p className="mt-1.5 text-[11px] text-muted-foreground">
+        <p className="mt-1.5 text-xs text-muted-foreground">
           URL usually starts with <span className="font-mono">{preset.urlHint}</span>. {preset.note}
         </p>
-        <p className="mt-2 text-[11px] font-medium">Fields to map</p>
-        <ul className="mt-1 grid grid-cols-1 gap-x-4 text-[11px] text-muted-foreground sm:grid-cols-2">
+        <p className="mt-2 text-xs font-medium">Fields to map</p>
+        <ul className="mt-1 grid grid-cols-1 gap-x-4 text-xs text-muted-foreground sm:grid-cols-2">
           {preset.mapping.map((m) => (
             <li key={m.path}>
               {m.field}: <span className="font-mono">{m.path}</span>
@@ -88,10 +88,10 @@ export function WebhookPresets({
         </ul>
       </div>
       <details className="mt-2">
-        <summary className="cursor-pointer text-[11px] font-medium">
+        <summary className="cursor-pointer text-xs font-medium">
           Sample body (what a test sends)
         </summary>
-        <pre className="mt-1.5 max-h-56 overflow-auto rounded bg-muted p-2 font-mono text-[10.5px] leading-snug">
+        <pre className="mt-1.5 max-h-56 overflow-auto rounded bg-muted p-2 font-mono text-xs leading-snug">
           {sample}
         </pre>
         <Button variant="ghost" size="sm" onClick={() => void copySample()}>
@@ -113,9 +113,9 @@ export function WebhookPresets({
           Send test webhook
         </Button>
         {!configured ? (
-          <span className="text-[11px] text-muted-foreground">Save a webhook URL first.</span>
+          <span className="text-xs text-muted-foreground">Save a webhook URL first.</span>
         ) : test.data ? (
-          <span className="flex items-center gap-1 text-[11px]" role="status">
+          <span className="flex items-center gap-1 text-xs" role="status">
             {test.data.ok ? (
               <>
                 <CheckCircle2 className="size-3.5 text-primary" aria-hidden /> Test delivered. It is

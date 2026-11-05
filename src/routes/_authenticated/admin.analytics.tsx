@@ -302,7 +302,7 @@ function AdminAnalytics() {
           <ul className="divide-y divide-border text-[12px]">
             {(details.data?.traffic ?? []).slice(0, 60).map((row) => (
               <li key={row.day} className="flex items-center justify-between gap-3 py-1.5">
-                <span className="font-mono text-[11px]">{row.day}</span>
+                <span className="font-mono text-xs">{row.day}</span>
                 <span className="shrink-0 text-muted-foreground">
                   {number(row.visitors)} visitors · {number(row.sessions)} sessions ·{" "}
                   {number(row.views)} views
@@ -317,7 +317,7 @@ function AdminAnalytics() {
           <ul className="divide-y divide-border text-[12px]">
             {(details.data?.accounts ?? []).slice(0, 100).map((row) => (
               <li key={row.id} className="flex justify-between gap-3 py-1.5">
-                <span className="truncate font-mono text-[11px]">{row.id}</span>
+                <span className="truncate font-mono text-xs">{row.id}</span>
                 <span className="shrink-0 text-muted-foreground">
                   {new Date(row.createdAt).toISOString().slice(0, 16).replace("T", " ")} UTC
                 </span>
@@ -357,7 +357,7 @@ function AdminAnalytics() {
             {(details.data?.paid ?? []).slice(0, 100).map((row) => (
               <li key={row.organizationId} className="flex justify-between gap-3 py-1.5">
                 <span className="truncate">{row.name ?? row.organizationId}</span>
-                <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
+                <span className="shrink-0 font-mono text-xs text-muted-foreground">
                   {row.subscriptionId ?? "—"}
                 </span>
               </li>
@@ -545,7 +545,7 @@ function AdminAnalytics() {
                   );
                 })}
               </div>
-              <div className="flex justify-between text-[11px] text-muted-foreground">
+              <div className="flex justify-between text-xs text-muted-foreground">
                 <span>{report.daily[0]?.day}</span>
                 <span>{report.daily[report.daily.length - 1]?.day}</span>
               </div>
@@ -558,7 +558,7 @@ function AdminAnalytics() {
               {report.topPages.map((page) => (
                 <li key={page.path} className="space-y-1 py-2">
                   <div className="flex items-center justify-between gap-3">
-                    <span className="truncate font-mono text-[11px]">{page.path}</span>
+                    <span className="truncate font-mono text-xs">{page.path}</span>
                     <span className="shrink-0 text-muted-foreground">
                       {number(page.views)} views · {number(page.sessions)} sessions ·{" "}
                       {report.views > 0 ? Math.round((page.views / report.views) * 100) : 0}%

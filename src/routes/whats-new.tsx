@@ -23,7 +23,7 @@ function WhatsNewPage() {
     try { if (latest) window.localStorage.setItem(WHATS_NEW_SEEN_KEY, latest); } catch { /* storage blocked */ }
   }, []);
   const dates = [...new Set(entries.map((e) => e.date))];
-  return <div className="min-h-screen"><SiteHeader />
+  return <div className="min-h-dvh"><SiteHeader />
     <main className="mx-auto max-w-3xl px-4 pt-14 pb-20 sm:px-6 sm:pt-20">
       <h1 className="font-editorial text-[28px] leading-tight sm:text-[36px]">What's new</h1>
       <p className="mt-3 text-[15px] text-muted-foreground">Improvements that are live in Revora now. Dates are US Eastern time.</p>

@@ -165,7 +165,7 @@ export function ConversionOptimizer({ organizationId }: { organizationId: string
               <tbody>
                 {model.pages.slice(0, 12).map((page) => (
                   <tr key={page.path} className="border-t border-border/50">
-                    <td className="py-2 pr-3 font-mono text-[11px]">{page.path}</td>
+                    <td className="py-2 pr-3 font-mono text-xs">{page.path}</td>
                     <td className="py-2 pr-3">{page.views}</td>
                     <td className="py-2 pr-3">{page.actions}</td>
                     <td className="py-2 pr-3">{(page.rate * 100).toFixed(1)}%</td>

@@ -194,12 +194,12 @@ function AdminClients() {
                   {client.owner_phone ? `${formatUsPhone(client.owner_phone)} · ` : ""}
                   {client.city ?? "no city"}
                 </p>
-                <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                <p className="mt-0.5 truncate text-xs text-muted-foreground">
                   {client.custom_domain ?? `/s/${client.slug}`} · joined{" "}
                   {dateShort(client.created_at)} · {number(client.leads)} leads ·{" "}
                   {number(client.appointments)} bookings
                 </p>
-                <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                <p className="mt-0.5 truncate text-xs text-muted-foreground">
                   {client.setup_paid_at
                     ? `Setup paid ${dateShort(client.setup_paid_at)}`
                     : "Setup unpaid"}{" "}
@@ -209,7 +209,7 @@ function AdminClients() {
                     : ""}
                 </p>
                 {statusBy.get(client.id)?.reasons.length ? (
-                  <p className="mt-0.5 text-[11px] text-muted-foreground">
+                  <p className="mt-0.5 text-xs text-muted-foreground">
                     {statusBy.get(client.id)!.reasons.map((reason) => reason.text).join(" ")}
                   </p>
                 ) : null}

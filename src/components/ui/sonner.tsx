@@ -1,4 +1,7 @@
 import { Toaster as Sonner } from "sonner";
+import { installToastGuard } from "@/lib/toast-guard";
+
+installToastGuard();
 
 type ToasterProps = React.ComponentProps<typeof Sonner>;
 

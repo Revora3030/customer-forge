@@ -32,11 +32,11 @@ function CheckRow({ check }: { check: PreflightCheck }) {
       {check.fix ? <p className="mt-1 text-[12px]">{check.fix}</p> : null}
       <div className="mt-2 flex flex-wrap items-center gap-2">
         {check.autoFixable ? (
-          <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] text-primary">
+          <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">
             Revora can fix this
           </span>
         ) : (
-          <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
+          <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
             Needs your input
           </span>
         )}
@@ -91,7 +91,7 @@ export function PreFlightPanel({
         </div>
         <div className="text-right">
           <p className="text-2xl font-semibold tabular-nums">{result.score}%</p>
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-xs text-muted-foreground">
             {isChecking ? "checking…" : result.publishSafe ? "publish safe" : "not ready"}
           </p>
         </div>

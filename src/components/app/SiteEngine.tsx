@@ -405,7 +405,7 @@ export function AiCopyAssistant({
               key={example}
               type="button"
               onClick={() => setInstruction(example)}
-              className="cursor-pointer rounded-full border border-border px-2.5 py-1 text-[11px] text-muted-foreground hover:bg-elevated"
+              className="cursor-pointer rounded-full border border-border px-2.5 py-1 text-xs text-muted-foreground hover:bg-elevated"
             >
               {example}
             </button>
@@ -431,7 +431,7 @@ export function AiCopyAssistant({
           <p className="text-[13px] font-medium">Suggested wording</p>
           {Object.entries(preview).map(([key, value]) => (
             <div key={key} className="space-y-1">
-              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{key}</p>
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">{key}</p>
               <p className="text-[13px]">{value}</p>
             </div>
           ))}

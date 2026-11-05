@@ -181,7 +181,7 @@ function Launch() {
               <span className={item.done ? "" : "text-muted-foreground"}>
                 {item.label}
                 {!item.done ? (
-                  <span className="block text-[11px]">
+                  <span className="block text-xs">
                     {item.fix}
                     {item.to ? (
                       <Link to={item.to} className="ml-1 text-primary hover:underline">
@@ -250,7 +250,7 @@ function Launch() {
           </p>
         )}
         {settings?.last_published_at ? (
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-xs text-muted-foreground">
             Last published {dateLong(settings.last_published_at)}
           </p>
         ) : null}
@@ -299,7 +299,7 @@ function Launch() {
                   {settings.dns_ok ? "Resolving here" : "Not pointing here"}
                 </Pill>
               </div>
-              <p className="mt-1.5 text-[11px] text-muted-foreground">
+              <p className="mt-1.5 text-xs text-muted-foreground">
                 Add an A record for <span className="font-mono">@</span> and{" "}
                 <span className="font-mono">www</span> pointing to{" "}
                 <span className="font-mono">185.158.133.1</span>.
@@ -316,7 +316,7 @@ function Launch() {
                       : "Waiting on DNS"}
                 </Pill>
               </div>
-              <p className="mt-1.5 text-[11px] text-muted-foreground">
+              <p className="mt-1.5 text-xs text-muted-foreground">
                 Certificates are issued automatically once DNS resolves here — usually within a few
                 hours.
               </p>
@@ -333,7 +333,7 @@ function Launch() {
           <p className="text-[12px] text-destructive">{settings.domain_error}</p>
         ) : null}
         {settings?.domain_checked_at ? (
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-xs text-muted-foreground">
             Last checked {dateLong(settings.domain_checked_at)}
           </p>
         ) : null}

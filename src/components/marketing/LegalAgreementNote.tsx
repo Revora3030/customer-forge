@@ -5,7 +5,7 @@
  */
 export function LegalAgreementNote({ action, className }: { action: string; className?: string }) {
   return (
-    <p className={className ?? "text-center text-[11.5px] leading-relaxed text-muted-foreground"}>
+    <p className={className ?? "text-center text-xs leading-relaxed text-muted-foreground"}>
       By {action}, you agree to our{" "}
       <a
         href="/terms"

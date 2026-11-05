@@ -595,7 +595,7 @@ function Dashboard() {
               <p className="tnum mt-1.5 font-display text-[22px] font-semibold">
                 <span className="gold-mark">{currency(stats.revenueWon)}</span>
               </p>
-              <p className="mt-1 text-[11px] text-muted-foreground">
+              <p className="mt-1 text-xs text-muted-foreground">
                 estimated value of completed jobs from leads created in range
               </p>
             </div>
@@ -604,7 +604,7 @@ function Dashboard() {
               <p className="tnum mt-1.5 font-display text-[22px] font-semibold">
                 {currency(stats.pipeline)}
               </p>
-              <p className="mt-1 text-[11px] text-muted-foreground">still winnable right now</p>
+              <p className="mt-1 text-xs text-muted-foreground">still winnable right now</p>
             </div>
           </div>
         </div>
@@ -620,7 +620,7 @@ function Dashboard() {
                 : `Busiest stretch: ${peak.count} lead${peak.count === 1 ? "" : "s"} around ${dateShort(new Date(peak.start).toISOString())}.`}
             </p>
           </div>
-          <span className="tnum shrink-0 text-[11px] text-muted-foreground">
+          <span className="tnum shrink-0 text-xs text-muted-foreground">
             {stats.trend.length} pts
           </span>
         </div>
@@ -638,7 +638,7 @@ function Dashboard() {
             />
           ))}
         </div>
-        <div className="mt-2 flex justify-between text-[11px] text-muted-foreground">
+        <div className="mt-2 flex justify-between text-xs text-muted-foreground">
           <span>{dateShort(window.from.toISOString())}</span>
           <span>{dateShort(window.to.toISOString())}</span>
         </div>
@@ -720,7 +720,7 @@ function Dashboard() {
                 <p className="mt-1.5 text-[12px] leading-relaxed text-muted-foreground">
                   {section.description}
                 </p>
-                <p className="mt-2 inline-flex items-center gap-1 text-[11.5px] font-semibold tracking-[0.08em] text-primary uppercase">
+                <p className="mt-2 inline-flex items-center gap-1 text-xs font-semibold tracking-[0.08em] text-primary uppercase">
                   Open <ArrowRight className="size-3.5" aria-hidden="true" />
                 </p>
               </Link>
@@ -776,7 +776,7 @@ function Dashboard() {
               <li key={lead.id} className="flex items-center justify-between gap-3 py-2.5">
                 <div className="min-w-0">
                   <p className="truncate text-[13px] font-medium">{lead.name}</p>
-                  <p className="truncate text-[11px] text-muted-foreground">
+                  <p className="truncate text-xs text-muted-foreground">
                     {[lead.service_interest, relative(lead.created_at)].filter(Boolean).join(" · ")}
                   </p>
                 </div>
@@ -810,7 +810,7 @@ function Dashboard() {
               <li key={appt.id} className="flex items-center justify-between gap-3 py-2.5">
                 <div className="min-w-0">
                   <p className="truncate text-[13px] font-medium">{appt.name}</p>
-                  <p className="text-[11px] text-muted-foreground">
+                  <p className="text-xs text-muted-foreground">
                     {dateShort(appt.starts_at)} · {timeShort(appt.starts_at)}
                   </p>
                 </div>
@@ -851,7 +851,7 @@ function Dashboard() {
               <li key={lead.id} className="flex items-center justify-between gap-3 py-2.5">
                 <div className="min-w-0">
                   <p className="truncate text-[13px] font-medium">{lead.name}</p>
-                  <p className="truncate text-[11px] text-muted-foreground">
+                  <p className="truncate text-xs text-muted-foreground">
                     {[lead.source, lead.service_interest, relative(lead.created_at)]
                       .filter(Boolean)
                       .join(" · ")}

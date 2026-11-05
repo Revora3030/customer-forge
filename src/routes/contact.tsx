@@ -77,7 +77,7 @@ function Contact() {
   const send = useServerFn(submitContactRequest);
 
   return (
-    <div className="min-h-screen pb-20 md:pb-0">
+    <div className="min-h-dvh pb-20 md:pb-0">
       <SiteHeader />
       <main className="hero-aura mx-auto max-w-6xl px-4 py-16">
         <div className="grid gap-10 lg:grid-cols-[1fr_1fr] lg:items-start lg:gap-12">
@@ -205,7 +205,7 @@ function Contact() {
                     name="interest"
                     value={interest}
                     onChange={(e) => setInterest(e.target.value)}
-                    className="select-field h-10 w-full rounded-md border border-input bg-background px-3 text-[13px] text-foreground"
+                    className="select-field h-11 sm:h-10 w-full rounded-md border border-input bg-background px-3 text-[13px] text-foreground"
                   >
                     {INTERESTS.map((i) => (
                       <option key={i} value={i}>
@@ -222,7 +222,7 @@ function Contact() {
                   {sending ? "Sending…" : "Send message"}
                 </Button>
 
-                <p className="text-[11px] leading-relaxed text-muted-foreground">
+                <p className="text-xs leading-relaxed text-muted-foreground">
                   Your message goes to the Revora team inbox.
                 </p>
                 <AltchaField />

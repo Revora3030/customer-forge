@@ -26,7 +26,7 @@ export function LeadRoutingAudit() {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className="eyebrow">Routing check</p>
-          <p className="mt-1 text-[11px] text-muted-foreground">
+          <p className="mt-1 text-xs text-muted-foreground">
             Last 72 hours of real leads, read from the stored delivery rows: right workspace, right
             recipient, delivered. Nothing is sent to read this.
           </p>

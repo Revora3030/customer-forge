@@ -141,7 +141,7 @@ export function LeadEngineSimulator() {
               {/* Screen */}
               <div className="flex h-[200px] flex-col overflow-hidden rounded-[1rem] bg-gradient-to-b from-primary/5 to-background">
                 <div className="flex items-center justify-between border-b border-border/40 px-3 py-1.5">
-                  <span className="text-[9px] font-medium text-muted-foreground">9:41 AM</span>
+                  <span className="text-xs font-medium text-muted-foreground">9:41 AM</span>
                   <Phone className="size-2.5 text-muted-foreground" aria-hidden="true" />
                 </div>
                 <div className="flex-1 overflow-y-auto p-2.5">
@@ -151,17 +151,17 @@ export function LeadEngineSimulator() {
                         <div className="flex size-5 items-center justify-center rounded-full bg-primary text-[8px] font-bold text-primary-foreground">
                           R
                         </div>
-                        <span className="text-[9.5px] font-semibold text-foreground">Revora Growth AI</span>
+                        <span className="text-xs font-semibold text-foreground">Revora Growth AI</span>
                         <span className="text-[8px] text-muted-foreground">now</span>
                       </div>
-                      <div className="ml-6 rounded-2xl rounded-tl-sm bg-primary/10 px-2.5 py-1.5 text-[10px] leading-snug text-foreground">
+                      <div className="ml-6 rounded-2xl rounded-tl-sm bg-primary/10 px-2.5 py-1.5 text-xs leading-snug text-foreground">
                         Hi {customerName}, this is Revora Growth AI. We saw you requested a quote —
                         here's your instant estimate and next available slot.
                       </div>
                     </div>
                   ) : (
                     <div className="flex h-full items-center justify-center">
-                      <span className="text-[10px] text-muted-foreground">
+                      <span className="text-xs text-muted-foreground">
                         {stage === "submitting" ? "Sending SMS…" : "Waiting for a lead…"}
                       </span>
                     </div>
@@ -186,7 +186,7 @@ export function LeadEngineSimulator() {
             return (
               <div key={entry.stage} className="flex items-center gap-1.5">
                 <div
-                  className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                  className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
                     isCurrent
                       ? "border-primary bg-primary/15 text-primary"
                       : isActive

@@ -64,7 +64,7 @@ export function SecurityCheckLine({
                 <p className="text-[12px] font-medium">
                   {item.title}
                   {item.severity === "blocker" ? (
-                    <span className="ml-2 rounded-full bg-destructive/10 px-2 py-0.5 text-[11px] text-destructive">
+                    <span className="ml-2 rounded-full bg-destructive/10 px-2 py-0.5 text-xs text-destructive">
                       stops publishing
                     </span>
                   ) : null}
