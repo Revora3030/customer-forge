@@ -26,6 +26,8 @@ import {
 import { aiCauseFromCalls, describeAiPressure, failureKindForAiCause, AI_CAUSE_OWNER_MESSAGE, type AiCallOutcome, type AiCause } from "@/lib/builder/ai-cause";
 import { creditsExhaustedForAttempt, creditsFailLine } from "@/lib/builder/credit-fail-fast";
 import { menuNeedsHelp } from "@/lib/service-suggestions";
+import { recordOpsSpan } from "@/lib/ops-trace.server";
+import { errorTypeOf } from "@/lib/ops-trace";
 import {
   INTERRUPTED_BUILD_MESSAGE,
   RECOVERING_BUILD_MESSAGE,
@@ -3377,6 +3379,7 @@ export async function drainSiteEngineQueue(
       heartbeat.stop();
       attemptAbort.abort();
       processed += 1;
+      recordOpsSpan({ name: "site.generate", traceKey: String(job.id), startedAtMs: Date.parse(attemptStartedAt), endedAtMs: Date.now(), outcome: "ok", attributes: { "revora.attempt": Number(job.attempts) } });
       await noteJobFallback(db, job, attemptStartedAt);
     } catch (error) {
       registerProgressWatch(job.id, null);
@@ -3416,6 +3419,16 @@ export async function drainSiteEngineQueue(
       const isGateway = error instanceof RevoraAiError;
       const status = isGateway ? (error as InstanceType<typeof RevoraAiError>).status : 0;
       const message = error instanceof Error ? error.message : "Generation failed.";
+      // BRF-03: one trace span per ended attempt (class name, stage, timings; never the message).
+      recordOpsSpan({
+        name: "site.generate",
+        traceKey: String(job.id),
+        startedAtMs: Date.parse(attemptStartedAt),
+        endedAtMs: Date.now(),
+        outcome: "failed",
+        errorType: errorTypeOf(error),
+        attributes: { "revora.attempt": Number(job.attempts), "revora.stage": (error as { stage?: string | null } | null)?.stage ?? null },
+      });
 
       if (error instanceof FreshRebuildRollbackError || error instanceof PartialBuildKeptError) {
         failed += 1;
