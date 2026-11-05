@@ -21,13 +21,14 @@ const send = {
   channel: "sms" as const,
   to: "+15555550100",
 };
-const codePr = {
-  id: "code.pr" as const,
-  title: "Fix lint",
-  body: "notes",
-  branch: "fix/lint",
-  files: [{ path: "a.ts", content: "x" }],
-} as WriteProposal;
+const codePr: WriteProposal = {
+  id: "code.pr",
+  pr: {
+    title: "Fix lint in approvals",
+    summary: "Tighten the approval card types so the inbox compiles cleanly.",
+    changes: [{ path: "src/lib/x.ts", content: "export {}" }],
+  },
+};
 const research = {
   id: "research.ask" as const,
   question: "What is Revora?",
