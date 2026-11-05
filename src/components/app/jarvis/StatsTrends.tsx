@@ -93,7 +93,7 @@ export function StatsTrendsView({
         </ul>
       ) : null}
       {data ? (
-        <p className="text-[11px] text-muted-foreground">
+        <p className="text-xs text-muted-foreground">
           Builds use generation job updates; leads exclude the test_lead source; trials are customer workspaces only
           (same rule as the platform funnel); approvals are rows created on the approval queue. Checked{" "}
           {new Date(data.checkedAt).toLocaleString()}.
@@ -116,11 +116,11 @@ function TrendCard({ series, windowDays, rowLimit }: { series: TrendSeries; wind
         {values ? (
           <Sparkline values={values} label={`${series.label}, last ${windowDays} days`} unit="days" />
         ) : (
-          <p className="text-[11px] text-muted-foreground">not measured — this source could not be read.</p>
+          <p className="text-xs text-muted-foreground">not measured — this source could not be read.</p>
         )}
       </div>
       {series.capped ? (
-        <p className="mt-1 text-[11px] text-muted-foreground">
+        <p className="mt-1 text-xs text-muted-foreground">
           Only the newest {rowLimit.toLocaleString("en-US")} rows were read, so N is a floor.
         </p>
       ) : null}
