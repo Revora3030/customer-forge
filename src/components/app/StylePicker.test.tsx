@@ -25,10 +25,10 @@ afterEach(() => {
 });
 
 describe("StylePicker", () => {
-  it("shows three look cards, each with a swatch, a font sample and the layout feel, plus Skip", () => {
+  it("shows six look cards, each with a swatch, a font sample and the layout feel, plus Skip", () => {
     const { el } = mount(null);
     const cards = el.querySelectorAll<HTMLElement>('[role="radio"]');
-    expect(cards).toHaveLength(3);
+    expect(cards).toHaveLength(6);
     resolvedStylePicks().forEach((pick, i) => {
       const card = cards[i]!;
       expect(card.textContent).toContain(pick.name);
