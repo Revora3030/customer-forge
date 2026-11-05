@@ -55,8 +55,9 @@ export function isSocialHost(hostname: string): boolean {
 export function cleanText(raw: string, max = 120): string {
   return raw
     .replace(/<[^>]*>/g, " ")
-    .replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+    // &amp; is decoded last so "&amp;lt;" stays the literal text "&lt;" (no double unescape).
+    .replace(/&nbsp;/g, " ").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, "&")
     // eslint-disable-next-line no-control-regex -- stripping control/bidi characters from untrusted page text is the point
     .replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069]/g, " ")
     .replace(/[<>`]/g, "")
