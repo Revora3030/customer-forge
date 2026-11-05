@@ -12,7 +12,9 @@ import { CheckCircle2, CircleAlert, CircleHelp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useBusinessProfile, useWebsiteSettings } from "@/lib/queries";
 import { supabase } from "@/integrations/supabase/client";
-import { buildSeoReview, type SeoReviewStatus } from "@/lib/seo-review";
+import { FixAllButton, FixItButton } from "@/components/app/FixItCard";
+import type { FixFinding } from "@/lib/fix-it";
+import { buildAiSearchItem, buildSeoReview, type SeoReviewItem, type SeoReviewStatus } from "@/lib/seo-review";
 import type { SiteSeo } from "@/lib/site-seo";
 import { cn } from "@/lib/utils";
 
@@ -22,12 +24,30 @@ function StatusIcon({ status }: { status: SeoReviewStatus }) {
   return <CircleHelp className="size-4 text-muted-foreground" aria-hidden />;
 }
 
+/** Owner-only items (profile facts, Search Console) never get an AI fix that would guess. */
+const OWNER_ONLY: ReadonlySet<SeoReviewItem["id"]> = new Set(["local_business", "search_console"]);
+
+function toFinding(item: SeoReviewItem): FixFinding & { key: string } {
+  return { key: item.id, title: item.label, plainReason: item.detail, scope: "site", needsOwner: OWNER_ONLY.has(item.id) };
+}
+
+async function readText(url: string): Promise<{ status: number; text: string } | null> {
+  try {
+    const res = await fetch(url, { cache: "no-store" });
+    return { status: res.status, text: res.ok ? await res.text() : "" };
+  } catch {
+    return null;
+  }
+}
+
 export function SeoReviewCard({
   organizationId,
   businessName,
+  slug,
 }: {
   organizationId: string | undefined;
   businessName: string | null | undefined;
+  slug?: string | null | undefined;
 }) {
   const { data: settings, isPending: settingsPending } = useWebsiteSettings(organizationId);
   const { data: profile, isPending: profilePending } = useBusinessProfile(organizationId);
@@ -45,7 +65,19 @@ export function SeoReviewCard({
     },
   });
 
-  const items = buildSeoReview({
+  const published = settings?.publish_state === "published";
+  const aiQuery = useQuery({
+    queryKey: ["seo-review-ai-search", slug],
+    enabled: !!slug && published && typeof window !== "undefined",
+    staleTime: 10 * 60_000,
+    queryFn: async () => {
+      const siteUrl = `${window.location.origin}/s/${encodeURIComponent(slug!)}`;
+      const [robots, llms] = await Promise.all([readText(`${siteUrl}/robots.txt`), readText(`${siteUrl}/llms.txt`)]);
+      return { siteUrl, robotsTxt: robots && robots.status === 200 ? robots.text : null, llmsStatus: llms?.status ?? null };
+    },
+  });
+
+  const items = [...buildSeoReview({
     seo: (settings?.seo as SiteSeo | null | undefined) ?? null,
     businessName,
     profile: profile
@@ -59,8 +91,9 @@ export function SeoReviewCard({
         }
       : null,
     images: imagesQuery.data ?? null,
-    published: settings?.publish_state === "published",
-  });
+    published,
+  }), buildAiSearchItem(published ? (aiQuery.data ?? null) : null)];
+  const findings = items.filter((item) => item.status === "needs_work").map(toFinding);
 
   const pending = settingsPending || profilePending || imagesQuery.isPending;
   const needs = items.filter((item) => item.status === "needs_work").length;
@@ -81,6 +114,7 @@ export function SeoReviewCard({
                 : "Title, local details, photos, and publish state look ready. Open Search to verify Google results yourself."}
           </p>
         </div>
+        <FixAllButton findings={findings} />
       </div>
 
       <ul className="mt-4 space-y-2">
@@ -96,6 +130,9 @@ export function SeoReviewCard({
                 <p className="mt-0.5 text-[12px] text-muted-foreground">{item.detail}</p>
               </div>
             </div>
+            {item.status === "needs_work" ? (
+              <FixItButton finding={toFinding(item)} />
+            ) : (
             <Button
               asChild
               size="sm"
@@ -110,6 +147,7 @@ export function SeoReviewCard({
                 </Link>
               )}
             </Button>
+            )}
           </li>
         ))}
       </ul>

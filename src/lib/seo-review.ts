@@ -6,12 +6,13 @@
  * and sitemap/meta fill belong to SEO & Content (CG-16); this only reports
  * what is present and points the owner at the existing Fix screens.
  */
+import { parseRobots } from "@/lib/robots";
 import type { SiteSeo } from "@/lib/site-seo";
 
 export type SeoReviewStatus = "ok" | "needs_work" | "check";
 
 export type SeoReviewItem = {
-  id: "title_desc" | "local_business" | "alt_text" | "sitemap" | "search_console";
+  id: "title_desc" | "local_business" | "alt_text" | "sitemap" | "search_console" | "ai_search";
   label: string;
   detail: string;
   status: SeoReviewStatus;
@@ -121,4 +122,39 @@ export function buildSeoReview(input: SeoReviewInput): SeoReviewItem[] {
   };
 
   return [titleDesc, local, alt, sitemap, gsc];
+}
+
+/** AI crawlers the AI-search line checks against the site's own robots.txt. */
+export const AI_SEARCH_CRAWLERS = ["GPTBot", "ClaudeBot", "PerplexityBot"] as const;
+
+/**
+ * What was actually fetched from the published site. `null` = not fetched or
+ * the fetch failed (shown as "Not verified", never guessed).
+ */
+export type AiSearchProbe = {
+  /** Home URL of the published site, e.g. https://example.com/s/acme */
+  siteUrl: string;
+  robotsTxt: string | null;
+  /** HTTP status of /llms.txt, or null when it could not be read. */
+  llmsStatus: number | null;
+} | null;
+
+/** The AI-search line: measured from the live robots.txt and llms.txt only. */
+export function buildAiSearchItem(probe: AiSearchProbe): SeoReviewItem {
+  const base = { id: "ai_search" as const, label: "AI search access", fixTo: "/app/website" as const, fixSearch: { section: "seo" }, fixLabel: "Open SEO" };
+  if (!probe || probe.robotsTxt === null || probe.llmsStatus === null) {
+    return { ...base, status: "check", detail: "Not verified. We couldn't read your live robots.txt and llms.txt just now, or the site isn't published yet." };
+  }
+  const home = `${probe.siteUrl.replace(/\/+$/, "")}/`;
+  const policy = parseRobots(new URL("robots.txt", home).toString(), probe.robotsTxt);
+  const blocked = AI_SEARCH_CRAWLERS.filter((agent) => !policy.isAllowed(home, agent));
+  const llmsOk = probe.llmsStatus === 200;
+  if (!blocked.length && llmsOk) {
+    return { ...base, status: "ok", detail: `Measured: robots.txt lets ${AI_SEARCH_CRAWLERS.join(", ")} read your home page, and llms.txt (an AI-readable summary) is live.` };
+  }
+  const problems = [
+    ...(blocked.length ? [`robots.txt blocks ${blocked.join(", ")}`] : []),
+    ...(llmsOk ? [] : [`llms.txt returned ${probe.llmsStatus}`]),
+  ];
+  return { ...base, status: "needs_work", detail: `Measured: ${problems.join("; ")}.` };
 }

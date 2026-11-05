@@ -505,7 +505,7 @@ function Dashboard() {
         visits={events.filter((e) => e.event_type === "page_view").length}
       />
 
-      <SeoReviewCard organizationId={orgId} businessName={org?.name ?? null} />
+      <SeoReviewCard organizationId={orgId} businessName={org?.name ?? null} slug={org?.slug ?? null} />
 
       <AiVisibilityCard organizationId={orgId} industry={org?.industry ?? null} />
 
