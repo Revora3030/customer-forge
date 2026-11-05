@@ -23,11 +23,10 @@ const themed = (muted: string) => ({
     }],
   },
 });
-const html = (tree: unknown, keepStyle = false) => {
+const html = (tree: unknown) => {
   const result = validateComposition(tree, { allowedMediaRefs: new Set(), lenient: true } as never);
   const ok = (result as { ok: boolean; tree?: unknown }).tree ?? (tree as never);
-  const out = renderToStaticMarkup(<CompositionRenderer tree={ok as never} scope="t" resolveWidget={() => <span>w</span>} />);
-  return keepStyle ? out : out.replace(/<style[^>]*>[\s\S]*?<\/style>/g, "");
+  return renderToStaticMarkup(<CompositionRenderer tree={ok as never} scope="t" resolveWidget={() => <span>w</span>} />);
 };
 
 describe("builder 390: state abbreviations stay upper case", () => {
@@ -68,7 +67,8 @@ describe("builder 390: no empty Services rows", () => {
     const out = html({ version: 1, root: { type: "stack", children: [{ type: "heading", level: 2, text: "Services" }, { type: "card", children: [{ type: "text", text: "   " }] }, { type: "text", text: "Hello there" }] } });
     expect(out).toContain("Hello there");
     expect(out).not.toMatch(/<p[^>]*>\s*<\/p>/);
-    expect(out).not.toContain("data-rv-card");
+    // The attribute form only: the shared <style> sheet mentions [data-rv-card] as a selector.
+    expect(out).not.toMatch(/<[a-z][^>]*\sdata-rv-card/);
   });
 });
 
@@ -84,7 +84,7 @@ describe("builder 390: sticky chrome never covers content", () => {
     expect(PREMIUM_CSS.split("html:has(.pm-header,.rv-site-header){scroll-padding-top").length).toBe(2);
   });
   it("the shared sheet carries the safety rules", () => {
-    expect(html({ version: 1, root: { type: "stack", children: [{ type: "text", text: "x" }] } }, true)).toContain("scroll-padding-top");
+    expect(html({ version: 1, root: { type: "stack", children: [{ type: "text", text: "x" }] } })).toContain("scroll-padding-top");
   });
 });
 
@@ -96,7 +96,7 @@ describe("builder 390: form helper text and fields meet 4.5:1", () => {
     expect(ok["--muted-foreground"]).toBe("#b8c2bc");
   });
   it("the renderer applies the same clamp", () => {
-    const out = html(themed("#2c3631"), true);
+    const out = html(themed("#2c3631"));
     const muted = /--muted-foreground:(#[0-9a-fA-F]{6})/.exec(out)?.[1];
     expect(muted).toBeTruthy();
     expect(contrastRatio(muted!, "#1b2420")!).toBeGreaterThanOrEqual(4.5);
