@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router";
+import { Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { GROWTH_SYSTEM, usd } from "@/lib/offer";
 import type {
@@ -248,7 +249,7 @@ export function ProductionSummaryCard({ status }: { status: ProductionStatus | u
         ))}
       </div>
       <div className="mt-3 rounded-md border border-accent/30 bg-accent/5 p-3">
-        <p className="text-[12.5px] font-medium">🔒 Production launch</p>
+        <p className="flex items-center gap-1.5 text-[12.5px] font-medium"><Lock className="size-3.5" aria-hidden="true" /> Production launch</p>
         <p className="mt-0.5 text-[12px] text-muted-foreground">
           {status.accountStatus === "expired"
             ? "Your website and configuration are saved. Complete setup to continue and launch."
