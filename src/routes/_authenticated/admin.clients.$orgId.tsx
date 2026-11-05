@@ -34,6 +34,7 @@ import { writeSupportMode } from "@/lib/support-mode";
 import { dnsRows, readLovableVerification } from "@/lib/domain-setup";
 import { currency, dateShort, dateLong, formatUsPhone, number } from "@/lib/format";
 import { Sparkline } from "@/components/demo/DemoCharts";
+import { SiteSnapshotPanel } from "@/components/app/SiteSnapshotPanel";
 
 export const Route = createFileRoute("/_authenticated/admin/clients/$orgId")({
   head: () => ({
@@ -592,6 +593,8 @@ function ClientDetail() {
           )}
         </ul>
       </Panel>
+
+      <SiteSnapshotPanel organizationId={orgId} />
 
       {/* Handoff */}
       <Panel className="space-y-3">

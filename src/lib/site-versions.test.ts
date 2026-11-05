@@ -166,4 +166,9 @@ describe("prunableVersionIds", () => {
   it("never prunes the live site and the previous known-good version", () => {
     expect(prunableVersionIds(rows(5), 0)).toEqual(["v3", "v2", "v1"]);
   });
+  it("never prunes a pinned checkpoint, and pins don't use up a kept place", () => {
+    const pinned = rows(23).map((row) => (row.version === 1 || row.version === 22 ? { ...row, pinned: "true" } : row));
+    expect(prunableVersionIds(pinned)).toEqual(["v2"]);
+    expect(prunableVersionIds(rows(23).map((row) => ({ ...row, pinned: row.version === 2 })))).toEqual(["v3", "v1"]);
+  });
 });
