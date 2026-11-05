@@ -91,3 +91,19 @@ describe("summarizeTapTargets", () => {
     expect(summarizeTapTargets([], 390)).toEqual({ checked: 0, smallCount: 0, smallest: null, clientWidth: 390, examples: [] });
   });
 });
+
+describe("fluid slider ceiling by screen", () => {
+  it("caps the preview width on phone-sized screens and leaves desktops alone", async () => {
+    const { fluidMaxForScreen, FLUID_MAX_WIDTH_SMALL_SCREEN } = await import("./fluid-viewport");
+    expect(fluidMaxForScreen(390)).toBe(FLUID_MAX_WIDTH_SMALL_SCREEN);
+    expect(fluidMaxForScreen(767)).toBe(FLUID_MAX_WIDTH_SMALL_SCREEN);
+    expect(fluidMaxForScreen(768)).toBe(FLUID_MAX_WIDTH);
+    expect(fluidMaxForScreen(1440)).toBe(FLUID_MAX_WIDTH);
+    expect(fluidMaxForScreen(undefined)).toBe(FLUID_MAX_WIDTH);
+    expect(fluidMaxForScreen(0)).toBe(FLUID_MAX_WIDTH);
+  });
+  it("clamps to a custom ceiling", () => {
+    expect(clampFluidWidth(1440, 390, 820)).toBe(820);
+    expect(clampFluidWidth(500, 390, 820)).toBe(500);
+  });
+});

@@ -70,7 +70,7 @@ import { pageNavLabel, type ContentPage } from "@/lib/website-content";
 import { pageOfSection } from "@/lib/builder/step-target";
 import { cn } from "@/lib/utils";
 import { FluidBadges, FluidViewportSlider } from "@/components/app/FluidViewportControls";
-import { clampFluidWidth, type OverflowReading, type TapReading } from "@/lib/builder/fluid-viewport";
+import { clampFluidWidth, FLUID_MAX_WIDTH, fluidMaxForScreen, type OverflowReading, type TapReading } from "@/lib/builder/fluid-viewport";
 import { PhoneLayoutPanel } from "@/components/app/PhoneLayoutPanel";
 import { LiveCanvasSkeleton } from "@/components/app/LiveCanvasSkeleton";
 import { SiteSkeleton } from "@/components/site/SiteSkeleton";
@@ -186,6 +186,11 @@ function BuilderPreviewFrame({
   }, []);
   // B13-5: a slider width (320 to 1440) overrides the preset until one is chosen again.
   const [customWidth, setCustomWidth] = useState<number | null>(null);
+  // A phone tab is not asked to lay out a 1440 px site (iPhone Safari ran out of memory doing so).
+  const [fluidMax, setFluidMax] = useState(FLUID_MAX_WIDTH);
+  useEffect(() => {
+    if (typeof window !== "undefined") setFluidMax(fluidMaxForScreen(window.innerWidth));
+  }, []);
   const [zoom, setZoom] = useState(0.75);
   const [refreshKey, setRefreshKey] = useState(0);
   const [fullscreen, setFullscreen] = useState(false);
@@ -870,7 +875,7 @@ function BuilderPreviewFrame({
             Updating your preview…
           </div>
         ) : null}
-        <FluidViewportSlider width={viewportWidth} onChange={(next) => setCustomWidth(clampFluidWidth(next))} />
+        <FluidViewportSlider width={viewportWidth} max={fluidMax} onChange={(next) => setCustomWidth(clampFluidWidth(next, 390, fluidMax))} />
         <div className="mb-2 flex flex-wrap items-center justify-center gap-1.5 text-[11.5px]" data-testid="builder-preview-status">
           <span className="rounded-full border border-border/70 bg-background/80 px-2 py-0.5 tnum text-muted-foreground">{viewportWidth}px</span>
           <FluidBadges viewportWidth={viewportWidth} overflow={overflow} taps={taps} />
