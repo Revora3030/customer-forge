@@ -14,6 +14,7 @@ import { ModelEvidence } from "./ModelEvidence";
 import { GateScoreboard } from "./GateScoreboard";
 import { SHEET_HEIGHT_DVH, SHEET_TALL_DVH, sheetDragResult, sheetOffset } from "@/lib/city-nav";
 import { TodayBriefing } from "./TodayBriefing";
+import { FloorStack } from "./FloorStack";
 import { CITY_DISTRICTS, FAILURE_CAUSE_HINT, ageLabel, districtFailureSummary, districtState, hourlyBuckets, missionsFor, pipelineStages, runningFor, workIsActive, type CitySnapshot, type CityWork, type DistrictId, type SalesMission } from "@/lib/ai-city";
 
 type Props = {
@@ -92,6 +93,7 @@ export function DistrictInspector({ open, onOpenChange, district, snapshot, now,
         <Stat label="Queued" value={snapshot ? queued.length : null} />
         <Stat label="Failed · 48h" value={failures ? failures.count : null} suffix={failures?.capped ? "+" : ""} />
       </div>
+      <FloorStack district={district} snapshot={snapshot} now={now} />
       {district === "executive" ? <TodayBriefing snapshot={snapshot} now={now} onDraft={onDraft} /> : null}
       {failures?.groups.length ? <section className="mt-4" aria-label="Why it failed">
         <h3 className="text-xs font-semibold uppercase">Why it failed</h3>
