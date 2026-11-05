@@ -45,8 +45,11 @@ export function AiVisibilityCard({ organizationId, industry }: { organizationId:
 
   const record = useMutation({
     mutationFn: async (input: { index: number; prompt: string; mentioned: boolean }) => {
+      // RLS requires recorded_by = the signed-in user on insert and update (re-recording re-stamps it).
+      const userId = (await supabase.auth.getUser()).data.user?.id;
+      if (!userId) throw new Error("Not signed in");
       const { error } = await db.from("ai_visibility_checks").upsert(
-        { organization_id: organizationId, month, prompt_index: input.index, prompt: input.prompt, mentioned: input.mentioned },
+        { organization_id: organizationId, month, prompt_index: input.index, prompt: input.prompt, mentioned: input.mentioned, recorded_by: userId, recorded_at: new Date().toISOString() },
         { onConflict: "organization_id,month,prompt_index" },
       );
       if (error) throw error;

@@ -32,11 +32,11 @@ BEGIN
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'ai_visibility_checks' AND policyname = 'ai_visibility_checks_member_insert') THEN
     CREATE POLICY ai_visibility_checks_member_insert ON public.ai_visibility_checks
-      FOR INSERT TO authenticated WITH CHECK (private.is_org_member(organization_id));
+      FOR INSERT TO authenticated WITH CHECK (private.is_org_member(organization_id) AND recorded_by = (SELECT auth.uid()));
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'ai_visibility_checks' AND policyname = 'ai_visibility_checks_member_update') THEN
     CREATE POLICY ai_visibility_checks_member_update ON public.ai_visibility_checks
-      FOR UPDATE TO authenticated USING (private.is_org_member(organization_id)) WITH CHECK (private.is_org_member(organization_id));
+      FOR UPDATE TO authenticated USING (private.is_org_member(organization_id)) WITH CHECK (private.is_org_member(organization_id) AND recorded_by = (SELECT auth.uid()));
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = 'ai_visibility_checks' AND policyname = 'ai_visibility_checks_member_delete') THEN
     CREATE POLICY ai_visibility_checks_member_delete ON public.ai_visibility_checks
