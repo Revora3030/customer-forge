@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_EVENT_RULES, planEventResponses } from "@/lib/cognition/event-rules";
 import { eventMarker } from "@/lib/jarvis-event-watch.server";
-import { eventNoticeLabel, parseEventNotice, QUIET_RULES } from "./jarvis-event-notice";
+import { EVENT_NOTICE_LABELS, eventNoticeLabel, parseEventNotice, QUIET_RULES } from "./jarvis-event-notice";
 
 const noticeFor = (proposal: { ruleId: string; subject: string; summary: string; prompt: string }) =>
   `Heads up ${eventMarker(proposal.ruleId, proposal.subject)}\n\n${proposal.summary}\n\nNothing was changed or sent. Send this to Jarvis to open the recovery: “${proposal.prompt}”`;
@@ -36,5 +36,12 @@ describe("parseEventNotice", () => {
 
   it("labels unknown rules in plain words", () => {
     expect(eventNoticeLabel("some-new-rule")).toBe("Some new rule");
+  });
+  it("gives every DEFAULT_EVENT_RULES id a human label (JC-46)", () => {
+    for (const rule of DEFAULT_EVENT_RULES) {
+      expect(EVENT_NOTICE_LABELS[rule.id], rule.id).toBeTruthy();
+      expect(eventNoticeLabel(rule.id)).toBe(EVENT_NOTICE_LABELS[rule.id]);
+      expect(eventNoticeLabel(rule.id)).not.toBe(rule.id);
+    }
   });
 });
