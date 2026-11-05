@@ -61,6 +61,7 @@ import { ResultCards } from "@/components/app/builder-chat/ResultCards";
 import { ChatSearch, VoiceDictationButton } from "@/components/app/ChatThreadTools";
 import { ApplyResultCard } from "@/components/app/builder-chat/ApplyResultCard";
 import { InspectChanges } from "@/components/app/builder-chat/InspectChanges";
+import { RepairStreamCard } from "@/components/app/builder-chat/RepairStreamCard";
 import { MessageMenu } from "@/components/app/builder-chat/MessageMenu";
 import { CheckpointTimelineButton, RestoreBeforeMessage } from "@/components/app/builder-chat/checkpoints-mount";
 import { useComposerMenu } from "@/components/app/builder-chat/ComposerMenu";
@@ -1191,6 +1192,7 @@ function TaskBody({
         </div>
       ) : null}
 
+      <RepairStreamCard repair={result ? task.repair : null} onRestore={onOpenHistory} />
       <ResultCards organizationId={organizationId} composition={task.composition} finished={result} />
 
       {task.steps.length && !result ? (
