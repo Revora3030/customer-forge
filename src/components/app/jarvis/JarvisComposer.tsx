@@ -229,7 +229,7 @@ export function JarvisComposer({ value, onChange, onSubmit, maxLength, busy, onS
                 <DropdownMenuRadioItem key={id} value={id} className="min-h-11 items-start py-2">
                   <span className="flex min-w-0 flex-col gap-0.5">
                     <span>{label}</span>
-                    <span className="whitespace-normal text-[11px] font-normal leading-snug text-muted-foreground">
+                    <span className="whitespace-normal text-xs font-normal leading-snug text-muted-foreground">
                       {modeExplainerLine(id)}
                     </span>
                   </span>
