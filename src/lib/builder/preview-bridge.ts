@@ -76,6 +76,16 @@ export type PreviewToBuilderMessage =
       /** Arrange mode: Ctrl/Cmd+Z inside the preview undoes the last move. */
       source: typeof PREVIEW_BRIDGE_SOURCE;
       type: "undo-move";
+    }
+  | {
+      /** Controls measured inside the frame at its current width (B13-5). */
+      source: typeof PREVIEW_BRIDGE_SOURCE;
+      type: "tap-report";
+      checked: number;
+      smallCount: number;
+      smallest: number | null;
+      clientWidth: number;
+      examples: string[];
     };
 
 /** One low-contrast text element found in the preview. */
@@ -123,6 +133,11 @@ export type BuilderToPreviewMessage =
       /** Ask the preview to scan its text contrast (WCAG 2.2 AA). */
       source: typeof PREVIEW_BRIDGE_SOURCE;
       type: "run-a11y-check";
+    }
+  | {
+      /** Ask the preview to measure its tap targets at the current width. */
+      source: typeof PREVIEW_BRIDGE_SOURCE;
+      type: "run-tap-check";
     }
   | {
       /** Floating status on the preview while the team works on a block. */
@@ -209,6 +224,24 @@ export function readPreviewMessage(data: unknown): PreviewToBuilderMessage | nul
     return { source: PREVIEW_BRIDGE_SOURCE, type: "a11y-report", issueCount: count, issues };
   }
   if (record["type"] === "undo-move") return { source: PREVIEW_BRIDGE_SOURCE, type: "undo-move" };
+  if (record["type"] === "tap-report") {
+    const whole = (value: unknown, max: number) => Math.max(0, Math.min(max, Math.round(Number(value) || 0)));
+    const smallCount = whole(record["smallCount"], 99999);
+    const rawSmallest = record["smallest"];
+    const smallest = smallCount > 0 && typeof rawSmallest === "number" && Number.isFinite(rawSmallest) ? whole(rawSmallest, 99999) : null;
+    const examples = Array.isArray(record["examples"])
+      ? (record["examples"] as unknown[]).map((item) => text(item, 80)).filter((item): item is string => Boolean(item)).slice(0, 3)
+      : [];
+    return {
+      source: PREVIEW_BRIDGE_SOURCE,
+      type: "tap-report",
+      checked: Math.max(smallCount, whole(record["checked"], 99999)),
+      smallCount,
+      smallest,
+      clientWidth: whole(record["clientWidth"], 99999),
+      examples,
+    };
+  }
   const id = typeof record["id"] === "string" ? record["id"] : "";
   if (!ID_PATTERN.test(id)) return null;
   if (record["type"] === "move-section" || record["type"] === "insert-section") {
@@ -257,6 +290,7 @@ export function readBuilderMessage(data: unknown): BuilderToPreviewMessage | nul
       .slice(0, MAX_ORDER_IDS);
     return { source: PREVIEW_BRIDGE_SOURCE, type: "order", ids: [...new Set(ids)], announce: text(record["announce"], 120) };
   }
+  if (record["type"] === "run-tap-check") return { source: PREVIEW_BRIDGE_SOURCE, type: "run-tap-check" };
   if (record["type"] === "reveal") {
     const id = typeof record["id"] === "string" ? record["id"] : "";
     return ID_PATTERN.test(id) ? { source: PREVIEW_BRIDGE_SOURCE, type: "reveal", id } : null;

@@ -417,6 +417,9 @@ export function clientHeadExtrasSync(
   return {
     meta: theme ? [{ name: "theme-color", content: theme }] : [],
     scripts: [
+      // LOV-4: visitor error feed. Deferred, never blocks render; the script itself
+      // does nothing if the endpoint is down (see public/ve.js and visitor-errors.test.ts).
+      ...(site.org.id ? [{ src: "/ve.js", defer: true, "data-o": site.org.id }] : []),
       {
         type: "application/ld+json",
         children: safeJsonLd(

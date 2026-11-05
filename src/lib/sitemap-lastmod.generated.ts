@@ -4,13 +4,13 @@ export const SITEMAP_LASTMOD: {
   groups: Record<string, string>;
   docs: Record<string, string>;
 } = {
-  "generatedAt": "2026-10-31",
+  "generatedAt": "2026-11-05",
   "groups": {
-    "home": "2026-10-31",
-    "pricing": "2026-10-31",
-    "get-started": "2026-10-31",
+    "home": "2026-11-04",
+    "pricing": "2026-11-01",
+    "get-started": "2026-11-01",
     "crm-for-contractors": "2026-10-31",
-    "crm-hub": "2026-10-31",
+    "crm-hub": "2026-11-01",
     "crm-page": "2026-10-31",
     "website-audit": "2026-10-31",
     "growth-assessment": "2026-10-31",
@@ -24,13 +24,15 @@ export const SITEMAP_LASTMOD: {
     "locations-page": "2026-10-31",
     "states-hub": "2026-10-27",
     "states-page": "2026-10-31",
+    "help-hub": "2026-11-05",
+    "help-page": "2026-11-05",
     "guides-hub": "2026-10-31",
     "compare-hub": "2026-10-31",
     "compare-page": "2026-10-31",
-    "about": "2026-10-31",
-    "contact": "2026-10-31",
-    "privacy": "2026-10-31",
-    "terms": "2026-10-31"
+    "about": "2026-11-04",
+    "contact": "2026-11-01",
+    "privacy": "2026-11-01",
+    "terms": "2026-11-01"
   },
   "docs": {
     "compare/revora-vs-buying-leads": "2026-10-31",
@@ -42,22 +44,22 @@ export const SITEMAP_LASTMOD: {
     "local/auto-detailing-north-carolina": "2026-10-31",
     "local/auto-detailing-texas": "2026-10-31",
     "local/cleaning-north-carolina": "2026-10-31",
-    "local/contractors-arizona": "2026-10-31",
-    "local/contractors-north-carolina": "2026-10-31",
-    "local/hvac-alabama": "2026-10-31",
+    "local/contractors-arizona": "2026-11-01",
+    "local/contractors-north-carolina": "2026-11-01",
+    "local/hvac-alabama": "2026-11-01",
     "local/hvac-florida": "2026-10-31",
     "local/hvac-georgia": "2026-10-31",
     "local/hvac-north-carolina": "2026-10-31",
     "local/hvac-south-carolina": "2026-10-31",
     "local/hvac-texas": "2026-10-31",
     "local/landscaping-arizona": "2026-10-31",
-    "local/landscaping-north-carolina": "2026-10-31",
+    "local/landscaping-north-carolina": "2026-11-01",
     "local/plumbing-florida": "2026-10-31",
     "local/plumbing-georgia": "2026-10-31",
-    "local/plumbing-north-carolina": "2026-10-31",
+    "local/plumbing-north-carolina": "2026-11-01",
     "local/plumbing-texas": "2026-10-31",
     "local/roofing-florida": "2026-10-31",
-    "local/roofing-north-carolina": "2026-10-31",
+    "local/roofing-north-carolina": "2026-11-01",
     "local/roofing-texas": "2026-10-31"
   }
 };

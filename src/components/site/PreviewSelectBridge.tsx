@@ -32,6 +32,7 @@ import {
 } from "@/lib/builder/preview-bridge";
 import { contrast, over, parseColor, requiredRatio, type Rgba } from "@/lib/builder/contrast-scan";
 import { siteThemeStyle } from "@/lib/site-theme";
+import { summarizeTapTargets, type TapCandidate } from "@/lib/builder/fluid-viewport";
 import { DOUBLE_TAP_MS, isDoubleTap, type Tap } from "@/lib/builder/inline-edit";
 import { createArrangeController } from "@/components/site/preview-arrange";
 
@@ -354,6 +355,24 @@ export function PreviewSelectBridge() {
       post({ source: PREVIEW_BRIDGE_SOURCE, type: "a11y-report", issueCount, issues });
     };
 
+    /* ----------------------- tap targets (44 px minimum) ---------------------- */
+    const TAP_SELECTOR = 'a[href], button, input:not([type="hidden"]), select, textarea, summary, [role="button"], [role="link"]';
+    const runTapCheck = () => {
+      const candidates: TapCandidate[] = [];
+      for (const node of Array.from(document.querySelectorAll(TAP_SELECTOR))) {
+        if (layer.contains(node) || node.closest("[data-studio]")) continue;
+        const style = getComputedStyle(node);
+        if (style.visibility === "hidden" || style.display === "none" || Number(style.opacity) === 0) continue;
+        // A link inside a sentence is exempt (WCAG 2.5.8 inline exception).
+        if (node.tagName === "A" && style.display === "inline" && node.closest("p, li, dd, blockquote")) continue;
+        const rect = node.getBoundingClientRect();
+        candidates.push({ width: rect.width, height: rect.height, label: describe(node) });
+      }
+      const doc = document.documentElement;
+      const report = summarizeTapTargets(candidates, doc.clientWidth || window.innerWidth);
+      post({ source: PREVIEW_BRIDGE_SOURCE, type: "tap-report", ...report });
+    };
+
     /* ------------------------------- handlers ------------------------------- */
     const onMessage = (event: MessageEvent) => {
       if (event.origin !== origin || event.source !== window.parent) return;
@@ -369,6 +388,10 @@ export function PreviewSelectBridge() {
       }
       if (message.type === "order") {
         arrange.applyOrder(message.ids, message.announce ?? null);
+        return;
+      }
+      if (message.type === "run-tap-check") {
+        runTapCheck();
         return;
       }
       if (message.type === "reveal") {
