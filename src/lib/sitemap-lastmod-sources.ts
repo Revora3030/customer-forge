@@ -32,6 +32,7 @@ export const LASTMOD_SOURCE_GROUPS: Readonly<Record<string, readonly string[]>> 
   contact: ["src/routes/contact.tsx"],
   privacy: ["src/routes/privacy.tsx"],
   terms: ["src/routes/terms.tsx"],
+  "whats-new": ["src/routes/whats-new.tsx", "src/lib/whats-new.ts"],
 };
 
 const STATIC_GROUPS: Readonly<Record<string, string>> = {
@@ -54,6 +55,7 @@ const STATIC_GROUPS: Readonly<Record<string, string>> = {
   "/contact": "contact",
   "/privacy": "privacy",
   "/terms": "terms",
+  "/whats-new": "whats-new",
 };
 
 /** The group a sitemap path belongs to, or null when it is not one we know. */

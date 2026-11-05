@@ -95,7 +95,7 @@ export function classifyIntent(path: string): SearchIntent {
   if (/^\/industries/.test(p)) return "industry";
   if (/^\/(crm|crm-for-contractors|website-audit|growth-assessment|tools|demo)/.test(p))
     return "commercial";
-  if (/^\/(about|privacy|terms|share|help)/.test(p)) return "navigational";
+  if (/^\/(about|privacy|terms|share|help|whats-new)/.test(p)) return "navigational";
   return "commercial";
 }
 
@@ -271,6 +271,7 @@ export function seoInventory(): SeoPage[] {
       "The terms that apply to Revora's services.",
       500,
     ),
+    page("/whats-new", "revora what's new", "What's new — Revora", "Recent improvements to Revora that are live now.", 150),
     // Deliberately excluded from search: a share helper and interactive demos
     // are not answers to a search query.
     page("/share", "", "Share Revora", "Share Revora with another business owner.", 90, false),

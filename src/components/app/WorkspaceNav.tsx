@@ -1,7 +1,9 @@
+import { useEffect, useState } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import type { LucideIcon } from "lucide-react";
 import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { WHATS_NEW_SEEN_KEY, hasUnreadEntry } from "@/lib/whats-new";
 
 export type WorkspaceNavItem = {
   to: string;
@@ -24,6 +26,25 @@ function NavLink({ item, onNavigate }: { item: WorkspaceNavItem; onNavigate?: ()
     >
       <Icon className="size-4 shrink-0" aria-hidden="true" />
       <span className="min-w-0 flex-1 truncate">{item.label}</span>
+    </Link>
+  );
+}
+
+function WhatsNewLink({ onNavigate }: { onNavigate?: () => void }) {
+  const [unread, setUnread] = useState(false);
+  useEffect(() => {
+    let seen: string | null = null;
+    try { seen = window.localStorage.getItem(WHATS_NEW_SEEN_KEY); } catch { /* storage blocked */ }
+    setUnread(hasUnreadEntry(seen));
+  }, []);
+  return (
+    <Link
+      to="/whats-new"
+      {...(onNavigate ? { onClick: onNavigate } : {})}
+      className="flex min-h-11 items-center gap-3 rounded-md px-3 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-elevated hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
+    >
+      <span className="min-w-0 flex-1 truncate">What's new</span>
+      {unread ? <span className="size-2 rounded-full bg-primary" aria-label="New updates" /> : null}
     </Link>
   );
 }
@@ -63,6 +84,7 @@ export function WorkspaceNav({
           </div>
         </details>
       ) : null}
+      <WhatsNewLink {...(onNavigate ? { onNavigate } : {})} />
     </nav>
   );
 }
