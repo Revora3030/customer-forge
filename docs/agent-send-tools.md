@@ -19,4 +19,19 @@
 - `campaigns.send`: no campaign sender exists yet.
 
 ## Registry
-Not registered by this PR. Registration is a one-line add (`...sendTools()`) in the default registry after PAI-8b (#739) lands, plus a `createApprovalsConsumer` as the registry's `approvals` dependency.
+Registered (PAI-4 loop wiring): `() => sendTools()` is appended to `AGENT_TOOL_GROUPS` in `src/lib/agent/tools/index.ts`, so `agentTools()` wraps each send tool in the PAI-5 limits exactly once. Do not wrap them again anywhere else.
+
+With no `approvals` dependency the registry still refuses them (`needs_approval`). To run approved sends, build the registry with `approvals: createAgentApprovalWiring(approvalDeps).registry` and give the loop `approvals: createAgentApprovalWiring(approvalDeps).loop` (`src/lib/agent/loop-approvals.server.ts`). The loop then files the owner's approval, pauses the run, and resumes it after the decision. An approved retry with the same arguments runs once; a changed, declined or expired one does not.
+
+## Turning the agent loop on (`AGENT_LOOP_ENABLED`)
+
+The loop is wired in `src/lib/agent/loop-install.server.ts` and registered by the worker route
+(`/api/public/jobs/agent-runs`). It is **off by default**: with `AGENT_LOOP_ENABLED` unset (or anything
+other than `1`, `true`, `on`, `yes`) no executor is registered and queued runs behave exactly as before.
+
+When on, one executor runs memory recall and proposals (PAI-10), pauses risky sends for the owner's
+approval (PAI-4), and applies the PAI-5 limits and kill switches once. The kill switches are
+`AGENT_RUNS_DISABLED=1` (everyone) and the workspace's `agent_settings.enabled`.
+
+Tools get a read-only client pinned to the run's workspace, so write tools are refused until a later
+step gives the worker a safe way to run them. Runs with no owner cannot use tools.

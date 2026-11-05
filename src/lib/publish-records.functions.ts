@@ -130,6 +130,7 @@ export const recordPublishAndSmoke = createServerFn({ method: "POST" })
     return { organizationId, version, sourceVersion: source && source >= 1 ? source : null };
   })
   .handler(async ({ data, context }) => {
+    const smokeStartedAt = Date.now();
     const { requireOrgRole } = await import("@/lib/org-authz.server");
     await requireOrgRole(context.supabase, data.organizationId, context.userId, "manager");
     // The version must really be this workspace's published version.
@@ -187,6 +188,7 @@ export const recordPublishAndSmoke = createServerFn({ method: "POST" })
     // Probe every address a visitor can use (platform /s/<slug> and, when
     // verified, the custom domain); the publish passes only if all answer.
     const checks: SmokeResult["checks"] = [];
+    let homeHtml: string | null = null;
     for (const target of targets) {
       const probes: SmokeProbe[] = [];
       for (const path of paths) {
@@ -209,6 +211,9 @@ export const recordPublishAndSmoke = createServerFn({ method: "POST" })
           console.warn("[publish-smoke] fetch failed", target.label, (error as Error)?.message);
         }
       }
+      // Kept for the post-publish verification (the address visitors see first wins).
+      const home = probes.find((p) => p.path === "/" && p.status >= 200 && p.status < 400);
+      if (home) homeHtml = home.body;
       checks.push(...labelChecks(target.label, evaluateSmoke(probes, { businessName: (org as { name?: string } | null)?.name ?? null })));
     }
     if (pendingDomain) {
@@ -218,6 +223,26 @@ export const recordPublishAndSmoke = createServerFn({ method: "POST" })
       ? { status: checks.length > 0 && checks.every((c) => c.ok) ? "passed" : "failed", checks }
       : null;
     if (!slug) console.warn("[publish-smoke] skipped: workspace has no public address (slug)");
+    // TEN-06 item 25: lead routing, tracking and the 390px overlay check on top
+    // of the live-page smoke. Sends nothing. The stored pass/fail is what the
+    // version list reads as `verification_status`.
+    const { verifyPublishedSite } = await import("@/lib/post-publish-verify.server");
+    const verification = result
+      ? await verifyPublishedSite(context.supabase as never, {
+          organizationId: data.organizationId,
+          version: data.version,
+          smoke: result,
+          homeHtml,
+        }).catch((error: unknown) => {
+          console.warn("[publish-verify] failed", (error as Error)?.message);
+          return null;
+        })
+      : null;
+    const status: "passed" | "failed" | "skipped" = result
+      ? verification?.verification_status === "failed"
+        ? "failed"
+        : result.status
+      : "skipped";
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     await (supabaseAdmin as unknown as import("@supabase/supabase-js").SupabaseClient).from("publish_events").insert({
@@ -225,20 +250,33 @@ export const recordPublishAndSmoke = createServerFn({ method: "POST" })
       version: data.version,
       source_version: data.sourceVersion,
       published_by: context.userId,
-      smoke_status: result ? result.status : "skipped",
-      smoke_report: { url: base, checks: result?.checks ?? [] },
+      smoke_status: status,
+      smoke_report: { url: base, checks: result?.checks ?? [], verification },
     });
-    if (result?.status === "failed") {
+    if (status === "failed") {
       await supabaseAdmin.from("audit_logs").insert({
         organization_id: data.organizationId,
         actor_id: context.userId,
         action: "PUBLISH_SMOKE_FAILED",
         entity: "website",
         entity_id: data.organizationId,
-        metadata: { version: data.version, checks: result.checks } as never,
+        metadata: { version: data.version, checks: result?.checks ?? [], verification } as never,
       });
     }
-    return { status: result?.status ?? "skipped", url: base, checks: result?.checks ?? [] };
+    {
+      const { recordOpsSpan } = await import("@/lib/ops-trace.server");
+      const all = result?.checks ?? [];
+      recordOpsSpan({
+        name: "site.deploy.smoke",
+        traceKey: crypto.randomUUID(),
+        startedAtMs: smokeStartedAt,
+        endedAtMs: Date.now(),
+        outcome: status === "failed" ? "failed" : result ? "ok" : "blocked",
+        ...(status === "failed" ? { errorType: "SmokeCheckFailed" } : {}),
+        attributes: { "revora.smoke.checks": all.length, "revora.smoke.failed_checks": all.filter((c) => !c.ok).length },
+      });
+    }
+    return { status, url: base, checks: result?.checks ?? [], verification };
   });
 
 /**

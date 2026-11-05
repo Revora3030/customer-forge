@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { QueryErrorNotice } from "@/components/app/QueryErrorNotice";
 import { getVisitorErrorFeed } from "@/lib/visitor-errors.functions";
 import { VISITOR_ERROR_KIND_LABEL } from "@/lib/visitor-errors";
 
@@ -10,6 +11,18 @@ export function VisitorProblems({ organizationId }: { organizationId: string }) 
     staleTime: 5 * 60_000,
   });
   const groups = feed.data?.groups ?? [];
+  // A failed read is not "no problems": say so, so the owner is never told all is well by accident.
+  if (feed.isError && !feed.data) {
+    return (
+      <div className="mt-3">
+        <QueryErrorNotice
+          title="We couldn't check what visitors ran into."
+          retry={() => feed.refetch()}
+          retrying={feed.isFetching}
+        />
+      </div>
+    );
+  }
   if (groups.length === 0) return null;
   return (
     <section className="panel mt-3 p-4" aria-label="Problems visitors hit">

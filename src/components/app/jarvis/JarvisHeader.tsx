@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Download, MoreHorizontal, Radio, RefreshCw, Square, Trash2, Volume2, VolumeX, Wrench, MessagesSquare } from "lucide-react";
 import { LogoMark } from "@/components/brand/Logo";
 import { Button } from "@/components/ui/button";
@@ -32,13 +32,15 @@ type Props = {
   clearDisabled: boolean;
   onClear: () => void;
   onOpenConversations: () => void;
+  /** The approvals badge and sheet (JC-36), shown before the Live button. */
+  inbox?: ReactNode;
 };
 
 const dotTone = { ran: "bg-emerald-500", unavailable: "bg-destructive", unknown: "bg-muted-foreground/50" } as const;
 
 /** One 56px row: identity and status, then Stop, Live, voice and an overflow menu. */
 export function JarvisHeader(props: Props) {
-  const { voiceState, level, status, checks, onOpenChecks, speaking, onStopSpeaking, live, onToggleLive, voice, onToggleVoice, refreshing, onRefreshDiagnostics, onExport, showOperationsItem, onOpenOperations, clearDisabled, onClear, onOpenConversations } = props;
+  const { voiceState, level, status, checks, onOpenChecks, speaking, onStopSpeaking, live, onToggleLive, voice, onToggleVoice, refreshing, onRefreshDiagnostics, onExport, showOperationsItem, onOpenOperations, clearDisabled, onClear, onOpenConversations, inbox } = props;
   const [confirmClear, setConfirmClear] = useState(false);
   return (
     <header className="relative z-30 flex h-14 shrink-0 items-center gap-2 border-b border-white/10 bg-white/[0.03] px-3 backdrop-blur-xl sm:px-4">
@@ -63,24 +65,26 @@ export function JarvisHeader(props: Props) {
         </div>
       </div>
       {speaking ? (
-        <Button type="button" variant="outline" size="sm" data-jarvis-tap="" aria-label="Stop speaking" onClick={onStopSpeaking} className="h-9 shrink-0 gap-1.5 rounded-full px-3 text-sm sm:h-9">
+        <Button type="button" variant="outline" size="sm" data-jarvis-tap="" aria-label="Stop speaking" onClick={onStopSpeaking} className="h-11 min-w-11 shrink-0 gap-1.5 rounded-full px-3 text-sm">
           <Square className="size-3.5 fill-current" aria-hidden />
           <span aria-hidden>Stop</span>
         </Button>
       ) : null}
+      {inbox}
       <Button
         type="button"
         variant="ghost"
         data-jarvis-tap=""
         aria-pressed={live}
+        title="Talk hands-free: Jarvis listens, sends when you stop talking, answers out loud, then listens again"
         onClick={onToggleLive}
-        className={`h-9 shrink-0 gap-1.5 rounded-full px-3 text-sm sm:min-h-9 ${live ? "bg-primary/15 text-primary ring-1 ring-primary/40 hover:bg-primary/20 hover:text-primary" : "text-foreground"}`}
+        className={`h-11 min-w-11 shrink-0 gap-1.5 rounded-full px-3 text-sm ${live ? "bg-primary/15 text-primary ring-1 ring-primary/40 hover:bg-primary/20 hover:text-primary" : "text-foreground"}`}
       >
         <Radio className="size-4" aria-hidden />Live
       </Button>
       <Tooltip>
         <TooltipTrigger asChild>
-          <Button type="button" variant="ghost" size="icon-sm" data-jarvis-tap="" aria-label={voice ? "Mute replies" : "Speak replies"} aria-pressed={voice} onClick={onToggleVoice} className={`pointer-events-auto relative z-30 size-9 shrink-0 rounded-full sm:size-9 ${voice ? "bg-primary/20 text-primary ring-1 ring-primary/50" : ""}`}>
+          <Button type="button" variant="ghost" size="icon-sm" data-jarvis-tap="" aria-label={voice ? "Mute replies" : "Speak replies"} aria-pressed={voice} onClick={onToggleVoice} className={`pointer-events-auto relative z-30 size-11 shrink-0 rounded-full ${voice ? "bg-primary/20 text-primary ring-1 ring-primary/50" : ""}`}>
             {voice ? <Volume2 className="size-4" aria-hidden /> : <VolumeX className="size-4" aria-hidden />}
           </Button>
         </TooltipTrigger>

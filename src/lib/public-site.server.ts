@@ -112,6 +112,38 @@ export type LiveSnapshot = {
  * the previous behaviour (served from the working tree) until their next
  * publish, so no live site is ever rolled back to an old copy.
  */
+/**
+ * Earlier published copies (newest first, older than `beforeVersion`), only
+ * their publish time and pages, for per-page sitemap dates. Capped so a
+ * sitemap request stays cheap; any read error just means no history.
+ */
+export async function loadPublishedHistory(
+  orgId: string,
+  beforeVersion: number,
+  limit = 10,
+): Promise<{ publishedAt: string | null; pages: Record<string, unknown>[] }[]> {
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data, error } = await supabaseAdmin
+      .from("website_versions")
+      .select("version, pages, published_at")
+      .eq("organization_id", orgId)
+      .eq("pages->>live_format", String(LIVE_SNAPSHOT_FORMAT))
+      .not("published_at", "is", null)
+      .lt("version", beforeVersion)
+      .order("version", { ascending: false })
+      .limit(limit);
+    if (error || !Array.isArray(data)) return [];
+    return data.flatMap((row) => {
+      const body = (row.pages ?? {}) as Record<string, unknown>;
+      if (body["live_format"] !== LIVE_SNAPSHOT_FORMAT || !Array.isArray(body["pages"])) return [];
+      return [{ publishedAt: (row.published_at as string | null) ?? null, pages: body["pages"] as Record<string, unknown>[] }];
+    });
+  } catch {
+    return [];
+  }
+}
+
 export async function loadLiveSnapshot(orgId: string): Promise<LiveSnapshot | null> {
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -622,7 +654,17 @@ export async function loadSite(
  * Validates a shareable preview token. Returns the organisation slug only when
  * the link exists, has not been revoked and has not expired.
  */
-export async function resolvePreviewToken(token: string) {
+export async function resolvePreviewToken(
+  token: string,
+  options?: {
+    /**
+     * Runs for a live link before anything is read or counted; return false to
+     * keep the content closed (LOV-6: a link with a password the visitor has not
+     * entered). Expired and revoked links are answered before this runs.
+     */
+    beforeCount?: (link: { id: string }) => Promise<boolean>;
+  },
+) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data: link } = await supabaseAdmin
     .from("website_preview_links")
@@ -635,6 +677,8 @@ export async function resolvePreviewToken(token: string) {
   const expiresAt = new Date(link.expires_at).getTime();
   if (!Number.isFinite(expiresAt) || expiresAt <= Date.now())
     return { ok: false as const, reason: "expired" as const };
+  if (options?.beforeCount && !(await options.beforeCount({ id: link.id as string })))
+    return { ok: false as const, reason: "password" as const };
 
   const { data: org } = await supabaseAdmin
     .from("organizations")
@@ -650,6 +694,7 @@ export async function resolvePreviewToken(token: string) {
 
   return {
     ok: true as const,
+    linkId: link.id as string,
     slug: org.slug,
     organizationId: link.organization_id as string,
     expiresAt: link.expires_at,

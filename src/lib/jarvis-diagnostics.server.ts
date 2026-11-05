@@ -65,6 +65,16 @@ const CONTRACTS = {
   lead_delivery_logs: ["idempotency_key", "webhook_url", "status_code", "response_body"],
 } as const;
 
+/** Read-only API contract probes (zero-row selects); shared by the diagnostics and the City release board. */
+export async function probeSchemaContracts(db: SupabaseClient): Promise<SchemaDiagnostics> {
+  const contracts: SchemaDiagnostics["contracts"] = [];
+  for (const [table, columns] of Object.entries(CONTRACTS)) {
+    const { error } = await db.from(table).select(columns.join(",")).limit(0);
+    contracts.push({ table, columns: [...columns], status: error ? "unavailable" : "query_contract_accepted", code: error?.code ?? null });
+  }
+  return { contracts, limitation: "API contract probes only; failures can reflect permissions, schema cache, project identity or migrations. Do not generate additive DDL from this alone." };
+}
+
 function describeFailure(error: unknown): string {
   const record = error as { code?: unknown; message?: unknown } | null;
   const code = typeof record?.code === "string" ? record.code : null;
@@ -139,14 +149,7 @@ export async function collectJarvisDiagnostics(db: SupabaseClient): Promise<Jarv
         possiblyTruncated: (jobs.data?.length ?? 0) >= 5000 || (publishes.data?.length ?? 0) >= 5000 || (images.data?.length ?? 0) >= 10000,
       };
     }, "Seven-day bounded aggregate; not a verified cause of an individual stalled build."),
-    checked<SchemaDiagnostics>(async () => {
-      const contracts: SchemaDiagnostics["contracts"] = [];
-      for (const [table, columns] of Object.entries(CONTRACTS)) {
-        const { error } = await db.from(table).select(columns.join(",")).limit(0);
-        contracts.push({ table, columns: [...columns], status: error ? "unavailable" : "query_contract_accepted", code: error?.code ?? null });
-      }
-      return { contracts, limitation: "API contract probes only; failures can reflect permissions, schema cache, project identity or migrations. Do not generate additive DDL from this alone." };
-    }, "Read-only API contract probes; not a migration-history or RLS audit."),
+    checked<SchemaDiagnostics>(() => probeSchemaContracts(db), "Read-only API contract probes; not a migration-history or RLS audit."),
     checked<VoiceDiagnostics>(async () => {
       const voiceSince = new Date(Date.now() - 86_400_000).toISOString();
       const { data, error } = await db.from("error_events")

@@ -1,18 +1,17 @@
 /**
  * The one place live run steps can switch from polling to Supabase Realtime.
  *
- * CU-1 reads steps by polling (2.5-4 s, see work-feed.hooks.ts and the Jarvis
- * run-events query). PAI-2's durable run store (#538) is merged, but nothing
- * writes the builder's or Jarvis's steps into it yet, and its tables
- * (agent_runs, agent_run_steps, agent_run_events) are not in the
- * `supabase_realtime` publication. Once a feed writes there and a migration
- * adds the table to the publication, set `RUN_EVENTS_REALTIME` to
- * `{ table: "agent_run_steps", filterColumn: "run_id" }`: the task tree then
- * refetches the moment a row changes and polls only slowly as a safety net.
- * While the source is null, or the channel is not connected, nothing changes:
- * the existing polling keeps the tree live. There is deliberately no public
- * unauthenticated stream; Realtime goes through the signed-in session, so the
- * table's own row-level security (member read) decides who can see a run.
+ * Jarvis live steps are written to `jarvis_run_events` (see
+ * jarvis-events.server.ts). JC-32 publishes that table into
+ * `supabase_realtime` (migration 20261105140000_jarvis_run_events_realtime.sql)
+ * and points `RUN_EVENTS_REALTIME` at it. While the channel is not connected,
+ * or the publication has not been applied yet, the existing polling keeps the
+ * tree live. There is deliberately no public unauthenticated stream; Realtime
+ * goes through the signed-in session, so the table's own row-level security
+ * (member/owner read) decides who can see a run.
+ *
+ * PAI-2's agent_runs / agent_run_steps tables stay on polling until a feed
+ * writes there and a separate publication lands.
  */
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -24,8 +23,11 @@ export type RealtimeSource = {
   schema?: string;
 };
 
-/** PAI-2's step table, once a feed writes there and it is published. Null = polling only. */
-export const RUN_EVENTS_REALTIME: RealtimeSource | null = null;
+/** Jarvis run-event feed. Null would force polling-only. */
+export const RUN_EVENTS_REALTIME: RealtimeSource | null = {
+  table: "jarvis_run_events",
+  filterColumn: "run_id",
+};
 
 /** How often to poll while a Realtime channel is connected (a safety net, not the live path). */
 export const REALTIME_SAFETY_POLL_MS = 15_000;

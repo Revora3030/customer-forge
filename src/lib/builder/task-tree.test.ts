@@ -96,8 +96,8 @@ describe("total elapsed for a finished run", () => {
 });
 
 describe("realtime plug-in point", () => {
-  it("ships polling-only until PAI-2's table is wired, and slows polling only while connected", () => {
-    expect(RUN_EVENTS_REALTIME).toBeNull();
+  it("points at jarvis_run_events and slows polling only while connected", () => {
+    expect(RUN_EVENTS_REALTIME).toEqual({ table: "jarvis_run_events", filterColumn: "run_id" });
     expect(pollInterval(2500, false)).toBe(2500);
     expect(pollInterval(2500, true)).toBe(REALTIME_SAFETY_POLL_MS);
   });

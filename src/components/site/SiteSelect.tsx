@@ -83,7 +83,7 @@ export function SiteSelect({
         {...(value !== undefined ? { value, onChange: (e: ChangeEvent<HTMLSelectElement>) => onChange?.(e.target.value) } : { defaultValue: current })}
         aria-labelledby={labelledBy}
         aria-label={labelledBy ? undefined : ariaLabel}
-        className={cn("h-11 w-full rounded-xl border border-border bg-background px-3 text-[15px]", className)}
+        className={cn("h-11 w-full rounded-xl border border-border bg-background px-3 text-[15px] text-foreground", className)}
       >
         {options.map((o, i) => (
           <option key={`${i}-${o.value}`} value={o.value}>{o.label}</option>
@@ -142,7 +142,7 @@ export function SiteSelect({
           setActive(selectedIndex);
           setOpen((o) => !o);
         }}
-        className="flex h-11 w-full cursor-pointer select-none items-center justify-between gap-2 rounded-xl border border-border bg-background px-3 text-left text-[15px] transition-[border-color,box-shadow] duration-200 hover:border-primary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary aria-expanded:border-primary motion-reduce:transition-none"
+        className="flex h-11 w-full cursor-pointer select-none items-center justify-between gap-2 rounded-xl border border-border bg-background px-3 text-left text-[15px] text-foreground transition-[border-color,box-shadow] duration-200 hover:border-primary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary aria-expanded:border-primary motion-reduce:transition-none"
       >
         <span className="truncate">{shown?.label ?? ""}</span>
         <ChevronDown aria-hidden="true" className={cn("size-4 shrink-0 opacity-70 transition-transform duration-200 motion-reduce:transition-none", open && "rotate-180")} />

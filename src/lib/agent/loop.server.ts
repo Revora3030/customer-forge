@@ -17,6 +17,11 @@
  *   says which tool. Tool failures are never hidden from the model or owner.
  * - A tool that needs approval ends the run as `needs_approval`; the loop never
  *   sends anything itself and never gets an organization id from the model.
+ *   With `approvals` supplied (PAI-4) the loop first files the owner's approval
+ *   request for those exact arguments, saves a checkpoint and pauses. When the
+ *   owner decides, the run resumes: an approved action is tried again with the
+ *   same arguments and goes through once; a declined or expired one is not
+ *   asked for again and the model is told to say so.
  * - Write tools are followed by a verification read when one is provided.
  * - Every exit path writes one terminal event (`run_finished`) first.
  *
@@ -33,6 +38,8 @@ import {
   type RunExecutor,
   type RunOutcome,
 } from "@/lib/agent/run-store.server";
+import { admitRun, globalKillSwitchOn, markRunFinished, markRunStarted, supabaseLimitsDeps, type LimitsDeps } from "@/lib/agent/limits.server";
+import { hashApprovalArgs } from "@/lib/agent/approvals.server";
 import { buildSystemPrompt, formatObservation, parseNextStep, type ProtocolTool } from "@/lib/agent/protocol";
 
 export type LoopMessage = { role: "user" | "assistant"; content: string };
@@ -68,6 +75,20 @@ export class LoopBudgetError extends Error {
 
 export type LoopToolCall = { name: string; args: unknown; requestId: string; stepId: string };
 
+/**
+ * PAI-4: files an approval request for a tool call the registry refused with
+ * `needs_approval`. See `createLoopApprovals` in loop-approvals.server.ts.
+ */
+export type LoopApprovals = {
+  request: (input: {
+    run: AgentRun;
+    tool: string;
+    args: Record<string, unknown>;
+    why?: string;
+    stepId: string;
+  }) => Promise<{ ok: true; approvalId: string; summary: string } | { ok: false; message: string }>;
+};
+
 export type LoopDeps = {
   /** One model turn. Returns the parsed JSON object. Throws LoopBudgetError when over budget. */
   askModel: (input: { system: string; messages: LoopMessage[]; run: AgentRun }) => Promise<{ data: unknown; costMicrocents?: number }>;
@@ -78,11 +99,22 @@ export type LoopDeps = {
   /** Re-reads what a write tool changed. Without it the loop says verification was skipped. */
   verifyWrite?: (input: { tool: string; args: unknown; result: ToolResultV2 & { ok: true } }) => Promise<{ ok: boolean; detail: string }>;
   limits?: Partial<LoopLimits>;
+  /** PAI-4 approval requests. Without it a needs_approval tool result just ends the run. */
+  approvals?: LoopApprovals;
+  /**
+   * PAI-5 run-level limits. When set, the loop admits the run (kill switches,
+   * concurrent and hourly limits) before doing anything, re-checks the kill
+   * switches before every step, and releases its slot on every exit. Per-tool
+   * call rate limits are NOT applied here: registry tools already go through
+   * PAI-5 (#739), so counting them again would double-charge.
+   */
+  runLimits?: LimitsDeps;
   now?: () => number;
   sleep?: (ms: number) => Promise<void>;
 };
 
-type LoopState = { step: number; history: LoopMessage[]; spent: number };
+type PendingApproval = { tool: string; argsHash: string; approvalId: string };
+type LoopState = { step: number; history: LoopMessage[]; spent: number; approval: PendingApproval | null };
 
 function readState(checkpoint: Record<string, unknown>): LoopState {
   const raw = checkpoint["loop"] as Partial<LoopState> | undefined;
@@ -92,7 +124,13 @@ function readState(checkpoint: Record<string, unknown>): LoopState {
           !!m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string",
       )
     : [];
+  const pending = (raw as { approval?: Partial<PendingApproval> } | undefined)?.approval;
+  const approval =
+    pending && typeof pending.tool === "string" && typeof pending.argsHash === "string" && typeof pending.approvalId === "string"
+      ? { tool: pending.tool, argsHash: pending.argsHash, approvalId: pending.approvalId }
+      : null;
   return {
+    approval,
     step: typeof raw?.step === "number" && raw.step >= 0 ? Math.floor(raw.step) : 0,
     history,
     spent: typeof raw?.spent === "number" && raw.spent >= 0 ? raw.spent : 0,
@@ -102,6 +140,65 @@ function readState(checkpoint: Record<string, unknown>): LoopState {
 const clip = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1)}…` : text);
 
 export async function runAgentLoop(ctx: RunContext, deps: LoopDeps): Promise<RunOutcome> {
+  const gate = deps.runLimits;
+  if (!gate) return runLoopBody(ctx, deps);
+  const admission = await admitRun({ organizationId: ctx.run.organization_id, runId: ctx.run.id }, gate);
+  if (!admission.ok) {
+    const switchedOff = admission.reason === "global_kill_switch" || admission.reason === "workspace_disabled";
+    const outcome: RunOutcome = switchedOff
+      ? { status: "cancelled", summary: admission.message }
+      : { status: "failed", error: admission.message };
+    try {
+      await ctx.event("run_refused", admission.message, { reason: admission.reason });
+    } catch (error) {
+      if (error instanceof LostLeaseError) throw error;
+    }
+    // A refused run may still hold an admission (e.g. resumed, then switched off): free it.
+    await release(ctx.run.id, gate);
+    return outcome;
+  }
+  try {
+    await markRunStarted(ctx.run.id, gate);
+  } catch (error) {
+    console.error("[agent-loop] mark started failed", (error as Error).message);
+  }
+  let lostLease = false;
+  try {
+    return await runLoopBody(ctx, deps, () => killSwitchMessage(ctx.run.organization_id, gate));
+  } catch (error) {
+    // Another worker now owns the run; it keeps the slot.
+    if (error instanceof LostLeaseError) lostLease = true;
+    throw error;
+  } finally {
+    if (!lostLease) await release(ctx.run.id, gate);
+  }
+}
+
+async function release(runId: string, gate: LimitsDeps) {
+  try {
+    await markRunFinished(runId, gate);
+  } catch (error) {
+    console.error("[agent-loop] releasing the run slot failed", (error as Error).message);
+  }
+}
+
+/** Plain message when a kill switch went on mid-run; null to keep going. A failed read keeps going. */
+async function killSwitchMessage(organizationId: string, gate: LimitsDeps): Promise<string | null> {
+  if (globalKillSwitchOn(gate.env ?? process.env)) return "Revora AI was paused, so I stopped before the next step. Nothing further was changed.";
+  try {
+    const settings = await gate.store.getSettings(organizationId);
+    if (!settings.enabled) return "Revora AI was turned off for your workspace, so I stopped before the next step. Nothing further was changed.";
+  } catch {
+    /* transient read failure: the admission already passed; don't kill the run */
+  }
+  return null;
+}
+
+async function runLoopBody(
+  ctx: RunContext,
+  deps: LoopDeps,
+  stopCheck: () => Promise<string | null> = async () => null,
+): Promise<RunOutcome> {
   const limits: LoopLimits = { ...DEFAULT_LOOP_LIMITS, ...deps.limits };
   const now = deps.now ?? Date.now;
   const sleep = deps.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))); // DevSkim: ignore DS172411 -- Numeric delay only; no untrusted data.
@@ -127,7 +224,7 @@ export async function runAgentLoop(ctx: RunContext, deps: LoopDeps): Promise<Run
     return outcome;
   };
   const checkpoint = () =>
-    ctx.save({ ...ctx.checkpoint, loop: { step: state.step, history: state.history.slice(-limits.maxHistory), spent: state.spent } }, state.spent);
+    ctx.save({ ...ctx.checkpoint, loop: { step: state.step, history: state.history.slice(-limits.maxHistory), spent: state.spent, approval: state.approval } }, state.spent);
   const push = (message: LoopMessage) => {
     state.history.push(message);
   };
@@ -139,6 +236,11 @@ export async function runAgentLoop(ctx: RunContext, deps: LoopDeps): Promise<Run
 
   try {
     while (true) {
+      const stopped = await stopCheck();
+      if (stopped) {
+        await checkpoint();
+        return await finish({ status: "cancelled", summary: stopped });
+      }
       if (state.step >= limits.maxSteps)
         return await finish({
           status: "failed",
@@ -184,6 +286,7 @@ export async function runAgentLoop(ctx: RunContext, deps: LoopDeps): Promise<Run
 
       const next = step.step;
       if (next.kind === "final") {
+        state.approval = null;
         await checkpoint();
         return await finish({ status: next.status, summary: next.summary });
       }
@@ -198,6 +301,9 @@ export async function runAgentLoop(ctx: RunContext, deps: LoopDeps): Promise<Run
         continue;
       }
 
+      // A pause for approval only carries over to the very next step.
+      const pendingApproval = state.approval;
+      state.approval = null;
       await emit("tool_started", next.why ? `${next.tool}: ${next.why}` : `Using ${next.tool}.`, { tool: next.tool, step: state.step });
       let result: ToolResultV2 | null = null;
       for (let attempt = 0; attempt <= limits.toolTimeoutRetries; attempt++) {
@@ -213,11 +319,56 @@ export async function runAgentLoop(ctx: RunContext, deps: LoopDeps): Promise<Run
       if (!result) throw new Error("tool produced no result");
 
       if (!result.ok) {
-        if (result.reason === "needs_approval")
+        if (result.reason === "needs_approval") {
+          if (!deps.approvals)
+            return await finish({
+              status: "needs_approval",
+              summary: `I need your approval before using ${next.tool}. Nothing was sent.`,
+            });
+          const argsHash = hashApprovalArgs(next.args);
+          if (pendingApproval && pendingApproval.tool === next.tool && pendingApproval.argsHash === argsHash) {
+            // Resumed after the owner's decision and the same call is still refused: it was declined or it expired.
+            await emit("approval_not_granted", `${next.tool} was not approved, so it did not run.`, { tool: next.tool });
+            push({
+              role: "user",
+              content: formatObservation(next.tool, {
+                ok: false,
+                payload: { error: "The owner did not approve this action (declined or expired). Nothing was sent. Do not try it again; tell the owner it was not sent." },
+              }),
+            });
+            await checkpoint();
+            continue;
+          }
+          let asked: Awaited<ReturnType<LoopApprovals["request"]>>;
+          try {
+            asked = await deps.approvals.request({ run: ctx.run, tool: next.tool, args: next.args, ...(next.why ? { why: next.why } : {}), stepId });
+          } catch (error) {
+            if (error instanceof LostLeaseError) throw error;
+            asked = { ok: false, message: "The approval request could not be saved." };
+          }
+          if (!asked.ok) {
+            await emit("approval_request_failed", `Could not ask for approval for ${next.tool}: ${asked.message}`, { tool: next.tool });
+            push({
+              role: "user",
+              content: formatObservation(next.tool, { ok: false, payload: { error: `${asked.message} Nothing was sent. Tell the owner.` } }),
+            });
+            await checkpoint();
+            continue;
+          }
+          state.approval = { tool: next.tool, argsHash, approvalId: asked.approvalId };
+          push({
+            role: "user",
+            content: formatObservation(next.tool, {
+              ok: false,
+              payload: { status: "waiting_for_owner_approval", note: "If the owner approves, call this exact tool again with exactly the same arguments." },
+            }),
+          });
+          await checkpoint();
           return await finish({
             status: "needs_approval",
-            summary: `I need your approval before using ${next.tool}. Nothing was sent.`,
+            summary: `Waiting for your approval: ${asked.summary} Nothing was sent.`,
           });
+        }
         if (result.reason === "timeout")
           return await finish({
             status: "failed",
@@ -284,8 +435,15 @@ async function runWithTimeout(run: () => Promise<ToolResultV2>, ms: number, tool
 }
 
 /** Builds the executor the run store calls. `build` supplies per-run model and tools. */
-export function createAgentLoopExecutor(build: (run: AgentRun) => Promise<LoopDeps> | LoopDeps): RunExecutor {
-  return async (ctx) => runAgentLoop(ctx, await build(ctx.run));
+export function createAgentLoopExecutor(
+  build: (run: AgentRun) => Promise<LoopDeps> | LoopDeps,
+  defaultRunLimits: () => LimitsDeps = supabaseLimitsDeps,
+): RunExecutor {
+  // Every real run goes through the PAI-5 run gate unless the builder supplies its own.
+  return async (ctx) => {
+    const deps = await build(ctx.run);
+    return runAgentLoop(ctx, { ...deps, runLimits: deps.runLimits ?? defaultRunLimits() });
+  };
 }
 
 /** Registers the loop with the run store. Called once by the worker wiring, not at import time. */

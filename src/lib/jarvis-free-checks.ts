@@ -4,6 +4,7 @@
  */
 import pkg from "../../package.json";
 import { replaceControlCharacters } from "@/lib/sanitize-control-characters";
+import { parseRobots } from "@/lib/robots";
 
 export const FREE_CHECK_TOOLS = [
   "website.html.validate",
@@ -131,17 +132,9 @@ export async function readBoundedText(url: string, maxBytes: number, headers: Re
   return { ok: true as const, status: res.status, text, truncated };
 }
 
-export function summarizeRobots(text: string | null) {
-  if (text === null) return { present: false, blocksAllCrawlers: false, sitemaps: [] as string[] };
-  const lines = text.split(/\r?\n/).map((l) => l.replace(/#.*/, "").trim()).filter(Boolean);
-  let star = false; let blocksAll = false;
-  for (const l of lines) {
-    const [k, ...rest] = l.split(":"); const key = k!.trim().toLowerCase(); const v = rest.join(":").trim();
-    if (key === "user-agent") star = v === "*";
-    else if (star && key === "disallow" && v === "/") blocksAll = true;
-  }
-  const sitemaps = lines.filter((l) => /^sitemap\s*:/i.test(l)).map((l) => l.replace(/^sitemap\s*:/i, "").trim()).slice(0, 10);
-  return { present: true, blocksAllCrawlers: blocksAll, sitemaps };
+export function summarizeRobots(text: string | null, robotsUrl = "https://example.invalid/robots.txt") {
+  const policy = parseRobots(robotsUrl, text);
+  return { present: policy.present, blocksAllCrawlers: policy.blocksAllCrawlers, sitemaps: policy.sitemaps };
 }
 
 export function summarizeSitemap(xml: string | null) {

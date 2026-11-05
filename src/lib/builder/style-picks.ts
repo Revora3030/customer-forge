@@ -1,5 +1,6 @@
 /**
- * The "pick a look" cards in the intake wizard's Look & photos step.
+ * The "pick a look" cards (six, worded after common style names such as
+ * editorial, dark luxury and modern minimal) in the intake wizard's Look & photos step.
  *
  * Each card is only a pointer at an existing curated palette (PALETTE_PRESETS)
  * and type pairing (FONT_PAIRINGS) plus one plain-English line about the layout
@@ -37,6 +38,9 @@ export const STYLE_PICKS: readonly StylePick[] = [
   { id: "clean-trust", name: "Clean & trustworthy", feel: "Big clear headings, roomy cards and one strong call-to-action button.", paletteId: "ocean", pairingId: "sturdy-friendly" },
   { id: "warm-crafted", name: "Warm & crafted", feel: "Photo-led pages with an editorial feel and softer, rounded cards.", paletteId: "forest", pairingId: "warm-editorial" },
   { id: "dark-premium", name: "Dark & premium", feel: "Full-width photos, generous spacing and thin, elegant type on a dark page.", paletteId: "midnight", pairingId: "quiet-luxury" },
+  { id: "bold-editorial", name: "Bold & editorial", feel: "Magazine-style headlines, short punchy sections and strong colour blocks.", paletteId: "ember", pairingId: "editorial-advisor" },
+  { id: "modern-industrial", name: "Modern & no-nonsense", feel: "Straight lines, tall bold headings and plain, practical cards.", paletteId: "slate", pairingId: "rugged-civic" },
+  { id: "soft-handmade", name: "Soft & handmade", feel: "Friendly rounded shapes, cosy type and a playful, homemade feel.", paletteId: "plum", pairingId: "craft-kitchen" },
 ];
 
 export function resolveStylePick(pick: StylePick): ResolvedStylePick | null {

@@ -1,3 +1,4 @@
+import { metricProgress } from "@/components/app/metric-progress";
 import { useEffect, useRef, useState, type HTMLAttributes, type ReactNode, type Ref } from "react";
 import { cn } from "@/lib/utils";
 import type { Tone } from "@/lib/domain";
@@ -200,6 +201,7 @@ export function MetricCard({
     danger: "bg-destructive",
   };
   const flashKey = useValueFlash(value);
+  const bar = metricProgress(progress);
   return (
     <div
       className={cn(
@@ -211,7 +213,9 @@ export function MetricCard({
       <div className="flex items-start justify-between gap-2">
         <p className="eyebrow flex min-w-0 items-center gap-1.5">
           {tone !== "neutral" ? <Dot tone={tone} /> : null}
-          <span className="truncate">{label}</span>
+          <span className="truncate" title={label}>
+            {label}
+          </span>
         </p>
         {badge ? <KeyLabel className="shrink-0">{badge}</KeyLabel> : null}
       </div>
@@ -226,11 +230,21 @@ export function MetricCard({
         {value}
       </p>
       {hint ? <p className={cn("mt-1.5 text-[11px]", hintTone[tone])}>{hint}</p> : null}
-      {typeof progress === "number" ? (
-        <div className="mt-2.5 h-1 overflow-hidden rounded-full bg-elevated">
+      {bar ? (
+        <div
+          role="progressbar"
+          aria-label={label}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={bar.value}
+          className="mt-2.5 h-1 overflow-hidden rounded-full bg-elevated"
+        >
           <div
-            className={cn("h-full rounded-full", barTone[tone])}
-            style={{ width: `${Math.min(100, Math.max(2, progress))}%` }}
+            className={cn(
+              "h-full rounded-full transition-[width] duration-500 ease-out motion-reduce:transition-none",
+              barTone[tone],
+            )}
+            style={{ width: `${bar.width}%` }}
           />
         </div>
       ) : null}

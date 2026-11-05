@@ -26,6 +26,9 @@ describe("gateway credits alert", () => {
 
   it("sends one email-only founder alert for a burst of 402s", async () => {
     for (let i = 0; i < 25; i += 1) noteGatewayCreditsStop(credits);
+    // Poll for the first send (the alert runs in a fire-and-forget async chain), then
+    // give any wrongly extra sends a moment to show up before asserting exactly one.
+    await vi.waitFor(() => expect(sendFounderAlert).toHaveBeenCalledTimes(1));
     await flush();
     expect(sendFounderAlert).toHaveBeenCalledTimes(1);
     const alert = (sendFounderAlert.mock.calls[0] as unknown as [unknown, { kind: string; marker: string; organizationId: null }])[1];
@@ -51,16 +54,14 @@ describe("gateway credits alert", () => {
     const now = Date.UTC(2026, 10, 1, 6, 0, 0);
     noteGatewayCreditsStop(credits, now);
     noteGatewayCreditsStop(credits, now + 6 * 3_600_000);
-    await flush();
-    expect(sendFounderAlert).toHaveBeenCalledTimes(2);
+    await vi.waitFor(() => expect(sendFounderAlert).toHaveBeenCalledTimes(2));
   });
 
   it("a failed send is retried by the next refusal instead of being suppressed", async () => {
     sendFounderAlert.mockResolvedValueOnce("failed" as never);
     noteGatewayCreditsStop(credits);
-    await flush();
+    await vi.waitFor(() => expect(sendFounderAlert).toHaveBeenCalledTimes(1));
     noteGatewayCreditsStop(credits);
-    await flush();
-    expect(sendFounderAlert).toHaveBeenCalledTimes(2);
+    await vi.waitFor(() => expect(sendFounderAlert).toHaveBeenCalledTimes(2));
   });
 });

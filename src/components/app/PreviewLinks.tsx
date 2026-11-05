@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { Copy, ExternalLink, Link2, Loader2, Ban } from "lucide-react";
+import { Copy, ExternalLink, Link2, Loader2, Ban, Lock } from "lucide-react";
 import { toast } from "@/lib/ui/notify";
 import { Panel, Pill, SectionHeading } from "@/components/app/Bits";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { dateShort } from "@/lib/format";
+import { PREVIEW_PASSWORD_MAX, PREVIEW_PASSWORD_MIN } from "@/lib/preview-password";
 import {
   useCreatePreviewLink,
   usePreviewLinks,
@@ -120,6 +121,8 @@ export function PreviewLinks({
   const revoke = useRevokePreviewLink(organizationId);
   const [label, setLabel] = useState("");
   const [hours, setHours] = useState(168);
+  const [password, setPassword] = useState("");
+  const passwordTooShort = password.length > 0 && password.length < PREVIEW_PASSWORD_MIN;
 
   const origin = typeof window === "undefined" ? "" : window.location.origin;
   const urlFor = (token: string) => `${origin}/p/${token}`;
@@ -146,10 +149,19 @@ export function PreviewLinks({
 
       {canManage ? (
         <form
-          className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto_auto] sm:items-end"
+          className="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_auto_auto] sm:items-start"
           onSubmit={(event) => {
             event.preventDefault();
-            create.mutate({ label, hours }, { onSuccess: () => setLabel("") });
+            if (passwordTooShort) return;
+            create.mutate(
+              { label, hours, password },
+              {
+                onSuccess: () => {
+                  setLabel("");
+                  setPassword("");
+                },
+              },
+            );
           }}
         >
           <div className="space-y-1.5">
@@ -161,6 +173,25 @@ export function PreviewLinks({
               placeholder="Business partner"
               maxLength={80}
             />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="preview-password">Password (optional)</Label>
+            <Input
+              id="preview-password"
+              type="password"
+              autoComplete="new-password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              placeholder="Leave empty for no password"
+              maxLength={PREVIEW_PASSWORD_MAX}
+              aria-invalid={passwordTooShort}
+              aria-describedby="preview-password-hint"
+            />
+            <p id="preview-password-hint" className={`text-[11px] ${passwordTooShort ? "text-destructive" : "text-muted-foreground"}`}>
+              {passwordTooShort
+                ? `Use at least ${PREVIEW_PASSWORD_MIN} characters.`
+                : "Visitors must enter it before they see anything. Share it separately."}
+            </p>
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="preview-expiry">Expires in</Label>
@@ -177,7 +208,7 @@ export function PreviewLinks({
               ))}
             </select>
           </div>
-          <Button type="submit" variant="signal" disabled={create.isPending}>
+          <Button type="submit" variant="signal" disabled={create.isPending || passwordTooShort} className="sm:mt-[22px]">
             {create.isPending ? (
               <Loader2 className="size-4 animate-spin" />
             ) : (
@@ -211,6 +242,12 @@ export function PreviewLinks({
                           : "Expired"}
                     </Pill>
                     <p className="truncate text-[13px]">{link.label ?? "Preview link"}</p>
+                    {link.password_protected ? (
+                      <Pill tone="neutral">
+                        <Lock className="mr-1 inline size-3" aria-hidden="true" />
+                        Password
+                      </Pill>
+                    ) : null}
                   </div>
                   <p className="mt-1 truncate text-[11px] text-muted-foreground">
                     Expires {dateShort(link.expires_at)} · {link.views} view

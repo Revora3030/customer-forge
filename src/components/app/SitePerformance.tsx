@@ -9,6 +9,7 @@
 import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Panel, Pill, SectionHeading } from "@/components/app/Bits";
+import { QueryErrorNotice } from "@/components/app/QueryErrorNotice";
 import { supabase } from "@/integrations/supabase/client";
 import {
   formatVital,
@@ -76,6 +77,12 @@ export function SitePerformance({
 
       {query.isLoading ? (
         <p className="text-[13px] text-muted-foreground">Reading your measurements…</p>
+      ) : query.isError && !query.data ? (
+        <QueryErrorNotice
+          title="We couldn't read your speed measurements."
+          retry={() => query.refetch()}
+          retrying={query.isFetching}
+        />
       ) : rows.length === 0 ? (
         <p className="text-[13px] text-muted-foreground">
           No visits measured yet. As soon as people open your published website, their real

@@ -13,11 +13,15 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { Conversation, ConversationContent, ConversationScrollButton } from "@/components/ai-elements/conversation";
 import { TypingDots } from "@/components/ai-elements/shimmer";
 import { useJarvisVoice } from "@/components/app/use-jarvis-voice";
+import { classifyRecognitionError, createSilenceSender, deriveTalkState, talkSupport, type SilenceSender } from "@/components/app/jarvis-voice-gate";
+import { getSpeechRecognition } from "@/lib/speech-input";
+import { JarvisTalkStatus } from "@/components/app/jarvis/JarvisTalkStatus";
 import { useProspectDemoPump } from "@/lib/prospect-demo-pump.hooks";
 import { JarvisHeader, type ChecksSummary } from "@/components/app/jarvis/JarvisHeader";
 import { JarvisComposer, type JarvisMode } from "@/components/app/jarvis/JarvisComposer";
 import { AssistantMessage, UserMessage, type JarvisRow } from "@/components/app/jarvis/JarvisMessage";
 import { RunTaskTree } from "@/components/app/jarvis/RunTaskTree";
+import { ApprovalsInbox } from "@/components/app/jarvis/ApprovalsInbox";
 import { ConversationsSheet } from "@/components/app/jarvis/ConversationsSheet";
 import { OperationsPanel, DIAGNOSTIC_SECTIONS, type ProspectorState } from "@/components/app/jarvis/OperationsPanel";
 import { CommandPalette } from "@/components/app/jarvis/CommandPalette";
@@ -28,6 +32,15 @@ import { DemoBuildCard } from "@/components/app/jarvis/DemoBuildCard";
 import { findMapsLink, readDemoCards, readDemoSendProposal, rememberDemoCard, type DemoCardRef, type DemoChannel } from "@/components/app/jarvis/demo-build";
 import "@/components/app/jarvis/jarvis.css";
 import { isTurnStopped, stoppable } from "@/components/app/jarvis/stop-turn";
+import { QuietNoticesDigest } from "@/components/app/jarvis/QuietNoticesDigest";
+import { foldQuietNotices } from "@/lib/jarvis-quiet-digest";
+import { jarvisFailureSentence, jarvisFailureToast } from "@/lib/jarvis/honest-failure";
+import {
+  JARVIS_CLIENT_STALL_MS,
+  jarvisCanAutoRetryStall,
+  jarvisIsStalled,
+  jarvisStillWorkingLabel,
+} from "@/lib/jarvis/stream-stall";
 import { askClaudeToFixPullRequestFn, openJarvisPullRequestFn, recoverStalledBuildsFn, sendClaudeCodeRequestFn, clearJarvisHistory, getJarvisHistory, getJarvisDiagnostics, getJarvisAcquisitionReadiness, getJarvisDiagnosticTools, runJarvisDiagnosticTool, regenerateJarvisReply, sendJarvisMessage, forgetJarvisMemoryFn, claimJarvisApprovalFn, finishJarvisApprovalFn, saveJarvisRoutineFn, deleteJarvisRoutineFn, JARVIS_HISTORY_PAGE } from "@/lib/jarvis.functions";
 import { draftProspectOutreach, type ProspectDraft } from "@/lib/jarvis-prospecting.functions";
 import { formatRevoraOffer } from "@/lib/jarvis-acquisition-policy";
@@ -46,7 +59,7 @@ type RecognitionResult = ArrayLike<{ transcript: string }> & { isFinal?: boolean
 type Recognition = {
   lang: string; interimResults: boolean;
   onresult: ((event: { resultIndex?: number; results: ArrayLike<RecognitionResult> }) => void) | null;
-  onend: (() => void) | null; onerror: (() => void) | null;
+  onend: (() => void) | null; onerror: ((event: { error?: string }) => void) | null;
   start: () => void; stop: () => void;
 };
 type RecognitionConstructor = new () => Recognition;
@@ -228,6 +241,10 @@ function Jarvis() {
   const [listening, setListening] = useState(false);
   const [interim, setInterim] = useState("");
   const [elapsed, setElapsed] = useState(0);
+  // JC-49: one automatic stall retry max; stallAbort marks cut-offs so Stop does not retry.
+  const stallRetriesUsed = useRef(0);
+  const stallAbort = useRef(false);
+  const requestRegen = useRef<() => void>(() => undefined);
   const [prospectText, setProspectText] = useState("");
   const [drafts, setDrafts] = useState<ProspectDraft[]>([]);
   const [edits, setEdits] = useState<Record<number, string>>({});
@@ -241,6 +258,10 @@ function Jarvis() {
   const [announcement, setAnnouncement] = useState("");
   const [speakingId, setSpeakingId] = useState<string | null>(null);
   const recognition = useRef<Recognition | null>(null);
+  // Talk mode sends on silence: this counts the quiet after the last words heard.
+  const silence = useRef<SilenceSender | null>(null);
+  // Why Talk can't run here (no speech recognition, mic blocked); shown and announced, never silent.
+  const [talkNotice, setTalkNotice] = useState<string | null>(null);
   const conversation = useRef<StickToBottomContext>(null);
   const input = useRef<HTMLTextAreaElement>(null);
   const [voiceProvider, setVoiceProvider] = useState<JarvisVoiceProvider>("auto");
@@ -289,6 +310,16 @@ function Jarvis() {
     stopVoice();
     resumeLive();
   };
+  // Barge-in from the keyboard: Escape stops Jarvis mid-sentence while Talk mode is on (a tap on the Talk button does the same).
+  const stopSpeakingRef = useRef(stopSpeaking);
+  stopSpeakingRef.current = stopSpeaking;
+  const talkSpeaking = jarvisVoice.speaking;
+  useEffect(() => {
+    if (!live || !talkSpeaking) return;
+    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") stopSpeakingRef.current(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [live, talkSpeaking]);
   const finish = async (result: { reply: string; diagnostics: unknown; followups?: string[]; conversationId?: string | null }) => {
     if (result.conversationId && result.conversationId !== conversationId) {
       // Carry the loaded rows over so the chat doesn't flash empty.
@@ -325,10 +356,24 @@ function Jarvis() {
       // Live mode or the voice toggle: the reply will be read aloud, so ask for a short spoken core.
       return startTurn((signal) => send({ data: { message, mode, conversationId, runId, model: pickedModel, voice: voice || liveRef.current }, signal }));
     },
-    onSuccess: finish,
+    onSuccess: (result) => {
+      stallRetriesUsed.current = 0;
+      stallAbort.current = false;
+      return finish(result);
+    },
     onError: async (error: Error, message: string) => {
+      const wasStall = stallAbort.current;
+      stallAbort.current = false;
+      if (wasStall && jarvisCanAutoRetryStall(stallRetriesUsed.current)) {
+        // Message was already saved by sendJarvisMessage — regenerate once, never re-insert.
+        stallRetriesUsed.current += 1;
+        toast(jarvisFailureSentence("stall") + " Retrying once…");
+        await qc.invalidateQueries({ queryKey: ["jarvis", "history"] }).catch(() => undefined);
+        requestRegen.current();
+        return;
+      }
       if (isTurnStopped(error)) toast("Stopped. Jarvis may still save a reply; it shows when the chat refreshes.");
-      else toast.error(error.message);
+      else toast.error(jarvisFailureToast(error, wasStall ? "stall" : "send"));
       // The server saves the message before answering, so it may already be in the chat.
       await qc.invalidateQueries({ queryKey: ["jarvis", "history"] }).catch(() => undefined);
       const rows = qc.getQueryData<JarvisRow[]>(historyKey) ?? [];
@@ -340,14 +385,27 @@ function Jarvis() {
   });
   const regen = useMutation({
     mutationFn: () => startTurn((signal) => redo({ data: { mode, conversationId }, signal })),
-    onSuccess: finish,
+    onSuccess: (result) => {
+      stallRetriesUsed.current = 0;
+      stallAbort.current = false;
+      return finish(result);
+    },
     onError: (error: Error) => {
-      if (isTurnStopped(error)) {
+      const wasStall = stallAbort.current;
+      stallAbort.current = false;
+      if (isTurnStopped(error) && !wasStall) {
         toast("Stopped. Jarvis may still save a reply; it shows when the chat refreshes.");
         void qc.invalidateQueries({ queryKey: ["jarvis", "history"] }).catch(() => undefined);
-      } else toast.error(error.message);
+      } else if (wasStall) {
+        toast.error(jarvisFailureSentence("stall"));
+        void qc.invalidateQueries({ queryKey: ["jarvis", "history"] }).catch(() => undefined);
+        resumeLive();
+      } else {
+        toast.error(jarvisFailureToast(error, "regenerate"));
+      }
     },
   });
+  requestRegen.current = () => regen.mutate();
   const clearing = useMutation({
     mutationFn: () => clear(),
     onSuccess: () => {
@@ -358,16 +416,17 @@ function Jarvis() {
       void qc.invalidateQueries({ queryKey: ["jarvis", "conversations"] });
       return qc.invalidateQueries({ queryKey: ["jarvis", "history"] });
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(jarvisFailureToast(error, "clear")),
   });
   const prospecting = useMutation({
     mutationFn: (prospects: ProspectLine[]) => draftFn({ data: { prospects, suppress: dnc } }),
     onSuccess: (result) => { setDrafts(result.drafts); setEdits({}); setAddressConfigured(result.mailingAddressConfigured); },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(jarvisFailureToast(error, "generic")),
   });
   const busy = mutation.isPending || regen.isPending;
   const latest = useMemo(() => history.data ?? [], [history.data]);
   const messages = useMemo(() => mergeRows(older, latest), [older, latest]);
+  const foldedMessages = useMemo(() => foldQuietNotices(messages), [messages]);
   const lastMessage = messages[messages.length - 1];
   const lastAssistantId = lastMessage?.role === "assistant" ? lastMessage.id : null;
   const empty = !history.isLoading && !history.error && messages.length === 0 && !pending;
@@ -403,6 +462,15 @@ function Jarvis() {
     const timer = setInterval(() => setElapsed((value) => value + 1), 1000);
     return () => clearInterval(timer);
   }, [busy]);
+  // JC-49: client stall cut-off — abort once; mutation/regen onError may auto-retry via regenerate (no duplicate send).
+  useEffect(() => {
+    if (!busy) return;
+    if (!jarvisIsStalled(elapsed * 1000, JARVIS_CLIENT_STALL_MS)) return;
+    if (!inflight.current || stallAbort.current) return;
+    stallAbort.current = true;
+    inflight.current.abort();
+    announce("Still waiting — stopping this attempt");
+  }, [busy, elapsed]);
   // When new messages push the oldest rows out of the latest page, keep them with the
   // earlier pages already loaded, so "Load earlier" never leaves a gap.
   const previousLatest = useRef<JarvisRow[]>([]);
@@ -443,6 +511,8 @@ function Jarvis() {
   const detachRecognition = () => {
     const rec = recognition.current;
     recognition.current = null;
+    silence.current?.cancel();
+    silence.current = null;
     if (rec) {
       rec.onresult = null;
       rec.onend = null;
@@ -459,6 +529,8 @@ function Jarvis() {
     detachRecognition();
     setText("");
     setFollowups([]);
+    stallRetriesUsed.current = 0;
+    stallAbort.current = false;
     void conversation.current?.scrollToBottom();
     setPending(clean);
     mutation.mutate(clean);
@@ -519,7 +591,7 @@ function Jarvis() {
       setMoreEarlier(rows.length >= JARVIS_HISTORY_PAGE);
       if (!rows.length) toast.message("That's the start of your Jarvis chat.");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Couldn't load earlier messages.");
+      toast.error(error instanceof Error && error.message.trim() ? error.message : jarvisFailureSentence("history_load"));
     } finally {
       setLoadingEarlier(false);
     }
@@ -533,6 +605,12 @@ function Jarvis() {
   /** Hands-free mode: listen, send, speak the answer, listen again. */
   const toggleLive = () => {
     const next = !liveRef.current;
+    if (next) {
+      // Free browser speech recognition only. Without it, say so and stay in text.
+      const support = talkSupport();
+      if (!support.supported) { setTalkNotice(support.message); return; }
+      setTalkNotice(null);
+    }
     liveRef.current = next;
     setLive(next);
     if (next) { jarvisVoice.unlock(); setVoice(true); toast.message("Live mode on. Talk to Jarvis: it answers out loud, then keeps listening."); listen(true); }
@@ -557,9 +635,13 @@ function Jarvis() {
     if (liveRef.current) window.setTimeout(() => { if (liveRef.current) listen(true); }, 350);
   }
   function listen(autoSend: boolean) {
-    const browser = window as unknown as { SpeechRecognition?: RecognitionConstructor; webkitSpeechRecognition?: RecognitionConstructor };
-    const Ctor = browser.SpeechRecognition ?? browser.webkitSpeechRecognition;
-    if (!Ctor) { toast.error("Voice input is unavailable; use text instead."); return; }
+    const Ctor = getSpeechRecognition() as RecognitionConstructor | null;
+    if (!Ctor) {
+      const support = talkSupport();
+      setTalkNotice(support.supported ? "Voice input is unavailable; use text instead." : support.message);
+      if (liveRef.current) endLive();
+      return;
+    }
     // Barge-in: stop Jarvis talking in the same tap, so the mic doesn't hear Jarvis.
     stopVoice();
     detachRecognition();
@@ -568,12 +650,16 @@ function Jarvis() {
     let heard = false;
     let lastInterim = "";
     const commit = (transcript: string) => {
+      if (autoSend && heard) return;
       heard = true;
       lastInterim = "";
       setInterim("");
       if (autoSend) submitRef.current(transcript);
       else setText((prev) => (prev ? prev + " " + transcript : transcript).slice(0, MAX_LENGTH));
     };
+    // Talk mode: the words go out once the owner has been quiet, without waiting for the browser to mark them final.
+    const quiet = autoSend ? createSilenceSender((words) => commit(words)) : null;
+    silence.current = quiet;
     rec.onresult = (event) => {
       let finalText = "";
       let interimText = "";
@@ -583,10 +669,11 @@ function Jarvis() {
         if (result?.isFinal) finalText += transcript; else interimText += transcript;
       }
       if (finalText.trim()) commit(finalText.trim());
-      else { lastInterim = interimText.trim(); setInterim(lastInterim); }
+      else { lastInterim = interimText.trim(); setInterim(lastInterim); quiet?.hear(lastInterim); }
     };
     // Silence in live mode just means keep listening.
     rec.onend = () => {
+      quiet?.cancel();
       if (recognition.current === rec) recognition.current = null;
       setListening(false);
       setInterim("");
@@ -594,12 +681,21 @@ function Jarvis() {
       if (!heard && lastInterim) commit(lastInterim);
       else if (autoSend && !heard) resumeLive();
     };
-    rec.onerror = () => {
+    rec.onerror = (event) => {
       setListening(false);
-      if (!autoSend) toast.error("Voice input failed. You can still type.");
+      const failure = classifyRecognitionError(event?.error);
+      if (failure.message) setTalkNotice(failure.message);
+      // A blocked or missing mic would fail the same way on every retry: leave Talk instead of looping.
+      if (failure.fatal) { heard = true; if (liveRef.current) endLive(); }
     };
     recognition.current = rec;
     try { rec.start(); setListening(true); } catch { recognition.current = null; setListening(false); if (!autoSend) toast.error("Microphone could not start."); }
+  }
+  /** Leaves Talk mode without touching the reply that may still be playing. */
+  function endLive() {
+    liveRef.current = false;
+    setLive(false);
+    detachRecognition();
   }
   // Keys claimed server-side in this tab; finishing reports back so the approval is single-use.
   const claimedKeys = useRef(new Set<string>());
@@ -819,7 +915,7 @@ function Jarvis() {
     return demo ? <DemoBuildCard card={demo} /> : null;
   };
 
-  const voiceState: VoiceState = jarvisVoice.speaking ? "speaking" : listening ? "listening" : busy ? "thinking" : "idle";
+  const voiceState: VoiceState = deriveTalkState({ speaking: jarvisVoice.speaking, listening, busy });
   const status = jarvisVoice.speaking ? "Speaking…" : listening ? (live ? "Live · listening" : "Listening…") : busy ? "Thinking…" : live ? "Live" : "Ready";
   const sectionStatuses = DIAGNOSTIC_SECTIONS.map(([name]) => diagnostics.data?.sections[name]?.status);
   const unavailable = sectionStatuses.filter((value) => value === "unavailable").length;
@@ -883,6 +979,7 @@ function Jarvis() {
             clearDisabled={clearing.isPending || busy}
             onClear={() => clearing.mutate()}
             onOpenConversations={() => setShowConversations(true)}
+            inbox={<ApprovalsInbox rows={messages} onApprove={(key, proposal) => { void approveProposal(key, proposal); }} />}
           />
           {voice || live ? (
             <div className="flex items-center justify-end gap-2 border-b border-border px-3 py-1.5 text-xs text-muted-foreground sm:px-6">
@@ -904,7 +1001,7 @@ function Jarvis() {
           <Conversation contextRef={conversation} className="min-h-0 flex-1" aria-label="Jarvis conversation" aria-live="off">
             <ConversationContent scrollClassName="overscroll-contain" className="mx-auto w-full max-w-[var(--jarvis-measure)] gap-6 px-3 py-4 sm:px-6">
               {history.isLoading ? <p className="text-sm text-muted-foreground">Loading your conversation…</p> : null}
-              {history.error ? <p role="alert" className="text-sm text-destructive">Your conversation could not be loaded.</p> : null}
+              {history.error ? <p role="alert" className="text-sm text-destructive">{jarvisFailureSentence("history_load")}</p> : null}
               {canLoadEarlier ? (
                 <div className="flex justify-center">
                   <Button type="button" variant="outline" size="sm" data-jarvis-tap="" className="rounded-full" disabled={loadingEarlier} onClick={() => { void loadEarlier(); }}>
@@ -929,9 +1026,31 @@ function Jarvis() {
                   <Button type="button" variant="ghost" data-jarvis-tap="" className="self-start" onClick={() => setCommandsOpen(true)}>All commands</Button>
                 </div>
               ) : null}
-              {messages.map((message, index) => {
+              {foldedMessages.map((item, index) => {
+                if (item.kind === "quiet-digest") {
+                  const firstAt = item.rows[0]?.createdAt ?? "";
+                  const prev = foldedMessages[index - 1];
+                  const prevAt = prev?.kind === "quiet-digest" ? (prev.rows[0]?.createdAt ?? "") : prev?.row.created_at ?? "";
+                  const day = dayKey(firstAt);
+                  const newDay = index === 0 || day !== dayKey(prevAt);
+                  return (
+                    <Fragment key={`quiet:${item.rows.map((row) => row.id).join(",")}`}>
+                      {newDay && day ? (
+                        <div role="separator" aria-label={dayLabel(firstAt)} className="flex items-center gap-3 text-xs text-muted-foreground">
+                          <span className="h-px flex-1 bg-border/70" aria-hidden />
+                          <span aria-hidden>{dayLabel(firstAt)}</span>
+                          <span className="h-px flex-1 bg-border/70" aria-hidden />
+                        </div>
+                      ) : null}
+                      <QuietNoticesDigest rows={item.rows} busy={busy} onAsk={(prompt) => submit(prompt)} />
+                    </Fragment>
+                  );
+                }
+                const message = item.row;
+                const prev = foldedMessages[index - 1];
+                const prevAt = prev?.kind === "quiet-digest" ? (prev.rows[prev.rows.length - 1]?.createdAt ?? "") : prev?.row.created_at ?? "";
                 const day = dayKey(message.created_at);
-                const newDay = index === 0 || day !== dayKey(messages[index - 1]!.created_at);
+                const newDay = index === 0 || day !== dayKey(prevAt);
                 return (
                   <Fragment key={message.id}>
                     {newDay && day ? (
@@ -971,11 +1090,14 @@ function Jarvis() {
               {pending ? <UserMessage content={pending} /> : null}
               {busy && liveRun ? (
                 // The live task tree stands in for the spinner: each step shows as it is recorded.
-                <RunTaskTree runId={liveRun} live />
+                <div className="space-y-2">
+                  <RunTaskTree runId={liveRun} live />
+                  <p className="text-sm text-muted-foreground" aria-live="polite">{jarvisStillWorkingLabel(elapsed)}</p>
+                </div>
               ) : busy ? (
-                <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                <div className="flex items-center gap-3 text-sm text-muted-foreground" aria-live="polite">
                   <span aria-hidden><TypingDots /></span>
-                  <span>Working<span aria-hidden> · {elapsed}s</span></span>
+                  <span>{jarvisStillWorkingLabel(elapsed)}</span>
                 </div>
               ) : null}
               {!busy && !pending && lastMessage?.role === "user" ? (
@@ -992,6 +1114,7 @@ function Jarvis() {
 
           <div className="shrink-0 border-t border-border/60 bg-background/95 px-3 pb-2 pt-2 backdrop-blur">
             <div className="mx-auto w-full max-w-[var(--jarvis-measure)]">
+              <JarvisTalkStatus state={voiceState} talkOn={live} notice={talkNotice} onDismissNotice={() => setTalkNotice(null)} />
               {live ? (
                 <LiveSurface
                   state={voiceState}

@@ -38,6 +38,7 @@ import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as ToolsRouteImport } from './routes/tools'
 import { Route as WebsiteAuditRouteImport } from './routes/website-audit'
+import { Route as WhatsNewRouteImport } from './routes/whats-new'
 import { Route as Char123keyChar125DottxtRouteImport } from './routes/{$key}[.]txt'
 import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
@@ -134,6 +135,7 @@ import { Route as ApiPublicAgentProspectsRouteImport } from './routes/api/public
 import { Route as ApiPublicInstagramCallbackRouteImport } from './routes/api/public/instagram/callback'
 import { Route as ApiPublicJobsAgentRoutinesRouteImport } from './routes/api/public/jobs/agent-routines'
 import { Route as ApiPublicJobsAgentRunsRouteImport } from './routes/api/public/jobs/agent-runs'
+import { Route as ApiPublicJobsAgentSuggestionsRouteImport } from './routes/api/public/jobs/agent-suggestions'
 import { Route as ApiPublicJobsAutomationRunsRouteImport } from './routes/api/public/jobs/automation-runs'
 import { Route as ApiPublicJobsBackupRouteImport } from './routes/api/public/jobs/backup'
 import { Route as ApiPublicJobsBuilderChatRouteImport } from './routes/api/public/jobs/builder-chat'
@@ -308,6 +310,11 @@ const ToolsRoute = ToolsRouteImport.update({
 const WebsiteAuditRoute = WebsiteAuditRouteImport.update({
   id: '/website-audit',
   path: '/website-audit',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const WhatsNewRoute = WhatsNewRouteImport.update({
+  id: '/whats-new',
+  path: '/whats-new',
   getParentRoute: () => rootRouteImport,
 } as any)
 const Char123keyChar125DottxtRoute = Char123keyChar125DottxtRouteImport.update({
@@ -818,6 +825,12 @@ const ApiPublicJobsAgentRunsRoute = ApiPublicJobsAgentRunsRouteImport.update({
   path: '/api/public/jobs/agent-runs',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicJobsAgentSuggestionsRoute =
+  ApiPublicJobsAgentSuggestionsRouteImport.update({
+    id: '/api/public/jobs/agent-suggestions',
+    path: '/api/public/jobs/agent-suggestions',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicJobsAutomationRunsRoute =
   ApiPublicJobsAutomationRunsRouteImport.update({
     id: '/api/public/jobs/automation-runs',
@@ -1025,6 +1038,7 @@ export interface FileRoutesByFullPath {
   '/terms': typeof TermsRoute
   '/tools': typeof ToolsRoute
   '/website-audit': typeof WebsiteAuditRoute
+  '/whats-new': typeof WhatsNewRoute
   '/{$key}.txt': typeof Char123keyChar125DottxtRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/admin': typeof AuthenticatedAdminRouteWithChildren
@@ -1121,6 +1135,7 @@ export interface FileRoutesByFullPath {
   '/api/public/instagram/callback': typeof ApiPublicInstagramCallbackRoute
   '/api/public/jobs/agent-routines': typeof ApiPublicJobsAgentRoutinesRoute
   '/api/public/jobs/agent-runs': typeof ApiPublicJobsAgentRunsRoute
+  '/api/public/jobs/agent-suggestions': typeof ApiPublicJobsAgentSuggestionsRoute
   '/api/public/jobs/automation-runs': typeof ApiPublicJobsAutomationRunsRoute
   '/api/public/jobs/backup': typeof ApiPublicJobsBackupRoute
   '/api/public/jobs/builder-chat': typeof ApiPublicJobsBuilderChatRoute
@@ -1180,6 +1195,7 @@ export interface FileRoutesByTo {
   '/terms': typeof TermsRoute
   '/tools': typeof ToolsRoute
   '/website-audit': typeof WebsiteAuditRoute
+  '/whats-new': typeof WhatsNewRoute
   '/{$key}.txt': typeof Char123keyChar125DottxtRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
@@ -1273,6 +1289,7 @@ export interface FileRoutesByTo {
   '/api/public/instagram/callback': typeof ApiPublicInstagramCallbackRoute
   '/api/public/jobs/agent-routines': typeof ApiPublicJobsAgentRoutinesRoute
   '/api/public/jobs/agent-runs': typeof ApiPublicJobsAgentRunsRoute
+  '/api/public/jobs/agent-suggestions': typeof ApiPublicJobsAgentSuggestionsRoute
   '/api/public/jobs/automation-runs': typeof ApiPublicJobsAutomationRunsRoute
   '/api/public/jobs/backup': typeof ApiPublicJobsBackupRoute
   '/api/public/jobs/builder-chat': typeof ApiPublicJobsBuilderChatRoute
@@ -1336,6 +1353,7 @@ export interface FileRoutesById {
   '/terms': typeof TermsRoute
   '/tools': typeof ToolsRoute
   '/website-audit': typeof WebsiteAuditRoute
+  '/whats-new': typeof WhatsNewRoute
   '/{$key}.txt': typeof Char123keyChar125DottxtRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
@@ -1432,6 +1450,7 @@ export interface FileRoutesById {
   '/api/public/instagram/callback': typeof ApiPublicInstagramCallbackRoute
   '/api/public/jobs/agent-routines': typeof ApiPublicJobsAgentRoutinesRoute
   '/api/public/jobs/agent-runs': typeof ApiPublicJobsAgentRunsRoute
+  '/api/public/jobs/agent-suggestions': typeof ApiPublicJobsAgentSuggestionsRoute
   '/api/public/jobs/automation-runs': typeof ApiPublicJobsAutomationRunsRoute
   '/api/public/jobs/backup': typeof ApiPublicJobsBackupRoute
   '/api/public/jobs/builder-chat': typeof ApiPublicJobsBuilderChatRoute
@@ -1495,6 +1514,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/tools'
     | '/website-audit'
+    | '/whats-new'
     | '/{$key}.txt'
     | '/.well-known/oauth-protected-resource'
     | '/admin'
@@ -1591,6 +1611,7 @@ export interface FileRouteTypes {
     | '/api/public/instagram/callback'
     | '/api/public/jobs/agent-routines'
     | '/api/public/jobs/agent-runs'
+    | '/api/public/jobs/agent-suggestions'
     | '/api/public/jobs/automation-runs'
     | '/api/public/jobs/backup'
     | '/api/public/jobs/builder-chat'
@@ -1650,6 +1671,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/tools'
     | '/website-audit'
+    | '/whats-new'
     | '/{$key}.txt'
     | '/.well-known/oauth-protected-resource'
     | '/onboarding'
@@ -1743,6 +1765,7 @@ export interface FileRouteTypes {
     | '/api/public/instagram/callback'
     | '/api/public/jobs/agent-routines'
     | '/api/public/jobs/agent-runs'
+    | '/api/public/jobs/agent-suggestions'
     | '/api/public/jobs/automation-runs'
     | '/api/public/jobs/backup'
     | '/api/public/jobs/builder-chat'
@@ -1805,6 +1828,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/tools'
     | '/website-audit'
+    | '/whats-new'
     | '/{$key}.txt'
     | '/.well-known/oauth-protected-resource'
     | '/_authenticated/admin'
@@ -1901,6 +1925,7 @@ export interface FileRouteTypes {
     | '/api/public/instagram/callback'
     | '/api/public/jobs/agent-routines'
     | '/api/public/jobs/agent-runs'
+    | '/api/public/jobs/agent-suggestions'
     | '/api/public/jobs/automation-runs'
     | '/api/public/jobs/backup'
     | '/api/public/jobs/builder-chat'
@@ -1964,6 +1989,7 @@ export interface RootRouteChildren {
   TermsRoute: typeof TermsRoute
   ToolsRoute: typeof ToolsRoute
   WebsiteAuditRoute: typeof WebsiteAuditRoute
+  WhatsNewRoute: typeof WhatsNewRoute
   Char123keyChar125DottxtRoute: typeof Char123keyChar125DottxtRoute
   Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   ApiHealthRoute: typeof ApiHealthRoute
@@ -2005,6 +2031,7 @@ export interface RootRouteChildren {
   ApiPublicInstagramCallbackRoute: typeof ApiPublicInstagramCallbackRoute
   ApiPublicJobsAgentRoutinesRoute: typeof ApiPublicJobsAgentRoutinesRoute
   ApiPublicJobsAgentRunsRoute: typeof ApiPublicJobsAgentRunsRoute
+  ApiPublicJobsAgentSuggestionsRoute: typeof ApiPublicJobsAgentSuggestionsRoute
   ApiPublicJobsAutomationRunsRoute: typeof ApiPublicJobsAutomationRunsRoute
   ApiPublicJobsBackupRoute: typeof ApiPublicJobsBackupRoute
   ApiPublicJobsBuilderChatRoute: typeof ApiPublicJobsBuilderChatRoute
@@ -2238,6 +2265,13 @@ declare module '@tanstack/react-router' {
       path: '/website-audit'
       fullPath: '/website-audit'
       preLoaderRoute: typeof WebsiteAuditRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/whats-new': {
+      id: '/whats-new'
+      path: '/whats-new'
+      fullPath: '/whats-new'
+      preLoaderRoute: typeof WhatsNewRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/{$key}.txt': {
@@ -2912,6 +2946,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicJobsAgentRunsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/jobs/agent-suggestions': {
+      id: '/api/public/jobs/agent-suggestions'
+      path: '/api/public/jobs/agent-suggestions'
+      fullPath: '/api/public/jobs/agent-suggestions'
+      preLoaderRoute: typeof ApiPublicJobsAgentSuggestionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/jobs/automation-runs': {
       id: '/api/public/jobs/automation-runs'
       path: '/api/public/jobs/automation-runs'
@@ -3400,6 +3441,7 @@ const rootRouteChildren: RootRouteChildren = {
   TermsRoute: TermsRoute,
   ToolsRoute: ToolsRoute,
   WebsiteAuditRoute: WebsiteAuditRoute,
+  WhatsNewRoute: WhatsNewRoute,
   Char123keyChar125DottxtRoute: Char123keyChar125DottxtRoute,
   Char91DotwellKnownChar93OauthProtectedResourceRoute:
     Char91DotwellKnownChar93OauthProtectedResourceRoute,
@@ -3443,6 +3485,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicInstagramCallbackRoute: ApiPublicInstagramCallbackRoute,
   ApiPublicJobsAgentRoutinesRoute: ApiPublicJobsAgentRoutinesRoute,
   ApiPublicJobsAgentRunsRoute: ApiPublicJobsAgentRunsRoute,
+  ApiPublicJobsAgentSuggestionsRoute: ApiPublicJobsAgentSuggestionsRoute,
   ApiPublicJobsAutomationRunsRoute: ApiPublicJobsAutomationRunsRoute,
   ApiPublicJobsBackupRoute: ApiPublicJobsBackupRoute,
   ApiPublicJobsBuilderChatRoute: ApiPublicJobsBuilderChatRoute,

@@ -3,6 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "@/lib/ui/notify";
 import { friendlyError } from "@/lib/user-error";
 import { sendTestLead } from "@/lib/test-lead.functions";
+import { simulateLead } from "@/lib/lead-simulation.functions";
 
 /**
  * The "/lead-test" command's default action: the same labelled sample lead the
@@ -28,5 +29,25 @@ export function useSendTestLead(organizationId: string | null) {
       void queryClient.invalidateQueries({ queryKey: ["notifications", organizationId] });
     },
     onError: (error: Error) => toast.error(friendlyError(error)),
+  });
+}
+
+/**
+ * B12-3: the "/lead-test" simulation. Sends one labelled test lead through
+ * the real lead path and returns a checklist read back from stored rows.
+ */
+export function useLeadSimulation(organizationId: string | null) {
+  const queryClient = useQueryClient();
+  const simulateFn = useServerFn(simulateLead);
+  return useMutation({
+    mutationFn: () => {
+      if (!organizationId) throw new Error("Open a website first.");
+      return simulateFn({ data: { organizationId } });
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["leads", organizationId] });
+      void queryClient.invalidateQueries({ queryKey: ["journey_facts", organizationId] });
+      void queryClient.invalidateQueries({ queryKey: ["notifications", organizationId] });
+    },
   });
 }
