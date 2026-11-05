@@ -64,6 +64,8 @@ export async function proposePageArchitecture(input: {
   revisionNotes?: string;
   /** How many refused plans Sol has already revised (max three). */
   revisionRound?: number;
+  /** The page plan the owner reviewed and approved before the build (CG-13). */
+  ownerPlan?: string;
 }): Promise<PageArchitectureOutcome> {
   const available = input.candidate.map((page) => ({
     slug: page.slug,
@@ -93,6 +95,7 @@ export async function proposePageArchitecture(input: {
       "EXISTING PAGES AND SECTIONS (reorder, omit, or add your own):",
       JSON.stringify(available, null, 2),
       "",
+      input.ownerPlan ? `${input.ownerPlan.slice(0, 4000)}\n` : null,
        'Return JSON: {"pages": [{"slug": "home", "title": "...", "purpose": "...", "primaryAction": "...", "seoTitle": "...", "seoDescription": "...", "sections": [{"role": "...", "heading": "...", "subheading": "...", "body": "...", "layout": "your composition name", "intent": "why it exists", "media": "none|optional|required", "includes": ["primary_action", "service_cards", "faqs", "benefits"]}]}]}',
       "includes is optional: add \"primary_action\" to put the business's main action button in that section, \"service_cards\" to list the real services as cards there, \"faqs\" to attach the site's already-written, fact-checked question-and-answer pairs (for a questions section), and \"benefits\" to attach the site's already-written, fact-checked benefit list. Nothing is added to a section you do not ask for.",
       "SEARCH WORDING PER PAGE: give every page its own seoTitle (at most 60 characters) and seoDescription (120-155 characters) written for THAT page's purpose, from the supplied facts only. Never reuse one page's description on another page, and never copy the home page's description onto a sub-page.",

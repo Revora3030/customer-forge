@@ -120,6 +120,7 @@ import {
   EngineSelfTestPanel,
   MissingFactsPanel,
 } from "@/components/app/BriefReview";
+import { PagePlanPanel } from "@/components/app/PagePlanPanel";
 import { readBrief, readReport } from "@/lib/site-brief";
 import { AiTeamImages, AiTeamPages } from "@/components/app/AiTeamTabs";
 import { HeroVideoPanel } from "@/components/app/HeroVideoPanel";
@@ -1386,6 +1387,7 @@ function WebsitePage() {
       >
         <MissingFactsPanel organizationId={orgId} gaps={readiness?.gaps ?? []} canManage={manage} />
         <BriefReviewPanel organizationId={orgId} brief={brief} canManage={manage} />
+        <PagePlanPanel organizationId={orgId} hasBrief={!!brief} canManage={manage} />
         <BuilderWizard
           organizationId={orgId}
           org={org}
