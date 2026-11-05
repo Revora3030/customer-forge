@@ -6,6 +6,8 @@ import type { OrbitControls as OrbitControlsType } from "three-stdlib";
 import { CITY_ANIMATION_FPS, CITY_DPR_MIN, cityDprCeiling } from "./city-render";
 import { CITY_DISTRICTS, districtCounts, districtState, pulseRate, type CitySnapshot, type DistrictId } from "@/lib/ai-city";
 import { skyLighting, type SkyMode, type WeatherState } from "@/lib/city-sky";
+import { ApprovalBeacons3D } from "./ApprovalBeacons3D";
+import { useApprovalBeacons, useOpenApprovals } from "./use-approval-beacons";
 
 type Palette = { ground: string; road: string; structure: string; gold: string; cyan: string; magenta: string; light: string; muted: string; ok: string; danger: string };
 type DState = ReturnType<typeof districtState>;
@@ -259,6 +261,9 @@ export default function CityScene({ snapshot, selected, onSelect, palette, motio
   const controls = useRef<OrbitControlsType>(null);
   const anyActive = CITY_DISTRICTS.some(d => districtState(d.id, snapshot, Date.now()) === "working");
   const lighting = skyLighting(skyMode, palette.ground);
+  const approvals = useApprovalBeacons();
+  const openApprovals = useOpenApprovals();
+  const beaconsPulse = motion && approvals.status === "ok" && approvals.total > 0;
   const rainOn = Boolean(showWeather && motion && weather && weather.kind === "rain" && weather.density > 0);
   return <Canvas orthographic shadows dpr={[CITY_DPR_MIN, dpr]} frameloop="demand" camera={{ position: [25, 26, 30], zoom: 20, near: 0.1, far: 150 }} gl={{ antialias: true, powerPreference: "low-power" }} onCreated={({ gl }) => { gl.domElement.addEventListener("webglcontextlost", onFailure, { once: true }); }} fallback={<div role="alert">3D unavailable. Switch to Operations.</div>}>
     <color attach="background" args={[lighting.background]} />
@@ -279,7 +284,8 @@ export default function CityScene({ snapshot, selected, onSelect, palette, motio
     <OrbitControls ref={controls} makeDefault enableDamping dampingFactor={0.09} enableRotate zoomToCursor screenSpacePanning={false} panSpeed={1.1} minZoom={8} maxZoom={65} minPolarAngle={0.35} maxPolarAngle={1.25} target={[0, 1.5, 0]} onChange={keepCityInView} touches={CITY_TOUCHES} />
     {motion && anyActive ? <PerformanceMonitor bounds={() => [CITY_ANIMATION_FPS * 0.6, CITY_ANIMATION_FPS * 0.9]} onDecline={() => setDpr(CITY_DPR_MIN)} onIncline={() => setDpr(ceiling)} /> : null}
     <CityControls selected={selected} reset={reset} controls={controls} />
+    <ApprovalBeacons3D state={approvals} gold={palette.gold} motion={motion} onOpen={openApprovals} />
     {rainOn ? <Rain density={weather!.density} color={palette.cyan} /> : null}
-    <AnimationClock running={(motion && anyActive) || rainOn} />
+    <AnimationClock running={(motion && anyActive) || rainOn || beaconsPulse} />
   </Canvas>;
 }

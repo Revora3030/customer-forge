@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Inbox } from "lucide-react";
@@ -20,6 +20,7 @@ import {
   type InboxEntry,
   type InboxRow,
 } from "@/lib/jarvis/approvals-inbox";
+import { OPEN_APPROVALS_FLAG } from "@/lib/city-approval-beacons";
 import { ApprovalSafetySummary } from "./ApprovalSafety";
 
 type Props = {
@@ -106,6 +107,10 @@ export function ApprovalsInbox({ rows, onApprove }: Props) {
   const reject = useServerFn(rejectJarvisApprovalFn);
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
+  // JC-14: a tap on an AI City approval beacon sends the owner here and asks for the sheet once.
+  useEffect(() => {
+    try { if (sessionStorage.getItem(OPEN_APPROVALS_FLAG)) { sessionStorage.removeItem(OPEN_APPROVALS_FLAG); setOpen(true); } } catch { /* storage unavailable */ }
+  }, []);
   const [pending, setPending] = useState<string | null>(null);
   const approvals = useQuery({
     queryKey: APPROVALS_QUERY_KEY,

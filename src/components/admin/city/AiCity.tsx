@@ -11,6 +11,7 @@ import { CityActivity } from "./CityActivity";
 import { CityAttention } from "./CityAttention";
 import { CityReplay } from "./CityReplay";
 import type { ReplayFrame } from "@/lib/city-replay";
+import { ApprovalBeaconStatus } from "./ApprovalBeacons";
 import { CitySvgMap } from "./CitySvgMap";
 import { CITY_2D_QUERY } from "./city-render";
 import { DistrictCarousel } from "./DistrictCarousel";
@@ -164,6 +165,7 @@ export function AiCity() {
     </section>
     {query.isError ? <div role="alert" className="flex flex-wrap items-center gap-3 text-sm text-destructive">City records could not be read. Activity is unavailable.<Button variant="outline" onClick={() => query.refetch()}>Retry</Button></div> : null}
     {unavailable.length ? <p role="status" className="text-xs text-destructive">Unavailable sources: {unavailable.join(", ")}. No healthy verdict inferred.</p> : null}
+    <ApprovalBeaconStatus />
     <div className="flex flex-wrap items-center justify-between gap-2">
       <div className="flex items-center"><CitySound rows={rows} /></div>
       <div className="flex items-center gap-1" role="group" aria-label="City view"><Button variant={view === "city" ? "secondary" : "ghost"} aria-pressed={view === "city"} onClick={() => setView("city")}><Box className="size-4" /> City</Button><Button variant={view === "operations" ? "secondary" : "ghost"} aria-pressed={view === "operations"} onClick={() => setView("operations")}><List className="size-4" /> Operations</Button></div>
