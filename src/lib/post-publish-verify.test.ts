@@ -52,7 +52,8 @@ describe("evaluatePostPublish (TEN-06 item 25)", () => {
   });
 
   it("fails tracking when the live page carries no script", () => {
-    const html = LIVE_HTML.replace(/<script[^]*<\/script>/, "");
+    // Build HTML with no script tag (do not strip one — that trips CodeQL's HTML-filter rules).
+    const html = `<html><head><title>Acme Plumbing</title><link rel="stylesheet" href="/a.css"></head><body><h1>Acme Plumbing</h1><form><input name="name"></form>${"y".repeat(600)}</body></html>`;
     expect(byId(evaluatePostPublish({ smoke: SMOKE_OK, homeHtml: html, profile: PROFILE, site: site() }), "tracking").ok).toBe(false);
   });
 
