@@ -154,7 +154,7 @@ export function AiCity() {
         <div className={view === "operations" ? "grid gap-2 sm:grid-cols-2" : "mt-3 hidden grid-cols-2 gap-2 sm:grid sm:grid-cols-3"}>
           {CITY_DISTRICTS.map(d => { const state = districtState(d.id, snapshot, now); return <Button key={d.id} variant="outline" aria-pressed={selected === d.id} className={`h-auto min-h-16 min-w-0 justify-start whitespace-normal px-3 py-3 text-left ${selected === d.id ? "border-gold bg-gold/10" : ""}`} onClick={() => openDistrict(d.id)}><Building2 className="size-4 shrink-0 text-gold" /><span className="min-w-0"><span className="block text-xs font-semibold">{d.name}</span><span className={`block text-[11px] capitalize ${STATUS_TONE[state]}`}>{state}</span></span></Button>; })}
         </div>
-        {view === "city" ? <DistrictCarousel selected={selected} snapshot={snapshot} now={now} onSelect={setSelected} onOpen={openDistrict} /> : null}
+        {view === "city" ? <DistrictCarousel selected={selected} snapshot={snapshot} now={now} onSelect={setSelected} onOpen={openDistrict} onDraft={sendDraft} /> : null}
       </section>
       <section className="min-w-0 border-t border-border pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0" aria-label="Selected department">
         <p className="text-xs uppercase text-gold">Department {CITY_DISTRICTS.indexOf(district) + 1} / 07</p><h2 className="mt-2 font-display text-2xl font-semibold">{district.name}</h2><p className="mt-1 text-sm text-muted-foreground">{district.subtitle}</p><p className="mt-4 flex items-center gap-2 text-xs"><Users className="size-4 text-gold" />{district.role}</p>
