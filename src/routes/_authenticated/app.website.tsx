@@ -82,6 +82,7 @@ import type { BuilderAccessUiState } from "@/lib/builder-access-status";
 import { PreFlightPanel } from "@/components/app/PreFlight";
 import { preflight } from "@/lib/preflight";
 import { emittedJsonLd } from "@/lib/builder/jsonld-emitted";
+import { faqFactsFor } from "@/lib/builder/faq-from-facts";
 import { usePreflightFacts } from "@/lib/preflight.hooks";
 import { useSelfHeal } from "@/lib/self-heal.hooks";
 import { ClientOnboardingFlow } from "@/components/app/ClientOnboardingFlow";
@@ -565,6 +566,14 @@ function WebsitePage() {
       profile: profileFacts,
       services: activeServices,
       sections: shownSections,
+      // Same grounded answers the published head uses (site-head.ts), never invented ones.
+      faqFacts: faqFactsFor({
+        profile: profile as Parameters<typeof faqFactsFor>[0]["profile"],
+        businessName: org.name,
+        services: activeServices,
+        quote: (facts.data?.quoteFormCount ?? 0) > 0,
+        generation: settings?.generation,
+      }),
     });
     return {
       docs: emitted.docs,

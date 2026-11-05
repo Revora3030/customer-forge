@@ -5,6 +5,7 @@
  */
 
 import { compositionFaqItems } from "@/lib/builder/composition-faq";
+import { NO_FAQ_FACTS, type FaqFacts } from "@/lib/builder/faq-from-facts";
 import { scrubPlaceholderText } from "@/lib/builder/placeholder-contact";
 import { faqPageSchema } from "@/lib/seo";
 import { localBusinessSchema } from "@/lib/site-head";
@@ -16,8 +17,14 @@ export function emittedJsonLd(input: {
   profile: Parameters<typeof localBusinessSchema>[0]["profile"];
   services: NonNullable<Parameters<typeof localBusinessSchema>[0]["services"]>;
   sections: readonly { settings?: unknown }[];
+  /**
+   * The owner's grounded FAQ facts (faqFactsFor). The published head resolves
+   * FAQ answers with these, so the validator must too, or it checks different
+   * answers than the ones visitors and search engines get.
+   */
+  faqFacts?: FaqFacts;
 }): { docs: unknown[]; visibleFaqs: { q: string; a: string }[] } {
-  const visibleFaqs = compositionFaqItems(input.sections);
+  const visibleFaqs = compositionFaqItems(input.sections, input.faqFacts ?? NO_FAQ_FACTS);
   const faqs = visibleFaqs
     .map((item) => ({ q: scrubPlaceholderText(item.q), a: scrubPlaceholderText(item.a) }))
     .filter((item) => item.q.trim() && item.a.trim());
