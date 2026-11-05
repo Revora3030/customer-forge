@@ -1,7 +1,8 @@
 import type { KeyboardEvent } from "react";
 import { CITY_DISTRICTS, districtCounts, districtState, failedLabel, districtFailureSummary, type CitySnapshot, type DistrictId } from "@/lib/ai-city";
+import { skyLighting, type SkyMode, type WeatherState } from "@/lib/city-sky";
 
-export type CitySvgMapProps = { snapshot?: CitySnapshot | undefined; selected: DistrictId; now: number; onSelect: (id: DistrictId) => void };
+export type CitySvgMapProps = { snapshot?: CitySnapshot | undefined; selected: DistrictId; now: number; onSelect: (id: DistrictId) => void; skyMode?: SkyMode; weather?: WeatherState };
 
 /** Same colour rules as the 3D scene, read from the --city-* tokens so the palette stays in one place. */
 const STATE_FILL: Record<ReturnType<typeof districtState>, string> = {
@@ -19,11 +20,18 @@ const at = (value: number) => 50 + value * 5.6;
  * districts, states and selection as the 3D scene without loading three.js,
  * WebGL or a render loop. Each district is a keyboard-reachable button.
  */
-export function CitySvgMap({ snapshot, selected, now, onSelect }: CitySvgMapProps) {
+export function CitySvgMap({ snapshot, selected, now, onSelect, skyMode = "neutral", weather }: CitySvgMapProps) {
   const onKey = (id: DistrictId) => (event: KeyboardEvent<SVGGElement>) => {
     if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onSelect(id); }
   };
-  return <svg viewBox="0 0 100 100" role="group" aria-label="AI City map" className="block h-full w-full" style={{ background: "var(--city-ground)" }} data-testid="city-svg-map">
+  const lighting = skyLighting(skyMode, "var(--city-ground)");
+  const rainDots = weather && weather.kind === "rain" && weather.density > 0
+    ? Array.from({ length: Math.max(0, Math.min(40, Math.round(weather.density * 40))) }, (_, i) => ({
+        x: ((i * 17) % 100),
+        y: ((i * 29) % 100),
+      }))
+    : [];
+  return <svg viewBox="0 0 100 100" role="group" aria-label="AI City map" className="block h-full w-full" style={{ background: lighting.background }} data-testid="city-svg-map" data-sky={skyMode}>
     <rect x="47.5" y="0" width="5" height="100" fill="var(--city-road)" />
     <rect x="0" y="47.5" width="100" height="5" fill="var(--city-road)" />
     {CITY_DISTRICTS.filter(d => d.id !== "executive").map(d => {
@@ -47,5 +55,7 @@ export function CitySvgMap({ snapshot, selected, now, onSelect }: CitySvgMapProp
         <text x={x} y={y + size / 2 + 4} textAnchor="middle" fontSize="3.2" fill={isSelected ? "var(--city-gold)" : "var(--city-light)"}>{d.name}</text>
       </g>;
     })}
+    {rainDots.map((dot, i) => <line key={`r-${i}`} x1={dot.x} y1={dot.y} x2={dot.x} y2={dot.y + 3} stroke="var(--city-cyan)" strokeWidth="0.35" strokeOpacity={0.45} />)}
   </svg>;
 }
+
