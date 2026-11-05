@@ -6,6 +6,7 @@ import { useWorkspace } from "@/lib/use-tenant";
 import { DATE_RANGES, sourceLabel } from "@/lib/domain";
 import { currency, dateShort } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { AskAiButton } from "@/components/app/AskAiButton";
 import { ConversionOptimizer } from "@/components/app/ConversionOptimizer";
 import { TrafficMonitor } from "@/components/app/TrafficMonitor";
 import { SitePerformance } from "@/components/app/SitePerformance";
@@ -112,6 +113,7 @@ function AnalyticsPage() {
         title="Analytics"
         purpose="How many people visit your site, and what they do there."
       >
+        <AskAiButton topic="analytics" defaultDays={days} label="Ask AI about this" />
         <div className="flex gap-1.5">
           {DATE_RANGES.map((range) => (
             <button

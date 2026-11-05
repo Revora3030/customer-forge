@@ -23,6 +23,7 @@ import { AssistantMessage, UserMessage, type JarvisRow } from "@/components/app/
 import { NoticeRepeatDigest } from "@/components/app/jarvis/NoticeRepeatDigest";
 import { foldRepeatNotices } from "@/lib/jarvis-notice-digest";
 import { RunTaskTree } from "@/components/app/jarvis/RunTaskTree";
+import { ApprovalsInbox } from "@/components/app/jarvis/ApprovalsInbox";
 import { ConversationsSheet } from "@/components/app/jarvis/ConversationsSheet";
 import { OperationsPanel, DIAGNOSTIC_SECTIONS, type ProspectorState } from "@/components/app/jarvis/OperationsPanel";
 import { CommandPalette } from "@/components/app/jarvis/CommandPalette";
@@ -33,6 +34,15 @@ import { DemoBuildCard } from "@/components/app/jarvis/DemoBuildCard";
 import { findMapsLink, readDemoCards, readDemoSendProposal, rememberDemoCard, type DemoCardRef, type DemoChannel } from "@/components/app/jarvis/demo-build";
 import "@/components/app/jarvis/jarvis.css";
 import { isTurnStopped, stoppable } from "@/components/app/jarvis/stop-turn";
+import { QuietNoticesDigest } from "@/components/app/jarvis/QuietNoticesDigest";
+import { foldQuietNotices } from "@/lib/jarvis-quiet-digest";
+import { jarvisFailureSentence, jarvisFailureToast } from "@/lib/jarvis/honest-failure";
+import {
+  JARVIS_CLIENT_STALL_MS,
+  jarvisCanAutoRetryStall,
+  jarvisIsStalled,
+  jarvisStillWorkingLabel,
+} from "@/lib/jarvis/stream-stall";
 import { askClaudeToFixPullRequestFn, openJarvisPullRequestFn, recoverStalledBuildsFn, sendClaudeCodeRequestFn, clearJarvisHistory, getJarvisHistory, getJarvisDiagnostics, getJarvisAcquisitionReadiness, getJarvisDiagnosticTools, runJarvisDiagnosticTool, regenerateJarvisReply, sendJarvisMessage, forgetJarvisMemoryFn, claimJarvisApprovalFn, finishJarvisApprovalFn, saveJarvisRoutineFn, deleteJarvisRoutineFn, JARVIS_HISTORY_PAGE } from "@/lib/jarvis.functions";
 import { draftProspectOutreach, type ProspectDraft } from "@/lib/jarvis-prospecting.functions";
 import { formatRevoraOffer } from "@/lib/jarvis-acquisition-policy";
@@ -233,6 +243,10 @@ function Jarvis() {
   const [listening, setListening] = useState(false);
   const [interim, setInterim] = useState("");
   const [elapsed, setElapsed] = useState(0);
+  // JC-49: one automatic stall retry max; stallAbort marks cut-offs so Stop does not retry.
+  const stallRetriesUsed = useRef(0);
+  const stallAbort = useRef(false);
+  const requestRegen = useRef<() => void>(() => undefined);
   const [prospectText, setProspectText] = useState("");
   const [drafts, setDrafts] = useState<ProspectDraft[]>([]);
   const [edits, setEdits] = useState<Record<number, string>>({});
@@ -344,10 +358,24 @@ function Jarvis() {
       // Live mode or the voice toggle: the reply will be read aloud, so ask for a short spoken core.
       return startTurn((signal) => send({ data: { message, mode, conversationId, runId, model: pickedModel, voice: voice || liveRef.current }, signal }));
     },
-    onSuccess: finish,
+    onSuccess: (result) => {
+      stallRetriesUsed.current = 0;
+      stallAbort.current = false;
+      return finish(result);
+    },
     onError: async (error: Error, message: string) => {
+      const wasStall = stallAbort.current;
+      stallAbort.current = false;
+      if (wasStall && jarvisCanAutoRetryStall(stallRetriesUsed.current)) {
+        // Message was already saved by sendJarvisMessage — regenerate once, never re-insert.
+        stallRetriesUsed.current += 1;
+        toast(jarvisFailureSentence("stall") + " Retrying once…");
+        await qc.invalidateQueries({ queryKey: ["jarvis", "history"] }).catch(() => undefined);
+        requestRegen.current();
+        return;
+      }
       if (isTurnStopped(error)) toast("Stopped. Jarvis may still save a reply; it shows when the chat refreshes.");
-      else toast.error(error.message);
+      else toast.error(jarvisFailureToast(error, wasStall ? "stall" : "send"));
       // The server saves the message before answering, so it may already be in the chat.
       await qc.invalidateQueries({ queryKey: ["jarvis", "history"] }).catch(() => undefined);
       const rows = qc.getQueryData<JarvisRow[]>(historyKey) ?? [];
@@ -359,14 +387,27 @@ function Jarvis() {
   });
   const regen = useMutation({
     mutationFn: () => startTurn((signal) => redo({ data: { mode, conversationId }, signal })),
-    onSuccess: finish,
+    onSuccess: (result) => {
+      stallRetriesUsed.current = 0;
+      stallAbort.current = false;
+      return finish(result);
+    },
     onError: (error: Error) => {
-      if (isTurnStopped(error)) {
+      const wasStall = stallAbort.current;
+      stallAbort.current = false;
+      if (isTurnStopped(error) && !wasStall) {
         toast("Stopped. Jarvis may still save a reply; it shows when the chat refreshes.");
         void qc.invalidateQueries({ queryKey: ["jarvis", "history"] }).catch(() => undefined);
-      } else toast.error(error.message);
+      } else if (wasStall) {
+        toast.error(jarvisFailureSentence("stall"));
+        void qc.invalidateQueries({ queryKey: ["jarvis", "history"] }).catch(() => undefined);
+        resumeLive();
+      } else {
+        toast.error(jarvisFailureToast(error, "regenerate"));
+      }
     },
   });
+  requestRegen.current = () => regen.mutate();
   const clearing = useMutation({
     mutationFn: () => clear(),
     onSuccess: () => {
@@ -377,18 +418,42 @@ function Jarvis() {
       void qc.invalidateQueries({ queryKey: ["jarvis", "conversations"] });
       return qc.invalidateQueries({ queryKey: ["jarvis", "history"] });
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(jarvisFailureToast(error, "clear")),
   });
   const prospecting = useMutation({
     mutationFn: (prospects: ProspectLine[]) => draftFn({ data: { prospects, suppress: dnc } }),
     onSuccess: (result) => { setDrafts(result.drafts); setEdits({}); setAddressConfigured(result.mailingAddressConfigured); },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => toast.error(jarvisFailureToast(error, "generic")),
   });
   const busy = mutation.isPending || regen.isPending;
   const latest = useMemo(() => history.data ?? [], [history.data]);
   const messages = useMemo(() => mergeRows(older, latest), [older, latest]);
-  /** JC-47: collapse same-rule same-day event notices into one expandable row. */
-  const chatItems = useMemo(() => foldRepeatNotices(messages), [messages]);
+  /** JC-46 then JC-47: quiet digests first; repeat digests fold plain rows between them. */
+  const chatItems = useMemo(() => {
+    const afterQuiet = foldQuietNotices(messages);
+    type QuietItem = ReturnType<typeof foldQuietNotices>[number];
+    type RepeatItem = ReturnType<typeof foldRepeatNotices>[number];
+    type ChatItem =
+      | Extract<QuietItem, { kind: "quiet-digest" }>
+      | RepeatItem;
+    const out: ChatItem[] = [];
+    let buffer: typeof messages = [];
+    const flush = () => {
+      if (!buffer.length) return;
+      out.push(...foldRepeatNotices(buffer));
+      buffer = [];
+    };
+    for (const item of afterQuiet) {
+      if (item.kind === "quiet-digest") {
+        flush();
+        out.push(item);
+      } else {
+        buffer.push(item.row);
+      }
+    }
+    flush();
+    return out;
+  }, [messages]);
   const lastMessage = messages[messages.length - 1];
   const lastAssistantId = lastMessage?.role === "assistant" ? lastMessage.id : null;
   const empty = !history.isLoading && !history.error && messages.length === 0 && !pending;
@@ -424,6 +489,15 @@ function Jarvis() {
     const timer = setInterval(() => setElapsed((value) => value + 1), 1000);
     return () => clearInterval(timer);
   }, [busy]);
+  // JC-49: client stall cut-off — abort once; mutation/regen onError may auto-retry via regenerate (no duplicate send).
+  useEffect(() => {
+    if (!busy) return;
+    if (!jarvisIsStalled(elapsed * 1000, JARVIS_CLIENT_STALL_MS)) return;
+    if (!inflight.current || stallAbort.current) return;
+    stallAbort.current = true;
+    inflight.current.abort();
+    announce("Still waiting — stopping this attempt");
+  }, [busy, elapsed]);
   // When new messages push the oldest rows out of the latest page, keep them with the
   // earlier pages already loaded, so "Load earlier" never leaves a gap.
   const previousLatest = useRef<JarvisRow[]>([]);
@@ -482,6 +556,8 @@ function Jarvis() {
     detachRecognition();
     setText("");
     setFollowups([]);
+    stallRetriesUsed.current = 0;
+    stallAbort.current = false;
     void conversation.current?.scrollToBottom();
     setPending(clean);
     mutation.mutate(clean);
@@ -542,7 +618,7 @@ function Jarvis() {
       setMoreEarlier(rows.length >= JARVIS_HISTORY_PAGE);
       if (!rows.length) toast.message("That's the start of your Jarvis chat.");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Couldn't load earlier messages.");
+      toast.error(error instanceof Error && error.message.trim() ? error.message : jarvisFailureSentence("history_load"));
     } finally {
       setLoadingEarlier(false);
     }
@@ -930,6 +1006,7 @@ function Jarvis() {
             clearDisabled={clearing.isPending || busy}
             onClear={() => clearing.mutate()}
             onOpenConversations={() => setShowConversations(true)}
+            inbox={<ApprovalsInbox rows={messages} onApprove={(key, proposal) => { void approveProposal(key, proposal); }} />}
           />
           {voice || live ? (
             <div className="flex items-center justify-end gap-2 border-b border-border px-3 py-1.5 text-xs text-muted-foreground sm:px-6">
@@ -951,7 +1028,7 @@ function Jarvis() {
           <Conversation contextRef={conversation} className="min-h-0 flex-1" aria-label="Jarvis conversation" aria-live="off">
             <ConversationContent scrollClassName="overscroll-contain" className="mx-auto w-full max-w-[var(--jarvis-measure)] gap-6 px-3 py-4 sm:px-6">
               {history.isLoading ? <p className="text-sm text-muted-foreground">Loading your conversation…</p> : null}
-              {history.error ? <p role="alert" className="text-sm text-destructive">Your conversation could not be loaded.</p> : null}
+              {history.error ? <p role="alert" className="text-sm text-destructive">{jarvisFailureSentence("history_load")}</p> : null}
               {canLoadEarlier ? (
                 <div className="flex justify-center">
                   <Button type="button" variant="outline" size="sm" data-jarvis-tap="" className="rounded-full" disabled={loadingEarlier} onClick={() => { void loadEarlier(); }}>
@@ -977,16 +1054,28 @@ function Jarvis() {
                 </div>
               ) : null}
               {chatItems.map((item, index) => {
-                const stamp = item.kind === "repeat-digest" ? item.members[item.members.length - 1]!.createdAt : item.row.created_at;
+                const stamp =
+                  item.kind === "quiet-digest"
+                    ? (item.rows[item.rows.length - 1]?.createdAt ?? item.rows[0]?.createdAt ?? "")
+                    : item.kind === "repeat-digest"
+                      ? item.members[item.members.length - 1]!.createdAt
+                      : item.row.created_at;
                 const prev = index === 0 ? null : chatItems[index - 1]!;
                 const prevStamp = !prev
                   ? null
-                  : prev.kind === "repeat-digest"
-                    ? prev.members[prev.members.length - 1]!.createdAt
-                    : prev.row.created_at;
+                  : prev.kind === "quiet-digest"
+                    ? (prev.rows[prev.rows.length - 1]?.createdAt ?? prev.rows[0]?.createdAt ?? "")
+                    : prev.kind === "repeat-digest"
+                      ? prev.members[prev.members.length - 1]!.createdAt
+                      : prev.row.created_at;
                 const day = dayKey(stamp);
                 const newDay = index === 0 || !prevStamp || day !== dayKey(prevStamp);
-                const key = item.kind === "repeat-digest" ? `digest:${item.key}` : item.row.id;
+                const key =
+                  item.kind === "quiet-digest"
+                    ? `quiet:${item.rows.map((row) => row.id).join(",")}`
+                    : item.kind === "repeat-digest"
+                      ? `digest:${item.key}`
+                      : item.row.id;
                 return (
                   <Fragment key={key}>
                     {newDay && day ? (
@@ -996,7 +1085,9 @@ function Jarvis() {
                         <span className="h-px flex-1 bg-border/70" aria-hidden />
                       </div>
                     ) : null}
-                    {item.kind === "repeat-digest" ? (
+                    {item.kind === "quiet-digest" ? (
+                      <QuietNoticesDigest rows={item.rows} busy={busy} onAsk={(prompt) => submit(prompt)} />
+                    ) : item.kind === "repeat-digest" ? (
                       <NoticeRepeatDigest members={item.members} busy={busy} onAsk={(prompt) => submit(prompt)} />
                     ) : item.row.role === "user" ? (
                       <UserMessage content={item.row.content} createdAt={item.row.created_at} />
@@ -1028,11 +1119,14 @@ function Jarvis() {
               {pending ? <UserMessage content={pending} /> : null}
               {busy && liveRun ? (
                 // The live task tree stands in for the spinner: each step shows as it is recorded.
-                <RunTaskTree runId={liveRun} live />
+                <div className="space-y-2">
+                  <RunTaskTree runId={liveRun} live />
+                  <p className="text-sm text-muted-foreground" aria-live="polite">{jarvisStillWorkingLabel(elapsed)}</p>
+                </div>
               ) : busy ? (
-                <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                <div className="flex items-center gap-3 text-sm text-muted-foreground" aria-live="polite">
                   <span aria-hidden><TypingDots /></span>
-                  <span>Working<span aria-hidden> · {elapsed}s</span></span>
+                  <span>{jarvisStillWorkingLabel(elapsed)}</span>
                 </div>
               ) : null}
               {!busy && !pending && lastMessage?.role === "user" ? (

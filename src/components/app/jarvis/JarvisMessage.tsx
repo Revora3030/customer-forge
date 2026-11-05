@@ -5,6 +5,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { JarvisMarkdown } from "@/components/app/JarvisMarkdown";
 import { splitReplyMeta, type WriteProposal } from "@/lib/jarvis-actions";
 import { ProposalCard, type ProposalState } from "./ProposalCard";
+import { ApprovalSafetySummary } from "./ApprovalSafety";
+import { jarvisApprovalSafety } from "@/lib/jarvis/approval-safety";
 import { ModelTag } from "./ModelTag";
 import { EventNoticeCard } from "./EventNoticeCard";
 import { parseEventNotice } from "@/lib/jarvis-event-notice";
@@ -112,6 +114,7 @@ export function AssistantMessage({ message, isLast, busy, regenerating, speaking
           return (
             <Fragment key={key}>
               <ProposalCard proposal={proposal} state={approvalState(key)} url={approvalUrl(key)} onApprove={() => onApprove(key, proposal)} />
+              {approvalState(key) === "done" ? null : <ApprovalSafetySummary safety={jarvisApprovalSafety(proposal.id)} className="mt-2" />}
               {renderAfterProposal?.(key)}
             </Fragment>
           );
