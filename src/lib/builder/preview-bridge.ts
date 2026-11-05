@@ -8,6 +8,8 @@
  * for a builder instruction.
  */
 
+import { readSiteStyle, type SiteStyle } from "@/lib/builder/style-edit";
+
 export const PREVIEW_BRIDGE_SOURCE = "revora-preview";
 
 /** Sent by the preview when it is ready, and when the owner clicks a block. */
@@ -82,6 +84,8 @@ export type BuilderToPreviewMessage =
       primary: string;
       secondary: string;
       accent: string;
+      /** Optional curated type pair, corners and spacing (token inspector v2). */
+      style?: SiteStyle;
     }
   | {
       /** Put the page's own saved colours back. */
@@ -208,7 +212,9 @@ export function readBuilderMessage(data: unknown): BuilderToPreviewMessage | nul
     const primary = hexColor(record["primary"]);
     const secondary = hexColor(record["secondary"]);
     const accent = hexColor(record["accent"]);
-    return primary && secondary && accent ? { source: PREVIEW_BRIDGE_SOURCE, type: "patch-theme", primary, secondary, accent } : null;
+    if (!primary || !secondary || !accent) return null;
+    const style = record["style"] === undefined ? undefined : readSiteStyle(record["style"]);
+    return { source: PREVIEW_BRIDGE_SOURCE, type: "patch-theme", primary, secondary, accent, ...(style ? { style } : {}) };
   }
   if (record["type"] === "patch-text") {
     const id = typeof record["id"] === "string" ? record["id"] : "";

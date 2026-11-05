@@ -30,6 +30,7 @@ import {
 } from "@/lib/builder/preview-bridge";
 import { contrast, over, parseColor, requiredRatio, type Rgba } from "@/lib/builder/contrast-scan";
 import { siteThemeStyle } from "@/lib/site-theme";
+import { stylePreviewPatch, type SiteStyle } from "@/lib/builder/style-edit";
 import { DOUBLE_TAP_MS, isDoubleTap, type Tap } from "@/lib/builder/inline-edit";
 
 const INLINE_TYPES = new Set(["heading", "text", "button", "link", "quote"]);
@@ -244,16 +245,40 @@ export function PreviewSelectBridge() {
 
     /* ------------------------------ live palette ------------------------------ */
     const siteRoot = () => document.querySelector<HTMLElement>(".rv-site-root");
+    let classSnapshot: string | null = null;
     const resetTheme = () => {
       const node = siteRoot();
       if (node && themeSnapshot !== null) node.style.cssText = themeSnapshot;
+      if (node && classSnapshot !== null) node.className = classSnapshot;
       themeSnapshot = null;
+      classSnapshot = null;
+      document.getElementById("rv-preview-fonts")?.remove();
     };
-    const patchTheme = (primary: string, secondary: string, accent: string) => {
+    const patchTheme = (primary: string, secondary: string, accent: string, style?: SiteStyle) => {
       const node = siteRoot();
       // Studio pages carry their own theme layer; leave those to a reload.
       if (!node || node.hasAttribute("data-studio")) return;
       if (themeSnapshot === null) themeSnapshot = node.style.cssText;
+      if (classSnapshot === null) classSnapshot = node.className;
+      // Each patch starts from the saved look, so a cleared choice really clears.
+      node.style.cssText = themeSnapshot;
+      node.className = classSnapshot;
+      if (style) {
+        const patch = stylePreviewPatch(style);
+        for (const [key, value] of Object.entries(patch.vars)) node.style.setProperty(key, value);
+        for (const name of patch.classes) node.classList.add(name);
+        // Curated (OFL) pairs only: the href comes from siteFontsHref, never from the message.
+        let link = document.getElementById("rv-preview-fonts") as HTMLLinkElement | null;
+        if (patch.fontsHref) {
+          if (!link) {
+            link = document.createElement("link");
+            link.id = "rv-preview-fonts";
+            link.rel = "stylesheet";
+            document.head.appendChild(link);
+          }
+          if (link.href !== patch.fontsHref) link.href = patch.fontsHref;
+        } else link?.remove();
+      }
       const vars = (siteThemeStyle({ primaryColor: primary, secondaryColor: secondary, accentColor: accent }) ?? {}) as Record<string, string>;
       for (const [key, value] of Object.entries(vars)) {
         if (key.startsWith("--")) node.style.setProperty(key, value);
@@ -391,7 +416,7 @@ export function PreviewSelectBridge() {
         return;
       }
       if (message.type === "patch-theme") {
-        patchTheme(message.primary, message.secondary, message.accent);
+        patchTheme(message.primary, message.secondary, message.accent, message.style);
         return;
       }
       if (message.type === "reset-theme") {
