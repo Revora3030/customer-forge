@@ -831,6 +831,7 @@ function WebsitePage() {
               label: factQuestion.label,
               prompt: factQuestion.prompt,
               required: factQuestion.required,
+              ...("choices" in factQuestion && Array.isArray(factQuestion.choices) ? { choices: factQuestion.choices } : {}),
             } : null}
             onFactAnswer={async (key, answer) => {
               await saveFacts.mutateAsync({ [key]: answer });

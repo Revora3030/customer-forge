@@ -983,8 +983,11 @@ export const getBuildReadiness = createServerFn({ method: "POST" })
     // data printed as words or unsupported claims block a publish outright.
     const { auditWorkspaceWebsite } = await import("@/lib/builder/quality.server");
     const quality = await auditWorkspaceWebsite(context.supabase as never, data.organizationId);
+    // COMP-13: tap choices may only be built from facts the owner already gave.
+    const { factChoices } = await import("@/lib/builder/fact-choices");
+    const choiceContext = { city: facts.factInput.city };
     return {
-      gaps,
+      gaps: gaps.map((gap) => ({ ...gap, choices: factChoices(gap.key, choiceContext) })),
       requiredGaps: gaps.filter((g) => g.required),
       briefApproved: brief?.approved === true,
       hasBrief: !!brief,
