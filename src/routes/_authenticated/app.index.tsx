@@ -25,6 +25,7 @@ import { WinbackCard } from "@/components/app/WinbackCard";
 import { LeadDeliveryFlags } from "@/components/app/LeadDeliveryFlags";
 import { WorkDoneCard } from "@/components/app/WorkDoneCard";
 import { GrowthSnapshot } from "@/components/app/GrowthSnapshot";
+import { SeoReviewCard } from "@/components/app/SeoReviewCard";
 
 import { useProductionStatus } from "@/lib/production.hooks";
 
@@ -502,6 +503,8 @@ function Dashboard() {
         bookings={appts.filter((a) => a.status !== "cancelled").length}
         visits={events.filter((e) => e.event_type === "page_view").length}
       />
+
+      <SeoReviewCard organizationId={orgId} businessName={org?.name ?? null} />
 
       <GrowthSnapshot organizationId={orgId} businessName={org?.name ?? null} />
 
