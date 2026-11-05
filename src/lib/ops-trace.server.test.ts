@@ -33,7 +33,7 @@ describe("BRF-03 traceOps", () => {
   });
 
   it("rethrows the original error after recording a failed span, and exports to a configured collector", async () => {
-    vi.stubEnv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4318");
+    vi.stubEnv("OTEL_EXPORTER_OTLP_ENDPOINT", "https://otel.example.test");
     vi.stubEnv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", "");
     vi.stubEnv("LANGFUSE_PUBLIC_KEY", "");
     const fetchMock = vi.fn(async () => new Response("{}", { status: 200 }));
@@ -48,9 +48,9 @@ describe("BRF-03 traceOps", () => {
     expect(line).toContain('"errorType":"TypeError"');
     expect(line).not.toContain("acme");
     await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled());
-    expect(fetchMock.mock.calls.map((c) => String((c as unknown[])[0]))).toEqual(["http://localhost:4318/v1/traces"]);
+    expect(fetchMock.mock.calls.map((c) => String((c as unknown[])[0]))).toEqual(["https://otel.example.test/v1/traces"]);
     const [url, init] = fetchMock.mock.calls[0]! as unknown as [string, RequestInit];
-    expect(url).toBe("http://localhost:4318/v1/traces");
+    expect(url).toBe("https://otel.example.test/v1/traces");
     expect(String(init.body)).toContain('"name":"site.deploy"');
     expect(String(init.body)).not.toContain("acme");
   });
