@@ -416,8 +416,22 @@ export const claimJarvisApprovalFn = createServerFn({ method: "POST" })
   })
   .handler(async ({ context, data }) => {
     const db = await guardedAdmin(context);
-    const { claimApproval } = await import("./jarvis-approvals.server");
-    return claimApproval(db, String(context.userId), data.key, data.proposal);
+    const { claimApproval, finishApproval, summaryFor } = await import("./jarvis-approvals.server");
+    const claim = await claimApproval(db, String(context.userId), data.key, data.proposal);
+    if (!claim.ok) return claim;
+    // Same single-use step the workspace approvals use (admin scope). A refusal
+    // frees the Jarvis claim so the owner can ask again; an outage doesn't block.
+    const { consumeJarvisWriteApproval } = await import("./agent/jarvis-approval-bridge.server");
+    const { supabaseApprovalRepo } = await import("./agent/approvals.server");
+    const shared = await consumeJarvisWriteApproval({ repo: supabaseApprovalRepo(db) }, {
+      userId: String(context.userId),
+      key: data.key,
+      proposal: data.proposal as { id: string },
+      summary: summaryFor(data.proposal as Parameters<typeof summaryFor>[0]),
+    });
+    if (shared.ok) return claim;
+    await finishApproval(db, String(context.userId), data.key, false);
+    return { ok: false as const, reason: shared.reason === "used" ? ("used" as const) : ("changed" as const), message: shared.message };
   });
 
 export const finishJarvisApprovalFn = createServerFn({ method: "POST" })

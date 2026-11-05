@@ -67,6 +67,9 @@ import { PublishRetryBar } from "@/components/app/PublishRetryBar";
 
 
 import { ImageStudio } from "@/components/app/ImageStudio";
+import { AssetSwapPanel, type AssetSwapTarget } from "@/components/app/AssetSwapPanel";
+import { pictureAlt } from "@/lib/builder/asset-swap";
+import { readComposition } from "@/lib/builder/composition-tree";
 import { readBackdrop } from "@/lib/site-effects";
 import { BuilderAudit } from "@/components/app/BuilderAudit";
 import { PrivacyNoticeDetails } from "@/components/app/PrivacyNoticeDetails";
@@ -93,6 +96,8 @@ import { SiteVersionList } from "@/components/app/SiteVersionList";
 import { LiveSyncPanel } from "@/components/app/LiveSyncPanel";
 import { PortalAccess } from "@/components/app/PortalAccess";
 import { PreviewLinks, PreviewSiteButton } from "@/components/app/PreviewLinks";
+import { OpenOnPhoneButton, OpenOnPhoneDialog } from "@/components/app/OpenOnPhone";
+import { phoneLink } from "@/lib/builder/open-on-phone";
 import { VersionDiff } from "@/components/app/VersionDiff";
 import { DraftBranchPanel } from "@/components/app/DraftBranchPanel";
 import { RestorePointPanel } from "@/components/app/RestorePointPanel";
@@ -130,7 +135,7 @@ import {
   useGenerateSectionsFromText,
   useLatestGenerationJob,
 } from "@/lib/site-engine.hooks";
-import { useWebsiteContent } from "@/lib/website-content.hooks";
+import { usePreviewLinks, useWebsiteContent } from "@/lib/website-content.hooks";
 import { websiteQa, type WizardStepKey } from "@/lib/website-content";
 
 /**
@@ -261,6 +266,8 @@ function WebsitePage() {
   const [selected, setSelected] = useState<PreviewSelection | null>(null);
   /** "+ Add section with AI" in the preview: where the next message's new section goes. */
   const [insertAt, setInsertAt] = useState<InsertSpot | null>(null);
+  // B12-4: a single click on a picture opens the Asset Swapper for that slot.
+  const [swapTarget, setSwapTarget] = useState<AssetSwapTarget | null>(null);
   /** The page open in the preview, so chat requests know what the owner is looking at. */
   const [viewingPage, setViewingPage] = useState<PageContext | null>(null);
   /** "Show in preview" from the chat: the section to scroll to and outline. */
@@ -480,6 +487,18 @@ function WebsitePage() {
 
   const launchFlow = useLaunchFlow(orgId);
 
+  // "Open on your phone": QR in the toolbar, and once right after a publish.
+  const { data: phonePreviewLinks } = usePreviewLinks(orgId);
+  const [phoneDialogOpen, setPhoneDialogOpen] = useState(false);
+  const lastLaunchResult = useRef<unknown>(null);
+  useEffect(() => {
+    const result = launchFlow.result;
+    if (result && result !== lastLaunchResult.current) {
+      lastLaunchResult.current = result;
+      if (result.activated) setPhoneDialogOpen(true);
+    }
+  }, [launchFlow.result]);
+
   const servicesCount = facts.data?.servicesCount ?? (services ?? []).length;
   const pricedCount = facts.data?.pricedServicesCount ?? 0;
   const captureCount = (facts.data?.quoteFormCount ?? 0) + (facts.data?.bookableCount ?? 0);
@@ -650,6 +669,12 @@ function WebsitePage() {
   };
 
   const publishState = settings?.publish_state ?? "draft";
+  const phoneLinkValue = phoneLink({
+    publishState,
+    slug: org?.slug,
+    links: phonePreviewLinks,
+    origin: typeof window === "undefined" ? "" : window.location.origin,
+  });
 
   /** Only what this website actually needs, in the owner's words. */
   const mediaCount = facts.data?.mediaCount ?? 0;
@@ -886,7 +911,28 @@ function WebsitePage() {
                 }
                 setSelected(pick);
                 setInsertAt(null);
+                if (manage && pick.element === "media" && pick.path) {
+                  const section = (shownPages ?? []).flatMap((page) => page.sections).find((row) => row.id === pick.id);
+                  const tree = readComposition(section?.settings);
+                  setSwapTarget({
+                    sectionId: pick.id,
+                    path: pick.path,
+                    label: pick.label ?? null,
+                    alt: tree ? pictureAlt(tree, pick.path) : "",
+                  });
+                  return;
+                }
                 setPreviewOpen(false);
+              }}
+            />
+            <AssetSwapPanel
+              organizationId={orgId ?? undefined}
+              industry={(org?.industry as string | undefined) ?? null}
+              target={swapTarget}
+              onClose={() => setSwapTarget(null)}
+              onSwapped={() => {
+                void queryClient.invalidateQueries({ queryKey: ["website_content", orgId] });
+                void queryClient.invalidateQueries({ queryKey: ["website_versions", orgId] });
               }}
             />
           </div>
@@ -930,6 +976,7 @@ function WebsitePage() {
                   compact
                 />
               ) : null}
+              <OpenOnPhoneButton link={phoneLinkValue} />
               {manage ? (
                 <Button
                   size="sm"
@@ -1358,6 +1405,11 @@ function WebsitePage() {
         reason={launchFlow.result?.reason ?? null}
       />
 
+      <OpenOnPhoneDialog
+        open={phoneDialogOpen}
+        onOpenChange={setPhoneDialogOpen}
+        link={phoneLink({ publishState: "published", slug: org?.slug })}
+      />
       {/* A publish that broke on a glitch stays recoverable, not a dead end. */}
       <PublishRetryBar
         message={launchFlow.retryable}

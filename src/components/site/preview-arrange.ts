@@ -98,7 +98,7 @@ export function createArrangeController({ layer, post, isEditing }: Options): Ar
   const byId = (id: string) => sections().find((node) => idOf(node) === id) ?? null;
   const announce = (text: string) => {
     live.textContent = "";
-    window.setTimeout(() => (live.textContent = text), 30);
+    window.setTimeout(() => (live.textContent = text), 30); // DevSkim: ignore DS172411 -- Fixed callback and constant delay; no untrusted data.
   };
 
   const place = () => {

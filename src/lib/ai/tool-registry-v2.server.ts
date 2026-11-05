@@ -31,6 +31,8 @@ import { z } from "zod";
 import { aiLimits } from "@/lib/ai/config";
 import { RevoraAiError } from "@/lib/ai/errors";
 import { findTool, type ToolContext } from "@/lib/ai/tools.server";
+import { agentTools } from "@/lib/agent/tools";
+import type { LimitsDeps } from "@/lib/agent/limits.server";
 
 export type ToolRisk = "read" | "write_internal" | "send_external";
 export type ToolScope = "owner" | "admin";
@@ -123,6 +125,8 @@ export type ToolRunDeps = {
    * Without it, send_external tools are always refused with `needs_approval`.
    */
   approvals?: { consume: (call: { tool: string; argsHash: string; context: ToolContextV2 }) => Promise<boolean> };
+  /** PAI-5 limits for the agent tool groups; defaults to the Supabase-backed ones. */
+  limits?: LimitsDeps;
 };
 
 /* --------------------------------- helpers -------------------------------- */
@@ -422,5 +426,5 @@ export function originalToolsV2(): ToolDefinitionV2<z.ZodType>[] {
 
 /** The registry the agent loop uses: the original four tools, on v2 rules. */
 export function createDefaultToolRegistryV2(deps: ToolRunDeps = {}) {
-  return createToolRegistryV2(originalToolsV2(), deps);
+  return createToolRegistryV2([...originalToolsV2(), ...agentTools(deps.limits)], deps);
 }

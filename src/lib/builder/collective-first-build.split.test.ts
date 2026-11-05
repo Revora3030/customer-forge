@@ -252,3 +252,26 @@ describe("when the providers never answer, the failure says so", () => {
     expect(classifyBuildFailure(error)).toMatchObject({ kind: "provider", retryable: true });
   });
 });
+
+describe("when the paid AI budget is used up, the failure says so instead of blaming slow providers", () => {
+  it("names the spending limit and is classified as a budget stop, not a provider timeout", async () => {
+    thinker.callBestThinker.mockImplementation(async (request: Request) => {
+      calls.push(request);
+      const stage = request.stage ?? request.purpose;
+      if (stage === "design_direction") return ok(coreJson);
+      if (request.purpose === "specialist_review") return ok({ approvedFields: [], rejected: [] });
+      return failed("budget_exhausted", "today's paid AI cap reached");
+    });
+    const error = await run().then(() => null, (e: unknown) => e as Error);
+    expect(error).toBeInstanceOf(Error);
+    expect(error?.message).toMatch(/could not plan this site's pictures because today's paid AI cap reached/);
+    expect(error?.message).not.toMatch(/did not answer in time/);
+    expect(classifyBuildFailure(error)).toMatchObject({ kind: "budget", retryable: false });
+  });
+
+  it("classifies the visual-concept version of the same stop as a budget stop too", () => {
+    const message =
+      "The AI design team could not name this site's visual concept because monthly paid AI cap reached, so the AI spending limit was reached. The build stopped so it can be retried once the limit resets; Revora never fills in a stock concept.";
+    expect(classifyBuildFailure(new Error(message))).toMatchObject({ kind: "budget", retryable: false });
+  });
+});
