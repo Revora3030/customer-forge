@@ -14,7 +14,7 @@ export const SITEMAP_LASTMOD: {
     "crm-page": "2026-10-31",
     "website-audit": "2026-10-31",
     "growth-assessment": "2026-10-31",
-    "tools": "2026-10-28",
+    "tools": "2026-11-05",
     "industries-hub": "2026-10-31",
     "industries-page": "2026-10-31",
     "local-hub": "2026-10-31",
@@ -32,7 +32,8 @@ export const SITEMAP_LASTMOD: {
     "about": "2026-11-04",
     "contact": "2026-11-01",
     "privacy": "2026-11-01",
-    "terms": "2026-11-01"
+    "terms": "2026-11-01",
+    "whats-new": "2026-11-05"
   },
   "docs": {
     "compare/revora-vs-buying-leads": "2026-10-31",
