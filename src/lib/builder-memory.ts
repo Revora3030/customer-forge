@@ -22,6 +22,8 @@ export type SavedTaskResult = {
   titles?: string[];
   /** B12-1: the measured self-repair event for this request (bounded; see repair-card.ts). */
   repair?: RepairEvent;
+  /** PAI-15: agent loop run id so AgentRunFeed can rehydrate after reload. */
+  agentRunId?: string;
 };
 
 export type SavedTurn = {
@@ -432,10 +434,17 @@ export async function saveTurns(organizationId: string, incoming: Array<Omit<Sav
   if (retry.error) throw retry.error;
 }
 
-function isSavedTaskResult(value: unknown): value is SavedTaskResult {
+export function isSavedTaskResult(value: unknown): value is SavedTaskResult {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-  const state = (value as { state?: unknown }).state;
-  return state === "complete" || state === "failed" || state === "skipped";
+  const row = value as Record<string, unknown>;
+  const state = row["state"];
+  if (state !== "complete" && state !== "failed" && state !== "skipped") return false;
+  if ("agentRunId" in row && row["agentRunId"] !== undefined) {
+    const id = row["agentRunId"];
+    // Non-empty string (UUID-ish or opaque run id); reject blank / non-strings.
+    if (typeof id !== "string" || !id.trim()) return false;
+  }
+  return true;
 }
 
 export async function clearTurns(organizationId: string): Promise<void> {

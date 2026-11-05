@@ -92,6 +92,14 @@ export function hydrateTasks(pairs: readonly SavedPair[], now: number = Date.now
     // Older saves froze a sentence ("… reached your website …"); the result
     // card now re-reads the counts, so a frozen apply report is not kept.
     if (result?.notice && result.applied === undefined) task.notice = result.notice;
+    if (typeof result?.agentRunId === "string" && result.agentRunId.trim()) {
+      task.agentRunId = result.agentRunId.trim();
+      // Conversational completes that only carry a run id stay chat answers
+      // (no apply card), matching the in-memory path that sets answered: true.
+      if (result.state === "complete" && pair.reply && result.applied === undefined) {
+        task.answered = true;
+      }
+    }
     return task;
   });
 }

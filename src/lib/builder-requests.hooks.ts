@@ -771,8 +771,17 @@ export function useBuilderRequests({
       }
       if ("conversational" in result && result.conversational) {
         // A plain answer from the AI: shown as a chat reply, nothing to apply.
+        const agentRunId =
+          "agentRunId" in result && typeof result.agentRunId === "string" && result.agentRunId.trim()
+            ? result.agentRunId.trim()
+            : undefined;
         setTasks((current) =>
-          updateTask(current, task.id, { state: "complete", reply: result.reply, answered: true, ...("agentRunId" in result && typeof result.agentRunId === "string" ? { agentRunId: result.agentRunId } : {}) }),
+          updateTask(current, task.id, {
+            state: "complete",
+            reply: result.reply,
+            answered: true,
+            ...(agentRunId ? { agentRunId } : {}),
+          }),
         );
         setConversation((current) =>
           [
@@ -781,10 +790,17 @@ export function useBuilderRequests({
             { role: "assistant" as const, content: result.reply },
           ].slice(-24),
         );
-        remember([
-          ...userTurn(task),
-          { role: "assistant", content: result.reply },
-        ], task.id);
+        remember(
+          [
+            ...userTurn(task),
+            {
+              role: "assistant",
+              content: result.reply,
+              taskResult: { state: "complete", ...(agentRunId ? { agentRunId } : {}) },
+            },
+          ],
+          task.id,
+        );
         return;
       }
       const steps = result.steps as AgentStep[];

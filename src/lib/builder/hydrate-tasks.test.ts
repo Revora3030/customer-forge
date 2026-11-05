@@ -68,3 +68,37 @@ describe("hydrating saved chat requests", () => {
     expect(task?.id).toMatch(/^t/);
   });
 });
+
+  it("restores agentRunId so AgentRunFeed remounts after reload", () => {
+    const runId = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
+    const [task] = hydrateTasks([
+      {
+        instruction: "Check the inbox",
+        reply: "Looking through recent leads…",
+        at: "1",
+        requestId: "t-run",
+        taskResult: { state: "complete", agentRunId: runId },
+      },
+    ]);
+    expect(task).toMatchObject({
+      id: "t-run",
+      state: "complete",
+      answered: true,
+      agentRunId: runId,
+      restored: true,
+    });
+  });
+
+  it("ignores a blank agentRunId on a saved result", () => {
+    const [task] = hydrateTasks([
+      {
+        instruction: "Hello",
+        reply: "Hi",
+        at: "1",
+        requestId: "t-blank",
+        taskResult: { state: "complete", agentRunId: "   " },
+      },
+    ]);
+    expect(task?.agentRunId).toBeUndefined();
+  });
+
