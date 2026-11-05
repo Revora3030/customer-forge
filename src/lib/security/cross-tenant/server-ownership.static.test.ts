@@ -105,6 +105,8 @@ const REVIEWED_ADMIN_WITHOUT_SHARED_GUARD: Record<string, string> = {
   "platform-funnel.functions.ts#recordAccountCreated": "acts on context.userId only; no request id",
   "platform-funnel.functions.ts#provisionWorkspace": "creates a NEW workspace owned by context.userId; no request id for an existing tenant",
   "prospect-claim.functions.ts#claimProspectDemo": "unguessable claim token, bound to context.userId in a server-only RPC",
+  "new-device-signin.functions.ts#reportNewDeviceSignIn":
+    "acts on context.userId from the verified session only; no tenant id from the request; service role needed because authenticated users have SELECT-only on the device tables",
 };
 
 /**
