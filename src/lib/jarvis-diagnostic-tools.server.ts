@@ -223,7 +223,7 @@ async function providerEvidence() {
   };
 }
 
-async function releaseEvidence() {
+export async function releaseEvidence() {
   const token = process.env["REVORA_GITHUB_READ_TOKEN"];
   const apiRoot = `https://api.github.com/repos/${GITHUB_REPOSITORY}`;
   const headers = {

@@ -18,6 +18,8 @@
  *    and put the saved colours back; nothing is persisted from here.
  *  - The builder can patch an element's text instantly and show a floating
  *    status badge ("Sol is restyling Hero…") without reloading the frame.
+ *  - Arrange mode (toggled by the builder): a drag handle on a section and a
+ *    "+ Add section with AI" line between sections (see preview-arrange.ts).
  *
  * Every DOM change made here is local to the preview and reverted on cleanup.
  */
@@ -33,6 +35,7 @@ import { siteThemeStyle } from "@/lib/site-theme";
 import { stylePreviewPatch, type SiteStyle } from "@/lib/builder/style-edit";
 import { summarizeTapTargets, type TapCandidate } from "@/lib/builder/fluid-viewport";
 import { DOUBLE_TAP_MS, isDoubleTap, type Tap } from "@/lib/builder/inline-edit";
+import { createArrangeController } from "@/components/site/preview-arrange";
 
 const INLINE_TYPES = new Set(["heading", "text", "button", "link", "quote"]);
 /** Words an owner can click to edit directly (headlines and paragraphs). */
@@ -174,7 +177,7 @@ export function PreviewSelectBridge() {
         return;
       }
       node.textContent = after;
-      post({ source: PREVIEW_BRIDGE_SOURCE, type: "inline-edit", id, path, text: after });
+      post({ source: PREVIEW_BRIDGE_SOURCE, type: "inline-edit", id, path, text: after, before });
     };
     // Phones: a double-tap edits words like a desktop double-click. A touch pick is held back for one
     // double-tap window so the first tap of a double-tap doesn't pick the block (and close the preview).
@@ -243,6 +246,9 @@ export function PreviewSelectBridge() {
         }
       }
     };
+
+    /* ------------------------------ arrange (B13-4) ----------------------------- */
+    const arrange = createArrangeController({ layer, post, isEditing: () => editing !== null });
 
     /* ------------------------------ live palette ------------------------------ */
     const siteRoot = () => document.querySelector<HTMLElement>(".rv-site-root");
@@ -401,6 +407,14 @@ export function PreviewSelectBridge() {
         runA11yCheck();
         return;
       }
+      if (message.type === "arrange-mode") {
+        arrange.setOn(message.on);
+        return;
+      }
+      if (message.type === "order") {
+        arrange.applyOrder(message.ids, message.announce ?? null);
+        return;
+      }
       if (message.type === "run-tap-check") {
         runTapCheck();
         return;
@@ -470,6 +484,7 @@ export function PreviewSelectBridge() {
         if (editing.node.contains(target)) return;
         finishEdit(true);
       }
+      if (!active && arrange.onClick(event)) return;
       const actionButton = target.closest<HTMLElement>("[data-action]");
       if (actionButton && menu.contains(actionButton) && picked) {
         event.preventDefault();
@@ -516,6 +531,7 @@ export function PreviewSelectBridge() {
     };
 
     const onKey = (event: KeyboardEvent) => {
+      if (arrange.onKey(event)) return;
       if (!editing) {
         const focused = event.target instanceof HTMLElement ? event.target : null;
         if (
@@ -540,6 +556,7 @@ export function PreviewSelectBridge() {
     };
 
     const onScroll = () => {
+      arrange.onScroll();
       if (picked) placeMenu();
       box.style.display = "none";
     };
@@ -560,6 +577,7 @@ export function PreviewSelectBridge() {
       window.removeEventListener("load", scheduleOverflow);
       finishEdit(false);
       markQuick(false);
+      arrange.destroy();
       resetTheme();
       window.removeEventListener("message", onMessage);
       document.removeEventListener("mousemove", onMove, true);

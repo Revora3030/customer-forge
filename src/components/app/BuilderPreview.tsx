@@ -15,6 +15,8 @@ import {
   Columns2,
   SplitSquareHorizontal,
   Accessibility,
+  GripVertical,
+  Undo2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -40,7 +42,9 @@ import {
   type CompareMode,
 } from "@/lib/builder-preview";
 import { getDraftDiff } from "@/lib/draft-diff.functions";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useReorderSections } from "@/lib/website-content.hooks";
+import { moveAnnouncement, pageOfSectionId, planSectionMove, withSectionOrder, type InsertSpot } from "@/lib/builder/arrange";
 import {
   DRAFT_CHANNEL,
   PREVIEW_BRIDGE_SOURCE,
@@ -50,7 +54,9 @@ import {
   type A11yIssue,
   type PreviewToBuilderMessage,
 } from "@/lib/builder/preview-bridge";
-import { saveInlineText } from "@/lib/builder/inline-edit.functions";
+import { saveBatchEdits } from "@/lib/builder/batch-edits.functions";
+import { batchLabel, stageEdit, type PendingEdit } from "@/lib/builder/batch-edits";
+import { PendingEditsBar } from "@/components/app/PendingEditsBar";
 import { PreviewThemeEditor } from "@/components/app/PreviewThemeEditor";
 import type { SiteStyle } from "@/lib/builder/style-edit";
 import type { Palette } from "@/lib/builder/palette-edit";
@@ -120,6 +126,11 @@ type BuilderPreviewProps = {
    * `/p` builder link, which paints the real page from the first bytes.
    */
   buildActive?: boolean;
+  /**
+   * "+ Add section with AI" between two sections in arrange mode: hand the
+   * position to the composer. Arrange mode is offered to managers only.
+   */
+  onInsertSection?: (spot: InsertSpot & { pageId: string }) => void;
 };
 
 /**
@@ -152,6 +163,7 @@ function BuilderPreviewFrame({
   pickRequest = 0,
   canManage = false,
   buildActive = false,
+  onInsertSection,
 }: Omit<BuilderPreviewProps, "firstRun">) {
   const builderLink = useBuilderPreviewToken(organizationId, canManage);
   const ordered = useMemo(() => [...pages].sort((a, b) => a.sort_order - b.sort_order), [pages]);
@@ -178,6 +190,13 @@ function BuilderPreviewFrame({
   }, [pickRequest]);
   // Quick edit: one click on a headline or paragraph edits the words in place.
   const [quickEdit, setQuickEdit] = useState(false);
+  // Arrange (B13-4): drag handles and "+ Add section with AI" lines on sections.
+  // One click meaning at a time: arranging switches picking and quick edit off.
+  const canArrange = canManage && Boolean(organizationId);
+  const [arrange, setArrange] = useState(false);
+  useEffect(() => {
+    if (selectMode || quickEdit) setArrange(false);
+  }, [selectMode, quickEdit]);
   // Compare: the published site (what visitors see now) next to the draft
   // (what Publish would put live), so every AI change can be checked first.
   const [compareMode, setCompareMode] = useState<CompareMode>("off");
@@ -191,7 +210,10 @@ function BuilderPreviewFrame({
   const [a11yOpen, setA11yOpen] = useState(false);
 
   const [tabRevision, setTabRevision] = useState(0);
-  const saveText = useServerFn(saveInlineText);
+  const saveBatch = useServerFn(saveBatchEdits);
+  /** COMP-3: quick edits waiting for Save. The frame already shows them; nothing is written yet. */
+  const [pending, setPending] = useState<PendingEdit[]>([]);
+  const [savingBatch, setSavingBatch] = useState(false);
   const loadDiff = useServerFn(getDraftDiff);
   const diff = useQuery({
     queryKey: ["draft-diff", organizationId, refreshRevision, tabRevision],
@@ -399,27 +421,144 @@ function BuilderPreviewFrame({
     return () => channel.close();
   }, [organizationId]);
 
+  // Quick edits collect here (free, no AI); Save writes them all at once as one version.
   const onInlineEdit = useCallback(
-    async (edit: { id: string; path: string; text: string }) => {
-      if (!organizationId) return;
-      try {
-        const result = await saveText({ data: { organizationId, sectionId: edit.id, path: edit.path, text: edit.text } });
-        if (result.unchanged) return;
-        // The preview already shows the new words; no reload needed.
-        onInlineSaved?.({ sectionId: edit.id, path: edit.path, before: result.before, after: result.after });
-        announceDraftChange(organizationId, previewId.current);
-        toast.success("Saved to draft");
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Couldn't save that change.");
-        setRefreshKey((value) => value + 1);
-      }
+    (edit: { id: string; path: string; text: string; before?: string }) => {
+      setPending((list) => stageEdit(list, { sectionId: edit.id, path: edit.path, before: edit.before ?? "", after: edit.text }));
     },
-    [onInlineSaved, organizationId, saveText],
+    [],
   );
+
+  const saveBatchNow = useCallback(async () => {
+    if (!organizationId || !pending.length || savingBatch) return;
+    setSavingBatch(true);
+    try {
+      const result = await saveBatch({
+        data: { organizationId, edits: pending.map((edit) => ({ sectionId: edit.sectionId, path: edit.path, text: edit.after, label: edit.label ?? null })) },
+      });
+      // The preview already shows the new words; no reload needed.
+      for (const change of result.changes) onInlineSaved?.(change);
+      setPending([]);
+      if (result.saved) announceDraftChange(organizationId, previewId.current);
+      toast.success(result.saved ? `Saved ${batchLabel(result.saved)} to draft` : "Nothing needed saving");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Couldn't save those changes.");
+    } finally {
+      setSavingBatch(false);
+    }
+  }, [onInlineSaved, organizationId, pending, saveBatch, savingBatch]);
+
+  const discardBatch = useCallback(() => {
+    setPending([]);
+    // Reload the frame so it shows the saved words again.
+    setRefreshKey((value) => value + 1);
+  }, []);
+
+  // A reload from outside (the assistant or another tab changed the draft) shows
+  // saved words again, so staged edits would no longer match what the owner sees.
+  const pendingCount = useRef(0);
+  pendingCount.current = pending.length;
+  const reloadSeen = useRef(`${refreshRevision}-${tabRevision}`);
+  useEffect(() => {
+    const now = `${refreshRevision}-${tabRevision}`;
+    if (reloadSeen.current === now) return;
+    reloadSeen.current = now;
+    if (pendingCount.current) toast.info("The preview was refreshed, so unsaved quick edits were cleared.");
+    setPending([]);
+  }, [refreshRevision, tabRevision]);
+
+  // Leaving the page with unsaved quick edits asks first.
+  useEffect(() => {
+    if (!pending.length) return;
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [pending.length]);
 
   useEffect(() => {
     syncSelectMode(selectMode);
   }, [selectMode, syncSelectMode]);
+
+  /* ------------------------- arrange sections (B13-4) ------------------------- */
+  const queryClient = useQueryClient();
+  const reorderSections = useReorderSections(organizationId ?? undefined);
+  /** The last move, so it can be undone (toast, toolbar button or Ctrl/Cmd+Z in the preview). */
+  const lastMove = useRef<{ pageId: string; before: string[]; after: string[]; id: string; label: string | null } | null>(null);
+  const [canUndoMove, setCanUndoMove] = useState(false);
+  const pagesRef = useRef(ordered);
+  pagesRef.current = ordered;
+
+  useEffect(() => {
+    tell({ type: "arrange-mode", on: arrange && canArrange });
+  }, [arrange, canArrange, tell]);
+
+  /**
+   * Writes a page's section order. The builder's cache shows it at once
+   * (optimistic); a failed save puts the cache and the preview back.
+   */
+  const saveOrder = useCallback(
+    async (pageId: string, from: string[], to: string[]) => {
+      if (!organizationId) return false;
+      const key = ["website_content", organizationId];
+      const snapshot = queryClient.getQueryData<ContentPage[]>(key);
+      if (snapshot) queryClient.setQueryData(key, withSectionOrder(snapshot, pageId, to));
+      try {
+        await reorderSections.mutateAsync(to);
+        announceDraftChange(organizationId, previewId.current);
+        return true;
+      } catch {
+        // The hook already told the owner why; put everything back as it was.
+        if (snapshot) queryClient.setQueryData(key, snapshot);
+        tell({ type: "order", ids: from, announce: "Couldn't save the new order, so it was put back." });
+        return false;
+      }
+    },
+    [organizationId, queryClient, reorderSections, tell],
+  );
+
+  const undoMove = useCallback(async () => {
+    const last = lastMove.current;
+    if (!last) return;
+    lastMove.current = null;
+    setCanUndoMove(false);
+    const label = last.label?.trim() || "Section";
+    tell({ type: "order", ids: last.before, announce: `${label} moved back` });
+    if (await saveOrder(last.pageId, last.after, last.before)) toast.success("Move undone");
+  }, [saveOrder, tell]);
+
+  const onMoveSection = useCallback(
+    async (move: { id: string; overId: string; position: "before" | "after" }) => {
+      if (!canArrange) return;
+      const plan = planSectionMove(pagesRef.current, move.id, move.overId, move.position);
+      if (!plan) {
+        // Not a move the saved page allows (e.g. stale frame): show the saved page again.
+        setRefreshKey((value) => value + 1);
+        return;
+      }
+      const page = pagesRef.current.find((item) => item.id === plan.pageId);
+      const label = page?.sections.find((row) => row.id === move.id)?.kind ?? null;
+      const name = label ? label.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase()) : null;
+      if (!(await saveOrder(plan.pageId, plan.before, plan.after))) return;
+      lastMove.current = { ...plan, id: move.id, label: name };
+      setCanUndoMove(true);
+      toast.success(moveAnnouncement(name, plan.after, move.id), {
+        action: { label: "Undo", onClick: () => void undoMove() },
+      });
+    },
+    [canArrange, saveOrder, undoMove],
+  );
+
+  const onInsertAt = useCallback(
+    (spot: InsertSpot) => {
+      if (!canArrange || !onInsertSection) return;
+      const owner = pageOfSectionId(pagesRef.current, spot.id);
+      if (!owner) return;
+      onInsertSection({ ...spot, pageId: owner.id });
+    },
+    [canArrange, onInsertSection],
+  );
 
   // Clicks inside the preview arrive as messages. Only this app's own frame,
   // on this origin, is ever listened to.
@@ -435,6 +574,7 @@ function BuilderPreviewFrame({
         window.setTimeout(runA11y, 900);
         window.setTimeout(runTaps, 1000);
         syncSelectMode(selectMode);
+        tell({ type: "arrange-mode", on: arrange && canArrange });
         tell({ type: "status", text: liveStatus ?? null, id: selectedId });
         if (pendingReveal.current) {
           const id = pendingReveal.current;
@@ -446,6 +586,18 @@ function BuilderPreviewFrame({
       }
       if (message.type === "inline-edit") {
         void onInlineEdit(message);
+        return;
+      }
+      if (message.type === "move-section") {
+        void onMoveSection(message);
+        return;
+      }
+      if (message.type === "insert-section") {
+        onInsertAt({ id: message.id, position: message.position, label: message.label, kind: message.kind });
+        return;
+      }
+      if (message.type === "undo-move") {
+        void undoMove();
         return;
       }
       if (message.type === "overflow") {
@@ -464,7 +616,7 @@ function BuilderPreviewFrame({
     };
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, [liveStatus, onInlineEdit, onSelect, runA11y, runTaps, selectMode, selectedId, syncSelectMode, tell]);
+  }, [arrange, canArrange, liveStatus, onInlineEdit, onInsertAt, onMoveSection, onSelect, runA11y, runTaps, selectMode, selectedId, syncSelectMode, tell, undoMove]);
 
 
   const tree = (
@@ -525,6 +677,37 @@ function BuilderPreviewFrame({
               >
                 <Pencil className="size-4" aria-hidden />
               </Button>
+              {canArrange ? (
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant={arrange ? "secondary" : "ghost"}
+                  aria-pressed={arrange}
+                  data-testid="builder-preview-arrange"
+                  aria-label={arrange ? "Stop arranging sections" : "Arrange sections: drag to reorder or add a section with AI"}
+                  title={arrange ? "Stop arranging" : "Drag sections to reorder, or add a section with AI"}
+                  onClick={() => {
+                    setArrange((value) => !value);
+                    setSelectMode(false);
+                    setQuickEdit(false);
+                  }}
+                >
+                  <GripVertical className="size-4" aria-hidden />
+                </Button>
+              ) : null}
+              {canArrange && canUndoMove ? (
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant="ghost"
+                  data-testid="builder-preview-undo-move"
+                  aria-label="Undo the last section move"
+                  title="Undo move"
+                  onClick={() => void undoMove()}
+                >
+                  <Undo2 className="size-4" aria-hidden />
+                </Button>
+              ) : null}
               <PreviewThemeEditor organizationId={organizationId} onPreview={previewPalette} onSaved={onPaletteSaved} />
             </>
           ) : null}
@@ -701,6 +884,7 @@ function BuilderPreviewFrame({
             onSaved={onPaletteSaved}
           />
         ) : null}
+        <PendingEditsBar edits={pending} saving={savingBatch} onSave={() => void saveBatchNow()} onDiscard={discardBatch} />
         {a11yOpen && a11y?.issueCount ? (
           <ul className="mx-auto mb-2 max-w-xl space-y-1 rounded-lg border border-border bg-background/95 p-2 text-[12px]" data-testid="builder-preview-a11y-list">
             {a11y.issues.slice(0, 8).map((issue, index) => (
