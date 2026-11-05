@@ -1,4 +1,5 @@
 import { pageNavLabel, stripBusinessSuffix } from "@/lib/website-content";
+import { lookSeed, readSiteLook } from "@/lib/builder/site-look";
 import { designTokenClasses, designTokenVars, readDesignTokens } from "@/lib/builder/design-tokens";
 import { readComposition as readSectionTree } from "@/lib/builder/composition-tree";
 import { prepareStudioPage, studioLightPalette, studioThemeVars, STUDIO_CANVAS } from "@/lib/builder/studio-canvas";
@@ -149,7 +150,7 @@ export function SitePageView({
     dedupePageMedia(
       studioPage.roots.map((root, index) => {
         const section = sections[index];
-        return root ?? (section ? legacySectionToComposition(section as never, { lead: index === leadIndex, seed: org.slug })?.root ?? null : null);
+        return root ?? (section ? legacySectionToComposition(section as never, { lead: index === leadIndex, seed: lookSeed(org.slug, readSiteLook(site.settings?.generation)) })?.root ?? null : null);
       }),
       {
         // One picture appears once per page: a repeat swaps to an unused picture from the site's own library.
