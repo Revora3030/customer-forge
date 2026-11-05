@@ -78,7 +78,7 @@ export default defineConfig({
     test: {
       // `.claude/worktrees/` holds stale duplicate copies of sources and tests; plain
       // `npm test` collected them and ran old tests against current code.
-      exclude: [...configDefaults.exclude, ".claude/**"],
+      exclude: [...configDefaults.exclude, ".claude/**", "src/**/*.stories.tsx", "ladle-build/**"],
       coverage: {
         provider: "v8",
         reporter: ["text", "cobertura"],

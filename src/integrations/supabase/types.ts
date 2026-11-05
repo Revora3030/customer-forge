@@ -582,6 +582,73 @@ export type Database = {
           },
         ]
       }
+      agent_suggestions: {
+        Row: {
+          action_goal: string
+          approval_id: string | null
+          body: string
+          created_at: string
+          evidence: Json
+          id: string
+          organization_id: string
+          signal: string
+          status: string
+          suppressed_until: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          action_goal: string
+          approval_id?: string | null
+          body?: string
+          created_at?: string
+          evidence?: Json
+          id?: string
+          organization_id: string
+          signal: string
+          status?: string
+          suppressed_until?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          action_goal?: string
+          approval_id?: string | null
+          body?: string
+          created_at?: string
+          evidence?: Json
+          id?: string
+          organization_id?: string
+          signal?: string
+          status?: string
+          suppressed_until?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_suggestions_approval_id_fkey"
+            columns: ["approval_id"]
+            isOneToOne: false
+            referencedRelation: "agent_approvals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_suggestions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_suggestions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "public_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_command_settings: {
         Row: {
           id: number
@@ -1846,6 +1913,195 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      business_memory: {
+        Row: {
+          confirmed_at: string | null
+          confirmed_by: string | null
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          fetched_at: string | null
+          id: string
+          key: string
+          kind: string
+          organization_id: string
+          source_id: string | null
+          source_quote: string | null
+          source_type: string
+          status: string
+          superseded_by: string | null
+          updated_at: string
+          value: string
+        }
+        Insert: {
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          fetched_at?: string | null
+          id?: string
+          key: string
+          kind: string
+          organization_id: string
+          source_id?: string | null
+          source_quote?: string | null
+          source_type: string
+          status?: string
+          superseded_by?: string | null
+          updated_at?: string
+          value: string
+        }
+        Update: {
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          fetched_at?: string | null
+          id?: string
+          key?: string
+          kind?: string
+          organization_id?: string
+          source_id?: string | null
+          source_quote?: string | null
+          source_type?: string
+          status?: string
+          superseded_by?: string | null
+          updated_at?: string
+          value?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "business_memory_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "business_memory_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "public_organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "business_memory_superseded_by_fkey"
+            columns: ["superseded_by"]
+            isOneToOne: false
+            referencedRelation: "business_memory"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      business_memory_embeddings: {
+        Row: {
+          content_hash: string
+          created_at: string
+          embedding: string
+          memory_id: string
+          model: string
+          organization_id: string
+        }
+        Insert: {
+          content_hash: string
+          created_at?: string
+          embedding: string
+          memory_id: string
+          model: string
+          organization_id: string
+        }
+        Update: {
+          content_hash?: string
+          created_at?: string
+          embedding?: string
+          memory_id?: string
+          model?: string
+          organization_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "business_memory_embeddings_memory_id_fkey"
+            columns: ["memory_id"]
+            isOneToOne: true
+            referencedRelation: "business_memory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "business_memory_embeddings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "business_memory_embeddings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "public_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      business_memory_events: {
+        Row: {
+          action: string
+          actor_id: string | null
+          actor_kind: string
+          created_at: string
+          id: number
+          memory_id: string
+          new_value: Json | null
+          old_value: Json | null
+          organization_id: string
+        }
+        Insert: {
+          action: string
+          actor_id?: string | null
+          actor_kind: string
+          created_at?: string
+          id?: never
+          memory_id: string
+          new_value?: Json | null
+          old_value?: Json | null
+          organization_id: string
+        }
+        Update: {
+          action?: string
+          actor_id?: string | null
+          actor_kind?: string
+          created_at?: string
+          id?: never
+          memory_id?: string
+          new_value?: Json | null
+          old_value?: Json | null
+          organization_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "business_memory_events_memory_id_fkey"
+            columns: ["memory_id"]
+            isOneToOne: false
+            referencedRelation: "business_memory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "business_memory_events_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "business_memory_events_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "public_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       business_profiles: {
         Row: {
@@ -6967,6 +7223,153 @@ export type Database = {
           },
         ]
       }
+      site_monitor_checks: {
+        Row: {
+          check_key: string
+          checked_at: string
+          host: string
+          organization_id: string
+          status: string
+        }
+        Insert: {
+          check_key: string
+          checked_at?: string
+          host: string
+          organization_id: string
+          status: string
+        }
+        Update: {
+          check_key?: string
+          checked_at?: string
+          host?: string
+          organization_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "site_monitor_checks_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "site_monitor_checks_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "public_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      site_monitor_findings: {
+        Row: {
+          check_key: string
+          detail: string
+          emailed_at: string | null
+          first_seen_at: string
+          fixed_at: string | null
+          host: string
+          id: string
+          last_seen_at: string
+          organization_id: string
+          state: string
+          title: string
+        }
+        Insert: {
+          check_key: string
+          detail: string
+          emailed_at?: string | null
+          first_seen_at?: string
+          fixed_at?: string | null
+          host: string
+          id?: string
+          last_seen_at?: string
+          organization_id: string
+          state?: string
+          title: string
+        }
+        Update: {
+          check_key?: string
+          detail?: string
+          emailed_at?: string | null
+          first_seen_at?: string
+          fixed_at?: string | null
+          host?: string
+          id?: string
+          last_seen_at?: string
+          organization_id?: string
+          state?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "site_monitor_findings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "site_monitor_findings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "public_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      site_snapshots: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          name: string
+          page_count: number
+          section_count: number
+          snapshot: Json
+          source_organization_id: string | null
+          trade: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name: string
+          page_count?: number
+          section_count?: number
+          snapshot: Json
+          source_organization_id?: string | null
+          trade: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name?: string
+          page_count?: number
+          section_count?: number
+          snapshot?: Json
+          source_organization_id?: string | null
+          trade?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "site_snapshots_source_organization_id_fkey"
+            columns: ["source_organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "site_snapshots_source_organization_id_fkey"
+            columns: ["source_organization_id"]
+            isOneToOne: false
+            referencedRelation: "public_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       site_vitals: {
         Row: {
           created_at: string
@@ -7319,6 +7722,57 @@ export type Database = {
         }
         Relationships: []
       }
+      visitor_error_events: {
+        Row: {
+          day: string
+          first_seen: string
+          kind: string
+          last_seen: string
+          message: string
+          message_hash: string
+          occurrences: number
+          organization_id: string
+          page_path: string
+        }
+        Insert: {
+          day: string
+          first_seen?: string
+          kind: string
+          last_seen?: string
+          message: string
+          message_hash: string
+          occurrences?: number
+          organization_id: string
+          page_path?: string
+        }
+        Update: {
+          day?: string
+          first_seen?: string
+          kind?: string
+          last_seen?: string
+          message?: string
+          message_hash?: string
+          occurrences?: number
+          organization_id?: string
+          page_path?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "visitor_error_events_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "visitor_error_events_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "public_organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       voice_daily_budget: {
         Row: {
           calls: number
@@ -7615,6 +8069,32 @@ export type Database = {
           },
         ]
       }
+      website_preview_link_secrets: {
+        Row: {
+          created_at: string
+          link_id: string
+          password_hash: string
+        }
+        Insert: {
+          created_at?: string
+          link_id: string
+          password_hash: string
+        }
+        Update: {
+          created_at?: string
+          link_id?: string
+          password_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "website_preview_link_secrets_link_id_fkey"
+            columns: ["link_id"]
+            isOneToOne: true
+            referencedRelation: "website_preview_links"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       website_preview_links: {
         Row: {
           created_at: string
@@ -7624,6 +8104,7 @@ export type Database = {
           label: string | null
           last_viewed_at: string | null
           organization_id: string
+          password_protected: boolean
           revoked: boolean
           token: string
           updated_at: string
@@ -7637,6 +8118,7 @@ export type Database = {
           label?: string | null
           last_viewed_at?: string | null
           organization_id: string
+          password_protected?: boolean
           revoked?: boolean
           token: string
           updated_at?: string
@@ -7650,6 +8132,7 @@ export type Database = {
           label?: string | null
           last_viewed_at?: string | null
           organization_id?: string
+          password_protected?: boolean
           revoked?: boolean
           token?: string
           updated_at?: string
@@ -7671,6 +8154,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      website_preview_unlock_attempts: {
+        Row: {
+          attempts: number
+          key: string
+          window_start: string
+        }
+        Insert: {
+          attempts?: number
+          key: string
+          window_start?: string
+        }
+        Update: {
+          attempts?: number
+          key?: string
+          window_start?: string
+        }
+        Relationships: []
       }
       website_requests: {
         Row: {
@@ -8780,6 +9281,13 @@ export type Database = {
         }
         Returns: undefined
       }
+      match_business_memory: {
+        Args: { p_limit?: number; p_org_id: string; p_query: string }
+        Returns: {
+          memory_id: string
+          similarity: number
+        }[]
+      }
       match_jarvis_memories: {
         Args: { p_limit?: number; p_query: string; p_user_id: string }
         Returns: {
@@ -8799,6 +9307,11 @@ export type Database = {
           user_id: string
         }[]
       }
+      preview_unlock_attempt: {
+        Args: { p_key: string; p_max: number; p_window_seconds: number }
+        Returns: boolean
+      }
+      preview_unlock_clear: { Args: { p_key: string }; Returns: undefined }
       provision_workspace: {
         Args: {
           _industry?: string
@@ -8891,6 +9404,16 @@ export type Database = {
       qa_job_recover_stalled: {
         Args: { _grace_seconds?: number }
         Returns: number
+      }
+      record_visitor_error: {
+        Args: {
+          p_hash: string
+          p_kind: string
+          p_message: string
+          p_organization_id: string
+          p_path: string
+        }
+        Returns: boolean
       }
       register_public_submission_attempt: {
         Args: {
