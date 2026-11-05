@@ -24,6 +24,8 @@ export type QueueTask = {
   steps: PlanStep[];
   reply?: string;
   answered?: boolean;
+  /** PAI-15: the background agent run this message started; its log shows under the reply. */
+  agentRunId?: string;
   restored?: boolean;
   awaitingReattach?: boolean;
   summary?: string;

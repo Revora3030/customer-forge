@@ -772,7 +772,7 @@ export function useBuilderRequests({
       if ("conversational" in result && result.conversational) {
         // A plain answer from the AI: shown as a chat reply, nothing to apply.
         setTasks((current) =>
-          updateTask(current, task.id, { state: "complete", reply: result.reply, answered: true }),
+          updateTask(current, task.id, { state: "complete", reply: result.reply, answered: true, ...("agentRunId" in result && typeof result.agentRunId === "string" ? { agentRunId: result.agentRunId } : {}) }),
         );
         setConversation((current) =>
           [

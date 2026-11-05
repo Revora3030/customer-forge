@@ -6,6 +6,8 @@ import type { ApprovalRow } from "./approvals.server";
 
 export type ApprovalView = {
   id: string;
+  /** The tool id, which the safety summary is computed from. */
+  tool: string;
   title: string;
   /** The agent's own one-line summary of the exact action. */
   summary: string;
@@ -92,6 +94,7 @@ export function viewApproval(row: ApprovalRow, now = Date.now()): ApprovalView {
   const expired = row.status === "pending" && Date.parse(row.expires_at) <= now;
   return {
     id: row.id,
+    tool: row.tool,
     title: toolLabel(row.tool),
     summary: row.summary,
     details: lines,
