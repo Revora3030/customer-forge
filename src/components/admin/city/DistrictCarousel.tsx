@@ -40,6 +40,18 @@ export function DistrictCarousel({ selected, snapshot, now, onSelect, onOpen, on
           );
         })}
       </ul>
+      {onDraft ? (
+        // A visible, keyboard-reachable path to the same sheet a long-press or right-click opens.
+        <button
+          type="button"
+          data-testid="district-actions-button"
+          aria-haspopup="dialog"
+          onClick={() => setActing(selected)}
+          className="mt-1 inline-flex min-h-11 w-full items-center justify-center rounded-lg border border-border px-3 text-xs font-medium text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        >
+          Actions for {CITY_DISTRICTS.find((d) => d.id === selected)?.name ?? "district"}
+        </button>
+      ) : null}
       {onDraft ? <DistrictActionSheet district={acting} snapshot={snapshot} now={now} onClose={() => setActing(null)} onDraft={onDraft} /> : null}
     </nav>
   );
