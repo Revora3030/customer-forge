@@ -17,6 +17,7 @@ import { TwoFactorCard } from "@/components/app/TwoFactorCard";
 import { UpgradeFromWebsite } from "@/components/app/UpgradeFromWebsite";
 import { BookingLinkCard } from "@/components/app/BookingLinkCard";
 import { ChangePasswordForm, DisplayNameForm } from "@/components/app/AccountControls";
+import { BusinessMemoryManager } from "@/components/app/BusinessMemoryManager";
 import { DataPrivacy } from "@/components/app/DataPrivacy";
 import { SiteBackupExport } from "@/components/app/SiteBackupExport";
 import { metaDescription } from "@/lib/seo";
@@ -234,6 +235,8 @@ function SettingsPage() {
       <PushLeadAlerts organizationId={orgId} />
 
       <TwoFactorCard />
+
+      <BusinessMemoryManager organizationId={orgId} canManage={canManage} />
 
       <SiteBackupExport organizationId={orgId} slug={org?.slug} canManage={canManage} />
 
