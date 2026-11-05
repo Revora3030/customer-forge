@@ -27,6 +27,21 @@ import { auditPageDesign } from "@/lib/builder/design-quality";
 import { CompositionRenderer } from "@/components/site/CompositionRenderer";
 import type { CompositionTree } from "@/lib/builder/composition-tree";
 
+/** Drop <style>…</style> blocks by index scanning (no regex sanitizer; test-only markup helper). */
+function stripStyleTags(html: string): string {
+  let out = "";
+  let rest = html;
+  for (;;) {
+    const start = rest.toLowerCase().indexOf("<style");
+    if (start === -1) return out + rest;
+    out += rest.slice(0, start);
+    const end = rest.toLowerCase().indexOf("</style>", start);
+    if (end === -1) return out;
+    rest = rest.slice(end + "</style>".length);
+  }
+}
+
+
 type Row = Record<string, unknown>;
 
 function fakeDb() {
@@ -121,7 +136,7 @@ async function renderSite(slug: string, partial: boolean): Promise<{ tone: strin
       if (!root) return;
       const isLight = studio.lightFrom != null && i >= studio.lightFrom;
       const surface = isLight && light ? light.canvas : studio.studio ? canvas : null;
-      const html = renderToStaticMarkup(<CompositionRenderer tree={{ ...trees[i]!, root }} scope={`s${i}`} surface={surface} resolveWidget={(name) => <span data-test-widget={name} />} />).replace(/<style[^>]*>[\s\S]*?<\/style>/g, "");
+      const html = stripStyleTags(renderToStaticMarkup(<CompositionRenderer tree={{ ...trees[i]!, root }} scope={`s${i}`} surface={surface} resolveWidget={(name) => <span data-test-widget={name} />} />));
       out.push({ page: String(page["slug"]), kind: String(sections[i]!["kind"]), lead: i === 0, light: isLight, html });
     });
   }
