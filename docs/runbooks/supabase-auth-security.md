@@ -28,7 +28,7 @@ Optional email when an owner signs in from a hashed device id or country we have
 
 **Enable (Manager):** set the server env `REVORA_NEW_DEVICE_EMAIL=1` (Lovable / hosting secrets). Restart/redeploy. Leave unset or any other value to keep it off.
 
-**Migration:** `20261105120000_owner_sign_in_devices.sql` — tables `owner_sign_in_devices` (hash + country only) and `owner_sign_in_alert_state` (one email per account per day). Apply before turning the flag on.
+**Migration:** `20261105120000_owner_sign_in_devices.sql` — tables `owner_sign_in_devices` (hash + country only) and `owner_sign_in_alert_state` (one email per account per day). Apply before turning the flag on. RLS: authenticated users have SELECT only on their own rows; there are no authenticated INSERT/UPDATE/DELETE policies or grants. All writes go through the server function using the service-role client, so a stolen session cannot pre-register a device or silence the alert.
 
 **Behavior:**
 - First device ever for an account is recorded and never emails (covers new sign-ups).

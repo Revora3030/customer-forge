@@ -5,7 +5,8 @@ import { reportSignInDevice } from "@/lib/new-device-signin.server";
 
 /**
  * Fire-and-forget after SIGNED_IN. Client sends only a local device id;
- * country comes from Cloudflare's cf-ipcountry on the request.
+ * country comes from Cloudflare's cf-ipcountry on the request. Device and
+ * alert-state writes are server-side only (service role).
  */
 export const reportNewDeviceSignIn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -26,8 +27,11 @@ export const reportNewDeviceSignIn = createServerFn({ method: "POST" })
       const { data: userData } = await context.supabase.auth.getUser();
       email = userData.user?.email ?? null;
     }
+    // Writes use the service-role client: authenticated users have SELECT only
+    // on the sign-in device tables. userId comes from the verified session.
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     return reportSignInDevice({
-      db: context.supabase as never,
+      db: supabaseAdmin as never,
       userId: context.userId,
       email,
       deviceId: data.deviceId,

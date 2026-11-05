@@ -36,50 +36,12 @@ BEGIN
   END IF;
   IF NOT EXISTS (
     SELECT 1 FROM pg_policies
-    WHERE schemaname = 'public' AND tablename = 'owner_sign_in_devices'
-      AND policyname = 'owner inserts own sign-in devices'
-  ) THEN
-    CREATE POLICY "owner inserts own sign-in devices" ON public.owner_sign_in_devices
-      FOR INSERT TO authenticated
-      WITH CHECK (user_id = (SELECT auth.uid()));
-  END IF;
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_policies
-    WHERE schemaname = 'public' AND tablename = 'owner_sign_in_devices'
-      AND policyname = 'owner updates own sign-in devices'
-  ) THEN
-    CREATE POLICY "owner updates own sign-in devices" ON public.owner_sign_in_devices
-      FOR UPDATE TO authenticated
-      USING (user_id = (SELECT auth.uid()))
-      WITH CHECK (user_id = (SELECT auth.uid()));
-  END IF;
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_policies
     WHERE schemaname = 'public' AND tablename = 'owner_sign_in_alert_state'
       AND policyname = 'owner reads own sign-in alert state'
   ) THEN
     CREATE POLICY "owner reads own sign-in alert state" ON public.owner_sign_in_alert_state
       FOR SELECT TO authenticated
       USING (user_id = (SELECT auth.uid()));
-  END IF;
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_policies
-    WHERE schemaname = 'public' AND tablename = 'owner_sign_in_alert_state'
-      AND policyname = 'owner upserts own sign-in alert state'
-  ) THEN
-    CREATE POLICY "owner upserts own sign-in alert state" ON public.owner_sign_in_alert_state
-      FOR INSERT TO authenticated
-      WITH CHECK (user_id = (SELECT auth.uid()));
-  END IF;
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_policies
-    WHERE schemaname = 'public' AND tablename = 'owner_sign_in_alert_state'
-      AND policyname = 'owner updates own sign-in alert state'
-  ) THEN
-    CREATE POLICY "owner updates own sign-in alert state" ON public.owner_sign_in_alert_state
-      FOR UPDATE TO authenticated
-      USING (user_id = (SELECT auth.uid()))
-      WITH CHECK (user_id = (SELECT auth.uid()));
   END IF;
   IF NOT EXISTS (
     SELECT 1 FROM pg_policies
@@ -100,10 +62,19 @@ BEGIN
 END
 $policy$;
 
-REVOKE ALL ON TABLE public.owner_sign_in_devices FROM PUBLIC, anon;
-REVOKE ALL ON TABLE public.owner_sign_in_alert_state FROM PUBLIC, anon;
-GRANT SELECT, INSERT, UPDATE ON TABLE public.owner_sign_in_devices TO authenticated;
-GRANT SELECT, INSERT, UPDATE ON TABLE public.owner_sign_in_alert_state TO authenticated;
+-- Security: authenticated users may only READ their own rows. All writes
+-- (register device, update last_seen, alert cooldown) happen server-side with
+-- the service-role client, so a stolen session cannot pre-register its own
+-- device or silence the alert.
+DROP POLICY IF EXISTS "owner inserts own sign-in devices" ON public.owner_sign_in_devices;
+DROP POLICY IF EXISTS "owner updates own sign-in devices" ON public.owner_sign_in_devices;
+DROP POLICY IF EXISTS "owner upserts own sign-in alert state" ON public.owner_sign_in_alert_state;
+DROP POLICY IF EXISTS "owner updates own sign-in alert state" ON public.owner_sign_in_alert_state;
+
+REVOKE ALL ON TABLE public.owner_sign_in_devices FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON TABLE public.owner_sign_in_alert_state FROM PUBLIC, anon, authenticated;
+GRANT SELECT ON TABLE public.owner_sign_in_devices TO authenticated;
+GRANT SELECT ON TABLE public.owner_sign_in_alert_state TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.owner_sign_in_devices TO service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.owner_sign_in_alert_state TO service_role;
 
