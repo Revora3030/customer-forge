@@ -10,6 +10,7 @@ import { AssetQueue } from "./AssetQueue";
 import { GrowthFunnel } from "./GrowthFunnel";
 import { ReleaseBoard } from "./ReleaseBoard";
 import { MemoryHealth } from "./MemoryHealth";
+import { GateScoreboard } from "./GateScoreboard";
 import { CITY_DISTRICTS, FAILURE_CAUSE_HINT, ageLabel, districtFailureSummary, districtState, hourlyBuckets, missionsFor, pipelineStages, runningFor, workIsActive, type CitySnapshot, type CityWork, type DistrictId, type SalesMission } from "@/lib/ai-city";
 
 type Props = {
@@ -115,6 +116,7 @@ export function DistrictInspector({ open, onOpenChange, district, snapshot, now,
       {district === "growth" ? <section className="mt-5" aria-label="Funnel"><h3 className="text-xs font-semibold uppercase">Funnel · visitors to paid</h3><GrowthFunnel /></section> : null}
       {district === "security" ? <section className="mt-5" aria-label="Release and error board"><h3 className="text-xs font-semibold uppercase">Release and error board</h3><ReleaseBoard errors={failures} /></section> : null}
       {district === "knowledge" ? <section className="mt-5" aria-label="Memory health"><h3 className="text-xs font-semibold uppercase">Memory health</h3><MemoryHealth /></section> : null}
+      {district === "factory" ? <GateScoreboard enabled={open} /> : null}
       {district === "growth" ? <section className="mt-5" aria-label="Approvals"><h3 className="text-xs font-semibold uppercase">Waiting for your approval</h3><ApprovalReview now={now} /></section> : null}
       {district === "growth" ? <section className="mt-5" aria-label="Sales pipeline">
         <h3 className="text-xs font-semibold uppercase">Sales pipeline</h3>
