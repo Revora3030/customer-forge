@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Sparkline } from "./Sparkline";
 import { ApprovalReview } from "./ApprovalReview";
+import { AssetQueue } from "./AssetQueue";
 import { CITY_DISTRICTS, FAILURE_CAUSE_HINT, ageLabel, districtFailureSummary, districtState, hourlyBuckets, missionsFor, pipelineStages, runningFor, workIsActive, type CitySnapshot, type CityWork, type DistrictId, type SalesMission } from "@/lib/ai-city";
 
 type Props = {
@@ -106,6 +107,7 @@ export function DistrictInspector({ open, onOpenChange, district, snapshot, now,
         ) : <p className="mt-2 text-xs text-muted-foreground">Nothing is running in this district right now.</p>}
         <p className="mt-2 text-[11px] text-muted-foreground">Shows what each record says; per-task spend is not recorded.</p>
       </section>
+      {district === "creative" ? <section className="mt-5" aria-label="Asset queue"><h3 className="text-xs font-semibold uppercase">Asset queue · waiting for review</h3><AssetQueue now={now} /></section> : null}
       {district === "growth" ? <section className="mt-5" aria-label="Approvals"><h3 className="text-xs font-semibold uppercase">Waiting for your approval</h3><ApprovalReview now={now} /></section> : null}
       {district === "growth" ? <section className="mt-5" aria-label="Sales pipeline">
         <h3 className="text-xs font-semibold uppercase">Sales pipeline</h3>

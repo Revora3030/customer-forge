@@ -295,6 +295,13 @@
       "when": 1793816259210,
       "tag": "0041_harden_grants_routines_qa_rules",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1793851673081,
+      "tag": "0042_service_role_policies_for_rls_no_policy_tables",
+      "breakpoints": true
     }
   ]
 }

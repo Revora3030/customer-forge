@@ -6,6 +6,7 @@ import { automationsHistory, automationsList } from "./automations";
 import { campaignsList, campaignsResults } from "./campaigns";
 import { domainStatus } from "./domain";
 import { withAgentLimits } from "./guard";
+import { readToolsC } from "./quotes-reviews";
 import type { LimitsDeps } from "@/lib/agent/limits.server";
 
 export function readToolsB(): ToolDefinitionV2<z.ZodType>[] {
@@ -23,7 +24,7 @@ export function readToolsB(): ToolDefinitionV2<z.ZodType>[] {
  * Every agent tool group, each wrapped in the PAI-5 limits. To add a group
  * (e.g. COMP-14 quotes/reviews), append its factory to this list.
  */
-const AGENT_TOOL_GROUPS: Array<() => ToolDefinitionV2<z.ZodType>[]> = [readToolsB];
+const AGENT_TOOL_GROUPS: Array<() => ToolDefinitionV2<z.ZodType>[]> = [readToolsB, readToolsC];
 
 export function agentTools(limits?: LimitsDeps): ToolDefinitionV2<z.ZodType>[] {
   return withAgentLimits(
