@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildSeoReview } from "./seo-review";
+import { buildAiSearchItem, buildSeoReview } from "./seo-review";
 
 describe("buildSeoReview (G-A6)", () => {
   it("marks missing title/description and local fields as needs_work", () => {
@@ -55,5 +55,31 @@ describe("buildSeoReview (G-A6)", () => {
     }).find((i) => i.id === "alt_text");
     expect(alt?.status).toBe("check");
     expect(alt?.detail).toMatch(/No site photos/);
+  });
+});
+
+describe("AI search line (CG-08)", () => {
+  const siteUrl = "https://revora.example/s/acme";
+  const allowAll = "User-agent: *\nAllow: /\n";
+
+  it("is Not verified when nothing was measured", () => {
+    expect(buildAiSearchItem(null).status).toBe("check");
+    expect(buildAiSearchItem(null).detail).toMatch(/^Not verified/);
+    expect(buildAiSearchItem({ siteUrl, robotsTxt: null, llmsStatus: 200 }).status).toBe("check");
+    expect(buildAiSearchItem({ siteUrl, robotsTxt: allowAll, llmsStatus: null }).status).toBe("check");
+  });
+
+  it("is ok only when robots allows the AI crawlers and llms.txt is live", () => {
+    const item = buildAiSearchItem({ siteUrl, robotsTxt: allowAll, llmsStatus: 200 });
+    expect(item.status).toBe("ok");
+    expect(item.detail).toMatch(/^Measured:/);
+  });
+
+  it("names blocked crawlers and a missing llms.txt", () => {
+    const item = buildAiSearchItem({ siteUrl, robotsTxt: "User-agent: GPTBot\nDisallow: /\n\nUser-agent: *\nAllow: /\n", llmsStatus: 404 });
+    expect(item.status).toBe("needs_work");
+    expect(item.detail).toContain("GPTBot");
+    expect(item.detail).not.toContain("ClaudeBot");
+    expect(item.detail).toContain("llms.txt returned 404");
   });
 });
