@@ -136,11 +136,11 @@ function Beacon({ color, height, active, rate }: { color: string; height: number
 }
 
 /**
- * Phone gestures for an isometric map: one finger pans (with damping, so a
- * flick glides to a stop), two fingers pinch-zoom toward the fingers and twist
- * to rotate. Desktop mouse keeps rotate / zoom / right-drag pan.
+ * Touch gestures (tablets; phones get the flat map): one finger orbits the city
+ * (with damping, so a flick glides to a stop), two fingers pinch-zoom and pan.
+ * Desktop mouse keeps rotate / zoom / right-drag pan.
  */
-const CITY_TOUCHES = { ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_ROTATE };
+const CITY_TOUCHES = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
 /** How far the look-at point may wander from the city centre before panning stops. */
 const CITY_PAN_LIMIT = 14;
 

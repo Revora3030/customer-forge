@@ -12,6 +12,7 @@ import { ReleaseBoard } from "./ReleaseBoard";
 import { MemoryHealth } from "./MemoryHealth";
 import { ModelEvidence } from "./ModelEvidence";
 import { GateScoreboard } from "./GateScoreboard";
+import { SHEET_HEIGHT_DVH, SHEET_TALL_DVH, sheetDragResult, sheetOffset } from "@/lib/city-nav";
 import { TodayBriefing } from "./TodayBriefing";
 import { CITY_DISTRICTS, FAILURE_CAUSE_HINT, ageLabel, districtFailureSummary, districtState, hourlyBuckets, missionsFor, pipelineStages, runningFor, workIsActive, type CitySnapshot, type CityWork, type DistrictId, type SalesMission } from "@/lib/ai-city";
 
@@ -36,10 +37,12 @@ const SALES_ACTIONS: Array<{ kind: SalesMission; label: string; icon: typeof Rad
 
 export function DistrictInspector({ open, onOpenChange, district, snapshot, now, onRecord, onMission, onSalesMission, onDraft }: Props) {
   const [wide, setWide] = useState(false);
-  // On phones the sheet starts at about half height so the city stays visible above it.
+  // On phones the sheet opens at 80% height (JC-60); dragging the handle up makes it taller, down dismisses it.
   const [tall, setTall] = useState(false);
-  const dragFrom = useRef<number | null>(null);
+  const [offset, setOffset] = useState(0);
+  const drag = useRef<{ y: number; at: number } | null>(null);
   const dragged = useRef(false);
+  useEffect(() => { if (!open) { setOffset(0); setTall(false); drag.current = null; } }, [open]);
   useEffect(() => {
     const media = window.matchMedia("(min-width: 1024px)");
     const sync = () => setWide(media.matches);
@@ -57,20 +60,25 @@ export function DistrictInspector({ open, onOpenChange, district, snapshot, now,
   for (const r of rows) if (r.model) { const m = models.get(r.model) ?? { ok: 0, total: 0 }; m.total += 1; if (r.status !== "failed" && r.status !== "error") m.ok += 1; models.set(r.model, m); }
   const state = districtState(district, snapshot, now);
   return <Sheet open={open} onOpenChange={onOpenChange}>
-    <SheetContent side={wide ? "right" : "bottom"} className={wide ? "w-[440px] overflow-y-auto sm:max-w-[440px]" : `${tall ? "h-[85dvh]" : "h-[52dvh]"} overflow-y-auto rounded-t-xl pb-[max(1rem,env(safe-area-inset-bottom))] transition-[height] duration-200`}>
+    <SheetContent side={wide ? "right" : "bottom"} data-testid={wide ? undefined : "district-sheet"} style={wide ? undefined : { height: `${tall ? SHEET_TALL_DVH : SHEET_HEIGHT_DVH}dvh`, transform: offset ? `translateY(${offset}px)` : undefined, transition: drag.current ? "none" : undefined }} className={wide ? "w-[440px] overflow-y-auto sm:max-w-[440px]" : "overflow-y-auto rounded-t-xl pb-[max(1rem,env(safe-area-inset-bottom))] pl-[max(1.5rem,env(safe-area-inset-left))] pr-[max(1.5rem,env(safe-area-inset-right))] transition-[height] duration-200"}>
       {wide ? null : <button
         type="button"
-        aria-label={tall ? "Make the panel smaller" : "Make the panel taller"}
-        className="mx-auto mb-2 block h-6 w-24 touch-none"
+        aria-label={tall ? "Make the panel smaller. Drag down to close" : "Make the panel taller. Drag down to close"}
+        data-testid="district-sheet-handle"
+        className="mx-auto -mt-2 mb-1 block min-h-11 w-32 touch-none"
         onClick={() => { if (dragged.current) { dragged.current = false; return; } setTall((v) => !v); }}
-        onPointerDown={(event) => { dragFrom.current = event.clientY; event.currentTarget.setPointerCapture?.(event.pointerId); }}
+        onPointerDown={(event) => { drag.current = { y: event.clientY, at: event.timeStamp }; dragged.current = false; event.currentTarget.setPointerCapture?.(event.pointerId); }}
+        onPointerMove={(event) => { if (drag.current) setOffset(sheetOffset(event.clientY - drag.current.y)); }}
+        onPointerCancel={() => { drag.current = null; setOffset(0); }}
         onPointerUp={(event) => {
-          const start = dragFrom.current; dragFrom.current = null;
-          if (start === null) return;
-          const dy = event.clientY - start;
-          dragged.current = Math.abs(dy) >= 40;
-          if (dy < -40) setTall(true);
-          else if (dy > 40) { if (tall) setTall(false); else onOpenChange(false); }
+          const start = drag.current; drag.current = null;
+          if (!start) return;
+          const dy = event.clientY - start.y;
+          dragged.current = Math.abs(dy) >= 8;
+          const result = sheetDragResult(dy, event.timeStamp - start.at, tall);
+          setOffset(0);
+          if (result === "dismiss") { if (tall && dy < 160) setTall(false); else onOpenChange(false); }
+          else if (result === "grow") setTall(true);
         }}
       ><span aria-hidden="true" className="mx-auto block h-1.5 w-12 rounded-full bg-border" /></button>}
       <SheetHeader className="text-left">
