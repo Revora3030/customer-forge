@@ -102,5 +102,7 @@ describe("prepareStudioPage with dark-to-light (#22)", () => {
     expect(html.match(/data-studio-seam/g)?.length).toBe(1);
     expect(html).toContain("data-studio-light");
     expect(html).toContain(`linear-gradient(180deg, ${light.dark} 0%, ${light.canvas} 100%)`);
-  });
+    // The first import of the whole site-section tree is slow on a busy machine and
+    // blew the 5 s default, so this test gets a longer limit of its own.
+  }, 30_000);
 });

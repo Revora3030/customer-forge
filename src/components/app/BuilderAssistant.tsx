@@ -65,6 +65,7 @@ import { RepairStreamCard } from "@/components/app/builder-chat/RepairStreamCard
 import { MessageMenu } from "@/components/app/builder-chat/MessageMenu";
 import { CheckpointTimelineButton, RestoreBeforeMessage } from "@/components/app/builder-chat/checkpoints-mount";
 import { useComposerMenu } from "@/components/app/builder-chat/ComposerMenu";
+import { useTabBuildStatus } from "@/components/app/builder-chat/use-tab-status";
 import { useAskMode } from "@/components/app/builder-chat/AskMode";
 import { useSendTestLead } from "@/components/app/builder-chat/use-test-lead";
 import { expandMentions } from "@/lib/builder/composer-commands";
@@ -389,8 +390,9 @@ export function BuilderAssistant({
   const runSuggestion = (instruction: string) =>
     onFirstBuild ? void onFirstBuild(instruction) : requests.queue(instruction);
   const lastTask = requests.tasks[requests.tasks.length - 1];
-  /** The "/lead-test" flow, offered as a next-step chip after a change to a contact path. */
+/** The "/lead-test" flow, offered as a next-step chip after a change to a contact path. */
   const leadTestFromChip = () => (onLeadTest ?? (() => testLead.mutate()))();
+  useTabBuildStatus(busy || trackingWork, lastTask?.state);
   // Chips only where a next step is natural: after a finished change.
   const showChips = !empty && !busy && lastTask?.state === "complete" && (SUGGESTIONS.length > 0 || suggestionsLoading);
   const toolsVisible = !onFirstBuild && requests.memoryLoaded;
