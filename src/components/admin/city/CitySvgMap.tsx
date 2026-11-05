@@ -1,4 +1,6 @@
-import type { KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
+import { Minus, Plus, RotateCcw } from "lucide-react";
+import { MAP_MAX_ZOOM, MAP_MIN_ZOOM, MAP_PAD, MAP_SPAN, MAP_TAP_SLOP_PX, FRAMED_VIEW, centerOn, panBy, pinchZoom, viewBoxOf, zoomAbout, type MapView } from "@/lib/city-nav";
 import { CITY_DISTRICTS, districtCounts, districtState, failedLabel, districtFailureSummary, type CitySnapshot, type DistrictId } from "@/lib/ai-city";
 
 export type CitySvgMapProps = { snapshot?: CitySnapshot | undefined; selected: DistrictId; now: number; onSelect: (id: DistrictId) => void };
@@ -20,12 +22,75 @@ const at = (value: number) => 50 + value * 5.6;
  * WebGL or a render loop. Each district is a keyboard-reachable button.
  */
 export function CitySvgMap({ snapshot, selected, now, onSelect }: CitySvgMapProps) {
+  // The camera starts framed on the whole city. One finger pans a zoomed map, two fingers pinch-zoom it,
+  // and the buttons do the same for anyone who cannot pinch. A phone never loads WebGL, so there is no 3D orbit here.
+  const [view, setView] = useState<MapView>(FRAMED_VIEW);
+  const viewRef = useRef(view);
+  viewRef.current = view;
+  const update = (next: MapView) => { viewRef.current = next; setView(next); };
+  const frame = useRef<HTMLDivElement>(null);
+  const pointers = useRef(new Map<number, { x: number; y: number }>());
+  const gesture = useRef<{ start: MapView; distance: number; moved: boolean }>({ start: FRAMED_VIEW, distance: 0, moved: false });
+  const suppressClick = useRef(false);
+  /** Pixels per map unit for the current zoom (the square map is letterboxed inside the frame). */
+  const scale = () => { const r = frame.current?.getBoundingClientRect(); return r ? Math.min(r.width, r.height) / (MAP_SPAN / viewRef.current.zoom) : 1; };
+  const toMap = (clientX: number, clientY: number) => {
+    const r = frame.current?.getBoundingClientRect(); const k = scale();
+    const v = viewRef.current;
+    return r ? { x: v.cx + (clientX - r.left - r.width / 2) / k, y: v.cy + (clientY - r.top - r.height / 2) / k } : { x: v.cx, y: v.cy };
+  };
+  const two = () => { const [a, b] = [...pointers.current.values()]; return a && b ? { a, b } : null; };
+  const onDown = (event: PointerEvent) => {
+    pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    const pair = two();
+    gesture.current = { start: viewRef.current, distance: pair ? Math.hypot(pair.a.x - pair.b.x, pair.a.y - pair.b.y) : 0, moved: pointers.current.size > 1 };
+  };
+  const onMove = (event: PointerEvent) => {
+    const prev = pointers.current.get(event.pointerId);
+    if (!prev) return;
+    const pair = two();
+    if (pair) {
+      pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      const next = two();
+      if (!next || !gesture.current.distance) return;
+      const mid = toMap((next.a.x + next.b.x) / 2, (next.a.y + next.b.y) / 2);
+      gesture.current.moved = true;
+      update(zoomAbout(viewRef.current, pinchZoom(gesture.current.start.zoom, gesture.current.distance, Math.hypot(next.a.x - next.b.x, next.a.y - next.b.y)), mid));
+      return;
+    }
+    const dx = event.clientX - prev.x, dy = event.clientY - prev.y;
+    if (!gesture.current.moved && Math.hypot(dx, dy) < MAP_TAP_SLOP_PX) return; // still a tap
+    if (!gesture.current.moved) { try { frame.current?.setPointerCapture?.(event.pointerId); } catch { /* pointer already gone */ } }
+    gesture.current.moved = true;
+    pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    const k = scale();
+    update(panBy(viewRef.current, dx / k, dy / k));
+  };
+  const onUp = (event: PointerEvent) => {
+    pointers.current.delete(event.pointerId);
+    if (gesture.current.moved) suppressClick.current = true;
+    if (pointers.current.size === 0) window.setTimeout(() => { suppressClick.current = false; }, 0); // DevSkim: ignore DS172411 -- Fixed callback, no untrusted data.
+    else gesture.current = { start: viewRef.current, distance: 0, moved: true };
+  };
+  // Choosing a district (carousel, mini-map, keys 1-7) flies the zoomed map to it.
+  useEffect(() => {
+    const d = CITY_DISTRICTS.find(x => x.id === selected);
+    if (d && viewRef.current.zoom > MAP_MIN_ZOOM) update(centerOn(viewRef.current, { x: at(d.position[0]), y: at(d.position[1]) }));
+  }, [selected]);
+  const zoomBy = (factor: number) => update(zoomAbout(viewRef.current, viewRef.current.zoom * factor, { x: viewRef.current.cx, y: viewRef.current.cy }));
   const onKey = (id: DistrictId) => (event: KeyboardEvent<SVGGElement>) => {
     if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onSelect(id); }
   };
-  return <svg viewBox="0 0 100 100" role="group" aria-label="AI City map" className="block h-full w-full" style={{ background: "var(--city-ground)" }} data-testid="city-svg-map">
-    <rect x="47.5" y="0" width="5" height="100" fill="var(--city-road)" />
-    <rect x="0" y="47.5" width="100" height="5" fill="var(--city-road)" />
+  const control = "pointer-events-auto inline-flex min-h-11 min-w-11 items-center justify-center rounded-md border border-border bg-background/90 text-foreground disabled:opacity-40";
+  return <div ref={frame} className="relative h-full w-full touch-none select-none overflow-hidden" data-zoom={view.zoom.toFixed(2)} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp} onClickCapture={(event) => { if (suppressClick.current) { event.stopPropagation(); event.preventDefault(); suppressClick.current = false; } }}>
+  <div className="absolute left-3 top-3 z-20 flex flex-col gap-1.5" role="group" aria-label="Map zoom">
+    <button type="button" className={control} aria-label="Zoom in" disabled={view.zoom >= MAP_MAX_ZOOM} onClick={() => zoomBy(1.5)}><Plus className="size-4" /></button>
+    <button type="button" className={control} aria-label="Zoom out" disabled={view.zoom <= MAP_MIN_ZOOM} onClick={() => zoomBy(1 / 1.5)}><Minus className="size-4" /></button>
+    <button type="button" className={control} aria-label="Reset map view" disabled={view.zoom === MAP_MIN_ZOOM} onClick={() => update(FRAMED_VIEW)}><RotateCcw className="size-4" /></button>
+  </div>
+  <svg viewBox={viewBoxOf(view)} role="group" aria-label="AI City map" className="block h-full w-full" style={{ background: "var(--city-ground)", touchAction: "none" }} data-testid="city-svg-map">
+    <rect x="47.5" y={-MAP_PAD} width="5" height={MAP_SPAN} fill="var(--city-road)" />
+    <rect x={-MAP_PAD} y="47.5" width={MAP_SPAN} height="5" fill="var(--city-road)" />
     {CITY_DISTRICTS.filter(d => d.id !== "executive").map(d => {
       const state = districtState(d.id, snapshot, now);
       const counts = districtCounts(snapshot, d.id, now);
@@ -47,5 +112,6 @@ export function CitySvgMap({ snapshot, selected, now, onSelect }: CitySvgMapProp
         <text x={x} y={y + size / 2 + 4} textAnchor="middle" fontSize="3.2" fill={isSelected ? "var(--city-gold)" : "var(--city-light)"}>{d.name}</text>
       </g>;
     })}
-  </svg>;
+  </svg>
+  </div>;
 }
