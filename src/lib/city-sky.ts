@@ -4,8 +4,9 @@
  *
  * Pure mapping: sky/weather are functions of load/health *signals*, never of
  * wall-clock time. CityScene and CitySvgMap only consume skyMode/weather props.
- * JC-7/8 timeline replay can pass scrubbed signal values through the same
- * `atmosphereFromSignals` entry without touching the scene files.
+ * JC-7/8 CityReplay.onReplayFrame supplies scrubbed `at`; AiCity re-derives
+ * load/health at that time and feeds `atmosphereFromSignals`. CityScene only
+ * consumes skyMode/weather props.
  */
 import {
   ATTENTION_WINDOW_MS,
