@@ -14,6 +14,7 @@ import { Route as SplatRouteImport } from './routes/$'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AboutRouteImport } from './routes/about'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as BrandFactsDotjsonRouteImport } from './routes/brand-facts[.]json'
 import { Route as ContactRouteImport } from './routes/contact'
 import { Route as CrmForContractorsRouteImport } from './routes/crm-for-contractors'
 import { Route as DemoRouteImport } from './routes/demo'
@@ -111,6 +112,8 @@ import { Route as LocalIndustryIndexRouteImport } from './routes/local.$industry
 import { Route as LocalIndustryStateRouteImport } from './routes/local.$industry.$state'
 import { Route as PTokenPageRouteImport } from './routes/p.$token_.$page'
 import { Route as SSlugPageRouteImport } from './routes/s.$slug.$page'
+import { Route as SSlugBrandFactsDotjsonRouteImport } from './routes/s.$slug.brand-facts[.]json'
+import { Route as SSlugLlmsDottxtRouteImport } from './routes/s.$slug.llms[.]txt'
 import { Route as SSlugRobotsDottxtRouteImport } from './routes/s.$slug.robots[.]txt'
 import { Route as SSlugSitemapDotxmlRouteImport } from './routes/s.$slug.sitemap[.]xml'
 import { Route as UnsubscribeLifecycleTokenRouteImport } from './routes/unsubscribe.lifecycle.$token'
@@ -179,6 +182,11 @@ const AboutRoute = AboutRouteImport.update({
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BrandFactsDotjsonRoute = BrandFactsDotjsonRouteImport.update({
+  id: '/brand-facts.json',
+  path: '/brand-facts.json',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ContactRoute = ContactRouteImport.update({
@@ -686,6 +694,16 @@ const SSlugPageRoute = SSlugPageRouteImport.update({
   path: '/$page',
   getParentRoute: () => SSlugRoute,
 } as any)
+const SSlugBrandFactsDotjsonRoute = SSlugBrandFactsDotjsonRouteImport.update({
+  id: '/brand-facts.json',
+  path: '/brand-facts.json',
+  getParentRoute: () => SSlugRoute,
+} as any)
+const SSlugLlmsDottxtRoute = SSlugLlmsDottxtRouteImport.update({
+  id: '/llms.txt',
+  path: '/llms.txt',
+  getParentRoute: () => SSlugRoute,
+} as any)
 const SSlugRobotsDottxtRoute = SSlugRobotsDottxtRouteImport.update({
   id: '/robots.txt',
   path: '/robots.txt',
@@ -945,6 +963,7 @@ export interface FileRoutesByFullPath {
   '/$': typeof SplatRoute
   '/about': typeof AboutRoute
   '/auth': typeof AuthRoute
+  '/brand-facts.json': typeof BrandFactsDotjsonRoute
   '/contact': typeof ContactRoute
   '/crm-for-contractors': typeof CrmForContractorsRoute
   '/demo': typeof DemoRouteWithChildren
@@ -1038,6 +1057,8 @@ export interface FileRoutesByFullPath {
   '/local/$industry/$state': typeof LocalIndustryStateRoute
   '/p/$token/$page': typeof PTokenPageRoute
   '/s/$slug/$page': typeof SSlugPageRoute
+  '/s/$slug/brand-facts.json': typeof SSlugBrandFactsDotjsonRoute
+  '/s/$slug/llms.txt': typeof SSlugLlmsDottxtRoute
   '/s/$slug/robots.txt': typeof SSlugRobotsDottxtRoute
   '/s/$slug/sitemap.xml': typeof SSlugSitemapDotxmlRoute
   '/unsubscribe/lifecycle/$token': typeof UnsubscribeLifecycleTokenRoute
@@ -1093,6 +1114,7 @@ export interface FileRoutesByTo {
   '/$': typeof SplatRoute
   '/about': typeof AboutRoute
   '/auth': typeof AuthRoute
+  '/brand-facts.json': typeof BrandFactsDotjsonRoute
   '/contact': typeof ContactRoute
   '/crm-for-contractors': typeof CrmForContractorsRoute
   '/get-started': typeof GetStartedRoute
@@ -1181,6 +1203,8 @@ export interface FileRoutesByTo {
   '/local/$industry/$state': typeof LocalIndustryStateRoute
   '/p/$token/$page': typeof PTokenPageRoute
   '/s/$slug/$page': typeof SSlugPageRoute
+  '/s/$slug/brand-facts.json': typeof SSlugBrandFactsDotjsonRoute
+  '/s/$slug/llms.txt': typeof SSlugLlmsDottxtRoute
   '/s/$slug/robots.txt': typeof SSlugRobotsDottxtRoute
   '/s/$slug/sitemap.xml': typeof SSlugSitemapDotxmlRoute
   '/unsubscribe/lifecycle/$token': typeof UnsubscribeLifecycleTokenRoute
@@ -1238,6 +1262,7 @@ export interface FileRoutesById {
   '/$': typeof SplatRoute
   '/about': typeof AboutRoute
   '/auth': typeof AuthRoute
+  '/brand-facts.json': typeof BrandFactsDotjsonRoute
   '/contact': typeof ContactRoute
   '/crm-for-contractors': typeof CrmForContractorsRoute
   '/demo': typeof DemoRouteWithChildren
@@ -1331,6 +1356,8 @@ export interface FileRoutesById {
   '/local/$industry/$state': typeof LocalIndustryStateRoute
   '/p/$token_/$page': typeof PTokenPageRoute
   '/s/$slug/$page': typeof SSlugPageRoute
+  '/s/$slug/brand-facts.json': typeof SSlugBrandFactsDotjsonRoute
+  '/s/$slug/llms.txt': typeof SSlugLlmsDottxtRoute
   '/s/$slug/robots.txt': typeof SSlugRobotsDottxtRoute
   '/s/$slug/sitemap.xml': typeof SSlugSitemapDotxmlRoute
   '/unsubscribe/lifecycle/$token': typeof UnsubscribeLifecycleTokenRoute
@@ -1388,6 +1415,7 @@ export interface FileRouteTypes {
     | '/$'
     | '/about'
     | '/auth'
+    | '/brand-facts.json'
     | '/contact'
     | '/crm-for-contractors'
     | '/demo'
@@ -1481,6 +1509,8 @@ export interface FileRouteTypes {
     | '/local/$industry/$state'
     | '/p/$token/$page'
     | '/s/$slug/$page'
+    | '/s/$slug/brand-facts.json'
+    | '/s/$slug/llms.txt'
     | '/s/$slug/robots.txt'
     | '/s/$slug/sitemap.xml'
     | '/unsubscribe/lifecycle/$token'
@@ -1536,6 +1566,7 @@ export interface FileRouteTypes {
     | '/$'
     | '/about'
     | '/auth'
+    | '/brand-facts.json'
     | '/contact'
     | '/crm-for-contractors'
     | '/get-started'
@@ -1624,6 +1655,8 @@ export interface FileRouteTypes {
     | '/local/$industry/$state'
     | '/p/$token/$page'
     | '/s/$slug/$page'
+    | '/s/$slug/brand-facts.json'
+    | '/s/$slug/llms.txt'
     | '/s/$slug/robots.txt'
     | '/s/$slug/sitemap.xml'
     | '/unsubscribe/lifecycle/$token'
@@ -1680,6 +1713,7 @@ export interface FileRouteTypes {
     | '/$'
     | '/about'
     | '/auth'
+    | '/brand-facts.json'
     | '/contact'
     | '/crm-for-contractors'
     | '/demo'
@@ -1773,6 +1807,8 @@ export interface FileRouteTypes {
     | '/local/$industry/$state'
     | '/p/$token_/$page'
     | '/s/$slug/$page'
+    | '/s/$slug/brand-facts.json'
+    | '/s/$slug/llms.txt'
     | '/s/$slug/robots.txt'
     | '/s/$slug/sitemap.xml'
     | '/unsubscribe/lifecycle/$token'
@@ -1830,6 +1866,7 @@ export interface RootRouteChildren {
   SplatRoute: typeof SplatRoute
   AboutRoute: typeof AboutRoute
   AuthRoute: typeof AuthRoute
+  BrandFactsDotjsonRoute: typeof BrandFactsDotjsonRoute
   ContactRoute: typeof ContactRoute
   CrmForContractorsRoute: typeof CrmForContractorsRoute
   DemoRoute: typeof DemoRouteWithChildren
@@ -1953,6 +1990,13 @@ declare module '@tanstack/react-router' {
       path: '/auth'
       fullPath: '/auth'
       preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/brand-facts.json': {
+      id: '/brand-facts.json'
+      path: '/brand-facts.json'
+      fullPath: '/brand-facts.json'
+      preLoaderRoute: typeof BrandFactsDotjsonRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/contact': {
@@ -2634,6 +2678,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SSlugPageRouteImport
       parentRoute: typeof SSlugRoute
     }
+    '/s/$slug/brand-facts.json': {
+      id: '/s/$slug/brand-facts.json'
+      path: '/brand-facts.json'
+      fullPath: '/s/$slug/brand-facts.json'
+      preLoaderRoute: typeof SSlugBrandFactsDotjsonRouteImport
+      parentRoute: typeof SSlugRoute
+    }
+    '/s/$slug/llms.txt': {
+      id: '/s/$slug/llms.txt'
+      path: '/llms.txt'
+      fullPath: '/s/$slug/llms.txt'
+      preLoaderRoute: typeof SSlugLlmsDottxtRouteImport
+      parentRoute: typeof SSlugRoute
+    }
     '/s/$slug/robots.txt': {
       id: '/s/$slug/robots.txt'
       path: '/robots.txt'
@@ -3133,12 +3191,16 @@ const IndustriesRouteWithChildren = IndustriesRoute._addFileChildren(
 
 interface SSlugRouteChildren {
   SSlugPageRoute: typeof SSlugPageRoute
+  SSlugBrandFactsDotjsonRoute: typeof SSlugBrandFactsDotjsonRoute
+  SSlugLlmsDottxtRoute: typeof SSlugLlmsDottxtRoute
   SSlugRobotsDottxtRoute: typeof SSlugRobotsDottxtRoute
   SSlugSitemapDotxmlRoute: typeof SSlugSitemapDotxmlRoute
 }
 
 const SSlugRouteChildren: SSlugRouteChildren = {
   SSlugPageRoute: SSlugPageRoute,
+  SSlugBrandFactsDotjsonRoute: SSlugBrandFactsDotjsonRoute,
+  SSlugLlmsDottxtRoute: SSlugLlmsDottxtRoute,
   SSlugRobotsDottxtRoute: SSlugRobotsDottxtRoute,
   SSlugSitemapDotxmlRoute: SSlugSitemapDotxmlRoute,
 }
@@ -3192,6 +3254,7 @@ const rootRouteChildren: RootRouteChildren = {
   SplatRoute: SplatRoute,
   AboutRoute: AboutRoute,
   AuthRoute: AuthRoute,
+  BrandFactsDotjsonRoute: BrandFactsDotjsonRoute,
   ContactRoute: ContactRoute,
   CrmForContractorsRoute: CrmForContractorsRoute,
   DemoRoute: DemoRouteWithChildren,
