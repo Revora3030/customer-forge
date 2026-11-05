@@ -15,6 +15,7 @@ import {
   type PublishedRow,
   type VersionEntry,
 } from "@/lib/site-versions";
+import { verificationByVersion } from "@/lib/post-publish-verify";
 
 const UUID = /^[0-9a-f-]{36}$/i;
 
@@ -42,6 +43,18 @@ export const listSiteVersions = createServerFn({ method: "POST" })
       .limit(MAX_PUBLISHED_VERSIONS + 1);
     if (error) throw new Error("Couldn't load your saved versions right now.");
     const published = (rows ?? []) as unknown as PublishedRow[];
+
+    // Per-publish live check result (TEN-06 item 25), stored on publish_events
+    // (member-readable). A missing or unread result stays null.
+    if (published.length) {
+      const { data: events } = await (context.supabase as unknown as import("@supabase/supabase-js").SupabaseClient)
+        .from("publish_events")
+        .select("version, smoke_status, created_at")
+        .eq("organization_id", data.organizationId)
+        .in("version", published.map((row) => row.version));
+      const byVersion = verificationByVersion((events ?? []) as { version: number; smoke_status: string | null; created_at: string }[]);
+      for (const row of published) row.verification_status = byVersion.get(row.version) ?? null;
+    }
 
     const who = new Map<string, string>();
     const ids = [...new Set(published.map((row) => row.created_by).filter((id): id is string => !!id))];
