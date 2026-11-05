@@ -6,8 +6,8 @@ import { canonicalLink, metaDescription, ogUrl } from "@/lib/seo";
 export const Route = createFileRoute("/help/")({
   head: () => ({
     meta: [
-      { title: "Help center — Revora" },
-      { name: "description", content: metaDescription("Short how-to articles for Revora owners: pages, domains, leads, booking link, trial and billing.") },
+      { title: "Revora Help Center: Pages, Domains, Leads & Billing" },
+      { name: "description", content: metaDescription("Short how-to articles for Revora owners: add pages, connect a domain, read your leads, send a test lead, add a booking link, and how the trial and billing work.") },
       ogUrl("/help"),
     ],
     links: [canonicalLink("/help"), { rel: "alternate", type: "text/markdown", href: "/help.md" }],
