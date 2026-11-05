@@ -20,6 +20,8 @@ import { useProspectDemoPump } from "@/lib/prospect-demo-pump.hooks";
 import { JarvisHeader, type ChecksSummary } from "@/components/app/jarvis/JarvisHeader";
 import { JarvisComposer, type JarvisMode } from "@/components/app/jarvis/JarvisComposer";
 import { AssistantMessage, UserMessage, type JarvisRow } from "@/components/app/jarvis/JarvisMessage";
+import { NoticeRepeatDigest } from "@/components/app/jarvis/NoticeRepeatDigest";
+import { foldRepeatNotices } from "@/lib/jarvis-notice-digest";
 import { RunTaskTree } from "@/components/app/jarvis/RunTaskTree";
 import { ConversationsSheet } from "@/components/app/jarvis/ConversationsSheet";
 import { OperationsPanel, DIAGNOSTIC_SECTIONS, type ProspectorState } from "@/components/app/jarvis/OperationsPanel";
@@ -385,6 +387,8 @@ function Jarvis() {
   const busy = mutation.isPending || regen.isPending;
   const latest = useMemo(() => history.data ?? [], [history.data]);
   const messages = useMemo(() => mergeRows(older, latest), [older, latest]);
+  /** JC-47: collapse same-rule same-day event notices into one expandable row. */
+  const chatItems = useMemo(() => foldRepeatNotices(messages), [messages]);
   const lastMessage = messages[messages.length - 1];
   const lastAssistantId = lastMessage?.role === "assistant" ? lastMessage.id : null;
   const empty = !history.isLoading && !history.error && messages.length === 0 && !pending;
@@ -972,32 +976,42 @@ function Jarvis() {
                   <Button type="button" variant="ghost" data-jarvis-tap="" className="self-start" onClick={() => setCommandsOpen(true)}>All commands</Button>
                 </div>
               ) : null}
-              {messages.map((message, index) => {
-                const day = dayKey(message.created_at);
-                const newDay = index === 0 || day !== dayKey(messages[index - 1]!.created_at);
+              {chatItems.map((item, index) => {
+                const stamp = item.kind === "repeat-digest" ? item.members[item.members.length - 1]!.createdAt : item.row.created_at;
+                const prev = index === 0 ? null : chatItems[index - 1]!;
+                const prevStamp = !prev
+                  ? null
+                  : prev.kind === "repeat-digest"
+                    ? prev.members[prev.members.length - 1]!.createdAt
+                    : prev.row.created_at;
+                const day = dayKey(stamp);
+                const newDay = index === 0 || !prevStamp || day !== dayKey(prevStamp);
+                const key = item.kind === "repeat-digest" ? `digest:${item.key}` : item.row.id;
                 return (
-                  <Fragment key={message.id}>
+                  <Fragment key={key}>
                     {newDay && day ? (
-                      <div role="separator" aria-label={dayLabel(message.created_at)} className="flex items-center gap-3 text-xs text-muted-foreground">
+                      <div role="separator" aria-label={dayLabel(stamp)} className="flex items-center gap-3 text-xs text-muted-foreground">
                         <span className="h-px flex-1 bg-border/70" aria-hidden />
-                        <span aria-hidden>{dayLabel(message.created_at)}</span>
+                        <span aria-hidden>{dayLabel(stamp)}</span>
                         <span className="h-px flex-1 bg-border/70" aria-hidden />
                       </div>
                     ) : null}
-                    {message.role === "user" ? (
-                      <UserMessage content={message.content} createdAt={message.created_at} />
+                    {item.kind === "repeat-digest" ? (
+                      <NoticeRepeatDigest members={item.members} busy={busy} onAsk={(prompt) => submit(prompt)} />
+                    ) : item.row.role === "user" ? (
+                      <UserMessage content={item.row.content} createdAt={item.row.created_at} />
                     ) : (
                       <AssistantMessage
-                        message={message}
-                        isLast={message.id === lastAssistantId}
+                        message={item.row}
+                        isLast={item.row.id === lastAssistantId}
                         busy={busy}
-                        regenerating={regen.isPending && message.id === lastAssistantId}
-                        speakingThis={jarvisVoice.speaking && speakingId === message.id}
-                        approvalState={(key) => approved[key] ?? remembered[key]?.state}
-                        approvalUrl={(key) => openedPrs[key] ?? remembered[key]?.url}
-                        onApprove={(key, proposal) => { void approveProposal(key, proposal); }}
+                        regenerating={regen.isPending && item.row.id === lastAssistantId}
+                        speakingThis={jarvisVoice.speaking && speakingId === item.row.id}
+                        approvalState={(akey) => approved[akey] ?? remembered[akey]?.state}
+                        approvalUrl={(akey) => openedPrs[akey] ?? remembered[akey]?.url}
+                        onApprove={(akey, proposal) => { void approveProposal(akey, proposal); }}
                         onCopy={(body) => { void copy(body); }}
-                        onListen={() => { jarvisVoice.unlock(); void speak(message.content, message.id); }}
+                        onListen={() => { jarvisVoice.unlock(); void speak(item.row.content, item.row.id); }}
                         onStopListening={stopSpeaking}
                         onRegenerate={() => regen.mutate()}
                         renderAfterProposal={renderAfterProposal}
