@@ -3,7 +3,10 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { GrowthFunnelView } from "./GrowthFunnel";
 import { ReleaseBoardView } from "./ReleaseBoard";
 import { MemoryHealthView } from "./MemoryHealth";
+import { TodayBriefingView } from "./TodayBriefing";
 import { buildGrowthFunnel, buildMemoryHealth, buildReleaseBoard } from "@/lib/ai-city-panels";
+import { buildTodayBriefing } from "@/lib/ai-city-today-briefing";
+import type { CitySnapshot, CityWork } from "@/lib/ai-city";
 
 describe("GrowthFunnelView", () => {
   it("shows unavailable rather than an empty funnel", () => {
@@ -59,5 +62,36 @@ describe("MemoryHealthView", () => {
     expect(html).not.toMatch(/>0</);
     expect(html).toContain("not readable yet");
     expect(renderToStaticMarkup(<MemoryHealthView data={undefined} loading={false} failed />)).toContain("Memory health unavailable");
+  });
+});
+
+describe("TodayBriefingView", () => {
+  const now = Date.parse("2026-11-05T12:00:00Z");
+  const row = (partial: Partial<CityWork> & Pick<CityWork, "id" | "title" | "district" | "status" | "source">): CityWork => ({
+    at: new Date(now - 60_000).toISOString(),
+    ...partial,
+  });
+  it("says records unavailable when the snapshot is missing", () => {
+    const html = renderToStaticMarkup(<TodayBriefingView briefing={buildTodayBriefing(undefined, now)} onDraft={() => {}} />);
+    expect(html).toContain("City records unavailable");
+  });
+  it("lists top items with a triage button and stays calm when empty", () => {
+    const empty = renderToStaticMarkup(<TodayBriefingView briefing={buildTodayBriefing({ checkedAt: "now", sources: { approvals: { available: true, total: 0, truncated: false, rows: [] } } }, now)} onDraft={() => {}} />);
+    expect(empty).toContain("Nothing in the city feeds needs you");
+    const snapshot: CitySnapshot = {
+      checkedAt: "now",
+      sources: {
+        approvals: {
+          available: true,
+          total: 1,
+          truncated: false,
+          rows: [row({ id: "a1", title: "Pitch to Acme", district: "growth", status: "pending", source: "approval_queue" })],
+        },
+      },
+    };
+    const html = renderToStaticMarkup(<TodayBriefingView briefing={buildTodayBriefing(snapshot, now)} onDraft={() => {}} />);
+    expect(html).toContain("1 approval waiting on you");
+    expect(html).toContain("Ask Jarvis to triage");
+    expect(html).toContain("Pitch to Acme");
   });
 });
