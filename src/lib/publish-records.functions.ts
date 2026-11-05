@@ -130,6 +130,7 @@ export const recordPublishAndSmoke = createServerFn({ method: "POST" })
     return { organizationId, version, sourceVersion: source && source >= 1 ? source : null };
   })
   .handler(async ({ data, context }) => {
+    const smokeStartedAt = Date.now();
     const { requireOrgRole } = await import("@/lib/org-authz.server");
     await requireOrgRole(context.supabase, data.organizationId, context.userId, "manager");
     // The version must really be this workspace's published version.
@@ -236,6 +237,19 @@ export const recordPublishAndSmoke = createServerFn({ method: "POST" })
         entity: "website",
         entity_id: data.organizationId,
         metadata: { version: data.version, checks: result.checks } as never,
+      });
+    }
+    {
+      const { recordOpsSpan } = await import("@/lib/ops-trace.server");
+      const all = result?.checks ?? [];
+      recordOpsSpan({
+        name: "site.deploy.smoke",
+        traceKey: crypto.randomUUID(),
+        startedAtMs: smokeStartedAt,
+        endedAtMs: Date.now(),
+        outcome: result?.status === "failed" ? "failed" : result ? "ok" : "blocked",
+        ...(result?.status === "failed" ? { errorType: "SmokeCheckFailed" } : {}),
+        attributes: { "revora.smoke.checks": all.length, "revora.smoke.failed_checks": all.filter((c) => !c.ok).length },
       });
     }
     return { status: result?.status ?? "skipped", url: base, checks: result?.checks ?? [] };

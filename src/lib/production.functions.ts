@@ -402,6 +402,25 @@ export async function publishSiteNow(
   orgId: string,
   options: { liveEdit?: boolean; videoBarOverride?: { reason: string }; restoreVersionId?: string } = {},
 ): Promise<ActivationResult> {
+  // BRF-03: every publish is one "site.deploy" span (ok / blocked by a gate / failed).
+  const { traceOps } = await import("@/lib/ops-trace.server");
+  return traceOps(
+    "site.deploy",
+    () => publishSiteNowUntraced(supabase, userId, orgId, options),
+    (result) => ({
+      outcome: result.activated ? "ok" : "blocked",
+      attributes: result.activated ? {} : { "revora.block_reason": result.readiness?.unlocked === false ? "not_unlocked" : "not_ready" },
+    }),
+    { attributes: { "revora.live_edit": options.liveEdit === true, "revora.restore": Boolean(options.restoreVersionId) } },
+  );
+}
+
+async function publishSiteNowUntraced(
+  supabase: Parameters<typeof gatherReadiness>[0],
+  userId: string,
+  orgId: string,
+  options: { liveEdit?: boolean; videoBarOverride?: { reason: string }; restoreVersionId?: string },
+): Promise<ActivationResult> {
   {
     const context = { supabase };
 
