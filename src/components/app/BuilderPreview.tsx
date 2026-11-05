@@ -14,7 +14,6 @@ import {
   Tv,
   Columns2,
   SplitSquareHorizontal,
-  TriangleAlert,
   Accessibility,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -53,6 +52,7 @@ import {
 } from "@/lib/builder/preview-bridge";
 import { saveInlineText } from "@/lib/builder/inline-edit.functions";
 import { PreviewThemeEditor } from "@/components/app/PreviewThemeEditor";
+import type { SiteStyle } from "@/lib/builder/style-edit";
 import type { Palette } from "@/lib/builder/palette-edit";
 import { splitForKey, splitForPointer } from "@/lib/builder/compare-slider";
 import { useServerFn } from "@tanstack/react-start";
@@ -61,6 +61,8 @@ import { toast } from "@/lib/ui/notify";
 import { pageNavLabel, type ContentPage } from "@/lib/website-content";
 import { pageOfSection } from "@/lib/builder/step-target";
 import { cn } from "@/lib/utils";
+import { FluidBadges, FluidViewportSlider } from "@/components/app/FluidViewportControls";
+import { clampFluidWidth, type OverflowReading, type TapReading } from "@/lib/builder/fluid-viewport";
 import { PhoneLayoutPanel } from "@/components/app/PhoneLayoutPanel";
 import { LiveCanvasSkeleton } from "@/components/app/LiveCanvasSkeleton";
 import { SiteSkeleton } from "@/components/site/SiteSkeleton";
@@ -165,6 +167,8 @@ function BuilderPreviewFrame({
       if (phone) setViewport(phone);
     }
   }, []);
+  // B13-5: a slider width (320 to 1440) overrides the preset until one is chosen again.
+  const [customWidth, setCustomWidth] = useState<number | null>(null);
   const [zoom, setZoom] = useState(0.75);
   const [refreshKey, setRefreshKey] = useState(0);
   const [fullscreen, setFullscreen] = useState(false);
@@ -181,7 +185,8 @@ function BuilderPreviewFrame({
   const visibleCompareMode = effectiveCompareMode(compareMode, livePublished);
   const [overlaySplit, setOverlaySplit] = useState(50);
   const [fitMode, setFitMode] = useState(false);
-  const [overflow, setOverflow] = useState<{ width: number; scrollWidth: number; culprits: string[] } | null>(null);
+  const [overflow, setOverflow] = useState<OverflowReading | null>(null);
+  const [taps, setTaps] = useState<TapReading | null>(null);
   const [a11y, setA11y] = useState<{ issueCount: number; issues: A11yIssue[] } | null>(null);
   const [a11yOpen, setA11yOpen] = useState(false);
 
@@ -224,7 +229,11 @@ function BuilderPreviewFrame({
     pageChangeRef.current?.(openPageId ? { id: openPageId, title: openPageTitle, slug: openPageSlug } : null);
   }, [openPageId, openPageTitle, openPageSlug]);
   const currentViewport = BUILDER_VIEWPORTS.find((item) => item.key === viewport);
-  const viewportWidth = currentViewport?.width ?? 1280;
+  const viewportWidth = customWidth ?? currentViewport?.width ?? 1280;
+  const choosePreset = useCallback((key: BuilderViewportKey) => {
+    setCustomWidth(null);
+    setViewport(key);
+  }, []);
   const CurrentViewportIcon = VIEWPORT_ICONS[viewport];
   // Fit the chosen device to the space available, so a phone view fills the
   // frame instead of shrinking into a corner; the zoom picker still caps it.
@@ -330,8 +339,8 @@ function BuilderPreviewFrame({
 
   /** Tries a palette live in the preview; null puts the saved colours back. */
   const previewPalette = useCallback(
-    (palette: Palette | null) => {
-      if (palette) tell({ type: "patch-theme", primary: palette.primary, secondary: palette.secondary, accent: palette.accent });
+    (palette: Palette | null, style?: SiteStyle) => {
+      if (palette) tell({ type: "patch-theme", primary: palette.primary, secondary: palette.secondary, accent: palette.accent, ...(style ? { style } : {}) });
       else tell({ type: "reset-theme" });
     },
     [tell],
@@ -346,9 +355,16 @@ function BuilderPreviewFrame({
   // A new page, device size or reload re-measures overflow and contrast.
   useEffect(() => {
     setOverflow(null);
+    setTaps(null);
     setA11y(null);
   }, [source, viewportWidth, refreshKey, refreshRevision, tabRevision]);
   const runA11y = useCallback(() => tell({ type: "run-a11y-check" }), [tell]);
+  const runTaps = useCallback(() => tell({ type: "run-tap-check" }), [tell]);
+  // Re-measure tap targets once a width has settled (a slider drag fires many).
+  useEffect(() => {
+    const timer = window.setTimeout(runTaps, 700);
+    return () => window.clearTimeout(timer);
+  }, [viewportWidth, source, refreshKey, refreshRevision, tabRevision, runTaps]);
 
   // Live team status floats on the preview itself, over the block being worked on.
   useEffect(() => {
@@ -417,6 +433,7 @@ function BuilderPreviewFrame({
       if (message.type === "ready") {
         // Contrast is checked once the page has painted its fonts and colours.
         window.setTimeout(runA11y, 900);
+        window.setTimeout(runTaps, 1000);
         syncSelectMode(selectMode);
         tell({ type: "status", text: liveStatus ?? null, id: selectedId });
         if (pendingReveal.current) {
@@ -432,7 +449,11 @@ function BuilderPreviewFrame({
         return;
       }
       if (message.type === "overflow") {
-        setOverflow(message.overflow ? { width: message.clientWidth, scrollWidth: message.scrollWidth, culprits: message.culprits } : null);
+        setOverflow({ overflow: message.overflow, clientWidth: message.clientWidth, scrollWidth: message.scrollWidth, culprits: message.culprits });
+        return;
+      }
+      if (message.type === "tap-report") {
+        setTaps({ checked: message.checked, smallCount: message.smallCount, smallest: message.smallest, clientWidth: message.clientWidth, examples: message.examples });
         return;
       }
       if (message.type === "a11y-report") {
@@ -443,7 +464,7 @@ function BuilderPreviewFrame({
     };
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, [liveStatus, onInlineEdit, onSelect, runA11y, selectMode, selectedId, syncSelectMode, tell]);
+  }, [liveStatus, onInlineEdit, onSelect, runA11y, runTaps, selectMode, selectedId, syncSelectMode, tell]);
 
 
   const tree = (
@@ -510,13 +531,13 @@ function BuilderPreviewFrame({
           {/* Phones: one viewport menu instead of six icons in a row. */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button type="button" size="icon-sm" variant="ghost" className="sm:hidden" aria-label={`Preview size: ${currentViewport?.label ?? "Desktop"}, ${viewportWidth} pixels`}>
+              <Button type="button" size="icon-sm" variant="ghost" className="sm:hidden" aria-label={`Preview size: ${customWidth !== null ? "Custom" : (currentViewport?.label ?? "Desktop")}, ${viewportWidth} pixels`}>
                 <CurrentViewportIcon className="size-4" aria-hidden />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuLabel>Preview size</DropdownMenuLabel>
-              <DropdownMenuRadioGroup value={viewport} onValueChange={(key) => setViewport(key as BuilderViewportKey)}>
+              <DropdownMenuRadioGroup value={customWidth === null ? viewport : ""} onValueChange={(key) => choosePreset(key as BuilderViewportKey)}>
                 {BUILDER_VIEWPORTS.map((option) => {
                   const Icon = VIEWPORT_ICONS[option.key];
                   return (
@@ -535,12 +556,12 @@ function BuilderPreviewFrame({
                 key={option.key}
                 type="button"
                 size="sm"
-                variant={viewport === option.key ? "secondary" : "ghost"}
+                variant={customWidth === null && viewport === option.key ? "secondary" : "ghost"}
                 className="pointer-events-auto relative z-30 inline-flex min-h-11 min-w-11 shrink-0 whitespace-nowrap px-2 wrap-normal"
                 aria-label={`${option.label} preview, ${option.width} pixels`}
-                aria-pressed={viewport === option.key}
+                aria-pressed={customWidth === null && viewport === option.key}
                 title={`${option.label} · ${option.width}px`}
-                onClick={() => setViewport(option.key)}
+                onClick={() => choosePreset(option.key)}
               >
                 <span className="whitespace-nowrap text-xs tabular-nums">{option.width}</span>
               </Button>
@@ -645,18 +666,10 @@ function BuilderPreviewFrame({
             Updating your preview…
           </div>
         ) : null}
+        <FluidViewportSlider width={viewportWidth} onChange={(next) => setCustomWidth(clampFluidWidth(next))} />
         <div className="mb-2 flex flex-wrap items-center justify-center gap-1.5 text-[11.5px]" data-testid="builder-preview-status">
           <span className="rounded-full border border-border/70 bg-background/80 px-2 py-0.5 tnum text-muted-foreground">{viewportWidth}px</span>
-          {overflow ? (
-            <span
-              className="inline-flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 font-medium text-amber-700 dark:text-amber-300"
-              data-testid="builder-preview-overflow"
-              title={overflow.culprits.length ? `Sticking out: ${overflow.culprits.join(" · ")}` : undefined}
-            >
-              <TriangleAlert className="size-3" aria-hidden />
-              Horizontal scroll detected at {viewportWidth}px
-            </span>
-          ) : null}
+          <FluidBadges viewportWidth={viewportWidth} overflow={overflow} taps={taps} />
           {a11y ? (
             <Button
               type="button"

@@ -8,6 +8,7 @@
  * shown as an upcoming renewal.
  */
 import type { Tone } from "@/lib/domain";
+import { isRealPaymentAmount } from "@/lib/payment-amount";
 
 export type BillingSubscriptionFields = {
   status: string;
@@ -29,6 +30,7 @@ export type BillingStatusState =
   | "first_month_free"
   | "renewal_pending"
   | "past_due"
+  | "cancel_scheduled"
   | "canceled"
   | "setup_paid"
   | "free_access"
@@ -68,6 +70,17 @@ export function deriveBillingStatus(input: BillingStatusInput): BillingStatus {
         };
       case "trialing": {
         const trialEnd = futureIso(sub.trial_ends_at, now);
+        // Cancelled during the free month: nothing will be charged, so never
+        // show a "first monthly charge" date for it.
+        if (sub.cancel_at_period_end) {
+          return {
+            state: "cancel_scheduled",
+            label: "Cancellation scheduled",
+            tone: "neutral",
+            dateLabel: "Access until",
+            date: trialEnd ?? periodEnd,
+          };
+        }
         if (trialEnd) {
           return {
             state: "first_month_free",
@@ -88,11 +101,20 @@ export function deriveBillingStatus(input: BillingStatusInput): BillingStatus {
         };
       }
       case "active":
+        if (sub.cancel_at_period_end) {
+          return {
+            state: "cancel_scheduled",
+            label: "Cancellation scheduled",
+            tone: "neutral",
+            dateLabel: "Access until",
+            date: periodEnd,
+          };
+        }
         return {
           state: "active",
-          label: sub.cancel_at_period_end ? "Canceling" : "Active",
-          tone: sub.cancel_at_period_end ? "attention" : "signal",
-          dateLabel: sub.cancel_at_period_end ? "Access ends" : "Renews",
+          label: "Active",
+          tone: "signal",
+          dateLabel: "Renews",
           date: periodEnd,
         };
       case "canceled":
@@ -100,7 +122,7 @@ export function deriveBillingStatus(input: BillingStatusInput): BillingStatus {
           state: "canceled",
           label: "Canceled",
           tone: "neutral",
-          dateLabel: periodEnd ? "Access ends" : "Subscription ended",
+          dateLabel: periodEnd ? "Access until" : "Subscription ended",
           date: periodEnd,
         };
       default:
@@ -143,4 +165,17 @@ export function deriveBillingStatus(input: BillingStatusInput): BillingStatus {
     dateLabel: "Next billing date",
     date: null,
   };
+}
+
+/**
+ * Only real charges are payments (uses #537's isRealPaymentAmount). A $0.00 row (for example a setup fee fully
+ * covered by a promotion code) is not a payment: it is never listed, counted or
+ * summed as one, and it can never make anything count as paid.
+ */
+export function chargedPayments<T extends { amount: number | string | null }>(
+  rows: readonly T[] | null | undefined,
+): { charged: T[]; hadZeroEntry: boolean } {
+  const all = rows ?? [];
+  const charged = all.filter((p) => isRealPaymentAmount(p.amount));
+  return { charged, hadZeroEntry: charged.length !== all.length };
 }

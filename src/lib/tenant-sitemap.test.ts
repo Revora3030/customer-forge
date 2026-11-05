@@ -47,7 +47,7 @@ function fakeClient() {
 vi.mock("@/integrations/supabase/client.server", () => ({ supabaseAdmin: fakeClient() }));
 vi.mock("@supabase/supabase-js", () => ({ createClient: () => fakeClient() }));
 
-import { platformSitemapSlugs, platformTenantRobotsResponse, platformTenantSitemapResponse, sitemapUrls, xmlSitemapIndex } from "./site-host.server";
+import { hostTenantFactsResponse, platformSitemapSlugs, platformTenantFactsResponse, platformTenantRobotsResponse, platformTenantSitemapResponse, sitemapUrls, xmlSitemapIndex } from "./site-host.server";
 
 const ORG = "11111111-1111-4111-8111-111111111111";
 const TRIAL = "22222222-2222-4222-8222-222222222222";
@@ -281,5 +281,84 @@ describe("platform sitemap lastmod", () => {
       expect(group, `no lastmod group for ${path || "/"}`).not.toBeNull();
       expect(SITEMAP_LASTMOD.groups[group!], `no generated date for group ${group}`).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     }
+  });
+});
+
+describe("/s/<slug>/llms.txt and brand-facts.json", () => {
+  beforeEach(() => {
+    db.tables["public_business_profiles"] = [
+      {
+        organization_id: ORG,
+        description: "Family plumbing in Raleigh since 1998.",
+        phone: "(919) 832-4410",
+        email: "office@acmeplumbing.co",
+        city: "Raleigh",
+        state: "NC",
+        service_area: "Raleigh, NC + 25 miles",
+      },
+      { organization_id: DOMAIN, description: "Owned domain business.", phone: "(919) 467-2201", city: "Cary", state: "NC" },
+    ];
+    db.tables["services"] = [
+      { organization_id: ORG, is_active: true, name: "Water heater install", price: 1450, starting_price: null, sort_order: 1 },
+      { organization_id: ORG, is_active: false, name: "Retired service", price: 10, sort_order: 2 },
+    ];
+    db.tables["social_profiles"] = [{ organization_id: ORG, facebook: "https://facebook.com/acme", instagram: null }];
+    db.tables["public_reviews"] = [{ organization_id: ORG, author_name: "Pat", rating: 5, comment: "Great" }];
+  });
+
+  it("serves the verified facts and the published pages, never reviews or inactive services", async () => {
+    const response = await platformTenantFactsResponse("acme", "llms.txt");
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain("text/plain");
+    const text = await response.text();
+    expect(text.startsWith("# acme\n")).toBe(true);
+    expect(text).toContain("> Family plumbing in Raleigh since 1998.");
+    expect(text).toContain("- Phone: (919) 832-4410");
+    expect(text).toContain("- Water heater install ($1450)");
+    expect(text).toContain("- https://revoragrowthsystems.com/s/acme/services");
+    expect(text).toContain("- https://revoragrowthsystems.com/s/acme/brand-facts.json");
+    expect(text).not.toContain("Retired service");
+    expect(text).not.toContain("/hidden");
+    expect(text).not.toMatch(/rating|review|Pat/i);
+
+    const json = await platformTenantFactsResponse("acme", "brand-facts.json");
+    expect(json.status).toBe(200);
+    expect(json.headers.get("content-type")).toContain("application/json");
+    const facts = await json.json();
+    expect(facts.url).toBe("https://revoragrowthsystems.com/s/acme");
+    expect(facts.telephone).toBe("(919) 832-4410");
+    expect(facts.services).toEqual([{ name: "Water heater install", price: "1450.00", currency: "USD" }]);
+    expect(facts.sameAs).toEqual(["https://facebook.com/acme"]);
+    expect(facts.updatedAt).toBe(PUBLISHED_AT);
+    expect(JSON.stringify(facts)).not.toMatch(/aggregateRating|"reviews?":|"rating"/i);
+  });
+
+  it("uses the same publication gate as the sitemap and redirects to a verified custom domain", async () => {
+    for (const file of ["llms.txt", "brand-facts.json"] as const) {
+      expect((await platformTenantFactsResponse("lapsed", file)).status).toBe(404);
+      expect((await platformTenantFactsResponse("drafty", file)).status).toBe(404);
+      expect((await platformTenantFactsResponse("nobody", file)).status).toBe(404);
+      const redirect = await platformTenantFactsResponse("owned", file);
+      expect(redirect.status).toBe(301);
+      expect(redirect.headers.get("location")).toBe(`https://owned.example/${file}`);
+    }
+  });
+
+  it("throws on a failed facts read so the route answers 503 instead of an empty success", async () => {
+    db.failTable = "services";
+    await expect(platformTenantFactsResponse("acme", "llms.txt")).rejects.toThrow("Business facts unavailable");
+  });
+
+  it("answers a verified custom domain with that business's facts and leaves Revora's hosts alone", async () => {
+    db.tables["website_pages"] = [{ id: "own-home", organization_id: DOMAIN, slug: "home", kind: "home", noindex: false, is_visible: true }];
+    db.tables["website_sections"]!.push({ id: "own-sec", organization_id: DOMAIN, page_id: "own-home", is_visible: true });
+    const response = await hostTenantFactsResponse("owned.example", "https", "llms.txt");
+    expect(response?.status).toBe(200);
+    const text = await response!.text();
+    expect(text).toContain("# owned");
+    expect(text).toContain("https://owned.example/brand-facts.json");
+    expect(text).not.toContain("Revora");
+    expect(await hostTenantFactsResponse("revoragrowthsystems.com", "https", "llms.txt")).toBeNull();
+    expect(await hostTenantFactsResponse("unknown.example", "https", "brand-facts.json")).toBeNull();
   });
 });

@@ -9,6 +9,21 @@ import type { ConsentLookups } from "@/lib/automation-consent";
  * - retry: transient (rate limit, provider blip) — the run stays queued.
  * - otherwise: permanent for this run; it is recorded as skipped/failed with a reason.
  */
+/**
+ * Checked by error code (not an import from send-email) so the mapping holds
+ * even where tests replace that module. Matches EmailNotConfiguredError.
+ */
+function emailNotConfigured(error: unknown, label: string): DeliveryResult | null {
+  if (typeof error !== "object" || error === null || (error as { code?: unknown }).code !== "email_not_configured") {
+    return null;
+  }
+  // Warn, never crash: the error message names the missing secret only, never
+  // a value. Retryable so the send goes out once the secret is added.
+  const detail = error instanceof Error ? error.message : "email secret is not configured";
+  console.warn(`[${label}] email not sent: ${detail}`);
+  return { ok: false, retry: true, reason: "email_not_configured" };
+}
+
 export type DeliveryResult =
   { ok: true } | { ok: false; retry: boolean; reason: string; retryAfterSeconds?: number };
 
@@ -138,6 +153,8 @@ export async function deliverEmail(
       const retry = error.code === "domain_not_verified" || error.code === "emails_disabled";
       return { ok: false, retry, reason: error.code ?? `email_error_${error.status}` };
     }
+    const unconfigured = emailNotConfigured(error, "automation email");
+    if (unconfigured) return unconfigured;
     console.error("email delivery failed", error);
     return { ok: false, retry: true, reason: "email_transport_error" };
   }
@@ -217,6 +234,8 @@ export async function sendLeadConfirmation(
         reason: error.code ?? "email_error",
       };
     }
+    const unconfigured = emailNotConfigured(error, "lead confirmation");
+    if (unconfigured) return unconfigured;
     console.error("lead confirmation failed", error);
     return { ok: false, retry: true, reason: "email_transport_error" };
   }
@@ -267,6 +286,8 @@ export async function sendLeadAlert(
         reason: error.code ?? (error.status === 429 ? "rate_limited" : "email_error"),
       };
     }
+    const unconfigured = emailNotConfigured(error, "lead alert");
+    if (unconfigured) return unconfigured;
     console.error("lead alert failed", error);
     return { ok: false, retry: true, reason: "email_transport_error" };
   }

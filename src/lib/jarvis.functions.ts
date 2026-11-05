@@ -416,8 +416,22 @@ export const claimJarvisApprovalFn = createServerFn({ method: "POST" })
   })
   .handler(async ({ context, data }) => {
     const db = await guardedAdmin(context);
-    const { claimApproval } = await import("./jarvis-approvals.server");
-    return claimApproval(db, String(context.userId), data.key, data.proposal);
+    const { claimApproval, finishApproval, summaryFor } = await import("./jarvis-approvals.server");
+    const claim = await claimApproval(db, String(context.userId), data.key, data.proposal);
+    if (!claim.ok) return claim;
+    // Same single-use step the workspace approvals use (admin scope). A refusal
+    // frees the Jarvis claim so the owner can ask again; an outage doesn't block.
+    const { consumeJarvisWriteApproval } = await import("./agent/jarvis-approval-bridge.server");
+    const { supabaseApprovalRepo } = await import("./agent/approvals.server");
+    const shared = await consumeJarvisWriteApproval({ repo: supabaseApprovalRepo(db) }, {
+      userId: String(context.userId),
+      key: data.key,
+      proposal: data.proposal as { id: string },
+      summary: summaryFor(data.proposal as Parameters<typeof summaryFor>[0]),
+    });
+    if (shared.ok) return claim;
+    await finishApproval(db, String(context.userId), data.key, false);
+    return { ok: false as const, reason: shared.reason === "used" ? ("used" as const) : ("changed" as const), message: shared.message };
   });
 
 export const finishJarvisApprovalFn = createServerFn({ method: "POST" })
@@ -993,6 +1007,35 @@ export const getJarvisModelStatus = createServerFn({ method: "GET" })
       configured: configuredProviders(process.env),
       now: Date.now(),
     });
+  });
+
+/**
+ * Time and cost of the most recent builds, from recorded AI calls only: each
+ * build's cost is what its workspace's calls added up to while it ran.
+ */
+export const getRecentBuildCosts = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const db = await guardedAdmin(context);
+    const jobs = await db
+      .from("generation_jobs")
+      .select("id, organization_id, status, created_at, started_at, completed_at")
+      .not("started_at", "is", null)
+      .order("started_at", { ascending: false })
+      .limit(20);
+    if (jobs.error) throw new Error("Couldn't read recent builds.");
+    const rows = (jobs.data ?? []) as { id: string; organization_id: string; status: string | null; started_at: string | null; completed_at: string | null }[];
+    if (!rows.length) return [];
+    const since = rows.reduce((min, row) => (row.started_at && row.started_at < min ? row.started_at : min), rows[0]!.started_at as string);
+    const events = await db
+      .from("ai_usage_events")
+      .select("organization_id, created_at, ok, estimated_cost_usd")
+      .in("organization_id", [...new Set(rows.map((row) => row.organization_id))])
+      .gte("created_at", since)
+      .limit(10000);
+    if (events.error) throw new Error("Couldn't read model usage records.");
+    const { summarizeBuildCosts } = await import("./lovable-model-usage");
+    return summarizeBuildCosts(rows as never, (events.data ?? []) as never);
   });
 
 /**

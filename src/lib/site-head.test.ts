@@ -10,6 +10,7 @@ import {
   siteThemeColor,
   tenantSiteHead,
   type TenantHeadSite,
+  clientHeadExtrasSync,
 } from "./site-head";
 import { compositionFonts, siteFontsHref, isLight } from "./site-theme";
 import { metaTitle } from "./seo";
@@ -100,7 +101,7 @@ describe("tenantSiteHead (one head for every client route)", () => {
     expect(meta(head, "og:url")?.content).toBe("https://acme.test/about");
     expect(meta(head, "description")?.content).toBe("About from Test Business Co. in Austin.");
     expect(head.links[0]).toEqual({ rel: "canonical", href: "https://acme.test/about" });
-    expect(head.scripts.some((script) => script.children.includes('"LocalBusiness"'))).toBe(true);
+    expect(head.scripts.some((script) => (script.children ?? "").includes('"LocalBusiness"'))).toBe(true);
     expect(meta(head, "robots")).toBeUndefined();
   });
 
@@ -329,10 +330,10 @@ describe("client site head", () => {
       }),
       canonical: "https://acme.test/faq", businessUrl: "https://acme.test/", pageSlug: "faq",
     });
-    const faq = head.scripts.map((script) => JSON.parse(script.children) as Record<string, unknown>).find((schema) => schema["@type"] === "FAQPage");
+    const faq = head.scripts.filter((script) => script.type === "application/ld+json").map((script) => JSON.parse(script.children ?? "{}") as Record<string, unknown>).find((schema) => schema["@type"] === "FAQPage");
     expect(faq?.["mainEntity"]).toEqual([{ "@type": "Question", name: "When can I book?", acceptedAnswer: { "@type": "Answer", text: "By appointment." } }]);
     const other = tenantSiteHead({ site: site({ kind: "home", title: "Home" }), canonical: "https://other.test/", businessUrl: "https://other.test/" });
-    expect(other.scripts.some((script) => script.children.includes('"FAQPage"'))).toBe(false);
+    expect(other.scripts.some((script) => (script.children ?? "").includes('"FAQPage"'))).toBe(false);
   });
   it("builds LocalBusiness data only from real facts and never from ratings or reviews", () => {
     const schema = localBusinessSchema({
@@ -449,5 +450,16 @@ describe("hasPlaceholderContact", () => {
     expect(hasPlaceholderContact({ email: "owner@biz.test" })).toBe(true);
     expect(hasPlaceholderContact({ phone: "(919) 555-2368", email: "owner@realbiz.com" })).toBe(false);
     expect(hasPlaceholderContact(null)).toBe(false);
+  });
+});
+
+describe("visitor error script (LOV-4)", () => {
+  it("is deferred and carries the org id; omitted when the site has no id", () => {
+    const base = { name: "Acme" } as const;
+    const withId = clientHeadExtrasSync({ org: { ...base, id: "11111111-2222-4333-8444-555555555555" } }, "https://a.test", () => [], () => null, () => ({ header: null, footer: null }));
+    const ve = withId.scripts.find((script) => "src" in script) as { src: string; defer: boolean; "data-o": string };
+    expect(ve).toMatchObject({ src: "/ve.js", defer: true, "data-o": "11111111-2222-4333-8444-555555555555" });
+    const without = clientHeadExtrasSync({ org: base }, "https://a.test", () => [], () => null, () => ({ header: null, footer: null }));
+    expect(without.scripts.some((script) => "src" in script)).toBe(false);
   });
 });

@@ -31,6 +31,7 @@ import { PreviewSelectBridge } from "@/components/site/PreviewSelectBridge";
 import { SiteBackdrop } from "@/components/site/SiteBackdrop";
 import { SiteFontLinks } from "@/components/site/SiteFontLinks";
 import { SiteScrollProgress } from "@/components/site/SiteScrollProgress";
+import { DesktopSmoothScroll } from "@/components/site/DesktopSmoothScroll";
 import { PremiumFxContext, premiumFxValue } from "@/components/site/premium-fx";
 import { readPremiumSettings } from "@/lib/builder/premium-effects";
 import { nicheEffects, resolveMeterLabel } from "@/lib/builder/premium-niche";
@@ -247,6 +248,8 @@ export function SitePageView({
         spec={readBackdropSpec(site.settings?.generation ?? null)}
       />
       <SiteScrollProgress label={meterLabel} />
+      {/* Desktop-only smooth wheel scroll; never in the builder preview. */}
+      <DesktopSmoothScroll enabled={!preview} />
       <div className="relative z-[1]">
         {/* Owner-only notice: a site still on the neutral placeholder palette
             has no designed look yet. Visitors never see this. */}

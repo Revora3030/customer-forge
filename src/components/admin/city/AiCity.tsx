@@ -15,7 +15,8 @@ import { DistrictCarousel } from "./DistrictCarousel";
 import { GROWTH_SYSTEM } from "@/lib/offer";
 import { DistrictInspector } from "./DistrictInspector";
 import { Sparkline } from "./Sparkline";
-import { getAiCity } from "@/lib/ai-city.functions";
+import { getAiCity, getCityMetrics } from "@/lib/ai-city.functions";
+import { CityMetrics } from "./CityMetrics";
 import { getCommandCenter } from "@/lib/ai/command-center.functions";
 import { getAiHealth } from "@/lib/ai/health.functions";
 import { getLunaStatus } from "@/lib/ai/luna.functions";
@@ -43,6 +44,8 @@ export function AiCity() {
   const navigate = useNavigate();
   const query = useQuery({ queryKey: ["admin-ai-city"], queryFn: () => load(), refetchInterval: 60_000 });
   const models = useQuery({ queryKey: ["admin-command"], queryFn: () => loadModels() });
+  const loadMetrics = useServerFn(getCityMetrics);
+  const metrics = useQuery({ queryKey: ["admin-city-metrics"], queryFn: () => loadMetrics(), refetchInterval: 60_000 });
   const budget = useQuery({ queryKey: ["admin-city-budget"], queryFn: () => loadBudget(), refetchInterval: 60_000 });
   const linked = districtFromParam((useSearch({ strict: false }) as { district?: unknown }).district);
   const [selected, setSelectedState] = useState<DistrictId>(linked ?? "executive");
@@ -122,7 +125,7 @@ export function AiCity() {
     <header className="relative flex flex-wrap items-start justify-between gap-4 overflow-hidden">
       <BrandEmblem className="top-0 right-0" />
       <div className="relative"><p className="mb-1 text-xs font-medium uppercase text-gold">Revora Growth Systems / Operations</p><h1 className="font-display text-3xl font-semibold sm:text-4xl">AI City<span className="text-gold">.</span></h1><p className="mt-2 text-sm text-muted-foreground">Workforce command · founder control</p></div>
-      <div className="relative flex flex-wrap items-center gap-2"><Button variant="outline" size="icon" className="min-h-11 min-w-11" aria-label="Refresh city records" title="Refresh records" disabled={query.isFetching} onClick={() => { void query.refetch(); void models.refetch(); void budget.refetch(); }}><RefreshCw className={query.isFetching ? "size-4 animate-spin" : "size-4"} /></Button><Button type="button" variant="outline" disabled={seed.isPending} onClick={() => seed.mutate()}>Seed routines</Button><Button type="button" variant="outline" disabled={sweep.isPending} onClick={() => sweep.mutate()}>Run health sweep</Button><Button type="button" variant="outline" onClick={() => sendDraft("Draft a saved daily routine for a morning briefing and build health. Show it and wait for my approval before saving or running it.")}>Create routine</Button><Button asChild variant="signal"><Link to="/admin/jarvis"><Terminal className="size-4" /> Jarvis</Link></Button></div>
+      <div className="relative flex flex-wrap items-center gap-2"><Button variant="outline" size="icon" className="min-h-11 min-w-11" aria-label="Refresh city records" title="Refresh records" disabled={query.isFetching} onClick={() => { void query.refetch(); void models.refetch(); void budget.refetch(); void metrics.refetch(); }}><RefreshCw className={query.isFetching ? "size-4 animate-spin" : "size-4"} /></Button><Button type="button" variant="outline" disabled={seed.isPending} onClick={() => seed.mutate()}>Seed routines</Button><Button type="button" variant="outline" disabled={sweep.isPending} onClick={() => sweep.mutate()}>Run health sweep</Button><Button type="button" variant="outline" onClick={() => sendDraft("Draft a saved daily routine for a morning briefing and build health. Show it and wait for my approval before saving or running it.")}>Create routine</Button><Button asChild variant="signal"><Link to="/admin/jarvis"><Terminal className="size-4" /> Jarvis</Link></Button></div>
     </header>
     <div className="grid grid-cols-2 gap-x-4 gap-y-3 border-y border-border py-4 sm:grid-cols-4">
       <Metric label="Working now" value={snapshot ? String(active) : "Unavailable"} />
@@ -130,6 +133,7 @@ export function AiCity() {
       <Metric label="Growth approvals" value={snapshot?.sources["approvals"]?.total === null || !snapshot?.sources["approvals"]?.available ? "Unavailable" : String(snapshot.sources["approvals"].total)} />
       <Metric label="Monthly AI remaining" value={budget.data && !budget.isError ? `$${budget.data.remainingUsd.toFixed(2)}` : budget.isError ? "Unavailable" : "Loading"} />
     </div>
+    <CityMetrics metrics={metrics.data} error={metrics.isError} />
     <section aria-label="Specialist roster" className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-7">
       {CITY_DISTRICTS.map((d) => {
         const state = districtState(d.id, snapshot, now);

@@ -42,6 +42,20 @@ export function resolveReplyTo(templateName: string, explicit?: string): string 
   return REVORA_SUPPORT_REPLY_TEMPLATES.has(templateName) ? REVORA.email : undefined;
 }
 
+/**
+ * Thrown by sendTemplateEmail when LOVABLE_API_KEY is missing. Callers that
+ * report delivery outcomes map it to the "email_not_configured" reason instead
+ * of a transport error, so a missing secret is never mistaken for a provider
+ * outage. The message names the secret, never a value.
+ */
+export class EmailNotConfiguredError extends Error {
+  readonly code = "email_not_configured" as const;
+  constructor() {
+    super("LOVABLE_API_KEY is not configured");
+    this.name = "EmailNotConfiguredError";
+  }
+}
+
 export type SendTemplateEmailResult =
   { sent: true } | { sent: false; reason: "recipient_suppressed" };
 
@@ -70,8 +84,8 @@ export async function sendTemplateEmail(
   options: SendTemplateEmailOptions = {},
 ): Promise<SendTemplateEmailResult> {
   const apiKey = process.env["LOVABLE_API_KEY"];
-  if (!apiKey) {
-    throw new Error("LOVABLE_API_KEY is not configured");
+  if (!apiKey?.trim()) {
+    throw new EmailNotConfiguredError();
   }
 
   const template = TEMPLATES[templateName];

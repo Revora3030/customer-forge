@@ -1,4 +1,4 @@
-import { LovableModelsPanel, ModelsPanel, ToolsPanel } from "./ModelsToolsPanels";
+import { BuildCostPanel, LovableModelsPanel, ModelsPanel, ToolsPanel } from "./ModelsToolsPanels";
 import { ApprovalLogCard } from "./ApprovalLogCard";
 import { ApprovalsCard } from "./ApprovalsCard";
 import { InstagramPanel } from "./InstagramPanel";
@@ -108,6 +108,7 @@ export function OperationsPanel({ diagnostics, acquisition, scorecard, prospecto
     <div className="space-y-3">
       <ModelsPanel />
       <LovableModelsPanel />
+      <BuildCostPanel />
       <ToolsPanel />
       <ProspectDemoBuilder onBuildStarted={onShowDemo} onPreview={onShowDemo} />
       <ClaudeCodePanel />

@@ -5,13 +5,14 @@ import { PreviewMessage } from "@/components/PreviewMessage";
 import { SiteBaseContext } from "@/components/site/site-address-context";
 import { ProspectClaimBar } from "@/components/site/ProspectClaimBar";
 import { PreviewBeacon } from "@/components/site/PreviewBeacon";
+import { DemoPreviewLabel } from "@/components/site/DemoPreviewLabel";
 import { prospectLinkState } from "@/lib/prospect-claim.functions";
 import { previewHeadTitle } from "@/lib/builder/draft-route";
-import { BUSINESS } from "@/lib/business-identity";
 import { privatePreviewHeaders } from "@/lib/page-cache";
 import { isBuilderPreviewLabel } from "@/lib/builder/builder-preview-link";
 import { BuilderPreviewMode } from "@/components/site/BuilderPreviewMode";
 import { PreviewPasswordGate } from "@/components/PreviewPasswordGate";
+import { demoPreviewExpiredCopy } from "@/lib/demo-preview-label";
 
 /**
  * Shareable, time-limited draft preview. The token is checked on the server;
@@ -20,18 +21,11 @@ import { PreviewPasswordGate } from "@/components/PreviewPasswordGate";
  */
 export type DeadPreviewLink = { reason: string; isProspect: boolean };
 
-export function deadPreviewCopy({ reason, isProspect }: DeadPreviewLink): { title: string; body: string } {
-  // A prospect demo is viewed by the business itself, so "ask the business"
-  // would address the wrong person.
-  if (isProspect && (reason === "expired" || reason === "revoked")) {
-    return {
-      title: "This demo link has expired",
-      body: `This demo link has expired — email ${BUSINESS.email} for a fresh one.`,
-    };
-  }
-  if (reason === "expired") return { title: "This preview link has expired", body: "Ask the business for a fresh link." };
-  if (reason === "revoked") return { title: "This preview link was switched off", body: "Ask the business for a fresh link." };
-  return { title: "This preview link isn't valid", body: "Check the address, or ask for a new link." };
+/** @deprecated Prefer demoPreviewExpiredCopy; kept as the route's public helper for tests. */
+export function deadPreviewCopy({ reason }: DeadPreviewLink): { title: string; body: string; href: string; cta: string } {
+  // Item 18: expired and invalid tokens share one plain page + /get-started.
+  // isProspect no longer changes the title (that used to address the wrong person).
+  return demoPreviewExpiredCopy(reason);
 }
 
 export const Route = createFileRoute("/p/$token")({
@@ -77,7 +71,7 @@ export const Route = createFileRoute("/p/$token")({
   component: PreviewRoute,
   notFoundComponent: PreviewNotFound,
   errorComponent: () => (
-    <PreviewMessage title="This preview link isn't valid" body="Ask for a new link." />
+    <PreviewMessage {...demoPreviewExpiredCopy("unknown")} />
   ),
 });
 
@@ -87,7 +81,7 @@ function PreviewRoute() {
   if (!result.site) return null;
 
   // The builder's own link: the draft as the owner edits it, with no
-  // prospect bar and no view beacon (it is not a shared link).
+  // prospect bar, no demo disclaimer, and no view beacon (it is not a shared link).
   if (isBuilderPreviewLabel(result.label)) {
     return (
       <BuilderPreviewMode organizationId={result.site.org.id}>
@@ -100,6 +94,7 @@ function PreviewRoute() {
 
   return (
     <SiteBaseContext.Provider value={`/p/${encodeURIComponent(token)}`}>
+      <DemoPreviewLabel />
       <PublicSiteView site={result.site} preview />
       <ProspectClaimBar token={token} />
       <PreviewBeacon token={token} page="home" />

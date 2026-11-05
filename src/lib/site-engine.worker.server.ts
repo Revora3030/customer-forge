@@ -3589,24 +3589,25 @@ export async function drainSiteEngineQueue(
       const deferral = failure.kind === "intake_validation" || creditsOut
         ? null
         : await capacityDeferral(db, String(job.organization_id), attemptStartedAt, job.id, {
-            forced: error instanceof AiCapacityParkError,
+            // Out of AI credits (402) is a pause, not a failure: the build waits
+            // and retries by itself instead of dying mid-build.
+            forced: error instanceof AiCapacityParkError || failure.kind === "credits",
           });
       if (deferral) {
+        const { capacityPauseCopy } = await import("@/lib/builder/capacity-wait");
+        const pause = capacityPauseCopy(failure.kind, deferral.summary, deferral.retryAt);
         await db
           .from("generation_jobs")
           .update({
             status: "queued",
             attempts: Math.max(0, Number(job.attempts) - 1),
             capacity_deferrals: deferral.count,
-            error_message: tagFailureMessage(
-              "provider",
-              `The Lovable AI team is busy or at the spending cap right now (${deferral.summary}). The build will retry automatically at ${deferral.retryAt.toISOString().slice(11, 16)} UTC.`,
-            ),
-            failure_kind: "provider",
+            error_message: tagFailureMessage(pause.failureKind, pause.message),
+            failure_kind: pause.failureKind,
             lease_expires_at: deferral.retryAt.toISOString(),
             // Owner-visible mirror of the same deferral (no second mechanism).
             resumes_at: deferral.retryAt.toISOString(),
-            wait_reason: `The Lovable AI team is busy or at the spending cap right now (${deferral.summary}).`,
+            wait_reason: pause.waitReason,
             wait_providers: deferral.pressure,
           } as never)
           .eq("id", job.id)

@@ -7,6 +7,7 @@ import { PreviewMessage } from "@/components/PreviewMessage";
 import { SiteBaseContext } from "@/components/site/site-address-context";
 import { ProspectClaimBar } from "@/components/site/ProspectClaimBar";
 import { PreviewBeacon } from "@/components/site/PreviewBeacon";
+import { DemoPreviewLabel } from "@/components/site/DemoPreviewLabel";
 import { previewHeadTitle } from "@/lib/builder/draft-route";
 import { metaDescription } from "@/lib/seo";
 import { Link } from "@tanstack/react-router";
@@ -15,6 +16,7 @@ import { privatePreviewHeaders } from "@/lib/page-cache";
 import { isBuilderPreviewLabel } from "@/lib/builder/builder-preview-link";
 import { BuilderPreviewMode } from "@/components/site/BuilderPreviewMode";
 import { PreviewPasswordGate } from "@/components/PreviewPasswordGate";
+import { demoPreviewExpiredCopy } from "@/lib/demo-preview-label";
 
 /** Sub-pages of a private draft preview link, checked on the server like the home page. */
 export const Route = createFileRoute("/p/$token_/$page")({
@@ -56,9 +58,7 @@ export const Route = createFileRoute("/p/$token_/$page")({
   },
   component: PreviewPageRoute,
   notFoundComponent: PreviewPageNotFound,
-  errorComponent: () => (
-    <PreviewMessage title="This preview page isn't available" body="Ask for a new link." />
-  ),
+  errorComponent: () => <PreviewMessage {...demoPreviewExpiredCopy("unknown")} />,
 });
 
 function PreviewPageRoute() {
@@ -83,6 +83,7 @@ function PreviewPageRoute() {
   }
   return (
     <SiteBaseContext.Provider value={`/p/${encodeURIComponent(token)}`}>
+      <DemoPreviewLabel />
       <PublicSiteView site={result.site} preview />
       <ProspectClaimBar token={token} page={page} />
       <PreviewBeacon token={token} page={page} />
@@ -105,10 +106,5 @@ function PreviewPageNotFound({ data }: { data?: unknown }) {
       </div>
     );
   }
-  return (
-    <PreviewMessage
-      title={reason === "expired" ? "This preview link has expired" : reason === "revoked" ? "This preview link was switched off" : "This preview link isn't valid"}
-      body={reason === "expired" || reason === "revoked" ? "Ask for a fresh preview link." : "Check the address, or ask for a new link."}
-    />
-  );
+  return <PreviewMessage {...demoPreviewExpiredCopy(reason ?? "unknown")} />;
 }
