@@ -91,6 +91,8 @@ import { WorkFeed } from "@/components/app/WorkFeed";
 import { TaskTree } from "@/components/app/TaskTree";
 import { nodesFromProgress } from "@/lib/builder/task-tree";
 import { modelsAsked } from "@/lib/builder/work-feed";
+import { NextStepChips } from "@/components/app/builder-chat/NextStepChips";
+import { nextStepChips } from "@/lib/builder/next-step-chips";
 
 /** How many suggestion chips sit above the composer before "More". */
 const CHIP_LIMIT = 3;
@@ -382,6 +384,8 @@ export function BuilderAssistant({
   const runSuggestion = (instruction: string) =>
     onFirstBuild ? void onFirstBuild(instruction) : requests.queue(instruction);
   const lastTask = requests.tasks[requests.tasks.length - 1];
+  /** The "/lead-test" flow, offered as a next-step chip after a change to a contact path. */
+  const leadTestFromChip = () => (onLeadTest ?? (() => testLead.mutate()))();
   // Chips only where a next step is natural: after a finished change.
   const showChips = !empty && !busy && lastTask?.state === "complete" && (SUGGESTIONS.length > 0 || suggestionsLoading);
   const toolsVisible = !onFirstBuild && requests.memoryLoaded;
@@ -591,6 +595,8 @@ export function BuilderAssistant({
                     task={task}
                     requests={requests}
                     isActive={task.id === activeTaskId || Boolean(task.tracking)}
+                    isLatest={task.id === lastTask?.id}
+                    onLeadTest={leadTestFromChip}
                     organizationId={organizationId}
                     onAnswer={setAnswering}
                     {...(onReveal ? { onReveal } : {})}
@@ -1033,6 +1039,8 @@ function TaskBody({
   onRetryBuild,
   stoppingBuild = false,
   onFollowUp,
+  isLatest = false,
+  onLeadTest,
 }: {
   task: ChatTask;
   requests: BuilderRequests;
@@ -1048,6 +1056,10 @@ function TaskBody({
   onRetryBuild?: (instruction: string) => void;
   stoppingBuild?: boolean;
   onFollowUp: (prompt: string) => void;
+  /** Only the newest request gets next-step chips. */
+  isLatest?: boolean;
+  /** Runs the "/lead-test" flow; offered as a chip after a change to a contact path. */
+  onLeadTest?: () => void;
 }) {
   const working = task.state === "queued" || task.state === "planning" || task.state === "building";
   const timeline = timelineFor(task);
@@ -1269,6 +1281,29 @@ function TaskBody({
             ))}
           </ul>
         </details>
+      ) : null}
+
+      {isLatest ? (
+        <NextStepChips
+          chips={nextStepChips({
+            state: task.state,
+            instruction: task.instruction,
+            applied: task.applied ?? 0,
+            requirements: task.requirements ?? [],
+            changed: task.titles ?? task.steps.filter((step) => step.included).map((step) => `${step.title} · ${step.where}`),
+            questionCount: task.questions.length,
+            canLeadTest: Boolean(onLeadTest),
+            canOpenHistory: Boolean(onOpenHistory),
+            canShowPreview: Boolean(onShowPreview),
+          })}
+          disabled={requests.busy}
+          onPick={(chip) => {
+            if (chip.action.kind === "follow-up") onFollowUp(chip.action.prompt);
+            else if (chip.action.kind === "lead-test") onLeadTest?.();
+            else if (chip.action.kind === "history") onOpenHistory?.();
+            else onShowPreview?.();
+          }}
+        />
       ) : null}
 
       {!working && (task.reply || result) ? (
