@@ -5,6 +5,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { createClient } from "@supabase/supabase-js";
 import { isAutomatedUserAgent } from "@/lib/automated-traffic";
 import type { Database } from "@/integrations/supabase/types";
+import type { PushDb } from "@/lib/push/lead-push.server";
 import { publicSubmissionErrorMessage, SITE_NOT_LIVE_MESSAGE, siteAcceptsSubmissions } from "@/lib/site-submission-gate";
 // Type-only import: erased at build time, so nothing server-only ships to the client.
 import type { loadSite } from "@/lib/public-site.server";
@@ -1033,7 +1034,21 @@ export const submitPublicLead = createServerFn({ method: "POST" })
       });
       const webhook = dispatchLeadWebhook(webhookUrl, webhookPayload, signing?.secret ?? null);
 
-      const [alert, confirmation, webhookResult] = await Promise.all([
+      // Owner Web Push (speed-to-lead) on every opted-in device. Best effort:
+      // sendLeadPush never throws and does nothing until VAPID keys are set.
+      const { sendLeadPush } = await import("@/lib/push/lead-push.server");
+      const push = sendLeadPush(
+        {
+          organizationId: orgId,
+          leadId: lead.id,
+          businessName: org.name,
+          kind: alertData.kind,
+          service: data.serviceInterest || null,
+        },
+        { db: supabase as unknown as PushDb },
+      ).catch(() => null);
+
+      const [alert, confirmation, webhookResult, pushResult] = await Promise.all([
         alertEmail
           ? sendLeadAlert(
               alertEmail,
@@ -1044,7 +1059,11 @@ export const submitPublicLead = createServerFn({ method: "POST" })
           : Promise.resolve({ ok: true as const, skipped: true as const, reason: "no_email_address" as const }),
         confirmationEmail,
         webhook,
+        push,
       ]);
+      if (pushResult && pushResult.failed > 0) {
+        console.warn("lead push partially failed", { sent: pushResult.sent, failed: pushResult.failed });
+      }
 
       if (alertEmail) {
         await logAlertDelivery(null, {

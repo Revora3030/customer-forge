@@ -393,3 +393,27 @@ export const DOMAIN_FAQ: { q: string; a: string }[] = [
     a: "Leave your MX and existing TXT records exactly as they are. You only change the A records for @ and www and add the two _lovable TXT records, so email keeps working.",
   },
 ];
+
+export type DnsRowStatus = { state: "ok" | "missing" | "unchecked"; found: string[] };
+
+/**
+ * Per-record result of the last saved DNS lookup (`website_settings.domain_records`),
+ * so the owner sees exactly which of the records is wrong instead of a single
+ * "Not pointing here". Unknown or never-checked data is "unchecked", never "ok".
+ */
+export function dnsRowStatus(row: Pick<DnsRecordRow, "type" | "name">, domainRecords: unknown): DnsRowStatus {
+  if (!domainRecords || typeof domainRecords !== "object") return { state: "unchecked", found: [] };
+  const r = domainRecords as Record<string, unknown>;
+  const list = (key: string) => (Array.isArray(r[key]) ? (r[key] as unknown[]).filter((v): v is string => typeof v === "string") : []);
+  const verdict = (value: unknown, found: string[]): DnsRowStatus =>
+    value === true ? { state: "ok", found } : value === false ? { state: "missing", found } : { state: "unchecked", found };
+  if (row.type === "A" && row.name === "@") {
+    const ok = r["aMatches"] === true || r["cnameMatches"] === true;
+    const known = typeof r["aMatches"] === "boolean" || typeof r["cnameMatches"] === "boolean";
+    return verdict(known ? ok : undefined, [...list("a"), ...list("cname")]);
+  }
+  if (row.type === "A" && row.name === "www") return verdict(r["wwwMatches"], [...list("wwwA"), ...list("wwwCname")]);
+  if (row.type === "TXT" && row.name === LOVABLE_TXT_NAME) return verdict(r["txtVerified"], list("txt"));
+  if (row.type === "TXT" && row.name === `${LOVABLE_TXT_NAME}.www`) return verdict(r["wwwTxtVerified"], list("wwwTxt"));
+  return { state: "unchecked", found: [] };
+}

@@ -3,7 +3,8 @@
  *
  * Called every minute by the platform scheduler with the cron bearer secret.
  * Recovers runs whose worker was cut off, then advances queued runs through the
- * registered executor. With no executor registered yet it only recovers.
+ * registered executor. With no executor registered yet it recovers, and fails
+ * queued runs older than 30 minutes ("no executor registered") in bounded batches.
  */
 import { createFileRoute } from "@tanstack/react-router";
 import { authenticateCronRequest } from "@/integrations/supabase/cron-auth";

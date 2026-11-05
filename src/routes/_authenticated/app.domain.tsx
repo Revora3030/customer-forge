@@ -5,6 +5,7 @@ import { ErrorNote, LoadingRows, PageHead, Panel } from "@/components/app/Bits";
 import { Button } from "@/components/ui/button";
 import { DomainCenter } from "@/components/app/DomainCenter";
 import { DomainOperations } from "@/components/app/DomainOperations";
+import { EmailAuthHealth } from "@/components/app/EmailAuthHealth";
 import { useBusinessProfile, useWebsiteSettings } from "@/lib/queries";
 import { useWorkspace } from "@/lib/use-tenant";
 import { canManage } from "@/lib/domain";
@@ -14,7 +15,11 @@ export const Route = createFileRoute("/_authenticated/app/domain")({
     meta: [
       { title: "Domain setup — Revora" },
       { property: "og:title", content: "Domain setup — Revora" },
-      { property: "og:description", content: "Buy a new domain or connect one you already own, with live DNS and HTTPS verification." },
+      {
+        property: "og:description",
+        content:
+          "Buy a new domain or connect one you already own, with live DNS and HTTPS verification.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       {
@@ -110,6 +115,13 @@ function DomainPage() {
               organizationId={orgId}
               settings={settingsQuery.data}
               canManage={role}
+            />
+          </SafeSection>
+
+          <SafeSection title="Email authentication">
+            <EmailAuthHealth
+              organizationId={orgId}
+              domain={settingsQuery.data?.custom_domain ?? null}
             />
           </SafeSection>
         </>

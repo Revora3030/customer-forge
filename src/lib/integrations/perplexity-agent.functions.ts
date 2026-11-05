@@ -1,13 +1,15 @@
 /**
- * Web-grounded answer capability backed by the Perplexity Agent API.
+ * Web-grounded answer capability, served on Lovable paths only: live sources
+ * from the Lovable connector-gateway search, the answer from the Lovable AI
+ * router (see perplexity-agent.server.ts).
  *
  * `askPerplexityAgent` is the app-facing entry point: signed-in users only, and
- * it spends the owner's own Perplexity credits, so it honors the platform's
+ * it spends paid Lovable AI and search credits, so it honors the platform's
  * free-only / paid-spend gate before calling out. Answers come back with
  * citations and are research evidence, never verified business facts.
  *
  * `verifyPerplexityAgent` is a super-admin-only smoke check: it makes one
- * minimal real request so the owner can confirm the key works. It bypasses the
+ * minimal real request so the owner can confirm the research path works. It bypasses the
  * free-only gate by design and is the only path that does.
  */
 
@@ -74,7 +76,7 @@ const approvedResearchInput = z.object({
 });
 
 /**
- * Runs one paid Perplexity Agent research request — only ever called from the
+ * Runs one paid web-grounded research request — only ever called from the
  * owner's explicit Approve tap on Jarvis's research.ask proposal. That tap IS
  * the per-request approval, so this path intentionally does not consult the
  * free-only gate; every other paid provider stays blocked by it. Super-admin

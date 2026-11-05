@@ -48,7 +48,7 @@ import {
 } from "@/lib/prospect-replies";
 
 /**
- * Inbound prospect replies: the prospect-replies job (every 10 minutes)
+ * Inbound prospect replies: the prospect-replies job (every 15 minutes)
  *   1. drains the outreach send queue,
  *   2. reads the Gmail threads of emails we sent (prospect_outreach.gmail_thread_id),
  *      least recently checked first, and stores each new message from the
@@ -115,7 +115,7 @@ export type RepliesRunSummary = {
   gmailAuthFailedAt?: string;
 };
 
-/** After Gmail rejects the credentials, runs skip Gmail reads for this long instead of failing every 10 minutes. */
+/** After Gmail rejects the credentials, runs skip Gmail reads for this long instead of failing every 15 minutes. */
 export const GMAIL_AUTH_PAUSE_MS = 30 * 60_000;
 
 /** When the last run saw an auth failure that is still inside the pause window, the time it ends. */

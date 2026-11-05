@@ -1,0 +1,64 @@
+{
+  "acme-plumbing.com": {
+    "Status": 0,
+    "TC": false,
+    "RD": true,
+    "RA": true,
+    "AD": false,
+    "CD": false,
+    "Question": [
+      {
+        "name": "acme-plumbing.com",
+        "type": 16
+      }
+    ],
+    "Answer": [
+      {
+        "name": "acme-plumbing.com",
+        "type": 16,
+        "TTL": 300,
+        "data": "\"google-site-verification=abc123\""
+      },
+      {
+        "name": "acme-plumbing.com",
+        "type": 16,
+        "TTL": 300,
+        "data": "\"v=spf1 include:_spf.google.com \" \"include:amazonses.com -all\""
+      }
+    ]
+  },
+  "_dmarc.acme-plumbing.com": {
+    "Status": 0,
+    "Question": [
+      {
+        "name": "_dmarc.acme-plumbing.com",
+        "type": 16
+      }
+    ],
+    "Answer": [
+      {
+        "name": "_dmarc.acme-plumbing.com",
+        "type": 16,
+        "TTL": 300,
+        "data": "\"v=DMARC1; p=reject; rua=mailto:dmarc@acme-plumbing.com; adkim=s\""
+      }
+    ]
+  },
+  "google._domainkey.acme-plumbing.com": {
+    "Status": 0,
+    "Question": [
+      {
+        "name": "google._domainkey.acme-plumbing.com",
+        "type": 16
+      }
+    ],
+    "Answer": [
+      {
+        "name": "google._domainkey.acme-plumbing.com",
+        "type": 16,
+        "TTL": 300,
+        "data": "\"v=DKIM1; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAx08E+ab1qZLjm4VlvqdVRQ3KIay+wQ5hMwJFWc+RNkKxA6yiQLoySUvP9uc423feXqXywuW7H6whKtNh1eyea/AMu+u3gBmKOVx+SYS4DN3dOOakC3m6bGIV99M6mwcDjqro+9w1ZtGWGCtoxuD21eEsY+ye0B0KdbOG2d3W/W4E3sYIkQ0MxiJnROQ/RM6Y7j6Bg3ylpDOnWy\" \"d36vG4HdNFyQpeqfVhgo6BBO3UMv4Gs/4dyxYeZMt/bQMaJDIgszDFrSTdm74hn9If1kJnNteTy4MmKGTT1fw7dJqRDDSO9BnMcx/9KISq7Q25wQpkT0P/hXH90aPtCAXwUQPF1QIDAQAB\""
+      }
+    ]
+  }
+}

@@ -29,6 +29,8 @@ export default defineConfig({
     headless: true,
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
+    // Reveal-on-scroll sections stay visible under reduced motion, so full-page captures show them.
+    reducedMotion: "reduce",
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: useExternalApp

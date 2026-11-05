@@ -18,7 +18,14 @@ import instrumentSerif400 from "@fontsource/instrument-serif/files/instrument-se
 import spaceGrotesk700 from "@fontsource/space-grotesk/files/space-grotesk-latin-700-normal.woff2?url";
 import { Toaster } from "@/components/ui/sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { ensureProfile, enforceSessionPolicy, resolvePostLoginPath } from "@/lib/auth-session";
+import {
+  clearSessionPolicy,
+  ensureProfile,
+  enforceSessionPolicy,
+  resolvePostLoginPath,
+} from "@/lib/auth-session";
+import { isSafeRedirect } from "@/lib/prospect-claim";
+import { clearBuilderCachedTurns, resetSignedOutState } from "@/lib/signed-out-reset";
 import { ORGANIZATION_SCHEMA, WEBSITE_SCHEMA, isClientSiteMatch } from "@/lib/seo";
 import { RouteError, RouteNotFound } from "@/components/app/RouteStates";
 import { CookieConsent } from "@/components/marketing/CookieConsent";
@@ -194,10 +201,10 @@ function RootComponent() {
       let target: string | null = null;
       try {
         const stored = sessionStorage.getItem("lle:redirect");
-        if (stored && stored.startsWith("/")) {
-          sessionStorage.removeItem("lle:redirect");
-          target = stored;
-        }
+        // One-shot: drop it either way, and only follow a same-site path
+        // ("//evil.com", "/\\evil.com" and "/javascript:" start with "/" too).
+        if (stored !== null) sessionStorage.removeItem("lle:redirect");
+        if (isSafeRedirect(stored)) target = stored;
       } catch {
         /* storage unavailable */
       }
@@ -229,16 +236,23 @@ function RootComponent() {
     try {
       const { data } = supabase.auth.onAuthStateChange((event) => {
         if (event !== "SIGNED_IN" && event !== "SIGNED_OUT" && event !== "USER_UPDATED") return;
-        if (event !== "SIGNED_OUT")
-          void ensureProfile().catch((error) => reportRouteError(error, { boundary: "profile_bootstrap" }));
-        // A shared device must not show the previous owner's builder chat.
-        if (event === "SIGNED_OUT")
-          void import("@/lib/builder-memory").then((memory) => memory.clearAllCachedTurns()).catch(() => undefined);
-        router.invalidate();
-        if (event !== "SIGNED_OUT") {
-          queryClient.invalidateQueries();
-          if (event === "SIGNED_IN") void sendToDashboard();
+        if (event === "SIGNED_OUT") {
+          // Covers sessions that end without the Sign out button too (expired
+          // or revoked refresh token, sign-out in another tab): a shared
+          // device must not keep the previous account's cached data, builder
+          // chat or "remember me" choice. Re-running the route guards then
+          // sends protected pages to /auth.
+          void resetSignedOutState({
+            queryClient,
+            clearSessionPolicy,
+            clearCachedTurns: clearBuilderCachedTurns,
+          }).finally(() => void router.invalidate());
+          return;
         }
+        void ensureProfile().catch((error) => reportRouteError(error, { boundary: "profile_bootstrap" }));
+        router.invalidate();
+        queryClient.invalidateQueries();
+        if (event === "SIGNED_IN") void sendToDashboard();
       });
       unsubscribe = () => data.subscription.unsubscribe();
     } catch (error) {

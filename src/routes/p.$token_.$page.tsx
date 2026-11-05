@@ -2,7 +2,7 @@ import { createFileRoute, notFound, redirect } from "@tanstack/react-router";
 import { getPreviewSite } from "@/lib/public-site.functions";
 import { PublicSiteView } from "@/components/site/PublicSiteView";
 import { ClientPrivacyNotice } from "@/components/site/ClientPrivacyNotice";
-import { PRIVACY_NOTICE_SLUG } from "@/lib/client-privacy-notice";
+import { PRIVACY_NOTICE_SLUG } from "@/lib/privacy-notice-slug";
 import { PreviewMessage } from "@/components/PreviewMessage";
 import { SiteBaseContext } from "@/components/site/site-address-context";
 import { ProspectClaimBar } from "@/components/site/ProspectClaimBar";
@@ -12,7 +12,6 @@ import { metaDescription } from "@/lib/seo";
 import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { privatePreviewHeaders } from "@/lib/page-cache";
-import { heroPreloadLinks } from "@/lib/site-head";
 import { isBuilderPreviewLabel } from "@/lib/builder/builder-preview-link";
 import { BuilderPreviewMode } from "@/components/site/BuilderPreviewMode";
 
@@ -39,18 +38,21 @@ export const Route = createFileRoute("/p/$token_/$page")({
   },
   // Never stored, indexed or sent on as a referrer (src/lib/page-cache.ts).
   headers: () => privatePreviewHeaders(),
-  head: ({ loaderData, params }) => ({
-    links: loaderData?.ok ? heroPreloadLinks(loaderData.site?.content?.sections) : [],
-    meta: [
-      { title: previewHeadTitle(loaderData, params.page) },
-      { name: "description", content: metaDescription("A private, time-limited preview of a website draft page.") },
-      { name: "robots", content: "noindex, nofollow" },
-      { property: "og:title", content: previewHeadTitle(loaderData, params.page) },
-      { property: "og:description", content: "A private preview link for reviewing a draft page." },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary" },
-    ],
-  }),
+  head: async ({ loaderData, params }) => {
+    const { heroPreloadLinks } = await import("@/lib/site-head");
+    return {
+      links: loaderData?.ok ? heroPreloadLinks(loaderData.site?.content?.sections) : [],
+      meta: [
+        { title: previewHeadTitle(loaderData, params.page) },
+        { name: "description", content: metaDescription("A private, time-limited preview of a website draft page.") },
+        { name: "robots", content: "noindex, nofollow" },
+        { property: "og:title", content: previewHeadTitle(loaderData, params.page) },
+        { property: "og:description", content: "A private preview link for reviewing a draft page." },
+        { property: "og:type", content: "website" },
+        { name: "twitter:card", content: "summary" },
+      ],
+    };
+  },
   component: PreviewPageRoute,
   notFoundComponent: PreviewPageNotFound,
   errorComponent: () => (

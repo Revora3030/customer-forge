@@ -394,6 +394,8 @@ export async function runMonthlyValueReports(db: Db, now = Date.now()): Promise<
  */
 export const RETRYABLE_ALERT_REASONS = new Set([
   "email_transport_error",
+  // Email secret missing: resend once the secret is added.
+  "email_not_configured",
   "rate_limited",
   "429",
   "emails_disabled",

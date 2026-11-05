@@ -18,8 +18,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { dateShort } from "@/lib/format";
 import { ROLES } from "@/lib/domain";
 import {
-  INVITABLE_ROLES,
   createTeamInvitation,
+  rolesGrantableBy,
+  canRevokeInvite,
   revokeTeamInvitation,
   type InvitableRole,
 } from "@/lib/team.functions";
@@ -59,17 +60,23 @@ export function MemberControls({
   organizationId,
   role,
   isSelf,
+  actorRole,
 }: {
   membershipId: string;
   organizationId: string;
   role: string;
   isSelf: boolean;
+  /** The signed-in teammate's own role; only owners may change or remove an admin. */
+  actorRole: string | undefined;
 }) {
   const queryClient = useQueryClient();
   const [busy, setBusy] = React.useState(false);
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["team", organizationId] });
 
-  if (role === "owner" || isSelf) return null;
+  const grantable = rolesGrantableBy(actorRole);
+  // Mirrors the database role guard: only owners may change or remove an admin.
+  if (role === "owner" || isSelf || grantable.length === 0) return null;
+  if (role === "admin" && actorRole !== "owner") return null;
 
   async function changeRole(next: string) {
     setBusy(true);
@@ -105,7 +112,7 @@ export function MemberControls({
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          {INVITABLE_ROLES.map((value) => (
+          {grantable.map((value) => (
             <SelectItem key={value} value={value}>
               {roleLabel(value)}
             </SelectItem>
@@ -123,10 +130,14 @@ export function MemberControls({
 export function TeamInvites({
   organizationId,
   canManage,
+  actorRole,
 }: {
   organizationId: string | undefined;
   canManage: boolean;
+  /** The signed-in teammate's own role; it limits which roles they may invite. */
+  actorRole: string | undefined;
 }) {
+  const grantable = rolesGrantableBy(actorRole);
   const queryClient = useQueryClient();
   const invite = useServerFn(createTeamInvitation);
   const revoke = useServerFn(revokeTeamInvitation);
@@ -209,7 +220,7 @@ export function TeamInvites({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {INVITABLE_ROLES.map((value) => (
+              {grantable.map((value) => (
                 <SelectItem key={value} value={value}>
                   {roleLabel(value)}
                 </SelectItem>
@@ -240,14 +251,16 @@ export function TeamInvites({
                   </p>
                 </div>
                 <Pill tone="neutral">Invited</Pill>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  disabled={cancelInvite.isPending}
-                  onClick={() => cancelInvite.mutate(item.id)}
-                >
-                  Cancel
-                </Button>
+                {canRevokeInvite(actorRole, item.role) ? (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={cancelInvite.isPending}
+                    onClick={() => cancelInvite.mutate(item.id)}
+                  >
+                    Cancel
+                  </Button>
+                ) : null}
               </li>
             ))}
           </ul>

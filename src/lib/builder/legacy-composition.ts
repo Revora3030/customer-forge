@@ -265,8 +265,10 @@ export function legacySectionToComposition(section: LegacySection, options: Lega
       const text = safeText(card.body);
       const href = safeLinkUrl(card.link_url);
       const picture = card.url ? media(card, label ?? "", "16:10", 16) : null;
+      // Without a saved link label the card's own title must not be reused:
+      // the link would repeat the heading right above it and say nothing about the click.
       const link = href && isSafeHref(href)
-        ? ({ type: "link", text: safeText(card.link_label) || label || "Details", href, style: { weight: 600, size } } as CompositionNode)
+        ? ({ type: "link", text: safeText(card.link_label) || "See details", href, style: { weight: 600, size } } as CompositionNode)
         : null;
       return { picture, label, text, link };
     };

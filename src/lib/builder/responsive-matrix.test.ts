@@ -23,10 +23,16 @@ const site: MatrixSite = {
 };
 
 describe("responsive device matrix", () => {
-  it("covers every promised width from 320 to 1440", () => {
+  it("covers every promised width from 320 to 2560", () => {
     expect(DEVICE_MATRIX.map((entry) => entry.width)).toEqual([
-      320, 375, 390, 414, 430, 768, 1024, 1280, 1440,
+      320, 375, 390, 414, 430, 768, 1024, 1280, 1440, 1920, 2560,
     ]);
+  });
+
+  it("applies the 1440 desktop rules at 1920 and 2560", () => {
+    expect(columnsAt(1920)).toBe(3);
+    expect(columnsAt(2560)).toBe(3);
+    expect(DEVICE_MATRIX.filter((d) => d.width >= 1440).every((d) => d.kind === "desktop")).toBe(true);
   });
 
   it("stacks to one column on phones and three on desktop", () => {

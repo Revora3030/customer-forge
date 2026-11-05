@@ -542,7 +542,7 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
   const parentType = ctx.parentType;
   ctx.parentType = node.type;
   const autoReveal = !motion && !node.motion && !ctx.chrome && (ctx.depth ?? 0) >= 2 &&
-    (node.type === "card" || parentType === "grid" || parentType === "row");
+    (node.type === "card" || parentType === "grid" || parentType === "row" || SELF_REVEAL_TYPES.has(node.type));
   const stagger = autoReveal ? Math.min(Number(key.split(".").pop()) || 0, 5) : 0;
   const interactive = node.type === "button" || node.type === "link" || node.type === "card" || node.type === "widget";
   const classNames = [
@@ -1176,6 +1176,13 @@ const EASING_CSS: Record<MotionEasing, string> = {
 /** Turns the AI's validated motion description into CSS variables/animation settings. */
 // eslint-disable-next-line react-refresh/only-export-components -- renderer helpers are intentionally co-located with their composition types.
 /** Scroll-linked reveals finish within the first 220px a block has entered the screen. */
+/**
+ * Content blocks that rise in on their own even outside a grid or row, so a
+ * section built from a list, an FAQ or a form/review widget still has scroll
+ * choreography. Transform-only like every auto reveal (never a faded from-state).
+ */
+export const SELF_REVEAL_TYPES: ReadonlySet<CompositionNode["type"]> = new Set(["list", "faq_accordion", "widget"]);
+
 export const VIEW_REVEAL_RANGE = "entry 0px entry 220px";
 // eslint-disable-next-line react-refresh/only-export-components -- renderer helpers are intentionally co-located with their composition types.
 export function motionStyle(motion: NodeMotion): CSSProperties {

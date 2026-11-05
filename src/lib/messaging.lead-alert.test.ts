@@ -59,6 +59,21 @@ describe("sendLeadAlert is actionable", () => {
     const result = await sendLeadAlert("owner@acme.test", {}, `lead-alert-${LEAD_ID}`);
     expect(result).toEqual({ ok: false, retry: false, reason: "recipient_suppressed" });
   });
+
+  it("reports a missing email secret as email_not_configured (retryable), with a warning instead of an error", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const missing = "email secret is not configured";
+    vi.mocked(sendTemplateEmail).mockRejectedValueOnce(
+      Object.assign(new Error(missing), { code: "email_not_configured" }),
+    );
+    const result = await sendLeadAlert("owner@acme.test", {}, `lead-alert-${LEAD_ID}`);
+    expect(result).toEqual({ ok: false, retry: true, reason: "email_not_configured" });
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining(missing));
+    expect(error).not.toHaveBeenCalled();
+    warn.mockRestore();
+    error.mockRestore();
+  });
 });
 
 describe("lead-alert template", () => {
