@@ -26,6 +26,7 @@ import {
   REGISTRAR_GUIDES,
   REGISTRARS,
   dnsRows,
+  dnsRowStatus,
   domainSuggestions,
   looksLikeDomain,
   normalizeInput,
@@ -430,43 +431,70 @@ export function DomainCenter({
               </div>
             }
           />
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[520px] text-left text-[12px]">
+          {/* Phones: one card per record, nothing scrolls sideways at 320px. */}
+          <ul className="space-y-2 sm:hidden">
+            {rows.map((row) => {
+              const check = dnsRowStatus(row, settings?.domain_records);
+              return (
+                <li key={`${row.type}-${row.name}`} className="rounded-md border border-border/60 p-3 text-[12px]">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-mono">
+                      {row.type} · {row.name}
+                    </span>
+                    <RecordPill state={check.state} />
+                  </div>
+                  <p className={`mt-1.5 break-all ${row.pending ? "italic text-muted-foreground" : "font-mono"}`}>{row.value}</p>
+                  <RecordFound check={check} />
+                  {row.pending ? null : (
+                    <Button size="sm" variant="ghost" className="mt-1 -ml-2" onClick={() => copy(row.value, "Record value")}>
+                      <Copy className="size-3.5" /> Copy value
+                    </Button>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+          <div className="hidden overflow-x-auto sm:block">
+            <table className="w-full text-left text-[12px]">
               <thead className="text-[11px] uppercase tracking-wide text-muted-foreground">
                 <tr>
                   <th className="py-1.5 pr-3">Type</th>
                   <th className="py-1.5 pr-3">Name / host</th>
                   <th className="py-1.5 pr-3">Value</th>
                   <th className="py-1.5 pr-3">TTL</th>
+                  <th className="py-1.5 pr-3">Status</th>
                   <th className="py-1.5" />
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row) => (
-                  <tr key={`${row.type}-${row.name}`} className="border-t border-border/60">
-                    <td className="py-2 pr-3 font-mono">{row.type}</td>
-                    <td className="py-2 pr-3 font-mono">{row.name}</td>
-                    <td className="py-2 pr-3 font-mono">
-                      {row.pending ? (
-                        <span className="font-sans text-muted-foreground italic">{row.value}</span>
-                      ) : (
-                        row.value
-                      )}
-                    </td>
-                    <td className="py-2 pr-3 text-muted-foreground">{row.ttl}</td>
-                    <td className="py-2">
-                      {row.pending ? null : (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => copy(row.value, "Record value")}
-                        >
-                          <Copy className="size-3.5" /> Copy
-                        </Button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                {rows.map((row) => {
+                  const check = dnsRowStatus(row, settings?.domain_records);
+                  return (
+                    <tr key={`${row.type}-${row.name}`} className="border-t border-border/60 align-top">
+                      <td className="py-2 pr-3 font-mono">{row.type}</td>
+                      <td className="py-2 pr-3 font-mono">{row.name}</td>
+                      <td className="max-w-[28rem] break-all py-2 pr-3 font-mono">
+                        {row.pending ? (
+                          <span className="font-sans text-muted-foreground italic">{row.value}</span>
+                        ) : (
+                          row.value
+                        )}
+                        <RecordFound check={check} />
+                      </td>
+                      <td className="py-2 pr-3 text-muted-foreground">{row.ttl}</td>
+                      <td className="py-2 pr-3">
+                        <RecordPill state={check.state} />
+                      </td>
+                      <td className="py-2">
+                        {row.pending ? null : (
+                          <Button size="sm" variant="ghost" onClick={() => copy(row.value, "Record value")}>
+                            <Copy className="size-3.5" /> Copy
+                          </Button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -541,5 +569,22 @@ export function DomainCenter({
         </Panel>
       ) : null}
     </div>
+  );
+}
+
+function RecordPill({ state }: { state: "ok" | "missing" | "unchecked" }) {
+  return (
+    <Pill tone={state === "ok" ? "signal" : state === "missing" ? "attention" : "neutral"}>
+      {state === "ok" ? "Found" : state === "missing" ? "Not found yet" : "Not checked"}
+    </Pill>
+  );
+}
+
+function RecordFound({ check }: { check: { state: string; found: string[] } }) {
+  if (check.state !== "missing") return null;
+  return (
+    <p className="mt-1 font-sans text-[11px] text-muted-foreground">
+      {check.found.length ? `Currently answers: ${check.found.join(", ")}` : "No answer for this record yet."}
+    </p>
   );
 }

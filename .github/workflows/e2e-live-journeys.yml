@@ -1,0 +1,66 @@
+name: E2E live journeys
+
+# Read-only Playwright journeys (sign up, onboarding, build a site, publish, pay, capture a lead, dashboard)
+# against the deployed site at 320px and 1440px. Runs on PRs that change these tests and on demand.
+# Nothing is created on the target site: account, write and Stripe steps are skipped with a reason unless
+# E2E_* values are provided (see e2e/live/helpers.ts). Stripe checkout only ever runs against TEST keys.
+
+on:
+  pull_request:
+    branches: [lovable-sync]
+    paths:
+      - "e2e/live/**"
+      - "e2e/playwright.live.config.ts"
+      - ".github/workflows/e2e-live-journeys.yml"
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "Site to test (defaults to production)"
+        required: false
+        default: "https://revoragrowthsystems.com"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-live-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  live:
+    name: E2E live journeys (320px + 1440px)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Install Playwright and Chromium
+        working-directory: e2e
+        run: |
+          npm install --no-audit --no-fund
+          npx playwright install --with-deps chromium
+
+      - name: Run live journeys
+        working-directory: e2e
+        env:
+          CI: "true"
+          E2E_BASE_URL: ${{ inputs.base_url || 'https://revoragrowthsystems.com' }}
+        run: npx playwright test -c playwright.live.config.ts
+
+      - name: Upload report
+        if: failure()
+        continue-on-error: true
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-live-report-${{ github.run_id }}
+          path: |
+            e2e/playwright-report
+            e2e/test-results
+          if-no-files-found: ignore
+          retention-days: 7

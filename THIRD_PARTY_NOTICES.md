@@ -12,9 +12,10 @@ card, and loads only in a lazy chunk (never in a page's first JS).
 | @react-three/fiber | ^9 | MIT | 3D building explorer (`BuildingCanvas`) |
 | @react-three/drei | ^10 | MIT | 3D helpers |
 | motion | ^13 | MIT | Animation |
+| lenis | ^1.3.27 | MIT | Desktop-only smooth wheel scroll (`DesktopSmoothScroll`); off on touch and reduced motion |
 
 Not used, by licence or policy: GSAP and GSAP-based components, Spline,
-Framer, Unicorn Studio, Lenis.
+Framer, Unicorn Studio.
 
 ## Paper Shaders NOTICE (Apache-2.0, section 4(d))
 

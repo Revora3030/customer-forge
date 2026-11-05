@@ -391,8 +391,36 @@ function anthropicPart(part: AiPart): AnthropicPart {
   });
 }
 
-/** Reads a Messages SSE stream to the end: answer text, stop reason and usage. */
-async function readAnthropicStream(stream: ReadableStream<Uint8Array>) {
+/**
+ * The provider's own error-event wording, kept for server logs only: one line,
+ * truncated, and with anything that looks like a credential removed.
+ */
+export function sanitizeStreamErrorDetail(error: unknown): string {
+  const raw =
+    error && typeof error === "object"
+      ? [(error as { type?: unknown }).type, (error as { message?: unknown }).message].filter((part) => typeof part === "string" && part).join(": ")
+      : typeof error === "string"
+        ? error
+        : "";
+  return raw
+    .replace(/\s+/g, " ")
+    .replace(/\bBearer\s+\S+/gi, "Bearer [redacted]")
+    .replace(/\b(?:sk|pk|rk)[-_][A-Za-z0-9_-]{8,}/g, "[redacted]")
+    .replace(/\b(api[_-]?key|x-api-key|authorization|token|secret)\s*[:=]\s*\S+/gi, "$1=[redacted]")
+    .trim()
+    .slice(0, 200);
+}
+
+/**
+ * Reads a Messages SSE stream to the end: answer text, stop reason and usage.
+ * Same guards as readChatStream: a stream that never starts (first chunk) or
+ * goes quiet partway (idle) is cut as a timeout so the router fails over, CRLF
+ * and LF framing are both accepted, and the connection is always released.
+ */
+export async function readAnthropicStream(
+  stream: ReadableStream<Uint8Array>,
+  limits: { firstChunkMs?: number; idleMs?: number } = {},
+) {
   const reader = stream.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
@@ -413,11 +441,14 @@ async function readAnthropicStream(stream: ReadableStream<Uint8Array>) {
       return;
     }
     if (event["type"] === "error")
-      throw new RevoraAiError(502, "Revora's AI model stopped with an error.", { category: "bad_response", provider: "lovable" });
+      throw new RevoraAiError(502, "Revora's AI model stopped with an error.", {
+        category: "bad_response",
+        provider: "lovable",
+        detail: sanitizeStreamErrorDetail(event["error"]) || null,
+      });
     if (event["type"] === "message_start" && typeof event["message"]?.usage?.input_tokens === "number")
       usage.input_tokens = event["message"].usage.input_tokens;
-    if (event["type"] === "content_block_delta" && event["delta"]?.type === "text_delta")
-{
+    if (event["type"] === "content_block_delta" && event["delta"]?.type === "text_delta") {
       text += String(event["delta"].text ?? "");
       emitTextDelta(text);
     }
@@ -426,17 +457,30 @@ async function readAnthropicStream(stream: ReadableStream<Uint8Array>) {
       if (typeof event["usage"]?.output_tokens === "number") usage.output_tokens = event["usage"].output_tokens;
     }
   };
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    let cut: number;
-    while ((cut = buffer.indexOf("\n\n")) !== -1) {
-      handle(buffer.slice(0, cut));
-      buffer = buffer.slice(cut + 2);
+  let first = true;
+  let finished = false;
+  try {
+    for (;;) {
+      const { done, value } = await readStreamChunk(
+        reader,
+        first ? (limits.firstChunkMs ?? STREAM_FIRST_CHUNK_MS) : (limits.idleMs ?? STREAM_IDLE_MS),
+      );
+      first = false;
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let cut: number;
+      while ((cut = buffer.search(/\r?\n\r?\n/)) !== -1) {
+        const separator = buffer.slice(cut).match(/^\r?\n\r?\n/)![0];
+        handle(buffer.slice(0, cut));
+        buffer = buffer.slice(cut + separator.length);
+      }
     }
+    if (buffer.trim()) handle(buffer);
+    finished = true;
+  } finally {
+    // A stalled read, an error event or a parse failure leaves the connection open; release it.
+    if (!finished) await reader.cancel().catch(() => undefined);
   }
-  if (buffer.trim()) handle(buffer);
   return { text, stop_reason, usage };
 }
 
@@ -591,6 +635,10 @@ export const lovableAdapter: ProviderAdapter = {
 
   async stream({ apiKey, model, messages, maxOutputTokens, signal }) {
     if (isAnthropic(model)) {
+      // Deliberately buffered: the whole Claude answer is checked (refusal,
+      // max_tokens, error event, empty reply) before any byte is handed on, so
+      // the router can still fail over to the next model. Streaming it through
+      // would turn those into half-delivered answers with no failover.
       const { text } = await anthropicChat({ apiKey, model, messages, maxOutputTokens, signal });
       return openAiSseStream(text);
     }

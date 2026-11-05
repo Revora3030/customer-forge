@@ -35,6 +35,11 @@
 /assets/*
   Cache-Control: public, max-age=31536000, immutable
 
+# Owner push-alert service worker: always revalidate.
+/push-sw.js
+  Cache-Control: no-cache
+  Content-Type: application/javascript; charset=utf-8
+
 # Owner dashboard service worker (vite-plugin-pwa). Always revalidate so an
 # update is picked up on the next visit; the SW itself is scoped to /app/.
 /sw.js

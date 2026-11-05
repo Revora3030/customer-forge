@@ -1,6 +1,7 @@
 import { businessFacts } from "@/lib/builder/facts";
 import type { PublicSite } from "@/lib/public-site.functions";
 import { SitePageView } from "@/components/site/SitePageView";
+import { EMPTY_SITE_MARKER } from "@/lib/publish-smoke";
 
 /**
  * The home address serves whatever the owner actually built. When the builder
@@ -23,7 +24,8 @@ export function PublicSiteView({
   // has a real one (businessFacts drops placeholders). Nothing is invented.
   const facts = businessFacts(site?.profile ?? null, site?.org?.name);
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background px-6 text-center">
+    // Stable marker the post-publish smoke check looks for (publish-smoke.ts).
+    <main {...{ [EMPTY_SITE_MARKER]: "" }} className="flex min-h-screen items-center justify-center bg-background px-6 text-center">
       <div className="max-w-md">
         <h1 className="font-display text-2xl font-semibold">{facts.businessName ?? "This website"}</h1>
         <p className="mt-3 text-sm text-muted-foreground">

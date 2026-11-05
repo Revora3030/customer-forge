@@ -115,7 +115,10 @@ export function RevoraMobileBar() {
       <div className="h-24 md:hidden" aria-hidden="true" />
       {/* `revora-mobile-bar` lets the cookie banner stack above this bar on
           phones instead of covering it (see styles.css). */}
-      <div className="revora-mobile-bar fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 px-2 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] backdrop-blur md:hidden">
+      {/* A labelled <nav> landmark so screen-reader landmark navigation reaches it (axe "region"). */}
+      <nav
+        aria-label="Quick contact"
+        className="revora-mobile-bar fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 px-2 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] backdrop-blur md:hidden">
         <div className="grid grid-cols-3 gap-2">
           <Button asChild variant="outline" size="sm" className="min-h-11">
             <a href={revoraMailto(MAIL_SUBJECTS.inquiry)}>Email</a>
@@ -127,7 +130,7 @@ export function RevoraMobileBar() {
             <Link to="/demo">Book</Link>
           </Button>
         </div>
-      </div>
+      </nav>
     </>
   );
 }
