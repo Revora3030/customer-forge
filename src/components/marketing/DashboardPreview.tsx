@@ -17,7 +17,7 @@ function ActivityExamples() {
       <p className="eyebrow">Example workflow activity</p>
       <ul className="mt-2 space-y-2" aria-label="Illustrative automation examples">
         {ACTIVITY.map(({ icon: Icon, text }) => (
-          <li key={text} className="flex items-start gap-2 text-[11.5px] leading-relaxed text-muted-foreground">
+          <li key={text} className="flex items-start gap-2 text-xs leading-relaxed text-muted-foreground">
             <Icon className="mt-0.5 size-3.5 shrink-0 text-primary" aria-hidden="true" />
             <span>{text}</span>
           </li>
@@ -86,7 +86,7 @@ export function DashboardPreview() {
         <div className="panel-inset p-3.5">
           <div className="mb-3 flex items-center justify-between gap-2">
             <span className="eyebrow">Illustrative lead trend</span>
-            <span className="tnum text-[11px] text-muted-foreground">12 sample weeks</span>
+            <span className="tnum text-xs text-muted-foreground">12 sample weeks</span>
           </div>
           <div className="flex h-20 items-end gap-1.5" aria-hidden="true">
             {BARS.map((h, i) => (
@@ -138,11 +138,11 @@ export function DashboardPreview() {
               >
                 <div className="flex items-center justify-between">
                   <span
-                    className={`text-[10px] tracking-wider uppercase ${col.tone === "signal" ? "text-primary" : "text-muted-foreground"}`}
+                    className={`text-xs tracking-wider uppercase ${col.tone === "signal" ? "text-primary" : "text-muted-foreground"}`}
                   >
                     {col.label}
                   </span>
-                  <span className="tnum rounded-full bg-elevated px-1.5 py-0.5 text-[10px] font-semibold">
+                  <span className="tnum rounded-full bg-elevated px-1.5 py-0.5 text-xs font-semibold">
                     {col.count}
                   </span>
                 </div>
@@ -150,7 +150,7 @@ export function DashboardPreview() {
                   {col.rows.map(([name, meta]) => (
                     <div key={name} className="panel-inset p-2">
                       <p className="text-xs font-medium">{name}</p>
-                      <p className="mt-0.5 text-[10px] text-muted-foreground">{meta}</p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">{meta}</p>
                     </div>
                   ))}
                 </div>
@@ -168,7 +168,7 @@ export function DashboardPreview() {
           </div>
           <div>
             <p className="font-display text-xs font-semibold">Example alert: 5 leads need a reply</p>
-            <p className="mt-0.5 text-[11px] leading-snug text-muted-foreground">
+            <p className="mt-0.5 text-xs leading-snug text-muted-foreground">
               The dashboard can help you identify pending follow-ups. These figures illustrate the interface.
             </p>
           </div>

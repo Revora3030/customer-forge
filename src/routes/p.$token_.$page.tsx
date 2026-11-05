@@ -97,7 +97,7 @@ function PreviewPageNotFound({ data }: { data?: unknown }) {
   if (reason === "password") return <PreviewPasswordGate token={token} />;
   if (reason === "page") {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background px-4 text-center">
+      <div className="flex min-h-dvh items-center justify-center bg-background px-4 text-center">
         <div className="max-w-md space-y-4">
           <h1 className="text-2xl font-semibold">This preview page isn't ready</h1>
           <p className="text-sm text-muted-foreground">You can still review the rest of the website.</p>

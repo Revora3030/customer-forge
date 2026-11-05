@@ -96,7 +96,7 @@ export function RoutePending() {
     return () => window.clearTimeout(timer);
   }, []);
   return (
-    <div role="status" aria-live="polite" data-route-pending="" className="flex min-h-screen items-center justify-center bg-background px-4">
+    <div role="status" aria-live="polite" data-route-pending="" className="flex min-h-dvh items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
         <div className="mb-6 flex justify-center"><Logo /></div>
         <p className="text-sm text-muted-foreground">Loading…</p>

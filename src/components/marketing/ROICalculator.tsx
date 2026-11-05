@@ -125,14 +125,14 @@ export function ROICalculator() {
             ["With +" + state.lift + " customers", currency(result.potential)],
           ].map(([label, amount]) => (
             <div key={label} className="rounded-md border border-border bg-elevated p-4">
-              <dt className="text-[11px] tracking-wide text-muted-foreground uppercase">{label}</dt>
+              <dt className="text-xs tracking-wide text-muted-foreground uppercase">{label}</dt>
               <dd className="tnum mt-1.5 font-display text-[19px] font-semibold">{amount}</dd>
             </div>
           ))}
         </dl>
 
         <div className="mt-4 rounded-md border border-primary/30 bg-primary/5 p-4">
-          <p className="text-[11px] tracking-wide text-muted-foreground uppercase">
+          <p className="text-xs tracking-wide text-muted-foreground uppercase">
             Potential additional monthly revenue
           </p>
           <p className="tnum mt-1.5 font-display text-[clamp(1.6rem,4vw,2.2rem)] leading-none font-semibold text-primary">

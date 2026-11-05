@@ -204,7 +204,7 @@ export function JarvisDock() {
       >
         {voice.speaking ? <Volume2 className="size-5 animate-pulse" aria-hidden /> : <Bot className="size-5" aria-hidden />}
         {attention > 0 && !open ? (
-          <span className="absolute -right-0.5 -top-0.5 flex min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[11px] font-semibold text-destructive-foreground">
+          <span className="absolute -right-0.5 -top-0.5 flex min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-xs font-semibold text-destructive-foreground">
             {attention}
           </span>
         ) : null}
@@ -284,7 +284,7 @@ export function JarvisDock() {
                   {voice.speaking ? <Square className="mr-1.5 size-3.5" /> : <Volume2 className="mr-1.5 size-3.5" />}
                   {voice.speaking ? "Stop" : "Read this page to me"}
                 </Button>
-                <label className="flex items-center gap-1.5 text-[11.5px] text-muted-foreground">
+                <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
                   <input
                     type="checkbox"
                     checked={prefs.autoBrief}
@@ -330,7 +330,7 @@ export function JarvisDock() {
                         key={followup}
                         type="button"
                         onClick={() => submit(followup)}
-                        className="rounded-full border border-border px-2.5 py-1 text-left text-[11.5px] hover:bg-muted"
+                        className="rounded-full border border-border px-2.5 py-1 text-left text-xs hover:bg-muted"
                       >
                         {followup}
                       </button>
@@ -371,7 +371,7 @@ export function JarvisDock() {
           </form>
           <Link
             to="/admin/jarvis"
-            className="flex items-center justify-center gap-1 border-t border-border py-1.5 text-[11.5px] text-muted-foreground hover:text-foreground"
+            className="flex items-center justify-center gap-1 border-t border-border py-1.5 text-xs text-muted-foreground hover:text-foreground"
           >
             Open full Jarvis <ExternalLink className="size-3" aria-hidden />
           </Link>

@@ -146,7 +146,7 @@ function AdminPayments() {
         ) : (
           <div className="mt-4 overflow-x-auto">
             <table className="w-full min-w-[860px] text-left text-[13px]">
-              <thead className="text-[11px] uppercase tracking-wide text-muted-foreground">
+              <thead className="text-xs uppercase tracking-wide text-muted-foreground">
                 <tr>
                   <th className="pb-2 pr-3">Date</th>
                   <th className="pb-2 pr-3">Client</th>
@@ -179,7 +179,7 @@ function AdminPayments() {
                           {payment.status.replace("_", " ")}
                         </Pill>
                       </td>
-                      <td className="py-2.5 pr-3 text-[11px] uppercase text-muted-foreground">
+                      <td className="py-2.5 pr-3 text-xs uppercase text-muted-foreground">
                         {payment.environment}
                       </td>
                       <td className="py-2.5 text-right">
@@ -209,7 +209,7 @@ function AdminPayments() {
           <dl className="mt-4 grid gap-2 text-[13px] sm:grid-cols-2">
             <div className="flex justify-between gap-4">
               <dt className="text-muted-foreground">Environment</dt>
-              <dd className="font-mono text-[11px]">{open.environment}</dd>
+              <dd className="font-mono text-xs">{open.environment}</dd>
             </div>
             <div className="flex justify-between gap-4">
               <dt className="text-muted-foreground">Customer email</dt>
@@ -227,7 +227,7 @@ function AdminPayments() {
               <ul className="mt-2 space-y-1 text-[12px] text-muted-foreground">
                 {events.map((event) => (
                   <li key={event.id} className="flex flex-wrap gap-2">
-                    <span className="font-mono text-[11px]">{event.event_type}</span>
+                    <span className="font-mono text-xs">{event.event_type}</span>
                     <span>· {event.verification_status}</span>
                     <span>· {event.processed ? "processed" : "received"}</span>
                     <span>· {new Date(event.created_at).toLocaleString()}</span>

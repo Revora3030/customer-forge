@@ -71,7 +71,7 @@ function AdminDomains() {
                     : ""}
                 </p>
                 {client.domain_error ? (
-                  <p className="mt-0.5 text-[11px] text-destructive">{client.domain_error}</p>
+                  <p className="mt-0.5 text-xs text-destructive">{client.domain_error}</p>
                 ) : null}
               </div>
               <div className="flex items-center gap-2">

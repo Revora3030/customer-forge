@@ -23,7 +23,7 @@ export const Route = createFileRoute("/help/$slug")({
 
 function HelpArticlePage() {
   const { article } = Route.useRouteContext() as { article: HelpArticle };
-  return <div className="min-h-screen"><SiteHeader />
+  return <div className="min-h-dvh"><SiteHeader />
     <main className="mx-auto max-w-3xl px-4 pt-14 pb-20 sm:px-6 sm:pt-20">
       <nav aria-label="Breadcrumb" className="text-xs text-muted-foreground"><Link to="/help" className="inline-flex min-h-11 items-center hover:text-primary">Help center</Link><span aria-hidden> / </span><span className="text-foreground">{article.title}</span></nav>
       <h1 className="mt-4 font-editorial text-[26px] leading-tight sm:text-[36px]">{article.title}</h1>

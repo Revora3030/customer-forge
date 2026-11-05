@@ -32,7 +32,7 @@ export const Route = createFileRoute("/growth-assessment")({
 
 function GrowthAssessmentPage() {
   return (
-    <div className="min-h-screen">
+    <div className="min-h-dvh">
       <SiteHeader />
       <main>
         <section className="hero-aura border-b border-border">

@@ -31,7 +31,7 @@ export const Route = createFileRoute("/industries/")({
 
 function Industries() {
   return (
-    <div className="min-h-screen">
+    <div className="min-h-dvh">
       <SiteHeader />
       <main className="hero-aura mx-auto max-w-6xl px-4 py-16">
         <p className="eyebrow">Industries</p>

@@ -14,7 +14,7 @@ export function LeadResponseChip({ lead, now, className = "" }: { lead: Response
         ? "text-success"
         : "text-muted-foreground";
   return (
-    <span className={`text-[11px] ${tone} ${className}`} data-response={status.kind}>
+    <span className={`text-xs ${tone} ${className}`} data-response={status.kind}>
       {label}
     </span>
   );

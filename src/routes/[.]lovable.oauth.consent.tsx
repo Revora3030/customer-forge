@@ -46,7 +46,7 @@ export const Route = createFileRoute("/.lovable/oauth/consent")({
   }),
   component: ConsentPage,
   errorComponent: ({ error }) => (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-background px-4">
+    <main className="flex min-h-dvh flex-col items-center justify-center bg-background px-4">
       <div className="panel w-full max-w-md p-6 text-center">
         <h1 className="font-display text-[19px] font-semibold">Connection request unavailable</h1>
         <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
@@ -112,7 +112,7 @@ function ConsentPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
+    <div className="flex min-h-dvh flex-col bg-background">
       <header className="border-b border-border">
         <div className="mx-auto flex h-16 max-w-6xl items-center px-4">
           <Logo />
@@ -150,7 +150,7 @@ function ConsentPage() {
               ))}
             </ul>
           ) : null}
-          <p className="mt-4 border-t border-border pt-3 text-[11.5px] leading-relaxed text-muted-foreground">
+          <p className="mt-4 border-t border-border pt-3 text-xs leading-relaxed text-muted-foreground">
             This does not bypass Revora's permissions or backend policies — you only share what
             your account can already see.
           </p>

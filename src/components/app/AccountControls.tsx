@@ -183,7 +183,7 @@ export function ChangePasswordForm({ email }: { email: string | null | undefined
           />
         </div>
       </div>
-      <p className="text-[11px] text-muted-foreground">
+      <p className="text-xs text-muted-foreground">
         Signed in with a magic link or Google and never set a password? Use “Forgot password” on the
         sign-in page instead.
       </p>
@@ -273,7 +273,7 @@ export function ChangeEmailForm({
           />
         </div>
       </div>
-      <p className="text-[11px] text-muted-foreground">
+      <p className="text-xs text-muted-foreground">
         We confirm the new address before it becomes your sign-in email. You
         will see the same response whether or not that address can be used.
       </p>
@@ -363,7 +363,7 @@ export function AvatarForm({
           ) : null}
         </div>
       </div>
-      <p className="text-[11px] text-muted-foreground">
+      <p className="text-xs text-muted-foreground">
         JPG, PNG, WebP or AVIF · up to {humanFileSize(AVATAR_MAX_BYTES)}. Shown on your account;
         teammates may see it in the team list.
       </p>

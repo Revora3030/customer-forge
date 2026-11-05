@@ -130,7 +130,7 @@ function PortalHome() {
                           .join(" · ") || "New enquiry"}
                       </p>
                     </div>
-                    <span className="shrink-0 text-[11px] text-muted-foreground">
+                    <span className="shrink-0 text-xs text-muted-foreground">
                       {relative(new Date(lead.created_at))}
                     </span>
                   </li>

@@ -41,7 +41,7 @@ export const Route = createFileRoute("/compare/")({
 
 function CompareHub() {
   return (
-    <div className="min-h-screen">
+    <div className="min-h-dvh">
       <SiteHeader />
       <main className="mx-auto max-w-4xl px-4 pt-14 pb-20 sm:px-6 sm:pt-20">
         <h1 className="font-editorial text-balance text-[clamp(1.7rem,4vw,2.5rem)] leading-tight">

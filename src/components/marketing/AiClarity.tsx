@@ -207,7 +207,7 @@ export function SleepEngine() {
             <li key={step} className="flex gap-3">
               <span
                 aria-hidden="true"
-                className="mt-0.5 grid size-6 shrink-0 place-items-center rounded-full border border-primary/35 bg-primary/10 font-display text-[11px] font-semibold text-primary"
+                className="mt-0.5 grid size-6 shrink-0 place-items-center rounded-full border border-primary/35 bg-primary/10 font-display text-xs font-semibold text-primary"
               >
                 {index + 1}
               </span>
@@ -215,7 +215,7 @@ export function SleepEngine() {
             </li>
           ))}
         </ol>
-        <p className="mt-5 text-[11.5px] text-muted-foreground">
+        <p className="mt-5 text-xs text-muted-foreground">
           Illustrative timeline of the standard Revora flow — your real numbers appear in analytics.
         </p>
       </Panel>

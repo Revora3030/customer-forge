@@ -17,7 +17,7 @@ export function PreviewMessage({
   cta?: string;
 }) {
   return (
-    <main className="flex min-h-screen items-center justify-center px-4 text-center">
+    <main className="flex min-h-dvh items-center justify-center px-4 text-center">
       <div>
         <h1 className="font-display text-[22px] font-semibold">{title}</h1>
         <p className="mt-2 text-[13px] text-muted-foreground">{body}</p>

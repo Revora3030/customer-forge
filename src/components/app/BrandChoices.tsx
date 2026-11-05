@@ -71,7 +71,7 @@ export function BrandChoices({
       />
       <span className="min-w-0">
         <span className="block font-medium">{label}</span>
-        <span className="block text-[11px] text-muted-foreground">
+        <span className="block text-xs text-muted-foreground">
           {brand[field] ?? hint}
         </span>
       </span>
@@ -88,7 +88,7 @@ export function BrandChoices({
       >
         <span className="min-w-0">
           <span className="block text-[13px] font-medium">Your brand</span>
-          <span className="block truncate text-[11.5px] text-muted-foreground">{summary}</span>
+          <span className="block truncate text-xs text-muted-foreground">{summary}</span>
         </span>
         <ChevronDown
           className={cn("size-4 shrink-0 transition-transform", open && "rotate-180")}
@@ -151,7 +151,7 @@ export function BrandChoices({
               Clear my choices
             </button>
           ) : null}
-          <p className="text-[11.5px] text-muted-foreground">
+          <p className="text-xs text-muted-foreground">
             Anything you set here is used exactly as chosen. Anything left alone is decided for
             you, page by page.
           </p>

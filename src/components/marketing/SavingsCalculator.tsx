@@ -51,13 +51,13 @@ export function SavingsCalculator() {
             const priceId = `${checkId}-price`;
             return (
               <li key={tool.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
-                <div className="flex min-w-0 items-start gap-3">
+                <div className="flex min-h-11 min-w-0 items-center gap-3">
                   <input
                     id={checkId}
                     type="checkbox"
                     checked={checked}
                     onChange={(e) => toggle(tool.id, tool.typical, e.target.checked)}
-                    className="mt-1 size-5 shrink-0 cursor-pointer accent-[var(--primary)]"
+                    className="size-6 shrink-0 cursor-pointer accent-[var(--primary)]"
                   />
                   <label htmlFor={checkId} className="min-w-0 cursor-pointer text-[13px] leading-snug">
                     <span className="font-medium text-foreground">{tool.label}</span>
@@ -108,7 +108,7 @@ export function SavingsCalculator() {
             <>
               <dl className="grid gap-3 sm:grid-cols-2">
                 <div className="rounded-md border border-border bg-elevated p-4">
-                  <dt className="text-[11px] tracking-wide text-muted-foreground uppercase">
+                  <dt className="text-xs tracking-wide text-muted-foreground uppercase">
                     Your tools today
                   </dt>
                   <dd className="tnum mt-1.5 font-display text-[19px] font-semibold">
@@ -116,7 +116,7 @@ export function SavingsCalculator() {
                   </dd>
                 </div>
                 <div className="rounded-md border border-border bg-elevated p-4">
-                  <dt className="text-[11px] tracking-wide text-muted-foreground uppercase">
+                  <dt className="text-xs tracking-wide text-muted-foreground uppercase">
                     Revora from month two
                   </dt>
                   <dd className="tnum mt-1.5 font-display text-[19px] font-semibold">
@@ -126,7 +126,7 @@ export function SavingsCalculator() {
               </dl>
 
               <div className="mt-4 rounded-md border border-primary/30 bg-primary/5 p-4">
-                <p className="text-[11px] tracking-wide text-muted-foreground uppercase">
+                <p className="text-xs tracking-wide text-muted-foreground uppercase">
                   First 12 months, including the {usd(GROWTH_SYSTEM.setupPrice)} setup
                 </p>
                 {saves ? (

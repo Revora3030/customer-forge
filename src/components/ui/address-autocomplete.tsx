@@ -125,7 +125,7 @@ export function AddressAutocomplete({
               </li>
             ))}
           </ul>
-          <p className="border-t border-border px-3 py-1 text-[10px] text-muted-foreground">
+          <p className="border-t border-border px-3 py-1 text-xs text-muted-foreground">
             <a href={OSM_COPYRIGHT_URL} target="_blank" rel="noopener noreferrer" className="underline">
               {OSM_ATTRIBUTION}
             </a>

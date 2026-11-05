@@ -63,8 +63,8 @@ function FixCard({
       >
         <Pill tone={TONE[target.severity]}>{target.severity}</Pill>
         <span className="text-[13px] font-medium">{target.title}</span>
-        <span className="text-[11px] text-muted-foreground">{target.scope}</span>
-        <span className="ml-auto text-[11px] text-primary">{open ? "Hide" : "Fix this"}</span>
+        <span className="text-xs text-muted-foreground">{target.scope}</span>
+        <span className="ml-auto text-xs text-primary">{open ? "Hide" : "Fix this"}</span>
       </button>
 
       {open ? (
@@ -101,12 +101,12 @@ function FixCard({
             </Button>
           </div>
           {target.proposalId ? (
-            <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+            <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <RotateCcw className="size-3" aria-hidden="true" /> A restore point is saved first, so
               this can be undone.
             </p>
           ) : (
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               This one needs a real business fact from you — Revora will not invent it.
             </p>
           )}
@@ -274,7 +274,7 @@ export function SiteAuditor({
               <Sparkles className="size-4" aria-hidden="true" />
               Optimise entire website
             </Button>
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               {autoFixable
                 ? `${autoFixable} safe change${autoFixable === 1 ? "" : "s"} available. One restore point is saved first; publishing stays your decision.`
                 : "Nothing can be fixed automatically right now — the remaining findings need a business fact from you."}
@@ -320,7 +320,7 @@ export function SiteAuditor({
                 <li key={step.key} className="flex items-center gap-1.5">
                   <span
                     className={cn(
-                      "rounded-full border px-2.5 py-1 text-[11px]",
+                      "rounded-full border px-2.5 py-1 text-xs",
                       index === 0
                         ? "border-primary bg-primary/10 text-foreground"
                         : step.available
@@ -429,7 +429,7 @@ export function SiteAuditor({
                           <p className="text-foreground">{change.after}</p>
                         </li>
                       ))}
-                      <li className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                      <li className="flex items-center gap-1.5 text-xs text-muted-foreground">
                         <RotateCcw className="size-3" aria-hidden="true" /> A restore point is saved
                         before this is applied, so it can be undone.
                       </li>
@@ -473,7 +473,7 @@ export function SiteAuditor({
                   className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2.5"
                 >
                   <p className="truncate text-[12px]">{page.path}</p>
-                  <p className="text-[11px] text-muted-foreground">
+                  <p className="text-xs text-muted-foreground">
                     HTTP {page.status} · {page.observed.wordCount} words · {page.observed.telLinks}{" "}
                     call link
                     {page.observed.telLinks === 1 ? "" : "s"} · {page.observed.forms} form

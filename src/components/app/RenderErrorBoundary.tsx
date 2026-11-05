@@ -36,7 +36,7 @@ export class RenderErrorBoundary extends Component<Props, State> {
     const backHref = this.props.backHref ?? "/";
 
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background px-4">
+      <div className="flex min-h-dvh items-center justify-center bg-background px-4">
         <div className="w-full max-w-md text-center">
           <p className="eyebrow">Revora recovery</p>
           <h1 className="mt-3 font-editorial text-[30px] leading-tight text-foreground">{title}</h1>

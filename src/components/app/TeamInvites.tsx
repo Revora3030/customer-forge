@@ -238,7 +238,7 @@ export function TeamInvites({
 
       {pending.length ? (
         <div className="rounded-lg border border-border">
-          <p className="border-b border-border px-4 py-2 text-[11px] uppercase tracking-wide text-muted-foreground">
+          <p className="border-b border-border px-4 py-2 text-xs uppercase tracking-wide text-muted-foreground">
             Pending invites
           </p>
           <ul className="divide-y divide-border">
@@ -246,7 +246,7 @@ export function TeamInvites({
               <li key={item.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-[13px] font-medium">{item.email}</p>
-                  <p className="text-[11px] text-muted-foreground">
+                  <p className="text-xs text-muted-foreground">
                     {roleLabel(item.role)} · expires {dateShort(item.expires_at)}
                   </p>
                 </div>
@@ -268,7 +268,7 @@ export function TeamInvites({
       ) : null}
 
       {history.length ? (
-        <ul className="space-y-1 text-[11px] text-muted-foreground">
+        <ul className="space-y-1 text-xs text-muted-foreground">
           {history.map((item) => (
             <li key={item.id}>
               {item.email} — {item.accepted_at ? "joined" : "cancelled"}{" "}

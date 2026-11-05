@@ -81,7 +81,7 @@ const STAGES: Stage[] = [
             {["Call", "Get quote", "Book"].map((cta, i) => (
               <span
                 key={cta}
-                className={`rounded-md px-2 py-1.5 text-center text-[11px] font-semibold ${
+                className={`rounded-md px-2 py-1.5 text-center text-xs font-semibold ${
                   i === 1
                     ? "bg-primary text-primary-foreground"
                     : "border border-border text-muted-foreground"
@@ -172,7 +172,7 @@ const STAGES: Stage[] = [
                 <p className="mt-1 text-[12.5px]">{what}</p>
               </div>
               <span
-                className={`shrink-0 text-[11px] font-semibold ${
+                className={`shrink-0 text-xs font-semibold ${
                   state === "Sent" ? "text-success" : "text-primary"
                 }`}
               >
@@ -196,7 +196,7 @@ const STAGES: Stage[] = [
           {["8:00", "9:30", "11:00", "1:30"].map((t, i) => (
             <div
               key={t}
-              className={`rounded-md border p-2 text-center text-[11.5px] font-medium ${
+              className={`rounded-md border p-2 text-center text-xs font-medium ${
                 i === 1
                   ? "border-primary/40 bg-primary/10 text-primary"
                   : "border-border text-muted-foreground"

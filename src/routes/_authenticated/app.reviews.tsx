@@ -194,7 +194,7 @@ function ReviewsPage() {
                 >
                   <div className="min-w-0">
                     <p className="truncate text-[13px]">{appointment.name}</p>
-                    <p className="text-[11px] text-muted-foreground">
+                    <p className="text-xs text-muted-foreground">
                       {relative(appointment.starts_at)}
                     </p>
                   </div>
@@ -242,7 +242,7 @@ function ReviewsPage() {
                   <p className="truncate text-[14px] font-medium">{review.author_name}</p>
                   <div className="mt-1 flex items-center gap-2">
                     <Stars rating={Number(review.rating ?? 0)} />
-                    <span className="text-[11px] text-muted-foreground">
+                    <span className="text-xs text-muted-foreground">
                       {relative(review.created_at)}
                     </span>
                   </div>

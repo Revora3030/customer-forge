@@ -187,7 +187,7 @@ function AnalyticsPage() {
             </div>
           ))}
         </div>
-        <div className="mt-3 flex items-center justify-between text-[11px] text-muted-foreground">
+        <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
           <span>{dateShort(model.daily[0]?.date)}</span>
           <span className="flex items-center gap-3">
             <span className="flex items-center gap-1.5">

@@ -87,7 +87,7 @@ export function PageManager({
               id="page-kind"
               value={newKind}
               onChange={(event) => setNewKind(event.target.value)}
-              className="h-10 w-full cursor-pointer rounded-md border border-border bg-background px-3 text-sm"
+              className="h-11 sm:h-10 w-full cursor-pointer rounded-md border border-border bg-background px-3 text-sm"
             >
               {PAGE_LIBRARY.filter((p) => p.kind !== "home").map((p) => (
                 <option key={p.kind} value={p.kind}>
@@ -148,7 +148,7 @@ export function PageManager({
                 ) : (
                   <p className="text-sm font-semibold text-foreground">{page.title}</p>
                 )}
-                <p className="mt-0.5 px-1 text-[11px] text-muted-foreground">
+                <p className="mt-0.5 px-1 text-xs text-muted-foreground">
                   /{page.slug} · {pageLabel(page.kind)} · {page.sections.length} section
                   {page.sections.length === 1 ? "" : "s"}
                   {page.id === homeId ? " · home page" : ""}

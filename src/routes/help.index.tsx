@@ -16,7 +16,7 @@ export const Route = createFileRoute("/help/")({
 });
 
 function HelpIndex() {
-  return <div className="min-h-screen"><SiteHeader />
+  return <div className="min-h-dvh"><SiteHeader />
     <main className="mx-auto max-w-3xl px-4 pt-14 pb-20 sm:px-6 sm:pt-20">
       <h1 className="font-editorial text-[28px] leading-tight sm:text-[36px]">Help center</h1>
       <p className="mt-3 text-[15px] text-muted-foreground">Short answers for running your Revora site. Each article is also available as plain markdown.</p>

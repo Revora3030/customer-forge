@@ -153,7 +153,7 @@ export function TrendChart({ points }: { points: DemoPoint[] }) {
         })}
       </svg>
 
-      <div className="mt-2 flex flex-wrap items-center gap-4 text-[11px] text-muted-foreground">
+      <div className="mt-2 flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
         <span className="inline-flex items-center gap-1.5">
           <span aria-hidden="true" className="size-2 rounded-full bg-primary" /> Leads
         </span>
@@ -197,7 +197,7 @@ export function FunnelChart({
             >
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="inline-flex items-center gap-2 text-[13px] font-medium">
-                  <span className="tnum text-[11px] text-muted-foreground">{i + 1}</span>
+                  <span className="tnum text-xs text-muted-foreground">{i + 1}</span>
                   {row.label}
                 </span>
                 <span className="tnum text-[12px]">

@@ -107,7 +107,7 @@ export function HeroVideoPanel({ organizationId, disabled }: { organizationId: s
         }}
       />
       {message ? <p className="text-[12px] text-muted-foreground">{message}</p> : null}
-      <p className="text-[11px] text-muted-foreground">Changes reach visitors the next time you publish.</p>
+      <p className="text-xs text-muted-foreground">Changes reach visitors the next time you publish.</p>
     </div>
   );
 }

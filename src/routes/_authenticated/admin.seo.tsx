@@ -92,7 +92,7 @@ function AdminSeo() {
               >
                 <div className="min-w-0">
                   <p className="truncate text-[13px]">{issue.path}</p>
-                  <p className="mt-0.5 text-[11px] text-muted-foreground">{issue.detail}</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">{issue.detail}</p>
                 </div>
                 <Pill tone={issue.level === "error" ? "attention" : "neutral"}>
                   {issue.level === "error" ? "Fix" : "Improve"}
@@ -178,7 +178,7 @@ function AdminSeo() {
                   </p>
                   <Pill tone="neutral">{KIND_LABELS[item.kind] ?? item.kind}</Pill>
                 </div>
-                <p className="mt-0.5 text-[11px] text-muted-foreground">
+                <p className="mt-0.5 text-xs text-muted-foreground">
                   {item.page} · {number(item.impressions)} times shown · {number(item.clicks)}{" "}
                   clicks · {(item.ctr * 100).toFixed(1)}% clicked
                   {item.position ? ` · position ${item.position.toFixed(1)}` : ""}

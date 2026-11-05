@@ -286,7 +286,7 @@ export function PreviewAnnotateLayer({
           >
             <Trash2 className="size-4" aria-hidden />
           </Button>
-          <span className="ml-auto text-[11px] text-muted-foreground tnum" aria-live="polite">
+          <span className="ml-auto text-xs text-muted-foreground tnum" aria-live="polite">
             {full ? `Max ${MAX_MARKS} marks` : `${inks.length} mark${inks.length === 1 ? "" : "s"}`}
           </span>
           <Button

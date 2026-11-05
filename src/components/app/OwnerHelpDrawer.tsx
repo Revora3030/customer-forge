@@ -34,7 +34,7 @@ function ArticleRow({ article }: { article: HelpArticleCitation }) {
         </div>
         <ExternalLink className="h-3.5 w-3.5 shrink-0 text-muted-foreground mt-0.5" aria-hidden />
       </div>
-      <p className="mt-1.5 font-mono text-[10px] text-muted-foreground">{article.path}</p>
+      <p className="mt-1.5 font-mono text-xs text-muted-foreground">{article.path}</p>
     </Link>
   );
 }
@@ -114,7 +114,7 @@ export function OwnerHelpDrawer({
           </Link>
           <a
             href="/help.md"
-            className="text-[10px] font-mono text-muted-foreground hover:text-foreground"
+            className="text-xs font-mono text-muted-foreground hover:text-foreground"
             onClick={() => setOpen(false)}
           >
             /help.md

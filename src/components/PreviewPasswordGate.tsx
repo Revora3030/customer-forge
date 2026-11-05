@@ -37,7 +37,7 @@ export function PreviewPasswordGate({ token }: { token: string }) {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-4">
+    <div className="flex min-h-dvh items-center justify-center px-4">
       <form onSubmit={submit} className="w-full max-w-sm space-y-4 text-center">
         <h1 className="font-display text-[22px] font-semibold">This preview needs a password</h1>
         <p className="text-[13px] text-muted-foreground">Enter the password you were given to see it.</p>

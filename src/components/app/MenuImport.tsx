@@ -82,7 +82,7 @@ export function MenuImportView({
             ) : (
               preview.pages.map((page) => (
                 <div key={page.where} className="mt-2">
-                  <p className="text-[11px] tracking-wide text-muted-foreground uppercase">{page.where}</p>
+                  <p className="text-xs tracking-wide text-muted-foreground uppercase">{page.where}</p>
                   <pre className="max-h-48 overflow-auto text-[12px] whitespace-pre-wrap">{page.text}</pre>
                 </div>
               ))
@@ -103,7 +103,7 @@ export function MenuImportView({
                     <span className="font-medium">{item.name}</span>
                     <span className="ml-2 text-muted-foreground">{item.priceText || "No price in the file"}</span>
                     {item.description ? <span className="block text-muted-foreground">{item.description}</span> : null}
-                    <span className="block text-[11px] text-muted-foreground" data-testid="menu-import-source">
+                    <span className="block text-xs text-muted-foreground" data-testid="menu-import-source">
                       From {item.file}, {item.where}
                     </span>
                   </label>

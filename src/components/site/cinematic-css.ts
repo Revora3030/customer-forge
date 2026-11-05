@@ -193,7 +193,7 @@ ${S} .rv-chapter{min-height:85svh}
 ${S} .rv-cn-brush-hud{position:absolute;z-index:3;top:12px;right:12px;display:flex;gap:2px;border-radius:12px;overflow:hidden;background:rgba(8,10,14,.62);border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);color:#fff;pointer-events:none}
 ${S} .rv-cn-brush-hud span{display:flex;flex-direction:column;padding:6px 12px;line-height:1.1}
 ${S} .rv-cn-brush-hud span + span{border-left:1px solid rgba(255,255,255,.14)}
-${S} .rv-cn-brush-hud small{font-size:9px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;opacity:.7}
+${S} .rv-cn-brush-hud small{font-size:12px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;opacity:.7}
 ${S} .rv-cn-brush-hud strong{font-size:18px;font-weight:800;font-variant-numeric:tabular-nums}
 ${S} .rv-cn-brush-tools,${S} .rv-dial-chips{display:flex;flex-wrap:wrap;gap:8px;padding-top:10px}
 ${S} .rv-cn-brush-tools button,${S} .rv-dial-chips button{min-height:44px;padding:0 16px;border-radius:999px;border:1px solid rgba(127,127,127,.4);background:transparent;color:inherit;font-size:13px;font-weight:700;letter-spacing:.02em;cursor:pointer}
@@ -205,7 +205,7 @@ ${S} .rv-dial-gauge svg[data-draggable]{cursor:grab;touch-action:none;-webkit-us
 ${S} .rv-dial-fill,${S} .rv-dial-needle{transition:all 520ms cubic-bezier(.2,.8,.2,1)}
 ${S} .rv-dial-reading{display:flex;align-items:baseline;gap:6px;margin-top:-28px}
 ${S} .rv-dial-reading strong{font-size:${fluidClamp(24, 34, 320, 1000)};font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
-${S} .rv-dial-reading span{font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;opacity:.7}
+${S} .rv-dial-reading span{font-size:12px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;opacity:.7}
 ${S} .rv-dial-option{margin:6px 0 0;font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--primary-ink,var(--primary,currentColor))}
 ${S} .rv-dial-note{margin:0;max-width:34ch;font-size:14px;line-height:1.5;opacity:.8}
 ${S} .rv-dial-list{width:100%;border-collapse:collapse;font-size:14px}

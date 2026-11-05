@@ -294,7 +294,7 @@ export function MediaLibrary({
                 </div>
                 {isOwnerPhoto(row) && !(row.alt_text ?? "").trim() ? (
                   <p
-                    className="text-[11px] text-muted-foreground"
+                    className="text-xs text-muted-foreground"
                     title="Photos without a description are kept off your website until you add one."
                   >
                     <Pill>Needs a description</Pill>

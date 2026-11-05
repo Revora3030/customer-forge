@@ -88,7 +88,7 @@ export function WebsiteStructure({
                 )}
               >
                 {p.title}
-                <span className="ml-2 text-[11px] text-muted-foreground">{p.sections.length}</span>
+                <span className="ml-2 text-xs text-muted-foreground">{p.sections.length}</span>
               </button>
             ))}
           </div>
@@ -188,7 +188,7 @@ function PageSections({
                 {sectionLabel(section.kind)}
               </Pill>
               {section.components.length ? (
-                <span className="text-[11px] text-muted-foreground">
+                <span className="text-xs text-muted-foreground">
                   {section.components.length} item{section.components.length === 1 ? "" : "s"} from
                   your data
                 </span>
@@ -280,7 +280,7 @@ function PageSections({
                   placeholder={sectionGuide(section.kind).headingHint}
                   disabled={!canManage}
                 />
-                <p className="text-[11px] text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   {sectionGuide(section.kind).headingHint}
                 </p>
               </div>
@@ -293,7 +293,7 @@ function PageSections({
                   placeholder={sectionGuide(section.kind).subHint}
                   disabled={!canManage}
                 />
-                <p className="text-[11px] text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   {sectionGuide(section.kind).subHint}
                 </p>
               </div>
@@ -308,7 +308,7 @@ function PageSections({
                 placeholder={sectionGuide(section.kind).bodyHint}
                 disabled={!canManage}
               />
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 {sectionGuide(section.kind).bodyHint}
               </p>
             </div>
@@ -414,7 +414,7 @@ function SectionComponents({
 
   return (
     <div className="mt-4 rounded-md border border-border">
-      <p className="border-b border-border px-3 py-2 text-[11px] tracking-wide text-muted-foreground uppercase">
+      <p className="border-b border-border px-3 py-2 text-xs tracking-wide text-muted-foreground uppercase">
         Items in this section
       </p>
       <ul>
@@ -615,7 +615,7 @@ function PageSeoPanel({
                     disabled={!canManage}
                   />
                 )}
-                <p className="text-[11px] text-muted-foreground">{field.help}</p>
+                <p className="text-xs text-muted-foreground">{field.help}</p>
               </div>
             ))}
           </div>

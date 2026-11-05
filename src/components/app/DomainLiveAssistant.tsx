@@ -155,7 +155,7 @@ export function DomainLiveAssistant({
           return (
             <li
               key={id}
-              className={`rounded-md border px-2 py-1 text-[11px] ${
+              className={`rounded-md border px-2 py-1 text-xs ${
                 id === state
                   ? "border-primary/60 bg-primary/10 text-foreground"
                   : reached
@@ -168,9 +168,9 @@ export function DomainLiveAssistant({
           );
         })}
       </ol>
-      {stateInfo ? <p className="text-[11px] text-muted-foreground">{stateInfo.help}</p> : null}
+      {stateInfo ? <p className="text-xs text-muted-foreground">{stateInfo.help}</p> : null}
 
-      <p className="text-[11px] text-muted-foreground">
+      <p className="text-xs text-muted-foreground">
         {polling
           ? "Checking automatically every few seconds while this tab is open."
           : stopped === "live"

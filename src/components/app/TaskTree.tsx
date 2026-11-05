@@ -63,7 +63,7 @@ export function TaskTreeList({
             <span className={cn("min-w-0 flex-1 break-words", n.status === "pending" ? "text-muted-foreground/70" : n.status === "done" ? "text-muted-foreground" : n.status === "failed" ? "text-destructive" : "text-foreground")}>
               <span className="sr-only">{STATUS_WORD[n.status]}: </span>
               {n.label}
-              {n.model ? <span className="ml-1.5 rounded-full border border-border/70 px-2 py-0.5 text-[11px] text-muted-foreground">{n.model}</span> : null}
+              {n.model ? <span className="ml-1.5 rounded-full border border-border/70 px-2 py-0.5 text-xs text-muted-foreground">{n.model}</span> : null}
               {n.detail ? <span className={cn("mt-0.5 block", n.emphasizeDetail ? "text-[13px] text-foreground/80" : "text-xs text-muted-foreground/80")}>{n.detail}</span> : null}
               {n.status === "failed" && n.error ? <span className="block text-xs">{n.error}</span> : null}
               {n.status === "failed" && n.retryable && onRetry ? (

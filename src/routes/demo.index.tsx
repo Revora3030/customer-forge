@@ -99,7 +99,7 @@ function DemoPage() {
     setForm((prev) => ({ ...prev, [key]: value }));
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-dvh">
       <SiteHeader />
       <main>
         <section className="border-b border-border">
@@ -194,7 +194,7 @@ function DemoPage() {
                       id="industry"
                       value={form.industry}
                       onChange={(e) => set("industry")(e.target.value)}
-                      className="mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                      className="mt-1.5 h-11 sm:h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
                     >
                       {INDUSTRIES.map((industry) => (
                         <option key={industry.name} value={industry.name}>
@@ -264,7 +264,7 @@ function DemoPage() {
                     >
                       {mutation.isPending ? "Sending…" : "Create my preview"}
                     </Button>
-                    <p className="mt-2 text-[11.5px] text-muted-foreground">
+                    <p className="mt-2 text-xs text-muted-foreground">
                       Add an email or phone number so we can reach you.
                     </p>
                   </div>

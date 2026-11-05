@@ -207,6 +207,10 @@
 
   html {
     -webkit-tap-highlight-color: transparent;
+    /* Revora is a single dark theme. Declaring it makes the browser draw native
+       controls, scrollbars, the overscroll canvas and form autofill dark too,
+       so a phone set to light mode never flashes white pieces into the UI. */
+    color-scheme: dark;
     /* In-page CTAs ("See how it works", nav anchors) glide to their section
        instead of snapping, so people can see where they landed. */
     scroll-behavior: smooth;
@@ -216,10 +220,31 @@
     scroll-padding-bottom: 2rem;
   }
 
+  /* Customer sites choose their own palette (often light), so they keep the
+     browser's normal native-control rendering exactly as before. */
+  .rv-site-root {
+    color-scheme: normal;
+  }
+
   @media (min-width: 640px) {
     html {
       /* the cookie notice floats bottom-left from the sm breakpoint up */
       scroll-padding-bottom: 14rem;
+    }
+  }
+
+  /* Press feedback for every tappable control, including plain links and raw
+     buttons that don't use the shared Button component. Uses the standalone
+     `scale` property so it never fights Tailwind's translate/rotate utilities,
+     and is skipped for people who ask for reduced motion. */
+  @media (prefers-reduced-motion: no-preference) {
+    :where(a[href], button, [role="button"], summary, label[for], input[type="checkbox"], input[type="radio"], select):not(:disabled, [aria-disabled="true"]) {
+      transition-property: scale, color, background-color, border-color, opacity, box-shadow;
+      transition-duration: 120ms;
+      transition-timing-function: ease-out;
+    }
+    :where(a[href], button, [role="button"], summary):not(:disabled, [aria-disabled="true"], [data-no-press]):active {
+      scale: 0.97;
     }
   }
 
@@ -1202,7 +1227,7 @@ a[href*="lovable.app"][target="_blank"][class*="fixed"],
   background: color-mix(in oklab, var(--color-card) 88%, transparent);
   box-shadow: 0 14px 30px -18px rgb(0 0 0 / 85%);
   backdrop-filter: blur(10px);
-  font-size: 9px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.12em;
   color: var(--color-primary);

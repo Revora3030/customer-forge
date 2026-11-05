@@ -32,7 +32,7 @@ export function CompositionPreviewCard({ composition }: { composition: Compositi
             Your headline, in {composition.font}
           </p>
           <p
-            className="mt-1 text-[11.5px]"
+            className="mt-1 text-xs"
             style={{ color: tone === "dark" ? "#e7e7e7" : "#4b4b4b" }}
           >
             {composition.mood}
@@ -40,7 +40,7 @@ export function CompositionPreviewCard({ composition }: { composition: Compositi
         </div>
       </div>
 
-      <dl className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11.5px] text-muted-foreground">
+      <dl className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
         <div className="flex items-center gap-1.5">
           <dt>Pages</dt>
           <dd className="text-foreground">{tone === "dark" ? "Dark" : "Light"}</dd>
@@ -71,12 +71,12 @@ export function CompositionPreviewCard({ composition }: { composition: Compositi
           <p className="text-[12px] font-medium">How each page will be put together</p>
           {composition.pages.map((page) => (
             <div key={page.pageId}>
-              <p className="text-[11.5px] font-medium text-muted-foreground">{page.title}</p>
+              <p className="text-xs font-medium text-muted-foreground">{page.title}</p>
               <ol className="mt-1 flex flex-wrap items-center gap-1">
                 {page.blocks.map((block, index) => (
                   <li
                     key={`${page.pageId}-${block}-${index}`}
-                    className="rounded-full border border-border px-2 py-0.5 text-[11px]"
+                    className="rounded-full border border-border px-2 py-0.5 text-xs"
                   >
                     {index + 1}. {block}
                     {page.added.includes(block) ? (
@@ -90,7 +90,7 @@ export function CompositionPreviewCard({ composition }: { composition: Compositi
         </div>
       ) : null}
 
-      <p className="mt-2 text-[11px] text-muted-foreground">
+      <p className="mt-2 text-xs text-muted-foreground">
         Nothing is applied yet. Keep, skip or reorder the steps below, then press the button to
         apply — your wording and business details are never changed by this.
       </p>

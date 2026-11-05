@@ -178,7 +178,7 @@ export function WebsiteReview({ organizationId, slug, settings, canManage }: Pro
                 <select
                   id="req-kind"
                   name="kind"
-                  className="h-10 w-full cursor-pointer rounded-md border border-input bg-background px-3 text-sm"
+                  className="h-11 sm:h-10 w-full cursor-pointer rounded-md border border-input bg-background px-3 text-sm"
                 >
                   {REQUEST_KINDS.map((k) => (
                     <option key={k.value} value={k.value}>
@@ -192,7 +192,7 @@ export function WebsiteReview({ organizationId, slug, settings, canManage }: Pro
                 <select
                   id="req-priority"
                   name="priority"
-                  className="h-10 w-full cursor-pointer rounded-md border border-input bg-background px-3 text-sm"
+                  className="h-11 sm:h-10 w-full cursor-pointer rounded-md border border-input bg-background px-3 text-sm"
                 >
                   <option value="low">Low</option>
                   <option value="normal">Normal</option>

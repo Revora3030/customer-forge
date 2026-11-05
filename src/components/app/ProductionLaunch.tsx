@@ -93,11 +93,11 @@ export function ProductionLaunchModal({
           ))}
         </ul>
         <div className="mt-4 rounded-md border border-border bg-elevated p-3">
-          <p className="text-[11px] text-muted-foreground">Setup</p>
+          <p className="text-xs text-muted-foreground">Setup</p>
           <p className="font-display text-[24px] font-semibold text-primary">
             ${GROWTH_SYSTEM.setupPrice}
           </p>
-          <p className="mt-0.5 text-[11.5px] text-muted-foreground">
+          <p className="mt-0.5 text-xs text-muted-foreground">
             Then ${GROWTH_SYSTEM.monthlyPrice}/month — your first month is free.
           </p>
         </div>
@@ -109,7 +109,7 @@ export function ProductionLaunchModal({
             Keep editing
           </Button>
         </div>
-        <p className="mt-3 text-[11px] text-muted-foreground">
+        <p className="mt-3 text-xs text-muted-foreground">
           Nothing is lost or reset when you pay: the same website, pages, media, CRM, automations,
           SEO and version history become your live system.
         </p>
@@ -148,7 +148,7 @@ export function ProductionReadinessPanel({
           </h3>
         </div>
         <span
-          className={`rounded-full border px-2.5 py-1 text-[11px] font-medium ${
+          className={`rounded-full border px-2.5 py-1 text-xs font-medium ${
             readiness.passed
               ? "border-primary/40 bg-primary/10 text-primary"
               : "border-accent/40 bg-accent/10 text-accent"
@@ -166,7 +166,7 @@ export function ProductionReadinessPanel({
             </span>
             <span className="min-w-0">
               <span className="block text-[12.5px] font-medium">{check.label}</span>
-              <span className="block text-[11.5px] text-muted-foreground">{check.detail}</span>
+              <span className="block text-xs text-muted-foreground">{check.detail}</span>
             </span>
           </li>
         ))}
@@ -186,7 +186,7 @@ export function ProductionReadinessPanel({
                 ? "Publish my site"
                 : "Launch my website"}
         </Button>
-        <p className="text-[11.5px] text-muted-foreground">
+        <p className="text-xs text-muted-foreground">
           {readiness.unlocked
             ? "Publishes your site. Earlier versions are kept."
             : "Checked automatically before launch. Test mode never sends real messages to your customers."}
@@ -241,7 +241,7 @@ export function ProductionSummaryCard({ status }: { status: ProductionStatus | u
         {TRIAL_INCLUDES.map((item) => (
           <span
             key={item}
-            className="rounded-full border border-border bg-elevated px-2 py-0.5 text-[11px]"
+            className="rounded-full border border-border bg-elevated px-2 py-0.5 text-xs"
           >
             ✓ {item}
           </span>
@@ -258,7 +258,7 @@ export function ProductionSummaryCard({ status }: { status: ProductionStatus | u
           <Button asChild size="sm" variant="signal">
             <Link to="/get-started">Launch my website</Link>
           </Button>
-          <span className="text-[11.5px] text-muted-foreground">
+          <span className="text-xs text-muted-foreground">
             ${GROWTH_SYSTEM.setupPrice} setup · then ${GROWTH_SYSTEM.monthlyPrice}/month,
             first month free
           </span>

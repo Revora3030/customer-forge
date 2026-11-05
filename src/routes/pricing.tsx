@@ -126,7 +126,7 @@ function Pricing() {
   const monthlyPrice = rates.data?.monthlyPrice ?? GROWTH_SYSTEM.monthlyPrice;
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-dvh">
       <SiteHeader />
       <main className="hero-aura mx-auto max-w-5xl px-4 py-16">
         <p className="eyebrow">Pricing</p>

@@ -182,8 +182,8 @@ function SettingsPage() {
             <div className="space-y-1.5">
               <Label htmlFor="o-slug">Web address</Label>
               <Input id="o-slug" name="slug" defaultValue={org?.slug ?? ""} disabled={!canManage} />
-              <p className="text-[11px] text-muted-foreground">/s/{org?.slug}</p>
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-xs text-muted-foreground">/s/{org?.slug}</p>
+              <p className="text-xs text-muted-foreground">
                 {WORKSPACE_SLUG_RULE} Changing it breaks links and QR codes that use the old
                 address.
               </p>
@@ -212,12 +212,12 @@ function SettingsPage() {
             const name = profile?.full_name || profile?.email || "Team member";
             return (
               <li key={member.id} className="flex items-center gap-3 py-3">
-                <span className="grid size-8 shrink-0 place-items-center rounded-full bg-elevated text-[11px] font-semibold">
+                <span className="grid size-8 shrink-0 place-items-center rounded-full bg-elevated text-xs font-semibold">
                   {initials(name)}
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-[13px] font-medium">{name}</p>
-                  <p className="text-[11px] text-muted-foreground">
+                  <p className="text-xs text-muted-foreground">
                     Joined {dateShort(member.created_at)}
                   </p>
                 </div>

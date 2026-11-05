@@ -83,13 +83,13 @@ export function EmailAuthHealth({
                     <p className="text-[13px] font-medium text-foreground">
                       {LABEL[result.check].name}
                     </p>
-                    <p className="text-[11px] text-muted-foreground">{LABEL[result.check].what}</p>
+                    <p className="text-xs text-muted-foreground">{LABEL[result.check].what}</p>
                   </div>
                   <Pill tone={STATUS[result.status].tone}>{STATUS[result.status].label}</Pill>
                 </div>
                 <p className="text-[13px] text-muted-foreground">{result.summary}</p>
                 {result.record ? (
-                  <code className="block overflow-x-auto rounded-md bg-muted/40 px-2 py-1.5 font-mono text-[11px] break-all text-muted-foreground">
+                  <code className="block overflow-x-auto rounded-md bg-muted/40 px-2 py-1.5 font-mono text-xs break-all text-muted-foreground">
                     {result.record}
                   </code>
                 ) : null}

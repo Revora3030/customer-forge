@@ -74,7 +74,7 @@ export const Route = createFileRoute("/s/$slug/$page")({
   },
   component: SitePageRoute,
   errorComponent: () => (
-    <div className="flex min-h-screen items-center justify-center px-4 text-center">
+    <div className="flex min-h-dvh items-center justify-center px-4 text-center">
       <p className="text-[14px] text-muted-foreground">
         This page couldn't load. Please refresh and try again.
       </p>
@@ -87,7 +87,7 @@ export const Route = createFileRoute("/s/$slug/$page")({
 function PageNotFound() {
   const { slug } = useParams({ strict: false }) as { slug?: string };
   return (
-    <div className="flex min-h-screen items-center justify-center px-4 text-center">
+    <div className="flex min-h-dvh items-center justify-center px-4 text-center">
       <div>
         <h1 className="font-display text-[22px] font-semibold">Page not found</h1>
         <p className="mt-2 text-[13px] text-muted-foreground">This page isn't published yet.</p>

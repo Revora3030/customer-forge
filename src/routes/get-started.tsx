@@ -537,7 +537,7 @@ function GetStarted() {
   }, [search.pay, search.claim, session.isLoading, profileQuery.isLoading, signedIn, claimToken, claimInfo.isLoading, alreadySubscribed, cardsReady, missing]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-dvh">
       <SiteHeader />
       <main className="mx-auto w-full max-w-3xl px-4 py-10 sm:py-14">
         {claiming ? (
@@ -591,7 +591,7 @@ function GetStarted() {
                     : "border-border text-muted-foreground"
               }`}
             >
-              <span className="flex size-5 shrink-0 items-center justify-center rounded-full border border-border text-[11px]">
+              <span className="flex size-5 shrink-0 items-center justify-center rounded-full border border-border text-xs">
                 {step > index ? <Check className="size-3 text-primary" /> : index + 1}
               </span>
               {label}

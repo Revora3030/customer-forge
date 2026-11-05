@@ -47,7 +47,7 @@ export function BeforeAfterSlider({ className = "" }: { className?: string }) {
   return (
     <figure className={className}>
       <p className="mb-2 text-center">
-        <span className="inline-block rounded-full border border-border bg-card px-2.5 py-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+        <span className="inline-block rounded-full border border-border bg-card px-2.5 py-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
           Illustrative example
         </span>
       </p>
@@ -70,11 +70,11 @@ export function BeforeAfterSlider({ className = "" }: { className?: string }) {
           <OutdatedSide />
         </div>
 
-        <span className="pointer-events-none absolute left-3 top-3 rounded-full bg-black/70 px-2.5 py-1 text-[11px] font-medium text-white max-sm:max-w-[42%] max-sm:rounded-xl max-sm:px-2 max-sm:text-center max-sm:text-[10px] max-sm:leading-tight">
+        <span className="pointer-events-none absolute left-3 top-3 rounded-full bg-black/70 px-2.5 py-1 text-xs font-medium text-white max-sm:max-w-[42%] max-sm:rounded-xl max-sm:px-2 max-sm:text-center max-sm:text-xs max-sm:leading-tight">
           Before: typical outdated site
         </span>
         <span
-          className="pointer-events-none absolute right-3 top-3 rounded-full px-2.5 py-1 text-[11px] font-semibold max-sm:max-w-[42%] max-sm:rounded-xl max-sm:px-2 max-sm:text-center max-sm:text-[10px] max-sm:leading-tight"
+          className="pointer-events-none absolute right-3 top-3 rounded-full px-2.5 py-1 text-xs font-semibold max-sm:max-w-[42%] max-sm:rounded-xl max-sm:px-2 max-sm:text-center max-sm:text-xs max-sm:leading-tight"
           style={{ background: GOLD, color: INK }}
         >
           After: Revora-style design
@@ -134,10 +134,10 @@ function OutdatedSide() {
     >
       <div className="px-3 pb-1 pt-12 text-center max-sm:pr-[52%] max-sm:text-left" style={{ background: "#2b4a9b", color: "#fff" }}>
         <p className="text-[clamp(14px,3.2vw,22px)] font-bold">Welcome To Our Website!!!</p>
-        <p className="text-[10px] italic">Your Business Name Here</p>
+        <p className="text-xs italic">Your Business Name Here</p>
       </div>
       <div
-        className="flex flex-wrap justify-center gap-x-3 gap-y-0.5 border-y border-gray-400 bg-gray-300 px-2 py-1 text-[10px] max-sm:justify-start max-sm:pr-[52%]"
+        className="flex flex-wrap justify-center gap-x-3 gap-y-0.5 border-y border-gray-400 bg-gray-300 px-2 py-1 text-xs max-sm:justify-start max-sm:pr-[52%]"
         style={{ color: "#0000ee" }}
       >
         {["Home", "About Us", "Services", "Products", "Links", "Guestbook", "Contact"].map(
@@ -149,7 +149,7 @@ function OutdatedSide() {
         )}
       </div>
       <div className="grid grid-cols-[1fr_1.4fr_1fr] gap-1.5 p-2 max-sm:grid-cols-[1fr_1.4fr] max-sm:pr-[52%]">
-        <div className="space-y-1 border border-gray-400 bg-white p-1.5 text-[9px] leading-tight">
+        <div className="space-y-1 border border-gray-400 bg-white p-1.5 text-xs leading-tight">
           <p className="font-bold" style={{ color: "#c00000" }}>
             NEWS
           </p>
@@ -158,8 +158,8 @@ function OutdatedSide() {
             Click here
           </p>
         </div>
-        <div className="space-y-1 border border-gray-400 bg-white p-1.5 text-[9px] leading-tight">
-          <div className="grid h-12 place-items-center bg-gray-200 text-[9px] text-gray-500">
+        <div className="space-y-1 border border-gray-400 bg-white p-1.5 text-xs leading-tight">
+          <div className="grid h-12 place-items-center bg-gray-200 text-xs text-gray-500">
             [ small blurry photo ]
           </div>
           <p>
@@ -168,7 +168,7 @@ function OutdatedSide() {
           </p>
           <p>Call for a quote. Email us for a quote. Visit us for a quote.</p>
         </div>
-        <div className="space-y-1 border border-gray-400 bg-white p-1.5 text-[9px] leading-tight max-sm:hidden">
+        <div className="space-y-1 border border-gray-400 bg-white p-1.5 text-xs leading-tight max-sm:hidden">
           <p className="font-bold">Links</p>
           <p className="underline" style={{ color: "#0000ee" }}>
             Friend's page
@@ -204,7 +204,7 @@ function RevoraStyleSide() {
           <span>Contact</span>
         </span>
         <span
-          className="rounded-full px-3 py-1 text-[11px] font-semibold"
+          className="rounded-full px-3 py-1 text-xs font-semibold"
           style={{ background: GOLD, color: INK }}
         >
           Get a quote
@@ -218,7 +218,7 @@ function RevoraStyleSide() {
           A clear message, fast pages and a button people can find on a phone.
         </p>
         <span
-          className="mt-3 inline-block rounded-full px-4 py-1.5 text-[11px] font-semibold"
+          className="mt-3 inline-block rounded-full px-4 py-1.5 text-xs font-semibold"
           style={{ background: GOLD, color: INK }}
         >
           Request a free quote
@@ -232,8 +232,8 @@ function RevoraStyleSide() {
             style={{ borderColor: "rgba(218,169,50,.35)", background: "rgba(255,255,255,.04)" }}
           >
             <div className="mb-1.5 h-1.5 w-6 rounded-full max-sm:hidden" style={{ background: GOLD }} />
-            <p className="font-display text-[11px] font-semibold">{label}</p>
-            <p className="mt-0.5 text-[9px] opacity-60 max-sm:hidden">Short description of the service.</p>
+            <p className="font-display text-xs font-semibold">{label}</p>
+            <p className="mt-0.5 text-xs opacity-60 max-sm:hidden">Short description of the service.</p>
           </div>
         ))}
       </div>

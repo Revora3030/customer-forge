@@ -71,7 +71,7 @@ export function ClientWebsiteSummary({
         </div>
         <span
           className={cn(
-            "rounded-full border px-2 py-0.5 text-[11px] tracking-wide uppercase",
+            "rounded-full border px-2 py-0.5 text-xs tracking-wide uppercase",
             live ? "border-primary/40 text-primary" : "border-border text-muted-foreground",
           )}
         >
@@ -82,7 +82,7 @@ export function ClientWebsiteSummary({
       <dl className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-5">
         {stats.map((stat) => (
           <div key={stat.label} className="rounded-md border border-border bg-elevated p-2.5">
-            <dt className="text-[11px] text-muted-foreground">{stat.label}</dt>
+            <dt className="text-xs text-muted-foreground">{stat.label}</dt>
             <dd className="mt-0.5 font-display text-[18px] font-semibold">{stat.value}</dd>
           </div>
         ))}

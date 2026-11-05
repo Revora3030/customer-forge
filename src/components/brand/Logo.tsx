@@ -89,7 +89,7 @@ export function Logo({
             REVORA
           </span>
           {tagline ? (
-            <span className="mt-1 text-[9px] tracking-[0.18em] text-muted-foreground uppercase">
+            <span className="mt-1 text-xs tracking-[0.18em] text-muted-foreground uppercase">
               The Business Growth Operating System
             </span>
           ) : null}

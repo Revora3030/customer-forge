@@ -266,7 +266,7 @@ export function AssistantMedia({
                 : "Voice not available"}
           </Button>
         )}
-        <span className="text-[11px] text-muted-foreground" aria-live="polite">
+        <span className="text-xs text-muted-foreground" aria-live="polite">
           {recording
             ? `Recording — say what you want changed, then press stop. ${seconds}s of ${RECORD_LIMIT_SECONDS}s.`
             : voice.isPending
@@ -302,7 +302,7 @@ export function AssistantMedia({
                   {attachment.name}
                 </span>
                 {indexing.includes(attachment.name) ? (
-                  <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                  <span className="flex items-center gap-1 text-xs text-muted-foreground">
                     <Loader2 className="size-3 animate-spin" aria-hidden="true" /> Indexing moments…
                   </span>
                 ) : null}
@@ -320,7 +320,7 @@ export function AssistantMedia({
 
               {attachment.chapters?.length ? (
                 <div className="mt-2 border-t border-border pt-2">
-                  <p className="text-[11px] font-medium text-muted-foreground">
+                  <p className="text-xs font-medium text-muted-foreground">
                     Moments in this clip — click a timestamp to reference it
                   </p>
                   <ul className="mt-1.5 space-y-1">

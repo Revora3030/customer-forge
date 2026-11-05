@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { SubmitOnceButton } from "@/components/ui/submit-once-button";
 import { isOneClickUnsubscribe, unsubscribeResponse } from "@/lib/one-click-unsubscribe";
 
 /**
@@ -58,9 +59,9 @@ function UnsubscribePage() {
           <h1 className="text-2xl font-semibold">Stop these emails?</h1>
           <p className="text-muted-foreground">We'll stop contacting you about the free demo website we built for your business.</p>
           <form method="post">
-            <button type="submit" className="min-h-11 w-full rounded-md bg-primary px-4 font-medium text-primary-foreground">
-              Unsubscribe
-            </button>
+            <SubmitOnceButton pendingLabel="Working…" className="min-h-11 w-full rounded-md bg-primary px-4 font-medium text-primary-foreground">
+            Unsubscribe
+          </SubmitOnceButton>
           </form>
         </>
       )}

@@ -100,7 +100,7 @@ export function BuilderReturnBar({ organizationId }: { organizationId?: string |
           builder's in-memory state (including unsaved chat) on the way back. */}
       <Link
         to="/app/website"
-        className="inline-flex min-h-8 items-center gap-1 pl-2.5 pr-1 font-display text-[11px] font-semibold transition-opacity hover:opacity-90"
+        className="inline-flex min-h-8 items-center gap-1 pl-2.5 pr-1 font-display text-xs font-semibold transition-opacity hover:opacity-90"
       >
         <ArrowLeft className="size-3" aria-hidden="true" />
         Builder

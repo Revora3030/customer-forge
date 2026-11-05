@@ -174,7 +174,7 @@ function AutomationsPage() {
                           {AUTOMATION_ACTIONS.find((a) => a.value === (s.channel ?? s.action_type))
                             ?.label ?? s.action_type}
                         </Pill>
-                        <span className="text-[11px] text-muted-foreground">
+                        <span className="text-xs text-muted-foreground">
                           {delayLabel(s.delay_minutes)}
                         </span>
                       </div>
@@ -244,7 +244,7 @@ function AutomationsPage() {
               <p className="eyebrow">When: {triggerLabel(recipe.trigger_event)}</p>
               <h3 className="mt-1 font-display text-[15px] font-semibold">{recipe.name}</h3>
               <p className="mt-1 text-[12px] text-muted-foreground">{recipe.description}</p>
-              <p className="mt-2 text-[11px] text-muted-foreground">
+              <p className="mt-2 text-xs text-muted-foreground">
                 {recipe.steps
                   .map((s) => `${delayLabel(s.delay_minutes)} · ${s.action_type}`)
                   .join(" → ")}
@@ -278,7 +278,7 @@ function AutomationsPage() {
             <li key={run.id} className="flex flex-wrap items-center justify-between gap-3 py-2.5">
               <div className="min-w-0">
                 <p className="truncate text-[13px] font-medium">{run.subject}</p>
-                <p className="truncate text-[11px] text-muted-foreground">
+                <p className="truncate text-xs text-muted-foreground">
                   {[
                     (run.leads as { name?: string } | null)?.name,
                     run.action_type,
@@ -301,7 +301,7 @@ function AutomationsPage() {
                 >
                   {run.status}
                 </Pill>
-                <span className="text-[11px] text-muted-foreground">
+                <span className="text-xs text-muted-foreground">
                   {run.status === "queued"
                     ? `due ${relative(run.scheduled_for)}`
                     : relative(run.sent_at ?? run.scheduled_for)}
@@ -348,7 +348,7 @@ function AutomationsPage() {
               <select
                 id="au-trigger"
                 name="trigger"
-                className="h-10 w-full cursor-pointer rounded-md border border-input bg-background px-3 text-sm"
+                className="h-11 sm:h-10 w-full cursor-pointer rounded-md border border-input bg-background px-3 text-sm"
               >
                 {AUTOMATION_TRIGGERS.map((t) => (
                   <option key={t.value} value={t.value}>
@@ -403,7 +403,7 @@ function AutomationsPage() {
                       id="st-action"
                       value={step.action_type}
                       onChange={(e) => setStep({ ...step, action_type: e.target.value })}
-                      className="h-10 w-full cursor-pointer rounded-md border border-input bg-background px-3 text-sm"
+                      className="h-11 sm:h-10 w-full cursor-pointer rounded-md border border-input bg-background px-3 text-sm"
                     >
                       {AUTOMATION_ACTIONS.map((a) => (
                         <option key={a.value} value={a.value}>
@@ -418,7 +418,7 @@ function AutomationsPage() {
                       id="st-delay"
                       value={String(step.delay_minutes)}
                       onChange={(e) => setStep({ ...step, delay_minutes: Number(e.target.value) })}
-                      className="h-10 w-full cursor-pointer rounded-md border border-input bg-background px-3 text-sm"
+                      className="h-11 sm:h-10 w-full cursor-pointer rounded-md border border-input bg-background px-3 text-sm"
                     >
                       {DELAY_PRESETS.map((d) => (
                         <option key={d.minutes} value={d.minutes}>
@@ -448,7 +448,7 @@ function AutomationsPage() {
                     onChange={(e) => setStep({ ...step, body: e.target.value })}
                     placeholder="Hi {{first_name}}, thanks for your {{service}} enquiry…"
                   />
-                  <p className="text-[11px] text-muted-foreground">
+                  <p className="text-xs text-muted-foreground">
                     Tokens: {AUTOMATION_TOKENS.join(" ")}
                   </p>
                 </div>

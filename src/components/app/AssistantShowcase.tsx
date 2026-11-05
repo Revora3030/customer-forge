@@ -68,7 +68,7 @@ export function AssistantShowcase() {
             </Button>
           ))}
         </div>
-        <p className="mt-3 text-[11.5px] text-muted-foreground">
+        <p className="mt-3 text-xs text-muted-foreground">
           Tap an example or write your own words — any wording works, and nothing is applied until
           you approve it. Every change is previewed first and can be rolled back.
         </p>

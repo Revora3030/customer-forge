@@ -112,13 +112,13 @@ export function VersionDiff({ organizationId }: { organizationId: string | undef
                   </div>
                   <div className="mt-2 grid gap-2 sm:grid-cols-2">
                     <div className="rounded-md bg-elevated p-2">
-                      <p className="text-[11px] tracking-wide text-muted-foreground uppercase">
+                      <p className="text-xs tracking-wide text-muted-foreground uppercase">
                         Before
                       </p>
                       <p className="mt-1 text-[13px] whitespace-pre-line">{row.before || "—"}</p>
                     </div>
                     <div className="rounded-md bg-elevated p-2">
-                      <p className="text-[11px] tracking-wide text-muted-foreground uppercase">
+                      <p className="text-xs tracking-wide text-muted-foreground uppercase">
                         After
                       </p>
                       <p className="mt-1 text-[13px] whitespace-pre-line">{row.after || "—"}</p>

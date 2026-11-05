@@ -114,7 +114,7 @@ function ResetPasswordPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
+    <div className="flex min-h-dvh flex-col bg-background">
       <header className="border-b border-border">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
           <Link to="/">
@@ -168,7 +168,7 @@ function ResetPasswordPage() {
                     autoComplete="current-password"
                     required
                   />
-                  <p className="text-[11.5px] text-muted-foreground">
+                  <p className="text-xs text-muted-foreground">
                     Forgot it?{" "}
                     <Link to="/auth" className="text-primary hover:underline">
                       Email yourself a reset link
@@ -209,7 +209,7 @@ function ResetPasswordPage() {
                 Update password
               </Button>
               {ready ? null : (
-                <p className="text-center text-[11.5px] text-muted-foreground">
+                <p className="text-center text-xs text-muted-foreground">
                   Waiting for your reset link — open it in this browser to unlock this form.
                 </p>
               )}

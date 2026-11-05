@@ -81,7 +81,7 @@ export function BuildProgressTracker({ organizationId }: { organizationId: strin
             >
               <StepIcon state={step.state} />
               <span className="min-w-0 flex-1">{step.label}</span>
-              <span className="shrink-0 text-[11px] text-muted-foreground">{STATE_WORD[step.state]}</span>
+              <span className="shrink-0 text-xs text-muted-foreground">{STATE_WORD[step.state]}</span>
             </li>
           ))}
         </ol>

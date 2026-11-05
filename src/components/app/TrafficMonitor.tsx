@@ -98,7 +98,7 @@ export function TrafficMonitor({
               <Stat label="Visits" value={summary.views}>
                 {summary.changePct !== null ? (
                   <span
-                    className={`flex items-center gap-1 text-[11px] ${
+                    className={`flex items-center gap-1 text-xs ${
                       summary.changePct >= 0 ? "text-primary" : "text-destructive"
                     }`}
                   >
@@ -110,7 +110,7 @@ export function TrafficMonitor({
                     {Math.abs(summary.changePct)}% vs previous
                   </span>
                 ) : (
-                  <span className="text-[11px] text-muted-foreground">
+                  <span className="text-xs text-muted-foreground">
                     No earlier period to compare
                   </span>
                 )}
@@ -214,7 +214,7 @@ export function TrafficMonitor({
             />
           </div>
           {query.data?.checkedAt ? (
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               Last checked {dateLong(query.data.checkedAt)}
             </p>
           ) : null}

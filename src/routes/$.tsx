@@ -105,7 +105,7 @@ function HostPageRoute() {
 function HostMessagePage({ business, title, message }: { business: HostBusiness | null; title: string; message: string }) {
   return (
     <main
-      className="flex min-h-screen items-center justify-center px-4 text-center"
+      className="flex min-h-dvh items-center justify-center px-4 text-center"
       style={{ ...(business ? siteFontStyle(business.font) : {}), fontFamily: business ? "var(--font-body, system-ui, sans-serif)" : "system-ui, sans-serif" }}
     >
       {business ? <SiteFontLinks font={business.font} /> : null}

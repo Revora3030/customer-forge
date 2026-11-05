@@ -66,7 +66,7 @@ export function IntakeHub({
                 {field.label}
                 {field.required ? <span className="ml-1 text-accent">*</span> : null}
               </label>
-              <p className="mt-0.5 text-[11px] text-muted-foreground">{field.help}</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">{field.help}</p>
 
               {field.kind === "goal" ? (
                 <div className="mt-2 flex flex-wrap gap-1.5">
@@ -81,7 +81,7 @@ export function IntakeHub({
                           setDraft((d) => ({ ...d, [field.key]: goal.label }))
                         }
                         className={cn(
-                          "cursor-pointer rounded-full border px-2.5 py-1 text-[11px] transition-colors disabled:cursor-not-allowed",
+                          "cursor-pointer rounded-full border px-2.5 py-1 text-xs transition-colors disabled:cursor-not-allowed",
                           active
                             ? "border-primary bg-primary/10 text-foreground"
                             : "border-border text-muted-foreground",
@@ -147,7 +147,7 @@ export function IntakeHub({
                 />
               )}
 
-              <p className="mt-2 text-[11px] text-muted-foreground">
+              <p className="mt-2 text-xs text-muted-foreground">
                 Feeds: {field.usedBy.join(" · ")}
               </p>
             </div>

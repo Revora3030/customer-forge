@@ -180,7 +180,7 @@ export function LeadNotifications({
             disabled={!canManage}
           />
           {!email && fallback ? (
-            <p className="mt-1 text-[11px] text-muted-foreground">
+            <p className="mt-1 text-xs text-muted-foreground">
               Currently using <span className="font-mono">{fallback}</span> from your business
               profile.
             </p>
@@ -217,7 +217,7 @@ export function LeadNotifications({
           <BellRing className="size-4 text-muted-foreground" aria-hidden="true" />
           <div>
             <p className="text-[12px] font-medium">Email me every new booking and lead</p>
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               Turn off to keep them dashboard-only.
             </p>
           </div>
@@ -267,12 +267,12 @@ export function LeadNotifications({
           ) : null}
         </div>
         {webhookStatus.data?.configured ? (
-          <p className="mt-1.5 text-[11px] text-muted-foreground">
+          <p className="mt-1.5 text-xs text-muted-foreground">
             Connected to{" "}
             <span className="font-mono">{webhookStatus.data.host ?? "your saved URL"}</span>.
           </p>
         ) : null}
-        <p className="mt-1.5 text-[11px] text-muted-foreground">
+        <p className="mt-1.5 text-xs text-muted-foreground">
           After a lead is saved, Revora sends a standard POST event to this URL. A slow or failed
           webhook never blocks the visitor's submission.
         </p>
@@ -287,7 +287,7 @@ export function LeadNotifications({
               <KeyRound className="size-3.5" aria-hidden /> Signing secret
             </p>
             <div className="mt-1.5 flex flex-wrap items-center gap-2">
-              <code className="min-w-0 flex-1 truncate rounded bg-muted px-2 py-1 font-mono text-[11px]">
+              <code className="min-w-0 flex-1 truncate rounded bg-muted px-2 py-1 font-mono text-xs">
                 {showSecret ? webhookStatus.data.signingSecret : "whsec_••••••••••••••••"}
               </code>
               <Button variant="ghost" size="sm" onClick={() => setShowSecret((v) => !v)}>
@@ -311,7 +311,7 @@ export function LeadNotifications({
                 Rotate
               </Button>
             </div>
-            <p className="mt-1.5 text-[11px] text-muted-foreground">
+            <p className="mt-1.5 text-xs text-muted-foreground">
               Every delivery carries an <span className="font-mono">x-revora-signature</span> header:{" "}
               <span className="font-mono">t=&lt;unix time&gt;,v1=&lt;hex&gt;</span>, where v1 is
               HMAC-SHA256 of <span className="font-mono">t.body</span> with this secret. Reject

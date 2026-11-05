@@ -416,7 +416,7 @@ function BillingPage() {
                     </Button>
                   </div>
                   {!cardsReady ? (
-                    <p className="mt-2 text-[11px] text-destructive">
+                    <p className="mt-2 text-xs text-destructive">
                       Card checkout is not configured for this build yet.
                     </p>
                   ) : null}
@@ -463,7 +463,7 @@ function BillingPage() {
         ) : (
           <div className="mt-4 overflow-x-auto">
             <table className="w-full min-w-[720px] text-left text-[13px]">
-              <thead className="text-[11px] uppercase tracking-wide text-muted-foreground">
+              <thead className="text-xs uppercase tracking-wide text-muted-foreground">
                 <tr>
                   <th className="pb-2 pr-3">Date</th>
                   <th className="pb-2 pr-3">Service</th>
@@ -491,7 +491,7 @@ function BillingPage() {
                       </Pill>
                     </td>
                     <td className="py-2.5 pr-3 capitalize">{payment.payment_provider}</td>
-                    <td className="py-2.5 font-mono text-[11px]">{paymentReference(payment)}</td>
+                    <td className="py-2.5 font-mono text-xs">{paymentReference(payment)}</td>
                   </tr>
                 ))}
               </tbody>

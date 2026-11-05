@@ -85,7 +85,7 @@ export function BusinessBriefPanel({ brief }: { brief: SiteBrief | null }) {
         </div>
       ) : null}
 
-      <p className="mt-4 text-[11px] text-muted-foreground">
+      <p className="mt-4 text-xs text-muted-foreground">
         {brief.source === "rules"
           ? "Prepared from your information without AI analysis."
           : "Prepared by Revora's business analysis, then checked against your information only."}

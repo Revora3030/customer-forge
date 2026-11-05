@@ -68,7 +68,7 @@ export function WebsiteProject(props: Props) {
             <span className="break-all">{address}</span>
           </p>
         </div>
-        <span className={`rounded-full border px-2.5 py-1 text-[11px] font-medium ${status.tone}`}>
+        <span className={`rounded-full border px-2.5 py-1 text-xs font-medium ${status.tone}`}>
           {status.label}
         </span>
       </div>
@@ -76,14 +76,14 @@ export function WebsiteProject(props: Props) {
       <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
         {stats.map((stat) => (
           <div key={stat.label} className="rounded-md border border-border bg-elevated p-2.5">
-            <p className="text-[11px] text-muted-foreground">{stat.label}</p>
+            <p className="text-xs text-muted-foreground">{stat.label}</p>
             <p className="mt-0.5 font-display text-[16px] font-semibold">{stat.value}</p>
           </div>
         ))}
       </div>
 
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-        <p className="text-[11.5px] text-muted-foreground">
+        <p className="text-xs text-muted-foreground">
           {when(props.lastPublishedAt)}
           {props.domainStatus && props.domainStatus !== "not_connected"
             ? ` · domain ${props.domainStatus.replace(/_/g, " ")}`
@@ -99,7 +99,7 @@ export function WebsiteProject(props: Props) {
         </div>
       </div>
 
-      <p className="mt-2.5 text-[11.5px] text-muted-foreground">
+      <p className="mt-2.5 text-xs text-muted-foreground">
         Every part of your website — section order, hero style, colours and wording — is designed by
         Revora's AI team for your business, so it never looks like another Revora client's site.
       </p>

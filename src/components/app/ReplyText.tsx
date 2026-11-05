@@ -61,13 +61,13 @@ function CodeBlock({ code, lang }: { code: string; lang?: string | undefined }) 
   return (
     <div className="group relative my-3 overflow-hidden rounded-xl border border-border bg-[#0d1117] dark:bg-[#161b22]">
       <div className="flex items-center justify-between border-b border-white/5 px-4 py-2">
-        <span className="text-[11px] font-medium uppercase tracking-wider text-zinc-400">
+        <span className="text-xs font-medium uppercase tracking-wider text-zinc-400">
           {lang || "code"}
         </span>
         <button
           type="button"
           onClick={copy}
-          className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] text-zinc-400 transition-colors hover:bg-white/5 hover:text-zinc-200"
+          className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-zinc-400 transition-colors hover:bg-white/5 hover:text-zinc-200"
           aria-label="Copy code"
         >
           {copied ? <Check className="size-3" /> : <Copy className="size-3" />}

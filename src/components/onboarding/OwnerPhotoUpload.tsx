@@ -206,7 +206,7 @@ export function OwnerPhotoUpload(props: {
                   </button>
                 </div>
                 {photo.note ? (
-                  <p className="text-[11px] leading-snug text-muted-foreground">
+                  <p className="text-xs leading-snug text-muted-foreground">
                     {photo.original && photo.file !== photo.enhanced
                       ? "Using your original."
                       : photo.note}

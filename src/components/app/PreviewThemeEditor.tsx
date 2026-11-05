@@ -160,7 +160,7 @@ export function PreviewThemeEditor({ organizationId, onPreview, onSaved }: Props
       <PopoverContent align="end" className="w-80 space-y-3" aria-label="Site colours" data-testid="preview-theme-editor">
         <div>
           <h2 className="text-[13px] font-semibold">Site colours</h2>
-          <p className="text-[11.5px] text-muted-foreground">Try a look; the preview changes right away. Nothing is saved until you press Save.</p>
+          <p className="text-xs text-muted-foreground">Try a look; the preview changes right away. Nothing is saved until you press Save.</p>
         </div>
 
         {theme.isLoading ? <p role="status" className="text-[12px] text-muted-foreground">Loading your colours…</p> : null}
@@ -177,7 +177,7 @@ export function PreviewThemeEditor({ organizationId, onPreview, onSaved }: Props
               <p role="status" className="text-[12px] text-muted-foreground">Only the site owner or a manager can change colours. You can still look.</p>
             ) : null}
             {theme.data?.unset ? (
-              <p className="text-[11.5px] text-muted-foreground">No colours are saved yet, so the site shows a plain look.</p>
+              <p className="text-xs text-muted-foreground">No colours are saved yet, so the site shows a plain look.</p>
             ) : null}
 
             <fieldset className="min-w-0">
@@ -233,7 +233,7 @@ export function PreviewThemeEditor({ organizationId, onPreview, onSaved }: Props
                 />
               </div>
               {hexInvalid ? (
-                <p id={`${hexId}-error`} role="alert" className="mt-1 text-[11.5px] text-destructive">Use a hex colour like #1d4ed8.</p>
+                <p id={`${hexId}-error`} role="alert" className="mt-1 text-xs text-destructive">Use a hex colour like #1d4ed8.</p>
               ) : null}
             </div>
 
@@ -253,14 +253,14 @@ export function PreviewThemeEditor({ organizationId, onPreview, onSaved }: Props
                   </option>
                 ))}
               </select>
-              <p className="mt-1 text-[11px] text-muted-foreground">Free Google Fonts (Open Font License) the site already loads.</p>
+              <p className="mt-1 text-xs text-muted-foreground">Free Google Fonts (Open Font License) the site already loads.</p>
             </fieldset>
 
             <ChoiceRow legend="Corners" testId="preview-theme-radius" choices={RADIUS_CHOICES} labels={RADIUS_LABELS} value={currentStyle.radius} onChange={(radius) => chooseStyle({ radius })} />
             <ChoiceRow legend="Spacing" testId="preview-theme-density" choices={DENSITY_CHOICES} labels={DENSITY_LABELS} value={currentStyle.density} onChange={(density) => chooseStyle({ density })} />
 
             {warnings.length > 0 ? (
-              <ul role="status" aria-live="polite" data-testid="preview-theme-warnings" className="space-y-1.5 rounded-md border border-amber-500/50 bg-amber-500/10 p-2 text-[11.5px] text-foreground">
+              <ul role="status" aria-live="polite" data-testid="preview-theme-warnings" className="space-y-1.5 rounded-md border border-amber-500/50 bg-amber-500/10 p-2 text-xs text-foreground">
                 {warnings.map((warning) => (
                   <li key={warning.id} className="flex gap-1.5">
                     <TriangleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden />
@@ -270,7 +270,7 @@ export function PreviewThemeEditor({ organizationId, onPreview, onSaved }: Props
               </ul>
             ) : null}
 
-            <p data-testid="preview-theme-live-note" className="text-[11.5px] font-medium text-foreground">This updates your live site.</p>
+            <p data-testid="preview-theme-live-note" className="text-xs font-medium text-foreground">This updates your live site.</p>
 
             <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
               <Button type="button" size="sm" variant="ghost" onClick={discard} disabled={!changed || saving}>

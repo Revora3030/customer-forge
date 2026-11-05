@@ -222,7 +222,7 @@ function CalendarPage() {
                   <select
                     id="a-service"
                     name="service"
-                    className="h-10 w-full cursor-pointer rounded-md border border-input bg-background px-3 text-sm"
+                    className="h-11 sm:h-10 w-full cursor-pointer rounded-md border border-input bg-background px-3 text-sm"
                   >
                     <option value="">No specific service</option>
                     {(services ?? []).map((s) => (
@@ -285,7 +285,7 @@ function CalendarPage() {
                   <li key={appt.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
                     <div className="min-w-0">
                       <p className="text-[13px] font-medium">{appt.name}</p>
-                      <p className="text-[11px] text-muted-foreground">
+                      <p className="text-xs text-muted-foreground">
                         {dateLong(appt.starts_at)} · {timeShort(appt.starts_at)}
                         {serviceName(appt.service_id) ? ` · ${serviceName(appt.service_id)}` : ""}
                       </p>
@@ -339,7 +339,7 @@ function CalendarPage() {
                     <div className="mt-2.5 space-y-1.5">
                       {items.map((appt) => (
                         <div key={appt.id} className="panel-inset p-2">
-                          <p className="tnum text-[11px] text-primary">{timeShort(appt.starts_at)}</p>
+                          <p className="tnum text-xs text-primary">{timeShort(appt.starts_at)}</p>
                           <p className="mt-0.5 truncate text-[12px] font-medium">{appt.name}</p>
                           <p className="mt-1">
                             <Pill tone={appointmentStatusMeta(appt.status).tone}>
@@ -350,7 +350,7 @@ function CalendarPage() {
                             {appt.status === "pending" ? (
                               <button
                                 type="button"
-                                className="cursor-pointer text-[11px] text-primary hover:underline"
+                                className="cursor-pointer text-xs text-primary hover:underline"
                                 onClick={() =>
                                   saveAppointment.mutate({
                                     appointment: appt,
@@ -364,7 +364,7 @@ function CalendarPage() {
                             {appt.status === "confirmed" ? (
                               <button
                                 type="button"
-                                className="cursor-pointer text-[11px] text-primary hover:underline"
+                                className="cursor-pointer text-xs text-primary hover:underline"
                                 onClick={() =>
                                   saveAppointment.mutate({
                                     appointment: appt,
@@ -377,7 +377,7 @@ function CalendarPage() {
                             ) : null}
                             <button
                               type="button"
-                              className="cursor-pointer text-[11px] text-muted-foreground hover:underline"
+                              className="cursor-pointer text-xs text-muted-foreground hover:underline"
                               onClick={() => setRescheduleId(appt.id)}
                             >
                               Move
@@ -420,7 +420,7 @@ function CalendarPage() {
               >
                 <div className="min-w-0">
                   <p className="truncate text-[13px] font-medium">{appt.name}</p>
-                  <p className="truncate text-[11px] text-muted-foreground">
+                  <p className="truncate text-xs text-muted-foreground">
                     {dateLong(appt.starts_at)} · {timeShort(appt.starts_at)}
                     {appt.phone ? ` · ${appt.phone}` : ""}
                     {serviceName(appt.service_id) ? ` · ${serviceName(appt.service_id)}` : ""}
@@ -457,14 +457,14 @@ function CalendarPage() {
                     const offer = reviewOfferFor(appt, automations ?? []);
                     if (offer.kind === "automated") {
                       return (
-                        <span className="text-[11px] text-muted-foreground">
+                        <span className="text-xs text-muted-foreground">
                           Your “Appointment completed” automation follows up by {offer.channel === "email" ? "email" : "text"}
                         </span>
                       );
                     }
                     if (offer.kind === "no_contact") {
                       return (
-                        <span className="text-[11px] text-muted-foreground">
+                        <span className="text-xs text-muted-foreground">
                           No email or phone for a review request
                         </span>
                       );
@@ -492,13 +492,13 @@ function CalendarPage() {
                         {reviewRequests.isError ? (
                           <button
                             type="button"
-                            className="cursor-pointer text-[11px] text-destructive hover:underline"
+                            className="cursor-pointer text-xs text-destructive hover:underline"
                             onClick={() => void reviewRequests.refetch()}
                           >
                             Couldn't check earlier review requests — retry
                           </button>
                         ) : offer.channel === "sms" && offer.needsOptIn && !asked ? (
-                          <span className="text-[11px] text-muted-foreground">
+                          <span className="text-xs text-muted-foreground">
                             Texting needs the customer's opt-in (a START reply); without it the
                             text isn't sent.
                           </span>

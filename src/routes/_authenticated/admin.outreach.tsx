@@ -182,7 +182,7 @@ function AdminOutreach() {
                     >
                       {item.task}
                     </p>
-                    <p className="text-[11px] text-muted-foreground">
+                    <p className="text-xs text-muted-foreground">
                       {item.minutes} min · {item.channel}
                     </p>
                   </div>
@@ -282,7 +282,7 @@ function AdminOutreach() {
               <pre className="mt-3 max-w-full overflow-x-auto rounded-lg border border-border bg-muted/30 p-3 text-[12px] leading-relaxed whitespace-pre-wrap text-foreground">
                 {asset.message}
               </pre>
-              <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">{asset.note}</p>
+              <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{asset.note}</p>
             </Panel>
           ))}
         </div>

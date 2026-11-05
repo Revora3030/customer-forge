@@ -24,7 +24,7 @@ export function JarvisVoiceStatus({ status, line }: { status: VoiceStatus | unde
   const text = line ?? (status ? voiceStatusLine(status) : null);
 
   return (
-    <div className="space-y-1 text-[11px] text-muted-foreground" data-testid="jarvis-voice-status">
+    <div className="space-y-1 text-xs text-muted-foreground" data-testid="jarvis-voice-status">
       <div className="flex flex-wrap items-center gap-2">
         {text ? (
           <p className="min-w-0 flex-1" role="status">

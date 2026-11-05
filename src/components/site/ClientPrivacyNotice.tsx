@@ -45,7 +45,7 @@ export function ClientPrivacyNotice({ site }: { site: Site }) {
   const font = siteFontFor(site.profile?.font_preference ?? null, site.org);
   return (
     <div
-      className="rv-site-root min-h-screen bg-background text-foreground"
+      className="rv-site-root min-h-dvh bg-background text-foreground"
       style={{ ...siteFontStyle(font), fontFamily: "var(--font-body, system-ui, sans-serif)" }}
     >
       <SiteFontLinks font={font} />
