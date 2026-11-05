@@ -21,7 +21,7 @@ import { JarvisHeader, type ChecksSummary } from "@/components/app/jarvis/Jarvis
 import { JarvisComposer, type JarvisMode } from "@/components/app/jarvis/JarvisComposer";
 import { AssistantMessage, UserMessage, type JarvisRow } from "@/components/app/jarvis/JarvisMessage";
 import { NoticeRepeatDigest } from "@/components/app/jarvis/NoticeRepeatDigest";
-import { foldRepeatNotices } from "@/lib/jarvis-notice-digest";
+import { foldRepeatNotices, type FoldedNoticeItem } from "@/lib/jarvis-notice-digest";
 import { RunTaskTree } from "@/components/app/jarvis/RunTaskTree";
 import { ApprovalsInbox } from "@/components/app/jarvis/ApprovalsInbox";
 import { ConversationsSheet } from "@/components/app/jarvis/ConversationsSheet";
@@ -431,8 +431,8 @@ function Jarvis() {
   /** JC-46 then JC-47: quiet digests first; repeat digests fold plain rows between them. */
   const chatItems = useMemo(() => {
     const afterQuiet = foldQuietNotices(messages);
-    type QuietItem = ReturnType<typeof foldQuietNotices>[number];
-    type RepeatItem = ReturnType<typeof foldRepeatNotices>[number];
+    type QuietItem = (typeof afterQuiet)[number];
+    type RepeatItem = FoldedNoticeItem<JarvisRow>;
     type ChatItem =
       | Extract<QuietItem, { kind: "quiet-digest" }>
       | RepeatItem;

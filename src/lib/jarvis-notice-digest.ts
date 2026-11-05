@@ -11,7 +11,7 @@ export type NoticeDigestMember = {
   createdAt: string;
 };
 
-export type FoldedNoticeItem<T extends { id: string; role: string; content: string; created_at: string }> =
+export type FoldedNoticeItem<T extends { id: string; role: "user" | "assistant"; content: string; created_at: string }> =
   | { kind: "row"; row: T }
   | { kind: "repeat-digest"; key: string; ruleId: string; dayKey: string; members: NoticeDigestMember[] };
 
@@ -34,7 +34,7 @@ export function repeatDigestLabel(label: string, count: number): string {
  * Walks chat rows in order. Notices sharing a ruleId + UTC day collapse into
  * one digest at the last member's position when count > 1; singles stay rows.
  */
-export function foldRepeatNotices<T extends { id: string; role: string; content: string; created_at: string }>(
+export function foldRepeatNotices<T extends { id: string; role: "user" | "assistant"; content: string; created_at: string }>(
   rows: readonly T[],
 ): FoldedNoticeItem<T>[] {
   const buckets = new Map<string, NoticeDigestMember[]>();
