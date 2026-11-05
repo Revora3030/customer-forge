@@ -12,7 +12,7 @@ permissions:
 
 concurrency:
   group: revora-quality-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   quality:
@@ -26,7 +26,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 22
 
@@ -59,6 +59,13 @@ jobs:
 
       - name: Lint
         run: npm run lint
+
+      # Every table a migration creates must carry explicit GRANTs in that
+      # same migration (no reliance on Supabase default privileges).
+      - name: Migration grants lint
+        run: |
+          npm run db:grants-lint:test
+          npm run db:grants-lint
 
       - name: Whole-repository audit
         run: npm run repo:audit
@@ -142,6 +149,7 @@ jobs:
     needs: quality
     if: ${{ !cancelled() && needs.quality.result == 'success' && needs.quality.outputs.coverage_uploaded == 'true' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
       code-quality: write

@@ -13,7 +13,7 @@ import {
   type WatchFlag,
   type WatchLogRow,
 } from "@/lib/lead-delivery-watchdog";
-import { runLeadDeliveryWatchdog } from "@/lib/lead-delivery-watchdog.server";
+import { runLeadDeliveryWatchdog, runLeadDeliveryWatchdogJob, WATCHDOG_LEASE_JOB } from "@/lib/lead-delivery-watchdog.server";
 import { sendTemplateEmail } from "@/lib/email-templates/send-email";
 
 const NOW = Date.parse("2026-10-31T20:00:00Z");
@@ -68,6 +68,15 @@ describe("decideLeadDelivery", () => {
     expect(decide({ flag, logs: [log()] })).toMatchObject({ action: "flag", problem: "exhausted" });
   });
 
+  it("gives an exhausted lead one fresh attempt once the alert inbox has changed since the last attempt", () => {
+    const flag: WatchFlag = { state: "open", problem: "exhausted", attempts: WATCHDOG_MAX_ATTEMPTS, next_attempt_at: null };
+    const logs = [log({ recipient: "old@acme.test", created_at: mins(200) }), log({ recipient: "Old@Acme.test", created_at: mins(20) })];
+    expect(decide({ flag, logs })).toMatchObject({ action: "retry", problem: "failed_retrying", recipient: "owner@acme.test" });
+    // Once that fresh attempt has been made (logged to the new inbox), it is exhausted again.
+    const after = [...logs, log({ recipient: "owner@acme.test", created_at: mins(5) })];
+    expect(decide({ flag: { ...flag, attempts: WATCHDOG_MAX_ATTEMPTS + 1 }, logs: after })).toMatchObject({ action: "flag", problem: "exhausted" });
+  });
+
   it("flags a suppressed inbox instead of hammering it", () => {
     expect(decide({ logs: [log({ reason: "recipient_suppressed" })] })).toMatchObject({ action: "flag", problem: "failed_permanent" });
   });
@@ -100,7 +109,14 @@ describe("decideLeadDelivery", () => {
 type Rows = Record<string, Record<string, unknown>[]>;
 
 /** Chainable fake that really applies filters and writes, so scoping and persistence are tested. */
-function fakeDb(tables: Rows) {
+type Op = "select" | "insert" | "update" | "upsert";
+type FakeOptions = {
+  /** Writes (or reads) that fail, e.g. { lead_alert_log: ["insert"] }. */
+  fail?: Partial<Record<string, Op[]>>;
+  rpc?: (name: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string; code?: string } | null }>;
+};
+function fakeDb(tables: Rows, options: FakeOptions = {}) {
+  const fails = (table: string, op: Op) => options.fail?.[table]?.includes(op) ?? false;
   const from = (table: string) => {
     const filters: ((r: Record<string, unknown>) => boolean)[] = [];
     let mode: "select" | "update" | "delete" = "select";
@@ -108,6 +124,7 @@ function fakeDb(tables: Rows) {
     const rows = () => (tables[table] ??= []).filter((r) => filters.every((f) => f(r)));
     const chain: Record<string, unknown> = {};
     const apply = () => {
+      if (fails(table, mode === "delete" ? "update" : mode)) return { data: null, error: { message: `${table} ${mode} refused` } };
       if (mode === "update") for (const r of rows()) Object.assign(r, patch);
       if (mode === "delete") tables[table] = (tables[table] ?? []).filter((r) => !filters.every((f) => f(r)));
       return { data: rows(), error: null };
@@ -125,13 +142,16 @@ function fakeDb(tables: Rows) {
     chain["update"] = (p: Record<string, unknown>) => ((mode = "update"), (patch = p), chain);
     chain["delete"] = () => ((mode = "delete"), chain);
     chain["insert"] = async (r: Record<string, unknown>) => {
+      if (fails(table, "insert")) return { error: { message: `${table} insert refused` } };
       // lifecycle_email_log has a unique (organization_id, kind, window_key).
       if (table === "lifecycle_email_log" && (tables[table] ?? []).some((x) => x["organization_id"] === r["organization_id"] && x["kind"] === r["kind"] && x["window_key"] === r["window_key"]))
         return { error: { message: "duplicate" } };
-      (tables[table] ??= []).push({ ...r });
+      // lead_alert_log.created_at defaults to now() in the database.
+      (tables[table] ??= []).push(table === "lead_alert_log" ? { created_at: new Date().toISOString(), ...r } : { ...r });
       return { error: null };
     };
     chain["upsert"] = async (r: Record<string, unknown>) => {
+      if (fails(table, "upsert")) return { error: { message: `${table} upsert refused` } };
       const list = (tables[table] ??= []);
       const existing = list.find((x) => x["lead_id"] === r["lead_id"]);
       if (existing) Object.assign(existing, r);
@@ -140,7 +160,8 @@ function fakeDb(tables: Rows) {
     };
     return chain;
   };
-  return { from } as never;
+  const rpc = options.rpc ?? (async () => ({ data: null, error: { message: "Could not find the function", code: "PGRST202" } }));
+  return { from, rpc } as never;
 }
 
 const baseTables = (): Rows => ({
@@ -266,13 +287,143 @@ describe("runLeadDeliveryWatchdog", () => {
   });
 });
 
+describe("runLeadDeliveryWatchdog surfaces failed writes", () => {
+  beforeEach(() => vi.mocked(sendTemplateEmail).mockClear().mockResolvedValue({ sent: true }));
+  const errorEvents = (tables: Rows) => tables["lead_watchdog_events"]!.filter((e) => e["event"] === "error").map((e) => String(e["detail"]));
+
+  it("reports a lead_alert_log insert failure but still records the attempt on the flag", async () => {
+    vi.mocked(sendTemplateEmail).mockResolvedValue({ sent: false, reason: "rate_limited" } as never);
+    const tables = baseTables();
+    const run = await runLeadDeliveryWatchdog(fakeDb(tables, { fail: { lead_alert_log: ["insert"] } }), NOW);
+    expect(run.failed).toBe(2); // the failed send and the failed log write
+    expect(run.details).toEqual(expect.arrayContaining([expect.objectContaining({ organizationId: ORG, status: "error", reason: expect.stringContaining("lead_alert_log insert failed") })]));
+    expect(errorEvents(tables)).toEqual([expect.stringContaining("lead_alert_log insert failed")]);
+    // The attempt is still counted, so the next pass backs off instead of resending.
+    expect(tables["lead_delivery_watch"]![0]).toMatchObject({ state: "open", attempts: 1 });
+  });
+
+  it("reports a failed resolve update instead of counting the flag as resolved", async () => {
+    const tables = baseTables();
+    tables["lead_delivery_watch"]!.push({ lead_id: LEAD, organization_id: ORG, state: "open", problem: "failed_retrying", attempts: 1, next_attempt_at: null, owner_notified_at: null });
+    const run = await runLeadDeliveryWatchdog(fakeDb(tables, { fail: { lead_delivery_watch: ["update"] } }), NOW);
+    expect(run.sent).toBe(1);
+    expect(run.resolved).toBe(0);
+    expect(run.failed).toBe(1);
+    expect(errorEvents(tables)).toEqual([expect.stringContaining("lead_delivery_watch resolve")]);
+    expect(tables["lead_delivery_watch"]![0]).toMatchObject({ state: "open" });
+  });
+
+  it("reports a failed audit upsert instead of counting it as resolved", async () => {
+    const tables = baseTables();
+    const run = await runLeadDeliveryWatchdog(fakeDb(tables, { fail: { lead_delivery_watch: ["upsert"] } }), NOW);
+    expect(run.sent).toBe(1);
+    expect(run.resolved).toBe(0);
+    expect(run.failed).toBe(1);
+    expect(errorEvents(tables)).toEqual([expect.stringContaining("lead_delivery_watch upsert")]);
+  });
+
+  it("reports a failed owner_notified_at update after the owner was notified", async () => {
+    const tables = baseTables();
+    tables["lead_alert_log"]!.push({ organization_id: ORG, lead_id: LEAD, recipient: "owner@acme.test", kind: "inquiry", status: "failed", reason: "recipient_suppressed", created_at: mins(25) });
+    const run = await runLeadDeliveryWatchdog(fakeDb(tables, { fail: { lead_delivery_watch: ["update"] } }), NOW);
+    expect(tables["notifications"]).toHaveLength(1);
+    expect(run.failed).toBe(1);
+    expect(errorEvents(tables)).toEqual([expect.stringContaining("owner_notified_at update failed")]);
+    expect(tables["lead_delivery_watch"]![0]!["owner_notified_at"]).toBeNull();
+  });
+
+  it("sends exactly one fresh alert to a changed inbox after retries were exhausted", async () => {
+    vi.mocked(sendTemplateEmail).mockResolvedValue({ sent: false, reason: "rate_limited" } as never);
+    const tables = baseTables();
+    tables["lead_alert_log"]!.push({ organization_id: ORG, lead_id: LEAD, recipient: "old@acme.test", kind: "inquiry", status: "failed", reason: "email_transport_error", created_at: mins(25) });
+    tables["lead_delivery_watch"]!.push({ lead_id: LEAD, organization_id: ORG, state: "open", problem: "exhausted", attempts: WATCHDOG_MAX_ATTEMPTS, next_attempt_at: null, owner_notified_at: mins(60) });
+    await runLeadDeliveryWatchdog(fakeDb(tables), NOW);
+    const leadAlerts = () => vi.mocked(sendTemplateEmail).mock.calls.filter((c) => c[0] === "lead-alert");
+    expect(leadAlerts().map((c) => c[1])).toEqual(["owner@acme.test"]);
+    expect(tables["lead_delivery_watch"]![0]).toMatchObject({ state: "open", problem: "exhausted", attempts: WATCHDOG_MAX_ATTEMPTS + 1 });
+    // The fresh try failed too: later passes leave it exhausted and do not send again.
+    await runLeadDeliveryWatchdog(fakeDb(tables), NOW + 6 * 3_600_000);
+    expect(leadAlerts()).toHaveLength(1);
+  });
+});
+
+describe("runLeadDeliveryWatchdogJob (single flight, escalation always runs)", () => {
+  beforeEach(() => vi.mocked(sendTemplateEmail).mockClear().mockResolvedValue({ sent: true }));
+
+  /** A lease table with the claim_job_lease semantics: claimed only while free or expired. */
+  function leaseRpc(tables: Rows, clock = () => NOW) {
+    return async (name: string, args: Record<string, unknown>) => {
+      expect(name).toBe("claim_job_lease");
+      const list = (tables["job_leases"] ??= []);
+      const row = list.find((r) => r["job"] === args["p_job"]);
+      const until = new Date(clock() + Number(args["p_seconds"]) * 1000).toISOString();
+      if (!row) {
+        list.push({ job: args["p_job"], lease_owner: args["p_owner"], leased_until: until });
+        return { data: true, error: null };
+      }
+      if (row["leased_until"] && Date.parse(String(row["leased_until"])) > clock()) return { data: false, error: null };
+      Object.assign(row, { lease_owner: args["p_owner"], leased_until: until });
+      return { data: true, error: null };
+    };
+  }
+
+  it("runs the pass and the escalation, then releases its lease", async () => {
+    const tables = baseTables();
+    const escalate = vi.fn(async () => ({ escalated: 0 }));
+    const out = await runLeadDeliveryWatchdogJob(fakeDb(tables, { rpc: leaseRpc(tables) }), escalate, { owner: "run-1", now: NOW });
+    expect(out.status).toBe("ok");
+    expect(escalate).toHaveBeenCalledTimes(1);
+    expect(tables["job_leases"]).toEqual([expect.objectContaining({ job: WATCHDOG_LEASE_JOB, lease_owner: null, leased_until: null })]);
+  });
+
+  it("skips a pass that overlaps another one holding the lease", async () => {
+    const tables = baseTables();
+    tables["job_leases"] = [{ job: WATCHDOG_LEASE_JOB, lease_owner: "pg-cron-run", leased_until: new Date(NOW + 300_000).toISOString() }];
+    const escalate = vi.fn(async () => ({}));
+    const out = await runLeadDeliveryWatchdogJob(fakeDb(tables, { rpc: leaseRpc(tables) }), escalate, { owner: "github-backstop", now: NOW });
+    expect(out.status).toBe("busy");
+    expect(escalate).not.toHaveBeenCalled();
+    expect(vi.mocked(sendTemplateEmail)).not.toHaveBeenCalled();
+    expect(tables["lead_watchdog_events"]).toHaveLength(0);
+    // The other run's lease is untouched.
+    expect(tables["job_leases"]![0]).toMatchObject({ lease_owner: "pg-cron-run" });
+  });
+
+  it("still runs the escalation and releases the lease when the watchdog pass throws", async () => {
+    const tables = baseTables();
+    const escalate = vi.fn(async () => ({ escalated: 1 }));
+    const out = await runLeadDeliveryWatchdogJob(fakeDb(tables, { rpc: leaseRpc(tables), fail: { leads: ["select"] } }), escalate, { owner: "run-2", now: NOW });
+    expect(out).toMatchObject({ status: "error", error: expect.stringContaining("leads"), escalation: { escalated: 1 } });
+    expect(escalate).toHaveBeenCalledTimes(1);
+    expect(tables["job_leases"]![0]).toMatchObject({ lease_owner: null });
+  });
+
+  it("runs without the lock until the lease migration is applied", async () => {
+    const tables = baseTables();
+    const escalate = vi.fn(async () => ({}));
+    const out = await runLeadDeliveryWatchdogJob(fakeDb(tables), escalate, { owner: "run-3", now: NOW });
+    expect(out.status).toBe("ok");
+    expect(escalate).toHaveBeenCalledTimes(1);
+  });
+
+  it("ships a service-role-only lease table and an atomic claim", () => {
+    const sql = readFileSync("supabase/migrations/20261105000000_job_leases.sql", "utf8");
+    expect(sql).toContain("CREATE TABLE IF NOT EXISTS public.job_leases");
+    expect(sql).toContain("ALTER TABLE public.job_leases ENABLE ROW LEVEL SECURITY");
+    expect(sql).toContain("REVOKE ALL ON TABLE public.job_leases FROM PUBLIC, anon, authenticated");
+    expect(sql).toContain("GRANT EXECUTE ON FUNCTION public.claim_job_lease(TEXT, TEXT, INTEGER) TO service_role");
+    expect(sql).toMatch(/WHERE l\.leased_until IS NULL OR l\.leased_until < now\(\)/);
+    expect(sql).not.toMatch(/\bdrop\s+(table|policy|column|function)\b/i);
+  });
+});
+
 describe("wiring", () => {
-  it("has a cron-authenticated route, a 5-minute pg_cron schedule, RLS and an hourly backstop", () => {
+  it("has a cron-authenticated route, a 15-minute pg_cron schedule, RLS and an hourly backstop", () => {
     const route = readFileSync("src/routes/api/public/jobs/lead-delivery-watchdog.ts", "utf8");
     expect(route).toContain("authenticateCronRequest(request)");
     expect(route).toContain("runLeadDeliveryWatchdog");
     const sql = readFileSync("supabase/migrations/20261101010000_lead_delivery_watchdog.sql", "utf8");
-    expect(sql).toContain("'*/5 * * * *'");
+    expect(sql).toContain("'*/15 * * * *'");
     expect(sql).toContain("call_revora_job('lead-delivery-watchdog', 600000)");
     expect(sql).toContain("ALTER TABLE public.lead_delivery_watch ENABLE ROW LEVEL SECURITY");
     expect(sql).toContain("ALTER TABLE public.lead_watchdog_events ENABLE ROW LEVEL SECURITY");

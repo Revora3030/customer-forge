@@ -313,3 +313,32 @@ export function pageContextPrefix(page: PageContext | null | undefined): string 
   const path = page.slug === "home" || page.slug === "" ? "/" : `/${page.slug}`;
   return `(The owner has the "${title}" page, ${path}, open in the preview. Treat that as context, not a limit.)`;
 }
+
+/** The composer's "@Section" chip text: the block's name, plus the element when one was picked. */
+export function selectionChipLabel(selection: {
+  label: string | null;
+  kind: string | null;
+  element?: string | null | undefined;
+}): string {
+  const name = (selection.label ?? selection.kind ?? "Section").trim() || "Section";
+  const element = selection.element?.replace(/_/g, " ").trim();
+  return element ? `${name} · ${element}` : name;
+}
+
+/**
+ * The owner's own words for display: drops the page/section context the
+ * composer adds for the AI (the open-page note and block/element ids),
+ * which was showing up inside the owner's chat bubble.
+ */
+export function ownerWords(instruction: string): string {
+  let text = instruction;
+  for (;;) {
+    const next = text
+      .replace(/^\s*\(The owner has the "[^"]*" page, [^,]*, open in the preview\. Treat that as context, not a limit\.\)\s*/, "")
+      .replace(/ \(element [^)]*\)/, "")
+      .replace(/ block \(id [0-9a-z-]+\):/i, " block:");
+    if (next === text) break;
+    text = next;
+  }
+  return text.trim() || instruction.trim();
+}

@@ -11,8 +11,12 @@ const MARK_SRC = "/revora-mark-144.png";
 const MARK_AVIF = "/revora-mark-144.avif";
 const MARK_WEBP = "/revora-mark-144.webp";
 
-/** Revora gold "R" mark — favicon / app icon / dashboard safe. */
-export function LogoMark({ className }: { className?: string }) {
+/**
+ * Revora gold "R" mark — favicon / app icon / dashboard safe.
+ * `alt` defaults to "Revora"; pass `alt=""` when the visible wordmark already
+ * names it (the logo link), so screen readers don't announce the name twice.
+ */
+export function LogoMark({ className, alt = "Revora" }: { className?: string; alt?: string }) {
   return (
     <span
       aria-hidden="true"
@@ -34,7 +38,7 @@ export function LogoMark({ className }: { className?: string }) {
         <source srcSet={MARK_WEBP} type="image/webp" />
         <img
           src={MARK_SRC}
-          alt="Revora"
+          alt={alt}
           width={158}
           height={144}
           className="relative size-full object-contain drop-shadow-[0_2px_6px_color-mix(in_oklab,var(--color-gold)_35%,transparent)]"
@@ -68,16 +72,19 @@ export function Logo({
   className,
   wordmark = true,
   tagline = false,
+  wordmarkClassName,
 }: {
   className?: string;
   wordmark?: boolean;
   tagline?: boolean;
+  /** Extra classes for the REVORA wordmark only (e.g. hide it below a width). */
+  wordmarkClassName?: string;
 }) {
   return (
     <span className={cn("flex items-center gap-2.5", className)}>
-      <LogoMark />
+      <LogoMark alt={wordmark ? "" : "Revora"} />
       {wordmark ? (
-        <span className="flex flex-col leading-none">
+        <span className={cn("flex flex-col leading-none", wordmarkClassName)}>
           <span className="font-display bg-[linear-gradient(100deg,var(--color-gold-deep),var(--color-gold)_40%,var(--color-gold-soft)_60%,var(--color-gold))] bg-clip-text text-[16px] font-bold tracking-[0.16em] text-transparent">
             REVORA
           </span>

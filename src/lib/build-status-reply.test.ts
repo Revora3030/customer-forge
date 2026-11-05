@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildJobRunning, isDeferredBuildReply, settleDeferredReplies, settleDeferredTurns, SETTLED_BUILD_REPLY, STALE_QUEUED_MS } from "./build-status-reply";
+import { QUEUED_FOLLOWUP_LABEL, QUEUED_FOLLOWUP_REPLY, buildJobRunning, isDeferredBuildReply, settleDeferredReplies, settleDeferredTurns, SETTLED_BUILD_REPLY, STALE_QUEUED_MS } from "./build-status-reply";
 
 const deferred = "Got it — your AI team is finishing the first website now. Your request is saved.";
 const now = Date.parse("2026-10-29T12:00:00Z");
@@ -22,5 +22,13 @@ describe("the first-build reply only claims a build while one runs", () => {
     expect(settleDeferredReplies(tasks, true)).toEqual(tasks);
     expect(settleDeferredReplies(tasks, false).map((t) => t.reply)).toEqual([SETTLED_BUILD_REPLY, deferred, "Other"]);
     expect(settleDeferredTurns([{ role: "assistant", content: deferred }, { role: "user", content: deferred }], false).map((t) => t.content)).toEqual([SETTLED_BUILD_REPLY, deferred]);
+  });
+});
+
+describe("follow-up held during a build", () => {
+  it("is labelled queued and still recognised as a deferred reply, so it settles when the build ends", () => {
+    expect(QUEUED_FOLLOWUP_REPLY).toContain(QUEUED_FOLLOWUP_LABEL);
+    expect(QUEUED_FOLLOWUP_LABEL).toBe("Queued, will apply next");
+    expect(isDeferredBuildReply(QUEUED_FOLLOWUP_REPLY)).toBe(true);
   });
 });

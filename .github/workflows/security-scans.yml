@@ -6,9 +6,10 @@ name: Revora Security Scans
 #   1. dependency-audit  bun audit (npm advisory data, free) on bun.lock
 #   2. gitleaks          full-history secret scan, MIT binary run directly
 #                        (the gitleaks-action needs a paid license for orgs)
-#   3. rls-lint          static Supabase RLS / policy lint (scripts/rls-lint.mjs)
-# Complements (does not replace) osv-scanner.yml, secret-scan.yml (TruffleHog),
-# trivy.yml, semgrep.yml and security-gate.yml.
+#   3. rls-lint          static Supabase RLS / policy lint (scripts/rls-lint.mjs),
+#                        over supabase/migrations and drizzle/migrations
+# Complements (does not replace) osv-scanner.yml, trivy.yml and security-gate.yml.
+# gitleaks is the repo's secret scanner (TruffleHog was removed: AGPL-3.0).
 on:
   pull_request:
     branches: [lovable-sync]
@@ -104,7 +105,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
       - name: Lint contract test

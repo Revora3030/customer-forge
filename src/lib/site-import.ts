@@ -85,19 +85,29 @@ export function absolute(href: string, base: string): string {
 
 type JsonObject = Record<string, unknown>;
 
-function jsonLd(html: string): JsonObject[] {
+/** Longest JSON-LD script body read; anything bigger is not a business card. */
+const MAX_JSON_LD_CHARS = 200_000;
+
+/** Every JSON-LD node on one page, @graph members and nested arrays included. */
+export function jsonLdNodes(html: string): JsonObject[] {
   const out: JsonObject[] = [];
-  const visit = (value: unknown) => {
-    if (Array.isArray(value)) value.forEach(visit);
+  const visit = (value: unknown, depth: number) => {
+    if (depth > 6 || out.length > 200) return;
+    if (Array.isArray(value)) value.forEach((item) => visit(item, depth + 1));
     else if (value && typeof value === "object") {
       const object = value as JsonObject;
       out.push(object);
-      if (Array.isArray(object["@graph"])) visit(object["@graph"]);
+      if (Array.isArray(object["@graph"])) visit(object["@graph"], depth + 1);
     }
   };
-  for (const match of html.matchAll(/<script\b[^>]*type\s*=\s*["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)) {
+  for (const match of html.matchAll(/<script\b[^>]*type\s*=\s*["']?application\/ld\+json["']?[^>]*>([\s\S]*?)<\/script>/gi)) {
+    const body = (match[1] ?? "")
+      .replace(/^\s*(?:<!--|\/\/\s*<!\[CDATA\[|<!\[CDATA\[)/, "")
+      .replace(/(?:--!?>|\/\/\s*\]\]>|\]\]>)\s*$/, "")
+      .trim();
+    if (!body || body.length > MAX_JSON_LD_CHARS) continue;
     try {
-      visit(JSON.parse(match[1] ?? ""));
+      visit(JSON.parse(body), 0);
     } catch {
       /* broken JSON-LD on the customer's site is simply skipped */
     }
@@ -105,16 +115,38 @@ function jsonLd(html: string): JsonObject[] {
   return out;
 }
 
-const BUSINESS_TYPE =
-  /LocalBusiness|Organization|Service|Store|Contractor|Plumber|Electrician|Roofing|HVAC|Locksmith|Mover|Dentist|Physician|Clinic|Salon|Spa|Restaurant|Cafe|Bakery|Attorney|LegalService|Accounting|RealEstate|AutoRepair|AutoBody|Cleaning|HomeAndConstruction|Landscap|Painter|PestControl|Veterinar|Gym|Fitness|Photograph|Agency/i;
+/** A specific kind of local business (Plumber, HVACBusiness, Dentist, ...). */
+const SPECIFIC_BUSINESS =
+  /LocalBusiness|Store|Contractor|Plumber|Electrician|Roofing|HVAC|Locksmith|Mover|Dentist|Physician|Clinic|Salon|Spa|Restaurant|Cafe|Bakery|Attorney|LegalService|Accounting|RealEstate|AutoRepair|AutoBody|Cleaning|HomeAndConstruction|Landscap|Painter|PestControl|Veterinar|Gym|Fitness|Photograph|Agency|ProfessionalService|EmergencyService|FinancialService|FoodEstablishment|HealthAndBeautyBusiness|MedicalBusiness|AutomotiveBusiness|HomeGoodsStore|ChildCare|LodgingBusiness|SportsActivityLocation|EntertainmentBusiness|Business$/i;
+/** Types that describe an offering or a page, never the business itself. */
+const NOT_A_BUSINESS = /^(Service|Offer|OfferCatalog|Product|WebSite|WebPage|BreadcrumbList|ListItem|ItemList|Review|AggregateRating|Rating|Person|ImageObject|VideoObject|FAQPage|Question|Answer|Article|BlogPosting|SearchAction|PostalAddress|GeoCoordinates|OpeningHoursSpecification|ContactPoint|Place|Event)$/i;
 
-const types = (object: JsonObject) => [object["@type"]].flat().map(String).join(" ");
-const text = (value: unknown, max = 400) => (typeof value === "string" || typeof value === "number" ? clean(String(value), max) : "");
+const typeList = (object: JsonObject) =>
+  [object["@type"]].flat().map((type) => String(type ?? "").replace(/^https?:\/\/schema\.org\//i, "").trim()).filter(Boolean);
+
+/** 2 for a specific local business, 1 for a plain Organization, 0 otherwise. */
+export function businessRank(object: JsonObject): number {
+  const kinds = typeList(object);
+  if (!kinds.length || !object["name"]) return 0;
+  if (kinds.some((kind) => SPECIFIC_BUSINESS.test(kind) && !NOT_A_BUSINESS.test(kind))) return 2;
+  if (kinds.some((kind) => /^(Organization|Corporation|NGO)$/i.test(kind))) return 1;
+  return 0;
+}
+
+const text = (value: unknown, max = 400): string => {
+  if (typeof value === "string" || typeof value === "number") return clean(String(value), max);
+  if (Array.isArray(value)) return text(value[0], max);
+  return "";
+};
 const firstUrl = (value: unknown): string => {
   if (typeof value === "string") return value;
   if (Array.isArray(value)) return firstUrl(value[0]);
   if (value && typeof value === "object") return firstUrl((value as JsonObject)["url"] ?? (value as JsonObject)["contentUrl"]);
   return "";
+};
+const objectOf = (value: unknown): JsonObject => {
+  const first = Array.isArray(value) ? value[0] : value;
+  return first && typeof first === "object" ? (first as JsonObject) : {};
 };
 
 const PHONE = /(?:\+?1[\s.-]?)?\(?([2-9]\d{2})\)?[\s.-]?(\d{3})[\s.-]?(\d{4})\b/;
@@ -152,24 +184,45 @@ function serviceName(raw: string): string {
   return name;
 }
 
-/** Facts from one page. Later pages only fill what earlier pages left empty. */
-export function extractFacts(html: string, pageUrl: string): ImportedFacts & { links: string[] } {
+/**
+ * Facts from the Schema.org JSON-LD a business publishes on its OWN site
+ * (LocalBusiness and its subtypes, or an Organization). Reads only the page it
+ * is given: it never follows sameAs or any other link, and ratings or reviews
+ * in the markup are never imported. Values are cleaned text, and the owner
+ * reviews them before anything is saved (applyImportedFacts fills empty
+ * fields only).
+ */
+export function extractJsonLdFacts(html: string, pageUrl: string): ImportedFacts {
   const facts: ImportedFacts = { ...EMPTY_FACTS, services: [] };
-  const blocks = jsonLd(html);
-  const business = blocks.find((block) => BUSINESS_TYPE.test(types(block)) && block["name"]);
+  const nodes = jsonLdNodes(html);
+  let business: JsonObject | undefined;
+  let best = 0;
+  for (const node of nodes) {
+    const rank = businessRank(node);
+    if (rank > best) {
+      best = rank;
+      business = node;
+    }
+  }
 
   if (business) {
     facts.businessName = text(business["name"], 120);
     facts.about = text(business["description"], 800);
-    facts.phone = formatPhone(text(business["telephone"], 40));
-    const email = text(business["email"], 120).replace(/^mailto:/i, "");
+    const contact = objectOf(business["contactPoint"]);
+    facts.phone = formatPhone(text(business["telephone"], 40) || text(contact["telephone"], 40));
+    const email = (text(business["email"], 120) || text(contact["email"], 120)).replace(/^mailto:/i, "");
     facts.email = EMAIL.test(email) ? email : "";
-    const address = (business["address"] && typeof business["address"] === "object" ? business["address"] : {}) as JsonObject;
-    facts.city = text(address["addressLocality"], 80);
-    facts.state = text(address["addressRegion"], 40);
-    facts.address = [text(address["streetAddress"], 120), facts.city, [facts.state, text(address["postalCode"], 12)].filter(Boolean).join(" ")]
-      .filter(Boolean)
-      .join(", ");
+    const rawAddress = Array.isArray(business["address"]) ? business["address"][0] : business["address"];
+    if (typeof rawAddress === "string") {
+      facts.address = clean(rawAddress, 240);
+    } else {
+      const address = objectOf(rawAddress);
+      facts.city = text(address["addressLocality"], 80);
+      facts.state = text(address["addressRegion"], 40);
+      facts.address = [text(address["streetAddress"], 120), facts.city, [facts.state, text(address["postalCode"], 12)].filter(Boolean).join(" ")]
+        .filter(Boolean)
+        .join(", ");
+    }
     facts.hours = hours(business["openingHoursSpecification"] ?? business["openingHours"]);
     facts.logoUrl = absolute(firstUrl(business["logo"]), pageUrl);
     facts.heroImageUrl = absolute(firstUrl(business["image"]), pageUrl);
@@ -179,14 +232,39 @@ export function extractFacts(html: string, pageUrl: string): ImportedFacts & { l
       if (/facebook\.com\//i.test(url)) facts.facebook ||= url;
       if (/(google\.[a-z.]+\/maps|g\.page\/|maps\.app\.goo\.gl)/i.test(url)) facts.google ||= url;
     }
-    const catalog = (business["hasOfferCatalog"] && typeof business["hasOfferCatalog"] === "object" ? business["hasOfferCatalog"] : {}) as JsonObject;
-    for (const offer of [business["makesOffer"], catalog["itemListElement"]].flat()) {
-      if (!offer || typeof offer !== "object") continue;
-      const item = ((offer as JsonObject)["itemOffered"] ?? offer) as JsonObject;
-      const name = serviceName(text(item["name"], 80));
-      if (name) facts.services.push({ name, description: text(item["description"], 300) });
-    }
   }
+
+  // Services: the business's offers and catalog (nested catalogs too), plus
+  // standalone Service nodes on the page. Never a Product, rating or review.
+  const offered: unknown[] = [];
+  const walkCatalog = (catalog: unknown, depth: number) => {
+    if (depth > 3) return;
+    for (const entry of [objectOf(catalog)["itemListElement"]].flat()) {
+      if (!entry || typeof entry !== "object") continue;
+      if (typeList(entry as JsonObject).some((kind) => /^OfferCatalog$/i.test(kind))) walkCatalog(entry, depth + 1);
+      else offered.push(entry);
+    }
+  };
+  if (business) {
+    offered.push(...[business["makesOffer"]].flat());
+    walkCatalog(business["hasOfferCatalog"], 0);
+  }
+  for (const node of nodes) if (node !== business && typeList(node).some((kind) => /^Service$/i.test(kind))) offered.push(node);
+  for (const offer of offered) {
+    if (!offer || typeof offer !== "object") continue;
+    const item = objectOf((offer as JsonObject)["itemOffered"] ?? offer);
+    if (typeList(item).some((kind) => /^(Product|Review|AggregateRating)$/i.test(kind))) continue;
+    const name = serviceName(text(item["name"], 80));
+    if (name) facts.services.push({ name, description: text(item["description"], 300) });
+  }
+  return facts;
+}
+
+/** Facts from one page. Later pages only fill what earlier pages left empty. */
+export function extractFacts(html: string, pageUrl: string): ImportedFacts & { links: string[] } {
+  const facts: ImportedFacts = { ...EMPTY_FACTS, services: [] };
+  Object.assign(facts, extractJsonLdFacts(html, pageUrl));
+  facts.services = [...facts.services];
 
   facts.businessName ||= meta(html, "og:site_name") || clean(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] ?? "", 200).split(/\s[|–—-]\s/)[0]!.slice(0, 120);
   facts.about ||= meta(html, "description") || meta(html, "og:description");
@@ -261,6 +339,29 @@ function dedupeServices(services: ImportedService[]): ImportedService[] {
     else if (!existing.description && service.description) existing.description = service.description;
   }
   return [...seen.values()].slice(0, 12);
+}
+
+/**
+ * Maps, review sites, directories and social networks. Their pages describe a
+ * business but are not the owner's own site, and their terms forbid reading
+ * them this way, so the importer refuses them (also after a redirect).
+ */
+const THIRD_PARTY_HOSTS = [
+  /(^|\.)google\.[a-z.]+$/, /(^|\.)goo\.gl$/, /(^|\.)g\.page$/, /(^|\.)maps\.apple\.com$/, /(^|\.)bing\.com$/,
+  /(^|\.)yelp\.[a-z.]+$/, /(^|\.)facebook\.com$/, /(^|\.)instagram\.com$/, /(^|\.)linkedin\.com$/, /(^|\.)nextdoor\.com$/,
+  /(^|\.)angi\.com$/, /(^|\.)angieslist\.com$/, /(^|\.)homeadvisor\.com$/, /(^|\.)thumbtack\.com$/, /(^|\.)houzz\.com$/,
+  /(^|\.)bbb\.org$/, /(^|\.)yellowpages\.com$/, /(^|\.)tripadvisor\.[a-z.]+$/, /(^|\.)mapquest\.com$/, /(^|\.)foursquare\.com$/,
+  /(^|\.)x\.com$/, /(^|\.)twitter\.com$/, /(^|\.)tiktok\.com$/, /(^|\.)porch\.com$/, /(^|\.)manta\.com$/,
+];
+
+export function isThirdPartySource(url: string): boolean {
+  let host: string;
+  try {
+    host = new URL(url).hostname.toLowerCase().replace(/\.$/, "");
+  } catch {
+    return false;
+  }
+  return THIRD_PARTY_HOSTS.some((pattern) => pattern.test(host));
 }
 
 /** Up to three same-site pages worth reading next: services, about, contact. */

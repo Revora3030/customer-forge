@@ -223,7 +223,7 @@ function Contact() {
                 </Button>
 
                 <p className="text-[11px] leading-relaxed text-muted-foreground">
-                  A real person on the Revora team reads every message.
+                  Your message goes to the Revora team inbox.
                 </p>
                 <AltchaField />
               </form>

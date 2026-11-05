@@ -53,7 +53,7 @@ export type ProductionReadiness = {
   checks: ReadinessCheck[];
   blockers: string[];
   /** The video-bar result behind the `video-bar` check, for the owner message and the quality log. */
-  videoBar?: { score: number; bar: number; reason: string; mode: string; tradeSlug: string; blueprintSource?: string; failures: string[]; fixes: string[] };
+  videoBar?: { score: number; bar: number; reason: string; mode: string; tradeSlug: string; blueprintSource?: string; failures: string[]; blockers?: string[]; fixes: string[] };
 };
 
 export type ActivationResult = {
@@ -75,7 +75,7 @@ export const getProductionStatus = createServerFn({ method: "POST" })
     const { data: org, error } = await supabase
       .from("organizations")
       .select(
-        "id, is_demo, is_suspended, subscription_status, trial_ends_at, created_at, setup_paid_at, setup_payment_status",
+        "id, is_demo, is_suspended, subscription_status, trial_ends_at, created_at, setup_paid_at, setup_payment_status, past_due_since",
       )
       .eq("id", data.organizationId)
       .maybeSingle();
@@ -139,7 +139,7 @@ async function gatherReadiness(
   const [org, profile, settings, pages, sections, services] = await Promise.all([
     supabase
       .from("organizations")
-      .select("id, name, is_demo, is_suspended, setup_paid_at, setup_payment_status, trial_ends_at, created_at, subscription_status")
+      .select("id, name, is_demo, is_suspended, setup_paid_at, setup_payment_status, trial_ends_at, created_at, subscription_status, past_due_since")
       .eq("id", organizationId)
       .maybeSingle(),
     supabase
@@ -354,6 +354,7 @@ async function evaluateVideoBarCheck(
         tradeSlug: result.tradeSlug,
         blueprintSource: result.blueprintSource,
         failures: result.score.criteria.filter((c) => !c.met).map((c) => c.id),
+        blockers: result.score.blockers,
         fixes: ownerFixList(result.score),
       },
     };
@@ -399,7 +400,7 @@ export async function publishSiteNow(
   supabase: Parameters<typeof gatherReadiness>[0],
   userId: string,
   orgId: string,
-  options: { liveEdit?: boolean; videoBarOverride?: { reason: string } } = {},
+  options: { liveEdit?: boolean; videoBarOverride?: { reason: string }; restoreVersionId?: string } = {},
 ): Promise<ActivationResult> {
   {
     const context = { supabase };
@@ -429,8 +430,28 @@ export async function publishSiteNow(
       });
     };
 
+    // Restoring an earlier live version republishes that saved snapshot. It
+    // keeps the role and payment gates but not the draft-readiness gates: the
+    // draft can be half-edited, and the snapshot already passed them when it
+    // first went live. The draft itself is never touched.
+    const restoring = Boolean(options.restoreVersionId);
+    let restoreSource: { version: number; generation: unknown; seo: unknown; pages: Record<string, unknown> } | null = null;
+    if (options.restoreVersionId) {
+      const { data: target } = await supabase
+        .from("website_versions")
+        .select("version, generation, seo, pages, published_at")
+        .eq("id", options.restoreVersionId)
+        .eq("organization_id", orgId)
+        .maybeSingle();
+      const body = (target?.pages ?? null) as Record<string, unknown> | null;
+      if (!target || !target.published_at || !body || body["live_format"] !== 1 || !Array.isArray(body["pages"]))
+        throw new Error("That version can't be restored: it isn't a saved copy of a published site.");
+      restoreSource = { version: Number(target.version), generation: target.generation, seo: target.seo, pages: body };
+    }
+
     // Quality log (never blocks, never throws): the video-bar decision for this publish attempt, per trade.
-    if (readiness.videoBar) {
+    // Not logged for a restore: the draft's readiness doesn't describe the restored snapshot.
+    if (!restoring && readiness.videoBar) {
       const vb = readiness.videoBar;
       try {
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -439,7 +460,7 @@ export async function publishSiteNow(
           supabaseAdmin as never,
           publishCheckRow(
             { organizationId: orgId, tradeSlug: vb.tradeSlug, blueprintSource: vb.blueprintSource ?? null },
-            { score: vb.score, bar: vb.bar, passed: videoBarPassed, mode: vb.mode as "enforce" | "warn" | "off", failures: vb.failures },
+            { score: vb.score, bar: vb.bar, passed: videoBarPassed, mode: vb.mode as "enforce" | "warn" | "off", failures: vb.failures, blockers: vb.blockers },
           ),
         );
       } catch {
@@ -447,7 +468,9 @@ export async function publishSiteNow(
       }
     }
 
-    const { data: openDraft } = await supabase
+    const { data: openDraft } = restoring
+      ? { data: null }
+      : await supabase
       .from("website_branches")
       .select("label")
       .eq("organization_id", orgId)
@@ -493,7 +516,8 @@ export async function publishSiteNow(
       }
     }
 
-    if (!readiness.passed && !overridden) {
+    // A restore skips readiness: the saved copy already passed it when it was first published.
+    if (!restoring && !readiness.passed && !overridden) {
       await audit("PUBLISH_BLOCKED", {
         reason: videoFailed && !otherFailed ? "video_bar_below_bar" : "readiness_failed",
         blockers: readiness.blockers,
@@ -530,6 +554,26 @@ export async function publishSiteNow(
     ]);
     const nextVersion = Number(latest?.version ?? 0) + 1;
     const publishedAt = new Date().toISOString();
+    const snapshotRow = restoreSource
+      ? {
+          label: `Production v${nextVersion} (restored from v${restoreSource.version})`,
+          generation: restoreSource.generation ?? {},
+          seo: restoreSource.seo ?? {},
+          // `restored_from` lets the version list show this as its own entry.
+          pages: { ...restoreSource.pages, live_format: 1, restored_from: restoreSource.version },
+        }
+      : {
+          label: `Production v${nextVersion}`,
+          generation: settings?.generation ?? {},
+          seo: settings?.seo ?? {},
+          // `live_format` marks this copy as the one visitors are served until
+          // the next publish (see loadLiveSnapshot).
+          pages: {
+            ...contentSnapshot,
+            live_format: 1,
+            settings_pages: settings?.pages ?? null,
+          },
+        };
 
     // The production version must exist before the site is marked live, and
     // a failed snapshot must stop the launch rather than publish with no
@@ -537,16 +581,10 @@ export async function publishSiteNow(
     const { error: versionError } = await supabase.from("website_versions").insert({
       organization_id: orgId,
       version: nextVersion,
-      label: `Production v${nextVersion}`,
-      generation: settings?.generation ?? {},
-      seo: settings?.seo ?? {},
-      // `live_format` marks this copy as the one visitors are served until
-      // the next publish (see loadLiveSnapshot).
-      pages: {
-        ...contentSnapshot,
-        live_format: 1,
-        settings_pages: settings?.pages ?? null,
-      } as never,
+      label: snapshotRow.label,
+      generation: snapshotRow.generation as never,
+      seo: snapshotRow.seo as never,
+      pages: snapshotRow.pages as never,
       published_at: publishedAt,
       created_by: userId,
     });
@@ -565,7 +603,8 @@ export async function publishSiteNow(
         publish_state: "published",
         published: true,
         last_published_at: publishedAt,
-        review_state: "approved",
+        // A restore never approves the draft the owner is still working on.
+        ...(restoring ? {} : { review_state: "approved" }),
       })
       .eq("organization_id", orgId)
       .select("organization_id, published, publish_state");
@@ -584,7 +623,18 @@ export async function publishSiteNow(
       );
     }
 
-    await audit("PRODUCTION_ACTIVATED", { version: nextVersion, published_at: publishedAt });
+    await audit(
+      restoring ? "SITE_VERSION_RESTORED" : "PRODUCTION_ACTIVATED",
+      restoreSource
+        ? { version: nextVersion, restored_from: restoreSource.version, published_at: publishedAt }
+        : { version: nextVersion, published_at: publishedAt },
+    );
+
+    // Keep at most the newest 20 published versions. Best effort: a failed
+    // cleanup never affects the publish.
+    await import("@/lib/site-versions.server")
+      .then(({ pruneOldPublishedVersions }) => pruneOldPublishedVersions(supabase as never, orgId))
+      .catch(() => undefined);
 
     // Tell Bing and the other IndexNow engines about the published pages. It
     // never throws and is throttled per site, so it cannot fail this launch.
@@ -596,6 +646,8 @@ export async function publishSiteNow(
       activated: true,
       reason: options.liveEdit
         ? "Your change is live."
+        : restoreSource
+        ? `Version ${restoreSource.version} is live again.`
         : "Your website is live. Changes Revora makes from now on go straight to the live site, with an undo point saved before each one.",
       version: nextVersion,
       publishState: "published",

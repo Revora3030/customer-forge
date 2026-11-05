@@ -10,6 +10,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  * keeps one client's website out of another's.
  */
 
+import { guardLeadFormActions } from "@/lib/builder/lead-form-guard";
 import { linkGeneratedMedia } from "@/lib/builder/composition-media-link";
 import { readComposition, restyleCompositionTree, writeComposition, type CompositionNode, type CompositionTree } from "@/lib/builder/composition-tree";
 import { writeBackdrop, writeBackdropSpec, writeSectionEffect } from "@/lib/site-effects";
@@ -17,7 +18,7 @@ import { writeDesignTokens } from "@/lib/builder/design-tokens";
 import { writePremiumSettings } from "@/lib/builder/premium-effects";
 import { writeBlockStyle, writeComponentVisual } from "@/lib/site-style";
 import { writeCustomBlock } from "@/lib/builder/custom-block";
-import { createServerFn } from "@tanstack/react-start";
+import { createServerFn, createServerOnlyFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import {
   MAX_ACTIONS,
@@ -46,6 +47,13 @@ import {
   preflightActions,
   stalePlanMessage,
 } from "@/lib/builder/apply-plan";
+import {
+  hintForSection,
+  resolutionLines,
+  resolvePlanTargets,
+  sectionTargetOf,
+  type ResolverSite,
+} from "@/lib/builder/section-resolver";
 import {
   captureUndoFrom,
   loadUndoSnapshot,
@@ -259,16 +267,128 @@ export const planWebsiteChanges = createServerFn({ method: "POST" })
 
   .handler(async ({ data, context }) => {
     const supabase = context.supabase as unknown as SupabaseLike;
-    const picked = await adminPickedModel(supabase, String(context.userId), data.model);
-    const { withModelPreference } = await import("@/lib/ai/model-preference-scope.server");
-    const { withModelActivity } = await import("@/lib/ai/model-activity-scope.server");
-    const { noteStage } = await import("@/lib/builder/progress.server");
+    const userId = String(context.userId);
+    const picked = await adminPickedModel(supabase, userId, data.model);
     const runId = data.requestId || crypto.randomUUID();
-    const scoped = { ...data, requestId: runId };
-    return withModelActivity(
-      (provider, model) => noteStage(data.organizationId, runId, "model at work", `${provider} · ${model}`),
-      () => withModelPreference(picked, () => planImpl(supabase, String(context.userId), scoped)),
+    const { model: _model, ...rest } = data;
+    const payload = { ...rest, requestId: runId, picked };
+    // Refuse unauthorised workspaces before anything is queued.
+    await assertBuilderAccess(supabase, userId, data.organizationId);
+    // The plan runs as a background job, so leaving the app never stops it.
+    const jobs = await import("@/lib/builder/chat-jobs.server");
+    const job = await jobs.startChatJob({
+      organizationId: data.organizationId,
+      userId,
+      kind: "plan",
+      requestKey: runId,
+      payload: payload as unknown as Record<string, unknown>,
+    });
+    return (await jobs.awaitChatJob(job, await callerOwner(context.supabase), executeBuilderChatJob)) as WebsitePlan;
+  });
+
+/** The caller's own session, for running a job inside their request. */
+async function callerOwner(client: unknown) {
+  const { getRequest } = await import("@tanstack/react-start/server");
+  return {
+    supabase: client as SupabaseClient,
+    authorization: getRequest()?.headers.get("authorization") ?? "",
+  };
+}
+
+/**
+ * Runs one saved builder chat job as its owner — in the background worker, or
+ * inside the owner's request when the worker is unreachable. A plan that the
+ * chat would apply straight away is applied here too (under the same
+ * operation key the browser uses), so the change lands even if the owner
+ * never comes back to the app.
+ */
+export const executeBuilderChatJob = createServerOnlyFn(async (
+  job: import("@/lib/builder/chat-jobs.server").ChatJobRow,
+  owner: { supabase: SupabaseClient; authorization: string },
+): Promise<unknown> => {
+  const { withActingAuthorization } = await import("@/lib/builder/acting-auth.server");
+  const { withModelActivity } = await import("@/lib/ai/model-activity-scope.server");
+  const { noteStage } = await import("@/lib/builder/progress.server");
+  const supabase = owner.supabase as unknown as SupabaseLike;
+  const input = job.input as Record<string, unknown>;
+  const orgId = job.organization_id;
+  if (job.kind === "apply") {
+    const data = input as unknown as ApplyInput;
+    const runId = data.operationKey?.split(":")[0] || job.request_key.split(":")[0]!;
+    return withActingAuthorization(owner.authorization, () =>
+      withModelActivity(
+        (provider, model) => noteStage(orgId, runId, "model at work", `${provider} · ${model}`),
+        () => applyImpl(supabase, job.user_id, { ...data, organizationId: orgId }),
+      ),
     );
+  }
+  const { withModelPreference } = await import("@/lib/ai/model-preference-scope.server");
+  const picked = typeof input["picked"] === "string" ? (input["picked"] as string) : null;
+  const planInput = { ...(input as unknown as PlanInput), organizationId: orgId, requestId: job.request_key };
+  const plan = await withActingAuthorization(owner.authorization, () =>
+    withModelActivity(
+      (provider, model) => noteStage(orgId, job.request_key, "model at work", `${provider} · ${model}`),
+      () => withModelPreference(picked, () => planImpl(supabase, job.user_id, planInput)),
+    ),
+  );
+  const actions = autoApplyActions(plan);
+  if (actions) {
+    const jobs = await import("@/lib/builder/chat-jobs.server");
+    if (!(await jobs.isChatJobCancelled(job.id))) {
+      try {
+        const applyJob = await jobs.startChatJob({
+          organizationId: orgId,
+          userId: job.user_id,
+          kind: "apply",
+          requestKey: job.request_key,
+          payload: {
+            organizationId: orgId,
+            actions,
+            label: (String((plan as { summary?: unknown }).summary ?? "") || planInput.instruction).slice(0, 110) || "Before Revora changes",
+            verify: true,
+            operationKey: job.request_key,
+          },
+          kick: false,
+        });
+        await jobs.awaitChatJob(applyJob, owner, executeBuilderChatJob, { fallbackAfterMs: 0 });
+      } catch (error) {
+        // The plan itself is still good; the browser shows the apply outcome
+        // when it asks for the same operation key.
+        console.warn("[builder-chat] background apply did not finish", error);
+      }
+    }
+  }
+  return plan;
+});
+
+/** Same rule as the chat's auto-apply: only reversible steps, no open questions, first batch. */
+export function autoApplyActions(plan: unknown): unknown[] | null {
+  const value = plan as {
+    steps?: { destructive?: boolean; action?: unknown }[];
+    questions?: unknown[];
+    unavailable?: unknown;
+    deferred?: unknown;
+    conversational?: unknown;
+  } | null;
+  if (!value || value.deferred || value.conversational || value.unavailable) return null;
+  const steps = Array.isArray(value.steps) ? value.steps : [];
+  if (!steps.length || (value.questions?.length ?? 0) > 0) return null;
+  if (steps.some((step) => step.destructive || !step.action)) return null;
+  return steps.slice(0, 400).map((step) => step.action);
+}
+
+/** "Stop waiting" in the chat: a plan still running is dropped and never applied. */
+export const cancelWebsitePlan = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: { organizationId: string; requestId: string }) => ({
+    organizationId: orgIdOf(input),
+    requestId: str(input?.requestId, 80),
+  }))
+  .handler(async ({ data, context }) => {
+    if (!data.requestId) return { cancelled: false };
+    const { cancelChatJob } = await import("@/lib/builder/chat-jobs.server");
+    await cancelChatJob(data.organizationId, String(context.userId), "plan", data.requestId);
+    return { cancelled: true };
   });
 
 /** Only a super admin's pick is honoured; everyone else always gets Auto. */
@@ -561,8 +681,8 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
       // not this mid-build picture.
       const { invalidateWorkspaceContext } = await import("@/lib/agent/workspace-context.server");
       invalidateWorkspaceContext(orgId);
-      const reply =
-        "Got it — your AI team is finishing the first website now. Keep this window open and I’ll apply this change as soon as the build finishes (usually a few minutes).";
+      const { QUEUED_FOLLOWUP_LABEL, QUEUED_FOLLOWUP_REPLY } = await import("@/lib/build-status-reply");
+      const reply = QUEUED_FOLLOWUP_REPLY;
       return settle({
         reply,
         summary: "",
@@ -576,6 +696,7 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
         composition: null as import("@/lib/builder/composition-preview").CompositionPreview | null,
         conversational: true,
         deferred: true,
+        queued: { label: QUEUED_FOLLOWUP_LABEL, appliesAt: "build finished" },
       }, "deferred");
     }
 
@@ -619,6 +740,15 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
     const recall = await recallBrief(supabase as never, orgId);
     if (recall) {
       data.history = [{ role: "user" as const, content: recall }, ...data.history];
+      standingBriefs += 1;
+    }
+    // OWNER'S RULES FOR THEIR SITE: the box the owner wrote themselves (words
+    // never to use, tone, service area). Always applied, on every build, and
+    // counted as a standing brief so trimming a long chat can never drop it.
+    const { siteRulesBriefFor } = await import("@/lib/builder/site-rules.server");
+    const ownerRules = await siteRulesBriefFor(supabase as never, orgId);
+    if (ownerRules) {
+      data.history = [{ role: "user" as const, content: ownerRules }, ...data.history];
       standingBriefs += 1;
     }
     const nextMemory = mergeDesignMemory(priorMemory, data.instruction);
@@ -731,6 +861,7 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
           noteStage(orgId, runId, stage, detail);
         },
         onAttempt: (provider: string, model: string) => noteStage(orgId, runId, planStage, `asking ${provider} · ${model}`),
+        onReplyDraft: (await import("@/lib/builder/progress.server")).replyDraftWriter(orgId, runId),
       };
       const { result: authored, report } = await retryOnceOnTransient(
         (attempt) => {
@@ -800,8 +931,27 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
     const { polishEditCompositions } = await import("@/lib/builder/edit-polish.server");
     const polished = await polishEditCompositions({ organizationId: orgId, instruction, actions: raw["actions"] });
     if (polished.report) trace.push(polished.report.accepted ? "The review team improved this change before showing it to you." : "The review team checked this change; the original design scored best.");
+    // Fail-safe targeting at plan time too: a step naming a section the
+    // planner described rather than identified ("hero", a stale id) is
+    // re-found by role/heading/position, or left out with a reason — never
+    // silently dropped and never pointed at a guessed section.
+    const planSite: ResolverSite = {
+      pages: agentContext.pages.map((page) => ({ id: page.id, slug: page.slug })),
+      sections: allSections.map((section) => ({
+        id: section.id,
+        pageId: section.pageId,
+        kind: section.kind,
+        heading: section.heading,
+        sortOrder: Number(section.sort_order) || 0,
+      })),
+    };
+    const planTargets = resolvePlanTargets(polished.actions, planSite);
+    for (const entry of planTargets.resolved)
+      console.info("[site-agent] plan section target resolved", { runId, type: entry.type, strategy: entry.strategy, detail: entry.detail });
+    for (const entry of planTargets.skipped)
+      droppedReasons.push(`One update was left out because I couldn't tell for sure which section it was for (${entry.reason}).`);
     const parsedActions = readActions(
-      polished.actions,
+      planTargets.actions,
       {
         pageIds: new Set(agentContext.pages.map((page) => page.id)),
         sectionIds: new Set(allSections.map((section) => section.id)),
@@ -811,6 +961,13 @@ async function planImpl(supabase: SupabaseLike, userId: string, data: PlanInput)
       },
       droppedReasons,
     );
+    // Each step remembers what its section looked like when planned, so apply
+    // can still find it if the id changes before the owner presses apply.
+    for (const action of parsedActions) {
+      const sectionId = sectionTargetOf(action as unknown as Record<string, unknown>);
+      const hint = sectionId ? hintForSection(sectionId, planSite) : null;
+      if (hint) Object.assign(action, { targetHint: hint });
+    }
     const actions = parsedActions;
     const index: SiteIndex = { pages: new Map(), sections: new Map(), components: new Map() };
     const currentText = new Map<string, string>();
@@ -907,15 +1064,21 @@ export const applyWebsiteChanges = createServerFn({ method: "POST" })
     }),
   )
   .handler(async ({ data, context }) => {
-    const runId = data.operationKey?.split(":")[0];
-    const work = () => applyImpl(context.supabase as unknown as SupabaseLike, String(context.userId), data);
-    if (!runId) return work();
-    const { withModelActivity } = await import("@/lib/ai/model-activity-scope.server");
-    const { noteStage } = await import("@/lib/builder/progress.server");
-    return withModelActivity(
-      (provider, model) => noteStage(data.organizationId, runId, "model at work", `${provider} · ${model}`),
-      work,
-    );
+    const userId = String(context.userId);
+    const supabase = context.supabase as unknown as SupabaseLike;
+    if (!data.operationKey) return applyImpl(supabase, userId, data);
+    // Keyed applies run as a background job (same key = same job), so leaving
+    // the app mid-apply never cuts the write off half-way.
+    await assertBuilderAccess(supabase, userId, data.organizationId);
+    const jobs = await import("@/lib/builder/chat-jobs.server");
+    const job = await jobs.startChatJob({
+      organizationId: data.organizationId,
+      userId,
+      kind: "apply",
+      requestKey: data.operationKey,
+      payload: data as unknown as Record<string, unknown>,
+    });
+    return (await jobs.awaitChatJob(job, await callerOwner(context.supabase), executeBuilderChatJob)) as Awaited<ReturnType<typeof applyImpl>>;
   });
 
 type ApplyInput = {
@@ -936,6 +1099,23 @@ function treeHasWidget(node: { type?: string; text?: string; children?: unknown[
   for (const child of node.children ?? []) if (treeHasWidget(child as never, name)) return true;
   for (const tab of node.tabs ?? []) for (const child of tab.children ?? []) if (treeHasWidget(child as never, name)) return true;
   return false;
+}
+
+/** The live site reduced to what semantic section resolution reads. */
+function resolverSiteOf(site: {
+  pages: { id: string; slug: string }[];
+  sections: { id: string; page_id: string; kind: string; heading: string | null; sort_order: number }[];
+}): ResolverSite {
+  return {
+    pages: site.pages.map((page) => ({ id: page.id, slug: page.slug })),
+    sections: site.sections.map((section) => ({
+      id: section.id,
+      pageId: section.page_id,
+      kind: section.kind,
+      heading: section.heading,
+      sortOrder: Number(section.sort_order) || 0,
+    })),
+  };
 }
 
 async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInput) {
@@ -1026,8 +1206,18 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
     // right now. A step whose target was deleted or renamed after planning is
     // reported with a reason rather than being dropped in silence.
     const applyDropped: string[] = [];
+    // Fail-safe targeting: a step whose section id no longer matches is
+    // re-found by role, heading or position before it is judged stale, and a
+    // step that cannot be re-found with confidence is skipped on its own
+    // (with a reason) instead of taking the whole bundle down with it.
+    const targets = resolvePlanTargets(data.actions, resolverSiteOf(site));
+    const resolutionNotes = resolutionLines(targets.resolved, targets.skipped);
+    for (const entry of targets.resolved)
+      console.info("[site-agent] section target resolved", { operationId, type: entry.type, strategy: entry.strategy, detail: entry.detail });
+    for (const entry of targets.skipped)
+      console.info("[site-agent] section target skipped (low confidence)", { operationId, type: entry.type, reason: entry.reason });
     const planned = readActions(
-      data.actions,
+      targets.actions,
       {
         pageIds: ANY_ID,
         sectionIds: ANY_ID,
@@ -1035,7 +1225,16 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
       },
       applyDropped,
     );
-    const preflight = preflightActions(planned, {
+    // Lead form guard: a chat edit may move or restyle the enquiry form, booking
+    // form or quote calculator, but not hide, bury or remove it, and not take
+    // away the site's only lead capture. Refused parts are explained to the owner
+    // in plain words; the rest of the edit goes ahead.
+    const leadGuard = guardLeadFormActions(planned, {
+      sections: site.sections,
+      components: site.components,
+    });
+    applyDropped.push(...leadGuard.refused);
+    const preflight = preflightActions(leadGuard.actions, {
       pageIds: new Set(site.pages.map((page) => page.id)),
       sectionIds: new Set(site.sections.map((section) => section.id)),
       componentIds: new Set(site.components.map((component) => component.id)),
@@ -1048,13 +1247,49 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
       components: new Map(site.components.map((component) => [component.id, component])),
     });
     const actions = settled.actions;
-    const staleNotice = stalePlanMessage(preflight.stale, planned.length);
+    // Low-confidence skips are stale steps too: counted and explained, never
+    // silently dropped.
+    const staleTargets = [
+      ...targets.skipped.map((entry) => ({ type: entry.type as AgentAction["type"], target: entry.target, reason: "missing_section" as const })),
+      ...preflight.stale,
+    ];
+    const staleCount = staleTargets.length;
+    const staleNotice = stalePlanMessage(staleTargets, planned.length + targets.skipped.length);
     if (!actions.length) {
-      if (preflight.stale.length) throw new Error(staleNotice);
+      // Partial apply: nothing in this bundle could be placed. Nothing is
+      // written (so no restore point is needed) and the real counts and
+      // reasons go back to the chat instead of a bare error.
+      if (staleCount)
+        return {
+          applied: 0,
+          live: null as { published: boolean; reason: string } | null,
+          failed: 0,
+          unconfirmed: [] as string[],
+          stale: staleCount,
+          unchanged: settled.unchanged,
+          staleNotice,
+          duplicates: preflight.duplicates,
+          details: [
+            ...resolutionNotes,
+            ...preflight.stale.map((entry) => `stale ${entry.type} (${entry.reason})`),
+            ...settled.unchangedLabels,
+            ...applyDropped.map((reason) => `left out — ${reason}`),
+          ],
+          dropped: applyDropped,
+          snapshotLabel: "",
+          snapshotVersion: 0,
+          operationId,
+          alreadyApplied: false,
+          verification: null as VerificationReport | null,
+          qa: null,
+        };
       if (settled.unchanged) {
         throw new Error(
           "Your website already matches that, so there was nothing to change. Nothing was touched.",
         );
+      }
+      if (leadGuard.refused.length) {
+        throw new Error(`${leadGuard.refused.join(" ")} Nothing was changed.`);
       }
       throw new Error("Nothing to apply.");
     }
@@ -1171,9 +1406,10 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
     const applied: string[] = [];
     const failed: string[] = [];
 
-    // Every write records how to reverse itself first. The first failure stops
-    // the run and reverses everything already applied, so an approved plan is
-    // either fully in place or the site is exactly as it was.
+    // Every write records how to reverse itself first. A step that fails is
+    // skipped on its own and reported (partial apply); the restore point taken
+    // above still covers the whole batch. Only a step whose undo cannot be
+    // recorded stops the run and reverses everything already applied.
     const undoSteps: UndoStep[] = [];
     let fatal: unknown = null;
 
@@ -1207,17 +1443,6 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
       overlay.set(key, { ...(overlay.get(key) ?? {}), [column]: value });
     };
 
-    const OPTIONAL_ACTIONS = new Set([
-      "set_block_style",
-      "set_component_visual",
-      "set_theme",
-      "set_design_tokens",
-      "set_premium_fx",
-      "set_backdrop",
-      "set_section_effect",
-      "generate_component_image",
-      "link_generated_image",
-    ]);
 
     const run = async (
       label: string,
@@ -1232,7 +1457,10 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
       } catch (error) {
         console.error("[site-agent] action failed", label, error);
         failed.push(label);
-        if (options.fatalOnError ?? !OPTIONAL_ACTIONS.has(label)) fatal = error;
+        // Partial apply: a refused write skips that one step (its dependants
+        // are skipped too, because their temporary refs never resolve). Only
+        // an explicit fatal write stops the run and reverses the batch.
+        if (options.fatalOnError ?? false) fatal = error;
       }
     };
 
@@ -1434,9 +1662,9 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
       if (action.type === "reorder_sections") {
         const wrongPage = action.sectionIds.find((id) => sectionPage.get(id) !== action.pageId);
         if (wrongPage) {
-          fatal = new Error("A section reorder tried to cross page boundaries.");
+          // Invalid on its own: skip this step, keep the rest of the bundle.
           failed.push("reorder_sections:cross_page_target");
-          break;
+          continue;
         }
       }
       if (action.type === "reorder_components") {
@@ -1444,9 +1672,8 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
           (id) => componentSection.get(id) !== action.sectionId,
         );
         if (wrongSection) {
-          fatal = new Error("A component reorder tried to cross section boundaries.");
           failed.push("reorder_components:cross_section_target");
-          break;
+          continue;
         }
       }
 
@@ -1464,7 +1691,7 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
         continue;
       }
       // Same for components and styling targets: never write against a
-      // made-up id, because one rejected write reverses the entire batch.
+      // made-up id; the step is skipped and reported instead.
       if ("componentId" in action && !UUID_ID.test(action.componentId)) {
         failed.push(`${action.type}:unresolved_component`);
         continue;
@@ -1482,6 +1709,14 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
         fatal = error;
         break;
       }
+      // Partial apply bookkeeping: if this one step fails, only what it wrote
+      // itself (e.g. a created row it could not finish) is reversed, and the
+      // in-memory column overlay forgets values it never saved. Earlier and
+      // later steps are unaffected; the batch-level undo steps captured above
+      // stay in place for a verification rollback.
+      const failedBeforeStep = failed.length;
+      const ownUndoStart = undoSteps.length;
+      const overlayBeforeStep = new Map(overlay);
       switch (action.type) {
         case "set_section_text":
           await run(action.type, () =>
@@ -1961,6 +2196,12 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
           );
           break;
       }
+      if (failed.length > failedBeforeStep) {
+        const own = undoSteps.splice(ownUndoStart);
+        if (own.length) await rollback(own);
+        overlay.clear();
+        for (const [key, value] of overlayBeforeStep) overlay.set(key, value);
+      }
       void sortOf;
     }
 
@@ -2147,7 +2388,7 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
           operationKey: data.operationKey || null,
           applied: applied.length,
           failed: failed.length,
-          stale: preflight.stale.length,
+          stale: staleCount,
           unchanged: settled.unchanged,
           duplicates: preflight.duplicates,
           staleNotice,
@@ -2299,8 +2540,8 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
       failed: failed.length,
       /** Writes whose saved value did not match on read-back — never reported as done. */
       unconfirmed,
-      /** Steps that could not run because their target no longer exists. */
-      stale: preflight.stale.length,
+      /** Steps that could not run because their target no longer exists (or could not be re-found with confidence). */
+      stale: staleCount,
       /** Steps that needed no write because the site already matched them. */
       unchanged: settled.unchanged,
       staleNotice,
@@ -2310,6 +2551,7 @@ async function applyImpl(supabase: SupabaseLike, userId: string, data: ApplyInpu
         ...applied.map((label) => `applied ${label}`),
         ...failed.map((label) => `skipped ${label}`),
         ...unconfirmed.map((label) => `not confirmed on read-back: ${label}`),
+        ...resolutionNotes,
         ...preflight.stale.map((entry) => `stale ${entry.type} (${entry.reason})`),
         ...settled.unchangedLabels,
         ...applyDropped.map((reason) => `left out — ${reason}`),

@@ -22,8 +22,8 @@ export const WATCHDOG_LOOKBACK_MS = 72 * HOUR;
 /** Wait before the Nth watchdog retry (index = attempts already made). */
 export const WATCHDOG_BACKOFF_MS = [0, 10 * MINUTE, 30 * MINUTE, HOUR, 3 * HOUR] as const;
 export const WATCHDOG_MAX_ATTEMPTS = WATCHDOG_BACKOFF_MS.length;
-/** /admin shows the watchdog itself as stale after this long without a heartbeat (it runs every 5 minutes). */
-export const WATCHDOG_STALE_RUN_MS = 20 * MINUTE;
+/** /admin shows the watchdog itself as stale after this long without a heartbeat (it runs every 15 minutes; this allows one late or missed pass). */
+export const WATCHDOG_STALE_RUN_MS = 35 * MINUTE;
 
 /** Reasons a resend cannot fix; retrying only repeats the failure. */
 export const PERMANENT_ALERT_REASONS = new Set(["recipient_suppressed", "no_email_address"]);
@@ -101,10 +101,21 @@ export function decideLeadDelivery(input: {
 
   const attempts = flag?.attempts ?? 0;
   const currentProblem = (flag?.problem ?? "never_attempted") as WatchdogProblem;
-  if (attempts >= WATCHDOG_MAX_ATTEMPTS) return { action: "flag", problem: "exhausted", reason };
+  // Out of retries, unless the owner has since changed the alert inbox: the
+  // last attempt went to a different address, so the new one gets exactly one
+  // fresh try. That try is logged under the new address, so if it fails too
+  // the lead is exhausted again until the inbox changes once more.
+  const freshAfterExhausted = attempts >= WATCHDOG_MAX_ATTEMPTS && recipientChanged;
+  if (attempts >= WATCHDOG_MAX_ATTEMPTS && !freshAfterExhausted) return { action: "flag", problem: "exhausted", reason };
 
   const nextAt = time(flag?.next_attempt_at);
-  const due = !flag || !Number.isFinite(nextAt) || nextAt <= now || flag.problem === "no_alert_inbox" || flag.problem === "failed_permanent";
+  const due =
+    freshAfterExhausted ||
+    !flag ||
+    !Number.isFinite(nextAt) ||
+    nextAt <= now ||
+    flag.problem === "no_alert_inbox" ||
+    flag.problem === "failed_permanent";
   if (!due) return { action: "flag", problem: currentProblem, reason };
 
   return {

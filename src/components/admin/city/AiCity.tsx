@@ -6,9 +6,11 @@ import { ArrowUpRight, Box, Building2, CheckCircle2, List, Pause, Play, RefreshC
 import { BrandEmblem } from "@/components/brand/Logo";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { CITY_DISTRICTS, attentionItems, cityCommandDraft, districtCounts, districtForKey, districtFromParam, districtState, hourlyBuckets, salesMissionDraft, workIsActive, type CityWork, type DistrictId, type SalesMission } from "@/lib/ai-city";
+import { CITY_DISTRICTS, NO_ACKS, applyAcknowledged, attentionItems, cityCommandDraft, districtCounts, districtFailureSummary, districtForKey, failedLabel, parseAcks, triageDraft, type CityAcks, districtFromParam, districtState, hourlyBuckets, salesMissionDraft, workIsActive, type CityWork, type DistrictId, type SalesMission } from "@/lib/ai-city";
 import { CityActivity } from "./CityActivity";
 import { CityAttention } from "./CityAttention";
+import { CitySvgMap } from "./CitySvgMap";
+import { CITY_2D_QUERY } from "./city-render";
 import { DistrictCarousel } from "./DistrictCarousel";
 import { GROWTH_SYSTEM } from "@/lib/offer";
 import { DistrictInspector } from "./DistrictInspector";
@@ -53,14 +55,22 @@ export function AiCity() {
   const [motion, setMotion] = useState(true);
   const [reset, setReset] = useState(0);
   const [palette, setPalette] = useState<CitySceneProps["palette"]>();
+  // null until measured, so a phone never starts loading the 3D scene before the check runs.
+  const [flatMap, setFlatMap] = useState<boolean | null>(null);
   const [tab, setTab] = useState<"work" | "activity" | "models" | "routines">("work");
   const health = useQuery({ queryKey: ["admin-city-catalogue"], queryFn: () => loadHealth(), enabled: tab === "models" });
   const [evidence, setEvidence] = useState<CityWork | null>(null);
   const [diagnosticOpen, setDiagnosticOpen] = useState(false);
   const [now, setNow] = useState(0);
   const [inspectorOpen, setInspectorOpen] = useState(false);
-  const [clearedBefore, setClearedBefore] = useState(0);
+  // Failures the owner dismissed. Kept on this device so a reload does not bring a dismissed problem back;
+  // a failure recorded after the dismissal always counts again.
+  const [acks, setAcks] = useState<CityAcks>(NO_ACKS);
+  const saveAcks = (next: CityAcks) => { setAcks(next); try { localStorage.setItem("revora:city-acks", JSON.stringify(next)); } catch { /* storage unavailable */ } };
   const openDistrict = (id: DistrictId) => { setSelected(id); setInspectorOpen(true); };
+  useEffect(() => {
+    try { setAcks(parseAcks(localStorage.getItem("revora:city-acks"))); } catch { /* storage unavailable */ }
+  }, []);
   useEffect(() => {
     const style = getComputedStyle(document.documentElement);
     const token = (key: string) => style.getPropertyValue(`--city-${key}`).trim();
@@ -68,16 +78,19 @@ export function AiCity() {
     const media = window.matchMedia("(prefers-reduced-motion: reduce)");
     const sync = () => { if (media.matches) { setMotion(false); setView("operations"); } };
     sync(); media.addEventListener("change", sync);
+    const narrow = window.matchMedia(CITY_2D_QUERY);
+    const syncNarrow = () => setFlatMap(narrow.matches);
+    syncNarrow(); narrow.addEventListener("change", syncNarrow);
     const timer = window.setInterval(() => setNow(Date.now()), 15_000);
     setNow(Date.now());
-    return () => { clearInterval(timer); media.removeEventListener("change", sync); };
+    return () => { clearInterval(timer); media.removeEventListener("change", sync); narrow.removeEventListener("change", syncNarrow); };
   }, []);
-  const snapshot = query.isError ? undefined : query.data;
+  const snapshot = query.isError ? undefined : applyAcknowledged(query.data, acks);
   const district = CITY_DISTRICTS.find(d => d.id === selected) ?? CITY_DISTRICTS[0];
   const rows = Object.values(snapshot?.sources ?? {}).flatMap(source => source.rows);
   const work = rows.filter(row => row.district === selected).sort((a, b) => b.at.localeCompare(a.at));
   const active = rows.filter(row => workIsActive(row, now)).length;
-  const attention = attentionItems(snapshot, now).filter((item) => Date.parse(item.row.at) > clearedBefore);
+  const attention = attentionItems(snapshot, now, 1000);
   const unavailable = Object.entries(snapshot?.sources ?? {}).filter(([, source]) => !source.available).map(([key]) => key);
   const inspect = useMutation({ mutationFn: () => diagnostic({ data: { toolId: district.tool } }), onSettled: () => setDiagnosticOpen(true) });
   const seedRoutines = useServerFn(seedDefaultRoutinesFn);
@@ -122,7 +135,7 @@ export function AiCity() {
         const state = districtState(d.id, snapshot, now);
         const counts = districtCounts(snapshot, d.id, now);
         const dot = state === "working" ? "bg-success" : state === "attention" ? "bg-gold" : state === "unavailable" ? "bg-destructive" : "bg-muted-foreground";
-        return <button key={d.id} type="button" onClick={() => openDistrict(d.id)} className={`min-h-16 rounded-md border px-3 py-2 text-left ${selected === d.id ? "border-gold bg-gold/10" : "border-border"}`}><span className={`mb-1 block size-2 rounded-full ${dot} ${state === "working" && motion ? "animate-pulse motion-reduce:animate-none" : ""}`} /><span className="block text-xs font-semibold">{d.role}</span><span className="block truncate text-[11px] text-muted-foreground">{d.name}</span><span className="block text-[11px] capitalize text-muted-foreground">{counts ? `${counts.running} running · ${counts.errors} failed` : state}</span></button>;
+        return <button key={d.id} type="button" onClick={() => openDistrict(d.id)} className={`min-h-16 rounded-md border px-3 py-2 text-left ${selected === d.id ? "border-gold bg-gold/10" : "border-border"}`}><span className={`mb-1 block size-2 rounded-full ${dot} ${state === "working" && motion ? "animate-pulse motion-reduce:animate-none" : ""}`} /><span className="block text-xs font-semibold">{d.role}</span><span className="block truncate text-[11px] text-muted-foreground">{d.name}</span><span className="block text-[11px] capitalize text-muted-foreground">{counts ? `${counts.running} running · ${failedLabel(districtFailureSummary(snapshot, d.id, now))}` : state}</span></button>;
       })}
     </section>
     {query.isError ? <div role="alert" className="flex flex-wrap items-center gap-3 text-sm text-destructive">City records could not be read. Activity is unavailable.<Button variant="outline" onClick={() => query.refetch()}>Retry</Button></div> : null}
@@ -133,7 +146,7 @@ export function AiCity() {
     </div>
     <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
       <section className="min-w-0" aria-label="AI workforce districts">
-        {view === "city" ? <div className="relative z-0 h-[68vh] min-h-[420px] touch-none overflow-hidden rounded-xl border border-white/10 sm:min-h-[560px]" aria-label="Interactive 3D workforce city"><div className="pointer-events-none absolute inset-0 z-10 bg-[radial-gradient(ellipse_at_center,rgba(212,175,55,0.16),transparent_62%)]" aria-hidden="true" /><SceneBoundary onFailure={() => setView("operations")}><Suspense fallback={<p className="p-6 text-muted-foreground">Loading city architecture…</p>}>{palette ? <CityScene snapshot={snapshot} selected={selected} onSelect={openDistrict} palette={palette} motion={motion} reset={reset} onFailure={() => setView("operations")} /> : null}</Suspense></SceneBoundary><div className="pointer-events-none absolute bottom-3 left-3 bg-background/90 px-3 py-2 text-xs text-muted-foreground">{snapshot ? `Records checked ${new Date(snapshot.checkedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : "Awaiting records"} · 7 districts · keys 1–7 or arrows switch district</div><ul aria-label="Colour key" className="pointer-events-none absolute right-3 top-3 space-y-1 rounded bg-background/90 px-3 py-2 text-[11px] text-muted-foreground"><li><span className="mr-1.5 inline-block size-2 rounded-full bg-success" />Working</li><li><span className="mr-1.5 inline-block size-2 rounded-full bg-destructive" />Failed</li><li><span className="mr-1.5 inline-block size-2 rounded-full bg-gold" />Waiting</li><li><span className="mr-1.5 inline-block size-2 rounded-full bg-muted-foreground" />Unreadable</li></ul></div> : null}
+        {view === "city" ? <div className="relative z-0 h-[68vh] min-h-[420px] touch-none overflow-hidden rounded-xl border border-white/10 sm:min-h-[560px]" aria-label={flatMap ? "Workforce city map" : "Interactive 3D workforce city"}><div className="pointer-events-none absolute inset-0 z-10 bg-[radial-gradient(ellipse_at_center,rgba(212,175,55,0.16),transparent_62%)]" aria-hidden="true" />{flatMap ? <CitySvgMap snapshot={snapshot} selected={selected} now={now} onSelect={openDistrict} /> : flatMap === false ? <SceneBoundary onFailure={() => setView("operations")}><Suspense fallback={<p className="p-6 text-muted-foreground">Loading city architecture…</p>}>{palette ? <CityScene snapshot={snapshot} selected={selected} onSelect={openDistrict} palette={palette} motion={motion} reset={reset} onFailure={() => setView("operations")} /> : null}</Suspense></SceneBoundary> : null}<div className="pointer-events-none absolute bottom-3 left-3 bg-background/90 px-3 py-2 text-xs text-muted-foreground">{snapshot ? `Records checked ${new Date(snapshot.checkedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : "Awaiting records"} · 7 districts · keys 1–7 or arrows switch district</div><ul aria-label="Colour key" className="pointer-events-none absolute right-3 top-3 space-y-1 rounded bg-background/90 px-3 py-2 text-[11px] text-muted-foreground"><li><span className="mr-1.5 inline-block size-2 rounded-full bg-success" />Working</li><li><span className="mr-1.5 inline-block size-2 rounded-full bg-destructive" />Failed</li><li><span className="mr-1.5 inline-block size-2 rounded-full bg-gold" />Waiting</li><li><span className="mr-1.5 inline-block size-2 rounded-full bg-muted-foreground" />Unreadable</li></ul></div> : null}
         <div className={view === "operations" ? "grid gap-2 sm:grid-cols-2" : "mt-3 hidden grid-cols-2 gap-2 sm:grid sm:grid-cols-3"}>
           {CITY_DISTRICTS.map(d => { const state = districtState(d.id, snapshot, now); return <Button key={d.id} variant="outline" aria-pressed={selected === d.id} className={`h-auto min-h-16 min-w-0 justify-start whitespace-normal px-3 py-3 text-left ${selected === d.id ? "border-gold bg-gold/10" : ""}`} onClick={() => openDistrict(d.id)}><Building2 className="size-4 shrink-0 text-gold" /><span className="min-w-0"><span className="block text-xs font-semibold">{d.name}</span><span className={`block text-[11px] capitalize ${STATUS_TONE[state]}`}>{state}</span></span></Button>; })}
         </div>
@@ -147,7 +160,7 @@ export function AiCity() {
       </section>
     </div>
     {snapshot ? <Sparkline values={hourlyBuckets(Object.values(snapshot.sources).flatMap((source) => source.rows), now)} label="Recorded work per hour, last 24 hours" /> : null}
-    <CityAttention items={attention} available={!!snapshot} onOpen={row => { setSelected(row.district); setEvidence(row); }} onClear={() => setClearedBefore(Date.now())} />
+    <CityAttention items={attention} available={!!snapshot} onOpen={row => { setSelected(row.district); setEvidence(row); }} onTriage={(group) => sendDraft(triageDraft(group, now))} onDismiss={(key) => saveAcks({ ...acks, groups: { ...acks.groups, [key]: Date.now() } })} onClear={() => saveAcks({ ...acks, all: Date.now() })} />
     <section className="border-t border-border pt-5">
       <div className="flex flex-wrap gap-2" role="tablist" aria-label="Workforce records">{(["work", "activity", "models", "routines"] as const).map(key => <Button key={key} role="tab" aria-selected={tab === key} variant={tab === key ? "secondary" : "ghost"} onClick={() => setTab(key)}>{key === "work" ? "Work & evidence" : key === "activity" ? "All activity" : key === "models" ? "Lovable workforce" : "Saved routines"}</Button>)}</div>
       <div className="mt-4" role="tabpanel">

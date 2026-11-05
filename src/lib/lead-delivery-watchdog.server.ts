@@ -16,7 +16,7 @@ import {
 } from "@/lib/lead-delivery-watchdog";
 
 /**
- * Lead-delivery watchdog (runs every 5 minutes, pg_cron -> call_revora_job ->
+ * Lead-delivery watchdog (runs every 15 minutes, pg_cron -> call_revora_job ->
  * /api/public/jobs/lead-delivery-watchdog).
  *
  * For every real lead from the last 72 hours (plus any lead that still has an
@@ -85,6 +85,14 @@ export async function runLeadDeliveryWatchdog(db: Db, now = Date.now()): Promise
       detail: detail ? detail.slice(0, 300) : null,
     });
     if (error) console.error("[lead-delivery-watchdog] event log failed", error.message);
+  };
+  /** A write that must not abort the lead's handling: counted, logged and reported, never silent. */
+  const writeFailed = async (organizationId: string, leadId: string, what: string, message: string) => {
+    run.failed += 1;
+    const reason = `${what} failed: ${message}`;
+    console.error("[lead-delivery-watchdog]", reason);
+    run.details.push({ organizationId, status: "error", reason: reason.slice(0, 120) });
+    await event(organizationId, leadId, "error", reason);
   };
 
   // 1. Candidate leads: recent ones, plus older ones that still carry an open flag.
@@ -216,7 +224,7 @@ export async function runLeadDeliveryWatchdog(db: Db, now = Date.now()): Promise
           // The SAME key as the original send: the provider dedupes, so this can never be a second email.
           `lead-alert-${leadId}`,
         );
-        await db.from("lead_alert_log").insert({
+        const { error: logError } = await db.from("lead_alert_log").insert({
           organization_id: organizationId,
           lead_id: leadId,
           recipient: decision.recipient,
@@ -224,6 +232,9 @@ export async function runLeadDeliveryWatchdog(db: Db, now = Date.now()): Promise
           status: result.ok ? "sent" : "failed",
           reason: result.ok ? null : result.reason,
         });
+        // Surfaced, not thrown: the send already happened, so the flag below must
+        // still record the attempt (otherwise every pass would resend).
+        if (logError) await writeFailed(organizationId, leadId, "lead_alert_log insert", logError.message);
         await event(organizationId, leadId, result.ok ? "retry_sent" : "retry_failed", result.ok ? `attempt ${attempts}` : `attempt ${attempts}: ${result.reason}`);
         if (result.ok) {
           run.sent += 1;
@@ -238,16 +249,17 @@ export async function runLeadDeliveryWatchdog(db: Db, now = Date.now()): Promise
       if (problem === null) {
         // Retry got an accepted alert: close the flag (it only exists if one was opened earlier).
         if (open) {
-          await db
+          const { error: resolveError } = await db
             .from("lead_delivery_watch")
             .update({ state: "resolved", resolved_at: iso(now), resolution: "alert_sent_by_retry", attempts, last_attempt_at: lastAttemptAt, last_checked_at: iso(now), updated_at: iso(now) })
             .eq("lead_id", leadId)
             .eq("organization_id", organizationId);
+          if (resolveError) throw new Error(`lead_delivery_watch resolve: ${resolveError.message}`);
           run.resolved += 1;
           await event(organizationId, leadId, "resolved", "alert_sent_by_retry");
         } else {
           // Never flagged to the owner (fixed within this pass): keep an audit row of the save.
-          await db.from("lead_delivery_watch").upsert(
+          const { error: auditError } = await db.from("lead_delivery_watch").upsert(
             {
               lead_id: leadId,
               organization_id: organizationId,
@@ -263,6 +275,7 @@ export async function runLeadDeliveryWatchdog(db: Db, now = Date.now()): Promise
             },
             { onConflict: "lead_id" },
           );
+          if (auditError) throw new Error(`lead_delivery_watch upsert: ${auditError.message}`);
           run.resolved += 1;
         }
         continue;
@@ -304,7 +317,13 @@ export async function runLeadDeliveryWatchdog(db: Db, now = Date.now()): Promise
           });
           if (noteError) console.error("[lead-delivery-watchdog] owner notification failed", noteError.message);
           else {
-            await db.from("lead_delivery_watch").update({ owner_notified_at: iso(now) }).eq("lead_id", leadId);
+            const { error: notedError } = await db
+              .from("lead_delivery_watch")
+              .update({ owner_notified_at: iso(now) })
+              .eq("lead_id", leadId)
+              .eq("organization_id", organizationId);
+            // The owner was told; only the marker failed, so the next pass may tell them again. Surface it.
+            if (notedError) await writeFailed(organizationId, leadId, "owner_notified_at update", notedError.message);
             await event(organizationId, leadId, "owner_notified", problem);
           }
         }
@@ -351,4 +370,49 @@ export async function runLeadDeliveryWatchdog(db: Db, now = Date.now()): Promise
   await db.from("lead_watchdog_events").delete().eq("event", "run").lt("created_at", iso(now - 14 * 86_400_000));
   await db.from("lead_watchdog_events").delete().lt("created_at", iso(now - 90 * 86_400_000));
   return run;
+}
+
+/** Lease name and length for the watchdog's single-flight lock (job timeout is 600 s). */
+export const WATCHDOG_LEASE_JOB = "lead-delivery-watchdog";
+export const WATCHDOG_LEASE_SECONDS = 660;
+
+export type WatchdogJobResult =
+  | { status: "busy"; escalation: null }
+  | { status: "ok"; watchdog: WatchdogRun; escalation: unknown }
+  | { status: "error"; error: string; escalation: unknown };
+
+/**
+ * One scheduled pass: claim the single-flight lease (pg_cron every 15 minutes
+ * and the hourly GitHub Actions backstop can overlap), run the watchdog, then
+ * ALWAYS run the speed-to-lead escalation, even when the watchdog pass threw.
+ * A pass that finds the lease held does nothing and reports "busy"; the run
+ * holding it does both steps.
+ */
+export async function runLeadDeliveryWatchdogJob(
+  db: Db & Pick<SupabaseClient, "rpc">,
+  escalate: () => Promise<unknown>,
+  options: { owner?: string; now?: number } = {},
+): Promise<WatchdogJobResult> {
+  const { claimJobLease, releaseJobLease } = await import("@/lib/job-lease.server");
+  const owner = options.owner ?? `watchdog-${crypto.randomUUID()}`;
+  const lease = await claimJobLease(db, WATCHDOG_LEASE_JOB, owner, WATCHDOG_LEASE_SECONDS);
+  if (lease === "busy") return { status: "busy", escalation: null };
+  // "error" (the claim itself failed) runs unlocked rather than skipping: this
+  // is the safety net for lost lead alerts, retries reuse each lead's original
+  // idempotency key, and a missed pass is worse than a rare overlap.
+  if (lease === "error") console.error("[lead-delivery-watchdog] lease claim failed; running this pass without the lock");
+  try {
+    let watchdog: WatchdogRun | null = null;
+    let failure: string | null = null;
+    try {
+      watchdog = await runLeadDeliveryWatchdog(db, options.now);
+    } catch (error) {
+      failure = error instanceof Error ? error.message : "unknown error";
+      console.error("[lead-delivery-watchdog job]", error);
+    }
+    const escalation = await escalate();
+    return watchdog ? { status: "ok", watchdog, escalation } : { status: "error", error: (failure ?? "unknown error").slice(0, 200), escalation };
+  } finally {
+    if (lease === "claimed") await releaseJobLease(db, WATCHDOG_LEASE_JOB, owner);
+  }
 }

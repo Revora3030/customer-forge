@@ -9,8 +9,9 @@
  *
  * usage: node scripts/page-sweep.mjs [baseUrl] [--max=120] [--per-family=4] [--out=page-sweep.json] [--target=24]
  * --top=N sets how many offenders are listed (default 40).
- * --a11y runs axe-core (WCAG 2.0/2.1/2.2 A and AA rules) on every page at phone width and lists the rules
- * that fail, most widespread first. Automated rules cannot prove a page is accessible; they only find what they can.
+ * --a11y runs the IBM Equal Access engine (accessibility-checker-engine, Apache-2.0, WCAG 2.2 policy) on every
+ * page at phone width and lists the rules that fail, most widespread first. Only definite failures are counted;
+ * "needs review" results are not. Automated rules cannot prove a page is accessible; they only find what they can.
  * --all-viewports also measures 320px (small phone) and 768px (tablet) for sideways scrolling and layout.
  * --target=44 holds phone tap targets to the 44px comfort size instead of the 24px WCAG 2.5.8
  * minimum, and lists the controls that miss it, most widespread first, so shared chrome shows up.
@@ -69,15 +70,15 @@ const familyOf = (path) => path.split("/")[1] ?? "";
 const findings = [];
 // Small phone targets by control, across every page: signature -> { region, size, pages }.
 const targetOffenders = new Map();
-// axe rule id -> { impact, help, pages, nodes }
+// IBM Equal Access rule id -> { impact, help, pages, nodes }
 const a11yRules = new Map();
-let axeSource = null;
+let aceSource = null;
 if (RUN_A11Y) {
   try {
     const { readFileSync } = await import("node:fs");
-    axeSource = readFileSync(createRequire(import.meta.url).resolve("axe-core/axe.min.js"), "utf8");
+    aceSource = readFileSync(createRequire(import.meta.url).resolve("accessibility-checker-engine/ace.js"), "utf8");
   } catch {
-    console.log(JSON.stringify({ status: "NOT_VERIFIED", reason: "axe-core is not installed (run bun install)" }));
+    console.log(JSON.stringify({ status: "NOT_VERIFIED", reason: "accessibility-checker-engine is not installed (run bun install)" }));
     process.exit(2);
   }
 }
@@ -180,17 +181,25 @@ while (queue.length && pages.length < max) {
     }
     if (RUN_A11Y && viewport.name === "phone" && status < 400) {
       try {
-        await page.evaluate(axeSource);
+        await page.evaluate(aceSource);
         const result = await page.evaluate(async () => {
-          const r = await axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"] } });
-          return r.violations.map((v) => ({ id: v.id, impact: v.impact, help: v.help, nodes: v.nodes.length }));
+          // WCAG_2_2 is the engine's WCAG 2.2 A and AA policy. A definite failure has value ["VIOLATION", "FAIL"].
+          const report = await new window.ace.Checker().check(document, ["WCAG_2_2"]);
+          const byRule = new Map();
+          for (const r of report.results) {
+            if (r.value[0] !== "VIOLATION" || r.value[1] !== "FAIL") continue;
+            const entry = byRule.get(r.ruleId) ?? { id: r.ruleId, impact: "violation", help: r.message, nodes: 0 };
+            entry.nodes += 1;
+            byRule.set(r.ruleId, entry);
+          }
+          return [...byRule.values()];
         });
         for (const v of result) {
           const entry = a11yRules.get(v.id) ?? { impact: v.impact, help: v.help, pages: new Set(), nodes: 0 };
           entry.pages.add(path);
           entry.nodes += v.nodes;
           a11yRules.set(v.id, entry);
-          add(path, "phone", v.impact === "critical" || v.impact === "serious" ? "P1" : "P2", "a11y", `${v.id}: ${v.help} (${v.nodes} elements)`);
+          add(path, "phone", "P1", "a11y", `${v.id}: ${v.help} (${v.nodes} elements)`);
         }
       } catch (error) {
         add(path, "phone", "P2", "a11y-error", String(error.message).slice(0, 120));

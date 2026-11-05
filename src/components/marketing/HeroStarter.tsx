@@ -204,7 +204,7 @@ export function HeroStarter({ className = "" }: { className?: string }) {
             id="starter-name"
             value={businessName}
             onChange={(e) => setBusinessName(e.target.value)}
-            placeholder="Business name (e.g. Apex Auto Detail)"
+            placeholder="Business name"
             maxLength={120}
             autoComplete="organization"
           />
@@ -238,7 +238,7 @@ export function HeroStarter({ className = "" }: { className?: string }) {
             setWebsite(e.target.value);
             if (websiteError) setWebsiteError(null);
           }}
-          placeholder="Have a website or Google Maps link? Paste it (optional)"
+          placeholder="Website or Maps link (optional)"
           maxLength={2000}
           inputMode="url"
           autoComplete="url"
@@ -251,12 +251,12 @@ export function HeroStarter({ className = "" }: { className?: string }) {
           </p>
         ) : null}
       </div>
-      <Button type="submit" variant="signal" size="lg" className="mt-3 w-full">
+      <Button type="submit" variant="signal" size="lg" className="mt-3 w-full" data-hero-cta>
         {website.trim().length > 3 && !looksLikeMapsLink(website) ? "Upgrade my website free" : "Start free"} —{" "}
         {GROWTH_SYSTEM.fullAccessWindow}, no card{" "}
         <ArrowRight className="size-4" aria-hidden="true" />
       </Button>
-      <p className="mt-2 text-center text-[11.5px] text-muted-foreground">
+      <p className="mt-2 text-center text-[11.5px] text-muted-foreground max-sm:pe-14">
         No card to start · you review everything before it goes live
       </p>
       <label className="sr-only" htmlFor="starter-about">

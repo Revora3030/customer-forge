@@ -15,10 +15,17 @@ import appCss from "../styles.css?url";
 import dmSans400 from "@fontsource/dm-sans/files/dm-sans-latin-400-normal.woff2?url";
 import dmSans600 from "@fontsource/dm-sans/files/dm-sans-latin-600-normal.woff2?url";
 import instrumentSerif400 from "@fontsource/instrument-serif/files/instrument-serif-latin-400-normal.woff2?url";
-import spaceGrotesk600 from "@fontsource/space-grotesk/files/space-grotesk-latin-600-normal.woff2?url";
+import spaceGrotesk700 from "@fontsource/space-grotesk/files/space-grotesk-latin-700-normal.woff2?url";
 import { Toaster } from "@/components/ui/sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { ensureProfile, enforceSessionPolicy, resolvePostLoginPath } from "@/lib/auth-session";
+import {
+  clearSessionPolicy,
+  ensureProfile,
+  enforceSessionPolicy,
+  resolvePostLoginPath,
+} from "@/lib/auth-session";
+import { isSafeRedirect } from "@/lib/prospect-claim";
+import { clearBuilderCachedTurns, resetSignedOutState } from "@/lib/signed-out-reset";
 import { ORGANIZATION_SCHEMA, WEBSITE_SCHEMA, isClientSiteMatch } from "@/lib/seo";
 import { RouteError, RouteNotFound } from "@/components/app/RouteStates";
 import { CookieConsent } from "@/components/marketing/CookieConsent";
@@ -29,6 +36,7 @@ import { reportRouteError } from "@/lib/route-error-reporting";
 import { BOOT_WATCHDOG } from "@/lib/boot-watchdog";
 import { describeClientError, errorFromWindowEvent, isStaleDeployError, reloadOnceForNewBuild } from "@/lib/client-error-classify";
 import { safeJsonLd } from "@/lib/json-ld";
+import { speculationRulesScript } from "@/lib/speculation-rules";
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   /**
@@ -75,6 +83,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
           { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" },
           { name: "robots", content: "max-image-preview:large, max-snippet:-1" },
         ],
+        // Hover prefetch for the client site's own pages (see speculation-rules.ts).
+        scripts: [speculationRulesScript],
         links: [{ rel: "stylesheet", href: appCss }],
       };
     }
@@ -111,10 +121,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     scripts: [
       // Consent Mode defaults must exist before the Google Ads tag loads.
       // Granted globally, denied in regions that require consent until the
-      // visitor answers the cookie banner.
+      // visitor answers the cookie banner. Keep the region list in step with
+      // CONSENT_COUNTRIES in src/lib/consent.ts.
       {
         children:
-          "window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('consent','default',{ad_storage:'granted',ad_user_data:'granted',ad_personalization:'granted'});gtag('consent','default',{ad_storage:'denied',ad_user_data:'denied',ad_personalization:'denied',wait_for_update:500,region:['AT','BE','BG','HR','CY','CZ','DK','EE','FI','FR','DE','GR','HU','IE','IT','LV','LT','LU','MT','NL','PL','PT','RO','SK','SI','ES','SE','IS','LI','NO','GB','CH','CA-QC']});",
+          "window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('consent','default',{ad_storage:'granted',ad_user_data:'granted',ad_personalization:'granted',analytics_storage:'granted'});gtag('consent','default',{ad_storage:'denied',ad_user_data:'denied',ad_personalization:'denied',analytics_storage:'denied',wait_for_update:500,region:['AT','BE','BG','HR','CY','CZ','DK','EE','FI','FR','DE','GR','HU','IE','IT','LV','LT','LU','MT','NL','PL','PT','RO','SK','SI','ES','SE','IS','LI','NO','GB','CH','CA']});",
       },
       // Boot watchdog: the app's own stale-build guard only runs once the app
       // has started, so a page whose code bundle failed to load (a cached or
@@ -124,14 +135,18 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { children: BOOT_WATCHDOG },
       { type: "application/ld+json", children: safeJsonLd(ORGANIZATION_SCHEMA) },
       { type: "application/ld+json", children: safeJsonLd(WEBSITE_SCHEMA) },
+      // Hover prefetch for full-page navigations; signed-in, token and
+      // side-effect paths are excluded (see speculation-rules.ts).
+      speculationRulesScript,
     ],
     links: [
       { rel: "stylesheet", href: appCss },
       // DM Sans, Instrument Serif and Space Grotesk are self-hosted through
       // Fontsource (imported in styles.css), so no Google Fonts links here. The four faces
-      // the first screen uses are preloaded (marketing pages only) so the swap happens
+      // the first screen draws (body 400, buttons and nav 600, the editorial headline, and the
+      // 700-weight REVORA wordmark in the header) are preloaded (marketing pages only) so the swap happens
       // before first paint, with metric-matched fallbacks in styles.css as the safety net.
-      ...[dmSans400, dmSans600, instrumentSerif400, spaceGrotesk600].map((href) => ({
+      ...[dmSans400, dmSans600, instrumentSerif400, spaceGrotesk700].map((href) => ({
         rel: "preload",
         as: "font",
         type: "font/woff2",
@@ -171,6 +186,12 @@ function RootComponent() {
   const router = useRouter();
 
   useEffect(() => {
+    // Hydration marker for the a11y + CLS gate (scripts/a11y-cls-gate.mjs):
+    // set once React has hydrated, so measurements start from the live page.
+    document.documentElement.dataset["hydrated"] = "true";
+  }, []);
+
+  useEffect(() => {
     // Entry pages a returning client can land on after signing back in
     // (email/password, magic link, or an OAuth round-trip back to the origin).
     const entryPaths = new Set(["/", "/auth"]);
@@ -180,10 +201,10 @@ function RootComponent() {
       let target: string | null = null;
       try {
         const stored = sessionStorage.getItem("lle:redirect");
-        if (stored && stored.startsWith("/")) {
-          sessionStorage.removeItem("lle:redirect");
-          target = stored;
-        }
+        // One-shot: drop it either way, and only follow a same-site path
+        // ("//evil.com", "/\\evil.com" and "/javascript:" start with "/" too).
+        if (stored !== null) sessionStorage.removeItem("lle:redirect");
+        if (isSafeRedirect(stored)) target = stored;
       } catch {
         /* storage unavailable */
       }
@@ -215,16 +236,23 @@ function RootComponent() {
     try {
       const { data } = supabase.auth.onAuthStateChange((event) => {
         if (event !== "SIGNED_IN" && event !== "SIGNED_OUT" && event !== "USER_UPDATED") return;
-        if (event !== "SIGNED_OUT")
-          void ensureProfile().catch((error) => reportRouteError(error, { boundary: "profile_bootstrap" }));
-        // A shared device must not show the previous owner's builder chat.
-        if (event === "SIGNED_OUT")
-          void import("@/lib/builder-memory").then((memory) => memory.clearAllCachedTurns()).catch(() => undefined);
-        router.invalidate();
-        if (event !== "SIGNED_OUT") {
-          queryClient.invalidateQueries();
-          if (event === "SIGNED_IN") void sendToDashboard();
+        if (event === "SIGNED_OUT") {
+          // Covers sessions that end without the Sign out button too (expired
+          // or revoked refresh token, sign-out in another tab): a shared
+          // device must not keep the previous account's cached data, builder
+          // chat or "remember me" choice. Re-running the route guards then
+          // sends protected pages to /auth.
+          void resetSignedOutState({
+            queryClient,
+            clearSessionPolicy,
+            clearCachedTurns: clearBuilderCachedTurns,
+          }).finally(() => void router.invalidate());
+          return;
         }
+        void ensureProfile().catch((error) => reportRouteError(error, { boundary: "profile_bootstrap" }));
+        router.invalidate();
+        queryClient.invalidateQueries();
+        if (event === "SIGNED_IN") void sendToDashboard();
       });
       unsubscribe = () => data.subscription.unsubscribe();
     } catch (error) {

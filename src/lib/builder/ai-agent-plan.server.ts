@@ -12,6 +12,7 @@
  * ships a stock layout or filler wording.
  */
 
+import { partialJsonStringField, withTextDeltas } from "@/lib/ai/text-delta-scope.server";
 import { callBestThinker } from "@/lib/ai/thinker.server";
 import type { AgentContext } from "@/lib/site-agent.server";
 import { MAX_ACTIONS } from "@/lib/site-agent";
@@ -54,53 +55,88 @@ const DESIGN_RULES = [
     "Design for this exact business using its supplied facts. You decide the layout, hierarchy, type, colour, spacing, imagery and conversion flow directly in the actions below.",
   "Work at mobile and desktop: never propose something that only reads well on a wide screen.",
   "For a direct style request, change only the requested property and target. Use set_block_style for literal backgrounds, text colours, typography, spacing, sizing, borders, buttons and responsive overrides. You may choose any value inside the documented safe numeric ranges rather than only common preset increments.",
-  "Phone-only requests (\"on mobile…\", \"on phones…\", \"for phones…\"): use set_block_style with device \"mobile\" so desktop and tablet stay unchanged. Hide a section on phones with patch {\"hidden\":true} (show it again with {\"hidden\":null}); move a section on phones with patch {\"order\":N} (N is its phone position, 1 = first), and when moving send an order for every section on that page in the same reply. Never use set_section_visibility or reorder_sections for a phone-only request: those also change desktop. Lead guard: never hide an enquiry, quote or booking section on phones (kinds quote, booking, contact, or any section with an enquiry_form, booking_form or quote_calculator widget): leave it showing, say it stays visible so visitors can always contact the business, and never move it lower than its desktop position on phones.",
+  "Phone-only requests (\"on mobile…\", \"on phones…\", \"for phones…\"): use set_block_style with device \"mobile\" so desktop and tablet stay unchanged. Hide a section on phones with patch {\"hidden\":true} (show it again with {\"hidden\":null}); move a section on phones with patch {\"order\":N} (N is its phone position, 1 = first), and when moving send an order for every section on that page in the same reply. Never use set_section_visibility or reorder_sections for a phone-only request: those also change desktop. Lead guard: never hide an enquiry, quote or booking section on phones (kinds quote, booking, contact, or any section with an enquiry_form, booking_form or quote_calculator widget): leave it showing, say it stays visible so visitors can always contact the business, and never move it lower than its desktop position on phones. The same goes for the form itself: never hide, remove or bury (hidden, near-zero opacity) the enquiry_form, booking_form or quote_calculator widget or a container holding one, on phones or anywhere, and never remove the site's only lead capture; moving or restyling the form is fine. Say so in one plain sentence such as \"I kept your enquiry form visible so visitors can always reach you.\"",
   "A vague request such as 'change the background color' must produce a clearly perceptible change from the current colour while preserving readable contrast. Never replace a colour with a near-identical shade.",
   "In customer messages, 'front' or 'fronts' beside colour, background or style almost always means 'font' or 'fonts'. Treat it as typography, never silently reinterpret it as foreground colour. Only change foreground or text colour when those words are explicit.",
   "If the owner asks for a whole-site or all-pages colour change, update every explicit section or component colour that would otherwise override the new theme.",
+  "Act decisively like a senior designer: when a request is clear enough to act on, propose the full change now with your best judgement instead of asking. Ask a question only when the answer changes what you would build and you cannot reasonably infer it; never ask for permission for ordinary design improvements.",
+  "When the owner names a section by what it shows (\"the hero\", \"the pricing part\", \"the photos\"), find the matching section in the website below and copy its exact id; never invent or shorten an id.",
+  "Keep the reply short, warm and concrete: say what you will change and why it helps, in plain words, without lecturing about rules.",
 ].join(" ");
 
+
 /** Compact JSON contract. Anything outside it is dropped by the validator. */
+const FONT_CHOICE = "any Google Fonts family name";
+
+/**
+ * Everything in the action contract that does not depend on the site. It is
+ * part of the frozen system prefix (see PLANNER_STATIC_PREFIX), so it must not
+ * read the context, the date or anything per-request.
+ */
+const STATIC_ACTION_CONTRACT = [
+  "Reply with ONE JSON object and nothing else:",
+  '{"reply":string,"summary":string,"requirements":string[],"questions":string[],"notes":string[],"scope":{"breadth":"style|section|page|site","operation":"edit|redesign","sectionIds":[id,...],"pageIds":[id,...]},"actions":Action[]}',
+  'For a whole-website rebuild/redesign declare scope breadth "site" and operation "redesign". Author set_composition for EVERY retained existing section on EVERY page, not just home, and fill any new pages. For a site-wide property tweak declare operation "edit". Never claim work is completed before apply: reply describes the proposal in future tense.',
+  'scope declares the smallest part of the site your plan touches: "style" or "section" when only the listed sections change, "page" when whole listed pages change, "site" only for genuinely site-wide changes. sectionIds and pageIds must be real ids copied from the website below. Changes outside your declared scope are dropped before anything is applied, so declare honestly.',
+  "",
+  "Action is one of:",
+  '{"type":"set_section_text","sectionId":id,"field":"heading"|"subheading"|"body","value":string}',
+  '{"type":"set_section_visibility","sectionId":id,"visible":boolean}',
+  '{"type":"set_block_style","target":"section|component","targetId":id,"device":"desktop|tablet|mobile","patch":{"font":"display|body|serif|mono","size":"10..160","weight":"100..900","align":"left|center|right","lineHeight":"0.75..3","letterSpacing":"-0.1..0.3","textTransform":"none|uppercase|capitalize","italic":boolean,"textColor":"#RRGGBB or common named colour","columns":"1..6","gap":"0..240","maxWidth":"240..1920","contentAlign":"left|center|right","padTop":"0..240","padRight":"0..240","padBottom":"0..240","padLeft":"0..240","marginTop":"-240..240","marginBottom":"-240..240","bgColor":"#RRGGBB or common named colour","bgGradient":"#RRGGBB or common named colour (second gradient stop)","bgGradientAngle":"0..360","bgImage":"safe https URL or internal path","overlay":"0..100","radius":"0..999","borderWidth":"0..12","borderColor":"#RRGGBB or common named colour","shadow":"none|subtle|medium|strong","opacity":"0..100","objectFit":"cover|contain|fill","buttonStyle":"solid|outline|ghost|link","buttonSize":"sm|md|lg","buttonTextColor":"#RRGGBB or common named colour","buttonBgColor":"#RRGGBB or common named colour","hidden":boolean,"order":"1..200, phone position, device mobile only"}}',
+  '{"type":"add_section","pageId":id,"ref":"temp_section_1","kind":kind,"heading":string,"subheading":string,"body":string,"position":number}',
+  '{"type":"delete_section","sectionId":id}',
+  '{"type":"reorder_sections","pageId":id,"sectionIds":[id,...]}',
+  '{"type":"set_composition","sectionId":id,"tree":{"version":1,"label":string,"root":Node}}',
+  `Node = {"type":"${COMPOSITION_PRIMITIVES.join("|")}","text"?:string,"href"?:string,"src"?:string,"mediaRef"?:componentId,"alt"?:string,"level"?:1|2|3|4,"items"?:string[],"anchor"?:"top-left|top-center|top-right|center-left|center|center-right|bottom-left|bottom-center|bottom-right","scrim"?:{"color"?:"#RRGGBB","opacity"?:number},"focal"?:"x% y%","service"?:realServiceName,"initialFrame"?:number,"style"?:Style,"responsive"?:{"mobile"?:Style,"tablet"?:Style,"desktop"?:Style},"widgetPresentation"?:{"eyebrow"?:string,"title"?:string,"description"?:string,"optionPrompt"?:string,"estimateLabel"?:string,"extraLabel"?:string,"actionLabel"?:string,"backLabel"?:string,"successTitle"?:string,"successBody"?:string,"contactLabel"?:string,"fieldLabels"?:object,"theme"?:object},"motion"?:{"kind":"${MOTION_KINDS.join("|")}","delayMs"?:number,"durationMs"?:number,"easing"?:"${MOTION_EASINGS.join("|")}","repeat"?:1|2|3|"loop","trigger"?:"load|view","from"?:{"opacity"?:number,"x"?:number,"y"?:number,"scale"?:number,"rotate"?:number,"blur"?:number}},"hover"?:{"scale"?:number,"x"?:number,"y"?:number,"rotate"?:number,"opacity"?:number,"shadow"?:"none|subtle|medium|strong","durationMs"?:number},"children"?:Node[]}`,
+  PRIMITIVE_GUIDE,
+  'Style keys: columns 1..12, gap 0..240, padding/paddingX/paddingY 0..320, maxWidth 200..2400, align left|center|right, justify start|center|end|between, items start|center|end|stretch, span 1..12, size 8..200, weight 100..900, lineHeight, letterSpacing, italic, uppercase, font, color, background, gradientTo, gradientAngle, radius, borderWidth, borderColor, shadow none|subtle|medium|strong, opacity 0..100, aspect, minHeight, hidden. Layering: position relative|sticky|absolute, top/left/right/bottom -400..1600, zIndex 0..50, overlap 0..400, blur 0..40, rotate -45..45, gridAreas (quoted rows like "media copy"), area (name). Reset overlap/position/rotate on mobile.',
+  "DEFAULT LAYOUT RULE: for every section you add, restructure or redesign (first builds, redesigns and edits alike), author its layout with set_composition — invent the structure yourself. Use add_section only to create the section container, then compose it in the same list using its temp ref. Use set_block_style for literal styling tweaks that do not need a new composition.",
+  '{"type":"set_component","componentId":id,"patch":{"label":string,"body":string,"link_label":string,"link_url":string}}',
+  '{"type":"set_component_visual","componentId":id,"patch":{"media_url":"saved owner photo path (only when given above)","alt":string,"object_fit":"cover|contain","object_position":string,"overlay":"none|soft|dark|brand|gradient","radius":"none|small|medium|large|pill","shadow":"none|soft|medium|strong","aspect_ratio":"1:1|4:3|3:2|16:9|21:9","focal_point":string}}',
+  '{"type":"add_component","sectionId":id,"ref":"temp_component_1","kind":kind,"label":string,"body":string,"link_label":string,"link_url":string}',
+  '{"type":"delete_component","componentId":id}',
+  '{"type":"generate_component_image","componentId":id,"prompt":string,"alt":string,"mode":"replace"|"create"}',
+  '{"type":"add_page","ref":"temp_page_1","kind":kind,"title":string,"slug":string}',
+  '{"type":"set_page","pageId":id,"patch":{"title":string,"seo_title":string,"seo_description":string}}',
+  `{"type":"set_theme","patch":{"primary_color":"#RRGGBB","secondary_color":"#RRGGBB","accent_color":"#RRGGBB","heading_font":"${FONT_CHOICE}","body_font":"${FONT_CHOICE}"}}`,
+  '{"type":"set_business_fact","field":"tagline"|"description","value":string}',
+  "",
+  `Use as many actions as the work genuinely needs — there is no target or budget. Every id must be copied exactly from the website below, or be a temp ref you created earlier in the same list.`,
+  "For every existing component marked [has picture], place it visibly in that section's composition using a media node whose mediaRef is that exact component id.",
+  "When a section should show new photography, add the image component, add generate_component_image for it, AND place a media node with that same component id or temp ref inside the section's set_composition tree. A generated picture not referenced by the composition is invisible and is a failed plan.",
+  "When the owner asks to improve, replace or rebuild pictures, include generate_component_image actions for the sections whose photography should change, placed in the composition as above.",
+  "Image prompts describe a real, specific scene for this business: no text, logos, watermarks, awards, reviews or identifiable customers in the picture.",
+].join("\n");
+
+/** The per-site part of the contract: real page links and allowed kinds. Sent at the tail of the user message. */
 function actionContract(context: AgentContext): string {
-  const fonts = "any Google Fonts family name";
   return [
-    "Reply with ONE JSON object and nothing else:",
-    '{"reply":string,"summary":string,"requirements":string[],"questions":string[],"notes":string[],"scope":{"breadth":"style|section|page|site","operation":"edit|redesign","sectionIds":[id,...],"pageIds":[id,...]},"actions":Action[]}',
-    'For a whole-website rebuild/redesign declare scope breadth "site" and operation "redesign". Author set_composition for EVERY retained existing section on EVERY page, not just home, and fill any new pages. For a site-wide property tweak declare operation "edit". Never claim work is completed before apply: reply describes the proposal in future tense.',
-    'scope declares the smallest part of the site your plan touches: "style" or "section" when only the listed sections change, "page" when whole listed pages change, "site" only for genuinely site-wide changes. sectionIds and pageIds must be real ids copied from the website below. Changes outside your declared scope are dropped before anything is applied, so declare honestly.',
-    "",
-    "Action is one of:",
-    '{"type":"set_section_text","sectionId":id,"field":"heading"|"subheading"|"body","value":string}',
-    '{"type":"set_section_visibility","sectionId":id,"visible":boolean}',
-    '{"type":"set_block_style","target":"section|component","targetId":id,"device":"desktop|tablet|mobile","patch":{"font":"display|body|serif|mono","size":"10..160","weight":"100..900","align":"left|center|right","lineHeight":"0.75..3","letterSpacing":"-0.1..0.3","textTransform":"none|uppercase|capitalize","italic":boolean,"textColor":"#RRGGBB or common named colour","columns":"1..6","gap":"0..240","maxWidth":"240..1920","contentAlign":"left|center|right","padTop":"0..240","padRight":"0..240","padBottom":"0..240","padLeft":"0..240","marginTop":"-240..240","marginBottom":"-240..240","bgColor":"#RRGGBB or common named colour","bgGradient":"#RRGGBB or common named colour (second gradient stop)","bgGradientAngle":"0..360","bgImage":"safe https URL or internal path","overlay":"0..100","radius":"0..999","borderWidth":"0..12","borderColor":"#RRGGBB or common named colour","shadow":"none|subtle|medium|strong","opacity":"0..100","objectFit":"cover|contain|fill","buttonStyle":"solid|outline|ghost|link","buttonSize":"sm|md|lg","buttonTextColor":"#RRGGBB or common named colour","buttonBgColor":"#RRGGBB or common named colour","hidden":boolean,"order":"1..200, phone position, device mobile only"}}',
-    '{"type":"add_section","pageId":id,"ref":"temp_section_1","kind":kind,"heading":string,"subheading":string,"body":string,"position":number}',
-    '{"type":"delete_section","sectionId":id}',
-    '{"type":"reorder_sections","pageId":id,"sectionIds":[id,...]}',
-    '{"type":"set_composition","sectionId":id,"tree":{"version":1,"label":string,"root":Node}}',
-    `Node = {"type":"${COMPOSITION_PRIMITIVES.join("|")}","text"?:string,"href"?:string,"src"?:string,"mediaRef"?:componentId,"alt"?:string,"level"?:1|2|3|4,"items"?:string[],"anchor"?:"top-left|top-center|top-right|center-left|center|center-right|bottom-left|bottom-center|bottom-right","scrim"?:{"color"?:"#RRGGBB","opacity"?:number},"focal"?:"x% y%","service"?:realServiceName,"initialFrame"?:number,"style"?:Style,"responsive"?:{"mobile"?:Style,"tablet"?:Style,"desktop"?:Style},"widgetPresentation"?:{"eyebrow"?:string,"title"?:string,"description"?:string,"optionPrompt"?:string,"estimateLabel"?:string,"extraLabel"?:string,"actionLabel"?:string,"backLabel"?:string,"successTitle"?:string,"successBody"?:string,"contactLabel"?:string,"fieldLabels"?:object,"theme"?:object},"motion"?:{"kind":"${MOTION_KINDS.join("|")}","delayMs"?:number,"durationMs"?:number,"easing"?:"${MOTION_EASINGS.join("|")}","repeat"?:1|2|3|"loop","trigger"?:"load|view","from"?:{"opacity"?:number,"x"?:number,"y"?:number,"scale"?:number,"rotate"?:number,"blur"?:number}},"hover"?:{"scale"?:number,"x"?:number,"y"?:number,"rotate"?:number,"opacity"?:number,"shadow"?:"none|subtle|medium|strong","durationMs"?:number},"children"?:Node[]}`,
-    PRIMITIVE_GUIDE,
-    'Style keys: columns 1..12, gap 0..240, padding/paddingX/paddingY 0..320, maxWidth 200..2400, align left|center|right, justify start|center|end|between, items start|center|end|stretch, span 1..12, size 8..200, weight 100..900, lineHeight, letterSpacing, italic, uppercase, font, color, background, gradientTo, gradientAngle, radius, borderWidth, borderColor, shadow none|subtle|medium|strong, opacity 0..100, aspect, minHeight, hidden. Layering: position relative|sticky|absolute, top/left/right/bottom -400..1600, zIndex 0..50, overlap 0..400, blur 0..40, rotate -45..45, gridAreas (quoted rows like "media copy"), area (name). Reset overlap/position/rotate on mobile.',
-    "DEFAULT LAYOUT RULE: for every section you add, restructure or redesign (first builds, redesigns and edits alike), author its layout with set_composition — invent the structure yourself. Use add_section only to create the section container, then compose it in the same list using its temp ref. Use set_block_style for literal styling tweaks that do not need a new composition.",
+    "Reply with ONE JSON object that follows the action contract in your instructions, using these site-specific limits:",
     `BUTTONS AND LINKS: every button/link href must be a real destination — "/" for home, "/<slug>" for one of these existing pages (${context.pages.map((page) => `/${page.slug}`).join(", ") || "/"}) or a page you add in this same plan, a section anchor like "#contact" only when that section exists, or the business's own tel:/mailto:. Never use "#", empty or invented URLs. Every services, offer and closing section ends in one clear action button. When you add a page, it is added to the menu and footer automatically.`,
-    '{"type":"set_component","componentId":id,"patch":{"label":string,"body":string,"link_label":string,"link_url":string}}',
-    '{"type":"set_component_visual","componentId":id,"patch":{"media_url":"saved owner photo path (only when given above)","alt":string,"object_fit":"cover|contain","object_position":string,"overlay":"none|soft|dark|brand|gradient","radius":"none|small|medium|large|pill","shadow":"none|soft|medium|strong","aspect_ratio":"1:1|4:3|3:2|16:9|21:9","focal_point":string}}',
-    '{"type":"add_component","sectionId":id,"ref":"temp_component_1","kind":kind,"label":string,"body":string,"link_label":string,"link_url":string}',
-    '{"type":"delete_component","componentId":id}',
-    '{"type":"generate_component_image","componentId":id,"prompt":string,"alt":string,"mode":"replace"|"create"}',
-    '{"type":"add_page","ref":"temp_page_1","kind":kind,"title":string,"slug":string}',
-    '{"type":"set_page","pageId":id,"patch":{"title":string,"seo_title":string,"seo_description":string}}',
-    `{"type":"set_theme","patch":{"primary_color":"#RRGGBB","secondary_color":"#RRGGBB","accent_color":"#RRGGBB","heading_font":"${fonts}","body_font":"${fonts}"}}`,
-    '{"type":"set_business_fact","field":"tagline"|"description","value":string}',
-    "",
-    `Use as many actions as the work genuinely needs — there is no target or budget. Every id must be copied exactly from the website below, or be a temp ref you created earlier in the same list.`,
     `Allowed section kinds: ${context.sectionKinds.join(", ")}.`,
     `Allowed page kinds: ${context.pageKinds.join(", ")}.`,
     `Allowed component kinds: ${context.componentKinds.join(", ")}, image, hero_image.`,
-    "For every existing component marked [has picture], place it visibly in that section's composition using a media node whose mediaRef is that exact component id.",
-    "When a section should show new photography, add the image component, add generate_component_image for it, AND place a media node with that same component id or temp ref inside the section's set_composition tree. A generated picture not referenced by the composition is invisible and is a failed plan.",
-    "When the owner asks to improve, replace or rebuild pictures, include generate_component_image actions for the sections whose photography should change, placed in the composition as above.",
-    "Image prompts describe a real, specific scene for this business: no text, logos, watermarks, awards, reviews or identifiable customers in the picture.",
   ].join("\n");
+}
+
+/**
+ * The planner's static system prefix. It must be byte-identical on every call
+ * and at least 1,024 tokens long: OpenAI-family models on the gateway cache a
+ * prompt prefix automatically from that length, so everything that varies
+ * (the business's design guidance, then the user message) comes after it.
+ * Nothing in here may depend on the business, the site, the date or a request.
+ */
+export const PLANNER_STATIC_PREFIX = [
+  DESIGN_RULES,
+  TRUTH_RULES,
+  mobileFirstChecklist(),
+  STATIC_ACTION_CONTRACT,
+  "You work only through the action contract you are given. You never return prose outside the JSON object.",
+].join("\n\n");
+
+/** Static prefix first, the per-business guidance last. */
+export function plannerSystemPrompt(designGuidance: string): string {
+  return `${PLANNER_STATIC_PREFIX}\n\n${designGuidance}`;
 }
 
 function businessBlock(context: AgentContext): string {
@@ -250,6 +286,8 @@ export async function planWebsiteChangesWithAi(input: {
   onStage?: (stage: string, detail?: string) => void;
   /** Live progress hook: fired as each free model is tried. */
   onAttempt?: (provider: string, model: string) => void;
+  /** Receives the reply as the model writes it (live chat text). */
+  onReplyDraft?: (reply: string) => void;
 }): Promise<AiPlanOutcome> {
   const { context } = input;
   const designGuidance = designGuidancePrompt(
@@ -257,13 +295,7 @@ export async function planWebsiteChangesWithAi(input: {
     context.business.name,
     context.business.description ?? null,
   );
-  const system = [
-    DESIGN_RULES,
-    TRUTH_RULES,
-    designGuidance,
-    mobileFirstChecklist(),
-    "You work only through the action contract you are given. You never return prose outside the JSON object.",
-  ].join("\n\n");
+  const system = plannerSystemPrompt(designGuidance);
 
   const user = [
     "BUSINESS FACTS (the only facts you may state):",
@@ -293,17 +325,29 @@ export async function planWebsiteChangesWithAi(input: {
     .join("\n");
 
   input.onStage?.("designing your change", "the AI team is composing your layout, copy and styling");
-  const direction = await callBestThinker({
-    json: true,
-    purpose: "creative_direction",
-    complexity: "high",
-    system,
-    user,
-    organizationId: input.organizationId,
-    // A full-site redesign is a long JSON plan; 6000 tokens cut it off mid-way.
-    maxOutputTokens: 32000,
-    ...(input.onAttempt ? { onAttempt: input.onAttempt } : {}),
-  });
+  const askThinker = () =>
+    callBestThinker({
+      json: true,
+      purpose: "creative_direction",
+      complexity: "high",
+      system,
+      user,
+      organizationId: input.organizationId,
+      // A full-site redesign is a long JSON plan; 6000 tokens cut it off mid-way.
+      maxOutputTokens: 32000,
+      ...(input.onAttempt ? { onAttempt: input.onAttempt } : {}),
+    });
+  const onReplyDraft = input.onReplyDraft;
+  let lastDraft = "";
+  const direction = onReplyDraft
+    ? await withTextDeltas((text) => {
+        const reply = partialJsonStringField(text, "reply");
+        if (reply !== null && reply !== lastDraft) {
+          lastDraft = reply;
+          onReplyDraft(reply);
+        }
+      }, askThinker)
+    : await askThinker();
   if (!direction.ok) {
     return { ok: false, reason: direction.reason, detail: direction.detail };
   }
@@ -586,22 +630,70 @@ export async function planWebsiteChangesWithAi(input: {
     }
   }
 
-  // EDIT SCOPE. Point-and-edit instructions name one block; typed requests get
-  // the planner's own declared scope. Actions provably outside that boundary
-  // are dropped before apply, so a narrow request can never rewrite the rest
-  // of the site. Fail-open: an unusable scope enforces nothing.
-  {
-    const { selectionScopeFromInstruction, declaredScopeFromProposal, applyEditScope } = await import("@/lib/builder/edit-scope");
-    const selected = selectionScopeFromInstruction(input.instruction, context);
-    const declared = selected ? null : declaredScopeFromProposal(proposal, context);
-    const boundary = selected ? { sectionIds: [selected] } : declared && declared.breadth !== "site"
-      ? declared.sectionIds.length ? { sectionIds: declared.sectionIds } : { pageIds: declared.pageIds }
+  // EDIT SCOPE boundary. Point-and-edit instructions name one block; typed
+  // requests get the planner's own declared scope.
+  const { selectionScopeFromInstruction, declaredScopeFromProposal, applyEditScope } = await import("@/lib/builder/edit-scope");
+  const selectedScope = selectionScopeFromInstruction(input.instruction, context);
+  const declaredScope = selectedScope ? null : declaredScopeFromProposal(proposal, context);
+  const boundary: { sectionIds: string[] } | { pageIds: string[] } | null = selectedScope
+    ? { sectionIds: [selectedScope] }
+    : declaredScope && declaredScope.breadth !== "site"
+      ? declaredScope.sectionIds.length ? { sectionIds: declaredScope.sectionIds } : { pageIds: declaredScope.pageIds }
       : null;
-    if (boundary) {
-      const scoped = applyEditScope(actions, context, boundary);
-      actions = scoped.actions;
-      notes = [...notes, ...scoped.notes].slice(0, 8);
-    }
+
+  // BATCHED REPAIR TURN. Validator rejections (action reader, edit scope,
+  // content integrity, business-facts precheck) become structured violations:
+  // deterministic fixes first, then at most two batched repair calls under a
+  // hard timeout and spend budget. Model-repaired steps go back through the
+  // fact and safety review; if it cannot run, the model's repairs are not
+  // used. Fail-open: any problem leaves the plan exactly as it was, and the
+  // existing drop/keep rules below still apply to whatever is left.
+  {
+    const { repairPlanActions } = await import("@/lib/builder/repair/plan-repair.server");
+    const repaired = await repairPlanActions({
+      actions,
+      context,
+      boundary,
+      system,
+      instruction: input.instruction,
+      organizationId: input.organizationId,
+      review: async (list) => {
+        const recheck = await callBestThinker({
+          json: true,
+          purpose: "adversarial_review",
+          complexity: "high",
+          system: [
+            "You are an independent safety reviewer. Check proposed website changes only against supplied facts, accessibility, renderer support, security, and resource limits.",
+            TRUTH_RULES,
+            'Reply with ONE JSON object: {"reject":number[],"notes":string[]}. `reject` holds only zero-based indexes of actions that invent facts, fabricate claims, violate accessibility or safety, target missing data, or cannot render. Never reject for taste.',
+          ].join("\n\n"),
+          user: [
+            "BUSINESS FACTS:", businessBlock(context), "",
+            "THE OWNER'S REQUEST:", input.instruction, "",
+            "PROPOSED ACTIONS (index: action):",
+            list.map((action, index) => `${index}: ${JSON.stringify(action)}`).join("\n"),
+          ].join("\n"),
+          organizationId: input.organizationId,
+          maxOutputTokens: 4000,
+        });
+        if (!recheck.ok) return null;
+        costMicrocents += recheck.costMicrocents;
+        return parseJsonObject(recheck.text);
+      },
+      ...(input.onStage ? { onStage: input.onStage } : {}),
+    });
+    costMicrocents += repaired.costMicrocents;
+    actions = repaired.actions as typeof actions;
+    if (repaired.note) notes = [...notes, repaired.note].slice(0, 8);
+  }
+
+  // EDIT SCOPE enforcement. Actions provably outside that boundary are dropped
+  // before apply, so a narrow request can never rewrite the rest of the site.
+  // Fail-open: an unusable scope enforces nothing.
+  if (boundary) {
+    const scoped = applyEditScope(actions, context, boundary);
+    actions = scoped.actions as typeof actions;
+    notes = [...notes, ...scoped.notes].slice(0, 8);
   }
 
   // Validate the exact actions the writer can consume, after polish and scope.

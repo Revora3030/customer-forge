@@ -79,13 +79,13 @@ GRANT ALL ON public.agent_runs, public.agent_run_steps, public.agent_run_events 
 
 DROP POLICY IF EXISTS agent_runs_member_read ON public.agent_runs;
 CREATE POLICY agent_runs_member_read ON public.agent_runs
-  FOR SELECT TO authenticated USING (public.is_org_member(organization_id));
+  FOR SELECT TO authenticated USING (private.is_org_member(organization_id));
 DROP POLICY IF EXISTS agent_run_steps_member_read ON public.agent_run_steps;
 CREATE POLICY agent_run_steps_member_read ON public.agent_run_steps
-  FOR SELECT TO authenticated USING (public.is_org_member(organization_id));
+  FOR SELECT TO authenticated USING (private.is_org_member(organization_id));
 DROP POLICY IF EXISTS agent_run_events_member_read ON public.agent_run_events;
 CREATE POLICY agent_run_events_member_read ON public.agent_run_events
-  FOR SELECT TO authenticated USING (public.is_org_member(organization_id));
+  FOR SELECT TO authenticated USING (private.is_org_member(organization_id));
 
 -- Create a run and its first event.
 CREATE OR REPLACE FUNCTION public.agent_run_create(
@@ -289,5 +289,5 @@ BEGIN
     RAISE NOTICE 'public.call_revora_job is missing; agent run schedule was not changed.';
     RETURN;
   END IF;
-  PERFORM cron.schedule('revora-agent-runs', '* * * * *', $cmd$select public.call_revora_job('agent-runs', 55000)$cmd$);
+  PERFORM cron.schedule('revora-agent-runs', '*/15 * * * *', $cmd$select public.call_revora_job('agent-runs', 55000)$cmd$);
 END $$;

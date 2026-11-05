@@ -55,8 +55,12 @@ export function SiteHeader() {
   return (
     <header className="sticky top-0 z-40 pt-[env(safe-area-inset-top)] border-b border-border bg-background/90 backdrop-blur-sm">
       <div className="mx-auto grid h-16 max-w-6xl grid-cols-[minmax(0,1fr)_auto] items-center gap-2 px-4 max-[400px]:h-14 max-[400px]:px-3 md:flex md:justify-between">
+        {/* Below 360px the phone header's Sign up / Sign in / menu buttons
+            leave less room than the mark plus the REVORA wordmark need, so
+            the wordmark steps aside (the gold mark and the link's accessible
+            name stay) rather than sliding under the Sign up button. */}
         <Link to="/" aria-label="Revora home" className="inline-flex min-h-11 min-w-0 items-center">
-          <Logo />
+          <Logo wordmarkClassName="max-[359px]:hidden" />
         </Link>
 
         <nav aria-label="Main" className="hidden items-center gap-1 md:flex">
@@ -133,8 +137,11 @@ export function SiteHeader() {
         </div>
       </div>
 
-      {open ? (
-        <div id="marketing-mobile-menu" className="max-h-[calc(100dvh-4rem-env(safe-area-inset-top))] overflow-y-auto overscroll-contain border-t border-border bg-card px-4 py-2 md:hidden">
+      {/* The aria-controls target is always in the DOM (hidden while closed) so the
+          menu button never points at a missing id; the links render only when open. */}
+      <div id="marketing-mobile-menu" hidden={!open} className="max-h-[calc(100dvh-4rem-env(safe-area-inset-top))] overflow-y-auto overscroll-contain border-t border-border bg-card px-4 py-2 md:hidden">
+        {open ? (
+        <>
           <nav aria-label="Mobile" className="flex flex-col divide-y divide-border">
             {NAV.map((item) => (
               <Link
@@ -209,8 +216,9 @@ export function SiteHeader() {
               </>
             )}
           </div>
-        </div>
-      ) : null}
+        </>
+        ) : null}
+      </div>
     </header>
   );
 }

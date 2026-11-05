@@ -22,6 +22,11 @@ export async function decideConversation(input: {
   siteDetail?: string;
 }): Promise<ConversationDecision> {
   if (input.hasAttachments) return { mode: "change" };
+  // Lean triage first: most messages are edit requests or small talk, and
+  // neither needs the site snapshot or live inspection. Only questions that
+  // need evidence (audits, "why is…", "what's wrong…") pay for the full pass.
+  const quick = await triageConversation(input);
+  if (quick) return quick;
   const evidence = await inspectConversation(input);
   const serializedEvidence = JSON.stringify(evidence);
   const siteMap = input.pages.slice(0, 20).map((page) => `- ${page.title} (/${page.slug}, ${page.sectionCount} sections)`).join("\n");
@@ -66,6 +71,50 @@ export async function decideConversation(input: {
     }
     return decide(result.data);
   } catch { return fallbackDecision(input.instruction); }
+}
+
+/**
+ * One small AI call that sorts the message into: a change (go straight to the
+ * planner), a simple answer it can give from the page list alone, or a
+ * question that needs inspection evidence (returns null → full pass). Any
+ * failure returns null so the existing evidence path decides, unchanged.
+ */
+export async function triageConversation(input: {
+  organizationId: string;
+  userId: string;
+  instruction: string;
+  history: Turn[];
+  business: { name: string; industry: string | null };
+  pages: { title: string; slug: string; sectionCount: number }[];
+  firstBuildActive?: boolean;
+}): Promise<ConversationDecision | null> {
+  const siteMap = input.pages.slice(0, 20).map((page) => `- ${page.title} (/${page.slug})`).join("\n");
+  const system = [
+    "You are Revora, the AI website builder inside Revora Growth Systems. Sort the owner's latest message.",
+    `Business: ${input.business.name}${input.business.industry ? ` (${input.business.industry})` : ""}. Pages:\n${siteMap || "- none yet"}`,
+    'Return {"mode":"change"} when the message asks to edit, fix, add, remove, redesign or apply something on the website, including approving an earlier proposal.',
+    'Return {"mode":"answer","reply":"..."} only for greetings, thanks, or general questions you can answer honestly without looking at the site\'s content or running checks. Keep it short and friendly; never invent business facts, prices, reviews or results, and never claim to have checked anything.',
+    `If asked about Revora's price: $${GROWTH_SYSTEM.setupPrice} setup, first month free, then $${GROWTH_SYSTEM.monthlyPrice}/month.`,
+    'Return {"mode":"inspect"} for anything that needs the site\'s actual content, an audit, a diagnosis, or verification.',
+    "JSON only.",
+  ].join("\n");
+  const turns = [...input.history.slice(-6).map((turn) => ({ role: turn.role, content: turn.content.slice(0, 2000) })), { role: "user" as const, content: input.instruction }];
+  try {
+    const result = await generateStructuredOutput(
+      { organizationId: input.organizationId, userId: input.userId, task: "builder.converse.triage" },
+      { role: "conversation", json: true, maxOutputTokens: 800, messages: [{ role: "system", content: system }, ...turns] },
+    );
+    return readTriage(result.data);
+  } catch {
+    return null;
+  }
+}
+
+export function readTriage(data: Record<string, unknown>): ConversationDecision | null {
+  const reply = typeof data["reply"] === "string" ? data["reply"].trim() : "";
+  if (data["mode"] === "change") return { mode: "change" };
+  if (data["mode"] === "answer" && reply) return { mode: "answer", reply: reply.slice(0, 4000) };
+  return null;
 }
 
 export function fallbackDecision(instruction: string): ConversationDecision {

@@ -11,7 +11,7 @@
  * `readFailureKind()`.
  */
 
-import { integrityOwnerMessage, isContentIntegrityError, parseIntegrityViolations } from "./content-integrity";
+import { integrityOwnerMessage, isContentIntegrityError, ownerFieldName, parseIntegrityViolations } from "./content-integrity";
 import { isStallMessage } from "./no-progress";
 
 export const BUILD_FAILURE_KINDS = [
@@ -49,7 +49,7 @@ const OWNER_MESSAGES: Record<BuildFailureKind, string> = {
   validation: "The draft didn't pass Revora's quality checks (links, forms, mobile or SEO). It isn't marked ready.",
   infrastructure: "The build worker was interrupted. Revora resumes it automatically.",
   credits: "Revora's AI credits ran out, so this build stopped before it finished. Nothing was published and your current website is unchanged. This is on Revora's side, not yours: press Retry build once the credits are topped up (finished sections are kept).",
-  budget: "This build used its spending limit before it finished, so Revora stopped it to protect your credits. Nothing was published. You can start it again when you are ready.",
+  budget: "This build used its spending limit before it finished, so Revora stopped it to protect your credits. Nothing was published. Pictures saved so far are reused when you start it again.",
 };
 
 /** Fields an owner can fix in Business details, with the name shown to them. */
@@ -223,7 +223,7 @@ export function describeBuildFailure(row: {
   status?: string | null;
   failure_kind?: string | null;
   error_message?: string | null;
-}): { label: string; message: string; canRetry: boolean } | null {
+}): { label: string; message: string; canRetry: boolean; fixFields?: string[] } | null {
   if (row.status === "cancelled" || row.failure_kind === "cancelled")
     return { label: FAILURE_KIND_LABELS.cancelled, message: "The build was stopped before it finished. Nothing was published.", canRetry: true };
   if (row.status !== "failed") return null;
@@ -232,9 +232,23 @@ export function describeBuildFailure(row: {
   if (!kind) return { label: "Build didn't finish", message: untaggedMessage(row.error_message) || "The build didn't finish.", canRetry: true };
   // A build ended by the no-progress guard carries its own plain message.
   if (isStallMessage(row.error_message)) return { label: FAILURE_KIND_LABELS[kind], message: untaggedMessage(row.error_message), canRetry: true };
-  const message =
-    kind === "intake_validation" ? intakeOwnerMessage(untaggedMessage(row.error_message)) : (FINAL_OWNER_MESSAGES[kind] ?? OWNER_MESSAGES[kind]);
-  return { label: FAILURE_KIND_LABELS[kind], message, canRetry: true };
+  if (kind === "intake_validation") {
+    const text = untaggedMessage(row.error_message);
+    const fixFields = intakeFixFields(text);
+    return { label: FAILURE_KIND_LABELS[kind], message: intakeOwnerMessage(text), canRetry: true, ...(fixFields.length ? { fixFields } : {}) };
+  }
+  return { label: FAILURE_KIND_LABELS[kind], message: FINAL_OWNER_MESSAGES[kind] ?? OWNER_MESSAGES[kind], canRetry: true };
+}
+
+/**
+ * The Business-details fields an intake refusal names, in owner wording and
+ * without repeats (T051: the builder shows them as an inline "fix this field"
+ * prompt). Empty when the error names no field.
+ */
+export function intakeFixFields(message: string | null | undefined): string[] {
+  const names = parseIntegrityViolations(message).flatMap((entry) => entry.field.split(/,\s*/).map(ownerFieldName));
+  const single = names.length ? null : validationFieldFromError(message);
+  return [...new Set(single ? [single] : names)].filter(Boolean);
 }
 
 /** The message without its kind tag, for display. */

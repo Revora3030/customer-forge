@@ -19,6 +19,7 @@ import { pageArchitecture } from "./page-architecture";
 import { callBestThinker } from "@/lib/ai/thinker.server";
 import { readAll } from "@/lib/db/read-all";
 import { saveFirstBuildComposition as saveTree } from "./save-first-build-composition.server";
+import { FALLBACK_SECTION_SETTINGS, fallbackFloorComposition, fallbackSectionComposition, isFallbackLayout, type FallbackSection } from "./fallback-sections";
 import { craftBarPrompt } from "@/lib/builder/world-class-craft";
 import { screenText } from "@/lib/builder/collective-copy";
 import { repairContactDetails } from "@/lib/builder/chrome-repair";
@@ -91,8 +92,16 @@ export type CompositionPassResult = {
   costMicrocents: number;
   /** One entry per improvement round: whether the team's revision beat the prior version. */
   gateReports: GateReport[];
-  /** Content sections that never got an AI layout and kept the default one. */
+  /** Content sections left with no saved layout at all (the build cannot ship them). */
   fallback?: number;
+  /**
+   * Sections that got a facts-only fallback layout because the AI design team
+   * was out of capacity or credits after every retry. They are saved and
+   * flagged `needsAiUpgrade`; the upgrade runs only when the owner approves it.
+   */
+  fallbackFilled?: number;
+  /** Ids of the sections in `fallbackFilled`. */
+  fallbackSections?: string[];
   /** Craft findings sent back to Sol for revision, and how many remained. */
   designRepairs?: number;
   designFindings?: number;
@@ -117,7 +126,7 @@ const RULES = [
   `Design each section from scratch as a composition tree built only from these primitives: ${COMPOSITION_PRIMITIVES.join(", ")}.`,
   PRIMITIVE_GUIDE,
   "Node shape: {type, text?, href?, src?, mediaRef?, alt?, level?, items?, beforeImage?, afterImage?, initialSplit?, revealMode?: slider|brush, countUp?: boolean (heading/text holding one real supplied figure), dialOptions?: [{label, value, note?, level}], dialUnit?, faqItems?, tabs?, primaryCta?, secondaryCta?, anchor?, scrim?: {color?, opacity?}, focal?, service?, initialFrame?, style?, responsive?: {mobile?, tablet?, desktop?}, motion?: {kind: none|fade|rise|scale|float|slide-left|slide-right|blur|reveal, delayMs?, durationMs?}, children?}.",
-  "Cinematic primitives (scene, scroll_chapters, scrub_sequence, offer_card, spin_viewer, collection_row) are available when the authored brief and the supplied pictures call for photographic storytelling; whether to use them, and how, is your decision. A scrub_sequence is the scroll-scrubbed still sequence: 2-6 media frames of one subject wipe as the visitor scrolls, with a short display heading (uppercase, tracked, large) in the overlay — use it when this section has several pictures of one subject, including a detailing or product hero. Generated frames are atmosphere, never proof of a result. A scene's backdrop must be one of the section's own supplied pictures; when the look summary carries a shotList, the picture was shot to that section's art direction, so anchor the copy where that direction left negative space and draw the scrim colour from its palette tie-in. Measured gates (sent back to you): an opening section that has its own pictures must lead with a scene, a scrub_sequence or a full-bleed media hero rather than text only; two or more pictures on the opening must be a scene, scroll_chapters or scrub_sequence; scene text must pass AA over the computed scrim; an accordion, tab or toggle item that is only a label is sent back; the home page must contain at least one interactive centrepiece (compare, before_after_slider, scroll_chapters, scrub_sequence, dial_selector, spin_viewer, model_3d_viewer, collection_row, sticky_split_story, service_tier_fader, lens_magnifier, or a service_estimator / quote_calculator widget) that serves real supplied material — a faq_accordion, accordion, tab_group, tabs or toggle only hides text and does not count; cards in a grid or row that carry a title but no supporting line are sent back; a button whose label is a section heading (\"What we handle\") is sent back — name the action instead; a section that is only a button and a picture is sent back; one picture may appear in only one section per page; a sentence that restates an earlier section in other words is sent back; on the home page at least one section after the opening must change pace (a contrasting surface or a full-bleed picture scene) rather than every section sitting on one background. When the look summary carries a REFERENCE STANDARD, the home page is that cinematic, hands-on story: its opening, its TRY IT moment, its proof, its DIAL and its instant price — each only where this section's supplied material makes it true.",
+  "Cinematic primitives (scene, scroll_chapters, scrub_sequence, offer_card, spin_viewer, collection_row) are available when the authored brief and the supplied pictures call for photographic storytelling; whether to use them, and how, is your decision. A scrub_sequence is the scroll-scrubbed still sequence: 2-18 media frames of one subject wipe as the visitor scrolls (beyond 6 frames only real photographs show; 10-18 real frames cross-fade), with a short display heading (uppercase, tracked, large) in the overlay — use it when this section has several pictures of one subject, including a detailing or product hero. Generated frames are atmosphere, never proof of a result. A scene's backdrop must be one of the section's own supplied pictures; when the look summary carries a shotList, the picture was shot to that section's art direction, so anchor the copy where that direction left negative space and draw the scrim colour from its palette tie-in. Measured gates (sent back to you): an opening section that has its own pictures must lead with a scene, a scrub_sequence or a full-bleed media hero rather than text only; two or more pictures on the opening must be a scene, scroll_chapters or scrub_sequence; scene text must pass AA over the computed scrim; an accordion, tab or toggle item that is only a label is sent back; the home page must contain at least one interactive centrepiece (compare, before_after_slider, scroll_chapters, scrub_sequence, dial_selector, spin_viewer, model_3d_viewer, collection_row, sticky_split_story, service_tier_fader, lens_magnifier, or a service_estimator / quote_calculator widget) that serves real supplied material — a faq_accordion, accordion, tab_group, tabs or toggle only hides text and does not count; cards in a grid or row that carry a title but no supporting line are sent back; a button whose label is a section heading (\"What we handle\") is sent back — name the action instead; a section that is only a button and a picture is sent back; one picture may appear in only one section per page; a sentence that restates an earlier section in other words is sent back; on the home page at least one section after the opening must change pace (a contrasting surface or a full-bleed picture scene) rather than every section sitting on one background. When the look summary carries a REFERENCE STANDARD, the home page is that cinematic, hands-on story: its opening, its TRY IT moment, its proof, its DIAL and its instant price — each only where this section's supplied material makes it true.",
   "Pictures marked aiGenerated are AI-made illustrations, not the business's real work: never place them in a compare or before_after_slider, a spin_viewer, a gallery captioned as completed jobs, or any caption that calls them a real project, customer, result or team member.",
   "Pictures marked notProof (AI-made or stockPhoto licensed pictures) are illustrative only and follow the same rule. Only parts marked proofEligible (the owner's own labelled before/after photos, pairRole before or after) may form a before/after comparison.",
   "Studio interactive primitives: before_after_slider uses beforeImage:{src,alt,label}, afterImage:{src,alt,label}, and initialSplit 0-100 (default 50); use it when supplied material genuinely shows a transformation. faq_accordion uses faqItems:[{question,answer,defaultOpen?}] and only supplied FAQ copy. tab_group uses tabs:[{label,children:[...]}] and renders one active panel at a time. mobile_sticky_bar uses primaryCta:{label,href,ariaLabel?} and optional secondaryCta with safe conversion destinations; it is mobile-only and must never duplicate a desktop CTA unnecessarily.",
@@ -436,6 +445,32 @@ export async function composeFirstBuildSections(input: {
     return { ok: true, tree: checked.tree };
   };
 
+  /**
+   * The acceptance rule for a facts-only fallback tree: the same safety
+   * validator as an AI tree (media, links, fact screen, every picture shown)
+   * and the working widget for its role. The AI-only widget presentation
+   * check is skipped: the widget's own default title and theme are used.
+   */
+  const acceptFallbackTree = (section: SectionRow, raw: CompositionTree): CompositionTree | null => {
+    const mediaRefs = mediaRefsFor(section, parts);
+    const checked = validateComposition(fixContacts(raw), {
+      firstBuild: true,
+      screenText: screen,
+      allowedMediaRefs: mediaRefs,
+      requiredMediaRefs: mediaRefs,
+      modelRefs: modelRefsFor(section, parts),
+      panoramaRefs: panoramaRefsFor(section, parts),
+      serviceNames,
+    });
+    if (!checked.ok) {
+      console.warn(`[first-build-compositions] fallback layout for ${section.kind} rejected: ${checked.issues[0]?.path}: ${checked.issues[0]?.problem}`);
+      return null;
+    }
+    const widgetName = requiredWidgetForRole(section.kind);
+    if (widgetName && !findWidget(checked.tree.root, widgetName)) return null;
+    return checked.tree;
+  };
+
   // CHECKPOINTS: accepted designs are stored on the job after every chunk, so
   // a retry, lease recovery or capacity deferral of the same job only asks
   // the AI team for the sections that are still missing. A checkpoint is only
@@ -614,6 +649,11 @@ export async function composeFirstBuildSections(input: {
       if (saved) {
         result.composed += 1;
         result.kept -= 1;
+        // A fallback saved by an earlier slice of this build keeps its upgrade flag.
+        if (isFallbackLayout(section.settings)) {
+          result.fallbackFilled = (result.fallbackFilled ?? 0) + 1;
+          result.fallbackSections = [...(result.fallbackSections ?? []), section.id];
+        }
       }
     }
     const designed = new Map<string, CompositionTree>();
@@ -758,9 +798,49 @@ export async function composeFirstBuildSections(input: {
       }
       pending = pending.filter((_, index) => !rescueResults[index]);
     }
+    if (pending.length && rescueShouldPark({ missing: pending.length, deadlineHit: rescueDeadlineHit, calls: rescueCalls, unavailable: rescueUnavailable, pageFailed })) {
+      // FACTS-ONLY FALLBACK (owner decision 2026-11-01): the AI design team is
+      // out of capacity or credits after every retry. Instead of stopping the
+      // build, these sections get a deterministic layout drawn only from their
+      // saved words, pictures and the owner's facts, checked by the same
+      // validator, and are flagged for an AI upgrade later. They skip the AI
+      // polish rounds below, so no further credits are spent on them.
+      const filled: string[] = [];
+      for (const section of pending) {
+        const material: FallbackSection = {
+          id: section.id,
+          kind: section.kind,
+          heading: section.heading,
+          subheading: section.subheading,
+          body: section.body,
+          components: parts.filter((part) => part.section_id === section.id),
+        };
+        const options = {
+          facts,
+          lead: allPageSections[0]?.id === section.id,
+          seed: organizationId,
+          enquiryHref: contactSlug ? `/${contactSlug}` : null,
+        };
+        const tree = [fallbackSectionComposition(material, options), fallbackFloorComposition(material, options)]
+          .map((candidate) => acceptFallbackTree(section, candidate))
+          .find((candidate): candidate is CompositionTree => candidate != null);
+        if (!tree) continue;
+        await saveTree(db, organizationId, section, tree, { ...FALLBACK_SECTION_SETTINGS });
+        result.composed += 1;
+        result.kept -= 1;
+        filled.push(section.id);
+      }
+      if (filled.length) {
+        console.warn(`[first-build-compositions] ${filled.length} section(s) got a facts-only fallback layout (AI capacity); flagged for an AI upgrade.`);
+        result.fallbackFilled = (result.fallbackFilled ?? 0) + filled.length;
+        result.fallbackSections = [...(result.fallbackSections ?? []), ...filled];
+        pending = pending.filter((section) => !filled.includes(section.id));
+      }
+    }
     if (pending.length) {
-      // Some sections could not get a safe AI layout after retries. The count
-      // is reported so callers stop rather than ship a default layout.
+      // Some sections could not get a safe layout after retries (and, when
+      // capacity ran out, not even a valid fallback). The count is reported so
+      // callers stop rather than ship a section with no layout.
       const first = Object.values(feedback).flat()[0];
       console.warn(
         `[first-build-compositions] ${pending.length} section(s) could not get an AI layout` +
@@ -1097,3 +1177,4 @@ export function rescueShouldPark(input: {
   if (input.deadlineHit || input.pageFailed) return true;
   return input.calls > 0 && input.unavailable / input.calls >= 0.5;
 }
+export { RULES as FIRST_BUILD_RULES };

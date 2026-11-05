@@ -946,11 +946,28 @@ export function parseInboundKeyword(body: string): "stop" | "start" | null {
   return null;
 }
 
-/** Applies a verified inbound text: STOP => do-not-contact, START/YES => SMS consent. */
+/**
+ * Twilio prefixes non-SMS channels on the same number: a WhatsApp reply
+ * arrives as From "whatsapp:+15551234567". Returns the bare number and whether
+ * it came through WhatsApp; any other prefix is not a phone number.
+ */
+export function inboundSender(from: string): { phone: string | null; whatsapp: boolean } {
+  const raw = from.trim();
+  const whatsapp = /^whatsapp:/i.test(raw);
+  return { phone: normalizePhone(whatsapp ? raw.replace(/^whatsapp:/i, "") : raw), whatsapp };
+}
+
+/**
+ * Applies a verified inbound text: STOP => do-not-contact, START/YES => SMS consent.
+ * A WhatsApp STOP is honoured the same way (an opt-out on any channel stops
+ * every text to that number), but a WhatsApp START/YES is NOT SMS consent:
+ * TCPA consent to text has to be given for texting, so it changes nothing.
+ */
 export async function handleInboundSms(db: SupabaseClient, from: string, body: string): Promise<"stop" | "start" | null> {
-  const phone = normalizePhone(from);
+  const { phone, whatsapp } = inboundSender(from);
   const keyword = parseInboundKeyword(body);
   if (!phone || !keyword) return null;
+  if (keyword === "start" && whatsapp) return null;
   if (keyword === "stop") {
     await addDoNotContact(db, phone, "sms_stop");
     await recordContactConsent(db, phone, { sms: false }, "sms_stop");

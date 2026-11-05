@@ -31,6 +31,12 @@ const REASONS: Array<{ match: RegExp; text: string }> = [
       /\(missing_(section|component|page)\)|\((section|component|page) removed\)|stale (add|set|move|remove)_page/,
     text: "those parts of your page had changed since I planned them",
   },
+  {
+    // Semantic resolution could not tell which section a step meant, so it
+    // skipped that one step rather than edit a guessed section.
+    match: /\(low_confidence_section\)/,
+    text: "I couldn't tell for sure which section some updates were for, so I left those alone rather than guess",
+  },
   { match: /duplicate/, text: "the same change appeared twice" },
   {
     match: /generate_component_image:(generation|upload|media)_failed/,

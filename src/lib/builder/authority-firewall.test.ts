@@ -186,7 +186,7 @@ describe("old design layer is fully removed", () => {
   it("the AI plans a picture for every page without triggering a design fallback", () => {
     const src = readFileSync("src/lib/builder/collective-first-build.server.ts", "utf8");
     expect(src).toMatch(/gives EVERY page of the site real photography/);
-    expect(src).toMatch(/at most 28 for generation cost/);
+    expect(src).toMatch(/at most 16 for generation cost/);
     expect(src).not.toMatch(/complete AI-authored picture campaign/);
   });
 
@@ -304,6 +304,12 @@ describe("no non-AI build fallback (Oct 3)", () => {
     expect(readFileSync("src/lib/builder/ai-brand-identity.server.ts", "utf8")).not.toMatch(/safe-neutral|Safe neutral identity/);
     expect(readFileSync("src/lib/site-engine.server.ts", "utf8")).not.toMatch(/safe fact-based brief|source: "safe-fallback"/);
     expect(readFileSync("src/lib/site-materialize.server.ts", "utf8")).not.toMatch(/fact inventory as a baseline|\|\| "Get in touch"/);
+  });
+  it("the only facts-only path is the capacity fallback, which queues an AI upgrade (owner decision 2026-11-01)", () => {
+    expect(worker).toMatch(/wordingCapacityHit\(refined\.passes\)/);
+    expect(worker).toMatch(/degradeLayoutFallback\(/);
+    const first = readFileSync("src/lib/builder/first-build-compositions.server.ts", "utf8");
+    expect(first).toMatch(/rescueShouldPark\([^)]*\)[\s\S]{0,3000}fallbackSectionComposition/);
   });
   it("an AI step that fails raises the shared retryable error", () => {
     expect(worker).toMatch(/AiStepUnavailableError/);

@@ -14,6 +14,7 @@
  * `LOVABLE_API_KEY` inside handlers; it is never shipped to the browser.
  */
 
+import { emitTextDelta } from "@/lib/ai/text-delta-scope.server";
 import type { AiMessage, AiPart, AiUsage, ProviderAdapter } from "@/lib/ai/types";
 import { RevoraAiError } from "@/lib/ai/errors";
 import { base64FromDataUrl, bytesFromDataUrl, providerHttpError } from "@/lib/ai/providers/shared";
@@ -45,13 +46,34 @@ function headers(apiKey: string) {
   };
 }
 
-function usageOf(payload: unknown): AiUsage {
-  const usage = (payload as { usage?: Record<string, number> } | null)?.usage;
+export function usageOf(payload: unknown): AiUsage {
+  const usage = (payload as { usage?: Record<string, unknown> } | null)?.usage;
+  const details = usage?.["prompt_tokens_details"] as Record<string, unknown> | undefined;
+  const cached = details?.["cached_tokens"];
   return {
     inputTokens: typeof usage?.["prompt_tokens"] === "number" ? usage["prompt_tokens"] : null,
     outputTokens:
       typeof usage?.["completion_tokens"] === "number" ? usage["completion_tokens"] : null,
+    ...(typeof cached === "number" ? { cachedInputTokens: cached } : {}),
   };
+}
+
+/**
+ * One structured log line per chat call with the prompt-cache outcome, so the
+ * hit rate can be measured from Worker logs before anyone believes it.
+ * `cached_tokens` is null when the gateway did not report it (unknown, not 0).
+ */
+export function logPromptCache(model: string, usage: AiUsage): void {
+  if (usage.inputTokens === null) return;
+  console.info(
+    JSON.stringify({
+      event: "ai.prompt_cache",
+      provider: "lovable",
+      model,
+      prompt_tokens: usage.inputTokens,
+      cached_tokens: usage.cachedInputTokens ?? null,
+    }),
+  );
 }
 
 /**
@@ -250,7 +272,10 @@ export async function readChatStream(
       });
     const choice = event["choices"]?.[0];
     const delta = choice?.delta?.content;
-    if (typeof delta === "string") text += delta;
+    if (typeof delta === "string") {
+      text += delta;
+      emitTextDelta(text);
+    }
     else if (typeof choice?.message?.content === "string" && !text) text = choice.message.content;
     if (typeof choice?.finish_reason === "string") finishReason = choice.finish_reason;
     if (event["usage"]) usage = usageOf(event);
@@ -366,8 +391,36 @@ function anthropicPart(part: AiPart): AnthropicPart {
   });
 }
 
-/** Reads a Messages SSE stream to the end: answer text, stop reason and usage. */
-async function readAnthropicStream(stream: ReadableStream<Uint8Array>) {
+/**
+ * The provider's own error-event wording, kept for server logs only: one line,
+ * truncated, and with anything that looks like a credential removed.
+ */
+export function sanitizeStreamErrorDetail(error: unknown): string {
+  const raw =
+    error && typeof error === "object"
+      ? [(error as { type?: unknown }).type, (error as { message?: unknown }).message].filter((part) => typeof part === "string" && part).join(": ")
+      : typeof error === "string"
+        ? error
+        : "";
+  return raw
+    .replace(/\s+/g, " ")
+    .replace(/\bBearer\s+\S+/gi, "Bearer [redacted]")
+    .replace(/\b(?:sk|pk|rk)[-_][A-Za-z0-9_-]{8,}/g, "[redacted]")
+    .replace(/\b(api[_-]?key|x-api-key|authorization|token|secret)\s*[:=]\s*\S+/gi, "$1=[redacted]")
+    .trim()
+    .slice(0, 200);
+}
+
+/**
+ * Reads a Messages SSE stream to the end: answer text, stop reason and usage.
+ * Same guards as readChatStream: a stream that never starts (first chunk) or
+ * goes quiet partway (idle) is cut as a timeout so the router fails over, CRLF
+ * and LF framing are both accepted, and the connection is always released.
+ */
+export async function readAnthropicStream(
+  stream: ReadableStream<Uint8Array>,
+  limits: { firstChunkMs?: number; idleMs?: number } = {},
+) {
   const reader = stream.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
@@ -388,27 +441,46 @@ async function readAnthropicStream(stream: ReadableStream<Uint8Array>) {
       return;
     }
     if (event["type"] === "error")
-      throw new RevoraAiError(502, "Revora's AI model stopped with an error.", { category: "bad_response", provider: "lovable" });
+      throw new RevoraAiError(502, "Revora's AI model stopped with an error.", {
+        category: "bad_response",
+        provider: "lovable",
+        detail: sanitizeStreamErrorDetail(event["error"]) || null,
+      });
     if (event["type"] === "message_start" && typeof event["message"]?.usage?.input_tokens === "number")
       usage.input_tokens = event["message"].usage.input_tokens;
-    if (event["type"] === "content_block_delta" && event["delta"]?.type === "text_delta")
+    if (event["type"] === "content_block_delta" && event["delta"]?.type === "text_delta") {
       text += String(event["delta"].text ?? "");
+      emitTextDelta(text);
+    }
     if (event["type"] === "message_delta") {
       if (typeof event["delta"]?.stop_reason === "string") stop_reason = event["delta"].stop_reason;
       if (typeof event["usage"]?.output_tokens === "number") usage.output_tokens = event["usage"].output_tokens;
     }
   };
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    let cut: number;
-    while ((cut = buffer.indexOf("\n\n")) !== -1) {
-      handle(buffer.slice(0, cut));
-      buffer = buffer.slice(cut + 2);
+  let first = true;
+  let finished = false;
+  try {
+    for (;;) {
+      const { done, value } = await readStreamChunk(
+        reader,
+        first ? (limits.firstChunkMs ?? STREAM_FIRST_CHUNK_MS) : (limits.idleMs ?? STREAM_IDLE_MS),
+      );
+      first = false;
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let cut: number;
+      while ((cut = buffer.search(/\r?\n\r?\n/)) !== -1) {
+        const separator = buffer.slice(cut).match(/^\r?\n\r?\n/)![0];
+        handle(buffer.slice(0, cut));
+        buffer = buffer.slice(cut + separator.length);
+      }
     }
+    if (buffer.trim()) handle(buffer);
+    finished = true;
+  } finally {
+    // A stalled read, an error event or a parse failure leaves the connection open; release it.
+    if (!finished) await reader.cancel().catch(() => undefined);
   }
-  if (buffer.trim()) handle(buffer);
   return { text, stop_reason, usage };
 }
 
@@ -548,6 +620,7 @@ export const lovableAdapter: ProviderAdapter = {
       const streamed = await readChatStream(response.body);
       // A cut-off answer is a failure that hands over to the next model, never a partial plan.
       if (streamed.finishReason === "length") throw truncated();
+      logPromptCache(model, streamed.usage);
       return { text: answerOrThrow(streamed.text), usage: streamed.usage };
     }
     // The gateway answered with one plain completion (it ignored `stream`).
@@ -555,11 +628,17 @@ export const lovableAdapter: ProviderAdapter = {
       choices?: { message?: { content?: string }; finish_reason?: string }[];
     };
     if (payload.choices?.[0]?.finish_reason === "length") throw truncated();
-    return { text: answerOrThrow(payload.choices?.[0]?.message?.content ?? ""), usage: usageOf(payload) };
+    const usage = usageOf(payload);
+    logPromptCache(model, usage);
+    return { text: answerOrThrow(payload.choices?.[0]?.message?.content ?? ""), usage };
   },
 
   async stream({ apiKey, model, messages, maxOutputTokens, signal }) {
     if (isAnthropic(model)) {
+      // Deliberately buffered: the whole Claude answer is checked (refusal,
+      // max_tokens, error event, empty reply) before any byte is handed on, so
+      // the router can still fail over to the next model. Streaming it through
+      // would turn those into half-delivered answers with no failover.
       const { text } = await anthropicChat({ apiKey, model, messages, maxOutputTokens, signal });
       return openAiSseStream(text);
     }
@@ -580,7 +659,7 @@ export const lovableAdapter: ProviderAdapter = {
 
   // Pictures use the gateway's OpenAI-format image endpoints. Server-side and
   // final-only, so the request is not streamed; the caller's deadline bounds it.
-  async image({ apiKey, model, prompt, source, signal }) {
+  async image({ apiKey, model, prompt, source, size, signal }) {
     let response: Response;
     if (source) {
       const form = new FormData();
@@ -593,7 +672,7 @@ export const lovableAdapter: ProviderAdapter = {
       response = await fetch(`${BASE}/images/generations`, {
         method: "POST",
         headers: headers(apiKey),
-        body: JSON.stringify({ model, prompt }),
+        body: JSON.stringify(size ? { model, prompt, size } : { model, prompt }),
         signal,
       });
     }

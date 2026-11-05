@@ -1,6 +1,12 @@
+import { containsLeadWidget, showStyle } from "@/lib/builder/lead-form-guard";
+import { stickyIconFor, stickyTabSlots, type StickyAction } from "@/components/site/sticky-tabs";
+import { StickyIcon } from "@/components/site/StickyIcon";
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { visibleFrameLabel } from "@/lib/builder/frame-labels";
+import { faqItemsForDisplay, NO_FAQ_FACTS, OWNER_TO_ANSWER, type FaqDisplayItem, type FaqFacts } from "@/lib/builder/faq-from-facts";
+import { usePreviewMode } from "@/components/site/preview-mode-context";
 import { Button } from "@/components/ui/button";
-import type { Breakpoint, CompositionFaqItem, CompositionNode, CompositionTab, CompositionTree, MotionEasing, NodeHover, NodeMotion, NodeStyle, WidgetPresentation } from "@/lib/builder/composition-tree";
+import type { Breakpoint, CompositionNode, CompositionTab, CompositionTree, MotionEasing, NodeHover, NodeMotion, NodeStyle, WidgetPresentation } from "@/lib/builder/composition-tree";
 import type { PersistedComponentVisual } from "@/lib/site-style";
 import { resolveImageSource } from "@/lib/brand-logos";
 import { fallbackImageAlt } from "@/lib/client-seo-guard";
@@ -11,14 +17,20 @@ import { clampSplit, splitForKey, splitForPointer } from "@/lib/builder/compare-
 import { brushRadius, coverRect, formatElapsed, toolRadius, MAX_BRUSH_TOOLS, coveragePercent, isRevealDone, newGrid, paintAt, strokePoints, type RevealGrid } from "@/lib/builder/reveal-brush";
 import { DEFAULT_OFFER_ANCHOR, DEFAULT_SCENE_ANCHOR, sceneScrim, type SceneAnchor } from "@/lib/builder/cinematic-primitives";
 import { intrinsicSize } from "@/lib/builder/image-campaign";
-import { LensMagnifier, StickySplitStory, TierFader } from "@/components/site/MasterBlocks";
+import { focalToObjectPosition, responsiveImage } from "@/lib/builder/image-framing";
+import { focalForKnownPhoto } from "@/lib/builder/trade-photo-picks";
+import { LensMagnifier, LongDocument, StickySplitStory, TierFader } from "@/components/site/MasterBlocks";
+import { capScrubFrames } from "@/lib/builder/scrub";
 import { CollectionRow, DialSelector, HeroVideo, InlineHeroVideo, SceneVideo, ScrubSequence, ScrubStage, ScrollChapters, SpinViewer, type SpinFrame } from "@/components/site/CinematicBlocks";
 import { CINEMATIC_CSS } from "@/components/site/cinematic-css";
+import { CRAFT_ENGINE_CSS } from "@/components/site/craft-engine-css";
+import { headingClamp } from "@/lib/type-scale";
 import { CountUpText } from "@/components/site/CountUp";
 import { ModelViewer } from "@/components/site/ModelViewer";
 import { ShaderField } from "@/components/site/ShaderField";
 import { Tour360, type TourScene } from "@/components/site/Tour360";
 import { BuildingExplorer } from "@/components/site/BuildingExplorer";
+import { CinematicHeroStage, type HeroStagePicture } from "@/components/site/CinematicHeroStage";
 import { usePremiumFx } from "@/components/site/premium-fx";
 import { ScrollRevealFallback } from "@/components/site/ScrollRevealFallback";
 import { PREMIUM_CSS } from "@/components/site/premium-css";
@@ -45,7 +57,7 @@ const FILL_WHEN_CAPPED = new Set<CompositionNode["type"]>([
   "stack", "grid", "row", "card", "list", "tabs", "toggle", "accordion", "compare", "gallery", "widget",
   "before_after_slider", "faq_accordion", "tab_group", "offer_card", "spin_viewer", "collection_row",
   "lens_magnifier", "sticky_split_story", "service_tier_fader", "parallax_layers", "scrub_sequence", "dial_selector", "model_3d_viewer", "divider", "marquee",
-  "shader_field", "tour_360", "building_explorer",
+  "shader_field", "tour_360", "building_explorer", "long_document", "cinematic_hero_stage",
 ]);
 // eslint-disable-next-line react-refresh/only-export-components -- renderer helpers are intentionally co-located with their composition types.
 export function styleToCss(style: NodeStyle | undefined, type: CompositionNode["type"]): CSSProperties {
@@ -70,12 +82,8 @@ export function styleToCss(style: NodeStyle | undefined, type: CompositionNode["
   if (style.items) css.alignItems = ITEMS[style.items];
   if (style.size != null) {
     if (type === "heading") {
-      const max = Math.round(style.size);
-      // Never let the floor exceed the authored size (clamp() with min > max
-      // is invalid and the browser dropped the size entirely).
-      const min = Math.min(max, Math.max(18, Math.round(max * 0.72)));
-      const vw = Math.max(2.5, Math.min(8, Math.round((max / 16) * 10) / 10));
-      css.fontSize = `clamp(${min}px, ${vw}vw, ${max}px)`;
+      // rem-anchored fluid size (zoom-safe), max ≤ 2.5× min; see type-scale.ts.
+      css.fontSize = headingClamp(style.size);
     } else {
       css.fontSize = style.size;
     }
@@ -149,7 +157,7 @@ const CHROME_SCOPES = new Set(["site-header", "site-footer"]);
 /** Facts for an offer card, read from the owner's real Services tool. Never authored by the AI. */
 export type OfferFacts = { name: string; price: string | null; duration: string | null };
 
-type Ctx = { altBase?: string; premiumOff?: boolean; parentType?: string | undefined; align?: NodeStyle["align"] | undefined; offer?: (service: string) => OfferFacts | null; sceneScrim?: string | undefined; chrome?: boolean; editable?: boolean; label?: (text: string) => string; depth?: number | undefined; bg?: string | undefined; bg2?: string | undefined; fg?: string | undefined; rules: string[]; counter: { n: number; sawMedia?: boolean; alts?: number }; eagerFirstMedia?: boolean; heroVideo?: HeroVideoMedia | null; scope: string; href: (h: string) => string; media: (ref: string) => ResolvedMedia | null; widget: (name: string, presentation?: WidgetPresentation) => ReactNode };
+type Ctx = { altBase?: string; faq?: { facts: FaqFacts; mode: "published" | "draft" }; premiumOff?: boolean; parentType?: string | undefined; align?: NodeStyle["align"] | undefined; offer?: (service: string) => OfferFacts | null; sceneScrim?: string | undefined; chrome?: boolean; editable?: boolean; label?: (text: string) => string; depth?: number | undefined; bg?: string | undefined; bg2?: string | undefined; fg?: string | undefined; rules: string[]; counter: { n: number; sawMedia?: boolean; alts?: number }; eagerFirstMedia?: boolean; heroVideo?: HeroVideoMedia | null; scope: string; href: (h: string) => string; media: (ref: string) => ResolvedMedia | null; widget: (name: string, presentation?: WidgetPresentation) => ReactNode };
 
 /**
  * The description a picture is shown with: its own alt, else the stored
@@ -217,12 +225,23 @@ function mediaCss(visual: PersistedComponentVisual | undefined): CSSProperties {
   return css;
 }
 
+/** Focal crop for a curated trade photo, so its subject stays in frame at any aspect. */
+function knownFocalCss(source: string | null | undefined): CSSProperties {
+  const focal = focalForKnownPhoto(source);
+  return focal ? { objectPosition: focalToObjectPosition(focal) } : {};
+}
+
+/** `sizes` hint for an inline picture: its own width when known, else the viewport. */
+function mediaSizes(visual: PersistedComponentVisual | undefined): string {
+  return visual?.width ? `(max-width: ${visual.width}px) 100vw, ${visual.width}px` : "100vw";
+}
+
 /** Panels that must fill the row. A centred parent otherwise shrinks them to their shortest label. */
 const STRETCH_PANEL = new Set<CompositionNode["type"]>([
   "accordion", "faq_accordion", "tab_group", "tabs", "toggle", "compare", "gallery", "widget",
   "before_after_slider", "scroll_chapters", "scrub_sequence", "sticky_split_story", "service_tier_fader",
   "collection_row", "parallax_layers", "lens_magnifier", "spin_viewer", "offer_card", "dial_selector", "model_3d_viewer",
-  "tour_360", "building_explorer",
+  "tour_360", "building_explorer", "long_document", "cinematic_hero_stage",
 ]);
 
 function baseLayout(type: CompositionNode["type"]): CSSProperties {
@@ -240,7 +259,7 @@ function baseLayout(type: CompositionNode["type"]): CSSProperties {
 
 /** A text-only frame with an aspect ratio paints as a tall empty box. Pictures keep theirs. */
 function containsVisual(node: CompositionNode): boolean {
-  if (node.type === "media" || node.type === "scene" || node.type === "scroll_chapters" || node.type === "scrub_sequence" || node.type === "gallery" || node.type === "widget" || node.type === "parallax_layers" || node.type === "spin_viewer" || node.src || node.mediaRef) return true;
+  if (node.type === "media" || node.type === "scene" || node.type === "scroll_chapters" || node.type === "scrub_sequence" || node.type === "gallery" || node.type === "widget" || node.type === "parallax_layers" || node.type === "spin_viewer" || node.type === "cinematic_hero_stage" || node.src || node.mediaRef) return true;
   return (node.children ?? []).some(containsVisual);
 }
 
@@ -379,6 +398,30 @@ export function readablePaint(node: Pick<CompositionNode, "type" | "style">, ctx
   return { ...(color ? { color } : {}), bg, bg2, fg: color ?? authored ?? ctx.fg };
 }
 
+const LEGIBLE_TYPES = new Set(["heading", "text", "list", "quote", "button", "link"]);
+
+/**
+ * Size and dimness floor for copy. The contrast scan reads a node's colour but
+ * not its `opacity` or a 9-11px size, so a dim, tiny caption could pass the
+ * scan and still be unreadable (audit item 3: tiny, dim text over the second
+ * photo). Over a photo scene copy is at least 14px and 90% opaque; elsewhere at
+ * least 12px and 80% opaque. Mutates `style` (the computed CSS), never the tree.
+ */
+// eslint-disable-next-line react-refresh/only-export-components -- renderer helper, exported for tests.
+export function legibleType(node: Pick<CompositionNode, "type">, style: CSSProperties, overPhoto: boolean): void {
+  if (!LEGIBLE_TYPES.has(node.type)) return;
+  const minSize = overPhoto ? 14 : 12;
+  if (typeof style.fontSize === "number" && style.fontSize < minSize) style.fontSize = minSize;
+  else if (typeof style.fontSize === "string") {
+    const size = style.fontSize;
+    const px = /^(\d+(?:\.\d+)?)px$/.exec(size);
+    const rem = /^(\d+(?:\.\d+)?)rem$/.exec(size);
+    if ((px && Number(px[1]) < minSize) || (rem && Number(rem[1]) * 16 < minSize)) style.fontSize = minSize;
+  }
+  const minOpacity = overPhoto ? 0.9 : 0.8;
+  if (typeof style.opacity === "number" && style.opacity < minOpacity) style.opacity = minOpacity;
+}
+
 /**
  * Big background areas (the section itself and full-width rows/grids/stacks)
  * get the same premium-surface correction as the page: a washed-out mid-grey
@@ -462,15 +505,22 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
   // Buttons and links are how visitors act: a design may restyle them per
   // screen size but never hide one, or a phone visitor loses the action.
   const actionable = node.type === "button" || node.type === "link";
+  // The enquiry form, booking form and quote calculator, and any container
+  // holding one, are never hidden on phones, whatever flag was stored with the
+  // layout: that is how a visitor becomes a lead.
+  const leadHolder = containsLeadWidget(node);
   for (const [bp, rawStyle] of Object.entries(node.responsive ?? {}) as [Breakpoint, NodeStyle][]) {
-    const style = actionable && rawStyle.hidden ? { ...rawStyle, hidden: false } : rawStyle;
+    const style = actionable && rawStyle.hidden ? { ...rawStyle, hidden: false } : leadHolder && bp === "mobile" ? (showStyle(rawStyle) ?? rawStyle) : rawStyle;
     const text = cssText(styleToCss(style, node.type));
     if (text) ctx.rules.push(`@media ${MEDIA[bp]}{[data-cn="${id}"]{${text}}}`);
   }
   if (node.hover) ctx.rules.push(hoverCss(id, node.hover));
   const style: CSSProperties = {
     ...baseLayout(node.type),
-    ...styleToCss(actionable && node.style?.hidden ? { ...node.style, hidden: false } : node.style, node.type),
+    ...styleToCss(
+      actionable && node.style?.hidden ? { ...node.style, hidden: false } : leadHolder ? (showStyle(node.style) ?? undefined) : node.style,
+      node.type,
+    ),
   };
   // An aspect ratio on a text-only grid or card becomes a hollow frame (two
   // short labels stacked in a tall bordered box). Pictures keep their crop.
@@ -482,6 +532,7 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
   // Text is re-paired with the surface it actually sits on, keeping its hue.
   const paint = readablePaint(node, ctx);
   if (paint.color) style.color = paint.color;
+  legibleType(node, style, Boolean(ctx.sceneScrim));
   ctx.bg = paint.bg; ctx.bg2 = paint.bg2; ctx.fg = paint.fg;
   ctx.depth = (ctx.depth ?? 0) + 1;
   const motion = premiumMotion(node, ctx);
@@ -491,7 +542,7 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
   const parentType = ctx.parentType;
   ctx.parentType = node.type;
   const autoReveal = !motion && !node.motion && !ctx.chrome && (ctx.depth ?? 0) >= 2 &&
-    (node.type === "card" || parentType === "grid" || parentType === "row");
+    (node.type === "card" || parentType === "grid" || parentType === "row" || SELF_REVEAL_TYPES.has(node.type));
   const stagger = autoReveal ? Math.min(Number(key.split(".").pop()) || 0, 5) : 0;
   const interactive = node.type === "button" || node.type === "link" || node.type === "card" || node.type === "widget";
   const classNames = [
@@ -571,7 +622,15 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
       } as CSSProperties;
       // Site header/footer: same look, but not a document heading, so the
       // page keeps its one h1 and a clean outline.
-      const headingText = splitText(node, ctx, motion) ?? countUpText(node, ctx);
+      const baseText = splitText(node, ctx, motion) ?? countUpText(node, ctx);
+      // Two-tone headline: the accent line sits on its own line in the brand
+      // ink, which the theme keeps at WCAG AA on the page surface.
+      const headingText = node.accentText ? (
+        <>
+          {baseText}
+          <span className="rv-cn-accent-line" style={{ display: "block", color: "var(--primary-ink, var(--primary))" }}>{node.accentText}</span>
+        </>
+      ) : baseText;
       if (!childrenArePhrasing(node)) return <div key={key} {...props} style={headingStyle}>{headingText}{kids}</div>;
       if (ctx.chrome) return <p key={key} {...props} style={headingStyle}>{headingText}{kids}</p>;
       const Tag = (`h${node.level ?? 2}`) as "h1" | "h2" | "h3" | "h4";
@@ -593,7 +652,7 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
         const first = !ctx.counter.sawMedia;
         ctx.counter.sawMedia = true;
         const box = intrinsicSize(typeof style.aspectRatio === "string" ? style.aspectRatio : visual?.aspect_ratio ?? null);
-        const pictureStyle: CSSProperties = { width: "100%", height: style.aspectRatio || visual?.aspect_ratio ? "100%" : undefined, objectFit: style.objectFit ?? visual?.object_fit ?? (style.aspectRatio ? "cover" : undefined), ...mediaCss(visual), ...props.style };
+        const pictureStyle: CSSProperties = { width: "100%", height: style.aspectRatio || visual?.aspect_ratio ? "100%" : undefined, objectFit: style.objectFit ?? visual?.object_fit ?? (style.aspectRatio ? "cover" : undefined), ...knownFocalCss(source), ...mediaCss(visual), ...props.style };
         // The home page's hero loop also plays when the top section is not a
         // full-screen scene (a split hero): it takes the place of the section's
         // first large picture, which stays as its poster. Before, such a hero
@@ -601,7 +660,7 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
         const hero = first && source && !VIDEO_SOURCE.test(source) && (!visual?.width || visual.width >= 480) ? ctx.heroVideo ?? null : null;
         if (first) ctx.heroVideo = null;
         if (hero && source) return <InlineHeroVideo key={key} {...props} {...(box ? { width: box.width, height: box.height } : {})} src={hero.src} mobileSrc={hero.mobileSrc} poster={source} alt={altOf(node.alt, visual?.alt, ctx)} loopStart={hero.loopStart} loopEnd={hero.loopEnd} eager={Boolean(ctx.eagerFirstMedia)} style={{ ...pictureStyle, objectFit: pictureStyle.objectFit ?? "cover" }} />;
-        return source ? <img key={key} {...props} {...(box ? { width: box.width, height: box.height } : {})} src={source} onError={markBrokenImage} alt={altOf(node.alt, visual?.alt, ctx)} loading={first && ctx.eagerFirstMedia ? "eager" : "lazy"} decoding="async" {...(first && ctx.eagerFirstMedia ? { fetchPriority: "high" as const } : {})} style={{ width: "100%", height: style.aspectRatio || visual?.aspect_ratio ? "100%" : undefined, objectFit: style.objectFit ?? visual?.object_fit ?? (style.aspectRatio ? "cover" : undefined), ...mediaCss(visual), ...props.style }} /> : null; }
+        return source ? <img key={key} {...props} {...(box ? { width: box.width, height: box.height } : {})} {...responsiveImage(source, mediaSizes(visual))} onError={markBrokenImage} alt={altOf(node.alt, visual?.alt, ctx)} loading={first && ctx.eagerFirstMedia ? "eager" : "lazy"} decoding="async" {...(first && ctx.eagerFirstMedia ? { fetchPriority: "high" as const } : {})} style={{ width: "100%", height: style.aspectRatio || visual?.aspect_ratio ? "100%" : undefined, objectFit: style.objectFit ?? visual?.object_fit ?? (style.aspectRatio ? "cover" : undefined), ...knownFocalCss(source), ...mediaCss(visual), ...props.style }} /> : null; }
     case "widget":
       { const w = node.text ? ctx.widget(node.text, node.widgetPresentation) : null;
         return w ? <div key={key} {...props} data-widget={node.text} style={{ ...props.style, ...widgetThemeStyle(node.widgetPresentation?.theme) }}>{w}{kids}</div> : null; }
@@ -762,12 +821,45 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
           photo={photoSrc && !isModelUrl(photoSrc) ? { src: photoSrc, alt: photoNode?.alt ?? mediaVisual(photoResolved)?.alt ?? "The building" } : null} />
       );
     }
+    case "cinematic_hero_stage": {
+      const stage = node.heroStage;
+      if (!stage) return null;
+      const pictures: Record<string, HeroStagePicture[]> = {};
+      const picture = (src: string | undefined, mediaRef: string | undefined, alt: string, focal?: readonly [number, number]): (HeroStagePicture & { generated: boolean }) | null => {
+        const resolved = mediaRef ? ctx.media(mediaRef) : null;
+        const source = src ? resolveImageSource(src) : mediaUrl(resolved);
+        if (!source || isModelUrl(source)) return null;
+        return { src: source, alt, generated: isGeneratedMedia(resolved), ...(focal ? { objectPosition: `${Math.round(focal[0] * 100)}% ${Math.round(focal[1] * 100)}%` } : {}) };
+      };
+      for (const layer of stage.layers) {
+        if (layer.type === "media_stack") {
+          // productPixels "real": a generated or stock picture never stands in
+          // for the business's own product. Too few real frames drops the layer.
+          const frames = layer.frames
+            .map((f) => picture(f.src, f.mediaRef, f.alt, f.focal))
+            .filter((f): f is HeroStagePicture & { generated: boolean } => Boolean(f) && !(layer.productPixels === "real" && f!.generated));
+          if (frames.length >= 4) pictures[layer.id] = frames.slice(0, 18).map(({ generated: _g, ...rest }) => rest);
+        }
+        if (layer.type === "media_single") {
+          const main = picture(layer.src, layer.mediaRef, layer.alt);
+          const poster = layer.poster ? picture(layer.poster, undefined, layer.alt) : null;
+          if (main) pictures[layer.id] = [main, ...(poster ? [poster] : [])].map(({ generated: _g, ...rest }) => rest);
+        }
+      }
+      if (Object.keys(pictures).length) ctx.counter.sawMedia = true;
+      return <CinematicHeroStage key={key} props={props} stage={stage} pictures={pictures} href={ctx.href} headingLevel={ctx.chrome ? 2 : node.level ?? 1} />;
+    }
     case "dial_selector":
       return (node.dialOptions?.length ?? 0) >= 2 ? (
         <DialSelector key={key} props={props} label={node.text?.trim().slice(0, 60) || "Choose an option"} options={node.dialOptions!.slice(0, 6)} unit={node.dialUnit} />
       ) : null;
-    case "faq_accordion":
-      return node.faqItems?.length ? <FaqAccordion key={key} props={props} items={node.faqItems} /> : null;
+    case "faq_accordion": {
+      // FAQ answers must come from the business's own facts. Published pages
+      // drop a question with no grounded answer; drafts show a marked placeholder.
+      const faq = ctx.faq ?? { facts: NO_FAQ_FACTS, mode: ctx.editable ? "draft" as const : "published" as const };
+      const items = faqItemsForDisplay(node.faqItems ?? [], faq.facts, faq.mode);
+      return items.length ? <FaqAccordion key={key} props={props} items={items} /> : null;
+    }
     case "tab_group":
       return node.tabs?.length ? (
         <TabGroup
@@ -796,6 +888,14 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
               ariaLabel: node.secondaryCta.ariaLabel ?? node.secondaryCta.label,
             },
           } : {})}
+          {...(node.tertiaryCta ? {
+            tertiary: {
+              label: node.tertiaryCta.label,
+              href: ctx.href(node.tertiaryCta.href),
+              ariaLabel: node.tertiaryCta.ariaLabel ?? node.tertiaryCta.label,
+            },
+          } : {})}
+          layout={node.barLayout ?? "split"}
         />
       ) : null;
     case "gallery":
@@ -860,6 +960,14 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
       const phases = kids.slice(1).filter((kid) => kid != null);
       return kids[0] && phases.length ? <StickySplitStory key={key} props={props} picture={kids[0]} phases={phases} /> : null;
     }
+    case "long_document": {
+      const chapters = prunedChildren.flatMap((child, i) => {
+        const title = child.children?.[0]?.type === "heading" ? child.children[0].text?.trim() : "";
+        return title && kids[i] != null ? [{ title: title.slice(0, 80), body: kids[i] }] : [];
+      });
+      if (chapters.length < 2) return chapters.length ? <div key={key} {...props}>{chapters[0]!.body}</div> : null;
+      return <LongDocument key={key} props={props} label={node.text?.trim().slice(0, 40) || "Contents"} chapters={chapters} />;
+    }
     case "parallax_layers": {
       // Atmosphere, like a scene backdrop: layers are never presented as proof of work.
       const layers = children.flatMap((child, i) => {
@@ -886,7 +994,7 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
       return items.length ? <CollectionRow key={key} props={props} label={node.text?.trim() || "Collection"} items={items} /> : null;
     }
     case "scrub_sequence": {
-      const frames: { src: string; alt: string; label?: string }[] = [];
+      const authored: { src: string; alt: string; label?: string; generated: boolean }[] = [];
       const copy: ReactNode[] = [];
       children.forEach((child, i) => {
         if (child.type !== "media") {
@@ -896,9 +1004,11 @@ function renderNodeInner(rawNode: CompositionNode, ctx: Ctx, key: string): React
         const resolved = child.mediaRef ? ctx.media(child.mediaRef) : null;
         const source = child.src ? resolveImageSource(child.src) : mediaUrl(resolved);
         if (!source) return;
-        const label = child.text?.trim().slice(0, 30);
-        frames.push({ src: source, alt: child.alt ?? mediaVisual(resolved)?.alt ?? "", ...(label ? { label } : {}) });
+        const label = visibleFrameLabel(child.text);
+        authored.push({ src: source, alt: child.alt ?? mediaVisual(resolved)?.alt ?? "", ...(label ? { label } : {}), generated: isGeneratedMedia(resolved) });
       });
+      // Beyond six frames only the owner's real photographs show, at most 18.
+      const frames = capScrubFrames(authored).map(({ generated: _generated, ...frame }) => frame);
       if (frames.length < 2 && copy.length === 0) return null;
       if (frames.length) ctx.counter.sawMedia = true;
       const scrim = sceneScrim({ ink: node.style?.color ?? "#ffffff", scrim: node.scrim?.color ?? "#0c0e12", opacity: node.scrim?.opacity ?? 46 });
@@ -985,7 +1095,7 @@ function renderScene(node: CompositionNode, ctx: Ctx, key: string, props: NodePr
   if (source) ctx.counter.sawMedia = true;
   const eager = first && Boolean(ctx.eagerFirstMedia);
   const alt = backdrop?.alt ?? visual?.alt ?? "";
-  const objectPosition = node.focal ?? visual?.object_position ?? visual?.focal_point;
+  const objectPosition = node.focal ?? visual?.object_position ?? visual?.focal_point ?? knownFocalCss(source).objectPosition;
   const scrubbed = Boolean(node.scrub && source && VIDEO_SOURCE.test(source));
   // Quality bar #5: a picture too small to fill the screen is never stretched
   // edge to edge. It is shown sharp at no more than its own size, in a frame,
@@ -1006,7 +1116,7 @@ function renderScene(node: CompositionNode, ctx: Ctx, key: string, props: NodePr
   ) : framed ? (
     <img className="rv-scene-media" data-soft="" src={source} alt="" aria-hidden="true" loading={eager ? "eager" : "lazy"} decoding="async" />
   ) : (
-    <img className="rv-scene-media" {...(first ? { "data-kenburns": "" } : {})} src={source} alt={alt} loading={eager ? "eager" : "lazy"} decoding="async" {...(eager ? { fetchPriority: "high" as const } : {})} style={objectPosition ? { objectPosition } : undefined} />
+    <img className="rv-scene-media" {...(first ? { "data-kenburns": "" } : {})} {...responsiveImage(source, "100vw")} alt={alt} loading={eager ? "eager" : "lazy"} decoding="async" {...(eager ? { fetchPriority: "high" as const } : {})} style={objectPosition ? { objectPosition } : undefined} />
   );
   const frame = framed && source ? (
     <img className="rv-scene-frame" src={source} alt={alt} {...(visual?.width && visual.height ? { width: visual.width, height: visual.height } : {})} loading={eager ? "eager" : "lazy"} decoding="async" {...(eager ? { fetchPriority: "high" as const } : {})} style={visual?.width ? ({ "--rv-native": `${visual.width}px` } as CSSProperties) : undefined} />
@@ -1066,6 +1176,13 @@ const EASING_CSS: Record<MotionEasing, string> = {
 /** Turns the AI's validated motion description into CSS variables/animation settings. */
 // eslint-disable-next-line react-refresh/only-export-components -- renderer helpers are intentionally co-located with their composition types.
 /** Scroll-linked reveals finish within the first 220px a block has entered the screen. */
+/**
+ * Content blocks that rise in on their own even outside a grid or row, so a
+ * section built from a list, an FAQ or a form/review widget still has scroll
+ * choreography. Transform-only like every auto reveal (never a faded from-state).
+ */
+export const SELF_REVEAL_TYPES: ReadonlySet<CompositionNode["type"]> = new Set(["list", "faq_accordion", "widget"]);
+
 export const VIEW_REVEAL_RANGE = "entry 0px entry 220px";
 // eslint-disable-next-line react-refresh/only-export-components -- renderer helpers are intentionally co-located with their composition types.
 export function motionStyle(motion: NodeMotion): CSSProperties {
@@ -1117,7 +1234,7 @@ export function hoverCss(id: string, h: NodeHover): string {
   return `@media (prefers-reduced-motion: no-preference){${sel}{transition:transform ${h.durationMs ?? 240}ms ease,opacity ${h.durationMs ?? 240}ms ease,box-shadow ${h.durationMs ?? 240}ms ease}${sel}:hover,${sel}:focus-visible,${sel}:active{${decl}}}`;
 }
 
-type NodeProps = { "data-cn": string; "data-motion": string | undefined; className: string | undefined; style: CSSProperties };
+export type NodeProps = { "data-cn": string; "data-motion": string | undefined; className: string | undefined; style: CSSProperties };
 
 function Tabs({ props, labels, panels }: { props: NodeProps; labels: string[]; panels: ReactNode[] }) {
   const [active, setActive] = useState(0);
@@ -1374,13 +1491,21 @@ function BeforeAfterSlider({ props, before, after, initialSplit }: {
 }
 
 
-function FaqAccordion({ props, items }: { props: NodeProps; items: CompositionFaqItem[] }) {
+function FaqAccordion({ props, items }: { props: NodeProps; items: FaqDisplayItem[] }) {
   return (
     <div {...props} className={`${props.className ?? ""} rv-cn-faq`.trim()}>
       {items.map((item, index) => (
         <details key={index} open={item.defaultOpen}>
           <summary><span>{item.question}</span><span aria-hidden="true" className="rv-cn-faq-chevron" /></summary>
-          <div className="rv-cn-faq-panel"><div className="rv-cn-faq-panel-inner">{item.answer}</div></div>
+          <div className="rv-cn-faq-panel">
+            {item.placeholder ? (
+              <div className="rv-cn-faq-panel-inner" data-faq-placeholder="">
+                <strong>{OWNER_TO_ANSWER}</strong> This answer isn&apos;t in your business details yet. Add it in the editor; until then this question is hidden on your live site.
+              </div>
+            ) : (
+              <div className="rv-cn-faq-panel-inner">{item.answer}</div>
+            )}
+          </div>
         </details>
       ))}
     </div>
@@ -1425,10 +1550,12 @@ function TabGroup({ props, tabs, renderPanel }: {
   );
 }
 
-function MobileStickyBar({ props, primary, secondary }: {
+export function MobileStickyBar({ props, primary, secondary, tertiary, layout = "split" }: {
   props: NodeProps;
-  primary: { label: string; href: string; ariaLabel: string };
-  secondary?: { label: string; href: string; ariaLabel: string };
+  primary: StickyAction;
+  secondary?: StickyAction;
+  tertiary?: StickyAction;
+  layout?: "split" | "tabs";
 }) {
   const bar = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -1448,6 +1575,34 @@ function MobileStickyBar({ props, primary, secondary }: {
       document.documentElement.style.removeProperty("--rv-sticky-height");
     };
   }, []);
+  if (layout === "tabs") {
+    const slots = stickyTabSlots({ primary, secondary, tertiary });
+    if (!slots.length) return null;
+    return (
+      <div ref={bar} {...props} role="navigation" aria-label="Quick actions" data-rv-overlay="sticky" data-rv-bar="tabs" className={`${props.className ?? ""} rv-cn-mobile-sticky-bar rv-cn-sticky-tabs`.trim()} style={{
+        ...props.style,
+        position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 50, display: "grid",
+        gridTemplateColumns: `repeat(${slots.length}, minmax(0, 1fr))`, alignItems: "stretch",
+        paddingBottom: "env(safe-area-inset-bottom, 0px)",
+        background: props.style.background ?? "var(--background)", color: props.style.color ?? "var(--foreground)",
+        borderTop: "1px solid var(--border)",
+      }}>
+        {slots.map((slot) => (
+          <a key={slot.role} href={slot.action.href} aria-label={slot.action.ariaLabel} data-rv-slot={slot.role} className="rv-cn-sticky-tab" style={{
+            display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6,
+            minHeight: 64, padding: "10px 6px", textDecoration: "none", touchAction: "manipulation",
+            fontSize: 13, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", lineHeight: 1.1, textAlign: "center",
+            ...(slot.highlight
+              ? { background: "var(--primary)", color: "var(--primary-foreground)" }
+              : { background: "transparent", color: "inherit" }),
+          }}>
+            <StickyIcon kind={stickyIconFor(slot.action.href, slot.role)} highlight={slot.highlight} />
+            <span>{slot.action.label}</span>
+          </a>
+        ))}
+      </div>
+    );
+  }
   return (
     <div ref={bar} {...props} role="navigation" aria-label="Quick actions" data-rv-overlay="sticky" className={`${props.className ?? ""} rv-cn-mobile-sticky-bar`.trim()} style={{
       ...props.style,
@@ -1518,6 +1673,7 @@ const INTERACTIVE_CSS = `
 .rv-cn-faq-panel{display:grid;grid-template-rows:0fr;transition:grid-template-rows .24s ease}
 .rv-cn-faq details[open] .rv-cn-faq-panel{grid-template-rows:1fr}
 .rv-cn-faq-panel-inner{min-height:0;overflow:hidden;overflow:clip;padding:0 0 14px;white-space:pre-wrap}
+.rv-cn-faq-panel-inner[data-faq-placeholder]{font-style:italic;outline:2px dashed currentColor;outline-offset:-2px;padding:10px 12px;margin-bottom:14px;border-radius:8px}
 @supports (interpolate-size:allow-keywords){.rv-cn-faq details{interpolate-size:allow-keywords}.rv-cn-faq details::details-content{block-size:0;overflow:clip;transition:block-size .24s ease,content-visibility .24s;transition-behavior:allow-discrete}.rv-cn-faq details[open]::details-content{block-size:auto}}
 .rv-cn-tab-list{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;border-bottom:1px solid currentColor}
 .rv-cn-tab{position:relative;min-height:44px;padding:0 16px;border:0;border-radius:0;background:transparent;color:inherit;font:inherit;font-weight:650;cursor:pointer;opacity:.65}
@@ -1530,6 +1686,7 @@ const INTERACTIVE_CSS = `
 .rv-cn-acc-item summary::-webkit-details-marker{display:none}
 .rv-cn-mobile-sticky-bar{display:none}
 @media (max-width:767px){.rv-cn-mobile-sticky-bar{display:flex!important;position:fixed!important;left:0!important;right:0!important;bottom:0!important;z-index:50!important;padding-bottom:max(10px,env(safe-area-inset-bottom,0px))!important}.rv-cn-mobile-sticky-bar a{min-height:44px;min-width:44px}}
+@media (max-width:767px){.rv-cn-mobile-sticky-bar.rv-cn-sticky-tabs{display:grid!important;gap:0;padding:0 0 env(safe-area-inset-bottom,0px)!important;box-shadow:0 -8px 24px rgb(0 0 0 / .28)}.rv-cn-sticky-tab:focus-visible{outline-offset:-4px}}
 @media (min-width:768px){.rv-cn-mobile-sticky-bar{display:none!important}}
 @media (max-width:767px){html:has(input:focus,textarea:focus,select:focus) .rv-cn-mobile-sticky-bar{display:none!important}}
 @media (prefers-reduced-motion: reduce){.rv-cn-faq details::details-content{transition:none!important}}
@@ -1559,12 +1716,13 @@ const MOTION_CSS = `@media (prefers-reduced-motion: no-preference){.rv-cn-motion
 
 export function CompositionRenderer(args: Parameters<typeof RenderComposition>[0]) {
   const { enabled } = usePremiumFx();
-  return <RenderComposition {...args} premiumOff={!enabled} />;
+  const preview = usePreviewMode();
+  return <RenderComposition {...args} premiumOff={!enabled} faqDraft={preview || Boolean(args.editable)} />;
 }
 
-function RenderComposition({ premiumOff = false, altBase, tree, scope, as = "section", resolveHref, resolveMedia, resolveWidget, resolveOffer, eagerFirstMedia = false, heroVideo = null, surface = null, linkLabel, editable = false }: { premiumOff?: boolean; /** Business name, trade and city: the description for pictures that have none. */ altBase?: string; tree: CompositionTree; /** The home page's hero loop, for the first section only. */ heroVideo?: HeroVideoMedia | null; scope: string; editable?: boolean; surface?: string | null; linkLabel?: (text: string) => string; as?: "section" | "div"; resolveHref?: (href: string) => string; resolveMedia?: (ref: string) => ResolvedMedia | null; resolveWidget?: (name: string, presentation?: WidgetPresentation) => ReactNode; /** Real service facts for offer cards (Services tool); without it no price is shown. */ resolveOffer?: (service: string) => OfferFacts | null; eagerFirstMedia?: boolean }) {
+function RenderComposition({ premiumOff = false, faqDraft = false, faqFacts = null, altBase, tree, scope, as = "section", resolveHref, resolveMedia, resolveWidget, resolveOffer, eagerFirstMedia = false, heroVideo = null, surface = null, linkLabel, editable = false }: { premiumOff?: boolean; /** Owner draft preview: unanswered FAQ questions show a marked placeholder instead of being dropped. */ faqDraft?: boolean; /** The business facts FAQ answers must come from; without them only fact-free answers are shown. */ faqFacts?: FaqFacts | null; /** Business name, trade and city: the description for pictures that have none. */ altBase?: string; tree: CompositionTree; /** The home page's hero loop, for the first section only. */ heroVideo?: HeroVideoMedia | null; scope: string; editable?: boolean; surface?: string | null; linkLabel?: (text: string) => string; as?: "section" | "div"; resolveHref?: (href: string) => string; resolveMedia?: (ref: string) => ResolvedMedia | null; resolveWidget?: (name: string, presentation?: WidgetPresentation) => ReactNode; /** Real service facts for offer cards (Services tool); without it no price is shown. */ resolveOffer?: (service: string) => OfferFacts | null; eagerFirstMedia?: boolean }) {
   const page = surface && /^#[0-9a-f]{6}$/i.test(surface) ? surface : undefined;
-  const ctx: Ctx = { ...(altBase ? { altBase } : {}), ...(premiumOff ? { premiumOff: true } : {}), ...(resolveOffer ? { offer: resolveOffer } : {}), ...(CHROME_SCOPES.has(scope) ? { chrome: true } : {}), ...(editable ? { editable: true } : {}), ...(linkLabel ? { label: linkLabel } : {}), ...(page ? { bg: page, fg: bestInk(page) } : {}), rules: [], counter: { n: 0 }, eagerFirstMedia, ...(heroVideo && !editable ? { heroVideo } : {}), scope: scope.replace(/[^\w-]/g, "") || "cn", href: resolveHref ?? ((h) => h), media: resolveMedia ?? (() => null), widget: resolveWidget ?? (() => null) };
+  const ctx: Ctx = { faq: { facts: faqFacts ?? NO_FAQ_FACTS, mode: faqDraft ? "draft" : "published" }, ...(altBase ? { altBase } : {}), ...(premiumOff ? { premiumOff: true } : {}), ...(resolveOffer ? { offer: resolveOffer } : {}), ...(CHROME_SCOPES.has(scope) ? { chrome: true } : {}), ...(editable ? { editable: true } : {}), ...(linkLabel ? { label: linkLabel } : {}), ...(page ? { bg: page, fg: bestInk(page) } : {}), rules: [], counter: { n: 0 }, eagerFirstMedia, ...(heroVideo && !editable ? { heroVideo } : {}), scope: scope.replace(/[^\w-]/g, "") || "cn", href: resolveHref ?? ((h) => h), media: resolveMedia ?? (() => null), widget: resolveWidget ?? (() => null) };
   const body = renderNode(tree.root, ctx, "root");
   // The shared rules are identical for every section. They used to be
   // repeated inline in each one (several KB per section, re-parsed by the
@@ -1572,7 +1730,7 @@ function RenderComposition({ premiumOff = false, altBase, tree, scope, as = "sec
   // section's own responsive/hover rules stay inline, after the shared ones.
   const shared = (
     <style href="rv-cn-shared" precedence="rv-cn">
-      {MOTION_CSS + MARQUEE_CSS + INTERACTIVE_CSS + PHONE_SAFETY_CSS + CINEMATIC_CSS + BROKEN_MEDIA_CSS + PREMIUM_CSS}
+      {CRAFT_ENGINE_CSS + MOTION_CSS + MARQUEE_CSS + INTERACTIVE_CSS + PHONE_SAFETY_CSS + CINEMATIC_CSS + BROKEN_MEDIA_CSS + PREMIUM_CSS}
     </style>
   );
   const own = ctx.rules.length ? <style>{ctx.rules.join("")}</style> : null;

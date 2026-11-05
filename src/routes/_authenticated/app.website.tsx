@@ -29,6 +29,8 @@ import { GoogleSearchGrowth } from "@/components/app/GoogleSearchGrowth";
 import { BuilderWizard } from "@/components/app/BuilderWizard";
 import { BuilderShell } from "@/components/app/BuilderShell";
 import { MissingMenuBanner } from "@/components/app/MissingMenuBanner";
+import { AiUpgradeBanner } from "@/components/app/AiUpgradeBanner";
+import { readAiUpgradeFollowUps } from "@/lib/builder/ai-upgrade-followups";
 import { readSiteChrome } from "@/lib/builder/site-chrome";
 import { blocksAutoBuild, jobIsActive, stopWaiting, stopWaitingMessage } from "@/lib/builder/job-liveness";
 import { Disclosure, OverlayPanel } from "@/components/app/BuilderTools";
@@ -40,7 +42,7 @@ import { useBuilderRequests } from "@/lib/builder-requests.hooks";
 import { actionPrompt, selectionPrefix, type PageContext } from "@/lib/builder/preview-bridge";
 import { starterIdeasFor } from "@/lib/builder/industry-playbook";
 import { isBareRebuildCommand } from "@/lib/builder/rebuild-intent";
-import { sectionOfTarget } from "@/lib/builder/step-target";
+import { sectionOfTarget, changedSectionOf } from "@/lib/builder/step-target";
 import { liveStatusLine } from "@/lib/builder/live-status";
 import { useBuildProgress } from "@/lib/builder/progress.hooks";
 import { ConversionOptimizer } from "@/components/app/ConversionOptimizer";
@@ -66,6 +68,7 @@ import { PublishRetryBar } from "@/components/app/PublishRetryBar";
 import { ImageStudio } from "@/components/app/ImageStudio";
 import { readBackdrop } from "@/lib/site-effects";
 import { BuilderAudit } from "@/components/app/BuilderAudit";
+import { PrivacyNoticeDetails } from "@/components/app/PrivacyNoticeDetails";
 import { BuilderPreview, type PreviewSelection } from "@/components/app/BuilderPreview";
 import { Eye, History, MessageSquare, MoreHorizontal, Redo2, Settings2, Undo2 } from "lucide-react";
 import { useBuilderHistory } from "@/lib/builder-history.hooks";
@@ -75,6 +78,7 @@ import { friendlyError } from "@/lib/user-error";
 import type { BuilderAccessUiState } from "@/lib/builder-access-status";
 import { PreFlightPanel } from "@/components/app/PreFlight";
 import { preflight } from "@/lib/preflight";
+import { emittedJsonLd } from "@/lib/builder/jsonld-emitted";
 import { usePreflightFacts } from "@/lib/preflight.hooks";
 import { useSelfHeal } from "@/lib/self-heal.hooks";
 import { ClientOnboardingFlow } from "@/components/app/ClientOnboardingFlow";
@@ -84,6 +88,7 @@ import { VisualCheckPanel } from "@/components/app/VisualCheckPanel";
 import { VisionReviewPanel } from "@/components/app/VisionReviewPanel";
 import { ImageApprovalPanel } from "@/components/app/ImageApprovalPanel";
 import { PublishVersionPanel } from "@/components/app/PublishVersionPanel";
+import { SiteVersionList } from "@/components/app/SiteVersionList";
 import { LiveSyncPanel } from "@/components/app/LiveSyncPanel";
 import { PortalAccess } from "@/components/app/PortalAccess";
 import { PreviewLinks, PreviewSiteButton } from "@/components/app/PreviewLinks";
@@ -257,6 +262,7 @@ function WebsitePage() {
   const [viewingPage, setViewingPage] = useState<PageContext | null>(null);
   /** "Show in preview" from the chat: the section to scroll to and outline. */
   const [reveal, setReveal] = useState<{ id: string; nonce: number } | null>(null);
+  const [pickRequest, setPickRequest] = useState(0);
 
   /** One request engine for the whole workspace. */
   const superAdmin = useQuery({
@@ -318,6 +324,20 @@ function WebsitePage() {
   const lastNonEmptyPages = useRef<NonNullable<typeof pages>>([]);
   if (pages && pages.length > 0) lastNonEmptyPages.current = pages;
   const shownPages = freshRebuildActive && !(pages ?? []).length ? lastNonEmptyPages.current : (pages ?? []);
+  // After a change lands, scroll the preview to the part that changed and pulse it.
+  const liveTasks = requests.tasks;
+  const appliedTasks = appliedThisSession(liveTasks);
+  const seenApplied = useRef(appliedTasks.length);
+  useEffect(() => {
+    if (appliedTasks.length <= seenApplied.current) {
+      seenApplied.current = appliedTasks.length;
+      return;
+    }
+    seenApplied.current = appliedTasks.length;
+    const id = changedSectionOf(appliedTasks[appliedTasks.length - 1]?.steps as never, shownPages as never, selected?.id ?? null);
+    if (id) setReveal({ id, nonce: Date.now() });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fires once per newly applied request
+  }, [appliedTasks.length]);
 
   // A first build started from the chat is one request in the thread: the
   // build job reports its stages under that request's id (or the job id where
@@ -502,6 +522,47 @@ function WebsitePage() {
 
   // REVORA PRE-FLIGHT™ — real pre-publish verification over the live workspace.
   const domainVerified = ["connected", "ssl_active"].includes(settings?.domain_status ?? "");
+  // The structured data this site would publish, checked against the owner's facts and the visible FAQ.
+  const jsonLdFacts = (() => {
+    if (!org?.name || !pages?.length) return null;
+    const activeServices = (services ?? []).filter((row) => row.is_active !== false);
+    const shownSections = pages
+      .filter((page) => page.is_visible)
+      .flatMap((page) => page.sections.filter((section) => section.is_visible));
+    const profileFacts = {
+      phone: (profile?.["phone"] as string) ?? null,
+      email: (profile?.["email"] as string) ?? null,
+      address: (profile?.["address"] as string) ?? null,
+      city: (profile?.["city"] as string) ?? null,
+      state: (profile?.["state"] as string) ?? null,
+      zip: (profile?.["zip"] as string) ?? null,
+      description: (profile?.["description"] as string) ?? null,
+      service_area: (profile?.["service_area"] as string) ?? null,
+    };
+    const emitted = emittedJsonLd({
+      name: org.name,
+      // The address is not compared, so a stand-in origin is fine.
+      url: "https://site.invalid",
+      profile: profileFacts,
+      services: activeServices,
+      sections: shownSections,
+    });
+    return {
+      docs: emitted.docs,
+      business: {
+        name: org.name,
+        phone: profileFacts.phone,
+        street: profileFacts.address,
+        city: profileFacts.city,
+        state: profileFacts.state,
+        zip: profileFacts.zip,
+      },
+      serviceNames: activeServices.map((row) => row.name),
+      visibleFaqs: emitted.visibleFaqs,
+      // Revora's emitter never writes reviews or ratings; no verified-review source is read on this page.
+      verifiedReviewCount: 0,
+    };
+  })();
   const preflightResult = preflight({
     pages: pages ?? [],
     businessName: org?.name ?? null,
@@ -527,6 +588,7 @@ function WebsitePage() {
     httpsVerified: domainVerified,
     canPublish: production?.unlocked !== false,
     canPublishReason: production?.unlocked === false ? (production?.reason ?? null) : null,
+    jsonLd: jsonLdFacts,
   });
 
   // Regression watch: compare this real check against the previous one for this
@@ -637,9 +699,14 @@ function WebsitePage() {
   const storedChrome = readSiteChrome(generation);
   const buildActive = jobIsActive(latestJob.data as never);
   const missingMenu = !firstRun && !buildActive && (!storedChrome.header || !storedChrome.footer);
+  // Facts-only fallbacks from a busy AI team wait for the owner's OK (they use credits).
+  const aiUpgrades = !firstRun && !buildActive ? readAiUpgradeFollowUps(generation) : [];
   const workspace = (
     <div className="min-w-0">
       {missingMenu && orgId ? <MissingMenuBanner organizationId={orgId} canManage={manage} hasHeader={Boolean(storedChrome.header)} hasFooter={Boolean(storedChrome.footer)} /> : null}
+      {aiUpgrades.length && orgId ? (
+        <AiUpgradeBanner organizationId={orgId} followUps={aiUpgrades} canManage={manage} busy={requests.busy} onApprove={(instruction) => requests.queue(instruction)} />
+      ) : null}
       {org?.slug ? (
         <div className="mb-2 lg:hidden">
           <div className="grid h-10 grid-cols-2 rounded-full bg-muted/40 p-1 text-sm" role="tablist" aria-label="Builder view">
@@ -710,6 +777,7 @@ function WebsitePage() {
             stoppingBuild={cancelBuild.isPending}
             starterIdeas={starterIdeasFor((org?.industry as string | undefined) ?? null)}
             onClearSelection={() => setSelected(null)}
+            {...(manage ? { onPickPart: () => { setPickRequest((n) => n + 1); setPreviewOpen(true); } } : {})}
             onOpenHistory={() => setHistoryOpen(true)}
             onShowPreview={() => setPreviewOpen(true)}
             accessBlocked={accessState === "blocked"}
@@ -780,6 +848,7 @@ function WebsitePage() {
               livePublished={publishState === "published"}
               pages={shownPages}
               firstRun={firstRun}
+              buildActive={buildActive}
               organizationId={orgId ?? null}
               refreshing={requests.refreshing}
               refreshRevision={requests.refreshRevision}
@@ -788,6 +857,7 @@ function WebsitePage() {
               onPageChange={setViewingPage}
               canManage={manage}
               reveal={reveal}
+              pickRequest={pickRequest}
               liveStatus={liveStatus ?? rebuildStatus}
               onInlineSaved={() => {
                 // The frame already shows the new words; refresh caches so
@@ -872,6 +942,7 @@ function WebsitePage() {
           <RestorePointPanel organizationId={orgId} canManage={manage} />
           <VersionHistory organizationId={orgId} canManage={manage} />
           <VersionDiff organizationId={orgId} />
+          <SiteVersionList organizationId={orgId} canManage={manage} />
           <PublishVersionPanel organizationId={orgId} canManage={manage} />
         </OverlayPanel>
 
@@ -957,6 +1028,7 @@ function WebsitePage() {
                     canManage={manage}
                     canFreshRebuild={canFreshRebuild}
                     hasCopy={!!copy}
+                    onFixDetails={() => setSetupOpen(true)}
                   />
                 </>
               ),
@@ -1130,6 +1202,17 @@ function WebsitePage() {
                           generation: { ...(generation ?? {}), copy: { ...(copy ?? {}), ...patch } },
                         })
                       }
+                    />
+                  </Disclosure>
+                  <Disclosure
+                    label="Privacy notice"
+                    hint="How long you keep enquiries and who you share them with"
+                  >
+                    <PrivacyNoticeDetails
+                      generation={generation}
+                      canManage={manage}
+                      saving={saveSettings.isPending}
+                      onSave={(nextGeneration) => saveSettings.mutate({ generation: nextGeneration })}
                     />
                   </Disclosure>
                 </>

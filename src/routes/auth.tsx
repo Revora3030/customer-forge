@@ -1,4 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { LegalAgreementNote } from "@/components/marketing/LegalAgreementNote";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "@/lib/ui/notify";
 import { ArrowLeft, Loader2 } from "lucide-react";
@@ -13,7 +14,7 @@ import { ErrorNote, Pill } from "@/components/app/Bits";
 import { RouteError } from "@/components/app/RouteStates";
 import { ga4SignUp } from "@/lib/ga4-events";
 import { reportRouteError } from "@/lib/route-error-reporting";
-import { GROWTH_SYSTEM, usd } from "@/lib/offer";
+import { GROWTH_SYSTEM, REFUND_POLICY, usd } from "@/lib/offer";
 import {
   ensureProfile,
   rememberPreference,
@@ -21,6 +22,14 @@ import {
   setRememberPreference,
 } from "@/lib/auth-session";
 import { authEmailRedirectTo, isSafeRedirect } from "@/lib/prospect-claim";
+import {
+  emailLinkOutcome,
+  NEUTRAL_LINK_TOAST,
+  NEUTRAL_MAGIC_LINK_MESSAGE,
+  NEUTRAL_RESET_MESSAGE,
+  NEUTRAL_SIGNUP_MESSAGE,
+  revealsAccountExistence,
+} from "@/lib/auth-email-requests";
 import { readStarter, STARTER_METADATA_KEY } from "@/components/marketing/hero-starter-utils";
 
 /**
@@ -54,12 +63,14 @@ export const Route = createFileRoute("/auth")({
     if (rawMode === "signup" || rawMode === "signin") out.mode = rawMode;
     // Same-site paths only: "//evil.com" and "/\\evil.com" start with "/" but
     // send the browser to another site after sign-in.
+    // isSafeRedirect adds the control-character and "/x?:" checks used everywhere else.
     if (
       typeof rawRedirect === "string" &&
       rawRedirect.startsWith("/") &&
       !rawRedirect.startsWith("//") &&
       !rawRedirect.includes("\\") &&
-      !/^\/[^/]*:/.test(rawRedirect)
+      !/^\/[^/]*:/.test(rawRedirect) &&
+      isSafeRedirect(rawRedirect)
     )
       out.redirect = rawRedirect;
     return out;
@@ -158,12 +169,14 @@ function AuthPage() {
             emailRedirectTo: authEmailRedirectTo(window.location.origin, redirect),
           },
         });
-        if (signUpError) throw signUpError;
-        ga4SignUp("email");
-        if (!signUpData.session) {
-          const message = "Check your email for a confirmation link before signing in. If you already have an account, sign in or reset your password.";
+        // "Already registered" must look exactly like a fresh sign-up that
+        // is waiting on email confirmation, or this form enumerates accounts.
+        const existing = Boolean(signUpError) && revealsAccountExistence(signUpError);
+        if (signUpError && !existing) throw signUpError;
+        if (!existing) ga4SignUp("email");
+        if (existing || !signUpData.session) {
           toast.message("Check your email to continue.");
-          setNotice(message);
+          setNotice(NEUTRAL_SIGNUP_MESSAGE);
           setPassword("");
           setIsSignup(false);
           return;
@@ -203,11 +216,16 @@ function AuthPage() {
           emailRedirectTo: authEmailRedirectTo(window.location.origin, redirect),
         },
       });
-      if (otpError) throw otpError;
+      // Same neutral result whether or not the email has an account.
+      const outcome = emailLinkOutcome(otpError, NEUTRAL_MAGIC_LINK_MESSAGE);
+      if (outcome.kind === "failed") {
+        setError(outcome.message);
+        return;
+      }
       setMagicSent(true);
-      toast.success("Sign-in link sent. Check your email.");
+      toast.success(NEUTRAL_LINK_TOAST);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not send the sign-in link.");
+      setError(emailLinkOutcome(err, NEUTRAL_MAGIC_LINK_MESSAGE).message);
     } finally {
       setBusy(null);
     }
@@ -225,11 +243,15 @@ function AuthPage() {
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/reset-password`,
       });
-      if (resetError) throw resetError;
+      const outcome = emailLinkOutcome(resetError, NEUTRAL_RESET_MESSAGE);
+      if (outcome.kind === "failed") {
+        setError(outcome.message);
+        return;
+      }
       setResetSent(true);
-      toast.success("Reset link sent. Check your email.");
+      toast.success(NEUTRAL_LINK_TOAST);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not send the reset email.");
+      setError(emailLinkOutcome(err, NEUTRAL_RESET_MESSAGE).message);
     } finally {
       setBusy(null);
     }
@@ -240,7 +262,7 @@ function AuthPage() {
     setBusy("google");
     try {
       setRememberPreference(remember);
-      sessionStorage.setItem("lle:redirect", redirect ?? "/app");
+      sessionStorage.setItem("lle:redirect", isSafeRedirect(redirect) ? redirect : "/app");
       const result = await lovable.auth.signInWithOAuth("google", {
         redirect_uri: window.location.origin,
         extraParams: {
@@ -395,8 +417,7 @@ function AuthPage() {
                 {error ? <ErrorNote message={error} /> : null}
                 {resetSent ? (
                   <p className="rounded-md border border-primary/40 bg-primary/10 px-3 py-2.5 text-center text-[12.5px] text-foreground">
-                    Reset link sent to <span className="gold-hl">{email}</span>. It works once and
-                    expires — if it's gone stale, request a fresh one.
+                    {NEUTRAL_RESET_MESSAGE}
                   </p>
                 ) : null}
                 <Button type="submit" variant="signal" className="w-full" disabled={busy !== null}>
@@ -532,8 +553,7 @@ function AuthPage() {
                 ) : null}
                 {magicSent && magicMode && !isSignup ? (
                   <p className="rounded-md border border-primary/40 bg-primary/10 px-3 py-2.5 text-center text-[12.5px] text-foreground">
-                    Link sent to <span className="gold-hl">{email}</span>. Open it on this device
-                    and you'll land straight in your dashboard.
+                    {NEUTRAL_MAGIC_LINK_MESSAGE}
                   </p>
                 ) : null}
                 <Button type="submit" variant="signal" className="w-full" disabled={busy !== null}>
@@ -548,6 +568,7 @@ function AuthPage() {
                         : "Email me a sign-in link"
                       : "Sign in"}
                 </Button>
+                {isSignup ? <LegalAgreementNote action="creating an account" /> : null}
                 {!isSignup ? (
                   <>
                     <button

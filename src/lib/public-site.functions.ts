@@ -5,6 +5,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { createClient } from "@supabase/supabase-js";
 import { isAutomatedUserAgent } from "@/lib/automated-traffic";
 import type { Database } from "@/integrations/supabase/types";
+import type { PushDb } from "@/lib/push/lead-push.server";
 import { publicSubmissionErrorMessage, SITE_NOT_LIVE_MESSAGE, siteAcceptsSubmissions } from "@/lib/site-submission-gate";
 // Type-only import: erased at build time, so nothing server-only ships to the client.
 import type { loadSite } from "@/lib/public-site.server";
@@ -558,6 +559,8 @@ export const submitPublicLead = createServerFn({ method: "POST" })
       companyWebsite?: string;
       /** ALTCHA proof-of-work payload (src/lib/altcha.server.ts). */
       altcha?: string;
+      /** Cloudflare Turnstile token (src/lib/turnstile.server.ts); absent when not set up. */
+      turnstile?: string;
     }) => {
       const clean = (v: unknown, max: number) =>
         String(v ?? "")
@@ -599,6 +602,7 @@ export const submitPublicLead = createServerFn({ method: "POST" })
           : null,
         isBot,
         altcha: clean(input.altcha, 4000),
+        turnstile: clean(input.turnstile, 2048),
       };
     },
   )
@@ -608,12 +612,32 @@ export const submitPublicLead = createServerFn({ method: "POST" })
     // no notification, no CRM noise, and no error response for a script to
     // learn from and adjust to.
     if (data.isBot) return { ok: true as const, leadId: null, notified: false };
-    // ALTCHA: a forged, replayed-after-expiry or test-mode payload is dropped
-    // the same silent way. A missing payload or a verifier outage fails open
-    // (the rate limits below still apply), so a real lead is never lost.
+    const source = publicSubmissionSource();
+    // Soft per-IP flood guard (per isolate) before any database or Turnstile
+    // call. The durable limits are the database gate further down.
     {
-      const { verifyAltchaPayload } = await import("@/lib/altcha.server");
-      if ((await verifyAltchaPayload(data.altcha)) === "invalid")
+      const { publicLeadSoftLimiter } = await import("@/lib/soft-rate-limit.server");
+      if (!source.ip.startsWith("edge:") && !publicLeadSoftLimiter.hit(`lead|${source.ip}`)) {
+        throw new Error(
+          "We've already received your details. Please wait a few minutes before sending again.",
+        );
+      }
+    }
+    // ALTCHA + Cloudflare Turnstile: a forged, replayed-after-expiry or
+    // test-mode ALTCHA payload, or a token Cloudflare rejects, is dropped the
+    // same silent way. Missing payloads, Turnstile not being set up (no keys),
+    // and verifier outages fail open (the rate limits below still apply), so
+    // a real lead is never lost.
+    {
+      const [{ verifyAltchaPayload }, { verifyTurnstileToken, leadCaptchaDecision }] = await Promise.all([
+        import("@/lib/altcha.server"),
+        import("@/lib/turnstile.server"),
+      ]);
+      const [altcha, turnstile] = await Promise.all([
+        verifyAltchaPayload(data.altcha),
+        verifyTurnstileToken(data.turnstile, { host: new URL(getRequest().url).host, ip: source.ip }),
+      ]);
+      if (leadCaptchaDecision(turnstile, altcha) === "drop")
         return { ok: true as const, leadId: null, notified: false };
     }
 
@@ -644,7 +668,6 @@ export const submitPublicLead = createServerFn({ method: "POST" })
       }
     }
 
-    const source = publicSubmissionSource();
     const contact = contactFingerprint(data);
     const contactHash = contact ? await sha256Hex(`contact|${orgId}|${contact}`) : null;
     const userAgentHash = source.userAgent
@@ -1011,7 +1034,21 @@ export const submitPublicLead = createServerFn({ method: "POST" })
       });
       const webhook = dispatchLeadWebhook(webhookUrl, webhookPayload, signing?.secret ?? null);
 
-      const [alert, confirmation, webhookResult] = await Promise.all([
+      // Owner Web Push (speed-to-lead) on every opted-in device. Best effort:
+      // sendLeadPush never throws and does nothing until VAPID keys are set.
+      const { sendLeadPush } = await import("@/lib/push/lead-push.server");
+      const push = sendLeadPush(
+        {
+          organizationId: orgId,
+          leadId: lead.id,
+          businessName: org.name,
+          kind: alertData.kind,
+          service: data.serviceInterest || null,
+        },
+        { db: supabase as unknown as PushDb },
+      ).catch(() => null);
+
+      const [alert, confirmation, webhookResult, pushResult] = await Promise.all([
         alertEmail
           ? sendLeadAlert(
               alertEmail,
@@ -1022,7 +1059,11 @@ export const submitPublicLead = createServerFn({ method: "POST" })
           : Promise.resolve({ ok: true as const, skipped: true as const, reason: "no_email_address" as const }),
         confirmationEmail,
         webhook,
+        push,
       ]);
+      if (pushResult && pushResult.failed > 0) {
+        console.warn("lead push partially failed", { sent: pushResult.sent, failed: pushResult.failed });
+      }
 
       if (alertEmail) {
         await logAlertDelivery(null, {

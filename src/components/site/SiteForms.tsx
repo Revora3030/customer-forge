@@ -21,6 +21,9 @@ import { useStepScroll } from "@/lib/use-step-scroll";
 import { DirectContact } from "@/components/site/ContactDetails";
 import { PrintableEstimate } from "@/components/site/PrintableEstimate";
 import { AltchaField, altchaPayload } from "@/components/site/AltchaField";
+import { TurnstileField } from "@/components/site/TurnstileField";
+import { turnstilePayload } from "@/lib/turnstile";
+import { ClientPrivacyLink } from "@/components/site/ClientPrivacyNotice";
 import { AddToCalendar } from "@/components/site/AddToCalendar";
 import { useHolidayClosures } from "@/components/site/use-holiday-closures";
 import { widgetPresentationStyle } from "@/components/site/contact-details-utils";
@@ -125,12 +128,12 @@ function EstimateNotice() {
 }
 
 /** Factual consent line shown under every lead form. It states no policy. */
-function ConsentNote() {
-  // Note for Client Success legal pages: link the business's own privacy page here once a
-  // per-site privacy route exists. /privacy is Revora's platform page, not the business's.
+function ConsentNote({ slug }: { slug: string }) {
+  // Links the business's own generated notice (/privacy-notice), not Revora's /privacy.
   return (
     <p className="text-[13px] text-muted-foreground">
-      We'll only use your details to reply to your request.
+      We'll only use your details to reply to your request.{" "}
+      <ClientPrivacyLink slug={slug} className="underline underline-offset-4" />
     </p>
   );
 }
@@ -237,7 +240,7 @@ function QuoteCalculatorLive({ site, presentation }: { site: Site; presentation?
 
   if (done) {
     return (
-      <div ref={stepRef}>
+      <div ref={stepRef} data-rv-quote="done">
         <Success
           title={presentation?.successTitle ?? "Request received"}
           body={
@@ -262,7 +265,7 @@ function QuoteCalculatorLive({ site, presentation }: { site: Site; presentation?
   }
 
   return (
-    <div ref={stepRef} className="panel overflow-hidden" style={widgetPresentationStyle(presentation)}>
+    <div ref={stepRef} data-rv-quote="open" className="panel overflow-hidden" style={widgetPresentationStyle(presentation)}>
       <div className="border-b border-border px-5 py-4">
         <p className="eyebrow">{presentation?.eyebrow ?? "Instant estimate"}</p>
         <h3 className="mt-1 font-display text-[19px] font-semibold">{presentation?.title ?? quote.form.name}</h3>
@@ -410,6 +413,7 @@ function QuoteCalculatorLive({ site, presentation }: { site: Site; presentation?
                 message: String(form.get("message") ?? ""),
                 companyWebsite: String(form.get("company_website") ?? ""),
                 altcha: altchaPayload(form),
+                turnstile: turnstilePayload(form),
                 sessionId: currentSessionId(),
                 serviceInterest: quote.form.name,
                 estimatedValue: Math.round((min + max) / 2),
@@ -446,6 +450,7 @@ function QuoteCalculatorLive({ site, presentation }: { site: Site; presentation?
         >
           <Honeypot />
           <AltchaField />
+          <TurnstileField />
           <p className="tnum text-[14px] text-muted-foreground">
             Your estimate:{" "}
             <span className="font-semibold text-primary">
@@ -481,7 +486,7 @@ function QuoteCalculatorLive({ site, presentation }: { site: Site; presentation?
               {presentation?.backLabel ?? "Back"}
             </Button>
           </div>
-          <ConsentNote />
+          <ConsentNote slug={site.org.slug} />
         </form>
       )}
     </div>
@@ -643,6 +648,7 @@ function BookingFormLive({ site, presentation }: { site: Site; presentation?: Wi
             city: String(form.get("city") ?? ""),
             companyWebsite: String(form.get("company_website") ?? ""),
             altcha: altchaPayload(form),
+            turnstile: turnstilePayload(form),
             sessionId: currentSessionId(),
             serviceId: serviceId || null,
             serviceInterest: service?.name ?? null,
@@ -678,6 +684,7 @@ function BookingFormLive({ site, presentation }: { site: Site; presentation?: Wi
 
       <Honeypot />
       <AltchaField />
+      <TurnstileField />
       <DirectContact profile={site.profile} businessName={site.org.name} {...(presentation ? { presentation } : {})} />
 
       {bookable.length ? (
@@ -787,7 +794,7 @@ function BookingFormLive({ site, presentation }: { site: Site; presentation?: Wi
       <p className="text-[14px] text-muted-foreground">
         No payment now — you'll get a confirmation before anything is charged.
       </p>
-      <ConsentNote />
+      <ConsentNote slug={site.org.slug} />
     </form>
   );
 }
@@ -870,6 +877,7 @@ function EnquiryFormLive({ site, presentation }: { site: Site; presentation?: Wi
             city: String(form.get("city") ?? ""),
             companyWebsite: String(form.get("company_website") ?? ""),
             altcha: altchaPayload(form),
+            turnstile: turnstilePayload(form),
             sessionId: currentSessionId(),
             serviceId: service?.id ?? null,
             serviceInterest: service?.name ?? null,
@@ -896,6 +904,7 @@ function EnquiryFormLive({ site, presentation }: { site: Site; presentation?: Wi
 
       <Honeypot />
       <AltchaField />
+      <TurnstileField />
 
       {services.length > 1 ? (
         <div className="space-y-1.5">
@@ -946,7 +955,7 @@ function EnquiryFormLive({ site, presentation }: { site: Site; presentation?: Wi
       <Button type="submit" variant="signal" disabled={pending} aria-busy={pending} className="min-h-11 w-full sm:w-auto">
         {pending ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : null} {presentation?.actionLabel ?? "Send message"}
       </Button>
-      <ConsentNote />
+      <ConsentNote slug={site.org.slug} />
     </form>
   );
 }

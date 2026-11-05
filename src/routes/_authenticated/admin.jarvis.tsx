@@ -17,8 +17,7 @@ import { useProspectDemoPump } from "@/lib/prospect-demo-pump.hooks";
 import { JarvisHeader, type ChecksSummary } from "@/components/app/jarvis/JarvisHeader";
 import { JarvisComposer, type JarvisMode } from "@/components/app/jarvis/JarvisComposer";
 import { AssistantMessage, UserMessage, type JarvisRow } from "@/components/app/jarvis/JarvisMessage";
-import { RunStepsSheet } from "@/components/app/jarvis/RunStepsSheet";
-import { LiveRunSteps } from "@/components/app/jarvis/LiveRunSteps";
+import { RunTaskTree } from "@/components/app/jarvis/RunTaskTree";
 import { ConversationsSheet } from "@/components/app/jarvis/ConversationsSheet";
 import { OperationsPanel, DIAGNOSTIC_SECTIONS, type ProspectorState } from "@/components/app/jarvis/OperationsPanel";
 import { CommandPalette } from "@/components/app/jarvis/CommandPalette";
@@ -28,6 +27,7 @@ import { readApprovals, rememberApproval, type Approvals } from "@/components/ap
 import { DemoBuildCard } from "@/components/app/jarvis/DemoBuildCard";
 import { findMapsLink, readDemoCards, readDemoSendProposal, rememberDemoCard, type DemoCardRef, type DemoChannel } from "@/components/app/jarvis/demo-build";
 import "@/components/app/jarvis/jarvis.css";
+import { isTurnStopped, stoppable } from "@/components/app/jarvis/stop-turn";
 import { askClaudeToFixPullRequestFn, openJarvisPullRequestFn, recoverStalledBuildsFn, sendClaudeCodeRequestFn, clearJarvisHistory, getJarvisHistory, getJarvisDiagnostics, getJarvisAcquisitionReadiness, getJarvisDiagnosticTools, runJarvisDiagnosticTool, regenerateJarvisReply, sendJarvisMessage, forgetJarvisMemoryFn, claimJarvisApprovalFn, finishJarvisApprovalFn, saveJarvisRoutineFn, deleteJarvisRoutineFn, JARVIS_HISTORY_PAGE } from "@/lib/jarvis.functions";
 import { draftProspectOutreach, type ProspectDraft } from "@/lib/jarvis-prospecting.functions";
 import { formatRevoraOffer } from "@/lib/jarvis-acquisition-policy";
@@ -204,7 +204,6 @@ function Jarvis() {
   // Set when the owner stops playback (Stop, mute, Tap to talk) so a finishing reply doesn't restart listening twice.
   const userStoppedRef = useRef(false);
   const [showTools, setShowTools] = useState(false);
-  const [stepsRun, setStepsRun] = useState<string | null>(null);
   // Wide screens show the operations panel beside the chat; phones use a sheet.
   // null until measured, so the first paint never swaps one for the other.
   const [wide, setWide] = useState<boolean | null>(null);
@@ -303,15 +302,33 @@ function Jarvis() {
     announce("Jarvis replied");
     if (voice || liveRef.current) void speak(result.reply, latestAssistantId());
   };
+  // The turn in flight, so Stop can abort it. The server may still finish and save
+  // its reply; the page ignores the late result and the reply shows on the next refresh.
+  const inflight = useRef<AbortController | null>(null);
+  const startTurn = <T,>(request: (signal: AbortSignal) => Promise<T>) => {
+    inflight.current?.abort();
+    const controller = new AbortController();
+    inflight.current = controller;
+    return stoppable(request, controller).finally(() => {
+      if (inflight.current === controller) inflight.current = null;
+    });
+  };
+  const stopTurn = () => {
+    if (!inflight.current) return;
+    inflight.current.abort();
+    announce("Stopped");
+  };
   const mutation = useMutation({
     mutationFn: (message: string) => {
       const runId = crypto.randomUUID();
       setLiveRun(runId);
-      return send({ data: { message, mode, conversationId, runId, model: pickedModel } });
+      // Live mode or the voice toggle: the reply will be read aloud, so ask for a short spoken core.
+      return startTurn((signal) => send({ data: { message, mode, conversationId, runId, model: pickedModel, voice: voice || liveRef.current }, signal }));
     },
     onSuccess: finish,
     onError: async (error: Error, message: string) => {
-      toast.error(error.message);
+      if (isTurnStopped(error)) toast("Stopped. Jarvis may still save a reply; it shows when the chat refreshes.");
+      else toast.error(error.message);
       // The server saves the message before answering, so it may already be in the chat.
       await qc.invalidateQueries({ queryKey: ["jarvis", "history"] }).catch(() => undefined);
       const rows = qc.getQueryData<JarvisRow[]>(historyKey) ?? [];
@@ -322,9 +339,14 @@ function Jarvis() {
     onSettled: () => { setPending(null); setLiveRun(null); },
   });
   const regen = useMutation({
-    mutationFn: () => redo({ data: { mode, conversationId } }),
+    mutationFn: () => startTurn((signal) => redo({ data: { mode, conversationId }, signal })),
     onSuccess: finish,
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => {
+      if (isTurnStopped(error)) {
+        toast("Stopped. Jarvis may still save a reply; it shows when the chat refreshes.");
+        void qc.invalidateQueries({ queryKey: ["jarvis", "history"] }).catch(() => undefined);
+      } else toast.error(error.message);
+    },
   });
   const clearing = useMutation({
     mutationFn: () => clear(),
@@ -936,7 +958,8 @@ function Jarvis() {
                         onStopListening={stopSpeaking}
                         onRegenerate={() => regen.mutate()}
                         renderAfterProposal={renderAfterProposal}
-                        onShowSteps={setStepsRun}
+                        showSteps
+                        onAsk={(prompt) => submit(prompt)}
                       />
                     )}
                   </Fragment>
@@ -946,13 +969,15 @@ function Jarvis() {
                 <DemoBuildCard key={demo.organizationId} card={demo} onDismiss={() => setLiveCards((current) => current.filter((item) => item.organizationId !== demo.organizationId))} />
               ))}
               {pending ? <UserMessage content={pending} /> : null}
-              {busy ? (
+              {busy && liveRun ? (
+                // The live task tree stands in for the spinner: each step shows as it is recorded.
+                <RunTaskTree runId={liveRun} live />
+              ) : busy ? (
                 <div className="flex items-center gap-3 text-sm text-muted-foreground">
                   <span aria-hidden><TypingDots /></span>
                   <span>Working<span aria-hidden> · {elapsed}s</span></span>
                 </div>
               ) : null}
-              {busy && liveRun ? <LiveRunSteps runId={liveRun} /> : null}
               {!busy && !pending && lastMessage?.role === "user" ? (
                 <div>
                   <Button type="button" variant="outline" size="sm" data-jarvis-tap="" className="gap-1.5 rounded-full" onClick={() => regen.mutate()}>
@@ -1012,6 +1037,7 @@ function Jarvis() {
                 onSubmit={() => submit()}
                 maxLength={MAX_LENGTH}
                 busy={busy}
+                onStop={stopTurn}
                 coarse={coarse}
                 listening={listening && !live}
                 interim={live ? "" : interim}
@@ -1054,7 +1080,6 @@ function Jarvis() {
 
         <ConversationsSheet open={showConversations} onOpenChange={setShowConversations} wide={wide === true} activeId={conversationId}
           onSelect={(id) => { if (id === conversationId) return; setOlder([]); setMoreEarlier(true); setFollowups([]); setConversationId(id); }} />
-        <RunStepsSheet runId={stepsRun} open={stepsRun !== null} onOpenChange={(o) => { if (!o) setStepsRun(null); }} wide={wide === true} />
         <CommandPalette open={commandsOpen} onOpenChange={setCommandsOpen} desktop={!coarse} commands={COMMANDS} disabled={busy} onRun={(prompt) => submit(prompt)} />
       </div>
     </TooltipProvider>

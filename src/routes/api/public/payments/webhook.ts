@@ -9,6 +9,8 @@ import { completedWebhookDuplicate, finishClaimedWebhook } from "@/lib/webhook-l
 type StripeWebhookEvent = {
   id?: string;
   type: string;
+  /** Seconds since epoch; the ordering fence's input (whole seconds, so ties happen). */
+  created?: number;
   // Stripe delivers arbitrary JSON per event type; the shape is narrowed by
   // the individual handlers, so the raw envelope stays permissive here.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -46,9 +48,18 @@ async function handleEvent(event: StripeWebhookEvent, env: StripeEnv) {
         : { data: null, error: null };
       if (previousError) throw new Error(`subscription_snapshot_failed:${previousError.code ?? "database error"}`);
 
-      const result = await syncStripeSubscription(admin, payload, env);
+      const { stripeEventCreated } = await import("@/lib/stripe-subscription-fence");
+      const result = await syncStripeSubscription(admin, payload, env, {
+        eventCreated: stripeEventCreated(event),
+      });
       if (!result.ok || !result.organizationId) {
         console.error("[payments:webhook] subscription not linked", result.reason);
+        break;
+      }
+      // A late, older or resurrecting event changed nothing, so it must not
+      // restore hosting or send lifecycle email either.
+      if (result.applied === false) {
+        console.warn("[payments:webhook] subscription event fenced", event.type, result.fence);
         break;
       }
       const organizationId = result.organizationId;
@@ -76,12 +87,18 @@ async function handleEvent(event: StripeWebhookEvent, env: StripeEnv) {
           ? resolvePriceLookupKey(payload.items.data[0].price)
           : null;
         const mapped = planFromPriceLookupKey(priceKey);
+        // The welcome email states what was really charged (a 100%-off promo
+        // code makes the setup $0), read from the subscription's first invoice.
+        const { firstInvoiceSetupPaidLine } = await import("@/lib/billing-welcome-amount.server");
+        const setupPaidLine =
+          env === "live" ? await firstInvoiceSetupPaidLine(payload?.latest_invoice, env) : null;
         await lifecycle.handleSubscriptionActivated(admin, {
           organizationId,
           stripeSubscriptionId: String(object.id),
           planId: mapped?.planId ?? (payload?.metadata?.planId as string | undefined) ?? null,
           interval: mapped?.interval ?? null,
           environment: env,
+          setupPaidLine,
         });
       }
 

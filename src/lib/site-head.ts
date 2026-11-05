@@ -20,9 +20,11 @@ import { compositionFonts, siteFontsHref } from "@/lib/site-theme";
 import { siteFontFor } from "@/lib/site-font-pairings";
 import { faqPageSchema, metaDescription, metaTitle } from "@/lib/seo";
 import { compositionFaqItems } from "@/lib/builder/composition-faq";
+import { faqFactsFor } from "@/lib/builder/faq-from-facts";
 import { pageNavLabel } from "@/lib/website-content";
 import { playbookFor } from "@/lib/builder/industry-playbook";
 import { scrubPlaceholderText } from "@/lib/builder/placeholder-contact";
+import { heroPreloadLink } from "@/lib/site-hero-preload";
 import { imageAltBase, mentionsWrongCity, normalizeCanonicalUrl } from "@/lib/client-seo-guard";
 
 type Profile = {
@@ -43,7 +45,7 @@ type Profile = {
 } | null | undefined;
 
 type Review = { rating?: number | null; author_name?: string | null; comment?: string | null; created_at?: string | null };
-type Service = { name?: string | null; description?: string | null; price?: number | string | null; starting_price?: number | string | null };
+type Service = { name?: string | null; description?: string | null; price?: number | string | null; starting_price?: number | string | null; bookable?: boolean | null };
 
 const DAY_SCHEMA: Record<string, string> = {
   mon: "Monday", monday: "Monday",
@@ -115,7 +117,67 @@ export function openingHoursSpec(hours: unknown): Record<string, unknown>[] {
   return out;
 }
 
-export type SchemaType = { type: string; serviceType?: string };
+/**
+ * Every schema.org type `resolveSchemaType` may emit, mapped to its parent on
+ * the LocalBusiness branch (schema.org current release). Typing `SchemaType.type`
+ * against this map turns a typo or a non-LocalBusiness type into a compile error,
+ * without pulling in schema-dts. The test walks each chain up to LocalBusiness.
+ */
+export const LOCAL_BUSINESS_PARENT = {
+  LocalBusiness: null,
+  HomeAndConstructionBusiness: "LocalBusiness",
+  Plumber: "HomeAndConstructionBusiness",
+  HVACBusiness: "HomeAndConstructionBusiness",
+  RoofingContractor: "HomeAndConstructionBusiness",
+  Electrician: "HomeAndConstructionBusiness",
+  Locksmith: "HomeAndConstructionBusiness",
+  HousePainter: "HomeAndConstructionBusiness",
+  GeneralContractor: "HomeAndConstructionBusiness",
+  MovingCompany: "HomeAndConstructionBusiness",
+  AutomotiveBusiness: "LocalBusiness",
+  AutoRepair: "AutomotiveBusiness",
+  AutoBodyShop: "AutomotiveBusiness",
+  FoodEstablishment: "LocalBusiness",
+  Restaurant: "FoodEstablishment",
+  Bakery: "FoodEstablishment",
+  CafeOrCoffeeShop: "FoodEstablishment",
+  BarOrPub: "FoodEstablishment",
+  Brewery: "FoodEstablishment",
+  HealthAndBeautyBusiness: "LocalBusiness",
+  BeautySalon: "HealthAndBeautyBusiness",
+  HairSalon: "HealthAndBeautyBusiness",
+  NailSalon: "HealthAndBeautyBusiness",
+  TattooParlor: "HealthAndBeautyBusiness",
+  DaySpa: "HealthAndBeautyBusiness",
+  HealthClub: "HealthAndBeautyBusiness",
+  MedicalBusiness: "LocalBusiness",
+  MedicalClinic: "MedicalBusiness",
+  Optician: "MedicalBusiness",
+  Dentist: "LocalBusiness",
+  LegalService: "LocalBusiness",
+  RealEstateAgent: "LocalBusiness",
+  FinancialService: "LocalBusiness",
+  AccountingService: "FinancialService",
+  InsuranceAgency: "FinancialService",
+  ProfessionalService: "LocalBusiness",
+  ChildCare: "LocalBusiness",
+} as const;
+
+export type LocalBusinessType = keyof typeof LOCAL_BUSINESS_PARENT;
+
+/**
+ * Specific types that are NOT LocalBusiness subtypes on schema.org (VeterinaryCare
+ * is a MedicalOrganization). They are emitted alongside a LocalBusiness type, so
+ * the record stays eligible for local-business rich results.
+ */
+export type ExtraSchemaType = "VeterinaryCare";
+
+export type SchemaType = { type: LocalBusinessType; serviceType?: string; alsoType?: ExtraSchemaType };
+
+/** The `@type` value for a resolved type: a single LocalBusiness subtype, or [extra, subtype]. */
+export function schemaTypeValue(resolved: SchemaType): LocalBusinessType | [ExtraSchemaType, LocalBusinessType] {
+  return resolved.alsoType ? [resolved.alsoType, resolved.type] : resolved.type;
+}
 
 const CUISINES = ["Italian", "Mexican", "Chinese", "Japanese", "Thai", "Indian", "French", "Greek", "Korean", "Vietnamese", "Mediterranean", "Spanish", "Caribbean", "Ethiopian", "Lebanese", "Turkish", "Peruvian", "Brazilian", "American", "Southern", "Cajun", "Sushi", "Pizza", "Barbecue", "BBQ", "Seafood", "Vegan", "Vegetarian", "Tex-Mex", "Middle Eastern"];
 
@@ -128,7 +190,7 @@ export function resolveSchemaType(industry: string | null | undefined): SchemaTy
   const text = (industry ?? "").trim();
   if (!text) return { type: "LocalBusiness" };
   const key = playbookFor(text)?.key;
-  const service = (serviceType: string, type = "HomeAndConstructionBusiness"): SchemaType => ({ type, serviceType });
+  const service = (serviceType: string, type: LocalBusinessType = "HomeAndConstructionBusiness"): SchemaType => ({ type, serviceType });
   switch (key) {
     case "plumbing": return { type: "Plumber" };
     case "hvac": return { type: "HVACBusiness" };
@@ -164,7 +226,7 @@ export function resolveSchemaType(industry: string | null | undefined): SchemaTy
     case "med-spa": return service("Medical spa", "DaySpa");
     case "dentist": return { type: "Dentist" };
     case "medical-wellness":
-      if (/\bvet/i.test(text)) return { type: "VeterinaryCare" };
+      if (/\bvet/i.test(text)) return { type: "MedicalBusiness", alsoType: "VeterinaryCare" };
       if (/optom/i.test(text)) return { type: "Optician" };
       if (/physio|chiropract|therap/i.test(text)) return service(text.slice(0, 80), "MedicalClinic");
       return { type: "MedicalClinic" };
@@ -211,7 +273,7 @@ export function localBusinessSchema(input: {
   const resolved = resolveSchemaType(input.industry);
   const schema: Record<string, unknown> = {
     "@context": "https://schema.org",
-    "@type": resolved.type,
+    "@type": schemaTypeValue(resolved),
     "@id": `${input.url}#business`,
     name: input.name,
     url: input.url,
@@ -560,6 +622,8 @@ export type TenantHeadSite = {
   org: { id?: string | null; slug?: string | null; name: string; industry?: string | null };
   /** Demo workspace (organizations.is_demo): sample data, never real business facts. */
   isDemo?: boolean | null;
+  /** The site's quote form, when it has one (an FAQ may then point to it). */
+  quote?: unknown;
   social?: Social;
   profile?: (Profile & { font_preference?: string | null }) | null;
   settings?: { generation?: unknown; seo?: unknown } | null;
@@ -587,6 +651,11 @@ export function tenantSiteHead(input: {
   /** Absolute home URL of the business, used for LocalBusiness data. */
   businessUrl: string;
   noindex?: boolean;
+  /**
+   * Preload this page's opening picture. False on a parent route whose child
+   * page is the one rendering (the /s/:slug home under /s/:slug/:page).
+   */
+  preloadHero?: boolean;
 }) {
   const { site } = input;
   const name = site.org.name;
@@ -642,10 +711,14 @@ export function tenantSiteHead(input: {
   const placeholder = isNonIndexableSite({ isDemo: site.isDemo, slug: site.org.slug, profile: site.profile });
   const noindex = input.noindex === true || page?.noindex === true || emptyHome || placeholder;
   const emitSchema = !placeholder && !emptyHome;
-  // FAQ answers are owner/AI prose: a placeholder phone or email never reaches structured data,
-  // and an entry that would end up empty is dropped rather than advertised.
+  // FAQ answers are grounded in the business facts exactly as the published page shows them
+  // (faq-from-facts.ts); a placeholder phone or email never reaches structured data, and an
+  // entry that would end up empty is dropped rather than advertised.
   const faqs = emitSchema
-    ? compositionFaqItems(sections ?? [])
+    ? compositionFaqItems(
+        sections ?? [],
+        faqFactsFor({ profile: site.profile, businessName: name, services: site.services ?? [], quote: Boolean(site.quote), generation: site.settings?.generation }),
+      )
         .map((item) => ({ q: scrubPlaceholderText(item.q), a: scrubPlaceholderText(item.a) }))
         .filter((item) => item.q.trim() && item.a.trim())
     : [];
@@ -674,6 +747,16 @@ export function tenantSiteHead(input: {
     ],
     // One block per distinct JSON-LD payload: an identical Organization/LocalBusiness/FAQ block is never repeated.
     scripts: uniqueScripts([...(emitSchema ? extras.scripts : []), ...(faqs.length ? [{ type: "application/ld+json", children: safeJsonLd(faqPageSchema(faqs)) }] : [])]),
-    links: [{ rel: "canonical", href: canonical }, ...extras.links],
+    links: [
+      { rel: "canonical", href: canonical },
+      ...extras.links,
+      ...(input.preloadHero === false ? [] : heroPreloadLinks(site.content?.sections)),
+    ],
   };
+}
+
+/** The opening-picture preload as a head `links` list (empty when unknown). */
+export function heroPreloadLinks(sections: unknown) {
+  const link = heroPreloadLink(sections);
+  return link ? [link] : [];
 }

@@ -8,7 +8,7 @@
 import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
 import { isolateProviderEnvironment } from "@/lib/ai/provider-test-environment";
 import { providerChain, providerConfig } from "@/lib/ai/config";
-import { lovableAdapter, readChatStream } from "@/lib/ai/providers/lovable";
+import { lovableAdapter, readAnthropicStream, readChatStream, sanitizeStreamErrorDetail } from "@/lib/ai/providers/lovable";
 import { categoryForStatus } from "@/lib/ai/errors";
 import { thinkerAttemptTimeoutMs, thinkerChainBudgetMs } from "@/lib/ai/thinker.server";
 
@@ -696,5 +696,92 @@ describe("a stopped build stops spending", () => {
     expect(seen).toEqual([false, true]);
     // Outside any build there is nothing to stop.
     expect(scopedBuildStopped()).toBe(false);
+  });
+});
+
+describe("readAnthropicStream", () => {
+  const event = (value: Record<string, unknown>) => `event: ${String(value["type"])}\r\ndata: ${JSON.stringify(value)}\r\n\r\n`;
+  const textDelta = (text: string) => ({ type: "content_block_delta", index: 0, delta: { type: "text_delta", text } });
+
+  /** Like stallingStream, and records whether the reader released the connection. */
+  function watchedStallingStream(chunks: string[]) {
+    let sent = 0;
+    const state = { cancelled: false };
+    const stream = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (sent < chunks.length) {
+          controller.enqueue(encoder.encode(chunks[sent]!));
+          sent += 1;
+          return undefined;
+        }
+        return new Promise<void>(() => undefined);
+      },
+      cancel() {
+        state.cancelled = true;
+      },
+    });
+    return { stream, state };
+  }
+
+  it("reads CRLF-framed Messages events, usage and stop reason, ignoring pings and malformed frames", async () => {
+    const text = [
+      ": keep-alive\r\n\r\n",
+      event({ type: "message_start", message: { usage: { input_tokens: 12 } } }),
+      event({ type: "ping" }),
+      "data: not json\r\n\r\n",
+      event(textDelta("one ")),
+      event(textDelta("two")),
+      event({ type: "message_delta", delta: { stop_reason: "end_turn" }, usage: { output_tokens: 3 } }),
+      event({ type: "message_stop" }),
+    ].join("");
+    const read = await readAnthropicStream(streamOf(text));
+    expect(read.text).toBe("one two");
+    expect(read.stop_reason).toBe("end_turn");
+    expect(read.usage).toEqual({ input_tokens: 12, output_tokens: 3 });
+  });
+
+  it("still reads LF-framed events", async () => {
+    const text = `data: ${JSON.stringify(textDelta("hello"))}\n\ndata: ${JSON.stringify({ type: "message_delta", delta: { stop_reason: "end_turn" } })}\n\n`;
+    const read = await readAnthropicStream(streamOf(text));
+    expect(read.text).toBe("hello");
+    expect(read.stop_reason).toBe("end_turn");
+  });
+
+  it("fails on an error event, keeping the provider's sanitized detail and releasing the stream", async () => {
+    const { stream, state } = watchedStallingStream([
+      event(textDelta("partial")),
+      event({ type: "error", error: { type: "overloaded_error", message: "Overloaded" } }),
+    ]);
+    await expect(readAnthropicStream(stream, { firstChunkMs: 500, idleMs: 500 })).rejects.toMatchObject({
+      category: "bad_response",
+      provider: "lovable",
+      detail: "overloaded_error: Overloaded",
+      message: "Revora's AI model stopped with an error.",
+    });
+    expect(state.cancelled).toBe(true);
+  });
+
+  it("never keeps a credential from an error event", () => {
+    const detail = sanitizeStreamErrorDetail({ type: "authentication_error", message: "invalid x-api-key: sk-ant-api03-abcdefghijkl and Bearer abc.def" });
+    expect(detail).toContain("authentication_error");
+    expect(detail).not.toContain("sk-ant-api03-abcdefghijkl");
+    expect(detail).not.toContain("abc.def");
+    expect(sanitizeStreamErrorDetail(undefined)).toBe("");
+  });
+
+  it("cuts a stream that goes silent partway and releases the connection", async () => {
+    const { stream, state } = watchedStallingStream([event(textDelta("start"))]);
+    const started = Date.now();
+    await expect(readAnthropicStream(stream, { firstChunkMs: 500, idleMs: 40 })).rejects.toMatchObject({ category: "timeout", provider: "lovable" });
+    expect(Date.now() - started).toBeLessThan(400);
+    expect(state.cancelled).toBe(true);
+  });
+
+  it("gives a slow first chunk longer than the gaps between later chunks", async () => {
+    const { stream, state } = watchedStallingStream([]);
+    const started = Date.now();
+    await expect(readAnthropicStream(stream, { firstChunkMs: 60, idleMs: 20 })).rejects.toMatchObject({ category: "timeout" });
+    expect(Date.now() - started).toBeGreaterThanOrEqual(50);
+    expect(state.cancelled).toBe(true);
   });
 });

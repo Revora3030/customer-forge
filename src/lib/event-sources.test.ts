@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildFailedSource, ciFailedSource, leadUnansweredSource, paymentFailedSource, routineFailedSource, siteDownSource, trialExpiringSource } from "@/lib/event-sources.server";
+import { buildFailedSource, ciFailedSource, isDependabotRun, leadUnansweredSource, paymentFailedSource, routineFailedSource, siteDownSource, trialExpiringSource } from "@/lib/event-sources.server";
 import { PLATFORM_OWNER_ORG_ID } from "@/lib/platform-owner";
 
 const NOW = Date.parse("2026-10-27T18:00:00Z");
@@ -135,6 +135,17 @@ describe("ciFailedSource", () => {
     expect(events[0]).toMatchObject({ id: "1", type: "ci.failed", subject: "Revora Quality Gate" });
     expect(events[0]!.detail).toContain("aaaaaaa");
     expect(events[0]!.detail).toContain("https://github.com/Revora3030/customer-forge/actions/runs/1");
+  });
+
+  it("collapses Dependabot update failures into one quiet event instead of one release alert per run", async () => {
+    const bot = (id: number, over: Record<string, unknown> = {}) => run({ id, name: "npm_and_yarn in /. - Update #166897709" + id, ...over });
+    const events = await ciFailedSource(fetcherFor([run({}), bot(7), bot(8), bot(9, { name: "Some Update", actor: { login: "dependabot[bot]" } }), bot(10, { conclusion: "success" })]), null).read(NOW);
+    expect(events.map((event) => event.type).sort()).toEqual(["ci.dependabot_failed", "ci.failed"]);
+    const quiet = events.find((event) => event.type === "ci.dependabot_failed")!;
+    expect(quiet).toMatchObject({ subject: "Dependabot updates" });
+    expect(quiet.detail).toContain("3 dependency-update runs failed");
+    expect(events.filter((event) => event.type === "ci.failed")).toHaveLength(1);
+    expect(isDependabotRun({ name: "Revora Quality Gate" })).toBe(false);
   });
 
   it("leaves out a link that does not point at this repository's runs", async () => {

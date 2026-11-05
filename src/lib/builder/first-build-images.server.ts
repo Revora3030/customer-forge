@@ -15,7 +15,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Json } from "@/integrations/supabase/types";
 import { generateImageBase64, decodeBase64 } from "@/lib/image-studio.server";
+import { pictureAllowanceUsed, pictureSpendCapMicrocents, pictureUsesPremium } from "@/lib/builder/build-spend";
 import { generatePaidImageBase64, paidImageStatus } from "@/lib/ai/paid-image.server";
+import { imageSizeForAspect } from "@/lib/ai/image-size";
 import { scopedBuildStopped } from "@/lib/ai/spend-scope.server";
 import {
   acceptedForUse,
@@ -69,7 +71,9 @@ function maxStarterImages() {
   // Every page that needs a picture must get one on the first build: the hero,
   // each service page, the about page, campaign support and closing sections.
   // The ceiling only keeps generation finite; it is not a quality budget.
-  return Number.isFinite(raw) && raw > 0 ? Math.min(Math.floor(raw), 28) : 24;
+  // First builds make a few key pictures (hero plus the top sections); other
+  // slots reuse them, owner photos or the picture repair later.
+  return Number.isFinite(raw) && raw > 0 ? Math.min(Math.floor(raw), 16) : 4;
 }
 
 /**
@@ -246,6 +250,10 @@ export async function generateFirstBuildImages(
   let blockedStrikes = 0;
   const MAX_BLOCKED_STRIKES = 3;
   const backoff = createBackoffGate();
+  // Every picture request, failed ones too, counts against this attempt's allowance.
+  const pictureCap = pictureSpendCapMicrocents();
+  let pictureAttempts = 0;
+  const allowanceLeft = () => !pictureAllowanceUsed(pictureAttempts, paidCostMicrocents, pictureCap);
   const caller = { organizationId: input.organizationId, userId: input.userId };
   const policy = reviewUnavailablePolicy();
   let reviewFallbacks = 0;
@@ -254,7 +262,8 @@ export async function generateFirstBuildImages(
 
   const standardShot = async (prompt: string): Promise<Made | null> => {
     await backoff.wait();
-    if (standardBlocked) return null;
+    if (standardBlocked || !allowanceLeft()) return null;
+    pictureAttempts += 1;
     const standard = await generateImageBase64(prompt, caller);
     if (standard.ok) {
       blockedStrikes = 0;
@@ -310,6 +319,10 @@ export async function generateFirstBuildImages(
         aspectRatio: shot.aspect,
       };
     }
+    if (!allowanceLeft()) {
+      skipped.push({ slot: shot.slot, label: shot.label, reason: "picture allowance for this build used; left for the picture repair" });
+      return null;
+    }
     if (standardBlocked && !paidUsable) {
       skipped.push({ slot: shot.slot, label: shot.label, reason: firstBlockedMessage ?? paid.message });
       return null;
@@ -319,7 +332,7 @@ export async function generateFirstBuildImages(
     // the cap is cut — so the subject and the safety rules lead, and the long
     // art-direction notes follow.
     const prompt = [
-      `Photorealistic professional website photograph of ${spec.subject}. Single photograph, not a collage or split-screen. No text, letters, numbers, logos, car badges, emblems, licence plates, watermarks, signage or recognisable real people; any vehicle is fully debadged, with a plain grille and plain wheel centres.`,
+      `Photorealistic professional website photograph of ${spec.subject}. One single photograph with clean, unmarked surfaces and plain, unbranded products; people, if any, are anonymous and naturally turned away.`,
       `Purpose: ${spec.purpose}.`,
       spec.action ? `Action: ${spec.action}.` : "",
       spec.environment ? `Environment: ${spec.environment}.` : "",
@@ -336,24 +349,24 @@ export async function generateFirstBuildImages(
       shotDirectionFor(input.creative, shot),
       artDirectionNote(input.creative, shot),
       ...spec.constraints,
-      "Starter marketing image only. Do not depict a real employee, actual customer, award, review, brand logo, licence plate, address, or before-and-after result.",
       "Shot on a full-frame camera with natural light, shallow depth of field, true-to-life colour, editorial magazine quality — not an illustration or generic stock composition.",
     ].filter(Boolean).join(" ");
 
     let made: Made | null = null;
     let madePremium = false;
 
+    const premiumShot = pictureUsesPremium(index, /hero|masthead|opening|lead/i.test(placementOf(shot)));
     if (paidUsable) {
+      pictureAttempts += 1;
       const specialist = await generatePaidImageBase64(
         prompt,
         caller,
-        /hero|masthead|opening|lead/i.test(placementOf(shot))
+        premiumShot
           ? "hero_master"
-          : /about|story|editorial/i.test(placementOf(shot))
-            ? "editorial_feature"
-            : /service|offering/i.test(placementOf(shot))
+          : /service|offering/i.test(placementOf(shot))
               ? "service_photo"
               : "starter_photo",
+        imageSizeForAspect(shot.aspect),
       );
       if (specialist.ok) {
         made = specialist;
@@ -365,7 +378,7 @@ export async function generateFirstBuildImages(
       }
     }
 
-    for (let tries = 0; !made && !standardBlocked && tries < 2; tries += 1) made = await standardShot(prompt);
+    for (let tries = 0; !made && !standardBlocked && tries < 1; tries += 1) made = await standardShot(prompt);
 
     if (!made) {
       skipped.push({
@@ -393,7 +406,7 @@ export async function generateFirstBuildImages(
       // hero was rejected (seen: the vehicle's grille badge and wheel hub) shipped
       // a text-only opening. It gets one more corrective round than the rest.
       const isHero = /hero|masthead|opening|lead/i.test(placementOf(shot));
-      const rounds = isHero ? 2 : 1;
+      const rounds = 1; void isHero;
       let current = verdict;
       let currentPrompt = prompt;
       for (let round = 0; round < rounds && !replaced && shouldReshoot(current); round += 1) {
@@ -402,11 +415,13 @@ export async function generateFirstBuildImages(
         // free reshoot used to double the cost of every rejected frame.
         let reshoot: Made | null = null;
         let reshootPremium = false;
-        if (paidUsable) {
+        if (paidUsable && allowanceLeft()) {
+          pictureAttempts += 1;
           const premium = await generatePaidImageBase64(
             brief,
             caller,
-            isHero ? "hero_master" : "editorial_feature",
+            premiumShot ? "hero_master" : "starter_photo",
+            imageSizeForAspect(shot.aspect),
           );
           if (premium.ok) {
             paidCostMicrocents += premium.costMicrocents;

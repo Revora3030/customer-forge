@@ -1,5 +1,5 @@
 import { forwardRef, useCallback, useEffect, useMemo, useRef, useState, type Ref, type RefObject } from "react";
-import { nextPreviewLoadState, PREVIEW_LOAD_TIMEOUT_MS, type PreviewLoadState } from "@/lib/builder/preview-load";
+import { framePainted, nextPreviewLoadState, PREVIEW_LOAD_TIMEOUT_MS, PREVIEW_PAINT_POLL_MS, type PreviewLoadState } from "@/lib/builder/preview-load";
 import {
   ExternalLink,
   Pencil,
@@ -63,6 +63,9 @@ import { pageOfSection } from "@/lib/builder/step-target";
 import { cn } from "@/lib/utils";
 import { PhoneLayoutPanel } from "@/components/app/PhoneLayoutPanel";
 import { LiveCanvasSkeleton } from "@/components/app/LiveCanvasSkeleton";
+import { SiteSkeleton } from "@/components/site/SiteSkeleton";
+import { useBuilderPreviewToken } from "@/lib/builder/builder-preview-link.hooks";
+import { builderFrameSource } from "@/lib/builder/builder-preview-link";
 import { settleStageSize, type StageSize } from "@/lib/builder/stage-size";
 
 const VIEWPORT_ICONS = {
@@ -105,8 +108,16 @@ type BuilderPreviewProps = {
   onPageChange?: (page: { id: string; title: string; slug: string } | null) => void;
   /** Scroll a section into view and outline it ("Show in preview" from the chat). A new nonce asks again. */
   reveal?: { id: string; nonce: number } | null;
+  /** Bumped by the composer's crosshair: turns "pick a part of the page" on. */
+  pickRequest?: number;
   /** Owners and managers get the phone-only hide/reorder controls; others just preview. */
   canManage?: boolean;
+  /**
+   * A build or AI update is running. The frame then shows the signed-in
+   * `/draft` page (held version + progress); otherwise the server-rendered
+   * `/p` builder link, which paints the real page from the first bytes.
+   */
+  buildActive?: boolean;
 };
 
 /**
@@ -136,8 +147,11 @@ function BuilderPreviewFrame({
   livePublished = true,
   onPageChange,
   reveal = null,
+  pickRequest = 0,
   canManage = false,
+  buildActive = false,
 }: Omit<BuilderPreviewProps, "firstRun">) {
+  const builderLink = useBuilderPreviewToken(organizationId, canManage);
   const ordered = useMemo(() => [...pages].sort((a, b) => a.sort_order - b.sort_order), [pages]);
   const [pageId, setPageId] = useState<string | null>(null);
   /** A reveal waiting for its page to load (the frame says "ready" when it can answer). */
@@ -155,6 +169,9 @@ function BuilderPreviewFrame({
   const [refreshKey, setRefreshKey] = useState(0);
   const [fullscreen, setFullscreen] = useState(false);
   const [selectMode, setSelectMode] = useState(false);
+  useEffect(() => {
+    if (pickRequest > 0) setSelectMode(true);
+  }, [pickRequest]);
   // Quick edit: one click on a headline or paragraph edits the words in place.
   const [quickEdit, setQuickEdit] = useState(false);
   // Compare: the published site (what visitors see now) next to the draft
@@ -225,7 +242,13 @@ function BuilderPreviewFrame({
   // rendered content inside a transformed iframe at scale < 0.5.
   const mobileCap = typeof window !== "undefined" && window.innerWidth < 768 ? 900 : 1200;
   const frameHeight = Math.min(mobileCap, Math.max(640, stageHeight > 0 ? Math.round((stageHeight - 24) / Math.max(scale, 0.25)) : 760));
-  const source = page ? previewPath(slug, page.slug) : previewPath(slug, "home");
+  // The signed-in draft page: used during builds, for "open in new tab", and
+  // whenever the builder's own server-rendered link is not available.
+  const draftSource = page ? previewPath(slug, page.slug) : previewPath(slug, "home");
+  const source = builderFrameSource({ draftPath: draftSource, token: builderLink.token, pageSlug: page?.slug ?? "home", buildActive });
+  // Wait for the link lookup (sessionStorage hit or one query) so the frame
+  // does not load /draft and then reload as /p a moment later.
+  const frameReady = builderLink.settled;
   // Side by side, each pane gets half the stage.
   const fitted = fitMode ? fitZoom(stageWidth, viewportWidth) : scale;
   const paneScale = compareScale(visibleCompareMode, fitted, stageWidth, viewportWidth);
@@ -511,15 +534,15 @@ function BuilderPreviewFrame({
               <Button
                 key={option.key}
                 type="button"
-                size="icon-sm"
+                size="sm"
                 variant={viewport === option.key ? "secondary" : "ghost"}
-                className="pointer-events-auto relative z-30 inline-flex min-h-11 min-w-11 px-2"
+                className="pointer-events-auto relative z-30 inline-flex min-h-11 min-w-11 shrink-0 whitespace-nowrap px-2 wrap-normal"
                 aria-label={`${option.label} preview, ${option.width} pixels`}
                 aria-pressed={viewport === option.key}
                 title={`${option.label} · ${option.width}px`}
                 onClick={() => setViewport(option.key)}
               >
-                <span className="text-xs tabular-nums">{option.width}</span>
+                <span className="whitespace-nowrap text-xs tabular-nums">{option.width}</span>
               </Button>
             );
           })}
@@ -565,7 +588,7 @@ function BuilderPreviewFrame({
             <RefreshCw className="size-4" aria-hidden />
           </Button>
           <Button asChild size="icon-sm" variant="ghost">
-            <a href={source} target="_blank" rel="noreferrer" aria-label="Open preview in a new tab" title="Open in new tab">
+            <a href={draftSource} target="_blank" rel="noreferrer" aria-label="Open preview in a new tab" title="Open in new tab">
               <ExternalLink className="size-4" aria-hidden />
             </a>
           </Button>
@@ -714,6 +737,7 @@ function BuilderPreviewFrame({
             ref={frameRef}
             label={compare ? "Draft" : null}
             src={source}
+            waiting={!frameReady}
             frameKey={`${source}-${refreshKey}-${refreshRevision}-${tabRevision}`}
             viewportWidth={viewportWidth}
             frameHeight={frameHeight}
@@ -741,15 +765,53 @@ function BuilderPreviewFrame({
  */
 const PreviewFrame = forwardRef<
   HTMLIFrameElement,
-  { label: string | null; src: string; frameKey: string; viewportWidth: number; frameHeight: number; scale: number; title: string; testId?: string }
->(function PreviewFrame({ label, src, frameKey, viewportWidth, frameHeight, scale, title, testId }, ref) {
+  {
+    label: string | null;
+    src: string;
+    frameKey: string;
+    viewportWidth: number;
+    frameHeight: number;
+    scale: number;
+    title: string;
+    testId?: string;
+    /** The address is not decided yet: show the page skeleton without loading anything. */
+    waiting?: boolean;
+  }
+>(function PreviewFrame({ label, src, frameKey, viewportWidth, frameHeight, scale, title, testId, waiting = false }, ref) {
   const [attempt, setAttempt] = useState(0);
   const [loadState, setLoadState] = useState<PreviewLoadState>("loading");
+  const localFrame = useRef<HTMLIFrameElement | null>(null);
+  const setFrame = useCallback(
+    (node: HTMLIFrameElement | null) => {
+      localFrame.current = node;
+      if (typeof ref === "function") ref(node);
+      else if (ref) ref.current = node;
+    },
+    [ref],
+  );
   useEffect(() => {
     setLoadState("loading");
+    if (waiting) return;
     const timer = window.setTimeout(() => setLoadState((s) => nextPreviewLoadState(s, "timeout")), PREVIEW_LOAD_TIMEOUT_MS);
-    return () => window.clearTimeout(timer);
-  }, [src, frameKey, attempt]);
+    // Lift the skeleton as soon as the page is drawn, not at the load event
+    // (which waits for every picture): the server-rendered page shows at once.
+    const poll = window.setInterval(() => {
+      let doc: Document | null = null;
+      try {
+        doc = localFrame.current?.contentDocument ?? null;
+      } catch {
+        doc = null;
+      }
+      if (framePainted(doc)) {
+        window.clearInterval(poll);
+        setLoadState((s) => nextPreviewLoadState(s, "painted"));
+      }
+    }, PREVIEW_PAINT_POLL_MS);
+    return () => {
+      window.clearTimeout(timer);
+      window.clearInterval(poll);
+    };
+  }, [src, frameKey, attempt, waiting]);
   return (
     <figure className="m-0 min-w-0">
       {label ? (
@@ -760,8 +822,8 @@ const PreviewFrame = forwardRef<
         style={{ width: Math.round(viewportWidth * scale), height: Math.round(frameHeight * scale) }}
       >
         <div className="origin-top-left" style={{ width: viewportWidth, height: frameHeight, transform: `scale(${scale})` }}>
-          <iframe
-            ref={ref}
+          {waiting ? null : <iframe
+            ref={setFrame}
             key={`${frameKey}-${attempt}`}
             {...(testId ? { "data-testid": testId } : {})}
             data-preview-src={src}
@@ -773,12 +835,13 @@ const PreviewFrame = forwardRef<
             sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"
             className="block border-0"
             style={{ width: viewportWidth, minWidth: viewportWidth, maxWidth: viewportWidth, height: frameHeight, backgroundColor: "#fff" }}
-          />
+          />}
         </div>
-        {loadState === "loading" ? (
-          // A frame that has not painted yet is blank; say so instead of leaving an empty box.
-          <div aria-hidden className="pointer-events-none absolute inset-0 grid place-items-center bg-background text-[13px] text-muted-foreground">
-            <span className="animate-pulse">Loading your preview…</span>
+        {waiting || loadState === "loading" ? (
+          // A frame that has not painted yet is blank: show the shape of a page
+          // (header, hero, cards) instead of an empty box or a bare "Loading…".
+          <div className="pointer-events-none absolute inset-0 overflow-hidden bg-background" data-testid="builder-preview-skeleton">
+            <SiteSkeleton label="Loading your preview…" compact={viewportWidth * scale < 520} />
           </div>
         ) : null}
         {loadState === "failed" ? (

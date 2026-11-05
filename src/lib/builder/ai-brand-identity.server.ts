@@ -16,7 +16,22 @@ import { isBackdropId, safeBackdropSpec, type BackdropId } from "@/lib/site-effe
 import { safeColor } from "@/lib/site-style";
 import { siteHeadingFont } from "@/lib/site-theme";
 import { callBestThinker } from "@/lib/ai/thinker.server";
+import { thinkerFailureRetryable } from "@/lib/ai/retry-policy";
 import { paletteProblems } from "@/lib/builder/palette-guard";
+import { embedWithProvider } from "@/lib/ai/router.server";
+import { MEMORY_EMBEDDING_MODEL_ID } from "@/lib/ai/catalogue";
+import {
+  checkT2Similarity,
+  deterministicGate,
+  readSignature,
+  SIGNATURE_LAYERS,
+  SIGNATURE_MEDIA,
+  SIGNATURE_VERB_CLASSES,
+  SIGNATURE_WORLDS,
+  STOCK_RIVAL_MECHANICS,
+  type GateFailure,
+  type SignatureCandidate,
+} from "@/lib/builder/signature-gate";
 import {
   BUTTON_STYLES,
   CARD_STYLES,
@@ -213,6 +228,9 @@ export async function authorBrandIdentity(
       maxOutputTokens: 1400,
       ...(input.signal ? { signal: input.signal } : {}),
     });
+    // Credits, a spending cap or a rejected key won't change by asking again
+    // right away: stop and let the build report the cause.
+    if (!outcome.ok && !thinkerFailureRetryable(outcome.reason)) break;
     if (!outcome.ok || !outcome.text) continue;
     data = unwrapIdentity(readJson(outcome.text));
     primary = safeColor(colourField(data, "primary"));
@@ -268,4 +286,173 @@ export async function authorBrandIdentity(
     model: outcome.model ?? null,
     lane: outcome.lane,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Signature invention (deepseek round 7, Part 6). Runs after the business
+// brief and before the design team authors the look, so the one mechanic a
+// stranger will remember is decided first and everything else serves it.
+// ---------------------------------------------------------------------------
+
+export type SignatureInventionInput = {
+  organizationId: string;
+  businessName: string | null;
+  industry: string | null;
+  city: string | null;
+  /** Review/testimonial proof, as a short factual phrase ("12 testimonials supplied") or null. */
+  proof: string | null;
+  photoCount: number;
+  videoSeconds: number | null;
+  /** The one true sentence about what makes this business different (owner's words). */
+  spine: string | null;
+  signal?: AbortSignal;
+  /** Injected in tests; defaults to the gateway's text-embedding-3-small. Null result = T2 embedding check unavailable. */
+  embed?: (texts: string[]) => Promise<number[][] | null>;
+};
+
+export type InventedSignature = SignatureCandidate & {
+  /** T4 (live, provable in driven screenshots) is never checked at generation time. */
+  signatureUnproven: true;
+  /** Whether the T2 embedding comparison actually ran, and its highest cosine. */
+  t2: { embeddingChecked: boolean; maxCosine: number | null };
+};
+
+export type SignatureInventionOutcome = {
+  signature: InventedSignature | null;
+  /** Gate failures of the last attempt (empty when a signature passed). */
+  failures: GateFailure[];
+  attempts: number;
+  model: string | null;
+  tier: string | null;
+  costMicrocents: number;
+};
+
+const SIGNATURE_SYSTEM = [
+  "You name the one mechanic a stranger will remember about a website. You do not design layouts, write copy, or choose components. You output JSON only.",
+  "The mechanic must be expressible as layers + scroll choreography + CSS. No WebGL, no custom shaders, no bespoke JS.",
+  `Allowed layers (layerSketch may use only these ids): ${SIGNATURE_LAYERS.join(", ")} — photo crossfade stacks, a single photo/video, radial ambient washes, a masked light sweep, an SVG rule-path draw, grain, scrims; clip-path reveals are allowed choreography.`,
+  "If assets are thin (fewer than 6 photos and no video), prefer a mechanic carried by TYPE and a RULE PATH over one carried by photography.",
+  "Never invent the product or any fact. The mechanic may reveal, frame, or move around the owner's real photos; it may not manufacture the thing being sold.",
+].join(" ");
+
+function signaturePrompt(input: SignatureInventionInput, retry: GateFailure[]): string {
+  return [
+    "INPUT",
+    `business: ${input.businessName ?? "unknown"}`,
+    `trade: ${input.industry ?? "unknown"}`,
+    `city: ${input.city ?? "unknown"}`,
+    `proof: ${input.proof ?? "none supplied"}`,
+    `assets: ${input.photoCount} owner photos, ${input.videoSeconds ?? 0} seconds of owner video`,
+    `spine: ${input.spine ?? "not supplied"}`,
+    "",
+    "TASK",
+    `1. Identify the world this business lives in, in one clause. Pick exactly one: ${SIGNATURE_WORLDS.join(" · ")}`,
+    "2. Derive the world's PRIMARY VERB — the gesture a first-time stranger performs unprompted and immediately understands. Do not pick the cleverest edge case.",
+    `   Route it to exactly one verb class: ${SIGNATURE_VERB_CLASSES.join(" · ")}`,
+    "3. Name one mechanic built on that verb, expressible with the assets available.",
+    "4. Write the stranger's one-sentence description, which MUST start \"the one where you <verb>\" and stay within 90 characters, with no mood words (cinematic, immersive, stunning, seamless, elegant, premium).",
+    "5. Bespoke test: T1 names a verb, not a mood. T2 the exact interaction could NOT sit unchanged on a rival's site in the same trade (no generic scroll reveals, parallax, carousels, magnetic buttons, count-ups). T3 a stranger seeing it once could describe it back. T5 it uses only the allowed layers. If it fails, regenerate — do not soften it.",
+    "",
+    "OUTPUT (JSON only)",
+    `{"world":"one of the worlds","verbClass":"one of the verb classes","verb":"...","oneLiner":"the one where you ...","mechanic":"2 sentences: what moves, what responds, what the user drives","medium":"${SIGNATURE_MEDIA.join(" | ")}","layerSketch":["ambient","media_stack","light_sweep","scrim","grain"],"rejected":[{"idea":"...","failedTest":"T2","why":"..."}]}`,
+    "`rejected` is mandatory and must contain at least two entries.",
+    retry.length
+      ? `\nYOUR PREVIOUS SIGNATURE FAILED THE GATE: ${retry.map((f) => `${f.test}: ${f.reason}`).join("; ")}. Invent a different one that passes.`
+      : "",
+  ].join("\n");
+}
+
+async function defaultEmbed(texts: string[]): Promise<number[][] | null> {
+  const vectors = await embedWithProvider(MEMORY_EMBEDDING_MODEL_ID, texts);
+  if (!vectors || vectors.length !== texts.length) return null;
+  return vectors.every((v) => Array.isArray(v) && v.every((n) => typeof n === "number")) ? (vectors as number[][]) : null;
+}
+
+/**
+ * One cheap call (plus one regenerate) that invents the brand's signature
+ * mechanic and runs the T1/T2/T3/T5 gate. Never throws and never blocks a
+ * build: when no candidate passes, the result is `signature: null` and the
+ * design team proceeds exactly as before.
+ */
+export async function inventSignature(input: SignatureInventionInput): Promise<SignatureInventionOutcome> {
+  const embed = input.embed ?? defaultEmbed;
+  let failures: GateFailure[] = [];
+  let costMicrocents = 0;
+  let model: string | null = null;
+  let tier: string | null = null;
+  let attempts = 0;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    attempts += 1;
+    let call: Awaited<ReturnType<typeof callBestThinker>>;
+    try {
+      call = await callBestThinker({
+        purpose: "design_alternative",
+        complexity: "medium",
+        stage: "signature_invention",
+        system: SIGNATURE_SYSTEM,
+        user: signaturePrompt(input, failures),
+        organizationId: input.organizationId,
+        json: true,
+        maxOutputTokens: 900,
+        ...(input.signal ? { signal: input.signal } : {}),
+      });
+    } catch {
+      break;
+    }
+    if (!call.ok) {
+      failures = [{ test: "T5", reason: call.detail ?? call.reason ?? "the design team could not answer" }];
+      if (!thinkerFailureRetryable(call.reason)) break;
+      continue;
+    }
+    costMicrocents += call.costMicrocents;
+    model = call.model;
+    tier = call.tier ?? null;
+    const read = readSignature(readJson(call.text));
+    if (!read.candidate) {
+      failures = read.failures;
+      continue;
+    }
+    const candidate = read.candidate;
+    failures = deterministicGate(candidate);
+    if (failures.length) continue;
+
+    let t2: InventedSignature["t2"] = { embeddingChecked: false, maxCosine: null };
+    try {
+      const vectors = await embed([candidate.mechanic, ...STOCK_RIVAL_MECHANICS]);
+      if (vectors && vectors.length === STOCK_RIVAL_MECHANICS.length + 1) {
+        const similarity = checkT2Similarity(vectors[0]!, vectors.slice(1));
+        t2 = { embeddingChecked: true, maxCosine: similarity.maxCosine };
+        failures = similarity.failures;
+      }
+    } catch {
+      // Embeddings unavailable: T2 falls back to its deterministic half (≥2 rejections), recorded as unchecked.
+    }
+    if (failures.length) continue;
+    return {
+      signature: { ...candidate, signatureUnproven: true, t2 },
+      failures: [],
+      attempts,
+      model,
+      tier,
+      costMicrocents,
+    };
+  }
+  return { signature: null, failures, attempts, model, tier, costMicrocents };
+}
+
+/** The signature as a brief for the design team (empty string when there is none). */
+export function signatureBriefLine(signature: InventedSignature | null): string {
+  if (!signature) return "";
+  return [
+    "SIGNATURE MECHANIC (invented for this business and gated; build the hero and motion around it, using only the owner's real photos):",
+    JSON.stringify({
+      world: signature.world,
+      verbClass: signature.verbClass,
+      verb: signature.verb,
+      oneLiner: signature.oneLiner,
+      mechanic: signature.mechanic,
+      medium: signature.medium,
+      layers: signature.layerSketch,
+    }),
+  ].join("\n");
 }

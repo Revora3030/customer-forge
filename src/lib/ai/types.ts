@@ -57,7 +57,12 @@ export type AiRequest = {
   chainDeadlineMs?: number;
 };
 
-export type AiUsage = { inputTokens: number | null; outputTokens: number | null };
+export type AiUsage = {
+  inputTokens: number | null;
+  outputTokens: number | null;
+  /** Prompt tokens the provider served from its prefix cache (OpenAI `usage.prompt_tokens_details.cached_tokens`), when reported. */
+  cachedInputTokens?: number | null;
+};
 
 export type AiTextResult = {
   text: string;
@@ -112,6 +117,8 @@ export type ProviderAdapter = {
     prompt: string;
     /** Present when editing an existing image rather than creating one. */
     source?: { dataUrl: string; mimeType: string } | null;
+    /** Output size for a fresh picture, e.g. "1536x1024". */
+    size?: string | undefined;
     signal: AbortSignal;
   }): Promise<{ base64: string; mimeType: string }>;
   transcribe(input: {

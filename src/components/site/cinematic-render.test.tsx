@@ -5,6 +5,8 @@ import { SpinViewerView } from "./CinematicBlocks";
 import { CINEMATIC_CSS } from "./cinematic-css";
 import { offerFactsFor } from "./live-blocks-utils";
 import type { CompositionNode, CompositionTree } from "@/lib/builder/composition-tree";
+import { faqFactsFor, OWNER_TO_ANSWER } from "@/lib/builder/faq-from-facts";
+import { PreviewModeContext } from "./preview-mode-context";
 
 const ref = (n: number) => `${String(n).padStart(8, "0")}-1111-4111-8111-111111111111`;
 const pic = (n: number, alt = `Angle ${n}`): CompositionNode => ({ type: "media", mediaRef: ref(n), alt });
@@ -199,6 +201,19 @@ describe("scrub_sequence", () => {
     expect(CINEMATIC_CSS).toContain("prefers-reduced-motion:reduce");
     expect(CINEMATIC_CSS).toContain(".rv-seq[data-live]");
   });
+
+  it("never renders an AI production label from a frame's text", () => {
+    const html = render({
+      type: "scrub_sequence",
+      children: [
+        { ...pic(1, "Vehicle in shade"), text: "Resting frame" },
+        { ...pic(2, "Panel in the light"), text: "Moving frame" },
+        { type: "heading", level: 1, text: "Bring it dirty" },
+      ],
+    });
+    expect(markup(html)).not.toMatch(/Resting frame|Moving frame/);
+    expect(html).toContain("Bring it dirty");
+  });
 });
 
 describe("accordion labels are not a hollow box", () => {
@@ -295,3 +310,97 @@ describe("home page hero video loop", () => {
   });
 });
 
+
+describe("faq_accordion answers come from the business facts", () => {
+  const faqTree: CompositionNode = {
+    type: "faq_accordion",
+    faqItems: [
+      { question: "What are your hours?", answer: "" },
+      { question: "Do you offer a warranty?", answer: "Yes, a lifetime warranty." },
+    ],
+  };
+  const faqFacts = faqFactsFor({ businessName: "Shine Bros", profile: { hours: "Mon–Sat 8am–6pm" } });
+
+  it("published pages show the fact answer and drop the unanswered question", () => {
+    const html = markup(render(faqTree, { faqFacts }));
+    expect(html).toContain("Our hours are Mon–Sat 8am–6pm.");
+    expect(html).not.toContain("warranty");
+    expect(html).not.toContain(OWNER_TO_ANSWER);
+  });
+
+  it("a page with no answered question renders no FAQ at all", () => {
+    const html = markup(render({ type: "faq_accordion", faqItems: [{ question: "Do you offer a warranty?", answer: "Yes." }] } as CompositionNode, { faqFacts }));
+    expect(html).not.toContain("rv-cn-faq");
+  });
+
+  it("the owner's draft preview marks the unanswered question", () => {
+    const html = markup(renderToStaticMarkup(
+      <PreviewModeContext.Provider value={true}>
+        <CompositionRenderer tree={{ version: 1, root: faqTree } as CompositionTree} scope="s-test" faqFacts={faqFacts} />
+      </PreviewModeContext.Provider>,
+    ));
+    expect(html).toContain("Do you offer a warranty?");
+    expect(html).toContain("data-faq-placeholder");
+    expect(html).toContain(OWNER_TO_ANSWER);
+    expect(html).not.toContain("lifetime");
+  });
+});
+
+describe("long_document renders a readable long-form layout", () => {
+  const chapter = (title: string, body: string): CompositionNode => ({
+    type: "stack",
+    children: [{ type: "heading", level: 2, text: title }, { type: "text", text: body }],
+  });
+  const doc: CompositionNode = { type: "long_document", text: "In this guide", children: [chapter("Why soft wash", "Low pressure keeps the shingles whole."), chapter("What we check", "Gutters, flashing and the north face.")] };
+
+  it("server-renders the contents links, every chapter and an untouched progress rail", () => {
+    const html = markup(render(doc));
+    expect(html).toContain('class="rv-doc-toc"');
+    expect(html).toContain('aria-label="In this guide"');
+    const ids = [...html.matchAll(/<section[^>]*id="([^"]+)"[^>]*data-doc-chapter/g)].map((m) => m[1]);
+    expect(ids).toHaveLength(2);
+    for (const id of ids) expect(html).toContain(`href="#${id}"`);
+    expect(html).toContain("Low pressure keeps the shingles whole.");
+    expect(html).toContain("Gutters, flashing and the north face.");
+    expect(html).toContain("scaleY(0)");
+    expect(html).not.toContain("aria-current");
+  });
+
+  it("styles the pinned list only on wide screens", () => {
+    expect(CINEMATIC_CSS).toMatch(/@media \(min-width:1024px\)\{[^}]*\.rv-doc\{[^}]*\}[^}]*\.rv-doc-toc\{position:sticky/);
+  });
+});
+
+describe("scrub_sequence frame cap", () => {
+  const seq = (count: number): CompositionNode => ({
+    type: "scrub_sequence",
+    children: [...Array.from({ length: count }, (_, i) => pic(i + 1, `Frame ${i + 1}`)), { type: "heading", level: 1, text: "One move" }],
+  });
+  const frameCount = (html: string) => (markup(html).match(/class="rv-seq-frame"/g) ?? []).length;
+  // Refs 6 and above are generated atmosphere.
+  const mixed = (r: string) => ({ url: `https://img.example.test/${r}.jpg`, visual: { source: Number.parseInt(r.slice(0, 8), 10) >= 6 ? "generated" : "customer" } as never });
+
+  it("keeps a short sequence, generated frames included, as a wipe", () => {
+    const html = render(seq(6), { resolveMedia: mixed });
+    expect(frameCount(html)).toBe(6);
+    expect(html).toContain('data-transition="wipe"');
+  });
+
+  it("drops generated frames from a sequence longer than six", () => {
+    const html = render(seq(9), { resolveMedia: mixed });
+    expect(frameCount(html)).toBe(5);
+    expect(html).not.toContain("Frame 6");
+  });
+
+  it("cross-fades 10-18 real photographs and caps the sequence at 18", () => {
+    const twelve = render(seq(12));
+    expect(frameCount(twelve)).toBe(12);
+    expect(twelve).toContain('data-transition="crossfade"');
+    expect(frameCount(render(seq(24)))).toBe(18);
+  });
+
+  it("loads only the first and last frames eagerly", () => {
+    const html = markup(render(seq(12)));
+    expect((html.match(/loading="eager"/g) ?? []).length).toBe(2);
+  });
+});

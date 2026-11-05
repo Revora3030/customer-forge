@@ -4,6 +4,7 @@
  * including pages and sections that are switched off — to signed-in members of
  * that business only.
  */
+import { SiteSkeleton } from "@/components/site/SiteSkeleton";
 import { SiteBaseContext } from "@/components/site/site-address-context";
 import { createFileRoute, Link, redirect, useRouter } from "@tanstack/react-router";
 import { useEffect } from "react";
@@ -30,9 +31,7 @@ export const Route = createFileRoute("/_authenticated/draft/$slug/$page")({
   loader: async ({ params }) =>
     getOwnerDraftSite({ data: { slug: params.slug, pageSlug: params.page } }),
   pendingMs: DRAFT_PENDING_MS,
-  pendingComponent: () => (
-    <DraftMessage title="Loading this page…" body="Getting the latest version of your site." />
-  ),
+  pendingComponent: () => <SiteSkeleton className="min-h-screen" label="Loading this page…" />,
   head: ({ loaderData, params }) => ({
     meta: [
       { title: draftHeadTitle(loaderData, params.page) },

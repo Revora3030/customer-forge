@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, notFound } from "@tanstack/react-router";
 import { getPreviewSite } from "@/lib/public-site.functions";
 import { PublicSiteView } from "@/components/site/PublicSiteView";
 import { PreviewMessage } from "@/components/PreviewMessage";
@@ -8,11 +8,31 @@ import { PreviewBeacon } from "@/components/site/PreviewBeacon";
 import { prospectLinkState } from "@/lib/prospect-claim.functions";
 import { previewHeadTitle } from "@/lib/builder/draft-route";
 import { BUSINESS } from "@/lib/business-identity";
+import { privatePreviewHeaders } from "@/lib/page-cache";
+import { isBuilderPreviewLabel } from "@/lib/builder/builder-preview-link";
+import { BuilderPreviewMode } from "@/components/site/BuilderPreviewMode";
 
 /**
  * Shareable, time-limited draft preview. The token is checked on the server;
- * an unknown, revoked or expired link renders a plain message and nothing else.
+ * an unknown, revoked or expired link answers HTTP 404 with a plain message
+ * and nothing else (it used to answer 200, a soft 404).
  */
+export type DeadPreviewLink = { reason: string; isProspect: boolean };
+
+export function deadPreviewCopy({ reason, isProspect }: DeadPreviewLink): { title: string; body: string } {
+  // A prospect demo is viewed by the business itself, so "ask the business"
+  // would address the wrong person.
+  if (isProspect && (reason === "expired" || reason === "revoked")) {
+    return {
+      title: "This demo link has expired",
+      body: `This demo link has expired — email ${BUSINESS.email} for a fresh one.`,
+    };
+  }
+  if (reason === "expired") return { title: "This preview link has expired", body: "Ask the business for a fresh link." };
+  if (reason === "revoked") return { title: "This preview link was switched off", body: "Ask the business for a fresh link." };
+  return { title: "This preview link isn't valid", body: "Check the address, or ask for a new link." };
+}
+
 export const Route = createFileRoute("/p/$token")({
   loader: async ({ params }) => {
     const result = await getPreviewSite({ data: { token: params.token } });
@@ -24,60 +44,59 @@ export const Route = createFileRoute("/p/$token")({
             .then((state) => state.isProspect)
             .catch(() => false)
         : false;
+    if (!result?.ok || !result.site) {
+      throw notFound({ data: { reason: result?.reason ?? "unknown", isProspect } satisfies DeadPreviewLink });
+    }
     return { result, isProspect };
   },
-  head: ({ loaderData }) => ({
-    meta: [
-      { title: previewHeadTitle(loaderData?.result) },
-      {
-        name: "description",
-        content: "A private, time-limited preview of a website draft built with Revora.",
-      },
-      { name: "robots", content: "noindex, nofollow" },
-      { property: "og:title", content: previewHeadTitle(loaderData?.result) },
-      {
-        property: "og:description",
-        content: "A private preview link for reviewing a website draft.",
-      },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary" },
-    ],
-  }),
+  // Never stored by a browser or edge, never indexed, never sent on as a referrer.
+  headers: () => privatePreviewHeaders(),
+  head: async ({ loaderData }) => {
+    const { heroPreloadLinks } = await import("@/lib/site-head");
+    return {
+      // The opening picture starts downloading with the first HTML bytes.
+      links: loaderData?.result?.ok ? heroPreloadLinks(loaderData.result.site?.content?.sections) : [],
+      meta: [
+        { title: previewHeadTitle(loaderData?.result) },
+        {
+          name: "description",
+          content: "A private, time-limited preview of a website draft built with Revora.",
+        },
+        { name: "robots", content: "noindex, nofollow" },
+        { property: "og:title", content: previewHeadTitle(loaderData?.result) },
+        {
+          property: "og:description",
+          content: "A private preview link for reviewing a website draft.",
+        },
+        { property: "og:type", content: "website" },
+        { name: "twitter:card", content: "summary" },
+      ],
+    };
+  },
   component: PreviewRoute,
+  notFoundComponent: ({ data }) => (
+    <PreviewMessage {...deadPreviewCopy((data as DeadPreviewLink | undefined) ?? { reason: "unknown", isProspect: false })} />
+  ),
   errorComponent: () => (
     <PreviewMessage title="This preview link isn't valid" body="Ask for a new link." />
   ),
 });
 
 function PreviewRoute() {
-  const { result, isProspect } = Route.useLoaderData();
+  const { result } = Route.useLoaderData();
   const { token } = Route.useParams();
+  if (!result.site) return null;
 
-  if (!result?.ok || !result.site) {
-    const reason = result?.reason ?? "unknown";
-    // A prospect demo is viewed by the business itself, so "ask the business"
-    // would address the wrong person.
-    if (isProspect && (reason === "expired" || reason === "revoked")) {
-      return (
-        <PreviewMessage
-          title="This demo link has expired"
-          body={`This demo link has expired — email ${BUSINESS.email} for a fresh one.`}
-        />
-      );
-    }
-    const copy =
-      reason === "expired"
-        ? { title: "This preview link has expired", body: "Ask the business for a fresh link." }
-        : reason === "revoked"
-          ? {
-              title: "This preview link was switched off",
-              body: "Ask the business for a fresh link.",
-            }
-          : {
-              title: "This preview link isn't valid",
-              body: "Check the address, or ask for a new link.",
-            };
-    return <PreviewMessage {...copy} />;
+  // The builder's own link: the draft as the owner edits it, with no
+  // prospect bar and no view beacon (it is not a shared link).
+  if (isBuilderPreviewLabel(result.label)) {
+    return (
+      <BuilderPreviewMode organizationId={result.site.org.id}>
+        <SiteBaseContext.Provider value={`/p/${encodeURIComponent(token)}`}>
+          <PublicSiteView site={result.site} preview />
+        </SiteBaseContext.Provider>
+      </BuilderPreviewMode>
+    );
   }
 
   return (

@@ -1,5 +1,4 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/lib/ui/notify";
 import { LoadingRows, PageHead, Panel, Pill, SectionHeading } from "@/components/app/Bits";
 import { IntegrationCenter } from "@/components/app/IntegrationCenter";
@@ -7,15 +6,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useTeam, useUpdateOrganization } from "@/lib/queries";
-import { useSession, useWorkspace } from "@/lib/use-tenant";
+import { useSession, useSignOut, useWorkspace } from "@/lib/use-tenant";
 import { ROLES } from "@/lib/domain";
 import { initials, dateShort } from "@/lib/format";
-import { supabase } from "@/integrations/supabase/client";
 import { MemberControls, TeamInvites } from "@/components/app/TeamInvites";
 import { PortalAccess } from "@/components/app/PortalAccess";
 import { LeadNotifications } from "@/components/app/LeadNotifications";
+import { PushLeadAlerts } from "@/components/app/PushLeadAlerts";
 import { UpgradeFromWebsite } from "@/components/app/UpgradeFromWebsite";
 import { BookingLinkCard } from "@/components/app/BookingLinkCard";
+import { DataPrivacy } from "@/components/app/DataPrivacy";
+import { SiteBackupExport } from "@/components/app/SiteBackupExport";
 import { metaDescription } from "@/lib/seo";
 import { isValidWorkspaceSlug, WORKSPACE_SLUG_RULE } from "@/lib/workspace-slug";
 
@@ -24,10 +25,16 @@ export const Route = createFileRoute("/_authenticated/app/settings")({
     meta: [
       { title: "Settings — Revora" },
       { property: "og:title", content: "Settings — Revora" },
-      { property: "og:description", content: metaDescription("Manage your account, business workspace and team.") },
+      {
+        property: "og:description",
+        content: metaDescription("Manage your account, business workspace and team."),
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
-      { name: "description", content: metaDescription("Manage your account, business workspace and team.") },
+      {
+        name: "description",
+        content: metaDescription("Manage your account, business workspace and team."),
+      },
       { name: "robots", content: "noindex" },
     ],
   }),
@@ -36,7 +43,7 @@ export const Route = createFileRoute("/_authenticated/app/settings")({
 
 function SettingsPage() {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
+  const signOut = useSignOut();
   const { data: session } = useSession();
   const { data: ws, isLoading } = useWorkspace();
   const org = ws?.workspace?.organization;
@@ -47,9 +54,7 @@ function SettingsPage() {
   const updateOrg = useUpdateOrganization();
 
   async function handleSignOut() {
-    await queryClient.cancelQueries();
-    queryClient.clear();
-    await supabase.auth.signOut();
+    await signOut();
     navigate({ to: "/auth", replace: true });
   }
 
@@ -134,7 +139,8 @@ function SettingsPage() {
               <Input id="o-slug" name="slug" defaultValue={org?.slug ?? ""} disabled={!canManage} />
               <p className="text-[11px] text-muted-foreground">/s/{org?.slug}</p>
               <p className="text-[11px] text-muted-foreground">
-                {WORKSPACE_SLUG_RULE} Changing it breaks links and QR codes that use the old address.
+                {WORKSPACE_SLUG_RULE} Changing it breaks links and QR codes that use the old
+                address.
               </p>
             </div>
           </div>
@@ -179,6 +185,7 @@ function SettingsPage() {
                     organizationId={orgId}
                     role={member.role}
                     isSelf={member.user_id === session?.user.id}
+                    actorRole={role}
                   />
                 ) : null}
               </li>
@@ -191,7 +198,7 @@ function SettingsPage() {
             Send a secure invite link by email. Invites expire after 14 days and can be cancelled
             any time.
           </p>
-          <TeamInvites organizationId={orgId} canManage={canManage} />
+          <TeamInvites organizationId={orgId} canManage={canManage} actorRole={role} />
         </div>
         <div className="mt-5 border-t border-border pt-5">
           <p className="eyebrow">Client portal access</p>
@@ -205,6 +212,17 @@ function SettingsPage() {
       <BookingLinkCard organizationId={orgId} canManage={canManage} />
 
       <LeadNotifications organizationId={orgId} canManage={canManage} />
+
+      <PushLeadAlerts organizationId={orgId} />
+
+      <SiteBackupExport organizationId={orgId} slug={org?.slug} canManage={canManage} />
+
+      <DataPrivacy
+        email={session?.user.email}
+        businessName={org?.name}
+        organizationId={orgId}
+        canManage={canManage}
+      />
     </div>
   );
 }
