@@ -62,7 +62,12 @@ export type ToolDefinitionV2<S extends z.ZodType = z.ZodType> = {
 };
 
 export type ToolFailureReason =
-  "unknown_tool" | "forbidden" | "invalid_input" | "timeout" | "failed" | "needs_approval";
+  | "unknown_tool"
+  | "forbidden"
+  | "invalid_input"
+  | "timeout"
+  | "failed"
+  | "needs_approval";
 
 export type ToolResultV2 =
   | {
@@ -103,8 +108,7 @@ export type ToolAuditEntry = {
   step_id: string | null;
   risk: ToolRisk | null;
   args_hash: string;
-  result_status:
-    "ok" | "replayed" | "refused" | "invalid" | "timeout" | "failed" | "needs_approval";
+  result_status: "ok" | "replayed" | "refused" | "invalid" | "timeout" | "failed" | "needs_approval";
   idempotency_key: string | null;
   ok: boolean;
   reason: string | null;
@@ -120,23 +124,14 @@ export type ToolRunDeps = {
    * Approval check for `send_external` tools (PAI-4 supplies the real one).
    * Without it, send_external tools are always refused with `needs_approval`.
    */
-  approvals?: {
-    consume: (call: { tool: string; argsHash: string; context: ToolContextV2 }) => Promise<boolean>;
-  };
+  approvals?: { consume: (call: { tool: string; argsHash: string; context: ToolContextV2 }) => Promise<boolean> };
   /** PAI-5 limits for the agent tool groups; defaults to the Supabase-backed ones. */
   limits?: LimitsDeps;
 };
 
 /* --------------------------------- helpers -------------------------------- */
 
-const ORG_KEYS = new Set([
-  "organizationid",
-  "organization_id",
-  "orgid",
-  "org_id",
-  "workspaceid",
-  "workspace_id",
-]);
+const ORG_KEYS = new Set(["organizationid", "organization_id", "orgid", "org_id", "workspaceid", "workspace_id"]);
 
 function stableStringify(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`;
@@ -164,33 +159,21 @@ function argumentCarriesWorkspace(raw: unknown) {
 }
 
 /** Declares a tool and checks the rules that cannot be checked at run time. */
-export function defineToolV2<S extends z.ZodType>(
-  definition: ToolDefinitionV2<S>,
-): ToolDefinitionV2<S> {
-  if (!/^[a-z][a-z0-9_.]{1,59}$/.test(definition.name))
-    throw new Error(`Invalid tool name "${definition.name}".`);
+export function defineToolV2<S extends z.ZodType>(definition: ToolDefinitionV2<S>): ToolDefinitionV2<S> {
+  if (!/^[a-z][a-z0-9_.]{1,59}$/.test(definition.name)) throw new Error(`Invalid tool name "${definition.name}".`);
   if (definition.risk === "write_internal" && typeof definition.inverse !== "function")
-    throw new Error(
-      `Tool "${definition.name}" changes data, so it must declare an inverse (or return null).`,
-    );
+    throw new Error(`Tool "${definition.name}" changes data, so it must declare an inverse (or return null).`);
   if (definition.risk !== "write_internal" && definition.inverse)
-    throw new Error(
-      `Tool "${definition.name}" is not write_internal, so it cannot declare an inverse.`,
-    );
+    throw new Error(`Tool "${definition.name}" is not write_internal, so it cannot declare an inverse.`);
   const leaked = schemaKeys(definition.schema).filter((key) => ORG_KEYS.has(key.toLowerCase()));
   if (leaked.length > 0)
-    throw new Error(
-      `Tool "${definition.name}" takes ${leaked.join(", ")} from the model; the workspace comes from the session.`,
-    );
+    throw new Error(`Tool "${definition.name}" takes ${leaked.join(", ")} from the model; the workspace comes from the session.`);
   return definition;
 }
 
 /* -------------------------------- registry -------------------------------- */
 
-export function createToolRegistryV2(
-  definitions: ToolDefinitionV2<z.ZodType>[],
-  deps: ToolRunDeps = {},
-) {
+export function createToolRegistryV2(definitions: ToolDefinitionV2<z.ZodType>[], deps: ToolRunDeps = {}) {
   const byName = new Map<string, ToolDefinitionV2<z.ZodType>>();
   for (const definition of definitions) {
     if (byName.has(definition.name)) throw new Error(`Duplicate tool "${definition.name}".`);
@@ -263,14 +246,7 @@ export function createToolRegistryV2(
         key: string | null = null,
       ) =>
         finish(
-          {
-            ok: false,
-            tool: call.name,
-            risk: tool?.risk ?? null,
-            reason,
-            error,
-            durationMs: elapsed(),
-          },
+          { ok: false, tool: call.name, risk: tool?.risk ?? null, reason, error, durationMs: elapsed() },
           status,
           auditReason,
           tool,
@@ -279,23 +255,10 @@ export function createToolRegistryV2(
 
       try {
         const tool = byName.get(call.name) ?? null;
-        if (!tool)
-          return await refuse(
-            null,
-            "unknown_tool",
-            "That tool isn't available to Revora AI.",
-            "refused",
-            "unknown_tool",
-          );
+        if (!tool) return await refuse(null, "unknown_tool", "That tool isn't available to Revora AI.", "refused", "unknown_tool");
 
         if (!allowed(tool, context))
-          return await refuse(
-            tool,
-            "forbidden",
-            "That tool is limited to Revora platform administrators.",
-            "refused",
-            "forbidden",
-          );
+          return await refuse(tool, "forbidden", "That tool is limited to Revora platform administrators.", "refused", "forbidden");
 
         if (argumentCarriesWorkspace(call.arguments))
           return await refuse(
@@ -310,26 +273,17 @@ export function createToolRegistryV2(
         if (!parsed.success) {
           const first = parsed.error.issues[0];
           const where = first && first.path.length > 0 ? `"${first.path.join(".")}": ` : "";
-          return await refuse(
-            tool,
-            "invalid_input",
-            `${where}${first?.message ?? "Invalid arguments."}`,
-            "invalid",
-            "invalid_input",
-          );
+          return await refuse(tool, "invalid_input", `${where}${first?.message ?? "Invalid arguments."}`, "invalid", "invalid_input");
         }
 
         const key =
           tool.risk === "read"
             ? null
-            : (call.idempotencyKey?.slice(0, 120) ??
-              `${tool.name}:${context.organizationId}:${argsHash.slice(0, 32)}`);
+            : (call.idempotencyKey?.slice(0, 120) ?? `${tool.name}:${context.organizationId}:${argsHash.slice(0, 32)}`);
 
         if (tool.risk === "send_external") {
           const approved = deps.approvals
-            ? await deps.approvals
-                .consume({ tool: tool.name, argsHash, context })
-                .catch(() => false)
+            ? await deps.approvals.consume({ tool: tool.name, argsHash, context }).catch(() => false)
             : false;
           if (!approved)
             return await refuse(
@@ -344,13 +298,7 @@ export function createToolRegistryV2(
 
         if (key && deps.idempotency?.has(key)) {
           const earlier = deps.idempotency.get(key)!;
-          return await finish(
-            { ...earlier, replayed: true, durationMs: elapsed() },
-            "replayed",
-            null,
-            tool,
-            key,
-          );
+          return await finish({ ...earlier, replayed: true, durationMs: elapsed() }, "replayed", null, tool, key);
         }
 
         const timeoutMs = tool.timeoutMs ?? aiLimits().requestTimeoutMs;
@@ -455,9 +403,7 @@ function legacy<S extends z.ZodType>(
     risk,
     scope: original.permission === "platform_admin" ? "admin" : "owner",
     schema,
-    ...((extra.timeoutMs ?? original.timeoutMs)
-      ? { timeoutMs: (extra.timeoutMs ?? original.timeoutMs) as number }
-      : {}),
+    ...((extra.timeoutMs ?? original.timeoutMs) ? { timeoutMs: (extra.timeoutMs ?? original.timeoutMs) as number } : {}),
     ...(extra.inverse ? { inverse: extra.inverse } : {}),
     run: (input, context) => {
       const raw = { ...(input as Record<string, unknown>), organizationId: context.organizationId };
@@ -470,20 +416,11 @@ export function originalToolsV2(): ToolDefinitionV2<z.ZodType>[] {
   return [
     legacy("inspect_website", "read", z.strictObject({})),
     legacy("verify_live_pages", "read", z.strictObject({})),
-    legacy(
-      "generate_image",
-      "read",
-      z.strictObject({ prompt: z.string().trim().min(1).max(4000) }),
-    ),
+    legacy("generate_image", "read", z.strictObject({ prompt: z.string().trim().min(1).max(4000) })),
     // Rolling back is itself the undo, so it has nothing further to undo.
-    legacy(
-      "rollback_changes",
-      "write_internal",
-      z.strictObject({ steps: z.array(z.unknown()).min(1).max(200) }),
-      {
-        inverse: () => null,
-      },
-    ),
+    legacy("rollback_changes", "write_internal", z.strictObject({ steps: z.array(z.unknown()).min(1).max(200) }), {
+      inverse: () => null,
+    }),
   ] as ToolDefinitionV2<z.ZodType>[];
 }
 
