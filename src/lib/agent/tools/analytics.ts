@@ -27,37 +27,38 @@ export async function readTrafficEvents(client: Db, organizationId: string, days
   return events.rows;
 }
 
-export const analyticsSummary = defineToolV2({
-  name: "analytics.summary",
-  description:
-    "Website traffic for the last N days (default 30): views, visitors, conversions, conversion rate, change vs the previous period, top sources/pages/devices, daily trend, and leads received.",
-  risk: "read",
-  scope: "owner",
-  schema: z.strictObject({ days: z.number().int().min(1).max(90).optional() }),
-  run: async (input, context) => {
-    const days = input.days ?? 30;
-    const client = db(context);
-    const [events, leads] = await Promise.all([
-      readTrafficEvents(client, context.organizationId, days),
-      client
-        .from("leads")
-        .select("id", { count: "exact", head: true })
-        .eq("organization_id", context.organizationId)
-        .neq("source", TEST_LEAD_SOURCE)
-        .gte("created_at", new Date(Date.now() - days * 86_400_000).toISOString()),
-    ]);
-    const summary = summarizeTraffic(events, days);
-    const out = {
-      ...summary,
-      leadsInWindow: leads.count ?? 0,
-      daily: summary.daily,
-      dailyTruncated: false,
-    };
-    // A 90-day daily series can exceed the size cap: keep the newest days.
-    while (out.daily.length > 7 && JSON.stringify(out).length > MAX_BYTES) {
-      out.daily = out.daily.slice(Math.ceil(out.daily.length / 4));
-      out.dailyTruncated = true;
-    }
-    return out;
-  },
-});
+export const analyticsSummary = () =>
+  defineToolV2({
+    name: "analytics.summary",
+    description:
+      "Website traffic for the last N days (default 30): views, visitors, conversions, conversion rate, change vs the previous period, top sources/pages/devices, daily trend, and leads received.",
+    risk: "read",
+    scope: "owner",
+    schema: z.strictObject({ days: z.number().int().min(1).max(90).optional() }),
+    run: async (input, context) => {
+      const days = input.days ?? 30;
+      const client = db(context);
+      const [events, leads] = await Promise.all([
+        readTrafficEvents(client, context.organizationId, days),
+        client
+          .from("leads")
+          .select("id", { count: "exact", head: true })
+          .eq("organization_id", context.organizationId)
+          .neq("source", TEST_LEAD_SOURCE)
+          .gte("created_at", new Date(Date.now() - days * 86_400_000).toISOString()),
+      ]);
+      const summary = summarizeTraffic(events, days);
+      const out = {
+        ...summary,
+        leadsInWindow: leads.count ?? 0,
+        daily: summary.daily,
+        dailyTruncated: false,
+      };
+      // A 90-day daily series can exceed the size cap: keep the newest days.
+      while (out.daily.length > 7 && JSON.stringify(out).length > MAX_BYTES) {
+        out.daily = out.daily.slice(Math.ceil(out.daily.length / 4));
+        out.dailyTruncated = true;
+      }
+      return out;
+    },
+  });
