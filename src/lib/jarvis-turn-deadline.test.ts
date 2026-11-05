@@ -19,7 +19,7 @@ afterEach(() => vi.useRealTimers());
 /** A fake model that answers only after `ms`, like a slow failover chain. */
 function slowModel(ms: number) {
   return vi.fn((request: { timeoutMs?: number; chainDeadlineMs?: number }) =>
-    new Promise<{ text: string; request: typeof request }>((resolve) => setTimeout(() => resolve({ text: "answer", request }), ms)));
+    new Promise<{ text: string; request: typeof request }>((resolve) => setTimeout(() => resolve({ text: "answer", request }), ms))); // DevSkim: ignore DS172411 -- Fixed callback and numeric delay; no untrusted data.
 }
 
 /**
