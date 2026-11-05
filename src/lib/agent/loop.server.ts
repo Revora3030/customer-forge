@@ -17,6 +17,11 @@
  *   says which tool. Tool failures are never hidden from the model or owner.
  * - A tool that needs approval ends the run as `needs_approval`; the loop never
  *   sends anything itself and never gets an organization id from the model.
+ *   With `approvals` supplied (PAI-4) the loop first files the owner's approval
+ *   request for those exact arguments, saves a checkpoint and pauses. When the
+ *   owner decides, the run resumes: an approved action is tried again with the
+ *   same arguments and goes through once; a declined or expired one is not
+ *   asked for again and the model is told to say so.
  * - Write tools are followed by a verification read when one is provided.
  * - Every exit path writes one terminal event (`run_finished`) first.
  *
@@ -34,6 +39,7 @@ import {
   type RunOutcome,
 } from "@/lib/agent/run-store.server";
 import { admitRun, globalKillSwitchOn, markRunFinished, markRunStarted, supabaseLimitsDeps, type LimitsDeps } from "@/lib/agent/limits.server";
+import { hashApprovalArgs } from "@/lib/agent/approvals.server";
 import { buildSystemPrompt, formatObservation, parseNextStep, type ProtocolTool } from "@/lib/agent/protocol";
 
 export type LoopMessage = { role: "user" | "assistant"; content: string };
@@ -69,6 +75,20 @@ export class LoopBudgetError extends Error {
 
 export type LoopToolCall = { name: string; args: unknown; requestId: string; stepId: string };
 
+/**
+ * PAI-4: files an approval request for a tool call the registry refused with
+ * `needs_approval`. See `createLoopApprovals` in loop-approvals.server.ts.
+ */
+export type LoopApprovals = {
+  request: (input: {
+    run: AgentRun;
+    tool: string;
+    args: Record<string, unknown>;
+    why?: string;
+    stepId: string;
+  }) => Promise<{ ok: true; approvalId: string; summary: string } | { ok: false; message: string }>;
+};
+
 export type LoopDeps = {
   /** One model turn. Returns the parsed JSON object. Throws LoopBudgetError when over budget. */
   askModel: (input: { system: string; messages: LoopMessage[]; run: AgentRun }) => Promise<{ data: unknown; costMicrocents?: number }>;
@@ -79,6 +99,8 @@ export type LoopDeps = {
   /** Re-reads what a write tool changed. Without it the loop says verification was skipped. */
   verifyWrite?: (input: { tool: string; args: unknown; result: ToolResultV2 & { ok: true } }) => Promise<{ ok: boolean; detail: string }>;
   limits?: Partial<LoopLimits>;
+  /** PAI-4 approval requests. Without it a needs_approval tool result just ends the run. */
+  approvals?: LoopApprovals;
   /**
    * PAI-5 run-level limits. When set, the loop admits the run (kill switches,
    * concurrent and hourly limits) before doing anything, re-checks the kill
@@ -91,7 +113,8 @@ export type LoopDeps = {
   sleep?: (ms: number) => Promise<void>;
 };
 
-type LoopState = { step: number; history: LoopMessage[]; spent: number };
+type PendingApproval = { tool: string; argsHash: string; approvalId: string };
+type LoopState = { step: number; history: LoopMessage[]; spent: number; approval: PendingApproval | null };
 
 function readState(checkpoint: Record<string, unknown>): LoopState {
   const raw = checkpoint["loop"] as Partial<LoopState> | undefined;
@@ -101,7 +124,13 @@ function readState(checkpoint: Record<string, unknown>): LoopState {
           !!m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string",
       )
     : [];
+  const pending = (raw as { approval?: Partial<PendingApproval> } | undefined)?.approval;
+  const approval =
+    pending && typeof pending.tool === "string" && typeof pending.argsHash === "string" && typeof pending.approvalId === "string"
+      ? { tool: pending.tool, argsHash: pending.argsHash, approvalId: pending.approvalId }
+      : null;
   return {
+    approval,
     step: typeof raw?.step === "number" && raw.step >= 0 ? Math.floor(raw.step) : 0,
     history,
     spent: typeof raw?.spent === "number" && raw.spent >= 0 ? raw.spent : 0,
@@ -195,7 +224,7 @@ async function runLoopBody(
     return outcome;
   };
   const checkpoint = () =>
-    ctx.save({ ...ctx.checkpoint, loop: { step: state.step, history: state.history.slice(-limits.maxHistory), spent: state.spent } }, state.spent);
+    ctx.save({ ...ctx.checkpoint, loop: { step: state.step, history: state.history.slice(-limits.maxHistory), spent: state.spent, approval: state.approval } }, state.spent);
   const push = (message: LoopMessage) => {
     state.history.push(message);
   };
@@ -257,6 +286,7 @@ async function runLoopBody(
 
       const next = step.step;
       if (next.kind === "final") {
+        state.approval = null;
         await checkpoint();
         return await finish({ status: next.status, summary: next.summary });
       }
@@ -271,6 +301,9 @@ async function runLoopBody(
         continue;
       }
 
+      // A pause for approval only carries over to the very next step.
+      const pendingApproval = state.approval;
+      state.approval = null;
       await emit("tool_started", next.why ? `${next.tool}: ${next.why}` : `Using ${next.tool}.`, { tool: next.tool, step: state.step });
       let result: ToolResultV2 | null = null;
       for (let attempt = 0; attempt <= limits.toolTimeoutRetries; attempt++) {
@@ -286,11 +319,56 @@ async function runLoopBody(
       if (!result) throw new Error("tool produced no result");
 
       if (!result.ok) {
-        if (result.reason === "needs_approval")
+        if (result.reason === "needs_approval") {
+          if (!deps.approvals)
+            return await finish({
+              status: "needs_approval",
+              summary: `I need your approval before using ${next.tool}. Nothing was sent.`,
+            });
+          const argsHash = hashApprovalArgs(next.args);
+          if (pendingApproval && pendingApproval.tool === next.tool && pendingApproval.argsHash === argsHash) {
+            // Resumed after the owner's decision and the same call is still refused: it was declined or it expired.
+            await emit("approval_not_granted", `${next.tool} was not approved, so it did not run.`, { tool: next.tool });
+            push({
+              role: "user",
+              content: formatObservation(next.tool, {
+                ok: false,
+                payload: { error: "The owner did not approve this action (declined or expired). Nothing was sent. Do not try it again; tell the owner it was not sent." },
+              }),
+            });
+            await checkpoint();
+            continue;
+          }
+          let asked: Awaited<ReturnType<LoopApprovals["request"]>>;
+          try {
+            asked = await deps.approvals.request({ run: ctx.run, tool: next.tool, args: next.args, ...(next.why ? { why: next.why } : {}), stepId });
+          } catch (error) {
+            if (error instanceof LostLeaseError) throw error;
+            asked = { ok: false, message: "The approval request could not be saved." };
+          }
+          if (!asked.ok) {
+            await emit("approval_request_failed", `Could not ask for approval for ${next.tool}: ${asked.message}`, { tool: next.tool });
+            push({
+              role: "user",
+              content: formatObservation(next.tool, { ok: false, payload: { error: `${asked.message} Nothing was sent. Tell the owner.` } }),
+            });
+            await checkpoint();
+            continue;
+          }
+          state.approval = { tool: next.tool, argsHash, approvalId: asked.approvalId };
+          push({
+            role: "user",
+            content: formatObservation(next.tool, {
+              ok: false,
+              payload: { status: "waiting_for_owner_approval", note: "If the owner approves, call this exact tool again with exactly the same arguments." },
+            }),
+          });
+          await checkpoint();
           return await finish({
             status: "needs_approval",
-            summary: `I need your approval before using ${next.tool}. Nothing was sent.`,
+            summary: `Waiting for your approval: ${asked.summary} Nothing was sent.`,
           });
+        }
         if (result.reason === "timeout")
           return await finish({
             status: "failed",
