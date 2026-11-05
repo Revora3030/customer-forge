@@ -61,7 +61,9 @@ const published = (db: Db, organizationId: string, columns = SELECT) =>
 
 /** One published snapshot of this workspace, or null. */
 async function readCheckpointRow(db: Db, organizationId: string, versionId: string) {
-  const { data } = await published(db, organizationId, "id, version, pages, published_at").eq("id", versionId).maybeSingle();
+  const { data } = await published(db, organizationId, "id, version, pages, published_at")
+    .eq("id", versionId)
+    .maybeSingle();
   return data;
 }
 
@@ -79,7 +81,11 @@ export const listCheckpoints = createServerFn({ method: "POST" })
     // Owners and admins only, checked on the server. Anyone else gets an empty
     // list (not an error), so the chat shows nothing for them.
     const { orgRole, roleAtLeast } = await import("@/lib/org-authz.server");
-    const role = await orgRole(context.supabase as never, data.organizationId, String(context.userId)).catch(() => null);
+    const role = await orgRole(
+      context.supabase as never,
+      data.organizationId,
+      String(context.userId),
+    ).catch(() => null);
     if (!roleAtLeast(role, CHECKPOINT_MIN_ROLE)) return { allowed: false, checkpoints: [] };
     const db = context.supabase as unknown as Db;
     const [recent, pinned] = await Promise.all([
@@ -96,39 +102,67 @@ export const listCheckpoints = createServerFn({ method: "POST" })
     const recentRows = (recent.data ?? []) as PublishedRow[];
     const shown = new Set(recentRows.slice(0, MAX_PUBLISHED_VERSIONS).map((row) => row.id));
     const rows = new Map<string, PublishedRow>();
-    for (const row of [...recentRows, ...((pinned.data ?? []) as PublishedRow[])]) rows.set(row.id, row);
+    for (const row of [...recentRows, ...((pinned.data ?? []) as PublishedRow[])])
+      rows.set(row.id, row);
 
     const who = new Map<string, string>();
-    const ids = [...new Set([...rows.values()].map((row) => row.created_by).filter((id): id is string => !!id))];
+    const ids = [
+      ...new Set(
+        [...rows.values()].map((row) => row.created_by).filter((id): id is string => !!id),
+      ),
+    ];
     if (ids.length) {
       // Membership was verified above; author names come from profiles.
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-      const { data: people } = await supabaseAdmin.from("profiles").select("id, full_name").in("id", ids);
+      const { data: people } = await supabaseAdmin
+        .from("profiles")
+        .select("id, full_name")
+        .in("id", ids);
       for (const person of (people ?? []) as { id: string; full_name: string | null }[])
         if (person.full_name) who.set(person.id, person.full_name);
     }
     const entries = buildVersionList([...rows.values()], who);
     const pagesById = new Map([...rows.values()].map((row) => [row.id, row.pages]));
-    const checkpoints = toCheckpoints(entries, pagesById).filter((entry) => shown.has(entry.id) || entry.pinned);
+    const checkpoints = toCheckpoints(entries, pagesById).filter(
+      (entry) => shown.has(entry.id) || entry.pinned,
+    );
     return { allowed: true, checkpoints };
   });
 
 /** Names, renames, pins or unpins one checkpoint. Owners and admins only. */
 export const updateCheckpoint = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((input: { organizationId: string; versionId: string; name?: string | null; pinned?: boolean }) => {
-    const out: { organizationId: string; versionId: string; name?: string | null; pinned?: boolean } = {
-      organizationId: orgInput(input),
-      versionId: versionInput(input),
-    };
-    if (input && "name" in input && input.name !== undefined) out.name = cleanCheckpointName(input.name);
-    if (input && typeof input.pinned === "boolean") out.pinned = input.pinned;
-    if (out.name === undefined && out.pinned === undefined) throw new Error("Nothing to change");
-    return out;
-  })
+  .validator(
+    (input: {
+      organizationId: string;
+      versionId: string;
+      name?: string | null;
+      pinned?: boolean;
+    }) => {
+      const out: {
+        organizationId: string;
+        versionId: string;
+        name?: string | null;
+        pinned?: boolean;
+      } = {
+        organizationId: orgInput(input),
+        versionId: versionInput(input),
+      };
+      if (input && "name" in input && input.name !== undefined)
+        out.name = cleanCheckpointName(input.name);
+      if (input && typeof input.pinned === "boolean") out.pinned = input.pinned;
+      if (out.name === undefined && out.pinned === undefined) throw new Error("Nothing to change");
+      return out;
+    },
+  )
   .handler(async ({ data, context }) => {
     const { requireOrgRole } = await import("@/lib/org-authz.server");
-    await requireOrgRole(context.supabase as never, data.organizationId, String(context.userId), CHECKPOINT_MIN_ROLE);
+    await requireOrgRole(
+      context.supabase as never,
+      data.organizationId,
+      String(context.userId),
+      CHECKPOINT_MIN_ROLE,
+    );
     const db = context.supabase as unknown as Db;
     const row = await readCheckpointRow(db, data.organizationId, data.versionId);
     if (!row) throw new Error("That checkpoint isn't a saved copy of your published site.");
@@ -138,7 +172,9 @@ export const updateCheckpoint = createServerFn({ method: "POST" })
         .eq("pages->>checkpoint_pinned", "true")
         .limit(MAX_PINNED_CHECKPOINTS + 1);
       if (((pins as unknown[] | null) ?? []).length >= MAX_PINNED_CHECKPOINTS)
-        throw new Error(`You can pin up to ${MAX_PINNED_CHECKPOINTS} checkpoints. Unpin one first.`);
+        throw new Error(
+          `You can pin up to ${MAX_PINNED_CHECKPOINTS} checkpoints. Unpin one first.`,
+        );
     }
     const pages = applyCheckpointMeta(row["pages"], { name: data.name, pinned: data.pinned });
     const { error } = await db
@@ -163,15 +199,29 @@ export const restoreCheckpoint = createServerFn({ method: "POST" })
   }))
   .handler(async ({ data, context }) => {
     const { requireOrgRole } = await import("@/lib/org-authz.server");
-    await requireOrgRole(context.supabase as never, data.organizationId, String(context.userId), CHECKPOINT_MIN_ROLE);
+    await requireOrgRole(
+      context.supabase as never,
+      data.organizationId,
+      String(context.userId),
+      CHECKPOINT_MIN_ROLE,
+    );
     const { publishSiteNow } = await import("@/lib/production.functions");
-    const result = await publishSiteNow(context.supabase as never, context.userId, data.organizationId, {
-      restoreVersionId: data.versionId,
-    });
+    const result = await publishSiteNow(
+      context.supabase as never,
+      context.userId,
+      data.organizationId,
+      {
+        restoreVersionId: data.versionId,
+      },
+    );
     return { activated: result.activated, reason: result.reason, version: result.version };
   });
 
-export type CheckpointCompare = { before: SnapshotOutline; after: SnapshotOutline; liveVersion: number | null };
+export type CheckpointCompare = {
+  before: SnapshotOutline;
+  after: SnapshotOutline;
+  liveVersion: number | null;
+};
 
 /** Text outlines of a checkpoint (before) and the live site now (after), for the compare slider. */
 export const compareCheckpoint = createServerFn({ method: "POST" })
@@ -182,11 +232,19 @@ export const compareCheckpoint = createServerFn({ method: "POST" })
   }))
   .handler(async ({ data, context }): Promise<CheckpointCompare> => {
     const { requireOrgRole } = await import("@/lib/org-authz.server");
-    await requireOrgRole(context.supabase as never, data.organizationId, String(context.userId), CHECKPOINT_MIN_ROLE);
+    await requireOrgRole(
+      context.supabase as never,
+      data.organizationId,
+      String(context.userId),
+      CHECKPOINT_MIN_ROLE,
+    );
     const db = context.supabase as unknown as Db;
     const [row, live] = await Promise.all([
       readCheckpointRow(db, data.organizationId, data.versionId),
-      published(db, data.organizationId, "id, version, pages").order("version", { ascending: false }).limit(1).maybeSingle(),
+      published(db, data.organizationId, "id, version, pages")
+        .order("version", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
     ]);
     if (!row) throw new Error("That checkpoint isn't a saved copy of your published site.");
     return {

@@ -24,7 +24,8 @@ export type CheckpointMeta = { name: string | null; pinned: boolean };
 
 export type Checkpoint = VersionEntry & CheckpointMeta;
 
-const asRow = (body: unknown): Row => (body && typeof body === "object" && !Array.isArray(body) ? (body as Row) : {});
+const asRow = (body: unknown): Row =>
+  body && typeof body === "object" && !Array.isArray(body) ? (body as Row) : {};
 
 /** Tidies an owner-typed name: one line, trimmed, capped; empty means "no name". */
 export function cleanCheckpointName(value: unknown): string | null {
@@ -96,10 +97,9 @@ export function toCheckpoints(
  * site already (nothing changed since, so there is nothing to put back), or
  * when its live check failed (never offered as a restore).
  */
-export function checkpointBefore<T extends Pick<VersionEntry, "date" | "isLive" | "verification" | "version">>(
-  checkpoints: readonly T[],
-  sentAt: number | null | undefined,
-): T | null {
+export function checkpointBefore<
+  T extends Pick<VersionEntry, "date" | "isLive" | "verification" | "version">,
+>(checkpoints: readonly T[], sentAt: number | null | undefined): T | null {
   if (sentAt === null || sentAt === undefined || !Number.isFinite(sentAt)) return null;
   const before = [...checkpoints]
     .filter((entry) => {
@@ -117,7 +117,10 @@ export function checkpointBefore<T extends Pick<VersionEntry, "date" | "isLive" 
  * the moment it was sent, and the stamp is kept for the life of the page.
  */
 const firstSeen = new Map<string, number>();
-export function messageSentAt(task: { id: string; sentAt?: string | undefined }, now: () => number = Date.now): number {
+export function messageSentAt(
+  task: { id: string; sentAt?: string | undefined },
+  now: () => number = Date.now,
+): number {
   const saved = task.sentAt ? Date.parse(task.sentAt) : Number.NaN;
   if (Number.isFinite(saved)) return saved;
   const known = firstSeen.get(task.id);
@@ -150,7 +153,10 @@ const plainText = (value: unknown, max = OUTLINE_TEXT_MAX) => {
 };
 
 const kindLabel = (kind: unknown) => {
-  const text = String(kind ?? "section").replace(/[_-]+/g, " ").trim() || "section";
+  const text =
+    String(kind ?? "section")
+      .replace(/[_-]+/g, " ")
+      .trim() || "section";
   return text.charAt(0).toUpperCase() + text.slice(1).toLowerCase();
 };
 
@@ -190,7 +196,8 @@ export function changedSectionIds(before: SnapshotOutline, after: SnapshotOutlin
   const index = (outline: SnapshotOutline) => {
     const map = new Map<string, string>();
     for (const page of outline.pages)
-      for (const section of page.sections) map.set(section.id, `${section.label}|${section.heading}|${section.text}`);
+      for (const section of page.sections)
+        map.set(section.id, `${section.label}|${section.heading}|${section.text}`);
     return map;
   };
   const a = index(before);
