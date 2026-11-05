@@ -11,7 +11,12 @@
  * scrolling, never moves further than SETTLE_MAX_PX, never on touch, keyboard
  * or scrollbar drags, and is off for reduced motion — so it can never trap the
  * wheel.
+ *
+ * With desktop smooth scrolling (Lenis, see smooth-scroll.ts) a wheel scroll
+ * keeps gliding after the last wheel event, so the wheel window is widened by
+ * SMOOTH_SCROLL_GLIDE_MS and the correction goes through Lenis.
  */
+import { activeSmoothScroller, SMOOTH_SCROLL_GLIDE_MS, smoothScrollBy } from "./smooth-scroll";
 
 /** Largest correction ever made, in CSS pixels. */
 export const SETTLE_MAX_PX = 140;
@@ -77,7 +82,8 @@ export function installSectionSettle(win: Window): () => void {
   const settle = () => {
     timer = null;
     const now = Date.now();
-    if (now - lastWheel > SETTLE_WHEEL_WINDOW_MS || now < settlingUntil) return;
+    const wheelWindow = SETTLE_WHEEL_WINDOW_MS + (activeSmoothScroller() ? SMOOTH_SCROLL_GLIDE_MS : 0);
+    if (now - lastWheel > wheelWindow || now < settlingUntil) return;
     if (typingOrSelecting(doc)) return;
     const root = doc.scrollingElement ?? doc.documentElement;
     if (win.scrollY <= 0 || win.scrollY + win.innerHeight >= root.scrollHeight - 2) return;
@@ -85,7 +91,7 @@ export function installSectionSettle(win: Window): () => void {
     const delta = settleDelta(edges, { viewportHeight: win.innerHeight, headerOffset: headerOffset(doc) });
     if (delta === null) return;
     settlingUntil = now + 700;
-    win.scrollBy({ top: delta, behavior: "smooth" });
+    smoothScrollBy(win, delta);
   };
   const onWheel = () => {
     lastWheel = Date.now();

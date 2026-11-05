@@ -37,7 +37,11 @@ describe("single Google tag after load or first interaction", () => {
     const { ensureGoogleTagScript } = await import("./google-tag");
     ensureGoogleTagScript("G-WC1X5HWN7W");
     ensureGoogleTagScript("AW-18474339242");
+    vi.useFakeTimers();
     listeners.get("load")?.();
+    expect(appended).toHaveLength(0);
+    vi.advanceTimersByTime(4000);
+    vi.useRealTimers();
     expect(appended).toHaveLength(1);
     expect(appended[0]?.src).toBe("https://www.googletagmanager.com/gtag/js?id=G-WC1X5HWN7W");
   });
@@ -50,10 +54,34 @@ describe("single Google tag after load or first interaction", () => {
     expect(listeners.size).toBe(0);
   });
 
-  it("injects immediately when the page is already loaded", async () => {
+  it("waits for an idle slot when the page is already loaded", async () => {
     readyState = "complete";
+    let idle: (() => void) | undefined;
+    let timeout: number | undefined;
+    (globalThis as unknown as { window: Record<string, unknown> }).window["requestIdleCallback"] = (
+      cb: () => void,
+      opts: { timeout: number },
+    ) => {
+      idle = cb;
+      timeout = opts.timeout;
+      return 1;
+    };
+    const { ensureGoogleTagScript, IDLE_FALLBACK_MS } = await import("./google-tag");
+    ensureGoogleTagScript("G-WC1X5HWN7W");
+    expect(appended).toHaveLength(0);
+    expect(timeout).toBe(IDLE_FALLBACK_MS);
+    idle?.();
+    expect(appended).toHaveLength(1);
+  });
+
+  it("falls back to a timer when requestIdleCallback is missing, so the tag always loads", async () => {
+    readyState = "complete";
+    vi.useFakeTimers();
     const { ensureGoogleTagScript } = await import("./google-tag");
     ensureGoogleTagScript("G-WC1X5HWN7W");
+    expect(appended).toHaveLength(0);
+    vi.advanceTimersByTime(2500);
+    vi.useRealTimers();
     expect(appended).toHaveLength(1);
   });
 
