@@ -1,3 +1,4 @@
+import { ownerSocialUrl } from "@/lib/social-links";
 /**
  * Search and browser metadata every published client website carries.
  *
@@ -27,34 +28,59 @@ import { scrubPlaceholderText } from "@/lib/builder/placeholder-contact";
 import { heroPreloadLink } from "@/lib/site-hero-preload";
 import { imageAltBase, mentionsWrongCity, normalizeCanonicalUrl } from "@/lib/client-seo-guard";
 
-type Profile = {
-  tagline?: string | null;
-  description?: string | null;
-  phone?: string | null;
-  email?: string | null;
-  address?: string | null;
-  city?: string | null;
-  state?: string | null;
-  zip?: string | null;
-  service_area?: string | null;
-  hours?: unknown;
-  logo_url?: string | null;
-  hero_image_url?: string | null;
-  primary_color?: string | null;
-  review_link?: string | null;
-} | null | undefined;
+type Profile =
+  | {
+      tagline?: string | null;
+      description?: string | null;
+      phone?: string | null;
+      email?: string | null;
+      address?: string | null;
+      city?: string | null;
+      state?: string | null;
+      zip?: string | null;
+      service_area?: string | null;
+      hours?: unknown;
+      logo_url?: string | null;
+      hero_image_url?: string | null;
+      primary_color?: string | null;
+      review_link?: string | null;
+    }
+  | null
+  | undefined;
 
-type Review = { rating?: number | null; author_name?: string | null; comment?: string | null; created_at?: string | null };
-type Service = { name?: string | null; description?: string | null; price?: number | string | null; starting_price?: number | string | null; bookable?: boolean | null };
+type Review = {
+  rating?: number | null;
+  author_name?: string | null;
+  comment?: string | null;
+  created_at?: string | null;
+};
+type Service = {
+  name?: string | null;
+  description?: string | null;
+  price?: number | string | null;
+  starting_price?: number | string | null;
+  bookable?: boolean | null;
+};
 
 const DAY_SCHEMA: Record<string, string> = {
-  mon: "Monday", monday: "Monday",
-  tue: "Tuesday", tues: "Tuesday", tuesday: "Tuesday",
-  wed: "Wednesday", weds: "Wednesday", wednesday: "Wednesday",
-  thu: "Thursday", thur: "Thursday", thurs: "Thursday", thursday: "Thursday",
-  fri: "Friday", friday: "Friday",
-  sat: "Saturday", saturday: "Saturday",
-  sun: "Sunday", sunday: "Sunday",
+  mon: "Monday",
+  monday: "Monday",
+  tue: "Tuesday",
+  tues: "Tuesday",
+  tuesday: "Tuesday",
+  wed: "Wednesday",
+  weds: "Wednesday",
+  wednesday: "Wednesday",
+  thu: "Thursday",
+  thur: "Thursday",
+  thurs: "Thursday",
+  thursday: "Thursday",
+  fri: "Friday",
+  friday: "Friday",
+  sat: "Saturday",
+  saturday: "Saturday",
+  sun: "Sunday",
+  sunday: "Sunday",
 };
 
 function clean(value: unknown, max = 300): string | null {
@@ -85,7 +111,9 @@ export function openingHoursSpec(hours: unknown): Record<string, unknown>[] {
   const record = hours as Record<string, unknown>;
   // Onboarding stores free text as { summary }; read it as days too.
   const entries: [string, unknown][] = [
-    ...Object.entries(typeof record["summary"] === "string" ? weeklyHoursFromSummary(record["summary"]) : {}),
+    ...Object.entries(
+      typeof record["summary"] === "string" ? weeklyHoursFromSummary(record["summary"]) : {},
+    ),
     ...Object.entries(record),
   ];
   const seenDays = new Set<string>();
@@ -98,7 +126,11 @@ export function openingHoursSpec(hours: unknown): Record<string, unknown>[] {
       typeof raw === "string"
         ? raw
         : raw && typeof raw === "object"
-          ? String((raw as Record<string, unknown>)["hours"] ?? (raw as Record<string, unknown>)["value"] ?? "")
+          ? String(
+              (raw as Record<string, unknown>)["hours"] ??
+                (raw as Record<string, unknown>)["value"] ??
+                "",
+            )
           : "";
     const parts = text.toLowerCase().split(/\s*(?:-|–|—|to)\s*/);
     if (parts.length !== 2) continue;
@@ -172,14 +204,51 @@ export type LocalBusinessType = keyof typeof LOCAL_BUSINESS_PARENT;
  */
 export type ExtraSchemaType = "VeterinaryCare";
 
-export type SchemaType = { type: LocalBusinessType; serviceType?: string; alsoType?: ExtraSchemaType };
+export type SchemaType = {
+  type: LocalBusinessType;
+  serviceType?: string;
+  alsoType?: ExtraSchemaType;
+};
 
 /** The `@type` value for a resolved type: a single LocalBusiness subtype, or [extra, subtype]. */
-export function schemaTypeValue(resolved: SchemaType): LocalBusinessType | [ExtraSchemaType, LocalBusinessType] {
+export function schemaTypeValue(
+  resolved: SchemaType,
+): LocalBusinessType | [ExtraSchemaType, LocalBusinessType] {
   return resolved.alsoType ? [resolved.alsoType, resolved.type] : resolved.type;
 }
 
-const CUISINES = ["Italian", "Mexican", "Chinese", "Japanese", "Thai", "Indian", "French", "Greek", "Korean", "Vietnamese", "Mediterranean", "Spanish", "Caribbean", "Ethiopian", "Lebanese", "Turkish", "Peruvian", "Brazilian", "American", "Southern", "Cajun", "Sushi", "Pizza", "Barbecue", "BBQ", "Seafood", "Vegan", "Vegetarian", "Tex-Mex", "Middle Eastern"];
+const CUISINES = [
+  "Italian",
+  "Mexican",
+  "Chinese",
+  "Japanese",
+  "Thai",
+  "Indian",
+  "French",
+  "Greek",
+  "Korean",
+  "Vietnamese",
+  "Mediterranean",
+  "Spanish",
+  "Caribbean",
+  "Ethiopian",
+  "Lebanese",
+  "Turkish",
+  "Peruvian",
+  "Brazilian",
+  "American",
+  "Southern",
+  "Cajun",
+  "Sushi",
+  "Pizza",
+  "Barbecue",
+  "BBQ",
+  "Seafood",
+  "Vegan",
+  "Vegetarian",
+  "Tex-Mex",
+  "Middle Eastern",
+];
 
 /**
  * The most specific schema.org type for the business's own industry text. A trade schema.org has no type for
@@ -190,32 +259,68 @@ export function resolveSchemaType(industry: string | null | undefined): SchemaTy
   const text = (industry ?? "").trim();
   if (!text) return { type: "LocalBusiness" };
   const key = playbookFor(text)?.key;
-  const service = (serviceType: string, type: LocalBusinessType = "HomeAndConstructionBusiness"): SchemaType => ({ type, serviceType });
+  const service = (
+    serviceType: string,
+    type: LocalBusinessType = "HomeAndConstructionBusiness",
+  ): SchemaType => ({ type, serviceType });
   switch (key) {
-    case "plumbing": return { type: "Plumber" };
-    case "hvac": return { type: "HVACBusiness" };
-    case "roofing": return { type: "RoofingContractor" };
-    case "electrical": return { type: "Electrician" };
-    case "locksmith": return { type: "Locksmith" };
-    case "painting": return { type: "HousePainter" };
-    case "contracting": return { type: "GeneralContractor" };
-    case "moving": return { type: "MovingCompany" };
-    case "auto-repair": return /body shop|collision|dent repair|auto body/i.test(text) ? { type: "AutoBodyShop" } : { type: "AutoRepair" };
-    case "auto-detailing": return service("Auto detailing", "AutoRepair");
-    case "towing": return service("Towing and roadside assistance", "AutomotiveBusiness");
-    case "cleaning": return service(/commercial|janitor|office/i.test(text) ? "Commercial cleaning" : "House cleaning");
-    case "pressure-washing": return service("Pressure washing");
-    case "exterior-cleaning": return service(/window/i.test(text) ? "Window cleaning" : /gutter/i.test(text) ? "Gutter cleaning" : "Exterior cleaning");
-    case "landscaping": return service(/tree/i.test(text) ? "Tree service" : /lawn|mow/i.test(text) ? "Lawn care" : "Landscaping");
-    case "pest": return service("Pest control");
-    case "pool": return service("Pool service");
-    case "garage-door": return service("Garage door service");
-    case "appliance-repair": return service("Appliance repair");
-    case "solar": return service("Solar installation");
+    case "plumbing":
+      return { type: "Plumber" };
+    case "hvac":
+      return { type: "HVACBusiness" };
+    case "roofing":
+      return { type: "RoofingContractor" };
+    case "electrical":
+      return { type: "Electrician" };
+    case "locksmith":
+      return { type: "Locksmith" };
+    case "painting":
+      return { type: "HousePainter" };
+    case "contracting":
+      return { type: "GeneralContractor" };
+    case "moving":
+      return { type: "MovingCompany" };
+    case "auto-repair":
+      return /body shop|collision|dent repair|auto body/i.test(text)
+        ? { type: "AutoBodyShop" }
+        : { type: "AutoRepair" };
+    case "auto-detailing":
+      return service("Auto detailing", "AutoRepair");
+    case "towing":
+      return service("Towing and roadside assistance", "AutomotiveBusiness");
+    case "cleaning":
+      return service(
+        /commercial|janitor|office/i.test(text) ? "Commercial cleaning" : "House cleaning",
+      );
+    case "pressure-washing":
+      return service("Pressure washing");
+    case "exterior-cleaning":
+      return service(
+        /window/i.test(text)
+          ? "Window cleaning"
+          : /gutter/i.test(text)
+            ? "Gutter cleaning"
+            : "Exterior cleaning",
+      );
+    case "landscaping":
+      return service(
+        /tree/i.test(text) ? "Tree service" : /lawn|mow/i.test(text) ? "Lawn care" : "Landscaping",
+      );
+    case "pest":
+      return service("Pest control");
+    case "pool":
+      return service("Pool service");
+    case "garage-door":
+      return service("Garage door service");
+    case "appliance-repair":
+      return service("Appliance repair");
+    case "solar":
+      return service("Solar installation");
     case "restaurants":
       if (/bakery|patisserie/i.test(text)) return { type: "Bakery" };
       if (/caf[eé]|coffee/i.test(text)) return { type: "CafeOrCoffeeShop" };
-      if (/\bbar\b|pub|brewery/i.test(text)) return { type: /brewery/i.test(text) ? "Brewery" : "BarOrPub" };
+      if (/\bbar\b|pub|brewery/i.test(text))
+        return { type: /brewery/i.test(text) ? "Brewery" : "BarOrPub" };
       return { type: "Restaurant" };
     case "salons-barbers":
       if (/nail/i.test(text)) return { type: "NailSalon" };
@@ -223,28 +328,49 @@ export function resolveSchemaType(industry: string | null | undefined): SchemaTy
       if (/\bspa\b|massage/i.test(text)) return { type: "DaySpa" };
       if (/hair|barber|salon/i.test(text)) return { type: "HairSalon" };
       return { type: "BeautySalon" };
-    case "med-spa": return service("Medical spa", "DaySpa");
-    case "dentist": return { type: "Dentist" };
+    case "med-spa":
+      return service("Medical spa", "DaySpa");
+    case "dentist":
+      return { type: "Dentist" };
     case "medical-wellness":
       if (/\bvet/i.test(text)) return { type: "MedicalBusiness", alsoType: "VeterinaryCare" };
       if (/optom/i.test(text)) return { type: "Optician" };
-      if (/physio|chiropract|therap/i.test(text)) return service(text.slice(0, 80), "MedicalClinic");
+      if (/physio|chiropract|therap/i.test(text))
+        return service(text.slice(0, 80), "MedicalClinic");
       return { type: "MedicalClinic" };
-    case "gyms-fitness": return { type: "HealthClub" };
-    case "law-firms": return { type: "LegalService" };
-    case "real-estate": return { type: "RealEstateAgent" };
+    case "gyms-fitness":
+      return { type: "HealthClub" };
+    case "law-firms":
+      return { type: "LegalService" };
+    case "real-estate":
+      return { type: "RealEstateAgent" };
     case "professional-services":
       if (/account|\btax|bookkeep|\bcpa\b/i.test(text)) return { type: "AccountingService" };
       if (/insurance/i.test(text)) return { type: "InsuranceAgency" };
       if (/financ|mortgage|wealth|advis/i.test(text)) return { type: "FinancialService" };
       return { type: "ProfessionalService" };
-    case "photo-creative": return service(text.slice(0, 80), "ProfessionalService");
-    case "education": return /daycare|childcare/i.test(text) ? { type: "ChildCare" } : service(text.slice(0, 80), "LocalBusiness");
-    default: return { type: "LocalBusiness" };
+    case "photo-creative":
+      return service(text.slice(0, 80), "ProfessionalService");
+    case "education":
+      return /daycare|childcare/i.test(text)
+        ? { type: "ChildCare" }
+        : service(text.slice(0, 80), "LocalBusiness");
+    default:
+      return { type: "LocalBusiness" };
   }
 }
 
-type Social = { facebook?: string | null; instagram?: string | null; linkedin?: string | null; tiktok?: string | null; youtube?: string | null; google_business?: string | null } | null | undefined;
+type Social =
+  | {
+      facebook?: string | null;
+      instagram?: string | null;
+      linkedin?: string | null;
+      tiktok?: string | null;
+      youtube?: string | null;
+      google_business?: string | null;
+    }
+  | null
+  | undefined;
 
 /** A price range from the owner's own service prices only, e.g. "$80-$450". Null without real prices. */
 export function priceRangeFrom(services: readonly Service[] | null | undefined): string | null {
@@ -283,12 +409,15 @@ export function localBusinessSchema(input: {
     const cuisine = CUISINES.find((c) => new RegExp(`\\b${c}\\b`, "i").test(input.industry ?? ""));
     if (cuisine) schema["servesCuisine"] = cuisine;
   }
-  const description = clean(scrubPlaceholderText(clean(p.description, 500) ?? ""), 500) ?? clean(scrubPlaceholderText(clean(p.tagline, 300) ?? ""), 300);
+  const description =
+    clean(scrubPlaceholderText(clean(p.description, 500) ?? ""), 500) ??
+    clean(scrubPlaceholderText(clean(p.tagline, 300) ?? ""), 300);
   if (description) schema["description"] = description;
   const phone = clean(p.phone, 40);
   if (phone && /\d{3}/.test(phone) && !isPlaceholderPhone(phone)) schema["telephone"] = phone;
   const email = clean(p.email, 160);
-  if (email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && !isPlaceholderEmail(email)) schema["email"] = email;
+  if (email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && !isPlaceholderEmail(email))
+    schema["email"] = email;
   const logo = clean(p.logo_url, 2000);
   if (logo?.startsWith("https://")) schema["logo"] = logo;
   const image = input.image ?? clean(p.hero_image_url, 2000);
@@ -307,19 +436,31 @@ export function localBusinessSchema(input: {
     };
     // A map link only for a real street address the owner gave; never coordinates we do not have.
     if (street && (city || postal)) {
-      schema["hasMap"] = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([street, city, region, postal].filter(Boolean).join(", "))}`;
+      schema["hasMap"] =
+        `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([street, city, region, postal].filter(Boolean).join(", "))}`;
     }
   }
   const area = clean(p.service_area, 200);
   // "Raleigh, NC + 25 miles" names the place; the radius is not a place name.
-  const areaPlace = area ? area.replace(/\s*(?:\+|\bplus\b|&)\s*\d{1,3}\s*(?:mi|miles?|km|kilometres|kilometers)\b.*$/i, "").trim() : null;
+  const areaPlace = area
+    ? area
+        .replace(
+          /\s*(?:\+|\bplus\b|&)\s*\d{1,3}\s*(?:mi|miles?|km|kilometres|kilometers)\b.*$/i,
+          "",
+        )
+        .trim()
+    : null;
   if (areaPlace) schema["areaServed"] = areaPlace;
   const hours = openingHoursSpec(p.hours);
   // Only structured hours: a free-text openingHours string is not valid schema.org.
   if (hours.length) schema["openingHoursSpecification"] = hours;
   const sameAs = [
     clean(p.review_link, 2000),
-    ...["google_business", "facebook", "instagram", "linkedin", "tiktok", "youtube"].map((k) => clean((input.social as Record<string, unknown> | null | undefined)?.[k], 2000)),
+    ...["google_business", "facebook", "instagram", "linkedin", "tiktok", "youtube"].map((k) =>
+      ownerSocialUrl(
+        clean((input.social as Record<string, unknown> | null | undefined)?.[k], 2000),
+      ),
+    ),
   ].filter((u): u is string => !!u && u.startsWith("https://"));
   if (sameAs.length) schema["sameAs"] = [...new Set(sameAs)];
   const priceRange = priceRangeFrom(input.services);
@@ -342,19 +483,32 @@ export function localBusinessSchema(input: {
         itemOffered: {
           "@type": "Service",
           name,
-          ...(clean(service.description, 300) ? { description: clean(service.description, 300) } : {}),
+          ...(clean(service.description, 300)
+            ? { description: clean(service.description, 300) }
+            : {}),
         },
         // An exact price only when the owner set one; a "starting at" figure is a
         // minimum, so it goes out as a PriceSpecification with minPrice.
         ...(hasExact ? { price: exact.toFixed(2), priceCurrency: "USD" } : {}),
         ...(hasStarting
-          ? { priceSpecification: { "@type": "PriceSpecification", minPrice: startingAt.toFixed(2), priceCurrency: "USD" } }
+          ? {
+              priceSpecification: {
+                "@type": "PriceSpecification",
+                minPrice: startingAt.toFixed(2),
+                priceCurrency: "USD",
+              },
+            }
           : {}),
       };
     })
     .filter(Boolean)
     .slice(0, 20);
-  if (offers.length) schema["hasOfferCatalog"] = { "@type": "OfferCatalog", name: "Services", itemListElement: offers };
+  if (offers.length)
+    schema["hasOfferCatalog"] = {
+      "@type": "OfferCatalog",
+      name: "Services",
+      itemListElement: offers,
+    };
   return schema;
 }
 
@@ -393,7 +547,10 @@ type HeadSite = {
   settings?: { generation?: unknown } | null;
   reviews?: Review[];
   services?: Service[];
-  content?: { page?: { og_image_url?: string | null } | null; sections?: { settings?: unknown }[] } | null;
+  content?: {
+    page?: { og_image_url?: string | null } | null;
+    sections?: { settings?: unknown }[];
+  } | null;
 };
 
 /**
@@ -440,7 +597,11 @@ export function clientHeadExtrasSync(
       ...(fontsHref
         ? [
             { rel: "preconnect", href: "https://fonts.googleapis.com" },
-            { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" as const },
+            {
+              rel: "preconnect",
+              href: "https://fonts.gstatic.com",
+              crossOrigin: "anonymous" as const,
+            },
             // Preload starts the stylesheet fetch before render-blocking CSS
             // resolves; the request itself carries display=swap, so text shows
             // in the fallback face at once and swaps when the faces arrive.
@@ -464,7 +625,8 @@ export function shareImageFor(input: {
   /** Last resort: the owner's logo, so a shared link never falls back to the platform's picture. */
   logo?: string | null;
 }): string | null {
-  const https = (value: unknown): value is string => typeof value === "string" && value.startsWith("https://");
+  const https = (value: unknown): value is string =>
+    typeof value === "string" && value.startsWith("https://");
   if (https(input.ogImage)) return input.ogImage;
   if (https(input.heroImage)) return input.heroImage;
   for (const section of input.sections ?? [])
@@ -480,7 +642,9 @@ export function shareImageFor(input: {
  * phone (the numbers reserved for fiction) or an email on a reserved
  * example/test domain. Such a business is a placeholder, never a real listing.
  */
-export function hasPlaceholderContact(profile: { phone?: string | null; email?: string | null } | null | undefined): boolean {
+export function hasPlaceholderContact(
+  profile: { phone?: string | null; email?: string | null } | null | undefined,
+): boolean {
   return isPlaceholderPhone(profile?.phone ?? "") || isPlaceholderEmail(profile?.email ?? "");
 }
 
@@ -492,7 +656,14 @@ export function hasTestSlug(slug: string | null | undefined): boolean {
   return String(slug ?? "")
     .toLowerCase()
     .split(/[^a-z0-9]+/)
-    .some((token) => token === "demo" || token === "test" || token === "sample" || token === "example" || token === "placeholder");
+    .some(
+      (token) =>
+        token === "demo" ||
+        token === "test" ||
+        token === "sample" ||
+        token === "example" ||
+        token === "placeholder",
+    );
 }
 
 /**
@@ -509,7 +680,9 @@ export function isNonIndexableSite(input: {
 }
 
 function slugPhrase(slug: string | null | undefined): string | null {
-  const clean = String(slug ?? "").trim().toLowerCase();
+  const clean = String(slug ?? "")
+    .trim()
+    .toLowerCase();
   if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(clean)) return null;
   return clean.replace(/-/g, " ");
 }
@@ -576,7 +749,12 @@ export function clientPageSearchText(input: {
   // name a different well-known city than the business's own (a stale template
   // or earlier-workspace city). Rejected wording falls through to the fallback
   // built from this page's label, the business name, its trade and its city.
-  const own = { city, state: input.state ?? null, serviceArea: input.serviceArea ?? null, address: input.address ?? null };
+  const own = {
+    city,
+    state: input.state ?? null,
+    serviceArea: input.serviceArea ?? null,
+    address: input.address ?? null,
+  };
   const safe = (value: string | null | undefined): string => {
     const text = scrubPlaceholderText((value ?? "").replace(/\s+/g, " ").trim());
     return text && !mentionsWrongCity(text, own) ? text : "";
@@ -594,7 +772,10 @@ export function clientPageSearchText(input: {
   const raw =
     safe(input.seoDescription) ||
     (input.isHome
-      ? safe(input.generatedDescription) || safe(input.settingsDescription) || safe(input.tagline) || descriptionFallback(homeFallback, input.orgSlug)
+      ? safe(input.generatedDescription) ||
+        safe(input.settingsDescription) ||
+        safe(input.tagline) ||
+        descriptionFallback(homeFallback, input.orgSlug)
       : descriptionFallback(innerFallback, input.orgSlug));
   return { title, description: metaDescription(raw) };
 }
@@ -711,7 +892,11 @@ export function tenantSiteHead(input: {
   );
   // Demo workspaces and placeholder businesses (sample phone/email) carry made-up
   // facts: they are never indexed and never emit structured data of any kind.
-  const placeholder = isNonIndexableSite({ isDemo: site.isDemo, slug: site.org.slug, profile: site.profile });
+  const placeholder = isNonIndexableSite({
+    isDemo: site.isDemo,
+    slug: site.org.slug,
+    profile: site.profile,
+  });
   const noindex = input.noindex === true || page?.noindex === true || emptyHome || placeholder;
   const emitSchema = !placeholder && !emptyHome;
   // FAQ answers are grounded in the business facts exactly as the published page shows them
@@ -720,7 +905,13 @@ export function tenantSiteHead(input: {
   const faqs = emitSchema
     ? compositionFaqItems(
         sections ?? [],
-        faqFactsFor({ profile: site.profile, businessName: name, services: site.services ?? [], quote: Boolean(site.quote), generation: site.settings?.generation }),
+        faqFactsFor({
+          profile: site.profile,
+          businessName: name,
+          services: site.services ?? [],
+          quote: Boolean(site.quote),
+          generation: site.settings?.generation,
+        }),
       )
         .map((item) => ({ q: scrubPlaceholderText(item.q), a: scrubPlaceholderText(item.a) }))
         .filter((item) => item.q.trim() && item.a.trim())
@@ -749,7 +940,12 @@ export function tenantSiteHead(input: {
       ...extras.meta,
     ],
     // One block per distinct JSON-LD payload: an identical Organization/LocalBusiness/FAQ block is never repeated.
-    scripts: uniqueScripts([...(emitSchema ? extras.scripts : []), ...(faqs.length ? [{ type: "application/ld+json", children: safeJsonLd(faqPageSchema(faqs)) }] : [])]),
+    scripts: uniqueScripts([
+      ...(emitSchema ? extras.scripts : []),
+      ...(faqs.length
+        ? [{ type: "application/ld+json", children: safeJsonLd(faqPageSchema(faqs)) }]
+        : []),
+    ]),
     links: [
       { rel: "canonical", href: canonical },
       ...extras.links,

@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { createToolRegistryV2, type ToolContextV2, type ToolInverse } from "@/lib/ai/tool-registry-v2.server";
-import { writeInternalTools } from "./write-internal";
+import { writeInternalTools, writeInternalUndoHelpers, writeInternalAllTools } from "./write-internal";
 import { undoRunWrites } from "./undo-run";
+import { runAllowsWriteInternalTools, writeInternalToolNames } from "./write-policy";
 
 const ORG = "11111111-1111-4111-8111-111111111111";
 const OTHER = "22222222-2222-4222-8222-222222222222";
@@ -113,6 +114,7 @@ function ctx(client: unknown): ToolContextV2 {
 }
 
 function registry(client: unknown) {
+  // Public writes only — mirrors agentTools. undoRunWrites brings its own helpers.
   return createToolRegistryV2(writeInternalTools(), {
     audit: async () => {},
     // Skip PAI-5 limits in unit tests (tools are not wrapped here).
@@ -186,6 +188,44 @@ describe("PAI-11 write_internal tools", () => {
       expect(tool.scope).toBe("owner");
       expect(typeof tool.inverse).toBe("function");
     }
+  });
+
+  it("keeps undo-only helpers out of the model-callable writeInternalTools list", () => {
+    const publicNames = writeInternalTools().map((t) => t.name);
+    const helperNames = writeInternalUndoHelpers().map((t) => t.name);
+    expect(helperNames).toEqual(
+      expect.arrayContaining([
+        "leads.restore_notes",
+        "leads.restore_customer_tags",
+        "leads.delete_task",
+        "quotes.delete_draft",
+        "bookings.restore_notes",
+      ]),
+    );
+    for (const name of helperNames) {
+      expect(publicNames).not.toContain(name);
+    }
+    expect(writeInternalAllTools().map((t) => t.name)).toEqual(
+      expect.arrayContaining([...publicNames, ...helperNames]),
+    );
+    expect(writeInternalToolNames()).toEqual(new Set(publicNames));
+  });
+
+  it("blocks PAI-11 writes on routine-source and no_external_actions runs", () => {
+    expect(runAllowsWriteInternalTools({ source: "owner", checkpoint: {} })).toBe(true);
+    expect(runAllowsWriteInternalTools({ source: "routine", checkpoint: {} })).toBe(false);
+    expect(
+      runAllowsWriteInternalTools({
+        source: "owner",
+        checkpoint: { routine: { send_policy: "no_external_actions" } },
+      }),
+    ).toBe(false);
+    expect(
+      runAllowsWriteInternalTools({
+        source: "owner",
+        checkpoint: { routine: { send_policy: "approval_required" } },
+      }),
+    ).toBe(true);
   });
 
   it("updates lead status and undoes to the prior status", async () => {

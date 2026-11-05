@@ -7,6 +7,7 @@ import { toast } from "@/lib/ui/notify";
 import { SiteFooter, SiteHeader } from "@/components/marketing/Chrome";
 import { Panel, Pill, SectionHeading } from "@/components/app/Bits";
 import { Button } from "@/components/ui/button";
+import { DemoSiteButton } from "@/components/marketing/DemoSiteButton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { submitPublicLead } from "@/lib/public-site.functions";
@@ -113,11 +114,9 @@ function DemoPage() {
               only.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <Button asChild variant="signal" size="lg">
-                <Link to="/s/$slug" params={{ slug: "elite-mobile-detailing" }}>
-                  Open the demo business site <ArrowRight className="size-4" />
-                </Link>
-              </Button>
+              <DemoSiteButton variant="signal" size="lg">
+                Open the demo business site <ArrowRight className="size-4" />
+              </DemoSiteButton>
               <Button asChild variant="outline" size="lg">
                 <Link to="/demo/dashboard">Open the demo dashboard</Link>
               </Button>
@@ -164,11 +163,7 @@ function DemoPage() {
                     demo site.
                   </p>
                   <div className="mt-5 flex flex-wrap gap-2">
-                    <Button asChild variant="signal">
-                      <Link to="/s/$slug" params={{ slug: "elite-mobile-detailing" }}>
-                        Open the demo site
-                      </Link>
-                    </Button>
+                    <DemoSiteButton variant="signal">Open the demo site</DemoSiteButton>
                     <Button variant="outline" onClick={() => setDone(null)}>
                       Send another
                     </Button>

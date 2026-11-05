@@ -14,6 +14,8 @@
  *    for admission, the per-step kill-switch check and slot release. The loop does
  *    not count tool calls and the memory step does not re-admit, so nothing is
  *    counted twice;
+ *  - PAI-11 writes: stripped from routine-source and no_external_actions runs so
+ *    read-only routine presets cannot change leads, quotes, bookings, or automations;
  *  - spend: the run's own ceiling plus Luna's caps (`createAskModel`).
  *
  * Tools get a workspace-pinned, read-only database client built from the run's
@@ -37,6 +39,10 @@ import {
   type ToolAuditEntry,
   type ToolContextV2,
 } from "@/lib/ai/tool-registry-v2.server";
+import {
+  runAllowsWriteInternalTools,
+  writeInternalToolNames,
+} from "@/lib/agent/tools/write-policy";
 
 export const AGENT_LOOP_FLAG = "AGENT_LOOP_ENABLED";
 
@@ -118,10 +124,15 @@ export function createLoopBuilder(deps: LoopInstallDeps = {}) {
 
   return async function build(run: AgentRun): Promise<LoopDeps> {
     const { wiring, registry } = await (built ??= lazy());
+    const allowWrites = runAllowsWriteInternalTools(run);
+    const writeNames = writeInternalToolNames();
     return {
       askModel: createAskModel(run, { capFor, ...deps.model }),
       tools: {
-        list: () => registry.list({ isSuperAdmin: false }),
+        list: () =>
+          registry
+            .list({ isSuperAdmin: false })
+            .filter((tool) => allowWrites || !writeNames.has(tool.name)),
         run: async (call) => {
           if (!run.user_id)
             return {
@@ -130,6 +141,16 @@ export function createLoopBuilder(deps: LoopInstallDeps = {}) {
               risk: null,
               reason: "forbidden",
               error: "This run has no owner, so it can't use workspace tools.",
+              durationMs: 0,
+            };
+          if (!allowWrites && writeNames.has(call.name))
+            return {
+              ok: false,
+              tool: call.name,
+              risk: "write_internal",
+              reason: "forbidden",
+              error:
+                "Scheduled and read-only runs can't change workspace data. Ask the owner to make that change in chat.",
               durationMs: 0,
             };
           const context = {

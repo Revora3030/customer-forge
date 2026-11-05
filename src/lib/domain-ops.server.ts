@@ -7,6 +7,13 @@
  */
 import { canonicalHost, type EmailForwardProvider, type HostPreference } from "@/lib/domain-ops";
 import { guardedFetch as sharedGuardedFetch } from "@/lib/net-guard.server";
+import {
+  detectDnsHost,
+  findNameservers,
+  normalizeNameserver,
+  type DnsHostDetection,
+} from "@/lib/dns-assistant";
+import { createSoftRateLimiter } from "@/lib/soft-rate-limit.server";
 
 type DnsAnswer = { name: string; type: number; data: string };
 
@@ -245,3 +252,54 @@ export async function checkEmailForwardingDns(domain: string, provider: EmailFor
     checkedAt: new Date().toISOString(),
   };
 }
+
+/**
+ * Public NS answers through free, keyless DNS-over-HTTPS: Cloudflare first,
+ * Google's resolver as the fallback. A name with no NS records is an empty
+ * list; only a resolver that cannot answer at all throws.
+ */
+async function nsQuery(name: string): Promise<string[]> {
+  const urls = [
+    `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(name)}&type=NS`,
+    `https://dns.google/resolve?name=${encodeURIComponent(name)}&type=NS`,
+  ];
+  let lastError: unknown = null;
+  for (const url of urls) {
+    try {
+      const res = await fetch(url, {
+        headers: { accept: "application/dns-json" },
+        signal: AbortSignal.timeout(4_000),
+      });
+      if (!res.ok) throw new Error("DNS lookup failed");
+      const json = (await res.json()) as { Answer?: DnsAnswer[] };
+      return (json.Answer ?? [])
+        .filter((r) => r.type === 2)
+        .map((r) => normalizeNameserver(r.data));
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error("DNS lookup failed");
+}
+
+/**
+ * Likely DNS host for a saved domain, from public NS records only. Any lookup
+ * failure is reported as "we can't tell", never as a guess.
+ */
+export async function detectDomainDnsHost(domain: string): Promise<DnsHostDetection> {
+  try {
+    return detectDnsHost(await findNameservers(domain, nsQuery));
+  } catch {
+    return { state: "unknown", reason: "no-nameservers", nameservers: [] };
+  }
+}
+
+/**
+ * Soft per-isolate server limits, keyed by signed-in user + workspace, so a
+ * browser tab (or a script) can't turn the live check into a DNS hammer. The
+ * page polls every 10 s at most (6/min); these leave room for manual checks.
+ */
+export const domainLiveCheckLimiter = createSoftRateLimiter({ limit: 12, windowMs: 60_000 });
+export const dnsHostLookupLimiter = createSoftRateLimiter({ limit: 6, windowMs: 60_000 });
+export const RATE_LIMITED_MESSAGE =
+  "Checking too often — wait a few seconds and try again.";
