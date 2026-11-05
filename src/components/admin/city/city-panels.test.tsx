@@ -13,6 +13,12 @@ const SNAP: CitySnapshot = {
 };
 
 describe("CityAttention", () => {
+  it("keeps an empty polite live region mounted for new failures", () => {
+    const html = renderToStaticMarkup(<CityAttention items={attentionItems(SNAP, NOW)} available onOpen={() => undefined} />);
+    expect(html).toContain('data-testid="city-failure-live"');
+    expect(html).toMatch(/role="status" aria-live="polite" aria-atomic="true" class="sr-only" data-testid="city-failure-live"><\/p>/);
+  });
+
   it("lists failures before waiting items with how long they have stood", () => {
     const html = renderToStaticMarkup(<CityAttention items={attentionItems(SNAP, NOW)} available onOpen={() => undefined} />);
     expect(html.indexOf("Layout rescue")).toBeLessThan(html.indexOf("Pitch to Acme"));
@@ -86,7 +92,7 @@ describe("DistrictCarousel", () => {
 
   it("marks the chosen district, says how many records are open, and names the state for screen readers", () => {
     expect(html).toContain('aria-pressed="true"');
-    expect(html).toContain("Tap to open");
+    expect(html).toContain("tap to open");
     expect(html).toContain("Website Factory, attention, 1 need attention");
   });
 

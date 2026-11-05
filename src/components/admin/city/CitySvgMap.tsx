@@ -1,5 +1,6 @@
 import type { KeyboardEvent } from "react";
 import { CITY_DISTRICTS, districtCounts, districtState, failedLabel, districtFailureSummary, type CitySnapshot, type DistrictId } from "@/lib/ai-city";
+import { districtStateWord } from "@/lib/a11y-announce";
 import { skyLighting, type SkyMode, type WeatherState } from "@/lib/city-sky";
 import { ApprovalBeaconsSvg } from "./ApprovalBeacons";
 
@@ -50,10 +51,11 @@ export function CitySvgMap({ snapshot, selected, now, onSelect, skyMode = "neutr
       const size = 9 + d.height * 1.2;
       const x = at(d.position[0]), y = at(d.position[1]);
       const summary = counts ? `${counts.running} running, ${failedLabel(districtFailureSummary(snapshot, d.id, now))}` : state;
-      return <g key={d.id} role="button" tabIndex={0} aria-pressed={isSelected} aria-label={`${d.name}: ${summary}`} data-district={d.id} data-state={failed ? "failed" : state} className="cursor-pointer outline-none focus-visible:[&>rect:first-child]:stroke-[var(--city-light)]" onClick={() => onSelect(d.id)} onKeyDown={onKey(d.id)}>
+      return <g key={d.id} role="button" tabIndex={0} aria-pressed={isSelected} aria-label={`${d.name}, ${districtStateWord(state, failed)}: ${summary}`} data-district={d.id} data-state={failed ? "failed" : state} className="cursor-pointer outline-none focus-visible:[&>rect:first-child]:stroke-[var(--city-light)]" onClick={() => onSelect(d.id)} onKeyDown={onKey(d.id)}>
         <rect x={x - size / 2} y={y - size / 2} width={size} height={size} rx="1.5" fill="var(--city-ground)" stroke={isSelected ? "var(--city-gold)" : fill} strokeWidth={isSelected ? 1.2 : 0.6} />
         <rect x={x - size / 4} y={y - size / 4} width={size / 2} height={size / 2} rx="0.8" fill={fill} fillOpacity={state === "idle" ? 0.5 : 0.9} />
         <text x={x} y={y + size / 2 + 4} textAnchor="middle" fontSize="3.2" fill={isSelected ? "var(--city-gold)" : "var(--city-light)"}>{d.name}</text>
+        <text x={x} y={y + size / 2 + 7.4} textAnchor="middle" fontSize="2.7" fill="var(--city-light)" data-testid="district-state-text">{districtStateWord(state, failed)}</text>
       </g>;
     })}
     {rainDots.map((dot, i) => <line key={`r-${i}`} x1={dot.x} y1={dot.y} x2={dot.x} y2={dot.y + 3} stroke="var(--city-cyan)" strokeWidth="0.35" strokeOpacity={0.45} />)}

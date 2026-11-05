@@ -1,6 +1,24 @@
+import { useEffect, useRef, useState } from "react";
 import { AlertTriangle, Clock3, Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { newFailureAnnouncement } from "@/lib/a11y-announce";
 import { CITY_DISTRICTS, FAILURE_CAUSE_HINT, ageLabel, groupAttention, type AttentionItem, type CityWork, type FailureGroup } from "@/lib/ai-city";
+
+/**
+ * Always-mounted polite live region: says "N new failures" when the failed
+ * count grows after the first read. Mounted before it has text, because a live
+ * region that appears together with its message is often not announced.
+ */
+export function FailureLiveRegion({ failed }: { failed: number | null }) {
+  const previous = useRef<number | null>(null);
+  const [message, setMessage] = useState("");
+  useEffect(() => {
+    if (failed === null) return;
+    setMessage(newFailureAnnouncement(previous.current, failed));
+    previous.current = failed;
+  }, [failed]);
+  return <p role="status" aria-live="polite" aria-atomic="true" className="sr-only" data-testid="city-failure-live">{message}</p>;
+}
 
 /**
  * "Needs you": every failed or waiting record the City could read. Failures
@@ -10,7 +28,7 @@ import { CITY_DISTRICTS, FAILURE_CAUSE_HINT, ageLabel, groupAttention, type Atte
  * instead of showing an empty, calm list.
  */
 export function CityAttention({ items, available, onOpen, onClear, onTriage, onDismiss, limit = 6 }: { items: readonly AttentionItem[]; available: boolean; onOpen: (row: CityWork) => void; onClear?: () => void; onTriage?: (group: FailureGroup) => void; onDismiss?: (key: string) => void; limit?: number }) {
-  if (!available) return <section aria-label="Needs you" className="rounded-md border border-border p-4"><h2 className="text-xs font-semibold uppercase">Needs you</h2><p role="status" className="mt-2 text-sm text-destructive">Records unavailable, so nothing can be ruled out.</p></section>;
+  if (!available) return <section aria-label="Needs you" className="rounded-md border border-border p-4"><FailureLiveRegion failed={null} /><h2 className="text-xs font-semibold uppercase">Needs you</h2><p role="status" className="mt-2 text-sm text-destructive">Records unavailable, so nothing can be ruled out.</p></section>;
   const failedItems = items.filter((item) => item.kind === "failed");
   const failed = failedItems.length;
   const groups = groupAttention(items);
@@ -22,6 +40,7 @@ export function CityAttention({ items, available, onOpen, onClear, onTriage, onD
   const summary = `${failed} failed${groups.length && groups.length < failed ? ` (${groups.length} cause${groups.length === 1 ? "" : "s"})` : ""} · ${waiting.length} waiting · last 48 hours`;
   return (
     <section aria-label="Needs you" className="rounded-md border border-border p-4">
+      <FailureLiveRegion failed={failed} />
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-xs font-semibold uppercase">Needs you</h2>
         <p className="text-xs text-muted-foreground">{items.length ? summary : "Nothing failed or waiting in the records read"}</p>

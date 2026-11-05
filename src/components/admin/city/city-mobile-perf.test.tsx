@@ -64,6 +64,14 @@ describe("CitySvgMap", () => {
     expect(html).toContain("Website Factory");
   });
 
+  it("prints each district's state as text, not colour only", () => {
+    const html = renderToStaticMarkup(<CitySvgMap snapshot={SNAP} selected="growth" now={NOW} onSelect={() => undefined} />);
+    expect(html.match(/data-testid="district-state-text"/g)?.length).toBe(CITY_DISTRICTS.length);
+    expect(html).toContain(">Failed</text>");
+    expect(html).toContain(">Working</text>");
+    expect(html).toContain("Growth &amp; Sales Hub, Failed:");
+  });
+
   it("uses the city colour tokens, not new colours", () => {
     const map = source("CitySvgMap.tsx");
     expect(map).not.toMatch(/#[0-9a-f]{3,8}\b|rgba?\(/i);
