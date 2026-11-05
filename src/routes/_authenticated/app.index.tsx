@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { averageEstimate } from "@/lib/outcome-numbers";
+import { averageEstimate, conversionLabel } from "@/lib/outcome-numbers";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowRight, Circle } from "lucide-react";
 import {
@@ -653,7 +653,7 @@ function Dashboard() {
         />
         <MetricCard
           label="Visitor → lead"
-          value={`${stats.visitorConversion.toFixed(1)}%`}
+          value={conversionLabel(stats.leads, stats.views)}
           hint={`${stats.views} website visitors`}
           tone="attention"
           progress={stats.visitorConversion * 10}

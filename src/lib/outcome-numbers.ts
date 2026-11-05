@@ -14,3 +14,8 @@ export function averageEstimate(leads: readonly LeadValue[]): { value: number; c
     count: values.length,
   };
 }
+
+/** Visitor-to-lead conversion as text; "—" when there were no visitors, so no data never reads as a measured 0%. */
+export function conversionLabel(leads: number, views: number): string {
+  return views > 0 ? `${((leads / views) * 100).toFixed(1)}%` : "—";
+}
