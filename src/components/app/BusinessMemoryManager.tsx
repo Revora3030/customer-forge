@@ -328,7 +328,8 @@ function Loaded({ organizationId, canManage }: { organizationId: string; canMana
     }
   };
 
-  const rows = notesQuery.data ?? [];
+  const fetched = notesQuery.data;
+  const rows = useMemo(() => fetched ?? [], [fetched]);
   const shown = useMemo(() => orderNotes(filterNotes(rows, { query, filter }), pinned), [rows, query, filter, pinned]);
 
   if (notesQuery.isLoading) return <LoadingRows rows={3} />;
