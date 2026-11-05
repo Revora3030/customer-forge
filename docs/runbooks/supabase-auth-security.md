@@ -21,6 +21,21 @@ Also review, without changing existing behavior unless intentionally approved:
 - session lifetime and refresh behavior;
 - recent-authentication/reauthentication requirements for sensitive admin operations.
 
+
+## New-device sign-in email (LOV-13)
+
+Optional email when an owner signs in from a hashed device id or country we have not seen. Ships **OFF**.
+
+**Enable (Manager):** set the server env `REVORA_NEW_DEVICE_EMAIL=1` (Lovable / hosting secrets). Restart/redeploy. Leave unset or any other value to keep it off.
+
+**Migration:** `20261105120000_owner_sign_in_devices.sql` — tables `owner_sign_in_devices` (hash + country only) and `owner_sign_in_alert_state` (one email per account per day). Apply before turning the flag on.
+
+**Behavior:**
+- First device ever for an account is recorded and never emails (covers new sign-ups).
+- Known device + same country: quiet update of `last_seen`.
+- New device or new country: emails via the existing `automation-message` template, at most once per 24 hours.
+- No IP, user-agent, or raw device id is stored. Country comes from Cloudflare `cf-ipcountry` when present.
+
 ## Workspace provisioning trust boundary
 
 The browser no longer receives EXECUTE on the legacy `public.provision_workspace(text,text,jsonb,integer)` RPC. The authenticated server handler verifies the current user through the existing auth middleware, then invokes the service-role-only `public.provision_workspace_server` function with that verified user id.
