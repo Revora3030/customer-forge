@@ -10,6 +10,16 @@
 export const DEMO_DISCLOSURE =
   "Demo data — fictional businesses and numbers created to show how Revora works. Not real customers, results, or performance claims.";
 
+/**
+ * The public sample business site (/s/elite-mobile-detailing) is serving its
+ * "being updated" holding page, so /demo must not send visitors there. Flip to
+ * true only after that site is re-published and shows real sample content.
+ */
+export const DEMO_SITE_LIVE = false;
+export const DEMO_SITE_SLUG = "elite-mobile-detailing";
+export const DEMO_SITE_REFRESHING_NOTE =
+  "The sample business site is being refreshed. The demo dashboard is open now.";
+
 export type DemoStage =
   | "visitor"
   | "lead"

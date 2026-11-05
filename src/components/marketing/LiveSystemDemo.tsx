@@ -12,6 +12,7 @@ import {
   UserPlus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { DemoSiteButton } from "@/components/marketing/DemoSiteButton";
 import { Pill } from "@/components/app/Bits";
 
 type Stage = {
@@ -358,11 +359,7 @@ export function LiveSystemDemo() {
                 SEE REVORA IN ACTION <ArrowRight className="size-4" />
               </Link>
             </Button>
-            <Button asChild variant="outline">
-              <Link to="/s/$slug" params={{ slug: "elite-mobile-detailing" }}>
-                Open the live demo site
-              </Link>
-            </Button>
+            <DemoSiteButton variant="outline">Open the live demo site</DemoSiteButton>
           </div>
           <p className="mt-3 text-[13px] text-muted-foreground">
             The demo is a real Revora workspace. Every quote and booking you submit creates real
