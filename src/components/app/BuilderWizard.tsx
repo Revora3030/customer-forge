@@ -20,6 +20,8 @@ import { WIZARD_STEPS, type WizardStepKey } from "@/lib/website-content";
 import { WEBSITE_GOALS, type GoalKey } from "@/lib/website-plan";
 import { cn } from "@/lib/utils";
 import { StylePicker } from "@/components/app/StylePicker";
+import { impliedStylePickId } from "@/lib/one-sentence";
+import { resolvedStylePicks, styleFromProfile, styleProfilePatch } from "@/lib/builder/style-picks";
 import { focusAndScrollToId, useStepScroll } from "@/lib/use-step-scroll";
 
 type ProfileRow = Record<string, unknown> | null | undefined;
@@ -84,6 +86,9 @@ export function BuilderWizard({
   const extractReference = useExtractScreenshotReference(organizationId);
   const generateFromText = useGenerateSectionsFromText(organizationId);
   const [savedAt, setSavedAt] = useState<number | null>(null);
+  const [showAllLooks, setShowAllLooks] = useState(false);
+  const impliedLookId = styleFromProfile(profile) ? null : impliedStylePickId(text(profile, "description"));
+  const impliedLook = impliedLookId ? (resolvedStylePicks().find((pick) => pick.id === impliedLookId) ?? null) : null;
   const [referenceNotes, setReferenceNotes] = useState("");
   const [referenceFileName, setReferenceFileName] = useState<string | null>(null);
   const busy = saveProfile.isPending || saveOrg.isPending || saveReference.isPending || extractReference.isPending;
@@ -260,11 +265,29 @@ export function BuilderWizard({
 
           {step === "brand" ? (
             <>
-              <StylePicker
-                profile={profile}
-                disabled={!canManage}
-                onChoose={(patch) => saveProfile.mutate(patch)}
-              />
+              {impliedLook && !showAllLooks ? (
+                // CG-06: their description already says what look they want, so
+                // don't ask the style question again; one tap confirms it.
+                <div className="rounded-md border border-border p-3 text-[13px]" data-testid="implied-look">
+                  <p>
+                    From your description, we'll use the <strong>{impliedLook.name}</strong> look: {impliedLook.feel}
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <Button size="sm" disabled={!canManage} onClick={() => saveProfile.mutate(styleProfilePatch(impliedLook))}>
+                      Use this look
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => setShowAllLooks(true)}>
+                      Show other looks
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <StylePicker
+                  profile={profile}
+                  disabled={!canManage}
+                  onChoose={(patch) => saveProfile.mutate(patch)}
+                />
+              )}
               <div className="grid gap-4 sm:grid-cols-3">
                 <AutoField
                   label="Main colour"

@@ -25,6 +25,7 @@ import {
   sendTestLeadAlert,
 } from "@/lib/notifications.functions";
 import { dateShort } from "@/lib/format";
+import { WebhookPresets } from "@/components/app/WebhookPresets";
 
 type Profile = {
   notification_email: string | null;
@@ -275,6 +276,11 @@ export function LeadNotifications({
           After a lead is saved, Revora sends a standard POST event to this URL. A slow or failed
           webhook never blocks the visitor's submission.
         </p>
+        <WebhookPresets
+          organizationId={organizationId}
+          configured={Boolean(webhookStatus.data?.configured)}
+          canManage={canManage}
+        />
         {webhookStatus.data?.configured && webhookStatus.data.signingSecret ? (
           <div className="mt-3 rounded-lg border border-border/60 p-3">
             <p className="flex items-center gap-1.5 text-[12px] font-medium">

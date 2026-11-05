@@ -111,8 +111,10 @@ const INTEGRITY_MESSAGE = /not real information yet|test or demo data|fixture da
 
 /** Ordered rules: the first match wins. Matched against the error text only. */
 const RULES: { kind: BuildFailureKind; test: { test(text: string): boolean } }[] = [
-  // The worker refused to spend more on this build (see build-spend.ts). Never retried.
-  { kind: "budget", test: /reached its spending limit/i },
+  // The worker refused to spend more on this build (see build-spend.ts), or the
+  // paid-AI budget (today's or the month's cap) was used up and the design team
+  // could not run. Never read as a slow provider. Never retried.
+  { kind: "budget", test: /reached its spending limit|AI spending limit was reached/i },
   // The business facts gate (content-integrity.ts) refused test, demo or
   // placeholder details. Only the owner can fix them, so it is never retried.
   // Normally caught by its error code; this is the fallback for a stored or

@@ -9,6 +9,7 @@
 import { newTask, type QueueTask } from "@/lib/builder-queue";
 import type { SavedTaskResult } from "@/lib/builder-memory";
 import { baseRequestId } from "@/lib/builder/chat-thread";
+import { repairEventFrom } from "@/lib/builder/repair-card";
 
 /**
  * A chat task: the queue's task plus what the result card needs after a
@@ -86,6 +87,8 @@ export function hydrateTasks(pairs: readonly SavedPair[], now: number = Date.now
     if (result?.snapshotVersion !== undefined) task.snapshotVersion = result.snapshotVersion;
     if (result?.reasons?.length) task.reasons = result.reasons.filter((reason) => typeof reason === "string");
     if (result?.titles?.length) task.titles = result.titles.filter((title) => typeof title === "string");
+    const repair = repairEventFrom(result?.repair);
+    if (repair) task.repair = repair;
     // Older saves froze a sentence ("… reached your website …"); the result
     // card now re-reads the counts, so a frozen apply report is not kept.
     if (result?.notice && result.applied === undefined) task.notice = result.notice;

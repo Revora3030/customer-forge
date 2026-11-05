@@ -36,6 +36,7 @@ import { useWorkspace } from "@/lib/use-tenant";
 import { currency, relative } from "@/lib/format";
 import { QueryErrorNotice } from "@/components/app/QueryErrorNotice";
 import { PackageSuggestions } from "@/components/app/PackageSuggestions";
+import { MenuImport } from "@/components/app/MenuImport";
 import { menuNeedsHelp } from "@/lib/service-suggestions";
 
 export const Route = createFileRoute("/_authenticated/app/services")({
@@ -229,6 +230,25 @@ function ServicesPage() {
           ))}
         </ul>
       )}
+
+      {orgId && !servicesError ? (
+        <MenuImport
+          organizationId={orgId}
+          onAdd={async (items) => {
+            // Only what the owner ticked. No duration was in the file, so these aren't bookable until they set one.
+            for (const item of items) {
+              await saveService.mutateAsync({
+                name: item.name,
+                description: item.description || null,
+                price: item.startingPrice ? null : item.price,
+                starting_price: item.startingPrice ? item.price : null,
+                bookable: false,
+                is_active: true,
+              });
+            }
+          }}
+        />
+      ) : null}
 
       {orgId && !servicesError && menuNeedsHelp(services ?? []) ? (
         <PackageSuggestions
