@@ -13,8 +13,11 @@ import { MemberControls, TeamInvites } from "@/components/app/TeamInvites";
 import { PortalAccess } from "@/components/app/PortalAccess";
 import { LeadNotifications } from "@/components/app/LeadNotifications";
 import { PushLeadAlerts } from "@/components/app/PushLeadAlerts";
+import { TwoFactorCard } from "@/components/app/TwoFactorCard";
 import { UpgradeFromWebsite } from "@/components/app/UpgradeFromWebsite";
 import { BookingLinkCard } from "@/components/app/BookingLinkCard";
+import { ChangePasswordForm, DisplayNameForm } from "@/components/app/AccountControls";
+import { BusinessMemoryManager } from "@/components/app/BusinessMemoryManager";
 import { DataPrivacy } from "@/components/app/DataPrivacy";
 import { SiteBackupExport } from "@/components/app/SiteBackupExport";
 import { metaDescription } from "@/lib/seo";
@@ -86,6 +89,22 @@ function SettingsPage() {
             </dd>
           </div>
         </dl>
+        <div className="mt-5 space-y-5">
+          <DisplayNameForm
+            key={session?.user.id ?? "anon"}
+            userId={session?.user.id}
+            initialName={
+              (session?.user.user_metadata as { full_name?: string; name?: string } | undefined)
+                ?.full_name ??
+              (session?.user.user_metadata as { name?: string } | undefined)?.name ??
+              ""
+            }
+          />
+          <div>
+            <p className="eyebrow mb-2">Password</p>
+            <ChangePasswordForm email={session?.user.email} />
+          </div>
+        </div>
         <div className="mt-5 flex gap-2">
           <Button variant="outline" onClick={handleSignOut}>
             Sign out
@@ -214,6 +233,10 @@ function SettingsPage() {
       <LeadNotifications organizationId={orgId} canManage={canManage} />
 
       <PushLeadAlerts organizationId={orgId} />
+
+      <TwoFactorCard />
+
+      <BusinessMemoryManager organizationId={orgId} canManage={canManage} />
 
       <SiteBackupExport organizationId={orgId} slug={org?.slug} canManage={canManage} />
 

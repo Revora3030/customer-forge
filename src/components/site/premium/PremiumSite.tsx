@@ -12,6 +12,7 @@
  * with a split hero and a 3-column service grid.
  */
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useHeaderOffset } from "@/components/site/use-header-offset";
 import { MobileStickyBar } from "@/components/site/CompositionRenderer";
 import { ChatLauncher } from "@/components/site/ChatLauncher";
 import { Reveal } from "@/components/site/premium/Reveal";
@@ -93,6 +94,8 @@ function PremiumHeader({ facts, homeHref }: { facts: PremiumFacts; homeHref: str
   const [open, setOpen] = useState(false);
   const toggle = useRef<HTMLButtonElement>(null);
   const sheet = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLElement>(null);
+  useHeaderOffset(headerRef);
   const tel = telHref(facts.phone);
   useEffect(() => {
     if (!open) return;
@@ -118,7 +121,7 @@ function PremiumHeader({ facts, homeHref }: { facts: PremiumFacts; homeHref: str
   // otherwise become the containing block for the fixed sheet.
   return (
     <>
-    <header className="pm-header">
+    <header ref={headerRef} className="pm-header">
       <div className="pm-header-inner">
         <a href={homeHref} className="pm-brand">
           {facts.logo ? (

@@ -4,9 +4,9 @@
 //     nitro (build-only using cloudflare as a default target), VITE_* env injection, @ path alias,
 //     React/TanStack dedupe, error logger plugins, and sandbox detection (port/host/strictPort).
 // You can pass additional config via defineConfig({ vite: { ... }, etc... }) if needed.
-/// <reference types="vitest/config" />
 import path from "node:path";
 import { loadEnv } from "vite";
+import { configDefaults } from "vitest/config";
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 import { mcpPlugin } from "@lovable.dev/mcp-js/stacks/tanstack/vite";
 import { VitePWA } from "vite-plugin-pwa";
@@ -76,6 +76,9 @@ export default defineConfig({
     // and IDE test runners share the same setup. Cobertura is the only file
     // report produced; it's the machine-readable format CI uploads.
     test: {
+      // `.claude/worktrees/` holds stale duplicate copies of sources and tests; plain
+      // `npm test` collected them and ran old tests against current code.
+      exclude: [...configDefaults.exclude, ".claude/**", "src/**/*.stories.tsx", "ladle-build/**"],
       coverage: {
         provider: "v8",
         reporter: ["text", "cobertura"],

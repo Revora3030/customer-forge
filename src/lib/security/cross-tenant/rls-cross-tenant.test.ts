@@ -78,6 +78,7 @@ const PLATFORM_TABLES = new Set([
   "agent_action_requests",
   "ai_team_trace",
   "job_leases", // scheduled-job single-flight leases: service role only
+  "site_snapshots", // COMP-9 trade snapshots: super-admin select only, writes via service role
 ]);
 
 /** The ONLY tables an anonymous visitor may read, and only for a published site. */

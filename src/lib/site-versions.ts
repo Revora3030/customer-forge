@@ -209,17 +209,25 @@ export function restorableVersions<T extends { verification: VersionVerification
 }
 
 /**
- * Ids of old published snapshots to delete so at most `keep` remain. The
- * newest `keep` are always kept, and so are the two newest of any kind (the
- * live site and the last known-good one) — the last working site is never lost.
+ * Ids of old published snapshots to delete so at most `keep` unpinned ones
+ * remain. The newest `keep` are always kept, and so are the two newest of any
+ * kind (the live site and the last known-good one) — the last working site is
+ * never lost. A checkpoint the owner pinned (CU-5) is never pruned and does
+ * not use up one of the `keep` places.
  */
 export function prunableVersionIds(
-  rows: readonly { id: string; version: number }[],
+  rows: readonly { id: string; version: number; pinned?: unknown }[],
   keep: number = MAX_PUBLISHED_VERSIONS,
 ): string[] {
   const limit = Math.max(keep, 2);
   return [...rows]
+    .filter((row) => !isPinnedFlag(row.pinned))
     .sort((a, b) => b.version - a.version)
     .slice(limit)
     .map((row) => row.id);
+}
+
+/** A pin flag as stored in the snapshot (`true`) or read back through PostgREST `->>` (`"true"`). */
+function isPinnedFlag(value: unknown): boolean {
+  return value === true || value === "true";
 }

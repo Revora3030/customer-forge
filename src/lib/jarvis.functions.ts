@@ -244,6 +244,7 @@ export const runJarvis = createServerOnlyFn(async (db: SupabaseClient, userId: s
   const { jarvisModelRequest } = await import("./jarvis-model-request.server");
   const { runReadActions } = await import("./jarvis-agent.server");
   const { splitReplyMeta } = await import("./jarvis-actions");
+  const { appendJarvisPlan, buildMultiStepPlan, splitJarvisPlan } = await import("./jarvis/multi-step-plan");
   let reply = "";
   let followups: string[] = [];
   // Set when the reply is the executive fallback (no model answered). The chat
@@ -251,12 +252,13 @@ export const runJarvis = createServerOnlyFn(async (db: SupabaseClient, userId: s
   let fellBack: { category: string | null } | null = null;
   const ran: string[] = [];
   const proposals: import("./jarvis-actions").WriteProposal[] = [];
+  const planReads: { toolId: string | null; title: string; status: "done" | "failed" }[] = [];
   const { createRunRecorder } = await import("./jarvis-events.server");
   const recorder = createRunRecorder(userId, liveRunId ? { db, runId: liveRunId } : undefined);
   const conversation: { role: "system" | "user" | "assistant"; content: string }[] = [
     { role: "system", content: system },
     // Stored replies carry action metadata for the UI; the model only needs the text.
-    ...turns.map((turn) => ({ role: turn.role, content: splitReplyMeta(turn.content).body.slice(0, 6000) })),
+    ...turns.map((turn) => ({ role: turn.role, content: splitReplyMeta(splitJarvisPlan(turn.content).body).body.slice(0, 6000) })),
   ];
   try {
     let correctionUsed = false;
@@ -309,6 +311,10 @@ export const runJarvis = createServerOnlyFn(async (db: SupabaseClient, userId: s
         recorder.add({ step, kind: "tool", status: item.ok ? "ok" : "failed", toolId: action?.id ?? null, label: item.label, startedAt: toolStart, finishedAt: toolEnd, input: action?.args ?? null, ...(item.ok ? { output: item.result } : { error: item.result }) });
       });
       ran.push(...results.map((item) => (item.ok ? item.label : `${item.label} (failed)`)));
+      results.forEach((item, i) => {
+        const action = parsed.reads[i] as { id?: string } | undefined;
+        planReads.push({ toolId: action?.id ?? null, title: item.label, status: item.ok ? "done" : "failed" });
+      });
       const reflection = reflectOnRound(results, failedRounds);
       failedRounds = reflection.failedRounds;
       conversation.push(
@@ -345,6 +351,7 @@ export const runJarvis = createServerOnlyFn(async (db: SupabaseClient, userId: s
     });
   }
   reply = appendReplyMeta(reply.slice(0, 40000), { ran, proposals });
+  reply = appendJarvisPlan(reply, buildMultiStepPlan({ reads: planReads, proposals }));
   const saved = await db.from("jarvis_messages").insert({ user_id: userId, role: "assistant", content: reply, run_id: recorder.count ? recorder.runId : null, conversation_id: conversationId }).select("id").maybeSingle();
   if (saved.error) throw new Error("Jarvis answered, but the reply could not be saved. Refresh before retrying.");
   await recorder.flush(db, (saved.data?.id as string | undefined) ?? null);
@@ -416,8 +423,22 @@ export const claimJarvisApprovalFn = createServerFn({ method: "POST" })
   })
   .handler(async ({ context, data }) => {
     const db = await guardedAdmin(context);
-    const { claimApproval } = await import("./jarvis-approvals.server");
-    return claimApproval(db, String(context.userId), data.key, data.proposal);
+    const { claimApproval, finishApproval, summaryFor } = await import("./jarvis-approvals.server");
+    const claim = await claimApproval(db, String(context.userId), data.key, data.proposal);
+    if (!claim.ok) return claim;
+    // Same single-use step the workspace approvals use (admin scope). A refusal
+    // frees the Jarvis claim so the owner can ask again; an outage doesn't block.
+    const { consumeJarvisWriteApproval } = await import("./agent/jarvis-approval-bridge.server");
+    const { supabaseApprovalRepo } = await import("./agent/approvals.server");
+    const shared = await consumeJarvisWriteApproval({ repo: supabaseApprovalRepo(db) }, {
+      userId: String(context.userId),
+      key: data.key,
+      proposal: data.proposal as { id: string },
+      summary: summaryFor(data.proposal as Parameters<typeof summaryFor>[0]),
+    });
+    if (shared.ok) return claim;
+    await finishApproval(db, String(context.userId), data.key, false);
+    return { ok: false as const, reason: shared.reason === "used" ? ("used" as const) : ("changed" as const), message: shared.message };
   });
 
 export const finishJarvisApprovalFn = createServerFn({ method: "POST" })

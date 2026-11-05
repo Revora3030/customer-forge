@@ -11,6 +11,7 @@ import { previewHeadTitle } from "@/lib/builder/draft-route";
 import { privatePreviewHeaders } from "@/lib/page-cache";
 import { isBuilderPreviewLabel } from "@/lib/builder/builder-preview-link";
 import { BuilderPreviewMode } from "@/components/site/BuilderPreviewMode";
+import { PreviewPasswordGate } from "@/components/PreviewPasswordGate";
 import { demoPreviewExpiredCopy } from "@/lib/demo-preview-label";
 
 /**
@@ -68,9 +69,7 @@ export const Route = createFileRoute("/p/$token")({
     };
   },
   component: PreviewRoute,
-  notFoundComponent: ({ data }) => (
-    <PreviewMessage {...deadPreviewCopy((data as DeadPreviewLink | undefined) ?? { reason: "unknown", isProspect: false })} />
-  ),
+  notFoundComponent: PreviewNotFound,
   errorComponent: () => (
     <PreviewMessage {...demoPreviewExpiredCopy("unknown")} />
   ),
@@ -101,4 +100,12 @@ function PreviewRoute() {
       <PreviewBeacon token={token} page="home" />
     </SiteBaseContext.Provider>
   );
+}
+
+function PreviewNotFound({ data }: { data?: unknown }) {
+  const { token } = Route.useParams();
+  const dead = (data as DeadPreviewLink | undefined) ?? { reason: "unknown", isProspect: false };
+  // LOV-6: a locked link asks for its password before anything is shown.
+  if (dead.reason === "password") return <PreviewPasswordGate token={token} />;
+  return <PreviewMessage {...deadPreviewCopy(dead)} />;
 }

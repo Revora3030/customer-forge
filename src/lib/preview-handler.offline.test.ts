@@ -44,7 +44,7 @@ describe("shared preview handler offline", () => {
   it("loads the requested unpublished page only after token resolution", async () => {
     const result = await (await handler())({ data: { token: TOKEN, pageSlug: "about" } });
     expect(result.ok).toBe(true);
-    expect(mocks.resolve).toHaveBeenCalledWith(TOKEN);
+    expect(mocks.resolve).toHaveBeenCalledWith(TOKEN, { beforeCount: expect.any(Function) });
     expect(mocks.load).toHaveBeenCalledWith("fixture", { allowUnpublished: true, pageSlug: "about" });
   });
   it("rejects a draft returned from another workspace", async () => {

@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { DomainCenter } from "@/components/app/DomainCenter";
 import { DomainOperations } from "@/components/app/DomainOperations";
 import { EmailAuthHealth } from "@/components/app/EmailAuthHealth";
+import { SiteMonitorFindings } from "@/components/app/SiteMonitorFindings";
+import { SiteHealthCard } from "@/components/app/SiteHealthCard";
 import { useBusinessProfile, useWebsiteSettings } from "@/lib/queries";
 import { useWorkspace } from "@/lib/use-tenant";
 import { canManage } from "@/lib/domain";
@@ -98,6 +100,13 @@ function DomainPage() {
         <LoadingRows rows={5} />
       ) : (
         <>
+          {orgId ? (
+            <SafeSection title="Live site checks">
+              <SiteHealthCard organizationId={orgId} />
+              <SiteMonitorFindings organizationId={orgId} />
+            </SafeSection>
+          ) : null}
+
           <SafeSection title="Domain setup">
             <DomainCenter
               organizationId={orgId}

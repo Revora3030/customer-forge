@@ -11,6 +11,8 @@ export type HelpArticle = {
   slug: string;
   title: string;
   description: string;
+  /** Search snippet (~120-155 chars). Only facts already stated in `steps`. */
+  metaDescription: string;
   updated: string;
   steps: string[];
   verifiedBy: string[];
@@ -26,6 +28,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     slug: "free-trial",
     title: `What the ${GROWTH_SYSTEM.fullAccessWindowAdjective} free trial means`,
     description: `You get ${trial} of full access when you sign up, with no card needed.`,
+    metaDescription: `Revora's free trial gives you ${trial} of full access when you sign up. No card is needed, nothing is charged, and the ${setup} setup is due only at launch.`,
     updated: UPDATED,
     steps: [
       `When you sign up you get ${trial} of full access for free.`,
@@ -38,6 +41,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     slug: "billing",
     title: "How billing works",
     description: `${setup} setup at launch, first month free, then ${monthly}/month.`,
+    metaDescription: `How Revora billing works: a one-time ${setup} setup fee at launch, your first month free, then ${monthly}/month, month to month. Cancel anytime.`,
     updated: UPDATED,
     steps: [
       `At launch you pay a one-time ${setup} setup fee.`,
@@ -53,6 +57,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     slug: "add-a-page",
     title: "Add a page to your site",
     description: "Add, name and order the pages of your website.",
+    metaDescription: "Add a page to your Revora site: open Website in your dashboard, choose Add a page, type a name, pick the kind of page and save. Rename pages there too.",
     updated: UPDATED,
     steps: [
       "Open Website in your dashboard.",
@@ -66,6 +71,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     slug: "connect-a-domain",
     title: "Connect a domain",
     description: "Use a web address you already own, or register a new one.",
+    metaDescription: "Connect a domain you already own to your Revora site by adding the records shown in your dashboard at your registrar, or register a new domain name.",
     updated: UPDATED,
     steps: [
       "Open Domain in your dashboard.",
@@ -79,6 +85,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     slug: "read-leads",
     title: "Read your leads",
     description: "Where the people who contact you through your site show up.",
+    metaDescription: "See everyone who contacted you through your Revora site in Leads, and turn on Booking & lead email alerts in Settings to get an email for each new lead.",
     updated: UPDATED,
     steps: [
       "Open Leads in your dashboard to see the people who contacted you.",
@@ -90,6 +97,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     slug: "try-your-lead-alerts",
     title: "Send a test lead",
     description: "See what a real lead looks like before one arrives.",
+    metaDescription: "Send a test lead from your Revora dashboard: one clearly labelled sample lead lands in Leads, and an alert is emailed to you if lead alerts are on.",
     updated: UPDATED,
     steps: [
       "On your dashboard home, while you are getting set up, choose \"Send a test lead\".",
@@ -102,6 +110,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     slug: "booking-link",
     title: "Add your booking link",
     description: "Link the booking tool you already use so customers can book online.",
+    metaDescription: "Add the booking page you already use to your Revora site: open Settings, paste the https:// link under My booking link and save. Clear it to remove it.",
     updated: UPDATED,
     steps: [
       "Open Settings and find \"My booking link\".",
@@ -114,6 +123,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     slug: "contact-support",
     title: "Contact support",
     description: `Email ${BUSINESS.email} for help.`,
+    metaDescription: `Get help with your Revora site: email ${BUSINESS.email} with your business name, your site address and what is wrong. A screenshot helps.`,
     updated: UPDATED,
     steps: [
       `Email ${BUSINESS.email}.`,

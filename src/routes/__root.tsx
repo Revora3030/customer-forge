@@ -29,6 +29,7 @@ import { clearBuilderCachedTurns, resetSignedOutState } from "@/lib/signed-out-r
 import { ORGANIZATION_SCHEMA, WEBSITE_SCHEMA, isClientSiteMatch } from "@/lib/seo";
 import { RouteError, RouteNotFound } from "@/components/app/RouteStates";
 import { CookieConsent } from "@/components/marketing/CookieConsent";
+import { SkipLink } from "@/components/marketing/SkipLink";
 import { PlatformAnalytics } from "@/components/marketing/PlatformAnalytics";
 import { ClarityLoader } from "@/components/marketing/ClarityLoader";
 import { loadGoogleAds } from "@/lib/google-ads";
@@ -37,6 +38,20 @@ import { BOOT_WATCHDOG } from "@/lib/boot-watchdog";
 import { describeClientError, errorFromWindowEvent, isStaleDeployError, reloadOnceForNewBuild } from "@/lib/client-error-classify";
 import { safeJsonLd } from "@/lib/json-ld";
 import { speculationRulesScript } from "@/lib/speculation-rules";
+import { getOrCreateDeviceId } from "@/lib/new-device-signin";
+
+
+/** Best-effort LOV-13 new-device check; never blocks sign-in. */
+function reportSignInDeviceQuietly() {
+  try {
+    const deviceId = getOrCreateDeviceId();
+    void import("@/lib/new-device-signin.functions")
+      .then(({ reportNewDeviceSignIn }) => reportNewDeviceSignIn({ data: { deviceId } }))
+      .catch(() => undefined);
+  } catch {
+    /* localStorage / import failures must not break auth */
+  }
+}
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   /**
@@ -252,7 +267,10 @@ function RootComponent() {
         void ensureProfile().catch((error) => reportRouteError(error, { boundary: "profile_bootstrap" }));
         router.invalidate();
         queryClient.invalidateQueries();
-        if (event === "SIGNED_IN") void sendToDashboard();
+        if (event === "SIGNED_IN") {
+          reportSignInDeviceQuietly();
+          void sendToDashboard();
+        }
       });
       unsubscribe = () => data.subscription.unsubscribe();
     } catch (error) {
@@ -350,6 +368,7 @@ function RootComponent() {
       <PlatformAnalytics />
       <ClarityLoader />
       <div className={clientSite ? "flex min-h-dvh flex-col" : "platform-shell flex min-h-dvh flex-col"}>
+        {!clientSite && <SkipLink />}
         <CookieConsent />
         {/* The phone notice occupies its own row, never the signup form. */}
         <div className="min-w-0 flex-1"><Outlet /></div>

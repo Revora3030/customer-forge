@@ -214,3 +214,67 @@ export const getLeadWebhookStatus = createServerFn({ method: "POST" })
       .maybeSingle();
     return { configured: Boolean(url), host, signingSecret: signing?.secret ?? null };
   });
+
+/**
+ * B13-8 "Send test webhook": posts one sample `lead.created` body marked
+ * `test: true` (example.com / 555 contact details) to the owner's saved
+ * webhook. No lead row is created and nothing is logged as a delivery, so the
+ * test never shows up in lead counts, reports or the webhook retry job.
+ */
+export const sendTestLeadWebhook = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: { organizationId: string }) => ({
+    organizationId: String(input?.organizationId ?? ""),
+  }))
+  .handler(async ({ data, context }) => {
+    const { data: row, error } = await context.supabase
+      .from("website_settings")
+      .select("lead_webhook_url")
+      .eq("organization_id", data.organizationId)
+      .maybeSingle();
+    if (error) throw new Error("You don't have access to that workspace.");
+    const url = typeof row?.lead_webhook_url === "string" ? row.lead_webhook_url : "";
+    if (!url) throw new Error("Save a lead webhook first, then send a test.");
+
+    const { data: signing } = await context.supabase
+      .from("lead_webhook_secrets")
+      .select("secret")
+      .eq("organization_id", data.organizationId)
+      .maybeSingle();
+    const { sampleLeadWebhookBody } = await import("@/lib/webhook-presets");
+    const { dispatchLeadWebhook } = await import("@/lib/lead-routing.server");
+    const body = sampleLeadWebhookBody(data.organizationId);
+    const result = await dispatchLeadWebhook(url, body, signing?.secret ?? null);
+    if (result.ok) return { ok: true as const, statusCode: null, reason: null };
+    return { ok: false as const, statusCode: result.statusCode, reason: result.reason };
+  });
+
+/**
+ * Mark every unread in-app notification for this workspace as read.
+ * Used when the owner opens the shell bell so the badge clears honestly.
+ * RLS (`is_org_member`) scopes the update to orgs the caller belongs to.
+ */
+export const markNotificationsRead = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: { organizationId: string }) => ({
+    organizationId: String(input?.organizationId ?? "").trim(),
+  }))
+  .handler(async ({ data, context }) => {
+    if (!data.organizationId) throw new Error("Missing workspace.");
+
+    const { data: rows, error } = await context.supabase
+      .from("notifications")
+      .update({ is_read: true })
+      .eq("organization_id", data.organizationId)
+      .eq("is_read", false)
+      .select("id");
+    if (error) throw new Error("Couldn't mark notifications as read.");
+
+    return { ok: true as const, marked: rows?.length ?? 0 };
+  });
+
+/** Whether opening the bell should fire mark-read (unread badge present). */
+export function shouldMarkNotificationsReadOnOpen(unreadCount: number, opening: boolean): boolean {
+  return opening && unreadCount > 0;
+}
+

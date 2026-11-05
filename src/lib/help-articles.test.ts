@@ -26,4 +26,11 @@ describe("help center", () => {
     expect(paths).toContain("/help");
     for (const a of HELP_ARTICLES) expect(paths).toContain(`/help/${a.slug}`);
   });
+  it("has a search snippet of about 120-160 chars per article, with only the two real prices", () => {
+    for (const a of HELP_ARTICLES) {
+      expect(a.metaDescription.length, a.slug).toBeGreaterThanOrEqual(110);
+      expect(a.metaDescription.length, a.slug).toBeLessThanOrEqual(160);
+      for (const m of a.metaDescription.match(/\$\d[\d,.]*/g) ?? []) expect(["$350", "$100"]).toContain(m);
+    }
+  });
 });

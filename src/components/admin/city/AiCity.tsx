@@ -1,14 +1,18 @@
-import { Component, lazy, Suspense, useEffect, useState, type ReactNode } from "react";
+import { Component, lazy, Suspense, useCallback, useEffect, useState, type ReactNode } from "react";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { ArrowUpRight, Box, Building2, CheckCircle2, List, Pause, Play, RefreshCw, RotateCcw, ShieldCheck, Terminal, Users } from "lucide-react";
+import { ArrowUpRight, Box, Building2, CheckCircle2, CloudRain, List, Pause, Play, RefreshCw, RotateCcw, ShieldCheck, Terminal, Users } from "lucide-react";
 import { BrandEmblem } from "@/components/brand/Logo";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CITY_DISTRICTS, NO_ACKS, applyAcknowledged, attentionItems, cityCommandDraft, districtCounts, districtFailureSummary, districtForKey, failedLabel, parseAcks, triageDraft, type CityAcks, districtFromParam, districtState, hourlyBuckets, salesMissionDraft, workIsActive, type CityWork, type DistrictId, type SalesMission } from "@/lib/ai-city";
 import { CityActivity } from "./CityActivity";
 import { CityAttention } from "./CityAttention";
+import { CityMiniMap } from "./CityMiniMap";
+import { CityReplay } from "./CityReplay";
+import type { ReplayFrame } from "@/lib/city-replay";
+import { ApprovalBeaconStatus } from "./ApprovalBeacons";
 import { CitySvgMap } from "./CitySvgMap";
 import { CITY_2D_QUERY } from "./city-render";
 import { DistrictCarousel } from "./DistrictCarousel";
@@ -17,6 +21,7 @@ import { DistrictInspector } from "./DistrictInspector";
 import { Sparkline } from "./Sparkline";
 import { getAiCity, getCityMetrics } from "@/lib/ai-city.functions";
 import { CityMetrics } from "./CityMetrics";
+import { CitySound } from "./CitySound";
 import { getCommandCenter } from "@/lib/ai/command-center.functions";
 import { getAiHealth } from "@/lib/ai/health.functions";
 import { getLunaStatus } from "@/lib/ai/luna.functions";
@@ -24,6 +29,7 @@ import { getJarvisRunEvents, runJarvisDiagnosticTool, seedDefaultRoutinesFn } fr
 import { runSentinelSweepFn } from "@/lib/sentinel.functions";
 import { toast } from "@/lib/ui/notify";
 import type { CitySceneProps } from "./CityScene";
+import { atmosphereFromSignals, cityHealthWindow, cityLoadNow, hourlyRunningQueued, skyLighting } from "@/lib/city-sky";
 
 const CityScene = lazy(() => import("./CityScene"));
 class SceneBoundary extends Component<{ children: ReactNode; onFailure: () => void }, { failed: boolean }> {
@@ -56,6 +62,10 @@ export function AiCity() {
   };
   const [view, setView] = useState<"city" | "operations">("city");
   const [motion, setMotion] = useState(true);
+  // JC-10 weather overlay — default off; forced off under reduced motion.
+  const [showWeather, setShowWeather] = useState(false);
+  // JC-7/8 scrubber: when not on "now", sky/weather recompute at this measured time.
+  const [replayAt, setReplayAt] = useState<number | null>(null);
   const [reset, setReset] = useState(0);
   const [palette, setPalette] = useState<CitySceneProps["palette"]>();
   // null until measured, so a phone never starts loading the 3D scene before the check runs.
@@ -79,7 +89,7 @@ export function AiCity() {
     const token = (key: string) => style.getPropertyValue(`--city-${key}`).trim();
     setPalette({ ground: token("ground"), road: token("road"), structure: token("structure"), gold: token("gold"), cyan: token("cyan"), magenta: token("magenta"), light: token("light"), muted: token("muted"), ok: token("ok"), danger: token("danger") });
     const media = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const sync = () => { if (media.matches) { setMotion(false); setView("operations"); } };
+    const sync = () => { if (media.matches) { setMotion(false); setShowWeather(false); setView("operations"); } };
     sync(); media.addEventListener("change", sync);
     const narrow = window.matchMedia(CITY_2D_QUERY);
     const syncNarrow = () => setFlatMap(narrow.matches);
@@ -95,6 +105,18 @@ export function AiCity() {
   const active = rows.filter(row => workIsActive(row, now)).length;
   const attention = attentionItems(snapshot, now, 1000);
   const unavailable = Object.entries(snapshot?.sources ?? {}).filter(([, source]) => !source.available).map(([key]) => key);
+  // Scrubbed time from CityReplay.onReplayFrame; live clock otherwise. Sky/weather stay pure of signals.
+  const onReplayFrame = useCallback((frame: ReplayFrame) => { setReplayAt(frame.isNow ? null : frame.at); }, []);
+  const clock = replayAt ?? (now || Date.now());
+  const healthWindow = cityHealthWindow(snapshot, clock);
+  const { sky, weather } = atmosphereFromSignals({
+    currentLoad: cityLoadNow(snapshot, clock),
+    hourlyLoads: snapshot ? hourlyRunningQueued(rows, clock) : null,
+    openFailures: healthWindow.openFailures,
+    recentWork: healthWindow.recentWork,
+  });
+  const weatherEnabled = showWeather && motion && weather.kind !== "unknown";
+  const haze = skyLighting(sky.mode, palette?.ground ?? "#0b1220").haze;
   const inspect = useMutation({ mutationFn: () => diagnostic({ data: { toolId: district.tool } }), onSettled: () => setDiagnosticOpen(true) });
   const seedRoutines = useServerFn(seedDefaultRoutinesFn);
   const runSweep = useServerFn(runSentinelSweepFn);
@@ -125,7 +147,7 @@ export function AiCity() {
     <header className="relative flex flex-wrap items-start justify-between gap-4 overflow-hidden">
       <BrandEmblem className="top-0 right-0" />
       <div className="relative"><p className="mb-1 text-xs font-medium uppercase text-gold">Revora Growth Systems / Operations</p><h1 className="font-display text-3xl font-semibold sm:text-4xl">AI City<span className="text-gold">.</span></h1><p className="mt-2 text-sm text-muted-foreground">Workforce command · founder control</p></div>
-      <div className="relative flex flex-wrap items-center gap-2"><Button variant="outline" size="icon" className="min-h-11 min-w-11" aria-label="Refresh city records" title="Refresh records" disabled={query.isFetching} onClick={() => { void query.refetch(); void models.refetch(); void budget.refetch(); void metrics.refetch(); }}><RefreshCw className={query.isFetching ? "size-4 animate-spin" : "size-4"} /></Button><Button type="button" variant="outline" disabled={seed.isPending} onClick={() => seed.mutate()}>Seed routines</Button><Button type="button" variant="outline" disabled={sweep.isPending} onClick={() => sweep.mutate()}>Run health sweep</Button><Button type="button" variant="outline" onClick={() => sendDraft("Draft a saved daily routine for a morning briefing and build health. Show it and wait for my approval before saving or running it.")}>Create routine</Button><Button asChild variant="signal"><Link to="/admin/jarvis"><Terminal className="size-4" /> Jarvis</Link></Button></div>
+      <div className="relative flex flex-wrap items-center gap-2"><Button variant="outline" size="icon" className="min-h-11 min-w-11" aria-label="Refresh city records" title="Refresh records" disabled={query.isFetching} onClick={() => { void query.refetch(); void models.refetch(); void budget.refetch(); void metrics.refetch(); }}><RefreshCw className={query.isFetching ? "size-4 animate-spin" : "size-4"} /></Button><Button type="button" variant="outline" className="min-h-11" disabled={seed.isPending} onClick={() => seed.mutate()}>Seed routines</Button><Button type="button" variant="outline" className="min-h-11" disabled={sweep.isPending} onClick={() => sweep.mutate()}>Run health sweep</Button><Button type="button" variant="outline" className="min-h-11" onClick={() => sendDraft("Draft a saved daily routine for a morning briefing and build health. Show it and wait for my approval before saving or running it.")}>Create routine</Button><Button asChild variant="signal" className="min-h-11"><Link to="/admin/jarvis"><Terminal className="size-4" /> Jarvis</Link></Button></div>
     </header>
     <div className="grid grid-cols-2 gap-x-4 gap-y-3 border-y border-border py-4 sm:grid-cols-4">
       <Metric label="Working now" value={snapshot ? String(active) : "Unavailable"} />
@@ -144,17 +166,19 @@ export function AiCity() {
     </section>
     {query.isError ? <div role="alert" className="flex flex-wrap items-center gap-3 text-sm text-destructive">City records could not be read. Activity is unavailable.<Button variant="outline" onClick={() => query.refetch()}>Retry</Button></div> : null}
     {unavailable.length ? <p role="status" className="text-xs text-destructive">Unavailable sources: {unavailable.join(", ")}. No healthy verdict inferred.</p> : null}
+    <ApprovalBeaconStatus />
     <div className="flex flex-wrap items-center justify-between gap-2">
-      <div className="flex items-center gap-1" role="group" aria-label="City view"><Button variant={view === "city" ? "secondary" : "ghost"} aria-pressed={view === "city"} onClick={() => setView("city")}><Box className="size-4" /> City</Button><Button variant={view === "operations" ? "secondary" : "ghost"} aria-pressed={view === "operations"} onClick={() => setView("operations")}><List className="size-4" /> Operations</Button></div>
-      <div className="flex gap-1"><Button size="icon" variant="ghost" className="min-h-11 min-w-11" aria-label={motion ? "Pause activity animation" : "Enable activity animation"} title={motion ? "Pause animation" : "Enable animation"} onClick={() => setMotion(v => !v)}>{motion ? <Pause className="size-4" /> : <Play className="size-4" />}</Button><Button size="icon" variant="ghost" className="min-h-11 min-w-11" aria-label="Reset city camera" title="Reset camera" onClick={() => setReset(v => v + 1)}><RotateCcw className="size-4" /></Button></div>
+      <div className="flex items-center"><CitySound rows={rows} /></div>
+      <div className="flex items-center gap-1" role="group" aria-label="City view"><Button variant={view === "city" ? "secondary" : "ghost"} className="min-h-11" aria-pressed={view === "city"} onClick={() => setView("city")}><Box className="size-4" /> City</Button><Button variant={view === "operations" ? "secondary" : "ghost"} className="min-h-11" aria-pressed={view === "operations"} onClick={() => setView("operations")}><List className="size-4" /> Operations</Button></div>
+      <div className="flex gap-1"><Button size="icon" variant="ghost" className="min-h-11 min-w-11" aria-label={motion ? "Pause activity animation" : "Enable activity animation"} title={motion ? "Pause animation" : "Enable animation"} onClick={() => setMotion(v => { if (v) setShowWeather(false); return !v; })}>{motion ? <Pause className="size-4" /> : <Play className="size-4" />}</Button><Button size="icon" variant={weatherEnabled ? "secondary" : "ghost"} className="min-h-11 min-w-11" aria-label={weatherEnabled ? "Hide weather overlay" : "Show weather overlay from health"} title={motion ? (weatherEnabled ? "Hide weather" : "Show weather (health)") : "Weather needs motion on"} disabled={!motion || weather.kind === "unknown"} onClick={() => setShowWeather(v => !v)}><CloudRain className="size-4" /></Button><Button size="icon" variant="ghost" className="min-h-11 min-w-11" aria-label="Reset city camera" title="Reset camera" onClick={() => setReset(v => v + 1)}><RotateCcw className="size-4" /></Button></div>
     </div>
     <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
       <section className="min-w-0" aria-label="AI workforce districts">
-        {view === "city" ? <div className="relative z-0 h-[68vh] min-h-[420px] touch-none overflow-hidden rounded-xl border border-white/10 sm:min-h-[560px]" aria-label={flatMap ? "Workforce city map" : "Interactive 3D workforce city"}><div className="pointer-events-none absolute inset-0 z-10 bg-[radial-gradient(ellipse_at_center,rgba(212,175,55,0.16),transparent_62%)]" aria-hidden="true" />{flatMap ? <CitySvgMap snapshot={snapshot} selected={selected} now={now} onSelect={openDistrict} /> : flatMap === false ? <SceneBoundary onFailure={() => setView("operations")}><Suspense fallback={<p className="p-6 text-muted-foreground">Loading city architecture…</p>}>{palette ? <CityScene snapshot={snapshot} selected={selected} onSelect={openDistrict} palette={palette} motion={motion} reset={reset} onFailure={() => setView("operations")} /> : null}</Suspense></SceneBoundary> : null}<div className="pointer-events-none absolute bottom-3 left-3 bg-background/90 px-3 py-2 text-xs text-muted-foreground">{snapshot ? `Records checked ${new Date(snapshot.checkedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : "Awaiting records"} · 7 districts · keys 1–7 or arrows switch district</div><ul aria-label="Colour key" className="pointer-events-none absolute right-3 top-3 space-y-1 rounded bg-background/90 px-3 py-2 text-[11px] text-muted-foreground"><li><span className="mr-1.5 inline-block size-2 rounded-full bg-success" />Working</li><li><span className="mr-1.5 inline-block size-2 rounded-full bg-destructive" />Failed</li><li><span className="mr-1.5 inline-block size-2 rounded-full bg-gold" />Waiting</li><li><span className="mr-1.5 inline-block size-2 rounded-full bg-muted-foreground" />Unreadable</li></ul></div> : null}
+        {view === "city" ? <div className="relative z-0 h-[68vh] min-h-[420px] touch-none overflow-hidden rounded-xl border border-white/10 sm:min-h-[560px]" aria-label={flatMap ? "Workforce city map" : "Interactive 3D workforce city"}><div className="pointer-events-none absolute inset-0 z-10 bg-[radial-gradient(ellipse_at_center,rgba(212,175,55,0.16),transparent_62%)]" aria-hidden="true" />{haze ? <div className="pointer-events-none absolute inset-0 z-[9]" style={{ background: haze }} aria-hidden="true" data-sky={sky.mode} /> : null}{flatMap ? <CitySvgMap snapshot={snapshot} selected={selected} now={clock} onSelect={openDistrict} skyMode={sky.mode} {...(weatherEnabled ? { weather } : {})} /> : flatMap === false ? <SceneBoundary onFailure={() => setView("operations")}><Suspense fallback={<p className="p-6 text-muted-foreground">Loading city architecture…</p>}>{palette ? <CityScene snapshot={snapshot} selected={selected} onSelect={openDistrict} palette={palette} motion={motion} reset={reset} onFailure={() => setView("operations")} skyMode={sky.mode} weather={weather} showWeather={weatherEnabled} /> : null}</Suspense></SceneBoundary> : null}{flatMap === false ? <CityMiniMap snapshot={snapshot} selected={selected} now={clock} onSelect={setSelected} onOpen={openDistrict} /> : null}<div className="pointer-events-none absolute bottom-3 left-3 max-w-[min(100%,28rem)] space-y-1 bg-background/90 px-3 py-2 text-xs text-muted-foreground"><div>{snapshot ? `Records checked ${new Date(snapshot.checkedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : "Awaiting records"} · 7 districts · keys 1–7 or arrows switch district</div><div data-testid="city-sky-label">{sky.label}</div>{weatherEnabled ? <div data-testid="city-weather-label">{weather.label}</div> : null}</div><ul aria-label="Colour key" className="pointer-events-none absolute right-3 top-3 space-y-1 rounded bg-background/90 px-3 py-2 text-[11px] text-muted-foreground"><li><span className="mr-1.5 inline-block size-2 rounded-full bg-success" />Working</li><li><span className="mr-1.5 inline-block size-2 rounded-full bg-destructive" />Failed</li><li><span className="mr-1.5 inline-block size-2 rounded-full bg-gold" />Waiting</li><li><span className="mr-1.5 inline-block size-2 rounded-full bg-muted-foreground" />Unreadable</li><li><span className="mr-1.5 inline-block size-2 rounded-full bg-[#6b7c8f]" />Sky dusk (quiet)</li><li><span className="mr-1.5 inline-block size-2 rounded-full bg-[#c5d4e4]" />Sky bright (busy)</li><li><span className="mr-1.5 inline-block size-2 rounded-full bg-[#c4a35a]" />Sky amber (failures)</li><li><span className="mr-1.5 inline-block size-2 rounded-full bg-muted" />Sky neutral (no data)</li></ul></div> : null}
         <div className={view === "operations" ? "grid gap-2 sm:grid-cols-2" : "mt-3 hidden grid-cols-2 gap-2 sm:grid sm:grid-cols-3"}>
           {CITY_DISTRICTS.map(d => { const state = districtState(d.id, snapshot, now); return <Button key={d.id} variant="outline" aria-pressed={selected === d.id} className={`h-auto min-h-16 min-w-0 justify-start whitespace-normal px-3 py-3 text-left ${selected === d.id ? "border-gold bg-gold/10" : ""}`} onClick={() => openDistrict(d.id)}><Building2 className="size-4 shrink-0 text-gold" /><span className="min-w-0"><span className="block text-xs font-semibold">{d.name}</span><span className={`block text-[11px] capitalize ${STATUS_TONE[state]}`}>{state}</span></span></Button>; })}
         </div>
-        {view === "city" ? <DistrictCarousel selected={selected} snapshot={snapshot} now={now} onSelect={setSelected} onOpen={openDistrict} /> : null}
+        {view === "city" ? <DistrictCarousel selected={selected} snapshot={snapshot} now={now} onSelect={setSelected} onOpen={openDistrict} onDraft={sendDraft} /> : null}
       </section>
       <section className="min-w-0 border-t border-border pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0" aria-label="Selected department">
         <p className="text-xs uppercase text-gold">Department {CITY_DISTRICTS.indexOf(district) + 1} / 07</p><h2 className="mt-2 font-display text-2xl font-semibold">{district.name}</h2><p className="mt-1 text-sm text-muted-foreground">{district.subtitle}</p><p className="mt-4 flex items-center gap-2 text-xs"><Users className="size-4 text-gold" />{district.role}</p>
@@ -164,6 +188,7 @@ export function AiCity() {
       </section>
     </div>
     {snapshot ? <Sparkline values={hourlyBuckets(Object.values(snapshot.sources).flatMap((source) => source.rows), now)} label="Recorded work per hour, last 24 hours" /> : null}
+    <CityReplay snapshot={snapshot} now={now} onOpen={row => { setSelected(row.district); setEvidence(row); }} onReplayFrame={onReplayFrame} />
     <CityAttention items={attention} available={!!snapshot} onOpen={row => { setSelected(row.district); setEvidence(row); }} onTriage={(group) => sendDraft(triageDraft(group, now))} onDismiss={(key) => saveAcks({ ...acks, groups: { ...acks.groups, [key]: Date.now() } })} onClear={() => saveAcks({ ...acks, all: Date.now() })} />
     <section className="border-t border-border pt-5">
       <div className="flex flex-wrap gap-2" role="tablist" aria-label="Workforce records">{(["work", "activity", "models", "routines"] as const).map(key => <Button key={key} role="tab" aria-selected={tab === key} variant={tab === key ? "secondary" : "ghost"} onClick={() => setTab(key)}>{key === "work" ? "Work & evidence" : key === "activity" ? "All activity" : key === "models" ? "Lovable workforce" : "Saved routines"}</Button>)}</div>

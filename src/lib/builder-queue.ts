@@ -3,6 +3,7 @@ import { builderAccessBlock } from "@/lib/builder-access-error";
 import type { CompositionPreview } from "@/lib/builder/composition-preview";
 import type { AgentAttachment } from "@/lib/site-agent";
 import { stepTargetOf, type StepTarget } from "@/lib/builder/step-target";
+import type { RepairEvent } from "@/lib/builder/repair-card";
 
 export type QueueState = "queued" | "planning" | "waiting_for_approval" | "building" | "complete" | "failed" | "skipped";
 export type PlanStep = {
@@ -23,6 +24,8 @@ export type QueueTask = {
   steps: PlanStep[];
   reply?: string;
   answered?: boolean;
+  /** PAI-15: the background agent run this message started; its log shows under the reply. */
+  agentRunId?: string;
   restored?: boolean;
   awaitingReattach?: boolean;
   summary?: string;
@@ -39,6 +42,8 @@ export type QueueTask = {
   retryable?: boolean;
   composition?: CompositionPreview | null;
   attachments?: AgentAttachment[];
+  /** B12-1: what the post-apply check found, repaired and re-checked (only when a repair was tried). */
+  repair?: RepairEvent | null;
 };
 export const QUEUE_LABELS: Record<QueueState, string> = {
   queued: "Waiting",

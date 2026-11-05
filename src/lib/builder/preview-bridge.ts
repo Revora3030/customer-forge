@@ -8,6 +8,9 @@
  * for a builder instruction.
  */
 
+import { readSiteStyle, type SiteStyle } from "@/lib/builder/style-edit";
+import { ANNOTATION_TRAILER } from "@/lib/builder/draw-annotation";
+
 export const PREVIEW_BRIDGE_SOURCE = "revora-preview";
 
 /** Sent by the preview when it is ready, and when the owner clicks a block. */
@@ -37,6 +40,8 @@ export type PreviewToBuilderMessage =
       id: string;
       path: string;
       text: string;
+      /** The words before the edit, so a batch can list "was -> now" (COMP-3). */
+      before?: string;
     }
   | {
       /** The page is wider than the frame: visitors would scroll sideways. */
@@ -55,6 +60,29 @@ export type PreviewToBuilderMessage =
       issues: A11yIssue[];
     }
   | {
+      /** Arrange mode: the owner dragged (or keyed) a section next to another one. */
+      source: typeof PREVIEW_BRIDGE_SOURCE;
+      type: "move-section";
+      id: string;
+      overId: string;
+      position: "before" | "after";
+    }
+  | {
+      /** Arrange mode: "+ Add section with AI" between two sections. */
+      source: typeof PREVIEW_BRIDGE_SOURCE;
+      type: "insert-section";
+      /** The neighbouring section the new one goes next to. */
+      id: string;
+      position: "before" | "after";
+      label: string | null;
+      kind: string | null;
+    }
+  | {
+      /** Arrange mode: Ctrl/Cmd+Z inside the preview undoes the last move. */
+      source: typeof PREVIEW_BRIDGE_SOURCE;
+      type: "undo-move";
+    }
+  | {
       /** Controls measured inside the frame at its current width (B13-5). */
       source: typeof PREVIEW_BRIDGE_SOURCE;
       type: "tap-report";
@@ -69,7 +97,7 @@ export type PreviewToBuilderMessage =
 export type A11yIssue = { text: string; ratio: number; required: number; path: string };
 
 /** Hover-menu actions offered on a block in the preview. */
-export const PREVIEW_ACTIONS = ["restyle", "photo", "punchier", "delete"] as const;
+export const PREVIEW_ACTIONS = ["redesign", "restyle", "photo", "punchier", "delete"] as const;
 export type PreviewAction = (typeof PREVIEW_ACTIONS)[number];
 
 /** Sent by the builder to the preview. */
@@ -92,6 +120,8 @@ export type BuilderToPreviewMessage =
       primary: string;
       secondary: string;
       accent: string;
+      /** Optional curated type pair, corners and spacing (token inspector v2). */
+      style?: SiteStyle;
     }
   | {
       /** Put the page's own saved colours back. */
@@ -128,7 +158,27 @@ export type BuilderToPreviewMessage =
       source: typeof PREVIEW_BRIDGE_SOURCE;
       type: "reveal";
       id: string;
+    }
+  | {
+      /** Arrange mode on/off: drag handles and "+ Add section with AI" lines on sections. */
+      source: typeof PREVIEW_BRIDGE_SOURCE;
+      type: "arrange-mode";
+      on: boolean;
+    }
+  | {
+      /**
+       * Put the page's sections in this order on screen (rollback after a failed
+       * save, or undo). Ids not on the page are ignored; nothing is saved here.
+       */
+      source: typeof PREVIEW_BRIDGE_SOURCE;
+      type: "order";
+      ids: string[];
+      /** Read out to screen readers once the order is shown. */
+      announce?: string | null;
     };
+
+/** Most sections a page order message may carry. */
+const MAX_ORDER_IDS = 200;
 
 const ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 const PATH_PATTERN = /^root(?:\.\d{1,3}){0,12}$/;
@@ -180,6 +230,7 @@ export function readPreviewMessage(data: unknown): PreviewToBuilderMessage | nul
     const count = Math.max(issues.length, Math.min(9999, Math.round(Number(record["issueCount"]) || 0)));
     return { source: PREVIEW_BRIDGE_SOURCE, type: "a11y-report", issueCount: count, issues };
   }
+  if (record["type"] === "undo-move") return { source: PREVIEW_BRIDGE_SOURCE, type: "undo-move" };
   if (record["type"] === "tap-report") {
     const whole = (value: unknown, max: number) => Math.max(0, Math.min(max, Math.round(Number(value) || 0)));
     const smallCount = whole(record["smallCount"], 99999);
@@ -200,11 +251,22 @@ export function readPreviewMessage(data: unknown): PreviewToBuilderMessage | nul
   }
   const id = typeof record["id"] === "string" ? record["id"] : "";
   if (!ID_PATTERN.test(id)) return null;
+  if (record["type"] === "move-section" || record["type"] === "insert-section") {
+    const position = record["position"] === "before" || record["position"] === "after" ? record["position"] : null;
+    if (!position) return null;
+    if (record["type"] === "insert-section") {
+      return { source: PREVIEW_BRIDGE_SOURCE, type: "insert-section", id, position, label: text(record["label"], 60), kind: text(record["kind"], 40) };
+    }
+    const overId = typeof record["overId"] === "string" ? record["overId"] : "";
+    if (!ID_PATTERN.test(overId) || overId === id) return null;
+    return { source: PREVIEW_BRIDGE_SOURCE, type: "move-section", id, overId, position };
+  }
   if (record["type"] === "inline-edit") {
     const at = path(record["path"]);
     const value = typeof record["text"] === "string" ? record["text"].replace(/\s+/g, " ").trim().slice(0, 600) : "";
     if (!at || !value) return null;
-    return { source: PREVIEW_BRIDGE_SOURCE, type: "inline-edit", id, path: at, text: value };
+    const before = typeof record["before"] === "string" ? record["before"].slice(0, 600) : "";
+    return { source: PREVIEW_BRIDGE_SOURCE, type: "inline-edit", id, path: at, text: value, ...(before ? { before } : {}) };
   }
   if (record["type"] !== "select") return null;
   const element = typeof record["element"] === "string" && ELEMENT_PATTERN.test(record["element"]) ? record["element"] : null;
@@ -228,6 +290,14 @@ export function readBuilderMessage(data: unknown): BuilderToPreviewMessage | nul
   const record = data as Record<string, unknown>;
   if (record["source"] !== PREVIEW_BRIDGE_SOURCE) return null;
   if (record["type"] === "run-a11y-check") return { source: PREVIEW_BRIDGE_SOURCE, type: "run-a11y-check" };
+  if (record["type"] === "arrange-mode") return { source: PREVIEW_BRIDGE_SOURCE, type: "arrange-mode", on: record["on"] === true };
+  if (record["type"] === "order") {
+    if (!Array.isArray(record["ids"])) return null;
+    const ids = (record["ids"] as unknown[])
+      .filter((item): item is string => typeof item === "string" && ID_PATTERN.test(item))
+      .slice(0, MAX_ORDER_IDS);
+    return { source: PREVIEW_BRIDGE_SOURCE, type: "order", ids: [...new Set(ids)], announce: text(record["announce"], 120) };
+  }
   if (record["type"] === "run-tap-check") return { source: PREVIEW_BRIDGE_SOURCE, type: "run-tap-check" };
   if (record["type"] === "reveal") {
     const id = typeof record["id"] === "string" ? record["id"] : "";
@@ -242,7 +312,9 @@ export function readBuilderMessage(data: unknown): BuilderToPreviewMessage | nul
     const primary = hexColor(record["primary"]);
     const secondary = hexColor(record["secondary"]);
     const accent = hexColor(record["accent"]);
-    return primary && secondary && accent ? { source: PREVIEW_BRIDGE_SOURCE, type: "patch-theme", primary, secondary, accent } : null;
+    if (!primary || !secondary || !accent) return null;
+    const style = record["style"] === undefined ? undefined : readSiteStyle(record["style"]);
+    return { source: PREVIEW_BRIDGE_SOURCE, type: "patch-theme", primary, secondary, accent, ...(style ? { style } : {}) };
   }
   if (record["type"] === "patch-text") {
     const id = typeof record["id"] === "string" ? record["id"] : "";
@@ -288,6 +360,8 @@ export function selectionPrefix(selection: {
 export function actionPrompt(action: PreviewAction, selection: { label: string | null; kind: string | null; element?: string | null | undefined }): string {
   const what = selection.element && selection.element !== "stack" ? `this ${selection.element}` : "this section";
   switch (action) {
+    case "redesign":
+      return `Try a different layout for ${what}. Keep every word, photo and fact that is already there.`;
     case "restyle":
       return `Restyle ${what} so it feels more premium and on-brand. Keep every fact and word that is already there.`;
     case "photo":
@@ -368,9 +442,14 @@ export function ownerWords(instruction: string): string {
   let text = instruction;
   for (;;) {
     const next = text
+      .replace(ANNOTATION_TRAILER, "")
       .replace(/^\s*\(The owner has the "[^"]*" page, [^,]*, open in the preview\. Treat that as context, not a limit\.\)\s*/, "")
       .replace(/ \(element [^)]*\)/, "")
-      .replace(/ block \(id [0-9a-z-]+\):/i, " block:");
+      .replace(/ block \(id [0-9a-z-]+\):/i, " block:")
+      .replace(
+        /^\s*Add one new section to this page, placed directly (?:before|after) the "[^"]*" section \(id [0-9A-Za-z_-]+\)\. Keep every other section where it is\. The new section:\s*/,
+        "",
+      );
     if (next === text) break;
     text = next;
   }

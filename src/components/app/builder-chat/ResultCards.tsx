@@ -6,6 +6,7 @@
  * was not measured says NOT VERIFIED. There is no made-up score here.
  */
 import { useQuery } from "@tanstack/react-query";
+import { QueryErrorNotice } from "@/components/app/QueryErrorNotice";
 import { CompositionPreviewCard } from "@/components/app/CompositionPreviewCard";
 import { supabase } from "@/integrations/supabase/client";
 import type { CompositionPreview } from "@/lib/builder/composition-preview";
@@ -134,7 +135,17 @@ export function ResultCards({ organizationId, composition, finished }: { organiz
   return (
     <>
       {composition ? <SolCard composition={composition} /> : null}
+      {finished && visual.isError && !visual.data ? (
+        <div className="mt-2" data-result-card="terra-error">
+          <QueryErrorNotice title="We couldn't load the device check just now." retry={() => visual.refetch()} retrying={visual.isFetching} />
+        </div>
+      ) : null}
       {finished && visual.isSuccess ? <TerraCardView badge={terraBadge(visual.data)} /> : null}
+      {finished && luna.isError && !luna.data ? (
+        <div className="mt-2" data-result-card="luna-error">
+          <QueryErrorNotice title="We couldn't load the search listing just now." retry={() => luna.refetch()} retrying={luna.isFetching} />
+        </div>
+      ) : null}
       {finished && luna.data ? <LunaCardView card={luna.data} /> : null}
     </>
   );

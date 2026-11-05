@@ -20,6 +20,9 @@ import { stepLabel } from "@/lib/site-engine";
 import { PublicSiteView } from "@/components/site/PublicSiteView";
 import { DRAFT_LOAD_TIMEOUT_MS, withTimeout } from "@/lib/builder/no-progress";
 import { ErrorBoundary } from "@/components/app/ErrorBoundary";
+import { AnotherLookBar } from "@/components/app/AnotherLookBar";
+import { lookCanChange, readSiteLook, withLook } from "@/lib/builder/site-look";
+import { readComposition } from "@/lib/builder/composition-tree";
 
 export const Route = createFileRoute("/_authenticated/draft/$slug")({
   // An inner page (/draft/<slug>/services) loads its own data; loading the
@@ -211,6 +214,8 @@ function DraftHomeRouteContent() {
   useEffect(() => {
     if (needsHome) void router.invalidate().catch(() => undefined);
   }, [needsHome, router]);
+  // CG-07: a look being previewed (not saved) on this screen only.
+  const [previewLook, setPreviewLook] = useState<number | null>(null);
   // Past the limit the loading screen becomes an error with a retry.
   const [stuckLoading, setStuckLoading] = useState(false);
   const [stuckAttempt, setStuckAttempt] = useState(0);
@@ -242,9 +247,22 @@ function DraftHomeRouteContent() {
     return (
       <>
         {result.status === "pending" ? <DraftUpdatingBanner job={result.job} held={result.held} /> : null}
+        {result.status === "ready" && lookCanChange(sections, (settings) => readComposition(settings) !== null) ? (
+          <AnotherLookBar
+            organizationId={result.site.org.id}
+            savedLook={readSiteLook(result.site.settings?.generation)}
+            previewLook={previewLook}
+            onPreview={setPreviewLook}
+            onApplied={retry}
+          />
+        ) : null}
         <PreviewModeContext.Provider value={true}>
           <SiteBaseContext.Provider value={`/draft/${encodeURIComponent(result.site.org.slug)}`}>
-            <PublicSiteView site={result.site} preview />
+            {previewLook === null ? (
+              <PublicSiteView site={result.site} preview />
+            ) : (
+              <PublicSiteView site={withLook(result.site, previewLook)} preview />
+            )}
           </SiteBaseContext.Provider>
         </PreviewModeContext.Provider>
       </>

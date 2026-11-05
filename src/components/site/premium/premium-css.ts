@@ -6,6 +6,8 @@
  * prefers-reduced-motion. Media sit in fixed aspect-ratio frames so nothing
  * shifts while pictures load.
  */
+import { CHROME_CLEARANCE_CSS } from "@/components/site/chrome-clearance";
+
 export const PREMIUM_CSS = `
 .pm-root{--pm-font:var(--font-body,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif);--pm-display:var(--font-display,var(--pm-font));--pm-ease:cubic-bezier(.2,.8,.2,1);--pm-r:18px;--pm-gutter:clamp(20px,5vw,48px);--pm-max:1200px;
   --pm-s1:clamp(.8125rem,.78rem + .15vw,.875rem);--pm-s2:clamp(1rem,.96rem + .2vw,1.0625rem);--pm-s3:clamp(1.125rem,1.05rem + .35vw,1.3rem);--pm-s4:clamp(1.4rem,1.2rem + 1vw,2rem);--pm-s5:clamp(2rem,1.5rem + 2.6vw,3.4rem);--pm-s6:clamp(2.35rem,1.5rem + 4.6vw,5.4rem);
@@ -84,8 +86,8 @@ export const PREMIUM_CSS = `
 .pm-hero-service{min-height:min(calc(88svh - 68px),720px)}
 .pm-hero-media{position:absolute;inset:0;z-index:-3}
 .pm-hero-media img{width:100%;height:100%;object-fit:cover;transform:scale(1.04);animation:pm-kenburns 18s ease-out forwards}
-.pm-hero-scrim{position:absolute;inset:0;z-index:-2;background:linear-gradient(180deg,rgb(4 6 10 / .55) 0%,rgb(4 6 10 / .35) 30%,rgb(4 6 10 / .82) 68%,var(--background) 100%)}
-@media (min-width:1024px){.pm-hero-scrim{background:linear-gradient(90deg,rgb(4 6 10 / .94) 0%,rgb(4 6 10 / .78) 38%,rgb(4 6 10 / .25) 75%,rgb(4 6 10 / .4) 100%),linear-gradient(180deg,transparent 60%,var(--background) 100%)}.pm-hero{align-items:center}}
+.pm-hero-scrim{position:absolute;inset:0;z-index:-2;background:linear-gradient(180deg,rgb(4 6 10 / .68) 0%,rgb(4 6 10 / .66) 30%,rgb(4 6 10 / .84) 68%,var(--background) 100%)}
+@media (min-width:1024px){.pm-hero-scrim{background:linear-gradient(90deg,rgb(4 6 10 / .94) 0%,rgb(4 6 10 / .84) 40%,rgb(4 6 10 / .68) 80%,rgb(4 6 10 / .36) 100%),linear-gradient(180deg,transparent 60%,var(--background) 100%)}.pm-hero{align-items:center}}
 .pm-hero-glow{position:absolute;z-index:-1;width:60vmax;height:60vmax;left:-20vmax;bottom:-30vmax;border-radius:50%;background:radial-gradient(closest-side,color-mix(in srgb,var(--primary) 26%,transparent),transparent);filter:blur(10px);pointer-events:none}
 .pm-hero:not(.has-photo)::before{content:"";position:absolute;inset:0;z-index:-2;background-image:linear-gradient(color-mix(in srgb,var(--foreground) 5%,transparent) 1px,transparent 1px),linear-gradient(90deg,color-mix(in srgb,var(--foreground) 5%,transparent) 1px,transparent 1px);background-size:56px 56px;mask-image:radial-gradient(80% 70% at 70% 30%,#000,transparent)}
 .pm-hero-copy{max-width:760px}
@@ -172,4 +174,5 @@ export const PREMIUM_CSS = `
 @media (max-width:767px){html:has(input:focus,textarea:focus,select:focus) .pm-root .rv-cn-mobile-sticky-bar{display:none!important}}
 
 @media (prefers-reduced-motion:reduce){.pm-root *,.pm-root *::before,.pm-root *::after{animation:none!important;transition:none!important}.pm-hero-media img{transform:none}}
+${CHROME_CLEARANCE_CSS}
 `;

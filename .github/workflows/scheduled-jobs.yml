@@ -14,6 +14,7 @@ name: Scheduled maintenance jobs
 #   lead-alert-retry hourly at :40                 — re-send transiently failed lead alerts
 #   lead-delivery-watchdog hourly at :10           — backstop; pg_cron runs it every 5 minutes
 #   site-content-audit Mondays 13:05 UTC           — title/h1/structured-data/alt/link check of published sites
+#   agent-suggestions daily 11:25 UTC              — PAI-21 suggestion pass per workspace (SQL only, sends nothing)
 # Nothing here needs n8n.
 #
 # automation-runs, lead-alert-retry, lead-delivery-watchdog, site-health and backup are also scheduled
@@ -42,13 +43,15 @@ on:
     - cron: "10 * * * *"
     # Mondays 13:05 UTC: weekly content check of published customer sites.
     - cron: "5 13 * * 1"
+    # Daily 11:25 UTC: PAI-21 owner suggestions (SQL signals only, nothing sent).
+    - cron: "25 11 * * *"
   workflow_dispatch:
     inputs:
       job:
         description: "Which job to run now"
         required: true
         type: choice
-        options: [backup, media-cleanup, lifecycle-email, site-engine, lead-reminder, weekly-report, site-health, lead-alert-retry, lead-delivery-watchdog, site-content-audit, automation-runs]
+        options: [backup, media-cleanup, lifecycle-email, site-engine, lead-reminder, weekly-report, site-health, lead-alert-retry, lead-delivery-watchdog, site-content-audit, automation-runs, agent-suggestions]
       apply:
         description: "media-cleanup only: actually delete (otherwise dry run)"
         required: false
@@ -80,6 +83,7 @@ jobs:
             "40 * * * *") echo "job=lead-alert-retry" >> "$GITHUB_OUTPUT" ;;
             "10 * * * *") echo "job=lead-delivery-watchdog" >> "$GITHUB_OUTPUT" ;;
             "5 13 * * 1") echo "job=site-content-audit" >> "$GITHUB_OUTPUT" ;;
+            "25 11 * * *") echo "job=agent-suggestions" >> "$GITHUB_OUTPUT" ;;
             *) echo "job=${{ inputs.job }}" >> "$GITHUB_OUTPUT" ;;
           esac
 

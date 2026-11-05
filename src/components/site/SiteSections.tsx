@@ -1,4 +1,5 @@
 import { resolveSiteHref } from "@/lib/builder/site-chrome";
+import { seedForSection } from "@/lib/builder/site-look";
 import { imageAltBase } from "@/lib/client-seo-guard";
 import { useOwnAddress, useSiteBase } from "@/components/site/use-own-address";
 /**
@@ -162,7 +163,7 @@ function SiteSectionBody({ site, section, lead = false, first = false, surface =
   // hard-coded template engine.
   const storedTree = preparedRoot
     ? { version: 1 as const, root: preparedRoot }
-    : readComposition(section.settings) ?? legacySectionToComposition(section, { lead, seed: org.slug });
+    : readComposition(section.settings) ?? legacySectionToComposition(section, { lead, seed: seedForSection(org.slug, site.settings?.generation, section.id) });
   const kind = storedTree ? "composition" : section.kind;
   // Owner-entered finance / ROI / price-range figures (quality bar #14). The
   // existing estimator stays the default view; extra views appear only when

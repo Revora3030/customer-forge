@@ -1,8 +1,12 @@
 import { useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent, type RefObject } from "react";
-import { ArrowUp, ChevronDown, BadgeCheck, ImagePlus, Loader2, Mic, MicOff, Slash, Square } from "lucide-react";
+import { ArrowUp, ChevronDown, BadgeCheck, FileText, ImagePlus, Loader2, Mic, MicOff, Paperclip, Slash, Square, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { firstImage, pastedPicture } from "./composer-input";
+import { composeWithDocuments, readDocumentText, sortComposerFiles, type ComposerDoc } from "@/lib/jarvis/composer-attachments";
+import { expandCityCommand } from "@/lib/jarvis/city-commands";
+import { MAX_ATTACHMENTS_PER_MESSAGE } from "@/lib/jarvis-attachments-policy.mjs";
+import { modeExplainerLine } from "@/lib/jarvis-mode-explainers";
 
 export type JarvisMode = "brief" | "balanced" | "deep";
 export const JARVIS_MODES = [["brief", "Brief"], ["balanced", "Balanced"], ["deep", "Deep"]] as const;
@@ -10,7 +14,8 @@ export const JARVIS_MODES = [["brief", "Brief"], ["balanced", "Balanced"], ["dee
 type Props = {
   value: string;
   onChange: (value: string) => void;
-  onSubmit: () => void;
+  /** Called with the final text when the composer changed it (City command, attached files); otherwise with nothing. */
+  onSubmit: (message?: string) => void;
   maxLength: number;
   busy: boolean;
   /** While busy, Send becomes Stop: aborts the turn in flight. */
@@ -36,17 +41,57 @@ const iconButton = "size-9 shrink-0 rounded-full sm:size-9";
 export function JarvisComposer({ value, onChange, onSubmit, maxLength, busy, onStop, coarse, listening, interim, onToggleMic, readingPicture, picturePreview, onPicture, mode, onModeChange, onOpenCommands, inputRef }: Props) {
   const pictureInput = useRef<HTMLInputElement>(null);
   const modeLabel = JARVIS_MODES.find(([id]) => id === mode)?.[1] ?? "Balanced";
-  const canSend = Boolean(value.trim()) && !busy;
+  const docInput = useRef<HTMLInputElement>(null);
+  const [docs, setDocs] = useState<ComposerDoc[]>([]);
+  const [notice, setNotice] = useState<string | null>(null);
+  const canSend = (Boolean(value.trim()) || docs.length > 0) && !busy;
   const [dropping, setDropping] = useState(false);
   const canTakePicture = !busy && !readingPicture;
+
+  // JC-45: pictures keep the demo flow; TXT/CSV/JSON files are attached within the attachment policy.
+  const addFiles = async (files: File[]) => {
+    const sorted = sortComposerFiles(files, docs.length);
+    const problems = sorted.rejected.map((r) => `${r.name}: ${r.reason}`);
+    if (sorted.picture) {
+      if (canTakePicture) onPicture(sorted.picture);
+      else problems.push(`${sorted.picture.name}: wait for the current picture or answer first.`);
+    }
+    const read: ComposerDoc[] = [];
+    for (const file of sorted.documents) {
+      const result = readDocumentText(new Uint8Array(await file.arrayBuffer()));
+      if (!result.ok) { problems.push(`${file.name}: ${result.reason}`); continue; }
+      read.push({ id: `${file.name}-${file.size}-${file.lastModified}`, name: file.name, mime: file.type || "text/plain", size: file.size, text: result.text });
+    }
+    if (read.length) setDocs((prev) => [...prev, ...read.filter((d) => !prev.some((p) => p.id === d.id))]);
+    setNotice(problems.length ? problems.join(" ") : null);
+  };
+
+  const send = () => {
+    if (!canSend) return;
+    const expanded = expandCityCommand(value);
+    if (expanded === value && !docs.length) { onSubmit(); return; }
+    const composed = composeWithDocuments(expanded, docs);
+    if (!composed.ok) { setNotice(composed.reason); return; }
+    setDocs([]);
+    setNotice(null);
+    onSubmit(composed.text);
+  };
 
   // A pasted or dropped picture (Maps screenshot, card, flyer) goes the same way as the Picture button;
   // a paste that also carries text (a spreadsheet row) stays a text paste.
   const onPaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
     const file = pastedPicture(event.clipboardData);
-    if (!file || !canTakePicture) return;
+    if (file) {
+      if (!canTakePicture) return;
+      event.preventDefault();
+      onPicture(file);
+      return;
+    }
+    // A copied file (not text) from Finder/Explorer: attach it if the policy allows.
+    const files = [...(event.clipboardData?.files ?? [])];
+    if (!files.length || event.clipboardData?.getData("text/plain").trim()) return;
     event.preventDefault();
-    onPicture(file);
+    void addFiles(files);
   };
   const onDragOver = (event: DragEvent<HTMLFormElement>) => {
     if (!canTakePicture || ![...(event.dataTransfer?.types ?? [])].includes("Files")) return;
@@ -55,10 +100,14 @@ export function JarvisComposer({ value, onChange, onSubmit, maxLength, busy, onS
   };
   const onDrop = (event: DragEvent<HTMLFormElement>) => {
     setDropping(false);
-    const file = firstImage(event.dataTransfer?.files);
-    if (!file) return;
+    const files = [...(event.dataTransfer?.files ?? [])];
+    if (!files.length) return;
     event.preventDefault();
-    if (canTakePicture) onPicture(file);
+    if (files.length === 1 && firstImage(files)) {
+      if (canTakePicture) onPicture(files[0]!);
+      return;
+    }
+    void addFiles(files);
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -72,18 +121,32 @@ export function JarvisComposer({ value, onChange, onSubmit, maxLength, busy, onS
     // On phones and tablets return is a newline, as in Messages; on desktop Enter sends.
     if (coarse || event.shiftKey) return;
     event.preventDefault();
-    onSubmit();
+    send();
   };
 
   return (
     <form
-      onSubmit={(event) => { event.preventDefault(); onSubmit(); }}
+      onSubmit={(event) => { event.preventDefault(); send(); }}
       onDragOver={onDragOver}
       onDragLeave={() => setDropping(false)}
       onDrop={onDrop}
       className={`rounded-2xl border bg-white/[0.03] shadow-[0_12px_40px_rgba(0,0,0,0.35)] backdrop-blur-xl transition-colors focus-within:border-primary/60 ${dropping ? "border-primary ring-2 ring-primary/40" : "border-white/10"}`}
     >
-      {dropping ? <p className="px-3.5 pt-2.5 text-sm text-primary" aria-live="polite">Drop the picture to build a demo from it</p> : null}
+      {dropping ? <p className="px-3.5 pt-2.5 text-sm text-primary" aria-live="polite">Drop a picture to build a demo, or a TXT, CSV or JSON file to attach</p> : null}
+      {docs.length ? (
+        <ul className="flex flex-wrap gap-1.5 px-2.5 pt-2.5" aria-label="Attached files">
+          {docs.map((doc) => (
+            <li key={doc.id} className="flex max-w-full items-center gap-1 rounded-full border border-white/10 bg-white/[0.04] pl-2.5 text-xs">
+              <FileText className="size-3.5 shrink-0" aria-hidden />
+              <span className="truncate">{doc.name}</span>
+              <Button type="button" variant="ghost" size="icon-sm" className="size-11 shrink-0 rounded-full sm:size-9" aria-label={`Remove ${doc.name}`} onClick={() => setDocs((prev) => prev.filter((d) => d.id !== doc.id))}>
+                <X className="size-3.5" aria-hidden />
+              </Button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {notice ? <p role="status" className="px-3.5 pt-2.5 text-xs text-destructive">{notice}</p> : null}
       <label htmlFor="jarvis-message" className="sr-only">Message Jarvis</label>
       {listening || interim ? (
         <p className="truncate px-3.5 pt-2.5 text-sm italic text-muted-foreground" aria-live="polite">{interim || "Listening…"}</p>
@@ -126,6 +189,29 @@ export function JarvisComposer({ value, onChange, onSubmit, maxLength, busy, onS
           aria-hidden
           onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; if (file) onPicture(file); }}
         />
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          data-jarvis-tap=""
+          aria-label="Attach a TXT, CSV or JSON file"
+          title="Attach a TXT, CSV or JSON file (up to 3, 1 MB each). Secrets and emails are redacted."
+          disabled={busy || docs.length >= MAX_ATTACHMENTS_PER_MESSAGE}
+          onClick={() => docInput.current?.click()}
+          className={iconButton}
+        >
+          <Paperclip className="size-4" aria-hidden />
+        </Button>
+        <input
+          ref={docInput}
+          type="file"
+          accept=".txt,.csv,.json,text/plain,text/csv,application/json"
+          multiple
+          className="sr-only"
+          tabIndex={-1}
+          aria-hidden
+          onChange={(event) => { const files = [...(event.target.files ?? [])]; event.target.value = ""; if (files.length) void addFiles(files); }}
+        />
         <Button type="button" variant="ghost" size="icon-sm" data-jarvis-tap="" aria-label="Quick commands" className={iconButton} onClick={onOpenCommands}>
           <Slash className="size-4" aria-hidden />
         </Button>
@@ -136,10 +222,19 @@ export function JarvisComposer({ value, onChange, onSubmit, maxLength, busy, onS
               <ChevronDown className="size-3.5" aria-hidden />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" side="top" className="w-48">
+          <DropdownMenuContent align="start" side="top" className="w-72">
             <DropdownMenuLabel className="text-xs text-muted-foreground">Response style</DropdownMenuLabel>
             <DropdownMenuRadioGroup value={mode} onValueChange={(next) => { if (next === "brief" || next === "balanced" || next === "deep") onModeChange(next); }}>
-              {JARVIS_MODES.map(([id, label]) => <DropdownMenuRadioItem key={id} value={id} className="min-h-11">{label}</DropdownMenuRadioItem>)}
+              {JARVIS_MODES.map(([id, label]) => (
+                <DropdownMenuRadioItem key={id} value={id} className="min-h-11 items-start py-2">
+                  <span className="flex min-w-0 flex-col gap-0.5">
+                    <span>{label}</span>
+                    <span className="whitespace-normal text-xs font-normal leading-snug text-muted-foreground">
+                      {modeExplainerLine(id)}
+                    </span>
+                  </span>
+                </DropdownMenuRadioItem>
+              ))}
             </DropdownMenuRadioGroup>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -154,7 +249,7 @@ export function JarvisComposer({ value, onChange, onSubmit, maxLength, busy, onS
           aria-pressed={listening}
           disabled={busy && !listening}
           onClick={onToggleMic}
-          className={`${iconButton} ${listening ? "bg-destructive/15 text-destructive hover:bg-destructive/20 hover:text-destructive" : ""}`}
+          className={`size-11 shrink-0 rounded-full ${listening ? "bg-destructive/15 text-destructive hover:bg-destructive/20 hover:text-destructive" : ""}`}
         >
           {listening ? <MicOff className="size-4" aria-hidden /> : <Mic className="size-4" aria-hidden />}
         </Button>

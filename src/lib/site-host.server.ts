@@ -30,8 +30,10 @@ export type HostSite = {
   origin: string;
   pages: { slug: string; updatedAt: string | null }[];
   noindex: boolean;
-  /** When the served copy was published; the lastmod of every entry. */
+  /** When the served copy was published. */
   publishedAt?: string | null;
+  /** When the home page last changed in a publish; falls back to publishedAt. */
+  homeUpdatedAt?: string | null | undefined;
 };
 
 export type TenantHost = {
@@ -129,7 +131,7 @@ export async function resolveHostSite(
     return { slug: tenant.slug, origin: `${scheme0}://${tenant.host}`, noindex: true, publishedAt: null, pages: [] };
   }
 
-  const { pages, publishedAt } = await tenantSitemapPages(tenant.organizationId);
+  const { pages, publishedAt, homeUpdatedAt } = await tenantSitemapPages(tenant.organizationId);
   // Live sites are always served over HTTPS; only local development is http, so
   // never publish an http:// canonical or sitemap URL for a real hostname.
   const scheme = /^(localhost|127\.0\.0\.1)(:|$)/.test(tenant.host) ? protocol : "https"; // DevSkim: ignore DS162092 -- Detects local development only, so real hosts always get https.
@@ -138,6 +140,7 @@ export async function resolveHostSite(
     origin: `${scheme}://${tenant.host}`,
     noindex: false,
     publishedAt,
+    homeUpdatedAt,
     pages,
   };
 }
@@ -167,20 +170,25 @@ export async function isNonIndexableTenant(organizationId: string, slug: string)
  * The published, indexable pages of one tenant, shared by the custom-domain
  * sitemap and the /s/<slug> sitemap. Reads only the published copy (the live
  * snapshot, else the published-only public projection), never draft rows.
- * Every lastmod is the publish time, home included.
+ * Each page's lastmod is the publish in which it last changed (see
+ * tenant-page-lastmod.ts); without publish history, the live publish time.
  */
 export async function tenantSitemapPages(
   organizationId: string,
-): Promise<{ pages: HostSite["pages"]; publishedAt: string | null; homeReady: boolean }> {
-  const { loadLiveSnapshot } = await import("@/lib/public-site.server");
+): Promise<{ pages: HostSite["pages"]; publishedAt: string | null; homeReady: boolean; homeUpdatedAt?: string | null }> {
+  const { loadLiveSnapshot, loadPublishedHistory } = await import("@/lib/public-site.server");
   const live = await loadLiveSnapshot(organizationId);
   if (live) {
+    const { perPageLastmod } = await import("@/lib/tenant-page-lastmod");
+    const history = await loadPublishedHistory(organizationId, live.version);
+    const changed = perPageLastmod([{ publishedAt: live.publishedAt, pages: live.pages }, ...history]);
     // The home page renders "still being built" when it has no visible
     // section; such a site has nothing to advertise to search engines.
     const home = live.pages.find((p) => p["kind"] === "home" && p["is_visible"] !== false);
     return {
       homeReady: Boolean(home && (home.sections ?? []).some((section) => section["is_visible"] !== false)),
       publishedAt: live.publishedAt,
+      homeUpdatedAt: changed.get("home") ?? live.publishedAt,
       pages: live.pages
         .filter(
           (p) =>
@@ -191,7 +199,7 @@ export async function tenantSitemapPages(
             (p.sections ?? []).some((section) => section["is_visible"] !== false),
         )
         .sort((a, b) => Number(a["sort_order"] ?? 0) - Number(b["sort_order"] ?? 0))
-        .map((p) => ({ slug: String(p["slug"] ?? ""), updatedAt: live.publishedAt }))
+        .map((p) => ({ slug: String(p["slug"] ?? ""), updatedAt: changed.get(String(p["slug"] ?? "")) ?? live.publishedAt }))
         .filter((p) => /^[a-z0-9-]+$/.test(p.slug)),
     };
   }
@@ -307,7 +315,7 @@ async function platformTenantCrawl(rawSlug: string, file: PlatformTenantFile): P
   const domain = address ? primaryAddress(address as AddressRow) : null;
   if (domain) return { kind: "redirect", location: `https://${domain}/${file}` };
 
-  const { pages, publishedAt, homeReady } = await tenantSitemapPages(org.id);
+  const { pages, publishedAt, homeReady, homeUpdatedAt } = await tenantSitemapPages(org.id);
   // A published shell whose home is still empty serves a noindex placeholder,
   // so its sitemap and robots.txt must not advertise it.
   if (!homeReady) return { kind: "missing" };
@@ -321,6 +329,7 @@ async function platformTenantCrawl(rawSlug: string, file: PlatformTenantFile): P
       origin: `${PLATFORM_ORIGIN}/s/${org.slug}`,
       noindex: false,
       publishedAt,
+      homeUpdatedAt,
       pages,
     },
   };
@@ -557,7 +566,7 @@ export function sitemapUrls(site: HostSite | null, origin: string) {
   }
   // An offline tenant site (see resolveHostSite) has no indexable URLs.
   if (site.noindex) return [];
-  const paths = [{ slug: "home", updatedAt: site.publishedAt ?? null }, ...site.pages].filter(
+  const paths = [{ slug: "home", updatedAt: site.homeUpdatedAt ?? site.publishedAt ?? null }, ...site.pages].filter(
     (p, i, all) => all.findIndex((x) => x.slug === p.slug) === i,
   );
   return paths.map((page) => ({

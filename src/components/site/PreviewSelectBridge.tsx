@@ -18,6 +18,8 @@
  *    and put the saved colours back; nothing is persisted from here.
  *  - The builder can patch an element's text instantly and show a floating
  *    status badge ("Sol is restyling Hero…") without reloading the frame.
+ *  - Arrange mode (toggled by the builder): a drag handle on a section and a
+ *    "+ Add section with AI" line between sections (see preview-arrange.ts).
  *
  * Every DOM change made here is local to the preview and reverted on cleanup.
  */
@@ -30,13 +32,16 @@ import {
 } from "@/lib/builder/preview-bridge";
 import { contrast, over, parseColor, requiredRatio, type Rgba } from "@/lib/builder/contrast-scan";
 import { siteThemeStyle } from "@/lib/site-theme";
+import { stylePreviewPatch, type SiteStyle } from "@/lib/builder/style-edit";
 import { summarizeTapTargets, type TapCandidate } from "@/lib/builder/fluid-viewport";
 import { DOUBLE_TAP_MS, isDoubleTap, type Tap } from "@/lib/builder/inline-edit";
+import { createArrangeController } from "@/components/site/preview-arrange";
 
 const INLINE_TYPES = new Set(["heading", "text", "button", "link", "quote"]);
 /** Words an owner can click to edit directly (headlines and paragraphs). */
 const QUICK_TYPES = new Set(["heading", "text"]);
 const ACTIONS: { action: PreviewAction; label: string }[] = [
+  { action: "redesign", label: "New layout" },
   { action: "restyle", label: "Restyle" },
   { action: "photo", label: "New photo" },
   { action: "punchier", label: "Punchier copy" },
@@ -173,7 +178,7 @@ export function PreviewSelectBridge() {
         return;
       }
       node.textContent = after;
-      post({ source: PREVIEW_BRIDGE_SOURCE, type: "inline-edit", id, path, text: after });
+      post({ source: PREVIEW_BRIDGE_SOURCE, type: "inline-edit", id, path, text: after, before });
     };
     // Phones: a double-tap edits words like a desktop double-click. A touch pick is held back for one
     // double-tap window so the first tap of a double-tap doesn't pick the block (and close the preview).
@@ -243,18 +248,45 @@ export function PreviewSelectBridge() {
       }
     };
 
+    /* ------------------------------ arrange (B13-4) ----------------------------- */
+    const arrange = createArrangeController({ layer, post, isEditing: () => editing !== null });
+
     /* ------------------------------ live palette ------------------------------ */
     const siteRoot = () => document.querySelector<HTMLElement>(".rv-site-root");
+    let classSnapshot: string | null = null;
     const resetTheme = () => {
       const node = siteRoot();
       if (node && themeSnapshot !== null) node.style.cssText = themeSnapshot;
+      if (node && classSnapshot !== null) node.className = classSnapshot;
       themeSnapshot = null;
+      classSnapshot = null;
+      document.getElementById("rv-preview-fonts")?.remove();
     };
-    const patchTheme = (primary: string, secondary: string, accent: string) => {
+    const patchTheme = (primary: string, secondary: string, accent: string, style?: SiteStyle) => {
       const node = siteRoot();
       // Studio pages carry their own theme layer; leave those to a reload.
       if (!node || node.hasAttribute("data-studio")) return;
       if (themeSnapshot === null) themeSnapshot = node.style.cssText;
+      if (classSnapshot === null) classSnapshot = node.className;
+      // Each patch starts from the saved look, so a cleared choice really clears.
+      node.style.cssText = themeSnapshot;
+      node.className = classSnapshot;
+      if (style) {
+        const patch = stylePreviewPatch(style);
+        for (const [key, value] of Object.entries(patch.vars)) node.style.setProperty(key, value);
+        for (const name of patch.classes) node.classList.add(name);
+        // Curated (OFL) pairs only: the href comes from siteFontsHref, never from the message.
+        let link = document.getElementById("rv-preview-fonts") as HTMLLinkElement | null;
+        if (patch.fontsHref) {
+          if (!link) {
+            link = document.createElement("link");
+            link.id = "rv-preview-fonts";
+            link.rel = "stylesheet";
+            document.head.appendChild(link);
+          }
+          if (link.href !== patch.fontsHref) link.href = patch.fontsHref;
+        } else link?.remove();
+      }
       const vars = (siteThemeStyle({ primaryColor: primary, secondaryColor: secondary, accentColor: accent }) ?? {}) as Record<string, string>;
       for (const [key, value] of Object.entries(vars)) {
         if (key.startsWith("--")) node.style.setProperty(key, value);
@@ -376,6 +408,14 @@ export function PreviewSelectBridge() {
         runA11yCheck();
         return;
       }
+      if (message.type === "arrange-mode") {
+        arrange.setOn(message.on);
+        return;
+      }
+      if (message.type === "order") {
+        arrange.applyOrder(message.ids, message.announce ?? null);
+        return;
+      }
       if (message.type === "run-tap-check") {
         runTapCheck();
         return;
@@ -414,7 +454,7 @@ export function PreviewSelectBridge() {
         return;
       }
       if (message.type === "patch-theme") {
-        patchTheme(message.primary, message.secondary, message.accent);
+        patchTheme(message.primary, message.secondary, message.accent, message.style);
         return;
       }
       if (message.type === "reset-theme") {
@@ -445,6 +485,7 @@ export function PreviewSelectBridge() {
         if (editing.node.contains(target)) return;
         finishEdit(true);
       }
+      if (!active && arrange.onClick(event)) return;
       const actionButton = target.closest<HTMLElement>("[data-action]");
       if (actionButton && menu.contains(actionButton) && picked) {
         event.preventDefault();
@@ -491,6 +532,7 @@ export function PreviewSelectBridge() {
     };
 
     const onKey = (event: KeyboardEvent) => {
+      if (arrange.onKey(event)) return;
       if (!editing) {
         const focused = event.target instanceof HTMLElement ? event.target : null;
         if (
@@ -515,6 +557,7 @@ export function PreviewSelectBridge() {
     };
 
     const onScroll = () => {
+      arrange.onScroll();
       if (picked) placeMenu();
       box.style.display = "none";
     };
@@ -535,6 +578,7 @@ export function PreviewSelectBridge() {
       window.removeEventListener("load", scheduleOverflow);
       finishEdit(false);
       markQuick(false);
+      arrange.destroy();
       resetTheme();
       window.removeEventListener("message", onMessage);
       document.removeEventListener("mousemove", onMove, true);

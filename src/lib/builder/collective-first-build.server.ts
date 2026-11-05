@@ -254,6 +254,16 @@ function creativeSheet(creative: FirstBuildCreativeDirection) {
   );
 }
 
+/**
+ * Why a repair pass came back empty, when it was the paid-AI budget (today's or
+ * the month's cap) rather than slow providers. The thinker reports this as
+ * "today's paid AI cap reached" / "monthly paid AI cap reached"; null otherwise.
+ */
+function budgetStopDetail(pass: CollectivePassRecord): string | null {
+  const reason = pass.skipped ?? "";
+  return /paid AI cap reached/i.test(reason) ? reason : null;
+}
+
 function record(
   tier: CollectivePassRecord["tier"],
   purpose: string,
@@ -1257,10 +1267,14 @@ export async function refineFirstBuildWithCollective(input: {
           creative = repaired.creative;
           creativeChanged = true;
         }
-        if (missingConcept(creative.brief).length)
+        if (missingConcept(creative.brief).length) {
+          const budget = budgetStopDetail(repaired.pass);
           throw new Error(
-            "The AI design team did not name this site's visual concept (the AI providers did not answer in time). The build stopped so it can be retried; Revora never fills in a stock concept.",
+            budget
+              ? `The AI design team could not name this site's visual concept because ${budget}, so the AI spending limit was reached. The build stopped so it can be retried once the limit resets; Revora never fills in a stock concept.`
+              : "The AI design team did not name this site's visual concept (the AI providers did not answer in time). The build stopped so it can be retried; Revora never fills in a stock concept.",
           );
+        }
       }
 
       // Colour is the AI's decision too: one repair pass, then the build stops
@@ -1321,10 +1335,14 @@ export async function refineFirstBuildWithCollective(input: {
         creative = repaired.creative;
         creativeChanged = true;
       }
-      if (missingVisualCampaign(creative.brief).includes("imageInventory"))
+      if (missingVisualCampaign(creative.brief).includes("imageInventory")) {
+        const budget = budgetStopDetail(repaired.pass);
         throw new Error(
-          "The AI design team did not plan this site's pictures (the AI providers did not answer in time). The build stopped so it can be retried from its saved design direction; Revora never ships a site without its picture campaign.",
+          budget
+            ? `The AI design team could not plan this site's pictures because ${budget}, so the AI spending limit was reached. The build stopped so it can be retried from its saved design direction once the limit resets; Revora never ships a site without its picture campaign.`
+            : "The AI design team did not plan this site's pictures (the AI providers did not answer in time). The build stopped so it can be retried from its saved design direction; Revora never ships a site without its picture campaign.",
         );
+      }
     }
     await saveSnapshot("creative-direction", creativePasses);
   }
