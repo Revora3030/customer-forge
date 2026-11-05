@@ -1,22 +1,21 @@
 /**
  * PAI-11 run-level undo: replay recorded inverses newest-first.
  *
- * Uses writeInternalAllTools (public writes + undo-only helpers) so helpers like
- * leads.restore_notes and leads.delete_task stay internal here and are never
- * listed to the model via agentTools. Stops on the first failure and reports
- * how many steps were restored.
+ * Runs through a private tool registry (audit rows + PAI-5 limits, same as
+ * normal writes) that also holds the undo-only helpers; those helpers are
+ * never listed to the model via agentTools. Stops on the first failure and
+ * reports how many steps were restored.
  */
-import type { z } from "zod";
-import type {
-  ToolContextV2,
-  ToolDefinitionV2,
-  ToolInverse,
-  ToolResultV2,
+import type { LimitsDeps } from "@/lib/agent/limits.server";
+import {
+  createToolRegistryV2,
+  type ToolContextV2,
+  type ToolInverse,
+  type ToolResultV2,
+  type ToolRunDeps,
 } from "@/lib/ai/tool-registry-v2.server";
-import type { createToolRegistryV2 } from "@/lib/ai/tool-registry-v2.server";
+import { withAgentLimits } from "./guard";
 import { writeInternalAllTools } from "./write-internal";
-
-type Registry = ReturnType<typeof createToolRegistryV2>;
 
 export type UndoRunResult = {
   restored: number;
@@ -26,82 +25,48 @@ export type UndoRunResult = {
   ok: boolean;
 };
 
-function fail(
-  tool: string,
-  reason: "unknown_tool" | "invalid_input" | "failed",
-  error: string,
-  risk: "read" | "write_internal" | "send_external" | null,
-  durationMs: number,
-): ToolResultV2 {
-  return { ok: false, tool, risk, reason, error, durationMs };
-}
+export type UndoRunDeps = {
+  /** Audit sink, approvals, etc. for the undo registry (defaults to the real audit table). */
+  registry?: ToolRunDeps;
+  /** PAI-5 limits; undo writes are wrapped exactly like the forward writes. */
+  limits?: LimitsDeps;
+};
 
-async function runInverseTool(
-  tool: ToolDefinitionV2<z.ZodType>,
-  context: ToolContextV2,
-  args: unknown,
-  requestId: string,
-): Promise<ToolResultV2> {
-  const started = Date.now();
-  const elapsed = () => Date.now() - started;
-  void requestId;
-  const parsed = tool.schema.safeParse(args ?? {});
-  if (!parsed.success) {
-    const first = parsed.error.issues[0];
-    const where = first && first.path.length > 0 ? `"${first.path.join(".")}": ` : "";
-    return fail(
-      tool.name,
-      "invalid_input",
-      `${where}${first?.message ?? "Invalid arguments."}`,
-      tool.risk,
-      elapsed(),
-    );
-  }
-  try {
-    const data = await tool.run(parsed.data, context);
-    return {
-      ok: true,
-      tool: tool.name,
-      risk: tool.risk,
-      data,
-      durationMs: elapsed(),
-      idempotencyKey: null,
-      replayed: false,
-      inverse: null,
-    };
-  } catch (error) {
-    return fail(
-      tool.name,
-      "failed",
-      (error as Error)?.message || "That step failed.",
-      tool.risk,
-      elapsed(),
-    );
-  }
+/**
+ * A private registry for undo: public writes plus the undo-only helpers, with
+ * the same audit sink and limits as normal writes. It is built per call and
+ * never returned, so the helpers stay out of agentTools / writeInternalTools()
+ * and are never listed to the model.
+ */
+function undoRegistry(deps: UndoRunDeps) {
+  return createToolRegistryV2(
+    withAgentLimits(writeInternalAllTools(), deps.limits),
+    deps.registry ?? {},
+  );
 }
 
 /**
- * @param registry Kept for call-site compatibility; undo resolves tools from
- *                 writeInternalAllTools so helpers need not be agent-registered.
  * @param inverses Chronological list of inverses from the run (oldest first).
  *                 Replayed in reverse so the last write is undone first.
  */
 export async function undoRunWrites(
-  registry: Registry,
   context: ToolContextV2,
   inverses: ToolInverse[],
+  deps: UndoRunDeps = {},
 ): Promise<UndoRunResult> {
-  void registry;
-  const byName = new Map(writeInternalAllTools().map((tool) => [tool.name, tool]));
+  const registry = undoRegistry(deps);
   const results: ToolResultV2[] = [];
   let restored = 0;
   const ordered = [...inverses].reverse();
   for (let i = 0; i < ordered.length; i += 1) {
     const step = ordered[i]!;
-    const tool = byName.get(step.tool);
-    const result = tool
-      ? await runInverseTool(tool, context, step.arguments, `undo-${i}-${step.tool}`)
-      : fail(step.tool, "unknown_tool", "That tool isn't available to Revora AI.", null, 0);
+    const result = await registry.run(context, {
+      name: step.tool,
+      arguments: step.arguments,
+      requestId: `undo-${i}-${step.tool}`,
+      // Distinct key so an undo is never deduped against the forward write.
+      idempotencyKey: `undo:${context.runId ?? "run"}:${i}:${step.tool}`,
+    });
     results.push(result);
     if (!result.ok) {
       return { restored, attempted: ordered.length, results, stoppedAt: i, ok: false };

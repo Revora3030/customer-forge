@@ -1,7 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { createToolRegistryV2, type ToolContextV2, type ToolInverse } from "@/lib/ai/tool-registry-v2.server";
-import { writeInternalTools, writeInternalUndoHelpers, writeInternalAllTools } from "./write-internal";
+import {
+  createToolRegistryV2,
+  type ToolContextV2,
+  type ToolInverse,
+} from "@/lib/ai/tool-registry-v2.server";
+import {
+  writeInternalTools,
+  writeInternalUndoHelpers,
+  writeInternalAllTools,
+} from "./write-internal";
 import { undoRunWrites } from "./undo-run";
+import { agentTools } from "./index";
+import type { LimitsDeps } from "@/lib/agent/limits.server";
+import type { ToolAuditEntry } from "@/lib/ai/tool-registry-v2.server";
 import { runAllowsWriteInternalTools, writeInternalToolNames } from "./write-policy";
 
 const ORG = "11111111-1111-4111-8111-111111111111";
@@ -120,6 +131,19 @@ function registry(client: unknown) {
     // Skip PAI-5 limits in unit tests (tools are not wrapped here).
   });
 }
+
+const LIMITS_OK = {
+  store: {
+    getSettings: async () => ({ enabled: true, reason: null }),
+    getOverrides: async () => ({}),
+    listDisabledOrganizations: async () => [],
+  },
+  ledger: {} as never,
+  toolCalls: { countSince: async () => 0 },
+  env: {},
+} as unknown as LimitsDeps;
+
+const UNDO_DEPS = { registry: { audit: async () => {} }, limits: LIMITS_OK };
 
 const baseTables = () => ({
   leads: [
@@ -244,7 +268,7 @@ describe("PAI-11 write_internal tools", () => {
       tool: "leads.update_status",
       arguments: { leadId: LEAD, status: "new" },
     });
-    const undo = await undoRunWrites(r, context, [res.inverse!]);
+    const undo = await undoRunWrites(context, [res.inverse!], UNDO_DEPS);
     expect(undo.ok).toBe(true);
     expect(tables["leads"]![0]!["status"]).toBe("new");
   });
@@ -271,7 +295,7 @@ describe("PAI-11 write_internal tools", () => {
     expect(res.ok).toBe(true);
     if (!res.ok) return;
     expect(tables["leads"]![0]!["notes"]).toBe("Hello\nCalled Monday");
-    await undoRunWrites(r, context, [res.inverse!]);
+    await undoRunWrites(context, [res.inverse!], UNDO_DEPS);
     expect(tables["leads"]![0]!["notes"]).toBe("Hello");
   });
 
@@ -287,7 +311,7 @@ describe("PAI-11 write_internal tools", () => {
     expect(res.ok).toBe(true);
     if (!res.ok) return;
     expect(String(tables["leads"]![0]!["notes"])).toContain("⟦tags:hot⟧");
-    await undoRunWrites(r, context, [res.inverse!]);
+    await undoRunWrites(context, [res.inverse!], UNDO_DEPS);
     expect(tables["leads"]![0]!["notes"]).toBe("Hello");
   });
 
@@ -305,7 +329,7 @@ describe("PAI-11 write_internal tools", () => {
     expect(res.ok).toBe(true);
     if (!res.ok) return;
     expect(tables["customers"]![0]!["tags"]).toEqual(["vip", "referral"]);
-    await undoRunWrites(r, context, [res.inverse!]);
+    await undoRunWrites(context, [res.inverse!], UNDO_DEPS);
     expect(tables["customers"]![0]!["tags"]).toEqual(["vip"]);
   });
 
@@ -322,7 +346,7 @@ describe("PAI-11 write_internal tools", () => {
     if (!res.ok) return;
     expect(tables["lead_tasks"]).toHaveLength(1);
     expect(res.inverse?.tool).toBe("leads.delete_task");
-    await undoRunWrites(r, context, [res.inverse!]);
+    await undoRunWrites(context, [res.inverse!], UNDO_DEPS);
     expect(tables["lead_tasks"]).toHaveLength(0);
     expect(tables["leads"]).toHaveLength(2);
   });
@@ -345,7 +369,7 @@ describe("PAI-11 write_internal tools", () => {
     expect(tables["quotes"]).toHaveLength(1);
     expect(tables["quote_line_items"]).toHaveLength(1);
     expect(res.inverse?.tool).toBe("quotes.delete_draft");
-    await undoRunWrites(r, context, [res.inverse!]);
+    await undoRunWrites(context, [res.inverse!], UNDO_DEPS);
     expect(tables["quotes"]).toHaveLength(0);
   });
 
@@ -361,7 +385,7 @@ describe("PAI-11 write_internal tools", () => {
     expect(res.ok).toBe(true);
     if (!res.ok) return;
     expect(tables["automations"]![0]!["is_active"]).toBe(false);
-    await undoRunWrites(r, context, [res.inverse!]);
+    await undoRunWrites(context, [res.inverse!], UNDO_DEPS);
     expect(tables["automations"]![0]!["is_active"]).toBe(true);
   });
 
@@ -377,7 +401,7 @@ describe("PAI-11 write_internal tools", () => {
     expect(res.ok).toBe(true);
     if (!res.ok) return;
     expect(tables["appointments"]![0]!["notes"]).toBe("Arrive via alley\nBring towels");
-    await undoRunWrites(r, context, [res.inverse!]);
+    await undoRunWrites(context, [res.inverse!], UNDO_DEPS);
     expect(tables["appointments"]![0]!["notes"]).toBe("Arrive via alley");
   });
 
@@ -397,7 +421,7 @@ describe("PAI-11 write_internal tools", () => {
     }
     expect(tables["leads"]![0]!["status"]).toBe("qualified");
     expect(tables["automations"]![0]!["is_active"]).toBe(false);
-    const undo = await undoRunWrites(r, context, inverses);
+    const undo = await undoRunWrites(context, inverses, UNDO_DEPS);
     expect(undo.ok).toBe(true);
     expect(undo.restored).toBe(3);
     expect(tables["leads"]![0]!["status"]).toBe("new");
@@ -406,6 +430,63 @@ describe("PAI-11 write_internal tools", () => {
   });
 
   it("exposes no lead-delete tool", () => {
-    expect(writeInternalTools().some((t) => /delete.*lead|leads\.delete$/i.test(t.name))).toBe(false);
+    expect(writeInternalTools().some((t) => /delete.*lead|leads\.delete$/i.test(t.name))).toBe(
+      false,
+    );
+  });
+
+  it("undo goes through the registry: one audit row per restored step", async () => {
+    const { client } = fakeDb(baseTables());
+    const r = registry(client);
+    const context = ctx(client);
+    const res = await r.run(context, {
+      name: "leads.add_note",
+      arguments: { leadId: LEAD, note: "x" },
+      requestId: "a",
+    });
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    const audit: ToolAuditEntry[] = [];
+    const undo = await undoRunWrites(context, [res.inverse!], {
+      registry: { audit: async (e) => void audit.push(e) },
+      limits: LIMITS_OK,
+    });
+    expect(undo.ok).toBe(true);
+    expect(audit).toHaveLength(1);
+    expect(audit[0]).toMatchObject({
+      tool: res.inverse!.tool,
+      organization_id: ORG,
+      ok: true,
+      risk: "write_internal",
+    });
+    expect(audit[0]!.request_id).toMatch(/^undo-0-/);
+  });
+
+  it("undo writes obey PAI-5 limits like normal writes", async () => {
+    const { client } = fakeDb(baseTables());
+    const r = registry(client);
+    const context = ctx(client);
+    const res = await r.run(context, {
+      name: "leads.add_note",
+      arguments: { leadId: LEAD, note: "x" },
+      requestId: "b",
+    });
+    if (!res.ok) throw new Error("setup");
+    const off = {
+      ...LIMITS_OK,
+      store: { ...LIMITS_OK.store, getSettings: async () => ({ enabled: false, reason: "x" }) },
+    };
+    const undo = await undoRunWrites(context, [res.inverse!], {
+      registry: { audit: async () => {} },
+      limits: off,
+    });
+    expect(undo.ok).toBe(false);
+    expect(undo.restored).toBe(0);
+  });
+
+  it("undo helpers stay hidden from agentTools and writeInternalTools()", () => {
+    const helpers = writeInternalUndoHelpers().map((t) => t.name);
+    const visible = new Set([...agentTools(LIMITS_OK), ...writeInternalTools()].map((t) => t.name));
+    for (const name of helpers) expect(visible.has(name)).toBe(false);
   });
 });
