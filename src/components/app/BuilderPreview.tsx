@@ -52,6 +52,7 @@ import {
 } from "@/lib/builder/preview-bridge";
 import { saveInlineText } from "@/lib/builder/inline-edit.functions";
 import { PreviewThemeEditor } from "@/components/app/PreviewThemeEditor";
+import type { SiteStyle } from "@/lib/builder/style-edit";
 import type { Palette } from "@/lib/builder/palette-edit";
 import { splitForKey, splitForPointer } from "@/lib/builder/compare-slider";
 import { useServerFn } from "@tanstack/react-start";
@@ -338,8 +339,8 @@ function BuilderPreviewFrame({
 
   /** Tries a palette live in the preview; null puts the saved colours back. */
   const previewPalette = useCallback(
-    (palette: Palette | null) => {
-      if (palette) tell({ type: "patch-theme", primary: palette.primary, secondary: palette.secondary, accent: palette.accent });
+    (palette: Palette | null, style?: SiteStyle) => {
+      if (palette) tell({ type: "patch-theme", primary: palette.primary, secondary: palette.secondary, accent: palette.accent, ...(style ? { style } : {}) });
       else tell({ type: "reset-theme" });
     },
     [tell],
