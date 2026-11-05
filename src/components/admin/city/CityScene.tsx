@@ -5,14 +5,14 @@ import * as THREE from "three";
 import type { OrbitControls as OrbitControlsType } from "three-stdlib";
 import { CITY_ANIMATION_FPS, CITY_DPR_MIN, CITY_DRAW_CALL_BUDGET, CITY_RAIN_MAX, cityDprCeiling } from "./city-render";
 import { useDisposable } from "./city-dispose";
-import { CITY_DISTRICTS, districtCounts, districtState, pulseRate, type CitySnapshot, type DistrictId } from "@/lib/ai-city";
+import { CITY_DISTRICTS, districtCounts, districtState, type CitySnapshot, type DistrictId } from "@/lib/ai-city";
+import { buildingStyleFor, cityCameraZoom, type BuildingStyleToken } from "@/lib/city-building-state";
 import { skyLighting, type SkyMode, type WeatherState } from "@/lib/city-sky";
 import { ApprovalBeacons3D } from "./ApprovalBeacons3D";
 import { useApprovalBeacons, useOpenApprovals } from "./use-approval-beacons";
 
 type Palette = { ground: string; road: string; structure: string; gold: string; cyan: string; magenta: string; light: string; muted: string; ok: string; danger: string };
-type DState = ReturnType<typeof districtState>;
-export type CitySceneProps = { snapshot?: CitySnapshot | undefined; selected: DistrictId; onSelect: (id: DistrictId) => void; palette: Palette; motion: boolean; reset: number; onFailure: () => void; skyMode?: SkyMode; weather?: WeatherState; showWeather?: boolean };
+export type CitySceneProps = { snapshot?: CitySnapshot | undefined; selected: DistrictId; /** JC-5: district currently drilled into (camera zoom-in + inspector). */ drilled: DistrictId | null; onSelect: (id: DistrictId) => void; palette: Palette; motion: boolean; reset: number; onFailure: () => void; skyMode?: SkyMode; weather?: WeatherState; showWeather?: boolean };
 
 /**
  * Window pattern painted in memory. The old glTF files asked the browser for
@@ -63,28 +63,60 @@ function Ground({ palette }: { palette: Palette }) {
   return <mesh rotation-x={-Math.PI / 2} position-y={-0.12} receiveShadow><planeGeometry args={[30, 30]} /><meshStandardMaterial map={texture} color={palette.light} roughness={0.75} metalness={0.35} /></mesh>;
 }
 
-function Building({ index, palette, selected, active, state, counts, onSelect }: { index: number; palette: Palette; selected: boolean; active: boolean; state: DState; counts: ReturnType<typeof districtCounts>; compact: boolean; onSelect: () => void }) {
+function paletteColor(palette: Palette, token: BuildingStyleToken, tone: string): string {
+  if (token.colorKey === "ok") return palette.ok;
+  if (token.colorKey === "gold") return palette.gold;
+  if (token.colorKey === "danger") return palette.danger;
+  if (token.colorKey === "muted") return palette.muted;
+  return tone;
+}
+
+function Building({ index, palette, selected, style, onSelect }: { index: number; palette: Palette; selected: boolean; style: BuildingStyleToken; compact: boolean; onSelect: () => void }) {
   const district = CITY_DISTRICTS[index];
   const windows = useDisposable(() => (district ? windowTexture(index + 1, palette.gold) : null), [district, index, palette.gold]);
+  const body = useRef<THREE.MeshStandardMaterial>(null);
+  const time = useRef(0);
+  // JC-1: rising window lights when working; failed strobe on body emissive (≤2 Hz).
+  useFrame((_, rawDelta) => {
+    const mat = body.current;
+    if (!mat) return;
+    const dt = Math.min(rawDelta, 0.05);
+    time.current += dt;
+    if (style.risingWindows && windows) {
+      windows.offset.y = (windows.offset.y + dt * 0.18) % 1;
+      windows.needsUpdate = true;
+    }
+    if (style.strobe) {
+      // Square wave at beaconHz (capped at FAILED_STROBE_HZ by the token).
+      const hz = style.beaconHz;
+      const on = hz > 0 && Math.sin(time.current * Math.PI * 2 * hz) >= 0;
+      mat.emissiveIntensity = on ? 0.95 : 0.18;
+    } else if (style.dim) {
+      mat.emissiveIntensity = 0.12;
+    } else if (style.risingWindows) {
+      mat.emissiveIntensity = 0.4 + Math.sin(time.current * style.beaconHz) * 0.2;
+    }
+  });
   if (!district) return null;
-  // Colour tells the recorded state: green working, red with failures, gold waiting, muted unreadable.
   const tone = palette[district.tone];
-  const color = state === "working" ? palette.ok : state === "attention" ? ((counts?.errors ?? 0) > 0 ? palette.danger : palette.gold) : state === "unavailable" ? palette.muted : tone;
+  const color = paletteColor(palette, style, tone);
   const height = district.height;
   const width = 1.15 + (index % 3) * 0.22;
-  return <group position={[district.position[0], 0, district.position[1]]} onClick={event => { event.stopPropagation(); if (event.delta < 5) onSelect(); }}>
-    <mesh position-y={-0.02} receiveShadow><boxGeometry args={[5, 0.15, 5]} /><meshStandardMaterial color={palette.structure} metalness={0.6} roughness={0.5} emissive={color} emissiveIntensity={state === "working" ? 0.35 : state === "attention" ? 0.22 : 0.05} /></mesh>
+  const baseEmissive = style.strobe ? 0.5 : style.dim ? 0.08 : style.state === "working" ? 0.55 : 0.28;
+  return <group position={[district.position[0], 0, district.position[1]]} userData={{ buildingState: style.state, buildingIcon: style.icon }} onClick={event => { event.stopPropagation(); if (event.delta < 5) onSelect(); }}>
+    <mesh position-y={-0.02} receiveShadow><boxGeometry args={[5, 0.15, 5]} /><meshStandardMaterial color={palette.structure} metalness={0.6} roughness={0.5} emissive={color} emissiveIntensity={style.state === "working" ? 0.35 : style.state === "failed" || style.state === "waiting" ? 0.22 : 0.05} /></mesh>
     <mesh position-y={height / 2} castShadow receiveShadow>
       <boxGeometry args={[width, height, width * 0.82]} />
-      <meshStandardMaterial map={windows} color={palette.light} emissive={color} emissiveIntensity={state === "working" ? 0.55 : 0.28} metalness={0.35} roughness={0.42} />
+      <meshStandardMaterial ref={body} map={windows} color={palette.light} emissive={color} emissiveIntensity={baseEmissive} metalness={0.35} roughness={0.42} />
     </mesh>
     <mesh position-y={height + 0.18} castShadow>
       <boxGeometry args={[width * 0.55, 0.36, width * 0.45]} />
-      <meshStandardMaterial color={tone} emissive={tone} emissiveIntensity={0.45} metalness={0.5} roughness={0.35} />
+      <meshStandardMaterial color={tone} emissive={tone} emissiveIntensity={style.dim ? 0.15 : 0.45} metalness={0.5} roughness={0.35} />
     </mesh>
-    <mesh rotation-x={-Math.PI / 2} position-y={0.07}><ringGeometry args={[2.8, selected ? 2.95 : 2.84, 4]} /><meshBasicMaterial color={selected ? palette.gold : color} transparent opacity={selected ? 1 : state === "idle" ? 0.45 : 0.9} /></mesh>
-    <PulseRings color={color} active={active} />
-    <Beacon color={color} height={height + 0.7} active={active || state === "attention"} rate={pulseRate(state, counts)} />
+    <mesh rotation-x={-Math.PI / 2} position-y={0.07}><ringGeometry args={[2.8, selected ? 2.95 : 2.84, 4]} /><meshBasicMaterial color={selected || style.goldRing ? palette.gold : color} transparent opacity={selected ? 1 : style.dim ? 0.35 : style.goldRing ? 0.85 : 0.9} /></mesh>
+    {style.goldRing ? <WaitingRing color={palette.gold} active={style.goldRing} rate={style.beaconHz} /> : null}
+    {style.state === "working" ? <PulseRings color={color} active /> : null}
+    <Beacon color={color} height={height + 0.7} active={style.beaconHz > 0} rate={style.beaconHz} strobe={style.strobe} />
   </group>;
 }
 
@@ -121,15 +153,35 @@ function PulseRings({ color, active }: { color: string; active: boolean }) {
   return <>{refs.map((ref, i) => <mesh key={i} ref={ref} rotation-x={-Math.PI / 2} position-y={0.09}><ringGeometry args={[2.9, 3.0, 4]} /><meshBasicMaterial color={color} transparent opacity={0.4} depthWrite={false} /></mesh>)}</>;
 }
 
-function Beacon({ color, height, active, rate }: { color: string; height: number; active: boolean; rate: number }) {
+/** JC-1 waiting: slow gold ring that breathes; static when rate is 0. */
+function WaitingRing({ color, active, rate }: { color: string; active: boolean; rate: number }) {
+  const ref = useRef<THREE.Mesh>(null);
+  const time = useRef(0);
+  useFrame((_, rawDelta) => {
+    if (!active || !ref.current || rate <= 0) return;
+    time.current += Math.min(rawDelta, 0.05);
+    const phase = 0.55 + Math.sin(time.current * Math.PI * 2 * rate) * 0.35;
+    (ref.current.material as THREE.MeshBasicMaterial).opacity = phase;
+    ref.current.scale.setScalar(1 + (1 - phase) * 0.08);
+  });
+  if (!active) return null;
+  return <mesh ref={ref} rotation-x={-Math.PI / 2} position-y={0.1}><ringGeometry args={[2.95, 3.15, 48]} /><meshBasicMaterial color={color} transparent opacity={0.7} depthWrite={false} /></mesh>;
+}
+
+function Beacon({ color, height, active, rate, strobe = false }: { color: string; height: number; active: boolean; rate: number; strobe?: boolean }) {
   const ref = useRef<THREE.Mesh>(null);
   const time = useRef(0);
   useFrame((_, rawDelta) => {
     if (!active || !ref.current) return;
     time.current += Math.min(rawDelta, 0.05);
     ref.current.rotation.y += Math.min(rawDelta, 0.05);
-    // A waiting or failed district blinks faster than a working one pulses.
-    ref.current.scale.setScalar(0.8 + Math.sin(time.current * rate) * 0.2);
+    if (strobe && rate > 0) {
+      const on = Math.sin(time.current * Math.PI * 2 * rate) >= 0;
+      ref.current.scale.setScalar(on ? 1.05 : 0.7);
+      (ref.current.material as THREE.MeshStandardMaterial).emissiveIntensity = on ? 4 : 0.35;
+    } else {
+      ref.current.scale.setScalar(0.8 + Math.sin(time.current * Math.PI * 2 * Math.max(rate, 0.01)) * 0.2);
+    }
   });
   return <mesh ref={ref} position-y={height}><octahedronGeometry args={[0.22]} /><meshStandardMaterial color={color} emissive={color} emissiveIntensity={active ? 3 : 0.2} /></mesh>;
 }
@@ -148,47 +200,64 @@ function keepCityInView(event?: { target?: unknown }) {
   const control = event?.target as OrbitControlsType | undefined;
   if (!control?.target) return;
   const t = control.target;
+  // Clamp pan on X/Z only so JC-5 drill-down can raise the look-at Y.
   const x = Math.max(-CITY_PAN_LIMIT, Math.min(CITY_PAN_LIMIT, t.x));
   const z = Math.max(-CITY_PAN_LIMIT, Math.min(CITY_PAN_LIMIT, t.z));
-  if (x === t.x && z === t.z && t.y === 1.5) return;
-  const dx = x - t.x, dy = 1.5 - t.y, dz = z - t.z;
-  t.set(x, 1.5, z);
+  const y = Math.max(0.5, Math.min(4, t.y));
+  if (x === t.x && z === t.z && y === t.y) return;
+  const dx = x - t.x, dy = y - t.y, dz = z - t.z;
+  t.set(x, y, z);
   control.object.position.x += dx; control.object.position.y += dy; control.object.position.z += dz;
 }
 
-function CityControls({ selected, reset, controls }: { selected: DistrictId; reset: number; controls: React.RefObject<OrbitControlsType | null> }) {
+function CityControls({ selected, drilled, reset, controls }: { selected: DistrictId; drilled: DistrictId | null; reset: number; controls: React.RefObject<OrbitControlsType | null> }) {
   const { size, camera, invalidate } = useThree();
   const goal = useRef(new THREE.Vector3(0, 1.5, 0));
+  const zoomGoal = useRef(cityCameraZoom(typeof window === "undefined" ? 840 : window.innerWidth, false));
   const flying = useRef(false);
-  // Glide the look-at point to the chosen district; keep rendering only while it moves.
+  // Glide look-at + orthographic zoom for JC-5 drill-down; keep rendering while it moves.
   useFrame((_, delta) => {
     const control = controls.current;
     if (!control || !flying.current) return;
-    control.target.lerp(goal.current, 1 - Math.exp(-6 * Math.min(delta, 0.05)));
+    const dt = Math.min(delta, 0.05);
+    const ease = 1 - Math.exp(-6 * dt);
+    control.target.lerp(goal.current, ease);
+    if (camera instanceof THREE.OrthographicCamera) {
+      camera.zoom += (zoomGoal.current - camera.zoom) * ease;
+      camera.updateProjectionMatrix();
+    }
     control.update();
-    if (control.target.distanceTo(goal.current) < 0.01) { control.target.copy(goal.current); control.update(); flying.current = false; }
-    else invalidate();
+    const targetDone = control.target.distanceTo(goal.current) < 0.01;
+    const zoomDone = !(camera instanceof THREE.OrthographicCamera) || Math.abs(camera.zoom - zoomGoal.current) < 0.05;
+    if (targetDone && zoomDone) {
+      control.target.copy(goal.current);
+      if (camera instanceof THREE.OrthographicCamera) { camera.zoom = zoomGoal.current; camera.updateProjectionMatrix(); }
+      control.update();
+      flying.current = false;
+    } else invalidate();
   });
   useEffect(() => {
-    if (!(camera instanceof THREE.OrthographicCamera)) return;
-    camera.zoom = Math.max(10, Math.min(24, size.width / 42));
-    camera.updateProjectionMatrix();
-  }, [size.width, camera]);
-  useEffect(() => {
-    const control = controls.current;
-    if (!control) return;
-    const district = CITY_DISTRICTS.find(d => d.id === selected);
+    const focus = drilled ?? selected;
+    const district = CITY_DISTRICTS.find(d => d.id === focus);
     const x = district?.position[0] ?? 0, z = district?.position[1] ?? 0;
-    goal.current.set(x * 0.35, 1.5, z * 0.35);
+    // Drill-down looks at the tower; overview stays a soft pull toward the district.
+    const pull = drilled ? 1 : 0.35;
+    goal.current.set(x * pull, drilled ? 2.2 : 1.5, z * pull);
+    zoomGoal.current = cityCameraZoom(size.width, Boolean(drilled));
     flying.current = true;
     invalidate();
-  }, [selected, controls, invalidate]);
+  }, [selected, drilled, size.width, controls, invalidate]);
   useEffect(() => {
     camera.position.set(25, 26, 30);
     goal.current.set(0, 1.5, 0);
+    zoomGoal.current = cityCameraZoom(size.width, false);
+    if (camera instanceof THREE.OrthographicCamera) {
+      camera.zoom = zoomGoal.current;
+      camera.updateProjectionMatrix();
+    }
     controls.current?.target.set(0, 1.5, 0);
     controls.current?.update();
-  }, [reset, camera, controls]);
+  }, [reset, camera, controls, size.width]);
   return null;
 }
 
@@ -296,7 +365,7 @@ function DevStats() {
   return null;
 }
 
-export default function CityScene({ snapshot, selected, onSelect, palette, motion, reset, onFailure, skyMode = "neutral", weather, showWeather = false }: CitySceneProps) {
+export default function CityScene({ snapshot, selected, drilled, onSelect, palette, motion, reset, onFailure, skyMode = "neutral", weather, showWeather = false }: CitySceneProps) {
   const now = Date.now();
   // On phones only the chosen district carries a full label; the others show just a count.
   const [compact, setCompact] = useState(false);
@@ -313,7 +382,10 @@ export default function CityScene({ snapshot, selected, onSelect, palette, motio
   // Removes the context-lost listener on unmount so a remounted city does not leave handlers behind (JC-17).
   const contextCleanup = useRef<(() => void) | null>(null);
   useEffect(() => () => { contextCleanup.current?.(); contextCleanup.current = null; }, []);
-  const anyActive = CITY_DISTRICTS.some(d => districtState(d.id, snapshot, Date.now()) === "working");
+  const anyActive = motion && CITY_DISTRICTS.some(d => {
+    const s = buildingStyleFor(d.id, snapshot, Date.now(), true);
+    return s.risingWindows || s.goldRing || s.strobe;
+  });
   const lighting = skyLighting(skyMode, palette.ground);
   const approvals = useApprovalBeacons();
   const openApprovals = useOpenApprovals();
@@ -334,13 +406,13 @@ export default function CityScene({ snapshot, selected, onSelect, palette, motio
       const color = state === "working" ? palette.ok : state === "attention" ? ((counts?.errors ?? 0) > 0 ? palette.danger : palette.gold) : palette.muted;
       return <Conduit key={`c-${d.id}`} to={d.position} color={color} strength={state === "working" || state === "attention" ? 0.85 : state === "unavailable" ? 0.12 : 0.28} />;
     })}
-    {CITY_DISTRICTS.map((d, index) => <Suspense key={d.id} fallback={null}><Building index={index} palette={palette} selected={selected === d.id} active={motion && districtState(d.id, snapshot, now) === "working"} state={districtState(d.id, snapshot, now)} counts={districtCounts(snapshot, d.id, now)} compact={compact} onSelect={() => onSelect(d.id)} /></Suspense>)}
+    {CITY_DISTRICTS.map((d, index) => <Suspense key={d.id} fallback={null}><Building index={index} palette={palette} selected={selected === d.id || drilled === d.id} style={buildingStyleFor(d.id, snapshot, now, motion)} compact={compact} onSelect={() => onSelect(d.id)} /></Suspense>)}
     <OrbitControls ref={controls} makeDefault enableDamping dampingFactor={0.09} enableRotate zoomToCursor screenSpacePanning={false} panSpeed={1.1} minZoom={8} maxZoom={65} minPolarAngle={0.35} maxPolarAngle={1.25} target={[0, 1.5, 0]} onChange={keepCityInView} touches={CITY_TOUCHES} />
     {motion && anyActive ? <PerformanceMonitor bounds={() => [CITY_ANIMATION_FPS * 0.6, CITY_ANIMATION_FPS * 0.9]} onDecline={() => setDpr(CITY_DPR_MIN)} onIncline={() => setDpr(ceiling)} /> : null}
-    <CityControls selected={selected} reset={reset} controls={controls} />
+    <CityControls selected={selected} drilled={drilled} reset={reset} controls={controls} />
     <ApprovalBeacons3D state={approvals} gold={palette.gold} motion={motion} onOpen={openApprovals} />
     {rainOn ? <Rain density={weather!.density} color={palette.cyan} /> : null}
     {import.meta.env.DEV ? <DevStats /> : null}
-    <AnimationClock running={(motion && anyActive) || rainOn || beaconsPulse} />
+    <AnimationClock running={Boolean(anyActive || rainOn || beaconsPulse || drilled)} />
   </Canvas>;
 }
