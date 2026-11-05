@@ -92,6 +92,8 @@ import { SiteVersionList } from "@/components/app/SiteVersionList";
 import { LiveSyncPanel } from "@/components/app/LiveSyncPanel";
 import { PortalAccess } from "@/components/app/PortalAccess";
 import { PreviewLinks, PreviewSiteButton } from "@/components/app/PreviewLinks";
+import { OpenOnPhoneButton, OpenOnPhoneDialog } from "@/components/app/OpenOnPhone";
+import { phoneLink } from "@/lib/builder/open-on-phone";
 import { VersionDiff } from "@/components/app/VersionDiff";
 import { DraftBranchPanel } from "@/components/app/DraftBranchPanel";
 import { RestorePointPanel } from "@/components/app/RestorePointPanel";
@@ -129,7 +131,7 @@ import {
   useGenerateSectionsFromText,
   useLatestGenerationJob,
 } from "@/lib/site-engine.hooks";
-import { useWebsiteContent } from "@/lib/website-content.hooks";
+import { usePreviewLinks, useWebsiteContent } from "@/lib/website-content.hooks";
 import { websiteQa, type WizardStepKey } from "@/lib/website-content";
 
 /**
@@ -477,6 +479,18 @@ function WebsitePage() {
 
   const launchFlow = useLaunchFlow(orgId);
 
+  // "Open on your phone": QR in the toolbar, and once right after a publish.
+  const { data: phonePreviewLinks } = usePreviewLinks(orgId);
+  const [phoneDialogOpen, setPhoneDialogOpen] = useState(false);
+  const lastLaunchResult = useRef<unknown>(null);
+  useEffect(() => {
+    const result = launchFlow.result;
+    if (result && result !== lastLaunchResult.current) {
+      lastLaunchResult.current = result;
+      if (result.activated) setPhoneDialogOpen(true);
+    }
+  }, [launchFlow.result]);
+
   const servicesCount = facts.data?.servicesCount ?? (services ?? []).length;
   const pricedCount = facts.data?.pricedServicesCount ?? 0;
   const captureCount = (facts.data?.quoteFormCount ?? 0) + (facts.data?.bookableCount ?? 0);
@@ -647,6 +661,12 @@ function WebsitePage() {
   };
 
   const publishState = settings?.publish_state ?? "draft";
+  const phoneLinkValue = phoneLink({
+    publishState,
+    slug: org?.slug,
+    links: phonePreviewLinks,
+    origin: typeof window === "undefined" ? "" : window.location.origin,
+  });
 
   /** Only what this website actually needs, in the owner's words. */
   const mediaCount = facts.data?.mediaCount ?? 0;
@@ -916,6 +936,7 @@ function WebsitePage() {
                   compact
                 />
               ) : null}
+              <OpenOnPhoneButton link={phoneLinkValue} />
               {manage ? (
                 <Button
                   size="sm"
@@ -1344,6 +1365,11 @@ function WebsitePage() {
         reason={launchFlow.result?.reason ?? null}
       />
 
+      <OpenOnPhoneDialog
+        open={phoneDialogOpen}
+        onOpenChange={setPhoneDialogOpen}
+        link={phoneLink({ publishState: "published", slug: org?.slug })}
+      />
       {/* A publish that broke on a glitch stays recoverable, not a dead end. */}
       <PublishRetryBar
         message={launchFlow.retryable}
