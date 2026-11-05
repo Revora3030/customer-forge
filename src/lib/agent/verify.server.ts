@@ -63,7 +63,9 @@ let requestModule: { getRequest?: () => Request } | null = null;
 async function loadRequestModule() {
   if (requestModule) return;
   try {
-    requestModule = (await import("@tanstack/react-start/server")) as unknown as { getRequest?: () => Request };
+    requestModule = (await import("@tanstack/react-start/server")) as unknown as {
+      getRequest?: () => Request;
+    };
   } catch {
     requestModule = {};
   }
@@ -213,71 +215,84 @@ export async function verifyWorkspaceSite(
       ? `${sitePrefix}${link.slice(`/s/${slug}`.length)}`
       : link;
 
-  if (published) try {
-    const targets: { path: string; label: string }[] = [
-      { path: sitePrefix, label: String(home?.["title"] ?? "Home") },
-      ...list
-        .filter((page) => page !== home && page["slug"])
-        .map((page) => ({
-          path: `${sitePrefix}/${String(page["slug"])}`,
-          label: String(page["title"] ?? page["slug"]),
-        })),
-    ];
+  if (published)
+    try {
+      const targets: { path: string; label: string }[] = [
+        { path: sitePrefix, label: String(home?.["title"] ?? "Home") },
+        ...list
+          .filter((page) => page !== home && page["slug"])
+          .map((page) => ({
+            path: `${sitePrefix}/${String(page["slug"])}`,
+            label: String(page["title"] ?? page["slug"]),
+          })),
+      ];
 
-    for (const target of targets) {
-      let { status, html } = await load(`${base}${target.path}`);
-      // One slow or dropped response is not a broken page. Retry before a
-      // failure can reverse the owner's change.
-      for (let retry = 0; retry < 2 && (status !== 200 || !html) && status < 400; retry += 1) {
-        await new Promise((resolve) => setTimeout(resolve, 1500 * (retry + 1)));
-        ({ status, html } = await load(`${base}${target.path}`, 12000));
-      }
-      if (status !== 200 || !html) {
+      for (const target of targets) {
+        let { status, html } = await load(`${base}${target.path}`);
+        // One slow or dropped response is not a broken page. Retry before a
+        // failure can reverse the owner's change.
+        for (let retry = 0; retry < 2 && (status !== 200 || !html) && status < 400; retry += 1) {
+          await new Promise((resolve) => setTimeout(resolve, 1500 * (retry + 1)));
+          ({ status, html } = await load(`${base}${target.path}`, 12000));
+        }
+        if (status !== 200 || !html) {
+          checks.push({
+            label: "The page loads for visitors",
+            ok: false,
+            severity: "critical",
+            where: target.label,
+            detail: status ? `the server answered ${status}` : "the page did not answer",
+          });
+          continue;
+        }
         checks.push({
           label: "The page loads for visitors",
-          ok: false,
+          ok: true,
           severity: "critical",
           where: target.label,
-          detail: status ? `the server answered ${status}` : "the page did not answer",
         });
-        continue;
+        const inspection = inspectHtml(html, target.label);
+        checks.push(...inspection.checks);
+        for (const link of inspection.links) linkTargets.add(toWindow(link));
       }
-      checks.push({
-        label: "The page loads for visitors",
-        ok: true,
-        severity: "critical",
-        where: target.label,
-      });
-      const inspection = inspectHtml(html, target.label);
-      checks.push(...inspection.checks);
-      for (const link of inspection.links) linkTargets.add(toWindow(link));
-    }
 
-    // Every menu and button link on those pages is followed once, so a change
-    // can never quietly leave a dead end behind.
-    const known = new Set(targets.map((target) => target.path));
-    const followable = [...linkTargets].filter((link) => !known.has(link)).slice(0, 16);
-    for (const link of followable) {
-      let { status } = await load(`${base}${link}`, 6000);
-      if (status === 0) ({ status } = await load(`${base}${link}`, 12000));
-      checks.push({
-        label: "Every link on the site goes somewhere real",
-        ok: status === 200,
-        // Only a definite 404/410 is a dead end worth reversing a change for;
-        // a timeout or server hiccup is reported, not fatal.
-        severity: status === 404 || status === 410 ? "critical" : "warning",
-        where: link,
-        ...(status === 200 ? {} : { detail: status ? `answered ${status}` : "did not answer" }),
-      });
+      // Every menu and button link on those pages is followed once, so a change
+      // can never quietly leave a dead end behind.
+      const known = new Set(targets.map((target) => target.path));
+      const followable = [...linkTargets].filter((link) => !known.has(link)).slice(0, 16);
+      for (const link of followable) {
+        let { status } = await load(`${base}${link}`, 6000);
+        if (status === 0) ({ status } = await load(`${base}${link}`, 12000));
+        checks.push({
+          label: "Every link on the site goes somewhere real",
+          ok: status === 200,
+          // Only a definite 404/410 is a dead end worth reversing a change for;
+          // a timeout or server hiccup is reported, not fatal.
+          severity: status === 404 || status === 410 ? "critical" : "warning",
+          where: link,
+          ...(status === 200 ? {} : { detail: status ? `answered ${status}` : "did not answer" }),
+        });
+      }
+    } finally {
+      await publishedWindow?.close();
     }
-  } finally {
-    await publishedWindow?.close();
-  } else {
+  else {
     // A draft is checked through its own private render. Nothing here can
     // reverse an owner's work just because the site is not live yet: a draft
     // window that cannot be opened is reported as "not checked", never failed.
     const window = await openDraftWindow(organizationId);
-    if (!window) return summarise([...checks, { label: "The draft website could be checked", ok: false, severity: "warning", notChecked: true, where: "Draft", detail: "A private preview could not be opened." }]);
+    if (!window)
+      return summarise([
+        ...checks,
+        {
+          label: "The draft website could be checked",
+          ok: false,
+          severity: "warning",
+          notChecked: true,
+          where: "Draft",
+          detail: "A private preview could not be opened.",
+        },
+      ]);
     try {
       const { status, html } = await load(`${base}/p/${window.token}`, 10000);
       if (status !== 200 || !html) {

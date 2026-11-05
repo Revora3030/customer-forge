@@ -13,7 +13,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { STALLED_LEASE_GRACE_MS } from "@/lib/builder/job-liveness";
 
-export type AgentRunStatus = "queued" | "processing" | "needs_approval" | "needs_input" | "done" | "failed" | "cancelled";
+export type AgentRunStatus =
+  "queued" | "processing" | "needs_approval" | "needs_input" | "done" | "failed" | "cancelled";
 export type AgentRunSource = "owner" | "routine" | "admin" | "system";
 
 export type AgentRun = {
@@ -42,18 +43,38 @@ export type NewAgentRun = {
   maxAttempts?: number;
 };
 
-export type FinishStatus = "queued" | "needs_approval" | "needs_input" | "done" | "failed" | "cancelled";
+export type FinishStatus =
+  "queued" | "needs_approval" | "needs_input" | "done" | "failed" | "cancelled";
 
 export interface RunRepo {
   create(input: NewAgentRun): Promise<AgentRun>;
   claim(worker: string, leaseSeconds: number): Promise<AgentRun | null>;
   heartbeat(runId: string, fence: number, leaseSeconds: number): Promise<boolean>;
-  save(runId: string, fence: number, checkpoint: Record<string, unknown>, budgetUsed?: number): Promise<boolean>;
-  addEvent(runId: string, fence: number, kind: string, message: string, data?: Record<string, unknown>): Promise<boolean>;
-  finish(runId: string, fence: number, status: FinishStatus, summary?: string | null, error?: string | null): Promise<boolean>;
+  save(
+    runId: string,
+    fence: number,
+    checkpoint: Record<string, unknown>,
+    budgetUsed?: number,
+  ): Promise<boolean>;
+  addEvent(
+    runId: string,
+    fence: number,
+    kind: string,
+    message: string,
+    data?: Record<string, unknown>,
+  ): Promise<boolean>;
+  finish(
+    runId: string,
+    fence: number,
+    status: FinishStatus,
+    summary?: string | null,
+    error?: string | null,
+  ): Promise<boolean>;
   cancel(runId: string): Promise<boolean>;
   resume(runId: string): Promise<boolean>;
-  recoverStalled(graceSeconds: number): Promise<{ run_id: string; outcome: "requeued" | "failed" }[]>;
+  recoverStalled(
+    graceSeconds: number,
+  ): Promise<{ run_id: string; outcome: "requeued" | "failed" }[]>;
   /**
    * Fails up to `limit` runs still queued `olderThanSeconds` after creation,
    * fenced on status = 'queued' so a run claimed in the meantime is never
@@ -90,7 +111,8 @@ export type RunExecutor = (ctx: RunContext) => Promise<RunOutcome>;
 
 const LEASE_SECONDS = 120;
 const MAX_RUNS_PER_PASS = 3;
-export const UNEXPECTED_ERROR_PLAIN = "The run hit an unexpected problem and was stopped before it finished. Nothing was sent.";
+export const UNEXPECTED_ERROR_PLAIN =
+  "The run hit an unexpected problem and was stopped before it finished. Nothing was sent.";
 
 let registeredExecutor: RunExecutor | null = null;
 
@@ -119,10 +141,19 @@ export const NO_EXECUTOR_ERROR = "no executor registered";
 export async function runDueAgentRuns(
   repo: RunRepo,
   executor: RunExecutor | null,
-  opts: { worker?: string; maxRuns?: number; leaseSeconds?: number; graceMs?: number; queuedTtlMs?: number; expireBatch?: number } = {},
+  opts: {
+    worker?: string;
+    maxRuns?: number;
+    leaseSeconds?: number;
+    graceMs?: number;
+    queuedTtlMs?: number;
+    expireBatch?: number;
+  } = {},
 ): Promise<RunPassResult> {
   const leaseSeconds = opts.leaseSeconds ?? LEASE_SECONDS;
-  const stalled = await repo.recoverStalled(Math.ceil((opts.graceMs ?? STALLED_LEASE_GRACE_MS) / 1000));
+  const stalled = await repo.recoverStalled(
+    Math.ceil((opts.graceMs ?? STALLED_LEASE_GRACE_MS) / 1000),
+  );
   const result: RunPassResult = {
     recovered: {
       requeued: stalled.filter((s) => s.outcome === "requeued").length,
@@ -144,12 +175,20 @@ export async function runDueAgentRuns(
   for (let i = 0; i < (opts.maxRuns ?? MAX_RUNS_PER_PASS); i++) {
     const run = await repo.claim(worker, leaseSeconds);
     if (!run) break;
-    result.ran.push({ id: run.id, status: await executeClaimedRun(repo, run, executor, leaseSeconds) });
+    result.ran.push({
+      id: run.id,
+      status: await executeClaimedRun(repo, run, executor, leaseSeconds),
+    });
   }
   return result;
 }
 
-async function executeClaimedRun(repo: RunRepo, run: AgentRun, executor: RunExecutor, leaseSeconds: number): Promise<string> {
+async function executeClaimedRun(
+  repo: RunRepo,
+  run: AgentRun,
+  executor: RunExecutor,
+  leaseSeconds: number,
+): Promise<string> {
   const fence = run.fence;
   const ctx: RunContext = {
     run,
@@ -162,19 +201,34 @@ async function executeClaimedRun(repo: RunRepo, run: AgentRun, executor: RunExec
     },
   };
   // Keep the lease alive while the executor works, so only a dead worker's lease lapses.
-  const beat = setInterval(() => {
-    void repo.heartbeat(run.id, fence, leaseSeconds).catch(() => undefined);
-  }, Math.max(5_000, (leaseSeconds * 1000) / 3));
+  const beat = setInterval(
+    () => {
+      void repo.heartbeat(run.id, fence, leaseSeconds).catch(() => undefined);
+    },
+    Math.max(5_000, (leaseSeconds * 1000) / 3),
+  );
   try {
     const outcome = await executor(ctx);
-    const ok = await repo.finish(run.id, fence, outcome.status, outcome.summary ?? null, outcome.error ?? null);
+    const ok = await repo.finish(
+      run.id,
+      fence,
+      outcome.status,
+      outcome.summary ?? null,
+      outcome.error ?? null,
+    );
     return ok ? outcome.status : "lost";
   } catch (error) {
     if (error instanceof LostLeaseError) return "lost";
     console.error("[agent-run]", run.id, error);
     // Retry from the checkpoint while attempts remain, otherwise fail in plain words.
     const retry = run.attempts < run.max_attempts;
-    const ok = await repo.finish(run.id, fence, retry ? "queued" : "failed", null, UNEXPECTED_ERROR_PLAIN);
+    const ok = await repo.finish(
+      run.id,
+      fence,
+      retry ? "queued" : "failed",
+      null,
+      UNEXPECTED_ERROR_PLAIN,
+    );
     return ok ? (retry ? "queued" : "failed") : "lost";
   } finally {
     clearInterval(beat);
@@ -186,7 +240,11 @@ async function executeClaimedRun(repo: RunRepo, run: AgentRun, executor: RunExec
 type RpcResult = PromiseLike<{ data: unknown; error: { message: string } | null }>;
 type RpcClient = { rpc(fn: string, args?: Record<string, unknown>): RpcResult };
 
-async function call(client: RpcClient, fn: string, args: Record<string, unknown>): Promise<unknown> {
+async function call(
+  client: RpcClient,
+  fn: string,
+  args: Record<string, unknown>,
+): Promise<unknown> {
   const { data, error } = await client.rpc(fn, args);
   if (error) throw new Error(`${fn}: ${error.message}`);
   return data;
@@ -195,18 +253,35 @@ async function call(client: RpcClient, fn: string, args: Record<string, unknown>
 type TableClient = {
   from(table: string): {
     select(columns: string): {
-      eq(column: string, value: unknown): {
-        lt(column: string, value: string): {
-          order(column: string, options: { ascending: boolean }): {
+      eq(
+        column: string,
+        value: unknown,
+      ): {
+        lt(
+          column: string,
+          value: string,
+        ): {
+          order(
+            column: string,
+            options: { ascending: boolean },
+          ): {
             limit(count: number): PromiseLike<{ data: unknown; error: { message: string } | null }>;
           };
         };
       };
     };
     update(patch: Record<string, unknown>): {
-      in(column: string, values: string[]): {
-        eq(column: string, value: unknown): {
-          select(columns: string): PromiseLike<{ data: unknown; error: { message: string } | null }>;
+      in(
+        column: string,
+        values: string[],
+      ): {
+        eq(
+          column: string,
+          value: unknown,
+        ): {
+          select(
+            columns: string,
+          ): PromiseLike<{ data: unknown; error: { message: string } | null }>;
         };
       };
     };
@@ -236,19 +311,50 @@ export function supabaseRunRepo(admin: SupabaseClient | unknown): RunRepo {
       return run;
     },
     async claim(worker, leaseSeconds) {
-      return firstRun(await call(client, "agent_run_claim", { _worker: worker, _lease_seconds: leaseSeconds }));
+      return firstRun(
+        await call(client, "agent_run_claim", { _worker: worker, _lease_seconds: leaseSeconds }),
+      );
     },
     async heartbeat(runId, fence, leaseSeconds) {
-      return (await call(client, "agent_run_heartbeat", { _run: runId, _fence: fence, _lease_seconds: leaseSeconds })) === true;
+      return (
+        (await call(client, "agent_run_heartbeat", {
+          _run: runId,
+          _fence: fence,
+          _lease_seconds: leaseSeconds,
+        })) === true
+      );
     },
     async save(runId, fence, checkpoint, budgetUsed) {
-      return (await call(client, "agent_run_save", { _run: runId, _fence: fence, _checkpoint: checkpoint, _budget_used: budgetUsed ?? null })) === true;
+      return (
+        (await call(client, "agent_run_save", {
+          _run: runId,
+          _fence: fence,
+          _checkpoint: checkpoint,
+          _budget_used: budgetUsed ?? null,
+        })) === true
+      );
     },
     async addEvent(runId, fence, kind, message, data) {
-      return (await call(client, "agent_run_add_event", { _run: runId, _fence: fence, _kind: kind, _message: message, _data: data ?? {} })) === true;
+      return (
+        (await call(client, "agent_run_add_event", {
+          _run: runId,
+          _fence: fence,
+          _kind: kind,
+          _message: message,
+          _data: data ?? {},
+        })) === true
+      );
     },
     async finish(runId, fence, status, summary, error) {
-      return (await call(client, "agent_run_finish", { _run: runId, _fence: fence, _status: status, _summary: summary ?? null, _error: error ?? null })) === true;
+      return (
+        (await call(client, "agent_run_finish", {
+          _run: runId,
+          _fence: fence,
+          _status: status,
+          _summary: summary ?? null,
+          _error: error ?? null,
+        })) === true
+      );
     },
     async cancel(runId) {
       return (await call(client, "agent_run_cancel", { _run: runId })) === true;
@@ -257,8 +363,12 @@ export function supabaseRunRepo(admin: SupabaseClient | unknown): RunRepo {
       return (await call(client, "agent_run_resume", { _run: runId })) === true;
     },
     async recoverStalled(graceSeconds) {
-      const data = await call(client, "agent_run_recover_stalled", { _grace_seconds: graceSeconds });
-      return Array.isArray(data) ? (data as { run_id: string; outcome: "requeued" | "failed" }[]) : [];
+      const data = await call(client, "agent_run_recover_stalled", {
+        _grace_seconds: graceSeconds,
+      });
+      return Array.isArray(data)
+        ? (data as { run_id: string; outcome: "requeued" | "failed" }[])
+        : [];
     },
     async failStaleQueued(olderThanSeconds, limit, error) {
       const tables = admin as TableClient;
@@ -277,7 +387,12 @@ export function supabaseRunRepo(admin: SupabaseClient | unknown): RunRepo {
       // Fenced on status = 'queued': a run claimed since the select is left alone.
       const { data: failed, error: updateError } = await tables
         .from("agent_runs")
-        .update({ status: "failed", error_plain: error, finished_at: now.toISOString(), updated_at: now.toISOString() })
+        .update({
+          status: "failed",
+          error_plain: error,
+          finished_at: now.toISOString(),
+          updated_at: now.toISOString(),
+        })
         .in("id", ids)
         .eq("status", "queued")
         .select("id");
@@ -288,6 +403,9 @@ export function supabaseRunRepo(admin: SupabaseClient | unknown): RunRepo {
 }
 
 /** Queue a run. A worker kick (cron every minute) picks it up. */
-export function createAgentRun(admin: SupabaseClient | unknown, input: NewAgentRun): Promise<AgentRun> {
+export function createAgentRun(
+  admin: SupabaseClient | unknown,
+  input: NewAgentRun,
+): Promise<AgentRun> {
   return supabaseRunRepo(admin).create(input);
 }

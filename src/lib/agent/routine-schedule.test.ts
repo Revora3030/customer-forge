@@ -37,8 +37,12 @@ describe("nextRunAfter (America/New_York)", () => {
 
   it("rejects impossible schedules in plain words", () => {
     expect(validateSchedule({ frequency: "daily", hour: 24, minute: 0 })).toMatch(/hour/);
-    expect(validateSchedule({ frequency: "weekly", hour: 9, minute: 0 })).toMatch(/day of the week/);
-    expect(validateSchedule({ frequency: "monthly", monthDay: 31, hour: 9, minute: 0 })).toMatch(/1 and 28/);
+    expect(validateSchedule({ frequency: "weekly", hour: 9, minute: 0 })).toMatch(
+      /day of the week/,
+    );
+    expect(validateSchedule({ frequency: "monthly", monthDay: 31, hour: 9, minute: 0 })).toMatch(
+      /1 and 28/,
+    );
     expect(() => nextRunAfter({ frequency: "daily", hour: 99, minute: 0 }, new Date())).toThrow();
   });
 });

@@ -49,72 +49,74 @@ export async function readCampaignRows(client: Db, organizationId: string) {
   }));
 }
 
-export const campaignsList = defineToolV2({
-  name: "campaigns.list",
-  description:
-    "List this workspace's tracking campaigns (name, source, medium, code, landing path, created date).",
-  risk: "read",
-  scope: "owner",
-  schema: z.strictObject({}),
-  run: async (_input, context) => {
-    const rows = await readCampaignRows(db(context), context.organizationId);
-    return bounded(
-      {
-        campaigns: rows.map(({ id, name, source, medium, code, target_path, created_at }) => ({
-          id,
-          name,
-          source,
-          medium,
-          code,
-          target_path,
-          created_at,
-        })),
-      },
-      "campaigns",
-    );
-  },
-});
+export const campaignsList = () =>
+  defineToolV2({
+    name: "campaigns.list",
+    description:
+      "List this workspace's tracking campaigns (name, source, medium, code, landing path, created date).",
+    risk: "read",
+    scope: "owner",
+    schema: z.strictObject({}),
+    run: async (_input, context) => {
+      const rows = await readCampaignRows(db(context), context.organizationId);
+      return bounded(
+        {
+          campaigns: rows.map(({ id, name, source, medium, code, target_path, created_at }) => ({
+            id,
+            name,
+            source,
+            medium,
+            code,
+            target_path,
+            created_at,
+          })),
+        },
+        "campaigns",
+      );
+    },
+  });
 
-export const campaignsResults = defineToolV2({
-  name: "campaigns.results",
-  description:
-    "Results per campaign: QR scans, page views, conversions and leads (with won/estimated value). Optionally one campaign by id.",
-  risk: "read",
-  scope: "owner",
-  schema: z.strictObject({ campaignId: z.string().uuid().optional() }),
-  run: async (input, context) => {
-    const client = db(context);
-    const rows = await readCampaignRows(client, context.organizationId);
-    const { data: leads, error } = await client
-      .from("leads")
-      .select("id, campaign, source, status, estimated_value")
-      .eq("organization_id", context.organizationId)
-      .neq("source", TEST_LEAD_SOURCE);
-    if (error) readFailed(error);
-    const byCode = new Map<string, { leads: number; won: number; estimatedValue: number }>();
-    for (const lead of (leads ?? []) as Array<{
-      campaign: string | null;
-      status: string;
-      estimated_value: number | null;
-    }>) {
-      if (!lead.campaign) continue;
-      const entry = byCode.get(lead.campaign) ?? { leads: 0, won: 0, estimatedValue: 0 };
-      entry.leads += 1;
-      if (lead.status === "won") entry.won += 1;
-      entry.estimatedValue += Number(lead.estimated_value) || 0;
-      byCode.set(lead.campaign, entry);
-    }
-    const results = rows
-      .filter((row) => !input.campaignId || row.id === input.campaignId)
-      .map((row) => ({
-        id: row.id,
-        name: row.name,
-        code: row.code,
-        scans: row.scans,
-        views: row.views,
-        conversions: row.conversions,
-        ...(byCode.get(row.code) ?? { leads: 0, won: 0, estimatedValue: 0 }),
-      }));
-    return bounded({ results }, "results");
-  },
-});
+export const campaignsResults = () =>
+  defineToolV2({
+    name: "campaigns.results",
+    description:
+      "Results per campaign: QR scans, page views, conversions and leads (with won/estimated value). Optionally one campaign by id.",
+    risk: "read",
+    scope: "owner",
+    schema: z.strictObject({ campaignId: z.string().uuid().optional() }),
+    run: async (input, context) => {
+      const client = db(context);
+      const rows = await readCampaignRows(client, context.organizationId);
+      const { data: leads, error } = await client
+        .from("leads")
+        .select("id, campaign, source, status, estimated_value")
+        .eq("organization_id", context.organizationId)
+        .neq("source", TEST_LEAD_SOURCE);
+      if (error) readFailed(error);
+      const byCode = new Map<string, { leads: number; won: number; estimatedValue: number }>();
+      for (const lead of (leads ?? []) as Array<{
+        campaign: string | null;
+        status: string;
+        estimated_value: number | null;
+      }>) {
+        if (!lead.campaign) continue;
+        const entry = byCode.get(lead.campaign) ?? { leads: 0, won: 0, estimatedValue: 0 };
+        entry.leads += 1;
+        if (lead.status === "won") entry.won += 1;
+        entry.estimatedValue += Number(lead.estimated_value) || 0;
+        byCode.set(lead.campaign, entry);
+      }
+      const results = rows
+        .filter((row) => !input.campaignId || row.id === input.campaignId)
+        .map((row) => ({
+          id: row.id,
+          name: row.name,
+          code: row.code,
+          scans: row.scans,
+          views: row.views,
+          conversions: row.conversions,
+          ...(byCode.get(row.code) ?? { leads: 0, won: 0, estimatedValue: 0 }),
+        }));
+      return bounded({ results }, "results");
+    },
+  });
