@@ -52,3 +52,6 @@ lhci-reports/
 .lighthouseci/
 lychee-urls.txt
 lychee-report.md
+
+# Ladle static catalog (BRF-02, local/dev only)
+ladle-build/
