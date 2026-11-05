@@ -4,11 +4,14 @@
  * without a browser or a live auth server.
  */
 
-export type AssuranceLevel = "aal1" | "aal2" | null | undefined;
+/** Accepts the auth client's aal strings (`aal1`/`aal2` plus branded string). */
+export type AssuranceLevel = string | null | undefined;
 
 export interface AssuranceLevels {
   currentLevel: AssuranceLevel;
   nextLevel: AssuranceLevel;
+  /** Present on the live MFA response; ignored by helpers. */
+  currentAuthenticationMethods?: unknown;
 }
 
 export interface FactorLike {
