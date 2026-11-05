@@ -21,6 +21,21 @@ Also review, without changing existing behavior unless intentionally approved:
 - session lifetime and refresh behavior;
 - recent-authentication/reauthentication requirements for sensitive admin operations.
 
+
+## New-device sign-in email (LOV-13)
+
+Optional email when an owner signs in from a hashed device id or country we have not seen. Ships **OFF**.
+
+**Enable (Manager):** set the server env `REVORA_NEW_DEVICE_EMAIL=1` (Lovable / hosting secrets). Restart/redeploy. Leave unset or any other value to keep it off.
+
+**Migration:** `20261105120000_owner_sign_in_devices.sql` — tables `owner_sign_in_devices` (hash + country only) and `owner_sign_in_alert_state` (one email per account per day). Apply before turning the flag on. RLS: authenticated users have SELECT only on their own rows; there are no authenticated INSERT/UPDATE/DELETE policies or grants. All writes go through the server function using the service-role client, so a stolen session cannot pre-register a device or silence the alert.
+
+**Behavior:**
+- First device ever for an account is recorded and never emails (covers new sign-ups).
+- Known device + same country: quiet update of `last_seen`.
+- New device or new country: emails via the existing `automation-message` template, at most once per 24 hours.
+- No IP, user-agent, or raw device id is stored. Country comes from Cloudflare `cf-ipcountry` when present.
+
 ## Optional authenticator-app sign-in code (LOV-12)
 
 The app ships the owner-facing setting (**Settings → Authenticator app code**) and the sign-in code step. It uses Supabase Auth's built-in TOTP MFA, which is free. It is optional, never forced, and not part of the $0 trial sign-up path.
