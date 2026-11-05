@@ -15,6 +15,8 @@ import {
   Columns2,
   SplitSquareHorizontal,
   Accessibility,
+  GripVertical,
+  Undo2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -40,7 +42,9 @@ import {
   type CompareMode,
 } from "@/lib/builder-preview";
 import { getDraftDiff } from "@/lib/draft-diff.functions";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useReorderSections } from "@/lib/website-content.hooks";
+import { moveAnnouncement, pageOfSectionId, planSectionMove, withSectionOrder, type InsertSpot } from "@/lib/builder/arrange";
 import {
   DRAFT_CHANNEL,
   PREVIEW_BRIDGE_SOURCE,
@@ -120,6 +124,11 @@ type BuilderPreviewProps = {
    * `/p` builder link, which paints the real page from the first bytes.
    */
   buildActive?: boolean;
+  /**
+   * "+ Add section with AI" between two sections in arrange mode: hand the
+   * position to the composer. Arrange mode is offered to managers only.
+   */
+  onInsertSection?: (spot: InsertSpot & { pageId: string }) => void;
 };
 
 /**
@@ -152,6 +161,7 @@ function BuilderPreviewFrame({
   pickRequest = 0,
   canManage = false,
   buildActive = false,
+  onInsertSection,
 }: Omit<BuilderPreviewProps, "firstRun">) {
   const builderLink = useBuilderPreviewToken(organizationId, canManage);
   const ordered = useMemo(() => [...pages].sort((a, b) => a.sort_order - b.sort_order), [pages]);
@@ -178,6 +188,13 @@ function BuilderPreviewFrame({
   }, [pickRequest]);
   // Quick edit: one click on a headline or paragraph edits the words in place.
   const [quickEdit, setQuickEdit] = useState(false);
+  // Arrange (B13-4): drag handles and "+ Add section with AI" lines on sections.
+  // One click meaning at a time: arranging switches picking and quick edit off.
+  const canArrange = canManage && Boolean(organizationId);
+  const [arrange, setArrange] = useState(false);
+  useEffect(() => {
+    if (selectMode || quickEdit) setArrange(false);
+  }, [selectMode, quickEdit]);
   // Compare: the published site (what visitors see now) next to the draft
   // (what Publish would put live), so every AI change can be checked first.
   const [compareMode, setCompareMode] = useState<CompareMode>("off");
@@ -421,6 +438,85 @@ function BuilderPreviewFrame({
     syncSelectMode(selectMode);
   }, [selectMode, syncSelectMode]);
 
+  /* ------------------------- arrange sections (B13-4) ------------------------- */
+  const queryClient = useQueryClient();
+  const reorderSections = useReorderSections(organizationId ?? undefined);
+  /** The last move, so it can be undone (toast, toolbar button or Ctrl/Cmd+Z in the preview). */
+  const lastMove = useRef<{ pageId: string; before: string[]; after: string[]; id: string; label: string | null } | null>(null);
+  const [canUndoMove, setCanUndoMove] = useState(false);
+  const pagesRef = useRef(ordered);
+  pagesRef.current = ordered;
+
+  useEffect(() => {
+    tell({ type: "arrange-mode", on: arrange && canArrange });
+  }, [arrange, canArrange, tell]);
+
+  /**
+   * Writes a page's section order. The builder's cache shows it at once
+   * (optimistic); a failed save puts the cache and the preview back.
+   */
+  const saveOrder = useCallback(
+    async (pageId: string, from: string[], to: string[]) => {
+      if (!organizationId) return false;
+      const key = ["website_content", organizationId];
+      const snapshot = queryClient.getQueryData<ContentPage[]>(key);
+      if (snapshot) queryClient.setQueryData(key, withSectionOrder(snapshot, pageId, to));
+      try {
+        await reorderSections.mutateAsync(to);
+        announceDraftChange(organizationId, previewId.current);
+        return true;
+      } catch {
+        // The hook already told the owner why; put everything back as it was.
+        if (snapshot) queryClient.setQueryData(key, snapshot);
+        tell({ type: "order", ids: from, announce: "Couldn't save the new order, so it was put back." });
+        return false;
+      }
+    },
+    [organizationId, queryClient, reorderSections, tell],
+  );
+
+  const undoMove = useCallback(async () => {
+    const last = lastMove.current;
+    if (!last) return;
+    lastMove.current = null;
+    setCanUndoMove(false);
+    const label = last.label?.trim() || "Section";
+    tell({ type: "order", ids: last.before, announce: `${label} moved back` });
+    if (await saveOrder(last.pageId, last.after, last.before)) toast.success("Move undone");
+  }, [saveOrder, tell]);
+
+  const onMoveSection = useCallback(
+    async (move: { id: string; overId: string; position: "before" | "after" }) => {
+      if (!canArrange) return;
+      const plan = planSectionMove(pagesRef.current, move.id, move.overId, move.position);
+      if (!plan) {
+        // Not a move the saved page allows (e.g. stale frame): show the saved page again.
+        setRefreshKey((value) => value + 1);
+        return;
+      }
+      const page = pagesRef.current.find((item) => item.id === plan.pageId);
+      const label = page?.sections.find((row) => row.id === move.id)?.kind ?? null;
+      const name = label ? label.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase()) : null;
+      if (!(await saveOrder(plan.pageId, plan.before, plan.after))) return;
+      lastMove.current = { ...plan, id: move.id, label: name };
+      setCanUndoMove(true);
+      toast.success(moveAnnouncement(name, plan.after, move.id), {
+        action: { label: "Undo", onClick: () => void undoMove() },
+      });
+    },
+    [canArrange, saveOrder, undoMove],
+  );
+
+  const onInsertAt = useCallback(
+    (spot: InsertSpot) => {
+      if (!canArrange || !onInsertSection) return;
+      const owner = pageOfSectionId(pagesRef.current, spot.id);
+      if (!owner) return;
+      onInsertSection({ ...spot, pageId: owner.id });
+    },
+    [canArrange, onInsertSection],
+  );
+
   // Clicks inside the preview arrive as messages. Only this app's own frame,
   // on this origin, is ever listened to.
   useEffect(() => {
@@ -435,6 +531,7 @@ function BuilderPreviewFrame({
         window.setTimeout(runA11y, 900);
         window.setTimeout(runTaps, 1000);
         syncSelectMode(selectMode);
+        tell({ type: "arrange-mode", on: arrange && canArrange });
         tell({ type: "status", text: liveStatus ?? null, id: selectedId });
         if (pendingReveal.current) {
           const id = pendingReveal.current;
@@ -446,6 +543,18 @@ function BuilderPreviewFrame({
       }
       if (message.type === "inline-edit") {
         void onInlineEdit(message);
+        return;
+      }
+      if (message.type === "move-section") {
+        void onMoveSection(message);
+        return;
+      }
+      if (message.type === "insert-section") {
+        onInsertAt({ id: message.id, position: message.position, label: message.label, kind: message.kind });
+        return;
+      }
+      if (message.type === "undo-move") {
+        void undoMove();
         return;
       }
       if (message.type === "overflow") {
@@ -464,7 +573,7 @@ function BuilderPreviewFrame({
     };
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, [liveStatus, onInlineEdit, onSelect, runA11y, runTaps, selectMode, selectedId, syncSelectMode, tell]);
+  }, [arrange, canArrange, liveStatus, onInlineEdit, onInsertAt, onMoveSection, onSelect, runA11y, runTaps, selectMode, selectedId, syncSelectMode, tell, undoMove]);
 
 
   const tree = (
@@ -525,6 +634,37 @@ function BuilderPreviewFrame({
               >
                 <Pencil className="size-4" aria-hidden />
               </Button>
+              {canArrange ? (
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant={arrange ? "secondary" : "ghost"}
+                  aria-pressed={arrange}
+                  data-testid="builder-preview-arrange"
+                  aria-label={arrange ? "Stop arranging sections" : "Arrange sections: drag to reorder or add a section with AI"}
+                  title={arrange ? "Stop arranging" : "Drag sections to reorder, or add a section with AI"}
+                  onClick={() => {
+                    setArrange((value) => !value);
+                    setSelectMode(false);
+                    setQuickEdit(false);
+                  }}
+                >
+                  <GripVertical className="size-4" aria-hidden />
+                </Button>
+              ) : null}
+              {canArrange && canUndoMove ? (
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant="ghost"
+                  data-testid="builder-preview-undo-move"
+                  aria-label="Undo the last section move"
+                  title="Undo move"
+                  onClick={() => void undoMove()}
+                >
+                  <Undo2 className="size-4" aria-hidden />
+                </Button>
+              ) : null}
               <PreviewThemeEditor organizationId={organizationId} onPreview={previewPalette} onSaved={onPaletteSaved} />
             </>
           ) : null}

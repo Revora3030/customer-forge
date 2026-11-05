@@ -41,6 +41,7 @@ import { BuilderAssistant } from "@/components/app/BuilderAssistant";
 import { useBuilderRequests } from "@/lib/builder-requests.hooks";
 import { actionPrompt, selectionPrefix, type PageContext } from "@/lib/builder/preview-bridge";
 import { starterIdeasFor } from "@/lib/builder/industry-playbook";
+import type { InsertSpot } from "@/lib/builder/arrange";
 import { isBareRebuildCommand } from "@/lib/builder/rebuild-intent";
 import { sectionOfTarget, changedSectionOf } from "@/lib/builder/step-target";
 import { liveStatusLine } from "@/lib/builder/live-status";
@@ -263,6 +264,8 @@ function WebsitePage() {
   }, []);
   /** The block the owner clicked in the preview, scoping their next message. */
   const [selected, setSelected] = useState<PreviewSelection | null>(null);
+  /** "+ Add section with AI" in the preview: where the next message's new section goes. */
+  const [insertAt, setInsertAt] = useState<InsertSpot | null>(null);
   // B12-4: a single click on a picture opens the Asset Swapper for that slot.
   const [swapTarget, setSwapTarget] = useState<AssetSwapTarget | null>(null);
   /** The page open in the preview, so chat requests know what the owner is looking at. */
@@ -784,6 +787,8 @@ function WebsitePage() {
             />
             }
             selection={selected}
+            insertAt={manage ? insertAt : null}
+            onClearInsert={() => setInsertAt(null)}
             pageContext={viewingPage}
             onReveal={(target) => {
               const id = sectionOfTarget(target, shownPages as never);
@@ -884,6 +889,14 @@ function WebsitePage() {
               reveal={reveal}
               pickRequest={pickRequest}
               liveStatus={liveStatus ?? rebuildStatus}
+              {...(manage ? {
+                onInsertSection: (spot: InsertSpot) => {
+                  // Aim the composer at the gap; a picked block would fence the edit.
+                  setInsertAt({ id: spot.id, position: spot.position, label: spot.label, kind: spot.kind });
+                  setSelected(null);
+                  setPreviewOpen(false);
+                },
+              } : {})}
               onInlineSaved={() => {
                 // The frame already shows the new words; refresh caches so
                 // the canvas, history and chat context read the saved text.
@@ -897,6 +910,7 @@ function WebsitePage() {
                   return;
                 }
                 setSelected(pick);
+                setInsertAt(null);
                 if (manage && pick.element === "media" && pick.path) {
                   const section = (shownPages ?? []).flatMap((page) => page.sections).find((row) => row.id === pick.id);
                   const tree = readComposition(section?.settings);
