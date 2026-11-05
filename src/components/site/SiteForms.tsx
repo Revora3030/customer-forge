@@ -927,7 +927,7 @@ function EnquiryFormLive({ site, presentation }: { site: Site; presentation?: Wi
 
       {stepped && step === "need" ? (
         <>
-          <p className="text-[13px] text-muted-foreground">Step 1 of 2</p>
+          <p className={`text-[13px] ${FORM_HELPER_TEXT}`}>Step 1 of 2</p>
           <fieldset>
             <legend className="text-[14px] font-medium">{presentation?.fieldLabels?.service ?? "What do you need?"}</legend>
             <div className="mt-3 grid gap-2 sm:grid-cols-2">
@@ -975,7 +975,7 @@ function EnquiryFormLive({ site, presentation }: { site: Site; presentation?: Wi
       ) : null}
 
       {stepped && step === "contact" ? (
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-muted-foreground">
+        <div className={`flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] ${FORM_HELPER_TEXT}`}>
           <span>Step 2 of 2</span>
           <span>
             {need || "Not sure yet"}
