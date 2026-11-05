@@ -27,8 +27,12 @@ export const simulateLead = createServerFn({ method: "POST" })
   }))
   .handler(async ({ data, context }) => {
     const db = context.supabase as unknown as SupabaseClient;
-    const orgId = data.organizationId;
-    if (!/^[0-9a-f-]{36}$/i.test(orgId)) throw new Error("Choose a workspace first.");
+    if (!/^[0-9a-f-]{36}$/i.test(data.organizationId)) throw new Error("Choose a workspace first.");
+    // The webhook part sends to the workspace's own integration and writes a
+    // delivery log with the service role, so only managers run it (the same
+    // people who can set the webhook up).
+    const { requireOrgRole } = await import("@/lib/org-authz.server");
+    const orgId = await requireOrgRole(context.supabase, data.organizationId, context.userId, "manager");
 
     const [{ data: org }, { data: profile }] = await Promise.all([
       db.from("organizations").select("slug").eq("id", orgId).maybeSingle(),
