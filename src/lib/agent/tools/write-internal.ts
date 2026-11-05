@@ -1,10 +1,12 @@
 /**
  * PAI-11: undoable internal write tools (risk write_internal, scope owner).
  *
- * Tools: leads.update_status, leads.add_note, leads.add_tag, leads.create_task,
- * quotes.draft, bookings.add_note, automations.toggle, plus restore helpers
- * used only as inverses (leads.restore_notes, leads.delete_task,
- * quotes.delete_draft, bookings.restore_notes).
+ * Model-callable: leads.update_status, leads.add_note, leads.add_tag,
+ * leads.create_task, quotes.draft, bookings.add_note, automations.toggle.
+ *
+ * Undo-only helpers (leads.restore_notes, leads.restore_customer_tags,
+ * leads.delete_task, quotes.delete_draft, bookings.restore_notes) stay inside
+ * writeInternalUndoHelpers / undoRunWrites — never listed to the model.
  *
  * Every write returns an inverse that restores prior values. No tool deletes a
  * lead. Tags: when the lead is linked to a customer, the tag is added to
@@ -62,7 +64,26 @@ async function loadLead(context: Parameters<typeof db>[0], leadId: string) {
   };
 }
 
+/** Undo helpers only — used by undoRunWrites, not by agentTools / the model. */
+export function writeInternalUndoHelpers(): ToolDefinitionV2<z.ZodType>[] {
+  return buildWriteInternalTools().undoHelpers;
+}
+
+/** Model-callable PAI-11 writes (no undo-only helpers). */
 export function writeInternalTools(): ToolDefinitionV2<z.ZodType>[] {
+  return buildWriteInternalTools().publicTools;
+}
+
+/** Public writes + undo helpers — for tests and undoRunWrites registries. */
+export function writeInternalAllTools(): ToolDefinitionV2<z.ZodType>[] {
+  const built = buildWriteInternalTools();
+  return [...built.publicTools, ...built.undoHelpers];
+}
+
+function buildWriteInternalTools(): {
+  publicTools: ToolDefinitionV2<z.ZodType>[];
+  undoHelpers: ToolDefinitionV2<z.ZodType>[];
+} {
   const updateStatus = defineToolV2({
     name: "leads.update_status",
     description: "Move a lead to a new CRM status. Cannot delete a lead.",
@@ -480,18 +501,23 @@ export function writeInternalTools(): ToolDefinitionV2<z.ZodType>[] {
     },
   });
 
-  return [
+  const publicTools = [
     updateStatus,
-    restoreNotes,
     addNote,
     addTag,
-    restoreCustomerTags,
     createTask,
-    deleteTask,
     quotesDraft,
-    deleteDraft,
     bookingsAddNote,
-    restoreBookingNotes,
     automationsToggle,
   ] as unknown as ToolDefinitionV2<z.ZodType>[];
+
+  const undoHelpers = [
+    restoreNotes,
+    restoreCustomerTags,
+    deleteTask,
+    deleteDraft,
+    restoreBookingNotes,
+  ] as unknown as ToolDefinitionV2<z.ZodType>[];
+
+  return { publicTools, undoHelpers };
 }
