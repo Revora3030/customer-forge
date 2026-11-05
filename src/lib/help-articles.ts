@@ -145,3 +145,52 @@ export function helpArticleMarkdown(a: HelpArticle): string {
 export function helpIndexMarkdown(): string {
   return ["# Revora help center", "", ...HELP_ARTICLES.map(a => `- [${a.title}](/help/${a.slug}.md): ${a.description}`), ""].join("\n");
 }
+
+/** Path owners open in the app (and that Jarvis should cite). */
+export function helpArticlePath(slug: string): string {
+  return `/help/${slug}`;
+}
+
+export type HelpArticleCitation = {
+  slug: string;
+  title: string;
+  description: string;
+  path: string;
+  markdownPath: string;
+};
+
+export function helpArticleCitation(a: HelpArticle): HelpArticleCitation {
+  return {
+    slug: a.slug,
+    title: a.title,
+    description: a.description,
+    path: helpArticlePath(a.slug),
+    markdownPath: `/help/${a.slug}.md`,
+  };
+}
+
+/**
+ * Rank owner help articles for a short question. Pure string match on
+ * title/description/steps/slug — no network, no invented answers. Empty query
+ * returns the full index (capped).
+ */
+export function matchHelpArticles(query: string, limit = 5): HelpArticleCitation[] {
+  const q = query.trim().toLowerCase().slice(0, 120);
+  const capped = Math.max(1, Math.min(limit, 20));
+  if (!q) return HELP_ARTICLES.slice(0, capped).map(helpArticleCitation);
+  // Tokens of 3+ chars; match as whole words so "not" inside "nothing" does not hit.
+  const tokens = q.split(/[^a-z0-9]+/).filter((t) => t.length >= 3);
+  if (tokens.length === 0) return [];
+  const scored = HELP_ARTICLES.map((a) => {
+    const hay = `${a.slug} ${a.title} ${a.description} ${a.steps.join(" ")}`.toLowerCase();
+    let score = 0;
+    if (hay.includes(q)) score += 10;
+    for (const t of tokens) {
+      const re = new RegExp(`(?:^|[^a-z0-9])${t}(?:[^a-z0-9]|$)`);
+      if (re.test(hay)) score += 1;
+    }
+    return { a, score };
+  }).filter((x) => x.score > 0);
+  scored.sort((x, y) => y.score - x.score || x.a.slug.localeCompare(y.a.slug));
+  return scored.slice(0, capped).map((x) => helpArticleCitation(x.a));
+}

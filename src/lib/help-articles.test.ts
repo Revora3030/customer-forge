@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { HELP_ARTICLES, findHelpArticle, helpArticleMarkdown, helpIndexMarkdown } from "./help-articles";
+import { HELP_ARTICLES, findHelpArticle, helpArticleMarkdown, helpIndexMarkdown, helpArticlePath, matchHelpArticles } from "./help-articles";
 import { indexablePlatformPaths } from "./seo-intent";
 
 describe("help center", () => {
@@ -32,5 +32,24 @@ describe("help center", () => {
       expect(a.metaDescription.length, a.slug).toBeLessThanOrEqual(160);
       for (const m of a.metaDescription.match(/\$\d[\d,.]*/g) ?? []) expect(["$350", "$100"]).toContain(m);
     }
+  });
+});
+
+describe("helpArticlePath + matchHelpArticles", () => {
+  it("builds the citeable /help path", () => {
+    expect(helpArticlePath("billing")).toBe("/help/billing");
+  });
+  it("matches billing and trial questions to real articles", () => {
+    const billing = matchHelpArticles("how does billing work");
+    expect(billing[0]?.path).toBe("/help/billing");
+    expect(billing[0]?.markdownPath).toBe("/help/billing.md");
+    const trial = matchHelpArticles("free trial length");
+    expect(trial.some((a) => a.slug === "free-trial")).toBe(true);
+  });
+  it("returns an empty list when nothing matches", () => {
+    expect(matchHelpArticles("zzzz-not-a-topic-qqq")).toEqual([]);
+  });
+  it("caps results", () => {
+    expect(matchHelpArticles("", 3)).toHaveLength(3);
   });
 });

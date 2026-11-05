@@ -3,6 +3,7 @@ import { getAiObservabilityExportStatus } from "./ai/observability-export.server
 import { collectJarvisDiagnostics } from "./jarvis-diagnostics.server";
 import { redactJarvisSummary } from "./jarvis-autopilot-policy";
 import { getJarvisDiagnosticTool, isJarvisDiagnosticToolId, type JarvisDiagnosticToolId } from "./jarvis-tool-registry";
+import { matchHelpArticles } from "./help-articles";
 import { providerSnapshots } from "./integrations/registry.server";
 import { collectDemoEngineEvidence } from "./jarvis-diagnostic-engine.server";
 import { scoreDemoEngine, scoreJarvisCapabilities, type JarvisCapabilityCheckId, type JarvisCapabilityEvidence, type JarvisCapabilityEvidenceStatus } from "./jarvis-capability-scorecard";
@@ -637,6 +638,48 @@ export async function executeJarvisDiagnosticTool(
       return result(toolId, browserCheckHasProblems(summary) ? "failed" : "observed", summary, { checkedAt, durationMs: Date.now() - started, limitations });
     }
 
+
+    if (toolId === "help.articles.lookup") {
+      const q = typeof args.query === "string" ? args.query.trim().slice(0, 120) : "";
+      if (!q) {
+        return result(toolId, "unknown", { reason: "missing_query", format: "short owner question" }, { checkedAt, durationMs: Date.now() - started, limitations: ["Published HELP_ARTICLES index only."] });
+      }
+      const articles = matchHelpArticles(q, 5);
+      return result(
+        toolId,
+        articles.length ? "observed" : "unknown",
+        { query: q, count: articles.length, articles },
+        {
+          checkedAt,
+          durationMs: Date.now() - started,
+          limitations: [
+            "In-repo owner help index only; cite returned /help paths; do not invent steps.",
+            ...(articles.length ? [] : ["No article matched; suggest /help or support@revoragrowthsystems.com."]),
+          ],
+        },
+      );
+    }
+
+
+    if (toolId === "docs.lookup") {
+      const key = process.env["CONTEXT7_API_KEY"];
+      const limitations = ["Third-party documentation index; confirm against the official docs before relying on edge cases."];
+      const { cleanDocsQuery, buildSearchUrl, buildDocsUrl, pickLibraryId } = await import("./jarvis-docs-lookup");
+      const q = cleanDocsQuery(args.query);
+      if (!q) return result(toolId, "unknown", { reason: "missing_query", format: "library: topic" }, { checkedAt, durationMs: Date.now() - started, limitations });
+      if (!key) return result(toolId, "unknown", { reason: "needs_key", secret: "CONTEXT7_API_KEY" }, { checkedAt, durationMs: Date.now() - started, limitations });
+      const headers = { Authorization: `Bearer ${key}` };
+      const search = await fetch(buildSearchUrl(q.library), { headers, signal: AbortSignal.timeout(7000) });
+      if (!search.ok) return result(toolId, "unknown", { reason: search.status === 429 ? "free_quota_exhausted" : `context7_http_${search.status}` }, { checkedAt, durationMs: Date.now() - started, limitations });
+      const lib = pickLibraryId(await search.json());
+      if (!lib) return result(toolId, "unknown", { reason: "library_not_found", library: q.library }, { checkedAt, durationMs: Date.now() - started, limitations });
+      const docs = await fetch(buildDocsUrl(lib.id, q.topic), { headers, signal: AbortSignal.timeout(7000) });
+      if (!docs.ok) return result(toolId, "unknown", { reason: `context7_http_${docs.status}`, source: lib.id }, { checkedAt, durationMs: Date.now() - started, limitations });
+      const text = (await readLimited(docs, 12000)).slice(0, 7500);
+      if (!text.trim()) return result(toolId, "unknown", { reason: "empty_documentation", source: lib.id }, { checkedAt, durationMs: Date.now() - started, limitations });
+      return result(toolId, "observed", { source: lib.id, library: lib.title, topic: q.topic || null, excerpt: text }, { checkedAt, durationMs: Date.now() - started, limitations });
+    }
+
     {
       const free = await import("./jarvis-free-checks");
       if (free.isFreeCheckTool(toolId)) {
@@ -781,24 +824,8 @@ export async function executeJarvisDiagnosticTool(
       return result(toolId, photos.length ? "observed" : "unknown", { query: q, sources, photos }, { checkedAt, durationMs: Date.now() - started, limitations });
     }
 
-    if (toolId === "docs.lookup") {
-      const key = process.env["CONTEXT7_API_KEY"];
-      const limitations = ["Third-party documentation index; confirm against the official docs before relying on edge cases."];
-      const { cleanDocsQuery, buildSearchUrl, buildDocsUrl, pickLibraryId } = await import("./jarvis-docs-lookup");
-      const q = cleanDocsQuery(args.query);
-      if (!q) return result(toolId, "unknown", { reason: "missing_query", format: "library: topic" }, { checkedAt, durationMs: Date.now() - started, limitations });
-      if (!key) return result(toolId, "unknown", { reason: "needs_key", secret: "CONTEXT7_API_KEY" }, { checkedAt, durationMs: Date.now() - started, limitations });
-      const headers = { Authorization: `Bearer ${key}` };
-      const search = await fetch(buildSearchUrl(q.library), { headers, signal: AbortSignal.timeout(7000) });
-      if (!search.ok) return result(toolId, "unknown", { reason: search.status === 429 ? "free_quota_exhausted" : `context7_http_${search.status}` }, { checkedAt, durationMs: Date.now() - started, limitations });
-      const lib = pickLibraryId(await search.json());
-      if (!lib) return result(toolId, "unknown", { reason: "library_not_found", library: q.library }, { checkedAt, durationMs: Date.now() - started, limitations });
-      const docs = await fetch(buildDocsUrl(lib.id, q.topic), { headers, signal: AbortSignal.timeout(7000) });
-      if (!docs.ok) return result(toolId, "unknown", { reason: `context7_http_${docs.status}`, source: lib.id }, { checkedAt, durationMs: Date.now() - started, limitations });
-      const text = (await readLimited(docs, 12000)).slice(0, 7500);
-      if (!text.trim()) return result(toolId, "unknown", { reason: "empty_documentation", source: lib.id }, { checkedAt, durationMs: Date.now() - started, limitations });
-      return result(toolId, "observed", { source: lib.id, library: lib.title, topic: q.topic || null, excerpt: text }, { checkedAt, durationMs: Date.now() - started, limitations });
-    }
+
+
 
     if (toolId === "growth.funnel.summary") {
       const since = new Date(Date.now() - 7 * 86_400_000).toISOString();

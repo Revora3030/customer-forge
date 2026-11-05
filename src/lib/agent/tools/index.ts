@@ -8,6 +8,7 @@ import { campaignsList, campaignsResults } from "./campaigns";
 import { domainStatus } from "./domain";
 import { withAgentLimits } from "./guard";
 import { readToolsC } from "./quotes-reviews";
+import { helpTools } from "./help";
 import { writeInternalTools } from "./write-internal";
 import { sendTools } from "./send";
 import type { LimitsDeps } from "@/lib/agent/limits.server";
@@ -58,6 +59,7 @@ const AGENT_TOOL_GROUPS: Array<() => ToolDefinitionV2<z.ZodType>[]> = [
   readToolsA,
   readToolsB,
   readToolsC,
+  helpTools,
   writeInternalTools,
   () => sendTools(),
 ];

@@ -2,6 +2,10 @@
  * Dismissible "need a hand?" drawer for a published customer site. See
  * `lib/site-help-drawer.ts` for the rules: off by default, local timer only,
  * nothing stored or sent, verified phone only.
+ *
+ * LOV-8 closeout: this drawer stays visitor-facing (call / quote only).
+ * Owner Revora product help lives at /help and in OwnerHelpDrawer — do not
+ * link visitors into those owner articles from here.
  */
 import { useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";

@@ -16,6 +16,7 @@ const tools = [
   { id: "website.page.audit", title: "Page SEO (Browserbase)", icon: FileSearch },
   { id: "images.stock.search", title: "Stock photos", icon: ImageIcon },
   { id: "docs.lookup", title: "Documentation", icon: BookOpen },
+  { id: "help.articles.lookup", title: "Owner help", icon: BookOpen },
   { id: "website.dns.lookup", title: "DNS records · no key", icon: Globe },
   { id: "website.html.validate", title: "HTML validator · no key", icon: Code2 },
   { id: "website.security.observatory", title: "Security grade · no key", icon: Lock },
@@ -57,7 +58,7 @@ export function FreeToolsPanel() {
     setRunning(toolId);
     setError(null);
     try {
-      const args = toolId === "docs.lookup" ? { query } : toolId === "images.stock.search" ? { query: photoQuery } : toolId === "workspace.sheets.read" ? { query: sheetUrl } : toolId === "places.osm.search" ? { query: placeQuery } : toolId === "website.dns.lookup" || toolId === "domain.certificates.lookup" || toolId === "domain.rdap.lookup" || toolId === "domain.wayback.history" ? { query: target } : { target, strategy };
+      const args = toolId === "docs.lookup" || toolId === "help.articles.lookup" ? { query } : toolId === "images.stock.search" ? { query: photoQuery } : toolId === "workspace.sheets.read" ? { query: sheetUrl } : toolId === "places.osm.search" ? { query: placeQuery } : toolId === "website.dns.lookup" || toolId === "domain.certificates.lookup" || toolId === "domain.rdap.lookup" || toolId === "domain.wayback.history" ? { query: target } : { target, strategy };
       const result = await run({ data: { toolId, args } });
       setResults((previous) => ({ ...previous, [toolId]: result }));
     } catch {
@@ -73,7 +74,7 @@ export function FreeToolsPanel() {
       <div className="flex gap-1" role="group" aria-label="Speed check device">
         {["mobile", "desktop"].map((value) => <Button key={value} size="sm" variant={strategy === value ? "secondary" : "ghost"} aria-pressed={strategy === value} onClick={() => setStrategy(value)}>{value === "mobile" ? "Phone" : "Desktop"}</Button>)}
       </div>
-      <label className="block space-y-1 text-xs">Documentation query<Input aria-label="Documentation query" value={query} onChange={(event) => setQuery(event.target.value)} /></label>
+      <label className="block space-y-1 text-xs">Docs / owner-help query<Input aria-label="Docs or owner-help query" value={query} onChange={(event) => setQuery(event.target.value)} /></label>
       <label className="block space-y-1 text-xs">Google Sheets link<Input aria-label="Google Sheets link" placeholder="https://docs.google.com/spreadsheets/d/…" value={sheetUrl} onChange={(event) => setSheetUrl(event.target.value)} /></label>
       <label className="block space-y-1 text-xs">Photo search<Input aria-label="Stock photo search" value={photoQuery} onChange={(event) => setPhotoQuery(event.target.value)} /></label>
       <label className="block space-y-1 text-xs">Map search<Input aria-label="Map search" value={placeQuery} onChange={(event) => setPlaceQuery(event.target.value)} /></label>
