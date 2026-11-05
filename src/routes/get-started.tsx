@@ -32,6 +32,7 @@ import { DraftSitePreview } from "@/components/marketing/DraftSitePreview";
 import { readStarter, starterFromMetadata } from "@/components/marketing/hero-starter-utils";
 import { applyImportedFacts, importExistingWebsite } from "@/lib/site-import.functions";
 import { validateIntakeServices } from "@/lib/builder/intake-sanitize";
+import { ONE_SENTENCE_MAX, fillFromSentence, readOneSentence } from "@/lib/one-sentence";
 
 export const Route = createFileRoute("/get-started")({
   validateSearch: (search: Record<string, unknown>): { claim?: string; pay?: "now" } => ({
@@ -233,15 +234,23 @@ function GetStarted() {
       // the copy saved on the account at sign-up.
       const starter = localStarter ?? starterFromMetadata(meta);
       const signupName = typeof meta["full_name"] === "string" ? meta["full_name"].slice(0, 120) : "";
-      setIntake((prev) => ({
-        ...prev,
-        fullName: prev.fullName || signupName,
-        email: prev.email || data.user?.email || "",
-        businessName: prev.businessName || starter?.businessName || "",
-        businessType: prev.businessType || starter?.industry || "",
-        website: prev.website || starter?.website || "",
-        services: prev.services || starter?.about || "",
-      }));
+      // CG-06: the homepage sentence can also name the trade and the city.
+      const fromAbout = starter?.about ? readOneSentence(starter.about) : {};
+      setIntake((prev) =>
+        fillFromSentence(
+          {
+            ...prev,
+            fullName: prev.fullName || signupName,
+            email: prev.email || data.user?.email || "",
+            businessName: prev.businessName || starter?.businessName || "",
+            businessType: prev.businessType || starter?.industry || "",
+            website: prev.website || starter?.website || "",
+            services: prev.services || starter?.about || "",
+          },
+          // Name stays whatever they typed in the name box; the sentence only fills trade and place.
+          { businessType: fromAbout.businessType, city: fromAbout.city, state: fromAbout.state },
+        ),
+      );
     });
     return () => {
       cancelled = true;
@@ -290,6 +299,29 @@ function GetStarted() {
 
   const set = (key: keyof GrowthSystemIntake) => (value: string) =>
     setIntake((prev) => ({ ...prev, [key]: value }));
+
+  // CG-06: one sentence fills the quick answers; only what's left is asked.
+  const [sentence, setSentence] = useState("");
+  const [sentenceNote, setSentenceNote] = useState<string | null>(null);
+  const applySentence = () => {
+    const text = sentence.trim();
+    if (!text) return;
+    const facts = readOneSentence(text);
+    const next = fillFromSentence(intake, facts);
+    if (!next.services.trim()) next.services = text;
+    setIntake(next);
+    const left = [
+      !next.businessName.trim() && "Business name",
+      !next.businessType.trim() && "What you do",
+      !next.city.trim() && "City",
+    ].filter(Boolean) as string[];
+    setError(null);
+    setSentenceNote(
+      left.length
+        ? `Filled in what you told us. Just add: ${left.join(", ")}.`
+        : "Filled in from your sentence. Check it below, then see your draft.",
+    );
+  };
 
   // The three answers needed for the free draft preview and the free trial.
   const quickMissing = useMemo(() => {
@@ -574,6 +606,37 @@ function GetStarted() {
               <p className="mt-1 text-[13px] text-muted-foreground">
                 Three quick answers and you'll see a free draft of your website. No account needed yet.
               </p>
+              <div className="mt-5 rounded-md border border-border p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <Label htmlFor="one-sentence" className="text-[13px]">
+                    Or describe your business in one sentence
+                  </Label>
+                  <VoiceDictateButton value={sentence} onText={setSentence} label="your business in one sentence" />
+                </div>
+                <div className="mt-1.5 flex flex-col gap-2 sm:flex-row">
+                  <Input
+                    id="one-sentence"
+                    value={sentence}
+                    maxLength={ONE_SENTENCE_MAX}
+                    placeholder="Pressure washing in Raleigh, NC called Bright Wash"
+                    onChange={(event) => setSentence(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        applySentence();
+                      }
+                    }}
+                  />
+                  <Button type="button" variant="outline" onClick={applySentence} disabled={!sentence.trim()}>
+                    Fill it in
+                  </Button>
+                </div>
+                {sentenceNote ? (
+                  <p role="status" className="mt-2 text-[12px] text-muted-foreground">
+                    {sentenceNote}
+                  </p>
+                ) : null}
+              </div>
               <form
                 className="mt-5 grid gap-4 sm:grid-cols-2"
                 noValidate
