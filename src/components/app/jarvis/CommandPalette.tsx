@@ -10,17 +10,35 @@ type Props = {
   /** Desktop shows a centered dialog; phones get a bottom sheet. */
   desktop: boolean;
   commands: ReadonlyArray<readonly [string, string]>;
+  /** JC-45: AI City commands (/city, /brief, /triage), listed first. */
+  cityCommands?: ReadonlyArray<readonly [string, string]>;
   disabled: boolean;
   onRun: (prompt: string) => void;
 };
 
 /** Every quick command, searchable. Opened by the Commands button or "/" in an empty composer. */
-export function CommandPalette({ open, onOpenChange, desktop, commands, disabled, onRun }: Props) {
+export function CommandPalette({ open, onOpenChange, desktop, commands, cityCommands, disabled, onRun }: Props) {
   const list = (
     <Command className="bg-transparent [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-input]]:h-12 [&_[cmdk-input]]:text-base">
       <CommandInput placeholder="Search commands" aria-label="Search commands" />
       <CommandList className="max-h-[min(60dvh,26rem)] overflow-y-auto overscroll-contain">
         <CommandEmpty>No command matches.</CommandEmpty>
+        {cityCommands?.length ? (
+          <CommandGroup heading="City commands">
+            {cityCommands.map(([label, prompt]) => (
+              <CommandItem
+                key={label}
+                value={label}
+                disabled={disabled}
+                onSelect={() => { onOpenChange(false); onRun(prompt); }}
+                className="min-h-11 flex-col items-start gap-0.5 rounded-lg px-3 py-2"
+              >
+                <span className="text-sm font-medium">{label}</span>
+                <span className="line-clamp-1 text-xs text-muted-foreground">{prompt}</span>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        ) : null}
         <CommandGroup heading="Quick commands">
           {commands.map(([label, prompt]) => (
             <CommandItem

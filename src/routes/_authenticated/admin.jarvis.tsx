@@ -25,6 +25,7 @@ import { foldRepeatNotices, type FoldedNoticeItem } from "@/lib/jarvis-notice-di
 import { RunTaskTree } from "@/components/app/jarvis/RunTaskTree";
 import { ApprovalsInbox } from "@/components/app/jarvis/ApprovalsInbox";
 import { ConversationsSheet } from "@/components/app/jarvis/ConversationsSheet";
+import { CITY_COMMAND_ENTRIES } from "@/lib/jarvis/city-commands";
 import { OperationsPanel, DIAGNOSTIC_SECTIONS, type ProspectorState } from "@/components/app/jarvis/OperationsPanel";
 import { CommandPalette } from "@/components/app/jarvis/CommandPalette";
 import { LiveSurface, type VoiceState } from "@/components/app/jarvis/LiveSurface";
@@ -1172,7 +1173,7 @@ function Jarvis() {
               <JarvisComposer
                 value={text}
                 onChange={setText}
-                onSubmit={() => submit()}
+                onSubmit={(message) => submit(message)}
                 maxLength={MAX_LENGTH}
                 busy={busy}
                 onStop={stopTurn}
@@ -1218,7 +1219,7 @@ function Jarvis() {
 
         <ConversationsSheet open={showConversations} onOpenChange={setShowConversations} wide={wide === true} activeId={conversationId}
           onSelect={(id) => { if (id === conversationId) return; setOlder([]); setMoreEarlier(true); setFollowups([]); setConversationId(id); }} />
-        <CommandPalette open={commandsOpen} onOpenChange={setCommandsOpen} desktop={!coarse} commands={COMMANDS} disabled={busy} onRun={(prompt) => submit(prompt)} />
+        <CommandPalette open={commandsOpen} onOpenChange={setCommandsOpen} desktop={!coarse} commands={COMMANDS} cityCommands={CITY_COMMAND_ENTRIES} disabled={busy} onRun={(prompt) => submit(prompt)} />
       </div>
     </TooltipProvider>
   );
