@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { averageEstimate } from "@/lib/outcome-numbers";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowRight, Circle } from "lucide-react";
 import {
@@ -308,10 +309,7 @@ function Dashboard() {
       needsAttention,
       upcoming,
       recent: rangeLeads.slice(0, 8),
-      avgJob:
-        rangeLeads.length > 0
-          ? rangeLeads.reduce((s, l) => s + Number(l.estimated_value ?? 0), 0) / rangeLeads.length
-          : 0,
+      avgJob: averageEstimate(rangeLeads),
     };
   }, [leads, appts, events, window]);
 
@@ -597,7 +595,7 @@ function Dashboard() {
                 <span className="gold-mark">{currency(stats.revenueWon)}</span>
               </p>
               <p className="mt-1 text-[11px] text-muted-foreground">
-                completed jobs from leads created in range
+                estimated value of completed jobs from leads created in range
               </p>
             </div>
             <div>
@@ -668,9 +666,9 @@ function Dashboard() {
           progress={stats.leadToBooking}
         />
         <MetricCard
-          label="Average job value"
-          value={currency(stats.avgJob)}
-          hint={`${stats.calls} call button clicks`}
+          label="Average estimate"
+          value={stats.avgJob.count ? currency(stats.avgJob.value) : "—"}
+          hint={`${stats.avgJob.count} leads with an estimate · ${stats.calls} call button clicks`}
         />
       </div>
 
