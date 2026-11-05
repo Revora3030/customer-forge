@@ -599,6 +599,7 @@ export function speakableText(content: string): string {
   return content
     .replace(/<followups>[\s\S]*?<\/followups>/gi, " ")
     .replace(/<jarvis-meta>[\s\S]*?<\/jarvis-meta>/gi, " ")
+    .replace(/<jarvis-plan>[\s\S]*?<\/jarvis-plan>/gi, " ")
     .replace(/<actions>[\s\S]*?<\/actions>/gi, " ")
     .replace(/```[\s\S]*?```/g, " (code block omitted) ")
     .replace(/[#*_\x60>|]/g, " ")
