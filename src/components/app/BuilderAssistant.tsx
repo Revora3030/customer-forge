@@ -93,6 +93,7 @@ import { cn } from "@/lib/utils";
 import { WebsiteBriefDialog } from "@/components/app/WebsiteBriefDialog";
 import type { StepTarget } from "@/lib/builder/step-target";
 import { WorkFeed } from "@/components/app/WorkFeed";
+import { AgentRunFeed } from "@/components/app/AgentRunFeed";
 import { TaskTree } from "@/components/app/TaskTree";
 import { nodesFromProgress } from "@/lib/builder/task-tree";
 import { modelsAsked } from "@/lib/builder/work-feed";
@@ -1162,6 +1163,7 @@ function TaskBody({
       )}
 
       {task.reply ? <ReplyText text={task.reply} className="text-[15px] leading-7" /> : null}
+      {task.agentRunId ? <AgentRunFeed organizationId={organizationId} runId={task.agentRunId} /> : null}
       {task.error ? <p className="text-sm leading-6">{task.error}</p> : null}
       {/* A build started here keeps its work log under its message once it has ended. */}
       {task.isBuild && !working ? (
