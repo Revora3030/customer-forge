@@ -15,7 +15,8 @@ import { CityReplay } from "./CityReplay";
 import type { ReplayFrame } from "@/lib/city-replay";
 import { ApprovalBeaconStatus } from "./ApprovalBeacons";
 import { CitySvgMap } from "./CitySvgMap";
-import { CITY_2D_QUERY } from "./city-render";
+import { CITY_2D_QUERY, CITY_FALLBACK_NOTE, cityFallbackReason, webglAvailable, type CityFallbackReason } from "./city-render";
+import { CityOperationsTables } from "./CityOperationsTables";
 import { DistrictCarousel } from "./DistrictCarousel";
 import { GROWTH_SYSTEM } from "@/lib/offer";
 import { DistrictInspector } from "./DistrictInspector";
@@ -71,6 +72,8 @@ export function AiCity() {
   const [palette, setPalette] = useState<CitySceneProps["palette"]>();
   // null until measured, so a phone never starts loading the 3D scene before the check runs.
   const [flatMap, setFlatMap] = useState<boolean | null>(null);
+  // JC-17: why 3D was skipped (no WebGL, or a low-power device); null when 3D is allowed.
+  const [fallback, setFallback] = useState<CityFallbackReason | null>(null);
   const [tab, setTab] = useState<"work" | "activity" | "models" | "routines">("work");
   const health = useQuery({ queryKey: ["admin-city-catalogue"], queryFn: () => loadHealth(), enabled: tab === "models" });
   const [evidence, setEvidence] = useState<CityWork | null>(null);
@@ -95,7 +98,10 @@ export function AiCity() {
     const sync = () => { if (media.matches) { setMotion(false); setShowWeather(false); setView("operations"); } };
     sync(); media.addEventListener("change", sync);
     const narrow = window.matchMedia(CITY_2D_QUERY);
-    const syncNarrow = () => setFlatMap(narrow.matches);
+    const reason = cityFallbackReason({ nav: navigator as Navigator & { deviceMemory?: number; connection?: { saveData?: boolean } }, webgl: webglAvailable() });
+    setFallback(reason);
+    const syncNarrow = () => setFlatMap(narrow.matches || reason !== null);
+    if (reason && !narrow.matches) setView("operations");
     syncNarrow(); narrow.addEventListener("change", syncNarrow);
     const timer = window.setInterval(() => setNow(Date.now()), 15_000);
     setNow(Date.now());
@@ -173,6 +179,7 @@ export function AiCity() {
       })}
     </section>
     {query.isError ? <div role="alert" className="flex flex-wrap items-center gap-3 text-sm text-destructive">City records could not be read. Activity is unavailable.<Button variant="outline" onClick={() => query.refetch()}>Retry</Button></div> : null}
+    {fallback ? <p role="status" data-testid="city-fallback-note" className="text-xs text-muted-foreground">{CITY_FALLBACK_NOTE[fallback]}</p> : null}
     {unavailable.length ? <p role="status" className="text-xs text-destructive">Unavailable sources: {unavailable.join(", ")}. No healthy verdict inferred.</p> : null}
     <ApprovalBeaconStatus />
     <div className="flex flex-wrap items-center justify-between gap-2">
@@ -186,6 +193,7 @@ export function AiCity() {
         <div className={view === "operations" ? "grid gap-2 sm:grid-cols-2" : "mt-3 hidden grid-cols-2 gap-2 sm:grid sm:grid-cols-3"}>
           {CITY_DISTRICTS.map(d => { const state = districtState(d.id, snapshot, now); return <Button key={d.id} variant="outline" aria-pressed={selected === d.id} className={`h-auto min-h-16 min-w-0 justify-start whitespace-normal px-3 py-3 text-left ${selected === d.id ? "border-gold bg-gold/10" : ""}`} onClick={() => openDistrict(d.id)}><Building2 className="size-4 shrink-0 text-gold" /><span className="min-w-0"><span className="block text-xs font-semibold">{d.name}</span><span className={`block text-[11px] capitalize ${STATUS_TONE[state]}`}>{state}</span></span></Button>; })}
         </div>
+        {view === "operations" ? <CityOperationsTables snapshot={snapshot} now={clock} onOpen={row => { setSelected(row.district); setEvidence(row); }} /> : null}
         {view === "city" ? <DistrictCarousel selected={selected} snapshot={snapshot} now={now} onSelect={setSelected} onOpen={openDistrict} onDraft={sendDraft} /> : null}
       </section>
       <section className="min-w-0 border-t border-border pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0" aria-label="Selected department">

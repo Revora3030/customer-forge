@@ -41,3 +41,42 @@ describe("agent run feed", () => {
     expect(buildRunFeed(null, [])).toBeNull();
   });
 });
+
+describe("JC-42 used-note chips", () => {
+  const recalled = (data: unknown) => ({ id: 9, kind: "memory_recalled", message: "Used 2 saved notes", created_at: "t", data });
+
+  it("lists the notes the run recorded, with whether each was confirmed", () => {
+    const feed = buildRunFeed(run("done"), [
+      recalled({
+        notes: [
+          { id: "a", key: "Opening hours", status: "confirmed", source: "You told us this" },
+          { id: "b", key: "Service area", status: "proposed", source: "Found on your site" },
+        ],
+      }),
+    ]);
+    expect(feed?.memory).toEqual([
+      { id: "a", key: "Opening hours", confirmed: true, source: "You told us this" },
+      { id: "b", key: "Service area", confirmed: false, source: "Found on your site" },
+    ]);
+  });
+
+  it("shows nothing when no note was recalled, or the record is malformed", () => {
+    expect(buildRunFeed(run("done"), [])?.memory).toEqual([]);
+    expect(buildRunFeed(run("done"), [recalled(null)])?.memory).toEqual([]);
+    expect(buildRunFeed(run("done"), [recalled({ notes: "x" })])?.memory).toEqual([]);
+    expect(buildRunFeed(run("done"), [recalled({ notes: [null, 3, { key: "no id" }, { id: "x" }] })])?.memory).toEqual([]);
+  });
+
+  it("ignores other event kinds that carry a notes field, and repeats of one note", () => {
+    const feed = buildRunFeed(run("done"), [
+      { id: 1, kind: "tool_finished", message: "m", created_at: "t", data: { notes: [{ id: "z", key: "Fake", status: "confirmed" }] } },
+      recalled({ notes: [{ id: "a", key: "Hours", status: "confirmed" }, { id: "a", key: "Hours", status: "confirmed" }] }),
+    ]);
+    expect(feed?.memory.map((n) => n.id)).toEqual(["a"]);
+  });
+
+  it("caps the chips at eight", () => {
+    const notes = Array.from({ length: 12 }, (_, i) => ({ id: `n${i}`, key: `K${i}`, status: "confirmed" }));
+    expect(buildRunFeed(run("done"), [recalled({ notes })])?.memory).toHaveLength(8);
+  });
+});

@@ -78,7 +78,7 @@ export type MemoryManagerViewProps = {
 export function MemoryManagerView(props: MemoryManagerViewProps) {
   const { notes, total, counts, filter, canManage, editing, expandedId } = props;
   return (
-    <Panel className="p-5">
+    <Panel id="memory-manager" className="scroll-mt-24 p-5">
       <SectionHeading
         eyebrow="Memory"
         title="What Revora remembers"

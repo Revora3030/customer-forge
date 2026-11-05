@@ -16,7 +16,7 @@ import { PushLeadAlerts } from "@/components/app/PushLeadAlerts";
 import { TwoFactorCard } from "@/components/app/TwoFactorCard";
 import { UpgradeFromWebsite } from "@/components/app/UpgradeFromWebsite";
 import { BookingLinkCard } from "@/components/app/BookingLinkCard";
-import { ChangeEmailForm, ChangePasswordForm, DisplayNameForm } from "@/components/app/AccountControls";
+import { AvatarForm, ChangeEmailForm, ChangePasswordForm, DisplayNameForm } from "@/components/app/AccountControls";
 import { BusinessMemoryManager } from "@/components/app/BusinessMemoryManager";
 import { DataPrivacy } from "@/components/app/DataPrivacy";
 import { SiteBackupExport } from "@/components/app/SiteBackupExport";
@@ -90,6 +90,23 @@ function SettingsPage() {
           </div>
         </dl>
         <div className="mt-5 space-y-5">
+          <AvatarForm
+            key={`avatar-${session?.user.id ?? "anon"}`}
+            userId={session?.user.id}
+            initialUrl={
+              (session?.user.user_metadata as { avatar_url?: string; picture?: string } | undefined)
+                ?.avatar_url ??
+              (session?.user.user_metadata as { picture?: string } | undefined)?.picture ??
+              null
+            }
+            displayName={
+              (session?.user.user_metadata as { full_name?: string; name?: string } | undefined)
+                ?.full_name ??
+              (session?.user.user_metadata as { name?: string } | undefined)?.name ??
+              session?.user.email ??
+              "You"
+            }
+          />
           <DisplayNameForm
             key={session?.user.id ?? "anon"}
             userId={session?.user.id}

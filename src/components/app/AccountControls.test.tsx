@@ -6,22 +6,39 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const sb = vi.hoisted(() => {
   const eq = vi.fn(async () => ({ error: null as unknown }));
   const update = vi.fn(() => ({ eq }));
+  const upload = vi.fn(async () => ({ error: null as unknown }));
+  const remove = vi.fn(async () => ({ error: null as unknown }));
+  const getPublicUrl = vi.fn((path: string) => ({
+    data: { publicUrl: `https://example.test/storage/v1/object/public/avatars/${path}` },
+  }));
   return {
     eq,
     update,
+    upload,
+    remove,
+    getPublicUrl,
     auth: { updateUser: vi.fn(), signInWithPassword: vi.fn() },
     from: vi.fn(() => ({ update })),
+    storage: { from: vi.fn(() => ({ upload, remove, getPublicUrl })) },
   };
 });
-vi.mock("@/integrations/supabase/client", () => ({ supabase: { auth: sb.auth, from: sb.from } }));
+vi.mock("@/integrations/supabase/client", () => ({
+  supabase: { auth: sb.auth, from: sb.from, storage: sb.storage },
+}));
+vi.mock("@/lib/media", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/media")>("@/lib/media");
+  return { ...actual, compressImage: vi.fn(async (file: File) => file) };
+});
 
 import {
+  AvatarForm,
   ChangeEmailForm,
   ChangePasswordForm,
   DisplayNameForm,
   validateDisplayName,
   validateNewPassword,
 } from "@/components/app/AccountControls";
+import { validateAvatarFile } from "@/lib/account-avatar";
 import { NEUTRAL_EMAIL_CHANGE_MESSAGE } from "@/lib/auth-email-requests";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -184,5 +201,44 @@ describe("ChangeEmailForm", () => {
     await submit();
     expect(sb.auth.signInWithPassword).not.toHaveBeenCalled();
     expect(host.querySelector('[role="alert"]')?.textContent).toMatch(/already your email/);
+  });
+});
+
+describe("avatar validators via shared helper", () => {
+  it("rejects unsupported types", () => {
+    const file = new File(["x"], "a.gif", { type: "image/gif" });
+    expect(validateAvatarFile(file).ok).toBe(false);
+  });
+});
+
+describe("AvatarForm", () => {
+  it("uploads a photo and shows success", async () => {
+    sb.auth.updateUser.mockResolvedValue({ error: null });
+    await render(<AvatarForm userId="u1" initialUrl={null} displayName="Ada" />);
+    expect(host.querySelector("[data-slot=\"avatar-fallback\"], span")?.textContent || host.textContent).toContain("A");
+    const input = host.querySelector<HTMLInputElement>('input[type="file"]')!;
+    const file = new File([new Uint8Array(8)], "me.jpg", { type: "image/jpeg" });
+    await act(async () => {
+      Object.defineProperty(input, "files", { value: { 0: file, length: 1, item: () => file } });
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    await flush();
+    expect(sb.upload).toHaveBeenCalled();
+    expect(sb.auth.updateUser).toHaveBeenCalled();
+    expect(host.textContent).toContain("Photo saved.");
+  });
+  it("clears a managed photo", async () => {
+    sb.auth.updateUser.mockResolvedValue({ error: null });
+    const url = "https://example.test/storage/v1/object/public/avatars/u1/avatar.jpg";
+    await render(<AvatarForm userId="u1" initialUrl={url} displayName="Ada" />);
+    const removeBtn = Array.from(host.querySelectorAll("button")).find((b) =>
+      b.textContent?.includes("Remove"),
+    )!;
+    await act(async () => {
+      removeBtn.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    await flush();
+    expect(sb.remove).toHaveBeenCalled();
+    expect(host.textContent).toContain("Photo removed.");
   });
 });

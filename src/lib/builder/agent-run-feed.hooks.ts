@@ -37,7 +37,7 @@ export function useAgentRunFeed(
     queryFn: async (): Promise<RunEventRow[]> => {
       const { data, error } = await supabase
         .from("agent_run_events")
-        .select("id, kind, message, created_at")
+        .select("id, kind, message, created_at, data")
         .eq("organization_id", organizationId as string)
         .eq("run_id", runId as string)
         .order("id", { ascending: true })

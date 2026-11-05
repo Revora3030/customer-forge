@@ -3,7 +3,8 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Environment, Lightformer, OrbitControls, PerformanceMonitor } from "@react-three/drei";
 import * as THREE from "three";
 import type { OrbitControls as OrbitControlsType } from "three-stdlib";
-import { CITY_ANIMATION_FPS, CITY_DPR_MIN, cityDprCeiling } from "./city-render";
+import { CITY_ANIMATION_FPS, CITY_DPR_MIN, CITY_DRAW_CALL_BUDGET, CITY_RAIN_MAX, cityDprCeiling } from "./city-render";
+import { useDisposable } from "./city-dispose";
 import { CITY_DISTRICTS, districtCounts, districtState, type CitySnapshot, type DistrictId } from "@/lib/ai-city";
 import { buildingStyleFor, cityCameraZoom, type BuildingStyleToken } from "@/lib/city-building-state";
 import { skyLighting, type SkyMode, type WeatherState } from "@/lib/city-sky";
@@ -41,7 +42,7 @@ function windowTexture(seed: number, lit: string): THREE.CanvasTexture | null {
 }
 
 function Ground({ palette }: { palette: Palette }) {
-  const texture = useMemo(() => {
+  const texture = useDisposable(() => {
     const canvas = document.createElement("canvas");
     canvas.width = canvas.height = 512;
     const ctx = canvas.getContext("2d");
@@ -59,7 +60,6 @@ function Ground({ palette }: { palette: Palette }) {
     tex.colorSpace = THREE.SRGBColorSpace;
     return tex;
   }, [palette]);
-  useEffect(() => () => texture?.dispose(), [texture]);
   return <mesh rotation-x={-Math.PI / 2} position-y={-0.12} receiveShadow><planeGeometry args={[30, 30]} /><meshStandardMaterial map={texture} color={palette.light} roughness={0.75} metalness={0.35} /></mesh>;
 }
 
@@ -73,10 +73,9 @@ function paletteColor(palette: Palette, token: BuildingStyleToken, tone: string)
 
 function Building({ index, palette, selected, style, onSelect }: { index: number; palette: Palette; selected: boolean; style: BuildingStyleToken; compact: boolean; onSelect: () => void }) {
   const district = CITY_DISTRICTS[index];
-  const windows = useMemo(() => (district ? windowTexture(index + 1, palette.gold) : null), [district, index, palette.gold]);
+  const windows = useDisposable(() => (district ? windowTexture(index + 1, palette.gold) : null), [district, index, palette.gold]);
   const body = useRef<THREE.MeshStandardMaterial>(null);
   const time = useRef(0);
-  useEffect(() => () => windows?.dispose(), [windows]);
   // JC-1: rising window lights when working; failed strobe on body emissive (≤2 Hz).
   useFrame((_, rawDelta) => {
     const mat = body.current;
@@ -278,10 +277,14 @@ function AnimationClock({ running }: { running: boolean }) {
 }
 
 
-/** Sparse rain streaks from measured failure density. No motion when density is 0. */
+/**
+ * Sparse rain streaks from measured failure density. No motion when density is 0.
+ * One InstancedMesh, so any number of streaks is a single draw call (JC-18).
+ */
+const RAIN_DUMMY = new THREE.Object3D();
 function Rain({ density, color }: { density: number; color: string }) {
   const drops = useMemo(() => {
-    const count = Math.max(0, Math.min(120, Math.round(density * 120)));
+    const count = Math.max(0, Math.min(CITY_RAIN_MAX, Math.round(density * CITY_RAIN_MAX)));
     return Array.from({ length: count }, (_, i) => ({
       x: ((i * 47) % 200) / 10 - 10,
       z: ((i * 91) % 200) / 10 - 10,
@@ -289,29 +292,77 @@ function Rain({ density, color }: { density: number; color: string }) {
       speed: 4 + (i % 5),
     }));
   }, [density]);
-  const group = useRef<THREE.Group>(null);
+  const mesh = useRef<THREE.InstancedMesh>(null);
+  const heights = useRef<number[]>([]);
+  const place = (root: THREE.InstancedMesh) => {
+    drops.forEach((drop, i) => {
+      RAIN_DUMMY.position.set(drop.x, heights.current[i] ?? drop.y, drop.z);
+      RAIN_DUMMY.updateMatrix();
+      root.setMatrixAt(i, RAIN_DUMMY.matrix);
+    });
+    root.instanceMatrix.needsUpdate = true;
+  };
+  useEffect(() => {
+    heights.current = drops.map(drop => drop.y);
+    if (mesh.current) place(mesh.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drops]);
   useFrame((_, rawDelta) => {
-    const root = group.current;
+    const root = mesh.current;
     if (!root || density <= 0) return;
     const delta = Math.min(rawDelta, 0.05);
-    root.children.forEach((child, i) => {
-      const drop = drops[i];
-      if (!drop) return;
-      child.position.y -= drop.speed * delta;
-      if (child.position.y < 0) child.position.y = drop.y;
+    drops.forEach((drop, i) => {
+      let y = (heights.current[i] ?? drop.y) - drop.speed * delta;
+      if (y < 0) y = drop.y;
+      heights.current[i] = y;
     });
+    place(root);
   });
   if (density <= 0 || drops.length === 0) return null;
   return (
-    <group ref={group} aria-hidden>
-      {drops.map((drop, i) => (
-        <mesh key={i} position={[drop.x, drop.y, drop.z]}>
-          <boxGeometry args={[0.02, 0.35, 0.02]} />
-          <meshBasicMaterial color={color} transparent opacity={0.35 + density * 0.35} depthWrite={false} />
-        </mesh>
-      ))}
-    </group>
+    <instancedMesh key={drops.length} ref={mesh} args={[undefined, undefined, drops.length]} frustumCulled={false}>
+      <boxGeometry args={[0.02, 0.35, 0.02]} />
+      <meshBasicMaterial color={color} transparent opacity={0.35 + density * 0.35} depthWrite={false} />
+    </instancedMesh>
   );
+}
+
+/**
+ * Dev-only readout (never in a production build): frames per second and the
+ * draw calls of the last frame, against the CITY_DRAW_CALL_BUDGET. Written to a
+ * small overlay element that is removed when the scene unmounts.
+ */
+function DevStats() {
+  const gl = useThree(state => state.gl);
+  const overlay = useRef<HTMLDivElement | null>(null);
+  const frames = useRef({ count: 0, since: 0 });
+  useEffect(() => {
+    const host = gl.domElement.parentElement;
+    if (!host) return;
+    const el = document.createElement("div");
+    el.setAttribute("data-testid", "city-dev-stats");
+    el.setAttribute("aria-hidden", "true");
+    el.style.cssText = "position:absolute;left:8px;top:8px;z-index:20;pointer-events:none;font:11px/1.3 monospace;background:rgba(0,0,0,.6);color:#9f9;padding:2px 6px;border-radius:4px";
+    host.appendChild(el);
+    overlay.current = el;
+    return () => { el.remove(); overlay.current = null; };
+  }, [gl]);
+  useFrame(() => {
+    const el = overlay.current;
+    if (!el) return;
+    const now = performance.now();
+    const tally = frames.current;
+    if (tally.since === 0) tally.since = now;
+    tally.count += 1;
+    if (now - tally.since < 1000) return;
+    const fps = Math.round((tally.count * 1000) / (now - tally.since));
+    const calls = gl.info.render.calls;
+    tally.count = 0; tally.since = now;
+    el.textContent = `${fps} fps · ${calls} draw calls / ${CITY_DRAW_CALL_BUDGET}`;
+    el.setAttribute("data-draw-calls", String(calls));
+    el.style.color = calls > CITY_DRAW_CALL_BUDGET ? "#f99" : "#9f9";
+  });
+  return null;
 }
 
 export default function CityScene({ snapshot, selected, drilled, onSelect, palette, motion, reset, onFailure, skyMode = "neutral", weather, showWeather = false }: CitySceneProps) {
@@ -328,6 +379,9 @@ export default function CityScene({ snapshot, selected, drilled, onSelect, palet
   const ceiling = useMemo(() => cityDprCeiling(typeof window === "undefined" ? 1 : window.devicePixelRatio), []);
   const [dpr, setDpr] = useState(ceiling);
   const controls = useRef<OrbitControlsType>(null);
+  // Removes the context-lost listener on unmount so a remounted city does not leave handlers behind (JC-17).
+  const contextCleanup = useRef<(() => void) | null>(null);
+  useEffect(() => () => { contextCleanup.current?.(); contextCleanup.current = null; }, []);
   const anyActive = motion && CITY_DISTRICTS.some(d => {
     const s = buildingStyleFor(d.id, snapshot, Date.now(), true);
     return s.risingWindows || s.goldRing || s.strobe;
@@ -337,7 +391,7 @@ export default function CityScene({ snapshot, selected, drilled, onSelect, palet
   const openApprovals = useOpenApprovals();
   const beaconsPulse = motion && approvals.status === "ok" && approvals.total > 0;
   const rainOn = Boolean(showWeather && motion && weather && weather.kind === "rain" && weather.density > 0);
-  return <Canvas orthographic shadows dpr={[CITY_DPR_MIN, dpr]} frameloop="demand" camera={{ position: [25, 26, 30], zoom: 20, near: 0.1, far: 150 }} gl={{ antialias: true, powerPreference: "low-power" }} onCreated={({ gl }) => { gl.domElement.addEventListener("webglcontextlost", onFailure, { once: true }); }} fallback={<div role="alert">3D unavailable. Switch to Operations.</div>}>
+  return <Canvas orthographic shadows dpr={[CITY_DPR_MIN, dpr]} frameloop="demand" camera={{ position: [25, 26, 30], zoom: 20, near: 0.1, far: 150 }} gl={{ antialias: true, powerPreference: "low-power" }} onCreated={({ gl }) => { const canvas = gl.domElement; canvas.addEventListener("webglcontextlost", onFailure, { once: true }); contextCleanup.current = () => canvas.removeEventListener("webglcontextlost", onFailure); }} fallback={<div role="alert">3D unavailable. Switch to Operations.</div>}>
     <color attach="background" args={[lighting.background]} />
     <fogExp2 attach="fog" args={[lighting.fog, skyMode === "amber" ? 0.016 : 0.011]} />
     <ambientLight intensity={lighting.ambient} color={lighting.ambientColor} />
@@ -358,6 +412,7 @@ export default function CityScene({ snapshot, selected, drilled, onSelect, palet
     <CityControls selected={selected} drilled={drilled} reset={reset} controls={controls} />
     <ApprovalBeacons3D state={approvals} gold={palette.gold} motion={motion} onOpen={openApprovals} />
     {rainOn ? <Rain density={weather!.density} color={palette.cyan} /> : null}
+    {import.meta.env.DEV ? <DevStats /> : null}
     <AnimationClock running={Boolean(anyActive || rainOn || beaconsPulse || drilled)} />
   </Canvas>;
 }
