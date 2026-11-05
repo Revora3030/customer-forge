@@ -1,5 +1,10 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
-import { drivePhotoPath, parseDriveFolderId, planDriveImport } from "./drive-intake";
+import {
+  driveIntakeEnabled,
+  drivePhotoPath,
+  parseDriveFolderId,
+  planDriveImport,
+} from "./drive-intake";
 import { importDriveFolder, listDriveFolder } from "./drive-intake.server";
 
 const ORG = "11111111-1111-1111-1111-111111111111";
@@ -85,5 +90,13 @@ describe("drive server", () => {
     expect(String(fetchImpl.mock.calls[0]?.[0])).toContain(
       "connector-gateway.lovable.dev/google_drive/drive/v3/files",
     );
+  });
+});
+
+describe("driveIntakeEnabled", () => {
+  it("is off unless exactly 'true'", () => {
+    expect(driveIntakeEnabled(undefined)).toBe(false);
+    expect(driveIntakeEnabled("1")).toBe(false);
+    expect(driveIntakeEnabled("true")).toBe(true);
   });
 });

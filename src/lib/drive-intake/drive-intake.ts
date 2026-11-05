@@ -69,3 +69,15 @@ export function planDriveImport(
   }
   return { toImport, skipped, remaining };
 }
+
+/** Google account owners share their photo folder with (Viewer access). */
+export const DRIVE_SHARE_ADDRESS = "godbody4040@gmail.com";
+
+/**
+ * Owner-facing Drive intake stays OFF until Google Drive is connected in
+ * Lovable and GOOGLE_DRIVE_API_KEY is set. Browser: VITE_DRIVE_INTAKE_ENABLED.
+ * Server: DRIVE_INTAKE_ENABLED. Both must be exactly "true".
+ */
+export function driveIntakeEnabled(value: unknown): boolean {
+  return value === "true";
+}

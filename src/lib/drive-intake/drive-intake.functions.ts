@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { MEDIA_CATEGORIES } from "@/lib/media";
-import { parseDriveFolderId } from "./drive-intake";
+import { driveIntakeEnabled, parseDriveFolderId } from "./drive-intake";
 
 export const importDrivePhotosFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -17,6 +17,8 @@ export const importDrivePhotosFn = createServerFn({ method: "POST" })
     return { organizationId: input.organizationId, folderId, category };
   })
   .handler(async ({ context, data }) => {
+    if (!driveIntakeEnabled(process.env["DRIVE_INTAKE_ENABLED"]))
+      throw new Error("Importing from Google Drive isn't switched on yet.");
     const { requireOrgRole } = await import("@/lib/org-authz.server");
     const orgId = await requireOrgRole(
       context.supabase as never,

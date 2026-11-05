@@ -4,7 +4,11 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "@/lib/ui/notify";
 import { Button } from "@/components/ui/button";
 import { importDrivePhotosFn } from "@/lib/drive-intake/drive-intake.functions";
-import { parseDriveFolderId } from "@/lib/drive-intake/drive-intake";
+import {
+  DRIVE_SHARE_ADDRESS,
+  driveIntakeEnabled,
+  parseDriveFolderId,
+} from "@/lib/drive-intake/drive-intake";
 
 /** BIL-12: pull phone photos from a shared Google Drive folder into the library. */
 export function DriveFolderImport({
@@ -47,11 +51,13 @@ export function DriveFolderImport({
     }
   }
 
+  if (!driveIntakeEnabled(import.meta.env["VITE_DRIVE_INTAKE_ENABLED"])) return null;
+
   return (
     <div className="mt-4 rounded-lg border border-border p-4">
       <p className="text-[14px] font-medium">Import from a Google Drive folder</p>
       <p className="mt-1 text-[12px] text-muted-foreground">
-        Share the folder with Revora's Google account (Viewer access), paste its link, and Revora
+        Share the folder with {DRIVE_SHARE_ADDRESS} (Viewer access), paste its link, and Revora
         copies the photos into this library. Running it again only adds new photos.
       </p>
       <div className="mt-3 flex flex-wrap gap-2">
