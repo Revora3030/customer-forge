@@ -107,6 +107,7 @@ import { Route as ApiPublicAltchaRouteImport } from './routes/api/public/altcha'
 import { Route as ApiPublicJarvisVoiceRouteImport } from './routes/api/public/jarvis-voice'
 import { Route as ApiPublicPreviewBeaconRouteImport } from './routes/api/public/preview-beacon'
 import { Route as ApiPublicSentryTestRouteImport } from './routes/api/public/sentry-test'
+import { Route as ApiPublicVisitorErrorsRouteImport } from './routes/api/public/visitor-errors'
 import { Route as LocalIndustryIndexRouteImport } from './routes/local.$industry.index'
 import { Route as LocalIndustryStateRouteImport } from './routes/local.$industry.$state'
 import { Route as PTokenPageRouteImport } from './routes/p.$token_.$page'
@@ -666,6 +667,11 @@ const ApiPublicSentryTestRoute = ApiPublicSentryTestRouteImport.update({
   path: '/api/public/sentry-test',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicVisitorErrorsRoute = ApiPublicVisitorErrorsRouteImport.update({
+  id: '/api/public/visitor-errors',
+  path: '/api/public/visitor-errors',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LocalIndustryIndexRoute = LocalIndustryIndexRouteImport.update({
   id: '/local/$industry/',
   path: '/local/$industry/',
@@ -1035,6 +1041,7 @@ export interface FileRoutesByFullPath {
   '/api/public/jarvis-voice': typeof ApiPublicJarvisVoiceRoute
   '/api/public/preview-beacon': typeof ApiPublicPreviewBeaconRoute
   '/api/public/sentry-test': typeof ApiPublicSentryTestRoute
+  '/api/public/visitor-errors': typeof ApiPublicVisitorErrorsRoute
   '/local/$industry/$state': typeof LocalIndustryStateRoute
   '/p/$token/$page': typeof PTokenPageRoute
   '/s/$slug/$page': typeof SSlugPageRoute
@@ -1178,6 +1185,7 @@ export interface FileRoutesByTo {
   '/api/public/jarvis-voice': typeof ApiPublicJarvisVoiceRoute
   '/api/public/preview-beacon': typeof ApiPublicPreviewBeaconRoute
   '/api/public/sentry-test': typeof ApiPublicSentryTestRoute
+  '/api/public/visitor-errors': typeof ApiPublicVisitorErrorsRoute
   '/local/$industry/$state': typeof LocalIndustryStateRoute
   '/p/$token/$page': typeof PTokenPageRoute
   '/s/$slug/$page': typeof SSlugPageRoute
@@ -1328,6 +1336,7 @@ export interface FileRoutesById {
   '/api/public/jarvis-voice': typeof ApiPublicJarvisVoiceRoute
   '/api/public/preview-beacon': typeof ApiPublicPreviewBeaconRoute
   '/api/public/sentry-test': typeof ApiPublicSentryTestRoute
+  '/api/public/visitor-errors': typeof ApiPublicVisitorErrorsRoute
   '/local/$industry/$state': typeof LocalIndustryStateRoute
   '/p/$token_/$page': typeof PTokenPageRoute
   '/s/$slug/$page': typeof SSlugPageRoute
@@ -1478,6 +1487,7 @@ export interface FileRouteTypes {
     | '/api/public/jarvis-voice'
     | '/api/public/preview-beacon'
     | '/api/public/sentry-test'
+    | '/api/public/visitor-errors'
     | '/local/$industry/$state'
     | '/p/$token/$page'
     | '/s/$slug/$page'
@@ -1621,6 +1631,7 @@ export interface FileRouteTypes {
     | '/api/public/jarvis-voice'
     | '/api/public/preview-beacon'
     | '/api/public/sentry-test'
+    | '/api/public/visitor-errors'
     | '/local/$industry/$state'
     | '/p/$token/$page'
     | '/s/$slug/$page'
@@ -1770,6 +1781,7 @@ export interface FileRouteTypes {
     | '/api/public/jarvis-voice'
     | '/api/public/preview-beacon'
     | '/api/public/sentry-test'
+    | '/api/public/visitor-errors'
     | '/local/$industry/$state'
     | '/p/$token_/$page'
     | '/s/$slug/$page'
@@ -1875,6 +1887,7 @@ export interface RootRouteChildren {
   ApiPublicJarvisVoiceRoute: typeof ApiPublicJarvisVoiceRoute
   ApiPublicPreviewBeaconRoute: typeof ApiPublicPreviewBeaconRoute
   ApiPublicSentryTestRoute: typeof ApiPublicSentryTestRoute
+  ApiPublicVisitorErrorsRoute: typeof ApiPublicVisitorErrorsRoute
   LocalIndustryStateRoute: typeof LocalIndustryStateRoute
   PTokenPageRoute: typeof PTokenPageRoute
   UnsubscribeLifecycleTokenRoute: typeof UnsubscribeLifecycleTokenRoute
@@ -2606,6 +2619,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicSentryTestRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/visitor-errors': {
+      id: '/api/public/visitor-errors'
+      path: '/api/public/visitor-errors'
+      fullPath: '/api/public/visitor-errors'
+      preLoaderRoute: typeof ApiPublicVisitorErrorsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/local/$industry/': {
       id: '/local/$industry/'
       path: '/local/$industry'
@@ -3238,6 +3258,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicJarvisVoiceRoute: ApiPublicJarvisVoiceRoute,
   ApiPublicPreviewBeaconRoute: ApiPublicPreviewBeaconRoute,
   ApiPublicSentryTestRoute: ApiPublicSentryTestRoute,
+  ApiPublicVisitorErrorsRoute: ApiPublicVisitorErrorsRoute,
   LocalIndustryStateRoute: LocalIndustryStateRoute,
   PTokenPageRoute: PTokenPageRoute,
   UnsubscribeLifecycleTokenRoute: UnsubscribeLifecycleTokenRoute,
