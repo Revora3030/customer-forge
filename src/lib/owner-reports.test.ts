@@ -8,18 +8,26 @@ import {
   isoWeekKey,
   leadReminderMessage,
   runLeadReminders,
+  runWeeklyReports,
   runSiteHealth,
   weeklyReportMessage,
 } from "@/lib/owner-reports.server";
 import { sendTemplateEmail } from "@/lib/email-templates/send-email";
 
 /** A tiny chainable fake of the Supabase query builder. */
-function fakeDb(tables: Record<string, unknown[]>, opts: { claimFails?: boolean } = {}) {
+function fakeDb(tables: Record<string, unknown[]>, opts: { claimFails?: boolean; honorDates?: boolean } = {}) {
   const inserted: unknown[] = [];
   const from = (table: string) => {
     const result = { data: tables[table] ?? [], error: null };
     const chain: Record<string, unknown> = {};
     for (const m of ["select", "eq", "neq", "lt", "gt", "gte", "in", "order", "limit", "update", "delete"]) chain[m] = () => chain;
+    if (opts.honorDates) {
+      // Date windows (gte on a timestamp column) are applied, so week-over-week numbers are real.
+      chain["gte"] = (column: string, value: string) => {
+        result.data = (result.data as Record<string, unknown>[]).filter((row) => typeof row[column] !== "string" || (row[column] as string) >= value);
+        return chain;
+      };
+    }
     chain["maybeSingle"] = async () => ({ data: (tables[table] ?? [])[0] ?? null, error: null });
     chain["then"] = (resolve: (v: unknown) => unknown) => resolve(result);
     chain["insert"] = async (row: unknown) => {
@@ -95,3 +103,63 @@ describe("owner reports run in the app, not n8n", () => {
     for (const job of ["lead-reminder", "weekly-report", "site-health"]) expect(yml).toContain(`job=${job}`);
   });
 });
+
+describe("Monday digest (B12-9)", () => {
+  const now = Date.parse("2026-11-09T13:00:00Z");
+  const ago = (days: number) => new Date(now - days * 86_400_000).toISOString();
+
+  it("adds only real extras to the existing weekly email, once per week", async () => {
+    vi.mocked(sendTemplateEmail).mockClear();
+    const { db, inserted } = fakeDb({
+      organizations: [{ id: "o1", name: "Elite" }],
+      business_profiles: [{ organization_id: "o1", notification_email: "owner@elite.com", notify_on_lead: true }],
+      leads: [
+        { organization_id: "o1", status: "new", source: "google", created_at: ago(1) },
+        { organization_id: "o1", status: "booked", source: "google", created_at: ago(2) },
+        { organization_id: "o1", status: "new", source: "facebook", created_at: ago(10) },
+      ],
+      appointments: [{ organization_id: "o1" }],
+      quotes: [{ id: "q1", created_at: ago(1) }],
+      quote_line_items: [{ quote_id: "q1", quantity: 2, unit_price: 100 }],
+      analytics_events: [{ session_id: "s1", created_at: ago(1) }, { session_id: "s2", created_at: ago(3) }],
+      agent_suggestions: [{ title: "Answer 2 waiting leads", body: "Over a day old." }],
+      site_content_audits: [{ reachable: true, p1_count: 1, p2_count: 0, findings: [{ check: "broken-link" }], audited_at: ago(2) }],
+    }, { honorDates: true });
+    const run = await runWeeklyReports(db, now);
+    expect(run.sent).toBe(1);
+    expect(inserted).toHaveLength(1);
+    const body = String((vi.mocked(sendTemplateEmail).mock.calls[0]![2] as { templateData: { message: string } }).templateData.message);
+    expect(body).toContain("New leads: 2");
+    expect(body).toContain("New leads this week were up 1 from last week.");
+    expect(body).toContain("google (2)");
+    expect(body).toContain("$200 in total");
+    expect(body).toContain("Website visits: 2 from 2 visitors");
+    expect(body).toContain("Answer 2 waiting leads");
+    expect(body).toContain("Form completion rate: not tracked yet");
+    expect(body).toContain("Broken links: 1");
+    expect(body).toContain("Sitemap, indexed pages and page speed: not tracked yet");
+  });
+
+  it("still sends the plain weekly report when the extra numbers cannot be read", async () => {
+    vi.mocked(sendTemplateEmail).mockClear();
+    const real = fakeDb({
+      organizations: [{ id: "o1", name: "Elite" }],
+      business_profiles: [{ organization_id: "o1", notification_email: "owner@elite.com", notify_on_lead: true }],
+      leads: [{ organization_id: "o1", status: "new", source: "google", created_at: ago(1) }],
+      appointments: [],
+    });
+    const from = (real.db as unknown as { from: (t: string) => Record<string, unknown> }).from;
+    const db = {
+      from: (table: string) => {
+        if (table === "agent_suggestions") throw new Error("table missing");
+        return from(table);
+      },
+    } as never;
+    const run = await runWeeklyReports(db, now);
+    expect(run.sent).toBe(1);
+    const body = String((vi.mocked(sendTemplateEmail).mock.calls[0]![2] as { templateData: { message: string } }).templateData.message);
+    expect(body).toContain("New leads: 1");
+    expect(body).not.toContain("Also this week");
+  });
+});
+
