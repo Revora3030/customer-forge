@@ -87,7 +87,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     verifiedBy: ["src/routes/_authenticated/app.leads.tsx", "src/components/app/LeadNotifications.tsx"],
   },
   {
-    slug: "send-a-test-lead",
+    slug: "try-your-lead-alerts",
     title: "Send a test lead",
     description: "See what a real lead looks like before one arrives.",
     updated: UPDATED,

@@ -95,7 +95,7 @@ export function classifyIntent(path: string): SearchIntent {
   if (/^\/industries/.test(p)) return "industry";
   if (/^\/(crm|crm-for-contractors|website-audit|growth-assessment|tools|demo)/.test(p))
     return "commercial";
-  if (/^\/(about|privacy|terms|share)/.test(p)) return "navigational";
+  if (/^\/(about|privacy|terms|share|help)/.test(p)) return "navigational";
   return "commercial";
 }
 
