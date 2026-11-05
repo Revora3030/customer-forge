@@ -168,6 +168,21 @@ describe("inventory", () => {
       "customers",
       "appointments",
       "quote_requests",
+      // Added since #556 (TEN refresh 2026-11-05).
+      "agent_approvals",
+      "agent_routines",
+      "agent_suggestions",
+      "business_memory",
+      "business_memory_events",
+      "business_memory_embeddings",
+      "push_subscriptions",
+      "site_monitor_findings",
+      "site_monitor_checks",
+      "visitor_error_events",
+      "website_rules",
+      "website_preview_link_secrets",
+      "owner_sign_in_devices",
+      "ai_visibility_checks",
     ]) {
       expect(byName(name).rlsEnabled, name).toBe(true);
     }
@@ -525,6 +540,33 @@ describe("views, functions and storage", () => {
       expect(`${p.using} ${p.withCheck}`, p.name).toMatch(/storage\.foldername\(name\)\)\[1\]\)::uuid/);
       expect(`${p.using} ${p.withCheck}`, p.name).toMatch(/is_org_member|can_manage_org/);
     }
+  });
+
+  it("every browser storage policy names one bucket and is scoped to the caller's org folder or own user folder", () => {
+    const loose: string[] = [];
+    for (const p of model.tables.get("storage.objects")?.policies.values() ?? []) {
+      if (p.roles.includes("service_role") && p.roles.length === 1) continue;
+      const expr = `${p.using ?? ""} ${p.withCheck ?? ""}`;
+      const bucket = /bucket_id\s*=\s*'[\w-]+'/.test(expr);
+      const orgFolder = /private\.(is_org_member|can_manage_org)\(\(\(storage\.foldername\(name\)\)\[1\]\)::uuid\)/.test(expr);
+      const userFolder = /\(storage\.foldername\(name\)\)\[1\]\s*=\s*auth\.uid\(\)::text/.test(expr);
+      if (!p.roles.every((r) => r === "authenticated") || !bucket || !(orgFolder || userFolder)) loose.push(p.name);
+    }
+    expect(loose).toEqual([]);
+  });
+
+  it("every browser storage UPDATE policy is scoped on both using and check", () => {
+    const bad = [...(model.tables.get("storage.objects")?.policies.values() ?? [])]
+      .filter((p) => p.cmd === "UPDATE" && !p.roles.every((r) => r === "service_role"))
+      .filter((p) => !p.using || !p.withCheck)
+      .map((p) => p.name);
+    expect(bad).toEqual([]);
+  });
+
+  it("the doc-ingest bucket stays private", () => {
+    const sql = readTriggerSql();
+    expect(sql).toMatch(/'doc-ingest',\s*'doc-ingest',\s*false/);
+    expect(sql).not.toMatch(/update\s+storage\.buckets\s+set\s+public\s*=\s*true\s+where\s+id\s*=\s*'doc-ingest'/i);
   });
 });
 

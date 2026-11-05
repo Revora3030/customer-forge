@@ -54,7 +54,7 @@ const key = (f: ServerFn) => `${f.file}#${f.name}`;
 
 /** Fields that name a tenant, site, lead or user in a request. */
 const ID_FIELD =
-  /\b(organizationId|orgId|organization_id|businessId|siteId|websiteId|leadId|userId|clientId|workspaceId|memberId|org_id|backupId|invitationId|customerId|versionId|pageId)\b/;
+  /\b(organizationId|orgId|organization_id|businessId|siteId|websiteId|leadId|userId|clientId|workspaceId|memberId|org_id|backupId|invitationId|customerId|versionId|pageId|routineId|approvalId|suggestionId|snapshotId|restoreVersionId|checkpointId|sectionId|componentId|mediaId|ruleId|findingId|runId)\b/;
 
 /** Recognised ownership guards (all resolve the caller from the verified session). */
 const GUARD =
