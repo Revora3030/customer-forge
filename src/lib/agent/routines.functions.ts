@@ -114,3 +114,54 @@ export const deleteRoutineFn = createServerFn({ method: "POST" })
       return fail(error);
     }
   });
+
+const historyInput = orgInput.extend({ routineId: z.string().uuid() });
+
+/** JC-54: the last runs of one routine, with what each read and proposed. Any member can see it. */
+export const listRoutineRunsFn = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: unknown) => historyInput.parse(input))
+  .handler(async ({ data, context }) => {
+    const { requireOrgRole } = await import("@/lib/org-authz.server");
+    const orgId = await requireOrgRole(context.supabase, data.organizationId, String(context.userId), "viewer");
+    const { routineRunViews } = await import("./routine-history");
+    const db = context.supabase as unknown as import("@supabase/supabase-js").SupabaseClient;
+    const runs = await db
+      .from("agent_runs")
+      .select("id,status,created_at,finished_at,result_summary,error_plain")
+      .eq("organization_id", orgId)
+      .eq("source", "routine")
+      .eq("checkpoint->routine->>id", data.routineId)
+      .order("created_at", { ascending: false })
+      .limit(10);
+    if (runs.error) throw new Error("Couldn't load this routine's runs.");
+    const ids = (runs.data ?? []).map((r) => String(r.id));
+    if (ids.length === 0) return { runs: [] };
+    const [steps, approvals] = await Promise.all([
+      db.from("agent_run_steps").select("run_id,seq,tool,status").eq("organization_id", orgId).in("run_id", ids).limit(500),
+      db.from("agent_approvals").select("run_id,summary,status,tool").eq("organization_id", orgId).in("run_id", ids).limit(100),
+    ]);
+    if (steps.error || approvals.error) throw new Error("Couldn't load this routine's runs.");
+    return { runs: routineRunViews(runs.data as never, steps.data as never, approvals.data as never) };
+  });
+
+/** JC-54 retry: put the routine back in the queue now. The scheduler picks it up within 15 minutes. Owner only. */
+export const runRoutineSoonFn = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: unknown) => historyInput.parse(input))
+  .handler(async ({ data, context }): Promise<Result> => {
+    const { requireOrgRole } = await import("@/lib/org-authz.server");
+    const orgId = await requireOrgRole(context.supabase, data.organizationId, String(context.userId), "owner");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const now = new Date().toISOString();
+    const { data: rows, error } = await (supabaseAdmin as unknown as import("@supabase/supabase-js").SupabaseClient)
+      .from("agent_routines")
+      .update({ next_run_at: now, updated_at: now })
+      .eq("id", data.routineId)
+      .eq("organization_id", orgId)
+      .eq("enabled", true)
+      .select("id");
+    if (error) return { ok: false, message: "Couldn't queue that routine. Try again." };
+    if (!rows?.length) return { ok: false, message: "Turn the routine on first." };
+    return { ok: true };
+  });

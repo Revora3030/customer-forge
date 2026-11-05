@@ -21,7 +21,7 @@ describe("JC-53 owner routine presets", () => {
 
   it("server functions guard by role: members read, only the owner writes", () => {
     const src = readFileSync("src/lib/agent/routines.functions.ts", "utf8");
-    expect(src.match(/"owner"\)/g)?.length).toBe(3);
+    expect(src.match(/"owner"\)/g)?.length).toBe(4);
     expect(src).toMatch(/"viewer"\)/);
     expect(src).toMatch(/preset: z\.enum\(OWNER_ROUTINE_PRESETS\)/);
     expect(src).not.toMatch(/prompt:\s*z\./);
