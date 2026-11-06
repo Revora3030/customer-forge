@@ -42,13 +42,16 @@ type FrameWindow = Window & { __revoraEval?: unknown };
  * Runs a snippet inside the measured page's own window.
  *
  * The site's security policy forbids `eval`, so the snippet runs as an inline
- * script element in the same-origin frame (inline scripts are already allowed
- * for server-rendered HTML) and hands its value back through a one-shot slot.
+ * script element in the same-origin frame and hands its value back through a
+ * one-shot slot. Inline scripts only run with the page's per-request CSP nonce,
+ * so the element borrows it from a script the server already stamped.
  */
 function evaluate(win: Window, code: string): unknown {
   const frame = win as FrameWindow;
   const doc = frame.document;
   const script = doc.createElement("script");
+  const nonce = (doc.querySelector("script[nonce]") as HTMLScriptElement | null)?.nonce;
+  if (nonce) script.nonce = nonce;
   script.textContent = `window.__revoraEval = ${code};`;
   frame.__revoraEval = undefined;
   (doc.head ?? doc.documentElement).appendChild(script);
