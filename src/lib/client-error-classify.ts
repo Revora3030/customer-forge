@@ -100,7 +100,7 @@ const RECOVERABLE_REACT = [
   /error during concurrent rendering but react was able to recover/i,
   /there was an error while hydrating/i,
   /text content does not match server-rendered html/i,
-  /minified react error #(418|419|421|422|423|425)\b/i,
+  /minified react error #(418|419|421|422|423|425|520)\b/i,
 ];
 
 export function classifyClientError(error: unknown, described = describeClientError(error)): ClientErrorDisposition {

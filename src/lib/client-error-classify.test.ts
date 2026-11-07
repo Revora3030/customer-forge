@@ -53,6 +53,17 @@ describe("classifyClientError", () => {
     ).toBe("warn");
   });
 
+  it("downgrades the minified production form of React's recoverable render error (#520)", () => {
+    // Production builds throw the minified message, not the full sentence above.
+    expect(
+      classifyClientError(
+        new Error(
+          "Minified React error #520; visit https://react.dev/errors/520 for the full message or use the non-minified dev environment for full errors and additional helpful warnings.",
+        ),
+      ),
+    ).toBe("warn");
+  });
+
   it("reports real application errors", () => {
     expect(classifyClientError(new TypeError("Cannot read properties of undefined (reading 'days')"))).toBe(
       "report",
